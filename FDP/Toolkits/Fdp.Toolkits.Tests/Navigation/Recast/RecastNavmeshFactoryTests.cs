@@ -351,7 +351,7 @@ public sealed class RecastNavmeshFactoryTests
     /// the back CLOSED (the bt-doors scenario) the route into the west room goes round by the back door and marks it.
     /// <para>📐 Found by the first bt-doors live run (`2026-10-08`), three causes: the template's front door was at 4.5 (`at` is the
     /// opening's START), so its 1.0 m spanned 104.5..105.5 — centred ON the inner wall (x 105); a 1.0 m doorway leaves 0.4 m after the
-    /// 0.3 m infantry erosion — one or two 0.3 m voxels, so whether it bakes depends on grid alignment (the doors are 1.2 m now); and
+    /// 0.3 m infantry erosion — one or two 0.3 m voxels, so whether it bakes depends on grid alignment (they were 1.2 m until the tiled bake; real 0.9 m since — infantry tiles over a building bake at 0.15 m, CE-3111); and
     /// <c>TerrainWorldMesh</c> dropped every
     /// 2 m ground cell whose centre lay in a wall panel, so the 0.15 m inner wall at x 105 (a cell centre) cut a 2 m strip out of the
     /// floor (walkable ended at 103.8 and began at 106.2) and neither the hall nor the front doorway connected. The agent got a
@@ -396,5 +396,107 @@ public sealed class RecastNavmeshFactoryTests
         int m = both.PlanPath(new Vector3(104.2f, 94, 0), west, wps, 0xFFFFFFFFu, scenario);
         Assert.True(m > 0 && Vector2.Distance(new Vector2(wps[m - 1].Position.X, wps[m - 1].Position.Y), new Vector2(west.X, west.Y)) < 0.5f,
             $"any-layer request: the path must reach the west room — ends at {(m > 0 ? wps[m - 1].Position : default)}");
+    }
+
+    // ── CE-3111 · CE-1029 · R-218 P2 — the tiled bake (📄 Navigation_Design_v2_0.md §14 "P2 as built") ─────────────────
+
+    /// <summary>A world of two rooms, 100 m apart, each with ONE real-width (0.9 m) door in its south wall; <paramref name="eastDoorAt"/>
+    /// moves the east room's door along its wall (a geometry change the rebake rail makes).</summary>
+    private static string TwoRooms(float eastDoorAt = 4.55f) => $$$"""
+        {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,160,60],"groundZ":0},"features":[
+          {"type":"Feature","properties":{"kind":"building","label":"W","doors":{"front":"open"},"building":{
+             "footprint":[[0,0],[10,0],[10,8],[0,8]],
+             "storeys":[{"height":3,"walls":[
+                  {"from":[0,0],"to":[10,0],"openings":[{"kind":"door","at":4.55,"width":0.9,"doorId":"front"}]},
+                  {"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}},
+           "geometry":{"type":"Point","coordinates":[20,20]}},
+          {"type":"Feature","properties":{"kind":"building","label":"E","doors":{"front":"open"},"building":{
+             "footprint":[[0,0],[10,0],[10,8],[0,8]],
+             "storeys":[{"height":3,"walls":[
+                  {"from":[0,0],"to":[10,0],"openings":[{"kind":"door","at":{{{eastDoorAt.ToString(System.Globalization.CultureInfo.InvariantCulture)}}},"width":0.9,"doorId":"front"}]},
+                  {"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}},
+           "geometry":{"type":"Point","coordinates":[120,20]}}]}
+        """;
+
+    private static string TempCacheFolder() => System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-navtiles-test-" + Guid.NewGuid().ToString("N"));
+
+    /// <summary>
+    /// ⭐ CE-3111 — a REAL door (0.9 m) is passable: the infantry tiles over each building bake at 0.15 m, the open ground stays at
+    /// 0.3 m, and a walk from outside into each room goes through its door. (Before tiling: one 0.3 m tile ⇒ 0/5 grid alignments.)
+    /// </summary>
+    [Fact]
+    public void CE3111_RealWidthDoors_BakeThroughFineTiles_TheOpenGroundStaysCoarse()
+    {
+        var factory = new RecastNavmeshFactory { Layers = NavLayerMask.Infantry, TileCache = null };
+        var nav = factory.Build(TerrainWorldParser.Parse(TwoRooms(), "range"))!;
+        var st = factory.LastStats;
+        Assert.True(st.FineTiles > 0 && st.FineTiles < st.Tiles, $"fine tiles only over the buildings: {st}");
+        Assert.True(nav.PathExists(new Vector3(25, 10, 0), new Vector3(25, 25, 0)), "into the west room through its 0.9 m door");
+        Assert.True(nav.PathExists(new Vector3(125, 10, 0), new Vector3(125, 25, 0)), "into the east room through its 0.9 m door");
+        Assert.True(nav.PathExists(new Vector3(5, 5, 0), new Vector3(150, 50, 0)), "the open ground connects across every tile border");
+    }
+
+    /// <summary>
+    /// ⭐ CE-1029 — a second load bakes NOTHING: every tile comes from the cache — from memory, and (memory dropped, as in a new
+    /// process) from the disk folder — and the mesh answers exactly as the baked one did.
+    /// </summary>
+    [Fact]
+    public void CE1029_ASecondLoad_BakesNoTile_FromMemoryOrFromDisk_AndAnswersTheSame()
+    {
+        var folder = TempCacheFolder();
+        try
+        {
+            var cache = new NavTileCache(folder);
+            var factory = new RecastNavmeshFactory { TileCache = cache };
+            var world = TerrainWorldParser.Parse(TwoRooms(), "range");
+
+            var first = factory.Build(world)!;
+            var baked = factory.LastStats;
+            Assert.True(baked.Baked > 0 && baked.FromCache == 0, $"first load bakes: {baked}");
+
+            var second = factory.Build(world)!;
+            Assert.Equal((0, baked.Tiles), (factory.LastStats.Baked, factory.LastStats.FromCache));
+
+            cache.ClearMemory();
+            var third = factory.Build(world)!;
+            Assert.Equal((0, baked.Tiles), (factory.LastStats.Baked, factory.LastStats.FromCache));
+            Assert.NotEmpty(System.IO.Directory.GetFiles(folder, "*.navtile", System.IO.SearchOption.AllDirectories));
+
+            var a = new Vector3(25, 10, 0); var b = new Vector3(125, 25, 0);
+            float cost = first.PathCost(a, b, (uint)NavLayerMask.Infantry);
+            Assert.True(cost > 0f && !float.IsInfinity(cost), $"a baked path: {cost}");
+            Assert.Equal(cost, second.PathCost(a, b, (uint)NavLayerMask.Infantry), 3);
+            Assert.Equal(cost, third.PathCost(a, b, (uint)NavLayerMask.Infantry), 3);
+        }
+        finally { try { System.IO.Directory.Delete(folder, true); } catch { } }
+    }
+
+    /// <summary>
+    /// ⭐ R-218 P2 — the touched-tile rebuild: after a geometry change (the east room's door moves) <see cref="RecastNavmeshFactory.Rebake"/>
+    /// bakes ONLY the tiles the change reaches — the west room's and the open ground's come from the cache — and swaps one new
+    /// snapshot (the version moves); the moved door is where the path now goes.
+    /// </summary>
+    [Fact]
+    public void R218P2_Rebake_BakesOnlyTheTilesAChangeTouched_AndSwapsOneSnapshot()
+    {
+        var factory = new RecastNavmeshFactory { Layers = NavLayerMask.Infantry, TileCache = new NavTileCache() };
+        var provider = (DotRecastNavmeshProvider)factory.Build(TerrainWorldParser.Parse(TwoRooms(eastDoorAt: 1.0f), "range"))!;
+        var full = factory.LastStats;
+        uint v0 = provider.QueryVersion();
+
+        Assert.True(factory.Rebake(provider, TerrainWorldParser.Parse(TwoRooms(eastDoorAt: 8.0f), "range")));
+        var re = factory.LastStats;
+        Assert.True(re.Baked > 0 && re.Baked < full.Tiles / 2, $"only the east room's tiles re-bake: {re} (full bake {full})");
+        Assert.Equal(full.Tiles, re.Baked + re.FromCache);
+        Assert.Equal(v0 + 1, provider.QueryVersion());
+
+        // The door moved from x 121.0–121.9 to 128.0–128.9: a walk in from (128.5, 10) now goes straight north through it.
+        var wps = new NavWaypoint[64];
+        int n = provider.PlanPath(new Vector3(128.5f, 10, 0), new Vector3(128.5f, 25, 0), wps, (uint)NavLayerMask.Infantry);
+        Assert.True(n > 0, "a path into the east room");
+        float len = 0f;
+        var prev = new Vector3(128.5f, 10, 0);
+        for (int i = 0; i < n; i++) { len += Vector2.Distance(new Vector2(prev.X, prev.Y), new Vector2(wps[i].Position.X, wps[i].Position.Y)); prev = wps[i].Position; }
+        Assert.InRange(len, 14.9f, 15.6f);   // straight through the moved door (via the old one, at x 121.45, ≈ 20.8 m)
     }
 }

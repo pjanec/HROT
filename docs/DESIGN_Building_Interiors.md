@@ -948,11 +948,13 @@ agent never gets `CustomTrajectory` marks, so it ignores doors (as before).
 ① `TerrainWorldMesh` cut a 2 m strip of ground along the 0.15 m inner wall (it dropped every ground cell whose centre lay in a wall
 panel) — the hall door never connected (📄 `DESIGN_Terrain_World.md` §6) · ② the template's front door (`at` 4.5 is the opening's
 START) was centred ON the inner wall · ③ a 1.0 m doorway leaves 0.4 m after the 0.3 m infantry erosion — one or two 0.3 m voxels, so
-it bakes or not by grid alignment. ⇒ ⭐ **a doorway an infantry agent must pass is ≥ 1.2 m at the current bake (0.3 m radius, 0.3 m
-cells)**; House A's doors are 1.2 m. Rail `RecastNavmeshFactoryTests.Stage5d_BtRangeHouseA_EveryDoorwayConnectsForInfantry`.
+it bakes or not by grid alignment. ✅ **Fixed by the tiled bake (`CE-3111`, `2026-10-08`)**: infantry tiles over a building bake
+at 0.15 m cells, so a real 0.9 m door passes; House A's doors are 0.9 m (same centres). ⛔ SUPERSEDED: *"a doorway an infantry agent
+must pass is ≥ 1.2 m; House A's doors are 1.2 m"* (the stopgap at one 0.3 m tile). Rail
+`RecastNavmeshFactoryTests.Stage5d_BtRangeHouseA_EveryDoorwayConnectsForInfantry`.
 ④ ✅ **the agent planned on the VEHICLE layer** (1.8 m: no doorway admits it): `NavLayerSelection.For` read `VehicleState` as "a vehicle", and SimHost infantry carries it. Fixed by R-222 (`CE-3112`): the layer is mapped from the TKB locomotion class (`Pedestrian` ⇒ Infantry); the human templates now say `Pedestrian`.
-⚠ Real doors are 0.8–0.9 m: passing them needs a finer interior bake (a smaller cell, or a tiled bake with finer tiles in
-buildings — with `CE-1029`/R-218 P2), not a narrower radius.
+✅ Real doors (0.8–0.9 m) pass since the tiled bake — 📄 [`Navigation_Design_v2_0.md`](designs/navig-2/Navigation_Design_v2_0.md)
+§14 "P2 as built" (0.9 m: 5/5 grid alignments at 0.15 m; 0.8 m only 2/5 — a 0.8 m door is still alignment-dependent).
 
 ⚠ **Known limits:** when no route avoids the locked door, the planner returns a PARTIAL path (the agent goes as near as it can and the
 watchdog ends the move) · a DtCrowd host ignores doors.

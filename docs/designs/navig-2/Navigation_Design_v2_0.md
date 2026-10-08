@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-08 (§14 P2 spike: mixed cell-size tiles join, CE-3111 · §15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
+updated: 2026-10-08 (§14 P2 as built: tiled bake + tile cache + touched-tile rebuild, CE-3111/CE-1029 · §15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
 current-answer: §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; §14 (runtime
-  navmesh change, rewritten 2026-10-08, R-218); the rest is the architectural contract.
+  navmesh change, rewritten 2026-10-08, R-218; "P2 as built" for the tiled bake and the tile cache); the rest is the architectural contract.
 stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
   the as-built keys it on NavigationIntent.Mode == PathToPoint + IntentId (the Brain's channel never leaves the Brain).
 known-rot: the top banner supersedes any Y-up wording (CE-3011).
@@ -1235,7 +1235,7 @@ In all-in-one mode, the same call resolves directly against the shared in-proces
 | change | examples | mechanism | state |
 |---|---|---|---|
 | **STATE on fixed geometry** | a door, smoke, a danger cost, a pre-baked bridge up/down | the **query filter** judges by the state at query time — ⭐ the CALLER's `DoorStates`, built from the view it runs on (R-219: a background solver sees its own snapshot's doors) — the polygons were baked with their own area id | ✅ doors (`DoorAwareQueryFilter`, Building Interiors §3j 5c + 5b′) |
-| **GEOMETRY** | a breached wall, a crater, a collapsed or placed building (AQ81 T6) | **copy-on-write**: rebuild off-thread, **swap one immutable snapshot** atomically; in-flight queries finish on the old one | ⭐ P1 snapshot ✅ · P2 tiles ⏭ |
+| **GEOMETRY** | a breached wall, a crater, a collapsed or placed building (AQ81 T6) | **copy-on-write**: rebuild off-thread, **swap one immutable snapshot** atomically; in-flight queries finish on the old one | ⭐ P1 snapshot ✅ · P2 tiles + cache ✅ (`2026-10-08`) |
 
 ```mermaid
 classDiagram
@@ -1245,31 +1245,39 @@ classDiagram
     class DotRecastNavmeshProvider { <<existing>> Volatile Snapshot NEW (P1) · Rebake = build a new snapshot, swap }
     class NavmeshSnapshot { <<NEW P1, immutable>> per layer: DtNavMesh + filter + door polys · Version }
     class DoorAwareQueryFilter { <<existing, 5c>> STATE changes: reads live door state }
-    class NavmeshTileRebuilder { <<P2, with CE-1029>> rebuild the tiles a change touches, off-thread, into a NEW snapshot }
+    class RecastNavmeshFactory { <<existing, P2>> Build(world) · Rebake(provider, world) — FineAreas = building footprints + doorways }
+    class RecastNavmeshBaker { <<existing, TILED in P2>> 24 m tiles on an origin-anchored grid · infantry over a building 0.15 m, else 0.3 m · parallel }
+    class NavTileCache { <<NEW P2>> memory + local folder · key = layer, tile x/z, hash of the tile's inputs · stores BYTES }
     class PathReplanCheck { <<P3, with 5d>> a path whose stamped version is older than the region's ⇒ replan }
     INavmeshProvider <|.. SwitchableNavmeshProvider
     INavmeshProvider <|.. DotRecastNavmeshProvider
     SwitchableNavmeshProvider o-- DotRecastNavmeshProvider
     DotRecastNavmeshProvider --> NavmeshSnapshot : one field, swapped whole
     NavmeshSnapshot *-- DoorAwareQueryFilter : one per layer
-    NavmeshTileRebuilder ..> NavmeshSnapshot : produces
+    RecastNavmeshFactory --> RecastNavmeshBaker : bakes through
+    RecastNavmeshBaker --> NavTileCache : unchanged tiles come from
+    RecastNavmeshFactory ..> DotRecastNavmeshProvider : Rebake = a NEW snapshot
     PathReplanCheck ..> INavmeshProvider : QueryVersion
 ```
 *What it shows that prose hid:* a query reads ONE snapshot field once and uses only that object, so a swap can never be seen
-half-done — the same reason the whole-provider `Publish` at terrain load is already safe. The tile rebuilder (P2) only ever
-PRODUCES a snapshot; nothing writes into one.
+half-done — the same reason the whole-provider `Publish` at terrain load is already safe. ⭐ **P2 has no separate tile
+rebuilder**: the touched-tile rebuild IS a bake through the cache (an unchanged tile's key is unchanged ⇒ a hit), and it only
+ever PRODUCES a snapshot; nothing writes into one. ⛔ SUPERSEDED: the first draft's `NavmeshTileRebuilder` class.
 
 ```mermaid
 sequenceDiagram
-    participant C as a geometry change (P2: asset op / breach)
-    participant B as NavmeshTileRebuilder (off-thread)
+    participant C as a geometry change (AQ81 T6 — not built)
+    participant F as RecastNavmeshFactory.Rebake (off-thread)
+    participant K as NavTileCache
     participant P as DotRecastNavmeshProvider
     participant Q as solver / EQS query (background)
     participant N as NavigationExecution (P3)
-    C->>B: affected bounds
-    B->>B: copy the current tiles, rebuild the touched ones
+    C->>F: the changed TerrainWorld
+    F->>K: per tile: key = hash(its triangles, doorways, settings)
+    K-->>F: hit (unchanged tile, a fresh copy) / miss
+    F->>F: bake the misses only, in parallel
     Q->>P: PlanPath — reads snapshot S1 once
-    B->>P: swap S1 for S2 (Volatile write), version + 1
+    F->>P: swap S1 for S2 (Volatile write), version + 1
     Q-->>Q: finishes on S1, untouched
     N->>P: QueryVersion() newer than the path's stamp
     N->>N: replan (P3)
@@ -1281,18 +1289,22 @@ graph TD
     SW --> DR["DotRecastNavmeshProvider"]
     SOL["PathfindingSolverSystem — SlowBackground"] -->|"reads one snapshot per call"| DR
     EQS["EQS module — background"] -->|"reads one snapshot per call"| DR
-    RB["Rebake / P2 tile rebuild"] -.->|"swaps the snapshot (P1 makes this safe)"| DR
+    RB["RecastNavmeshFactory.Rebake — P2 touched-tile rebuild"] -.->|"swaps the snapshot (P1 makes this safe)"| DR
+    TR -->|"Build — tiled, through NavTileCache"| CACHE["NavTileCache — memory + local folder"]
     NX["NavigationExecutionSystem"] -.->|"P3 — compares versions, not built"| SW
     style RB stroke-dasharray: 5 5
     style NX stroke-dasharray: 5 5
 ```
-*Dashed = not reached today:* `Rebake` has no production caller, and nothing compares path versions — 📐 measured
-`2026-10-08` (`PathfindingSolverSystem.cs:422` stamps `NavmeshVersionAtPlan`; no reader in production).
+*Dashed = not reached today:* `RecastNavmeshFactory.Rebake` has no production caller — no runtime geometry change exists yet
+(AQ81 T6 is its first caller) — and is proven by a rail. The load path goes through the cache on every node that bakes
+(SimHost, editor). Nothing compares path versions yet — 📐 re-measured `2026-10-08`: `NavmeshVersionAtPlan` is stamped and
+carried by the path registries, no production reader; Building Interiors 5d-4 built P3's DOOR half (replan when a door ahead
+locks, §3j), not the version check.
 
 | step | what | when | why then |
 |---|---|---|---|
 | **P1** | the provider's per-layer state becomes ONE immutable `NavmeshSnapshot` behind a `Volatile` field; every query reads it once; `Rebake` builds a new one and swaps | ✅ built `2026-10-08` | the seam every later change goes through; closes the race `Rebake`'s own comment admitted — 📐 **red-proved**: the rail `P1_RebakeWhileOtherThreadsQuery_NeverSeesAHalfSwappedMesh_AndTheVersionMoves` against the pre-P1 provider gives 1493 bad answers in one run (queries seeing no mesh, *"Collection was modified"*); green with P1 |
-| **P2** | tiled bake (`DtNavMeshParams`, ~32 m tiles; `AddTile`/`RemoveTile` are in the shipped DotRecast) + a tile rebuilder producing a new snapshot | with **CE-1029** (slow terrain load) | the same change gives parallel bake and a disk cache; a single-tile mesh today (`RecastNavmeshBaker.cs:281`) means any geometry change is a whole-map rebake |
+| **P2** | tiled bake + per-tile cache; the touched-tile rebuild is a bake through the cache | ✅ built `2026-10-08` with **CE-1029** + **CE-3111** — see *P2 as built* below | the same change gave parallel bake, a disk cache and real-width doors |
 | **P3** | replan when the navmesh version moved under a path (regional versions when P2 has regions) | with **Building Interiors 5d** | a door change needs it too; the stamps already ride every path |
 
 ⭐ **P2 spike — measured `2026-10-08` (CE-3111, user: *"Approved, start with the spike"*).** Real doors (0.8–0.9 m) bake only
@@ -1308,7 +1320,29 @@ hold tiles of DIFFERENT cell sizes. 📐 Rail `TiledBakeSpikeTests.CE3111_Spike_
 
 ⇒ ⭐ **yes**: the tile's WORLD size is fixed (`DtNavMeshParams.tileWidth`), its cell count is not (`tileCells = tileMetres / cs`);
 Detour links tiles by their portal edges, so a fine tile and a coarse tile join. The fine set is chosen per tile from the
-terrain (building footprints) — no new authoring. ⏭ Not yet measured: the cost on the shipped terrains, and the disk cache.
+terrain (building footprints) — no new authoring. (Measured on the shipped terrains in *P2 as built*, below.)
+
+⭐⭐ **P2 as built — `2026-10-08` (CE-3111 · CE-1029 · R-218 P2; user: *"Approved, go ahead with all steps"*).**
+
+| piece | as built |
+|---|---|
+| the grid | 24 m tiles, anchored at the WORLD ORIGIN (absolute tile x/z in each tile's header; `DtNavMeshParams.orig = 0`) — a tile means the same square in every bake (Q71 R7). 24 m is a multiple of both cells (32 m, the first draft, is not: 106.7 cells at 0.3 m) |
+| the cell | INFANTRY tiles within 1 m of a building footprint or a doorway: 0.15 m; every other tile, and the whole vehicle layer: 0.3 m (`RecastNavmeshFactory.FineAreas`). Region thresholds are in m², so both cells drop the same islands |
+| a tile's height | its OWN triangles, padded, snapped to the 0.2 m lattice — neighbours quantise alike, and a far hill never changes a tile's key |
+| the cache | `NavTileCache`: key = layer + tile x/z + SHA-256 of everything the bake reads (its triangles incl. border, the doorway volumes over it, the layer params, the cell, `BakeFormat`); stores BYTES (Detour writes links into a tile's polygons when it is added to a mesh — `DtPoly.firstLink` — so one tile object can never sit in two snapshots); an EMPTY tile is cached too; disk = `<local app data>/Hrot/navtiles/<layer>/<x>_<z>_<hash>.navtile` (or `HROT_NAVTILE_CACHE`, `off` = memory only), temp-file + rename |
+| rebuild | `RecastNavmeshFactory.Rebake(provider, world)` = bake through the cache, swap one snapshot (`DotRecastNavmeshProvider.Rebake(meshes, world, doorways)`, door-aware) |
+
+| 📐 measured (infantry + vehicle, this container) | before: one 0.3 m tile | tiled 24 m, no cache | reload from the cache |
+|---|---|---|---|
+| bt-range | 0.8 s | 0.5 s (162 tiles, 2 fine) | 0.05 s, 0 baked |
+| test-town | 2.6 s | 1.2 s (576 tiles) | 0.18 s, 0 baked |
+| basic-desert | 8.1 s | 2.8 s (1352 tiles) | 0.30 s, 0 baked |
+
+12 m tiles: 0.8 / 1.5 / 4.9 s; 30 m: 0.4 / 2.1 / 3.8 s — 24 m is the best of the three overall. ⇒ the tiled bake is FASTER than
+the single tile even with fine interiors (parallel), and a reload bakes nothing. Rails: `RecastNavmeshFactoryTests` —
+`CE3111_RealWidthDoors_…`, `CE1029_ASecondLoad_BakesNoTile_…`, `R218P2_Rebake_BakesOnlyTheTilesAChangeTouched_…`; House A's
+doors are real 0.9 m again (`Stage5d_BtRangeHouseA_…`, bt-doors live).
+⚠ Not done: the disk folder is never pruned (each changed tile leaves its old file) — `CE-3114`.
 
 | rejected | the one fact |
 |---|---|

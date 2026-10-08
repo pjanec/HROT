@@ -194,12 +194,16 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     /// </summary>
     public DotRecastNavmeshProvider(IReadOnlyDictionary<NavLayerMask, DtNavMesh> meshes, Fdp.Toolkit.Terrain.TerrainWorld world,
         IReadOnlyList<NavDoorways.Volume> doorways)
+        => _snapshot = new Snapshot(DoorAwareLayers(meshes, world, doorways), 1);
+
+    private static Dictionary<NavLayerMask, LayerState> DoorAwareLayers(IReadOnlyDictionary<NavLayerMask, DtNavMesh> meshes,
+        Fdp.Toolkit.Terrain.TerrainWorld world, IReadOnlyList<NavDoorways.Volume> doorways)
     {
         var layers = new Dictionary<NavLayerMask, LayerState>();
         foreach (var kv in meshes)
             layers[kv.Key] = new LayerState(kv.Value, new DoorAwareQueryFilter(
                 NavDoorways.DoorPolys(kv.Value, doorways), DoorStates.Authored(world), canOpenDoors: kv.Key == NavLayerMask.Infantry));
-        _snapshot = new Snapshot(layers, 1);
+        return layers;
     }
 
     /// <summary>⭐ Stage 5c — how many polygons of <paramref name="layer"/> are doorway polygons (a rail reads it).</summary>
@@ -231,7 +235,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     /// <summary>
     /// Replaces all navmeshes with a new baked set and increments <see cref="QueryVersion"/>. ⭐ P1 (R-218): safe while other threads
     /// query — they finish on the snapshot they already hold. Concurrent CALLS of Rebake are last-writer-wins (one writer expected).
-    /// <para>⚠ The new layers carry the plain filter; a door-aware rebake goes through <see cref="RecastNavmeshFactory"/> (P2 extends it).</para>
+    /// <para>⚠ The new layers carry the plain filter; the door-aware rebake is the overload taking the world (P2, <see cref="RecastNavmeshFactory.Rebake"/>).</para>
     /// </summary>
     public void Rebake(IReadOnlyDictionary<NavLayerMask, DtNavMesh> meshes)
     {
@@ -241,6 +245,14 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
             layers[kv.Key] = new LayerState(kv.Value);
         Volatile.Write(ref _snapshot, new Snapshot(layers, unchecked(Current.Version + 1)));
     }
+
+    /// <summary>
+    /// ⭐ R-218 P2 — the door-aware rebake: like <see cref="Rebake(IReadOnlyDictionary{NavLayerMask, DtNavMesh})"/>, with each layer's
+    /// doorway polygons mapped to their doors (Stage 5c). <see cref="RecastNavmeshFactory.Rebake"/> calls it after a touched-tile bake.
+    /// </summary>
+    public void Rebake(IReadOnlyDictionary<NavLayerMask, DtNavMesh> meshes, Fdp.Toolkit.Terrain.TerrainWorld world,
+        IReadOnlyList<NavDoorways.Volume> doorways)
+        => Volatile.Write(ref _snapshot, new Snapshot(DoorAwareLayers(meshes, world, doorways), unchecked(Current.Version + 1)));
 
     // ── INavmeshProvider ─────────────────────────────────────────────────────
 
