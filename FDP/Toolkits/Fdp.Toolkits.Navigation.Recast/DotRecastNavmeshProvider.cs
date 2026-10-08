@@ -58,12 +58,21 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
         private readonly ThreadLocal<DtNavMeshQuery> _query;
         public DtNavMeshQuery Query => _query.Value!;
 
+        // ⭐ R-220 — the filter a query judged by its CALLER's doors uses: one working copy per thread (the same reason as the query),
+        //   re-pointed per call, so a per-tick query allocates no filter.
+        private readonly ThreadLocal<DoorAwareQueryFilter> _working;
+
         public LayerState(DtNavMesh mesh, DoorAwareQueryFilter? filter = null)
         {
-            NavMesh = mesh;
-            Filter  = filter ?? new DoorAwareQueryFilter(new Dictionary<long, int>(), null, canOpenDoors: true);
-            _query  = new ThreadLocal<DtNavMeshQuery>(() => new DtNavMeshQuery(mesh));
+            NavMesh  = mesh;
+            Filter   = filter ?? new DoorAwareQueryFilter(new Dictionary<long, int>(), null, canOpenDoors: true);
+            _query   = new ThreadLocal<DtNavMeshQuery>(() => new DtNavMeshQuery(mesh));
+            var shared = Filter;
+            _working = new ThreadLocal<DoorAwareQueryFilter>(() => shared.WorkingCopy());
         }
+
+        /// <summary>The filter judging by <paramref name="doors"/> (R-219); null = the doors as authored (the shared filter).</summary>
+        public DoorAwareQueryFilter FilterFor(DoorStates? doors) => doors == null ? Filter : _working.Value!.JudgeBy(doors);
 
         // ⚠ Deliberately NOT disposing the ThreadLocal: a swapped-out snapshot may still be mid-query on a background module
         //   (P1); a disposed ThreadLocal would throw there. The old queries are collected with the snapshot.
@@ -82,7 +91,75 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     {
         public readonly IReadOnlyDictionary<NavLayerMask, LayerState> Layers;
         public readonly uint Version;
-        public Snapshot(IReadOnlyDictionary<NavLayerMask, LayerState> layers, uint version) { Layers = layers; Version = version; }
+        // ⭐ R-220 — the same layers as arrays, in the dictionary's order: a query walks these (an interface foreach boxes its enumerator)
+        public readonly NavLayerMask[] Masks;
+        public readonly LayerState[] States;
+        public Snapshot(IReadOnlyDictionary<NavLayerMask, LayerState> layers, uint version)
+        {
+            Layers = layers; Version = version;
+            Masks = new NavLayerMask[layers.Count]; States = new LayerState[layers.Count];
+            int i = 0;
+            foreach (var kv in layers) { Masks[i] = kv.Key; States[i] = kv.Value; i++; }
+        }
+    }
+
+    // ⭐ R-220 — per-THREAD scratch for the path queries (two background modules query one provider, CE-2122): a per-tick query
+    //   allocates nothing. Never handed out — each is filled and read within one call on its own thread.
+    private const int MaxPath = 256, MaxStraight = 256, MaxWaypoints = 256, MaxPolys = 128;
+    [ThreadStatic] private static long[]? t_polyPath;
+    [ThreadStatic] private static DtStraightPath[]? t_straight;
+    [ThreadStatic] private static NavWaypoint[]? t_waypoints;
+    [ThreadStatic] private static long[]? t_refs;
+    [ThreadStatic] private static long[]? t_parents;
+    [ThreadStatic] private static float[]? t_costs;
+    [ThreadStatic] private static NearestPolyQuery? t_nearest;
+
+    /// <summary>
+    /// ⭐ R-220 — DotRecast's <c>FindNearestPoly</c> allocates a <c>DtFindNearestPolyQuery</c> per call; this is the same search
+    /// (its <c>Process</c> rule, verbatim) as a reusable per-thread object, run through the public <c>QueryPolygons</c>.
+    /// </summary>
+    private sealed class NearestPolyQuery : IDtPolyQuery
+    {
+        private DtNavMeshQuery _query = null!;
+        private RcVec3f _center;
+        private float _nearestDistanceSqr;
+        public long NearestRef;
+        public RcVec3f NearestPt;
+
+        public NearestPolyQuery Reset(DtNavMeshQuery query, RcVec3f center)
+        {
+            _query = query; _center = center;
+            _nearestDistanceSqr = float.MaxValue; NearestRef = 0; NearestPt = center;
+            return this;
+        }
+
+        public void Process(DtMeshTile tile, ReadOnlySpan<int> polys, ReadOnlySpan<long> refs, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                long r = refs[i];
+                _query.ClosestPointOnPoly(r, _center, out var closest, out bool overPoly);
+                var diff = RcVec3f.Subtract(_center, closest);
+                float d;
+                if (overPoly)
+                {
+                    d = MathF.Abs(diff.Y) - tile.data.header.walkableClimb;
+                    d = d > 0f ? d * d : 0f;
+                }
+                else d = diff.LengthSquared();
+                if (d < _nearestDistanceSqr) { NearestPt = closest; _nearestDistanceSqr = d; NearestRef = r; }
+            }
+        }
+    }
+
+    /// <summary>⭐ R-220 — <c>FindNearestPoly</c> without its per-call allocation.</summary>
+    private static DtStatus FindNearestPoly(DtNavMeshQuery query, RcVec3f center, IDtQueryFilter filter, out long nearestRef, out RcVec3f nearestPt)
+    {
+        var q = (t_nearest ??= new NearestPolyQuery()).Reset(query, center);
+        var status = query.QueryPolygons(center, SearchExtents, filter, q);
+        nearestRef = status.Failed() ? 0 : q.NearestRef;
+        nearestPt  = status.Failed() ? center : q.NearestPt;
+        return status;
     }
 
     private Snapshot _snapshot = new(new Dictionary<NavLayerMask, LayerState>(), 0);
@@ -192,16 +269,15 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
         int count = 0;
         var rc    = ToRcVec(center);
 
-        // Allocate outside the loop to avoid CA2014 stackalloc-in-loop.
-        const int MaxPolys = 128;
-        var refs    = new long[MaxPolys];
-        var parents = new long[MaxPolys];
-        var costs   = new float[MaxPolys];
+        var refs    = t_refs    ??= new long[MaxPolys];    // ⭐ R-220 — per-thread scratch
+        var parents = t_parents ??= new long[MaxPolys];
+        var costs   = t_costs   ??= new float[MaxPolys];
 
-        foreach (var kv in Current.Layers)   // ⭐ P1 — one snapshot for the whole query
+        var snap = Current;   // ⭐ P1 — one snapshot for the whole query
+        for (int li = 0; li < snap.States.Length; li++)
         {
-            if (((uint)kv.Key & layerMask) == 0) continue;
-            var ls = kv.Value;
+            if (((uint)snap.Masks[li] & layerMask) == 0) continue;
+            var ls = snap.States[li];
 
             // FindPolysAroundCircle gives all polygons within radius.
             ls.Query.FindPolysAroundCircle(
@@ -232,8 +308,8 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     {
         // ⭐ Stage 5c — a PARTIAL path (the search reached only the polygon nearest an unreachable goal) is NOT a path. Before
         //   doors could be locked it was rare (an island); a locked doorway makes it the normal answer for "into that room".
-        var buf = new NavWaypoint[256];
-        return PlanPathCore(from, to, buf.AsSpan(), layerMask, doors, out bool complete) > 0 && complete;
+        var buf = t_waypoints ??= new NavWaypoint[MaxWaypoints];   // ⭐ R-220 — per-thread scratch
+        return PlanPathCore(from, to, buf.AsSpan(0, 2), layerMask, doors, out bool complete) > 0 && complete;   // completeness is the poly path's
     }
 
     /// <inheritdoc/>
@@ -242,8 +318,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     /// <inheritdoc/>
     public float PathCost(Vector3 from, Vector3 to, uint layerMask, DoorStates? doors)
     {
-        const int MaxWaypoints = 256;
-        var buf = new NavWaypoint[MaxWaypoints];
+        var buf = t_waypoints ??= new NavWaypoint[MaxWaypoints];   // ⭐ R-220 — per-thread scratch
         int n   = PlanPathCore(from, to, buf.AsSpan(), layerMask, doors, out bool complete);
         if (n == 0 || !complete) return float.MaxValue;   // ⭐ Stage 5c — the contract: no (complete) path ⇒ MaxValue
         if (n == 1) return 0f;
@@ -275,31 +350,23 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
         complete = false;
         if (waypoints.Length < 2) return 0;
 
-        const int MaxPath     = 256;
-        const int MaxStraight = 256;
-
-        // Allocate outside the loop to avoid CA2014 stackalloc-in-loop.
-        var polyPathBuf    = new long[MaxPath];
-        var straightBuf    = new DtStraightPath[MaxStraight];
+        var polyPathBuf = t_polyPath ??= new long[MaxPath];             // ⭐ R-220 — per-thread scratch
+        var straightBuf = t_straight ??= new DtStraightPath[MaxStraight];
 
         // Try each matching layer; use the first that finds a complete path.
-        foreach (var kv in Current.Layers)   // ⭐ P1 — one snapshot for the whole query
+        var snap = Current;   // ⭐ P1 — one snapshot for the whole query
+        for (int li = 0; li < snap.States.Length; li++)
         {
-            if (((uint)kv.Key & layerMask) == 0) continue;
-            var ls = kv.Value;
-            var filter = doors == null ? ls.Filter : ls.Filter.With(doors);   // ⭐ R-219 — judged by the caller's doors
+            if (((uint)snap.Masks[li] & layerMask) == 0) continue;
+            var ls = snap.States[li];
+            var filter = ls.FilterFor(doors);   // ⭐ R-219 — judged by the caller's doors (R-220: this thread's working copy, no allocation)
 
             var startPos = ToRcVec(from);
             var endPos   = ToRcVec(to);
 
             // Find start and end polys.
-            var startStatus = ls.Query.FindNearestPoly(
-                startPos, SearchExtents, filter,
-                out long startRef, out _, out _);
-
-            var endStatus = ls.Query.FindNearestPoly(
-                endPos, SearchExtents, filter,
-                out long endRef, out _, out _);
+            var startStatus = FindNearestPoly(ls.Query, startPos, filter, out long startRef, out _);
+            var endStatus   = FindNearestPoly(ls.Query, endPos,   filter, out long endRef,   out _);
 
             if (startStatus.Failed() || startRef == 0) continue;
             if (endStatus.Failed()   || endRef   == 0) continue;
@@ -355,14 +422,13 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     {
         var rc = ToRcVec(position);
 
-        foreach (var kv in Current.Layers)   // ⭐ P1 — one snapshot for the whole query
+        var snap = Current;   // ⭐ P1 — one snapshot for the whole query
+        for (int li = 0; li < snap.States.Length; li++)
         {
-            if (((uint)kv.Key & layerMask) == 0) continue;
-            var ls = kv.Value;
+            if (((uint)snap.Masks[li] & layerMask) == 0) continue;
+            var ls = snap.States[li];
 
-            var status = ls.Query.FindNearestPoly(
-                rc, SearchExtents, ls.Filter,
-                out long nearestRef, out RcVec3f np, out _);
+            var status = FindNearestPoly(ls.Query, rc, ls.Filter, out long nearestRef, out RcVec3f np);
 
             if (status.Succeeded() && nearestRef != 0)
             {
@@ -383,9 +449,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     /// </summary>
     private static long FindNearestPolyRef(LayerState ls, RcVec3f pos)
     {
-        ls.Query.FindNearestPoly(
-            pos, SearchExtents, ls.Filter,
-            out long r, out _, out _);
+        FindNearestPoly(ls.Query, pos, ls.Filter, out long r, out _);
         return r;
     }
 

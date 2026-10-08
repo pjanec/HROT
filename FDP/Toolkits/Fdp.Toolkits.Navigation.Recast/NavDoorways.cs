@@ -101,21 +101,40 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
     /// <summary>N3 — what entering a closed door costs, in metres of walking: a detour shorter than this wins.</summary>
     public const float ClosedDoorPenaltyMetres = 10f;
 
-    private readonly DtQueryDefaultFilter _base = new();
+    // ⭐ R-220 — ONE default filter for every instance: DtQueryDefaultFilter's PassFilter/GetCost only READ its flags and area costs.
+    private static readonly DtQueryDefaultFilter Base = new();
     private readonly IReadOnlyDictionary<long, int> _doorPolys;
-    private readonly DoorStates? _doors;
+    private DoorStates? _doors;   // ⛔ written only on a working copy (JudgeBy) — a published filter never changes
     private readonly bool _canOpenDoors;
+    private readonly bool _isWorkingCopy;
 
     /// <param name="doors">the door states to judge by; null = every door open (no terrain doors)</param>
     public DoorAwareQueryFilter(IReadOnlyDictionary<long, int> doorPolys, DoorStates? doors, bool canOpenDoors)
+        : this(doorPolys, doors, canOpenDoors, isWorkingCopy: false) { }
+
+    private DoorAwareQueryFilter(IReadOnlyDictionary<long, int> doorPolys, DoorStates? doors, bool canOpenDoors, bool isWorkingCopy)
     {
         _doorPolys = doorPolys;
         _doors = doors;
         _canOpenDoors = canOpenDoors;
+        _isWorkingCopy = isWorkingCopy;
     }
 
-    /// <summary>The same doorway polygons and agent class, judged by <paramref name="doors"/> instead.</summary>
+    /// <summary>The same doorway polygons and agent class, judged by <paramref name="doors"/> instead. ⚠ Allocates — a per-query
+    /// caller uses a <see cref="WorkingCopy"/> (R-220).</summary>
     public DoorAwareQueryFilter With(DoorStates? doors) => ReferenceEquals(doors, _doors) ? this : new(_doorPolys, doors, _canOpenDoors);
+
+    /// <summary>⭐ R-220 — a copy whose doors one THREAD re-points per query (<see cref="JudgeBy"/>): the provider keeps one per
+    /// thread and layer, so a query judged by its caller's doors allocates nothing.</summary>
+    public DoorAwareQueryFilter WorkingCopy() => new(_doorPolys, _doors, _canOpenDoors, isWorkingCopy: true);
+
+    /// <summary>⭐ R-220 — judge by <paramref name="doors"/> from now on. Only on a <see cref="WorkingCopy"/>, owned by one thread.</summary>
+    public DoorAwareQueryFilter JudgeBy(DoorStates? doors)
+    {
+        if (!_isWorkingCopy) throw new InvalidOperationException("Only a WorkingCopy may be re-pointed — a shared filter never changes.");
+        _doors = doors;
+        return this;
+    }
 
     /// <summary>How many doorway polygons this filter knows.</summary>
     public int DoorPolyCount => _doorPolys.Count;
@@ -128,7 +147,7 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
 
     public bool PassFilter(long refs, DtMeshTile tile, DtPoly poly)
     {
-        if (!_base.PassFilter(refs, tile, poly)) return false;
+        if (!Base.PassFilter(refs, tile, poly)) return false;
         if (!_doorPolys.TryGetValue(refs, out int door)) return true;
         if (!_canOpenDoors) return false;                                   // N2 — a vehicle never uses a doorway
         return StateOf(door) != TerrainDoorState.Locked;                    // a locked door is a wall
@@ -139,7 +158,7 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
         long curRef, DtMeshTile curTile, DtPoly curPoly,
         long nextRef, DtMeshTile nextTile, DtPoly nextPoly)
     {
-        float cost = _base.GetCost(pa, pb, prevRef, prevTile, prevPoly, curRef, curTile, curPoly, nextRef, nextTile, nextPoly);
+        float cost = Base.GetCost(pa, pb, prevRef, prevTile, prevPoly, curRef, curTile, curPoly, nextRef, nextTile, nextPoly);
         if (_doorPolys.TryGetValue(curRef, out int door)
             && !(prevRef != 0 && _doorPolys.TryGetValue(prevRef, out int prevDoor) && prevDoor == door)   // once per door, on entry
             && StateOf(door) == TerrainDoorState.Closed)

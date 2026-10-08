@@ -120,6 +120,16 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public IReadOnlyList<TerrainPrism> DoorLeaves => _doorLeaves.Value;
 
+        /// <summary>⭐ R-220 — the most vertices any prism or door leaf has: sizes the queries' stack scratch, computed once.</summary>
+        private int MaxFootprintVertices => _maxFootprintVertices >= 0 ? _maxFootprintVertices : (_maxFootprintVertices = ComputeMaxFootprintVertices());
+        private int _maxFootprintVertices = -1;
+        private int ComputeMaxFootprintVertices()
+        {
+            int m = 4;   // a door leaf
+            for (int i = 0; i < Prisms.Count; i++) m = Math.Max(m, Prisms[i].Footprint.Length);
+            return m;
+        }
+
         /// <summary>The index of the door whose terrain-object key is <paramref name="key"/>, or −1.</summary>
         public int DoorIndexOf(string key) => _doorIndex.Value.TryGetValue(key, out int i) ? i : -1;
 
@@ -306,12 +316,15 @@ namespace Fdp.Toolkit.Terrain
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            int maxV = MaxFootprintVertices;
+            Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
+            Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
             for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
             {
                 if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                 var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
-                foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
+                foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
                 {
                     float z0 = from.Z + ((to.Z - from.Z) * t0);
                     float z1 = from.Z + ((to.Z - from.Z) * t1);
@@ -324,8 +337,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
-            foreach (var w in Walkables)
+            for (int wi = 0; wi < Walkables.Count; wi++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
+                var w = Walkables[wi];
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -355,6 +369,8 @@ namespace Fdp.Toolkit.Terrain
         /// <see cref="SegmentBlocked"/> until Stage 3 makes that <c>QuerySight(...) &lt; threshold</c>.</para>
         /// </summary>
         /// <param name="doors">⭐ R-219 — the door states of the caller's view; null = as authored.</param>
+        /// <remarks>⚠ R-220 — allocates its answer (the crossing list): a DIAGNOSTIC trace, not a per-tick query. Perception
+        /// asks <see cref="SegmentBlocked"/>, which allocates nothing.</remarks>
         public TraceResult QuerySight(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
             var crossed = new List<Crossing>();
@@ -366,12 +382,15 @@ namespace Fdp.Toolkit.Terrain
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            int maxV = MaxFootprintVertices;
+            Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
+            Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
             for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
             {
                 if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                 var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
-                foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
+                foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
                 {
                     float z0 = from.Z + ((to.Z - from.Z) * t0);
                     float z1 = from.Z + ((to.Z - from.Z) * t1);
@@ -385,8 +404,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
-            foreach (var w in Walkables)
+            for (int wi = 0; wi < Walkables.Count; wi++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
+                var w = Walkables[wi];
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -450,12 +470,15 @@ namespace Fdp.Toolkit.Terrain
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            int maxV = MaxFootprintVertices;
+            Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
+            Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
             for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
             {
                 if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                 var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
-                foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
+                foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
                 {
                     // the part of [t0, t1] where the line is also within the piece's height
                     float lo = t0, hi = t1;
@@ -479,8 +502,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
-            foreach (var w in Walkables)
+            for (int wi = 0; wi < Walkables.Count; wi++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
+                var w = Walkables[wi];
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -495,8 +519,10 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
-            into.Sort((x, y) => x.T.CompareTo(y.T));
+            into.Sort(ByT);   // a cached static comparison — no delegate per call
         }
+
+        private static readonly Comparison<FireCrossing> ByT = (x, y) => x.T.CompareTo(y.T);
 
         /// <summary>The surface type at a point (the last-listed surface wins on overlap), Open by default.</summary>
         public TerrainSurfaceType SurfaceTypeAt(float x, float y)

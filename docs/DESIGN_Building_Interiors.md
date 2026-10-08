@@ -9,7 +9,7 @@ known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid pri
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
   buildings.
 related-designs:
-  - DESIGN_Terrain_World.md — OWNS the one world file → one TerrainWorld model and every query on it (R-181/182/183).
+  - DESIGN_Terrain_World.md — OWNS the one world file → one TerrainWorld model and every query on it (R-181/182/183); §6a owns their allocation contract (R-220).
     This doc proposes the enterable-building extension of that model; the terrain doc stays the owner.
   - blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — T1 (2.5D hand-authorable primitives, mesh rejected),
     T5 (Z picks the floor), T7 (multi-level), T8 (Stride renders the same file, "later").
@@ -732,7 +732,7 @@ classDiagram
     class DoorStates { <<NEW, immutable>> Of(view, terrain) · Of(view) · Authored(terrain) · this[i] }
     class TerrainWorld { <<immutable again>> SegmentBlocked / QuerySight / QueryFire (…, DoorStates? doors) · DoorIndexOf }
     class INavmeshProvider { <<existing>> PlanPath / PathExists / PathCost (…, DoorStates? doors) NEW overloads }
-    class DoorAwareQueryFilter { <<5c>> With(doors) — per call }
+    class DoorAwareQueryFilter { <<5c>> per-thread WorkingCopy · JudgeBy(doors) (R-220) }
     class Readers { <<every caller>> combat carry · hit resolution · shot log · perception LOS · EQS LOS/reach/cost · danger sensor · path solver · /doors }
     DoorStates ..> DoorState : reads (this view)
     DoorStates ..> TerrainObjectKey : key → door index
@@ -762,6 +762,11 @@ sequenceDiagram
 | where a query gets door state | ⭐ `DoorStates.Of(view, terrain)` built from the reader's own view, passed explicitly to every terrain and navmesh query | a mutable field on `TerrainWorld` — shared by reference into every snapshot · an immutable singleton — singletons are shared by TABLE, so a swap reaches every snapshot (measured) · `SnapshotViaClone` on the terrain — deep-clones the whole terrain per snapshot · an implicit thread-static door context — invisible plumbing a caller can skip |
 | the mirror system and the pack seam | ⭐ removed — there is nothing to mirror | keep an empty `TerrainObjectSystems` seam — an unused registration contract on five hosts |
 | no table passed | the door as the terrain AUTHORED it (`TerrainDoorDef.Initial`) | "open" — would ignore a scenario's authored locked door |
+
+⭐ **As built `2026-10-08`, R-220:** `DoorStates.Of` allocates nothing while the doors are unchanged. It re-reads the door entities
+into thread scratch on every call and returns that thread's previous table when the bytes are equal; it never uses a version key. The
+navmesh judges the caller's table through a per-thread working filter instead of `With(doors)`.
+📄 [`DESIGN_Terrain_World.md`](DESIGN_Terrain_World.md) §6a.
 
 | rails | `TerrainWorldTests.R219_AQueryOnASnapshot_SeesTheDoorsOfThatSnapshot_NotALaterFlipOnTheLiveWorld` (the reason for the rule: a `SyncFrom` replica keeps the door open while the live world locks it) · `R219_AViewsDoorTable_IsBuiltFromItsDoorEntities` · `Stage5_*`/`Stage5c_*` re-stated on per-view tables · `EntityDoorStateTranslatorTests` (the wire reaches the replica's VIEW) · `TerrainReportTests.Doors_NameTheDoorEntity_AndReportItsState_FromTheWorldsView` |
 |---|---|

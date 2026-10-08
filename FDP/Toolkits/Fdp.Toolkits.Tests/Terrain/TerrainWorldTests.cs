@@ -566,6 +566,67 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.False(w.SegmentBlocked(from, to, DoorStates.Of(snapshot, w)));        // the snapshot still sees it open
         }
 
+        /// <summary>
+        /// ⭐⭐ R-220 — the per-tick queries a background batch runs allocate NOTHING once warm (GC stutters): the sight test, the fire
+        /// trace into a reused list, and the view's door table while its doors are unchanged. Over a house with walls, door leaves,
+        /// a window and floors/stairs, so every loop runs. ⚠ <see cref="TerrainWorld.QuerySight"/> is a diagnostic and allocates its answer.
+        /// </summary>
+        [Fact]
+        public void R220_SightFireAndTheDoorTable_AllocateNothingPerCall()
+        {
+            var w = HouseWorld();
+            using var repo = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w, ("range/H/front", TerrainDoorState.Closed));
+            var crossings = new System.Collections.Generic.List<TerrainWorld.FireCrossing>(16);
+            var lines = new[]
+            {
+                (new Vector3(104.8f, 90, 1.6f), new Vector3(104.8f, 104, 1.6f)),   // through the front door
+                (new Vector3(102.1f, 90, 1.6f), new Vector3(102.1f, 104, 1.6f)),   // through the window
+                (new Vector3(102, 104, 4.5f), new Vector3(102, 104, 1.0f)),        // down through a floor
+                (new Vector3(90, 104, 1.6f), new Vector3(120, 104, 1.6f)),         // across every wall
+            };
+            DoorStates doors = DoorStates.Of(repo, w);
+            bool blockedAny = false;
+            void Run()
+            {
+                doors = DoorStates.Of(repo, w);
+                foreach (var (a, b) in lines)
+                {
+                    blockedAny |= w.SegmentBlocked(a, b, doors) | w.SegmentBlocked(a, b);
+                    w.QueryFire(a, b, crossings, doors);
+                }
+            }
+            Run(); Run();   // warm-up: the lazy door leaves, the thread's scratch
+
+            var first = doors;
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 20; i++) Run();
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.True(blockedAny);
+            Assert.Equal(0L, allocated);
+            Assert.Same(first, doors);                                    // unchanged doors ⇒ the same table
+        }
+
+        /// <summary>
+        /// ⭐ R-220 — the door table's no-allocation path never serves a stale table: it re-reads the door entities on EVERY call, so a
+        /// door written within the same tick (no version moved) is seen at once; a table already handed out never changes.
+        /// </summary>
+        [Fact]
+        public void R220_TheDoorTable_IsReusedOnlyWhileTheDoorsAreUnchanged_AndAHandedOutTableNeverChanges()
+        {
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            using var repo = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w, ("range/H/front", TerrainDoorState.Open));
+            var door = TerrainObjects.Find(repo, "range/H/front");
+
+            var open = DoorStates.Of(repo, w);
+            Assert.Same(open, DoorStates.Of(repo, w));
+            repo.SetComponent(door, new DoorState { State = TerrainDoorState.Locked });   // same tick — no GlobalVersion change
+            var locked = DoorStates.Of(repo, w);
+            Assert.NotSame(open, locked);
+            Assert.Equal(TerrainDoorState.Locked, locked[0]);
+            Assert.Equal(TerrainDoorState.Open, open[0]);                                    // the old table is untouched
+        }
+
         private static string ShippedTerrain(string name)
         {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);

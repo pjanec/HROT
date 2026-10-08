@@ -172,6 +172,74 @@ public sealed class RecastNavmeshFactoryTests
         Assert.True(n == 0 || Vector3.Distance(wps[n - 1].Position, inside) > 2f, "a locked door yields no path in (at most a partial one)");
     }
 
+    /// <summary>
+    /// ⭐⭐ R-220 — the path queries a background solver runs each tick allocate NOTHING of their own once warm (GC stutters):
+    /// per-thread scratch buffers, the layers walked as arrays, a per-thread working filter judged by the caller's doors, and a
+    /// reusable nearest-polygon search. ⚠ DotRecast's A* node pool allocates one small list per node it visits (<c>DtNodePool.GetNode</c>
+    /// after <c>Clear()</c>) — not ours to remove without forking it — so a query that runs A* is held to DotRecast's OWN cost for the
+    /// same search: every byte above that would be ours. Measured per query so a regression names its culprit.
+    /// </summary>
+    [Fact]
+    public void R220_PathQueries_AllocateNothingOfTheirOwn_WithOrWithoutTheCallersDoors()
+    {
+        var world = TerrainWorldParser.Parse(OneDoorRoom, "range");
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
+        var closed = Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(world, ("range/R/front", TerrainDoorState.Closed));
+        var outside = new Vector3(25, 10, 0); var inside = new Vector3(25, 25, 0);
+        const uint Inf = (uint)NavLayerMask.Infantry;
+        var wps = new NavWaypoint[64];
+        var points = new Vector3[16];
+        Assert.True(nav.PathExists(outside, inside, Inf, closed));   // the doors are really judged (a closed door is passable)
+
+        // DotRecast's own cost for the same A* searches: its query, preallocated buffers, start/end polygons found up front
+        Assert.True(nav.TryGetNavMesh(NavLayerMask.Infantry, out var mesh));
+        var raw = new DotRecast.Detour.DtNavMeshQuery(mesh!);
+        var plain = new DotRecast.Detour.DtQueryDefaultFilter();
+        var extents = new DotRecast.Core.Numerics.RcVec3f(2f, 4f, 2f);
+        var s = new DotRecast.Core.Numerics.RcVec3f(outside.X, outside.Z, outside.Y);
+        var e = new DotRecast.Core.Numerics.RcVec3f(inside.X, inside.Z, inside.Y);
+        raw.FindNearestPoly(s, extents, plain, out long sRef, out _, out _);
+        raw.FindNearestPoly(e, extents, plain, out long eRef, out _, out _);
+        var polys = new long[256]; var straight = new DotRecast.Detour.DtStraightPath[256];
+        var refs = new long[128]; var parents = new long[128]; var costs = new float[128];
+        void RawPath(DotRecast.Detour.IDtQueryFilter f)
+        {
+            raw.FindPath(sRef, eRef, s, e, f, polys, out int n, 256);
+            raw.FindStraightPath(s, e, polys.AsSpan(0, n), n, straight, out _, 256, DotRecast.Detour.DtStraightPathOptions.DT_STRAIGHTPATH_ALL_CROSSINGS);
+        }
+        var doorFilter = new DoorAwareQueryFilter(NavDoorways.DoorPolys(mesh!, NavDoorways.For(world)), closed, canOpenDoors: true);   // the same search ours runs
+
+        var queries = new (string Name, Action Ours, Action? DotRecastAlone)[]
+        {
+            ("PlanPath",            () => nav.PlanPath(outside, inside, wps, Inf),             () => RawPath(plain)),
+            ("PlanPath(doors)",     () => nav.PlanPath(outside, inside, wps, Inf, closed),     () => RawPath(doorFilter)),
+            ("PathExists",          () => nav.PathExists(outside, inside, Inf),                () => RawPath(plain)),
+            ("PathExists(doors)",   () => nav.PathExists(outside, inside, Inf, closed),        () => RawPath(doorFilter)),
+            ("PathCost",            () => nav.PathCost(outside, inside, Inf),                  () => RawPath(plain)),
+            ("PathCost(doors)",     () => nav.PathCost(outside, inside, Inf, closed),          () => RawPath(doorFilter)),
+            ("IsWalkable",          () => nav.IsWalkable(outside, Inf),                        null),
+            ("ProjectToNavmesh",    () => nav.ProjectToNavmesh(outside, out _, Inf),           null),
+            ("SampleNavmeshPoints", () => nav.SampleNavmeshPoints(outside, 5f, points, Inf),
+                                    () => raw.FindPolysAroundCircle(sRef, s, 5f, plain, refs, parents, costs, out _, 128)),
+        };
+
+        static long PerCall(Action run)
+        {
+            run(); run();   // warm-up: this thread's query, working filter and scratch
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10; i++) run();
+            return (GC.GetAllocatedBytesForCurrentThread() - before) / 10;
+        }
+
+        var ours = new System.Collections.Generic.List<string>();
+        foreach (var (name, run, dotRecast) in queries)
+        {
+            long bytes = PerCall(run), library = dotRecast == null ? 0 : PerCall(dotRecast);
+            if (bytes > library) ours.Add($"{name}: {bytes} B/call vs DotRecast alone {library}");
+        }
+        Assert.True(ours.Count == 0, string.Join("; ", ours));
+    }
+
     [Fact]
     public void Stage5c_TheFilter_ChargesAClosedDoorOnceOnEntry_AndKeepsVehiclesOut()
     {

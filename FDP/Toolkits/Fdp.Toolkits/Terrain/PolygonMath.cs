@@ -97,6 +97,7 @@ namespace Fdp.Toolkit.Terrain
         /// The parameter intervals <c>[t0, t1] ⊆ [0, 1]</c> over which the 2-D segment <paramref name="a"/>→
         /// <paramref name="b"/> lies inside <paramref name="poly"/>. Empty when it never enters.
         /// </summary>
+        /// <remarks>⚠ Allocates (two lists) — the hot queries use the span overload (R-220).</remarks>
         public static List<(float T0, float T1)> InsideIntervals(IReadOnlyList<Vector2> poly, Vector2 a, Vector2 b)
         {
             var ts = new List<float> { 0f, 1f };
@@ -118,6 +119,34 @@ namespace Fdp.Toolkit.Terrain
                     intervals.Add((t0, t1));
             }
             return intervals;
+        }
+
+        /// <summary>
+        /// ⭐ R-220 — the same intervals with NO allocation: <paramref name="ts"/> is scratch of at least <c>poly.Count + 2</c>,
+        /// <paramref name="into"/> receives at most <c>poly.Count + 1</c> intervals. Returns how many were written.
+        /// </summary>
+        public static int InsideIntervals(IReadOnlyList<Vector2> poly, Vector2 a, Vector2 b, Span<float> ts, Span<(float T0, float T1)> into)
+        {
+            int n = 0;
+            ts[n++] = 0f; ts[n++] = 1f;
+            var d = b - a;
+            for (int i = 0, j = poly.Count - 1; i < poly.Count; j = i++)
+            {
+                if (SegmentIntersection(a, d, poly[j], poly[i] - poly[j], out float t))
+                    ts[n++] = t;
+            }
+            ts.Slice(0, n).Sort();
+
+            int count = 0;
+            for (int k = 0; k + 1 < n; k++)
+            {
+                float t0 = ts[k];
+                float t1 = ts[k + 1];
+                if (t1 - t0 < 1e-6f) continue;
+                if (Contains(poly, a + (d * ((t0 + t1) * 0.5f))))
+                    into[count++] = (t0, t1);
+            }
+            return count;
         }
 
         /// <summary>

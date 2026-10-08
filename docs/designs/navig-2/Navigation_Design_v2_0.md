@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-08 (§14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
+updated: 2026-10-08 (§15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
 current-answer: §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; §14 (runtime
   navmesh change, rewritten 2026-10-08, R-218); the rest is the architectural contract.
 stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
@@ -12,7 +12,7 @@ related-designs:
   - ../../blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — T6: placed static obstacles are baked by rebuilding
     the affected tiles — the GEOMETRY half of §14 (P2)
   - ../../blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md — R7: the per-node tile cache (P2's cache)
-  - docs/DESIGN_Terrain_World.md — owns the terrain world, the Recast bake per terrain and W6 (which hosts compose the solver).
+  - docs/DESIGN_Terrain_World.md — owns the terrain world, the Recast bake per terrain and W6 (which hosts compose the solver); §6a owns the allocation contract (R-220) of the path queries here.
   - docs/designs/brain-death/BD1-DESIGN.md — owns the Brain lifecycle; §1.1 is why MoveToExecutor.OnExit's STOP must reach the
     Muscle (the egress publishes a Mode None with an IntentId since CE-3026).
 -->
@@ -1316,6 +1316,7 @@ from the SAME terrain change (AQ81 T6's asset op), so no mesh crosses the wire.
 - **DDS bandwidth — Muscle↔Solver (only DDS in scale-out mode; in-process otherwise):**
   - `PathRequestBatch` / `PathResponseBatch`: dominated by `[DdsManaged] List<NavWaypoint>` in responses. In the default collocated topology this traffic doesn't hit the wire.
 
+- ⭐ **Allocation (R-220, `2026-10-08`):** the provider's queries allocate nothing of their own per call once warm: per-thread scratch, the snapshot's layers walked as arrays, a per-thread working door filter, and a reusable nearest-polygon search. DotRecast's A* node pool still allocates one list per visited node, about 0.5 KB per short path; the rail pins us to exactly that. 📄 Owning section: [`DESIGN_Terrain_World.md`](../../DESIGN_Terrain_World.md) §6a.
 - **`MoveToExecutor` per-tick cost (Brain):** O(1) per active mover — read `NavigationStatus.Result`, branch on it, return BTree state. No window sliding required.
 
 ## 16. Hot reload

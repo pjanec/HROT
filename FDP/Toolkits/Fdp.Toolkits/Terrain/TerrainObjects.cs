@@ -86,18 +86,46 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>
         /// The doors of <paramref name="world"/> as <paramref name="view"/> sees them: each door entity's <see cref="DoorState"/>, else
         /// the authored state. Cheap — one pass over the door entities; build it once per batch / per system tick.
+        /// <para>⭐ R-220 — allocates nothing while the doors are unchanged: it ALWAYS re-reads the door entities (into this thread's
+        /// scratch) and hands back this thread's previous table when every state is the same. ⛔ Never keyed on a version — a door
+        /// written within the tick would be served stale. A table is immutable once returned, so a caller may hold it for its batch.</para>
         /// </summary>
         public static DoorStates Of(ISimulationView view, TerrainWorld world)
         {
-            var a = new byte[world.Doors.Count];
-            for (int i = 0; i < a.Length; i++) a[i] = (byte)world.Doors[i].Initial;
-            if (a.Length > 0 && (view is not EntityRepository repo || repo.IsComponentTypeRegistered<DoorState>()))
-                foreach (var e in view.Query().With<DoorState>().WithManaged<TerrainObjectKey>().WithLifecycle(EntityLifecycle.All).Build())
-                {
-                    int i = world.DoorIndexOf(view.GetManagedComponentRO<TerrainObjectKey>(e).Key);
-                    if (i >= 0) a[i] = (byte)view.GetComponentRO<DoorState>(e).State;
-                }
-            return new DoorStates(a);
+            int n = world.Doors.Count;
+            var a = t_scratch is { } sc && sc.Length == n ? sc : (t_scratch = new byte[n]);
+            for (int i = 0; i < n; i++) a[i] = (byte)world.Doors[i].Initial;
+            if (n > 0)
+            {
+                var query = DoorQuery(view);
+                if (query != null)
+                    foreach (var e in query)
+                    {
+                        int i = world.DoorIndexOf(view.GetManagedComponentRO<TerrainObjectKey>(e).Key);
+                        if (i >= 0) a[i] = (byte)view.GetComponentRO<DoorState>(e).State;
+                    }
+            }
+
+            if (t_last is { } last && last._states.AsSpan().SequenceEqual(a)) return last;
+            return t_last = new DoorStates(a.ToArray());   // the doors changed (or a new world/thread) — the one allocation
+        }
+
+        // ⭐ R-220 — per THREAD (a background module reads its own snapshot on its own thread): the scratch the doors are read into,
+        //   the last table handed out, and the door query of the last repository (an EntityQuery is immutable and reusable).
+        [ThreadStatic] private static byte[]? t_scratch;
+        [ThreadStatic] private static DoorStates? t_last;
+        [ThreadStatic] private static EntityRepository? t_queryRepo;
+        [ThreadStatic] private static EntityQuery? t_query;
+
+        private static EntityQuery? DoorQuery(ISimulationView view)
+        {
+            if (view is not EntityRepository repo)
+                return view.Query().With<DoorState>().WithManaged<TerrainObjectKey>().WithLifecycle(EntityLifecycle.All).Build();
+            if (ReferenceEquals(repo, t_queryRepo)) return t_query;
+            if (!repo.IsComponentTypeRegistered<DoorState>()) return null;   // not cached: the type may be registered later
+            t_query = repo.Query().With<DoorState>().WithManaged<TerrainObjectKey>().WithLifecycle(EntityLifecycle.All).Build();
+            t_queryRepo = repo;
+            return t_query;
         }
 
         /// <summary>The resident terrain's doors as <paramref name="view"/> sees them, or null when no terrain is resident / it has no doors.</summary>
