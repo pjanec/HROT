@@ -50,5 +50,21 @@ namespace Fdp.Toolkit.Navigation
         /// Returns the number of waypoints written, or 0 if no path was found.
         /// </summary>
         int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF);
+
+        // ── ⭐ R-219 — the same queries judged by the door states of the CALLER's view ──────────────────────────────────────
+        //   A background solver passes the table built from its snapshot (Fdp.Toolkit.Terrain.DoorStates.Of(view, terrain)), so a
+        //   path or reachability answer sees the doors of the tick it runs on. Defaults ignore doors (implementations without them).
+
+        /// <inheritdoc cref="PlanPath(Vector3, Vector3, Span{NavWaypoint}, uint)"/>
+        int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => PlanPath(from, to, waypoints, layerMask);
+
+        /// <inheritdoc cref="PathExists(Vector3, Vector3, uint)"/>
+        bool PathExists(Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => PathExists(from, to, layerMask);
+
+        /// <inheritdoc cref="PathCost(Vector3, Vector3, uint)"/>
+        float PathCost(Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => PathCost(from, to, layerMask);
     }
 }

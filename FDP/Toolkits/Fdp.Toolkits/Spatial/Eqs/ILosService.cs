@@ -24,9 +24,16 @@ namespace Fdp.Toolkit.Spatial.Eqs
     {
         private readonly TerrainWorld _world;
 
-        public TerrainLosService(TerrainWorld world) => _world = world ?? throw new System.ArgumentNullException(nameof(world));
+        private readonly DoorStates? _doors;
+
+        /// <param name="doors">⭐ R-219 — the door states of the view the query runs on; null = as authored.</param>
+        public TerrainLosService(TerrainWorld world, DoorStates? doors = null)
+        {
+            _world = world ?? throw new System.ArgumentNullException(nameof(world));
+            _doors = doors;
+        }
 
         /// <inheritdoc/>
-        public bool HasLineOfSight(Vector3 eye, Vector3 aim) => !_world.SegmentBlocked(eye, aim);
+        public bool HasLineOfSight(Vector3 eye, Vector3 aim) => !_world.SegmentBlocked(eye, aim, _doors);
     }
 }

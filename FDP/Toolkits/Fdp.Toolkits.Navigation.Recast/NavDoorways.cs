@@ -91,8 +91,8 @@ public static class NavDoorways
 }
 
 /// <summary>
-/// ⭐ Buildings Stage 5c (§3j "5c", N1–N3) — the per-layer query filter that judges a doorway polygon by its door's LIVE state, read
-/// from <see cref="TerrainWorld.DoorState"/> (a <c>Volatile</c> byte the door mirror keeps current, 5b). Infantry: a Locked door is
+/// ⭐ Buildings Stage 5c (§3j "5c", N1–N3) — the query filter that judges a doorway polygon by its door's state in the CALLER's view
+/// (<see cref="DoorStates"/>, R-219): built per query from the table the caller passes, or per layer with the authored states. Infantry: a Locked door is
 /// impassable, a Closed one costs <see cref="ClosedDoorPenaltyMetres"/> on entry. Every other layer (vehicles): no doorway polygon.
 /// Everything else defers to <see cref="DtQueryDefaultFilter"/>.
 /// </summary>
@@ -103,15 +103,19 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
 
     private readonly DtQueryDefaultFilter _base = new();
     private readonly IReadOnlyDictionary<long, int> _doorPolys;
-    private readonly TerrainWorld? _world;
+    private readonly DoorStates? _doors;
     private readonly bool _canOpenDoors;
 
-    public DoorAwareQueryFilter(IReadOnlyDictionary<long, int> doorPolys, TerrainWorld? world, bool canOpenDoors)
+    /// <param name="doors">the door states to judge by; null = every door open (no terrain doors)</param>
+    public DoorAwareQueryFilter(IReadOnlyDictionary<long, int> doorPolys, DoorStates? doors, bool canOpenDoors)
     {
         _doorPolys = doorPolys;
-        _world = world;
+        _doors = doors;
         _canOpenDoors = canOpenDoors;
     }
+
+    /// <summary>The same doorway polygons and agent class, judged by <paramref name="doors"/> instead.</summary>
+    public DoorAwareQueryFilter With(DoorStates? doors) => ReferenceEquals(doors, _doors) ? this : new(_doorPolys, doors, _canOpenDoors);
 
     /// <summary>How many doorway polygons this filter knows.</summary>
     public int DoorPolyCount => _doorPolys.Count;
@@ -120,7 +124,7 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
     public int DoorOf(long polyRef) => _doorPolys.TryGetValue(polyRef, out int d) ? d : -1;
 
     private TerrainDoorState StateOf(int door)
-        => _world != null && door < _world.Doors.Count ? _world.DoorState(door) : TerrainDoorState.Open;
+        => _doors != null && door < _doors.Count ? _doors[door] : TerrainDoorState.Open;
 
     public bool PassFilter(long refs, DtMeshTile tile, DtPoly poly)
     {

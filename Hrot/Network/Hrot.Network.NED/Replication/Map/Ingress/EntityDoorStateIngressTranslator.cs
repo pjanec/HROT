@@ -13,7 +13,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 {
     /// <summary>
     /// ⭐ Buildings Stage 5b — applies a terrain door's published state (and its key) on every node that does not own it.
-    /// 📄 docs/DESIGN_Building_Interiors.md §3j. <c>DoorStateMirrorSystem</c> then copies it into this node's <c>TerrainWorld</c>.
+    /// 📄 docs/DESIGN_Building_Interiors.md §3j. Every reader on this node then builds its door table from the view it runs on (<c>DoorStates.Of</c>, R-219).
     /// <para>Same rules as <see cref="EntityDamageIngressTranslator"/>: an unknown id makes a ghost (TransientLocal can deliver the
     /// state before the master), and the node that holds the RECORDED ownership of <c>dtDoorState</c> never takes its own sample
     /// back (S8 / F-5). ⚠ A plain <see cref="IDescriptorTranslator"/> with its own reader, not a <c>CycloneTranslator</c>: the

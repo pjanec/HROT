@@ -59,6 +59,7 @@ namespace Fdp.Toolkit.Navigation.Systems
 
         private readonly TrajectoryPoolManager  _trajectoryPool;
         private readonly INavmeshProvider?      _navmesh;
+        private Fdp.Toolkit.Terrain.DoorStates? _doors;   // ⭐ R-219 — this solver tick's view of the doors
         private readonly IVolumetricPathProvider? _volumetric;
 
         // MobilityProfile byte value for Flying entities (section 5.1).
@@ -152,6 +153,10 @@ namespace Fdp.Toolkit.Navigation.Systems
             if (requests.IsEmpty) return;
 
             var cmd = view.GetCommandBuffer();
+
+            // ⭐ R-219 — the doors as THIS view sees them (on a background module: its snapshot), once per solver tick, so every
+            //   path in the batch is planned against the same door states — never a live value written mid-batch.
+            _doors = Fdp.Toolkit.Terrain.DoorStates.Of(view);
 
             // Budget cap: process at most DefaultCapacity requests per tick (oldest-evict).
             int limit = Math.Min(requests.Length, PathfindingBatchData.DefaultCapacity);
@@ -392,7 +397,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             var span = new Span<NavWaypoint>(buf, MaxNavWaypoints);
 
             uint layerMask = req.NavLayerMask != 0 ? (uint)req.NavLayerMask : 0xFFFFFFFFu;
-            int count = _navmesh!.PlanPath(req.Start, req.End, span, layerMask);
+            int count = _navmesh!.PlanPath(req.Start, req.End, span, layerMask, _doors);
 
             if (count < 2)
                 return Unreachable(in req, handle, NavigationBackend.Navmesh);

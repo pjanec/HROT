@@ -234,17 +234,9 @@ namespace Hrot.Common.EntityCreation
                     new DeleteEntityRequestSystem(adapters.DeleteSource, ackSink, ctx.EntityMap, finalization, ctx.NodeId),
                 };
 
-            // ⭐ Buildings Stage 5b — the systems that keep the TERRAIN in step with the entities that stand for its objects (today:
-            //   doors). On EVERY node, network or not: the terrain queries (sight, fire, paths) run wherever the terrain is resident,
-            //   and an offline editor creates its doors itself. 📄 docs/DESIGN_Building_Interiors.md §3j.
-            var terrainObjectSystems = new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
-            {
-                new Fdp.Toolkit.Terrain.DoorStateMirrorSystem(),
-            };
-
             return new EntityCreation(
                 translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem,
-                promotionSystem, ctx.NodeId, networkSystems, terrainObjectSystems, ctx.World);
+                promotionSystem, ctx.NodeId, networkSystems, ctx.World);
         }
     }
 }

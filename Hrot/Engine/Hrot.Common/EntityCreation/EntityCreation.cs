@@ -38,7 +38,6 @@ namespace Hrot.Common.EntityCreation
             Fdp.Toolkit.Replication.Systems.GhostPromotionSystem promotionSystem,
             int nodeId,
             IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> networkSystems,
-            IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> terrainObjectSystems,
             Fdp.Core.EntityRepository world)
         {
             Translators        = translators;
@@ -50,7 +49,6 @@ namespace Hrot.Common.EntityCreation
             PromotionSystem    = promotionSystem;
             NodeId             = nodeId;
             NetworkSystems     = networkSystems;
-            TerrainObjectSystems = terrainObjectSystems;
             World              = world;
         }
 
@@ -262,14 +260,6 @@ namespace Hrot.Common.EntityCreation
         public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> NetworkSystems { get; }
 
         /// <summary>
-        /// ⭐ Buildings Stage 5b — the systems that keep the resident TERRAIN in step with the entities that stand for its objects
-        /// (today: <c>DoorStateMirrorSystem</c>). Schedule each one (<c>RegisterGlobalSystem</c>) on EVERY host — online or offline.
-        /// ⛔ A host without it keeps every door at its terrain default while the door's owner has opened or locked it.
-        /// 📄 docs/DESIGN_Building_Interiors.md §3j.
-        /// </summary>
-        public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> TerrainObjectSystems { get; }
-
-        /// <summary>
         /// ⭐⭐ <b>The <c>S2b</c> diagnostic habit: report what the pack built and the host did NOT
         /// schedule.</b> 📌 Every one of the five entity-creation defects that produced this design was a
         /// SILENT omission — this is the mechanism that makes the next one loud.
@@ -309,11 +299,6 @@ namespace Hrot.Common.EntityCreation
             if (!seen.Contains(FinalizationSystem))
                 missing.Add($"{nameof(FinalizationSystem)} — phase-2 ACKs will never be dispatched, so a " +
                             "requester waits forever");
-
-            foreach (var sys in TerrainObjectSystems)
-                if (!seen.Contains(sys))
-                    missing.Add($"{nameof(TerrainObjectSystems)} ({sys.GetType().Name}) — the terrain never sees a door's live " +
-                                "state, so sight, fire and paths keep every door as the terrain authored it");
 
             foreach (var sys in NetworkSystems)
                 if (!seen.Contains(sys))

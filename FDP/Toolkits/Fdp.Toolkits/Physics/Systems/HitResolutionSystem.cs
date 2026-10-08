@@ -113,7 +113,8 @@ namespace Fdp.Toolkit.Physics.Systems
                         {
                             shot?.Crossings.Clear();
                             Fdp.Toolkit.Combat.TerrainPenetration.Carry(terrain, (bp.TerrainFlags & 1) != 0 ? bp.Muzzle : hit.Start, hitPos,
-                                ref damage, ref penetration, out _, shot?.Crossings);
+                                ref damage, ref penetration, out _, shot?.Crossings,
+                                terrain.Doors.Count > 0 ? Fdp.Toolkit.Terrain.DoorStates.Of(repo, terrain) : null);   // ⭐ R-219
                         }
                         if (shot != null)
                         {

@@ -35,12 +35,13 @@ namespace Fdp.Toolkit.Combat
         /// <param name="stopT">Where the round stopped (0..1 along the segment) when the result is true; 1 otherwise.</param>
         /// <returns>True when a crossing stopped the round.</returns>
         /// <param name="log">⭐ T-4 — when given, each crossing is appended (what, where, the round's chance through it) for the shot log.</param>
+        /// <param name="doors">⭐ R-219 — the door states of the caller's view (<see cref="DoorStates.Of(Fdp.ModuleHost.Abstractions.ISimulationView, TerrainWorld)"/>); null = as authored.</param>
         public static bool Carry(TerrainWorld world, Vector3 from, Vector3 to, ref float damage, ref float penetration, out float stopT,
-            List<ShotCrossing>? log = null)
+            List<ShotCrossing>? log = null, DoorStates? doors = null)
         {
             stopT = 1f;
             var crossings = t_crossings ??= new List<TerrainWorld.FireCrossing>();
-            world.QueryFire(from, to, crossings);
+            world.QueryFire(from, to, crossings, doors);
             foreach (var c in crossings)
             {
                 float roundPen = EngineFallbacks.TerrainPenetrationOrFallback(penetration);

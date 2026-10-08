@@ -9,8 +9,7 @@ namespace Fdp.Toolkit.Terrain
     /// ⭐ Buildings Stage 5b (📄 docs/DESIGN_Building_Interiors.md §3a, §3b, §3j) — a door entity's live state. The ONE writer is
     /// the door's owner (its creator today; door commands in 5d); every other node receives it through the <c>EntityDoorState</c>
     /// descriptor (R-136: entity state comes from the TKB or a published TransientLocal descriptor, never a per-node default).
-    /// <see cref="DoorStateMirrorSystem"/> copies it into <see cref="TerrainWorld.SetDoorState"/> on every node, which is what
-    /// sight, fire and (5c) the navmesh read.
+    /// Every reader builds a <see cref="DoorStates"/> table from the view it runs on (R-219) — sight, fire and (5c) the navmesh.
     /// <para>⛔ <c>NoScenario</c>: a door entity is never saved (§3b K5 — the terrain recreates it); its state is saved by the
     /// scenario's <c>terrainObjects</c> section (5e), keyed by <see cref="TerrainObjectKey"/>.</para>
     /// </summary>
@@ -56,48 +55,54 @@ namespace Fdp.Toolkit.Terrain
     }
 
     /// <summary>
-    /// ⭐ Buildings Stage 5b — copies each door entity's replicated <see cref="DoorState"/> into the resident
-    /// <see cref="TerrainWorld"/> (<see cref="TerrainWorld.SetDoorState"/>), on EVERY node: the queries that read door state
-    /// (sight, fire, the 5c path filter) run where the terrain is, and the terrain is a plain model that knows no entities.
-    /// <para>⭐ Built by the shared <c>EntityCreationPack</c> and scheduled by every host (<c>EntityCreation.TerrainObjectSystems</c>),
-    /// whose <c>Unserviceable()</c> reports a host that forgets it — ⛔ a host without it would keep every door at its terrain
-    /// default while the owner had opened it, silently.</para>
-    /// <para>Runs in <see cref="SystemPhase.BeforeSync"/>: after the Input-phase ingress has been played back, before the
-    /// Simulation-phase queries of the same frame.</para>
+    /// ⭐⭐ R-219 (📄 docs/DESIGN_Building_Interiors.md §3j "5b′") — the door states AS ONE VIEW SEES THEM: built from the
+    /// <see cref="DoorState"/> + <see cref="TerrainObjectKey"/> entities of that view, index-aligned with <see cref="TerrainWorld.Doors"/>,
+    /// immutable. A background module builds it from ITS snapshot, so its sight / fire / path queries see the doors of the tick it
+    /// runs on — never a live value written mid-batch on the main thread.
+    /// <para>⛔ Why not a field on <see cref="TerrainWorld"/> (5a/5b as first built): the terrain is shared BY REFERENCE into every
+    /// background snapshot, so live state on it reaches every thread at once. ⛔ Why not a singleton: a background snapshot SHARES
+    /// singleton tables with the live world (<c>EntityRepository.SyncSingletonById</c>), so a singleton swap reaches every snapshot
+    /// too. Per-entity components are the one thing a snapshot really copies.</para>
     /// </summary>
-    [UpdateInPhase(SystemPhase.BeforeSync)]
-    public sealed class DoorStateMirrorSystem : IEcsModuleSystem
+    public sealed class DoorStates
     {
-        private TerrainWorld? _indexedFor;
-        private readonly Dictionary<string, int> _doorIndex = new(StringComparer.Ordinal);
+        private readonly byte[] _states;
 
-        /// <summary>How many door states this system wrote into a terrain (a rail reads it).</summary>
-        public long Writes { get; private set; }
+        private DoorStates(byte[] states) => _states = states;
 
-        public void Execute(ISimulationView view, float deltaTime)
+        /// <summary>Door <paramref name="index"/>'s state in this view.</summary>
+        public TerrainDoorState this[int index] => (TerrainDoorState)_states[index];
+
+        public int Count => _states.Length;
+
+        /// <summary>The doors of <paramref name="world"/> as the terrain authored them (no door entity says otherwise).</summary>
+        public static DoorStates Authored(TerrainWorld world)
         {
-            if (view is not EntityRepository repo) return;
-            if (!repo.HasSingletonManaged<TerrainWorld>()) return;
-            var world = repo.GetSingletonManaged<TerrainWorld>();
-            if (world == null || world.Doors.Count == 0) return;
-            if (!repo.IsComponentTypeRegistered<DoorState>()) return;   // a managed query over an unregistered key matches nothing
-
-            if (!ReferenceEquals(world, _indexedFor))
-            {
-                // a terrain commit swaps the singleton object — re-index its doors (and its door states start from the terrain)
-                _indexedFor = world;
-                _doorIndex.Clear();
-                for (int i = 0; i < world.Doors.Count; i++) _doorIndex[world.Doors[i].Key] = i;
-            }
-
-            foreach (var e in repo.Query().With<DoorState>().WithManaged<TerrainObjectKey>().WithLifecycle(EntityLifecycle.All).Build())
-            {
-                if (!_doorIndex.TryGetValue(repo.GetComponent<TerrainObjectKey>(e).Key, out int i)) continue;
-                var state = repo.GetComponentRO<DoorState>(e).State;
-                if (world.DoorState(i) == state) continue;
-                world.SetDoorState(i, state);
-                Writes++;
-            }
+            var a = new byte[world.Doors.Count];
+            for (int i = 0; i < a.Length; i++) a[i] = (byte)world.Doors[i].Initial;
+            return new DoorStates(a);
         }
+
+        /// <summary>
+        /// The doors of <paramref name="world"/> as <paramref name="view"/> sees them: each door entity's <see cref="DoorState"/>, else
+        /// the authored state. Cheap — one pass over the door entities; build it once per batch / per system tick.
+        /// </summary>
+        public static DoorStates Of(ISimulationView view, TerrainWorld world)
+        {
+            var a = new byte[world.Doors.Count];
+            for (int i = 0; i < a.Length; i++) a[i] = (byte)world.Doors[i].Initial;
+            if (a.Length > 0 && (view is not EntityRepository repo || repo.IsComponentTypeRegistered<DoorState>()))
+                foreach (var e in view.Query().With<DoorState>().WithManaged<TerrainObjectKey>().WithLifecycle(EntityLifecycle.All).Build())
+                {
+                    int i = world.DoorIndexOf(view.GetManagedComponentRO<TerrainObjectKey>(e).Key);
+                    if (i >= 0) a[i] = (byte)view.GetComponentRO<DoorState>(e).State;
+                }
+            return new DoorStates(a);
+        }
+
+        /// <summary>The resident terrain's doors as <paramref name="view"/> sees them, or null when no terrain is resident / it has no doors.</summary>
+        public static DoorStates? Of(ISimulationView view)
+            => view is EntityRepository repo && repo.HasSingletonManaged<TerrainWorld>() && repo.GetSingletonManaged<TerrainWorld>() is { Doors.Count: > 0 } w
+                ? Of(view, w) : null;
     }
 }

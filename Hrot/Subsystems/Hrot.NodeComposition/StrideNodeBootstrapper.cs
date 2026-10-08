@@ -509,9 +509,6 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
             //   ⭐ Ordering carries itself: [UpdateAfter(GhostCreationSystem)] on the system.
             context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
-            // ⭐ Buildings Stage 5b — the terrain-object systems (door state → the resident terrain), on every host. 📄 DESIGN_Building_Interiors.md §3j
-            foreach (var sys in creation.TerrainObjectSystems)
-                context.Kernel.RegisterGlobalSystem(sys);
 
             // ⭐⭐ The S2b habit: make an omission loud. Every one of the five defects behind this design
             //   was silent.
@@ -519,7 +516,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             {
                 creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
                 creation.PromotionSystem,
-            }.Concat(creation.NetworkSystems).Concat(creation.TerrainObjectSystems));
+            }.Concat(creation.NetworkSystems));
             if (unserviceable.Length > 0)
                 FdpLog<StrideNodeBootstrapper>.Warn(unserviceable);
 

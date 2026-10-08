@@ -1223,7 +1223,7 @@ In all-in-one mode, the same call resolves directly against the shared in-proces
 
 | change | examples | mechanism | state |
 |---|---|---|---|
-| **STATE on fixed geometry** | a door, smoke, a danger cost, a pre-baked bridge up/down | the **query filter** reads the live state at query time — the polygons were baked with their own area id | ✅ doors (`DoorAwareQueryFilter`, Building Interiors §3j 5c) |
+| **STATE on fixed geometry** | a door, smoke, a danger cost, a pre-baked bridge up/down | the **query filter** judges by the state at query time — ⭐ the CALLER's `DoorStates`, built from the view it runs on (R-219: a background solver sees its own snapshot's doors) — the polygons were baked with their own area id | ✅ doors (`DoorAwareQueryFilter`, Building Interiors §3j 5c + 5b′) |
 | **GEOMETRY** | a breached wall, a crater, a collapsed or placed building (AQ81 T6) | **copy-on-write**: rebuild off-thread, **swap one immutable snapshot** atomically; in-flight queries finish on the old one | ⭐ P1 snapshot ✅ · P2 tiles ⏭ |
 
 ```mermaid

@@ -150,20 +150,26 @@ public sealed class RecastNavmeshFactoryTests
     }
 
     [Fact]
-    public void Stage5c_ALockedDoorIsAWall_AClosedOneIsPassable_AndTheLiveStateIsReadAtQueryTime()
+    public void Stage5c_ALockedDoorIsAWall_AClosedOneIsPassable_JudgedByTheCallersDoorTable()
     {
         var world = TerrainWorldParser.Parse(OneDoorRoom, "range");
         var nav = new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
         var outside = new Vector3(25, 10, 0); var inside = new Vector3(25, 25, 0);
-        int door = world.DoorIndexOf("range/R/front");
+        const uint Inf = (uint)NavLayerMask.Infantry;
+        DoorStates As(TerrainDoorState st) => Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(world, ("range/R/front", st));
 
-        Assert.True(nav.PathExists(outside, inside, (uint)NavLayerMask.Infantry));
-        world.SetDoorState(door, TerrainDoorState.Locked);               // what the door mirror does (5b)
-        Assert.False(nav.PathExists(outside, inside, (uint)NavLayerMask.Infantry), "a locked door is impassable");
-        world.SetDoorState(door, TerrainDoorState.Closed);
-        Assert.True(nav.PathExists(outside, inside, (uint)NavLayerMask.Infantry), "infantry may open a closed door (N2)");
-        world.SetDoorState(door, TerrainDoorState.Destroyed);
-        Assert.True(nav.PathExists(outside, inside, (uint)NavLayerMask.Infantry));
+        Assert.True(nav.PathExists(outside, inside, Inf));                                    // no table: as authored (open)
+        Assert.False(nav.PathExists(outside, inside, Inf, As(TerrainDoorState.Locked)), "a locked door is impassable");
+        Assert.True(nav.PathExists(outside, inside, Inf, As(TerrainDoorState.Closed)), "infantry may open a closed door (N2)");
+        Assert.True(nav.PathExists(outside, inside, Inf, As(TerrainDoorState.Destroyed)));
+
+        // ⭐ R-219 — the switchable node provider forwards the table (the default interface method would drop it)
+        var node = new SwitchableNavmeshProvider();
+        node.Publish(nav);
+        Assert.False(node.PathExists(outside, inside, Inf, As(TerrainDoorState.Locked)));
+        Span<NavWaypoint> wps = stackalloc NavWaypoint[64];
+        int n = node.PlanPath(outside, inside, wps, Inf, As(TerrainDoorState.Locked));
+        Assert.True(n == 0 || Vector3.Distance(wps[n - 1].Position, inside) > 2f, "a locked door yields no path in (at most a partial one)");
     }
 
     [Fact]
@@ -172,24 +178,24 @@ public sealed class RecastNavmeshFactoryTests
         var world = TerrainWorldParser.Parse(OneDoorRoom, "range");
         int door = world.DoorIndexOf("range/R/front");
         var doorPolys = new System.Collections.Generic.Dictionary<long, int> { [5] = door, [6] = door };
-        var infantry = new DoorAwareQueryFilter(doorPolys, world, canOpenDoors: true);
-        var vehicle  = new DoorAwareQueryFilter(doorPolys, world, canOpenDoors: false);
+        DoorStates As(TerrainDoorState st) => Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(world, ("range/R/front", st));
+        var infantry = new DoorAwareQueryFilter(doorPolys, As(TerrainDoorState.Open), canOpenDoors: true);
+        var vehicle  = new DoorAwareQueryFilter(doorPolys, As(TerrainDoorState.Open), canOpenDoors: false);
         var poly = new DotRecast.Detour.DtPoly(0, 6) { flags = 1 };
         poly.SetArea(NavDoorways.DoorArea);
         var a = new DotRecast.Core.Numerics.RcVec3f(0, 0, 0); var b = new DotRecast.Core.Numerics.RcVec3f(1, 0, 0);
         float Cost(DoorAwareQueryFilter f, long prev, long cur) => f.GetCost(a, b, prev, null!, poly, cur, null!, poly, 0, null!, poly);
 
         Assert.Equal(1f, Cost(infantry, 1, 5), 3);                                   // open: the plain distance
-        world.SetDoorState(door, TerrainDoorState.Closed);
-        Assert.Equal(1f + DoorAwareQueryFilter.ClosedDoorPenaltyMetres, Cost(infantry, 1, 5), 3);   // entering it
-        Assert.Equal(1f, Cost(infantry, 5, 6), 3);                                   // already inside the same door
-        Assert.Equal(1f, Cost(infantry, 1, 9), 3);                                   // not a doorway polygon
+        var closed = infantry.With(As(TerrainDoorState.Closed));
+        Assert.Equal(1f + DoorAwareQueryFilter.ClosedDoorPenaltyMetres, Cost(closed, 1, 5), 3);   // entering it
+        Assert.Equal(1f, Cost(closed, 5, 6), 3);                                     // already inside the same door
+        Assert.Equal(1f, Cost(closed, 1, 9), 3);                                     // not a doorway polygon
 
         Assert.True(infantry.PassFilter(5, null!, poly));
         Assert.False(vehicle.PassFilter(5, null!, poly));                            // N2 — vehicles never use a doorway
         Assert.True(vehicle.PassFilter(9, null!, poly));
-        world.SetDoorState(door, TerrainDoorState.Locked);
-        Assert.False(infantry.PassFilter(5, null!, poly));
+        Assert.False(infantry.With(As(TerrainDoorState.Locked)).PassFilter(5, null!, poly));
     }
 
     // ── ⭐ CE-2122 — the EQS and NavigationSolver modules query ONE provider from two background threads ─────────

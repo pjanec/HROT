@@ -2,9 +2,9 @@
 state: LIVE
 updated: 2026-10-07 (rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3j Stage 5 doors (5a, 5b, 5c as built) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3j Stage 5 doors (5a, 5b, 5c as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
-known-rot: none yet
+known-rot: §3j's top classDiagram and "5b as built" still draw DoorStateMirrorSystem / TerrainWorld.SetDoorState — removed by 5b′ (R-219); the banner there says so
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
   buildings.
@@ -557,6 +557,11 @@ navmesh (baked open, §3a) and `SurfaceZ` never do; the replicated door entity (
 
 ### 5b as built — door entities, the replicated state, the mirror *(backend, `2026-10-07`)*
 
+> ⛔ **SUPERSEDED IN PART `2026-10-08` by [5b′](#5b--door-state-is-read-from-the-readers-own-view-r-219) (R-219):** the
+> `DoorStateMirrorSystem`, the pack's `TerrainObjectSystems` and the live door state on `TerrainWorld` (`SetDoorState`, 5a) are
+> **removed** — the terrain is shared by reference into every background snapshot, so live state on it reached every thread at
+> once. The door entities, `DoorState`/`TerrainObjectKey`, the descriptor and the load-step creation below stand unchanged.
+
 ```mermaid
 classDiagram
     direction LR
@@ -647,7 +652,7 @@ nav LAYER (`NavLayerSelection.For`: Infantry, or Vehicle for a `VehicleState`).
 |---|---|---|
 | the mesh is shared READ-ONLY by two background threads | ✅ `DotRecastNavmeshProvider.cs:51-57` (CE-2122: EQS + NavigationSolver query in parallel, per-thread `DtNavMeshQuery`) | ✅ CE-2122 fix note in that file |
 | ⇒ a runtime `SetPolyFlags` would mutate it under those threads | ✅ DotRecast `SetPolyFlags` writes `DtPoly.flags` in place | ⛔ §3a assumed `SetPolyFlags` — written before CE-2122 was measured |
-| the door's live state is readable from any thread | ✅ `TerrainWorld.DoorState(i)` is a `Volatile.Read` of a byte (5a), fed by the mirror (5b) | ✅ §3j 5b |
+| ~~the door's live state is readable from any thread~~ ⛔ **SUPERSEDED by 5b′ (R-219)**: true of torn reads, false of the snapshot model — the filter now judges by the caller's `DoorStates` | ~~`TerrainWorld.DoorState(i)`, `Volatile`~~ removed | 5b′ |
 | infantry fits a doorway, a vehicle does not | ✅ vehicle radius 1.8 m (`RecastNavmeshBaker.cs:76`) erodes a 1 m opening away | ✅ §3a "excluded for vehicles" |
 
 ```mermaid
@@ -690,7 +695,7 @@ sequenceDiagram
 
 | decision | lean | rejected (one line each) |
 |---|---|---|
-| **N1** how a door's state reaches the planner | ⭐ a `DoorAwareQueryFilter` reads `TerrainWorld.DoorState` at query time (the STATE half of Navigation v2 §14; geometry changes use its snapshot swap — R-218) — ⚠ **mechanism changed from §3a's `SetPolyFlags`**, behaviour identical | runtime `SetPolyFlags` — mutates the mesh two background threads read (CE-2122) · a mesh copy per state change — a rebake by another name |
+| **N1** how a door's state reaches the planner | ⭐ a `DoorAwareQueryFilter` judges by the door states at query time — ⚠ **as built (R-219, 5b′): the CALLER's `DoorStates` from its own view**, not a live field on the terrain (the STATE half of Navigation v2 §14; geometry changes use its snapshot swap — R-218) — ⚠ **mechanism changed from §3a's `SetPolyFlags`**, behaviour identical | runtime `SetPolyFlags` — mutates the mesh two background threads read (CE-2122) · a mesh copy per state change — a rebake by another name |
 | **N2** which agents may open doors | ⭐ the Infantry layer (closed = passable at a cost); the Vehicle layer never uses a door poly | a per-agent capability component — none exists and nothing would write it yet; add it when a unit type needs to differ |
 | **N3** the cost of a closed door | ⭐ `ClosedDoorPenaltyMetres = 10` added when entering a closed door's poly — a detour shorter than ~10 m wins | no penalty — a closed door would look free · a multiplier — a doorway poly is short, so it would barely register |
 | **N4** door waypoints and replanning | ⭐ `PlanPath` marks `Traversal = Door` now; **carrying it through the trajectory pool, and replanning on a door change, move to 5d** with their consumer (the door action) | carrying it now — three hops (`PathfindingSolverSystem`, `TrajectoryWaypoint`, `EngineBackedPathRegistry`) for a value nothing reads until 5d |
@@ -703,6 +708,63 @@ were open. ⭐ Strictly better than before 5c, when every door — locked too �
 | matches the diagrams | `NavDoorways.For` (one box per door: opening × wall thickness + 0.4 m each side, sill − 0.5 → sill + 2.2 m, `DoorArea` = 2) → `RecastNavmeshBaker.Bake(…, doorways)` → `AddConvexVolume` · `DotRecastNavmeshProvider(meshes, world, doorways)` maps each `DoorArea` poly to its door (`NavDoorways.DoorPolys`) and gives each layer a `DoorAwareQueryFilter` (Infantry may open doors) · `PlanPath` marks `TraversalKind.Door` |
 | ⚠ found while building — a PRE-EXISTING contract bug | DotRecast answers an unreachable goal with a **partial** path (to the polygon nearest it), and `PathExists`/`PathCost` counted that as a path — against their own contracts (*"a walkable path exists"*, *"`MaxValue` when no path exists"*). Rare before (an island); with a locked door it is the normal answer for "into that room". ⇒ both now require a COMPLETE path (`polyPath[last] == endRef`); `PlanPath` still returns the partial one, so an agent still goes as near as it can |
 | rails | `RecastNavmeshFactoryTests.Stage5c_*` — the doorway bakes into door polygons and a path through it carries a `Door` waypoint · locked = wall, closed / destroyed / open = passable, read live · the filter charges a closed door once on entry and keeps vehicles out |
+
+
+### 5b′ — door state is read from the reader's own view *(backend, `2026-10-08`, R-219)*
+
+> 🔒 **User, `2026-10-08`:** *"Regarding doors state as entities in ecs repo - this is also sensitive topic to multi thread reading
+> and writing. Is there an issue? Note the fdp supports automatic cheap snapshotting the ecs repo for modules running in own
+> threads"* → *"Approved, do the fix first"*.
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a background module reads a SNAPSHOT replica | ✅ GDB `DoubleBufferProvider` / SoD `OnDemandProvider` → `SyncFrom` | ✅ `Fdp.ModuleHost.md` "snapshot isolation" |
+| a per-entity component is COPIED into the replica | ✅ `EntityRepository.Sync.cs` (component tables `SyncFrom`); no module narrows its mask (`GetRequiredComponents` overridden by none) | ✅ same |
+| a managed component without `SnapshotViaClone` is shared BY REFERENCE | ✅ `EntityRepository.cs:660-663` | ✅ `DataPolicy`: records "safe everywhere", mutable classes default `NoPreview` |
+| a SINGLETON is shared by TABLE — a value swapped in reaches every snapshot | ✅ `EntityRepository.Sync.cs:157` `SyncSingletonById` shares `_singletons[typeId]` (incl. `TerrainWorld`) | ⛔ ⇒ the "immutable `DoorStates` singleton" first proposed would NOT have been snapshot-consistent — measured before building |
+| ⛔ 5a/5b put LIVE door state on `TerrainWorld` | ✅ was `TerrainWorld.SetDoorState` + `DoorStateMirrorSystem` | ⛔ broke the shared-by-reference contract; the 5c claim *"readable from any thread"* was true of torn reads, false of the model |
+
+```mermaid
+classDiagram
+    direction LR
+    class DoorState { <<component 337, unmanaged>> State — COPIED into every snapshot }
+    class TerrainObjectKey { <<managed record 338>> Key — immutable, shared safely }
+    class DoorStates { <<NEW, immutable>> Of(view, terrain) · Of(view) · Authored(terrain) · this[i] }
+    class TerrainWorld { <<immutable again>> SegmentBlocked / QuerySight / QueryFire (…, DoorStates? doors) · DoorIndexOf }
+    class INavmeshProvider { <<existing>> PlanPath / PathExists / PathCost (…, DoorStates? doors) NEW overloads }
+    class DoorAwareQueryFilter { <<5c>> With(doors) — per call }
+    class Readers { <<every caller>> combat carry · hit resolution · shot log · perception LOS · EQS LOS/reach/cost · danger sensor · path solver · /doors }
+    DoorStates ..> DoorState : reads (this view)
+    DoorStates ..> TerrainObjectKey : key → door index
+    Readers ..> DoorStates : build ONCE per batch from their view
+    Readers ..> TerrainWorld : pass the table
+    Readers ..> INavmeshProvider : pass the table
+    INavmeshProvider ..> DoorAwareQueryFilter
+```
+*What it shows that prose hid:* nothing writes door state anywhere but the `DoorState` components; every reader derives its table
+from the view it already holds — a background module's view IS its snapshot, so it sees the doors of its own tick for free.
+
+```mermaid
+sequenceDiagram
+    participant M as main thread (live world)
+    participant P as snapshot provider (GDB/SoD)
+    participant B as background module (path solver / EQS)
+    M->>M: tick N: door entity DoorState = Open
+    M->>P: SyncFrom — DoorState rows COPIED into the replica
+    B->>B: DoorStates.Of(replica) — Open
+    M->>M: tick N+1: DoorState = Locked (ingress / 5d command)
+    B->>B: plans the whole batch with Open — consistent with its snapshot
+    M->>P: next sync — the replica now says Locked
+```
+
+| decision | lean (approved) | rejected (one line each) |
+|---|---|---|
+| where a query gets door state | ⭐ `DoorStates.Of(view, terrain)` built from the reader's own view, passed explicitly to every terrain and navmesh query | a mutable field on `TerrainWorld` — shared by reference into every snapshot · an immutable singleton — singletons are shared by TABLE, so a swap reaches every snapshot (measured) · `SnapshotViaClone` on the terrain — deep-clones the whole terrain per snapshot · an implicit thread-static door context — invisible plumbing a caller can skip |
+| the mirror system and the pack seam | ⭐ removed — there is nothing to mirror | keep an empty `TerrainObjectSystems` seam — an unused registration contract on five hosts |
+| no table passed | the door as the terrain AUTHORED it (`TerrainDoorDef.Initial`) | "open" — would ignore a scenario's authored locked door |
+
+| rails | `TerrainWorldTests.R219_AQueryOnASnapshot_SeesTheDoorsOfThatSnapshot_NotALaterFlipOnTheLiveWorld` (the reason for the rule: a `SyncFrom` replica keeps the door open while the live world locks it) · `R219_AViewsDoorTable_IsBuiltFromItsDoorEntities` · `Stage5_*`/`Stage5c_*` re-stated on per-view tables · `EntityDoorStateTranslatorTests` (the wire reaches the replica's VIEW) · `TerrainReportTests.Doors_NameTheDoorEntity_AndReportItsState_FromTheWorldsView` |
+|---|---|
 
 ## 4. Change map — what each consumer must do
 

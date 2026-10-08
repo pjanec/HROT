@@ -37,7 +37,7 @@ namespace Hrot.Editor.DebugApi
         {
             var t = Resident(world);
             if (t == null) return NoTerrain();
-            var q = t.QuerySight(from, to);
+            var q = t.QuerySight(from, to, DoorStates.Of(world!, t));   // ⭐ R-219 — the doors as this world sees them
             var crossed = new JsonArray();
             foreach (var c in q.Crossed)
                 crossed.Add(new JsonObject
@@ -68,7 +68,7 @@ namespace Hrot.Editor.DebugApi
             float length = Vector3.Distance(from, to);
             var crossed = new JsonArray();
             bool stopped = false; float? stopAlong = null;
-            foreach (var c in t.QueryFire(from, to))
+            foreach (var c in t.QueryFire(from, to, DoorStates.Of(world!, t)))   // ⭐ R-219
             {
                 float effective = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.TerrainPenetrationOrFallback(pen);
                 float chance = Fdp.Toolkit.Combat.ArmorModel.PenetrationChance(effective, c.ResistanceMmRha);
@@ -99,6 +99,7 @@ namespace Hrot.Editor.DebugApi
             var t = Resident(world);
             if (t == null) return NoTerrain();
             var arr = new JsonArray();
+            var doors = world != null ? DoorStates.Of(world, t) : DoorStates.Authored(t);   // ⭐ R-219 — the doors as this world sees them
             foreach (var (d, i) in t.Doors.Select((d, i) => (d, i)).OrderBy(x => x.d.Key, System.StringComparer.Ordinal))
             {
                 var panel = t.Panels[d.Panel];
@@ -106,8 +107,8 @@ namespace Hrot.Editor.DebugApi
                 bool hasEntity = entity != Entity.Null && world!.IsAlive(entity);
                 arr.Add(new JsonObject
                 {
-                    ["key"] = d.Key, ["state"] = t.DoorState(i).ToString(), ["initial"] = d.Initial.ToString(),
-                    ["source"] = hasEntity ? "the door entity's replicated DoorState, mirrored into the terrain" : "terrain (no door entity yet)",
+                    ["key"] = d.Key, ["state"] = doors[i].ToString(), ["initial"] = d.Initial.ToString(),
+                    ["source"] = hasEntity ? "the door entity's replicated DoorState" : "terrain (no door entity yet — as authored)",
                     ["x"] = d.Center.X, ["y"] = d.Center.Y, ["sillZ"] = d.SillZ,
                     ["building"] = panel.Building >= 0 ? t.Buildings[panel.Building].Label : null, ["storey"] = panel.Storey,
                     ["runtimeId"] = hasEntity && world!.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)

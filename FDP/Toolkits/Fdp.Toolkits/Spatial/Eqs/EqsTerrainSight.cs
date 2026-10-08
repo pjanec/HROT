@@ -35,7 +35,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
         {
             if (injected != null) return injected;
             var world = World(view);
-            return world == null ? null : new TerrainLosService(world);
+            // ⭐ R-219 — the EQS solver's view is its snapshot: the doors it sees are the doors of that snapshot
+            return world == null ? null : new TerrainLosService(world, world.Doors.Count > 0 ? DoorStates.Of(view, world) : null);
         }
 
         /// <summary>True when <paramref name="p"/> (XY) is inside a building or wall footprint.</summary>

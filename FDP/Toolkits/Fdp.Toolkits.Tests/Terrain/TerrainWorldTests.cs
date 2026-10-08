@@ -357,8 +357,8 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(w.SegmentBlocked(new Vector3(102.1f, 90, 0.5f), new Vector3(102.1f, 104, 0.5f)));    // under the sill
             // the doorway 104.5..105.5 — ⭐ Stage 5: a gap only while its door is OPEN (this instance's front is locked)
             Assert.True(w.SegmentBlocked(new Vector3(104.8f, 90, 1.6f), new Vector3(104.8f, 104, 1.6f)));
-            w.SetDoorState(w.DoorIndexOf(w.Doors[0].Key), TerrainDoorState.Open);
-            Assert.False(w.SegmentBlocked(new Vector3(104.8f, 90, 1.6f), new Vector3(104.8f, 104, 1.6f)));
+            var open = Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(w, (w.Doors[0].Key, TerrainDoorState.Open));   // R-219: the view's doors
+            Assert.False(w.SegmentBlocked(new Vector3(104.8f, 90, 1.6f), new Vector3(104.8f, 104, 1.6f), open));
             Assert.True(w.SegmentBlocked(new Vector3(103.5f, 90, 1.6f), new Vector3(103.5f, 104, 1.6f)));    // solid wall
         }
 
@@ -498,7 +498,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(0, door);
             var from = new Vector3(25f, 10f, 1.5f); var to = new Vector3(25f, 24f, 1.5f);   // straight through the doorway (24.5–25.5)
 
-            Assert.Equal(TerrainDoorState.Closed, w.DoorState(door));
+            Assert.Equal(TerrainDoorState.Closed, DoorStates.Authored(w)[door]);
             Assert.True(w.SegmentBlocked(from, to));
             var leaf = Assert.Single(w.QuerySight(from, to).Crossed);
             Assert.Equal("door", leaf.Kind);
@@ -507,58 +507,63 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(TerrainWorld.DoorMaterial, fire.Material);
             Assert.Equal(60f * TerrainWorld.DoorLeafThickness, fire.ResistanceMmRha, 2);   // a wooden door — a rifle goes through
 
-            w.SetDoorState(door, TerrainDoorState.Open);
-            Assert.False(w.SegmentBlocked(from, to));
-            Assert.Empty(w.QueryFire(from, to));
-            w.SetDoorState(door, TerrainDoorState.Locked);
-            Assert.True(w.SegmentBlocked(from, to));
-            w.SetDoorState(door, TerrainDoorState.Destroyed);
-            Assert.False(w.SegmentBlocked(from, to));
+            DoorStates As(TerrainDoorState st) => Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(w, ("range/H/front", st));
+            Assert.False(w.SegmentBlocked(from, to, As(TerrainDoorState.Open)));
+            Assert.Empty(w.QueryFire(from, to, As(TerrainDoorState.Open)));
+            Assert.True(w.SegmentBlocked(from, to, As(TerrainDoorState.Locked)));
+            Assert.False(w.SegmentBlocked(from, to, As(TerrainDoorState.Destroyed)));
+            Assert.True(w.SegmentBlocked(from, to));                         // no table: as the terrain authored it (closed)
 
             Assert.DoesNotContain(w.Prisms, p => p.Label == "range/H/front");   // the navmesh (and SurfaceZ) read Prisms only
         }
 
         /// <summary>
-        /// ⭐ Stage 5b — the door ENTITY's replicated state reaches the terrain through <see cref="DoorStateMirrorSystem"/>: the
-        /// terrain's own initial value until the entity says otherwise, then the entity's, on every change; a new terrain (a commit
-        /// swaps the singleton) is re-indexed. 📄 docs/DESIGN_Building_Interiors.md §3j.
+        /// ⭐ R-219 — a view's door table comes from the door ENTITIES in that view: authored where there is none, the entity's state
+        /// where there is one, keyed by <see cref="TerrainObjectKey"/>; a key the terrain does not define is ignored.
         /// </summary>
         [Fact]
-        public void Stage5b_TheDoorEntitysState_IsMirroredIntoTheTerrain_AndFollowsEveryChange()
+        public void R219_AViewsDoorTable_IsBuiltFromItsDoorEntities()
         {
-            using var repo = new Fdp.Core.EntityRepository();
-            repo.RegisterComponent<DoorState>();
-            repo.RegisterManagedComponent<TerrainObjectKey>();
             var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
-            repo.SetSingletonManaged(w);
             int door = w.DoorIndexOf("range/H/front");
-            var from = new Vector3(25f, 10f, 1.5f); var to = new Vector3(25f, 24f, 1.5f);
-
-            var mirror = new DoorStateMirrorSystem();
-            mirror.Execute(repo, 0f);
-            Assert.Equal(TerrainDoorState.Closed, w.DoorState(door));   // no door entity yet: the terrain's own state stands
-            Assert.Equal(0, mirror.Writes);
+            using var repo = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w);
+            Assert.Equal(TerrainDoorState.Closed, DoorStates.Of(repo, w)[door]);                       // no entity: authored
 
             var e = repo.CreateEntity();
             repo.AddComponent(e, new DoorState { State = TerrainDoorState.Open });
             repo.SetManagedComponent(e, new TerrainObjectKey { Key = "range/H/front" });
-            mirror.Execute(repo, 0f);
-            Assert.Equal(TerrainDoorState.Open, w.DoorState(door));
-            Assert.False(w.SegmentBlocked(from, to));
-
-            repo.SetComponent(e, new DoorState { State = TerrainDoorState.Locked });
-            mirror.Execute(repo, 0f);
-            Assert.True(w.SegmentBlocked(from, to));
-            mirror.Execute(repo, 0f);
-            Assert.Equal(2, mirror.Writes);                              // only changes are written
-
-            var w2 = TerrainWorldParser.Parse(OneDoorHouse, "range");   // a terrain commit swaps the singleton
-            repo.SetSingletonManaged(w2);
-            mirror.Execute(repo, 0f);
-            Assert.Equal(TerrainDoorState.Locked, w2.DoorState(w2.DoorIndexOf("range/H/front")));
+            var stray = repo.CreateEntity();
+            repo.AddComponent(stray, new DoorState { State = TerrainDoorState.Locked });
+            repo.SetManagedComponent(stray, new TerrainObjectKey { Key = "elsewhere/X/y" });           // not this terrain's door
+            Assert.Equal(TerrainDoorState.Open, DoorStates.Of(repo, w)[door]);
+            Assert.Equal(TerrainDoorState.Open, DoorStates.Of(repo)![door]);                           // the resident terrain's
+            Assert.False(w.SegmentBlocked(new Vector3(25f, 10f, 1.5f), new Vector3(25f, 24f, 1.5f), DoorStates.Of(repo)));
 
             Assert.Equal(e, TerrainObjects.Find(repo, "range/H/front"));
-            Assert.Equal(new[] { "range/H/front" }, TerrainObjects.ExistingKeys(repo));
+            Assert.Contains("range/H/front", TerrainObjects.ExistingKeys(repo));
+        }
+
+        /// <summary>
+        /// ⭐⭐ R-219 — THE reason for the rule. A background module runs on a SNAPSHOT of the world (<c>SyncFrom</c>, as the GDB/SoD
+        /// providers do). A door flipped on the live world AFTER the sync must not be visible to a query on the snapshot — and before
+        /// R-219 it was: the state lived on the <see cref="TerrainWorld"/>, which a snapshot shares by reference.
+        /// </summary>
+        [Fact]
+        public void R219_AQueryOnASnapshot_SeesTheDoorsOfThatSnapshot_NotALaterFlipOnTheLiveWorld()
+        {
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            using var live = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w, ("range/H/front", TerrainDoorState.Open));
+            using var snapshot = new Fdp.Core.EntityRepository();
+            snapshot.RegisterComponent<DoorState>();
+            snapshot.RegisterManagedComponent<TerrainObjectKey>();
+            snapshot.SyncFrom(live);
+            var from = new Vector3(25f, 10f, 1.5f); var to = new Vector3(25f, 24f, 1.5f);
+
+            var door = TerrainObjects.Find(live, "range/H/front");
+            live.SetComponent(door, new DoorState { State = TerrainDoorState.Locked });   // the main thread locks it after the sync
+
+            Assert.True(w.SegmentBlocked(from, to, DoorStates.Of(live, w)));             // the live world sees it locked
+            Assert.False(w.SegmentBlocked(from, to, DoorStates.Of(snapshot, w)));        // the snapshot still sees it open
         }
 
         private static string ShippedTerrain(string name)

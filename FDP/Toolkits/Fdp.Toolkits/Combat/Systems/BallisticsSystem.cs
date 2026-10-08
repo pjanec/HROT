@@ -65,6 +65,8 @@ namespace Fdp.Toolkit.Combat.Systems
             // ⭐ R-217 — the resident terrain the rounds fly through (immutable, swapped by reference); none ⇒ no terrain, as before.
             var terrain = repo.HasSingletonManaged<global::Fdp.Toolkit.Terrain.TerrainWorld>()
                 ? repo.GetSingletonManaged<global::Fdp.Toolkit.Terrain.TerrainWorld>() : null;
+            // ⭐ R-219 — the doors as THIS view sees them (built once per tick from the door entities)
+            var doors = terrain != null && terrain.Doors.Count > 0 ? global::Fdp.Toolkit.Terrain.DoorStates.Of(view, terrain) : null;
 
             var shots = ShotLog.Peek(repo);   // ⭐ T-4 — rounds fired through FireProcessingSystem have a record
 
@@ -91,7 +93,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 {
                     if (currentTick - proj.StoppedTick >= CombatConstants.StoppedRoundGraceTicks)
                     {
-                        if (shot != null) ShotLog.EndCarried(shot, ShotOutcome.StoppedByTerrain, currentTick, proj.PreviousPosition, terrain, in proj);
+                        if (shot != null) ShotLog.EndCarried(shot, ShotOutcome.StoppedByTerrain, currentTick, proj.PreviousPosition, terrain, in proj, doors);
                         repo.DestroyEntity(entity);
                     }
                     continue;
@@ -101,7 +103,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 // Unsigned subtraction handles tick-counter wrap correctly.
                 if (currentTick - proj.SpawnTick >= CombatConstants.BulletLifetimeTicks)
                 {
-                    if (shot != null) ShotLog.EndCarried(shot, ShotOutcome.Expired, currentTick, repo.GetComponent<SimTransform>(entity).Position, terrain, in proj);
+                    if (shot != null) ShotLog.EndCarried(shot, ShotOutcome.Expired, currentTick, repo.GetComponent<SimTransform>(entity).Position, terrain, in proj, doors);
                     repo.DestroyEntity(entity);
                     continue;   // do NOT submit a raycast for a just-destroyed bullet
                 }
@@ -121,7 +123,7 @@ namespace Fdp.Toolkit.Combat.Systems
                         proj.Muzzle = proj.PreviousPosition; proj.FrontDamage = proj.Damage; proj.FrontPenetration = proj.Penetration;
                         proj.TerrainFlags |= 1;
                     }
-                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref proj.FrontDamage, ref proj.FrontPenetration, out float stopT);
+                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref proj.FrontDamage, ref proj.FrontPenetration, out float stopT, null, doors);
                     if (stopped)
                     {
                         end = System.Numerics.Vector3.Lerp(proj.PreviousPosition, tf.Position, stopT);

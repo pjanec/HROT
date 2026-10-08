@@ -100,6 +100,8 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         private readonly ColliderIndex _index = new();   // ⭐ CE-3032 — the colliders near the segment, not all of them
         private readonly List<int> _near = new();
         private TerrainWorld? _world;
+        // ⭐ R-219 — the doors as the BATCH's view sees them (BeginBatch); a background perception batch runs on its snapshot
+        private DoorStates? _doors;
 
         /// <param name="worldSource">The terrain world now resident; null result = no terrain (colliders only).</param>
         /// <param name="colliderRadiusReader">Collider radius (as the planar strategy).</param>
@@ -133,6 +135,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         public void BeginBatch(ISimulationView view)
         {
             _world = _worldSource();
+            _doors = _world is { Doors.Count: > 0 } ? DoorStates.Of(view, _world) : null;
 
             _colliders.Clear();
             foreach (var c in view.Query().With<SimTransform>().WithComponentId(GlobalComponentIds.PhysicsCollider).Build())
@@ -200,7 +203,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             var points = new List<LosPoint>();
             foreach (var aim in BodyPoints(view, target, st))
             {
-                TerrainWorld.TraceResult? trace = _world?.QuerySight(eye, aim);
+                TerrainWorld.TraceResult? trace = _world?.QuerySight(eye, aim, _world.Doors.Count > 0 ? DoorStates.Of(view, _world) : null);   // ⭐ R-219: this view's doors
                 float height = aim.Z - view.GetComponentRO<SimTransform>(target).Position.Z;
                 if (trace is { } t && t.Transmittance < TerrainWorld.SightThreshold)
                 {
@@ -243,7 +246,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             foreach (float f in BodyProfile.Fractions(stance, collider > 0f))
             {
                 var aim = basePos with { Z = basePos.Z + f * scale };
-                if (_world != null && _world.SegmentBlocked(eye, aim)) continue;
+                if (_world != null && _world.SegmentBlocked(eye, aim, _doors)) continue;
                 if (BlockingCollider(eye, aim, observer, target, out _) == null) return true;
             }
             return false;

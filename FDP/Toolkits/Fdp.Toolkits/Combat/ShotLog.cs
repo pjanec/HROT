@@ -108,7 +108,7 @@ namespace Fdp.Toolkit.Combat
         /// way the hit is (from the muzzle, so it is exact whatever the raycast latency).
         /// </summary>
         internal static void EndCarried(ShotRecord r, ShotOutcome outcome, uint tick, Vector3 at, Fdp.Toolkit.Terrain.TerrainWorld? terrain,
-            in Components.BallisticProjectile proj)
+            in Components.BallisticProjectile proj, Fdp.Toolkit.Terrain.DoorStates? doors = null)
         {
             if (terrain != null && (proj.TerrainFlags & 1) != 0)
             {
@@ -117,7 +117,7 @@ namespace Fdp.Toolkit.Combat
                 // a stopped round is frozen exactly AT the wall's face — carry a few centimetres on, so the crossing that stopped it is listed
                 var to = outcome == ShotOutcome.StoppedByTerrain && Vector3.DistanceSquared(at, proj.Muzzle) > 1e-6f
                     ? at + Vector3.Normalize(at - proj.Muzzle) * 0.05f : at;
-                TerrainPenetration.Carry(terrain, proj.Muzzle, to, ref d, ref p, out _, r.Crossings);
+                TerrainPenetration.Carry(terrain, proj.Muzzle, to, ref d, ref p, out _, r.Crossings, doors);
             }
             End(r, outcome, tick, at);
         }

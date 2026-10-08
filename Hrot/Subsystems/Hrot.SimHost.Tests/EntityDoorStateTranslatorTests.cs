@@ -15,8 +15,8 @@ namespace Hrot.SimHost.Tests
     /// ⭐ Buildings Stage 5b — a terrain door's state crosses the wire and reaches the OTHER node's terrain (📄
     /// docs/DESIGN_Building_Interiors.md §3j): the owner's <see cref="EntityDoorStateEgressTranslator"/> publishes on change, a
     /// receiver's <see cref="EntityDoorStateIngressTranslator"/> builds a ghost carrying the state and the key, and that node's
-    /// <see cref="DoorStateMirrorSystem"/> writes it into its own <see cref="TerrainWorld"/> — so its sight is blocked by the door the
-    /// owner locked.
+    /// own queries read it from that node's view (<see cref="DoorStates.Of(Fdp.ModuleHost.Abstractions.ISimulationView)"/>, R-219) — so its
+    /// sight is blocked by the door the owner locked.
     /// </summary>
     [Trait("Category", "Integration")]
     [Collection("SimHostDds")]
@@ -61,10 +61,9 @@ namespace Hrot.SimHost.Tests
             using var replica = World(out var replicaTerrain);
             var map = new NetworkEntityMap();
             var ingress = new EntityDoorStateIngressTranslator(participant, map, new GhostCreationSystem(map), localNodeId: 2);
-            var mirror = new DoorStateMirrorSystem();
             var from = new System.Numerics.Vector3(25f, 10f, 1.5f); var to = new System.Numerics.Vector3(25f, 24f, 1.5f);
 
-            Assert.True(replicaTerrain.SegmentBlocked(from, to));            // the terrain authored the door closed
+            Assert.True(replicaTerrain.SegmentBlocked(from, to, DoorStates.Of(replica)));   // the terrain authored the door closed
 
             void Tick()
             {
@@ -73,7 +72,6 @@ namespace Hrot.SimHost.Tests
                 using var cmd = new EntityCommandBuffer();
                 ingress.PollIngress(cmd, replica);
                 cmd.Playback(replica);
-                mirror.Execute(replica, 0f);
             }
 
             Thread.Sleep(200);
@@ -81,11 +79,11 @@ namespace Hrot.SimHost.Tests
             Assert.True(map.TryGetEntity(5000L, out var ghost));
             Assert.Equal("range/H/front", replica.GetComponent<TerrainObjectKey>(ghost).Key);
             Assert.Equal(TerrainDoorState.Open, replica.GetComponentRO<DoorState>(ghost).State);
-            Assert.False(replicaTerrain.SegmentBlocked(from, to));           // the owner's OPEN reached this node's terrain
+            Assert.False(replicaTerrain.SegmentBlocked(from, to, DoorStates.Of(replica)));   // the owner's OPEN reached this node's view
 
             owner.SetComponent(door, new DoorState { State = TerrainDoorState.Locked });
             Tick();
-            Assert.True(replicaTerrain.SegmentBlocked(from, to));            // …and so did its LOCK
+            Assert.True(replicaTerrain.SegmentBlocked(from, to, DoorStates.Of(replica)));    // …and so did its LOCK
             Assert.Equal(2, egress.SentSampleCount);
 
             Tick();

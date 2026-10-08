@@ -36,7 +36,6 @@ public static class TerrainObjectRequests
         foreach (var d in doors)
         {
             if (string.IsNullOrEmpty(d.Key) || existingKeys.Contains(d.Key)) continue;
-            int index = world.DoorIndexOf(d.Key);
             requests.Add(new EntityCreationRequest
             {
                 RequestId             = Guid.NewGuid(),
@@ -45,8 +44,8 @@ public static class TerrainObjectRequests
                 IsTransient           = true,
                 InitialComponents     = new List<object>
                 {
-                    // ⭐ the LIVE state the terrain holds now (its initial state until 5e applies a scenario's saved state)
-                    new DoorState { State = index >= 0 ? world.DoorState(index) : d.Initial },
+                    // the state the terrain authored (5e will apply a scenario's saved state here)
+                    new DoorState { State = d.Initial },
                     new TerrainObjectKey { Key = d.Key },
                     new SimTransform { Position = new Vector3(d.Center, d.SillZ), Rotation = Quaternion.Identity },
                 },

@@ -568,15 +568,12 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //   would leave every received entity stuck in EntityLifecycle.Ghost with no TKB projection.
         //   ⭐ No ordering argument needed here — [UpdateAfter(GhostCreationSystem)] carries it.
         context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
-        // ⭐ Buildings Stage 5b — the terrain-object systems (door state → the resident terrain), on every host. 📄 DESIGN_Building_Interiors.md §3j
-        foreach (var sys in creation.TerrainObjectSystems)
-            context.Kernel.RegisterGlobalSystem(sys);
 
         var unserviceable = creation.Unserviceable(new object[]
         {
             creation.RequestSystem, creation.FinalizationSystem, creation.SpawnSystem,
             creation.PromotionSystem,
-        }.Concat(creation.NetworkSystems).Concat(creation.TerrainObjectSystems));
+        }.Concat(creation.NetworkSystems));
         if (unserviceable.Length > 0)
             FdpLog<IgNodeBootstrapper>.Info(
                 "[IG] entity-creation pieces not scheduled: {0}", unserviceable);

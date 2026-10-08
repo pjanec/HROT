@@ -55,6 +55,14 @@ namespace Fdp.Toolkit.Navigation
 
         public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF)
             => Current.PlanPath(from, to, waypoints, layerMask);
+
+        // ⭐ R-219 — forward the caller's door table (the default interface methods would DROP it)
+        public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => Current.PlanPath(from, to, waypoints, layerMask, doors);
+        public bool PathExists(Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => Current.PathExists(from, to, layerMask, doors);
+        public float PathCost(Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => Current.PathCost(from, to, layerMask, doors);
     }
 
     /// <summary>

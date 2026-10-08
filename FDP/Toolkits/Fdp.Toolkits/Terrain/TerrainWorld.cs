@@ -116,37 +116,28 @@ namespace Fdp.Toolkit.Terrain
         /// ⭐ Stage 5 (📄 docs/DESIGN_Building_Interiors.md §3a, §3j) — one closing leaf per door (index-aligned with <see cref="Doors"/>):
         /// a thin piece across the doorway, from its sill to its head. ⛔ NOT in <see cref="Prisms"/> — the navmesh is baked with every
         /// door OPEN (§3a), so nothing that reads prisms ever sees a leaf; the sight and fire queries add the leaves of doors that are
-        /// not open (<see cref="DoorState"/>).
+        /// not open (in the caller's <see cref="DoorStates"/>).
         /// </summary>
         public IReadOnlyList<TerrainPrism> DoorLeaves => _doorLeaves.Value;
 
-        /// <summary>The live state of door <paramref name="index"/> (initially the terrain's / instance's <see cref="TerrainDoorDef.Initial"/>).</summary>
-        public TerrainDoorState DoorState(int index) => (TerrainDoorState)Volatile.Read(ref DoorStateArray[index]);
+        /// <summary>The index of the door whose terrain-object key is <paramref name="key"/>, or −1.</summary>
+        public int DoorIndexOf(string key) => _doorIndex.Value.TryGetValue(key, out int i) ? i : -1;
+
+        private Lazy<Dictionary<string, int>> _doorIndex => _doorIndexLazy ??= new Lazy<Dictionary<string, int>>(() =>
+        {
+            var d = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (int i = 0; i < Doors.Count; i++) d[Doors[i].Key] = i;
+            return d;
+        });
+        private Lazy<Dictionary<string, int>>? _doorIndexLazy;
 
         /// <summary>
-        /// Sets door <paramref name="index"/>'s live state — written by the system that mirrors the replicated door entity's state
-        /// (Stage 5); read by sight/fire on any thread (a byte, written whole).
+        /// A door blocks when it is closed or locked (an open or destroyed door is a gap). ⭐ R-219: the state comes from the CALLER's
+        /// <paramref name="doors"/> — the table built from the view it runs on; with none, the door is as the terrain authored it.
+        /// ⛔ <see cref="TerrainWorld"/> holds NO live state: it is shared by reference into every background snapshot.
         /// </summary>
-        public void SetDoorState(int index, TerrainDoorState state) => Volatile.Write(ref DoorStateArray[index], (byte)state);
-
-        /// <summary>The index of the door whose terrain-object key is <paramref name="key"/>, or −1.</summary>
-        public int DoorIndexOf(string key)
-        {
-            for (int i = 0; i < Doors.Count; i++) if (Doors[i].Key == key) return i;
-            return -1;
-        }
-
-        private byte[] DoorStateArray => _doorStates ??= InitialDoorStates();
-        private byte[]? _doorStates;
-        private byte[] InitialDoorStates()
-        {
-            var a = new byte[Doors.Count];
-            for (int i = 0; i < a.Length; i++) a[i] = (byte)Doors[i].Initial;
-            return a;
-        }
-
-        /// <summary>A door blocks when it is closed or locked (an open or destroyed door is a gap).</summary>
-        private bool DoorBlocks(int index) => DoorState(index) is TerrainDoorState.Closed or TerrainDoorState.Locked;
+        private bool DoorBlocks(int index, DoorStates? doors)
+            => (doors != null ? doors[index] : Doors[index].Initial) is TerrainDoorState.Closed or TerrainDoorState.Locked;
 
         private Lazy<IReadOnlyList<TerrainPrism>> _doorLeaves => _doorLeavesLazy ??= new Lazy<IReadOnlyList<TerrainPrism>>(BuildDoorLeaves);
         private Lazy<IReadOnlyList<TerrainPrism>>? _doorLeavesLazy;
@@ -301,7 +292,8 @@ namespace Fdp.Toolkit.Terrain
         /// <c>GET /terrain/query</c> and perception agree. A prism with no material reads as opaque (concrete), so every
         /// world built before materials behaves exactly as before.</para>
         /// </summary>
-        public bool SegmentBlocked(Vector3 from, Vector3 to)
+        /// <param name="doors">⭐ R-219 — the door states of the caller's view (<see cref="DoorStates.Of(Fdp.Core.ISimulationView, TerrainWorld)"/>); null = as authored.</param>
+        public bool SegmentBlocked(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
             float transmittance = 1f;
             // Under the ground at either end means a malformed query, not an occluder — ignore; a line that
@@ -316,7 +308,7 @@ namespace Fdp.Toolkit.Terrain
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
             for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
             {
-                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count)) continue;
+                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                 var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
@@ -362,7 +354,8 @@ namespace Fdp.Toolkit.Terrain
         /// <para>⚠ Stage 1 serves it for diagnostics (<c>GET /terrain/query</c>); perception still asks
         /// <see cref="SegmentBlocked"/> until Stage 3 makes that <c>QuerySight(...) &lt; threshold</c>.</para>
         /// </summary>
-        public TraceResult QuerySight(Vector3 from, Vector3 to)
+        /// <param name="doors">⭐ R-219 — the door states of the caller's view; null = as authored.</param>
+        public TraceResult QuerySight(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
             var crossed = new List<Crossing>();
             var a = new Vector2(from.X, from.Y);
@@ -375,7 +368,7 @@ namespace Fdp.Toolkit.Terrain
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
             for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
             {
-                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count)) continue;
+                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                 var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
@@ -433,16 +426,16 @@ namespace Fdp.Toolkit.Terrain
         /// a shot line never dips below it between two points above it). What a round DOES with this is the combat rule
         /// (<c>TerrainPenetration</c>), not the terrain's.
         /// </summary>
-        public IReadOnlyList<FireCrossing> QueryFire(Vector3 from, Vector3 to)
+        public IReadOnlyList<FireCrossing> QueryFire(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
             var list = new List<FireCrossing>();
-            QueryFire(from, to, list);
+            QueryFire(from, to, list, doors);
             return list;
         }
 
-        /// <inheritdoc cref="QueryFire(Vector3, Vector3)"/>
+        /// <inheritdoc cref="QueryFire(Vector3, Vector3, DoorStates?)"/>
         /// <param name="into">Cleared, then filled — a caller tracing every round each tick reuses one list.</param>
-        public void QueryFire(Vector3 from, Vector3 to, List<FireCrossing> into)
+        public void QueryFire(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors = null)
         {
             into.Clear();
             var a = new Vector2(from.X, from.Y);
@@ -459,7 +452,7 @@ namespace Fdp.Toolkit.Terrain
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
             for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
             {
-                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count)) continue;
+                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                 var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))

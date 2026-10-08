@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             uint layer = EqsContext.SelfLayer(repo, observer, sensor);                      // ⭐ §19 H5
 
             var navmesh = repo.GetSingletonManaged<INavmeshProvider>()!;
+            var doors = Fdp.Toolkit.Terrain.DoorStates.Of(repo);   // ⭐ R-219 — this EQS view's doors (its snapshot)
             // INavmeshProvider is Z-up like Sim (R-182 / W7): no swizzle (P3D-205).
 
             float maxDist = sensor.SearchRadius;
@@ -42,7 +43,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
                 var targetPos = new Vector3(candidate.PositionX, candidate.PositionY, candidate.PositionZ);
 
-                float pathDist = navmesh.PathCost(obsPos, targetPos, layer);
+                float pathDist = navmesh.PathCost(obsPos, targetPos, layer, doors);
                 if (pathDist != float.MaxValue)
                 {
                     // Inverse-linear falloff: shorter path = higher score. Additive.

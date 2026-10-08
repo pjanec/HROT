@@ -71,7 +71,8 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 if (navmesh != null)
                 {
                     Span<NavWaypoint> wp = stackalloc NavWaypoint[MaxWaypoints];
-                    int n = navmesh.PlanPath(start, end, wp, EqsContext.SelfLayer(repo, carrier, sensor));
+                    int n = navmesh.PlanPath(start, end, wp, EqsContext.SelfLayer(repo, carrier, sensor),
+                        Fdp.Toolkit.Terrain.DoorStates.Of(repo));   // ⭐ R-219 — this view's doors
                     if (n > 0)
                     {
                         for (int i = 0; i < n; i++) route[i + 1] = wp[i].Position;

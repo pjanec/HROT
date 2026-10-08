@@ -93,7 +93,7 @@ namespace Hrot.Editor.Tests
         }
 
         [Fact]
-        public void Doors_Stage5b_NameTheDoorEntity_AndItsReplicatedState()
+        public void Doors_NameTheDoorEntity_AndReportItsState_FromTheWorldsView()
         {
             using var repo = Repo();
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
@@ -107,7 +107,7 @@ namespace Hrot.Editor.Tests
             var door = Assert.Single((JsonArray)TerrainReport.Doors(repo)["doors"]!)!;
             Assert.Equal(1007L, (long)door["runtimeId"]!);
             Assert.Equal("Open", (string?)door["entityState"]);
-            Assert.Equal("Locked", (string?)door["state"]);   // the terrain until the mirror runs (DoorStateMirrorSystem)
+            Assert.Equal("Open", (string?)door["state"]);     // ⭐ R-219 — the state is the world's door entity, read from this view
         }
 
         [Fact]
