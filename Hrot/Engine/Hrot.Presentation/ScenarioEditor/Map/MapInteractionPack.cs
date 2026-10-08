@@ -109,8 +109,10 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-3123 (R-228) — a projector's constructor services come from the host's Services; one the host lacks is reported.
             GizmoReflectionRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settings, resolve,
                 services: ctx.Services,
-                reportUnserviceable: ctx.ReportMapDiagnostic
-                    ?? (m => Fdp.Core.Logging.FdpLog<MapInteraction>.Warn("[Map] " + m)));
+                // ⚠ The "this host cannot serve it" channel, as for tools — NOT ReportMapDiagnostic, the self-check's "the map
+                //   draws nothing" channel (MapInteractionContext.ReportUnserviceableTool says why the two stay apart).
+                reportUnserviceable: ctx.ReportUnserviceableTool
+                    ?? (m => Fdp.Core.Logging.FdpLog<MapInteraction>.Info("[Map] " + m)));
 
             // ⚠⚠ ORDERING IS LOAD-BEARING (§3.2d ③). The host's own gizmos go in AFTER reflection and
             // BEFORE the systems are constructed, because StatelessGizmoSystem sizes its visibility cache

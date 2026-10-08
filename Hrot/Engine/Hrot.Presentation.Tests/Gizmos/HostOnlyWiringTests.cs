@@ -108,7 +108,7 @@ public sealed class HostOnlyWiringTests : IDisposable
     public void CE3123_AProjectorNeedingAServiceTheHostLacks_IsReportedByName_AndDrawsWhereTheServiceIs()
     {
         var reports = new System.Collections.Generic.List<string>();
-        MapInteractionPack.Build(new MapInteractionContext { World = _w, ReportMapDiagnostic = reports.Add });
+        MapInteractionPack.Build(new MapInteractionContext { World = _w, ReportUnserviceableTool = reports.Add });
         Assert.Contains(reports, r => r.Contains("MissionPresentationGizmo") && r.Contains("IGeographicTransform"));
         Assert.DoesNotContain(reports, r => r.Contains("EntityEditorLabelGizmo"));   // it has a service-free constructor
 
@@ -117,7 +117,7 @@ public sealed class HostOnlyWiringTests : IDisposable
         MapInteractionPack.Build(new MapInteractionContext
         {
             World = other,
-            ReportMapDiagnostic = reports.Add,
+            ReportUnserviceableTool = reports.Add,
             Services = MapServices.Of(new Fdp.Modules.Geographic.Transforms.WGS84Transform()),
         });
         Assert.DoesNotContain(reports, r => r.Contains("MissionPresentationGizmo"));

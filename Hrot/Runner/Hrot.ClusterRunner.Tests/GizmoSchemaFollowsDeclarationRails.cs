@@ -53,10 +53,15 @@ public sealed class GizmoSchemaFollowsDeclarationRails
             + "vacuous.");
 
         var statelessRegistry = new StatelessGizmoRegistry();
+        // ⭐ CE-3123 — a projector whose constructor needs a service this (test) host does not provide is REPORTED by name
+        //   rather than registered (MissionPresentationGizmo needs an IGeographicTransform); that counts as reaching the registrar.
+        var reported = new List<string>();
         var registered = GizmoReflectionRegistrar.RegisterAll(
-            new GizmoRegistry(), statelessRegistry, new GizmoSettingsRegistry());
+            new GizmoRegistry(), statelessRegistry, new GizmoSettingsRegistry(), reportUnserviceable: reported.Add);
 
-        var missing = discovered.Except(registered).ToArray();
+        var missing = discovered.Except(registered)
+            .Where(t => !reported.Any(r => r.Contains($"'{t.Name}'", StringComparison.Ordinal)))
+            .ToArray();
 
         Assert.True(missing.Length == 0,
             $"{missing.Length} projector(s) were discovered but not registered:\n  "

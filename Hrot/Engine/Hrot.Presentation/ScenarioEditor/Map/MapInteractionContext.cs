@@ -199,7 +199,8 @@ namespace Hrot.ScenarioEditor.Map
         public Action? StartPlacementMode { get; init; }
 
         /// <summary>
-        /// Where <i>"this host cannot service tool X"</i> goes. ⭐ Defaults to the FDP log.
+        /// Where <i>"this host cannot service tool X"</i> goes — ⭐ <c>CE-3123</c>: and <i>"gizmo X needs a service this host lacks"</i>
+        /// (<see cref="Services"/>). ⭐ Defaults to the FDP log.
         /// ⚠ Separate from <c>ReportMapDiagnostic</c>: that one is the self-check's channel, and merging
         /// them would put a tool's refusal into the map's health report.
         /// </summary>
@@ -250,7 +251,7 @@ namespace Hrot.ScenarioEditor.Map
         /// ⭐ <c>CE-3123</c> (R-228) — the services this host can hand a gizmo projector's constructor (today
         /// <c>IGeographicTransform</c> for <c>MissionPresentationGizmo</c>, <c>BehaviorRegistry</c> for <c>EntityEditorLabelGizmo</c>).
         /// Build it with <see cref="MapServices"/>. A projector whose constructors need a service the host lacks is REPORTED
-        /// (<see cref="ReportMapDiagnostic"/>, else the log) and skipped — ⛔ never registered by hand on the hosts that happen to
+        /// (<see cref="ReportUnserviceableTool"/>, else the log) and skipped — ⛔ never registered by hand on the hosts that happen to
         /// have the service. 🔒 Silent-default rule: a host that HOLDS one of these must pass it.
         /// 📄 <c>DESIGN_Uniform_Gizmo_Membership.md</c> §10.
         /// </summary>
