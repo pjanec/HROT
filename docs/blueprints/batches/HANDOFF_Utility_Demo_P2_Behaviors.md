@@ -276,6 +276,16 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   leave SimHost. I may need the NED ownership binding for ordinals 104/105; I will ask before touching it.
 - **Waiting for:** nothing.
 
+### 2026-10-07 · behaviors → backend · ⚠ CROSS-LANE — stance on the wire by GROUP ownership (CE-2121 slice ②, user-approved)
+
+- **Yours, changed:** `NedOwnershipGroupBinding` maps `dtStanceIntent` 104 (Brain) and `dtStanceStatus` 105 (MuscleGround) — the
+  groups' "dormant" stance members are live; `RoleGroupOwnershipStrategyTests` and `TheDescriptorMapIsWiredTests` pin the new sets.
+  CGF and SimHost register the stance-only pair (`AnimationReplicationModule.RegisterStanceOn`); the egress gates use the descriptor key.
+- **Found live:** the animation DDS structs had no generated serialiser — the first real writer aborted the cluster. The stance pair is
+  now `[DdsTopic]` (CycloneDDS.NET added to `Hrot.Animation.Replication`). Commit `32ba28f3e` alone does NOT boot — take the next one.
+- **Live:** U6 PASS; the prone request reaches SimHost and the body's report returns to CGF.
+- **Waiting for:** nothing.
+
 ### 2026-10-07 · backend → behaviors · merged your 17 commits; AQ85 hit chance BUILT; CE-2122 FIXED; ⚠ CROSS-LANE: the stance types moved
 - **Merged** `origin/behaviors` into `backend` (`105f42a97`); only the tracker id-block header conflicted.
 - **AQ85 approved by the user and BUILT** (ledger `R-216`; [AQ85](../Architect_Question_85_Hit_Chance.md) §5 as built): a deterministic aim

@@ -608,5 +608,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         configuredFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(context.Kernel);
         configuredFactory.CreateSimHostPerceptionTranslators(context.GhostCreationSystem).RegisterOn(context.Kernel);
         configuredFactory.CreateSimHostPathfindingTranslators(CoreLogicPack!.TrajectoryPool).RegisterOn(context.Kernel);
+        // ⭐ CE-2121 slice ② — the body's half of the stance wire: the Brain's request in, the body's report out (gated on the
+        //   MuscleGround group's descriptor, not on the entity's owner). 📄 docs/DESIGN_Decision_Layer.md §3.3g.
+        Hrot.Animation.Replication.AnimationReplicationModule.RegisterStanceOn(
+            context.Kernel, context.Participant, context.EntityMap, NodeRole.MuscleGround);
     }
 }

@@ -73,6 +73,10 @@ public static class NedOwnershipGroupBinding
         // ⭐ CE-3048 — the AI intent carries the slot state it projects (task slot stays linked on the anchor). 📄 Sensors §7.7
         map.RegisterMapping((long)EDescriptorType.dtBrainIntent, GlobalComponentIds.SopState, GlobalComponentIds.Roe);
 
+        // ⭐ CE-2121 — body stance (was "dormant"): the Brain group's request and the Muscle group's report, so each crosses
+        //   the wire from the node that owns its GROUP (the Muscle never owns the entity's lifecycle). 📄 Decision Layer §3.3g.
+        map.RegisterMapping((long)EDescriptorType.dtStanceIntent, GlobalComponentIds.StanceIntent);
+
         // Perception group descriptor.
         map.RegisterMapping((long)EDescriptorType.dtEqsResult, GlobalComponentIds.EqsCognitiveBuffer);
 
@@ -95,6 +99,7 @@ public static class NedOwnershipGroupBinding
         // ⭐ Buildings Stage 5b — no group: the door's creator keeps it (the creator's remainder). The mapping lets a transfer
         //   (5d door commands) move the DoorState write with the descriptor. 📄 docs/DESIGN_Building_Interiors.md §3j.
         map.RegisterMapping((long)EDescriptorType.dtDoorState, GlobalComponentIds.DoorState);
+        map.RegisterMapping((long)EDescriptorType.dtStanceStatus, GlobalComponentIds.StanceStatus);   // ⭐ CE-2121 — the body's report
 
         map.BindGroups(HrotOwnershipGroups.Table, Anchors);
 
