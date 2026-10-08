@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-08
 build-state: DESIGN
-current-answer: §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices
+current-answer: §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
@@ -53,7 +53,7 @@ classDiagram
     class InteractionEgressTranslator { <<NEW, one>> non-owned, non-remote ⇒ one request }
     class InteractionIngressTranslator { <<NEW, one>> request ⇒ the kind's event, IsRemote }
     class DoorCommandSystem { <<5d-1 owner handler>> }
-    class EmbarkHandler { <<slice I-2, owner handler>> }
+    class EmbarkationSystem { <<slice I-2, owner handler>> }
     EntityInteractionRequest --> InteractionPayload
     InteractionPayload --> DoorPayload
     InteractionPayload --> EmbarkPayload
@@ -63,7 +63,7 @@ classDiagram
     InteractionCodec~TEvent~ ..> DoorCommandEvent
     InteractionCodec~TEvent~ ..> EmbarkEntityCommand
     DoorCommandSystem ..> DoorCommandEvent : reads
-    EmbarkHandler ..> EmbarkEntityCommand : reads
+    EmbarkationSystem ..> EmbarkEntityCommand : reads
 ```
 *What it shows that prose hid:* the per-kind pieces are DATA (an event struct, a payload struct, a union case) plus one codec and
 one handler. The transport, two translators and one topic, exists once. The FDP bus never sees the union, and the wire never sees
@@ -99,7 +99,7 @@ graph TD
     STP --> IN[InteractionIngressTranslator]
     HSR[HrotSharedComponentRegistry - every host] --> EV[each kind's FDP event registered]
     CGF[CgfLogicPack - CGF + editor] --> DCS[DoorCommandSystem]
-    CGF --> EMB[EmbarkHandler - slice I-2]
+    CGF --> EMB[EmbarkationSystem - slice I-2]
     NED[NedReplicationModule tick] -->|each frame| EG
     NED -->|each frame| IN
     SIM[SimHost Muscle] -.->|raises door commands at a door waypoint, 5d-3; applies none| EG
@@ -130,8 +130,88 @@ wire, even in `--mode all`, because each host keeps its own world. The dashed ed
 | slice | content | state |
 |---|---|---|
 | **I-1** | `EntityInteractionRequest` + `InteractionPayload` (case `Door`) + `EInteractionKind`; `IInteractionCodec`, `InteractionCodec<T>`, `InteractionCodecs.All`; the generic egress/ingress in `SharedTranslatorPack`. The door moves onto it; **`EntityDoorCommand` and its two translators are deleted** (5d-1's door-only path), and `dtDoorCommand` is retired | ⏭ |
-| **I-2** | Embark/Disembark as kinds. `EmbarkEntityCommand`/`DisembarkEntityCommand` gain `IsRemote`; an owner-side handler applies them. `EmbarkExecutor`/`EjectPassengersExecutor` raise the command instead of writing the vehicle's `PassengerBuffer`, which fixes a cross-node write. Handler home per `DESIGN_Role_Affinity_Ownership.md` §6 | ⏭ |
+| **I-2** | ONE embarkation applier, three callers: see §7. **I-2a** one rules class + the `EmbarkationSystem` the commands were designed for; executors, editor and scenario load all go through it · **I-2b** across nodes: the vehicle's owner arbitrates, its passenger list replicates, the passenger side is derived (⚠ needs your nod, §7 Q-1) | ⏭ |
 | **I-3** | an `InteractionExecutor<TEvent>` base: reach + action time + one event + wait for the expected state. The door actions and Embark use it | ⏭ |
 
 | rails (planned) | the door rail `EntityDoorStateTranslatorTests.Stage5d_*` re-pointed at the generic topic, unchanged in what it asserts · a codec round-trip per kind · the egress loop guard (a remote event and an owned target are never sent) · Embark across two nodes |
 |---|---|
+
+## 7. EMBARKATION — one applier, three callers *(slice I-2)*
+
+> 🔒 **User, `2026-10-08`:** *"Are embark and disembark similar logical category to open door and other interactions? If they
+> fit, is there unification potential?"* → *"Yes, fold it in as I-2"*
+
+**Same category, one difference.**
+- **The same:** an actor acts on a target, under a precondition (reach, capacity), and the result is state on the target.
+- **The difference:** a door changes only itself. Embark changes the vehicle (its passenger list) AND the passenger (its
+  capabilities and its embarked tag). Eject changes the vehicle and every passenger.
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| boarding is implemented three times | ✅ `EmbarkExecutor.cs:73-89` (Brain) · `EditorCargoSystem.cs:35-47` (editor) · `GenesisMaterializationSystem.cs:80-98` (SimHost, scenario load) | ⛔ ruling 9: one implementation per concept |
+| leaving is implemented twice | ✅ `EjectPassengersExecutor.cs:48-90` · `EditorCargoSystem.cs:68-88` | same |
+| the commands exist and were meant for a kernel applier that was never built | ✅ `EmbarkEntityCommand`/`DisembarkEntityCommand` name an `EmbarkationSystem` that does not exist; the editor is their only consumer | ✅ `edit-1/DESIGN.md` Phase 3: *"consumed by execution systems in the kernel"* |
+| the state is cross-role, with no single owner | ✅ registered by `EmbarkationComponentRegistry` on SimHost, CGF and the editor | ✅ `DESIGN_Role_Affinity_Ownership.md` slice 3a: *"belongs to no single role"*; §3.9a: OWNED by SimHost (genesis writes it) |
+| the state never replicates | ✅ no translator under `Hrot/Network` or `Replication/` names `PassengerBuffer` or `IsEmbarkedTag` | ⛔ nothing says how another node learns it |
+| ⇒ a runtime boarding on CGF never reaches the SimHost that moves the bodies | ⛔ **inferred from the row above, not observed live** | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class Embarkation { <<NEW static rules>> TryEmbark(repo, passenger, vehicle) · Disembark(repo, passenger) · EjectAll(repo, vehicle) · dismount placement (CE-321) }
+    class EmbarkationSystem { <<NEW, the designed consumer>> reads EmbarkEntityCommand · DisembarkEntityCommand · EjectPassengersCommand }
+    class EmbarkEntityCommand { <<existing event 3201>> Passenger · Vehicle · + IsRemote }
+    class DisembarkEntityCommand { <<existing event 3202>> Passenger · + IsRemote }
+    class EjectPassengersCommand { <<NEW event>> Vehicle · IsRemote }
+    class EmbarkExecutor { <<Brain>> walks in range, then RAISES the command }
+    class EjectPassengersExecutor { <<Brain>> RAISES the command }
+    class EditorCargoSystem { <<editor>> ⛔ retired: its two halves ARE EmbarkationSystem }
+    class GenesisMaterializationSystem { <<SimHost, scenario load>> calls Embarkation.TryEmbark }
+    EmbarkationSystem ..> Embarkation
+    GenesisMaterializationSystem ..> Embarkation
+    EmbarkExecutor ..> EmbarkEntityCommand
+    EjectPassengersExecutor ..> EjectPassengersCommand
+    EmbarkationSystem ..> EmbarkEntityCommand
+    EmbarkationSystem ..> DisembarkEntityCommand
+    EmbarkationSystem ..> EjectPassengersCommand
+```
+*What it shows that prose hid:*
+- **One writer of the rules:** only `Embarkation` writes the passenger list, the tag and the capabilities.
+- **Commands, not writes:** the executors and the editor's authoring raise commands; scenario load calls the rules directly.
+  It resolves saved intents inside the load transaction, where a command would land a frame late.
+- **The editor's system disappears**, because what it did is exactly the designed applier.
+
+```mermaid
+sequenceDiagram
+    participant X as EmbarkExecutor (soldier's Brain)
+    participant T as interaction transport (§3)
+    participant V as EmbarkationSystem (vehicle's owner)
+    participant R as PassengerBuffer replication (I-2b)
+    participant D as every node: derive the passenger side
+    X->>X: walk in range (Running)
+    X->>T: EmbarkEntityCommand{soldier, vehicle}
+    T->>V: on the vehicle's owner (local, or over the wire)
+    V->>V: Embarkation.TryEmbark: capacity? ⇒ passenger list += soldier
+    V->>R: PassengerBuffer changed
+    R-->>D: the list on every node
+    D->>D: soldier in a list ⇒ IsEmbarkedTag + capabilities stripped (left the list ⇒ restored)
+    D-->>X: IsEmbarkedTag on the soldier ⇒ the executor's Success
+```
+
+| decision | ⭐ lean | rejected (one line each) |
+|---|---|---|
+| where the rules live | ⭐ one static `Embarkation` (capacity, the list, the tag, the capabilities, the CE-321 dismount placement) | three copies, as today: they already differ (eject places passengers beside the hull, CE-321; the editor's disembark leaves them where they were) |
+| who applies a command | ⭐ `EmbarkationSystem`, the consumer the commands were designed for (`edit-1` Phase 3), gated on owning the VEHICLE | the actor's node writes both entities: today's cross-node defect · `EditorCargoSystem` kept beside it: two appliers for one command |
+| scenario load | ⭐ genesis calls `Embarkation` directly | genesis raises commands: the load transaction resolves intents and must not wait a frame |
+| eject | ⭐ a new `EjectPassengersCommand { Vehicle }`; the vehicle's owner ejects everyone | one `DisembarkEntityCommand` per passenger: N commands for one action, and the dismount column needs them together |
+| **Q-1: the passenger's side across nodes (I-2b)** | ⭐ **the vehicle's owner is the only arbiter; `PassengerBuffer` replicates from it (a new descriptor); every node DERIVES `IsEmbarkedTag` and the stripped capabilities from the list it holds.** One source of truth, one writer | the vehicle's owner also writes the passenger's components: needs the passenger's ownership too · a second request from the vehicle's owner to the passenger's owner: two round trips, and the two can disagree in between · replicate `IsEmbarkedTag` as well: a second copy of one fact |
+
+⚠ **Q-1 needs your nod.** It adds a replicated descriptor and turns `IsEmbarkedTag` and the embark-capability bits into derived
+state, which touches combat's `ActorCapabilityState` (SimHost-owned, §3.9a). ⛔ **Not yet measured:** which systems read
+`IsEmbarkedTag` and the capability bits, and whether any of them would run before the derivation in a frame. That gets enumerated
+before I-2b is built.
+
+| I-2 slices | content |
+|---|---|
+| **I-2a** *(single node correct; no new replication)* | `Embarkation` rules · `EmbarkationSystem` + `EjectPassengersCommand` · `EmbarkExecutor`/`EjectPassengersExecutor` raise commands · `EditorCargoSystem` retired · genesis calls the rules · `IsRemote` on the two existing commands · both kinds registered with the interaction transport |
+| **I-2b** *(across nodes, after Q-1)* | `PassengerBuffer` descriptor + translators (owner → every node) · the derivation system · the cross-node rail (a soldier on one node boards a vehicle owned by another) |
