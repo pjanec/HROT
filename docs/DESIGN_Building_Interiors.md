@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-08 (5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
+updated: 2026-10-08 (§3k Stage 6 warheads designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3k Stage 6 warheads (designed, READY-TO-BUILD) · §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: §3j's top classDiagram and "5b as built" still draw DoorStateMirrorSystem / TerrainWorld.SetDoorState — removed by 5b′ (R-219); the banner there says so
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -1115,6 +1115,142 @@ sequenceDiagram
 
 | rails | `ScenarioSerializerTests.Stage5e_TheSaveWritesTheOwnedDoorsThatDifferFromTheTerrain_KeyedByTerrainObjectKey` · `ScenarioMergeCoreTests.Stage5e_TerrainObjects_UnionAcrossSlices_AndAKeyInTwoSlicesFailsLoud` · `ScenarioLoadStepTests.Stage5e_ADoorsStateSurvivesSaveAndLoad_AnUntouchedDoorStartsAsAuthored` |
 |---|---|
+
+## 3k. Stage 6 — warheads: blast and fragments *(backend, `2026-10-08`; `CE-1032`; 🔒 user: *"approved"*, R-225)*
+
+> 🔒 **User, `2026-10-08`:** *"Go with stage 6, present the design summary"* → *"approved. How the explosion fragments hits will be
+> detected, will it become part of raycast batch with results available next tick?"* (answered in "Timing", below).
+> Builds on §3d E1–E3, §3e (the ammo type denotes the warhead) and §3f (exposure by wall height and posture) — those are not reopened.
+
+### INVENTORY *(graph CLI + grep, `2026-10-08`)*
+
+| query | result |
+|---|---|
+| graph `.*Detonat.*` / `.*Explosion.*` / `.*Blast.*` / `.*Fragment.*` / `.*Warhead.*` / `.*Fuze.*` / `.*Munition.*` / `.*Mortar.*` / `.*Grenade.*` / `.*Indirect.*` (Class/Struct/Enum) + grep | ✅ `DetonationNotification` (`Combat/DetonationNotification.cs:24`), `DamageAssessedEvent`, wire `MunitionDetonation` (`FireInteractionMessages.cs:88`) + its two translators; `RefAmmo.BlastLethalRadiusM/InjuryRadiusM` (`ReferenceLibrary.cs:22`, generated, read by nothing). ⛔ no warhead/blast/fragment/fuze/arc type (Blueprint `Fragment` records and test-only `ExplosionEvent` are unrelated) |
+| ammo in TKB | `AmmoWeaponBallisticsDto` (`MuzzleSpeed`, `Damage`, `PenetrationMm`), `WeaponMountDto.AmmoGuid`; ⛔ no ammo TKB type is authored as data; ⛔ no lookup by DIS (`ITkbDatabase` by type/name only) |
+| the reference library | `ammo.json` already has `M67 grenade`, `40mm HEDP`, `60/81/120mm mortar HE`, `125mm HE-frag` with `explosiveKg`; `weapons.json` has `Hand`, `M203`, the mortars |
+| terrain queries | `TerrainWorld.SegmentBlocked` · `QuerySight` · `QueryFire(into)` (`TerrainWorld.cs:313/381/465`); `TerrainPenetration.Carry/Cross` (`TerrainPenetration.cs:164/190`); ⛔ no `ITerrainPropagation` type (the §3a "one query" is a set of `TerrainWorld` methods) |
+| flight | straight only (`LinearKinematicsSystem.cs:110`); a shot needs a live target entity (`FireProcessingSystem.cs:67`); a round stopped by terrain is destroyed with NO detonation (`BallisticsSystem.cs:96-106`) |
+| damage path | `HitResolutionSystem` (Input) → `DetonationNotification` → `DamageCalculationSystem` (Simulation, MuscleGround, skips `IsRemote`) → `DamageAssessedEvent` → `EntityHitDamage` → `HealthApplicationSystem` (owner of `Health`, R-171) |
+| doors | `DoorVerb.Breach` → `Destroyed` (`DoorCommands.cs:59`), owner-applied; nothing in combat sends it |
+
+### Classes
+
+```mermaid
+classDiagram
+    direction LR
+    class WarheadDto { <<NEW TKB descriptor on the ammo type>> Kind · ExplosiveKg · BlastLethalRadiusM · BlastInjuryRadiusM · FragmentRadiusM · FragmentPenetrationMm · FragmentDamage · Fuze · FuzeDelayS · Indirect }
+    class ParameterResolver { <<existing>> Warhead(ammo) NEW: TKB → library by name → none }
+    class ReferenceLibrary { <<existing>> RefAmmo: explosiveKg, blast radii; NEW fragment radius/pen (Gurney) }
+    class WeaponFireIntent { <<existing>> Shooter · Target · NEW TargetPoint }
+    class BallisticProjectile { <<existing>> + Ammo NEW · + Arc NEW · + FuzeAt NEW }
+    class DetonationNotification { <<existing>> Target may be NONE · + Ammo NEW }
+    class MunitionDetonation { <<existing wire>> + MunitionType NEW }
+    class AreaEffectSystem { <<NEW, MuscleGround, Simulation>> per detonation with a warhead: candidates in radius → exposure → damage }
+    class TerrainWorld { <<existing>> QueryFire · NEW QueryFragment(into) · NEW BlastShielded }
+    class BodyProfile { <<existing, Stage 4>> points per stance }
+    class ArmorModel { <<existing>> PenetrationChance · HitDamage }
+    class DamageAssessedEvent { <<existing>> }
+    class DoorCommandEvent { <<existing>> Verb = Breach }
+    class DetonationLog { <<NEW ring buffer>> per affected entity: stance, points, exposure, shielding, damage }
+    class FireAtPoint { <<NEW shared action node>> mount · point }
+    ParameterResolver ..> WarheadDto : reads
+    ParameterResolver ..> ReferenceLibrary : fallback
+    FireAtPoint ..> WeaponFireIntent : TargetPoint
+    WeaponFireIntent ..> BallisticProjectile : FireProcessingSystem spawns (Arc for indirect)
+    BallisticProjectile ..> DetonationNotification : hit / terrain stop / fuze
+    DetonationNotification ..> MunitionDetonation : egress (IG effect)
+    AreaEffectSystem ..> DetonationNotification : consumes
+    AreaEffectSystem ..> ParameterResolver : Warhead(Ammo)
+    AreaEffectSystem ..> TerrainWorld : per body point
+    AreaEffectSystem ..> BodyProfile
+    AreaEffectSystem ..> ArmorModel : fragments vs armour
+    AreaEffectSystem ..> DamageAssessedEvent : one per affected entity
+    AreaEffectSystem ..> DoorCommandEvent : doors in the lethal radius
+    AreaEffectSystem ..> DetonationLog
+```
+*What it shows that prose hid:* every arrow but four ends on something that exists — the area effect rides the existing damage
+pipeline (`DamageAssessedEvent` → `EntityHitDamage` → the Health owner) and the existing door command; the NEW types are the
+warhead data, one system, one terrain query, the arc and the point-fire node.
+
+### Sequence — a mortar round onto the house
+
+```mermaid
+sequenceDiagram
+    participant B as Brain (FireAtPoint)
+    participant F as FireProcessingSystem (MuscleGround)
+    participant K as BallisticsSystem (PostSimulation)
+    participant A as AreaEffectSystem (Simulation)
+    participant T as TerrainWorld
+    participant O as Health owner (HealthApplicationSystem)
+    participant D as Door owner (DoorCommandSystem)
+    B->>F: WeaponFireIntent(TargetPoint)
+    F->>F: arc launch (high angle for a mortar), Ammo on the round
+    loop each tick
+        K->>T: carry the arc segment (QueryFire)
+    end
+    K->>K: first contact = roof slab ⇒ impact fuze
+    K-->>A: DetonationNotification(Target = none, Ammo) — read next frame
+    A->>A: Warhead(Ammo) · candidates within max radius (spatial grid)
+    loop each candidate, each body point of its stance
+        A->>T: QueryFragment(burst → point): crossings × PenetrationChance
+        A->>T: BlastShielded(burst → highest point)
+    end
+    A-->>O: DamageAssessedEvent per entity → EntityHitDamage
+    A-->>D: DoorCommandEvent(Breach) for doors in the lethal radius
+```
+*What it shows that prose hid:* no physics raycast anywhere — the candidates come from the spatial grid and the shielding from
+the terrain model, synchronously; the only frame boundary is the terrain stop (PostSimulation → next Simulation).
+
+### Modules — who registers it, who ticks it
+
+```mermaid
+graph TD
+    SH["SimHostCoreLogicPack (MuscleGround: SimHost, editor)"] --> DAM["DamageAssessmentModule"]
+    DAM --> DC["DamageCalculationSystem (direct hit) — existing"]
+    DAM --> AE["AreaEffectSystem — NEW, same module, same phase"]
+    CM["CombatModule (MuscleGround)"] --> FP["FireProcessingSystem — arc launch"]
+    CM --> BS["BallisticsSystem — arc carry, terrain-stop detonation"]
+    CGF["CgfLogicPack (Brain)"] --> HA["HealthApplicationSystem — applies, owner-gated"]
+    CGF --> FAP["FireAtPoint node — via the shared action registry"]
+```
+*Caption:* the area effect is registered exactly where direct-hit damage is, so every host that calculates damage today
+(SimHost, the editor) calculates area damage, and no host that does not. ⚠ A REMOTE detonation (`IsRemote`, external DIS) gets
+no area damage — the same rule `DamageCalculationSystem` applies today.
+
+### Decisions — 🔒 approved `2026-10-08` (R-225)
+
+| # | decision |
+|---|---|
+| W-1 | warhead numbers: `WarheadDto` on the ammo's TKB type, resolved `TKB → reference library by ammo NAME → none` (kinetic) with provenance in `/tkb/resolve`. ⚠ §3e says keyed by DIS — by name until an ammo carries a DIS code (the penetration chain's same limit) |
+| W-2 | the shot, `DetonationNotification` and the wire `MunitionDetonation` carry the AMMO TYPE id; never warhead numbers |
+| W-3 | a warhead round that stops on terrain detonates there (Target none); kinetic rounds unchanged |
+| W-4 | fuzes v1: impact and time; airburst later |
+| W-5 | `AreaEffectSystem` beside `DamageCalculationSystem`; one `DamageAssessedEvent` per affected entity; applied by the Health owner (R-171); no new damage wire |
+| W-6 | fragments: `QueryFragment` — straight, each crossing × `ArmorModel.PenetrationChance(fragment pen, resistance)`, openings pass; exposure = mean over the stance's body points; damage = fragment damage × falloff × exposure (expected value, R-212); vehicles through their armour |
+| W-7 | blast: falloff lethal → injury radius (Z 2 / 6); shielded only when the line to the HIGHEST body point crosses a wall or slab; personnel only in v1 |
+| W-8 | indirect: a gravity arc to a ground POINT (`WeaponFireIntent.TargetPoint`), traced through the existing carry ⇒ first contact; `FireAtPoint` shared action node |
+| W-9 | doors in the lethal radius with a clear line → `DoorCommandEvent(Breach)` → Destroyed |
+| W-10 | `DetonationLog` + `GET /combat/detonations`; `/terrain/query?purpose=fragment|blast`; a blast layer |
+| W-11 | rails with in-test numbers (exposure behind a 0.5 m wall: standing ≥ 0.5, prone ≤ 0.1; roof burst spares the ground floor); premise rows (M67, 81 mm); live `bt-grenade-posture`, `bt-mortar-roof` |
+
+**Timing** *(the user's question)*: ⛔ not the raycast batch. The candidates are already known (the spatial grid within the radius)
+and what decides a hit is the TERRAIN between burst and body point, which only `TerrainWorld` models — so the check is a
+synchronous, allocation-free trace per body point. A detonation from an entity hit (Input) is assessed in the SAME frame's
+Simulation; one from a terrain stop (PostSimulation) in the NEXT frame's — at most one frame, as a direct hit today.
+⏭ Bodies shielding bodies (a vehicle between burst and soldier) would be the raycast batch's job, with its one-frame delay — v2.
+
+| rejected | the one fact |
+|---|---|
+| warhead numbers on each detonation | §3e — two sources that can disagree |
+| one ray to the target's centre | §3f — a man behind a low wall reads all-or-nothing |
+| each target's owner computes its own area damage | every node would need warhead + terrain + stance, and they could disagree; damage is calculated on MuscleGround today |
+| dice per fragment | R-212 — expected damage, no dice |
+| breachable walls now | a runtime geometry change (R-218 P2 is ready, its caller is not) |
+| airburst now | needs height-of-burst sensing — v2 |
+
+⚠ **Prerequisite:** merge `behaviors` (`CE-2121` slice ② — the stance wire) so a prone target is prone on the cluster SimHost.
+⏭ Out of scope: WHEN the AI throws or calls fire (behaviors lane); the mechanics and the `FireAtPoint` node are here.
 
 ## 4. Change map — what each consumer must do
 
