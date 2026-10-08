@@ -93,6 +93,7 @@ related-designs:
   - docs/UX/UX_Feature_Selection.md — owns UXI-11, this file's PREREQUISITE. ☑ COMPLETE 2026-09-20
     (S-1..S-6): one store, one request, one writer, one announcement, on every node. ⇒ the "selection
     chain" dependency §7 orders before this work is MET.
+  - ../DESIGN_Terrain_Combat_Tuning.md §5b — a per-FAMILY GizmoFamilyVisibilityPolicy (scope setting + per-unit pins) on this file's §3.2f seam (CE-3120).
 -->
 # Feature design — map-interaction parity
 

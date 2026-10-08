@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-08 (rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
-build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07; §5a APPROVED 2026-10-08 (R-226)
-current-answer: §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
+build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07; §5a APPROVED 2026-10-08 (R-226); §5b APPROVED 2026-10-08 (R-227)
+current-answer: §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -16,6 +16,8 @@ related-designs:
   - DESIGN_Uniform_Gizmo_Membership.md — gizmos draw where their data exists; §5 relies on it.
   - DESIGN_Thermal_And_Acoustic_Sensing.md — the sound sources and anonymous heard estimates §5a's hearing layer draws.
   - designs/replay-and-modules/DESIGN.md — what runs during replay; §5a's traces are restored state, drawn by gizmos outside the disabled groups.
+  - UX/UX_Feature_Map_Parity.md §3.2f — the per-projector visibility seam §5b's family policy plugs into.
+  - designs/utility-ai/Runtime_Tuning_Console_and_AI_Overlays_Design_v1_0.md §6/§8 — the AI overlay family §5b folds into gizmos.
   - designs/mgmt-1/DESIGN.md §13.3 — the exercise archive folder that CE-3119 adds a scenario copy to.
   - DESIGN_Mcp_Diagnostics_Federation.md + RUNBOOK_Cluster_Debugging_Over_Http.md — the route → MCP tool flow §4 extends.
 -->
@@ -513,15 +515,9 @@ host check. The one dead edge is the Replay Browser's missing terrain, owned by 
 rewritten only on change) · new `DebugTraceGizmoTests` (burst drawn for 1 s, sound ring at half range half-way, look-ahead at
 `PathLookahead`, door leaf geometry) · `LayerControlGizmoTests.CE3117_TheDebugTraceLayers_AreToggledByTheirOwnBits`.
 
-### ⏳ Per-gizmo scope — PROPOSED, awaiting the user *(`2026-10-08`)*
+### ⛔ Per-gizmo scope — SUPERSEDED by §5b *(the user widened it the same day)*
 
-🔒 **User:** *"Whethwr gizmo renders for selected entity or all - shoukdnt that be definable per gizmo in its attribute or something?"*
-
-| lean | rejected (one line each) |
-|---|---|
-| `[GizmoProjector(..., Scope = GizmoScope.Selected)]` — the gizmo declares its DEFAULT; `GizmoReflectionRegistrar` maps `Selected` to one shared `SelectedEntityVisibilityPolicy` (§3.2f's per-entity seam, `StatelessGizmoSystem.cs:156`) unless the host resolver returns a policy for that type, so a host can still override. Default `All` ⇒ no existing gizmo changes | a host-wide selection gate on map gizmos — that was CE-123 · resolver-only — every host would have to know which gizmos are selection-scoped · selection checks inside `Draw` — a second "should this entity draw?" (ruling 9) |
-
-Proposed scopes: `PlannedPathGizmo` → Selected; `LineOfSightGizmo`, heard estimates → All; the global gizmos have no per-entity scope.
+~~`[GizmoProjector(..., Scope = GizmoScope.Selected)]` — the gizmo declares its default…~~ 🔒 *"Whethwr gizmo renders for selected entity or all - shoukdnt that be definable per gizmo in its attribute or something?"* ⇒ answered by **§5b**: the attribute declares the gizmo's FAMILY, the family's scope is a runtime setting, and a unit can be PINNED.
 
 ### Follow-ups (own tasks)
 
@@ -531,6 +527,119 @@ Proposed scopes: `PlannedPathGizmo` → Selected; `LineOfSightGizmo`, heard esti
 - **`CE-3119`** — the exercise archive carries a COPY of the scenario files; the terrain stays referenced by name. Measured: the archive
   pulls only each node's `.fdp` and `.fdp.meta.json` (`ReferenceArchiveHandler.cs:80-95`). 🔒 *"Terrain is part of the scenario, which i
   think shoukd become the part od the package with the recordinga (by copying). Terrain could stay referenced by name only."*
+
+## 5b. Gizmo scope and pins — *"selected only"*, *"all"*, and *"keep showing this unit"* *(`CE-3120`, `CE-3121`, backend, `2026-10-08`; build-state: READY-TO-BUILD)*
+
+🔒 **User, `2026-10-08`:** *"Sometimes i want the effect shown for selected entity only, sometimes i need to pin this gizmo 'enabled' to this entity because i need to see entity's gizmos temporarily even if entity not selected"* · decisions A–E *"Approved"* · F: *"① approved, fold them into gizmos"* — **R-227**.
+
+### INVENTORY *(graph + grep, `2026-10-08`)*
+
+| query | result |
+|---|---|
+| what gates a per-entity map gizmo today | ⭐ only a per-PROJECTOR `IGizmoVisibilityPolicy` (`StatelessGizmoSystem.cs:156`), attached by a host resolver (`GizmoReflectionRegistrar.cs:64`, `MapInteractionPack.cs:51`); ONE exists — `CullingStateVisibilityPolicy`. ⛔ The host `IsSelectedPredicate` reaches only the drag handles (`MapInteractionPack.cs:113-124`, CE-123) |
+| runtime settings | `GizmoSettingsRegistry` (Global / Project scope, `SettingScope.cs:6-14`); no general settings panel — the map's runtime knobs live in the layer control (`LayerControlDto`) |
+| per-entity debug flags | `DebugState { Behavior, Ai }` (`DebugState.cs:18-25`, `Transient`), patched by `PatchDebugStateCommand` ← context-menu actions (`EditorSubsystem.cs:2070`, `SimHostApp.cs:455`) ⇒ applied by `DebugStatePatchSystem`, registered ONLY by `BehaviorDiagnosticsModule` on CGF and the Editor (`CgfCapabilities.cs:84`, `EditorSubsystem.cs:1677`). 🔴 **SimHost publishes the command and nothing applies it** ⇒ its `Toggle AI Trace` menu items are inert today (`CE-3122`) |
+| the AI overlay family | `Hrot.Diagnostics.Overlays` — 6 `IGizmoSource` overlays + a budget arbiter, keyed on `DebugState.Ai` (`AiOverlayFlags`). Referenced only by its own tests; `IGizmoSource` is consumed only by the GizmoMap example app. Designed in `docs/designs/utility-ai/Runtime_Tuning_Console_and_AI_Overlays_Design_v1_0.md` §6/§8. ⚠ Read in full: Perception / TargetMemory / EQS duplicate working gizmos; **Utility, SquadAssignment and SquadCoordination are SKELETONS** — text at the map origin, member lines from origin to origin, the danger box drawn Y-up in a Z-up world; only the squad contact spheres are placed right |
+| the map's entity context menu | `ContextMenuProjectorGizmo` (pre-serialised `ContextMenuItemDto` menus; `Children` = submenu); actions registered on the pack's `ActionRegistry` |
+
+### Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class GizmoProjectorAttribute { <<existing, grows>> RequiredComponents +Family : AiOverlayFlags }
+  class AiOverlayFlags { <<existing, grows>> Perception TargetMemory Eqs UtilityDecision SquadAssignment Channels +Path }
+  class GizmoFamilies { <<NEW static>> SettingKey(family) DefaultScope(family) Register(settings) }
+  class GizmoScope { <<NEW enum>> All SelectedOrPinned }
+  class GizmoFamilyVisibilityPolicy { <<NEW>> IsEntityVisible = All OR selected OR pinned }
+  class IGizmoVisibilityPolicy { <<existing seam>> }
+  class CullingStateVisibilityPolicy { <<existing>> }
+  class MapInteractionPack { <<existing, grows>> DefaultVisibilityPolicy: culling OR family policy; registers pin actions }
+  class GizmoSettingsRegistry { <<existing>> map.scope.Family = 0 All, 1 SelectedOrPinned }
+  class LayerControlDto { <<existing, grows>> +PathsSelectedOnly +ContactsSelectedOnly ... }
+  class LayerControlGizmo { <<existing, grows>> writes the scope settings on Apply }
+  class DebugState { <<existing>> Ai = the PINS }
+  class GizmoPins { <<NEW>> Toggle(view, target, family) publishes PatchDebugStateCommand }
+  class DebugStatePatchSystem { <<existing>> now also on SimHost }
+  class ContextMenuProjectorGizmo { <<existing, grows>> Pin gizmos submenu }
+  class SelectionState { <<existing>> IsSelected }
+  class SquadGizmo { <<NEW, replaces 2 skeletons>> }
+  class UtilityDecisionGizmo { <<NEW, replaces skeleton>> }
+  GizmoFamilyVisibilityPolicy ..|> IGizmoVisibilityPolicy
+  CullingStateVisibilityPolicy ..|> IGizmoVisibilityPolicy
+  GizmoFamilyVisibilityPolicy ..> GizmoSettingsRegistry
+  GizmoFamilyVisibilityPolicy ..> SelectionState
+  GizmoFamilyVisibilityPolicy ..> DebugState
+  MapInteractionPack ..> GizmoFamilyVisibilityPolicy
+  MapInteractionPack ..> GizmoProjectorAttribute
+  LayerControlGizmo ..> GizmoSettingsRegistry
+  ContextMenuProjectorGizmo ..> GizmoPins
+  GizmoPins ..> DebugStatePatchSystem
+  DebugStatePatchSystem ..> DebugState
+  GizmoFamilies ..> GizmoSettingsRegistry
+```
+
+*What the picture shows that prose hid:* every new box hangs off a seam that already exists — the per-projector policy, the settings
+registry, the debug-flag component and its patch path. Nothing new decides *"should this entity draw?"* except one policy class.
+
+### Sequences
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant M as Map context menu
+  participant A as ActionRegistry (pack)
+  participant P as DebugStatePatchSystem
+  participant D as DebugState.Ai
+  participant S as StatelessGizmoSystem
+  participant V as GizmoFamilyVisibilityPolicy
+  participant G as PlannedPathGizmo
+  U->>M: right-click unit, Pin gizmos, Path
+  M->>A: PinGizmosPath(target)
+  A->>P: PatchDebugStateCommand Ai.Path = true
+  P->>D: apply (main thread)
+  S->>V: IsEntityVisible(unit)
+  V->>V: scope(Path) is SelectedOrPinned, not selected, pinned
+  V-->>S: true
+  S->>G: Draw(unit)
+```
+
+*What it shows:* a pin is DATA on the unit, read by the same policy that reads selection — there is no second gate, and turning the
+family to *All* in the layer panel makes the pin irrelevant without touching it.
+
+### Module relationships
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack, every map host] -->|attaches per family| POL[GizmoFamilyVisibilityPolicy]
+  MIP -->|registers| ACT[Pin actions 260-267]
+  MIP -->|passes settings| LC[LayerControlGizmo]
+  ACT -->|publishes| CMD[PatchDebugStateCommand]
+  BDM[BehaviorDiagnosticsModule on CGF, Editor] -->|registers| PS[DebugStatePatchSystem]
+  SH[SimHost composition] -->|registers, NEW CE-3122| PS
+  CMD --> PS
+  PS --> DS[DebugState.Ai]
+  POL -->|reads| DS
+  IG[IG host] -.->|no DebugState registered: pins unavailable, scope still works| POL
+  style IG stroke:#c00,stroke-dasharray: 5 5
+```
+
+*What it shows:* before this slice the patch system had NO caller on SimHost, so a pin set there would have been silently dropped —
+the dashed red edge is the remaining gap (IG has no AI to pin).
+
+### Decisions
+
+| ⭐ | rejected (one line each) |
+|---|---|
+| **A** the scope is a runtime setting per **gizmo family** (`map.scope.<Family>`, 0 = All, 1 = SelectedOrPinned), shown as checkboxes in the layer panel; the attribute declares the gizmo's family | per gizmo CLASS — several classes share a family (squad), and the panel would grow with every gizmo · attribute only — needs a rebuild to switch |
+| **B** two modes; defaults: Path, Utility, Squad = SelectedOrPinned · Perception, Contacts (TargetMemory), EQS = All; global gizmos have no per-entity scope | an "Off" mode — the layer toggle already is one |
+| **C** a pin is per unit × family, plus *Pin all* / *Unpin all* | per unit only — too coarse |
+| **D** the pins ARE `DebugState.Ai` (extended with `Path`) — one per-unit debug-flag store; `Transient` (not recorded, saved or replicated: a viewing choice) | a new pin component — a second store |
+| **E** the map's entity context menu gets a **Pin gizmos** submenu; actions registered in the pack so every map host has them; `DebugStatePatchSystem` registered on SimHost too (`CE-3122`) | per-host action copies — the duplicate `SimHostApp`/`EditorSubsystem` registration this avoids repeating |
+| **F ①** fold the overlay family: Perception / TargetMemory / EQS overlays and the budget arbiter are DELETED (working gizmos draw the same); Utility → `UtilityDecisionGizmo` (the latest chosen option and its margin, AT the unit); SquadAssignment + SquadCoordination → `SquadGizmo` (commander → member lines coloured by element, `E#R#` labels at the members, phase at the commander, squad contacts, the active danger box in XY); `Hrot.Diagnostics.Overlays` and its tests leave the solution | wire as is — a second drawing system · delete all — loses the squad / utility intent · leave dormant — two pin stores |
+
+⚠ **Not measured:** whether a `Transient` component survives an in-host replay seek (if not, pins are re-set after a jump).
+⚠ **Stated plainly:** the folded squad/utility gizmos are written from the overlays' INTENT — their placement was never real.
 
 ## 6. Slices
 
