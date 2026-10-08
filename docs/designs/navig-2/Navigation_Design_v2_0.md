@@ -1,12 +1,16 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-08 (§14 P2 as built: tiled bake + tile cache + touched-tile rebuild, CE-3111/CE-1029 · §15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
-current-answer: §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; §14 (runtime
+current-answer: §5.2a (CE-3128 — the road network as a chosen layer, DESIGN 2026-10-08, R-230/R-231); §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; §14 (runtime
   navmesh change, rewritten 2026-10-08, R-218; "P2 as built" for the tiled bake and the tile cache); the rest is the architectural contract.
 stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
   the as-built keys it on NavigationIntent.Mode == PathToPoint + IntentId (the Brain's channel never leaves the Brain).
 known-rot: the top banner supersedes any Y-up wording (CE-3011).
 related-designs:
+  - ../../DESIGN_Utility_AI_Demo_Scenarios.md §10.7 — owns the danger-along-route sensor; §5.2a D7 here moves its classifier onto the
+    road graph and its route onto the shared RoutePlanner (CE-3128 ④)
+  - ../../DESIGN_Terrain_World.md §2 — owns the world file; §5.2a D8 retires its `surface: road` polygons (CE-3128 ⑤)
+  - ../../DESIGN_Uniform_Gizmo_Membership.md §10 — RoadNetworkGizmo, which becomes the only drawing of a road
   - ../../DESIGN_Building_Interiors.md — authors the doors behind TraversalKind.Door (door area on navmesh polygons, B5/B6);
     §3j 5c is the STATE half of §14 (the door-aware query filter)
   - ../../blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — T6: placed static obstacles are baked by rebuilding
@@ -666,6 +670,147 @@ multi-modal backend selection [inside the solver]:
 ```
 
 **Scale-out topology only:** when the `NavigationSolverModule` is on its own node, the `PathRequestEgressTranslator` and `PathResponseIngressTranslator` bridge the request/response across DDS. The wire format is `PathRequestBatch` / `PathResponseBatch` with `[DdsManaged] List<NavWaypoint>` for variable-length result data.
+
+### 5.2a The road network as a chosen layer — `CE-3128` *(DESIGN `2026-10-08`, backend; `build-state: DESIGN` — awaiting the user)*
+
+> 🔒 **R-230** (above) rules the WHAT: two parallel layers; the actor chooses road use per use case; "prefer" = navmesh → road →
+> navmesh. 🔒 **R-231**, user `2026-10-08`: *"4 and 5 approved, write the CE-3128 design"* — ④ the danger-along-route sensor
+> classifies against the road GRAPH, ⑤ the world file's `surface: road` polygons retire (the graph with widths is the road).
+
+#### INVENTORY *(codebase-memory CLI `search_graph` + grep, `2026-10-08`)*
+
+| query | result |
+|---|---|
+| `search_graph .*RoadGraph.*` / `.*RoadNetwork.*` (production) | `RoadGraphNavigator` (Hermite eval + a 4-phase demo follower that never leaves its segment) · `RoadNetworkBlob`/`Builder`/`Holder`/`Json`/`Loader` · `ZoneEnvironmentData.RoadNetwork` · `RoadNetworkGizmo` · `NavigationBackend.NavRoadGraph` · `KinematicsMode.RoadGraph` |
+| `search_graph .*Hybrid.*` | `NavigationBackend.Hybrid` + `PathfindingSolverSystem.SolveHybrid` only — a re-tag of the road-only solve (`:376`) |
+| `grep "new PathfindingRequestEvent"` | **5** publishers: the bridge's `PathToPoint` (`NavigationIntentBridgeSystem.cs:367`) and `PlanRoute` (`:275`), the replan (`NavigationExecutionSystem.cs:270` — ⚠ drops `BackendForce` and the intent's layer mask), `PathfindingActionNode.cs:50`, the scale-out DDS ingress (`PathfindingTranslators.cs:280`) |
+| `search_graph .*DangerAlongRoute.*` | `DangerAlongRouteClassifier` (road POLYGONS, `:116`) · `DangerAlongRouteSolve` (re-plans the unit's route on the NAVMESH only, `:63`) — called by `EqsSolverSystem` (`EqsModule`, SlowBackground 10 Hz) |
+| `grep TerrainSurfaceType.Road` | **3** readers: the world parser, the danger classifier, `TerrainWorldGizmo` (grey fill). ⛔ No navmesh cost, no speed effect — the bake drops water cells only (`TerrainWorldMesh.cs:88`) |
+| `NavAgentProfile` production writers | **0** (only a Stride harness) — AQ67 B/C; ⇒ a default keyed on `MobilityProfile` would never fire |
+| crowd (`DotRecastDtCrowdProvider`) | Stride nodes only — there an infantry agent steers to `FinalDestination` itself and ignores the solver's route |
+| shipped road data | ⛔ no terrain declares `roadNetworks`; road POLYGONS on test-town (Main St y 190–210, Cross St x 190–210) and basic-desert (Track y 290–300); `sample_road.json` lists every segment ONE way while the solver relaxes start→end only |
+
+#### Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class RoadUse { <<NEW enum byte>> Default Never Neutral Prefer StronglyPrefer }
+  class MoveToParams { <<existing, grows>> +RoadUse }
+  class NavigationIntent { <<existing, grows>> +RoadUse }
+  class DdsNavigationIntent { <<wire, grows>> +RoadUse }
+  class PathfindingRequestEvent { <<existing>> +RoadUse in a pad byte, layout unchanged }
+  class PathRequests { <<NEW static>> FromIntent(repo, entity, intent, from, id) ResolveRoadUse }
+  class RoutePlanner { <<NEW static>> Plan(start, end, roadUse, force, layers, doors, navmesh, roads, scratch) }
+  class RoadGraphRouter { <<NEW static>> NearestAccess, Dijkstra undirected, EmitLeg Hermite }
+  class RoutePlan { <<NEW struct>> Waypoints Traversals Backend Distance }
+  class PathfindingSolverSystem { <<existing, slims>> Solve via RoutePlanner }
+  class DangerAlongRouteSolve { <<existing, changes>> route via RoutePlanner }
+  class DangerAlongRouteClassifier { <<existing, changes>> runs inside segment BANDS and junctions }
+  class EqsSolverSystem { <<existing, changes>> +RoadNetworkHolder lease }
+  class INavmeshProvider { <<existing>> PlanPath PathCost ProjectToNavmesh }
+  class RoadNetworkBlob { <<existing>> Nodes Segments LaneWidth LaneCount }
+  class RoadGraphNavigator { <<existing>> EvaluateHermite reused }
+  class TerrainWorld { <<existing, shrinks>> Road surface type retired }
+  MoveToParams --> RoadUse
+  NavigationIntent --> RoadUse
+  PathRequests ..> NavigationIntent
+  PathRequests ..> PathfindingRequestEvent
+  PathfindingSolverSystem ..> RoutePlanner
+  DangerAlongRouteSolve ..> RoutePlanner
+  DangerAlongRouteSolve ..> DangerAlongRouteClassifier
+  EqsSolverSystem ..> DangerAlongRouteSolve
+  RoutePlanner ..> RoadGraphRouter
+  RoutePlanner ..> INavmeshProvider
+  RoutePlanner --> RoutePlan
+  RoadGraphRouter ..> RoadNetworkBlob
+  RoadGraphRouter ..> RoadGraphNavigator
+  DangerAlongRouteClassifier ..> RoadNetworkBlob
+```
+
+*What the picture shows that prose hid:* the route is planned in ONE place for two callers — the vehicle's solver and the danger
+sensor — so the sensor watches the route the unit will actually drive; and every request is built from the intent in ONE place
+(`PathRequests`), which is what keeps `RoadUse` from being dropped the way the replan drops `BackendForce` today.
+
+#### Sequence — a convoy told to `MoveTo` with `RoadUse = Prefer`
+
+```mermaid
+sequenceDiagram
+  participant B as Brain MoveTo
+  participant I as NavigationIntent (wire)
+  participant G as Bridge / replan
+  participant S as PathfindingSolverSystem
+  participant P as RoutePlanner
+  participant N as INavmeshProvider
+  participant R as RoadGraphRouter
+  B->>I: RoadUse = Prefer, FinalDestination
+  I->>G: PathToPoint
+  G->>S: PathRequests.FromIntent (RoadUse resolved)
+  S->>P: Plan(start, end, Prefer)
+  P->>N: PathCost(start, end) = direct
+  P->>R: NearestAccess(start), NearestAccess(end)
+  P->>N: PathCost(start, entry), PathCost(exit, end)
+  P->>R: Dijkstra(entry, exit) over the undirected graph
+  Note over P: road = access + 0.5 x road + egress, taken only when below direct
+  P->>N: PlanPath(start, entry)
+  P->>R: EmitLeg(entry to exit), Hermite samples
+  P->>N: PlanPath(exit, end)
+  P-->>S: RoutePlan(stitched, Backend = Hybrid)
+  S->>S: register in the trajectory pool, PathfindingResultEvent
+```
+
+*What it shows:* the cost comparison comes BEFORE any leg is planned, from `PathCost` (no waypoints) — only the winner is
+materialised; `Never` skips the road half entirely, so a sneaking unit pays nothing for the road graph existing.
+
+#### Modules — who calls the planner each frame
+
+```mermaid
+graph TD
+  TR[TerrainResidency.Commit, every ECS node] -->|publishes| H[RoadNetworkHolder + ZoneEnvironmentData]
+  NSM[NavigationSolverModule, SimHost + Editor, 10 Hz] --> PSS[PathfindingSolverSystem]
+  EQM[EqsModule, SimHost + Editor, 10 Hz] --> EQS[EqsSolverSystem] --> DAS[DangerAlongRouteSolve]
+  PSS -->|lease| H
+  EQS -->|lease, NEW| H
+  PSS --> RP[RoutePlanner]
+  DAS --> RP
+  VEH[Vehicles, every host with a solver] -->|follow the route| PSS
+  CROWD[Stride infantry on dtCrowd] -.->|ignores the solver route| PSS
+  style CROWD stroke:#c00,stroke-dasharray: 5 5
+```
+
+*What it shows:* the dashed edge is the one host family where a road route is NOT followed — a Stride infantry crowd agent
+re-plans to the destination itself. Vehicles everywhere and SimHost infantry follow the solver's route.
+
+#### Decisions *(leans — for the user)*
+
+| # | ⭐ lean | rejected (one line each) |
+|---|---|---|
+| **D1** | **`RoadUse` per request**, a byte enum: `Default`, `Never` (sneak), `Neutral` (×1.0), `Prefer` (×0.5), `StronglyPrefer` (×0.25 — convoy). On `MoveToParams`/`PlanRouteParams` → `NavigationIntent` → the wire intent → `PathfindingRequestEvent` (a pad byte, layout unchanged) → `DdsPathRequest`. `Default` resolves on the vehicle side: a vehicle (`VehicleState`) → `Prefer`, anything else → `Neutral` | a float cost on the wire — not a nameable tactic, and the factor table belongs in one place; a default keyed on `MobilityProfile` — it has 0 production writers (AQ67) |
+| **D2** | **ONE planner, `RoutePlanner`**, pure over (navmesh, road blob, doors), used by the path solver AND the danger solve. It replaces `SelectBackend`'s distance heuristic, `SolvePath` and the Phase-1 `SolveHybrid` | keep the danger solve's own navmesh re-plan — once roads are used it would watch a route the unit does not drive |
+| **D3** | **The road is taken on COST, not geometry**: direct = `PathCost(start, end)`; road = `PathCost(start, entry) + f·road + PathCost(exit, end)` with entry/exit the nearest points ON the network (projection over all segments, within 500 m, entering mid-segment); take the road iff cheaper. `BackendForce = NavRoadGraph` still forces it; `Never` never computes it. Result backend: `Navmesh` / `Hybrid` (spliced) / `NavRoadGraph` (forced) | the both-ends-within-500 m heuristic — R-230 makes it the actor's choice; K entry candidates — v1 takes the nearest, revisit on a measured bad route |
+| **D4** | **The road leg follows the curve**: 8 Hermite samples per segment (as `RoadNetworkGizmo`), walked in travel direction, on the centre line; Z from `ProjectToNavmesh`, 0 without a navmesh. A road-only map (no navmesh) keeps straight access legs (today's CE-2059 connector) | node-to-node polyline — cuts every curve (the follower already cuts corners, CE-3029); a lane offset — no traffic model asks for it yet |
+| **D5** | **Segments are two-way in planning** | honour start→end — every `sample_road.json` lists one direction only, so routes would come out unreachable; no one-way road is authored anywhere (a `oneWay` flag can come with the first) |
+| **D6** | **Every request is built by `PathRequests.FromIntent`** — the bridge and the replan (which today drops `BackendForce` and the intent's layer mask: fixed by the same move) | add `RoadUse` to each of the five publishers by hand — the replan is the proof that hand-copying drops fields |
+| **D7** ④ | **The danger classifier reads the GRAPH**: a run inside a segment's BAND (distance to the centre line ≤ `LaneWidth·LaneCount/2`) for ≤ 40 m is a `StreetCrossing`; inside a JUNCTION (a node with ≥ 3 incident segments, radius = its widest band) it is an `Intersection`; driving ALONG a road is a long run, not a crossing (unchanged rule). `FeatureId` = hash(segment or junction index, exit on the 10 m grid). The blob comes by LEASE from the node's `RoadNetworkHolder`, which `EqsSolverSystem` now receives (its host holds it — a forwarding rail, the silent-default rule) | read `ZoneEnvironmentData` from the solver's snapshot — a background module must lease the blob (the C6 use-after-free, `PathfindingSolverSystem.cs:131`) |
+| **D8** ⑤ | **`surface: road` retires**: `TerrainSurfaceType.Road` goes, the world parser REJECTS `surface: road` naming `roadNetworks` instead (it fails loudly by policy), `TerrainWorldGizmo` loses its road fill (`RoadNetworkGizmo` draws the band). test-town gets `roads.json` (5 nodes, 4 segments, 4 × 5 m lanes = the 20 m polygons), basic-desert its Track (2 × 5 m); both `terrain.json` declare `roadNetworks` | keep the polygons as drawing-only — two shapes for one road would drift (two producers, R-132) |
+| **D9** | **Stride infantry stays out of scope**: a crowd agent targets the destination itself; handing it the corridor is a follow-up | route crowd agents through the solver now — a Stride lane change, not this item |
+
+⚠ **What changes on screen:** vehicle demos on test-town (and basic-desert) will start using the roads once the graph lands
+(`Prefer` by default) — their live checks are re-run as part of the build. Infantry defaults to `Neutral` (×1.0), where the road
+wins only when walking direct is genuinely longer, so `ua-danger-crossing`'s walk keeps its route.
+
+#### Build slices
+
+| # | slice | rails *(the feature's own suites first)* |
+|---|---|---|
+| S1 | `RoadUse` + `PathRequests.FromIntent` + wire field; replan carries `BackendForce`/layer/`RoadUse` | `NavigationIntentBridgeSystem` + replan suites: a field set on the intent reaches the request on BOTH paths |
+| S2 | `RoadGraphRouter` + `RoutePlanner`; the solver delegates (zero per-request scratch allocation: reused buffers sized to the graph, R-220) | `PathfindingSolverSystem` suite: Never stays off, Prefer splices, forced RoadGraph, two-way segment, mid-segment entry, curve-following leg |
+| S3 | test-town + basic-desert `roads.json`; `surface: road` retired (parser, enum, gizmo, geojson) | terrain world parser suite; the shipped-terrain rail |
+| S4 | the danger classifier on the graph; the solve via `RoutePlanner`; `EqsSolverSystem` gets the holder | `DangerAlongRouteClassifierTests` rewritten on a graph; `DangerAreaSensorSystemTests`; a forwarding rail on the constructed solver |
+| S5 | live: a test-town vehicle with `Prefer` drives Main Street, with `Never` cuts across; `ua-danger-crossing` still PASSes; the vehicle `ua-*` demos re-run | T3, backgrounded |
+
+⚠ **Not decided here, filed with the build:** exposing `RoadUse` in the AUTHORED move nodes and blueprint blocks is the behaviors
+lane's surface (`Hrot.AI.Behaviors`) — the engine default makes it optional for the common case.
 
 ### 5.3 Response materialization
 

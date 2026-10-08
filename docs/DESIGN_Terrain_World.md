@@ -7,6 +7,7 @@ stale-below: nothing quotable — §7's HISTORY row block records the first-draf
 known-rot: nothing yet. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (rebase, not resize — §4.4, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
 known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. RESOLVED 2026-10-03: Cluster_Load_Phase §4.1a and Node_Roles §3.2 updated for the universal world part; INavmeshProvider is Z-up in code (CE-3011) and Navigation_Design_v2_0.md carries a Z-up supersession note.
 related-designs:
+  - designs/navig-2/Navigation_Design_v2_0.md §5.2a — CE-3128 (R-231): the road GRAPH (`roadNetworks`) is the road; D8 retires this file's `surface: road` polygons
   - designs/navig-2/Navigation_Design_v2_0.md §14 — OWNS runtime navmesh change (R-218): the W6 bake becomes one immutable snapshot (P1), tiled with CE-1029 (P2, built 2026-10-08: 24 m tiles, 0.15 m infantry cells over buildings, a per-node tile cache — "P2 as built"); §15 points to §6a here for the path queries' allocation contract (R-220)
   - DESIGN_Building_Interiors.md — the enterable-building v2 that §6 L459 deferred (wall panels with openings, storeys as slabs, doors as entities, transmittance trace); CE-1031
   - DESIGN_Add_Entity_Picker.md §2a — chooses an entity's BIRTH level (SurfacePlacement, resolved by the creating node) and proposes TerrainWorld.SurfacesAt; adds no clamp step (W8 stands); §2c records the solid-building consequence, filed as CE-1031 against this doc's §2
@@ -77,7 +78,7 @@ related-designs:
 |---|---|---|---|---|---|
 | `building` | Polygon | solid prism `baseZ`..`baseZ+height` (`floors` = label only in v1) | ✅ | ✅ | roof no |
 | `wall` | LineString + `thickness` | thin prism | ✅ | ✅ | — |
-| `surface` | Polygon | `road`/`open`/`forest`/`water`; cost + draw colour (water = unwalkable) | water only | `forest` partial — ⛔ v1: no | ✅ |
+| `surface` | Polygon | `road`/`open`/`forest`/`water`; cost + draw colour (water = unwalkable). ⚠ `road` retires with CE-3128 (R-231, [Nav v2 §5.2a](designs/navig-2/Navigation_Design_v2_0.md) D8): roads are the terrain's road graph | water only | `forest` partial — ⛔ v1: no | ✅ |
 | `slab` | Polygon with Z | walkable floor at that Z (T7 — format v1, built later) | under/over | ✅ (from below/above) | ✅ |
 | `ramp` | Polygon with per-vertex Z | sloped walkable link between levels | — | ✅ | ✅ |
 | ⭐ `building` *(Stage 1)* | **Point** + `template` or inline `building` | an ENTERABLE building instance — walls with openings, storey floors, stairs, roof (📄 `DESIGN_Building_Interiors.md` §3a, §3g) | walls ✅ | walls ✅ (openings pass) | floors, stairs, roof |
