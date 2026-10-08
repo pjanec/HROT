@@ -724,4 +724,29 @@ public sealed class TerrainLoadStepTests : IDisposable
         residency.Unload(world);
         Assert.Equal((0.0, 0.0, 0.0), geo.Origin);
     }
+
+    /// <summary>
+    /// ⭐ CE-3128 (Nav v2 §5.2a D7) — a terrain commit publishes the node's road graph CARRIER as a world singleton, so a reader on a
+    /// background snapshot (the EQS solver's danger sensor) leases the graph through <c>RoadNetworkSource.Live</c>; unload keeps it
+    /// published (empty graph), never a stale one.
+    /// </summary>
+    [Fact]
+    public void CE3128_Commit_PublishesTheRoadHolder_ForBackgroundReaders()
+    {
+        var folder = Path.Combine(_terrainDir, "plain");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "terrain.json"), """{"schemaVersion":2}""", new UTF8Encoding(false));
+
+        using var holder = new RoadNetworkHolder();
+        using var world = NewWorld();
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+        var live = CarKinem.Road.RoadNetworkSource.Live(world);
+        Assert.Null(live());
+
+        residency.Commit(world, residency.Prepare("plain"));
+        Assert.Same(holder, live());
+
+        residency.Unload(world);
+        Assert.Same(holder, live());
+    }
 }

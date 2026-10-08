@@ -296,4 +296,54 @@ public sealed class PathfindingAutoSelectionIntegrationTests : IDisposable
 
         return meshes;
     }
+
+    // ── CE-3128 on the SHIPPED test-town: its world, its roads.json, a real vehicle-layer bake ──────────
+
+    private static string ShippedTerrain(string name)
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+        return System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", name);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3128 (R-230) — the whole chain on the real terrain: a vehicle crossing test-town from just south-west of Main Street's
+    /// west end to just north of its east end. <see cref="RoadUse.Prefer"/> drives Main Street (y 200) through the middle of town;
+    /// <see cref="RoadUse.Never"/> stays on the navmesh and never runs along the street. The terrain, the road graph and the bake
+    /// are the shipped ones, so this is what a cluster vehicle does.
+    /// </summary>
+    [Fact]
+    public void CE3128_ShippedTestTown_PreferDrivesMainStreet_NeverDoesNot()
+    {
+        var folder = ShippedTerrain("test-town");
+        var world = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+            System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "test-town.world.geojson")), "test-town",
+            Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+        var navmesh = new RecastNavmeshFactory { Layers = NavLayerMask.Vehicle }.Build(world)!;
+        Assert.NotNull(navmesh);
+        var roadNet = RoadNetworkLoader.LoadFromJson(System.IO.Path.Combine(folder, "roads.json"));
+        var solver  = new PathfindingSolverSystem(roadNet, _pool, navmesh: navmesh);
+        InjectZoneEnvironmentData(roadNet);
+
+        var start = new Vector3(10f, 185f, 0f);
+        var end   = new Vector3(390f, 215f, 0f);
+
+        var prefer = RunSolver(solver, start, end, RoadUse.Prefer);
+        Assert.True(prefer.IsReachable);
+        Assert.Contains(prefer.PrimaryBackend, new[] { NavigationBackend.Hybrid, NavigationBackend.NavRoadGraph });
+        Assert.True(_pool.TryGetTrajectory(prefer.RouteHandle, out var preferRoute));
+        int onStreet = 0;
+        for (int i = 0; i < preferRoute.Waypoints.Length; i++)
+        {
+            var p = preferRoute.Waypoints[i].Position;
+            if (MathF.Abs(p.Y - 200f) < 1f && p.X > 60f && p.X < 340f) onStreet++;
+        }
+        Assert.True(onStreet >= 4, $"Prefer drives Main Street: {onStreet} waypoints on its centre line");
+
+        var never = RunSolver(solver, start, end, RoadUse.Never);
+        Assert.Equal(NavigationBackend.Navmesh, never.PrimaryBackend);
+
+        roadNet.Dispose();
+    }
 }
+
