@@ -90,6 +90,7 @@ known-conflict: DESIGN_Subsystem_Composition_Unification section 3.2 forbids a b
   register the same three systems) and the HOST SCHEDULES (the run-set follows its role). Enforced by
   MapInteractionContext carrying no ModuleHostKernel.
 related-designs:
+  - DESIGN_Uniform_Gizmo_Membership.md §10 — CE-3123: debug toggles, service-needing projectors and raw layers moved into the pack under §3.2a's construct/schedule split.
   - docs/UX/UX_Feature_Selection.md — owns UXI-11, this file's PREREQUISITE. ☑ COMPLETE 2026-09-20
     (S-1..S-6): one store, one request, one writer, one announcement, on every node. ⇒ the "selection
     chain" dependency §7 orders before this work is MET.
