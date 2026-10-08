@@ -35,7 +35,6 @@ using Fdp.Toolkit.Behavior.Components;
 using Hrot.Map.Common.Events;
 using Fdp.Toolkit.NetworkSpawning;
 using Hrot.SimHost.UI;
-using Hrot.SimHost.Visualization;
 using Hrot.ScenarioEditor.Systems;
 
 namespace Hrot.SimHost
