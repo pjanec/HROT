@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — leans A–F awaiting the user (CE-3126)
+build-state: READY-TO-BUILD — A revised, B revised, C–F approved by the user 2026-10-08 (CE-3126)
 updated: 2026-10-08
 current-answer: §2 the decisions (leans) · §3 the UML
 stale-below: none
@@ -16,6 +16,7 @@ related-designs:
 # DESIGN — **the geo origin comes from the terrain** *(`CE-3126`, backend, `2026-10-08`)*
 
 > 🔒 **User, `2026-10-08`:** *"Geo origin should be specidied as part of terrain file and passed to geoconverter service from there. Origin can be saved in recording metadata in case terrain with remembered name no longer exists"* — **R-229**.
+> 🔒 **User, on the leans:** *"No default berlin. Missing geo = zeros. B-f ok."*
 
 Today every node turns local metres into lat/lon with a hard-coded Berlin origin (`HrotEnvironment.CreateGeoTransform`,
 `HrotEnvironment.cs:45`). ⇒ a terrain anywhere else is placed in Berlin on the wire and in every exported position.
@@ -38,12 +39,12 @@ Today every node turns local metres into lat/lon with a hard-coded Berlin origin
 
 | # | ⭐ lean | rejected (one line each) |
 |---|---|---|
-| **A** | `terrain.json` gains `"origin": { "lat", "lon", "alt" }` → `TerrainDefinition.Origin`; the 3 shipped terrains get Berlin (today's value) so nothing moves | origin in the scenario — two scenarios on one terrain could disagree about where it is |
-| **B** | a terrain WITHOUT an origin loads with the default (Berlin) and says so once in the log — ⛔ not silently, ⛔ not a refusal | refuse to load — breaks every terrain authored before today |
-| **C** | ONE transform per node: `GeoOrigin` (Hrot.Core) — an `IGeographicTransform` that holds an IMMUTABLE `WGS84Transform` snapshot and swaps it atomically. `HrotNodeBuilder` creates it; the replication module, the network factories, `SimHostApp`, the runner and Stride take `Context.GeoTransform` instead of calling `CreateGeoTransform()` again; it is the world singleton too | call `SetOrigin` on each of today's instances — they are not all reachable, and `SetOrigin` is not thread-safe |
-| **D** | `TerrainResidency.Commit` sets the origin (`GeoOrigin.Set(definition.Origin)`) — on every node, in the same cluster transaction that commits the terrain | a separate "set origin" message — a second protocol that can disagree with the terrain |
-| **E** | `RecordingMetadata` gains `TerrainName` (with `CE-3118`) AND `GeoOrigin`; the recorder writes the node's current origin | name only — the user's case: the named terrain may be gone, or its origin edited since |
-| **F** | the Replay Browser sets its `GeoOrigin` from the recording's metadata (authoritative for that recording), then loads the terrain by name if it still exists (`CE-3118`) | origin from the terrain file at replay time — wrong if the file changed after recording |
+| **A** ✅ *(revised)* | `terrain.json` gains `"origin": { "lat", "lon", "alt" }` → `TerrainDefinition.Origin`. ⛔ **No Berlin default in code** (`HrotEnvironment.CreateGeoTransform`'s hard-coded origin goes). The shipped terrains carry Berlin as their OWN DATA — measured: `scenarios/tt-nav-los` (test-town) stores its move target as Berlin lat/lon | origin in the scenario — two scenarios on one terrain could disagree about where it is |
+| **B** ✅ *(revised)* | a terrain WITHOUT an origin — and a node with no terrain loaded — has origin **0, 0, 0**, said once in the log. ⚠ Measured consequence: `scenarios/test-move` has no terrain and stores a Berlin lat/lon target ⇒ its value is rewritten to the same local point under 0,0,0 | a Berlin default — ruled out; refuse to load — breaks every terrain without an origin |
+| **C** ✅ | ONE transform per node: `GeoOrigin` (Hrot.Core) — an `IGeographicTransform` that holds an IMMUTABLE `WGS84Transform` snapshot and swaps it atomically. `HrotNodeBuilder` creates it; the replication module, the network factories, `SimHostApp`, the runner and Stride take `Context.GeoTransform` instead of calling `CreateGeoTransform()` again; it is the world singleton too | call `SetOrigin` on each of today's instances — they are not all reachable, and `SetOrigin` is not thread-safe |
+| **D** ✅ | `TerrainResidency.Commit` sets the origin (`GeoOrigin.Set(definition.Origin)`) — on every node, in the same cluster transaction that commits the terrain | a separate "set origin" message — a second protocol that can disagree with the terrain |
+| **E** ✅ | `RecordingMetadata` gains `TerrainName` (with `CE-3118`) AND `GeoOrigin`; the recorder writes the node's current origin | name only — the user's case: the named terrain may be gone, or its origin edited since |
+| **F** ✅ | the Replay Browser sets its `GeoOrigin` from the recording's metadata (authoritative for that recording), then loads the terrain by name if it still exists (`CE-3118`) | origin from the terrain file at replay time — wrong if the file changed after recording |
 
 ⚠ **What a switch does to in-flight data:** samples converted with the old origin and read with the new one land in the wrong place for
 one frame. The switch only happens at a terrain commit, inside a scenario load that rebuilds the world anyway — so accepted, not engineered around.

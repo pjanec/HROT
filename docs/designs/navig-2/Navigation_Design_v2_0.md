@@ -632,6 +632,19 @@ on intent.ActiveAction:
 
 ### 5.2 Solver
 
+> ⭐⭐ **USER RULING, `2026-10-08` (backend, R-230) — the navmesh and the road net are PARALLEL, and using the road net is the
+> actor's per-use-case choice.** 🔒 *"Navmesh should be also where roadnet is, independently on it. Not all vehicles/people want
+> to respect road net. Roadnet cost can affect whether actor wants to use it for navigation (sometimes actor want use roadnet,
+> sometimes no - per use case - sneaking along wall or hard terrain vs comfortable transporting over distance using fast road
+> net)."* · earlier: *"If navigation should prefer routes over navmesh, it will try to get to the route net using navmesh, then
+> travel along road net until close to target, then use navmesh to drive to target."*
+> ⇒ the navmesh is baked over road areas too (roads are never carved out of it); the road graph is a second, independent layer
+> in the terrain (`terrain.json` `roadNetworks`). ⇒ the backend choice below is made PER REQUEST from a road-net cost the actor
+> sets (a sneaking unit: never; a convoy over distance: strongly prefer), not by geometry alone; the splice (navmesh → road →
+> navmesh) is the "prefer" case. ⚠ Today's Auto heuristic (`PathfindingSolverSystem.cs:197`) picks by distance to the network
+> only, and Hybrid is Phase-1 (road graph end to end + straight connector) — both are what this ruling corrects (`CE-3128`).
+
+
 `PathfindingSolverSystem` (in `NavigationSolverModule`, `ExecutionPolicy.SlowBackground(10Hz)`, snapshotted) consumes the events:
 
 ```

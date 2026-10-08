@@ -385,8 +385,7 @@ namespace Hrot.SimHost
                 nodeConfig.LocalTempRoot,
                 _eventHistoryService,
                 hrotConfig,
-                nodeConfig.RoadNetworkBlobPath,
-                nodeConfig.SimulationRateHz);
+                simulationRateHz: nodeConfig.SimulationRateHz);
 
             // -- Gizmo systems (GZ032) --------------------------------------------------------
             // Registered via Phase 6d callback so they are part of the kernel before Initialize().
@@ -984,31 +983,6 @@ namespace Hrot.SimHost
         // ── Private helpers ───────────────────────────────────────────────────
         // NOTE: EnsureIdAllocatorRouting deleted (EAM-M001). DdsIdAllocatorHelper.EnsureRouting
         // is now called by HrotNodeBuilder.Build() internally.
-
-        /// <summary>
-        /// Loads a road-network blob from <paramref name="path"/> using the supplied
-        /// <paramref name="loader"/> (default: <see cref="RoadNetworkLoader.LoadFromJson"/>).
-        /// Returns a default <see cref="RoadNetworkBlob"/> when the path is empty or the
-        /// loader throws.  The <paramref name="loader"/> parameter exists for unit-testing.
-        /// </summary>
-        internal static RoadNetworkBlob LoadRoadNetwork(
-            string?                         path,
-            Func<string, RoadNetworkBlob>?  loader = null,
-            long                            localNodeId = 0)
-        {
-            if (string.IsNullOrWhiteSpace(path))
-                return new RoadNetworkBlob();
-
-            try
-            {
-                return (loader ?? (p => RoadNetworkLoader.LoadFromJson(p)))(path);
-            }
-            catch (Exception ex)
-            {
-                FdpLog<SimHostApp>.Warn("[Node-{0}] Failed to load road network: {1}", localNodeId, ex.Message);
-                return new RoadNetworkBlob();
-            }
-        }
 
         // IEcsModule wrapper that routes TogglableSimulationGroup into the Simulation phase slot.
         // RegisterGlobalSystem rejects SystemPhase.Simulation; it must be registered via RegisterModule.

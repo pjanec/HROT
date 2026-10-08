@@ -50,7 +50,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     private readonly string _localTempRoot;
     private readonly IDiagnosticEventHistoryService? _eventHistoryService;
     private readonly HrotNodeConfig _hrotConfig;
-    private readonly string? _roadNetworkBlobPath;
     private readonly float _simulationRateHz;
 
     private NodeBootstrapper? _nodeBootstrapper;
@@ -209,7 +208,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// <param name="localTempRoot">Root directory for checkpoints and temporary files.</param>
     /// <param name="eventHistoryService">Optional diagnostic event history service.</param>
     /// <param name="hrotConfig">Hrot node configuration.</param>
-    /// <param name="roadNetworkBlobPath">Optional path to road network blob file.</param>
     /// <param name="simulationRateHz">Simulation rate in Hz for GlobalTime singleton.</param>
     public SimHostNodeBootstrapper(
         INetworkFactory? networkFactory,
@@ -217,7 +215,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         string localTempRoot,
         IDiagnosticEventHistoryService? eventHistoryService,
         HrotNodeConfig hrotConfig,
-        string? roadNetworkBlobPath = null,
         float simulationRateHz = 20.0f)
     {
         _networkFactory = networkFactory;
@@ -225,7 +222,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         _localTempRoot = localTempRoot;
         _eventHistoryService = eventHistoryService;
         _hrotConfig = hrotConfig;
-        _roadNetworkBlobPath = roadNetworkBlobPath;
         _simulationRateHz = simulationRateHz;
     }
 
@@ -292,8 +288,11 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         List<IEcsModuleSystem> sim,
         List<IEcsModuleSystem> postSim)
     {
-        // Load road network
-        var roadNetwork = SimHostApp.LoadRoadNetwork(_roadNetworkBlobPath, localNodeId: context.NodeId);
+        // ⭐ CE-3127 (R-230) — no boot-time road file: the road graph is part of the TERRAIN (terrain.json `roadNetworks`),
+        //   published by TerrainResidency.Commit as ZoneEnvironmentData + the RoadNetworkHolder, which every consumer below
+        //   already prefers. The packs get an empty blob as their "no terrain loaded" value, as they did whenever the old
+        //   NodeConfiguration.RoadNetworkBlobPath was empty — which no config ever set.
+        var roadNetwork = default(CarKinem.Road.RoadNetworkBlob);
         RoadNetwork = roadNetwork;
 
         // B4b: the pool comes from the node's provider, not from whichever module defaults one.

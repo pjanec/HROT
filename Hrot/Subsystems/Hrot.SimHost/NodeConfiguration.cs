@@ -57,7 +57,7 @@ namespace Hrot.SimHost
         /// <summary>
         /// File-system path to the road-network blob. Empty string means no road network.
         /// </summary>
-        public string RoadNetworkBlobPath   { get; init; } = string.Empty;
+        // ⭐ CE-3127 (R-230): RoadNetworkBlobPath removed — the road graph belongs to the terrain (terrain.json `roadNetworks`).
 
         /// <summary>
         /// File-system path to the behavior registry JSON. Empty string means use built-in.
