@@ -247,13 +247,22 @@ namespace Hrot.ScenarioEditor.Map
         public Action<string>? ReportMapDiagnostic { get; init; }
 
         /// <summary>
+        /// ⭐ <c>CE-3123</c> (R-228) — the services this host can hand a gizmo projector's constructor (today
+        /// <c>IGeographicTransform</c> for <c>MissionPresentationGizmo</c>, <c>BehaviorRegistry</c> for <c>EntityEditorLabelGizmo</c>).
+        /// Build it with <see cref="MapServices"/>. A projector whose constructors need a service the host lacks is REPORTED
+        /// (<see cref="ReportMapDiagnostic"/>, else the log) and skipped — ⛔ never registered by hand on the hosts that happen to
+        /// have the service. 🔒 Silent-default rule: a host that HOLDS one of these must pass it.
+        /// 📄 <c>DESIGN_Uniform_Gizmo_Membership.md</c> §10.
+        /// </summary>
+        public Func<Type, object?>? Services { get; init; }
+
+        /// <summary>
         /// ⭐⭐ <b>The host's own gizmos.</b> Invoked AFTER the reflection pass and BEFORE the systems are
         /// constructed — see <see cref="MapInteractionRegistries"/> for why that ordering is load-bearing.
         ///
-        /// <para>📐 Four hosts need this, for projectors reflection cannot find: <c>EntityEditorLabelGizmo</c>
-        /// and <c>EntityEditorPolylineGizmo</c> (deliberately attribute-less — their constructors need a
-        /// <c>BehaviorRegistry</c>), <c>RubberBandGizmo</c>, <c>ReplaySpatialBoundsGizmo</c>,
-        /// <c>LayerControlGizmo</c>, <c>EntityDragGizmoDefinition</c>.</para>
+        /// <para>📐 For host affordances reflection must not own: <c>ReplaySpatialBoundsGizmo</c>, <c>EntityDragGizmoDefinition</c>,
+        /// tool gizmos. ⭐ <c>CE-3123</c>: a projector that only needs a SERVICE goes through <see cref="Services"/> instead — the
+        /// label and mission gizmos left this list that way.</para>
         /// </summary>
         public Action<MapInteractionRegistries>? ContributeExtras { get; init; }
 
@@ -263,5 +272,19 @@ namespace Hrot.ScenarioEditor.Map
         /// 🔒 Silent-default rule — a host that HOLDS a hub passes it.
         /// </summary>
         public Fdp.Toolkit.Diagnostics.Gizmos.IGizmoUiStatePublisher? GizmoUiPublisher { get; init; }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3123</c> — builds <see cref="MapInteractionContext.Services"/> from whatever services a host holds; a <see langword="null"/>
+    /// one is simply not offered. Matches by assignability, so an interface parameter finds its implementation.
+    /// </summary>
+    public static class MapServices
+    {
+        public static Func<Type, object?> Of(params object?[] services) => type =>
+        {
+            foreach (var s in services)
+                if (s != null && type.IsInstanceOfType(s)) return s;
+            return null;
+        };
     }
 }

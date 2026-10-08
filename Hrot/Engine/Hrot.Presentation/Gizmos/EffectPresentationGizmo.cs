@@ -4,10 +4,12 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Hrot.IG.Components;
 
-namespace Hrot.IG.Gizmos
+namespace Hrot.ScenarioEditor.Gizmos
 {
     // GZ058: mirrors EffectRenderLayer rendering logic via the StatelessGizmoSystem.
     // Emits Sphere for explosions and Line for tracer effects.
+    // ⭐ CE-3123 (R-228) — lives in Hrot.Presentation (was the Hrot.IG assembly, which only IG and the Editor reference): every
+    //   host discovers it without relying on the runner pre-loading Hrot.IG. Its namespace moved with it (the generator emits one registrar per namespace per assembly).
     [GizmoProjector(typeof(SimTransform), typeof(VisualEffectState))]
     public sealed class EffectPresentationGizmo : IStatelessGizmo
     {

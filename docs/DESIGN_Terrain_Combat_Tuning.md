@@ -507,7 +507,7 @@ host check. The one dead edge is the Replay Browser's missing terrain, owned by 
 | `HeardTraces` is written through the solver's command buffer at `SensorMemoryStage.Flush`, beside the `SoundContactEvent` | the flush may run on a background snapshot; the command buffer is its only write path |
 | `FireTraceGizmo` keeps its old rule (the last 64 shots, no fade) | unchanged behaviour; only its source moved to `ShotTraces` |
 | `DangerAreaGizmo` is **global** | the buffer sits on the sensor CHILD, not on the unit, so one walk over the buffers is the simplest projector |
-| `SimHostTrajectoryLayer` lost its trajectory half and its pool parameter | the followed path is `PlannedPathGizmo`'s now; the layer keeps the authored route |
+| `SimHostTrajectoryLayer` lost its trajectory half and its pool parameter | the followed path is `PlannedPathGizmo`'s now; the layer keeps the authored route. ⇒ ⭐ `2026-10-08` (`CE-3123`): the layer is DELETED — the route half is `AuthoredRouteGizmo` (`DESIGN_Uniform_Gizmo_Membership.md` §10) |
 
 **Rails** (feature suites first): `AreaEffectSystemTests` (rays folded into `W11_BehindAHalfMetreWall…` and `W11_AVehicleBetween…`; new
 `CE3117_ABurst_ReachesARestoredWorld_ThroughAKeyframeAndADelta`, `CE3117_AShot_IsTracedInFlight_ThenItsEnd…`) · `EqsModuleTests.S7_TheAcousticSensor…`

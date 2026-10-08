@@ -66,6 +66,47 @@ public sealed class GizmoSchemaFollowsDeclarationRails
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-3123</c> — COMPLETENESS AGAINST THE DEPLOYMENT, not against itself.</b> The rail above compares two answers
+    /// read from the SAME loaded set, so a projector whose assembly is never loaded is missing from both and it stays green
+    /// (<c>DESIGN_Uniform_Gizmo_Membership.md</c> §9.6). This one reads every <c>[GizmoProjector]</c> type from the deployed
+    /// DLLs' METADATA (no load), runs the runner's own pre-load (<see cref="Hrot.Common.Infrastructure.DeploymentAssemblies.LoadAll"/>),
+    /// and requires each projector to reach the registrar — registered, or reported as needing a service this host lacks.
+    /// Projectors in an assembly the pre-load deliberately skips are NAMED, so a new one there is a decision, not an accident.
+    /// </summary>
+    [Fact]
+    public void CE3123_EveryProjectorInTheDeployment_ReachesTheRegistrar()
+    {
+        string dir = AppContext.BaseDirectory;
+        var deployed = System.IO.Directory.GetFiles(dir, "*.dll")
+            .Select(f => (asm: System.IO.Path.GetFileNameWithoutExtension(f), path: f))
+            .Where(d => Hrot.Common.Infrastructure.DeploymentAssemblies.IsOurs(d.asm))
+            .SelectMany(d => Hrot.Common.Infrastructure.DeploymentAssemblies
+                .TypesWithAttribute(d.path, nameof(GizmoProjectorAttribute))
+                .Select(t => (d.asm, type: t)))
+            .ToArray();
+        Assert.True(deployed.Length > 20, $"only {deployed.Length} projectors found in {dir} — the scan itself is broken");
+
+        Hrot.Common.Infrastructure.DeploymentAssemblies.LoadAll(dir);
+        var reported = new List<string>();
+        var registered = GizmoReflectionRegistrar.RegisterAll(
+                new GizmoRegistry(), new StatelessGizmoRegistry(), new GizmoSettingsRegistry(),
+                reportUnserviceable: reported.Add)
+            .Select(t => t.FullName!)
+            .ToHashSet(StringComparer.Ordinal);
+        bool Reached(string type) => registered.Contains(type) || reported.Any(r => r.Contains($"'{type.Split('.').Last()}'"));
+
+        var skipped = deployed.Where(d => Hrot.Common.Infrastructure.DeploymentAssemblies.Skipped.Contains(d.asm)).ToArray();
+        var missing = deployed.Except(skipped).Where(d => !Reached(d.type)).ToArray();
+        Assert.True(missing.Length == 0,
+            "deployed [GizmoProjector] types that never reach the registrar (their assembly is not loaded on a host):\n  "
+            + string.Join("\n  ", missing.Select(m => $"{m.type} ({m.asm})")));
+
+        // 🔒 The hot-reload assembly is kept out of the pre-load on purpose (DeploymentAssemblies.Skipped). Its projectors are
+        //    found only on a host that loads it for its own reasons (CGF, Editor, IG). Named here so adding one is a decision.
+        Assert.Equal(new[] { "Hrot.AI.Behaviors.Gizmos.HillAttackGizmo" }, skipped.Select(s => s.type).OrderBy(t => t).ToArray());
+    }
+
+    /// <summary>
     /// ⭐⭐ <b>The families are uniform.</b> Reflection cannot produce a per-host subset by construction, so
     /// this pins the property the ruling actually asked for: every projector namespace present in the
     /// process is covered by the one registrar every host calls.

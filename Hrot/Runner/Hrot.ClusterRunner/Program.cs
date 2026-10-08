@@ -727,45 +727,9 @@ class Program
     /// visible to the reflection-based <see cref="ScanForSubsystems"/> pass.
     /// </summary>
     private static void LoadReferencedAssemblies()
-    {
-        // Scan the physical deployment directory instead of walking IL metadata.
-        // The C# compiler drops purely-dynamic <ProjectReference> links from the IL,
-        // so Assembly.GetReferencedAssemblies() misses assemblies like Hrot.CGF.dll
-        // when no type from them is statically used in ClusterRunner source.
-        var basePath = AppDomain.CurrentDomain.BaseDirectory;
-        var dllFiles = System.IO.Directory.GetFiles(basePath, "*.dll");
-
-        var loaded = new HashSet<string>(AppDomain.CurrentDomain.GetAssemblies()
-            .Select(a => a.GetName().Name!), StringComparer.OrdinalIgnoreCase);
-
-        foreach (var file in dllFiles)
-        {
-            var assemblyName = System.IO.Path.GetFileNameWithoutExtension(file);
-
-            // Filter to our own domain boundaries to avoid eagerly loading
-            // hundreds of system/third-party DLLs.
-            if (!assemblyName.StartsWith("Hrot.") && !assemblyName.StartsWith("Fdp."))
-                continue;
-
-            // ARCHITECTURE: Do not lock the AI behaviors assembly in the Default ALC.
-            // FbtAssemblyHotReloader loads Hrot.AI.Behaviors exclusively into a
-            // collectible ALC so it can be unloaded and reloaded at runtime.
-            if (assemblyName.Equals("Hrot.AI.Behaviors", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            if (!loaded.Contains(assemblyName))
-            {
-                try
-                {
-                    // Use Load(AssemblyName) rather than LoadFrom to ensure the
-                    // plugin is loaded into the default AssemblyLoadContext.
-                    System.Reflection.Assembly.Load(new System.Reflection.AssemblyName(assemblyName));
-                    loaded.Add(assemblyName);
-                }
-                catch { /* ignore assemblies that cannot be loaded */ }
-            }
-        }
-    }
+        // ⭐ CE-3123 — the body moved to the shared DeploymentAssemblies.LoadAll, which the gizmo completeness rail calls too,
+        //   so the rail proves THIS pre-load (folder scan, Hrot.*/Fdp.* only, Hrot.AI.Behaviors kept out for hot reload).
+        => Hrot.Common.Infrastructure.DeploymentAssemblies.LoadAll();
 
     /// <summary>
     /// Scans all loaded assemblies for non-abstract ISubsystem implementations

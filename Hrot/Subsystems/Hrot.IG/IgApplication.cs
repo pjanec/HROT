@@ -807,6 +807,9 @@ public class IgApplication : IDisposable
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = ctx.World,
+                    // ⭐ CE-3123 — constructor services for reflected projectors. IG holds no BehaviorRegistry: its labels
+                    //   carry the id and the hit points, not the behaviour name (has data = can draw).
+                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(ctx.GeoTransform),
                     // IG is a dumb terminal — draw all active gizmos, not just the selection's.
                     // ⛔ NOT drift: `null` is the documented policy ("an IG draws handles on
                     //   everything"), which is why UXI-11 did NOT default this in the pack.
@@ -847,11 +850,7 @@ public class IgApplication : IDisposable
                                 writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));
                         }
 
-                        // GZ058: MissionPresentationGizmo's constructor requires IGeographicTransform,
-                        // which reflection cannot supply.
-                        regs.Stateless.Register(
-                            new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(ctx.GeoTransform!),
-                            new[] { typeof(SimTransform), typeof(SelectionState) });
+                        // ⭐ CE-3123 — MissionPresentationGizmo is reflected now (its IGeographicTransform comes via Services).
                     },
                     // ⭐⭐⭐ UXI-07 step 4a — the SHARED Measure arm pulls IG's unit preference from here,
                     //   which is what let MeasureToolGizmoAdapter stop building a SECOND MeasureGizmo

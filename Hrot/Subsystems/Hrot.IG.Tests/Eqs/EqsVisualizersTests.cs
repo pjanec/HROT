@@ -5,6 +5,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.IG.Gizmos;
+using Hrot.ScenarioEditor.Gizmos;
 using Xunit;
 
 namespace Hrot.IG.Tests.Eqs

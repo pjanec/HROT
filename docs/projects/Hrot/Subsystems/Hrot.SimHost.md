@@ -257,7 +257,7 @@ Hrot.SimHost.UI
   SimHostPanelColors             -- red title-bar theme constants + Push/Pop helpers
 
 Hrot.SimHost.Visualization
-  SimHostTrajectoryLayer         -- draws selected entity trajectory + route waypoints
+  (SimHostTrajectoryLayer — DELETED 2026-10-08, CE-3123: PlannedPathGizmo + AuthoredRouteGizmo on every host)
   SimHostRoadLayer               -- draws road-network graph (nodes + segments)
 
 Hrot.SimHost.Windows
@@ -681,7 +681,7 @@ SimHostScenarioManager(
     int localNodeId = 0)
 ```
 
-#### `SimHostTrajectoryLayer : IMapLayer`
+#### `SimHostTrajectoryLayer : IMapLayer` — ⛔ DELETED `2026-10-08` (`CE-3123`): see `AuthoredRouteGizmo` / `PlannedPathGizmo`
 
 Renders trajectory path and route waypoints for the currently selected entity.
 

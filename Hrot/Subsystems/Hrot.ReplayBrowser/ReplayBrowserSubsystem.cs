@@ -112,6 +112,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
     private Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer? _gizmoLayer;
     private Fdp.Core.FdpEventBus? _interactionBus;
     private Hrot.Common.Systems.GlobalActionDispatchSystem? _actionDispatchSystem;
+    // ⭐ CE-3123 — applies the map menu's pin / AI-trace patches; the pack constructs it, this host ticks it (no kernel).
+    private Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem? _debugStatePatchSystem;
     private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
 
     // ⭐⭐⭐ UXI-11 S-3b — ReplayBrowser is NOT SPECIAL either (user ruling, 2026-09-20).
@@ -183,15 +185,16 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             // load-bearing: the system sizes its visibility cache from registry.Rules.Count, so a rule
             // registered afterwards lands beyond the cache and silently ignores its visibility policy.
             //
-            // EntityEditorPolylineGizmo and EntityEditorLabelGizmo are deliberately attribute-LESS —
-            // their constructors need a BehaviorRegistry, which reflection cannot supply, so it correctly
-            // skips them rather than guessing.
+            // ⭐ CE-3123: EntityEditorLabelGizmo is reflected now (its BehaviorRegistry comes via Services).
             var rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
 
             var mapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _activeRepo!,
+                    // ⭐ CE-3123 — constructor services for reflected projectors (behaviour labels). No geo transform here, so
+                    //   MissionPresentationGizmo is REPORTED as not drawn rather than registered by hand elsewhere.
+                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(behaviorRegistry),
                     GizmoUiPublisher = _gizmoUiHub,
                     // ⭐ UXI-11 — the shared predicate, no longer hand-written here.
                     IsSelectedPredicate = Hrot.ScenarioEditor.Map.MapInteractionContext.SelectedEntitiesOnly,
@@ -203,12 +206,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                     StartEnabled = true,
                     ContributeExtras = regs =>
                     {
-                        regs.Stateless.Register(
-                            new Hrot.ScenarioEditor.Gizmos.EntityEditorPolylineGizmo(),
-                            new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-                        regs.Stateless.Register(
-                            new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(behaviorRegistry),
-                            new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+                        // ⭐ CE-3123 — the label gizmo is reflected now (BehaviorRegistry via Services); the retired
+                        //   EntityEditorPolylineGizmo (superseded by EntityPresentationGizmo) is no longer drawn here.
                         // ⛔ The RubberBandGizmo registration MOVED into MapInteractionPack (2026-09-20,
                         //    §2.7.16): every host with a 2-D map gets the marquee, not just the two that
                         //    remembered to register it. Registering here too would draw it TWICE.
@@ -256,6 +255,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             });
 
             _actionDispatchSystem = mapInteraction.ActionDispatch;
+            _debugStatePatchSystem = mapInteraction.DebugStatePatch;
             // ⭐⭐ CE-259am — a DELEGATE, not `_canvas.Camera`: the canvas is replaced on a view-mode
             //    switch, and the system's own param doc gives that as the reason it takes a Func.
             _centerOnEntitySystem = new Hrot.ScenarioEditor.Systems.CenterOnEntitySystem(() => _canvas?.Camera);
@@ -429,6 +429,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 _selectionRequests?.Execute(_activeRepo, deltaTime);
                 _selectionNotifications?.Execute(_activeRepo, deltaTime);
                 _actionDispatchSystem?.Execute(_activeRepo, deltaTime);
+                // ⭐ CE-3123 — the order InteractionSystems gives: dispatch, patch, then the gizmos below.
+                _debugStatePatchSystem?.Execute(_activeRepo, deltaTime);
                 // ⭐⭐⭐ CE-259am — the SHARED CenterOnEntitySystem, ticked directly like its five
                 //    neighbours here because this host runs no ModuleHostKernel
                 //    (DESIGN_Subsystem_Composition_Unification.md:1153 measures zero kernel references).

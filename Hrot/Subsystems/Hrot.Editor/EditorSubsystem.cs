@@ -1926,12 +1926,13 @@ namespace Hrot.Editor
             // ⚠ The three manual registrations go through ContributeExtras, which the pack invokes AFTER
             // the reflection pass and BEFORE building StatelessGizmoSystem — the system sizes its
             // visibility cache from registry.Rules.Count, so a rule added later would silently ignore its
-            // visibility policy. MissionPresentationGizmo needs an IGeographicTransform and
-            // EntityEditorLabelGizmo a BehaviorRegistry; reflection cannot supply either.
+            // visibility policy. ⭐ CE-3123: the mission and label gizmos get their services through Services now.
             _editorMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _world,
+                    // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
+                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry),
                     GizmoUiPublisher = _gizmoUiHub,
                     Inspector = () => _fdpInspectorState,
                     // ⭐⭐⭐ CE-300 — the AI editors' entity cell follows the ANNOUNCEMENT, not a map
@@ -1960,12 +1961,7 @@ namespace Hrot.Editor
                     StartEnabled = true,
                     ContributeExtras = regs =>
                     {
-                        regs.Stateless.Register(
-                            new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),
-                            new[] { typeof(SimTransform), typeof(SelectionState) });
-                        regs.Stateless.Register(
-                            new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
-                            new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+                        // ⭐ CE-3123 — the mission and label gizmos are reflected now (Services above).
                         regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
                             writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));   // ⭐ AX-007
                     },
@@ -2067,56 +2063,8 @@ namespace Hrot.Editor
                 //   consumer; until then the handler still points the inspector at its own choice.
                 _fdpInspectorState.SelectedEntity = target;
             });
-            actionRegistry.Register(GlobalActionIds.ToggleAiTrace, (view, target) =>
-            {
-                if (target == Entity.Null) return;
-                if (view is not EntityRepository repo) return;
-                if (!repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(target)) return;
-
-                const Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EnableTraceBuffer;
-                bool current = repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target)
-                    && (repo.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target).Behavior & flag) != 0;
-                bool next = !current;
-                string nextStr = next ? "true" : "false";
-                string patchJson = $$"""
-                {
-                    "{{nameof(Fdp.Toolkit.Behavior.Diagnostics.DebugState.Behavior)}}": {
-                        "{{flag}}": {{nextStr}}
-                    }
-                }
-                """;
-
-                repo.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand
-                {
-                    Target = target,
-                    PatchJson = patchJson,
-                });
-            });
-            actionRegistry.Register(GlobalActionIds.ToggleAiTraceLog, (view, target) =>
-            {
-                if (target == Entity.Null) return;
-                if (view is not EntityRepository repo) return;
-                if (!repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(target)) return;
-
-                const Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EmitToLog;
-                bool current = repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target)
-                    && (repo.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target).Behavior & flag) != 0;
-                bool next = !current;
-                string nextStr = next ? "true" : "false";
-                string patchJson = $$"""
-                {
-                    "{{nameof(Fdp.Toolkit.Behavior.Diagnostics.DebugState.Behavior)}}": {
-                        "{{flag}}": {{nextStr}}
-                    }
-                }
-                """;
-
-                repo.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand
-                {
-                    Target = target,
-                    PatchJson = patchJson,
-                });
-            });
+            // ⭐ CE-3123 — ToggleAiTrace / ToggleAiTraceLog are registered by MapInteractionPack (AiTraceActions) on every map
+            //   host; the inspector menu below still publishes the same action ids.
 
             var contextIngress = new ContextActionIngressSystem(entityMap, interactionBus);
             // ⛔ The RubberBandGizmo registration MOVED into MapInteractionPack (2026-09-20, §2.7.16) —

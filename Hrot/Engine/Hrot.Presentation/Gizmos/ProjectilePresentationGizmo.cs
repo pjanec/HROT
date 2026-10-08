@@ -4,11 +4,13 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 
-namespace Hrot.IG.Gizmos
+namespace Hrot.ScenarioEditor.Gizmos
 {
     // GZ-PROJ: Draws a yellow streak from the previous-frame position to the current
     // position of each live BallisticProjectile entity.
     // Both positions are in world-space XY (Z=0 for the 2D map canvas).
+    // ⭐ CE-3123 (R-228) — lives in Hrot.Presentation (was the Hrot.IG assembly, which only IG and the Editor reference): every
+    //   host discovers it without relying on the runner pre-loading Hrot.IG. Its namespace moved with it (the generator emits one registrar per namespace per assembly).
     [GizmoProjector(typeof(BallisticProjectile), typeof(SimTransform))]
     public sealed class ProjectilePresentationGizmo : IStatelessGizmo
     {

@@ -298,7 +298,8 @@ namespace Hrot.SimHost
 
             _map.AddLayer(new SimHostRoadLayer(road));
 
-            _map.AddLayer(new SimHostTrajectoryLayer(repo, _fdpInspectorState));
+            // ⭐ CE-3123 — the authored-route half of the old SimHostTrajectoryLayer is AuthoredRouteGizmo now (a reflected
+            //   gizmo on every host); its followed-trajectory half became PlannedPathGizmo (CE-3117).
 
             // Gizmo debug overlay (GZ032).
             _gizmoBuffer = gizmoBuffer ?? new DebugPrimitiveBuffer();

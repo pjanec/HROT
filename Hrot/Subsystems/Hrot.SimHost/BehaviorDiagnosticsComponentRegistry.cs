@@ -10,7 +10,7 @@ namespace Hrot.SimHost;
 /// <para>📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.9a / §6h.</para>
 ///
 /// <para>⭐⭐ <b>Why it is not the Brain's.</b> <c>DebugState</c> is written by <b>SimHost's own</b>
-/// <c>ToggleAiTrace</c> action (<c>SimHostApp.cs:443</c>, via <c>AiTraceContextMenu.PublishToggle</c>) —
+/// <c>ToggleAiTrace</c> map action (⭐ <c>CE-3123</c>: <c>AiTraceActions</c>, registered by <c>MapInteractionPack</c> on every map host) —
 /// a node that runs no cognitive system still needs the component to record the operator's request.
 /// ⇒ filing it under the cognitive set made SimHost depend on the Brain's registry for a UI affordance.</para>
 ///

@@ -29,6 +29,16 @@ namespace Fdp.Toolkit.Diagnostics.Analyzers
             defaultSeverity:  DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
 
+        // ⭐ CE-3123 — a projector whose constructors need a SERVICE (e.g. IGeographicTransform) cannot be built by generated
+        //   code; GizmoReflectionRegistrar builds it from the host's services. The generator skips it, and says so.
+        private static readonly DiagnosticDescriptor FDP003_NeedsServices = new DiagnosticDescriptor(
+            id:               "FDP_003",
+            title:            "GizmoProjector needs constructor services; left to the reflection registrar",
+            messageFormat:    "Type '{0}' has no () or (GizmoSettingsRegistry) constructor; the generated registrar skips it (GizmoReflectionRegistrar supplies its services)",
+            category:         "Fdp.Gizmos",
+            defaultSeverity:  DiagnosticSeverity.Info,
+            isEnabledByDefault: true);
+
         // ── ISyntaxReceiver ───────────────────────────────────────────────────
 
         private sealed class GizmoSyntaxReceiver : ISyntaxReceiver
@@ -120,8 +130,17 @@ namespace Fdp.Toolkit.Diagnostics.Analyzers
                 if (settingsRegistryType != null)
                 {
                     requiresSettings = classSymbol.Constructors.Any(c =>
-                        c.Parameters.Any(p =>
-                            SymbolEqualityComparer.Default.Equals(p.Type, settingsRegistryType)));
+                        c.DeclaredAccessibility == Accessibility.Public &&
+                        c.Parameters.Length == 1 &&
+                        SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, settingsRegistryType));
+                }
+                bool parameterless = classSymbol.Constructors.Any(c =>
+                    c.DeclaredAccessibility == Accessibility.Public && c.Parameters.Length == 0 && !c.IsStatic);
+                if (!requiresSettings && !parameterless)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        FDP003_NeedsServices, cds.GetLocation(), classSymbol.ToDisplayString()));
+                    continue;
                 }
 
                 string ns = classSymbol.ContainingNamespace?.ToDisplayString() ?? string.Empty;

@@ -5,11 +5,13 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Spatial.Eqs;
 
-namespace Hrot.IG.Gizmos
+namespace Hrot.ScenarioEditor.Gizmos
 {
     // GZ-PROJ: Draws the EQS search radius and lines to the current Top-K query results
     // for each entity carrying an EqsSensor component.
     // Visibility is controlled by three GizmoSettingsRegistry toggles.
+    // ⭐ CE-3123 (R-228) — lives in Hrot.Presentation (was the Hrot.IG assembly, which only IG and the Editor reference): every
+    //   host discovers it without relying on the runner pre-loading Hrot.IG. Its namespace moved with it (the generator emits one registrar per namespace per assembly).
     [GizmoProjector(typeof(SimTransform), typeof(EqsSensor), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs)]
     public sealed class EqsSensorGizmo : IStatelessGizmo
     {

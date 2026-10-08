@@ -87,6 +87,9 @@ namespace Hrot.ScenarioEditor.Map
                 Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
             }
 
+            // ⭐ CE-3123 (R-228) — the debug view state the pin and AI-trace actions patch, on every map host.
+            Hrot.Map.Common.PresentationComponentRegistry.RegisterDebugViewState(ctx.World);
+
             var settings          = ctx.Settings ?? new GizmoSettingsRegistry();
             var gizmoRegistry     = new GizmoRegistry();
             var statelessRegistry = new StatelessGizmoRegistry();
@@ -103,7 +106,11 @@ namespace Hrot.ScenarioEditor.Map
             var defaults = DefaultVisibilityPolicy(settings);
             var hostResolve = ctx.VisibilityPolicyResolver;
             Func<Type, IGizmoVisibilityPolicy?> resolve = hostResolve == null ? defaults : type => hostResolve(type) ?? defaults(type);
-            GizmoReflectionRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settings, resolve);
+            // ⭐ CE-3123 (R-228) — a projector's constructor services come from the host's Services; one the host lacks is reported.
+            GizmoReflectionRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settings, resolve,
+                services: ctx.Services,
+                reportUnserviceable: ctx.ReportMapDiagnostic
+                    ?? (m => Fdp.Core.Logging.FdpLog<MapInteraction>.Warn("[Map] " + m)));
 
             // ⚠⚠ ORDERING IS LOAD-BEARING (§3.2d ③). The host's own gizmos go in AFTER reflection and
             // BEFORE the systems are constructed, because StatelessGizmoSystem sizes its visibility cache
@@ -276,6 +283,8 @@ namespace Hrot.ScenarioEditor.Map
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent()));
             // ⭐ CE-3120 (R-227) — the Pin gizmos submenu's actions, on every map host (one registration, not one per host).
             Hrot.Common.Diagnostics.Gizmos.GizmoPins.RegisterActions(actions);
+            // ⭐ CE-3123 (R-228) — the AI-trace toggles, once for every map host (SimHost and the Editor each had a copy; the rest none).
+            Hrot.Common.Diagnostics.Gizmos.AiTraceActions.RegisterActions(actions);
 
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,

@@ -1,10 +1,11 @@
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 
-namespace Hrot.IG.Gizmos
+namespace Hrot.ScenarioEditor.Gizmos
 {
     // Setting key strings for EQS diagnostic gizmos.
     // Keys are hashed to uint at construction time via GizmoSettingsRegistry.ComputeHash.
-    internal static class EqsGizmoSettings
+    // ⭐ CE-3123 — moved with EqsSensorGizmo out of the Hrot.IG assembly; public so Hrot.IG.Tests still reaches it.
+    public static class EqsGizmoSettings
     {
         // Setting key strings -- must be stable (hashed into uint at construction time)
         public const string ShowRadius     = "EQS.ShowSearchRadius";
