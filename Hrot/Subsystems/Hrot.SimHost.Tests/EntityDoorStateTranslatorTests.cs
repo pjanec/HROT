@@ -5,7 +5,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Terrain;
-using Hrot.Map.Common.Replication;
+using Hrot.Map.Common.Replication.Interactions;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.Map.Common.Replication.Ingress;
 using Xunit;
@@ -94,7 +94,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐⭐ Buildings Stage 5d (📄 docs/DESIGN_Building_Interiors.md §3j "5d") — a door command raised on a node that does NOT own the
-        /// door (here: it only holds the replica) travels to the owner, the owner applies it, and the result comes back as the door's
+        /// door (here: it only holds the replica) travels to the owner over the ONE interaction topic (R-221), the owner applies it, and the result comes back as the door's
         /// state. Nothing applies it on the replica (a ghost is never the owner), and the owner never sends its own command anywhere.
         /// </summary>
         [Fact]
@@ -113,14 +113,14 @@ namespace Hrot.SimHost.Tests
             var ownerMap = new NetworkEntityMap();
             ownerMap.Register(5100L, door);
             var stateOut   = new EntityDoorStateEgressTranslator(participant);
-            var commandIn  = new DoorCommandIngressTranslator(participant, ownerMap);
-            var commandOut = new DoorCommandEgressTranslator(participant, ownerMap);
+            var commandIn  = new InteractionIngressTranslator(participant, ownerMap);
+            var commandOut = new InteractionEgressTranslator(participant, ownerMap);
             var applier    = new DoorCommandSystem();
 
             using var replica = World(out _);
             var replicaMap = new NetworkEntityMap();
             var stateIn    = new EntityDoorStateIngressTranslator(participant, replicaMap, new GhostCreationSystem(replicaMap), localNodeId: 2);
-            var replicaOut = new DoorCommandEgressTranslator(participant, replicaMap);
+            var replicaOut = new InteractionEgressTranslator(participant, replicaMap);
             var replicaApplier = new DoorCommandSystem();
 
             void Pump()

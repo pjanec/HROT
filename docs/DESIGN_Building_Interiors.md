@@ -792,8 +792,8 @@ classDiagram
     class DoorCommandEvent { <<NEW event 5100>> Door · Verb · Actor · IsRemote }
     class DoorCommandSystem { <<NEW, owner>> applies via DoorRules · OwnsDoor(repo, door) }
     class DoorActionExecutor { <<NEW, replaces stub>> one per verb · reach · action time · one command · waits for DoorState }
-    class DoorCommandEgressTranslator { <<NEW>> non-owner only · skips IsRemote }
-    class DoorCommandIngressTranslator { <<NEW>> republishes IsRemote }
+    class DoorCommandEgressTranslator { <<⛔ replaced by InteractionEgressTranslator (R-221)>> non-owner only · skips IsRemote }
+    class DoorCommandIngressTranslator { <<⛔ replaced by InteractionIngressTranslator (R-221)>> republishes IsRemote }
     class EntityDoorStateEgressTranslator { <<5b>> owner publishes the new state }
     class DoorState { <<5b component>> }
     DoorActionExecutor ..> DoorRules
@@ -820,7 +820,7 @@ sequenceDiagram
     alt this node owns the door
         A->>A: DoorCommandSystem applies DoorRules
     else another node owns it
-        E->>O: EntityDoorCommand (Reliable, KeepAll)
+        E->>O: EntityInteractionRequest, case Door (Reliable, KeepAll, R-221)
         O->>O: republish IsRemote · DoorCommandSystem applies
     end
     O->>S: DoorState changed
@@ -832,7 +832,7 @@ sequenceDiagram
 graph TD
     CGF[CgfLogicPack - CGF and editor] --> DIS[InteractionDispatcher: DoorActionExecutor x5]
     CGF --> DCS[DoorCommandSystem - Simulation phase]
-    STP[SharedTranslatorPack - every networked host] --> EG[DoorCommand egress + ingress]
+    STP[SharedTranslatorPack - every networked host] --> EG[Interaction egress + ingress - R-221]
     STP --> DSE[EntityDoorState egress + ingress]
     REG[HrotSharedComponentRegistry - every host] --> EV[DoorCommandEvent registered]
     SIM[SimHost - Muscle] -.->|5d-3 raises commands at a door waypoint; applies none| EG
@@ -853,7 +853,7 @@ command (5d-3, the mover at a door waypoint) but never applies one, so its comma
 
 | slice | content | state |
 |---|---|---|
-| **5d-1** | `DoorVerb`/`DoorRules`/`DoorCommandEvent`/`DoorCommandSystem`, the `EntityDoorCommand` topic + translators (⚠ the door-only topic and translators are SUPERSEDED by [`DESIGN_Entity_Interactions.md`](DESIGN_Entity_Interactions.md) slice I-1: one topic with a DDS union for every interaction), `DoorActionExecutor` ×5 on every Brain host, blueprint catalog entries `CloseDoor`/`LockDoor`/`UnlockDoor`/`BreachDoor` | ✅ built |
+| **5d-1** | `DoorVerb`/`DoorRules`/`DoorCommandEvent`/`DoorCommandSystem`, the `EntityDoorCommand` topic + translators (⛔ the door-only topic and translators were REPLACED `2026-10-08` by [`DESIGN_Entity_Interactions.md`](DESIGN_Entity_Interactions.md) slice I-1: a door command now crosses on the ONE `EntityInteractionRequest` topic as the union case `Door`; the event, rules, executor and `DoorCommandSystem` are unchanged), `DoorActionExecutor` ×5 on every Brain host, blueprint catalog entries `CloseDoor`/`LockDoor`/`UnlockDoor`/`BreachDoor` | ✅ built |
 | **5d-2** | a BTree door node with a `TerrainObjectRef` param (K4: the key, resolved through `TerrainObjects.Find`) | ⏭ |
 | **5d-3** | carry `Door` waypoints planner → mover (`PathfindingSolverSystem`, `TrajectoryWaypoint`, `EngineBackedPathRegistry`, the `CoarseWaypoints` wire); the mover stops at a closed door, raises Open, waits, goes on | ⏭ |
 | **5d-4** | replan when a door ahead on the path locks (R-218 P3) · the `bt-doors` scenario | ⏭ |

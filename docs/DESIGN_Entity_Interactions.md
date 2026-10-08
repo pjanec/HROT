@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-08
-build-state: DESIGN
+updated: 2026-10-08 (I-1 as built; §7 split off to CE-3110 by the user)
+build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
 current-answer: §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: nothing yet
@@ -129,14 +129,18 @@ wire, even in `--mode all`, because each host keeps its own world. The dashed ed
 
 | slice | content | state |
 |---|---|---|
-| **I-1** | `EntityInteractionRequest` + `InteractionPayload` (case `Door`) + `EInteractionKind`; `IInteractionCodec`, `InteractionCodec<T>`, `InteractionCodecs.All`; the generic egress/ingress in `SharedTranslatorPack`. The door moves onto it; **`EntityDoorCommand` and its two translators are deleted** (5d-1's door-only path), and `dtDoorCommand` is retired | ⏭ |
-| **I-2** | ONE embarkation applier, three callers: see §7. **I-2a** one rules class + the `EmbarkationSystem` the commands were designed for; executors, editor and scenario load all go through it · **I-2b** across nodes: the vehicle's owner arbitrates, its passenger list replicates, the passenger side is derived (⚠ needs your nod, §7 Q-1) | ⏭ |
+| **I-1** | `EntityInteractionRequest` + `InteractionPayload` (case `Door`) + `EInteractionKind` (Door = 1; **Embark = 2, Disembark = 3, EjectPassengers = 4 RESERVED**, so §7's kinds cannot collide); `IInteractionCodec` / `InteractionCodec<T>` / `InteractionCodecs.All`; `InteractionEgressTranslator` + `InteractionIngressTranslator` in `SharedTranslatorPack`. Doors run on it; 5d-1's `EntityDoorCommand` and its two translators are DELETED, `dtDoorCommand` (121) retired, the topic is `dtInteractionRequest` (122) | ✅ built `2026-10-08` |
+| **I-2** | embarkation onto this shape: ⛔ **split off as its own task, `CE-3110`** (user, `2026-10-08`: *"Leave the decision to be made as part of solving the embaraktion details later, as a separate task. I just need that iteraction shape unified now, so they do not collide later."*). §7 records the analysis and the open Q-1; I-1 reserves its kinds | ⏭ `CE-3110` |
 | **I-3** | an `InteractionExecutor<TEvent>` base: reach + action time + one event + wait for the expected state. The door actions and Embark use it | ⏭ |
 
-| rails (planned) | the door rail `EntityDoorStateTranslatorTests.Stage5d_*` re-pointed at the generic topic, unchanged in what it asserts · a codec round-trip per kind · the egress loop guard (a remote event and an owned target are never sent) · Embark across two nodes |
+| rails | ✅ `EntityDoorStateTranslatorTests.Stage5d_*` re-pointed at the generic topic, unchanged in what it asserts · ✅ `InteractionTransportTests.R221_*`: the door round trip through its union case, the loop guard (a remote event and an owned target are never sent), an unknown kind dropped and counted · ⏭ Embark across two nodes (`CE-3110`) |
 |---|---|
 
-## 7. EMBARKATION — one applier, three callers *(slice I-2)*
+## 7. EMBARKATION — one applier, three callers *(slice I-2 → its own task, `CE-3110`)*
+
+> ⚠ **Analysis, not a plan to build now.** The user split embarkation off as a separate task. Q-1 below is decided THERE.
+> What I-1 guarantees today: the embark/disembark/eject kinds are reserved in `EInteractionKind`, so they will join this shape
+> without colliding.
 
 > 🔒 **User, `2026-10-08`:** *"Are embark and disembark similar logical category to open door and other interactions? If they
 > fit, is there unification potential?"* → *"Yes, fold it in as I-2"*
