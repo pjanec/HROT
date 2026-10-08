@@ -1,0 +1,137 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-08
+build-state: DESIGN
+current-answer: §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices
+stale-below: nothing
+known-rot: nothing yet
+known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
+related-designs:
+  - docs/DESIGN_Building_Interiors.md §3j "5d" — OWNS doors (DoorRules, the door actions, DoorCommandSystem); doors are this design's first kind
+  - docs/designs/edit-1/DESIGN.md §3.A — OWNS the typed FDP domain commands EmbarkEntityCommand / DisembarkEntityCommand; this design carries such commands to the owner
+  - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS who owns what (descriptor claims, F-10 edit requests to the owner); a handler's gate is that design's descriptor ownership
+  - docs/DESIGN_Role_Affinity_Ownership.md §6 — OWNS which role writes embarkation state (PassengerBuffer, IsEmbarkedTag)
+  - FDP/Docs/projects/behavior-control/Behavior Control Subsystem Design.json.md §3.A–B — OWNS the interaction channel and its executors (the actor side)
+-->
+
+# DESIGN — **entity interactions** *(one way for an actor to act on an entity it does not own)*
+
+> 🔒 **User, `2026-10-08`:** *"What if there are many other interactions with the world, like picking items, operating stuff in
+> another way, boarding a vehicle, opening vehicle door… will we have separate topic for each, separate translator, separate
+> event, separate handling system? It could grow."* → *"Wire compatibility matters. Dds fights this with data models. Extending
+> data model is no issue on new interaction type. Arent dds unions good for that? Debuggability also matters. Fdp event with
+> binary encoded data is opaque for anyone but the recipient."* → *"Measure just dds way but only if it matters, we anyway cant
+> handle unknown interactions. Ignore dds monitor. Write design"*
+
+**The rule:** each interaction kind is a **typed FDP event** (readable in every bus tool) applied by the **owner** of what it
+changes. Every kind crosses the network on **one topic** whose payload is a **DDS union** with one case per kind. A new kind
+extends the data model by adding a union case; it never adds a topic or a translator class.
+
+## 1. INVENTORY — measured `2026-10-08`
+
+| query | result |
+|---|---|
+| `search_graph` `.*(Executor)$` in `Behavior/Combat/Navigation.Executors` | 12. Interaction executors: `EjectPassengersExecutor`, `EmbarkExecutor`, the door actions (5d-1, after the graph snapshot) |
+| `search_graph` `.*(Embark\|Disembark).*Command.*` | `EmbarkEntityCommand`, `DisembarkEntityCommand` (`Behavior/Events/`), designed in `edit-1/DESIGN.md` §3.A as **pure FDP domain commands**; one consumer, `EditorCargoSystem`. ⚠ The struct's doc names an `EmbarkationSystem` that does not exist, and `EmbarkExecutor` writes the vehicle's `PassengerBuffer` itself |
+| `search_graph` / grep: request-to-owner wire messages *(the graph does not model the `[DdsTopic]` structs; grep)* | `CreateEntityRequest`, `DeleteEntityRequest`, `UpdateEntityDescriptorRequest`, `UpdateEntityAttributeRequest` (generic, VALUES), `WeaponFireRequest`, `EntityHitDamage` (one topic per kind), `MissionControlRequest`, `MapCommandRequest` (enum + JSON args, ExCon → IG UI), `EntityDoorCommand` (5d-1) |
+| grep `[DdsUnion]` | `EntityDescriptorUnion` (`AllDescriptors.cs:75`), `AttributeValueUnion` (`GenericMessages.cs:72`): discriminator + `[DdsCase]` per kind. The bindings also have `DdsDefaultCase` and `DdsExtensibility`; nothing uses `DdsExtensibility` yet |
+| `search_graph` `.*Event.*(Inspector\|Log\|Recorder).*` | `FdpEventBus.GetDebugInspectors()` (one inspector per event TYPE, events as objects with their fields), data breakpoints on bus events, the flight recorder records bus events |
+
+## 2. CLASSES
+
+```mermaid
+classDiagram
+    direction LR
+    class DoorCommandEvent { <<FDP event 5100, as built>> Entity Door · DoorVerb Verb · Entity Actor · bool IsRemote }
+    class EmbarkEntityCommand { <<FDP event 3201, existing>> Entity Passenger · Entity Vehicle · + bool IsRemote }
+    class EntityInteractionRequest { <<NEW DDS topic>> long TargetId · long ActorId · InteractionPayload Payload }
+    class InteractionPayload { <<NEW DDS union>> EInteractionKind _d · DoorPayload Door · EmbarkPayload Embark · … }
+    class DoorPayload { <<NEW>> byte Verb }
+    class EmbarkPayload { <<NEW>> (none — target is the vehicle, actor the passenger) }
+    class IInteractionCodec { <<NEW>> Kind · ScanLocal(view, emit) · Publish(request, cmd) }
+    class InteractionCodec~TEvent~ { <<NEW, one per kind>> target/actor accessors · toPayload · fromPayload }
+    class InteractionEgressTranslator { <<NEW, one>> non-owned, non-remote ⇒ one request }
+    class InteractionIngressTranslator { <<NEW, one>> request ⇒ the kind's event, IsRemote }
+    class DoorCommandSystem { <<5d-1 owner handler>> }
+    class EmbarkHandler { <<slice I-2, owner handler>> }
+    EntityInteractionRequest --> InteractionPayload
+    InteractionPayload --> DoorPayload
+    InteractionPayload --> EmbarkPayload
+    InteractionCodec~TEvent~ ..|> IInteractionCodec
+    InteractionEgressTranslator --> IInteractionCodec : one per kind
+    InteractionIngressTranslator --> IInteractionCodec : by _d
+    InteractionCodec~TEvent~ ..> DoorCommandEvent
+    InteractionCodec~TEvent~ ..> EmbarkEntityCommand
+    DoorCommandSystem ..> DoorCommandEvent : reads
+    EmbarkHandler ..> EmbarkEntityCommand : reads
+```
+*What it shows that prose hid:* the per-kind pieces are DATA (an event struct, a payload struct, a union case) plus one codec and
+one handler. The transport, two translators and one topic, exists once. The FDP bus never sees the union, and the wire never sees
+an entity handle.
+
+## 3. SEQUENCE — an actor on node A opens a door owned by node B
+
+```mermaid
+sequenceDiagram
+    participant X as executor (node A)
+    participant BA as FDP bus A
+    participant EG as InteractionEgress (A)
+    participant IN as InteractionIngress (B)
+    participant BB as FDP bus B
+    participant H as DoorCommandSystem (B, owner)
+    participant S as EntityDoorState egress (B)
+    X->>BA: DoorCommandEvent{door, Open, actor}
+    EG->>BA: read every registered kind
+    EG->>EG: door not owned here, not remote ⇒ codec: ids + DoorPayload
+    EG->>IN: EntityInteractionRequest{target, actor, Payload=Door{Open}}
+    IN->>IN: _d = Door ⇒ door codec
+    IN->>BB: DoorCommandEvent{door, Open, actor, IsRemote}
+    H->>BB: read · owner ⇒ DoorRules ⇒ DoorState = Open
+    S-->>X: EntityDoorState Open (every node) ⇒ the executor's Success
+```
+
+## 4. MODULES — who registers, who runs it each frame
+
+```mermaid
+graph TD
+    REG[InteractionCodecs.All - one list] --> STP[SharedTranslatorPack - every networked host]
+    STP --> EG[InteractionEgressTranslator]
+    STP --> IN[InteractionIngressTranslator]
+    HSR[HrotSharedComponentRegistry - every host] --> EV[each kind's FDP event registered]
+    CGF[CgfLogicPack - CGF + editor] --> DCS[DoorCommandSystem]
+    CGF --> EMB[EmbarkHandler - slice I-2]
+    NED[NedReplicationModule tick] -->|each frame| EG
+    NED -->|each frame| IN
+    SIM[SimHost Muscle] -.->|raises door commands at a door waypoint, 5d-3; applies none| EG
+```
+*What it shows that prose hid:* the translators tick wherever the NED module ticks, which is every networked host. Handlers tick
+only on the Brain tier, where the doors and vehicles they change are owned. A command raised on a SimHost always crosses the
+wire, even in `--mode all`, because each host keeps its own world. The dashed edge is 5d-3, not built.
+
+## 5. DECISIONS
+
+| decision | ⭐ lean | rejected (one line each) |
+|---|---|---|
+| the FDP side | ⭐ **one typed event per kind**, fields named for what they mean: readable in the bus inspectors, data breakpoints and the flight recorder. Existing typed domain commands (`EmbarkEntityCommand`) join as they are, plus `IsRemote` | one generic event with a byte block: opaque to every bus tool (user) · one event carrying the union: the inspector shows every case of it, not the one that happened |
+| the wire | ⭐ **one topic, `EntityInteractionRequest`**, payload a **DDS union** keyed by `EInteractionKind`, one case per kind; Reliable + KeepAll (commands are events, CE-3095) | a topic per kind: grows the transport per kind (5d-1's shape) · a byte block: opaque on the wire (user) · `UpdateEntityAttributeRequest`: carries a VALUE, not an action the owner may refuse · `MapCommandRequest`'s JSON args: untyped, allocates, a UI channel |
+| entities | ⭐ **target and actor in the header**, as network ids, mapped once by the generic translator; a payload names any further entity as an explicit network-id field its codec maps | entity handles in the payload: node-local, meaningless on another node |
+| per-kind code | ⭐ a **codec** (`InteractionCodec<TEvent>`: target/actor accessors + event ↔ payload), listed in ONE `InteractionCodecs.All` | a translator class per kind: the growth this design removes |
+| the loop guard | ⭐ each command event carries **`IsRemote`**; the egress skips remote events and events whose target this node owns | tracking which events the ingress injected: hidden state that a second publisher of the same event bypasses |
+| the owner gate | ⭐ each **handler** gates on the ownership of the descriptor it writes (doors: `PackKey(dtDoorState,0)`, as built) | one gate in the transport: it cannot know which descriptor a kind changes |
+| the answer | ⭐ the target's own replicated state; the actor's executor waits for it | a reply topic: a second message for what the state already says |
+| wire compatibility | ⭐ **a cluster runs one build.** A new kind = a new enum member + a union case, appended; a node that does not know a kind drops it (it could not handle it anyway, user). ⛔ Not measured how CycloneDDS.NET decodes an unknown case on an older node. Per the user, it does not matter while every node runs one build | measure cross-version decoding now: no mixed-version cluster exists to need it |
+
+**Known limits:**
+- **Per-kind work:** every kind still needs its event, payload, codec, handler and executor. That is the kind's own data model and logic, and the transport needs nothing more.
+- **Wire layout:** a payload's layout is wire format like any descriptor, so it changes only by appending.
+
+## 6. SLICES
+
+| slice | content | state |
+|---|---|---|
+| **I-1** | `EntityInteractionRequest` + `InteractionPayload` (case `Door`) + `EInteractionKind`; `IInteractionCodec`, `InteractionCodec<T>`, `InteractionCodecs.All`; the generic egress/ingress in `SharedTranslatorPack`. The door moves onto it; **`EntityDoorCommand` and its two translators are deleted** (5d-1's door-only path), and `dtDoorCommand` is retired | ⏭ |
+| **I-2** | Embark/Disembark as kinds. `EmbarkEntityCommand`/`DisembarkEntityCommand` gain `IsRemote`; an owner-side handler applies them. `EmbarkExecutor`/`EjectPassengersExecutor` raise the command instead of writing the vehicle's `PassengerBuffer`, which fixes a cross-node write. Handler home per `DESIGN_Role_Affinity_Ownership.md` §6 | ⏭ |
+| **I-3** | an `InteractionExecutor<TEvent>` base: reach + action time + one event + wait for the expected state. The door actions and Embark use it | ⏭ |
+
+| rails (planned) | the door rail `EntityDoorStateTranslatorTests.Stage5d_*` re-pointed at the generic topic, unchanged in what it asserts · a codec round-trip per kind · the egress loop guard (a remote event and an owned target are never sent) · Embark across two nodes |
+|---|---|
