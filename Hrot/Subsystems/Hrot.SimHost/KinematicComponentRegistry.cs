@@ -29,6 +29,7 @@ namespace Hrot.SimHost
             world.RegisterComponent<VehicleState>();
             world.RegisterComponent<VehicleParams>();
             world.RegisterComponent<NavState>();
+            world.RegisterComponent<PathTrace>();   // ⭐ CE-3117 — the planned path, for the map (R-226)
             world.RegisterComponent<FormationFollower>();
             world.RegisterComponent<FormationController>();
             world.RegisterComponent<FormationTarget>();

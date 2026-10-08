@@ -70,6 +70,15 @@ namespace Fdp.Toolkit.Combat.Systems
             }
         }
 
+        /// <summary>The point of segment <paramref name="a"/>–<paramref name="b"/> closest to <paramref name="q"/>.</summary>
+        private static Vector3 ClosestOnSegment(Vector3 a, Vector3 b, Vector3 q)
+        {
+            var ab = b - a;
+            float len2 = ab.LengthSquared();
+            float t = len2 > 1e-8f ? Math.Clamp(Vector3.Dot(q - a, ab) / len2, 0f, 1f) : 0f;
+            return a + ab * t;
+        }
+
         private void Assess(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, string source,
             TerrainWorld? terrain, DoorStates? doors)
         {
@@ -109,13 +118,18 @@ namespace Fdp.Toolkit.Combat.Systems
                     var p = _points[i];
                     if (terrain != null) terrain.QueryFire(burst, p, _crossings, doors); else _crossings.Clear();
                     float ft = fragFall > 0f ? AreaEffect.FragmentTransmission(_crossings, w.FragmentPenetrationMm) : 0f;
+                    // ⭐ CE-3117 — the first obstacle on the ray, for the map: a terrain piece where the fragments enter it, or a collider
+                    Vector3? stopAt = _crossings.Count > 0 ? burst + (p - burst) * _crossings[0].T : null;
                     if (ft > 0f && _occlusion.Blocking(burst, p, e, struck, out _) is { } blocker)
                     {
                         ft = 0f;
                         shieldedBy ??= $"entity #{blocker.Index}";
+                        if (repo.HasComponent<SimTransform>(blocker))
+                            stopAt = ClosestOnSegment(burst, p, repo.GetComponentRO<SimTransform>(blocker).Position);
                     }
                     else if (ft <= 0f && fragFall > 0f && _crossings.Count > 0)
                         shieldedBy ??= $"{_crossings[0].Kind} {_crossings[0].Label ?? _crossings[0].Material}";
+                    if (fragFall > 0f) record.Rays.Add(new DetonationRayRecord(p, ft, stopAt));
                     exposure += ft;
                     barrier = MathF.Max(barrier, AreaEffect.ClosedBarrierTransmission(_crossings));
                     if (i == _points.Count - 1)   // the highest point (the fractions ascend)
@@ -134,7 +148,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 float total = fragDamage + blastDamage;
                 if (total > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = total });
                 record.Effects.Add(new DetonationEffect(e, stance.ToString(), _points.Count, r, exposure, fragFall, armourChance, fragDamage,
-                    blastFall, barrier, shadow, blastDamage, total, shieldedBy));
+                    blastFall, barrier, shadow, blastDamage, total, shieldedBy) { At = tf.Position });
             }
 
             BreachDoors(repo, in evt, w, burst, terrain, doors, record);

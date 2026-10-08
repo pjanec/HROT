@@ -48,7 +48,7 @@ public class SimHostTrajectoryLayerTests : IDisposable
     }
 
     private SimHostTrajectoryLayer CreateLayer()
-        => new SimHostTrajectoryLayer(_pool, (ISimulationView)_repo, _inspector)
+        => new SimHostTrajectoryLayer((ISimulationView)_repo, _inspector)
         {
             TestHook_SkipRaylibCalls = true,
         };

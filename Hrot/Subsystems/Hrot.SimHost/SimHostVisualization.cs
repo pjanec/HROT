@@ -298,7 +298,7 @@ namespace Hrot.SimHost
 
             _map.AddLayer(new SimHostRoadLayer(road));
 
-            _map.AddLayer(new SimHostTrajectoryLayer(trajectoryPool, repo, _fdpInspectorState));
+            _map.AddLayer(new SimHostTrajectoryLayer(repo, _fdpInspectorState));
 
             // Gizmo debug overlay (GZ032).
             _gizmoBuffer = gizmoBuffer ?? new DebugPrimitiveBuffer();

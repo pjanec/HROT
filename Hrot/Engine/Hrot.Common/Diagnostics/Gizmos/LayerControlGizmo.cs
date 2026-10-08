@@ -27,6 +27,17 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool AiHelpers { get; set; } = true;
         /// <summary>⭐ Tuning T-5 — the fire traces (FireTraceGizmo, layer 3).</summary>
         public bool FireTraces { get; set; } = true;
+        /// <summary>⭐ <c>CE-3117</c> — door leaves by state (DoorLeafGizmo, layer 4).</summary>
+        public bool Doors { get; set; } = true;
+        /// <summary>⭐ <c>CE-3117</c> — the selected mover's planned path and look-ahead (PlannedPathGizmo, layer 5).</summary>
+        public bool Paths { get; set; } = true;
+        /// <summary>⭐ <c>CE-3117</c> — bursts: radii and fragment rays (DetonationGizmo, layer 6).</summary>
+        public bool Blast { get; set; } = true;
+        /// <summary>⭐ <c>CE-3117</c> — sound rings and heard estimates (HearingGizmo, layer 7).</summary>
+        public bool Hearing { get; set; } = true;
+
+        /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
+        public const int FirstUntoggledLayer = 8;
 
         // Returns the 256-bit layer visibility mask derived from the DTO flags.
         public LayerMask256 ToMask()
@@ -36,7 +47,11 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Perception) mask.SetBit(1);
             if (AiHelpers) mask.SetBit(2);
             if (FireTraces) mask.SetBit(3);
-            for (int i = 4; i < 256; i++) mask.SetBit(i);
+            if (Doors) mask.SetBit(DebugTraceLayers.Doors);
+            if (Paths) mask.SetBit(DebugTraceLayers.Paths);
+            if (Blast) mask.SetBit(DebugTraceLayers.Blast);
+            if (Hearing) mask.SetBit(DebugTraceLayers.Hearing);
+            for (int i = FirstUntoggledLayer; i < 256; i++) mask.SetBit(i);
             return mask;
         }
     }

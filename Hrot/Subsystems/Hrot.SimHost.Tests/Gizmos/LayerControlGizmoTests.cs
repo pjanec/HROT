@@ -63,6 +63,22 @@ namespace Hrot.SimHost.Tests.Gizmos
             gizmo.UpdateAndDraw(new EntityRepository(), 0f, draw2);
             Assert.Equal(1, publisher.Published.Count);
         }
+
+        // ⭐ CE-3117 — each debug-trace layer has its own toggle; the first untoggled bit and above stay always on.
+        [Fact]
+        public void CE3117_TheDebugTraceLayers_AreToggledByTheirOwnBits()
+        {
+            var all = new LayerControlDto().ToMask();
+            foreach (var bit in new[] { DebugTraceLayers.Doors, DebugTraceLayers.Paths, DebugTraceLayers.Blast, DebugTraceLayers.Hearing })
+                Assert.True(all.IsSet(bit), $"layer {bit} defaults on");
+
+            var mask = new LayerControlDto { Doors = false, Hearing = false }.ToMask();
+            Assert.False(mask.IsSet(DebugTraceLayers.Doors));
+            Assert.False(mask.IsSet(DebugTraceLayers.Hearing));
+            Assert.True(mask.IsSet(DebugTraceLayers.Paths));
+            Assert.True(mask.IsSet(DebugTraceLayers.Blast));
+            Assert.True(mask.IsSet(LayerControlDto.FirstUntoggledLayer));
+        }
     }
 
     // ==========================================================================

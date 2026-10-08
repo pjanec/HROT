@@ -2012,7 +2012,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_combat_detonations",
             Group:   "K — AI behavior traces",
             Summary: "The last warhead bursts on this node (grenades, mortars, HE) — the warhead and where its numbers came from, every entity in reach with its stance, fragment exposure and blast barrier/shadow, the damage each effect did, and the doors breached (buildings Stage 6).",
-            Returns: "{ count, returned, detonations:[{seq, tick, shooter, struck, burst, ammo, warhead, warheadSource, fragmentRadius, blastInjuryRadius, effects:[{entity, entityIndex, stance, bodyPoints, distance, fragmentExposure, fragmentFalloff, fragmentArmourChance, fragmentDamage, blastFalloff, blastBarrier, blastShadow, blastDamage, totalDamage, shieldedBy}], doorsBreached:[key]}] } — newest first",
+            Returns: "{ count, returned, detonations:[{seq, tick, shooter, struck, burst, ammo, warhead, warheadSource, fragmentRadius, blastInjuryRadius, effects:[{entity, entityIndex, stance, bodyPoints, distance, fragmentExposure, fragmentFalloff, fragmentArmourChance, fragmentDamage, blastFalloff, blastBarrier, blastShadow, blastDamage, totalDamage, shieldedBy, at}], doorsBreached:[key], rays:[{to, transmission, stopAt}]}] } — newest first",
             Hint:    "Optional: last (default 10, ring of 64). Example: get_combat_detonations({last:3})",
             Params: new RouteParam[]
             {
@@ -2023,6 +2023,7 @@ namespace Hrot.Editor.DebugApi
                 "Written by AreaEffectSystem as it decides each burst — never recomputed. Only bursts of a munition WITH a warhead are recorded (a rifle round has none).",
                 "fragmentExposure = the mean over the target's body points (its stance) of the fragments through the terrain and past any body or vehicle; blastBarrier = what slabs/walls/shut doors let through; blastShadow = the diffraction factor behind an obstacle taller than the target.",
                 "The entity the round struck is listed too (it is at the burst); its direct hit is a separate damage event.",
+                "rays = every fragment line the map's blast layer draws (CE-3117): the body point, the fragment transmission 0..1, and the first obstacle on the way (a terrain piece where the fragments enter it, or the point nearest a blocking collider), null for a clear line.",
             },
             ExampleArgsJson: "{\"last\":3}",
             ExampleGist: "find out why the prone soldier behind the wall survived the grenade"),

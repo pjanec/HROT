@@ -89,6 +89,10 @@ namespace Fdp.Toolkit.Combat
         /// <summary>The live record of <paramref name="bullet"/>, or null (evicted, or fired before the log existed).</summary>
         public ShotRecord? Of(Entity bullet) => _byBullet.TryGetValue(Key(bullet), out var r) && r.Outcome == ShotOutcome.InFlight ? r : null;
 
+        /// <summary>⭐ <c>CE-3117</c> — the record numbered <paramref name="seq"/>, if it is still in the ring (no allocation).</summary>
+        public ShotRecord? At(long seq) =>
+            seq >= 0 && seq < _next && seq >= _next - Capacity && _ring[(int)(seq % Capacity)] is { } r && r.Seq == seq ? r : null;
+
         /// <summary>The last <paramref name="last"/> records, newest first.</summary>
         public IReadOnlyList<ShotRecord> Recent(int last)
         {

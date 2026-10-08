@@ -1135,6 +1135,15 @@ namespace Hrot.SimHost.Tests
             Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(10f, 90f)) <= one.Radius + 0.01f,
                 "the estimate lies inside the uncertainty radius of the truth");
             Assert.Empty(view.ReadEvents<Fdp.Toolkit.Perception.Events.SensorTrackStateEvent>().ToArray());   // ⛔ no identity
+
+            // ⭐ CE-3117 (R-226) — the same estimate is kept on the listener as RECORDED state, for the map's hearing layer.
+            Assert.True(_world.HasComponent<HeardTraces>(unit), "the listener carries its heard estimates as a component");
+            var traces = _world.GetComponentRO<HeardTraces>(unit);
+            Assert.Equal(1, traces.Count);
+            var trace = traces.SlotsRO()[0];
+            Assert.Equal(new Vector3(one.X, one.Y, one.Z), trace.At);
+            Assert.Equal(one.Radius, trace.Radius);
+            Assert.Equal(one.SourceClass, trace.SourceClass);
         }
 
         /// <summary>

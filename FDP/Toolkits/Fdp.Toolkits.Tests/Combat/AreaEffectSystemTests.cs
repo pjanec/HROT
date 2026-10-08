@@ -31,7 +31,18 @@ namespace Fdp.Toolkit.Combat.Tests
 
         public AreaEffectSystemTests()
         {
-            _w = new EntityRepository();
+            _w = NewWorld();
+            var db = new TkbDatabase();
+            db.Register(new TkbTemplate("M67 grenade", Grenade) { DisType = new DISEntityType { Kind = 2 } });
+            db.Register(new TkbTemplate("81mm mortar HE", Mortar) { DisType = new DISEntityType { Kind = 2 } });
+            db.Register(new TkbTemplate("5.56x45 ball", Ball));
+            _w.SetSingletonManaged<ITkbDatabase>(db);
+        }
+
+        /// <summary>A world with this suite's component types (a replayed world registers the recording's types the same way).</summary>
+        private static EntityRepository NewWorld()
+        {
+            var _w = new EntityRepository();
             _w.RegisterComponent<SimTransform>();
             _w.RegisterComponent<Health>();
             _w.RegisterComponent<PhysicsCollider>();
@@ -41,11 +52,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _w.RegisterEvent<DetonationNotification>();
             _w.RegisterEvent<DamageAssessedEvent>();
             _w.RegisterEvent<DoorCommandEvent>();
-            var db = new TkbDatabase();
-            db.Register(new TkbTemplate("M67 grenade", Grenade) { DisType = new DISEntityType { Kind = 2 } });
-            db.Register(new TkbTemplate("81mm mortar HE", Mortar) { DisType = new DISEntityType { Kind = 2 } });
-            db.Register(new TkbTemplate("5.56x45 ball", Ball));
-            _w.SetSingletonManaged<ITkbDatabase>(db);
+            return _w;
         }
 
         public void Dispose() => _w.Dispose();
@@ -106,6 +113,22 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(2, p.BodyPoints);
             Assert.True(damage[0] > 10f * Math.Max(damage[1], 0.1f), $"standing {damage[0]} vs prone {damage[1]}");
             Assert.Equal("reference library: M67 grenade", rec.WarheadSource[..30]);
+
+            // ⭐ CE-3117 — one ray per body point rated, in target order, for the map: the prone man's rays end in the wall (an
+            //   obstacle at its near face, y = 4) and carry almost nothing; the standing man's head ray is clear.
+            Assert.Equal(rec.Effects.Sum(x => x.BodyPoints), rec.Rays.Count);
+            var proneRays = rec.Rays.Where(r => MathF.Abs(r.To.X - 1f) < 0.01f).ToList();
+            Assert.Equal(2, proneRays.Count);
+            Assert.All(proneRays, r =>
+            {
+                Assert.NotNull(r.StopAt);
+                Assert.InRange(r.StopAt!.Value.Y, 3.9f, 4.4f);
+                Assert.True(r.Transmission < 0.1f, $"prone ray transmission {r.Transmission}");
+            });
+            var head = rec.Rays.Where(r => MathF.Abs(r.To.X + 1f) < 0.01f).OrderBy(r => r.To.Z).Last();
+            Assert.Null(head.StopAt);
+            Assert.Equal(1f, head.Transmission);
+            Assert.Equal(new Vector3(1, 6, 0), p.At);
         }
 
         // ── W-6′ — a vehicle between the burst and a soldier stops the fragments ────────────
@@ -122,6 +145,13 @@ namespace Fdp.Toolkit.Combat.Tests
 
             Assert.Equal(0f, rec.Effects.Single(x => x.Entity == hidden).FragmentExposure);
             Assert.StartsWith("entity #", rec.Effects.Single(x => x.Entity == hidden).ShieldedBy);
+            // ⭐ CE-3117 — a ray a collider stops ends at the point of the ray nearest that collider (the car's centre, y = 4; a ray
+            //   that climbs to the head passes nearest a little short of it).
+            Assert.All(rec.Rays.Where(r => MathF.Abs(r.To.Y - 8f) < 0.01f), r =>
+            {
+                Assert.Equal(0f, r.Transmission);
+                Assert.InRange(r.StopAt!.Value.Y, 3.5f, 4.1f);
+            });
             Assert.Equal(1f, rec.Effects.Single(x => x.Entity == open).FragmentExposure);
             Assert.Equal(0f, damage[0]);    // 8 m: beyond the M67's blast, and every fragment line ends in the car
             Assert.True(damage[1] > 20f, $"open {damage[1]}");
@@ -207,5 +237,80 @@ namespace Fdp.Toolkit.Combat.Tests
                       {"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}},
                "geometry":{"type":"Point","coordinates":[20,20]}}]}
             """;
+
+        // ── CE-3117 — what the map draws is RECORDED state (R-226) ───────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3117</c> (R-226) — a burst reaches the map through the RECORDER: the mirror copies it into the
+        /// <see cref="DetonationTraces"/> singleton with a write that MOVES its version, so a delta frame after a keyframe that had no
+        /// burst carries it, and a world restored from the two holds the burst, its rays and its sim time. ⛔ Writing through the ref
+        /// <c>GetSingletonUnmanaged</c> returns would leave the version alone and this rail red: the delta would carry nothing.
+        /// </summary>
+        [Fact]
+        public void CE3117_ABurst_ReachesARestoredWorld_ThroughAKeyframeAndADelta()
+        {
+            _w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 12.5 });
+            using var k0 = new System.IO.MemoryStream();
+            var recorder = new Fdp.Core.FlightRecorder.RecorderSystem();
+            using (var w = new System.IO.BinaryWriter(k0, System.Text.Encoding.UTF8, leaveOpen: true)) recorder.RecordKeyframe(_w, w, 0L);
+            uint since = _w.GlobalVersion;
+            _w.Tick();
+
+            var hidden = Soldier(0, 8);
+            var car = _w.CreateEntity();
+            _w.AddComponent(car, new SimTransform { Position = new Vector3(0, 4, 0), Rotation = Quaternion.Identity });
+            _w.AddComponent(car, new PhysicsCollider { Radius = 2f, Height = 2.5f });
+            var (rec, _) = Burst(Grenade, new Vector3(0, 0, 0.1f), hidden);
+            CombatTraceSystem.MirrorDetonations(_w, DetonationLog.Peek(_w)!, 12.5);
+            using var d1 = new System.IO.MemoryStream();
+            using (var w = new System.IO.BinaryWriter(d1, System.Text.Encoding.UTF8, leaveOpen: true)) recorder.RecordDeltaFrame(_w, since, w, 0L);
+
+            using var restored = NewWorld();
+            var playback = new Fdp.Core.FlightRecorder.PlaybackSystem();
+            k0.Position = 0; d1.Position = 0;
+            using (var r = new System.IO.BinaryReader(k0)) playback.ApplyFrame(restored, r);
+            Assert.False(restored.HasSingletonUnmanaged<DetonationTraces>() && restored.GetSingletonUnmanaged<DetonationTraces>().Count > 0,
+                "the keyframe was taken before the burst");
+            using (var r = new System.IO.BinaryReader(d1)) playback.ApplyFrame(restored, r);
+
+            Assert.True(restored.HasSingletonUnmanaged<DetonationTraces>(), "the delta carried the traces");
+            var t = restored.GetSingletonUnmanaged<DetonationTraces>();
+            Assert.Equal(1, t.Count);
+            var burst = t.SlotsRO()[0];
+            Assert.Equal(12.5, burst.Time);
+            Assert.Equal(new Vector3(0, 0, 0.1f), burst.Burst);
+            Assert.Equal(rec.FragmentRadius, burst.FragmentRadius);
+            Assert.Equal(Math.Min(rec.Rays.Count, DetonationTraces.RaysPerBurst), burst.RayCount);
+            Assert.All(burst.RaysRO().ToArray(), ray => Assert.Equal(1, ray.HasStop));   // every line to the hidden man ends in the car
+            Assert.Equal(12.5, restored.GetSingletonUnmanaged<GlobalTime>().TotalTime);    // the clock the gizmo ages it against
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3117</c> — a shot is mirrored while it flies (dashed on the map, no end) and its end is mirrored when it ends;
+        /// a mirror with nothing new adds nothing.
+        /// </summary>
+        [Fact]
+        public void CE3117_AShot_IsTracedInFlight_ThenItsEnd_AndAnIdleMirrorAddsNothing()
+        {
+            var log = ShotLog.For(_w);
+            var shot = log.Add(new ShotRecord { Muzzle = new Vector3(0, 0, 1.5f), Aim = new Vector3(0, 50, 1.5f) });
+            CombatTraceSystem.MirrorShots(_w, log, 3.0);
+            var flying = _w.GetSingletonUnmanaged<ShotTraces>().SlotsRO()[0];
+            Assert.Equal(ShotOutcome.InFlight, flying.Outcome);
+            Assert.Equal(0, flying.HasEnd);
+            Assert.Equal(new Vector3(0, 50, 1.5f), flying.End);
+
+            ShotLog.End(shot, ShotOutcome.Hit, 7u, new Vector3(0, 20, 1.4f));
+            CombatTraceSystem.MirrorShots(_w, log, 3.1);
+            var hit = _w.GetSingletonUnmanaged<ShotTraces>().SlotsRO()[0];
+            Assert.Equal(ShotOutcome.Hit, hit.Outcome);
+            Assert.Equal(1, hit.HasEnd);
+            Assert.Equal(new Vector3(0, 20, 1.4f), hit.End);
+            Assert.Equal(3.0, hit.Time);   // stamped when it was fired, not when it ended
+
+            CombatTraceSystem.MirrorShots(_w, log, 3.2);   // nothing new: no second slot
+            Assert.Equal(1, _w.GetSingletonUnmanaged<ShotTraces>().Count);
+            Assert.Equal(1L, _w.GetSingletonUnmanaged<ShotTraces>().NextSeq);
+        }
     }
 }

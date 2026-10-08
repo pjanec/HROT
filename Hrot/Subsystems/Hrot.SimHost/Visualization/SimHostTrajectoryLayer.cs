@@ -12,7 +12,8 @@ using Hrot.Map.Common;
 namespace Hrot.SimHost.Visualization
 {
     /// <summary>
-    /// Draws the trajectory path for the currently selected entity.
+    /// Draws the AUTHORED route of the currently selected entity (⭐ <c>CE-3117</c>: the followed trajectory moved to
+    /// <c>PlannedPathGizmo</c>).
     ///
     /// <para>
     /// Extended in ROUTES1-T011 to also render:
@@ -25,7 +26,6 @@ namespace Hrot.SimHost.Visualization
     /// </summary>
     public class SimHostTrajectoryLayer : IMapLayer
     {
-        private readonly TrajectoryPoolManager _pool;
         private readonly ISimulationView       _view;
         private readonly IInspectorContext     _inspector;
 
@@ -46,12 +46,11 @@ namespace Hrot.SimHost.Visualization
         /// <summary>Line-segment draw calls in the last <see cref="Draw"/> pass.</summary>
         public int TestHook_LineDrawCount { get; private set; }
 
-        /// <summary>Circle draw calls (progress marker + waypoint handles) in the last <see cref="Draw"/> pass.</summary>
+        /// <summary>Circle draw calls (waypoint handles) in the last <see cref="Draw"/> pass.</summary>
         public int TestHook_CircleDrawCount { get; private set; }
 
-        public SimHostTrajectoryLayer(TrajectoryPoolManager pool, ISimulationView view, IInspectorContext inspector)
+        public SimHostTrajectoryLayer(ISimulationView view, IInspectorContext inspector)
         {
-            _pool       = pool;
             _view       = view;
             _inspector  = inspector;
             _routeQuery = _view.Query()
@@ -73,9 +72,9 @@ namespace Hrot.SimHost.Visualization
 
             var nav = _view.GetComponentRO<NavState>(sel.Value);
 
-            // ── 1. Raw trajectory from pool ─────────────────────────────────────
-            if (nav.Mode == KinematicsMode.CustomTrajectory)
-                RenderTrajectory(nav.TrajectoryId, nav.ProgressS, new Color(180, 180, 180, 160));
+            // ── 1. ⭐ CE-3117 — the FOLLOWED trajectory (progress, look-ahead, door steps) is drawn by PlannedPathGizmo from the
+            //   recorded PathTrace, so it replays; this layer's copy is gone (its progress dot sat at a waypoint-COUNT fraction, not
+            //   the distance travelled). The AUTHORED route stays here. 📄 docs/DESIGN_Terrain_Combat_Tuning.md §5a.
 
             // ── 2. Personal route waypoints ─────────────────────────────────────
             if (_view.HasComponent<PersonalRouteRef>(sel.Value))
@@ -101,31 +100,6 @@ namespace Hrot.SimHost.Visualization
                     break;
                 }
             }
-        }
-
-        private void RenderTrajectory(int id, float progressS, Color color)
-        {
-            if (!_pool.TryGetTrajectory(id, out var traj)) return;
-            if (!traj.Waypoints.IsCreated || traj.Waypoints.Length < 2) return;
-            if (traj.IsLooped == 0 && progressS >= traj.TotalLength - 0.01f) return;
-
-            for (int i = 0; i < traj.Waypoints.Length - 1; i++)
-            {
-                if (!TestHook_SkipRaylibCalls)
-                    Raylib.DrawLineEx(
-                        new System.Numerics.Vector2(traj.Waypoints[i].Position.X, traj.Waypoints[i].Position.Y),
-                        new System.Numerics.Vector2(traj.Waypoints[i + 1].Position.X, traj.Waypoints[i + 1].Position.Y),
-                        1.5f, color);
-                TestHook_LineDrawCount++;
-            }
-
-            // Highlight current progress point.
-            float clamped = System.Math.Clamp(progressS / System.Math.Max(traj.TotalLength, 0.001f), 0f, 1f);
-            int idx = System.Math.Clamp((int)(clamped * (traj.Waypoints.Length - 1)), 0, traj.Waypoints.Length - 1);
-
-            if (!TestHook_SkipRaylibCalls)
-                Raylib.DrawCircleV(new System.Numerics.Vector2(traj.Waypoints[idx].Position.X, traj.Waypoints[idx].Position.Y), 3f, Color.Orange);
-            TestHook_CircleDrawCount++;
         }
 
         /// <summary>

@@ -679,5 +679,19 @@
 
         /// <summary><c>TerrainObjectKey</c> — the terrain-provided string key of the object an entity stands for (§3b K2).</summary>
         public const int TerrainObjectKey = 338;
+
+        /// <summary><c>ShotTraces</c> — the last shots as the map draws them, recorded so a replay seek restores them (<c>CE-3117</c>,
+        /// R-226, 📄 docs/DESIGN_Terrain_Combat_Tuning.md §5a). 339–342 free by a census of backend, behaviors and ui, <c>2026-10-08</c>
+        /// — <c>R-44</c>.</summary>
+        public const int ShotTraces = 339;
+
+        /// <summary><c>DetonationTraces</c> — the last bursts with their fragment rays (<c>CE-3117</c>).</summary>
+        public const int DetonationTraces = 340;
+
+        /// <summary><c>HeardTraces</c> — a listener's last heard estimates (<c>CE-3117</c>).</summary>
+        public const int HeardTraces = 341;
+
+        /// <summary><c>PathTrace</c> — a mover's planned path as a polyline (<c>CE-3117</c>).</summary>
+        public const int PathTrace = 342;
     }
 }

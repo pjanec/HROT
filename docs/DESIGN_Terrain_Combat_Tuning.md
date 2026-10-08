@@ -495,6 +495,24 @@ host check. The one dead edge is the Replay Browser's missing terrain, owned by 
 | `SimHostTrajectoryLayer`'s trajectory half is **retired** in favour of `PlannedPathGizmo`; its authored-route half stays | keeping both — two drawings of one path, one of them with a wrong progress dot |
 | the debug logs and routes stay (`/combat/shots`, `/combat/detonations`) — they carry the text (warhead source, shield name) a struct cannot | routes reading the component — loses the explanation |
 
+### ✅ As built *(backend, `2026-10-08`)* — matches the diagrams above, with these deviations
+
+| deviation | why |
+|---|---|
+| `DebugTraceLayers` (bits 3–7) and `DebugTraceClock` (sim-time age + fade) live in **`Fdp.Toolkits`** (`Diagnostics/Gizmos`) | `Hrot.Common` (layer control) and `Hrot.Presentation` (the gizmos) do not reference each other; both reference the toolkit |
+| a fragment ray carries its **transmission 0..1** (not a blocked bit) and its first obstacle: the entry point of the first terrain crossing, or the point of the ray nearest a blocking collider | fragments through a thin wall are partial; the map shades green → orange by how much got through. `DetonationRecord.Rays` and `DetonationEffect.At` are new; `/combat/detonations` returns `rays` and each effect's `at` too |
+| ⚠ the mirror writes singletons with **`SetSingletonUnmanaged`**, never through the ref of `GetSingletonUnmanaged` | measured: that ref does not move the version (`EntityRepository.cs:1943`), and a delta frame records a singleton only when its version moved — the rail `CE3117_ABurst_ReachesARestoredWorld_ThroughAKeyframeAndADelta` pins it |
+| `HeardTraces` is written through the solver's command buffer at `SensorMemoryStage.Flush`, beside the `SoundContactEvent` | the flush may run on a background snapshot; the command buffer is its only write path |
+| `FireTraceGizmo` keeps its old rule (the last 64 shots, no fade) | unchanged behaviour; only its source moved to `ShotTraces` |
+| `DangerAreaGizmo` is **global** | the buffer sits on the sensor CHILD, which is never the selected entity |
+| `SimHostTrajectoryLayer` lost its trajectory half and its pool parameter | the followed path is `PlannedPathGizmo`'s now; the layer keeps the authored route |
+
+**Rails** (feature suites first): `AreaEffectSystemTests` (rays folded into `W11_BehindAHalfMetreWall…` and `W11_AVehicleBetween…`; new
+`CE3117_ABurst_ReachesARestoredWorld_ThroughAKeyframeAndADelta`, `CE3117_AShot_IsTracedInFlight_ThenItsEnd…`) · `EqsModuleTests.S7_TheAcousticSensor…`
+(heard trace folded in) · `GroundKinematicsModuleTests` (3 post-sim systems) · new `PathTraceSystemTests` (thinning keeps ends and door steps;
+rewritten only on change) · new `DebugTraceGizmoTests` (burst drawn for 1 s, sound ring at half range half-way, look-ahead at
+`PathLookahead`, door leaf geometry) · `LayerControlGizmoTests.CE3117_TheDebugTraceLayers_AreToggledByTheirOwnBits`.
+
 ### Follow-ups (own tasks)
 
 - **`CE-3118`** — the Replay Browser loads the terrain: the terrain NAME goes into the recording metadata, the browser loads that asset

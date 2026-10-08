@@ -98,6 +98,7 @@ namespace Fdp.Toolkit.CarKinem.Modules
             {
                 new CarKinematicsSystem(TrajectoryPool),
                 new LinearKinematicsSystem(),
+                new PathTraceSystem(TrajectoryPool),   // ⭐ CE-3117 — the planned path as recorded state, for the map
             };
         }
 

@@ -75,6 +75,14 @@ namespace Hrot.Editor.DebugApi
                         ["fragmentArmourChance"] = x.FragmentArmourChance, ["fragmentDamage"] = x.FragmentDamage,
                         ["blastFalloff"] = x.BlastFalloff, ["blastBarrier"] = x.BlastBarrier, ["blastShadow"] = x.BlastShadow,
                         ["blastDamage"] = x.BlastDamage, ["totalDamage"] = x.TotalDamage, ["shieldedBy"] = x.ShieldedBy,
+                        ["at"] = V(x.At),   // ⭐ CE-3117 — where it stood
+                    });
+                // ⭐ CE-3117 — every fragment ray the map draws: the body point, how much got through, the first obstacle (or null)
+                var rays = new JsonArray();
+                foreach (var r in d.Rays)
+                    rays.Add(new JsonObject
+                    {
+                        ["to"] = V(r.To), ["transmission"] = r.Transmission, ["stopAt"] = r.StopAt is { } at ? V(at) : null,
                     });
                 var doors = new JsonArray();
                 foreach (var k in d.DoorsBreached) doors.Add((JsonNode)k!);
@@ -83,7 +91,7 @@ namespace Hrot.Editor.DebugApi
                     ["seq"] = d.Seq, ["tick"] = d.Tick, ["shooter"] = Id(d.Shooter), ["struck"] = Id(d.Struck), ["burst"] = V(d.Burst),
                     ["ammo"] = d.Ammo, ["warhead"] = d.Warhead, ["warheadSource"] = d.WarheadSource,
                     ["fragmentRadius"] = d.FragmentRadius, ["blastInjuryRadius"] = d.BlastInjuryRadius,
-                    ["effects"] = effects, ["doorsBreached"] = doors,
+                    ["effects"] = effects, ["doorsBreached"] = doors, ["rays"] = rays,
                 });
             }
             return new JsonObject { ["count"] = log.Count, ["returned"] = arr.Count, ["detonations"] = arr };
