@@ -944,7 +944,11 @@ public sealed class TheViewportInteractionIsSharedTests
 
         Assert.True(map.Tools.Activate(ScenarioToolIds.Spawn));
         Assert.True(placed);                       // 🔴 the delegate actually ran …
-        Assert.Empty(reports);                     // 🔴 … and nothing cried "no spawn adapter"
+        // 🔴 … and nothing cried "no spawn adapter". ⭐ CE-3123 — the same channel now also names reflected gizmo projectors
+        //   whose constructor service this context lacks (no geo transform here ⇒ the mission gizmo); those are expected,
+        //   so the rail asserts every report IS one of them and none is about spawning.
+        Assert.All(reports, r => Assert.StartsWith("gizmo '", r));
+        Assert.DoesNotContain(reports, r => r.Contains("spawn", System.StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
