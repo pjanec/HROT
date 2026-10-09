@@ -10359,3 +10359,84 @@ is the retired promotion, whose "two tiers = promote" rule would otherwise copy 
 
 ⚠ **Lane:** the store is behaviour infrastructure (behaviors lane). `origin/behaviors` has **0 commits** not already in `backend`
 and the lane is on hold; the work is done here and said in every commit (cross-lane edit, lane protocol).
+
+### 34.6 ✅ AS-BUILT — `2026-10-09` (U-0a, U-0b, U-0d built · U-0c deferred)
+
+⚠ **§34.2–§34.3 are the PRE-BUILD shape and are SUPERSEDED by this section** where the names differ: there is no
+`StoreView` / `TickViewScope` (U-0c deferred), no `BlueprintTierTable.Blocks/Append/FirstVisit` and no `ForEachSlot`;
+the whole seam lives in `OccurrenceStoreAccess`. §34.4's module diagram still holds, except its "Begin/End view" edge.
+
+```mermaid
+classDiagram
+  class OccurrenceStoreAccess {
+    <<existing, grown>>
+    PresentTiers(world, e) int
+    IsFirstVisit(world, e, ascendingIndex) bool
+    GetBlocks / GetBlocksReadOnly / GetBlocksInView(out StoreBlocks) int
+    TryFindSlot / TryFindSlotReadOnly / TryFindSlotInView(key, out block, out offset, out hash)
+    TryFindSlotIndex(key, out block, out index)
+    TryAttachSlot(key, size, hash, kind, out block, out offset) bool
+    TryDetachSlot(key) bool
+    Measure(world, e) StoreMeasure
+    AppendBlockFor(payloadShort, slotsShort) / EnsureRoom(payload, slots) / AddBlock(spec)
+    TierOf(block) BlueprintTierSpec
+    TryGetStore* (largest block, tests and diagnostics ONLY)
+  }
+  class StoreBlocks { <<new, unmanaged>> Max = 4; Memory(i); TotalSize(i); Count; TryFind(key) }
+  class StoreMeasure { <<new>> Blocks; PayloadSize; PayloadFree; MaxSlots; SlotCount; FreeSlots }
+  class BlueprintTierSpec { <<existing, grown>> ComponentId (for the one-mask-read probe) }
+  class BlueprintTierTable { <<existing, shrunk>> Descending; Of = largest block. Promote, EnsureAtLeast, AdjacentPairs RETIRED }
+  class BlueprintBlackboardPartitions { <<existing, unchanged>> per-block allocator; CopyToLargerTier dormant }
+  class BlueprintMaintenanceSystem { <<RETIRED, deleted>> }
+  OccurrenceStoreAccess --> StoreBlocks
+  OccurrenceStoreAccess --> StoreMeasure
+  OccurrenceStoreAccess ..> BlueprintTierTable
+  OccurrenceStoreAccess ..> BlueprintTierSpec
+  OccurrenceStoreAccess ..> BlueprintBlackboardPartitions
+```
+
+*What the picture shows that prose hid: the allocator did not change by a line — every change is in finding the block — and
+the only new types are two plain value carriers.*
+
+| deviation from §34.2–§34.5 | why |
+|---|---|
+| ⭐ **`BrainTickSystem` keeps its per-tier walk and skips a unit already visited** (`IsFirstVisit`, one mask read), instead of one `BehaviorState` query | a single-block unit (every unit today) is visited **in exactly the old order**, so no golden or T3 baseline can move. The §34.5 ⚠ about visit order no longer applies |
+| ⭐ **`BlueprintTickSystem` needed NO change** | its walk is **slot-level**: each slot lives in exactly one block, so every Instance ticks once per frame even on a 2-block unit. Comment at the loop says so |
+| ⛔ **the `BlueprintTickSystem.cs:207` "silent drop" was misattributed** | it is `EnsureAndTickSingleton`, the **world-singleton** path (one shared block per tier), never a unit's store. ⇒ rail ② as written had no target. The singleton drop remains, outside U-0. Q87 inventory row corrected |
+| ⏸ **U-0c (per-tick view) DEFERRED** | the lookup is already **mask probe → read-only scan → read-write on the hit block** (single-block stores resolve read-write directly), which keeps today's cost for every one-block unit. The view only pays on multi-block units; build it with its benchmark rail when U-1/U-2 make multi-block units common |
+| ⭐ **`TryResolveOccurrence` (the generated thunks' call) became multi-block in place** | **no generator change, no golden re-pin** — the emitted call is unchanged |
+| ⭐ **`TryGetStore*` / `BlueprintTierTable.Of` kept, returning the LARGEST block** | tests and diagnostics read one block; ⛔ **rail `U0_R0` fails any production call** outside `OccurrenceStoreAccess.cs`/`BlueprintTierTable.cs` (source scan, skips Tests/Examples) |
+| ⭐ **`CopyToLargerTier` kept, dormant** | an allocator primitive with its own rail (`PartitionAllocatorTests.A3_R2`); no production caller |
+| ⭐ **`LargestBlock(world, e)` added** — the DISPLAY-only tier answer | the editor's tier label/commit plan and an attach-failure report need *a* tier; ⛔ never a slot location. Caught by `U0_R0` on its first run (two sites still read `BlueprintTierTable.Of`) |
+| ⭐ **`TryAttachSlot` initialises a RAW present block** (idempotent `Initialize`), and `Measure` counts a raw block as all capacity | the pre-U-0 attach always called `Initialize` first; a block added by a bare `AddComponent` (scenario/test setup) was otherwise skipped and a SECOND block appended. Caught by `B4_R3` |
+| ⭐ **the missing-store error no longer says "structural change, never in a tick"** | an append moves nothing and is allowed mid-tick; the message now says the FIRST block is ingress's to create (rail `O7_R9`) |
+| ⭐ **the editor's "Upgrade tier" action is display-only** | `EntityBlueprintsPanel.UpgradeTier` (the editor's copy-promotion) removed; the panel's commit plan still reports the tier the store would grow into |
+
+**Rails** (all in the feature's own suites):
+
+| rail | pins |
+|---|---|
+| `OccurrenceStoreAccessTests.U0_R1` | a pointer taken before growth stays valid and its writes land after a block is appended |
+| `U0_R2` | lookup and detach find a slot in any block |
+| `U0_R3` | a full ladder (4 blocks, 47 slots) refuses the attach; capacity = sum of the blocks' slots |
+| `U0_R4` | `IsFirstVisit`: a 2-block unit is visited once, by its first present tier |
+| `U0_R0` | no production code reads "the" store (`TryGetStore*`, `BlueprintTierTable.Of/OfInView`) |
+| `B4_R4` (re-expressed) | an attach that outgrows the block appends one and the first slot does not move |
+| ⭐⭐ `BTreeHostsBTreeTests.U0_R5` | **the cascade the user asked for:** a parent tree hosting **20 subtree sites** grows the unit past one block at assign; a **mid-tick** attach of 3 × 1000-byte working states appends again while the host is running; the host cursor stays put, each child runs once, the brain ticks once per frame across 3 frames |
+| `BehaviorIngressStatefulTests.Assign_UpgradesTierSynchronously_BeforeFirstTick` (re-expressed) | a nearly full 1024 gets a block appended at assign; the old slot keeps its block and offset |
+
+**Gates** (`2026-10-09`, `--no-build` after one build of each TEST project):
+
+| suite | result | note |
+|---|---|---|
+| `Fdp.Toolkits.Tests` (full) | 2974 / 1 red → that red (`O4_R7`) fixed, its class re-run green | the 8 reds of the first run were ALL this change: 2 store bugs (raw-block init, raw-block measure), 2 display reads caught by `U0_R0`, 4 single-block test reads |
+| store + behaviour classes (`OccurrenceStoreAccess`, `BTreeHostsBTree` incl. `U0_R5`, `HostedSubtreeCursor`, `HsmOccurrenceKey`, `BehaviorIngress*`) | **162 / 0** | |
+| `Hrot.Blueprints.Tests` (full) | 4200 / 1 red → re-expressed (drain ordering: "no growth" instead of "no promotion"), class **18 / 0** | |
+| `Hrot.SimHost.Tests` (full) | 1151 / 1 red → module count 3 → 2 (maintenance retired), class **18 / 0** | |
+| `Hrot.Editor.Tests` (incl. hot reload `O7_R54`) | **469 / 0** | |
+| `Hrot.Diagnostics.Breakpoints.Tests` | **164 / 0** | |
+| integration `BlueprintKernelRunTests` | **6 / 0** | the real kernel schedule, no maintenance system |
+| generated goldens | unchanged — the thunks' call `TryResolveOccurrence` kept its signature | |
+
+**Residual:** U-0c (per-tick view + benchmark rail ⑥) · rail ⑦ (a RECORDED 2-block frame searchable in the replay browser —
+the reader is routed, no recording rail yet) · the world-singleton silent drop on a full tier (outside U-0).
