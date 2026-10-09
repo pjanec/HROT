@@ -475,7 +475,8 @@ public sealed class PostureScenarioTests : IDisposable
             if (!sensor.IsNull && cgf.HasComponent<EqsCognitiveBuffer>(sensor))
                 foreach (var r in cgf.GetComponentRO<EqsCognitiveBuffer>(sensor).GetSpanRO())
                     answers += $"({r.PositionX:F1},{r.PositionY:F1},{r.PositionZ:F0}){r.Score:F2} ";
-            return $"phase={(Fdp.Toolkit.Combat.PeekPhase)m.Phase} slots[{slots}] cover[{answers}]";
+            var face = cgf.HasComponent<SimTransform>(e) ? Vector3.Transform(Vector3.UnitX, cgf.GetComponent<SimTransform>(e).Rotation) : default;
+            return $"phase={(Fdp.Toolkit.Combat.PeekPhase)m.Phase} hide={m.HidePoint} facing=({face.X:F2},{face.Y:F2}) slots[{slots}] cover[{answers}]";
         }
         string State() => $"A {Pos(a)} hp {Hp(a)} ammo {a0}→{Ammo(a)} windows [{string.Join(" ", windows)}] {Peek(a)} · B {Pos(b)} hp {Hp(b)} ammo {b0}→{Ammo(b)} bounded={bounded}";
 
@@ -484,6 +485,7 @@ public sealed class PostureScenarioTests : IDisposable
         {
             harness.PumpFrames(1);
             var pa = Pos(a);
+            if (f % 30 == 0 && f > 2000 && f < 3000) _out.WriteLine($"f{f}: A {pa} {Peek(a)}");
             if (MathF.Abs(pa.Z - lastZ) > 0.5f) { _out.WriteLine($"f{f}: A z {lastZ:F2} -> {pa.Z:F2} at {pa}; {Peek(a)}"); lastZ = pa.Z; }
             foreach (var w in UpstairsWindows)   // at a window, not on the way between two
                 if (pa.Z >= 2f && Vector2.Distance(new Vector2(pa.X, pa.Y), w) <= 0.75f) windows.Add(((int)MathF.Round(w.X), (int)MathF.Round(w.Y)));
