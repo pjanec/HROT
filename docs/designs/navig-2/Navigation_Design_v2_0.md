@@ -839,8 +839,14 @@ and `ua-threat-ranking` PASSED. ⚠ **The "vehicle with `Prefer` drives Main Str
 in-process, not live** (`CE3128_ShippedTestTown_PreferDrivesMainStreet_NeverDoesNot`, a real Recast mesh on the shipped
 test-town). No scenario can author `Never` until `CE-3130`, and the only test-town vehicle scenario (`tt-nav-los`) has no
 check script. **With no navmesh the road graph remains the only planner** (as before), so a `Never` order
-there is unreachable. `DdsPathRequest` (the scale-out solver node's wire) still carries only `MobilityProfile` — it already
-dropped `BackendForce` and the layer; `RoadUse` joins that known gap (`CE-3129`). Rails: `PathfindingSolverBackendSelectionTests`
+there is unreachable. ~~`DdsPathRequest` still carries only `MobilityProfile`~~ ⛔ SUPERSEDED `2026-10-09` (`CE-3129`): it
+carries `BackendForce`, `NavLayerMask` and `RoadUse` now, so a NavigationSolver on its own node plans what the actor ordered.
+⚠ Found on the same wire and fixed with it: the solver's response batch carried the LAST reachable route's first point as
+`BatchOrigin` while each route was encoded against its OWN first point, so with two routes for one Brain in one frame every
+route but the last arrived displaced (`PathResponseSolverEgressTranslator.BuildBatches` now encodes all against one anchor;
+rails `PathfindingTranslatorsTests`). ⭐ `CE-3130` (`2026-10-09`): the authored moves take it — `MoveToLocation`'s contract
+key `roadUse` (an enum by name, omitted when Unspecified) reaches the MoveTo through the blackboard, and the blueprint
+`MoveTo` channel command has a `RoadUse` pin (rails `MoveToLocationRoadUseTests`, `CatalogTests` MoveTo pins). Rails: `PathfindingSolverBackendSelectionTests`
 `CE3128_*` (the actor's choice, two-way, mid-segment entry, curve, the replan carrying the order, the default by class),
 `PathfindingAutoSelectionIntegrationTests` `CE3128_*` (a real Recast mesh), `DangerAlongRouteClassifierTests` /
 `DangerAreaSensorSystemTests` on the graph, `TerrainWorldTests.CE3128_SurfaceRoad_IsRetired…`,

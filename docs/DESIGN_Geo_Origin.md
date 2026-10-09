@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT — A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class). §5 (CE-3118, the Replay Browser loads the recording's terrain) READY-TO-BUILD 2026-10-09
+build-state: BUILT — A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class). §5 (CE-3118, the Replay Browser loads the recording's terrain) BUILT 2026-10-09 as designed
 updated: 2026-10-09
 current-answer: §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
 stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the class was not needed
@@ -140,7 +140,7 @@ graph TD
 
 ⚠ **Not done here:** loading the recording's terrain BY NAME in the Replay Browser is `CE-3118` — the metadata now carries the name it needs.
 
-## 5. The Replay Browser loads the recording's terrain *(`CE-3118`, backend, `2026-10-09`; build-state: READY-TO-BUILD)*
+## 5. The Replay Browser loads the recording's terrain *(`CE-3118`, backend, `2026-10-09`; build-state: BUILT)*
 
 > 🔒 **User, `2026-10-08`** (R-226): *"The replay browser must load the terrain in order to display it on the map if nothing else.
 > Twreain name should go to metadata for sure."* · **`2026-10-09`:** *"Pls also add the terrain support to replaybrowser so it shows
@@ -245,3 +245,16 @@ reads. The mirror runs on the same path the geo transform already uses, so no re
 | `Commit` straight into each bound repo | it sets the repo's geo origin from the terrain FILE (§2 F says the recording wins) and residency is one world |
 | record `TerrainWorld` / the road net in the `.fdp` | 🔒 R-226 — the terrain stays referenced by name |
 | hand the terrain to the gizmos through `MapServices` | both gizmos read world singletons; a second path would be two producers for one slot (R-132) |
+
+### 5.6 As-built *(`2026-10-09`)*
+
+Built as §5.2–§5.5 draw it, no deviation: `TerrainResidency.MirrorTerrain`, the browser's `_terrain` / `_terrainCarrier` /
+`ApplyRecordingTerrain` (called from all THREE load paths — the timeline's group load, `LoadFdpViaManager`, the test seam),
+`ZoneEnvironmentData` `NoScenario │ NoReplay`. Rails (`ReplayBrowserSubsystemTests`): `CE3118_TheRecordingsTerrain_AndItsRoads_
+AreOnTheReplayWorld` (a real recording naming test-town replays over its world and its 5-node road graph, not the 2-node blob
+the recording process held), `CE3118_TheRoadNetworkSingleton_IsNeitherRecordedNorSaved`,
+`CE3118_ATerrainThatNoLongerExists_LeavesTheMapEmpty_AndTheReplayPlays`.
+
+⚠ **The same defect class, four more times — filed, not fixed here (`CE-3132`):** `PathfindingBatchData`, `RaycastBatchData`,
+`TerrainQueryBatchData` and `EqsResultPool` are ECS structs holding a `NativeArray` with no `NoReplay`, so they too are
+recorded as raw pointers.
