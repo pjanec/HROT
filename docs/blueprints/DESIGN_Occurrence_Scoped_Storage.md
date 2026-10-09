@@ -1,15 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30 (R-155 known-rot + §P link)
+updated: 2026-10-09 (§34 U-0 built, as-built §34.6)
 build-state: ⛔ PER-SECTION — this file spans a whole programme, so there is no single answer, and the
   one that used to be here ("DESIGN, because §32's review demoted it") was stale the moment §32 shipped.
-  ⭐ BUILT: §29 (P3) · §30 (P4) · §31 (O7c) · §32 (E5) · §33 (E6) · §33.12 (the editor path).
+  ⭐ BUILT: §29 (P3) · §30 (P4) · §31 (O7c) · §32 (E5) · §33 (E6) · §33.12 (the editor path) · §34 (U-0, except U-0c).
   ⚠ NOT AUDITED since the programme shipped, so DO NOT trust their headers without measuring:
   §17 (O3a, says READY-TO-BUILD — BlueprintTierTable is in 90 files, so it is probably BUILT) ·
   §19 (O4/C1, says READY-TO-BUILD) · §24 (O7, says BUILDING — O7c-4d deleted BrainHsm128, so it is
   probably BUILT). 📌 Five stale build-state lines have now been found in this file and its
   neighbours (§30, §31 on 2026-09-27; §29, §32 here) — treat a section header as a CLAIM, not a fact.
-current-answer: ⭐⭐⭐ §34 — U-0, THE MULTI-BLOCK STORE (R-236, CE-3137) — IS THE NEWEST SECTION AND IS READY-TO-BUILD. (§33, E6, is BUILT.)
+current-answer: ⭐⭐⭐ §34 — U-0, THE MULTI-BLOCK STORE (R-236, CE-3137) — IS THE NEWEST SECTION AND IS BUILT (2026-10-09; U-0c per-tick view deferred). ⚠ READ §34.6 (AS-BUILT) FIRST — §34.2/§34.3 are the pre-build shape. (§33, E6, is BUILT.)
   (2026-09-27). Start there for the BTree hosting slice; it carries its own INVENTORY, three UML
   diagrams, five build items and its rejected alternatives.
   ⚠⚠ §3.1 IS SUPERSEDED — it says "BTree-hosts-BTree is not a missing feature", which CE-337 made
@@ -10259,7 +10259,7 @@ would exercise these assets inside the real product rather than a test host. ⛔
 
 📄 **Why, measured, and the performance case:** [`Architect_Question_87_Unit_Memory.md`](Architect_Question_87_Unit_Memory.md)
 §3a (why the store moved: a one-block design, not FDP; FDP adds move nothing and are allowed mid-phase) · §3b (per brain-tick
-**1 155–1 350 ns today → 88–112 ns** with the per-tick view, two blocks). `build-state: READY-TO-BUILD` for this section.
+**1 155–1 350 ns today → 88–112 ns** with the per-tick view, two blocks). `build-state: BUILT` (`2026-10-09`) except U-0c — ⭐ **§34.6 is the as-built; §34.2–§34.3 below are the pre-build shape.**
 
 ### 34.1 INVENTORY — what changes, measured `2026-10-09` (graph `trace_path` + grep)
 

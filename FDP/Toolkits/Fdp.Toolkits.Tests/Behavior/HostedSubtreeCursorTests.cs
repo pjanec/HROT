@@ -619,8 +619,8 @@ public sealed unsafe class HostedSubtreeCursorTests
         Assign();
         PoisonBothCursors(world, entity);
         {
-            byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, authorKey, out int off));
+            // ⭐ CE-3137 U-0: any block — the store may span several.
+            Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, authorKey, out byte* store, out int off, out _));
             *(int*)(store + off) = 0x1234;
         }
 
@@ -630,8 +630,7 @@ public sealed unsafe class HostedSubtreeCursorTests
 
         // ⭐⭐ THE RAIL. The author's slot is untouched by the cursor reset.
         {
-            byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, authorKey, out int off));
+            Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, authorKey, out byte* store, out int off, out _));
             Assert.Equal(0x1234, *(int*)(store + off));
         }
     }

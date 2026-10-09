@@ -483,11 +483,10 @@ namespace Hrot.SimHost.Tests
                 modules.AddRange(capability.ProvideModules());
 
             // Verbatim from the block this replaced: diagnostics first, then the pack.
-            // ⭐⭐ A4/O0 (2026-09-20) — a THIRD module now follows: the BeforeSync blueprint
-            //    maintenance system, carried by a SingleSystemModule. ⛔ It cannot ride the pack's
-            //    SimulationSystems the way the tick does, and registering it per composition root is
-            //    the per-host chance to forget that CE-161 was made of.
-            Assert.Equal(3, modules.Count);
+            // ⛔ HISTORY — A4/O0 (2026-09-20) added a THIRD module, the BeforeSync blueprint maintenance
+            //    system (a SingleSystemModule); CE-3137 U-0 (R-236) RETIRED it — the store never moves a
+            //    slot, so there is no promotion to run. Rail A4_R3 pins that it stays gone.
+            Assert.Equal(2, modules.Count);
             Assert.IsType<BehaviorDiagnosticsModule>(modules[0]);
             Assert.Same(pack, modules[1]);
         }
