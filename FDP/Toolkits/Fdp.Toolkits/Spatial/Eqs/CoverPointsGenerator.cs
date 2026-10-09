@@ -11,6 +11,10 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// </summary>
     public sealed class CoverPointsGenerator : IEqsGenerator
     {
+        /// <summary>⭐ Stage 7a — which points to generate: cover (the default, so <see cref="FindCoverFromTarget"/> keeps its
+        /// meaning) or window firing positions (<see cref="FindWindowFiringPosition"/>). 📄 docs/DESIGN_Building_Interiors.md §3l C5.</summary>
+        public CoverKind Kind { get; set; } = CoverKind.Cover;
+
         /// <inheritdoc/>
         public int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
         {
@@ -25,7 +29,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
             // Intermediate stackalloc buffer for raw cover points.
             Span<CoverPoint> rawPoints = stackalloc CoverPoint[candidates.Length];
-            int rawCount = provider.GetCoverPointsInRadius(center, sensor.SearchRadius, rawPoints);
+            int rawCount = provider.GetCoverPointsInRadius(center, sensor.SearchRadius, rawPoints, Kind);
 
             for (int i = 0; i < rawCount; i++)
             {

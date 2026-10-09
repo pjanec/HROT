@@ -24,6 +24,27 @@ namespace Fdp.Toolkit.Spatial.Eqs
         };
     }
 
+    /// <summary>⭐ Stage 7a — where to shoot the target from INSIDE a building: the window firing positions near the self (any
+    /// storey — <see cref="TerrainCoverProvider"/> puts one on the inside face of each window, at the lowest stance that clears
+    /// the sill) whose standing eye SEES the target, nearer scoring more, then exposure and path cost.
+    /// 📄 docs/DESIGN_Building_Interiors.md §3l C5.</summary>
+    [EqsTemplate(AssetId)]
+    public static class FindWindowFiringPosition
+    {
+        public const string AssetId = "c4978acd-452f-4b9d-b7e9-47c95484702b";
+        public const uint BlueprintId = 0xE29A2384u;
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator { Kind = CoverKind.WindowFiring },
+            FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible } },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[] { new ThreatExposureTest(), new PathCostScoreTest() },
+            MaxCandidates  = 32,
+        };
+    }
+
     /// <summary>⭐ A flank on the target: ring points around the TARGET that see it, scored by bearing — side-on to the
     /// target→self line scores most — then exposure and path cost.</summary>
     [EqsTemplate(AssetId)]

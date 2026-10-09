@@ -320,6 +320,55 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         public void CE3134_FiringStance_IsTheLowestEyeThatFits(float sill, float head, int stance)
             => Assert.Equal((byte)stance, TerrainCoverProvider.FiringStance(sill, head));
 
+        /// <summary>⭐ The plan's acceptance (§3l 7a-2): a rifleman upstairs in House A, the target south of the house —
+        /// <c>FindWindowFiringPosition</c> answers a SOUTH window on HIS storey (Z 3), inside the house, and the database point
+        /// there is a crouch position. Every answer sees the target from a standing eye.</summary>
+        [Fact]
+        public void CE3134_FindWindowFiringPosition_UpstairsInHouseA_AnswersASouthWindowOnHisStorey()
+        {
+            var w = Recipe("bt-range");
+            var cover = TerrainCoverProvider.Build(w);
+            _repo.SetSingletonManaged(w);
+            _repo.SetSingletonManaged<ICoverProvider>(cover);
+            var target = new Vector3(104, 80, 0);
+            var sensor = new EqsSensor { SearchRadius = 15f, ContextSlot0 = At(104, 104, 3), ContextSlot1 = At(target.X, target.Y) };
+
+            var top = Run(FindWindowFiringPosition.Build(new EqsTemplateBuilder()), sensor);
+
+            Assert.NotEmpty(top);
+            var best = top[0];
+            Assert.Equal(100.9f, best.PositionY, 2);       // the south wall's inside face
+            Assert.Equal(3f, best.PositionZ, 2);           // his storey
+            Assert.True(best.PositionX > 100 && best.PositionX < 110);
+            var point = Assert.Single(cover.Points, p => p.Kind == CoverKind.WindowFiring
+                && MathF.Abs(p.PositionX - best.PositionX) < 0.01f && MathF.Abs(p.PositionY - best.PositionY) < 0.01f
+                && MathF.Abs(p.PositionZ - best.PositionZ) < 0.01f);
+            Assert.Equal(1, point.StanceHeight);           // a 0.9 m sill: crouch
+            Assert.All(top, r => Assert.False(
+                w.SegmentBlocked(new Vector3(r.PositionX, r.PositionY, r.PositionZ + 1.7f), target + new Vector3(0, 0, 0.85f)),
+                $"({r.PositionX:F2},{r.PositionY:F2},{r.PositionZ:F2}) does not see the target"));
+            Assert.DoesNotContain(top, r => r.PositionY > 104);   // the north window looks away from the target
+        }
+
+        /// <summary>The generator asks for ITS kind: the default is cover (FindCoverFromTarget unchanged), and a window generator
+        /// never yields a cover point.</summary>
+        [Fact]
+        public void CE3134_CoverPointsGenerator_GeneratesItsKindOnly()
+        {
+            _repo.SetSingletonManaged<ICoverProvider>(new ManualCoverProvider(new[]
+            {
+                new CoverPoint { PositionX = 1, PositionY = 0, Quality = 1f, Kind = CoverKind.Cover },
+                new CoverPoint { PositionX = 2, PositionY = 0, Quality = 1f, Kind = CoverKind.WindowFiring },
+            }));
+            var sensor = new EqsSensor { SearchRadius = 10f, ContextSlot0 = At(0, 0) };
+            var c = new EqsResult[8];
+
+            Assert.Equal(1, new CoverPointsGenerator().Generate(Entity.Null, ref sensor, _repo, c));
+            Assert.Equal(1f, c[0].PositionX);
+            Assert.Equal(1, new CoverPointsGenerator { Kind = CoverKind.WindowFiring }.Generate(Entity.Null, ref sensor, _repo, c));
+            Assert.Equal(2f, c[0].PositionX);
+        }
+
         /// <summary>Solid prisms and free walls are read exactly as before Stage 7a: test-town and basic-desert (no building
         /// templates) produce the same database, point for point (count + checksum measured on the pre-7a code).</summary>
         [Theory]
@@ -560,6 +609,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         [InlineData(typeof(FindFlankingPosition))]
         [InlineData(typeof(FindSafeRetreatPoint))]
         [InlineData(typeof(FindThreatsInView))]
+        [InlineData(typeof(FindWindowFiringPosition))]
         public void StarterTemplate_BlueprintIdIsTheHashOfItsAssetId(Type template)
         {
             string assetId = (string)template.GetField("AssetId")!.GetValue(null)!;

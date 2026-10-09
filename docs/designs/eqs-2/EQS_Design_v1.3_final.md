@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-04
+updated: 2026-10-09
 build-state: BUILT (§17 — the area query inside EQS 1.3) · §18 — the AreaQuery pipeline RETIRED (2026-10-01) · §19 — the terrain EQS slice BUILT (2026-10-03)
 current-answer: §1–§15 are the v1.3 intent. §16 is the MEASURED as-built state (2026-09-30) and what the
   unification with AreaQuery needs — read it before quoting any "is live / is wired" claim from §6 or §14.
@@ -1272,6 +1272,7 @@ milliseconds for a town.
 | flags (§4.2, now honoured) | LOS test sets bit `slot` = HasLOS; `ThreatExposureTest` bit 4 `IsInCover` (hidden from every known threat) / bit 5 `IsExposedFromKnownThreat`; `DotProductTest` bit 6. ⚠ **As-built change:** `CheapLineOfSightTest` used to set bit 0 for "covered from slot 1" — wrong per §4.2 and read by no production code (`grep Flags & 1`: tests only) |
 | `ThreatExposureTest` | known threats = the self's `SensorContactList` (perception's tracks — on the Muscle), filtered by the sensor's `FactionFilter`. Score = 1 − exposedFraction. ⭐ It IS §5.4's `CoverQuality` too: two kinds would be two implementations of one measurement |
 | `TerrainCoverProvider` | points along every prism edge every 2.5 m, 0.75 m out from the wall, facing it; stance from wall height (≥1.5 m stand, ≥0.9 crouch, ≥0.45 prone, else none); Z = `SurfaceZ`; points inside another prism dropped; 10 m bucket grid for radius queries |
+| ↳ ⭐ *building panels, Stage 7a* | a building's walls are read by **panel face** at the storey floor, not by their expanded prisms; doors give nothing, a window is sill-high cover plus a `WindowFiring` point inside; a radius query returns ONE `CoverKind`. 📄 [`DESIGN_Building_Interiors.md`](../../DESIGN_Building_Interiors.md) §3l |
 | new generators | ring/grid/cone points are snapped to ground with `TerrainWorld.SurfaceZ` and dropped if inside a prism; params are template constants, the radius is the sensor's `SearchRadius` |
 
 ### 19.6 Templates *(§6.6)*
@@ -1283,6 +1284,7 @@ milliseconds for a town.
 | `FindFlankingPosition` | `Donut` around slot 1 | LOS RequireVisible(slot 1) | DotProduct(around slot 1, away from self's side) · ThreatExposure · PathCost |
 | `FindSafeRetreatPoint` | `Grid` around self | LOS RequireHidden(slot 1) | Distance(slot 1, FAR) · ThreatExposure · PathCost |
 | `FindThreatsInView` | `EntitiesInRadius` | Faction · Alive · LOS RequireVisible(from self to candidate) | Distance(self, near) |
+| `FindWindowFiringPosition` *(Stage 7a, `CE-3134`)* | `CoverPoints` with `Kind = WindowFiring` | LOS RequireVisible(slot 1, the candidate's standing eye) | Distance(self, near, 3-D — the asker's storey first) · ThreatExposure · PathCost |
 
 ⛔ Not in this slice: `FindNearestAlly` / `FindAllyForFormation` (no consumer named), Tag / DisType tests, accurate LOS rework,
 influence maps (§1 future).
