@@ -77,6 +77,18 @@ namespace Fdp.Toolkit.Combat.Tests
             return (shooter, channel);
         }
 
+        /// <summary>
+        /// Enters the action ALREADY AIMED (<c>CE-3136</c> P-3, D3): the tests below are about cooldown, ammo, ROE and the friendly
+        /// line, not the aim time — the aim time's own rails (<c>P3_*</c>) enter with <see cref="AimAndFireExecutor.OnEnter"/>.
+        /// </summary>
+        private unsafe void EnterAimed(Entity shooter, ref WeaponChannel channel)
+        {
+            _executor.OnEnter(shooter, ref channel, _world);
+            var p = Unsafe.Read<AimAndFireParams>(Unsafe.AsPointer(ref channel.Params[0]));
+            Unsafe.Write(Unsafe.AsPointer(ref channel.State[sizeof(Entity)]), new AimAndFireExecutor.AimState
+                { Target = p.Target, Stance = (byte)Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Ready = 1 });
+        }
+
         /// <summary>Spawns a target entity at <paramref name="pos"/>.</summary>
         private Entity SpawnTarget(Vector3 pos)
         {
@@ -107,7 +119,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 target:           target,
                 cooldownSeconds:  0.05f);
 
-            _executor.OnEnter(shooter, ref channel, _world);
+            EnterAimed(shooter, ref channel);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
 
             // Swap buffers so published events are visible to Consume.
@@ -146,7 +158,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 target:            target,
                 cooldownSeconds:   0.05f);
 
-            _executor.OnEnter(shooter, ref channel, _world);
+            EnterAimed(shooter, ref channel);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
             _world.Bus.SwapBuffers();
 
@@ -172,7 +184,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 target:            target,
                 cooldownSeconds:   0.5f);
 
-            _executor.OnEnter(shooter, ref channel, _world);
+            EnterAimed(shooter, ref channel);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
             _world.Bus.SwapBuffers();
 
@@ -202,7 +214,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 target:            target,
                 cooldownSeconds:   0.05f);
 
-            _executor.OnEnter(shooter, ref channel, _world);
+            EnterAimed(shooter, ref channel);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
             _world.Bus.SwapBuffers();
 
@@ -230,7 +242,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 target:            target,
                 cooldownSeconds:   0.05f);
 
-            _executor.OnEnter(shooter, ref channel, _world);
+            EnterAimed(shooter, ref channel);
 
             // Destroy the target before Execute is called.
             _world.DestroyEntity(target);
@@ -266,7 +278,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 target:            target,
                 cooldownSeconds:   cooldownSec);
 
-            _executor.OnEnter(shooter, ref channel, _world);
+            EnterAimed(shooter, ref channel);
 
             // Drain cooldown step by step; no intent should fire while cooldown > 0.
             int drainSteps = (int)System.Math.Ceiling(cooldownSec / dt);
@@ -320,7 +332,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(cover, new EntityInfo { ForceId = ForceId.Hostile });
             _world.AddComponent(cover, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f });
 
-            _executor.OnEnter(shooter, ref channel, _world);
+            EnterAimed(shooter, ref channel);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
             _world.Bus.SwapBuffers();
             Assert.Equal(0, _world.Bus.Read<WeaponFireIntent>().Length);
@@ -345,7 +357,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(target, new Health { Current = 0f, Max = 100f });
             var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
 
-            _executor.OnEnter(shooter, ref channel, _world);
+            EnterAimed(shooter, ref channel);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
             _world.Bus.SwapBuffers();
 
@@ -381,7 +393,7 @@ namespace Fdp.Toolkit.Combat.Tests
             if (hitSecondsAgo is double ago) senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.Hit, now - ago);
             _world.AddComponent(shooter, senses);
 
-            _executor.OnEnter(shooter, ref channel, _world);
+            EnterAimed(shooter, ref channel);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
             _world.Bus.SwapBuffers();
 
@@ -408,7 +420,7 @@ namespace Fdp.Toolkit.Combat.Tests
             senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, now - secondsAgo);
             _world.AddComponent(shooter, senses);
 
-            _executor.OnEnter(shooter, ref channel, _world);
+            EnterAimed(shooter, ref channel);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
             _world.Bus.SwapBuffers();
 
@@ -436,7 +448,7 @@ namespace Fdp.Toolkit.Combat.Tests
             senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.Hit, now - hitSecondsAgo);
             _world.AddComponent(shooter, senses);
 
-            _executor.OnEnter(shooter, ref channel, _world);
+            EnterAimed(shooter, ref channel);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
             _world.Bus.SwapBuffers();
 
@@ -472,6 +484,136 @@ namespace Fdp.Toolkit.Combat.Tests
 
             Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target));
         }
+            // ── CE-3136 P-3 — aim time (D3) and the sight gate (D4) ────────────────────────────────────────────────────────
+
+        /// <summary>A world with perception: the shooter carries <see cref="Fdp.Toolkit.Perception.Components.ActiveSensorTracks"/>.</summary>
+        private void RegisterSight() => _world.RegisterComponent<Fdp.Toolkit.Perception.Components.ActiveSensorTracks>();
+
+        private unsafe void SetSight(Entity shooter, Entity target, bool visual)
+        {
+            var tracks = new Fdp.Toolkit.Perception.Components.ActiveSensorTracks();
+            if (visual)
+            {
+                tracks.EntityIds[0]  = (long)target.PackedValue;
+                tracks.Modalities[0] = (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual;
+                tracks.Count = 1;
+            }
+            if (_world.HasComponent<Fdp.Toolkit.Perception.Components.ActiveSensorTracks>(shooter))
+                _world.SetComponent(shooter, tracks);
+            else
+                _world.AddComponent(shooter, tracks);
+        }
+
+        private int Step(Entity shooter, ref WeaponChannel channel, float dt)
+        {
+            _executor.Execute(shooter, ref channel, _world, dt);
+            _world.Bus.SwapBuffers();
+            return _world.Bus.Read<WeaponFireIntent>().Length;
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> P-3 (D3) — no round before <c>AimSeconds</c> (fallback 0.8 s) of continuous sight; then it
+        /// goes, and the next round needs only the cooldown.</summary>
+        [Fact]
+        public void P3_NoRoundBeforeTheAimTime_ThenOnlyTheCooldown()
+        {
+            RegisterSight();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, cooldownSeconds: 0.2f);
+            SetSight(shooter, target, visual: true);
+            _executor.OnEnter(shooter, ref channel, _world);
+
+            int fired = 0;
+            for (int i = 0; i < 7; i++) fired += Step(shooter, ref channel, 0.1f);   // 0.7 s < 0.8 s
+            Assert.Equal(0, fired);
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+
+            Assert.Equal(1, Step(shooter, ref channel, 0.1f));                        // 0.8 s — aimed
+            Assert.Equal(0, Step(shooter, ref channel, 0.1f));                        // cooldown 0.2 s …
+            Assert.Equal(0, Step(shooter, ref channel, 0.1f));
+            Assert.Equal(1, Step(shooter, ref channel, 0.1f));                        // … then the next round, no new aim
+            Assert.Equal(3, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> P-3 (D3 + D4) — a target out of sight is held (Running, no round spent) and losing sight
+        /// restarts the aim: 0.5 s seen, a blink, then the full 0.8 s again.</summary>
+        [Fact]
+        public void P3_LostSightHoldsFire_AndRestartsTheAim()
+        {
+            RegisterSight();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, cooldownSeconds: 0.2f);
+            SetSight(shooter, target, visual: false);
+            _executor.OnEnter(shooter, ref channel, _world);
+
+            int fired = 0;
+            for (int i = 0; i < 20; i++) fired += Step(shooter, ref channel, 0.1f);  // 2 s hidden
+            Assert.Equal(0, fired);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+
+            SetSight(shooter, target, visual: true);
+            for (int i = 0; i < 5; i++) fired += Step(shooter, ref channel, 0.1f);   // 0.5 s seen
+            SetSight(shooter, target, visual: false);
+            fired += Step(shooter, ref channel, 0.1f);                                // a blink
+            SetSight(shooter, target, visual: true);
+            for (int i = 0; i < 7; i++) fired += Step(shooter, ref channel, 0.1f);   // 0.7 s — would have been 1.2 s without the restart
+            Assert.Equal(0, fired);
+            Assert.Equal(1, Step(shooter, ref channel, 0.1f));
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> P-3 (D4) — a target HEARD but not seen (no Visual modality) is not an aimed shot.</summary>
+        [Fact]
+        public unsafe void P3_AHeardTargetIsNotSeen()
+        {
+            RegisterSight();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, _) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.2f);
+            var tracks = new Fdp.Toolkit.Perception.Components.ActiveSensorTracks();
+            tracks.EntityIds[0]  = (long)target.PackedValue;
+            tracks.Modalities[0] = (byte)Fdp.Toolkit.Perception.Components.SensorModality.Acoustic;
+            tracks.Count = 1;
+            _world.AddComponent(shooter, tracks);
+            Assert.False(Fdp.Toolkit.Perception.SightNow.Sees(_world, shooter, target));
+            SetSight(shooter, target, visual: true);
+            Assert.True(Fdp.Toolkit.Perception.SightNow.Sees(_world, shooter, target));
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> P-3 — a NEW action aims afresh: an aimed shooter re-entered on the same target waits the aim
+        /// time again (OnEnter clears the timer, so a stale aim never survives between actions).</summary>
+        [Fact]
+        public void P3_ANewActionAimsAfresh()
+        {
+            RegisterSight();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, cooldownSeconds: 0.05f);
+            SetSight(shooter, target, visual: true);
+            EnterAimed(shooter, ref channel);
+            Assert.Equal(1, Step(shooter, ref channel, 0.1f));
+
+            _executor.OnEnter(shooter, ref channel, _world);
+            int fired = 0;
+            for (int i = 0; i < 7; i++) fired += Step(shooter, ref channel, 0.1f);
+            Assert.Equal(0, fired);
+        }
+            /// <summary>⭐ <c>CE-3136</c> B7 — <see cref="AimAndFireParams.Rounds"/> = 3 fires three aimed rounds and ends in Success;
+        /// 0 keeps firing (today's behaviour).</summary>
+        [Theory]
+        [InlineData(3, 3, NodeStatus.Success)]
+        [InlineData(0, 4, NodeStatus.Running)]   // 8 steps, a round every second step (cooldown 0.05 s drains in one)
+        public unsafe void B7_RoundsEndsTheActionAfterThatMany(int rounds, int expectedFired, NodeStatus expectedStatus)
+        {
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 10, 0f, target, cooldownSeconds: 0.05f);
+            ref var p = ref Unsafe.AsRef<AimAndFireParams>(Unsafe.AsPointer(ref channel.Params[0]));
+            p.Rounds = rounds;
+            EnterAimed(shooter, ref channel);
+
+            int fired = 0;
+            for (int i = 0; i < 8 && channel.Status == NodeStatus.Running; i++) fired += Step(shooter, ref channel, 0.1f);
+            Assert.Equal(expectedFired, fired);
+            Assert.Equal(expectedStatus, channel.Status);
+            Assert.Equal(10 - fired, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
     }
 }
-

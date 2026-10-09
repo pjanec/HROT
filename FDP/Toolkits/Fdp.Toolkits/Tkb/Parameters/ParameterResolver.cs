@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.Tkb.Parameters
         public const string Penetration    = "Penetration";
         public const string Range          = "Range";
         public const string DispersionMils = "DispersionMils";
+        public const string AimSeconds     = "AimSeconds";
 
         /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — a munition type's warhead (<see cref="WarheadDto"/>).</summary>
         public const string WarheadBlastLethalRadius  = "Warhead.BlastLethalRadius";
@@ -91,6 +92,7 @@ namespace Fdp.Toolkit.Tkb.Parameters
                     list.Add(Penetration(template, i, db));
                     list.Add(MountRange(template, i));
                     list.Add(Dispersion(template, i));
+                    list.Add(AimSeconds(template, i));
                 }
             var (warhead, source, provenance) = Warhead(template);
             if (warhead != null || template.DisType.Kind == 2)
@@ -311,6 +313,17 @@ namespace Fdp.Toolkit.Tkb.Parameters
             return m.DispersionMils > 0f
                 ? Stated(t, name, m.DispersionMils, $"WeaponSuiteDto.Mounts[{mount}].DispersionMils")
                 : new(name, 0f, ParameterProvenance.EngineFallback, "0 = exact aim (AQ85: a type opts in)");
+        }
+
+        /// <summary><c>Weapon[i].AimSeconds</c> — ⭐ <c>CE-3136</c> P-3: continuous sight before an aimed round; 0 ⇒ the engine fallback.</summary>
+        public static ResolvedParameter AimSeconds(TkbTemplate t, int mount)
+        {
+            var name = ParameterNames.Mount(mount, ParameterNames.AimSeconds);
+            var m = Mount(t, mount);
+            if (m == null) return NotApplicable(name, "no such mount");
+            return m.AimSeconds > 0f
+                ? Stated(t, name, m.AimSeconds, $"WeaponSuiteDto.Mounts[{mount}].AimSeconds")
+                : new(name, EngineFallbacks.AimSeconds, ParameterProvenance.EngineFallback, "EngineFallbacks.AimSeconds (peek-and-fire D3)");
         }
 
         private static WeaponMountDto? Mount(TkbTemplate t, int i)

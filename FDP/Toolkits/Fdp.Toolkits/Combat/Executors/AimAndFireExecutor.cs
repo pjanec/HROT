@@ -54,6 +54,8 @@ namespace Fdp.Toolkit.Combat.Executors
 
             fixed (byte* dst = channel.State)
                 *(Entity*)dst = p.Target;
+            AimTimer(ref channel) = default;   // ⭐ CE-3136 P-3 — a new action aims afresh
+            RoundsFired(ref channel) = 0;      // ⭐ CE-3136 B7
 
             channel.Status = NodeStatus.Running;
         }
@@ -74,6 +76,13 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
+            // ⭐ CE-3136 B7 — the asked rounds are fired: done.
+            if (p.Rounds > 0 && RoundsFired(ref channel) >= p.Rounds)
+            {
+                channel.Status = NodeStatus.Success;
+                return;
+            }
+
             // ⭐ CE-3089 (G7) — the mount that fires: chosen per shot (Auto), a named mount, or the primary (0, the default). Its
             //   ammo and cooldown live on ITS WeaponState — the owner for mount 0, the mount child otherwise.
             Entity mountEntity = entity;
@@ -87,10 +96,36 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
+            // ⭐⭐ CE-3136 P-3 (peek-and-fire D3 + D4) — an aimed shot needs the target SEEN NOW (D4), continuously for the aim time
+            //   (D3). The aim clock runs beside the cooldown, never after it; it restarts on lost sight, a new target or the
+            //   shooter's stance change, and OnEnter starts it fresh. Once aimed, later rounds need only the cooldown. Not seen ⇒
+            //   hold (Running, no round spent), like the ROE hold. Blind fire (FireAtPoint) has neither gate.
+            ref var aim = ref AimTimer(ref channel);
+            bool seen = Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
+            if (!seen)
+                aim = default;
+            else
+            {
+                byte stance = (byte)ShooterStance(world, entity);
+                if (aim.Target != p.Target || aim.Stance != stance)
+                    aim = new AimState { Target = p.Target, Stance = stance };
+                if (aim.Ready == 0)
+                {
+                    aim.Elapsed += dt;
+                    if (aim.Elapsed >= AimSecondsFor(world, entity, mountIndex)) aim.Ready = 1;
+                }
+            }
+
             // Drain cooldown continuously each frame; fire only after cooldown reaches zero.
             if (weapon.CooldownSecondsRemaining > 0f)
             {
                 weapon.CooldownSecondsRemaining -= dt;
+                channel.Status = NodeStatus.Running;
+                return;
+            }
+
+            if (!seen || aim.Ready == 0)
+            {
                 channel.Status = NodeStatus.Running;
                 return;
             }
@@ -122,8 +157,42 @@ namespace Fdp.Toolkit.Combat.Executors
             weapon.Ammo--;
             weapon.CooldownSecondsRemaining = p.CooldownSeconds;
 
-            channel.Status = NodeStatus.Running;
+            int fired = ++RoundsFired(ref channel);
+            channel.Status = p.Rounds > 0 && fired >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
         }
+
+        /// <summary>⭐ <c>CE-3136</c> P-3 — the aim timer, in the channel state after the target (bytes 8–23 of 32).</summary>
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        public struct AimState
+        {
+            public Entity Target;
+            public float  Elapsed;
+            public byte   Stance;
+            public byte   Ready;
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> B7 — rounds fired by this action, in the channel state after the aim timer (bytes 24–27).</summary>
+        private static unsafe ref int RoundsFired(ref WeaponChannel channel)
+        {
+            fixed (byte* s = channel.State)
+                return ref Unsafe.AsRef<int>(s + sizeof(Entity) + sizeof(AimState));
+        }
+
+        private static unsafe ref AimState AimTimer(ref WeaponChannel channel)
+        {
+            fixed (byte* s = channel.State)
+                return ref Unsafe.AsRef<AimState>(s + sizeof(Entity));
+        }
+
+        private static Fdp.Toolkit.Tkb.Domain.StanceId ShooterStance(EntityRepository world, Entity e)
+            => world.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceIntent>()
+                ? Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(world, e)
+                : Fdp.Toolkit.Tkb.Domain.StanceId.Standing;
+
+        /// <summary>The fired mount's aim time (TKB, by type), else <c>EngineFallbacks.AimSeconds</c>.</summary>
+        public static float AimSecondsFor(EntityRepository world, Entity shooter, int mountIndex)
+            => Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.AimSecondsOrFallback(
+                   CombatTkb.MountOf(world, shooter, mountIndex)?.AimSeconds ?? 0f);
 
         /// <summary>The mount child with <paramref name="index"/> (its WeaponState entity); mount 0 on the owner when there is none.</summary>
         private static int MountByIndex(EntityRepository world, Entity owner, int index, out Entity mount)

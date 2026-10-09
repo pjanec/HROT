@@ -97,4 +97,25 @@ namespace Fdp.Toolkit.Perception
             return false;
         }
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-3136</c> P-3 (peek-and-fire D4) — does <paramref name="self"/> SEE <paramref name="target"/> RIGHT NOW: a sensor
+    /// holds it this frame with the Visual modality (<see cref="ActiveSensorTracks"/>, the fact <c>ThreatInSight</c> reads). ⛔ Not
+    /// <see cref="TargetMemory"/> — its modality is OR-accumulated (ever seen, not seen now).
+    /// ⚠ A unit with NO sight model — the world never registered the tracks, or the unit carries none (its TKB neither sees nor
+    /// hears) — answers <c>true</c>: nothing can say it is hidden, so it behaves as before.
+    /// </summary>
+    public static class SightNow
+    {
+        public static unsafe bool Sees(ISimulationView view, Entity self, Entity target)
+        {
+            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<ActiveSensorTracks>()) return true;
+            if (!view.HasComponent<ActiveSensorTracks>(self)) return true;
+            ref readonly var tracks = ref view.GetComponentRO<ActiveSensorTracks>(self);
+            long id = (long)target.PackedValue;
+            for (int t = 0; t < tracks.Count; t++)
+                if (tracks.EntityIds[t] == id && (tracks.Modalities[t] & (byte)SensorModality.Visual) != 0) return true;
+            return false;
+        }
+    }
 }

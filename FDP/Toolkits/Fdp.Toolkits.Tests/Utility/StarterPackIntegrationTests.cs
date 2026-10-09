@@ -587,11 +587,18 @@ namespace Fdp.Toolkit.Tests
                 *(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref ch.Params[0]) =
                     new global::Fdp.Toolkit.Combat.Executors.AimAndFireParams { Target = tank, CooldownSeconds = 0f, Mount = mount };
                 exec.OnEnter(bradley, ref ch, repo);
-                exec.Execute(bradley, ref ch, repo, 0.016f);
-                repo.Bus.SwapBuffers();
-                var intents = repo.Bus.Read<global::Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
-                Assert.Equal(1, intents.Length);
-                return intents[0].WeaponIndex;
+                // ⭐ CE-3136 P-3 (D3) — an aimed round leaves after the aim time (0.8 s fallback): step until it does.
+                for (int step = 0; step < 20; step++)
+                {
+                    exec.Execute(bradley, ref ch, repo, 0.1f);
+                    repo.Bus.SwapBuffers();
+                    var intents = repo.Bus.Read<global::Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
+                    if (intents.Length == 0) continue;
+                    Assert.Equal(1, intents.Length);
+                    return intents[0].WeaponIndex;
+                }
+                Assert.Fail("no round within 2 s");
+                return -1;
             }
 
             Assert.Equal(1, Fire(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams.MountAuto));

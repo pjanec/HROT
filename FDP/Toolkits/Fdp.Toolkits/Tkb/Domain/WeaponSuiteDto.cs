@@ -49,6 +49,13 @@ namespace Fdp.Toolkit.Tkb.Domain
         public float DispersionMils { get; init; }
 
         /// <summary>
+        /// ⭐ <c>CE-3136</c> P-3 (peek-and-fire D3) — the AIM TIME: an aimed shot leaves only after the shooter has seen its target
+        /// continuously this long. <b>0 = not declared</b> ⇒ <c>EngineFallbacks.AimSeconds</c> (0.8 s). Blind fire has none.
+        /// </summary>
+        [EditUnit("s")]
+        public float AimSeconds { get; init; }
+
+        /// <summary>
         /// ⭐ Buildings §3d P1b (R-217) — the TKB GUID of the AMMUNITION type loaded in this mount (one of the weapon's supported
         /// ammo). With it, the round's penetration comes from the launcher × ammo pair (<see cref="AmmoWeaponBallisticsDto"/>);
         /// <b>0 = not declared</b> ⇒ this mount's own <see cref="Penetration"/> applies, as before. Ammo switching is later.

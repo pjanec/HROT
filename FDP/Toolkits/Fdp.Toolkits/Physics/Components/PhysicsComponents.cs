@@ -58,6 +58,10 @@ namespace Fdp.Toolkit.Physics.Components
             return h > 0f && IsPedestrian(view, e) ? 0f : h;
         }
 
+        /// <summary>⭐ <c>CE-3136</c> P-2 — a PERSON (<see cref="global::CarKinem.Core.VehicleClass.Pedestrian"/>): hit only within its
+        /// body band (peek-and-fire D2), where a vehicle is hit anywhere in its circle.</summary>
+        public static bool IsPerson(ISimulationView view, Entity e) => IsPedestrian(view, e);
+
         private static bool IsPedestrian(ISimulationView view, Entity e)
             => (view is not EntityRepository repo || repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>())
                && view.HasComponent<global::CarKinem.Core.VehicleParams>(e)

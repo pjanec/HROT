@@ -92,6 +92,70 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>⭐ T-4 — the fire chain writes the round's record with the inputs it fired with.</summary>
+        /// <summary>A 0.9 m sill (a wall) across the line at x ∈ [10, 10.5].</summary>
+        private void SillWorld()
+        {
+            _world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();   // idempotent
+            var min = new Vector2(10f, -5f); var max = new Vector2(10.5f, 5f);
+            _world.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+            {
+                BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50),
+                Prisms = new[] { new Fdp.Toolkit.Terrain.TerrainPrism
+                {
+                    Kind = Fdp.Toolkit.Terrain.TerrainPrismKind.Wall,
+                    Footprint = new[] { min, new Vector2(max.X, min.Y), max, new Vector2(min.X, max.Y) },
+                    BaseZ = 0, TopZ = 0.9f, Min = min, Max = max,
+                } },
+            });
+        }
+
+        private Vector3 FlightOfTheRound()
+        {
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build())
+                return Vector3.Normalize(_world.GetComponent<SimVelocity>(e).Linear);
+            Assert.Fail("No bullet entity found.");
+            return default;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3136</c> P-2 (peek-and-fire D1, as built) — a crouched man behind a 0.9 m sill: his mid-silhouette (0.55 m) is
+        /// hidden by the sill, so the round aims at the highest body point the shooter SEES — his head (≈ 1.0 m) over it. 🔴 Red-proof:
+        /// before, it aimed at 0.55 m and every round met the brick (G1: "A cannot be hit").
+        /// </summary>
+        [Fact]
+        public void P2_ACrouchedManBehindASill_IsAimedAtTheHighestPointTheShooterSees()
+        {
+            _world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            SillWorld();
+            var shooter = SpawnShooter(Vector3.Zero);                                   // standing eye 1.7 m
+            var target  = SpawnTarget(new Vector3(12f, 0f, 0f));
+            _world.AddComponent(target, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Crouched });
+
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+
+            var eye  = new Vector3(0f, 0f, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding);
+            float head = 0.91f * Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched;   // BodyProfile's crouched top
+            AssertNear(Vector3.Normalize(new Vector3(12f, 0f, head) - eye), FlightOfTheRound(), 1e-3f);
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> P-2 — with terrain resident but nothing in the way, the round still aims at the MIDDLE (as-built
+        /// refinement of D1: a target in the open keeps today's aim, so existing engagements do not move).</summary>
+        [Fact]
+        public void P2_ATargetInTheOpen_KeepsTheMiddleAim()
+        {
+            SillWorld();
+            var shooter = SpawnShooter(new Vector3(0f, 20f, 0f));                       // beside the sill, nothing between
+            var target  = SpawnTarget(new Vector3(12f, 20f, 0f));
+
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+
+            var eye = new Vector3(0f, 20f, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding);
+            var mid = new Vector3(12f, 20f, 0.5f * Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding);
+            AssertNear(Vector3.Normalize(mid - eye), FlightOfTheRound(), 1e-3f);
+        }
+
         [Fact]
         public void T4_EveryRound_IsRecordedInTheShotLog_WithItsInputs()
         {
