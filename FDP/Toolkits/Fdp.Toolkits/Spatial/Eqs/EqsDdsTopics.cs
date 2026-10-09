@@ -107,6 +107,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
         /// computed by the template's tests.
         /// </summary>
         public ushort FlagsMeaningful;
+        /// <summary>⭐ <c>CE-3135</c> — <see cref="EqsResult.Stance"/> (<c>StanceId + 1</c>, 0 = none).</summary>
+        public byte Stance;
     }
 
     /// <summary>

@@ -309,6 +309,152 @@ namespace Probe
                                     string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
         }
 
+        // ---- CE-3137 U-2: a trailing [UnitMemory] ref parameter binds to the unit's memory, with no variable ----------
+        private const string UnitMemorySource = @"
+using System.Runtime.InteropServices;
+using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+
+namespace Probe
+{
+    [UnitMemory]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Burned { public int Uses = 3; public Burned() { } }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct StepParams { public int Limit; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct StepState { public int Cursor; }
+
+    public static class MemNodes
+    {
+        [SharedAiAction]
+        public static NodeStatus Plain(ref StepParams p, Entity self, EntityRepository world, ref Burned mem)
+        { mem.Uses++; return NodeStatus.Success; }
+
+        [SharedAiAction]
+        public static NodeStatus Step(ref StepParams p, ref StepState ws, Entity self, EntityRepository world, ref Burned mem)
+            => ++ws.Cursor >= mem.Uses ? NodeStatus.Success : NodeStatus.Running;
+
+        [SharedAiAction]
+        public static NodeStatus Wander(Entity self, EntityRepository world, ref Burned mem) => NodeStatus.Running;
+
+        [SharedAiCondition]
+        public static bool Fresh(Entity self, EntityRepository world, ref Burned mem) => mem.Uses < 5;
+    }
+}";
+
+        private const string UnitMemoryAsset = """
+            { "$meta": { "docType": "Hrot.BTree", "schemaVersion": 2 },
+              "AssetId": "bb003137-0000-0000-0000-0000000000aa", "Name": "UnitMemoryProbeTree",
+              "TargetNamespace": "Probe.Trees",
+              "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+              "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+              "Nodes": [
+                { "kind": "Root", "VisualId": "bb003137-0000-0000-0000-000000000001", "ChildVisualIds": [ "bb003137-0000-0000-0000-000000000002" ] },
+                { "kind": "Sequence", "VisualId": "bb003137-0000-0000-0000-000000000002",
+                  "ChildVisualIds": [ "bb003137-0000-0000-0000-000000000003", "bb003137-0000-0000-0000-000000000004",
+                                      "bb003137-0000-0000-0000-000000000005", "bb003137-0000-0000-0000-000000000006" ] },
+                { "kind": "Condition", "VisualId": "bb003137-0000-0000-0000-000000000003", "ChildVisualIds": [],
+                  "Condition": { "MethodFqn": "Probe.MemNodes.Fresh" } },
+                { "kind": "Action", "VisualId": "bb003137-0000-0000-0000-000000000004", "ChildVisualIds": [],
+                  "Action": { "MethodFqn": "Probe.MemNodes.Plain", "ExpressionTargetField": "step" } },
+                { "kind": "Action", "VisualId": "bb003137-0000-0000-0000-000000000005", "ChildVisualIds": [],
+                  "Action": { "MethodFqn": "Probe.MemNodes.Step", "ExpressionTargetField": "step",
+                              "WorkingStateTypeId": "Probe.StepState" } },
+                { "kind": "Action", "VisualId": "bb003137-0000-0000-0000-000000000006", "ChildVisualIds": [],
+                  "Action": { "MethodFqn": "Probe.MemNodes.Wander" } } ],
+              "Blackboard": { "Managed": true, "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard", "Variables": [
+                { "Name": "sentinel", "Type": { "TypeId": "Probe.StepParams" } },
+                { "Name": "step",     "Type": { "TypeId": "Probe.StepParams" } } ] } }
+            """;
+
+        private const string UnitMemoryHsm = """
+            { "$meta": { "docType": "Hrot.Hsm", "schemaVersion": 2 },
+              "AssetId": "00003137-0000-0000-0000-0000000000aa", "Name": "UnitMemoryProbeMachine",
+              "TargetNamespace": "Probe.Machines", "BlackboardTypeName": "UnitMemoryProbeMachine_Blackboard",
+              "States": [
+                { "StableId": "31370000-0000-0000-0000-000000000000", "Name": "__Root",
+                  "ChildStableIds": [ "31370000-0000-0000-0000-00000000000a", "31370000-0000-0000-0000-00000000000b" ], "ParentStableId": null, "IsInitial": false, "RegionIndex": 0,
+                  "Activity": { "MethodFqn": "Probe.MemNodes.Plain", "ExpressionTargetField": "step" } },
+                { "StableId": "31370000-0000-0000-0000-00000000000a", "Name": "A",
+                  "ChildStableIds": [], "ParentStableId": "31370000-0000-0000-0000-000000000000", "IsInitial": true, "RegionIndex": 0 },
+                { "StableId": "31370000-0000-0000-0000-00000000000b", "Name": "B",
+                  "ChildStableIds": [], "ParentStableId": "31370000-0000-0000-0000-000000000000", "IsInitial": false, "RegionIndex": 0 } ],
+              "Regions": [],
+              "Transitions": [
+                { "VisualId": "31370000-0000-0000-0000-0000000000c1", "SourceStableId": "31370000-0000-0000-0000-00000000000a",
+                  "TargetStableId": "31370000-0000-0000-0000-00000000000b", "EventName": null, "Priority": 0, "Kind": "External",
+                  "SyncGroupId": 0, "IsPolled": true, "Waypoints": [],
+                  "Guard": { "MethodFqn": "Probe.MemNodes.Fresh" } } ],
+              "GlobalTransitions": [], "Events": [],
+              "Blackboard": { "Managed": true, "TypeName": "UnitMemoryProbeMachine_Blackboard", "Variables": [
+                { "Name": "step", "Type": { "TypeId": "Probe.StepParams" } } ] } }
+            """;
+
+        private const string UmArg = "ref global::Fdp.Toolkit.Behavior.UnitMemory.Ref<global::Probe.Burned>";
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-3137</c> U-2 (<c>Q87</c> G) — a BTree asset binds all three shared forms with a TRAILING <c>[UnitMemory]</c>
+        /// <c>ref</c> parameter: each classifies as its form (no BTREE0002, no variable for the memory), passes
+        /// <c>UnitMemory.Ref&lt;T&gt;(world, self)</c>, and compiles.</b> Red by construction (not measured): without the strip every
+        /// method has one parameter too many for its shape, so each binding is unclassified (BTREE0002) and no call is emitted.
+        /// </summary>
+        [Fact]
+        public void CE3137_U2_ABTreeBindsATrailingUnitMemoryParameter_ToTheUnitsMemory_AndItCompiles()
+        {
+            var (compilation, generated, diagnostics) = Run(UnitMemorySource, UnitMemoryAsset);
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+
+            diagnostics.Where(d => d.Id == "BTREE0002").Select(d => d.GetMessage(null))
+                .Should().BeEmpty("a trailing unit-memory parameter does not change the shape");
+            all.Should().Contain($"Probe.MemNodes.Plain(ref dto, ctx.Self, ctx.World, {UmArg}(ctx.World, ctx.Self))");
+            all.Should().Contain($"Probe.MemNodes.Step(ref dto, ref ws, ctx.Self, ctx.World, {UmArg}(ctx.World, ctx.Self))");
+            all.Should().Contain($"Probe.MemNodes.Wander(ctx.Self, ctx.World, {UmArg}(ctx.World, ctx.Self))");
+            all.Should().Contain($"Probe.MemNodes.Fresh(ctx.Self, ctx.World, {UmArg}(ctx.World, ctx.Self))");
+
+            var errors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+            errors.Should().BeEmpty("the calls must compile: " + Environment.NewLine +
+                                    string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
+        }
+
+        /// <summary>⭐⭐ <b><c>CE-3137</c> U-2 — the same on an HSM</b>: an activity and a guard with a trailing unit-memory parameter
+        /// pass the unit's memory through the bridge's self and world, and compile.</summary>
+        [Fact]
+        public void CE3137_U2_AnHsmBindsATrailingUnitMemoryParameter_ToTheUnitsMemory_AndItCompiles()
+        {
+            var (compilation, generated, diagnostics) = RunHsm(UnitMemorySource, UnitMemoryHsm);
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+
+            diagnostics.Where(d => d.Id.StartsWith("HSM") && d.Severity >= DiagnosticSeverity.Warning).Select(d => d.GetMessage(null))
+                .Should().BeEmpty("a trailing unit-memory parameter is a valid shared form on an HSM");
+            all.Should().Contain($"global::Probe.MemNodes.Plain(ref *(");
+            all.Should().Contain($"__bridge->Self, __repo, {UmArg}(__repo, __bridge->Self))");
+            all.Should().Contain($"global::Probe.MemNodes.Fresh(__bridge->Self, __repo, {UmArg}(__repo, __bridge->Self))");
+
+            var errors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+            errors.Should().BeEmpty("the calls must compile: " + Environment.NewLine +
+                                    string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
+        }
+
+        /// <summary>⭐ <c>CE-3137</c> U-2 — the shape rule over a signature: the trailing unit-memory group is stripped, a unit-memory
+        /// <c>ref</c> anywhere else is not (it stays the params variable, as before).</summary>
+        [Fact]
+        public void CE3137_U2_TheCallShape_StripsOnlyTheTrailingUnitMemoryGroup()
+        {
+            var e = new CallParam("Fdp.Core.Entity", false);
+            var w = new CallParam("Fdp.Core.EntityRepository", false);
+            var um = new CallParam("Probe.Burned", true, isUnitMemory: true);
+            var p = new CallParam("Probe.StepParams", true);
+
+            BTreeCallShapes.FromSignature(new[] { p, e, w, um }).Should().Be(Hrot.AiEditor.Persistence.BTree.BTreeDelegateShapeDto.Plain);
+            BTreeCallShapes.FromSignature(new[] { e, w, um, um }).Should().Be(Hrot.AiEditor.Persistence.BTree.BTreeDelegateShapeDto.NoParams);
+            BTreeCallShapes.FromSignature(new[] { um, e, w }).Should().Be(Hrot.AiEditor.Persistence.BTree.BTreeDelegateShapeDto.Plain,
+                "a LEADING unit-memory ref is the params variable — the binding is trailing-only");
+        }
+
         // ---- CE-2069: the stateful CONDITION, sharing a working state with a stateful action ----------
 
         private const string StatefulConditionSource = @"

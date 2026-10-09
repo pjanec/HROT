@@ -197,7 +197,7 @@ chosen on SimHost from geometry. The ~100–300 ms report latency is part of the
 
 | slice | content | rail |
 |---|---|---|
-| P-1 | D5 stance on the result + wire; LOS uses it | the window point's answer carries crouch; recorded old result reads "none" |
+| P-1 ✅ **BUILT `2026-10-09`** | D5 stance on the result + wire; LOS uses it. **As-built:** `EqsResult.Stance` = `(byte)StanceId + 1` in the padding byte (32 B kept — `EqsComponentLayoutTests`); `EqsResultEntry.Stance` on the wire (copied by `EqsResultEventEgressTranslator`, kept by `MapToLocal`, written by `EqsResultUpdateSystem`); `CoverPointsGenerator` converts `CoverPoint.StanceHeight` (0 prone · 1 crouch · 2 stand) → `StanceId`; `CheapLineOfSightTest` with `Viewer=Candidate` looks from `SensorMount.For(stance)` when the result has one (⇒ `FindWindowFiringPosition` sees from the window's crouched eye, was standing). ⚠ The `Viewer=Slot` (cover) arm is unchanged — still the self's crouched eye | the window point's answer carries crouch; recorded old result reads "none" — rails `TerrainEqsTests.CE3134_FindWindowFiringPosition…` (extended), `P1_ACandidateWithAStance_…`, `CE3134_CoverPointsGenerator_…` (extended), integration `EqsResultUpdateSystem_MatchingEpoch_PopulatesBuffer` (extended) |
 | P-2 | D1 + D2 | a crouched man behind a 0.9 m sill is hit through the window; prone below it is not |
 | P-3 | D3 + D4 aim gate and timer | no round before `AimSeconds` of continuous sight; lost sight restarts it; blind `FireAtPoint` fires at once |
 | P-4 | D6 threat exposure revived | a cover point seen by a second known threat scores lower |

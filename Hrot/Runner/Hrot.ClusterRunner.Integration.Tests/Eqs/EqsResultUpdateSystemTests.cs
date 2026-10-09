@@ -95,7 +95,7 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
             RefreshTick = 5,
             Results     = new List<EqsResultEntry>
             {
-                new() { EntityId = 10L, PositionX = 100f, PositionY = 200f, PositionZ = 250f, Score = 0.8f, Flags = 1 },
+                new() { EntityId = 10L, PositionX = 100f, PositionY = 200f, PositionZ = 250f, Score = 0.8f, Flags = 1, Stance = 2 },
                 new() { EntityId = 20L, PositionX = 300f, PositionY = 400f, PositionZ = 17.5f, Score = 0.5f, Flags = 2 },
             },
         });
@@ -118,6 +118,10 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
         Assert.Equal(250f, span[0].PositionZ);  // P3D-202: altitude survives the ingress mapping
         Assert.Equal(0.8f, span[0].Score);
         Assert.Equal(17.5f, span[1].PositionZ);
+        // ⭐ CE-3135 (peek-and-fire P-1): the point's stance survives the ingress mapping; an entry without one reads none.
+        Assert.True(span[0].TryGetStance(out var stance));
+        Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, stance);
+        Assert.False(span[1].TryGetStance(out _));
     }
 
     /// <summary>

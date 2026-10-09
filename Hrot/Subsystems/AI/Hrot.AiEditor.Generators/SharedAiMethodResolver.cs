@@ -48,7 +48,15 @@ internal static class SharedAiMethodResolver
                         if (!isAction && !isCondition) continue;
                         // ⭐ CE-504 C-2 — the three shared forms, told apart by the leading ref parameters:
                         //   (ref P, Entity, Repo) · (ref P, ref WS, Entity, Repo) · (Entity, Repo).
-                        var ps = m.Parameters;
+                        // ⭐ CE-3137 U-2 — a TRAILING group of `ref T` unit-memory parameters binds to the unit's memory: strip it
+                        //   (recording the types, in order) and classify the rest.
+                        var all = m.Parameters;
+                        int end = all.Length;
+                        while (end > 0 && all[end - 1].RefKind == RefKind.Ref && IsUnitMemory(all[end - 1].Type)) end--;
+                        var unitMemory = new List<string>();
+                        for (int u = end; u < all.Length; u++)
+                            unitMemory.Add(all[u].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                        var ps = all.Take(end).ToArray();
                         int refs = 0;
                         while (refs < ps.Length && ps[refs].RefKind == RefKind.Ref) refs++;
                         if (refs > 2 || ps.Length != refs + 2) continue;
@@ -59,7 +67,8 @@ internal static class SharedAiMethodResolver
                             isCondition && !isAction,
                             m.ReturnType.SpecialType == SpecialType.System_Boolean,
                             writes,
-                            refs == 2 ? ps[1].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null);
+                            refs == 2 ? ps[1].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
+                            unitMemory);
                         break;
                     }
                 }
@@ -68,6 +77,10 @@ internal static class SharedAiMethodResolver
             return result;
         };
     }
+
+    /// <summary>⭐ <c>CE-3137</c> U-2 — the type carries <c>[Fbt.Kernel.UnitMemory]</c>.</summary>
+    public static bool IsUnitMemory(ITypeSymbol t)
+        => t.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == UnitMemoryParams.AttributeName);
 
     /// <summary>A type as a blackboard <c>TypeId</c>: namespace-qualified, <c>+</c> between nested types.</summary>
     public static string TypeIdOf(ITypeSymbol t)

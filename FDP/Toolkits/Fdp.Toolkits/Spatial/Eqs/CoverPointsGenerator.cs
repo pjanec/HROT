@@ -41,11 +41,22 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     PositionY = rawPoints[i].PositionY,
                     PositionZ = rawPoints[i].PositionZ, // P3D-203: stream cover altitude.
                     Score     = rawPoints[i].Quality, // Seed score with cover quality.
+                    // ⭐ CE-3135 (peek-and-fire D5) — the point's stance travels with the answer, so a window point says
+                    //   "crouch here" to the node and to the LOS test (CoverPoint.StanceHeight: 0 prone, 1 crouch, 2 stand).
+                    Stance    = EqsResult.EncodeStance(StanceOf(rawPoints[i].StanceHeight)),
                     // ⛔ SUPERSEDED (§19): Flags = StanceHeight — it wrote stance into the §4.2 flag bits 0–1 (HasLOSToContext).
                 };
             }
 
             return rawCount;
         }
+
+        /// <summary><see cref="CoverPoint.StanceHeight"/> (0 prone, 1 crouch, 2 stand) as the engine's stance.</summary>
+        internal static Fdp.Toolkit.Tkb.Domain.StanceId StanceOf(byte stanceHeight) => stanceHeight switch
+        {
+            0 => Fdp.Toolkit.Tkb.Domain.StanceId.Prone,
+            1 => Fdp.Toolkit.Tkb.Domain.StanceId.Crouched,
+            _ => Fdp.Toolkit.Tkb.Domain.StanceId.Standing,
+        };
     }
 }

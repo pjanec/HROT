@@ -9,7 +9,11 @@ namespace Hrot.AiEditor.Persistence.Emit;
 /// <summary>One parameter of a node method, as both Roslyn and reflection can describe it.</summary>
 public readonly struct CallParam
 {
-    public CallParam(string typeFqn, bool isRef) { TypeFqn = typeFqn; IsRef = isRef; }
+    public CallParam(string typeFqn, bool isRef, bool isUnitMemory = false)
+    { TypeFqn = typeFqn; IsRef = isRef; IsUnitMemory = isUnitMemory; }
+    /// <summary>⭐ <c>CE-3137</c> U-2 — the parameter's type carries <c>[Fbt.Kernel.UnitMemory]</c>: it binds to the unit's memory
+    /// (<c>UnitMemory.Ref&lt;T&gt;(world, self)</c>), never to a variable, and does not count toward the call shape.</summary>
+    public bool IsUnitMemory { get; }
     /// <summary>The parameter type's full name WITHOUT <c>global::</c> (nested types may use <c>.</c> or <c>+</c>).</summary>
     public string TypeFqn { get; }
     /// <summary>True for <c>ref</c>/<c>in</c>/<c>out</c>.</summary>
@@ -36,6 +40,9 @@ public static class BTreeCallShapes
     /// <summary>The shape a method's parameter list implies, or null when it matches none (the validator then skips it).</summary>
     public static BTreeDelegateShapeDto? FromSignature(IReadOnlyList<CallParam> ps)
     {
+        // ⭐ CE-3137 U-2 (Q87 G) — a trailing group of `ref T` unit-memory parameters binds to the unit's memory, not to a
+        //   variable: strip it and classify what remains, so every shape below keeps its meaning.
+        ps = WithoutUnitMemory(ps);
         // ⭐ CE-504 slice 4 — only the shared forms and the blueprint call classify. The BTree-only (ref P, ref BTS, ref Ctx),
         //   its stateful twin and the whole-block kernel form were retired as asset bindings: they classify to nothing, keep
         //   the default shape, and the validator reports them by name (BTREE0002).
@@ -146,9 +153,22 @@ public static class BTreeCallShapes
     private static IReadOnlyList<CallParam> Describe(MethodInfo mi)
         => mi.GetParameters()
              .Select(p => p.ParameterType.IsByRef
-                 ? new CallParam(p.ParameterType.GetElementType()!.FullName ?? "", true)
+                 ? new CallParam(p.ParameterType.GetElementType()!.FullName ?? "", true,
+                                 UnitMemoryParams.IsUnitMemoryType(p.ParameterType.GetElementType()))
                  : new CallParam(p.ParameterType.FullName ?? "", false))
              .ToArray();
+
+    /// <summary>⭐ <c>CE-3137</c> U-2 — <paramref name="ps"/> without its TRAILING <c>ref</c> unit-memory group (after
+    /// <c>(Entity, EntityRepository)</c>), or <paramref name="ps"/> itself when it has none.</summary>
+    public static IReadOnlyList<CallParam> WithoutUnitMemory(IReadOnlyList<CallParam> ps)
+    {
+        int n = ps.Count;
+        while (n > 0 && ps[n - 1].IsRef && ps[n - 1].IsUnitMemory) n--;
+        if (n == ps.Count) return ps;
+        var core = new CallParam[n];
+        for (int i = 0; i < n; i++) core[i] = ps[i];
+        return core;
+    }
 
     private static bool Is(CallParam p, string fqn, bool isRef) => p.IsRef == isRef && p.TypeFqn == fqn;
 }

@@ -100,8 +100,11 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 bool visible;
                 if (Viewer == EqsLosViewer.Candidate)
                 {
+                    // ⭐ CE-3135 (peek-and-fire D5) — the eye at the candidate is the POINT's stance when it has one (a window
+                    //   point is crouched: standing there would see over a sill nobody fires over); none ⇒ standing, as before.
+                    float eye = c.TryGetStance(out var stance) ? selfMount.For(stance) : selfMount.Standing;
                     visible = los.HasLineOfSight(
-                        cPos + new Vector3(0, 0, selfMount.Standing),
+                        cPos + new Vector3(0, 0, eye),
                         otherPos + new Vector3(0, 0, otherMount.Standing * 0.5f));
                 }
                 else

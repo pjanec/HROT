@@ -34,6 +34,22 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// by the template's tests. A bit not set here must not be read by consumers.
         /// </summary>
         public short FlagsMeaningful;
+        /// <summary>
+        /// ⭐ <c>CE-3135</c> / peek-and-fire D5 — the stance this point is MEANT for, stored as
+        /// <c>(byte)StanceId + 1</c>; <c>0</c> = none (every non-cover generator, and every recording made before it —
+        /// a former padding byte, so the struct stays 32 bytes). Read it through <see cref="TryGetStance"/>.
+        /// </summary>
+        public byte Stance;
+
+        /// <summary>The <see cref="Stance"/> encoding of <paramref name="stance"/>.</summary>
+        public static byte EncodeStance(Fdp.Toolkit.Tkb.Domain.StanceId stance) => (byte)((byte)stance + 1);
+
+        /// <summary>The point's stance, or <see langword="false"/> when the generator gave none.</summary>
+        public readonly bool TryGetStance(out Fdp.Toolkit.Tkb.Domain.StanceId stance)
+        {
+            stance = Stance == 0 ? default : (Fdp.Toolkit.Tkb.Domain.StanceId)(Stance - 1);
+            return Stance != 0;
+        }
     }
 
     /// <summary>

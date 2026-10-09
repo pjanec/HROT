@@ -97,6 +97,27 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(2, c[0].Flags & 2);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3135</c> P-1 (peek-and-fire D5) — a candidate that CARRIES a stance looks from that stance's eye: crouched behind a
+        /// waist-high wall it does NOT see the target the unstanced (standing-eye) candidate above sees. And a result with no stance
+        /// — every non-cover generator, every recording made before the field — reads "none".
+        /// </summary>
+        [Fact]
+        public void P1_ACandidateWithAStance_LooksFromThatStancesEye_AndNoStanceReadsNone()
+        {
+            _repo.SetSingletonManaged(WallWorld(height: 1.2f));
+            var sensor = new EqsSensor { ContextSlot0 = At(0, 0), ContextSlot1 = At(10, 30) };
+            var c = new[] { Point(10, 9) };
+            c[0].Stance = EqsResult.EncodeStance(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched);
+
+            new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible }
+                .ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+
+            Assert.Equal(-1L, c[0].EntityId);   // rejected: a crouched eye (1.1 m) is under the 1.2 m wall
+            Assert.Equal(0, c[0].Flags & 2);
+            Assert.False(default(EqsResult).TryGetStance(out _));
+        }
+
         /// <summary>No terrain resident ⇒ sight is unknown ⇒ nothing judged, nothing rejected (never the old "always blocked").</summary>
         [Fact]
         public void Los_WithNoTerrain_JudgesNothing()
@@ -322,7 +343,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
         /// <summary>⭐ The plan's acceptance (§3l 7a-2): a rifleman upstairs in House A, the target south of the house —
         /// <c>FindWindowFiringPosition</c> answers a SOUTH window on HIS storey (Z 3), inside the house, and the database point
-        /// there is a crouch position. Every answer sees the target from a standing eye.</summary>
+        /// there is a crouch position. ⭐ CE-3135 (P-1): the ANSWER carries that crouch, and every answer sees the target from
+        /// the eye of ITS stance (was: a standing eye — over a sill nobody fires over).</summary>
         [Fact]
         public void CE3134_FindWindowFiringPosition_UpstairsInHouseA_AnswersASouthWindowOnHisStorey()
         {
@@ -344,8 +366,12 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
                 && MathF.Abs(p.PositionX - best.PositionX) < 0.01f && MathF.Abs(p.PositionY - best.PositionY) < 0.01f
                 && MathF.Abs(p.PositionZ - best.PositionZ) < 0.01f);
             Assert.Equal(1, point.StanceHeight);           // a 0.9 m sill: crouch
+            Assert.True(best.TryGetStance(out var stance));   // ⭐ P-1: the answer carries it
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, stance);
+            var mount = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.DefaultMount;
             Assert.All(top, r => Assert.False(
-                w.SegmentBlocked(new Vector3(r.PositionX, r.PositionY, r.PositionZ + 1.7f), target + new Vector3(0, 0, 0.85f)),
+                w.SegmentBlocked(new Vector3(r.PositionX, r.PositionY, r.PositionZ + (r.TryGetStance(out var s) ? mount.For(s) : mount.Standing)),
+                    target + new Vector3(0, 0, 0.85f)),
                 $"({r.PositionX:F2},{r.PositionY:F2},{r.PositionZ:F2}) does not see the target"));
             Assert.DoesNotContain(top, r => r.PositionY > 104);   // the north window looks away from the target
         }
@@ -365,6 +391,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             Assert.Equal(1, new CoverPointsGenerator().Generate(Entity.Null, ref sensor, _repo, c));
             Assert.Equal(1f, c[0].PositionX);
+            Assert.True(c[0].TryGetStance(out var st));   // ⭐ P-1: StanceHeight 0 (prone) travels as StanceId.Prone
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, st);
             Assert.Equal(1, new CoverPointsGenerator { Kind = CoverKind.WindowFiring }.Generate(Entity.Null, ref sensor, _repo, c));
             Assert.Equal(2f, c[0].PositionX);
         }

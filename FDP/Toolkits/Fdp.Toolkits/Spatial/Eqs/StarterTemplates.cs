@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
     /// <summary>⭐ Stage 7a — where to shoot the target from INSIDE a building: the window firing positions near the self (any
     /// storey — <see cref="TerrainCoverProvider"/> puts one on the inside face of each window, at the lowest stance that clears
-    /// the sill) whose standing eye SEES the target, nearer scoring more, then exposure and path cost.
+    /// the sill) whose eye AT THAT STANCE sees the target (CE-3135, the answer carries the stance), nearer scoring more, then exposure and path cost.
     /// 📄 docs/DESIGN_Building_Interiors.md §3l C5.</summary>
     [EqsTemplate(AssetId)]
     public static class FindWindowFiringPosition
