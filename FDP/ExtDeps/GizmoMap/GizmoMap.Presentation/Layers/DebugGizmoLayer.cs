@@ -575,7 +575,12 @@ namespace GizmoMap.Presentation
                 //   ⭐ `geomScale` is deliberately the SAME expression as the renderer's, so draw and pick cannot
                 //   drift apart again; the slack reduces to the old `5f / effZoom` / `5f`, i.e. unchanged.
                 float geomScale = prim.SizeMode == SizeMode.ScreenPixels ? 1f / effZoom : 1f;
-                float hitRadius = 5f * geomScale;
+                // ⭐⭐⭐ CE-3147 — THE SLACK IS ALWAYS 5 SCREEN PIXELS, whatever the primitive's SizeMode.
+                //   📐 The comparison below happens in WORLD units (an extent is multiplied by geomScale to get
+                //   there), so a slack of `5f * geomScale` meant 5 METRES for a WorldMeters primitive — which would
+                //   swamp an entity pick box that is now ~3 m. ⭐ Slack is a human-precision allowance: it belongs
+                //   in screen space, where "within 5 px of the shape" means the same thing at every zoom.
+                float hitRadius = effZoom > 0f ? 5f / effZoom : 5f;
                 bool hit = false;
 
                 if (prim.Shape == DebugPrimitiveShape.Box2D)

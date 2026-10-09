@@ -26,15 +26,18 @@ namespace Hrot.Common.Diagnostics.Gizmos
     [GizmoProjector(typeof(SelectionState), typeof(SimTransform))]
     public sealed class SelectionHighlightGizmo : IStatelessGizmo
     {
-        // ⭐⭐ CE-3147 — radius in SCREEN PIXELS, 20 → 100 (5×). 🔒 User, 2026-10-09: "the green selection circle
-        //   marker drawn on selected entity is extremely small - it should be 5 times bigger."
-        //   ⚠ Why it only now reads as tiny: it is screen-sized, so raising the zoom ceiling 10× (CE-3150, MaxZoom
-        //   10 → 100) grew everything measured in world metres on screen while this ring stayed at 20 px.
-        //   ⚠ Deliberately NOT wired to EntityPresentationGizmoShared.EntityPickExtentPx (40 px, the clickable
-        //   half-extent): a MARKER and a HIT AREA are different concerns, and this assembly cannot see that one
-        //   anyway — Hrot.Common and Hrot.Presentation are siblings, neither references the other.
-        private const float SelectionRadiusPx = 100f;
-        private const float RingThicknessPx   = 2f;
+        // ⭐⭐⭐ CE-3147 — THE RING IS SIZED IN WORLD METRES, FROM THE ENTITY'S OWN FOOTPRINT.
+        //   🔒 User, 2026-10-09: "the green selection circle must change size with zoom, now it is zoom independent
+        //   so when i zoom out the circle is enormous in comparison to entity symbol (which scales)."
+        //   🔴 It was `SelectionRadiusPx` in SCREEN PIXELS — a constant on-screen size, which is only ever right at
+        //   one zoom: I first raised it 20 → 100 to fix "extremely small" zoomed IN, which made it enormous zoomed
+        //   OUT. ⛔ Both readings are the same mistake, not two defects. The symbol is drawn from VehicleParams in
+        //   METRES (default 5 × 2.5), so the ring must be measured the same way.
+        //   ⭐ The rule now lives in ONE place for all three consumers — EntityFootprint — because this assembly
+        //   cannot see Hrot.Presentation's gizmos (siblings) and three copies is how they diverged before.
+        //   ⚠ Thickness stays in screen pixels on purpose: a 2 px outline should stay 2 px, or it vanishes zoomed
+        //   out and becomes a slab zoomed in.
+        private const float RingThicknessPx = 2f;
 
         private static readonly Rgba32 PrimaryOutline = Rgba32.Green;
         private static readonly Rgba32 Secondary      = Rgba32.Yellow;
@@ -52,7 +55,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
             var pos = new Vector3(tf.Position.X, tf.Position.Y, 0f);
 
             var color = sel.IsPrimarySelection ? PrimaryOutline : Secondary;
-            draw.DrawSphere(pos, SelectionRadiusPx, color, thickness: RingThicknessPx, sizeMode: SizeMode.ScreenPixels);
+            // ⭐ CE-3147 — the same query the pick areas use, so ring and hit area agree for a truck AND for a man.
+            float radiusMetres = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, entity);
+            draw.DrawSphere(pos, radiusMetres, color, thickness: RingThicknessPx, sizeMode: SizeMode.WorldMeters);
         }
     }
 }

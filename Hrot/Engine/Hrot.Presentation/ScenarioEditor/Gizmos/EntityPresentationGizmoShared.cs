@@ -20,27 +20,21 @@ namespace Hrot.ScenarioEditor.Gizmos
         }
 
         /// <summary>
-        /// ⭐⭐⭐ <c>CE-3147</c> — <b>THE ONE definition of an entity's clickable half-extent, in SCREEN PIXELS.</b>
-        /// <para>🔒 User, <c>2026-10-09</c>, after the first pass made the area track the 8 px symbol: <i>"the
-        /// click-to-select sensitive area is also extremely small now - pls 5 times bigger"</i> ⇒ 8 → 40 px. ⚠ It
-        /// reads "extremely small" at the new zoom ceiling of 100 precisely BECAUSE it is screen-sized: everything
-        /// in world metres grew 10× on screen while this stayed put.</para>
-        /// <para>⭐⭐ <b>Shared with <c>EntityDragGizmo</c>, which is the point.</b> 🔒 Same message: <i>"click-to-drag
-        /// sensitive area is enormous now (no change) - should be identical to click-to-select area."</i> 📐 It was
-        /// enormous because it carried its OWN <c>PickRadius = 8f</c> in WORLD METRES on a
-        /// <c>default(DebugPrimitive)</c> — 8 m, which at zoom 100 is ~800 screen px, and which the <c>SizeMode</c>
-        /// fix therefore never touched. ⇒ one constant, one unit, both areas.</para>
-        /// </summary>
-        public const float EntityPickExtentPx = 40f;
-
-        /// <summary>
         /// ⭐ An invisible, hit-testable box at <paramref name="position"/>, identified by
         /// <paramref name="networkId"/>.
         /// ⛔ §6.7 — the <c>Entity entity</c> parameter is DELETED: it existed only to stamp the
         /// emitter's ECS index+generation into the primitive as a pick payload, which nothing reads now.
         /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.
         /// </summary>
-        public static void EmitPickBox(IDebugDrawBuilder draw, long networkId, in Vector3 position, byte layer = 0)
+        /// <param name="extentMetres">
+        /// ⭐⭐⭐ <c>CE-3147</c> — the clickable HALF-EXTENT in <b>world metres</b>, normally
+        /// <c>EntityFootprint.InteractionRadiusMetres(view, entity)</c> so it tracks the drawn symbol at every zoom.
+        /// ⛔ It used to be a hard-coded <c>8f</c> in <c>ScreenPixels</c>, which is correct at exactly one zoom —
+        /// 🔒 the user's two reports, <i>"extremely small"</i> zoomed in and <i>"enormous in comparison to entity
+        /// symbol"</i> zoomed out, are the two ends of that one mistake.
+        /// </param>
+        public static void EmitPickBox(IDebugDrawBuilder draw, long networkId, in Vector3 position,
+                                       float extentMetres, byte layer = 0)
         {
             // ⭐⭐⭐ §6.8 — NO ID, NO PICK TARGET. Constraint C2 was enforced by CALLERS checking that a
             //   NetworkIdentity was PRESENT; a component present with Value 0 passed that and produced a
@@ -51,8 +45,11 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             var pickBox = DebugPrimitive.MakeBox2D(
                 new Vector2(position.X, position.Y),
-                new Vector2(EntityPickExtentPx, EntityPickExtentPx),
+                new Vector2(extentMetres, extentMetres),
                 new Rgba32(0, 0, 0, 0),
+                // ⭐ CE-3147 — WORLD METRES, because the symbol is in world metres: MakeBox2D's sizeMode DEFAULTS
+                //   to ScreenPixels, so this must be passed explicitly or the area stops scaling with zoom.
+                sizeMode: SizeMode.WorldMeters,
                 target: PipelineTarget.Map2D,
                 layer: layer,
                 anchorId: networkId);

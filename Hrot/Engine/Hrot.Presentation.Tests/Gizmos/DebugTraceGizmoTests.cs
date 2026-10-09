@@ -49,6 +49,54 @@ public sealed class DebugTraceGizmoTests : IDisposable
         _w.SetSingletonUnmanaged(in t);
     }
 
+    /// <summary>⭐ CE-3153 — one terrain-stopped shot (the orange case) stamped at <paramref name="at"/>.</summary>
+    private void Shot(double at)
+    {
+        var t = default(ShotTraces);
+        ref var s = ref t.SlotsRW()[0];
+        s.Seq = 1; s.Time = at;
+        s.Muzzle = new Vector3(0, 0, 1.5f);
+        s.End    = new Vector3(10, 0, 1.5f);
+        s.Outcome = ShotOutcome.StoppedByTerrain;
+        s.HasEnd = 1; s.CrossingCount = 0;
+        t.Count = 1;
+        _w.SetSingletonUnmanaged(in t);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-3153</c> — <b>fire traces expire, and a trace from a PREVIOUS run must not reappear at t = 0.</b>
+    /// <para>🔒 User, <c>2026-10-09</c>: <i>"traces can not be persistent, they need to disappear after short time
+    /// after being drawn for the first time"</i> — then, after the first attempt: <i>"when i reload the duel
+    /// scenario, the orange fire lines are drawn immediately from beginning … time-based fading into
+    /// non-existence is not working."</i></para>
+    /// <para>🔴 <b>The third case is the one that caught a real reasoning error.</b> Nothing clears the
+    /// <c>ShotTraces</c> singleton on a scenario load, and sim time restarts near 0, so last run's traces carry
+    /// <c>Time</c> ≈ 100 against <c>now</c> ≈ 0 ⇒ a NEGATIVE age. The first implementation treated negative as
+    /// "fresh" (reasoning about a backwards replay seek) and drew the whole previous duel at full alpha. ⛔ Hiding
+    /// it is correct on both timelines: after a reload the shot belongs to a run that no longer exists, and on a
+    /// backwards seek it has genuinely not been fired yet.</para>
+    /// </summary>
+    [Fact]
+    public void CE3153_AFireTrace_IsDrawnBriefly_ExpiresWithAge_AndNeverReappearsAfterAReload()
+    {
+        Shot(at: 10.0);
+        Now(10.0);
+        new FireTraceGizmo().Draw(_w, _draw);
+        Assert.NotEmpty(Frame(FireTraceGizmo.FireTraceLayer));
+
+        // Past the cutoff: gone.
+        _draw.Clear();
+        Now(10.0 + FireTraceGizmo.Shown + 0.5);
+        new FireTraceGizmo().Draw(_w, _draw);
+        Assert.Empty(Frame(FireTraceGizmo.FireTraceLayer));
+
+        // 🔴 THE RELOAD CASE: the clock restarts while the stale trace keeps its old stamp ⇒ negative age.
+        _draw.Clear();
+        Now(0.0);
+        new FireTraceGizmo().Draw(_w, _draw);
+        Assert.Empty(Frame(FireTraceGizmo.FireTraceLayer));
+    }
+
     [Fact]
     public void CE3117_ABurst_DrawsItsRaysAndRings_ForOneSecondOfSimTime()
     {

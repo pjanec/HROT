@@ -22,21 +22,24 @@ public sealed class FireTraceGizmo : IGlobalStatelessGizmo
     public const int Drawn = ShotTraces.Capacity;
 
     /// <summary>
-    /// ⭐⭐⭐ <c>CE-3153</c> — <b>how long a trace stays on screen, in SIM seconds.</b>
-    /// 🔒 User ruling, <c>2026-10-09</c>: <i>"traces can not be persistent, they need to disappear after short time
-    /// after being drawn for the first time."</i> ⛔ Before this the gizmo drew all 64 ring slots every frame forever,
-    /// so a duel fought through walls left the map full of orange <c>StoppedByTerrain</c> lines.
-    /// <para>⭐⭐ <b>The DISPLAY expires; the DATA does not.</b> The ring is left exactly as it was, which is what keeps
-    /// <c>CE-3117</c>/<c>R-226</c>'s acceptance intact — <i>"a recorded run, seeked to just after a detonation, draws
-    /// its rays"</i> still holds, because after a seek <c>now − Time</c> is small and the trace is inside the window.
-    /// ⛔ Expiring the ring itself would have deleted that capability to fix a display annoyance.</para>
-    /// <para>⚠ Tune here: <see cref="VisibleSeconds"/> is the hard cutoff, <see cref="FadeSeconds"/> the tail over
-    /// which alpha falls to zero so a trace does not vanish mid-frame.</para>
+    /// ⭐⭐⭐ <c>CE-3153</c> — <b>how long a trace stays on the map (s of SIM time), fading the whole way.</b>
+    /// <para>🔒 User ruling, <c>2026-10-09</c>: <i>"traces can not be persistent, they need to disappear after short
+    /// time after being drawn for the first time"</i> — then <i>"the lines should fade out (getting more translucent
+    /// with time until disappear) - to recognize older from newer; same with explosions."</i></para>
+    /// <para>⛔⛔ <b>MY FIRST TWO ATTEMPTS BOTH RE-INVENTED MACHINERY THAT ALREADY EXISTED.</b> I wrote a private
+    /// <c>now</c>/age/fade with its own <c>VisibleSeconds</c> + <c>FadeSeconds</c> tail, and its own alpha helper.
+    /// 📐 <see cref="DebugTraceClock"/> already did all of it — <c>Now(repo)</c>, and <c>Fade(age, shown)</c> whose
+    /// own summary is <i>"1 at age 0, falling to 0 at shown; negative when the trace is not shown"</i>, i.e. the
+    /// progressive fade the user asked for AND the negative-age case that made a reload redraw the previous run.
+    /// ⭐ Every sibling trace gizmo (<c>DetonationGizmo</c>, hearing, paths) was already using it; <b>this gizmo was
+    /// the only one that was not</b>, which is exactly why it was the only one with these defects.</para>
+    /// <para>⭐⭐ <b>The DISPLAY expires; the DATA does not.</b> The 64-slot ring is untouched, so
+    /// <c>CE-3117</c>/<c>R-226</c>'s acceptance — <i>"a recorded run, seeked to just after a detonation, draws its
+    /// rays"</i> — still holds: after a seek the age is small and the trace is inside the window.</para>
+    /// <para>⚠ Tune here. <c>DetonationGizmo.Shown</c> is 1.0 s for a burst; traces get longer because a shot is a
+    /// thin line that is easier to miss than an expanding ring.</para>
     /// </summary>
-    public const double VisibleSeconds = 3.0;
-
-    /// <inheritdoc cref="VisibleSeconds"/>
-    public const double FadeSeconds = 1.0;
+    public const double Shown = 3.0;
 
     private static readonly Rgba32 HitColor     = new(220, 40, 40, 230);
     private static readonly Rgba32 StoppedColor = new(240, 140, 20, 230);
@@ -52,27 +55,19 @@ public sealed class FireTraceGizmo : IGlobalStatelessGizmo
         var traces = repo.GetSingletonUnmanaged<ShotTraces>();
         var slots = traces.SlotsRO();
 
-        // ⭐ CE-3153 — the same time source the recorder stamps with (CombatTraceSystem.cs:23).
-        //   ⚠ A world with no GlobalTime draws EVERYTHING, as before: degrading to "show all" is right, because
-        //   degrading to "show none" would silently remove the layer on any host that lacks the singleton.
-        bool haveTime = repo.HasSingleton<GlobalTime>();
-        double now = haveTime ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+        // ⭐ CE-3153 — the family's own clock, the same one DetonationGizmo ages a burst against.
+        double now = DebugTraceClock.Now(repo);
 
         for (int i = 0; i < traces.Count; i++)
         {
             ref readonly var s = ref slots[i];
 
-            float ageFade = 1f;
-            if (haveTime)
-            {
-                double age = now - s.Time;
-                // ⚠ A backwards replay seek makes age negative — treat that as fresh, never as expired.
-                if (age > VisibleSeconds) continue;
-                if (age > VisibleSeconds - FadeSeconds && FadeSeconds > 0d)
-                    ageFade = (float)((VisibleSeconds - age) / FadeSeconds);
-                if (ageFade < 0f) ageFade = 0f;
-                if (ageFade > 1f) ageFade = 1f;
-            }
+            // ⭐⭐⭐ ONE call covers all three requirements: the progressive fade (1 → 0 across `Shown`, so an older
+            //   line is plainly more translucent than a newer one), the hard cutoff, AND the negative age that a
+            //   scenario RELOAD produces — nothing clears the ShotTraces ring on load while sim time restarts near
+            //   0, so last run's traces sit in the future and must not be drawn.
+            float fade = DebugTraceClock.Fade(now - s.Time, Shown);
+            if (fade < 0f) continue;
 
             var color = s.Outcome switch
             {
@@ -81,7 +76,7 @@ public sealed class FireTraceGizmo : IGlobalStatelessGizmo
                 ShotOutcome.Expired          => ExpiredColor,
                 _                            => FlyingColor,
             };
-            color = Fade(color, ageFade);
+            color = DetonationGizmo.WithAlpha(color, fade);
             draw.DrawLine(s.Muzzle, s.End, color, 1.5f, layer: FireTraceLayer,
                 style: s.Outcome == ShotOutcome.InFlight ? LineStyle.Dashed : LineStyle.Solid);
             if (s.HasEnd != 0) draw.DrawSphere(s.End, 0.25f, color, layer: FireTraceLayer, fillColor: color);
@@ -90,8 +85,8 @@ public sealed class FireTraceGizmo : IGlobalStatelessGizmo
                 var at = s.Crossings[c].At;
                 // ⭐ CE-3153 — the crossing marks fade with their own trace, or the line vanishes and its
                 //   green dots / orange crosses stay behind, which is the same clutter in smaller pieces.
-                var passed  = Fade(PassedColor,  ageFade);
-                var stopped = Fade(StoppedColor, ageFade);
+                var passed  = DetonationGizmo.WithAlpha(PassedColor,  fade);
+                var stopped = DetonationGizmo.WithAlpha(StoppedColor, fade);
                 if (s.Crossings[c].Passed != 0) draw.DrawSphere(at, 0.15f, passed, layer: FireTraceLayer, fillColor: passed);
                 else
                 {
@@ -102,7 +97,4 @@ public sealed class FireTraceGizmo : IGlobalStatelessGizmo
         }
     }
 
-    /// <summary>⭐ CE-3153 — scales a colour's ALPHA only, so the fade never shifts a hue the outcome encodes.</summary>
-    private static Rgba32 Fade(Rgba32 c, float f)
-        => f >= 1f ? c : new Rgba32(c.R, c.G, c.B, (byte)(c.A * (f < 0f ? 0f : f)));
 }

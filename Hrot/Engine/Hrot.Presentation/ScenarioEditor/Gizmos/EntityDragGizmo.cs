@@ -30,13 +30,14 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// </summary>
 public sealed class EntityDragGizmo : IEntityStatefulGizmo
 {
-    // ⭐⭐⭐ CE-3147 — THE DRAG AREA IS THE SELECT AREA. 🔒 User, 2026-10-09: "click-to-drag sensitive area is
-    //   enormous now (no change) - should be identical to click-to-select area."
-    //   🔴 It used to be its own `PickRadius = 8f` in WORLD METRES, written onto a default(DebugPrimitive)
-    //   (⇒ SizeMode.WorldMeters). At the new zoom ceiling of 100 that is ~800 screen px — and because it was
-    //   world-sized, the SizeMode hit-test fix could not shrink it: geomScale is 1 for WorldMeters.
-    //   ⭐ Now it IS the select extent, same constant and same unit, so the two cannot diverge again.
-    private const float PickRadius = EntityPresentationGizmoShared.EntityPickExtentPx;
+    // ⭐⭐⭐ CE-3147 — THE DRAG AREA IS THE SELECT AREA, and both are sized from the ENTITY'S OWN FOOTPRINT.
+    //   🔒 User, 2026-10-09: "click-to-drag sensitive area is enormous now (no change) - should be identical to
+    //   click-to-select area" · then: "the sensitive interaction area around the entity must scale as well."
+    //   🔴 It used to be its own `PickRadius = 8f` — the right UNIT (world metres) but a size unrelated to the
+    //   symbol, and written onto a default(DebugPrimitive) so nothing else could correct it.
+    //   ⭐ There is no constant here any more ON PURPOSE: the size is a QUERY on the entity
+    //   (EntityFootprint.InteractionRadiusMetres), which is the only way select and drag stay identical for
+    //   entities of DIFFERENT sizes — a shared constant would have made a truck and a man equally clickable.
 
     private static readonly Rgba32 PickSphereColor  = new Rgba32(0, 0, 0, 0);   // transparent
     private static readonly Rgba32 DragLineColor    = new Rgba32(255, 255, 0, 200);
@@ -106,12 +107,13 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         pickBox.TargetView       = PipelineTarget.Map2D;
         pickBox.BoxCenterX       = tf.Position.X;
         pickBox.BoxCenterY       = tf.Position.Y;
-        pickBox.BoxExtentX       = PickRadius;
-        pickBox.BoxExtentY       = PickRadius;
-        // ⭐ CE-3147 — MUST be set explicitly: default(DebugPrimitive) leaves SizeMode = WorldMeters (0), which is
-        //   exactly how this area came to be 8 METRES wide. The select box gets ScreenPixels from MakeBox2D's
-        //   default; this one has no such help.
-        pickBox.SizeMode         = SizeMode.ScreenPixels;
+        // ⭐⭐⭐ CE-3147 — the SAME query the select box uses, so the two areas are identical per entity and both
+        //   scale with zoom exactly as the drawn symbol does.
+        float pickExtentMetres   = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, _entity);
+        pickBox.BoxExtentX       = pickExtentMetres;
+        pickBox.BoxExtentY       = pickExtentMetres;
+        // ⭐ WorldMeters is default(DebugPrimitive)'s value (0) and is what we want here — stated, not relied on.
+        pickBox.SizeMode         = SizeMode.WorldMeters;
         pickBox.Color            = PickSphereColor;
         // 🔴 §6.7 — `pickBox.AnchorIndex = _entity.Index; pickBox.AnchorGeneration = ...` DELETED.
         //   The handle was a pick payload nothing reads; identity is BoxAnchorId (set above).

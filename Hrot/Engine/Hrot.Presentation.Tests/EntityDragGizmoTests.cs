@@ -39,10 +39,14 @@ public class EntityDragGizmoTests
     /// <para>📐 It was enormous because this gizmo carried its own <c>PickRadius = 8f</c> in WORLD METRES on a
     /// <c>default(DebugPrimitive)</c> (⇒ <c>SizeMode.WorldMeters</c>) — 8 m, about 800 screen px at the zoom
     /// ceiling of 100 — and being world-sized, the <c>SizeMode</c> hit-test fix could not shrink it.</para>
-    /// <para>⚠ <b>Both halves are asserted, because either alone is insufficient:</b> matching the NUMBER while
-    /// leaving <c>WorldMeters</c> would still give a 40 m box, and matching the UNIT while keeping an 8 would
-    /// still disagree with the select area. ⛔ Sharing the constant makes the number drift-proof at compile
-    /// time; this rail is what pins the UNIT.</para>
+    /// <para>⭐⭐ <b>CORRECTED <c>2026-10-09</c> after a second user report:</b> <i>"the sensitive interaction area
+    /// around the entity must scale as well"</i> — my first pass made both areas <c>40f</c> in
+    /// <c>ScreenPixels</c>, which is right at exactly ONE zoom. The size is now a QUERY on the entity
+    /// (<c>EntityFootprint.InteractionRadiusMetres</c>) in <b>world metres</b>, which is also the only way the two
+    /// areas stay identical for entities of DIFFERENT sizes — a shared constant made a truck and a man equally
+    /// clickable.</para>
+    /// <para>⚠ <b>Both halves are asserted, because either alone is insufficient:</b> the right number in the
+    /// wrong unit is a 3 px box, and the right unit with a stale number disagrees with the select area.</para>
     /// </summary>
     [Fact]
     public void CE3147_TheDragPickArea_MatchesTheSelectPickArea_InExtentAndUnit()
@@ -51,14 +55,18 @@ public class EntityDragGizmoTests
         var buffer = new DebugPrimitiveBuffer(capacity: 16);
         gizmo.UpdateAndDraw(_repo, 0f, buffer);
 
+        float expected = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint
+            .InteractionRadiusMetres(_repo, _entity);
+
         bool found = false;
         foreach (var prim in buffer.GetFrame())
         {
             if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
 
-            Assert.Equal(EntityPresentationGizmoShared.EntityPickExtentPx, prim.BoxExtentX);
-            Assert.Equal(EntityPresentationGizmoShared.EntityPickExtentPx, prim.BoxExtentY);
-            Assert.Equal(SizeMode.ScreenPixels, prim.SizeMode);
+            Assert.Equal(expected, prim.BoxExtentX);
+            Assert.Equal(expected, prim.BoxExtentY);
+            // ⭐ WORLD metres, so the area scales with zoom exactly as the drawn symbol does.
+            Assert.Equal(SizeMode.WorldMeters, prim.SizeMode);
             found = true;
         }
 

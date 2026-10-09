@@ -103,7 +103,9 @@ namespace Hrot.ScenarioEditor.Gizmos
             EntityPresentationGizmoShared.DrawSpatialAnchorFromRotation(draw, networkId, tf.Position, tf.Rotation);
 
             // ⭐ CGF's copy omitted the pick box, so CGF entities could not be picked at all (CE-126b).
-            EntityPresentationGizmoShared.EmitPickBox(draw, networkId, tf.Position);
+            // ⭐ CE-3147 — sized from the entity's own footprint, so the clickable area tracks the drawn symbol.
+            EntityPresentationGizmoShared.EmitPickBox(draw, networkId, tf.Position,
+                Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, entity));
 
             // ── Condition: the damage states, now read off the replicated Health itself. ──
             // ⭐ CE-196 — this used to read IgHealthState.Damage, a precomputed percentage. The
