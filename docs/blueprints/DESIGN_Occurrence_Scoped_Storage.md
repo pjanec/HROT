@@ -9,7 +9,7 @@ build-state: ⛔ PER-SECTION — this file spans a whole programme, so there is 
   §19 (O4/C1, says READY-TO-BUILD) · §24 (O7, says BUILDING — O7c-4d deleted BrainHsm128, so it is
   probably BUILT). 📌 Five stale build-state lines have now been found in this file and its
   neighbours (§30, §31 on 2026-09-27; §29, §32 here) — treat a section header as a CLAIM, not a fact.
-current-answer: ⭐⭐⭐ §33 — E6, BTREE-HOSTS-BTREE — IS THE NEWEST SECTION AND IS READY-TO-BUILD
+current-answer: ⭐⭐⭐ §34 — U-0, THE MULTI-BLOCK STORE (R-236, CE-3137) — IS THE NEWEST SECTION AND IS READY-TO-BUILD. (§33, E6, is BUILT.)
   (2026-09-27). Start there for the BTree hosting slice; it carries its own INVENTORY, three UML
   diagrams, five build items and its rejected alternatives.
   ⚠⚠ §3.1 IS SUPERSEDED — it says "BTree-hosts-BTree is not a missing feature", which CE-337 made
@@ -10248,3 +10248,115 @@ rails pass, and `HillAssault2I` is green again.
 
 📋 **The one honest remainder:** a `--mode all` cluster run *(`T3`, async)* is still the only thing that
 would exercise these assets inside the real product rather than a test host. ⛔ Named, not claimed.
+
+---
+
+## 34 ⭐⭐⭐ `U-0` — **THE MULTI-BLOCK STORE: GROWTH APPENDS, NOTHING EVER MOVES** *(`2026-10-09`, `CE-3137`, ruled `R-236`)*
+
+> 🔒 **User, `2026-10-09`:** *"the only thing needing to know where a data is is the one that looks up the byte pointer of the
+> slot, no?"* → *"new lean works"* → *"sounds very good. shall we implement this shared storage first? pls present the plan"* ·
+> on caching offsets: *"who cares when we do not move anything?"*
+
+📄 **Why, measured, and the performance case:** [`Architect_Question_87_Unit_Memory.md`](Architect_Question_87_Unit_Memory.md)
+§3a (why the store moved: a one-block design, not FDP; FDP adds move nothing and are allowed mid-phase) · §3b (per brain-tick
+**1 155–1 350 ns today → 88–112 ns** with the per-tick view, two blocks). `build-state: READY-TO-BUILD` for this section.
+
+### 34.1 INVENTORY — what changes, measured `2026-10-09` (graph `trace_path` + grep)
+
+| group | sites | change |
+|---|---|---|
+| key → pointer lookup (`TryGetSlotOffset`/`TryGetSlotIndex` after `TryGetStore`) | **13** | route through the seam: mechanical |
+| resolve-or-attach | 4 | seam `ResolveOrAttach`: picks a block with room, else **appends** |
+| detach by key | 6 | seam `Detach`: finds the block |
+| walk all slots (2 ingress sweeps, `BlueprintTierSummary.AppendSlots` ×2, `BlueprintStateTranslator` scenario extract) | 5 | seam `ForEachSlot` over blocks |
+| capacity / tier choice (ingress sizing `:1487`, `EnsureAtLeast` ← hot reload + `BlueprintMaterializationSystem` + `BlueprintInstanceService`, `EnsureRootState`/`EnsureRootInstance`, `GetCurrentTier`) | ~8 | "pick the block / append one" instead of "promote" |
+| 🔴 **per-tier entity walkers** (`BrainTickSystem.cs:166-172`, `BlueprintTickSystem.cs:73-75`, `AiHotReloadCoordinator.ReloadHsmInstancesInSlots`) | 3 | ⛔ **a 2-block unit is in TWO tier queries ⇒ would be TICKED TWICE.** Visit a unit only in the query of its **lowest present tier** (one mask test) |
+| read-only / view readers (`TryGetStoreReadOnly`/`TryGetStoreInView`: replay `PredicateCompiler`, `EntityAiDetailsView`, editor model, scenario translator) | 6 | the RO/view seam loops blocks; ⭐ an old single-tier recording is simply a 1-block store |
+| copy-promotion (`UpgradeTier`, `BlueprintTierTable.Promote`, `CopyToLargerTier`, `BlueprintMaintenanceSystem`) | 4 | **retired**: no copy remains. The maintenance system's "two tiers = promotion" rule would now misfire on every grown unit |
+
+⭐ **No premise left to check about cached offsets** (user: *"who cares when we do not move anything?"*): an offset stays valid
+for the slot's lifetime. Only a slot INDEX shifts, on a detach in the same block, which is today's rule, unchanged.
+
+### 34.2 Classes — grey = exists
+
+```mermaid
+classDiagram
+  class OccurrenceStoreAccess { <<existing, grows>> TryGetSlot(world, e, key) byte*; ResolveOrAttach; Detach; ForEachSlot; RO + InView twins }
+  class StoreView { <<new, unmanaged>> Entity; Count; Block[4] (ptr, totalSize) }
+  class TickViewScope { <<new>> Begin(world, e) / End — the runner's per-tick view, ambient }
+  class BlueprintTierTable { <<existing, grows>> Blocks(world, e) via ONE mask read; Append(world, e, needPayload, needSlots); LowestPresent(world, e) }
+  class BlueprintBlackboardPartitions { <<existing, unchanged>> per-block allocator }
+  class BehaviorRunners { <<existing, grows>> BTree/HSM/Blueprint runner opens a TickViewScope }
+  class BrainTickSystem { <<existing, grows>> visits a unit in its lowest tier's query only }
+  class BlueprintTickSystem { <<existing, grows>> same; full tier ⇒ append, never a silent return }
+  class BlueprintMaintenanceSystem { <<existing, RETIRED>> no promotion remains }
+  OccurrenceStoreAccess ..> StoreView : uses the ambient view if it is for e
+  OccurrenceStoreAccess ..> BlueprintTierTable
+  OccurrenceStoreAccess ..> BlueprintBlackboardPartitions
+  TickViewScope --> StoreView
+  BehaviorRunners ..> TickViewScope
+  BrainTickSystem ..> BlueprintTierTable : LowestPresent
+  BlueprintTickSystem ..> OccurrenceStoreAccess
+```
+
+*What the picture shows that prose hid: the allocator does not change at all; every change is in WHO finds the block. And the
+generated thunks keep their signatures: they already call `OccurrenceStoreAccess`, which picks up the runner's ambient view.*
+
+### 34.3 Sequence — one brain tick, with a mid-tick growth
+
+```mermaid
+sequenceDiagram
+  participant BT as BrainTickSystem
+  participant R as BTreeRunner
+  participant V as TickViewScope
+  participant OSA as OccurrenceStoreAccess
+  participant TT as BlueprintTierTable
+  BT->>TT: LowestPresent(e) == this query's tier? else skip
+  BT->>R: Run(e)
+  R->>V: Begin(world, e)
+  V->>TT: Blocks(e): one mask read, RW fetch per block
+  R->>OSA: TryGetSlot(e, rootStateKey)
+  OSA-->>R: scan blocks in the view (assign-time block first)
+  R->>OSA: ResolveOrAttach(e, nodeKey) — no block has room
+  OSA->>TT: Append(e): AddComponent of the next absent tier
+  TT-->>OSA: new block, FDP moved nothing
+  OSA->>V: extend the view
+  Note over R: the root-state pointer taken earlier is still valid
+  R->>V: End
+```
+
+*What it shows: growth is an append in the middle of a tick, and the pointer the runner took at the start survives it, which is
+exactly what the old copy-promotion could not offer.*
+
+### 34.4 Modules — who builds the view, who walks entities each frame
+
+```mermaid
+graph TD
+  subgraph CGF["CGF (CgfLogicPack, Synchronous, main thread)"]
+    BTS["BrainTickSystem — Simulation"] -->|"lowest-tier visit"| Runners["BTree / HSM / Blueprint runners"]
+    Runners -->|"Begin/End view"| View["TickViewScope"]
+    Thunks["generated thunks + accessors"] -->|"unchanged call"| OSA["OccurrenceStoreAccess"]
+    OSA -->|"ambient view, else probe"| Blocks[("tier blocks 256 / 1024 / 4096 / 16384")]
+    BPT["BlueprintTickSystem — Simulation"] -->|"lowest-tier visit; append on full"| OSA
+    Ing["BehaviorIngressSystem — Input"] -->|"size / append"| OSA
+  end
+  Readers["editor, debug API, replay search, scenario extract"] -->|"RO / InView loop"| Blocks
+  Maint["BlueprintMaintenanceSystem — BeforeSync"] -.->|"RETIRED"| Blocks
+  style Maint stroke:#c00,color:#c00
+```
+
+*What it shows: the only per-frame entity walkers are the two tick systems, and both must learn "lowest tier only". The red node
+is the retired promotion, whose "two tiers = promote" rule would otherwise copy and delete every grown unit's blocks.*
+
+### 34.5 Build steps — each green before the next
+
+| step | content | rails |
+|---|---|---|
+| **U-0a** seam, no behaviour change | `BlueprintTierTable.Blocks` (one mask read); `OccurrenceStoreAccess` key API + RO/InView twins + `ForEachSlot`; route the 13 + 4 + 6 sites and the 5 walkers; scan RO, RW only on the hit block | ⭐ **T-1 first**: the store's own suites (`OccurrenceStoreAccessTests`, `PartitionAllocatorTests`, `SlotAttachZeroingTests`) and the behaviour suites that use it (`BehaviorIngressStatefulTests`, `BTreeHostsBTreeTests`, …) stay green; generated goldens unchanged |
+| **U-0b** append instead of promote | `Append`; ingress sizing, `EnsureAtLeast`, `EnsureRoot*` and the blueprint full-tier path append; retire `UpgradeTier`/`Promote`/`CopyToLargerTier` use and `BlueprintMaintenanceSystem`; tick walkers visit the lowest tier only | ① a pointer taken before a mid-tick append is still valid and its writes land (red-proof: under copy-promotion they are lost); ② a blueprint attach on a full tier appends, never drops (`BlueprintTickSystem.cs:207`); ③ a 2-block unit ticks **once**; ④ sweeps/detach span blocks; ⑤ a full 4-block store fails LOUD |
+| **U-0c** per-tick view | `TickViewScope` in the three runners; `OccurrenceStoreAccess` uses it when it is for the same entity | ⑥ **benchmark rail**: per-tick-view lookup ≤ today's single-block lookup (Q87 §3b numbers as the bar) |
+| **U-0d** readers | replay `PredicateCompiler`, scenario `BlueprintStateTranslator`, editor + debug-API slot lists loop blocks | ⑦ a recorded 2-block frame is searchable; an OLD 1-tier recording still reads; scenario extract lists slots from both blocks |
+| **U-0e** gates + fold-back | build-state of §34 → BUILT, as-built deviations folded here; Q87 U-0 row closed | the T2 batch gate: unit suites of `Fdp.Toolkits`, `Hrot.Blueprints`, `Hrot.AiEditor.*`, Editor; integration `BlueprintKernelRunTests`; `--no-build` after one build |
+
+⚠ **Lane:** the store is behaviour infrastructure (behaviors lane). `origin/behaviors` has **0 commits** not already in `backend`
+and the lane is on hold; the work is done here and said in every commit (cross-lane edit, lane protocol).
