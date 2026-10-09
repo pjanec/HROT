@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT — A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class)
-updated: 2026-10-08
-current-answer: §2 the decisions · §3 the UML (as-built) · §4 as-built notes
+build-state: BUILT — A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class). §5 (CE-3118, the Replay Browser loads the recording's terrain) READY-TO-BUILD 2026-10-09
+updated: 2026-10-09
+current-answer: §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
 stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the class was not needed
 known-rot: none
 known-conflict: none
@@ -12,6 +12,7 @@ related-designs:
   - DESIGN_Terrain_World.md — terrain coordinates are local metres (X east, Y north, Z up); the origin is what ties them to lat/lon.
   - DESIGN_Terrain_Combat_Tuning.md §5a — CE-3118 (Replay Browser loads the recording's terrain by name) is where the recording learns its terrain; this adds the origin beside the name.
   - DESIGN_Uniform_Gizmo_Membership.md §10 — the map's MapServices; the Replay Browser's missing geo transform (mission lines) closes here.
+  - designs/replay-and-modules/DESIGN.md — what runs during replay; §5 adds the terrain the browser's replay worlds are drawn over.
 -->
 # DESIGN — **the geo origin comes from the terrain** *(`CE-3126`, backend, `2026-10-08`)*
 
@@ -138,3 +139,109 @@ graph TD
 ⚠ **Left, flagged:** `NodeConfiguration.GeodeticOrigin` (a config default, Tel Aviv) is read by nothing but its own config tests — a second origin source in name only. Lean: retire it with the next SimHost config change; not removed here (no rush removals).
 
 ⚠ **Not done here:** loading the recording's terrain BY NAME in the Replay Browser is `CE-3118` — the metadata now carries the name it needs.
+
+## 5. The Replay Browser loads the recording's terrain *(`CE-3118`, backend, `2026-10-09`; build-state: READY-TO-BUILD)*
+
+> 🔒 **User, `2026-10-08`** (R-226): *"The replay browser must load the terrain in order to display it on the map if nothing else.
+> Twreain name should go to metadata for sure."* · **`2026-10-09`:** *"Pls also add the terrain support to replaybrowser so it shows
+> terrain and route net on the map."*
+
+### 5.1 INVENTORY *(grep + reads, `2026-10-09`; the graph MCP was down, its CLI index is used)*
+
+| question | answer | where |
+|---|---|---|
+| what the map's terrain / road gizmos read | world singletons only: `TerrainWorldGizmo` ← `TerrainWorld` (managed); `RoadNetworkGizmo` ← `ZoneEnvironmentData.RoadNetwork` | `TerrainWorldGizmo.cs:40`, `RoadNetworkGizmo.cs:27` |
+| the repos the browser draws | the boot repo, each node's sandbox, the Merged transient master — **every one passes `PrepareRepo`** (boot + `RebindActiveRepo`, which every seek, step and view switch goes through) | `ReplayBrowserSubsystem.cs:161,620,646` |
+| how a host makes a NAMED terrain resident | `TerrainResidency.Prepare(name)` (I/O, throws when missing) + `Commit(world, staged)`; `Commit` also sets the world's geo origin from the FILE | `TerrainResidency.cs:130,232,251` |
+| where names resolve | `TerrainCatalog.ForNode(staging, shared, shipped)` — staging → the shared NAS stand-in → `{app}/Recipes/Terrain` | `TerrainCatalog.cs:46` |
+| the recording's terrain | `RecordingMetadata.TerrainName` (CE-3126 ⑤), per node | `RecordingMetadata.cs:68` |
+| ⚠ **is the road net in the recording?** | ⛔ **YES, as raw pointers.** `ZoneEnvironmentData` has no `[DataPolicy]` ⇒ a struct defaults to recordable and saveable (`EntityRepository.cs:656-667`) ⇒ its `RoadNetworkBlob` (native array pointers of the RECORDING process) is written into every recording of a terrain with roads — test-town and basic-desert since CE-3128 — and restored into the replay world | `ZoneEnvironmentData.cs:20`, `RecorderSystem.cs:843` |
+| `TerrainWorld`, `TerrainDefinition` | `NoScenario │ NoReplay` — never recorded (why the browser shows no terrain today) | `TerrainWorld.cs:81`, `TerrainDefinition.cs:26` |
+
+### 5.2 Classes
+
+```mermaid
+classDiagram
+  class ReplayBrowserSubsystem { <<existing, grows>> -TerrainResidency _terrain; -EntityRepository _terrainCarrier; ApplyRecordingTerrain(); PrepareRepo(repo) }
+  class TerrainResidency { <<existing, grows>> Prepare(name); Commit(world, staged); Unload(world); +MirrorTerrain(source, target)$ }
+  class TerrainCatalog { <<existing>> ForNode(staging, shared, shipped)$ }
+  class RoadNetworkHolder { <<existing>> the browser's own }
+  class RecordingMetadata { <<existing>> TerrainName; GeoOrigin }
+  class ZoneEnvironmentData { <<existing, changes>> DataPolicy NoScenario|NoReplay }
+  class TerrainWorld { <<existing>> NoScenario|NoReplay }
+  class TerrainWorldGizmo { <<existing>> reads TerrainWorld }
+  class RoadNetworkGizmo { <<existing>> reads ZoneEnvironmentData }
+  ReplayBrowserSubsystem --> TerrainResidency : owns, display only (no navmesh)
+  ReplayBrowserSubsystem --> RoadNetworkHolder : owns
+  TerrainResidency --> TerrainCatalog
+  ReplayBrowserSubsystem ..> RecordingMetadata : TerrainName
+  TerrainResidency ..> TerrainWorld : commits into the carrier
+  TerrainResidency ..> ZoneEnvironmentData : commits into the carrier
+  TerrainWorldGizmo ..> TerrainWorld
+  RoadNetworkGizmo ..> ZoneEnvironmentData
+```
+
+*What the picture shows that prose hid: nothing new is drawn and no gizmo changes — the two gizmos already "draw when the data is
+there" (CE-3124's own header names CE-3118 as the missing producer). The only new type-level fact is `ZoneEnvironmentData`'s policy.*
+
+### 5.3 Sequence — load a recording, then every seek
+
+```mermaid
+sequenceDiagram
+  participant UI as Timeline (load group)
+  participant RB as ReplayBrowserSubsystem
+  participant TR as TerrainResidency
+  participant C as carrier world
+  participant R as bound repo (sandbox / merged)
+  participant G as map gizmos
+  UI->>RB: OnLoadGroup(paths)
+  RB->>RB: ApplyRecordingGeoOrigin() (CE-3126, recording wins)
+  RB->>RB: name = metadata.TerrainName (primary node, else any)
+  RB->>TR: Prepare(name)
+  alt terrain found
+    TR-->>RB: staged
+    RB->>TR: Commit(carrier, staged)
+    TR->>C: TerrainDefinition, TerrainWorld, ZoneEnvironmentData, holder
+    Note over C: no geo transform on the carrier, so the FILE's origin is not applied
+  else missing / no name
+    RB->>TR: Unload(carrier) + one warning
+  end
+  RB->>RB: OnManagerTimeChanged() (and on every seek / step / view switch)
+  RB->>R: PrepareRepo(repo)
+  R->>R: TerrainResidency.MirrorTerrain(carrier, repo)
+  G->>R: draw TerrainWorld + RoadNetwork
+```
+
+### 5.4 Modules — who calls it each frame
+
+```mermaid
+graph TD
+  U[ReplayBrowserSubsystem.Update<br/>every frame] --> S[StatelessGizmoSystem<br/>on _activeRepo]
+  S --> TG[TerrainWorldGizmo]
+  S --> RG[RoadNetworkGizmo]
+  L[OnLoadGroup / LoadFdpGroupForTest<br/>once per recording] --> AT[ApplyRecordingTerrain]
+  AT --> TR[TerrainResidency.Prepare+Commit into carrier]
+  T[OnManagerTimeChanged<br/>every seek, step, view switch] --> RB[RebindActiveRepo → PrepareRepo]
+  RB --> M[MirrorTerrain carrier → repo]
+  P[PlaybackSystem restore] -. NoReplay: never writes .-> Z[ZoneEnvironmentData]
+  style P stroke-dasharray: 5 5
+```
+
+*Caption: the dashed edge is the one this change REMOVES — playback restoring a foreign process's pointers into the world the gizmo
+reads. The mirror runs on the same path the geo transform already uses, so no repo the browser draws can miss it.*
+
+### 5.5 Decisions *(the user asked for the capability; the shape is the lane's — recorded here)*
+
+| # | decision | why |
+|---|---|---|
+| T1 | the name comes from `RecordingMetadata.TerrainName`, primary node first, else any node — the SAME lookup as the origin | one recording, one terrain; mirrors CE-3126 ⑥ |
+| T2 | the browser owns ONE `TerrainResidency` (its own `RoadNetworkHolder`, no navmesh — display only) resolving through `TerrainCatalog.ForNode(null, shared)` | ⭐ reuse: the residency already parses, resolves names and is idempotent on (name, file time) |
+| T3 | it commits into a private **carrier** world; `PrepareRepo` copies the four singletons onto every bound repo (`TerrainResidency.MirrorTerrain`) | the browser draws many repos and rebinds on every seek; a carrier with no geo transform keeps the RECORDING's origin authoritative (§2 F) — `Commit` would otherwise set the file's |
+| T4 | a missing terrain, or a recording with no name ⇒ the residency unloads, one warning, the replay still plays | 🔒 *"if it still exists"* (§2 F) |
+| T5 | ⭐ `ZoneEnvironmentData` becomes `NoScenario │ NoReplay` | a native pointer is never valid in another process; the terrain is a NAME in a recording (R-226), like `TerrainWorld` |
+
+| rejected | the one fact that killed it |
+|---|---|
+| `Commit` straight into each bound repo | it sets the repo's geo origin from the terrain FILE (§2 F says the recording wins) and residency is one world |
+| record `TerrainWorld` / the road net in the `.fdp` | 🔒 R-226 — the terrain stays referenced by name |
+| hand the terrain to the gizmos through `MapServices` | both gizmos read world singletons; a second path would be two producers for one slot (R-132) |

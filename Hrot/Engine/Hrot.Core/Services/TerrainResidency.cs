@@ -360,6 +360,33 @@ public sealed class TerrainResidency
         FdpLog<TerrainResidency>.Info("[Terrain] Terrain residency released — the world has no terrain (flat ground).");
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3118</c> — copies the terrain a residency committed into <paramref name="source"/> onto <paramref name="target"/>:
+    /// the definition, the world, the road network and its holder — exactly what the map's terrain and road gizmos read. For a
+    /// host that DRAWS several worlds over one terrain (the Replay Browser: one sandbox per node plus the merged master, rebound
+    /// on every seek). ⭐ Always writes the world and the road network, an empty one when the source has none, so nothing a
+    /// replay restored can survive in their place. ⛔ Touches no geo origin. 📄 docs/DESIGN_Geo_Origin.md §5.
+    /// </summary>
+    public static void MirrorTerrain(EntityRepository source, EntityRepository target)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (target == null) throw new ArgumentNullException(nameof(target));
+
+        target.RegisterManagedComponent<TerrainDefinition>();
+        target.RegisterManagedComponent<TerrainWorld>();
+        if (source.HasSingletonManaged<TerrainDefinition>() && source.GetSingletonManaged<TerrainDefinition>() is { } definition)
+            target.SetSingletonManaged(definition);
+        else if (target.HasSingletonManaged<TerrainDefinition>())
+            target.SetSingletonManaged<TerrainDefinition>(null!);
+
+        target.SetSingletonManaged(source.HasSingletonManaged<TerrainWorld>() && source.GetSingletonManaged<TerrainWorld>() is { } world
+            ? world : new TerrainWorld());
+        target.SetSingleton(source.HasSingleton<ZoneEnvironmentData>()
+            ? source.GetSingleton<ZoneEnvironmentData>() : new ZoneEnvironmentData());
+        if (source.HasSingletonManaged<RoadNetworkHolder>())
+            target.SetSingletonManaged(source.GetSingletonManaged<RoadNetworkHolder>());
+    }
+
     /// <summary>⭐ <c>CE-3128</c> — the node's road graph carrier as a world singleton (idempotent).</summary>
     private void PublishHolder(EntityRepository? world)
     {

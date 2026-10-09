@@ -295,6 +295,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                     _manager = FederatedReplayManager.LoadGroup(paths);
                     _manager.OnTimeChanged += OnManagerTimeChanged;
                     ApplyRecordingGeoOrigin();   // CE-3126
+                    ApplyRecordingTerrain();     // CE-3118
 
                     CreateOrReplaceFederationPanel();
 
@@ -489,6 +490,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
     {
         _manager?.Dispose();
         _transientMaster?.Dispose();
+        _terrain?.Unload(_terrainCarrier);   // CE-3118 — the holder frees the road graph
+        _terrainCarrier.Dispose();
     }
 
     // ── Federation wiring (internal for tests) ────────────────────────────
@@ -588,6 +591,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         _manager = FederatedReplayManager.LoadGroup(paths);
         _manager.OnTimeChanged += OnManagerTimeChanged;
         ApplyRecordingGeoOrigin();   // CE-3126
+        ApplyRecordingTerrain();     // CE-3118
         _timelinePanel?.SetManager(_manager);
 
         CreateOrReplaceFederationPanel();
@@ -650,6 +654,57 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         EnsureNetworkEntityMap(repo);
         // ⭐ CE-3126 — the replay's ONE geo transform, on every repo this host binds, like every other node's world.
         repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_geoTransform);
+        // ⭐ CE-3118 — the recording's terrain and road network, on every repo this host draws (docs/DESIGN_Geo_Origin.md §5).
+        Hrot.Map.Common.Services.TerrainResidency.MirrorTerrain(_terrainCarrier, repo);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3118</c> — the terrain the loaded recording names (<c>RecordingMetadata.TerrainName</c>), made resident by the same
+    /// <see cref="Hrot.Map.Common.Services.TerrainResidency"/> every node uses, with its own road-graph holder and no navmesh (the
+    /// browser only draws it). It commits into <see cref="_terrainCarrier"/>, a world with no geo transform, so the terrain FILE's
+    /// origin never overrides the RECORDING's (§2 F); <see cref="PrepareRepo"/> mirrors it onto every repo it binds.
+    /// </summary>
+    private readonly EntityRepository _terrainCarrier = new();
+    private readonly CarKinem.Road.RoadNetworkHolder _terrainRoads = new();
+    private Hrot.Map.Common.Services.TerrainResidency? _terrain;
+
+    /// <summary>Where terrain names resolve (test seam): the shared NAS stand-in, then the shipped terrains.</summary>
+    internal Fdp.Toolkit.Terrain.TerrainCatalog TerrainCatalog { get; set; } = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(
+        localStagingRoot: null, Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot());
+
+    /// <summary>The name of the terrain the browser holds, or null (test seam).</summary>
+    internal string? ResidentTerrainName => _terrain?.ResidentTerrainName;
+
+    /// <summary>
+    /// ⭐ <c>CE-3118</c> — loads the terrain the loaded recording names (the local-entities provider node's, else any node's).
+    /// A recording that names none, or a terrain that no longer resolves, leaves the map without terrain and says so — the
+    /// replay itself still plays (🔒 §2 F: <i>"if it still exists"</i>).
+    /// </summary>
+    private void ApplyRecordingTerrain()
+    {
+        if (_manager == null) return;
+        _terrain ??= new Hrot.Map.Common.Services.TerrainResidency(TerrainCatalog, _terrainRoads);
+
+        string? name = null;
+        if (_manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var primary))
+            name = primary.Playback?.Metadata?.TerrainName;
+        if (string.IsNullOrEmpty(name))
+            foreach (var ctx in _manager.Contexts.Values)
+                if (!string.IsNullOrEmpty(name = ctx.Playback?.Metadata?.TerrainName)) break;
+
+        if (string.IsNullOrEmpty(name))
+            Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info(
+                "[ReplayBrowser] the recording names no terrain — the map shows none.");
+        try
+        {
+            _terrain.Commit(_terrainCarrier, _terrain.Prepare(string.IsNullOrEmpty(name) ? null : name));
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or System.Text.Json.JsonException or InvalidOperationException or ArgumentException)
+        {
+            Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Warn(
+                $"[ReplayBrowser] the recording's terrain '{name}' could not be loaded ({ex.Message}) — the map shows no terrain.");
+            _terrain.Unload(_terrainCarrier);
+        }
     }
 
     /// <summary>
@@ -830,6 +885,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         _manager = FederatedReplayManager.LoadGroup(new[] { path });
         _manager.OnTimeChanged += OnManagerTimeChanged;
         ApplyRecordingGeoOrigin();   // CE-3126
+        ApplyRecordingTerrain();     // CE-3118
         _timelinePanel?.SetManager(_manager);
         OnManagerTimeChanged();
     }

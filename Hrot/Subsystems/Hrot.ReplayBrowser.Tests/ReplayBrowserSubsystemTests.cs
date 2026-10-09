@@ -907,4 +907,80 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal(11.5, lon, 9);
         Assert.Equal(500.0, alt, 9);
     }
+
+    // ── CE-3118 — the Replay Browser loads the recording's terrain and road network ────────────────────────────────
+
+    /// <summary>Records one keyframe of a world that names <paramref name="terrainName"/> and holds a 2-node road blob.</summary>
+    private string RecordNamingTerrain(string file, string terrainName)
+    {
+        string path = Path.Combine(_tempDir, file);
+        var meta = new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 };
+        using var repo = new EntityRepository();
+        repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
+        repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainDefinition { ResolvedName = terrainName });
+        var b = new global::CarKinem.Road.RoadNetworkBuilder();
+        b.AddNode(new System.Numerics.Vector2(0, 0)); b.AddNode(new System.Numerics.Vector2(100, 0));
+        b.AddSegment(new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(100, 0), new System.Numerics.Vector2(100, 0),
+            new System.Numerics.Vector2(100, 0), laneWidth: 5f, laneCount: 2, startNodeIdx: 0, endNodeIdx: 1);
+        using var recorded = b.Build(10f, 20, 20);
+        repo.SetSingleton(new global::CarKinem.Road.ZoneEnvironmentData { RoadNetwork = recorded });
+        using (var rec = new AsyncRecorder(path, meta))
+        {
+            Fdp.Toolkit.Replay.RecorderTickSystem.StampWorld(repo, rec.Metadata);
+            rec.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
+        }
+        return path;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3118</c> — a recording made on test-town replays OVER test-town: the replay world holds the terrain's world model and
+    /// its road network (test-town's 5-node graph), which is what the map's terrain and road gizmos draw. 🔴 Before: nothing under
+    /// ReplayBrowser loaded a terrain, so the map showed no buildings, walls, doors or roads. 📄 docs/DESIGN_Geo_Origin.md §5.
+    /// </summary>
+    [Fact]
+    public void CE3118_TheRecordingsTerrain_AndItsRoads_AreOnTheReplayWorld()
+    {
+        string path = RecordNamingTerrain("terrain.fdp", "test-town");
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(path);
+
+        Assert.Equal("test-town", _subsystem.ResidentTerrainName);
+        var world = _subsystem.ActiveRepo!;
+        var terrain = world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
+        Assert.Equal("test-town", terrain.Name);
+        Assert.NotEmpty(terrain.Prisms);
+        var roads = world.GetSingleton<global::CarKinem.Road.ZoneEnvironmentData>().RoadNetwork;
+        Assert.Equal(5, roads.Nodes.Length);   // the terrain's roads.json — ⛔ not the 2-node blob the recording process held
+        Assert.Equal(4, roads.Segments.Length);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3118</c> — the road network is never recorded: its blob is native memory of the recording process. 🔴 Before:
+    /// <c>ZoneEnvironmentData</c> had no data policy, so it defaulted to recordable and saveable and a replay restored foreign
+    /// pointers into the world the road gizmo reads.
+    /// </summary>
+    [Fact]
+    public void CE3118_TheRoadNetworkSingleton_IsNeitherRecordedNorSaved()
+    {
+        using var repo = new EntityRepository();
+        repo.SetSingleton(new global::CarKinem.Road.ZoneEnvironmentData());
+        Assert.False(ComponentTypeRegistry.IsRecordable(Fdp.Core.GlobalComponentIds.ZoneEnvironmentData));
+        Assert.False(ComponentTypeRegistry.IsSaveable(Fdp.Core.GlobalComponentIds.ZoneEnvironmentData));
+    }
+
+    /// <summary>⭐ <c>CE-3118</c> — a terrain that no longer resolves leaves the map without terrain; the replay still loads.</summary>
+    [Fact]
+    public void CE3118_ATerrainThatNoLongerExists_LeavesTheMapEmpty_AndTheReplayPlays()
+    {
+        string path = RecordNamingTerrain("gone.fdp", "a-terrain-that-was-deleted");
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(path);
+
+        Assert.Null(_subsystem.ResidentTerrainName);
+        var world = _subsystem.ActiveRepo!;
+        Assert.Empty(world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>().Prisms);
+        Assert.False(world.GetSingleton<global::CarKinem.Road.ZoneEnvironmentData>().RoadNetwork.Nodes.IsCreated);
+    }
 }
