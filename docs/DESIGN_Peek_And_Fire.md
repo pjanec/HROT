@@ -311,7 +311,7 @@ his Relocate is "another window"; B's Expose is a step and his Relocate is "run 
 
 ⚠ The aim time is NOT here: it is the weapon's (D3, `ParameterResolver`), so every behaviour aims alike.
 
-## 9. P-7a — static obstacles in detail *(backend, `2026-10-09`; ✅ O3, O4 APPROVED (R-242); ⏳ O1, O2 (revised), O5 (revised) PROPOSED)*
+## 9. P-7a — static obstacles in detail *(backend, `2026-10-09`; ✅ O1, O3, O4, O5 APPROVED (R-242, R-243); ⏳ O2 (revised twice) PROPOSED)*
 
 > D11 (approved) says WHAT: an obstacle TKB type with a collider, a `StaticObstacle` marker and a wall-library material; bullets,
 > sight, cover, the EQS sight and the navmesh all respect it. This section says HOW, after three read-only sweeps.
@@ -343,13 +343,15 @@ entities — **agrees.**
 
 > 🔒 **User, `2026-10-09`:** *"does you suggestion mean the obstacles can be moved at runtime, and the data that changes by that are rebuilt? in sync, blocking the simulation? or on background? terrain rebuild happens for all scenario-provided obstacles at once i hope. If obstacles created/moved at runtime, there needs to be a debounce period (multiple can be added in close succession). O3, O4 accepted; O5 - a car that is standing (but can move) is still a great source of cover, can we use it as such?"*
 
+> 🔒 **User, `2026-10-09` (2nd round):** *"on O1 ok, but: we need deterministic scenario if the obstacles never change (stay same from scenario and never added dynamically) - terrain recompiling time would make scenario non deterministic as computer speed affect the swap time. scenario load should make sure the obstacles are baked (if they need baking) before scenario load is acknowledged finished. Entity lifecycle managemnt protocol is here exactly from this reason. debounce is always a wall clock time, not a simulation time i guess? O5 - OK"*
+
 | # | lean | why |
 |---|---|---|
-| **O1** | ⭐ **a static obstacle is GEOMETRY: each node's `TerrainResidency` derives its immutable `TerrainWorld` = the terrain + one `TerrainPrism` per static obstacle (footprint × height × material), and rebuilds cover and re-bakes the touched navmesh tiles off-thread, then swaps (R-218).** The obstacle ENTITY's own collider is then skipped by the bullet narrow phase and the sight occluder (it is in the terrain now — never counted twice) | ⭐ bullets (I1), sight (I3), the AI's sight (I4), cover points (I5) and paths (I6) all already read prisms ⇒ **one entry point, zero per-system obstacle code** — and it is exactly AQ81 T6 + R-218. A sandbag wall then stops what sandbags stop, a car hides what a car hides |
-| **O2** ⏳ revised | **in the BACKGROUND, never blocking the simulation:** the rebuild (world + cover + touched navmesh tiles) runs off-thread (the residency's `Prepare` contract: no ECS mutation) and swaps on the main thread when done; until then every query reads the previous world (an obstacle is "not there yet" for the rebuild's duration — ⛔ duration not measured, build step 1). **When:** ① **scenario load — ONE rebuild for every obstacle the scenario provides**, at the end of the load (the load sequence knows when its entities are in), never one per entity; ② **at runtime — debounced:** a rebuild starts only after the obstacle set has been quiet for `ObstacleDebounceSeconds` (default 1 s of sim time); a change arriving WHILE a rebuild runs marks one more, run after it (coalesced — at most one running, one pending). Moving a static obstacle is a change like an add + remove. ⚠ Deviates from T6's *route* (the cluster `PrepareTerrainAsset` round), not its substance — each node rebuilds from its own replicated entities | 🔒 user (above). The inputs are entities every node already has; a cluster round would race replication. ⚠ Open, measured in step 1: whether sim time advances while the cluster boots PAUSED (a sim-time debounce would then never fire during a paused edit — then the debounce counts frames instead) |
+| **O1** ✅ APPROVED (R-243) | ⭐ **a static obstacle is GEOMETRY: each node's `TerrainResidency` derives its immutable `TerrainWorld` = the terrain + one `TerrainPrism` per static obstacle (footprint × height × material), and rebuilds cover and re-bakes the touched navmesh tiles off-thread, then swaps (R-218).** The obstacle ENTITY's own collider is then skipped by the bullet narrow phase and the sight occluder (it is in the terrain now — never counted twice) | ⭐ bullets (I1), sight (I3), the AI's sight (I4), cover points (I5) and paths (I6) all already read prisms ⇒ **one entry point, zero per-system obstacle code** — and it is exactly AQ81 T6 + R-218. A sandbag wall then stops what sandbags stop, a car hides what a car hides |
+| **O2** ⏳ revised (2nd) | ⭐⭐ **an obstacle is NOT IN THE SIMULATION until it is baked — the ENTITY LIFECYCLE gates it, so the bake time never shows in the result.** Each static obstacle type's blueprint names one more construction participant, the terrain module (`ModuleId.Terrain`); its entity stays `Constructing` — absent from every query, not yet in the terrain — until the node's rebuild that contains it has COMMITTED, and only then does the module send its `ConstructionAck`. ① **Scenario load:** `ScenarioLoadStep.IsResolved` already refuses to finish while any entity is `Constructing` (`ScenarioLoadStep.cs:198-200`) ⇒ **the load is not acknowledged until every scenario obstacle is baked**, and the sim starts on the baked world — deterministic whatever the machine's speed. The module bakes ONCE for the whole scenario: it waits until the load step's condition ① holds (every extracted request consumed, `:192`), then builds all of them in one rebuild. ② **Runtime add / move / remove:** the same gate — a new obstacle joins the simulation the frame its bake commits (debounced, coalesced: at most one rebuild running, one pending). ⚠ That frame depends on the machine, so a RUNTIME change is not frame-reproducible between two live runs — it is in the recording, so a replay is exact. Moving a static obstacle = its old prism stays until the new bake commits. **The debounce is WALL-CLOCK** (default 0.5 s) — it schedules a background job, it decides nothing the simulation computes (the lifecycle gate does), and it must also fire while the cluster is paused or loading, when sim time stands still. ⚠ That is an exemption R-143 does not list (it names log throttles, input, the recording) — **proposed as one more, needs the user's word**. ⚠ Risk, measured in step 1: the lifecycle's construction timeout counts FRAMES (300, `EntityLifecycleModule.cs:80,377`) — a bake longer than that would abort the obstacle; if measured close, the terrain participant gets its own longer timeout | 🔒 user (2nd round, above): determinism and "*Entity lifecycle management protocol is here exactly from this reason*". Each node rebuilds from its own replicated entities (no cluster round — it would race replication) |
 | **O3** ✅ APPROVED (R-242) | **the footprint is a BOX** (length × width, the entity's yaw) **× height**, from the TKB type, overridable per instance by an `ObstacleShape` component (so a sandbag wall can be any length); the movement collider radius = half the diagonal | a car and a sandbag wall are boxes; a circle would let rounds through the corners and hide a man behind air |
 | **O4** ✅ APPROVED (R-242) | **four starter types** (TKB ids in the `88xx` terrain-object block beside `Door`): `Car` (new material `car-body`: sight 0, 120 mm/m — a starter value to tune, §3c), `Sandbag wall` (`sandbags`), `Concrete block` (`concrete`), `Crate` (`fence-wood`). **The Editor's zone obstacle becomes `Concrete block`** with the slider radius as its `ObstacleShape` — which also fixes `CE-3141` (it reloads: it has a type) | D11; T6 *"a new static-obstacle TkbType"*; §2.1c *"different TkbType preferably"* |
-| **O5** ⏳ revised | **a STANDING vehicle IS cover — as a live entity, NOT baked into the terrain:** ① the AI's sight (`EqsTerrainSight`) also sees vehicle colliders, read from the query's own view (R-219), as perception's `ColliderOcclusion` already does — so a parked car hides a man for the cover and firing-position queries; ② the cover generator adds points behind every vehicle that has not moved for `ParkedSeconds` (2 s), on the side away from the threat, stance by the vehicle's height — computed per query from the view, no rebuild; ③ bullets keep hitting the vehicle as a vehicle (its own armour, the existing narrow phase I2) — the round stops in the car, which is what armour does; ④ the navmesh ignores vehicles (a unit may plan a path through a parked car — RVO steers round it, I7 — accepted for now). Only `StaticObstacle` types enter the terrain (O1) | 🔒 user: *"a car that is standing (but can move) is still a great source of cover"*. A vehicle that starts and stops would rebuild the terrain on every stop; reading it live costs nothing extra and follows it the moment it drives away. ⚠ A second source of cover points beside `TerrainCoverProvider` — argued not to be R-132's two producers for ONE slot: the provider owns the FIXED points, the generator adds TRANSIENT ones from live entities, as it already adds windows' firing points by kind |
+| **O5** ✅ APPROVED (R-243) | **a STANDING vehicle IS cover — as a live entity, NOT baked into the terrain:** ① the AI's sight (`EqsTerrainSight`) also sees vehicle colliders, read from the query's own view (R-219), as perception's `ColliderOcclusion` already does — so a parked car hides a man for the cover and firing-position queries; ② the cover generator adds points behind every vehicle that has not moved for `ParkedSeconds` (2 s), on the side away from the threat, stance by the vehicle's height — computed per query from the view, no rebuild; ③ bullets keep hitting the vehicle as a vehicle (its own armour, the existing narrow phase I2) — the round stops in the car, which is what armour does; ④ the navmesh ignores vehicles (a unit may plan a path through a parked car — RVO steers round it, I7 — accepted for now). Only `StaticObstacle` types enter the terrain (O1) | 🔒 user: *"a car that is standing (but can move) is still a great source of cover"*. A vehicle that starts and stops would rebuild the terrain on every stop; reading it live costs nothing extra and follows it the moment it drives away. ⚠ A second source of cover points beside `TerrainCoverProvider` — argued not to be R-132's two producers for ONE slot: the provider owns the FIXED points, the generator adds TRANSIENT ones from live entities, as it already adds windows' firing points by kind |
 
 | rejected | the one fact that killed it |
 |---|---|
@@ -359,6 +361,8 @@ entities — **agrees.**
 | the cluster `PrepareTerrainAsset` round per placement | O2 |
 | baking a parked vehicle into the terrain while it stands | a convoy that stops and starts rebuilds the world on every stop; O5 reads it live instead |
 | a rebuild per obstacle at scenario load | the user: *"for all scenario-provided obstacles at once"* |
+| letting the swap happen whenever the bake ends, the obstacle already live | the bake time would leak into the result — the user's determinism point |
+| a sim-time debounce | sim time stands still while paused or loading — the job would never start |
 
 ### 9.3 Classes
 
@@ -368,7 +372,8 @@ classDiagram
   class ObstacleShape { <<NEW component>> Length; Width; Height; Material }
   class ObstacleTkbTranslator { <<NEW>> stamps marker + shape + collider from the TKB type }
   class TerrainObstacles { <<NEW static>> PrismOf(shape, transform) ; SetHash(view) }
-  class StaticObstacleWatchSystem { <<NEW, every ECS node>> hash changed ⇒ rebuild }
+  class StaticObstacleWatchSystem { <<NEW, every ECS node>> the terrain lifecycle participant: batch, rebuild, ack }
+  class EntityLifecycleModule { <<existing>> Constructing until every participant acks }
   class TerrainResidency { <<existing, grows>> Rebuild(obstacles) off-thread ; Commit swaps }
   class TerrainWorld { <<existing>> Prisms += obstacle prisms }
   class TerrainCoverProvider { <<existing>> Build(world) }
@@ -379,6 +384,7 @@ classDiagram
   ObstacleTkbTranslator ..> StaticObstacle
   ObstacleTkbTranslator ..> ObstacleShape
   StaticObstacleWatchSystem ..> TerrainObstacles
+  StaticObstacleWatchSystem ..> EntityLifecycleModule : ConstructionAck after commit
   StaticObstacleWatchSystem ..> TerrainResidency
   TerrainResidency ..> TerrainWorld
   TerrainResidency ..> TerrainCoverProvider
@@ -392,23 +398,28 @@ classDiagram
 *What the picture shows that prose hid: every consumer of obstacles is an EXISTING terrain reader — the new code is only the path INTO the
 terrain (translator, watcher, prism builder) and the two places that must STOP seeing the entity's collider.*
 
-### 9.4 Sequence — a car is placed
+### 9.4 Sequence — a scenario with obstacles loads *(the lifecycle gate, O2)*
 
 ```mermaid
 sequenceDiagram
-  participant E as Editor / scenario load
+  participant L as ScenarioLoadStep
   participant N as any ECS node
-  participant W as StaticObstacleWatchSystem
+  participant ELM as EntityLifecycleModule
+  participant T as terrain participant (StaticObstacleWatchSystem)
   participant R as TerrainResidency (off-thread)
-  participant Q as bullets / sight / EQS / cover / nav
-  E->>N: entity of type Car (replicated like any entity)
-  N->>N: ObstacleTkbTranslator - marker, shape, collider
-  W->>W: obstacle set hash changed
-  W->>R: Rebuild(terrain + obstacle prisms)
+  L->>N: create every scenario entity
+  N->>ELM: obstacle Car - Constructing, waits for ModuleId.Terrain
+  T->>T: wait until every load request is consumed
+  T->>R: ONE rebuild - terrain + all obstacle prisms
   R-->>R: world, cover, touched navmesh tiles
   R->>N: Commit - swap the three singletons
-  Q->>N: next query reads the new world - the car is a prism of car-body
+  T->>ELM: ConstructionAck for every obstacle in the batch
+  ELM->>N: obstacles Active
+  L->>L: IsResolved - nothing Constructing - load finished
 ```
+
+*What the picture shows that prose hid: the simulation cannot see an obstacle before the world it belongs to exists — the ack follows the
+commit, and the load waits on the ack. A runtime addition takes the same path, debounced, while the simulation runs on.*
 
 ### 9.5 Modules — who registers, who runs it each frame
 
