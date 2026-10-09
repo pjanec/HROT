@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-09 (rewritten after the user rejected the ECS-component lean — see §8 HISTORY)
-build-state: DESIGN (D″ multi-block store APPROVED 2026-10-09; the other leans A–H await the user) — revised 2026-10-09 after the user's questions: fully lazy creation, two nodes, §3a why a tier move strands pointers and why the store moves at all
+updated: 2026-10-09 (U-0 built: §0, §2, C and U-1 restated without the pending buffer and promotion — see §8 HISTORY)
+build-state: DESIGN (D″ multi-block store APPROVED and BUILT 2026-10-09 as U-0; the other leans A, B, C, E, F, G, H await the user) — revised 2026-10-09 after the user's questions: fully lazy creation, two nodes, §3a why a tier move strands pointers and why the store moves at all
 current-answer: §0 the requirement · §2 diagrams · §3 decisions A–H · §3a why the store moved and why D″ need not · §3b lookup performance (measured) · §5 slices
 stale-below: §8 HISTORY (two superseded leans — do not quote them)
 known-rot: none yet
@@ -37,9 +37,9 @@ touches it**, filled with `new T()`, and **lives as long as the unit**: no behav
 behaviours sharing it is simply every behaviour that touches the type, so nobody maintains a list. Access is through
 **two blueprint nodes, `GetShared` and `SetShared`** (the latter writes only the fields you wire), configured by picking the struct,
 a **BTree/HSM action or guard parameter of that type**, and **`UnitMemory.Ref<T>` in C#**. ⭐ **Fully lazy, with nothing declared
-ahead**: if the store has room, the first touch claims it on the spot. If it does not, the value lives in a one-frame **pending
-buffer** while the store moves to the next tier through the **existing two-frame promotion** (`BlueprintMaintenanceSystem`,
-runtime design §7). Nothing is lost and nothing is listed; §3a says why the tier itself cannot change mid-tick.
+ahead**: the first touch claims a slot on the spot — in a block with room, or in a block **appended** to the unit's store
+mid-tick (D″, built as U-0: the store is multi-block and never moves a slot, so every pointer a running tree holds stays valid).
+Nothing is lost, nothing is listed, and there is no pending buffer or promotion (both retired with U-0; §8 HISTORY).
 
 ## 1. INVENTORY — measured `2026-10-09` (graph CLI `search_graph` + grep + `git show`)
 
@@ -79,11 +79,9 @@ runtime design §7). Nothing is lost and nothing is listed; §3a says why the ti
 classDiagram
   class UnitMemoryAttribute { <<new, Fbt.Kernel>> marks a DTO struct as unit memory }
   class UnitMemory { <<new, static>> Get~T~(world, unit) T; Ref~T~(world, unit) ref T; Set~T~; Key~T~ }
-  class UnitMemoryPending { <<new>> one-frame bytes per (unit, type) when the tier is full }
-  class BlueprintMaintenanceSystem { <<existing, grows>> BeforeSync: promote, then flush pending into the new slots }
   class OccurrenceKind { <<existing, grows>> +UnitMemory = 5 }
   class BlueprintBlackboardPartitions { <<existing>> TryAttach; TryGetSlotOffset; SetSlotKind }
-  class OccurrenceStoreAccess { <<existing>> TryGetStore(world, unit) }
+  class OccurrenceStoreAccess { <<existing, U-0 built>> TryFindSlot; TryAttachSlot appends a block when full; per-tick view }
   class GetSharedNode { <<new blueprint node>> StructFqn; one pin per field }
   class SetSharedNode { <<new blueprint node>> StructFqn; writes ONLY the wired fields }
   class BTreeHsmBinding { <<existing emitters, grow>> a ref param of a UnitMemory type binds to UnitMemory.Ref }
@@ -93,64 +91,60 @@ classDiagram
   UnitMemory ..> OccurrenceKind
   GetSharedNode ..> UnitMemory : compiles to Get
   SetSharedNode ..> UnitMemory : compiles to Ref + field writes
-  UnitMemory ..> UnitMemoryPending : tier full
-  BlueprintMaintenanceSystem ..> UnitMemoryPending : flush after promote
   BTreeHsmBinding ..> UnitMemory : Ref
   FiringPositionMemory ..> UnitMemoryAttribute
 ```
 
-*What the picture shows that prose hid: the storage, slot table, kind nibble, lazy attach and two-frame promotion are all grey.
-The new runtime is one accessor, one enum value and a one-frame pending buffer. The bulk of the new code is the authoring
-surface (two nodes, and the binding arm in the BTree/HSM emitters).*
+*What the picture shows that prose hid: the storage, slot table, kind nibble, lazy attach and growth (U-0) are all grey. The new
+runtime is one accessor and one enum value. The bulk of the new code is the authoring surface (two nodes, and the binding arm in
+the BTree/HSM emitters).*
 
-### 2.2 Sequence — first touch with room, first touch without, switch
+### 2.2 Sequence — first touch, first touch on a full store, switch
 
 ```mermaid
 sequenceDiagram
+  participant BT as BrainTickSystem
   participant PF as PeekAndFire (C#, Simulation)
   participant UM as UnitMemory
-  participant Store as unit's blackboard store
-  participant Pend as UnitMemoryPending
-  participant MS as BlueprintMaintenanceSystem (BeforeSync)
+  participant OSA as OccurrenceStoreAccess
   participant BP as blueprint behaviour
+  BT->>OSA: BeginTickView(unit)
   PF->>UM: Ref of FiringPositionMemory
-  alt the tier has room
-    UM->>Store: TryAttach(key, size, kind 5), write new T()
-    UM-->>PF: ref into the store (no payload moved)
-  else the tier is full
-    UM->>Pend: new T() held for this frame
-    UM->>Store: ECB add the next tier (runtime design §7)
-    UM-->>PF: ref into the pending buffer
-    Note over MS: next frame, BeforeSync — no tick is running
-    MS->>Store: CopyToLargerTier, remove the old tier
-    MS->>Store: attach kind 5, copy the pending bytes in
+  UM->>OSA: TryFindSlot(key) — a scan of the view
+  alt absent
+    UM->>OSA: TryAttachSlot(key, size, kind 5)
+    alt a block has room
+      OSA-->>UM: slot in that block
+    else every block is full
+      OSA->>OSA: AddBlock(smallest absent tier), the view extends
+      OSA-->>UM: slot in the new block, nothing moved
+    end
+    UM->>UM: write new T()
   end
-  Note over Store: switch: both sweeps skip kind 5
-  BP->>UM: GetShared FiringPositionMemory (store, else pending)
+  UM-->>PF: ref into the store
+  Note over OSA: switch: both sweeps skip kind 5
+  BP->>UM: GetShared FiringPositionMemory
 ```
 
-*What it shows: a payload only ever moves in BeforeSync, when no tick holds a pointer into the store. The full-tier branch costs
-one frame of indirection, never a lost write. And nothing anywhere needs to know in advance which types a behaviour uses.*
+*What it shows: a full store costs one append, mid-tick, and no pointer anyone holds moves — so there is no pending buffer, no
+second frame and no promotion. And nothing anywhere needs to know in advance which types a behaviour uses.*
 
-### 2.3 Modules — who creates, who moves, who reads each frame
+### 2.3 Modules — who creates, who grows, who reads each frame
 
 ```mermaid
 graph TD
   subgraph CGF["CGF — the Brain host (CgfLogicPack: Synchronous, main thread)"]
-    Brain["BrainTickSystem — Simulation"] -->|"BTree/HSM/C#: Get, Ref"| UM["UnitMemory"]
+    Brain["BrainTickSystem — Simulation, opens the per-tick view"] -->|"BTree/HSM/C#: Get, Ref"| UM["UnitMemory"]
     BpTick["BlueprintTickSystem — Simulation"] -->|"GetShared / SetShared"| UM
-    UM -->|"room: attach in place"| Store[("blackboard store — kind 5 slots")]
-    UM -->|"no room: hold + ECB next tier"| Pend[("UnitMemoryPending — one frame")]
-    MS["BlueprintMaintenanceSystem — BeforeSync"] -->|"promote, then flush"| Store
-    Pend --> MS
+    UM -->|"find or attach; append a block when full"| Store[("blackboard store — kind 5 slots, up to 4 blocks")]
     Sweep["behaviour-switch sweeps (ingress)"] -.->|"never touch kind 5"| Store
   end
   Rec["Recorder"] -->|"store is NoScenario: recorded, not saved"| Store
   style Sweep stroke:#888,color:#888
 ```
 
-*What it shows: the only system that moves payloads is BeforeSync maintenance, which is registered on CGF and runs every
-frame, not only on assign. The grey edge is the sweep that must never reach a unit memory.*
+*What it shows: nothing moves payloads any more (the BeforeSync maintenance system is retired by U-0). The grey edge is the sweep
+that must never reach a unit memory.*
 
 ## 3. Decisions — one lean each
 
@@ -158,8 +152,8 @@ frame, not only on assign. The grey edge is the sweep that must never reach a un
 |---|---|---|---|---|
 | **A** | **where is it stored?** | ⭐⭐ **a slot in the unit's existing blackboard store, `OccurrenceKind.UnitMemory = 5`** | **an ECS component per type**: rejected by the user, since component ids are capped at 512 and behaviours number in the hundreds. · **a separate store component just for unit memory**: a second store, ladder and inspector path for one concept | one enum value; the nibble has 11 free |
 | **B** | **the key** | ⭐⭐ **the TYPE**: `FNV(typeof(T).FullName) & 0x7FFFFFFF`, kind 5, plus the old `StructureHash` guard (`TypeNameHash ^ Unsafe.SizeOf<T>()`) | **a variable name** (the old Entity scope): Q76 measured its collision domain. · **type + asset**: then it is behaviour memory, not unit memory | ⚠ renaming the struct starts fresh memory; acceptable for runtime-only data |
-| **C** | **how is room found without a list?** | ⭐⭐ **fully lazy**: the first `Ref`/`Set` attaches **in place** when the tier has room (no payload moves, so every pointer a running tree holds stays valid — §3a). Nothing is declared ahead | **build-time demand + `[UsesUnitMemory]` on C# actions** (my previous lean): the list you ruled out, in attribute form, plus a compiler arm per asset kind. · **an editor list**: ruled unnecessary. · **fixed headroom per brain**: the 256 tier has 3 slots | ⭐ reuses the existing attach; no compiler or ingress change |
-| **D** | **the tier is full at first touch** | ⛔ **FALLBACK only, if D″ is not approved:** **the existing two-frame promotion** (runtime design §7): ECB-add the next tier; `BlueprintMaintenanceSystem` copies and removes the old one in BeforeSync. Meanwhile the value lives in a **one-frame pending buffer**: `Ref` returns a ref into it, `Get` reads it, and maintenance copies it into the new slot right after the promotion. **No write is lost** | **swap the tier immediately inside the tick**: §3a, it strands the pointers the running tree holds. · **drop the write** (what `BlueprintTickSystem.cs:207` does today for blueprints): silent. · **throw**: the brain dies over a capacity detail | ⚠ **finding:** §7's promotion was designed but **no tick starts it**: blueprint attach failure is a silent `return`. U-1 wires the trigger, and the blueprint path can use the same one |
+| **C** | **how is room found without a list?** | ⭐⭐ **fully lazy**: the first `Ref`/`Set` attaches **in place** — in a block with room, else in an APPENDED block (D″, built as U-0); nothing moves, so every pointer a running tree holds stays valid. Nothing is declared ahead | **build-time demand + `[UsesUnitMemory]` on C# actions** (my previous lean): the list you ruled out, in attribute form, plus a compiler arm per asset kind. · **an editor list**: ruled unnecessary. · **fixed headroom per brain**: the 256 tier has 3 slots | ⭐ reuses the existing attach; no compiler or ingress change |
+| **D** | **the tier is full at first touch** | ⛔ **MOOT — D″ was approved and built (U-0); kept as the record of the fallback:** **the existing two-frame promotion** (runtime design §7): ECB-add the next tier; `BlueprintMaintenanceSystem` copies and removes the old one in BeforeSync. Meanwhile the value lives in a **one-frame pending buffer**: `Ref` returns a ref into it, `Get` reads it, and maintenance copies it into the new slot right after the promotion. **No write is lost** | **swap the tier immediately inside the tick**: §3a, it strands the pointers the running tree holds. · **drop the write** (what `BlueprintTickSystem.cs:207` does today for blueprints): silent. · **throw**: the brain dies over a capacity detail | ⚠ **finding:** §7's promotion was designed but **no tick starts it**: blueprint attach failure is a silent `return`. U-1 wires the trigger, and the blueprint path can use the same one |
 | **D″** | ✅ **APPROVED `2026-10-09`** (🔒 user: *"new lean works"*) — **the store becomes multi-block and NEVER MOVES a slot** | growth **adds the next tier as an extra block** (the existing `BlueprintBlackboard256/1024/4096/16384` types, at most one of each ⇒ up to 4 blocks, **47 slots, ~21 KB**, **no new component ids**); allocated slots stay where they are. `OccurrenceStoreAccess` gains the key-based seam (`TryGetSlot`, `ResolveOrAttach`, `Detach`, `ForEachSlot`) that loops the blocks; the 23 key sites route through it mechanically; the 4 walkers and `BlueprintTickSystem` loop blocks; the copy-promotion (`UpgradeTier`, `CopyToLargerTier`, `BlueprintMaintenanceSystem`'s two-tier rule) is retired for "add a block". ⇒ **an attach that does not fit adds a block on the spot, mid-tick** (FDP allows the add and moves nothing, §3a) ⇒ **no pending buffer, no two-frame promotion, no stale pointer, ever**, and `BlueprintTickSystem.cs:207`'s silent drop is fixed by construction | **D** (pending + promotion): machinery that only exists because the store moves. · **D′** (separate unit-memory pages): fixes unit memory only, leaves the behaviour store's move and its silent drop, and adds new ids | ⚠ blast radius is the behaviour store's (`DESIGN_Occurrence_Scoped_Storage.md`), not just unit memory: ~29 sites + 2 walkers + the promotion path, mostly mechanical. ⭐ no premise about cached offsets: nothing moves, so an offset stays valid (user: *"who cares when we do not move anything?"*) |
 | **D′** | ⛔ **rejected in favour of D″: unit memory in its own never-moving blocks** | the alternative to D. Unit memory does not share the behaviour store; it lives in **pages**: a fixed set of page component types (e.g. 4 × 1 KB, 12 slots each), using the same partition allocator. When a page is full the next page is **added** (FDP moves nothing on an add, and allows it mid-phase, §3a). ⇒ no move, no stale pointer, no pending buffer, no promotion, and the behaviour store's sizing is untouched (77 % of behaviours sit on the 3-slot 256 tier, `DESIGN_Occurrence_Scoped_Storage.md` §5a) | ⚠ **it is an automatic component add**, which the user ruled out; the stated reason was the id range, and this costs **4 fixed ids**, never one per struct or per behaviour | ⇒ **the user decides D vs D′** |
 | **E** | **creation and defaults** | ⭐⭐ **created on the first `Ref`/`Set`, filled with `new T()`**. **`Get` on an absent slot returns `new T()` without creating it** (a read costs no room) | **create on Get too**: spends room on a type only ever read. · **zero-fill**: loses the declared defaults (§1: `default` gives 0) | the analyzer flags a `[UnitMemory]` struct with initializers but no constructor (the compiler already does: CS8983) |
@@ -238,7 +232,7 @@ under 1 %.
 | slice | content | rail |
 |---|---|---|
 | **U-0** store ✅ **BUILT `2026-10-09`**, per-tick view included (U-0c: ~5× cheaper per lookup on 2 blocks than a 1-block probe, rail `U0_R7`; see §34.6) — ⭐ **build design: `DESIGN_Occurrence_Scoped_Storage.md` §34** (steps U-0a…e) | multi-block `OccurrenceStoreAccess` seam + the §3b per-tick `StoreView`, one-mask-read probe, RO scan / RW hit; route the 23 key sites; walkers loop blocks; growth = add a block; retire the copy-promotion; `DESIGN_Occurrence_Scoped_Storage.md` updated | a running tree's state pointer stays valid across a mid-tick attach that adds a block; a blueprint attach on a full tier no longer drops silently; ⭐ benchmark rail: a per-tick-view lookup ≤ today's single-block lookup |
-| **U-1** runtime | `OccurrenceKind.UnitMemory`, `UnitMemory.Get/Ref/Set/Key`, `StructureHash` guard + re-init, `UnitMemoryPending`, the ECB trigger for §7's promotion, and `BlueprintMaintenanceSystem` flushing pending after it promotes | a value written under behaviour A is read under B after a switch; a fresh unit reads the declared defaults (not zeros); `Get` on an absent type creates nothing; **on a full 256 tier, a write survives the two-frame promotion** |
+| **U-1** runtime | `OccurrenceKind.UnitMemory`, `UnitMemory.Get/Ref/Set/Key` on the U-0 seam (`TryFindSlot` / `TryAttachSlot`), `StructureHash` guard + re-init. ⛔ No pending buffer, no promotion trigger, no maintenance flush — U-0 made them unnecessary | a value written under behaviour A is read under B after a switch; a fresh unit reads the declared defaults (not zeros); `Get` on an absent type creates nothing; **on a full store, the first write appends a block and is read back in the same tick** |
 | **U-2** C# + BTree/HSM | `[UnitMemory]`; the BTree/HSM emitters bind `ref T` params of unit-memory types | a C# tree and an HSM on one unit share one `FiringPositionMemory` |
 | **U-3** blueprint | `GetShared`/`SetShared` (type picker only; wired fields only), compiler arms, validator | a blueprint reads what a C# node wrote; an unwired field keeps its value |
 | **U-4** first consumer | `FiringPositionMemory` (`DESIGN_Peek_And_Fire.md` §8 B1) | P-6: a window burned after 3 uses stays burned across a posture switch |
@@ -266,6 +260,8 @@ under 1 %.
 hosted occurrences and their sweeps are untouched; only the tier sizing adds one demand term.
 
 ## 8. ⛔ HISTORY — superseded leans, do not quote
+
+⛔ **Superseded `2026-10-09` by U-0 (D″ built):** §0's "one-frame pending buffer while the store moves to the next tier", the `UnitMemoryPending` class and `BlueprintMaintenanceSystem` flush in §2.1, the full-tier branch of §2.2 (ECB-add the next tier, `CopyToLargerTier` in BeforeSync, copy the pending bytes in) and §2.3's maintenance node, and U-1's pending/promotion/flush items. All existed only because the store moved; it no longer does.
 
 - **First lean, `2026-10-09`:** a store slot keyed by type, created lazily. Set aside for the component lean below. ⭐ **It is
   essentially §3 again**, now with the room problem solved by build-time demand.
