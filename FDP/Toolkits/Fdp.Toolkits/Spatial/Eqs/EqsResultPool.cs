@@ -10,6 +10,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// a handle into this array; the DDS egress translator reads the handle in the same frame.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    // ⭐ CE-3132 — NoScenario | NoReplay: the NativeArray is this process's memory; recorded, it carried raw pointers into a replay
+    //   (the class ZoneEnvironmentData showed, CE-3118). docs/DESIGN_Geo_Origin.md §5.6.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
     [ComponentId(GlobalComponentIds.EqsResultPool)]
     public struct EqsResultPool
     {

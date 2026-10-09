@@ -255,6 +255,8 @@ AreOnTheReplayWorld` (a real recording naming test-town replays over its world a
 the recording process held), `CE3118_TheRoadNetworkSingleton_IsNeitherRecordedNorSaved`,
 `CE3118_ATerrainThatNoLongerExists_LeavesTheMapEmpty_AndTheReplayPlays`.
 
-⚠ **The same defect class, four more times — filed, not fixed here (`CE-3132`):** `PathfindingBatchData`, `RaycastBatchData`,
-`TerrainQueryBatchData` and `EqsResultPool` are ECS structs holding a `NativeArray` with no `NoReplay`, so they too are
-recorded as raw pointers.
+~~⚠ The same defect class, four more times — filed, not fixed here~~ ⛔ SUPERSEDED `2026-10-09` (`CE-3132`, user: *"Exclude all four"*):
+`PathfindingBatchData`, `RaycastBatchData`, `TerrainQueryBatchData` and `EqsResultPool` — ECS structs holding a `NativeArray` — are
+`NoScenario │ NoReplay` too. ⭐ One reflection rail keeps the class closed: `NativeMemoryIsNeverRecordedTests` scans every
+`[ComponentId]` struct in Fdp.Core and Fdp.Toolkits and fails on any that holds native memory (a pointer, an `IntPtr`, a
+`Fdp.Core.Collections.Native*`, or a struct field holding one) and is still recorded or saved.
