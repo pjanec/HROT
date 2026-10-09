@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-09 (rewritten after the user rejected the ECS-component lean — see §8 HISTORY)
 build-state: DESIGN (leans A–H proposed; D″ multi-block store is the lean for growth) — revised 2026-10-09 after the user's questions: fully lazy creation, two nodes, §3a why a tier move strands pointers and why the store moves at all
-current-answer: §0 the requirement · §2 diagrams · §3 decisions A–H · §3a why the store cannot change TIER inside a tick (measured) · §5 slices
+current-answer: §0 the requirement · §2 diagrams · §3 decisions A–H · §3a why the store moved and why D″ need not · §3b lookup performance (measured) · §5 slices
 stale-below: §8 HISTORY (two superseded leans — do not quote them)
 known-rot: none yet
 known-conflict: DESIGN_Parameter_Model.md:386 — "True entity-wide data is an ECS component field — not a variable section. No new variable owner is needed." (user, 2026-08-16). The user's 2026-10-09 requirement (§0) overrides its second sentence for behaviour-owned data: unit memory IS a new variable owner. Engine-read data stays an ECS component (§4)
@@ -181,6 +181,42 @@ frame, not only on assign. The grey edge is the sweep that must never reach a un
 | **keeping the old block where it is** | ⭐⭐ **nothing fundamental prevents it** (user, `2026-10-09`: *"the only thing needing to know where a data is is the one that looks up the byte pointer of the slot, no?"* — measured: **yes, almost**). Every `TryGetStore` site **classified by what it does next**: **13 key→pointer lookups** (`TryGetSlotOffset`/`TryGetSlotIndex`) · **4 resolve-or-attach** · **6 detach-by-key** · **4 walk-all-slots** (two ingress sweeps; the editor and debug-API slot lists via `BlueprintTierSummary.AppendSlots`) · **2 capacity checks** (ingress tier sizing `:1487`, hot-reload `EnsureAtLeast` `AiHotReloadCoordinator.cs:654`). ⇒ **23 of 29 only need "pointer for key K"**, and they already sit in ~6 thin accessor classes (`RootState/RootParams/RootHsmAccess`, `OccurrenceWorkingState`, `HostedSubtree`, `HsmOccurrence`). Outside `TryGetStore`: `BlueprintTickSystem` walks the tier queries itself, and `BlueprintMaintenanceSystem` reads "two tiers" as "promotion" | ⭐ **§3 D″** |
 | **the designed answer** | promote between ticks: ECB-add now, migrate in **BeforeSync** (runtime design §7.1: *"structural mutations during Simulation must go through ECB"*; FDP `architectural-rules.md` §7, which is written for background-thread modules) | ⭐ **D uses it**, unless D′ is chosen |
 
+## 3b. Lookup performance across blocks — measured `2026-10-09`
+
+> 🔒 **User:** *"pls check the performance considerations of the slot lookup across multiple blackboard components"*
+
+📐 **Method:** a Release micro-benchmark against the real `Fdp.Toolkits` (`BlueprintTierTable`, `BlueprintBlackboardPartitions`),
+1 000 entities, 3 000 rounds, `DOTNET_TieredCompilation=0`, three passes (spread ±20 %; the first unforced run was JIT noise
+and is discarded). ns per lookup:
+
+| what | ns | ⭐ reading |
+|---|---|---|
+| **today**: `TryGetStore` + `TryGetSlotOffset`, 1 block (slot 1 · slot 6) | **145–180** | the whole of today's hot path |
+| ↳ **probe only**: `BlueprintTierTable.Of` (finds the 1024 tier, 3 `Has` calls via delegates) | **140** | ⭐⭐ **the probe IS the cost**, ~45 ns per `HasComponent` |
+| ↳ fetch only: `spec.Memory` (`GetComponentRW`) | 35 | per block touched |
+| ↳ scan only: pre-resolved pointer, slot 6 of 12 | **14** | the slot scan is noise |
+| multi-block naive, 1 block | 185–240 | +1 `Has` (all 4 tiers) and an RO-then-RW double fetch |
+| multi-block naive, 2 blocks, hit in the first searched | 180–280 | |
+| multi-block naive, 2 blocks, hit in the second | **310–385** | ~2× today, only on units that actually grew |
+| multi-block naive, full miss | 285–305 | `Get` of an absent unit memory |
+| ⭐ **per-tick view**: 2 pre-resolved blocks, hit in the second | **27** | ⭐⭐ ~6× cheaper than TODAY's single-block lookup |
+
+**Scale** (estimated: about 3–8 lookups per brain per tick from the runner, the stateful nodes and unit memory; not measured):
+1 000 brains at 60 Hz is 180k–480k lookups/s. Today that is **~30–85 ms per second (3–9 % of a core)**. Naive multi-block
+raises it by up to ~2× on grown units only.
+
+⭐⭐ **The design consequence — it makes D″ CHEAPER than today, not dearer:**
+
+| ⭐ | |
+|---|---|
+| **① resolve the blocks ONCE per brain per tick** | a small stack `StoreView` (≤ 4 block pointers), built by the runner at tick start and passed through the bridge context; every lookup in that tick is a pure scan (14–27 ns). ⭐ **Safe ONLY because D″ never moves a block**: an appended block extends the view, and nothing is removed mid-tick. Under today's moving store such a cache would be the stale-pointer bug of §3a |
+| **② probe with ONE mask read** | `EntityRepository.GetComponentMask(index)` is public (`:1462`): one `IsAlive` + one mask read + 4 bit tests instead of 4 delegate `HasComponent` calls. It helps every remaining direct caller, including today's code |
+| **③ RW only where the slot is** | scan blocks through the RO fetch; take `GetComponentRW` only for the block that holds the slot, so reading does not stamp every block's chunk version (recorder deltas, `DeltaQuery`; `OccurrenceStoreAccess.cs` RO-overload remarks) |
+| **④ search order** | the assign-time block first: root state, root params and the behaviour's slots live there, so the hot keys hit on the first block; unit memory and later growth sit in appended blocks |
+| ⚠ **cost of a miss** | `Get` of a never-written unit memory scans every block (still ≤ 47 entries, ~30 ns with the view) |
+
+⇒ ⭐ **U-0 carries ①–④**, with a benchmark rail: the per-tick-view lookup must not exceed today's single-block lookup.
+
 ## 4. The generality rule — which home for per-unit data
 
 | the data is read or written by… | home |
@@ -193,7 +229,7 @@ frame, not only on assign. The grey edge is the sweep that must never reach a un
 
 | slice | content | rail |
 |---|---|---|
-| **U-0** store (if D″) | multi-block `OccurrenceStoreAccess` seam; route the 23 key sites; walkers loop blocks; growth = add a block; retire the copy-promotion; `DESIGN_Occurrence_Scoped_Storage.md` updated | a running tree's state pointer stays valid across a mid-tick attach that adds a block; a blueprint attach on a full tier no longer drops silently |
+| **U-0** store (if D″) | multi-block `OccurrenceStoreAccess` seam + the §3b per-tick `StoreView`, one-mask-read probe, RO scan / RW hit; route the 23 key sites; walkers loop blocks; growth = add a block; retire the copy-promotion; `DESIGN_Occurrence_Scoped_Storage.md` updated | a running tree's state pointer stays valid across a mid-tick attach that adds a block; a blueprint attach on a full tier no longer drops silently; ⭐ benchmark rail: a per-tick-view lookup ≤ today's single-block lookup |
 | **U-1** runtime | `OccurrenceKind.UnitMemory`, `UnitMemory.Get/Ref/Set/Key`, `StructureHash` guard + re-init, `UnitMemoryPending`, the ECB trigger for §7's promotion, and `BlueprintMaintenanceSystem` flushing pending after it promotes | a value written under behaviour A is read under B after a switch; a fresh unit reads the declared defaults (not zeros); `Get` on an absent type creates nothing; **on a full 256 tier, a write survives the two-frame promotion** |
 | **U-2** C# + BTree/HSM | `[UnitMemory]`; the BTree/HSM emitters bind `ref T` params of unit-memory types | a C# tree and an HSM on one unit share one `FiringPositionMemory` |
 | **U-3** blueprint | `GetShared`/`SetShared` (type picker only; wired fields only), compiler arms, validator | a blueprint reads what a C# node wrote; an unwired field keeps its value |
