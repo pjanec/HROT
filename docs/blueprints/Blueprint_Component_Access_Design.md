@@ -5,7 +5,7 @@ current-answer: the whole document (Q#15 read, Q#16 write)
 stale-below: the "mirroring the shipped GetShared/SetShared" wording — those nodes were removed (Q76, CE-440); the component nodes stand alone
 known-rot: see stale-below
 related-designs:
-  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): entity-wide state that outlives a behaviour, declared by a designer as an ordinary ECS component and created on behaviour assign — its blueprint access IS these two nodes, unchanged; it keeps "write-if-present" by creating the component before any write
+  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — NOT reached through these nodes — it has its own GetShared/SetShared nodes (the user rejected the component route)
   - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — removed the GetShared/SetShared nodes this design mirrored
 -->
 

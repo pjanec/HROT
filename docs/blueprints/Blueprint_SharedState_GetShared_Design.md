@@ -7,7 +7,7 @@ stale-below: the whole document; read §1 for the NEEDS it served, never for the
 known-rot: the "IMPLEMENTED" status line below is history (2026-07-15)
 related-designs:
   - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — OWNS the removal and its provenance (§9)
-  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): entity-wide state that outlives a behaviour, declared by a designer as an ordinary ECS component and created on behaviour assign — the same need, met by components
+  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — the same need, re-implemented (type-keyed, no variable id, no scope)
 -->
 
 # Blueprint AiPrimitive Shared Working-State — Design (`GetShared`)

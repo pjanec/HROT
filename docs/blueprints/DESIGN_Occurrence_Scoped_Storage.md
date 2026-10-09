@@ -115,7 +115,7 @@ known-conflict: none. This document EXTENDS DESIGN_Parameter_Model.md §4 rather
 reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 2026-08-17
   ("keep this open and return to it a bit later"). THIS DOCUMENT IS THAT RETURN. Q37's
   measurements are banked and marked do-not-re-measure; they are cited here, not re-derived.
-  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): entity-wide state that outlives a behaviour, declared by a designer as an ordinary ECS component and created on behaviour assign — deliberately NOT in this store (its §3 A says why)
+  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — it LIVES in this store as a new slot kind, and its room is reserved at assign exactly like hosted demand (O7b-3)
 related-designs:
   - DESIGN_Unified_Behaviour_Run.md — generalises §32's hosted child (any tier, recursive, keys via ComputeNested).
   - Architect_Question_77_Blueprint_As_A_Behaviour.md — the build design for O9 (CE-446); closes §12's gaps ②③④.
