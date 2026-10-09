@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-09
-build-state: DESIGN — awaiting the user's approval of D1–D13
-current-answer: §3 classes · §4 sequences · §5 modules · §6 decisions · §7 slices
+build-state: READY-TO-BUILD for D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 proposed (leans)
+current-answer: §6 decisions (approved) · §8 behaviour detail (proposed) · §3 classes · §4 sequences · §5 modules · §7 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT to the highest body point the shooter sees (§6 D1)
@@ -163,7 +163,11 @@ graph TD
 *Caption: the aim gate is on the BRAIN and reads what perception reported (sight is decided on SimHost); the aim POINT is
 chosen on SimHost from geometry. The ~100–300 ms report latency is part of the aim time a viewer sees.*
 
-## 6. Decisions *(leans — reply "approved" or name the one to change)*
+## 6. Decisions — ✅ APPROVED `2026-10-09` (R-234)
+
+> 🔒 **User, `2026-10-09`:** *"Approved. Pls leta think how behaviors store the memory of the used cover points and how that memory
+> fades out so covers can be reused after some time. And what other behabior status variables would be needed, what parameters the
+> behaviors would need. The behavior design in a bit more details."* → §8.
 
 | # | lean | why |
 |---|---|---|
@@ -201,3 +205,97 @@ chosen on SimHost from geometry. The ~100–300 ms report latency is part of the
 | P-7a | D11 obstacle entity: TKB type, spawn, bullet stop, cover points, EQS sight, navmesh cut | a car blocks sight and rounds, has cover points behind it, and a path goes round it |
 | P-7 | D12 bound + D13 freshest evidence, on the obstacles | B reaches a second cover while A is near-missed and stays down; A's next blind burst lands at B's heard spot |
 | P-8 | D10 scenario + rail + HTTP check; T3 baselines re-pinned if D4 moved them | the duel rail |
+
+## 8. The behaviour in detail *(proposed `2026-10-09` — leans B1–B8)*
+
+### 8.1 What lives where
+
+```mermaid
+classDiagram
+  class FiringPositionMemory { <<new unit component, brain>> Slots[8] }
+  class PositionSlot { X; Y; Z; Heat; HeatAt (sim s); Burned; Kind; Uses }
+  class PeekAndFireParams { <<node params, designer-edited>> see 8.4 }
+  class PeekAndFireState { <<node working state, reset on exit>> see 8.3 }
+  class TargetMemory { <<existing unit component>> last-known positions, freshness }
+  class RecentSenses { <<existing unit component>> Hit, NearMiss times }
+  class WeaponState { <<existing, grows D9>> Ammo; SpareMagazines; ReloadSecondsRemaining }
+  class StanceIntent { <<existing>> logical stance }
+  class PositionHeat { <<new static>> HeatNow(slot, now, halfLife); Add(pos, heat, now); IsBurned }
+  FiringPositionMemory "1" *-- "8" PositionSlot
+  PeekAndFireState ..> FiringPositionMemory : reads and heats
+  PeekAndFireState ..> TargetMemory : threat + freshest evidence
+  PeekAndFireState ..> RecentSenses : suppressed?
+  PeekAndFireState ..> WeaponState : reloading?
+  PeekAndFireState ..> StanceIntent : hide / peek stance
+  PositionHeat ..> FiringPositionMemory
+```
+
+*What the picture shows: ONE new unit component (the position memory) and one helper; the node's own state is scratch
+that may be lost on every exit, so nothing that must OUTLIVE an exit lives there.*
+
+| B# | lean | why |
+|---|---|---|
+| B1 | the used positions live in a **unit component** `FiringPositionMemory` (8 slots), not in the node's working state | node state is reset on exit (`EqsTacticsNodes.Release`: `ws = default`) — a posture switch, a reload hold or a re-plan would forget every burned window. The unit's memory of its own exposures is the same kind of thing as `TargetMemory` (its memory of others) |
+| B2 | **heat, not a counter**: an exposure adds `HeatPerExposure` (1.0); being near-missed or hit while exposed there adds `HeatWhenFiredUpon` (1.5); heat **cools exponentially** with `CoolHalfLifeSeconds` (45 s) | a counter needs a reset rule; heat fades by itself, so a window used long ago is usable again without any bookkeeping. Being shot at there is the strongest reason to leave, so it heats more |
+| B3 | heat is **evaluated lazily** — stored with its sim time, `heat(now) = heat · 2^-(now − at)/halfLife` — no per-tick system | deterministic, replay-exact (sim time, R-143), zero cost while nobody looks |
+| B4 | **burned with hysteresis**: a slot is burned at `BurnHeat` (2.5) and usable again only below `ReuseHeat` (1.0); between them a candidate keeps a soft penalty `heat × HeatPenalty` on its EQS score | without hysteresis a window flips usable/burned at one threshold and the unit dithers. Worked example: 3 exposures within 20 s ⇒ ≈ 2.7 → burned; it cools below 1.0 after ≈ 65 s |
+| B5 | a candidate **is** a slot when within `MatchRadius` (1.0 m); a full memory replaces its coolest slot | EQS points are database points (windows, cover points) — they repeat exactly; 1 m absorbs a peek point's small drift |
+| B6 | the node picks from the cover sensor's **answer span** (16 results): the best by `score − heat penalty` among non-burned, ≥ `MinRelocateMetres` from the current position when relocating | no EQS change (D8); the sensor stays deterministic and shareable |
+| B7 | **one round count** on aimed fire: `AimAndFireParams.Rounds` (0 = until stopped) as `FireAtPointParams` already has, so "fire 3 aimed rounds" is the executor's job | the node should not count intents; both fire actions then end the same way |
+| B8 | **reloading = stay hidden**: while `ReloadSecondsRemaining > 0` the node does not expose | exposing with an empty rifle is the one thing a soldier would never do |
+
+### 8.2 The node's phases
+
+```mermaid
+stateDiagram-v2
+  [*] --> Choose
+  Choose --> MoveToHide : hide point picked
+  Choose --> [*] : nothing remembered - Success
+  MoveToHide --> Hidden : arrived, hide stance
+  Hidden --> Hidden : suppressed or reloading
+  Hidden --> Expose : wait over
+  Hidden --> Relocate : position burned or ExposuresHere at limit
+  Expose --> Aimed : enemy seen within GraceSeconds
+  Expose --> Blind : not seen within GraceSeconds
+  Aimed --> Recover : Rounds fired, ExposeSeconds over or sight lost
+  Blind --> Recover : BlindRounds fired
+  Aimed --> Recover : near-missed or hit - extra heat
+  Recover --> Hidden : back to hide point and stance, heat added
+  Relocate --> MoveToHide : suppressive burst first if SuppressBeforeRelocate
+```
+
+*What the picture shows that prose hid: the same machine flies BOTH soldiers — A's Expose is a stance change on the spot and
+his Relocate is "another window"; B's Expose is a step and his Relocate is "run to the next obstacle". Only the parameters differ.*
+
+### 8.3 Working state *(scratch — lost on exit by design)*
+
+| field | what |
+|---|---|
+| `Phase`, `PhaseUntil` | the phase above and when its timer ends (sim s) |
+| `HidePoint`, `HideStance`, `PeekPoint`, `PeekStance`, `PeekIsStep` | the current pair (stance peek: PeekPoint = HidePoint) |
+| `CoverSensor`, `PeekSensor` | the two child sensors (as `PostureNodes.KeepPair`) |
+| `Threat`, `HeardId`, `AimPoint` | who, and the freshest evidence of where (D13) |
+| `ExposuresHere`, `Fire` | exposures from this hide point; the aimed-fire action state (`EngageState`) |
+| `LastCoverTick`, `LastPeekTick` | one look per answer (as `TryNewAnswer`) |
+
+### 8.4 Parameters *(designer-edited; defaults are the duel's)*
+
+| group | parameter | default | A (window) | B (street) |
+|---|---|---|---|---|
+| where | `HideTemplate` | — | `FindWindowFiringPosition` | `FindCoverFromTarget` |
+| | `SearchRadius` · `PeekSearchRadius` (m) | 15 · 3 | 12 · — | 25 · 3 |
+| | `PeekMode` | Auto (window point ⇒ Stance, else Step) | Stance | Step |
+| | `HideStanceOverride` | from the point | Prone | from the point |
+| timing | `HideSecondsMin` / `Max` | 2 / 5 | 2 / 5 | 2 / 4 |
+| | `ExposeSeconds` · `GraceSeconds` | 3 · 0.6 | 3 · 0.6 | 2.5 · 0.6 |
+| | `SuppressedSeconds` | 3 | 3 | 3 |
+| fire | `RoundsPerExposure` · `BlindRounds` · `FireCooldownSeconds` | 3 · 3 · 0.3 | 3 · 2 · 0.3 | 3 · 4 · 0.25 |
+| rotation | `ExposuresPerPosition` | 3 | 3 | 2 |
+| | `HeatPerExposure` · `HeatWhenFiredUpon` | 1.0 · 1.5 | | |
+| | `BurnHeat` · `ReuseHeat` · `HeatPenalty` | 2.5 · 1.0 · 0.3 | | |
+| | `CoolHalfLifeSeconds` · `MatchRadius` (m) | 45 · 1.0 | | |
+| move | `RelocateSpeed` (m/s) · `MinRelocateMetres` | 4.5 · 4 | 2.0 · 2 | 5.0 · 6 |
+| | `SuppressBeforeRelocate` | 0 | 0 | 1 |
+| | `FactionFilter` | 0 (every acquired contact) | | |
+
+⚠ The aim time is NOT here: it is the weapon's (D3, `ParameterResolver`), so every behaviour aims alike.
