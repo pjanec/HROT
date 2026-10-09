@@ -19,8 +19,8 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// Unlike the MVE-01 tests (which used the minimal <c>BlueprintTestFixture</c> substrate),
 /// these run through the genuine kernel schedule: <see cref="EditorHarness.PumpFrames"/>
 /// advances time and calls <c>Kernel.Update()</c>, which executes the Simulation-phase
-/// <c>BlueprintTickSystem</c> inside the editor simulation module and the BeforeSync
-/// <c>BlueprintMaintenanceSystem</c> registered as a global system.
+/// <c>BlueprintTickSystem</c> inside the editor simulation module (the BeforeSync
+/// <c>BlueprintMaintenanceSystem</c> is retired by CE-3137 U-0 (R-236)).
 /// </para>
 /// <para>
 /// The test CREATES ITS OWN entity (nothing is selected headlessly), attaches the demo

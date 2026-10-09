@@ -1638,9 +1638,9 @@ namespace Hrot.Editor
             // ── Blueprint runtime ─────────────────────────────────────────────────────
             // ⭐⭐⭐ A4 / O0 (2026-09-20) — THE EDITOR NO LONGER WIRES THIS AT ITS ROOT.
             //   The tick system is spliced by CgfLogicPack (constructed above with
-            //   _blueprintRegistry), and BlueprintMaintenanceSystem is provided by
-            //   CgfCapabilities.Brain as a SingleSystemModule. Both reach this composition through
-            //   the plan, exactly as they now reach CGF's.
+            //   _blueprintRegistry) and reaches this composition through the plan, exactly as it
+            //   reaches CGF's. ⛔ BlueprintMaintenanceSystem (once a CgfCapabilities.Brain
+            //   SingleSystemModule) is retired by CE-3137 U-0 (R-236) — the store never moves a slot.
             //   ⛔ THE ROOT SPLICE HAD TO GO, not merely become redundant: the pack's tick is inside
             //     planSimSystems, so splicing a SECOND instance here would put two BlueprintTickSystems
             //     in one group (DistinctByType runs BEFORE the splice and cannot see it).

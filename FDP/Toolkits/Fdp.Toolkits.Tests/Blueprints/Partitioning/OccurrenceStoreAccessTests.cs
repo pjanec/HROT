@@ -356,24 +356,7 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
             world.Dispose();
         }
 
-        /// <summary>
-        /// ⭐⭐ <b><c>AdjacentPairs</c> is the promotion ladder</b> — <c>N-1</c> consecutive
-        /// (smaller → larger) pairs. <c>BlueprintMaintenanceSystem</c> builds one query per pair, so
-        /// a gap here is a promotion that never happens and an entity stuck carrying two tiers.
-        /// </summary>
-        [Fact]
-        public void B3_R5_AdjacentPairsCoverTheWholeLadderWithNoGaps()
-        {
-            var asc   = BlueprintTierTable.Ascending;
-            var pairs = BlueprintTierTable.AdjacentPairs;
-
-            Assert.Equal(asc.Count - 1, pairs.Count);
-            for (int i = 0; i < pairs.Count; i++)
-            {
-                Assert.Same(asc[i],     pairs[i].From);
-                Assert.Same(asc[i + 1], pairs[i].To);
-            }
-        }
+        // ⛔ B3_R5 (AdjacentPairs) RETIRED with the copy-promotion — CE-3137 U-0, R-236.
 
         /// <summary>
         /// ⭐⭐⭐ <b>A tier resolved through the table points at the SAME bytes the seam returns.</b>
@@ -600,45 +583,41 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
         }
 
         /// <summary>
-        /// ⭐ <b><c>B4_R4</c> — when the instance genuinely does NOT fit the tier the entity carries,
-        /// the store is PROMOTED, not doubled.</b> The other half of <c>B4_R3</c>, and the direction
-        /// that was reachable even before <c>O3b</c>: a large instance on a small-tier entity.
+        /// ⭐ <b><c>B4_R4</c> — re-expressed by <c>CE-3137</c> U-0 (<c>R-236</c>): when the instance genuinely does NOT
+        /// fit the block the entity carries, a block is APPENDED and the first slot STAYS WHERE IT IS.</b>
         ///
-        /// <para>⛔ The old code added the larger component and left the smaller one orphaned beside
-        /// it — with its existing slots stranded in a store nothing would read again.
-        /// ⭐ <see cref="BlueprintTierTable.Promote"/> carries them across, and with them the header's
-        /// <c>Reserved</c> <c>Kind</c> nibbles (<c>H1</c>).</para>
+        /// <para>⛔ HISTORY: this rail pinned the copy-promotion (one tier; the slot carried into the larger one). The
+        /// store is multi-block now and never moves a slot, so the pin is the opposite — and stronger: the first slot's
+        /// ADDRESS is unchanged.</para>
         /// </summary>
         [Fact]
-        public void B4_R4_AttachThatOutgrowsTheCurrentTierPromotesItAndCarriesTheSlots()
+        public void B4_R4_AttachThatOutgrowsTheCurrentBlock_AppendsOne_AndTheFirstSlotDoesNotMove()
         {
             using var world = CreateWorld();
             var registry    = new BlueprintRegistry();
             var entity      = world.CreateEntity();
 
             var small = BlueprintTierTable.Ascending[0];
-            var large = BlueprintTierTable.ByTier(BlackboardTier.B1024);
 
-            // Seat a first, small instance — it lands on the smallest tier.
             int firstId  = RegisterInstanceBlueprint(registry, "First", stateSize: 16);
             Assert.Equal(
                 BlueprintAttachStatus.Attached,
                 BlueprintInstanceService.AttachToEntity(world, registry, firstId, entity).Status);
             Assert.True(small.Has(world, entity));
+            Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, firstId, out byte* b0, out int o0, out _));
+            byte* firstAddress = b0 + o0;
 
-            // Now one that cannot fit the smallest tier's payload at all.
             int bigId = RegisterInstanceBlueprint(registry, "Big", stateSize: small.PayloadSize + 1);
             var result = BlueprintInstanceService.AttachToEntity(world, registry, bigId, entity);
             Assert.Equal(BlueprintAttachStatus.Attached, result.Status);
 
-            // ⭐ THE RAIL: promoted, not doubled — and the FIRST slot came with it.
-            Assert.Equal(1, TierComponentCount(world, entity));
-            Assert.False(small.Has(world, entity));
-            Assert.True(large.Has(world, entity));
-
-            byte* store = OccurrenceStoreAccess.TryGetStoreReadOnly(world, entity, out _);
-            Assert.True(store != null);
-            Assert_BothSlotsPresent(store, firstId, bigId);
+            // ⭐ THE RAIL: a second block, the small one kept, and the first slot at the SAME address.
+            Assert.Equal(2, TierComponentCount(world, entity));
+            Assert.True(small.Has(world, entity));
+            Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, firstId, out byte* b1, out int o1, out _));
+            Assert.True(firstAddress == b1 + o1, "the pre-existing slot must not move");
+            Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, bigId, out _, out _, out _),
+                "the slot that forced the growth must be present");
         }
 
         private static void Assert_BothSlotsPresent(byte* store, int firstId, int bigId)
@@ -685,5 +664,140 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
                 "if the two orders ever agree everywhere, a tier was INSERTED rather than appended " +
                 "- which breaks the ABI (B4_R2). This rail is what says the helper is load-bearing.");
         }
-    }
+    
+        // ═══ CE-3137 U-0 — THE MULTI-BLOCK STORE (R-236, DESIGN_Occurrence_Scoped_Storage.md §34) ═══════════════
+
+        private static byte* FirstBlock(EntityRepository world, Entity e, BlueprintTierSpec spec)
+            => OccurrenceStoreAccess.AddBlock(world, e, spec);
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>U0_R1</c> — THE PROPERTY D″ EXISTS FOR: a pointer taken BEFORE a growth is still valid AFTER it,
+        /// and a write through it lands in the store.</b> 🔴 Red-proof: under the retired copy-promotion the slot was
+        /// copied to the larger tier and the smaller removed, so a write through the old pointer went to the dropped
+        /// component and the lookup below read the stale copy.
+        /// </summary>
+        [Fact]
+        public void U0_R1_APointerTakenBeforeGrowth_StaysValid_AndItsWritesLand()
+        {
+            using var world = CreateWorld();
+            var e = world.CreateEntity();
+            var small = BlueprintTierTable.Ascending[0];
+            FirstBlock(world, e, small);
+
+            Assert.True(OccurrenceStoreAccess.TryAttachSlot(world, e, 101, 8, 1, OccurrenceKind.BTree, out byte* blk, out int off));
+            long* held = (long*)(blk + off);   // ⭐ what a running tree holds across its tick
+
+            // Fill past the small block's slot table ⇒ at least one append.
+            for (int k = 0; k < small.MaxSlots + 4; k++)
+                Assert.True(OccurrenceStoreAccess.TryAttachSlot(world, e, 200 + k, 64, 1, OccurrenceKind.BTree, out _, out _));
+            Assert.True(TierComponentCount(world, e) >= 2, "premise: the store grew by appending");
+
+            *held = 0x1234_5678_9ABC;   // write through the pointer taken BEFORE the growth
+            Assert.True(OccurrenceStoreAccess.TryFindSlot(world, e, 101, out byte* b2, out int o2, out _));
+            Assert.True(held == (long*)(b2 + o2), "the slot did not move");
+            Assert.Equal(0x1234_5678_9ABC, *(long*)(b2 + o2));
+        }
+
+        /// <summary>⭐ <c>U0_R2</c> — lookup, detach and re-attach work in ANY block; a detach touches only its own.</summary>
+        [Fact]
+        public void U0_R2_LookupAndDetach_SpanEveryBlock()
+        {
+            using var world = CreateWorld();
+            var e = world.CreateEntity();
+            FirstBlock(world, e, BlueprintTierTable.Ascending[0]);
+            for (int k = 0; k < 10; k++)
+                Assert.True(OccurrenceStoreAccess.TryAttachSlot(world, e, 500 + k, 32, 1, OccurrenceKind.Hsm, out _, out _));
+            Assert.True(TierComponentCount(world, e) >= 2);
+
+            for (int k = 0; k < 10; k++)
+                Assert.True(OccurrenceStoreAccess.TryFindSlot(world, e, 500 + k, out _, out _, out _), $"slot {500 + k}");
+
+            Assert.True(OccurrenceStoreAccess.TryDetachSlot(world, e, 509));   // lives in an appended block
+            Assert.False(OccurrenceStoreAccess.TryFindSlot(world, e, 509, out _, out _, out _));
+            for (int k = 0; k < 9; k++)
+                Assert.True(OccurrenceStoreAccess.TryFindSlot(world, e, 500 + k, out _, out _, out _));
+            Assert.False(OccurrenceStoreAccess.TryDetachSlot(world, e, 509), "a second detach finds nothing");
+        }
+
+        /// <summary>⭐ <c>U0_R3</c> — with every tier carried and full, an attach FAILS LOUD (false), never silently.</summary>
+        [Fact]
+        public void U0_R3_TheWholeLadderFull_AttachReturnsFalse()
+        {
+            using var world = CreateWorld();
+            var e = world.CreateEntity();
+            FirstBlock(world, e, BlueprintTierTable.Ascending[0]);
+            int capacity = 0;
+            foreach (var t in BlueprintTierTable.Ascending) capacity += t.MaxSlots;
+
+            int attached = 0;
+            for (int k = 0; k < capacity + 8; k++)
+                if (OccurrenceStoreAccess.TryAttachSlot(world, e, 1000 + k, 8, 1, OccurrenceKind.BTree, out _, out _)) attached++;
+
+            Assert.Equal(BlueprintTierTable.Ascending.Count, TierComponentCount(world, e));
+            Assert.Equal(capacity, attached);
+            Assert.False(OccurrenceStoreAccess.TryAttachSlot(world, e, 99_999, 8, 1, OccurrenceKind.BTree, out _, out _));
+        }
+
+        /// <summary>⭐ <c>U0_R4</c> — a multi-block unit is visited ONCE by a per-tier walker: in the first tier it carries.</summary>
+        [Fact]
+        public void U0_R4_IsFirstVisit_PicksExactlyOneTierPerUnit()
+        {
+            using var world = CreateWorld();
+            var e = world.CreateEntity();
+            var asc = BlueprintTierTable.Ascending;
+            OccurrenceStoreAccess.AddBlock(world, e, asc[1]);
+            OccurrenceStoreAccess.AddBlock(world, e, asc[3]);
+
+            int visits = 0;
+            for (int t = 0; t < asc.Count; t++)
+                if (asc[t].Has(world, e) && OccurrenceStoreAccess.IsFirstVisit(world, e, t)) visits++;
+            Assert.Equal(1, visits);
+            Assert.True(OccurrenceStoreAccess.IsFirstVisit(world, e, 1));
+            Assert.False(OccurrenceStoreAccess.IsFirstVisit(world, e, 3));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>U0_R0</c> — no PRODUCTION file reads the store through the single-block forms
+        /// (<c>TryGetStore</c>, <c>TryGetStoreReadOnly</c>, <c>TryGetStoreInView</c>, <c>BlueprintTierTable.Of/OfInView</c>).
+        /// They return ONE block — the largest — and a slot may live in another. ⭐ Tests and diagnostics may use them.
+        /// </summary>
+        [Fact]
+        public void U0_R0_NoProductionCodeReadsTheStoreAsOneBlock()
+        {
+            string root = FindRepoRoot();
+            var offenders = new System.Collections.Generic.List<string>();
+            var rx = new System.Text.RegularExpressions.Regex(
+                @"\.(TryGetStore|TryGetStoreReadOnly|TryGetStoreInView)\(|BlueprintTierTable\.(Of|OfInView)\(");
+            foreach (var dir in new[] { "FDP", "Hrot", "Stride" })
+            {
+                string d = System.IO.Path.Combine(root, dir);
+                if (!System.IO.Directory.Exists(d)) continue;
+                foreach (var f in System.IO.Directory.EnumerateFiles(d, "*.cs", System.IO.SearchOption.AllDirectories))
+                {
+                    string n = f.Replace('\\', '/');
+                    if (n.Contains("/bin/") || n.Contains("/obj/") || n.Contains("Tests") || n.Contains("/Examples/")) continue;
+                    if (n.EndsWith("/OccurrenceStoreAccess.cs") || n.EndsWith("/BlueprintTierTable.cs")) continue;
+                    int line = 0;
+                    foreach (var l in System.IO.File.ReadLines(f))
+                    {
+                        line++;
+                        string t = l.TrimStart();
+                        if (t.StartsWith("//")) continue;
+                        if (rx.IsMatch(l)) offenders.Add($"{n.Substring(root.Length)}:{line}");
+                    }
+                }
+            }
+            Assert.True(offenders.Count == 0,
+                "production code must use OccurrenceStoreAccess's key API / GetBlocks (CE-3137 U-0): " + string.Join(", ", offenders));
+        }
+
+        private static string FindRepoRoot()
+        {
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "IOS-IG-SimHost.sln")))
+                dir = dir.Parent;
+            Assert.True(dir != null, "repo root (IOS-IG-SimHost.sln) not found above the test binary");
+            return dir!.FullName;
+        }
+}
 }

@@ -66,10 +66,8 @@ public static unsafe class RootParamsAccess
         int key = KeyFor(world, self);
         if (key == 0) return false;
 
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-        if (store == null) return false;
-
-        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out _))
+        // ⭐ CE-3137 U-0: whichever block holds it.
+        if (!OccurrenceStoreAccess.TryFindSlot(world, self, key, out byte* store, out int offset, out _))
             return false;
 
         ptr = (T*)(store + offset);
@@ -104,10 +102,8 @@ public static unsafe class RootParamsAccess
         int key = KeyFor(world, self);
         if (key == 0) return false;
 
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-        if (store == null) return false;
-
-        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out uint guard))
+        // ⭐ CE-3137 U-0: whichever block holds it.
+        if (!OccurrenceStoreAccess.TryFindSlot(world, self, key, out byte* store, out int offset, out uint guard))
             return false;
 
         ptr = store + offset;
@@ -134,10 +130,8 @@ public static unsafe class RootParamsAccess
 
         int key = Shared.OccurrenceSlotKey.ComputeRootParamsKey(state.ActiveBehaviorHash);
 
-        byte* store = OccurrenceStoreAccess.TryGetStoreInView(view, self, out _);
-        if (store == null) return false;
-
-        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out _))
+        // ⭐ CE-3137 U-0: whichever block holds it.
+        if (!OccurrenceStoreAccess.TryFindSlotInView(view, self, key, out byte* store, out int offset, out _))
             return false;
 
         ptr = store + offset;
@@ -211,23 +205,23 @@ public static unsafe class RootParamsAccess
         int key = KeyForBehaviour(behaviourHash);
         if (key == 0 || paramsBytes <= 0) return null;
 
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-        if (store == null) return null;
+        // ⛔ Creating the FIRST block is ingress's job; this only attaches into an existing store.
+        if (!OccurrenceStoreAccess.HasStore(world, self)) return null;
 
         ulong guard = unchecked((ulong)paramsBytes);
 
-        if (BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out uint existing))
+        if (OccurrenceStoreAccess.TryFindSlot(world, self, key, out byte* store, out int offset, out uint existing))
         {
             if (existing == (uint)guard) return store + offset;
             BlueprintBlackboardPartitions.TryDetach(store, key);
         }
 
-        if (!BlueprintBlackboardPartitions.TryAttach(
-                store, key, paramsBytes, guard, kind, out int newOffset))
+        // ⭐ CE-3137 U-0: any block with room, else an appended one — nothing already allocated moves.
+        if (!OccurrenceStoreAccess.TryAttachSlot(world, self, key, paramsBytes, guard, kind, out byte* __block, out int newOffset))
             return null;
 
         freshlyAttached = true;
-        return store + newOffset;
+        return __block + newOffset;
     }
 
     /// <summary>
@@ -246,10 +240,7 @@ public static unsafe class RootParamsAccess
         int key = KeyForBehaviour(behaviourHash);
         if (key == 0) return false;
 
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-        if (store == null) return false;
-
-        return BlueprintBlackboardPartitions.TryDetach(store, key);
+        return OccurrenceStoreAccess.TryDetachSlot(world, self, key);
     }
 
     /// <summary>
@@ -374,10 +365,8 @@ public static unsafe class RootParamsAccess
         int key = KeyForBehaviour(behaviourHash);
         if (key == 0) return false;
 
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-        if (store == null) return false;
-
-        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out uint guard))
+        // ⭐ CE-3137 U-0: whichever block holds it.
+        if (!OccurrenceStoreAccess.TryFindSlot(world, self, key, out byte* store, out int offset, out uint guard))
             return false;
         if (unchecked((int)guard) < sizeof(T)) return false;
 

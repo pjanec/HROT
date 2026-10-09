@@ -23,7 +23,6 @@ public sealed class BlueprintTestFixtureTests
         Assert.NotNull(fixture.Ecb);
         Assert.NotNull(fixture.Registry);
         Assert.NotNull(fixture.TickSystem);
-        Assert.NotNull(fixture.MaintenanceSystem);
         Assert.NotNull(fixture.Compiler);
         Assert.NotNull(fixture.DebugSession);
         // DebugProbe.Sink wired to DebugSession

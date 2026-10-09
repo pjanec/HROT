@@ -69,10 +69,8 @@ public static unsafe class RootStateAccess
         int key = KeyFor(world, self);
         if (key == 0) return false;
 
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-        if (store == null) return false;
-
-        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out _))
+        // ⭐ CE-3137 U-0: whichever block holds it.
+        if (!OccurrenceStoreAccess.TryFindSlot(world, self, key, out byte* store, out int offset, out _))
             return false;
 
         ptr = (BehaviorTreeState*)(store + offset);
@@ -95,23 +93,11 @@ public static unsafe class RootStateAccess
         int key = KeyForBehaviour(view.GetComponentRO<Components.BehaviorState>(self).ActiveBehaviorHash);
         if (key == 0) return false;
 
-        var tiers = BlueprintTierTable.Descending;
-        for (int i = 0; i < tiers.Count; i++)
-        {
-            if (!tiers[i].HasInView(view, self)) continue;
-
-            var store = tiers[i].BytesInView(view, self);
-            if (store.IsEmpty) return false;
-
-            fixed (byte* mem = store)
-            {
-                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, key, out int offset, out _))
-                    return false;
-                state = *(BehaviorTreeState*)(mem + offset);
-                return true;
-            }
-        }
-        return false;
+        // ⭐ CE-3137 U-0: every block in the view (an old single-tier recording is a one-block store).
+        if (!OccurrenceStoreAccess.TryFindSlotInView(view, self, key, out byte* mem, out int offset, out _))
+            return false;
+        state = *(BehaviorTreeState*)(mem + offset);
+        return true;
     }
 
     /// <summary>
@@ -123,8 +109,8 @@ public static unsafe class RootStateAccess
     /// never progresses. 🔒 That is the silent-default shape this programme keeps filing.</para>
     ///
     /// <para>⚠ <b>The returned <c>ref</c> lives under <c>OccurrenceStoreAccess</c>'s lifetime rule:</b>
-    /// use it within the call that obtained it, and never hold it across anything that can add or
-    /// remove a component on this entity (a tier promotion swaps the component out).</para>
+    /// ⭐ <c>CE-3137</c> U-0: since the store never moves a slot, it stays valid until this slot is detached —
+    /// including across a mid-tick attach that appends a block.</para>
     /// </summary>
     public static ref BehaviorTreeState RequireStateRef(EntityRepository world, Entity self)
     {
@@ -156,24 +142,25 @@ public static unsafe class RootStateAccess
         int key = KeyForBehaviour(behaviourHash);
         if (key == 0) return null;
 
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-        if (store == null) return null;
+        // ⛔ Creating the FIRST block is ingress's / EnsureRootState's job; this only attaches into a store.
+        if (!OccurrenceStoreAccess.HasStore(world, self)) return null;
 
         // ⭐ S2 — the width comes from the definition (RootStateBytes); 0 keeps the BTree cursor's constant.
         if (bytes <= 0) bytes = StateBytes;
         ulong guard = unchecked((ulong)bytes);
 
-        if (BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out uint existing))
+        if (OccurrenceStoreAccess.TryFindSlot(world, self, key, out byte* store, out int offset, out uint existing))
         {
             if (existing == (uint)guard) return store + offset;
             BlueprintBlackboardPartitions.TryDetach(store, key);
         }
 
-        if (!BlueprintBlackboardPartitions.TryAttach(store, key, bytes, guard, kind, out int newOffset))
+        // ⭐ CE-3137 U-0: any block with room, else an appended one — nothing already allocated moves.
+        if (!OccurrenceStoreAccess.TryAttachSlot(world, self, key, bytes, guard, kind, out byte* block, out int newOffset))
             return null;
 
         freshlyAttached = true;
-        return store + newOffset;
+        return block + newOffset;
     }
 
     /// <summary>
@@ -197,7 +184,7 @@ public static unsafe class RootStateAccess
     {
         if (behaviourHash == 0) return false;
 
-        if (BlueprintTierTable.Of(world, self) is null)
+        if (!OccurrenceStoreAccess.HasStore(world, self))
         {
             // ⭐⭐ CE-318 (2026-09-23): PAYLOAD only. The slot entry is carved out of the store
             //   up front, so Select's PayloadSize has already had it removed; the slot axis is the
@@ -281,10 +268,7 @@ public static unsafe class RootStateAccess
         int key = KeyFor(world, self);
         if (key == 0) return false;
 
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-        if (store == null) return false;
-
-        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out uint guard))
+        if (!OccurrenceStoreAccess.TryFindSlot(world, self, key, out byte* store, out int offset, out uint guard))
             return false;
 
         ptr = store + offset;
@@ -305,10 +289,7 @@ public static unsafe class RootStateAccess
         int key = KeyForBehaviour(view.GetComponentRO<Components.BehaviorState>(self).ActiveBehaviorHash);
         if (key == 0) return false;
 
-        byte* store = OccurrenceStoreAccess.TryGetStoreInView(view, self, out _);
-        if (store == null) return false;
-
-        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out uint guard))
+        if (!OccurrenceStoreAccess.TryFindSlotInView(view, self, key, out byte* store, out int offset, out uint guard))
             return false;
 
         ptr = store + offset;
@@ -349,10 +330,7 @@ public static unsafe class RootStateAccess
         int key = KeyForBehaviour(behaviourHash);
         if (key == 0) return false;
 
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-        if (store == null) return false;
-
-        return BlueprintBlackboardPartitions.TryDetach(store, key);
+        return OccurrenceStoreAccess.TryDetachSlot(world, self, key);
     }
 
     /// <summary>

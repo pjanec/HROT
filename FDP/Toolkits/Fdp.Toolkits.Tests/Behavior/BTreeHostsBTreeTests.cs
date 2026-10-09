@@ -891,4 +891,124 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
         var ex = Assert.ThrowsAny<InvalidOperationException>(() => new BrainTickSystem(beh).Execute(world, 0.016f));
         Assert.Contains("CE-431", ex.ToString());
     }
+
+    // ═══ CE-3137 U-0 — A HOSTING CASCADE ON THE MULTI-BLOCK STORE (R-236, §34) ═══════════════════════════════════
+
+    private const string CascadeHost  = "U0_CascadeHost";
+    private const string CascadeChild = "U0_CascadeChild";
+    private const int    CascadeSites = 20;   // more hosted cursors than ANY single tier's slot table (16)
+    private const int    LazySlots    = 3;
+
+    private static int _cascadeChildRuns;
+    private static int _lazyAttachRuns;
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Size = 1000)]
+    private struct BigWorkingState { public long First; }
+
+    private static NodeStatus CascadeChildRuns(ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int p)
+    {
+        _cascadeChildRuns++;
+        return NodeStatus.Success;
+    }
+
+    /// <summary>Attaches LazySlots large working states DURING the tick — the store has no room, so each APPENDS a
+    /// block while BTreeRunner holds a raw pointer to the host's root state.</summary>
+    private static NodeStatus AttachBigSlotsMidTick(ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int p)
+    {
+        _lazyAttachRuns++;
+        for (int k = 0; k < LazySlots; k++)
+        {
+            ref var ws = ref OccurrenceWorkingState.ResolveOrAttach<BigWorkingState>(
+                ctx.World, ctx.Self, 0x7A000 + k, structureHash: 77, OccurrenceKind.BTree, out _);
+            ws.First = 1000 + k;
+        }
+        return NodeStatus.Success;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>U0_R5</c> — the cascade the user asked to check (2026-10-09: <i>"especially the cascaded 'behavior
+    /// hosted inside behavior' — where lots of slots can be allocated"</i>), through the REAL ingress and brain tick.</b>
+    ///
+    /// <para>A host with <see cref="CascadeSites"/> hosted children (more cursors than any one tier holds) ⇒ the store is
+    /// MULTI-BLOCK after assign. Mid-tick, a host action attaches <see cref="LazySlots"/> 1000-byte working states ⇒ more
+    /// blocks APPENDED while the runner holds the root-state pointer. The host then parks on a running leaf.</para>
+    ///
+    /// <para>⭐ What it pins: ① every hosted slot is findable across blocks; ② each child runs ONCE per frame
+    /// (a multi-block unit is ticked once — a double tick reads 2×); ③ the host's cursor written AFTER the mid-tick
+    /// growth survives — frame 2 RESUMES at the running leaf, so no child re-runs (🔴 under the copy-promotion the
+    /// runner's pointer went stale and the host restarted, re-running every child).</para>
+    /// </summary>
+    [Fact]
+    public void U0_R5_AManySiteCascade_GrowsByAppending_TicksOnce_AndKeepsTheHostCursorAcrossAMidTickGrowth()
+    {
+        const int HostId = 0x6B30;
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+
+        var b = new BTreeBuilder<byte, BTreeContext>().Sequence(seq =>
+        {
+            for (int i = 0; i < CascadeSites; i++)
+                seq.Subtree(CascadeChild, visualId: new Guid(0x0B300000 + i, 0, 0, new byte[8]));
+            seq.Action(AttachBigSlotsMidTick).Action(StayRunning);
+        });
+        var hostRegistry = b.GetRegistry();
+        var hostBlob     = b.Compile(CascadeHost);
+        var plan         = BTreeHostedSites.PlanFor(hostBlob, CascadeHost);
+        Assert.Equal(CascadeSites, plan.Slots.Count);
+
+        beh.Register(HostId, CascadeHost, new BehaviorDefinition
+        {
+            Name                 = CascadeHost,
+            BrainTier            = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter     = new Interpreter<byte, BTreeContext>(hostBlob, hostRegistry) { SubtreeHost = OccurrenceSubtreeHost.Instance },
+            StatefulWorkingSlots = plan.Slots,
+        });
+        BTreeHostedSites.Bind(beh, hostBlob, plan);
+
+        var cb = new BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(CascadeChildRuns));
+        beh.Register(CascadeChild, new BehaviorDefinition
+        {
+            Name             = CascadeChild,
+            BrainTier        = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(cb.Compile(CascadeChild), cb.GetRegistry()),
+        });
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        RootStateAccess.EnsureRootState(world, entity);
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = CascadeHost, JsonParams = string.Empty });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(beh).Execute(world, 0.016f);
+
+        // ① multi-block after assign, every hosted cursor findable
+        int blocksAfterAssign = OccurrenceStoreAccess.GetBlocksReadOnly(world, entity, out _);
+        Assert.True(blocksAfterAssign >= 2, $"{CascadeSites} hosted cursors cannot fit one tier — expected an appended block, got {blocksAfterAssign}");
+        foreach (var e in plan.Entries)
+            Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, e.TreeStateSlotKey, out _, out _, out _),
+                $"hosted cursor {e.TreeStateSlotKey} must be attached in SOME block");
+
+        _cascadeChildRuns = 0; _lazyAttachRuns = 0; _childTicks = 0;
+        var brain = new BrainTickSystem(beh);
+
+        brain.Execute(world, 0.016f);
+        // ② once per frame: every child exactly once, the mid-tick action once, the host parked
+        Assert.Equal(CascadeSites, _cascadeChildRuns);
+        Assert.Equal(1, _lazyAttachRuns);
+        Assert.Equal(1, _childTicks);
+        Assert.True(OccurrenceStoreAccess.GetBlocksReadOnly(world, entity, out _) > blocksAfterAssign,
+            "the mid-tick 1000-byte attaches must have APPENDED a block");
+        for (int k = 0; k < LazySlots; k++)
+        {
+            Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, 0x7A000 + k, out byte* blk, out int off, out _));
+            Assert.Equal(1000 + k, ((BigWorkingState*)(blk + off))->First);
+        }
+
+        brain.Execute(world, 0.016f);
+        brain.Execute(world, 0.016f);
+        // ③ the host's cursor — written after the mid-tick growth — survived: it RESUMES at the running leaf
+        Assert.Equal(CascadeSites, _cascadeChildRuns);
+        Assert.Equal(1, _lazyAttachRuns);
+        Assert.Equal(3, _childTicks);
+    }
 }

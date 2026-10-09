@@ -2041,15 +2041,11 @@ public sealed unsafe class HsmOccurrenceKeyTests
             Assert.True(RootHsmAccess.EnsureRootInstance(world, entity, DocId, blob));
 
             // ⭐ The slot the emitter's StatefulWorkingSlots entry would have provisioned (§32.8 item 3).
-            // ⚠ PROMOTE FIRST (trap ⑦): the tier ingress picked fits the 128-byte HSM instance and
-            //   nothing else, so attaching a 64-byte cursor on top needs a wider store. In production
-            //   the manifest declares the slot up front, so the tier is sized for both at once.
-            BlueprintTierTable.EnsureAtLeast(world, entity, BlueprintTierTable.Select(1024, requiredSlots: 4));
-            byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-            Assert.True(store != null);
-            Assert.True(BlueprintBlackboardPartitions.TryAttach(
-                store, SlotKey, HostedSubtree.SlotPayloadSizeFor(HostedChildren.TryGetDefinition(SlotKey, out var __cd) ? __cd : null),   // CE-431: [cursor][start][block]
-                structureHash: 0, OccurrenceKind.BTree, out _));
+            // ⭐ CE-3137 U-0: no promote-first any more (trap ⑦) — TryAttachSlot appends a block when the tier
+            //   ingress picked holds only the HSM instance; nothing already attached moves.
+            Assert.True(OccurrenceStoreAccess.TryAttachSlot(
+                world, entity, SlotKey, HostedSubtree.SlotPayloadSizeFor(HostedChildren.TryGetDefinition(SlotKey, out var __cd) ? __cd : null),   // CE-431: [cursor][start][block]
+                structureHash: 0, OccurrenceKind.BTree, out _, out _));
 
             var system = new Fdp.Toolkit.Behavior.Systems.BrainTickSystem(registry);
 
@@ -2125,11 +2121,9 @@ public sealed unsafe class HsmOccurrenceKeyTests
             });
             Assert.True(RootHsmAccess.EnsureRootInstance(world, entity, DocId, blob));
 
-            BlueprintTierTable.EnsureAtLeast(world, entity, BlueprintTierTable.Select(1024, requiredSlots: 4));
-            byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-            Assert.True(BlueprintBlackboardPartitions.TryAttach(
-                store, SlotKey, HostedSubtree.SlotPayloadSizeFor(HostedChildren.TryGetDefinition(SlotKey, out var __cd) ? __cd : null),   // CE-431: [cursor][start][block]
-                structureHash: 0, OccurrenceKind.BTree, out _));
+            Assert.True(OccurrenceStoreAccess.TryAttachSlot(   // ⭐ CE-3137 U-0: appends a block if needed
+                world, entity, SlotKey, HostedSubtree.SlotPayloadSizeFor(HostedChildren.TryGetDefinition(SlotKey, out var __cd) ? __cd : null),   // CE-431: [cursor][start][block]
+                structureHash: 0, OccurrenceKind.BTree, out byte* store, out _));
 
             // ⭐ Dirty the child's cursor by hand — as if it had been left mid-tree by an earlier entry.
             Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, SlotKey, out int off));

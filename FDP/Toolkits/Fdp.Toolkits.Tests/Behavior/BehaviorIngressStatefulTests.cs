@@ -93,9 +93,11 @@ public sealed unsafe class BehaviorIngressStatefulTests
     /// S2-2: an entity pre-carrying <see cref="BlueprintBlackboard1024"/> (with an existing
     /// slot occupying most of its payload) assigned a behavior whose manifest needs more space
     /// than the 1024 tier can provide must have:
-    ///   (a) the larger tier present after the Input phase (before Simulation tick), and
-    ///   (b) the old slot's bytes survived the copy (CopyToLargerTier correctness), and
-    ///   (c) all new slots attached (TryGetSlotOffset returns true for each).
+    ///   (a) a SECOND block appended after the Input phase (before Simulation tick) — the 1024 stays, and
+    ///   (b) the old slot unmoved: same block, same offset, bytes intact, and
+    ///   (c) all new slots attached, each findable through the multi-block lookup.
+    /// ⛔ CE-3137 U-0 (R-236): this asserted the copy-promotion (1024 removed, bytes copied into a 4096).
+    ///   The store never moves a slot now; growth appends the smallest absent tier that fits.
     /// </summary>
     [Fact]
     public void Assign_UpgradesTierSynchronously_BeforeFirstTick()
@@ -122,6 +124,7 @@ public sealed unsafe class BehaviorIngressStatefulTests
         const int existingSlotKey     = 0x1CAFE001;
         const int freeBytesLeftOver   = 28;
         int       existingPayloadSize = BlueprintBlackboard1024.PayloadSize - freeBytesLeftOver;
+        int       existingOffset;
 
         {
             ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
@@ -133,6 +136,7 @@ public sealed unsafe class BehaviorIngressStatefulTests
 
                 // Write a sentinel value into the existing slot's payload.
                 *(int*)(mem + slotOff) = 0x12345678;
+                existingOffset = slotOff;
             }
         }
 
@@ -164,37 +168,28 @@ public sealed unsafe class BehaviorIngressStatefulTests
         world.Bus.SwapBuffers();
         sys.Execute(world, 0.016f);
 
-        // (a) Entity must now carry BlueprintBlackboard4096 (upgraded from 1024).
-        Assert.True(world.HasComponent<BlueprintBlackboard4096>(entity),
-            "Entity must have BlueprintBlackboard4096 after upgrade");
-        Assert.False(world.HasComponent<BlueprintBlackboard1024>(entity),
-            "BlueprintBlackboard1024 must be removed after upgrade");
+        // (a) The 1024 is KEPT and a second block was appended (U-0: growth appends, nothing moves).
+        Assert.True(world.HasComponent<BlueprintBlackboard1024>(entity),
+            "the 1024 block must stay — the store never moves a slot");
+        Assert.True(OccurrenceStoreAccess.Measure(world, entity).Blocks >= 2,
+            "a block must be appended when the manifest does not fit the 1024");
 
-        // (b) Existing slot's bytes must have survived the CopyToLargerTier.
+        // (b) The existing slot is unmoved: still in the 1024, same offset, sentinel intact.
         {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
+            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
             fixed (byte* mem = tier.Memory)
             {
                 bool found = BlueprintBlackboardPartitions.TryGetSlotOffset(mem, existingSlotKey, out int slotOff);
-                Assert.True(found, "Pre-existing slot must survive tier upgrade");
-                int sentinel = *(int*)(mem + slotOff);
-                Assert.Equal(0x12345678, sentinel);
+                Assert.True(found, "Pre-existing slot must stay in its block");
+                Assert.Equal(existingOffset, slotOff);
+                Assert.Equal(0x12345678, *(int*)(mem + slotOff));
             }
         }
 
-        // (c) All new manifest slots must be attached.
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = tier.Memory)
-            {
-                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slot1Key, out _),
-                    "slot1 must be attached");
-                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slot2Key, out _),
-                    "slot2 must be attached");
-                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slot3Key, out _),
-                    "slot3 must be attached");
-            }
-        }
+        // (c) All new manifest slots must be attached somewhere in the store.
+        Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, slot1Key, out _, out _, out _), "slot1 must be attached");
+        Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, slot2Key, out _, out _, out _), "slot2 must be attached");
+        Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, slot3Key, out _, out _, out _), "slot3 must be attached");
 
         world.Dispose();
     }

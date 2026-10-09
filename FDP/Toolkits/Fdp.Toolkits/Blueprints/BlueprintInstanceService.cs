@@ -154,20 +154,24 @@ public static unsafe class BlueprintInstanceService
             resolvedParams = scratch;
         }
 
-        var tier = ChooseTierHonouringCurrent(world, entity, def.StateSize);
-        EnsureTierComponent(world, entity, tier);
-
-        GetTierMemoryAndMeta(world, entity, tier, out byte* memory, out int totalSize, out byte maxSlots);
-        BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
+        // ⭐⭐ CE-3137 U-0 (R-236): a unit with no store gets its FIRST block sized for this instance; otherwise the
+        //   instance goes into any block with room, or an APPENDED one. ⛔ No promotion: no slot already attached
+        //   to this unit moves.
+        if (!OccurrenceStoreAccess.HasStore(world, entity))
+        {
+            var first = BlueprintTierTable.SelectByPayload(def.StateSize);
+            if (first.IsRegistered(world)) OccurrenceStoreAccess.AddBlock(world, entity, first);
+        }
 
         // A3/D1': the occurrence declares its Kind at attach — see BlueprintTickSystem's note.
-        if (!BlueprintBlackboardPartitions.TryAttach(
-                memory, blueprintId, def.StateSize, def.StructureHash,
-                OccurrenceKind.Blueprint, out int payloadOffset))
+        if (!OccurrenceStoreAccess.TryAttachSlot(
+                world, entity, blueprintId, def.StateSize, def.StructureHash,
+                OccurrenceKind.Blueprint, out byte* memory, out int payloadOffset))
             return new BlueprintAttachResult(
-                BlueprintAttachStatus.NoSlotAvailable, tier,
-                $"No free slot/payload for blueprint '{def.Name}' on entity {entity} " +
-                $"in tier {tier}.");
+                BlueprintAttachStatus.NoSlotAvailable, BlueprintTierTable.Of(world, entity)?.Tier ?? default,
+                $"No free slot/payload for blueprint '{def.Name}' on entity {entity}: every block is full and " +
+                "every tier is already carried.");
+        var tier = OccurrenceStoreAccess.TierOf(world, entity, memory)!.Tier;
 
         if (def.InitDefault != null)
         {
@@ -345,51 +349,8 @@ public static unsafe class BlueprintInstanceService
         return BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out _);
     }
 
-    /// <summary>
-    /// ⭐⭐⭐ <b>The tier this attach must land on, given the tier the entity ALREADY carries.</b>
-    /// <c>O3b</c> / task <c>B4</c> — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §17.7.
-    ///
-    /// <para>🔴🔴 <b>The defect this fixes, and it is a PRODUCTION one.</b> This call site used
-    /// <see cref="ChooseTier"/> alone and then added that component. ⛔ <c>ChooseTier</c> sizes the
-    /// ONE instance being attached and knows nothing about the entity — so whenever it named a
-    /// DIFFERENT tier from the one already present, <see cref="EnsureTierComponent"/> added a
-    /// <b>second</b> blackboard component and the entity ended up carrying two. That breaks the
-    /// <see cref="OccurrenceStoreAccess"/> invariant every consumer relies on — <i>"an entity carries
-    /// AT MOST ONE tier"</i> — and the probe order then decides which store is authoritative, so the
-    /// slots just written can become invisible.</para>
-    ///
-    /// <para>⚠ <b>Reachable before <c>B4</c> only upwards, and now in both directions.</b> With the
-    /// ladder <c>1024 / 4096 / 16384</c>, <c>ChooseTier</c> could only name a tier LARGER than a
-    /// present one (a big instance on a 1024 entity) — rare, and it left the small tier orphaned.
-    /// ⛔ <c>O3b</c>'s 256 tier made the DOWNGRADE direction the common case: every small instance
-    /// attached to an entity already carrying 1024 chose 256. 📌 That is what reddened
-    /// <c>BlueprintStateTranslatorTests.Extract_TwoBlueprintsAttached</c> — the slots landed in a
-    /// fresh 256 store while <c>Extract</c> probes largest-first and found the empty 1024.</para>
-    ///
-    /// <para>⭐ The rule: <b>never downgrade</b>. A tier already present is kept when the state fits
-    /// it. When it genuinely does not, the store is <b>PROMOTED</b> through
-    /// <see cref="BlueprintTierTable.Promote"/> — carrying the existing slots and their
-    /// <c>Kind</c> nibbles — rather than a second component being bolted on beside it.</para>
-    /// </summary>
-    private static BlackboardTier ChooseTierHonouringCurrent(
-        EntityRepository world, Entity entity, int stateSize)
-        => BlueprintTierTable.EnsureAtLeast(
-               world, entity, BlueprintTierTable.SelectByPayload(stateSize)).Tier;
+    // ⛔ HISTORY — ChooseTierHonouringCurrent / EnsureTierComponent / GetTierMemoryAndMeta (O3b/B4, §17.7) RETIRED by
+    //   CE-3137 U-0 (R-236). They enforced "an entity carries AT MOST ONE tier" by PROMOTING (copying) the store. The store is
+    //   now multi-block by design: a second tier is a second block every reader searches, never an orphan.
 
-    private static void EnsureTierComponent(EntityRepository world, Entity entity, BlackboardTier tier)
-    {
-        var spec = BlueprintTierTable.ByTier(tier);
-        if (!spec.Has(world, entity))
-            spec.Add(world, entity);
-    }
-
-    private static void GetTierMemoryAndMeta(
-        EntityRepository world, Entity entity, BlackboardTier tier,
-        out byte* memory, out int totalSize, out byte maxSlots)
-    {
-        var spec  = BlueprintTierTable.ByTier(tier);
-        memory    = spec.Memory(world, entity);
-        totalSize = spec.TotalSize;
-        maxSlots  = (byte)spec.MaxSlots;
-    }
 }

@@ -170,6 +170,11 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 foreach (var entity in q)
                 {
+                    // ⭐⭐ CE-3137 U-0 (§34): a multi-block unit sits in SEVERAL tier queries — run it once, in the
+                    //   query of the first tier it carries (one mask read). ⚠ Not a single BehaviorState query: that
+                    //   would change the visit order for every unit, and this keeps it for one-block units.
+                    if (!Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.IsFirstVisit(repo, entity, t)) continue;
+
                     var behavior = repo.GetComponent<BehaviorState>(entity);
 
                     // ⭐⭐ BrainTier is THE discriminator, and it always was — an entity carrying an

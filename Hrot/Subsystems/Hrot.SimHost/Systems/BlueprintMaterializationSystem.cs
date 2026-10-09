@@ -120,38 +120,34 @@ namespace Hrot.SimHost.Systems
                     totalBytes = truncatedBytes;
                 }
 
-                // ⭐ B4 — 📄 DESIGN_Occurrence_Scoped_Storage.md §17.7. The aggregate names the tier
-                //   this scenario's blueprints NEED; EnsureAtLeast reconciles it with the tier the
-                //   entity may ALREADY carry (a behaviour manifest's store). ⛔ Adding the chosen
-                //   component blind left the entity with TWO stores whenever the two disagreed —
-                //   which O3b's 256 tier made the common case. Rails B4_R3 / B4_R4.
-                BlackboardTier tier = BlueprintTierTable.EnsureAtLeast(
-                    repo, entity,
-                    BlueprintTierTable.ByTier(ChooseTierFromAggregate(totalSlots, totalBytes))).Tier;
+                // ⭐⭐ CE-3137 U-0 (R-236) — 📄 DESIGN_Occurrence_Scoped_Storage.md §34. A unit with no store gets its
+                //   FIRST block sized for this scenario's aggregate; a unit that already carries one (a behaviour's)
+                //   gets a block APPENDED for any shortfall. ⛔ No promotion: no slot already attached moves.
+                if (!OccurrenceStoreAccess.HasStore(repo, entity))
+                {
+                    var first = BlueprintTierTable.ByTier(ChooseTierFromAggregate(totalSlots, totalBytes));
+                    if (first.IsRegistered(repo)) OccurrenceStoreAccess.AddBlock(repo, entity, first);
+                }
+                else
+                {
+                    OccurrenceStoreAccess.EnsureRoom(repo, entity, totalBytes, totalSlots);
+                }
 
-                // Step 3: Pre-provision the tier component
-                AddTierComponentIfMissing(repo, entity, tier);
-
-                // Step 4: Attach each blueprint directly into the pre-provisioned tier
-                // Using low-level partition API to respect aggregate tier (not per-blueprint tier).
-                GetTierMemoryAndMeta(repo, entity, tier,
-                    out byte* memory, out int totalSize, out byte maxSlots);
-                BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
-
+                // Step 4: attach each blueprint into any block with room (an appended one on a miss).
                 foreach (var (bpId, def, dto) in resolved)
                 {
-                    // Check if already attached (idempotent)
-                    if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, bpId, out _))
+                    // Check if already attached (idempotent) — in any block.
+                    if (OccurrenceStoreAccess.TryFindSlot(repo, entity, bpId, out _, out _, out _))
                         continue;
 
                     // A3/D1': the occurrence declares its Kind at attach — see BlueprintTickSystem's note.
-                    if (!BlueprintBlackboardPartitions.TryAttach(
-                            memory, bpId, def.StateSize, def.StructureHash,
-                            OccurrenceKind.Blueprint, out int payloadOffset))
+                    if (!OccurrenceStoreAccess.TryAttachSlot(
+                            repo, entity, bpId, def.StateSize, def.StructureHash,
+                            OccurrenceKind.Blueprint, out byte* memory, out int payloadOffset))
                     {
                         FdpLog<BlueprintMaterializationSystem>.Error(
-                            $"[BlueprintMat] NoSlotAvailable for bpId 0x{bpId:X8} " +
-                            $"on entity {entity} (tier {tier}). This should not happen after pre-provision.");
+                            $"[BlueprintMat] NoSlotAvailable for bpId 0x{bpId:X8} on entity {entity}: every block is " +
+                            "full and every tier is already carried.");
                         continue;
                     }
 
@@ -208,23 +204,8 @@ namespace Hrot.SimHost.Systems
 
         // ── Tier memory access ─────────────────────────────────────────────────
 
-        private static unsafe void GetTierMemoryAndMeta(
-            EntityRepository repo, Entity entity, BlackboardTier tier,
-            out byte* memory, out int totalSize, out byte maxSlots)
-        {
-            var spec  = BlueprintTierTable.ByTier(tier);
-            memory    = spec.Memory(repo, entity);
-            totalSize = spec.TotalSize;
-            maxSlots  = (byte)spec.MaxSlots;
-        }
 
         // ── Tier component helper ──────────────────────────────────────────────
 
-        private static void AddTierComponentIfMissing(EntityRepository repo, Entity entity, BlackboardTier tier)
-        {
-            var spec = BlueprintTierTable.ByTier(tier);
-            if (!spec.Has(repo, entity))
-                spec.Add(repo, entity);
-        }
     }
 }

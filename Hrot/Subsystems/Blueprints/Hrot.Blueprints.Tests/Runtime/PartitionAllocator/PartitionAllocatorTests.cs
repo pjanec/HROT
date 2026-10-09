@@ -768,6 +768,9 @@ public sealed unsafe class PartitionAllocatorTests
     /// all THREE production promotion sites at once (<c>BehaviorIngressSystem.UpgradeTier</c>,
     /// <c>BlueprintMaintenanceSystem</c>, <c>EntityBlueprintsPanel</c>), because every one of them
     /// funnels through this method.</para>
+    ///
+    /// <para>⛔ CE-3137 U-0 (R-236): all three sites are retired — growth appends a block and nothing
+    /// moves. <c>CopyToLargerTier</c> stays as a dormant primitive, and this rail keeps it correct.</para>
     /// </summary>
     [Fact]
     public void A3_R2_CopyToLargerTier_PreservesEveryDeclaredKind()

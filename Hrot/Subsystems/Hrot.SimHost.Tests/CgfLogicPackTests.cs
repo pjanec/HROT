@@ -597,28 +597,19 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ A4-R3 — the Brain capability carries the BeforeSync maintenance system into the kernel,
-        /// and it is the SAME instance the pack built.
-        ///
-        /// <para>🔴 Without it a host can tick Instances but never PROMOTE a tier — and since A3 the
-        /// promotion path is also what carries the <c>OccurrenceKind</c> nibble array across a tier
-        /// upgrade (<c>H1</c>).</para>
+        /// ⭐ A4-R3 — re-expressed by <c>CE-3137</c> U-0 (<c>R-236</c>): the Brain capability provides NO tier-maintenance
+        /// module any more. ⛔ HISTORY: it used to carry the BeforeSync <c>BlueprintMaintenanceSystem</c> (copy-promotion);
+        /// the store never moves a slot now, and a resurrected promotion would copy away every grown unit's blocks.
         /// </summary>
         [Fact]
-        public void A4_R3_TheBrainCapability_CarriesTheMaintenanceSystem()
+        public void A4_R3_TheBrainCapability_ProvidesNoTierMaintenance()
         {
             var pack = NewPack();
             var modules = new System.Collections.Generic.List<IEcsModule>();
             foreach (var capability in ResolveBrain(pack))
                 modules.AddRange(capability.ProvideModules());
 
-            var carrier = Assert.Single(
-                modules.OfType<Fdp.ModuleHost.Scheduling.SingleSystemModule>());
-
-            var registry = new CapturingSystemRegistry();
-            carrier.RegisterSystems(registry);
-
-            Assert.Same(pack.MaintenanceSystem, Assert.Single(registry.Systems));
+            Assert.Empty(modules.OfType<Fdp.ModuleHost.Scheduling.SingleSystemModule>());
         }
 
         /// <summary>Minimal <see cref="ISystemRegistry"/> that records what a module registers.</summary>

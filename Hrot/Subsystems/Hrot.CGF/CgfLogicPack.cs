@@ -96,7 +96,7 @@ namespace Hrot.CGF
         /// tier registration). ⭐ Exposing it here lets the ONE capability that provides this pack
         /// provide it too.</para>
         /// </summary>
-        public BlueprintMaintenanceSystem MaintenanceSystem { get; }
+
 
         // ── Constructor ───────────────────────────────────────────────────────
 
@@ -238,7 +238,6 @@ namespace Hrot.CGF
             //      by _actionDispatchModule just above): module-group order is ARRAY POSITION, and an
             //      appended tick dispatches intent a tick late — the Q#16-B contract. The shared helper
             //      reads the targets off the attributes so this stays true by construction.
-            MaintenanceSystem = new BlueprintMaintenanceSystem();
             SimulationSystems = BlueprintRuntimeComposition.SpliceIntoSimulation(
                 simList, new BlueprintTickSystem(blueprintRegistry));
 

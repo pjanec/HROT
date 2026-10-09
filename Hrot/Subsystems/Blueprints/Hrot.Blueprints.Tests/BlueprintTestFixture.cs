@@ -47,7 +47,6 @@ public sealed class BlueprintTestFixture : IDisposable
     public BlueprintRegistry Registry { get; }
     public BehaviorRegistry BehaviorRegistry { get; }
     public BlueprintTickSystem TickSystem { get; }
-    public BlueprintMaintenanceSystem MaintenanceSystem { get; }
     public BlueprintCompiler Compiler { get; }
     public CapturingDebugSession DebugSession { get; }
 
@@ -99,7 +98,6 @@ public sealed class BlueprintTestFixture : IDisposable
         BehaviorRegistry = new BehaviorRegistry();
         DebugSession = new CapturingDebugSession();
         TickSystem = new BlueprintTickSystem(Registry);
-        MaintenanceSystem = new BlueprintMaintenanceSystem();
         Compiler = new BlueprintCompiler();
 
         _coordinator = new AiHotReloadCoordinator(
@@ -182,8 +180,7 @@ public sealed class BlueprintTestFixture : IDisposable
             sys.Execute(_repo, deltaTime);  // pass EntityRepository so MockDispatcherSystem can cast for write access
         _repo.SetCommandBufferOverride(null);
 
-        // 4. BeforeSync phase
-        MaintenanceSystem.Execute(_repo, deltaTime);
+        // 4. BeforeSync phase — ⛔ CE-3137 U-0: no BlueprintMaintenanceSystem (the store never moves a slot).
 
         // 5. Sync phase: flush any deferred ops from production-path ECBs (safety), then
         //    play back the fixture mock ECB (test-injected ops and ops from simulation systems).
@@ -922,24 +919,18 @@ public static class ThrowingRegistrar
             throw new InvalidOperationException(
                 $"Blueprint '{asset.Name}' not loaded into registry. Call CompileAndLoad first.");
 
-        // ⭐ B4 — design §17.7. Mirror production EXACTLY: the payload-only pick is reconciled with
-        //   the tier the entity may already carry. ⛔ ChooseTier alone would add a SECOND store the
-        //   moment the pick disagrees — which the 256 tier made the common case.
-        var tier = BlueprintTierTable.EnsureAtLeast(
-            _repo, entity, BlueprintTierTable.SelectByPayload(def!.StateSize)).Tier;
-        EnsureTierComponent(entity, tier);
-
-        GetTierMemoryAndMeta(entity, tier, out byte* memory, out int totalSize, out byte maxSlots);
-        BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
+        // ⭐ CE-3137 U-0 (R-236) — mirror production EXACTLY (BlueprintInstanceService.AttachToEntity): a unit with
+        //   no store gets its first block sized for this instance; otherwise any block with room, else an appended one.
+        if (!OccurrenceStoreAccess.HasStore(_repo, entity))
+            OccurrenceStoreAccess.AddBlock(_repo, entity, BlueprintTierTable.SelectByPayload(def!.StateSize));
 
         int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
-        // ⭐ A3/D1' — declare the kind, exactly as the production attach paths do
-        //   (BlueprintInstanceService / BlueprintTickSystem / BlueprintMaterializationSystem).
+        // ⭐ A3/D1' — declare the kind, exactly as the production attach paths do.
         //   ⛔ Without it the slot reads Invalid and A4's walker skips it, so nothing ticks.
-        if (!BlueprintBlackboardPartitions.TryAttach(memory, blueprintId, def.StateSize, def.StructureHash,
-                OccurrenceKind.Blueprint, out int payloadOffset))
+        if (!OccurrenceStoreAccess.TryAttachSlot(_repo, entity, blueprintId, def!.StateSize, def.StructureHash,
+                OccurrenceKind.Blueprint, out byte* memory, out int payloadOffset))
             throw new InvalidOperationException(
-                $"Failed to attach Blueprint '{asset.Name}' to entity {entity} (tier {tier}).");
+                $"Failed to attach Blueprint '{asset.Name}' to entity {entity}: every block full.");
 
         if (def.InitDefault != null)
         {
