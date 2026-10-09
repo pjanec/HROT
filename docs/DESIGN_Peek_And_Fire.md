@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-09
-build-state: READY-TO-BUILD for D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 proposed (leans); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
-current-answer: §6 decisions (approved) · §8 behaviour detail (proposed) · §3 classes · §4 sequences · §5 modules · §7 slices
+build-state: READY-TO-BUILD for D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
+current-answer: §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §3 classes · §4 sequences · §5 modules · §7 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT to the highest body point the shooter sees (§6 D1)
@@ -207,7 +207,7 @@ chosen on SimHost from geometry. The ~100–300 ms report latency is part of the
 | P-7 | D12 bound + D13 freshest evidence, on the obstacles | B reaches a second cover while A is near-missed and stays down; A's next blind burst lands at B's heard spot |
 | P-8 | D10 scenario + rail + HTTP check; T3 baselines re-pinned if D4 moved them | the duel rail |
 
-## 8. The behaviour in detail *(proposed `2026-10-09` — leans B1–B8)*
+## 8. The behaviour in detail *(APPROVED `2026-10-09` — B1–B8, R-238; 🔒 user: "approved")*
 
 ### 8.1 What lives where
 
