@@ -3,13 +3,13 @@ state: LIVE
 updated: 2026-10-09 (§34 U-0 built, as-built §34.6)
 build-state: ⛔ PER-SECTION — this file spans a whole programme, so there is no single answer, and the
   one that used to be here ("DESIGN, because §32's review demoted it") was stale the moment §32 shipped.
-  ⭐ BUILT: §29 (P3) · §30 (P4) · §31 (O7c) · §32 (E5) · §33 (E6) · §33.12 (the editor path) · §34 (U-0, except U-0c).
+  ⭐ BUILT: §29 (P3) · §30 (P4) · §31 (O7c) · §32 (E5) · §33 (E6) · §33.12 (the editor path) · §34 (U-0).
   ⚠ NOT AUDITED since the programme shipped, so DO NOT trust their headers without measuring:
   §17 (O3a, says READY-TO-BUILD — BlueprintTierTable is in 90 files, so it is probably BUILT) ·
   §19 (O4/C1, says READY-TO-BUILD) · §24 (O7, says BUILDING — O7c-4d deleted BrainHsm128, so it is
   probably BUILT). 📌 Five stale build-state lines have now been found in this file and its
   neighbours (§30, §31 on 2026-09-27; §29, §32 here) — treat a section header as a CLAIM, not a fact.
-current-answer: ⭐⭐⭐ §34 — U-0, THE MULTI-BLOCK STORE (R-236, CE-3137) — IS THE NEWEST SECTION AND IS BUILT (2026-10-09; U-0c per-tick view deferred). ⚠ READ §34.6 (AS-BUILT) FIRST — §34.2/§34.3 are the pre-build shape. (§33, E6, is BUILT.)
+current-answer: ⭐⭐⭐ §34 — U-0, THE MULTI-BLOCK STORE (R-236, CE-3137) — IS THE NEWEST SECTION AND IS BUILT (2026-10-09, U-0a…U-0e). ⚠ READ §34.6 (AS-BUILT) FIRST — §34.2/§34.3 are the pre-build shape. (§33, E6, is BUILT.)
   (2026-09-27). Start there for the BTree hosting slice; it carries its own INVENTORY, three UML
   diagrams, five build items and its rejected alternatives.
   ⚠⚠ §3.1 IS SUPERSEDED — it says "BTree-hosts-BTree is not a missing feature", which CE-337 made
@@ -10259,7 +10259,7 @@ would exercise these assets inside the real product rather than a test host. ⛔
 
 📄 **Why, measured, and the performance case:** [`Architect_Question_87_Unit_Memory.md`](Architect_Question_87_Unit_Memory.md)
 §3a (why the store moved: a one-block design, not FDP; FDP adds move nothing and are allowed mid-phase) · §3b (per brain-tick
-**1 155–1 350 ns today → 88–112 ns** with the per-tick view, two blocks). `build-state: BUILT` (`2026-10-09`) except U-0c — ⭐ **§34.6 is the as-built; §34.2–§34.3 below are the pre-build shape.**
+**1 155–1 350 ns today → 88–112 ns** with the per-tick view, two blocks). `build-state: BUILT` (`2026-10-09`) — ⭐ **§34.6 is the as-built; §34.2–§34.3 below are the pre-build shape.**
 
 ### 34.1 INVENTORY — what changes, measured `2026-10-09` (graph `trace_path` + grep)
 
@@ -10360,11 +10360,12 @@ is the retired promotion, whose "two tiers = promote" rule would otherwise copy 
 ⚠ **Lane:** the store is behaviour infrastructure (behaviors lane). `origin/behaviors` has **0 commits** not already in `backend`
 and the lane is on hold; the work is done here and said in every commit (cross-lane edit, lane protocol).
 
-### 34.6 ✅ AS-BUILT — `2026-10-09` (U-0a, U-0b, U-0d built · U-0c deferred)
+### 34.6 ✅ AS-BUILT — `2026-10-09` (U-0a … U-0e all built; U-0c the same day, second pass)
 
 ⚠ **§34.2–§34.3 are the PRE-BUILD shape and are SUPERSEDED by this section** where the names differ: there is no
-`StoreView` / `TickViewScope` (U-0c deferred), no `BlueprintTierTable.Blocks/Append/FirstVisit` and no `ForEachSlot`;
-the whole seam lives in `OccurrenceStoreAccess`. §34.4's module diagram still holds, except its "Begin/End view" edge.
+`StoreView` type (the view is `OccurrenceStoreAccess.BeginTickView` → `TickViewScope`), no `BlueprintTierTable.Blocks/Append/FirstVisit`
+and no `ForEachSlot`; the whole seam lives in `OccurrenceStoreAccess`. ⚠ §34.4's "Begin/End view" edge runs from **`BrainTickSystem`**
+(per unit, and per SOP tick), not from the three runners: one scope covers every runner, hosted subtree and thunk of that unit's tick.
 
 ```mermaid
 classDiagram
@@ -10381,7 +10382,12 @@ classDiagram
     AppendBlockFor(payloadShort, slotsShort) / EnsureRoom(payload, slots) / AddBlock(spec)
     TierOf(block) BlueprintTierSpec
     TryGetStore* (largest block, tests and diagnostics ONLY)
+    LargestBlock(world, e) BlueprintTierSpec (display only)
+    BeginTickView(world, e) TickViewScope
   }
+  class TickViewScope { <<new, IDisposable>> only the outermost scope owns the view }
+  class TickViewState { <<new, ThreadStatic>> world; entity; block pointers + tier; Stamped bits }
+  class BrainTickSystem { <<existing>> opens a view per unit tick and per SOP tick }
   class StoreBlocks { <<new, unmanaged>> Max = 4; Memory(i); TotalSize(i); Count; TryFind(key) }
   class StoreMeasure { <<new>> Blocks; PayloadSize; PayloadFree; MaxSlots; SlotCount; FreeSlots }
   class BlueprintTierSpec { <<existing, grown>> ComponentId (for the one-mask-read probe) }
@@ -10389,6 +10395,8 @@ classDiagram
   class BlueprintBlackboardPartitions { <<existing, unchanged>> per-block allocator; CopyToLargerTier dormant }
   class BlueprintMaintenanceSystem { <<RETIRED, deleted>> }
   OccurrenceStoreAccess --> StoreBlocks
+  OccurrenceStoreAccess --> TickViewState : ThreadStatic
+  BrainTickSystem ..> TickViewScope : using, per unit
   OccurrenceStoreAccess --> StoreMeasure
   OccurrenceStoreAccess ..> BlueprintTierTable
   OccurrenceStoreAccess ..> BlueprintTierSpec
@@ -10403,7 +10411,8 @@ the only new types are two plain value carriers.*
 | ⭐ **`BrainTickSystem` keeps its per-tier walk and skips a unit already visited** (`IsFirstVisit`, one mask read), instead of one `BehaviorState` query | a single-block unit (every unit today) is visited **in exactly the old order**, so no golden or T3 baseline can move. The §34.5 ⚠ about visit order no longer applies |
 | ⭐ **`BlueprintTickSystem` needed NO change** | its walk is **slot-level**: each slot lives in exactly one block, so every Instance ticks once per frame even on a 2-block unit. Comment at the loop says so |
 | ⛔ **the `BlueprintTickSystem.cs:207` "silent drop" was misattributed** | it is `EnsureAndTickSingleton`, the **world-singleton** path (one shared block per tier), never a unit's store. ⇒ rail ② as written had no target. The singleton drop remains, outside U-0. Q87 inventory row corrected |
-| ⏸ **U-0c (per-tick view) DEFERRED** | the lookup is already **mask probe → read-only scan → read-write on the hit block** (single-block stores resolve read-write directly), which keeps today's cost for every one-block unit. The view only pays on multi-block units; build it with its benchmark rail when U-1/U-2 make multi-block units common |
+| ⭐ **U-0c built as an AMBIENT thread-static view, opened by `BrainTickSystem`** (not by the three runners) | one `using` per unit tick (and per SOP tick) covers every runner, hosted subtree, generated thunk and accessor of that unit with **no signature change**. The view holds read-only block pointers; a hit's block is fetched read-write ONCE per scope, so its chunk version is still stamped (§3b ③). `AddBlock` extends an open view; only the OUTERMOST scope owns it (a hosted subtree's nested scope, or a scope for another unit, is a no-op). ⚠ Safe because production never removes a block (measured: no production `RemoveComponent` of a tier) — a raw add behind the view's back is invisible until the scope ends, pinned by `U0_R6` |
+| ⛔ *(first pass, same day — SUPERSEDED by the row above)* U-0c deferred | *the lookup was mask probe → read-only scan → read-write on the hit block; the view looked worth it only for multi-block units. Measured afterwards: the view is ~5× cheaper even on 2 blocks (`U0_R7`), so it was built* |
 | ⭐ **`TryResolveOccurrence` (the generated thunks' call) became multi-block in place** | **no generator change, no golden re-pin** — the emitted call is unchanged |
 | ⭐ **`TryGetStore*` / `BlueprintTierTable.Of` kept, returning the LARGEST block** | tests and diagnostics read one block; ⛔ **rail `U0_R0` fails any production call** outside `OccurrenceStoreAccess.cs`/`BlueprintTierTable.cs` (source scan, skips Tests/Examples) |
 | ⭐ **`CopyToLargerTier` kept, dormant** | an allocator primitive with its own rail (`PartitionAllocatorTests.A3_R2`); no production caller |
@@ -10423,6 +10432,9 @@ the only new types are two plain value carriers.*
 | `U0_R0` | no production code reads "the" store (`TryGetStore*`, `BlueprintTierTable.Of/OfInView`) |
 | `B4_R4` (re-expressed) | an attach that outgrows the block appends one and the first slot does not move |
 | ⭐⭐ `BTreeHostsBTreeTests.U0_R5` | **the cascade the user asked for:** a parent tree hosting **20 subtree sites** grows the unit past one block at assign; a **mid-tick** attach of 3 × 1000-byte working states appends again while the host is running; the host cursor stays put, each child runs once, the brain ticks once per frame across 3 frames |
+| ⭐ `U0_R6` (U-0c) | inside a view, lookups return the probe's pointers; an append mid-scope is visible; a nested same-unit scope does not close it; a raw add behind its back is invisible until it closes; another unit's view does not answer |
+| ⭐ `U0_R7` (rail ⑥, the benchmark) | a view lookup on **2 blocks** (hit in the block searched second) ≤ a probe lookup on **1 block**, best of 7 × 20 000. 📐 Measured in the Debug test build: **~77–122 ns vs ~375–640 ns per lookup (~5×)** |
+| ⭐ `PredicateCompilerTests.U0_R8` (rail ⑦) | the replay search matches a working slot living in a unit's SMALLER, second-searched block (a replay frame is a repository whose tier components were recorded like any other; red by construction for the old single-block read) |
 | `BehaviorIngressStatefulTests.Assign_UpgradesTierSynchronously_BeforeFirstTick` (re-expressed) | a nearly full 1024 gets a block appended at assign; the old slot keeps its block and offset |
 
 **Gates** (`2026-10-09`, `--no-build` after one build of each TEST project):
@@ -10439,5 +10451,6 @@ the only new types are two plain value carriers.*
 | `Hrot.AiEditor.Generators.Tests` · `Hrot.AiEditor.Persistence.Tests` | **395 / 0** · **166 / 0** | working tree clean after the run |
 | generated goldens | unchanged — the thunks' call `TryResolveOccurrence` kept its signature | |
 
-**Residual:** U-0c (per-tick view + benchmark rail ⑥) · rail ⑦ (a RECORDED 2-block frame searchable in the replay browser —
-the reader is routed, no recording rail yet) · the world-singleton silent drop on a full tier (outside U-0).
+**Residual:** the world-singleton silent drop on a full tier (`BlueprintTickSystem.EnsureAndTickSingleton`, outside U-0) · §3b ④ search
+order is LARGEST-first, not assign-time-block-first (the store records no attach order; a one-block unit is unaffected, and inside a view
+the cost difference is one ~14 ns scan).

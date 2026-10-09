@@ -757,6 +757,111 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
         }
 
         /// <summary>
+        /// ⭐⭐ <c>U0_R6</c> (U-0c) — THE PER-TICK VIEW: inside a scope, lookups answer from the blocks resolved at
+        /// <c>BeginTickView</c>; an <c>AddBlock</c> (what an attach that outgrows the store does) EXTENDS the open view;
+        /// a nested scope for the same unit is a no-op; disposing the outer scope returns to the probe.
+        /// </summary>
+        [Fact]
+        public void U0_R6_TheTickView_AnswersLikeTheProbe_AndSeesAnAppendInsideTheScope()
+        {
+            using var world = CreateWorld();
+            var e = world.CreateEntity();
+            var asc = BlueprintTierTable.Ascending;
+            FirstBlock(world, e, asc[0]);
+            Assert.True(OccurrenceStoreAccess.TryAttachSlot(world, e, 701, 16, 1, OccurrenceKind.BTree, out byte* b0, out int o0));
+
+            using (OccurrenceStoreAccess.BeginTickView(world, e))
+            {
+                // ① the same pointer as the probe gave.
+                Assert.True(OccurrenceStoreAccess.TryFindSlot(world, e, 701, out byte* vb, out int vo, out _));
+                Assert.True(b0 + o0 == vb + vo);
+
+                // ② a growth mid-scope: every attach past the first block's slots appends, and the view sees it.
+                for (int k = 0; k < asc[0].MaxSlots + 2; k++)
+                    Assert.True(OccurrenceStoreAccess.TryAttachSlot(world, e, 800 + k, 16, 1, OccurrenceKind.BTree, out _, out _));
+                Assert.True(TierComponentCount(world, e) >= 2, "premise: the store grew inside the scope");
+                for (int k = 0; k < asc[0].MaxSlots + 2; k++)
+                    Assert.True(OccurrenceStoreAccess.TryFindSlot(world, e, 800 + k, out _, out _, out _), $"slot {800 + k} inside the view");
+                Assert.True(OccurrenceStoreAccess.TryFindSlotIndex(world, e, 800, out _, out _));
+                Assert.True(OccurrenceStoreAccess.TryFindSlotReadOnly(world, e, 701, out _, out _, out _));
+
+                // ③ a nested scope for the same unit (a hosted subtree) does not close the outer view.
+                using (OccurrenceStoreAccess.BeginTickView(world, e)) { }
+
+                // ⚠ proof the outer view is still the one answering: a block added BEHIND its back (a raw component
+                //   add, which production never does) is invisible until the scope ends.
+                var hidden = asc[asc.Count - 1];
+                Assert.False(hidden.Has(world, e), "premise: the largest tier is not carried yet");
+                hidden.Add(world, e);
+                byte* raw = hidden.Memory(world, e);
+                BlueprintBlackboardPartitions.Initialize(raw, hidden.TotalSize, (byte)hidden.MaxSlots);
+                Assert.True(BlueprintBlackboardPartitions.TryAttach(raw, 999, 8, 1, OccurrenceKind.BTree, out _));
+                Assert.False(OccurrenceStoreAccess.TryFindSlot(world, e, 999, out _, out _, out _),
+                    "the open view answers, and it was not told about a raw add");
+            }
+
+            // ④ the scope is closed: the probe answers again and sees everything.
+            Assert.True(OccurrenceStoreAccess.TryFindSlot(world, e, 999, out _, out _, out _));
+            Assert.True(OccurrenceStoreAccess.TryFindSlot(world, e, 701, out _, out _, out _));
+
+            // ⑤ a view for ANOTHER unit does not answer for this one.
+            var other = world.CreateEntity();
+            FirstBlock(world, other, asc[0]);
+            using (OccurrenceStoreAccess.BeginTickView(world, other))
+                Assert.True(OccurrenceStoreAccess.TryFindSlot(world, e, 701, out _, out _, out _));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>U0_R7</c> (U-0c, Q87 §3b's benchmark rail) — a lookup through the per-tick view on a TWO-block unit,
+        /// hitting the block searched SECOND, costs no more than today's lookup on a ONE-block unit with no view.
+        /// 📐 Best of 7 repetitions × 20 000 lookups each, so scheduler noise inflates neither side's minimum.
+        /// </summary>
+        [Fact]
+        public void U0_R7_AViewLookupOnTwoBlocks_IsNoDearerThanAProbeLookupOnOne()
+        {
+            using var world = CreateWorld();
+            var asc = BlueprintTierTable.Ascending;
+
+            var one = world.CreateEntity();
+            FirstBlock(world, one, asc[1]);
+            for (int k = 0; k < 6; k++)
+                Assert.True(OccurrenceStoreAccess.TryAttachSlot(world, one, 300 + k, 16, 1, OccurrenceKind.BTree, out _, out _));
+
+            var two = world.CreateEntity();
+            FirstBlock(world, two, asc[0]);
+            for (int k = 0; k < 2; k++)
+                Assert.True(OccurrenceStoreAccess.TryAttachSlot(world, two, 300 + k, 16, 1, OccurrenceKind.BTree, out _, out _));
+            OccurrenceStoreAccess.AddBlock(world, two, asc[2]);   // larger ⇒ searched FIRST; the key sits in the second
+            Assert.Equal(2, OccurrenceStoreAccess.Measure(world, two).Blocks);
+
+            const int N = 20_000;
+            long Probe()
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                for (int i = 0; i < N; i++) OccurrenceStoreAccess.TryFindSlot(world, one, 305, out _, out _, out _);
+                return sw.ElapsedTicks;
+            }
+            long Viewed()
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                using (OccurrenceStoreAccess.BeginTickView(world, two))
+                    for (int i = 0; i < N; i++) OccurrenceStoreAccess.TryFindSlot(world, two, 301, out _, out _, out _);
+                return sw.ElapsedTicks;
+            }
+
+            Probe(); Viewed();   // warm-up
+            long bestProbe = long.MaxValue, bestView = long.MaxValue;
+            for (int r = 0; r < 7; r++)
+            {
+                bestProbe = Math.Min(bestProbe, Probe());
+                bestView  = Math.Min(bestView, Viewed());
+            }
+
+            Assert.True(bestView <= bestProbe,
+                $"view on 2 blocks: {bestView} ticks; probe on 1 block: {bestProbe} ticks (per {N} lookups)");
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>U0_R0</c> — no PRODUCTION file reads the store through the single-block forms
         /// (<c>TryGetStore</c>, <c>TryGetStoreReadOnly</c>, <c>TryGetStoreInView</c>, <c>BlueprintTierTable.Of/OfInView</c>).
         /// They return ONE block — the largest — and a slot may live in another. ⭐ Tests and diagnostics may use them.

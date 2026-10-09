@@ -131,7 +131,7 @@ public static unsafe class OccurrenceStoreAccess
     /// genuinely only ask the question (e.g. a translator's "should I serialise this entity?").
     /// </summary>
     public static bool HasStore(EntityRepository world, Entity entity)
-        => PresentTiers(world, entity) != 0;
+        => ViewFor(world, entity) is { } v ? v.Count != 0 : PresentTiers(world, entity) != 0;
 
     /// <summary>
     /// The entity's tier <c>TotalSize</c>, or <c>0</c> when it has no store — the size-only half of
@@ -214,6 +214,92 @@ public static unsafe class OccurrenceStoreAccess
         return true;
     }
 
+    // ═══ CE-3137 U-0c — THE PER-TICK VIEW (Q87 §3b ①, §34) ═══════════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐ Opens the per-tick view of <paramref name="entity"/>'s store: its blocks are resolved ONCE (one mask read +
+    /// one read-only fetch per block), and every <see cref="TryFindSlot"/> / <see cref="TryFindSlotIndex"/> /
+    /// <see cref="TryFindSlotReadOnly"/> / <see cref="HasStore"/> for that entity on this thread is then a pure scan until
+    /// the scope is disposed. A hit's block is fetched READ-WRITE once per scope, so its chunk version is still stamped
+    /// (Q87 §3b ③). <see cref="AddBlock"/> extends an open view.
+    ///
+    /// <para>⭐ <b>Safe only because the store never moves</b> (U-0, <c>R-236</c>): an append extends the view and
+    /// production never REMOVES a block (measured <c>2026-10-09</c>: no production <c>RemoveComponent</c> of a tier).
+    /// ⛔ Under the old copy-promotion this cache would have been §3a's stale-pointer bug.</para>
+    ///
+    /// <para>⭐ Only the OUTERMOST scope owns the view: re-entering for the same entity (a hosted subtree) is a no-op,
+    /// and a scope for a DIFFERENT entity while one is open is a no-op too — lookups for it fall back to the probe.</para>
+    /// </summary>
+    public static TickViewScope BeginTickView(EntityRepository world, Entity entity)
+    {
+        var v = t_view ??= new TickViewState();
+        if (v.Active) return default;
+
+        int bits = PresentTiers(world, entity);
+        v.World = world; v.Entity = entity; v.Count = 0; v.Stamped = 0; v.Active = true;
+        var d = BlueprintTierTable.Descending;
+        for (int i = 0; bits != 0; i++, bits >>= 1)
+            if ((bits & 1) != 0) v.Append(i, d[i].MemoryReadOnly(world, entity), stamped: false);
+        return new TickViewScope(owns: true);
+    }
+
+    /// <summary>Closes the view <see cref="BeginTickView"/> opened (a no-op for a scope that did not open one).</summary>
+    public readonly struct TickViewScope : IDisposable
+    {
+        private readonly bool _owns;
+        internal TickViewScope(bool owns) => _owns = owns;
+        public void Dispose()
+        {
+            if (_owns && t_view is { } v) { v.Active = false; v.World = null; }
+        }
+    }
+
+    [ThreadStatic] private static TickViewState? t_view;
+
+    private sealed class TickViewState
+    {
+        public bool Active;
+        public EntityRepository? World;
+        public Entity Entity;
+        public int Count;
+        public int Stamped;                                   // bit k: block k already fetched RW in this scope
+        public readonly long[] Memory = new long[StoreBlocks.Max];
+        public readonly int[] Tier = new int[StoreBlocks.Max]; // BlueprintTierTable.Descending index
+
+        public void Append(int tier, byte* memory, bool stamped)
+        {
+            Memory[Count] = (long)memory; Tier[Count] = tier;
+            if (stamped) Stamped |= 1 << Count;
+            Count++;
+        }
+    }
+
+    private static int DescendingIndexOf(BlueprintTierSpec spec)
+    {
+        var d = BlueprintTierTable.Descending;
+        for (int i = 0; i < d.Count; i++) if (ReferenceEquals(d[i], spec)) return i;
+        throw new ArgumentException($"tier {spec.Tier} is not on the ladder", nameof(spec));
+    }
+
+    /// <summary>The open view, when it is for exactly this world and entity.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static TickViewState? ViewFor(EntityRepository world, Entity entity)
+    {
+        var v = t_view;
+        return v is { Active: true } && ReferenceEquals(v.World, world) && v.Entity.Equals(entity) ? v : null;
+    }
+
+    /// <summary>Block <paramref name="k"/> of an open view, READ-WRITE: the first RW use in the scope stamps the chunk version.</summary>
+    private static byte* ViewBlockRW(TickViewState v, int k)
+    {
+        if ((v.Stamped & (1 << k)) == 0)
+        {
+            BlueprintTierTable.Descending[v.Tier[k]].Memory(v.World!, v.Entity);
+            v.Stamped |= 1 << k;
+        }
+        return (byte*)v.Memory[k];
+    }
+
     /// <summary>Every block the unit carries, largest first, resolved READ-WRITE. ⛔ Marks each block's chunk
     /// version — a caller that only reads uses <see cref="GetBlocksReadOnly"/>.</summary>
     public static int GetBlocks(EntityRepository world, Entity entity, out StoreBlocks blocks)
@@ -257,6 +343,15 @@ public static unsafe class OccurrenceStoreAccess
         EntityRepository world, Entity entity, int slotKey,
         out byte* block, out int payloadOffset, out uint structureHash)
     {
+        if (ViewFor(world, entity) is { } v)
+        {
+            for (int k = 0; k < v.Count; k++)
+                if (BlueprintBlackboardPartitions.TryGetSlotOffset((byte*)v.Memory[k], slotKey, out payloadOffset, out structureHash))
+                { block = ViewBlockRW(v, k); return true; }
+            block = null; payloadOffset = 0; structureHash = 0;
+            return false;
+        }
+
         int bits = PresentTiers(world, entity);
         var d = BlueprintTierTable.Descending;
         bool single = bits != 0 && (bits & (bits - 1)) == 0;
@@ -285,6 +380,15 @@ public static unsafe class OccurrenceStoreAccess
     public static bool TryFindSlotIndex(
         EntityRepository world, Entity entity, int slotKey, out byte* block, out int slotIndex)
     {
+        if (ViewFor(world, entity) is { } v)
+        {
+            for (int k = 0; k < v.Count; k++)
+                if (BlueprintBlackboardPartitions.TryGetSlotIndex((byte*)v.Memory[k], slotKey, out slotIndex))
+                { block = ViewBlockRW(v, k); return true; }
+            block = null; slotIndex = -1;
+            return false;
+        }
+
         int bits = PresentTiers(world, entity);
         var d = BlueprintTierTable.Descending;
         bool single = bits != 0 && (bits & (bits - 1)) == 0;
@@ -305,6 +409,15 @@ public static unsafe class OccurrenceStoreAccess
         EntityRepository world, Entity entity, int slotKey,
         out byte* block, out int payloadOffset, out uint structureHash)
     {
+        if (ViewFor(world, entity) is { } v)
+        {
+            for (int k = 0; k < v.Count; k++)
+                if (BlueprintBlackboardPartitions.TryGetSlotOffset((byte*)v.Memory[k], slotKey, out payloadOffset, out structureHash))
+                { block = (byte*)v.Memory[k]; return true; }
+            block = null; payloadOffset = 0; structureHash = 0;
+            return false;
+        }
+
         GetBlocksReadOnly(world, entity, out var blocks);
         return blocks.TryFind(slotKey, out block, out payloadOffset, out structureHash);
     }
@@ -439,6 +552,9 @@ public static unsafe class OccurrenceStoreAccess
         spec.Add(world, entity);
         byte* mem = spec.Memory(world, entity);
         BlueprintBlackboardPartitions.Initialize(mem, spec.TotalSize, (byte)spec.MaxSlots);
+        // ⭐ U-0c: an open view for this unit gains the block (appended last — searched after the existing ones).
+        if (ViewFor(world, entity) is { } v)
+            v.Append(DescendingIndexOf(spec), mem, stamped: true);
         return mem;
     }
 

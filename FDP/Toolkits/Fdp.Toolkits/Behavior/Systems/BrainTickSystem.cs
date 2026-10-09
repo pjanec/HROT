@@ -175,6 +175,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                     //   would change the visit order for every unit, and this keeps it for one-block units.
                     if (!Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.IsFirstVisit(repo, entity, t)) continue;
 
+                    // ⭐⭐ CE-3137 U-0c — the unit's blocks are resolved ONCE for its whole tick (runner, hosted subtrees,
+                    //   generated thunks, unit memory); every slot lookup below is then a pure scan. Q87 §3b ①.
+                    using var storeView = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.BeginTickView(repo, entity);
+
                     var behavior = repo.GetComponent<BehaviorState>(entity);
 
                     // ⭐⭐ BrainTier is THE discriminator, and it always was — an entity carrying an
@@ -245,6 +249,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                                 BehaviorDefinition def, float deltaTime)
         {
             using var view = BrainSlotScope.Enter(entity, sopHash, sopRun);
+            using var storeView = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.BeginTickView(repo, entity); // ⭐ U-0c
 
             if (!runner.TryGetRootBrain(repo, entity, def, out byte* brain, out int brainBytes)) return;
             ref byte block = ref BehaviorBlock.None;
