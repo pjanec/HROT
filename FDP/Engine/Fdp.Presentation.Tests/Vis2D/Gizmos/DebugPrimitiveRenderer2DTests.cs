@@ -117,6 +117,27 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         //     primitives. Default SetAll(); a backend LayerControlMask primitive asserts authority for
         //     the frame." ⇒ these now assert THAT, which is the mechanism the product actually uses.
 
+
+        // ⭐ CE-3149 — a PANEL is not a map layer. 🔒 User, 2026-10-10: "if i turn off the 'Entities' layer, i can no longer
+        // display that layer setting dialog anymore". 📐 The dialog is a StructInspector primitive on layer 0 — the default
+        // layer, which the Entities checkbox owns — so unchecking Entities filtered the panel out with everything else, and
+        // the one control that could turn it back on was gone. ⇒ the layer filter must not apply to panels.
+        [Fact]
+        public void CE3149_APanel_IsNotHiddenByALayerBeingSwitchedOff()
+        {
+            var renderer = new CapturingRenderer2D();
+            var mask = new LayerMask256();
+            for (int i = 1; i < 256; i++) mask.SetBit(i);   // every layer on EXCEPT bit 0 — "Entities" off
+            var panel = DebugPrimitive.MakeStructInspector(networkId: 1, schemaHash: 7);   // DebugLayer 0, as the layer control emits it
+            var line  = RenderTestHelpers.MakeLine(layer: 0);
+
+            renderer.Render(
+                new[] { DebugPrimitive.MakeLayerControlMask(mask), panel, line },
+                RenderTestHelpers.MakeCtx());
+
+            Assert.Contains(renderer.Dispatched, p => p.Shape == DebugPrimitiveShape.StructInspector);
+            Assert.DoesNotContain(renderer.Dispatched, p => p.Shape == DebugPrimitiveShape.Line);   // the layer still hides what it owns
+        }
         // SC-GZ011-2: layer-5 primitive, bit 5 SET in the frame's LayerControlMask => dispatched.
         [Fact]
         public void SC_GZ011_2_Layer5_MaskBitSet_Dispatched()

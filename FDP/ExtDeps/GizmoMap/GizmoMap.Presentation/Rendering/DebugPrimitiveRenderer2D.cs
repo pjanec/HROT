@@ -93,7 +93,9 @@ namespace GizmoMap.Presentation
                 if ((prim.TargetView & PipelineTarget.Map2D) == 0) continue;
 
                 // Filter: robust 256-bit layer mask evaluation.
-                if (!activeLayers.IsSet(prim.DebugLayer)) continue;
+                // ⭐ CE-3149 — a PANEL (StructInspector) is not a map layer: it is exempt, or unchecking "Entities" (bit 0, the default
+                //    layer of everything that names none) would hide the layer dialog that could turn it back on.
+                if (prim.Shape != DebugPrimitiveShape.StructInspector && !activeLayers.IsSet(prim.DebugLayer)) continue;
 
                 // Filter: LOD zoom culling.
                 if (prim.MinZoomLod != 0 && zoom < prim.MinZoomLod * 0.25f) continue;
