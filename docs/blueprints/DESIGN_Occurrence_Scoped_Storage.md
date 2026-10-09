@@ -10270,7 +10270,7 @@ would exercise these assets inside the real product rather than a test host. ⛔
 | detach by key | 6 | seam `Detach`: finds the block |
 | walk all slots (2 ingress sweeps, `BlueprintTierSummary.AppendSlots` ×2, `BlueprintStateTranslator` scenario extract) | 5 | seam `ForEachSlot` over blocks |
 | capacity / tier choice (ingress sizing `:1487`, `EnsureAtLeast` ← hot reload + `BlueprintMaterializationSystem` + `BlueprintInstanceService`, `EnsureRootState`/`EnsureRootInstance`, `GetCurrentTier`) | ~8 | "pick the block / append one" instead of "promote" |
-| 🔴 **per-tier entity walkers** (`BrainTickSystem.cs:166-172`, `BlueprintTickSystem.cs:73-75`, `AiHotReloadCoordinator.ReloadHsmInstancesInSlots`) | 3 | ⛔ **a 2-block unit is in TWO tier queries ⇒ would be TICKED TWICE.** Visit a unit only in the query of its **lowest present tier** (one mask test) |
+| 🔴 **per-tier entity walkers** (`BrainTickSystem.cs:166-172`, `BlueprintTickSystem.cs:73-75`, `AiHotReloadCoordinator.ReloadHsmInstancesInSlots`) | 3 | ⛔ **a 2-block unit is in TWO tier queries ⇒ would be TICKED TWICE.** The requirement is **once per unit**; tier SIZE is irrelevant (user, `2026-10-09`: *"the goal is to tick entity once, right? how the size of the tier is related?"*). ⭐ **`BrainTickSystem`: walk ONE query over `BehaviorState`** (its tier queries are already constrained `WithOwnedWhen<BehaviorState>`, `:148`), skipping a unit with no block (one mask read) so today's "no store, not ticked" holds. ⭐ **`BlueprintTickSystem` and hot reload** also serve Instance-only units with no `BehaviorState`, and FDP queries have no "any of" (`QueryBuilder.cs`: `With`/`Without` only) ⇒ keep the tier walk and **skip a unit already reached in an earlier query of the same loop** (one mask read; *which* tier owns the visit is arbitrary, it only has to be fixed) |
 | read-only / view readers (`TryGetStoreReadOnly`/`TryGetStoreInView`: replay `PredicateCompiler`, `EntityAiDetailsView`, editor model, scenario translator) | 6 | the RO/view seam loops blocks; ⭐ an old single-tier recording is simply a 1-block store |
 | copy-promotion (`UpgradeTier`, `BlueprintTierTable.Promote`, `CopyToLargerTier`, `BlueprintMaintenanceSystem`) | 4 | **retired**: no copy remains. The maintenance system's "two tiers = promotion" rule would now misfire on every grown unit |
 
@@ -10284,18 +10284,17 @@ classDiagram
   class OccurrenceStoreAccess { <<existing, grows>> TryGetSlot(world, e, key) byte*; ResolveOrAttach; Detach; ForEachSlot; RO + InView twins }
   class StoreView { <<new, unmanaged>> Entity; Count; Block[4] (ptr, totalSize) }
   class TickViewScope { <<new>> Begin(world, e) / End — the runner's per-tick view, ambient }
-  class BlueprintTierTable { <<existing, grows>> Blocks(world, e) via ONE mask read; Append(world, e, needPayload, needSlots); LowestPresent(world, e) }
+  class BlueprintTierTable { <<existing, grows>> Blocks(world, e) via ONE mask read; Append(world, e, needPayload, needSlots); FirstVisit(world, e, tierIndex) }
   class BlueprintBlackboardPartitions { <<existing, unchanged>> per-block allocator }
   class BehaviorRunners { <<existing, grows>> BTree/HSM/Blueprint runner opens a TickViewScope }
-  class BrainTickSystem { <<existing, grows>> visits a unit in its lowest tier's query only }
-  class BlueprintTickSystem { <<existing, grows>> same; full tier ⇒ append, never a silent return }
+  class BrainTickSystem { <<existing, grows>> one BehaviorState query: each brain once }
+  class BlueprintTickSystem { <<existing, grows>> tier walk, skip a unit already visited; full tier ⇒ append }
   class BlueprintMaintenanceSystem { <<existing, RETIRED>> no promotion remains }
   OccurrenceStoreAccess ..> StoreView : uses the ambient view if it is for e
   OccurrenceStoreAccess ..> BlueprintTierTable
   OccurrenceStoreAccess ..> BlueprintBlackboardPartitions
   TickViewScope --> StoreView
   BehaviorRunners ..> TickViewScope
-  BrainTickSystem ..> BlueprintTierTable : LowestPresent
   BlueprintTickSystem ..> OccurrenceStoreAccess
 ```
 
@@ -10311,7 +10310,7 @@ sequenceDiagram
   participant V as TickViewScope
   participant OSA as OccurrenceStoreAccess
   participant TT as BlueprintTierTable
-  BT->>TT: LowestPresent(e) == this query's tier? else skip
+  BT->>TT: brain from the BehaviorState query, has a block? else skip
   BT->>R: Run(e)
   R->>V: Begin(world, e)
   V->>TT: Blocks(e): one mask read, RW fetch per block
@@ -10333,11 +10332,11 @@ exactly what the old copy-promotion could not offer.*
 ```mermaid
 graph TD
   subgraph CGF["CGF (CgfLogicPack, Synchronous, main thread)"]
-    BTS["BrainTickSystem — Simulation"] -->|"lowest-tier visit"| Runners["BTree / HSM / Blueprint runners"]
+    BTS["BrainTickSystem — Simulation"] -->|"one BehaviorState query"| Runners["BTree / HSM / Blueprint runners"]
     Runners -->|"Begin/End view"| View["TickViewScope"]
     Thunks["generated thunks + accessors"] -->|"unchanged call"| OSA["OccurrenceStoreAccess"]
     OSA -->|"ambient view, else probe"| Blocks[("tier blocks 256 / 1024 / 4096 / 16384")]
-    BPT["BlueprintTickSystem — Simulation"] -->|"lowest-tier visit; append on full"| OSA
+    BPT["BlueprintTickSystem — Simulation"] -->|"tier walk, once per unit; append on full"| OSA
     Ing["BehaviorIngressSystem — Input"] -->|"size / append"| OSA
   end
   Readers["editor, debug API, replay search, scenario extract"] -->|"RO / InView loop"| Blocks
@@ -10345,7 +10344,7 @@ graph TD
   style Maint stroke:#c00,color:#c00
 ```
 
-*What it shows: the only per-frame entity walkers are the two tick systems, and both must learn "lowest tier only". The red node
+*What it shows: the only per-frame entity walkers are the two tick systems, and each must visit a unit exactly once. The red node
 is the retired promotion, whose "two tiers = promote" rule would otherwise copy and delete every grown unit's blocks.*
 
 ### 34.5 Build steps — each green before the next
@@ -10353,7 +10352,7 @@ is the retired promotion, whose "two tiers = promote" rule would otherwise copy 
 | step | content | rails |
 |---|---|---|
 | **U-0a** seam, no behaviour change | `BlueprintTierTable.Blocks` (one mask read); `OccurrenceStoreAccess` key API + RO/InView twins + `ForEachSlot`; route the 13 + 4 + 6 sites and the 5 walkers; scan RO, RW only on the hit block | ⭐ **T-1 first**: the store's own suites (`OccurrenceStoreAccessTests`, `PartitionAllocatorTests`, `SlotAttachZeroingTests`) and the behaviour suites that use it (`BehaviorIngressStatefulTests`, `BTreeHostsBTreeTests`, …) stay green; generated goldens unchanged |
-| **U-0b** append instead of promote | `Append`; ingress sizing, `EnsureAtLeast`, `EnsureRoot*` and the blueprint full-tier path append; retire `UpgradeTier`/`Promote`/`CopyToLargerTier` use and `BlueprintMaintenanceSystem`; tick walkers visit the lowest tier only | ① a pointer taken before a mid-tick append is still valid and its writes land (red-proof: under copy-promotion they are lost); ② a blueprint attach on a full tier appends, never drops (`BlueprintTickSystem.cs:207`); ③ a 2-block unit ticks **once**; ④ sweeps/detach span blocks; ⑤ a full 4-block store fails LOUD |
+| **U-0b** append instead of promote | `Append`; ingress sizing, `EnsureAtLeast`, `EnsureRoot*` and the blueprint full-tier path append; retire `UpgradeTier`/`Promote`/`CopyToLargerTier` use and `BlueprintMaintenanceSystem`; the brain tick walks one `BehaviorState` query; the blueprint tick and hot reload skip a unit already visited | ① a pointer taken before a mid-tick append is still valid and its writes land (red-proof: under copy-promotion they are lost); ② a blueprint attach on a full tier appends, never drops (`BlueprintTickSystem.cs:207`); ③ a 2-block unit ticks **once** (brain and Instance blueprint alike); ⚠ the brain tick's visit ORDER changes from tier-then-entity to entity order — if a golden or T3 baseline moves, it is that, reported as such; ④ sweeps/detach span blocks; ⑤ a full 4-block store fails LOUD |
 | **U-0c** per-tick view | `TickViewScope` in the three runners; `OccurrenceStoreAccess` uses it when it is for the same entity | ⑥ **benchmark rail**: per-tick-view lookup ≤ today's single-block lookup (Q87 §3b numbers as the bar) |
 | **U-0d** readers | replay `PredicateCompiler`, scenario `BlueprintStateTranslator`, editor + debug-API slot lists loop blocks | ⑦ a recorded 2-block frame is searchable; an OLD 1-tier recording still reads; scenario extract lists slots from both blocks |
 | **U-0e** gates + fold-back | build-state of §34 → BUILT, as-built deviations folded here; Q87 U-0 row closed | the T2 batch gate: unit suites of `Fdp.Toolkits`, `Hrot.Blueprints`, `Hrot.AiEditor.*`, Editor; integration `BlueprintKernelRunTests`; `--no-build` after one build |
