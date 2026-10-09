@@ -827,7 +827,11 @@ map, before any cost is taken. 📌 Found by the S5 live run: in `ua-danger-cros
 `Cross` first sends it to a near handle where it already stands. The navmesh cost of that move was "no path", and the point merge
 in `RoadGraphRouter.Append` collapsed it to one point. Either way the move failed every tick and the unit crept across at about
 0.03 m/s without arriving. The pre-CE-3128 navmesh solve had returned the two points. Rail:
-`CE3128_RealNavmesh_AMoveToWhereTheUnitStands_IsATwoPointRoute`.
+`CE3128_RealNavmesh_AMoveToWhereTheUnitStands_IsATwoPointRoute`. ⚠ **Those two points can coincide**, and the end-of-path
+heading normalised the zero last segment unguarded in two places (`TrajectoryPoolManager.SampleTrajectory`'s end and
+`CarKinematicsSystem`'s arrived branch). The rifleman's position became NaN in the `ua-danger-crossing-bp` in-process twin
+(3/3 runs). Both now use `TrajectoryPoolManager.EndTangent`: the last segment of non-zero length, else +X, as for a one-point
+path. Rail: `CarKinematicsSystemTests.CE3128_APathOfTwoCoincidentPoints_Arrives_AndThePositionStaysFinite`.
 
 **S5 as run (`2026-10-08`).** Live on fresh clusters: `ua-danger-crossing` FAILED at first (the defect above, and the
 pre-CE-3128 base passed the same run), then PASSED with the fix. `ua-danger-crossing-bp`, `ua-posture`, `ua-attack-approach`
