@@ -44,7 +44,8 @@ namespace CarKinem.Controllers
             if (moving && wanted.LengthSquared() > 1e-6f)
             {
                 float error = SignedAngle(fwd, wanted);
-                turned = Math.Clamp(error, -TurnRate * dt, TurnRate * dt);
+                float most = TurnRate * MathF.Max(dt, 0f);   // ⚠ the host can hand a NEGATIVE step (measured in-process): no turn then
+                turned = Math.Clamp(error, -most, most);
                 float c = MathF.Cos(turned), s = MathF.Sin(turned);
                 fwd = VectorMath.SafeNormalize(new Vector2(fwd.X * c - fwd.Y * s, fwd.X * s + fwd.Y * c), fwd);
             }

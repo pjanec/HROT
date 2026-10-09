@@ -555,6 +555,21 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-3145</c> — a NEGATIVE or zero step (📐 the cluster hands one: the in-process duel crashed the mover with
+        /// <c>Math.Clamp(min &gt; max)</c>) turns nothing and never throws.</summary>
+        [Theory]
+        [InlineData(-1f / 60f)]
+        [InlineData(0f)]
+        public void CE3145_HumanGait_ANonPositiveStep_TurnsNothing(float dt)
+        {
+            var pos = Vector2.Zero;
+            var fwd = Vector2.UnitX;
+            var state = new VehicleState();
+            float yaw = CarKinem.Controllers.HumanGait.Integrate(ref pos, ref fwd, ref state, -Vector2.UnitX, moving: true, accel: 0f, dt);
+            Assert.Equal(Vector2.UnitX, fwd);
+            Assert.Equal(0f, yaw);
+        }
+
         /// <summary>
         /// ⭐ Buildings 5d-3 — <see cref="NavState.IsBlocked"/> ("obstacle ahead", designed in FDP.Toolkit.CarKinem.md and never read before):
         /// the mover brakes to a stop where it is, KEEPS its path and progress, and drives on along the same path when it clears.
