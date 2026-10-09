@@ -540,6 +540,7 @@ namespace GizmoMap.Presentation
             long? exclusiveAnchorId = null)
         {
             DebugPrimitive? best = null;
+            float bestDistSq = float.MaxValue;   // ⭐ CE-3147 — the nearest-wins tie-break among equal layers
             float effZoom = zoom > 0f ? zoom : 1f;
 
             for (int i = primitives.Length - 1; i >= 0; i--)
@@ -563,7 +564,18 @@ namespace GizmoMap.Presentation
                 long anchorId = prim.BoxAnchorId;
                 if (exclusiveAnchorId.HasValue && anchorId != exclusiveAnchorId.Value) continue;
 
-                float hitRadius = prim.SizeMode == SizeMode.ScreenPixels ? 5f / effZoom : 5f;
+                // ⭐⭐⭐ CE-3147 — THE PICK AREA NOW USES THE SAME SCALE THE RENDERER DRAWS WITH.
+                //   🔒 User, `2026-10-09`: "select sensitive area still big, diameter shouldn't be much bigger than
+                //   entity symbol." 🔴 The bug was a UNIT MISMATCH, not a bad constant: the entity's pick box is
+                //   emitted as 8×8 with SizeMode defaulting to ScreenPixels (EntityPresentationGizmoShared.cs:38-45,
+                //   DebugPrimitive.cs:331), the renderer scales it by 1/zoom (DebugPrimitiveRenderer2D.cs:211, applied
+                //   :308-311) — and this test compared the RAW extent, scaling only the 5 px slack. ⇒ drawn half-extent
+                //   8/zoom m vs pick half-extent 8 + 5/zoom m: equal only at zoom 1, and at zoom 50 the sensitive area
+                //   was ~400 screen px against 8 px drawn.
+                //   ⭐ `geomScale` is deliberately the SAME expression as the renderer's, so draw and pick cannot
+                //   drift apart again; the slack reduces to the old `5f / effZoom` / `5f`, i.e. unchanged.
+                float geomScale = prim.SizeMode == SizeMode.ScreenPixels ? 1f / effZoom : 1f;
+                float hitRadius = 5f * geomScale;
                 bool hit = false;
 
                 if (prim.Shape == DebugPrimitiveShape.Box2D)
@@ -588,19 +600,37 @@ namespace GizmoMap.Presentation
                         float c = MathF.Cos(rad), sn = MathF.Sin(rad);
                         (lx, ly) = (lx * c - ly * sn, lx * sn + ly * c);
                     }
-                    hit = Math.Abs(lx) <= (prim.BoxExtentX + hitRadius)
-                       && Math.Abs(ly) <= (prim.BoxExtentY + hitRadius);
+                    hit = Math.Abs(lx) <= (prim.BoxExtentX * geomScale + hitRadius)
+                       && Math.Abs(ly) <= (prim.BoxExtentY * geomScale + hitRadius);
                 }
                 else if (prim.Shape == DebugPrimitiveShape.Sphere)
                 {
                     float dx = testPos.X - prim.BoxCenterX;
                     float dy = testPos.Y - prim.BoxCenterY;
-                    float r = prim.SphereRadius + hitRadius;
+                    float r = prim.SphereRadius * geomScale + hitRadius;
                     hit = (dx * dx + dy * dy) <= (r * r);
                 }
 
-                if (hit && (best == null || prim.DebugLayer > best.Value.DebugLayer))
-                    best = prim;
+                // ⭐⭐ CE-3147 — NEAREST WINS AMONG EQUAL LAYERS. 🔒 User: "clicking on entity in vicinity of another
+                //   is ignored as the click falls into the sensitive area of the first one." 🔴 This test had NO
+                //   distance term at all: among primitives on the same DebugLayer the FIRST hit in the buffer walk
+                //   won, i.e. by EMISSION ORDER. ⇒ two adjacent entities always resolved to the same one, whichever
+                //   was emitted first, however much closer the cursor was to the other. ⚠ The layer term still
+                //   dominates — a tool handle on a higher layer must keep beating an entity underneath it.
+                if (hit)
+                {
+                    float cdx = testPos.X - prim.BoxCenterX;
+                    float cdy = testPos.Y - prim.BoxCenterY;
+                    float distSq = cdx * cdx + cdy * cdy;
+
+                    if (best == null
+                        || prim.DebugLayer > best.Value.DebugLayer
+                        || (prim.DebugLayer == best.Value.DebugLayer && distSq < bestDistSq))
+                    {
+                        best = prim;
+                        bestDistSq = distSq;
+                    }
+                }
             }
 
             return best;

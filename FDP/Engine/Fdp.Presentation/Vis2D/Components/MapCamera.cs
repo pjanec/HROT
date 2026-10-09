@@ -85,7 +85,7 @@ namespace Fdp.Toolkit.Vis2D.Components
         //   more detailed (zoomed-in) view, 5 times more than now." ⚠ This is the DEFAULT every host but IG inherits
         //   (MapCanvas, EditorSubsystem, StrideNodeBootstrapper each `new MapCamera()`); IG keeps its own 5.0 in
         //   IgCameraConstants. ⛔ No test pins this value — IG's assert reads IgCameraConstants.MaxZoom.
-        public float MaxZoom { get; set; } = 50.0f;
+        public float MaxZoom { get; set; } = 100.0f;
         
         // ── NEW: Smoothing Toggle ─────────────────────────────────────────
         public bool EnableSmoothing { get; set; } = false;
