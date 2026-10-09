@@ -222,7 +222,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ <c>CE-2108</c> — where the unit's memory places <paramref name="aim"/>: a heard contact's point, else the
         /// remembered entity's fused position (the Brain reads its memory, not the threat's transform).</summary>
-        private static unsafe bool ThreatPosition(EntityRepository world, Entity self, in ThreatAim aim, out Vector3 position)
+        // ⭐ CE-3136 P-6 — internal: PeekAndFire's blind burst aims there.
+        internal static unsafe bool ThreatPosition(EntityRepository world, Entity self, in ThreatAim aim, out Vector3 position)
         {
             position = aim.Point;
             if (aim.IsPoint) return true;

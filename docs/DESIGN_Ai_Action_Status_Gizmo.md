@@ -1,14 +1,14 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-09
-build-state: BUILT (T1–T3) 2026-10-09 — T1–T4 APPROVED by the user 2026-10-09 (R-241); T4 (the PeekAndFire gizmo) is built with P-6
+build-state: BUILT (T1–T4) 2026-10-09 — T1–T4 APPROVED by the user 2026-10-09 (R-241); T4 built with P-6
 current-answer: §6 as-built · §2 decisions (approved) · §3 classes · §4 sequence · §5 modules
 stale-below: nothing
 known-rot: none
 known-conflict: R-226 / DESIGN_Terrain_Combat_Tuning.md §5a precedent — UtilityDecisionLog exists only while a unit is OBSERVED (trace armed); T2 here leans ALWAYS present, argued in §2
 related-designs:
   - DESIGN_Terrain_Combat_Tuning.md — OWNS §5a (R-226: debug gizmos draw RECORDED state, NoScenario components) and §5b (R-227: gizmo families, scope, pins)
-  - DESIGN_Uniform_Gizmo_Membership.md — OWNS §10 (R-228: gizmo membership is uniform across the five map hosts — "has data = can draw")
+  - DESIGN_Uniform_Gizmo_Membership.md — OWNS §10 (R-228: gizmo membership is uniform across the five map hosts — "has data = can draw") and §9.7 (where a behaviour's gizmo goes: its data outside the hot-reload assembly, the gizmo in Hrot.Presentation)
   - DESIGN_Peek_And_Fire.md — OWNS the first consumer: the aim timer / sight gate (P-3) whose holds this makes visible, and PeekAndFire's phases (§8.2)
   - designs/behav-diag-1/DESIGN.md — OWNS DebugState, the patch command and the trace rings (the "observe" arming this does NOT depend on, T2)
 -->
@@ -55,7 +55,7 @@ classDiagram
   class FireAtPointExecutor { <<existing>> writes the weapon row }
   class MoveExecutors { <<existing>> write the locomotion row }
   class ActionStatusGizmo { <<NEW>> family Channels }
-  class PeekAndFireGizmo { <<NEW, with P-6>> reads FiringPositionMemory }
+  class PeekAndFireGizmo { <<NEW, BUILT with P-6>> reads FiringPositionMemory }
   class UtilityDecisionGizmo { <<existing template>> }
   class GizmoFamilies { <<existing>> All += Channels }
   ActionStatus "1" *-- "3" ActionStatusRow
@@ -106,6 +106,6 @@ and a replay draws it from the recording. ⚠ An IG that only receives replicate
 | T1 | `ActionStatus` (component id **344**, `NoScenario`, recorded) = `Locomotion` · `Weapon` · `Interaction` rows (`ActionStatusRow`: action id, `ActionReason`, progress/needed, target, sim time); the one write path `ActionStatusOf.Weapon/Locomotion` (a no-op where the unit or the world has none). Writers: ⭐ `AimAndFireExecutor` at EVERY exit (done · out of ammo · hold: not seen · aiming x/0.8 s · cooldown · reloading x/3 s · hold: friendly on line · hold: ROE · firing n/N), `FireAtPointExecutor` the same minus the sight/aim rows, and — ⚠ deviation, argued — the **locomotion row is written generically by `LocomotionDispatcherSystem`** after any locomotion executor (moving / done / failed) instead of in each of the seven locomotion executors: one writer, no per-executor edits; it carries no distance yet. The interaction row is not written yet | `Behavior/Diagnostics/ActionStatus.cs`, both fire executors, `LocomotionDispatcherSystem.cs` |
 | T2 | always present: `BehaviorTkbTranslator` adds it beside the action channels at spawn (brain units only); registered with the brain components (`CognitiveComponentRegistry`), brain-only in `HrotRoleComponentSets` | as named |
 | T3 | `ActionStatusGizmo` (family `Channels`, label **"Actions"**, default *selected or pinned*): lines `W aiming 0.4/0.8s` · `W hold: not seen` (amber) above the unit; a row older than 1 s of sim time is not drawn. The family joined `GizmoFamilies.All` ⇒ the layer panel scope (`LayerControlGizmo.ActionsSelectedOnly`) and the **Pin gizmos → Actions** menu entry (`GlobalActionIds.PinGizmosActions` = 268) come from the existing machinery. `GET /entities/{id}/weapons` reports the same `status` (reason, progress, needed, target, at) plus the magazine | `Hrot.Presentation/ScenarioEditor/Gizmos/ActionStatusGizmo.cs`, `GizmoFamilies.cs`, `GizmoPins.cs`, `LayerControlGizmo.cs`, `DebugApiService.Weapons.cs` |
-| T4 | not yet — built with P-6 (`PeekAndFire`) | — |
+| T4 | ✅ built with P-6 (`CE-3136`): `PeekAndFireGizmo` (family `Channels`, "Actions") draws the unit's `FiringPositionMemory` — a ring per remembered position, yellow → red with heat, red when burned, `h1.7 x3` — and, while the node ran within 1 s, `PF hidden 2.1s` above the unit with the hide and peek points. ⚠ Deviation: it does not gate on a behaviour NAME (as `HillAttackGizmo` does) — `PeekAndFire` is a node inside any tree, so the node mirrors its phase and points into the unit memory and the gizmo reads that (`UnitMemory.GetInView`, new) | `Hrot.Presentation/ScenarioEditor/Gizmos/PeekAndFireGizmo.cs` (⭐ not beside the node: a behaviour gizmo reads the behaviour's DATA, so the data type lives outside the hot-reload assembly and the gizmo in the presentation assembly every host loads — `DESIGN_Uniform_Gizmo_Membership.md` §9.7); 📄 DESIGN_Peek_And_Fire.md §7 P-6 |
 
 Rails: `AimAndFireExecutorTests.T1_TheExecutorSaysWhy_InTheWeaponRow` (not seen → aiming 0.1/0.8 → firing → reloading 2 s), `DebugTraceGizmoTests.CE3136_TheActionsGizmo_SaysWhyAUnitIsNotFiring` (one line, a stale row dropped, the wording), `…CE3136_TheActionsFamily_IsListed_PinnableAndSelectedByDefault`.

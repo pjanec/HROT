@@ -260,7 +260,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         // ── the shared steps ─────────────────────────────────────────────────────────────────────────
 
-        private static EqsSensorHandle Keep(EqsSensorHandle handle, EntityRepository world, Entity self, int site, uint template,
+        // ⭐ CE-3136 P-6 — internal: PeekAndFire keeps its two sensors through it.
+        internal static EqsSensorHandle Keep(EqsSensorHandle handle, EntityRepository world, Entity self, int site, uint template,
                                             in PostureSensorsParams p, in ThreatAim threat, bool retarget)
         {
             var config = new EqsSensor
@@ -286,7 +287,7 @@ namespace Hrot.AI.Behaviors.Brains
             return handle;
         }
 
-        private static void Drop(EntityRepository world, EqsSensorHandle handle)
+        internal static void Drop(EntityRepository world, EqsSensorHandle handle)
         {
             if (handle.IsValid && world.IsAlive(handle.ChildId)) EqsChildSensor.Destroy(world, handle.ChildId);
         }
@@ -294,7 +295,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Aims the weapon at the top threat (a new command only when the target changed or the last one failed).
         /// False when the unit has no weapon channel. ⭐ <c>CE-2108</c>: the ONE fire step — <see cref="EqsTacticsNodes"/>
         /// fires on the move through it too.</summary>
-        internal static unsafe bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown)
+        internal static unsafe bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown, int rounds = 0)
         {
             if (!world.HasComponent<WeaponChannel>(self)) return false;
             if (!EqsTacticsNodes.TopThreat(world, self, ws.Threat, out var threat) || !world.IsAlive(threat))
@@ -311,7 +312,7 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-3089 (G7, backend — a cross-lane line, said in the P2 handoff's SYNC) — the posture / tactics fire step lets the
             //   executor choose the weapon per shot (25 mm at infantry, TOW at a tank). 📄 Utility demo design §12 W3.
             Unsafe.As<byte, AimAndFireParams>(ref channel.Params[0]) = new AimAndFireParams
-                { Target = threat, CooldownSeconds = cooldown, Mount = AimAndFireParams.MountAuto };
+                { Target = threat, CooldownSeconds = cooldown, Mount = AimAndFireParams.MountAuto, Rounds = rounds };   // ⭐ CE-3136 P-6 — B7's count
             unchecked { channel.ActionInstanceId++; }
             channel.ActiveAction = CombatConstants.ActionIdAimAndFire;
             channel.Status = NodeStatus.Running;

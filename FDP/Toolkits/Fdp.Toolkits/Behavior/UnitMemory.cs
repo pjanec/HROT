@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints.Partitioning;
 
 namespace Fdp.Toolkit.Behavior
@@ -47,6 +48,18 @@ namespace Fdp.Toolkit.Behavior
                 ThrowIfCollision(block, Info<T>.Key, typeof(T));
                 if (hash == Info<T>.Hash) return *(T*)(block + offset);
             }
+            return new T();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3136</c> P-6 — <see cref="Get{T}"/> through a VIEW (a gizmo may draw a snapshot or a replay): the stored value,
+        /// or <c>new T()</c>. ⛔ Creates nothing.
+        /// </summary>
+        public static T GetInView<T>(ISimulationView view, Entity unit) where T : unmanaged
+        {
+            if (OccurrenceStoreAccess.TryFindSlotInView(view, unit, Info<T>.Key, out byte* block, out int offset, out uint hash)
+                && IsUnitMemory(block, Info<T>.Key) && hash == Info<T>.Hash)
+                return *(T*)(block + offset);
             return new T();
         }
 

@@ -16,7 +16,7 @@ related-designs:
   - UX/UX_Feature_Map_Parity.md §3.2a — pack constructs, host schedules: the rule §10 builds on.
   - DESIGN_Terrain_Combat_Tuning.md §5 — terrain/combat debug layers relying on uniform membership
   - DESIGN_Terrain_Combat_Tuning.md §5a — the debug-trace gizmos; global where SimHost/Replay Browser draw only the selected entity.
-  - DESIGN_Ai_Action_Status_Gizmo.md — OWNS the Channels family's gizmo (proposed)
+  - DESIGN_Ai_Action_Status_Gizmo.md — OWNS the Channels family's gizmos (ActionStatusGizmo, PeekAndFireGizmo — built); §9.7 here says where a behaviour's gizmo goes
 -->
 # DESIGN — **uniform gizmo membership** *(every host, every family)*
 
@@ -468,6 +468,22 @@ recorded because it arms itself the day a hot-reloaded assembly carries a projec
 |---|---|---|
 | ⭐ **discovery is complete in production because of the RUNNER, not the registrar** — every host is a library run inside `Hrot.ClusterRunner`, the one executable, which pre-loads every `Hrot.*`/`Fdp.*` DLL from its folder **except `Hrot.AI.Behaviors`** (kept out of the default load context for hot reload) | `Hrot.ClusterRunner/Program.cs` `LoadReferencedAssemblies`; all five host `.csproj` are `OutputType=Library`. ⚠ Of the five host assemblies only Editor and IG reference `Hrot.IG`, where `EqsSensorGizmo`, `EffectPresentationGizmo`, `ProjectilePresentationGizmo` live | the three `Hrot.IG` projectors reach SimHost/CGF/Replay only through the pre-load. ⛔ **Not measured:** whether `HillAttackGizmo` (`Hrot.AI.Behaviors`) is registered on a process running no CGF/Editor/IG |
 | 🔴 **the completeness rail is weaker than §8.2 ④ says** — it compares `DiscoverProjectorTypes()` with `RegisterAll()`'s result, **both read from the same loaded set**, so a projector whose assembly is not loaded is absent from BOTH and the rail stays green | `Hrot.ClusterRunner.Tests/GizmoSchemaFollowsDeclarationRails.cs` `EveryProjectorInSource_IsRegisteredAtRuntime` | §8.2 ④'s *"source count vs runtime … a projector whose assembly a mode never loads"* is **not** what the rail checks |
+
+### ⭐ 9.7 Where a BEHAVIOUR's gizmo goes *(`CE-3136` P-6, backend, `2026-10-09`)*
+
+> 🔒 **User, `2026-10-09`:** *"where else to put behavior dependent gizmos???"*
+
+⭐ **A behaviour gizmo draws the behaviour's RECORDED DATA, not its code** (R-226). ⇒ the data type is declared outside the
+hot-reload assembly — `Fdp.Toolkits` (generic) or `Hrot.Core` (Hrot-specific) — and the gizmo lives in **`Hrot.Presentation`**,
+which every host loads (R-228). 📐 Measured: `Hrot.AI.Behaviors` is in `DeploymentAssemblies.Skipped` and is referenced by CGF,
+Editor and IG only — ⛔ not by SimHost or `Hrot.ReplayBrowser` — and a projector there is the ST-035 pin hazard (§9.4).
+
+| case | where | example |
+|---|---|---|
+| the state is recorded data (a unit memory, a component, a params struct with a fixed layout) | data type → `Fdp.Toolkits` / `Hrot.Core`; gizmo → `Hrot.Presentation` | `PeekAndFireGizmo` over `FiringPositionMemory` (`Fdp.Toolkits/Combat`) |
+| ⚠ the gizmo needs a type that exists ONLY in `Hrot.AI.Behaviors` | stays there, named in `CE3123_EveryProjectorInTheDeployment_ReachesTheRegistrar` — draws on brain hosts only | `HillAttackGizmo` (`PlatoonHillAttackParams`) |
+
+⛔ Rejected: a separate gizmo assembly referencing `Hrot.AI.Behaviors` — it loads only where the behaviours do, so it changes nothing.
 
 ## ⭐⭐⭐ 10. NO HOST-ONLY GIZMO WIRING *(`CE-3123`, backend, `2026-10-08`; build-state: BUILT — as-built at §10 end)*
 
