@@ -38,6 +38,9 @@ namespace Hrot.Editor.DebugApi
                 {
                     ["index"] = index, ["on"] = child ? "child" : "owner",
                     ["ammo"] = ws.Ammo, ["maxAmmo"] = ws.MaxAmmo, ["cooldown"] = Math.Round(ws.CooldownSecondsRemaining, 3),
+                    // ⭐ CE-3136 P-5 — the magazine beside the total (0 = no magazine)
+                    ["magazineRounds"] = ws.MagazineRounds, ["magazineSize"] = ws.MagazineSize,
+                    ["reloadRemaining"] = Math.Round(ws.ReloadSecondsRemaining, 3),
                     ["tkb"] = dto == null ? null : new JsonObject
                     {
                         ["range"] = dto.Range, ["penetration"] = dto.Penetration, ["damage"] = dto.DamagePerHit, ["muzzleVelocity"] = dto.MuzzleVelocity,
@@ -66,6 +69,19 @@ namespace Hrot.Editor.DebugApi
                 ["mounts"] = list,
             };
             if (!target.IsNull) result["choice"] = WeaponChoice.Choose(_world, unit, target, out _);
+            // ⭐ CE-3136 (T3) — the weapon row of the unit's ActionStatus, the words the map's Actions gizmo draws
+            if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>()
+                && _world.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(unit))
+            {
+                var row = _world.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(unit).Weapon;
+                result["status"] = new JsonObject
+                {
+                    ["actionId"] = row.ActionId, ["reason"] = Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.Label(row.Reason),
+                    ["progress"] = Math.Round(row.Progress, 3), ["needed"] = Math.Round(row.Needed, 3),
+                    ["target"] = row.Target.IsNull ? null : (_entityMap.TryGetNetworkId(row.Target, out long tn) ? tn : (long?)null),
+                    ["at"] = Math.Round(row.At, 3),
+                };
+            }
             return result;
         }
     }

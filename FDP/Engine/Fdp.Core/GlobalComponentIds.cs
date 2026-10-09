@@ -697,5 +697,10 @@
         /// <summary><c>RoadNetworkHolder</c> — the node's road graph carrier as a managed world singleton, so a background
         /// reader can LEASE the graph (<c>CE-3128</c>: the danger sensor's route and classifier).</summary>
         public const int RoadNetworkHolder = 343;
+
+        /// <summary><c>ActionStatus</c> — why each of a brain unit's action channels is (not) acting, as its executor last saw it
+        /// (<c>CE-3136</c>, 📄 docs/DESIGN_Ai_Action_Status_Gizmo.md). 344 is free by a census of backend, behaviors and ui,
+        /// <c>2026-10-09</c> — <c>R-44</c>.</summary>
+        public const int ActionStatus = 344;
     }
 }

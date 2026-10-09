@@ -45,21 +45,28 @@ namespace Fdp.Toolkit.Combat.Executors
             fixed (byte* src = channel.Params) p = *(FireAtPointParams*)src;
             int fired;
             fixed (byte* st = channel.State) fired = *(int*)st;
-            if (p.Rounds > 0 && fired >= p.Rounds) { channel.Status = NodeStatus.Success; return; }
+            if (p.Rounds > 0 && fired >= p.Rounds) { channel.Status = NodeStatus.Success; Say(world, entity, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Done); return; }
 
             var mountEntity = MountEntity(world, entity, p.Mount);
             if (!world.HasComponent<WeaponState>(mountEntity)) { channel.Status = NodeStatus.Failure; return; }
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
-            if (weapon.Ammo == 0) { channel.Status = fired > 0 ? NodeStatus.Success : NodeStatus.Failure; return; }
+            if (weapon.Ammo == 0) { channel.Status = fired > 0 ? NodeStatus.Success : NodeStatus.Failure; Say(world, entity, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfAmmo); return; }
             if (weapon.CooldownSecondsRemaining > 0f)
             {
                 weapon.CooldownSecondsRemaining -= dt;
                 channel.Status = NodeStatus.Running;
+                Say(world, entity, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Cooldown, weapon.CooldownSecondsRemaining);
                 return;
             }
-            if (!AimAndFireExecutor.RoePermitsFire(world, entity)) { channel.Status = NodeStatus.Running; return; }
+            if (!AimAndFireExecutor.RoePermitsFire(world, entity)) { channel.Status = NodeStatus.Running; Say(world, entity, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldRoe); return; }
             // ⭐ CE-3136 P-5 (D9) — an empty magazine reloads (held, Running) instead of ending the burst
-            if (!Magazine.Ready(weapon)) { Magazine.StartIfEmpty(ref weapon); channel.Status = NodeStatus.Running; return; }
+            if (!Magazine.Ready(weapon))
+            {
+                Magazine.StartIfEmpty(ref weapon);
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Reloading, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
+                return;
+            }
 
             world.Bus.Publish(new WeaponFireIntent
             {
@@ -69,9 +76,16 @@ namespace Fdp.Toolkit.Combat.Executors
             weapon.CooldownSecondsRemaining = p.CooldownSeconds;
             fixed (byte* st = channel.State) *(int*)st = fired + 1;
             channel.Status = p.Rounds > 0 && fired + 1 >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
+            Say(world, entity, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing, fired + 1, p.Rounds);   // ⭐ CE-3136 — blind fire: no aim, no sight gate
         }
 
         public void OnExit(Entity entity, ref WeaponChannel channel, EntityRepository world) { }
+
+        // ⭐ CE-3136 (T1) — the weapon row of the unit's ActionStatus (no target: a point).
+        private static void Say(EntityRepository world, Entity unit, Fdp.Toolkit.Behavior.Diagnostics.ActionReason reason,
+            float progress = 0f, float needed = 0f)
+            => Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.Weapon(world, unit, CombatConstants.ActionIdFireAtPoint, reason,
+                   Entity.Null, progress, needed);
 
         /// <summary>The entity holding mount <paramref name="index"/>'s <see cref="WeaponState"/>: the owner for mount 0, the mount
         /// child otherwise (<see cref="WeaponMountQuery"/>, as <see cref="AimAndFireExecutor"/> finds it).</summary>

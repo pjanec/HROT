@@ -24,6 +24,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         {
             AiOverlayFlags.Path, AiOverlayFlags.Perception, AiOverlayFlags.TargetMemory, AiOverlayFlags.Eqs,
             AiOverlayFlags.UtilityDecision, AiOverlayFlags.SquadAssignment,
+            AiOverlayFlags.Channels,   // ⭐ CE-3136 — the action status (why a unit is not firing)
         };
 
         /// <summary>The settings key of a family's scope.</summary>
@@ -35,7 +36,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>The scope a family starts with: the busy per-unit drawings show the selection, the rest show every unit.</summary>
         public static GizmoScope DefaultScope(AiOverlayFlags family) => family switch
         {
-            AiOverlayFlags.Path or AiOverlayFlags.UtilityDecision or AiOverlayFlags.SquadAssignment => GizmoScope.SelectedOrPinned,
+            AiOverlayFlags.Path or AiOverlayFlags.UtilityDecision or AiOverlayFlags.SquadAssignment
+                or AiOverlayFlags.Channels => GizmoScope.SelectedOrPinned,
             _ => GizmoScope.All,
         };
 
@@ -48,6 +50,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             AiOverlayFlags.Eqs             => "EQS",
             AiOverlayFlags.UtilityDecision => "Utility",
             AiOverlayFlags.SquadAssignment => "Squad",
+            AiOverlayFlags.Channels        => "Actions",
             _                              => family.ToString(),
         };
 

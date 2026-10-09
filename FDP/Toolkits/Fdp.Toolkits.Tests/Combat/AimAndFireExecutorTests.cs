@@ -664,5 +664,42 @@ namespace Fdp.Toolkit.Combat.Tests
             Step(shooter, ref channel, 0.1f);
             Assert.Equal(NodeStatus.Failure, channel.Status);   // out of ammunition altogether
         }
+            /// <summary>
+        /// ⭐ <c>CE-3136</c> (T1) — the executor SAYS why it is not firing, on the unit's <see cref="Fdp.Toolkit.Behavior.Diagnostics.ActionStatus"/>
+        /// weapon row: hidden ⇒ "hold: not seen"; seen ⇒ "aiming 0.x of 0.8 s"; then "firing"; an empty magazine ⇒ "reloading".
+        /// </summary>
+        [Fact]
+        public void T1_TheExecutorSaysWhy_InTheWeaponRow()
+        {
+            RegisterSight();
+            _world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 60, 0f, target, cooldownSeconds: 0f);
+            _world.AddComponent(shooter, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            ref var w = ref _world.GetComponentRW<WeaponState>(shooter);
+            Fdp.Toolkit.Combat.Magazine.Load(ref w, 1, 2f);   // one round per magazine
+            Fdp.Toolkit.Behavior.Diagnostics.ActionStatusRow Row() => _world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(shooter).Weapon;
+
+            SetSight(shooter, target, visual: false);
+            _executor.OnEnter(shooter, ref channel, _world);
+            Step(shooter, ref channel, 0.1f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNotSeen, Row().Reason);
+            Assert.Equal(target, Row().Target);
+
+            SetSight(shooter, target, visual: true);
+            Step(shooter, ref channel, 0.1f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, Row().Reason);
+            Assert.Equal(0.8f, Row().Needed, 3);
+            Assert.InRange(Row().Progress, 0.09f, 0.11f);
+
+            int fired = 0;
+            for (int i = 0; i < 7 && fired == 0; i++) fired += Step(shooter, ref channel, 0.1f);
+            Assert.Equal(1, fired);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing, Row().Reason);
+
+            Step(shooter, ref channel, 0.1f);   // the one-round magazine is empty
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Reloading, Row().Reason);
+            Assert.Equal(2f, Row().Needed, 3);
+        }
     }
 }

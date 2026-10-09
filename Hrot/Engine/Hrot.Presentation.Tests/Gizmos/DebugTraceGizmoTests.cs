@@ -144,6 +144,43 @@ public sealed class DebugTraceGizmoTests : IDisposable
         Assert.Equal(2, _draw.GetFrame().ToArray().Count(p => p.Shape == DebugPrimitiveShape.Text));
     }
 
+    // ⭐ CE-3136 (T3) — the ACTIONS gizmo: one line per busy channel, the hold reasons amber, a stale row (older than 1 s of sim
+    // time) not drawn. 📄 docs/DESIGN_Ai_Action_Status_Gizmo.md.
+    [Fact]
+    public void CE3136_TheActionsGizmo_SaysWhyAUnitIsNotFiring()
+    {
+        _w.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+        _w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0, DeltaTime = 0.016f, TimeScale = 1f });
+        var unit = _w.CreateEntity();
+        _w.AddComponent(unit, new SimTransform { Position = new Vector3(5, 5, 0) });
+        var status = new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus();
+        status.Weapon = new Fdp.Toolkit.Behavior.Diagnostics.ActionStatusRow
+            { ActionId = 1, Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNotSeen, At = 9.9 };
+        status.Locomotion = new Fdp.Toolkit.Behavior.Diagnostics.ActionStatusRow
+            { ActionId = 3, Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Moving, At = 8.0 };   // stale: 2 s old
+        _w.AddComponent(unit, status);
+
+        new ActionStatusGizmo().Draw(_w, unit, _draw);
+        var texts = _draw.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Text).ToArray();
+        Assert.Single(texts);
+
+        var aiming = new Fdp.Toolkit.Behavior.Diagnostics.ActionStatusRow
+            { Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, Progress = 0.4f, Needed = 0.8f, At = 10.0 };
+        Assert.Equal("W aiming 0.4/0.8s", ActionStatusGizmo.Text('W', in aiming, 10.0));
+        Assert.Equal("W hold: not seen", ActionStatusGizmo.Text('W', in status.Weapon, 10.0));
+        Assert.Null(ActionStatusGizmo.Text('L', in status.Locomotion, 10.0));
+    }
+
+    // ⭐ CE-3136 — the Actions family is a pinnable, scoped family like the others (layer panel + "Pin gizmos" menu).
+    [Fact]
+    public void CE3136_TheActionsFamily_IsListed_PinnableAndSelectedByDefault()
+    {
+        Assert.Contains(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels, GizmoFamilies.All);
+        Assert.Equal("Actions", GizmoFamilies.Label(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels));
+        Assert.Equal(GizmoScope.SelectedOrPinned, GizmoFamilies.DefaultScope(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels));
+        Assert.Equal(Hrot.Common.Constants.GlobalActionIds.PinGizmosActions, Hrot.Common.Diagnostics.Gizmos.GizmoPins.ActionIdOf(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels));
+    }
+
     // ⭐ CE-3121 — the squad gizmo draws a line from the commander to every LIVING member, at the members' real positions (the
     // dormant overlay drew them origin to origin).
     [Fact]

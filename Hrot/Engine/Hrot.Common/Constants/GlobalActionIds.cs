@@ -58,5 +58,7 @@ namespace Hrot.Common.Constants
         public const int PinGizmosSquad      = 265;
         public const int PinGizmosAll        = 266;
         public const int UnpinGizmosAll      = 267;
+        /// <summary>⭐ <c>CE-3136</c> — pin the action-status family (Channels). 268 free on backend, behaviors and ui, <c>2026-10-09</c>.</summary>
+        public const int PinGizmosActions    = 268;
     }
 }

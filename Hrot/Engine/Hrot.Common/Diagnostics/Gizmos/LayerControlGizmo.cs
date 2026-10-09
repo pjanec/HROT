@@ -58,6 +58,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool EqsSelectedOnly { get; set; }
         public bool UtilitySelectedOnly { get; set; } = true;
         public bool SquadSelectedOnly { get; set; } = true;
+        /// <summary>⭐ <c>CE-3136</c> — the action status (why a unit is not firing): selected and pinned units by default.</summary>
+        public bool ActionsSelectedOnly { get; set; } = true;
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
@@ -69,6 +71,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             EqsSelectedOnly        = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs);
             UtilitySelectedOnly    = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision);
             SquadSelectedOnly      = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment);
+            ActionsSelectedOnly    = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels);
             NavmeshLayerSetting.Register(settings);
             NavmeshLayers          = NavmeshLayerSetting.Of(settings);   // ⭐ CE-3133
         }
@@ -83,6 +86,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs,             EqsSelectedOnly);
             Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision, UtilitySelectedOnly);
             Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment, SquadSelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels,        ActionsSelectedOnly);
             NavmeshLayerSetting.Register(settings);
             if (NavmeshLayerSetting.Of(settings) != NavmeshLayers) NavmeshLayerSetting.Set(settings, NavmeshLayers);   // ⭐ CE-3133
         }

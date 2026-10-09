@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-09
-build-state: DESIGN — leans T1–T4 await the user
-current-answer: §2 leans · §3 classes · §4 sequence · §5 modules
+build-state: BUILT (T1–T3) 2026-10-09 — T1–T4 APPROVED by the user 2026-10-09 (R-241); T4 (the PeekAndFire gizmo) is built with P-6
+current-answer: §6 as-built · §2 decisions (approved) · §3 classes · §4 sequence · §5 modules
 stale-below: nothing
 known-rot: none
 known-conflict: R-226 / DESIGN_Terrain_Combat_Tuning.md §5a precedent — UtilityDecisionLog exists only while a unit is OBSERVED (trace armed); T2 here leans ALWAYS present, argued in §2
@@ -29,7 +29,7 @@ related-designs:
 | `BehaviorLog.Trace` | text to the NLog file only — never the map |
 | a per-unit status/reason component | ⛔ **searched `docs/`, `.dev/`, `Hrot/`, `FDP/`: none** |
 
-## 2. Leans *(awaiting the user)*
+## 2. Decisions — ✅ APPROVED `2026-10-09` (R-241; 🔒 user: *"AI's 'thoughts' approved."*)
 
 | # | lean | why |
 |---|---|---|
@@ -98,3 +98,14 @@ graph TD
 
 *The status lives where the brain runs (the brain components are not replicated, R-226); the map hosts that share that world draw it,
 and a replay draws it from the recording. ⚠ An IG that only receives replicated state does not see it — as for every AI gizmo today.*
+
+## 6. As-built *(`CE-3140`, `2026-10-09`)*
+
+| # | built | where |
+|---|---|---|
+| T1 | `ActionStatus` (component id **344**, `NoScenario`, recorded) = `Locomotion` · `Weapon` · `Interaction` rows (`ActionStatusRow`: action id, `ActionReason`, progress/needed, target, sim time); the one write path `ActionStatusOf.Weapon/Locomotion` (a no-op where the unit or the world has none). Writers: ⭐ `AimAndFireExecutor` at EVERY exit (done · out of ammo · hold: not seen · aiming x/0.8 s · cooldown · reloading x/3 s · hold: friendly on line · hold: ROE · firing n/N), `FireAtPointExecutor` the same minus the sight/aim rows, and — ⚠ deviation, argued — the **locomotion row is written generically by `LocomotionDispatcherSystem`** after any locomotion executor (moving / done / failed) instead of in each of the seven locomotion executors: one writer, no per-executor edits; it carries no distance yet. The interaction row is not written yet | `Behavior/Diagnostics/ActionStatus.cs`, both fire executors, `LocomotionDispatcherSystem.cs` |
+| T2 | always present: `BehaviorTkbTranslator` adds it beside the action channels at spawn (brain units only); registered with the brain components (`CognitiveComponentRegistry`), brain-only in `HrotRoleComponentSets` | as named |
+| T3 | `ActionStatusGizmo` (family `Channels`, label **"Actions"**, default *selected or pinned*): lines `W aiming 0.4/0.8s` · `W hold: not seen` (amber) above the unit; a row older than 1 s of sim time is not drawn. The family joined `GizmoFamilies.All` ⇒ the layer panel scope (`LayerControlGizmo.ActionsSelectedOnly`) and the **Pin gizmos → Actions** menu entry (`GlobalActionIds.PinGizmosActions` = 268) come from the existing machinery. `GET /entities/{id}/weapons` reports the same `status` (reason, progress, needed, target, at) plus the magazine | `Hrot.Presentation/ScenarioEditor/Gizmos/ActionStatusGizmo.cs`, `GizmoFamilies.cs`, `GizmoPins.cs`, `LayerControlGizmo.cs`, `DebugApiService.Weapons.cs` |
+| T4 | not yet — built with P-6 (`PeekAndFire`) | — |
+
+Rails: `AimAndFireExecutorTests.T1_TheExecutorSaysWhy_InTheWeaponRow` (not seen → aiming 0.1/0.8 → firing → reloading 2 s), `DebugTraceGizmoTests.CE3136_TheActionsGizmo_SaysWhyAUnitIsNotFiring` (one line, a stale row dropped, the wording), `…CE3136_TheActionsFamily_IsListed_PinnableAndSelectedByDefault`.

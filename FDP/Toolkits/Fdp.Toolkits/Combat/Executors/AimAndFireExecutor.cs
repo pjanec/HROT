@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fbt;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Events;
@@ -73,6 +74,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (!CombatLife.IsAlive(world, p.Target))
             {
                 channel.Status = NodeStatus.Success;
+                Say(world, entity, ActionReason.Done, p.Target);
                 return;
             }
 
@@ -80,6 +82,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (p.Rounds > 0 && RoundsFired(ref channel) >= p.Rounds)
             {
                 channel.Status = NodeStatus.Success;
+                Say(world, entity, ActionReason.Done, p.Target);
                 return;
             }
 
@@ -93,6 +96,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (weapon.Ammo == 0)
             {
                 channel.Status = NodeStatus.Failure;
+                Say(world, entity, ActionReason.OutOfAmmo, p.Target);
                 return;
             }
 
@@ -121,12 +125,15 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 weapon.CooldownSecondsRemaining -= dt;
                 channel.Status = NodeStatus.Running;
+                if (!seen || aim.Ready == 0) SayAim(world, entity, p.Target, seen, in aim, mountIndex);
+                else Say(world, entity, ActionReason.Cooldown, p.Target, weapon.CooldownSecondsRemaining);
                 return;
             }
 
             if (!seen || aim.Ready == 0)
             {
                 channel.Status = NodeStatus.Running;
+                SayAim(world, entity, p.Target, seen, in aim, mountIndex);
                 return;
             }
 
@@ -136,6 +143,7 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 Magazine.StartIfEmpty(ref weapon);
                 channel.Status = NodeStatus.Running;
+                Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
                 return;
             }
 
@@ -144,6 +152,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (LineOfFire.BlockedByFriendly(world, entity, p.Target))
             {
                 channel.Status = NodeStatus.Running;
+                Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target);
                 return;
             }
 
@@ -153,6 +162,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (!RoePermitsFire(world, entity))
             {
                 channel.Status = NodeStatus.Running;
+                Say(world, entity, ActionReason.HoldRoe, p.Target);
                 return;
             }
 
@@ -168,6 +178,17 @@ namespace Fdp.Toolkit.Combat.Executors
 
             int fired = ++RoundsFired(ref channel);
             channel.Status = p.Rounds > 0 && fired >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
+            Say(world, entity, ActionReason.Firing, p.Target, fired, p.Rounds);
+        }
+
+        // ⭐ CE-3136 (T1) — the weapon row of the unit's ActionStatus: why this action is (not) firing this frame.
+        private static void Say(EntityRepository world, Entity unit, ActionReason reason, Entity target, float progress = 0f, float needed = 0f)
+            => ActionStatusOf.Weapon(world, unit, CombatConstants.ActionIdAimAndFire, reason, target, progress, needed);
+
+        private static void SayAim(EntityRepository world, Entity unit, Entity target, bool seen, in AimState aim, int mountIndex)
+        {
+            if (!seen) Say(world, unit, ActionReason.HoldNotSeen, target);
+            else Say(world, unit, ActionReason.Aiming, target, aim.Elapsed, AimSecondsFor(world, unit, mountIndex));
         }
 
         /// <summary>⭐ <c>CE-3136</c> P-3 — the aim timer, in the channel state after the target (bytes 8–23 of 32).</summary>
