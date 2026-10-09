@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-08 (§3k Stage 6 warheads BUILT — as-built table; CE-3116 body profile · designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
+updated: 2026-10-09 (§3l Stage 7a design · §3k Stage 6 warheads BUILT — as-built table; CE-3116 body profile · designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3k Stage 6 warheads (BUILT — "Stage 6 as built") · §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3l Stage 7a cover per storey + window firing positions (DESIGN — leans C1–C9) · §3k Stage 6 warheads (BUILT — "Stage 6 as built") · §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: §3j's top classDiagram and "5b as built" still draw DoorStateMirrorSystem / TerrainWorld.SetDoorState — removed by 5b′ (R-219); the banner there says so
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -1283,6 +1283,134 @@ The diagrams above are updated to the as-built classes and sequence. What change
 | W-10 | `DetonationLog` (ring of 64) + `GET /combat/detonations` (MCP `get_combat_detonations`) | — |
 | W-11 | rails `AreaEffectSystemTests` (6), `WarheadFlightTests` (4), `ReferenceLibraryTests` (2 new), `HrotEnvironmentTests` (munitions); premise rows `bt-grenade-posture`, `bt-mortar-roof`; scenarios + `scripts/utility-demo-check.py`; the curated test behaviour `HoldStance` | — |
 | — | ⭐ **`CE-3116` found here:** a soldier's 1.8 m collider (its capsule) made the body profile a HULL, so sight, aim and fragments ignored prone/crouched on the live world. `PhysicsColliderReaders.HullHeight` = 0 for a pedestrian; sight (`ForLiveWorld`), fire aim and the area effect read it; the collider still blocks lines up to its full height | §3f's profile, now true on the live world |
+
+## 3l. Stage 7a — cover per storey, window firing positions *(backend, `2026-10-09`; build-state: DESIGN — leans for the user)*
+
+> 🔒 **User, `2026-10-09`:** *"Yes 7a first."* · Scope from the approved plan ([`HANDOFF_Buildings_Combat_Programme.md`](blueprints/batches/HANDOFF_Buildings_Combat_Programme.md)
+> §4 Stage 7) and §4 above (approved set): *"cover points per storey along panels (inner side too); window firing positions
+> (inside, facing out); stance from the opening's sill, not the building height"*. The HOW below is new — leans.
+
+### 3l.1 INVENTORY *(two read-only sweeps + reads, `2026-10-09`; graph MCP partly down — grep + direct reads)*
+
+| question | answer | where |
+|---|---|---|
+| what the cover database iterates | `world.Prisms` ONLY — every prism edge, a point every 2.5 m, 0.75 m out, facing the wall; stance from the PRISM's height | `TerrainCoverProvider.cs:47-90` |
+| how a panel reaches it | a building panel is expanded into prisms (`Panel = index`): jambs between openings, a piece UNDER each sill, a LINTEL over each head | `TerrainBuildingExpander.cs:209-225` |
+| ⚠ what that produces on `house-2f` *(inferred from code — measured by rail ⓪ before any change)* | ① a lintel (head 2.1 → ceiling 3.0, 0.9 m) reads as CROUCH cover, its point Z = `SurfaceZ(hint 2.1)` = the floor below; ② an upper-storey piece's OUTSIDE point has no floor at 3.0 m ⇒ `SurfaceZ` falls back to the ground ⇒ phantom "stand" cover outside the house at Z 0; ③ jamb end-caps land in doorways and window gaps | `TerrainCoverProvider.cs:53-83`, `TerrainWorld.cs:189,227` |
+| what is stored on a point | `CoverPoint` 28 B: position, direction (facing the wall), `Quality` = 1 always, `StanceHeight` (2 stand · 1 crouch · 0 prone) + padding | `CoverPoint.cs:14-37` |
+| who reads the stance | ⛔ nobody — `CoverPointsGenerator` drops it (the §19 flag-bit write was superseded); `TakeCover` moves to X/Y/Z and sets no stance | `CoverPointsGenerator.cs:40`, `EqsTacticsNodes.cs:211` |
+| how EQS points get Z | pattern generators: `SurfaceZ(x, y, anchor.Z)` ⇒ ONE level per XY, the asker's; inside a non-solid footprint they are kept | `EqsTerrainSight.cs:57-63` |
+| the LOS test's heights | candidate as the eye: the self's STANDING eye at P; threat as the eye: aimed at the self's CROUCHED eye at P | `CheapLineOfSightTest.cs:96-110` |
+| who has panelled buildings | `bt-range` only (`House A`, `House B` = `house-2f`: 2 storeys × 3 m, windows sill 0.9 / head 2.1, inner wall, stairwell); `test-town` / `basic-desert` = solid prisms + 2 free walls | `bt-range/buildings/house-2f.building.json` |
+| a map layer for cover | none — no gizmo or route lists cover points | grep |
+
+### 3l.2 Classes
+
+```mermaid
+classDiagram
+  class TerrainCoverProvider { <<existing, grows>> Build(world)$; GetCoverPointsInRadius(center, r, span) ; Points }
+  class CoverPoint { <<existing, grows>> Position; Direction; Quality; StanceHeight; +Kind (a pad byte, still 28 B) }
+  class CoverKind { <<new enum>> Cover; WindowFiring }
+  class TerrainWallPanel { <<existing>> A; B; Thickness; BaseZ; TopZ; Openings; Building; Storey }
+  class TerrainOpening { <<existing>> Kind; At; Width; SillZ; HeadZ }
+  class TerrainBuilding { <<existing>> Footprint; StoreyZ }
+  class TerrainWorld { <<existing>> Prisms; Panels; Buildings; SurfacesAt(x,y) }
+  class CoverPointsGenerator { <<existing, grows>> +Kinds : CoverKind mask (default Cover) }
+  class FindWindowFiringPosition { <<new starter template>> CoverPoints(Kinds=WindowFiring) + LOS candidate→target Visible + Distance + PathCost }
+  class FindCoverFromTarget { <<existing, unchanged>> CoverPoints(Kinds=Cover) }
+  class CoverPointsGizmo { <<new>> layer Cover }
+  TerrainCoverProvider ..> TerrainWorld : solid prisms + free-wall prisms (as today)
+  TerrainCoverProvider ..> TerrainWallPanel : building panels by FACE (new)
+  TerrainWallPanel --> TerrainOpening
+  TerrainCoverProvider --> CoverPoint
+  CoverPoint --> CoverKind
+  CoverPointsGenerator ..> TerrainCoverProvider
+  FindWindowFiringPosition --> CoverPointsGenerator
+  FindCoverFromTarget --> CoverPointsGenerator
+  CoverPointsGizmo ..> TerrainCoverProvider
+```
+
+*What the picture shows that the prose hid: everything downstream — the generator, both templates, the solver, the wire — is
+EXISTING. The change is where points come from (a panel's face, not its expanded pieces) and one byte saying what a point is for.*
+
+### 3l.3 Sequence — the database is built, then a unit upstairs asks for a window
+
+```mermaid
+sequenceDiagram
+  participant TR as TerrainResidency.Prepare
+  participant CP as TerrainCoverProvider.Build
+  participant W as TerrainWorld
+  participant S as EqsSolverSystem (background)
+  participant G as CoverPointsGenerator
+  participant L as CheapLineOfSightTest
+  TR->>CP: Build(world)
+  CP->>W: solid prisms + free-wall prisms → points (unchanged rule)
+  loop each building panel, each face, every 2.5 m
+    CP->>W: SurfacesAt(p) has a level within 0.3 m of the panel's floor?
+    alt no floor there (upper storey outside, stairwell)
+      CP-->>CP: drop
+    else door / gap span
+      CP-->>CP: no point
+    else window span
+      CP-->>CP: sill = low wall → Cover point (stance by sill height), both faces
+      CP-->>CP: inside face → WindowFiring point (stance that clears the sill)
+    else solid wall
+      CP-->>CP: Cover point, Z = floor, stance by wall height above floor
+    end
+  end
+  TR->>TR: Commit publishes ICoverProvider
+  S->>G: FindWindowFiringPosition for a unit on storey 2
+  G-->>S: WindowFiring points within radius (all storeys)
+  S->>L: standing eye at P sees the target?
+  L-->>S: keep the visible ones, Distance + PathCost rank them
+```
+
+### 3l.4 Modules — who builds it, who reads it, each frame
+
+```mermaid
+graph TD
+  P[TerrainResidency.Prepare<br/>once per terrain load, off-thread] --> B[TerrainCoverProvider.Build]
+  C[TerrainResidency.Commit] --> SG[world singleton ICoverProvider]
+  SG --> SN[EQS snapshot sync<br/>EntityRepository.Sync]
+  E[EqsModule SlowBackground 10 Hz] --> SO[EqsSolverSystem] --> GEN[CoverPointsGenerator]
+  GEN --> SN
+  M[map hosts each frame: StatelessGizmoSystem] --> GZ[CoverPointsGizmo — layer Cover]
+  GZ --> SG
+  T[TakeCover / FiringPosition behaviours] -. stance of the point: NOT read .-> GEN
+  style T stroke-dasharray: 5 5
+```
+
+*Caption: the dashed edge is the gap this stage does NOT close — a behaviour moving to a point does not take that point's
+stance (§3l.5 C8, behaviors lane). Everything solid already ticks on every host that resolves terrain.*
+
+### 3l.5 Decisions *(leans — reply "approved" or name the one to change)*
+
+| # | lean | why |
+|---|---|---|
+| C1 | **building panels feed cover by PANEL FACE**; solid prisms and FREE walls/fences keep today's prism rule exactly | ⭐ fixes ①–③ at the source; test-town/basic-desert have no panelled buildings ⇒ their cover — and every `ua-*` demo — is byte-identical |
+| C2 | both faces, a point every 2.5 m, 0.75 m out, facing the wall; **Z = the panel's storey floor** (`BaseZ`); kept only where `SurfacesAt` has a level within 0.3 m of that floor and it is not inside a solid prism or another panel's thickness at that height | the floor is KNOWN — no `SurfaceZ` guess; the level check drops an upper storey's outside face and the stairwell by construction |
+| C3 | a **door or gap span gives no point**; a **window span** is a low wall of the SILL's height above the floor (today's thresholds: ≥ 1.5 stand · ≥ 0.9 crouch · ≥ 0.45 prone · else none) on both faces; **a lintel never gives cover** | 🔒 §4 *"stance from the opening's sill, not the building height"*; the thresholds are EQS §19.5's, unchanged |
+| C4 | **window firing positions**: `CoverPoint.Kind = WindowFiring` (a padding byte — the struct stays 28 B), on the face inside the building's footprint (both faces for an inner-wall window), centred on the window, facing out; stance = the LOWEST whose eye clears sill + 0.1 m and stays below the head (eyes 0.35 / 1.1 / 1.7 — §3f); none when even standing does not clear | lowest stance that can still fire = most protection; `house-2f`'s 0.9 m sill ⇒ **crouch** |
+| C5 | the query: `CoverPointsGenerator.Kinds` (default `Cover` ⇒ `FindCoverFromTarget` unchanged in meaning) + a new starter template **`FindWindowFiringPosition`** — window points, the existing LOS test (candidate's standing eye must see the target), Distance + PathCost | ⭐ reuse — no new generator, no new test; the standing eye passes a 0.9–2.1 window, so the LOS test needs no change |
+| C6 | **pattern sampling stays one level** (the asker's, via `SurfaceZ` with its Z hint); cross-storey candidates come only from the cover/window database | today's donut/grid already samples INSIDE a non-solid footprint on the asker's storey; multi-level pattern sampling multiplies every query's candidates — ⏭ when a template needs it |
+| C7 | a **`Cover` map layer** (`CoverPointsGizmo`: cover green, window firing blue, a tick for the facing) | Tuning §5 lists *"Cover & firing positions"*; nothing shows cover today, so a wrong point is invisible |
+| C8 | ⛔ **not here:** a behaviour taking the point's stance (`TakeCover`, `FiringPosition`) — `EqsResult` carries no stance and is replicated; a CE row to the behaviors lane with this design as basis | the consumer is behaviors' surface; widening a wire struct deserves its own decision |
+| C9 | ⛔ **not here:** `Quality` from the wall's material (a wooden wall is poor cover) | it needs a reference round for "stops a bullet" — a tuning decision; ⏭ filed with the penetration tables |
+
+| rejected | the one fact that killed it |
+|---|---|
+| keep iterating the panel's prisms, patch the three cases | the prisms do not know their storey floor or that a piece is a lintel — every patch re-derives what the panel already states |
+| a separate window-position provider/generator | two producers for the same slot (R-132); the database and the generator already carry position + facing + stance |
+| stance per candidate in `EqsResult` now | a replicated struct change for a consumer that does not exist yet (C8) |
+
+### 3l.6 Slices and rails *(rails first, red-proved)*
+
+| slice | content | rail *(⭐ the one that proves it)* |
+|---|---|---|
+| 7a-0 | measure ①–③ on `house-2f` as they are | ⭐ `Stage7a_TodayHouse2f_*` — written red-on-purpose against the defect, kept as the regression |
+| 7a-1 | C1–C3 in `TerrainCoverProvider` | ⭐ both faces of the inner wall on BOTH storeys at their floor Z (±0.05); no point outside an upper storey; none in a doorway; none under a lintel; test-town's database unchanged (count + checksum) |
+| 7a-2 | C4–C5 | ⭐ the plan's acceptance: from a rifleman on `House A` storey 2 and a target south of the house, `FindWindowFiringPosition` answers a point at a SOUTH window, Z ≈ 3.0, stance crouch, inside the footprint |
+| 7a-3 | C7 | gizmo rail: draws both kinds on its layer, nothing without a provider |
 
 ## 4. Change map — what each consumer must do
 
