@@ -30,9 +30,13 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// </summary>
 public sealed class EntityDragGizmo : IEntityStatefulGizmo
 {
-    // Sphere pick radius in world metres. Must be large enough to be
-    // easily clickable but not so large it overlaps adjacent entities.
-    private const float PickRadius = 8f;
+    // ⭐⭐⭐ CE-3147 — THE DRAG AREA IS THE SELECT AREA. 🔒 User, 2026-10-09: "click-to-drag sensitive area is
+    //   enormous now (no change) - should be identical to click-to-select area."
+    //   🔴 It used to be its own `PickRadius = 8f` in WORLD METRES, written onto a default(DebugPrimitive)
+    //   (⇒ SizeMode.WorldMeters). At the new zoom ceiling of 100 that is ~800 screen px — and because it was
+    //   world-sized, the SizeMode hit-test fix could not shrink it: geomScale is 1 for WorldMeters.
+    //   ⭐ Now it IS the select extent, same constant and same unit, so the two cannot diverge again.
+    private const float PickRadius = EntityPresentationGizmoShared.EntityPickExtentPx;
 
     private static readonly Rgba32 PickSphereColor  = new Rgba32(0, 0, 0, 0);   // transparent
     private static readonly Rgba32 DragLineColor    = new Rgba32(255, 255, 0, 200);
@@ -104,6 +108,10 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         pickBox.BoxCenterY       = tf.Position.Y;
         pickBox.BoxExtentX       = PickRadius;
         pickBox.BoxExtentY       = PickRadius;
+        // ⭐ CE-3147 — MUST be set explicitly: default(DebugPrimitive) leaves SizeMode = WorldMeters (0), which is
+        //   exactly how this area came to be 8 METRES wide. The select box gets ScreenPixels from MakeBox2D's
+        //   default; this one has no such help.
+        pickBox.SizeMode         = SizeMode.ScreenPixels;
         pickBox.Color            = PickSphereColor;
         // 🔴 §6.7 — `pickBox.AnchorIndex = _entity.Index; pickBox.AnchorGeneration = ...` DELETED.
         //   The handle was a pick payload nothing reads; identity is BoxAnchorId (set above).

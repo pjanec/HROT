@@ -26,8 +26,14 @@ namespace Hrot.Common.Diagnostics.Gizmos
     [GizmoProjector(typeof(SelectionState), typeof(SimTransform))]
     public sealed class SelectionHighlightGizmo : IStatelessGizmo
     {
-        // Radius in screen pixels.
-        private const float SelectionRadiusPx = 20f;
+        // ⭐⭐ CE-3147 — radius in SCREEN PIXELS, 20 → 100 (5×). 🔒 User, 2026-10-09: "the green selection circle
+        //   marker drawn on selected entity is extremely small - it should be 5 times bigger."
+        //   ⚠ Why it only now reads as tiny: it is screen-sized, so raising the zoom ceiling 10× (CE-3150, MaxZoom
+        //   10 → 100) grew everything measured in world metres on screen while this ring stayed at 20 px.
+        //   ⚠ Deliberately NOT wired to EntityPresentationGizmoShared.EntityPickExtentPx (40 px, the clickable
+        //   half-extent): a MARKER and a HIT AREA are different concerns, and this assembly cannot see that one
+        //   anyway — Hrot.Common and Hrot.Presentation are siblings, neither references the other.
+        private const float SelectionRadiusPx = 100f;
         private const float RingThicknessPx   = 2f;
 
         private static readonly Rgba32 PrimaryOutline = Rgba32.Green;

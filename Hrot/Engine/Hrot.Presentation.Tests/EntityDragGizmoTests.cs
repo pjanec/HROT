@@ -32,6 +32,39 @@ public class EntityDragGizmoTests
     }
 
     // EDG-001: UpdateAndDraw emits a Box2D primitive with valid entity pick token.
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-3147</c> — <b>the DRAG area must be the SELECT area: same extent, same unit.</b>
+    /// 🔒 User, <c>2026-10-09</c>: <i>"click-to-drag sensitive area is enormous now (no change) - should be
+    /// identical to click-to-select area."</i>
+    /// <para>📐 It was enormous because this gizmo carried its own <c>PickRadius = 8f</c> in WORLD METRES on a
+    /// <c>default(DebugPrimitive)</c> (⇒ <c>SizeMode.WorldMeters</c>) — 8 m, about 800 screen px at the zoom
+    /// ceiling of 100 — and being world-sized, the <c>SizeMode</c> hit-test fix could not shrink it.</para>
+    /// <para>⚠ <b>Both halves are asserted, because either alone is insufficient:</b> matching the NUMBER while
+    /// leaving <c>WorldMeters</c> would still give a 40 m box, and matching the UNIT while keeping an 8 would
+    /// still disagree with the select area. ⛔ Sharing the constant makes the number drift-proof at compile
+    /// time; this rail is what pins the UNIT.</para>
+    /// </summary>
+    [Fact]
+    public void CE3147_TheDragPickArea_MatchesTheSelectPickArea_InExtentAndUnit()
+    {
+        var gizmo  = new EntityDragGizmo(_repo, _entity);
+        var buffer = new DebugPrimitiveBuffer(capacity: 16);
+        gizmo.UpdateAndDraw(_repo, 0f, buffer);
+
+        bool found = false;
+        foreach (var prim in buffer.GetFrame())
+        {
+            if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
+
+            Assert.Equal(EntityPresentationGizmoShared.EntityPickExtentPx, prim.BoxExtentX);
+            Assert.Equal(EntityPresentationGizmoShared.EntityPickExtentPx, prim.BoxExtentY);
+            Assert.Equal(SizeMode.ScreenPixels, prim.SizeMode);
+            found = true;
+        }
+
+        Assert.True(found, "the drag gizmo emitted no Box2D pick area at all");
+    }
+
     [Fact]
     public void UpdateAndDraw_EmitsSphereWithValidPickToken()
     {
