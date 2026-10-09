@@ -54,6 +54,18 @@ namespace Hrot.Network.NED.SimHost
             var requests = view.ReadEvents<PathfindingRequestEvent>();
             if (requests.IsEmpty) return;
 
+            var batch = BuildBatch(requests);
+            if (batch == null) return;
+            _writer.Write(batch.Value);
+            SentSampleCount++;
+        }
+
+        /// <summary>The batch this node publishes for <paramref name="requests"/> (its own only), or null when none are
+        /// its own. Exposed for unit tests.</summary>
+        internal PathRequestBatch? BuildBatch(ReadOnlySpan<PathfindingRequestEvent> requests)
+        {
+            if (requests.IsEmpty) return null;
+
             // Use the first request's Start as the spatial anchor for encoding relative offsets.
             var anchorCartesian = requests[0].Start;
             var (lat, lon, alt) = _geoTransform.ToGeodetic(anchorCartesian);
@@ -71,6 +83,10 @@ namespace Hrot.Network.NED.SimHost
                 {
                     RequestId       = req.RequestId,
                     MobilityProfile = req.MobilityProfile,
+                    // ⭐ CE-3129 — the order rides the wire to a solver on another node (the in-process path had it already).
+                    BackendForce    = (byte)req.BackendForce,
+                    NavLayerMask    = req.NavLayerMask,
+                    RoadUse         = (byte)req.RoadUse,
                     Start = new RelativeVector3
                     {
                         East  = req.Start.X - anchorCartesian.X,
@@ -86,15 +102,14 @@ namespace Hrot.Network.NED.SimHost
                 });
             }
 
-            if (ddsRequests.Count == 0) return;
+            if (ddsRequests.Count == 0) return null;
 
-            _writer.Write(new PathRequestBatch
+            return new PathRequestBatch
             {
                 SourceNodeId = _localNodeId,
                 BatchOrigin  = batchOrigin,
                 Requests     = ddsRequests,
-            });
-            SentSampleCount++;
+            };
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
@@ -283,6 +298,9 @@ namespace Hrot.Network.NED.SimHost
                     Start           = start,
                     End             = end,
                     MobilityProfile = ddsReq.MobilityProfile,
+                    BackendForce    = (NavigationBackend)ddsReq.BackendForce,   // ⭐ CE-3129
+                    NavLayerMask    = ddsReq.NavLayerMask,
+                    RoadUse         = (RoadUse)ddsReq.RoadUse,
                     // Stamp the originating Brain node ID for demultiplexing on egress.
                     SourceNodeId    = data.SourceNodeId,
                 });
@@ -333,25 +351,56 @@ namespace Hrot.Network.NED.SimHost
             var results = view.ReadEvents<PathfindingResultEvent>();
             if (results.IsEmpty) return;
 
-            // Demultiplex results by originating Brain node.
-            var batchesByNode = new Dictionary<int, (List<DdsPathResult> results, GeoPoint origin)>(results.Length);
+            foreach (var batch in BuildBatches(results))
+            {
+                _writer.Write(batch);
+                SentSampleCount++;
+            }
+        }
 
+        /// <summary>One node's batch while it is being built: every result in it is encoded against ONE anchor.</summary>
+        private sealed class NodeBatch
+        {
+            public readonly List<DdsPathResult> Results = new();
+            public bool HasAnchor;
+            public Vector3 Anchor;
+            public GeoPoint Origin;
+        }
+
+        /// <summary>
+        /// Groups <paramref name="results"/> by originating Brain node, one <see cref="PathResponseBatch"/> per node.
+        /// ⭐ CE-3129 — every result in a batch is relative to the batch's ONE <c>BatchOrigin</c> (the first reachable
+        /// result's first waypoint), which is how the Brain decodes it. ⛔ Each result used to be relative to its OWN
+        /// first waypoint while the batch carried the LAST reachable result's, so with two or more results for one node
+        /// every route but the last landed displaced on the Brain. Exposed for unit tests.
+        /// </summary>
+        internal List<PathResponseBatch> BuildBatches(ReadOnlySpan<PathfindingResultEvent> results)
+        {
+            var byNode = new Dictionary<int, NodeBatch>();
+            var order = new List<int>();
             for (int i = 0; i < results.Length; i++)
             {
                 ref readonly var evt = ref results[i];
+                if (!byNode.TryGetValue(evt.SourceNodeId, out var nb))
+                {
+                    nb = new NodeBatch();
+                    byNode[evt.SourceNodeId] = nb;
+                    order.Add(evt.SourceNodeId);
+                }
 
                 List<RelativeVector3>? coarseWaypoints = null;
-                GeoPoint batchOrigin = default;
-
                 if (evt.IsReachable && evt.RouteHandle >= 0
-                    && _trajectoryPool.TryGetTrajectory(evt.RouteHandle, out var traj))
+                    && _trajectoryPool.TryGetTrajectory(evt.RouteHandle, out var traj) && traj.Waypoints.Length > 0)
                 {
-                    // Use first waypoint as coordinate anchor for relative encoding. The waypoint
-                    // Position is now 3D (Sim Z-up); the anchor and per-waypoint Up carry real
-                    // altitude rather than flattening to 0 (P3D-304).
-                    var firstPos = traj.Waypoints[0].Position;
-                    var (lat, lon, alt) = _geoTransform.ToGeodetic(firstPos);
-                    batchOrigin = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt };
+                    // The batch anchor is the first reachable result's first waypoint. Positions are 3D (Sim Z-up); the
+                    // anchor and per-waypoint Up carry real altitude rather than flattening to 0 (P3D-304).
+                    if (!nb.HasAnchor)
+                    {
+                        nb.Anchor = traj.Waypoints[0].Position;
+                        var (lat, lon, alt) = _geoTransform.ToGeodetic(nb.Anchor);
+                        nb.Origin = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt };
+                        nb.HasAnchor = true;
+                    }
 
                     coarseWaypoints = new List<RelativeVector3>(traj.Waypoints.Length);
                     for (int w = 0; w < traj.Waypoints.Length; w++)
@@ -359,44 +408,30 @@ namespace Hrot.Network.NED.SimHost
                         var wp = traj.Waypoints[w].Position;
                         coarseWaypoints.Add(new RelativeVector3
                         {
-                            East  = wp.X - firstPos.X,
-                            North = wp.Y - firstPos.Y,
-                            Up    = wp.Z - firstPos.Z,
+                            East  = wp.X - nb.Anchor.X,
+                            North = wp.Y - nb.Anchor.Y,
+                            Up    = wp.Z - nb.Anchor.Z,
                         });
                     }
                 }
 
-                var ddsResult = new DdsPathResult
+                nb.Results.Add(new DdsPathResult
                 {
                     RequestId           = evt.RequestId,
                     IsReachable         = evt.IsReachable,
                     TotalDistanceMeters = evt.TotalDistanceMeters,
                     RouteHandle         = evt.RouteHandle,
                     CoarseWaypoints     = coarseWaypoints!,
-                };
-
-                if (!batchesByNode.TryGetValue(evt.SourceNodeId, out var entry))
-                {
-                    entry = (new List<DdsPathResult>(), batchOrigin);
-                    batchesByNode[evt.SourceNodeId] = entry;
-                }
-                entry.results.Add(ddsResult);
-                // Update anchor: use the last reachable result's origin (last wins for the batch).
-                if (evt.IsReachable)
-                    batchesByNode[evt.SourceNodeId] = (entry.results, batchOrigin);
-            }
-
-            // Publish one targeted batch per originating Brain node.
-            foreach (var kvp in batchesByNode)
-            {
-                _writer.Write(new PathResponseBatch
-                {
-                    TargetNodeId = kvp.Key,
-                    BatchOrigin  = kvp.Value.origin,
-                    Results      = kvp.Value.results,
                 });
-                SentSampleCount++;
             }
+
+            var batches = new List<PathResponseBatch>(order.Count);
+            foreach (int node in order)
+            {
+                var nb = byNode[node];
+                batches.Add(new PathResponseBatch { TargetNodeId = node, BatchOrigin = nb.Origin, Results = nb.Results });
+            }
+            return batches;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }

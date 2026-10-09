@@ -339,6 +339,12 @@ namespace Hrot.NED.Descriptors
         public RelativeVector3 End;
         /// <summary>0=Wheeled, 1=Tracked, 2=Infantry.</summary>
         public byte           MobilityProfile;
+        /// <summary>⭐ CE-3129 — the request's forced backend (<c>NavigationBackend</c>; 0 = Auto).</summary>
+        public byte           BackendForce;
+        /// <summary>⭐ CE-3129 — the request's navmesh layer mask (<c>NavLayerMask</c> bits; 0 = all layers).</summary>
+        public int            NavLayerMask;
+        /// <summary>⭐ CE-3129 — the actor's road use (<c>RoadUse</c>; 0 = Unspecified), R-230.</summary>
+        public byte           RoadUse;
     }
 
     /// <summary>Batched path requests published by a Brain node toward the Navigation Solver.</summary>
