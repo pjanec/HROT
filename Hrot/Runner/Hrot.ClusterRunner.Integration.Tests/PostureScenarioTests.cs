@@ -479,10 +479,12 @@ public sealed class PostureScenarioTests : IDisposable
         }
         string State() => $"A {Pos(a)} hp {Hp(a)} ammo {a0}→{Ammo(a)} windows [{string.Join(" ", windows)}] {Peek(a)} · B {Pos(b)} hp {Hp(b)} ammo {b0}→{Ammo(b)} bounded={bounded}";
 
+        float lastZ = Pos(a).Z;
         for (int f = 0; f < 36000; f++)
         {
             harness.PumpFrames(1);
             var pa = Pos(a);
+            if (MathF.Abs(pa.Z - lastZ) > 0.5f) { _out.WriteLine($"f{f}: A z {lastZ:F2} -> {pa.Z:F2} at {pa}; {Peek(a)}"); lastZ = pa.Z; }
             foreach (var w in UpstairsWindows)   // at a window, not on the way between two
                 if (pa.Z >= 2f && Vector2.Distance(new Vector2(pa.X, pa.Y), w) <= 0.75f) windows.Add(((int)MathF.Round(w.X), (int)MathF.Round(w.Y)));
             var pb = Pos(b);

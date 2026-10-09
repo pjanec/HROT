@@ -489,7 +489,7 @@ namespace Hrot.AI.Behaviors.Brains
             ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(ws.CoverSensor.ChildId);
             if (!buffer.IsReady || buffer.Count == 0) return false;
 
-            var span = buffer.GetSpanRO();
+            var span = buffer.GetSpanRO()[..buffer.Count];   // ⭐ CE-3144 — the span is all 16 slots; past Count they are (0,0,0) score 0
             float best = float.NegativeInfinity;
             for (int i = 0; i < span.Length; i++)
             {
@@ -514,7 +514,7 @@ namespace Hrot.AI.Behaviors.Brains
                 || !world.HasComponent<EqsCognitiveBuffer>(ws.PeekSensor.ChildId)) return false;
             ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(ws.PeekSensor.ChildId);
             if (!buffer.IsReady || buffer.Count == 0) return false;
-            var span = buffer.GetSpanRO();
+            var span = buffer.GetSpanRO()[..buffer.Count];   // ⭐ CE-3144 — the span is all 16 slots; past Count they are (0,0,0) score 0
             for (int i = 0; i < span.Length; i++)
             {
                 var r = span[i];

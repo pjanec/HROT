@@ -406,6 +406,26 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>P8_R2</c> — <c>CE-3144</c>: a used-up position with nowhere else to go keeps fighting from it — it never walks to the
+        /// map's ORIGIN. 📐 Found live (the in-process duel): <c>EqsCognitiveBuffer.GetSpanRO()</c> is all 16 slots, the ones past
+        /// <c>Count</c> are (0,0,0) score 0, and once the real windows were burned the empty slot won — A walked 140 m to (0,0,0).
+        /// 🔴 Red-proof: drop the <c>[..buffer.Count]</c> slice in <c>PickHide</c> and the last move is (0,0,0).
+        /// </summary>
+        [Fact]
+        public void P8_R2_AUsedUpPositionWithNowhereElse_NeverPicksAnEmptyAnswerSlot()
+        {
+            var d = new Duel(Window(exposuresPerPosition: 2) with { BurnHeat = 99f, ReuseHeat = 98f });
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (10f, 10f, StanceId.Crouched));
+            for (int exposure = 0; exposure < 4; exposure++)
+            {
+                Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+                Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            }
+            Assert.All(d.Moves, m => Assert.Equal(new Vector3(10f, 10f, 0f), m));
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <c>P7_R2</c> — D12, SUPPRESS AND BOUND (B in the street, <c>SuppressBeforeRelocate</c>): the cover is used up, so the
         /// unit picks the next one, but first steps out and fires a suppressive burst (<c>FireAtPoint</c>, no aim time) at the enemy's
         /// freshest spot, and then RUNS to the new cover — never back to the used one. ⭐ Under fire it stays down: a near miss holds the
