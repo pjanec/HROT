@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-09
 build-state: P-1–P-6 BUILT 2026-10-09 (§7); READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
-current-answer: §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §3 classes · §4 sequences · §5 modules · §7 slices
+current-answer: §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles (O1–O5 PROPOSED) · §3 classes · §4 sequences · §5 modules · §7 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
@@ -15,6 +15,7 @@ related-designs:
   - designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — OWNS SlotRotation (used/burned exposure slots, §3); D8 mirrors it per unit
   - blueprints/Architect_Question_87_Unit_Memory.md — OWNS unit memory (unit-scoped shared blackboard structs): declaration, storage, creation on first touch, access; B1's FiringPositionMemory is its first instance
   - DESIGN_Terrain_Combat_Tuning.md — OWNS the defaults (EngineFallbacks, ParameterResolver) D3/D4 add to, and the demo/premise rules the duel follows (§3)
+  - blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — OWNS T6 (static obstacles: a TkbType, baked; moving ones never in the navmesh) — §9 builds it
   - DESIGN_Ai_Action_Status_Gizmo.md — OWNS making the executors' holds (not seen, aiming x/y s, reloading) and PeekAndFire's phases visible on the map (proposed)
 -->
 
@@ -309,3 +310,127 @@ his Relocate is "another window"; B's Expose is a step and his Relocate is "run 
 *As built (P-6): the struct is `PeekAndFireParams`; a zero field means the default column (`PeekAndFireNodes.Effective`); `Mode` is `PeekMode` (Auto / Stance / Step); `HideStanceOverride` is `StanceId + 1` (0 = from the point); `RelocateSpeed` is also the step-out speed.*
 
 ⚠ The aim time is NOT here: it is the weapon's (D3, `ParameterResolver`), so every behaviour aims alike.
+
+## 9. P-7a — static obstacles in detail *(backend, `2026-10-09`; ⏳ O1–O5 PROPOSED — awaiting the user)*
+
+> D11 (approved) says WHAT: an obstacle TKB type with a collider, a `StaticObstacle` marker and a wall-library material; bullets,
+> sight, cover, the EQS sight and the navmesh all respect it. This section says HOW, after three read-only sweeps.
+
+### 9.1 INVENTORY — measured `2026-10-09` (graph `search_graph .*(StaticObstacle|Obstacle|CoverProvider|EqsTerrainSight|Occluder|PhysicsCollider).*` → 136 nodes, no `StaticObstacle` type; three read-only sweeps + grep)
+
+| # | what exists | how it treats an obstacle collider today | where |
+|---|---|---|---|
+| I1 | bullets cross TERRAIN by the one P2 rule: `TerrainPenetration.Carry` over `TerrainWorld.QueryFire` (chord × resistance per piece, sorted by T) | — terrain only | `TerrainPenetration.cs:39,65`, `TerrainWorld.cs:471-537`; callers `BallisticsSystem.cs:158`, `HitResolutionSystem.cs:120`, `AimPoint.cs:40`, `ShotLog.cs:124`, `AreaEffect.cs:78` |
+| I2 | entity colliders in the bullet narrow phase: a 2-D circle, the person body band (P-2) | 🔴 **any non-person collider STOPS the round** — no height, no material: a bullet-proof circle | `RaycastSolverSystem.cs:137-176` |
+| I3 | sight: terrain by material transmittance; colliders by `ColliderOcclusion` | 🔴 **an opaque cylinder** (no material); `Height = 0` blocks at every height | `TerrainWorld.cs:314-360`, `LosStrategies.cs:258-313` |
+| I4 | the AI's sight (`EqsTerrainSight`), `AimPoint` | ⛔ **does not see colliders at all** — *"Terrain only: vehicles and units are not cover (they move)"* (EQS §19.5) | `EqsTerrainSight.cs:14`, EQS design `:1271` |
+| I5 | cover: ONE `TerrainCoverProvider`, built from prisms + panel faces in `TerrainResidency.Prepare`, swapped in `Commit` | ⛔ nothing around entities; **no rebuild except a terrain (re)load** | `TerrainCoverProvider.cs:47-195`, `TerrainResidency.cs:201,280` |
+| I6 | navmesh: baked from `TerrainWorld` prisms; tiled, per-tile cache keyed on the tile's inputs; `Rebake` swaps one snapshot (R-218) — no production caller yet | ⛔ reads no entity | `RecastNavmeshFactory.cs:86-126`, `DotRecastNavmeshProvider.cs:287-302`, Nav v2 §14 `:1497,1531` |
+| I7 | movement around colliders: RVO ignores the neighbour's radius (`avoidanceRadius*2`) | a man walks into a 5 m obstacle | `RVOAvoidance.cs:42-44` |
+| I8 | the Editor's zone obstacle: `SimTransform` + `PhysicsCollider{Radius, layer 1}` — no TKB type, no height, editor-local | 🔴 **does not survive a reload** (inferred: the load path rejects `TkbType = 0`, `CreateEntityRequestSystem.cs:189-194`; no test covers it) → `CE-3141` | `EditorZoneAuthoringSystem.cs:45-56`, `StagingEntityExtractor.cs:315` |
+| I9 | materials by NAME (`TerrainMaterialLibrary.Get/TryGet`); `sandbags`, `concrete`, `steel-plate` … ship; no car body | — | `TerrainMaterials.cs:14-55`, `Terrain/Data/materials.json` |
+| I10 | `TerrainPrism` = footprint polygon × `BaseZ..TopZ` × `Material` — the shape every query above already walks | — | `TerrainWorld.cs:23-43` |
+
+**Design records checked:** [AQ81](blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md) **T6** (✅ approved) — *"placed buildings: entities with a new
+static-obstacle `TkbType` + footprint + height, baked through the existing `PrepareTerrainAsset`/`CommitTerrainAsset` op pair (affected navmesh
+tiles rebuilt)"*; *moving* ones never in the navmesh — **applies: it is this.** [R-218](blueprints/RULINGS.md) — GEOMETRY that changes at runtime
+is copy-on-write, one immutable snapshot swapped — **applies.** R-219 — runtime STATE on fixed geometry is read from the reader's view (doors) —
+**does not apply**: an obstacle is geometry, not state. [DESIGN_Terrain_Zones_And_Assets](DESIGN_Terrain_Zones_And_Assets.md) §2.1c/§5.2 —
+static obstacles split from movable ones by `TkbType`, "earn a build and a marker" — **applies, agrees.** AQ71 Q71-D — obstacles are ordinary
+entities — **agrees.**
+
+### 9.2 Decisions — ⏳ PROPOSED
+
+| # | lean | why |
+|---|---|---|
+| **O1** | ⭐ **a static obstacle is GEOMETRY: each node's `TerrainResidency` derives its immutable `TerrainWorld` = the terrain + one `TerrainPrism` per static obstacle (footprint × height × material), and rebuilds cover and re-bakes the touched navmesh tiles off-thread, then swaps (R-218).** The obstacle ENTITY's own collider is then skipped by the bullet narrow phase and the sight occluder (it is in the terrain now — never counted twice) | ⭐ bullets (I1), sight (I3), the AI's sight (I4), cover points (I5) and paths (I6) all already read prisms ⇒ **one entry point, zero per-system obstacle code** — and it is exactly AQ81 T6 + R-218. A sandbag wall then stops what sandbags stop, a car hides what a car hides |
+| **O2** | **trigger: a per-node system watches the set of static obstacles in its own world** (type, position, yaw, size → a hash); on a change it runs the residency rebuild off-thread and swaps on completion. ⚠ deviates from T6's *route* (the cluster `PrepareTerrainAsset` round), not its *substance* | the inputs are replicated entities every node already has; a cluster round would be a second synchronisation racing the first (replication). Each node's queries are its own. ⚠ What would change it: if every node must swap in the SAME frame (it never reads another node's terrain — measured callers I1–I6 are all node-local) |
+| **O3** | **the footprint is a BOX** (length × width, the entity's yaw) **× height**, from the TKB type, overridable per instance by an `ObstacleShape` component (so a sandbag wall can be any length); the movement collider radius = half the diagonal | a car and a sandbag wall are boxes; a circle would let rounds through the corners and hide a man behind air |
+| **O4** | **four starter types** (TKB ids in the `88xx` terrain-object block beside `Door`): `Car` (new material `car-body`: sight 0, 120 mm/m — a starter value to tune, §3c), `Sandbag wall` (`sandbags`), `Concrete block` (`concrete`), `Crate` (`fence-wood`). **The Editor's zone obstacle becomes `Concrete block`** with the slider radius as its `ObstacleShape` — which also fixes `CE-3141` (it reloads: it has a type) | D11; T6 *"a new static-obstacle TkbType"*; §2.1c *"different TkbType preferably"* |
+| **O5** | moving vehicles stay OUT (EQS §19.5, T6): only a type carrying `StaticObstacle` enters the terrain. RVO keeps ignoring the radius (I7) — the navmesh cut routes units round an obstacle, which is what the rail needs | a moving thing in a baked mesh is wrong the next second |
+
+| rejected | the one fact that killed it |
+|---|---|
+| an obstacle list passed beside the terrain to each query (`Carry`, `EqsTerrainSight`, cover, navmesh) | five integrations of one fact — R-132's two producers per slot, ×5 |
+| DotRecast TileCache obstacles | AQ81 T6: boxes/cylinders only and a second mechanism beside the ruled build; the package is not even referenced |
+| keeping the entity collider live as well | every round and every line of sight would cross the obstacle twice |
+| the cluster `PrepareTerrainAsset` round per placement | O2 |
+
+### 9.3 Classes
+
+```mermaid
+classDiagram
+  class StaticObstacle { <<NEW marker component>> }
+  class ObstacleShape { <<NEW component>> Length; Width; Height; Material }
+  class ObstacleTkbTranslator { <<NEW>> stamps marker + shape + collider from the TKB type }
+  class TerrainObstacles { <<NEW static>> PrismOf(shape, transform) ; SetHash(view) }
+  class StaticObstacleWatchSystem { <<NEW, every ECS node>> hash changed ⇒ rebuild }
+  class TerrainResidency { <<existing, grows>> Rebuild(obstacles) off-thread ; Commit swaps }
+  class TerrainWorld { <<existing>> Prisms += obstacle prisms }
+  class TerrainCoverProvider { <<existing>> Build(world) }
+  class RecastNavmeshFactory { <<existing>> Rebake(provider, world) — touched tiles only }
+  class RaycastSolverSystem { <<existing, grows>> bullet rays skip StaticObstacle }
+  class ColliderOcclusion { <<existing, grows>> skips StaticObstacle }
+  class EditorZoneAuthoringSystem { <<existing, grows>> spawns type Concrete block }
+  ObstacleTkbTranslator ..> StaticObstacle
+  ObstacleTkbTranslator ..> ObstacleShape
+  StaticObstacleWatchSystem ..> TerrainObstacles
+  StaticObstacleWatchSystem ..> TerrainResidency
+  TerrainResidency ..> TerrainWorld
+  TerrainResidency ..> TerrainCoverProvider
+  TerrainResidency ..> RecastNavmeshFactory
+  TerrainObstacles ..> ObstacleShape
+  RaycastSolverSystem ..> StaticObstacle
+  ColliderOcclusion ..> StaticObstacle
+  EditorZoneAuthoringSystem ..> ObstacleTkbTranslator
+```
+
+*What the picture shows that prose hid: every consumer of obstacles is an EXISTING terrain reader — the new code is only the path INTO the
+terrain (translator, watcher, prism builder) and the two places that must STOP seeing the entity's collider.*
+
+### 9.4 Sequence — a car is placed
+
+```mermaid
+sequenceDiagram
+  participant E as Editor / scenario load
+  participant N as any ECS node
+  participant W as StaticObstacleWatchSystem
+  participant R as TerrainResidency (off-thread)
+  participant Q as bullets / sight / EQS / cover / nav
+  E->>N: entity of type Car (replicated like any entity)
+  N->>N: ObstacleTkbTranslator - marker, shape, collider
+  W->>W: obstacle set hash changed
+  W->>R: Rebuild(terrain + obstacle prisms)
+  R-->>R: world, cover, touched navmesh tiles
+  R->>N: Commit - swap the three singletons
+  Q->>N: next query reads the new world - the car is a prism of car-body
+```
+
+### 9.5 Modules — who registers, who runs it each frame
+
+```mermaid
+graph TD
+  TKB[TKB catalog: 4 obstacle types] --> TR[ObstacleTkbTranslator - every node's translator set]
+  TR --> ENT[StaticObstacle + ObstacleShape + PhysicsCollider]
+  ENT --> WS[StaticObstacleWatchSystem - registered beside TerrainResidency on SimHost, Editor, CGF, IG]
+  WS --> RES[TerrainResidency.Rebuild]
+  RES --> TW[TerrainWorld singleton]
+  RES --> CP[ICoverProvider singleton]
+  RES --> NM[navmesh snapshot - nav nodes only]
+  TW --> SH[SimHost: Ballistics, HitResolution, perception LOS, EQS]
+  RB[Replay Browser: MirrorTerrain] -.->|copies the swapped world| TW
+```
+
+*Caption: the watcher must be registered wherever `TerrainResidency` is constructed (SimHost, Editor, CGF, IG — I5); the Replay Browser
+gets the world through `MirrorTerrain`, as today. ⚠ Not measured yet: that `MirrorTerrain` re-runs after a mid-run swap — step 1 of the build
+measures it.*
+
+### 9.6 Claim table behind O1/O2
+
+| the lean rests on | code — how it is | design — how it was meant |
+|---|---|---|
+| every terrain reader walks `Prisms` with their material | ✅ I1, I3, I4, I5, I6 | ✅ Building Interiors §3c/§3d P2 (one rule) |
+| a runtime geometry change is a snapshot swap | ✅ `DotRecastNavmeshProvider.Rebake` `:287`, `TerrainResidency.Commit` `:232` | ✅ R-218 |
+| static obstacles are typed entities that get baked | ✅ none built (I8) | ✅ AQ81 T6, Zones §2.1c/§5.2 |
+| no node reads another node's terrain | ✅ callers I1–I6 all query their own singleton | ⛔ searched `docs/`, no record either way |
+| a rebuild is cheap enough per placement | ⚠ bake timing measured per terrain (task S1, Nav v2 §14); the per-tile cache rebakes only touched tiles | ⛔ not measured for an obstacle — measured in build step 1 |
