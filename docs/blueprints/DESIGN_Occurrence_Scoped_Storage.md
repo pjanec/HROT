@@ -10436,6 +10436,7 @@ the only new types are two plain value carriers.*
 | `Hrot.Editor.Tests` (incl. hot reload `O7_R54`) | **469 / 0** | |
 | `Hrot.Diagnostics.Breakpoints.Tests` | **164 / 0** | |
 | integration `BlueprintKernelRunTests` | **6 / 0** | the real kernel schedule, no maintenance system |
+| `Hrot.AiEditor.Generators.Tests` · `Hrot.AiEditor.Persistence.Tests` | **395 / 0** · **166 / 0** | working tree clean after the run |
 | generated goldens | unchanged — the thunks' call `TryResolveOccurrence` kept its signature | |
 
 **Residual:** U-0c (per-tick view + benchmark rail ⑥) · rail ⑦ (a RECORDED 2-block frame searchable in the replay browser —
