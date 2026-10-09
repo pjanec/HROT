@@ -259,8 +259,10 @@ public sealed unsafe class HsmOccurrenceKeyTests
     /// <summary>
     /// ⭐ <b>Rail ⑨ — a missing STORE is a different failure from a missing SLOT, and says so.</b>
     ///
-    /// <para>⛔ Adding a tier component is a STRUCTURAL change and must never happen inside a kernel
-    /// dispatch. ⚠ Conflating the two messages is how a caller "fixes" the wrong thing.</para>
+    /// <para>⛔ A unit's FIRST block is ingress's to create (it sizes it for the behaviour); a tick only ever
+    /// APPENDS to a store that exists (CE-3137 U-0, R-236 — the old "adding a tier is a structural change, never
+    /// in a tick" rule is SUPERSEDED: an append moves nothing). ⚠ Conflating the two messages is how a caller
+    /// "fixes" the wrong thing.</para>
     /// </summary>
     [Fact]
     public void O7_R9_AMissingStoreIsRefusedDistinctlyFromAMissingSlot()
@@ -272,7 +274,8 @@ public sealed unsafe class HsmOccurrenceKeyTests
             () => HsmOccurrence.ResolveOrAttach<DemoWorkingState>(
                       world, entity, Key(0, 4), 0xABCD, out _));
 
-        Assert.Contains("structural change", ex.Message);
+        Assert.Contains("carries no occurrence store", ex.Message);
+        Assert.Contains("FIRST block is ingress's job", ex.Message);
     }
 
     /// <summary>
@@ -1012,8 +1015,8 @@ public sealed unsafe class HsmOccurrenceKeyTests
             world, entity, hostedKey, 0xE3A, OccurrenceKind.Hsm, out _, out DemoParams* p);
         p->Threshold = 999;
 
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, hostedKey, out _));
+        // ⭐ CE-3137 U-0: the lazy attach may APPEND a block, so every read goes through the multi-block lookup.
+        Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, hostedKey, out _, out _, out _));
 
         // Re-assign the SAME behaviour — the shape a new JSON payload arrives in.
         world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
@@ -1023,13 +1026,11 @@ public sealed unsafe class HsmOccurrenceKeyTests
         world.Bus.SwapBuffers();
         _reassignSystem!.Execute(world, 0.016f);
 
-        store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-
         // ⭐⭐ THE RAIL. The lazily-attached occurrence is GONE ⇒ the next dispatch re-seeds it.
-        Assert.False(BlueprintBlackboardPartitions.TryGetSlotOffset(store, hostedKey, out _));
+        Assert.False(OccurrenceStoreAccess.TryFindSlot(world, entity, hostedKey, out _, out _, out _));
 
         // ⭐ …and the MANIFEST slot survived: it is provisioned, not lazily attached.
-        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, manifest[0].SlotKey, out _));
+        Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, manifest[0].SlotKey, out _, out _, out _));
     }
 
     /// <summary>

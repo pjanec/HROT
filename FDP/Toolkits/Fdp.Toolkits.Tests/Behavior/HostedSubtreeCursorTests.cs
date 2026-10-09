@@ -108,9 +108,8 @@ public sealed unsafe class HostedSubtreeCursorTests
     /// <summary>The hosted child's state, read straight out of its slot.</summary>
     private static ref BehaviorTreeState ReadChildState(EntityRepository world, Entity entity, int key)
     {
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-        Assert.True(store != null);
-        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int off));
+        // ⭐ CE-3137 U-0: any block — a unit may carry several (growth appends, nothing moves).
+        Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, key, out byte* store, out int off, out _));
         return ref Unsafe.AsRef<BehaviorTreeState>(store + off);
     }
 

@@ -168,46 +168,25 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
         FireAssignEvent(world, sys, entity, BehaviorName);
 
         // ── Assert ────────────────────────────────────────────────────────────────
-        // Check whichever tier component the entity has after the re-provision.
-        void AssertResults(byte* mem)
+        // ⭐ CE-3137 U-0 (R-236): the store may now span SEVERAL blocks (growth appends, nothing moves), so every
+        //   read goes through the multi-block lookup — never "the" store. Was: one TryGetStore + AssertResults(mem).
         {
             // (a) keyA must now resolve and have the new larger PayloadSize (32, aligned to 32).
-            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyA, out _),
+            Assert.True(OccurrenceStoreAccess.TryFindSlotIndex(world, entity, keyA, out byte* memA, out int idxA),
                 "(a) keyA must still resolve after growth");
-            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-            byte* slotTable = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
-            ushort keyAPayloadSize = 0;
-            for (int i = 0; i < header.SlotCount; i++)
-            {
-                ref var e = ref Unsafe.AsRef<BlueprintSlotEntry>(
-                    slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
-                if (e.BlueprintId == keyA)
-                {
-                    keyAPayloadSize = e.PayloadSize;
-                    break;
-                }
-            }
+            ref var eA = ref Unsafe.AsRef<BlueprintSlotEntry>(
+                memA + Unsafe.SizeOf<BlueprintBlackboardHeader>() + idxA * BlueprintBlackboardPartitions.SlotEntrySize);
             // 32 bytes is already aligned to 8 → stored PayloadSize must be 32.
-            Assert.Equal(32, (int)keyAPayloadSize);
+            Assert.Equal(32, (int)eA.PayloadSize);
 
             // (b) keyB's sentinel must be intact (no overflow from keyA's growth).
-            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyB, out int offB),
+            Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, keyB, out byte* memB, out int offB, out _),
                 "(b) keyB must still resolve");
-            int sentinel = *(int*)(mem + offB);
-            Assert.Equal(unchecked((int)0xDEADBEEF), sentinel);
+            Assert.Equal(unchecked((int)0xDEADBEEF), *(int*)(memB + offB));
 
-            // (d) SlotCount == 2 (no leaked slots).
+            // (d) no leaked slots, summed over every block.
             // ⭐ O7c-②: +1 — the ROOT STATE slot (CE-319) rides beside the manifest slots now.
-            Assert.Equal(3, (int)header.SlotCount);
-        }
-
-        // ⭐ B4: was an if/else-if chain over the tier trio — and its final `else` fell through to
-        //   1024 UNCONDITIONALLY, so with a 256 tier it threw "missing BlueprintBlackboard1024".
-        //   OccurrenceStoreAccess resolves whichever tier the ingress actually chose.
-        {
-            byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-            Assert.True(mem != null, "entity must carry a blueprint blackboard tier");
-            AssertResults(mem);
+            Assert.Equal(3, OccurrenceStoreAccess.Measure(world, entity).SlotCount);
         }
 
         world.Dispose();

@@ -168,7 +168,7 @@ public static unsafe class BlueprintInstanceService
                 world, entity, blueprintId, def.StateSize, def.StructureHash,
                 OccurrenceKind.Blueprint, out byte* memory, out int payloadOffset))
             return new BlueprintAttachResult(
-                BlueprintAttachStatus.NoSlotAvailable, BlueprintTierTable.Of(world, entity)?.Tier ?? default,
+                BlueprintAttachStatus.NoSlotAvailable, OccurrenceStoreAccess.LargestBlock(world, entity)?.Tier ?? default,
                 $"No free slot/payload for blueprint '{def.Name}' on entity {entity}: every block is full and " +
                 "every tier is already carried.");
         var tier = OccurrenceStoreAccess.TierOf(world, entity, memory)!.Tier;

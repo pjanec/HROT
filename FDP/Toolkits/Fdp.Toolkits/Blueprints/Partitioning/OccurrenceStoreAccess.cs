@@ -141,6 +141,18 @@ public static unsafe class OccurrenceStoreAccess
         => BlueprintTierTable.Of(world, entity)?.TotalSize ?? 0;
 
     /// <summary>
+    /// ⭐ <c>CE-3137</c> U-0 — the tier of the unit's LARGEST block, or <see langword="null"/> with no store. ⛔ A
+    /// DISPLAY / STATUS answer only (the editor's tier label, an attach-failure report): it says nothing about
+    /// where a slot lives — use the key API for that.
+    /// </summary>
+    public static BlueprintTierSpec? LargestBlock(EntityRepository world, Entity entity)
+    {
+        int bits = PresentTiers(world, entity);
+        if (bits == 0) return null;
+        return BlueprintTierTable.Descending[System.Numerics.BitOperations.TrailingZeroCount(bits)];
+    }
+
+    /// <summary>
     /// Resolves a single occurrence's payload within the entity's store — the seam
     /// <c>DESIGN_Occurrence_Scoped_Storage</c> §5 classes 4/5/6 all want, so that
     /// <i>"where are this occurrence's bytes"</i> is answered in ONE place rather than at every
@@ -331,6 +343,9 @@ public static unsafe class OccurrenceStoreAccess
         {
             if ((b & 1) == 0) continue;
             byte* mem = d[i].Memory(world, entity);
+            // ⭐ A block added RAW (a bare AddComponent, as scenario/test setup does) is initialised here, as the
+            //   pre-U-0 attach always did — Initialize is idempotent (one magic compare when already done).
+            BlueprintBlackboardPartitions.Initialize(mem, d[i].TotalSize, (byte)d[i].MaxSlots);
             if (BlueprintBlackboardPartitions.TryAttach(mem, slotKey, requestedSize, structureHash, kind, out payloadOffset))
             { block = mem; return true; }
         }
@@ -354,11 +369,22 @@ public static unsafe class OccurrenceStoreAccess
     /// </summary>
     public static StoreMeasure Measure(EntityRepository world, Entity entity)
     {
-        GetBlocksReadOnly(world, entity, out var blocks);
-        var m = new StoreMeasure { Blocks = blocks.Count };
-        for (int i = 0; i < blocks.Count; i++)
+        int bits = PresentTiers(world, entity);
+        var d = BlueprintTierTable.Descending;
+        var m = new StoreMeasure();
+        for (int i = 0; bits != 0; i++, bits >>= 1)
         {
-            ref var h = ref Unsafe.AsRef<BlueprintBlackboardHeader>(blocks.Memory(i));
+            if ((bits & 1) == 0) continue;
+            m.Blocks++;
+            ref var h = ref Unsafe.AsRef<BlueprintBlackboardHeader>(d[i].MemoryReadOnly(world, entity));
+            if (h.MagicAndVersion != BlueprintBlackboardHeader.MagicValue)
+            {
+                // ⭐ a RAW block (added, not yet initialised) is all capacity — TryAttachSlot initialises it on use.
+                m.PayloadSize += d[i].PayloadSize;
+                m.PayloadFree += d[i].PayloadSize;
+                m.MaxSlots    += d[i].MaxSlots;
+                continue;
+            }
             m.PayloadSize += h.PayloadSize;
             m.PayloadFree += h.PayloadFree;
             m.MaxSlots    += h.MaxSlots;
