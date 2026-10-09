@@ -112,10 +112,56 @@ namespace Fdp.Toolkit.Perception.Systems
             if (!grid.GridHead.IsCreated) return;
 
             int cells = grid.Width * grid.Height;
-            for (int c = 0; c < cells; c++)
+
+            // ⭐⭐⭐ CE-3146 — THE CHAIN GUARD. 🔴 This walk follows the perception grid's INTRUSIVE linked list and
+            //   terminates ONLY when that list does: a cycle (`GridNext[i] == i`, or any loop) spins here forever, and
+            //   a duplicate explosion makes it effectively forever. 📌 Reported by the user `2026-10-09` as "the editor
+            //   easily gets stuck, looping inside Rebuild"; corroborated the same evening by this module's own breaker
+            //   firing on a `--mode all` run (`Module 'Eqs' timed out after 400ms` → `CIRCUIT-OPEN`). ⚠ The timeout
+            //   ABANDONS the task ("may continue running in background as zombie"), so the thread keeps spinning —
+            //   which is why it presents as "stuck" rather than as a clean 400 ms miss.
+            //
+            //   ⭐ The bound is EXACT, not a heuristic: every live entry occupies one slot, so a well-formed chain can
+            //   never be longer than the slot capacity. Exceeding it is PROOF the list is malformed — never a false
+            //   positive on a merely dense cell.
+            //   ⭐ On breach: abandon THAT cell and keep going. Perception degrades for one cell instead of hanging the
+            //   host, and the log names the cell so the producer can be found. ⛔ Do not throw — this runs on a
+            //   background module thread whose exceptions the module host SWALLOWS.
+            int slotCapacity = grid.GridValues.Length;
+            bool reportedMalformedChain = false;   // ⭐ once per Rebuild: a warning that floods is a warning nobody reads
+
+            // ⭐⭐⭐ THE BOUND IS GLOBAL, NOT PER-CELL — 📌 measured `2026-10-09`, and the per-cell version was MY OWN
+            //   defect: with a 50 000-slot capacity and 40 000 cells, a per-cell bound still permits 2·10⁹ steps per
+            //   Rebuild, which is a hang with extra steps. ⭐ Every live entry is visited exactly once across the WHOLE
+            //   walk, so the TOTAL can never exceed the slot capacity either. That makes the whole Rebuild O(cells +
+            //   capacity) even on a fully corrupt grid.
+            int walkedTotal = 0;
+
+            // ⭐ the outer condition is what makes the GLOBAL bound actually stop the walk, not just this cell's.
+            for (int c = 0; c < cells && walkedTotal <= slotCapacity; c++)
             {
+                int steps = 0;
                 for (int head = grid.GridHead[c]; head >= 0; head = grid.GridNext[head])
                 {
+                    steps++;
+                    walkedTotal++;
+                    if (steps > slotCapacity || walkedTotal > slotCapacity)
+                    {
+                        if (!reportedMalformedChain)
+                        {
+                            reportedMalformedChain = true;
+                            // ⚠ FdpLog.Warn takes at most 4 format args — pre-format instead of splitting the message.
+                            int next = grid.GridNext[head];
+                            Fdp.Core.Logging.FdpLog<VisionBroadphase>.Warn(
+                                $"[VisionBroadphase] CE-3146 — MALFORMED grid chain in cell {c}: walked {steps} slots, "
+                                + $"capacity is {slotCapacity}. head={head}, GridNext[head]={next}"
+                                + (next == head ? " (SELF-CYCLE)" : string.Empty)
+                                + ". Abandoning this cell; perception under-reports here. The producer is a grid "
+                                + "Add/Remove pair (LocalGridBuilderSystem / SpatialHashGrid), not this walk.");
+                        }
+                        break;
+                    }
+
                     var entity = grid.GridValues[head];
                     // Generational liveness check — grid stores full Entity handles.
                     if (!view.IsAlive(entity)) continue;
