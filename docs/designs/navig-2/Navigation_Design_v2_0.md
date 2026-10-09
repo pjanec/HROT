@@ -7,6 +7,7 @@ stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAc
   the as-built keys it on NavigationIntent.Mode == PathToPoint + IntentId (the Brain's channel never leaves the Brain).
 known-rot: the top banner supersedes any Y-up wording (CE-3011).
 related-designs:
+  - ../../DESIGN_Terrain_Combat_Tuning.md §5c — draws this navmesh on the map (the Navmesh layer, CE-3133) through a debug-geometry export on the provider
   - ../../DESIGN_Utility_AI_Demo_Scenarios.md §10.7 — owns the danger-along-route sensor; §5.2a D7 here moves its classifier onto the
     road graph and its route onto the shared RoutePlanner (CE-3128 ④)
   - ../../DESIGN_Terrain_World.md §2 — owns the world file; §5.2a D8 retires its `surface: road` polygons (CE-3128 ⑤)

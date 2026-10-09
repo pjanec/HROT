@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-08 (rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
+updated: 2026-10-09 (rev 5 — §5c navmesh layer, CE-3133; rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
 build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07; §5a APPROVED 2026-10-08 (R-226); §5b APPROVED 2026-10-08 (R-227), BUILT 2026-10-08
-current-answer: §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
+current-answer: §5c navmesh layer (CE-3133) · §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -14,6 +14,7 @@ related-designs:
   - DESIGN_Utility_AI_Demo_Scenarios.md — the two-forms rule (HTTP check = acceptance, in-process rail = gate) reused in §3.
   - blueprints/DESIGN_Smoke_Suite.md — "do not build a DSL" (xUnit over TestScript); §3 follows it.
   - DESIGN_Uniform_Gizmo_Membership.md — gizmos draw where their data exists; §5 relies on it.
+  - designs/navig-2/Navigation_Design_v2_0.md — OWNS the navmesh, its per-layer snapshot and door areas (§14); §5c only draws it.
   - DESIGN_Thermal_And_Acoustic_Sensing.md — the sound sources and anonymous heard estimates §5a's hearing layer draws.
   - designs/replay-and-modules/DESIGN.md — what runs during replay; §5a's traces are restored state, drawn by gizmos outside the disabled groups.
   - UX/UX_Feature_Map_Parity.md §3.2f — the per-projector visibility seam §5b's family policy plugs into.
@@ -327,7 +328,7 @@ one-tick latency (the real one is three).
 | **Storeys** | selected storey's walls/openings; others faint (also the storey selector, B-4) | every node with terrain |
 | **Levels probe** | at the cursor: the level list (`0 Ground · +1 …`) | every node with terrain |
 | **Doors** | doorway markers coloured by `DoorState`; door key on hover | every node (replicated) |
-| **Navmesh** | polygons per layer (infantry/vehicle); doorway polygons coloured by their flags | navigation node: SimHost, Editor |
+| **Navmesh** | polygons per layer (infantry/vehicle); doorway polygons coloured by their door's state — §5c (`CE-3133`) | navigation node: SimHost, Editor |
 | **Paths** | selected entity's path with Door steps | SimHost, Editor |
 | **LOS probe** | from the selected entity to a clicked point/entity: segments coloured by transmittance, body points as dots | SimHost, Editor (CGF: its perceived result only) |
 | **Fire traces** | ✅ **built (T-5, `FireTraceGizmo`, layer bit 3 `FireTraces`)**: the last 64 records of the `ShotLog` — muzzle → end, coloured by OUTCOME (hit red · stopped orange · expired grey · in flight yellow, dashed), a dot at the end, green dots for crossings passed, an orange cross where the terrain stopped it. ⚠ coloured by outcome, not remaining penetration — the outcome is what a tuner looks for first; the numbers are one `get_combat_shots` away | SimHost, Editor |
@@ -660,6 +661,114 @@ the dashed red edge is the remaining gap (IG has no AI to pin).
 **Rails** *(each in its feature's existing suite)*: `MapCullingPolicyTests` — `CE3120_ThePathFamily_DrawsTheSelectedAndThePinned_UntilItsScopeIsAll`, `CE3120_ThePackRegistersThePinActions_AndAPinTouchesOnlyItsFamily` (also asserts the menu carries every pin id) · `LayerControlGizmoTests` — `CE3120_TheLayerPanel_ReadsAndWritesTheFamilyScopes` · `DebugTraceGizmoTests` — `CE3121_TheUtilityGizmo_WritesOneLinePerLoggedDecision`, `CE3121_TheSquadGizmo_LinksTheCommanderToItsLivingMembers`.
 
 ⚠ **Still not measured:** whether a `Transient` `DebugState` survives an in-host replay seek.
+
+## 5c. Navmesh layer — the baked navmesh on the map *(`CE-3133`, backend, `2026-10-09`; 🔒 user: *"Yes, navmesh layer after 7a as proposed"* (R-233); build-state: READY-TO-BUILD)*
+
+### INVENTORY *(graph `search_graph .*Navmesh.*` Interface/Class + an Explore sweep + reads, `2026-10-09`)*
+
+| question | answer | where |
+|---|---|---|
+| who holds a baked navmesh | SimHost and Editor: ONE `SwitchableNavmeshProvider`, set as the `INavmeshProvider` world singleton, published into by terrain residency; Stride: a `DotRecastNavmeshProvider` singleton directly. ⛔ CGF, IG, Replay Browser: none | `SimHostNodeBootstrapper.cs:64,203` · `EditorSubsystem.cs:192,2121` · `EngineBackedNavigationModule.cs:85` · `StrideHrotGame.cs:1871` · `CgfSubsystem.cs:215` |
+| how a polygon is reached | `SwitchableNavmeshProvider.Current` → `DotRecastNavmeshProvider.TryGetNavMesh(layer)` → `DtNavMesh` tiles/polys, **Y-up** (swap to engine Z-up) | `SwitchableNavmeshProvider.cs:28` · `DotRecastNavmeshProvider.cs:17-23,222` |
+| how a door polygon is marked | Recast **area** `DoorArea = 2` (every polygon's flags are 1); poly ref → door index through the layer's `DoorAwareQueryFilter.DoorOf` — ⚠ private to the provider | `NavDoorways.cs:19,66-76,143` · `RecastNavmeshBaker.cs:201,453` · `DotRecastNavmeshProvider.cs:47` |
+| a version to cache by | the snapshot's `Version` / `QueryVersion()` (switchable: publish count + inner) | `DotRecastNavmeshProvider.cs:93,348` · `SwitchableNavmeshProvider.cs:54` |
+| a gizmo reading a setting | constructor-injected `GizmoSettingsRegistry` (`EqsSensorGizmo`), ints for enums (`GizmoFamilies`) | `GizmoFamilies.cs:57` |
+| door colours | `DoorLeafGizmo` — open green · closed grey · locked purple · destroyed red | `DoorLeafGizmo.cs:20-23` |
+| a view to cull to | ⛔ none on a backend projector — no gizmo culls by viewport; `CullingState` is filled on IG only | `CullingStateVisibilityPolicy.cs:57` · `MapCullingSystem.cs:41` |
+| size | 108 infantry / 49 vehicle polygons on a small terrain | `Navigation_Design_v2_0.md:1647` |
+
+### Classes
+
+```mermaid
+classDiagram
+  class INavmeshProvider { <<existing>> QueryVersion() }
+  class INavmeshDebugGeometry { <<new, Fdp.Toolkits.Navigation>> DebugMesh(layer) NavmeshDebugMesh }
+  class NavmeshDebugMesh { <<new, immutable>> Layer; Version; Vertices (engine Z-up); PolyStart; DoorIndex; PolyCount }
+  class DotRecastNavmeshProvider { <<existing, grows>> DebugMesh(layer): built on first ask, cached per snapshot }
+  class SwitchableNavmeshProvider { <<existing, grows>> DebugMesh(layer): forwards to Current }
+  class NavmeshGizmo { <<new, Hrot.Presentation>> layer Navmesh = 10; ctor(GizmoSettingsRegistry) }
+  class NavmeshDrawLayers { <<new enum>> Infantry; Vehicle; All }
+  class LayerControlDto { <<existing, grows>> Navmesh (off); NavmeshLayers (Infantry) }
+  class DoorLeafGizmo { <<existing>> ColorOf(state) shared }
+  class DoorStates { <<existing>> Of(view) }
+  DotRecastNavmeshProvider ..|> INavmeshProvider
+  DotRecastNavmeshProvider ..|> INavmeshDebugGeometry
+  SwitchableNavmeshProvider ..|> INavmeshProvider
+  SwitchableNavmeshProvider ..|> INavmeshDebugGeometry
+  INavmeshDebugGeometry --> NavmeshDebugMesh
+  NavmeshGizmo ..> INavmeshDebugGeometry : the INavmeshProvider singleton
+  NavmeshGizmo ..> NavmeshDrawLayers : map.navmesh.layers
+  NavmeshGizmo ..> DoorStates
+  NavmeshGizmo ..> DoorLeafGizmo : door colours
+  LayerControlDto ..> NavmeshDrawLayers
+```
+
+*What the picture shows that the prose hid: the gizmo never sees DotRecast — one small seam in `Fdp.Toolkits.Navigation`
+carries plain vertices, and the only new state is a cache inside the provider that owns the mesh.*
+
+### Sequence — a terrain bakes, the layer is switched on
+
+```mermaid
+sequenceDiagram
+  participant R as TerrainResidency
+  participant S as SwitchableNavmeshProvider
+  participant D as DotRecastNavmeshProvider
+  participant G as NavmeshGizmo (map host, each frame)
+  participant W as world view
+  R->>S: Commit publishes the bake (new version)
+  G->>W: settings map.navmesh.layers = Infantry
+  G->>W: INavmeshProvider singleton
+  G->>S: DebugMesh(Infantry)
+  S->>D: DebugMesh(Infantry)
+  alt first ask for this snapshot
+    D->>D: walk tiles and polys, Y-up to Z-up, door index per poly
+  end
+  D-->>G: NavmeshDebugMesh (cached)
+  G->>W: DoorStates.Of(view)
+  G-->>G: polygon outlines, door polygons in their door colour
+```
+
+### Module relationships — who has it, who draws it
+
+```mermaid
+graph TD
+  SB[SimHostNodeBootstrapper] --> SW1[SwitchableNavmeshProvider]
+  ED[EditorSubsystem] --> SW2[SwitchableNavmeshProvider]
+  SW1 --> SG1[INavmeshProvider singleton, SimHost world]
+  SW2 --> SG2[INavmeshProvider singleton, Editor world]
+  ST[StrideHrotGame] --> SG3[DotRecastNavmeshProvider singleton]
+  SG1 --> GZ[NavmeshGizmo, every map host's StatelessGizmoSystem]
+  SG2 --> GZ
+  SG3 --> GZ
+  CGF[CGF / IG / Replay Browser] -. no navmesh: draws nothing .-> GZ
+  style CGF stroke-dasharray: 5 5,stroke:#c33
+```
+
+*Caption: the dashed red edge is the hosts that bake no navmesh — the layer is empty there by construction (R-233's ⚠).*
+
+### Decisions
+
+| # | lean | why |
+|---|---|---|
+| N1 | the export is a seam in `Fdp.Toolkits.Navigation` (`INavmeshDebugGeometry`) implemented by the Recast provider and forwarded by the switchable one | `Hrot.Presentation` has no DotRecast reference; the door map is private to the provider |
+| N2 | built **on first ask** per snapshot and layer, cached on the snapshot | nothing is paid while the layer is off; a re-bake makes a new snapshot, so the cache cannot go stale |
+| N3 | the layer setting `Infantry / Vehicle / All` is an enum in the layer panel, kept in the settings registry as `map.navmesh.layers` (int); default **Infantry** | R-233; the int-for-enum precedent is `GizmoFamilies` |
+| N4 | door polygons (area 2) are drawn in the colour of their door's CURRENT state as this view sees it, with the Doors layer's colours | ⛔ R-233 said *"by their flags"* — every polygon's Recast flags are 1; doors are an AREA, and the state that decides passability is `DoorStates` (R-219) |
+| N5 | ⛔ **not "only what is in view"**: the whole chosen layer is drawn, the layer is **off by default** | backend projectors have no camera bounds (measured: no gizmo culls); ⏭ viewport culling if a large terrain's line count hurts |
+| N6 | layer bit `Navmesh = 10`; `FirstUntoggledLayer` → 11 | the next free bit |
+
+| rejected | the one fact that killed it |
+|---|---|
+| draw the bake's input triangles (`TerrainWorldMesh`) | that is what the bake READ, not what it produced — the point of the layer is to see the navmesh |
+| a `/navmesh` HTTP route first | not asked; the map is the request |
+| export in `Hrot.Core` from `TerrainResidency` | the door map and the Y-up mesh live in the provider; a second walker would duplicate `NavDoorways` |
+
+### Slices and rails
+
+| slice | content | rail |
+|---|---|---|
+| N-1 | `INavmeshDebugGeometry`, `NavmeshDebugMesh`, Recast export + cache, switchable forward | a baked mesh exports every polygon of every tile, Z-up; bt-range's doorway polygons carry their door index; same snapshot ⇒ same object, re-bake ⇒ new |
+| N-2 | `NavmeshGizmo`, the setting, the layer panel toggle + enum, `DoorLeafGizmo.ColorOf` | draws outlines on its layer for the chosen layer only; door polygons in their state colour; nothing without a baked mesh |
 
 ## 6. Slices
 
