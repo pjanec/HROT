@@ -201,9 +201,17 @@ and is discarded). ns per lookup:
 | multi-block naive, full miss | 285–305 | `Get` of an absent unit memory |
 | ⭐ **per-tick view**: 2 pre-resolved blocks, hit in the second | **27** | ⭐⭐ ~6× cheaper than TODAY's single-block lookup |
 
-**Scale** (estimated: about 3–8 lookups per brain per tick from the runner, the stateful nodes and unit memory; not measured):
-1 000 brains at 60 Hz is 180k–480k lookups/s. Today that is **~30–85 ms per second (3–9 % of a core)**. Naive multi-block
-raises it by up to ~2× on grown units only.
+**Before vs after, measured per BRAIN-TICK** (a second run, same method; one brain doing 6 lookups):
+
+| | ns per brain-tick | 1 000 brains × 60 Hz |
+|---|---|---|
+| ⛔ **TODAY**: 6 full lookups (probe + fetch + scan, each) | **1 155–1 350** | ~70–80 ms/s |
+| ⭐ **AFTER** (①+②): one mask probe + 2 block fetches + 6 scans, **2 blocks** | **88–112** | **~5–7 ms/s** |
+| ↳ the probe alone: one mask read + 4 bit tests vs today's `Of()` | **10–18** vs 116–135 | |
+
+⇒ ⭐ **~12× cheaper per brain-tick than today, with two blocks.** At the estimated 3–8 lookups per brain per tick (from the runner,
+stateful nodes and unit memory; **not measured**), that is **~36–96 ms/s today vs ~4–9 ms/s after**, i.e. from 4–10 % of one core to
+under 1 %.
 
 ⭐⭐ **The design consequence — it makes D″ CHEAPER than today, not dearer:**
 
