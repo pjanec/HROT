@@ -203,7 +203,25 @@ namespace Fdp.Toolkit.Perception.Tests
             var s3 = Strategy(chest, StanceId.Standing, StanceId.Standing, o3);
             Assert.Equal(1, VisibleCount(w3, s3, o3, t3));
             var x = s3.Explain(w3, o3, t3);
-            Assert.Equal(new[] { false, false, true }, x.Points.Select(p => p.Clear));   // only the head (≈ 1.6 m) clears it
+            Assert.Equal(new[] { false, false, true }, x.Points.Select(p => p.Clear));   // only the head (the eye, ≈ 1.7 m — R-246) clears it
+        }
+
+        /// <summary>
+        /// ⭐ <c>R-246</c> (peek-and-fire D16) — "if your eye sees out, your head shows": the top body point IS the eye, so sight is
+        /// reciprocal. Two crouched men, one 1 m behind a 1.05 m wall, the other 11 m off: each sees the other (eye to eye at 1.1 m
+        /// clears it). 🔴 Red-proof: the old crouched top (0.91 of the eye ≈ 1.0 m) — the man behind the wall sees out and is never seen.
+        /// </summary>
+        [Fact]
+        public void R246_TheTopBodyPointIsTheEye_SoSightIsReciprocal()
+        {
+            foreach (var stance in new[] { StanceId.Standing, StanceId.Crouched, StanceId.Prone })
+                Assert.Equal(1.0f, BodyProfile.Fractions(stance, hull: false)[^1]);
+
+            var wall = TerrainWorldParser.Parse(HalfMetreWallAt10.Replace("\"height\":0.5", "\"height\":1.05"));
+            var (w1, o1, t1) = TwoSoldiers(11f);
+            Assert.Equal(1, VisibleCount(w1, Strategy(wall, StanceId.Crouched, StanceId.Crouched, o1), o1, t1));   // the far man sees the near one
+            var (w2, o2, t2) = TwoSoldiers(11f);
+            Assert.Equal(1, VisibleCount(w2, Strategy(wall, StanceId.Crouched, StanceId.Crouched, t2), t2, o2));   // …and the near one the far one
         }
 
         /// <summary>⭐ Stage 4 — the production composition reads the LOGICAL stance with no reader passed: the brain's StanceIntent.</summary>

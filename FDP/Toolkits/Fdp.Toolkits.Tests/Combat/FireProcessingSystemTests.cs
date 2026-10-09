@@ -145,7 +145,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             float eye = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding;
             float lowestSeen = eye - 0.8f * 12f / 10.5f;                                  // the line just clears (10.5, 0.9)
-            float top = 0.91f * Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched;   // BodyProfile's crouched top
+            float top = 1.0f * Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched;    // BodyProfile's crouched top = the eye (R-246)
             float expected = 0.5f * (lowestSeen + top);
             Assert.InRange(AimHeightAt(12f), expected - 0.01f, expected + 0.01f);   // the visible edge is bisected to ≈ 1 cm
         }

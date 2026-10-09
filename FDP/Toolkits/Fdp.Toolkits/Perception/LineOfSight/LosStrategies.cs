@@ -219,7 +219,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
 
         /// <summary>
         /// ⭐ Buildings Stage 4 (§3f, W5) — the target's BODY POINTS for its stance, as world positions: fractions of that stance's eye
-        /// height (standing ≈ 0.2/0.9/1.6 m, crouched ≈ 0.2/0.6/1.0, prone ≈ 0.15/0.3), or of its collider height for a vehicle. The
+        /// height (standing ≈ 0.2/0.9/1.7 m, crouched ≈ 0.2/0.6/1.1, prone ≈ 0.15/0.35 — the top is the eye, R-246), or of its collider height for a vehicle. The
         /// SAME profile for being seen as for being shot at (fire aims at the mid-silhouette, <see cref="AimHeightFor"/>).
         /// </summary>
         public IEnumerable<Vector3> BodyPoints(ISimulationView view, Entity target, StanceId stance)
@@ -348,9 +348,12 @@ namespace Fdp.Toolkit.Perception.LineOfSight
     /// </summary>
     public static class BodyProfile
     {
-        private static readonly float[] s_standing = { 0.12f, 0.53f, 0.94f };   // ≈ 0.2 / 0.9 / 1.6 m at a 1.7 m eye
-        private static readonly float[] s_crouched = { 0.18f, 0.55f, 0.91f };   // ≈ 0.2 / 0.6 / 1.0 m at 1.1 m
-        private static readonly float[] s_prone    = { 0.43f, 0.86f };          // ≈ 0.15 / 0.3 m at 0.35 m
+        // ⭐ CE-3144 D16 (R-246) — the TOP point is the EYE: "if your eye sees out, your head shows" — a line of sight is the same
+        //   segment both ways. ⛔ SUPERSEDED: tops at 0.94 / 0.91 / 0.86 of the eye (1.6 / 1.0 / 0.3 m) — BELOW the eye, so a man
+        //   crouched at an upstairs window saw the street and could never be seen from it.
+        private static readonly float[] s_standing = { 0.12f, 0.53f, 1.0f };    // ≈ 0.2 / 0.9 / 1.7 m at a 1.7 m eye
+        private static readonly float[] s_crouched = { 0.18f, 0.55f, 1.0f };    // ≈ 0.2 / 0.6 / 1.1 m at 1.1 m
+        private static readonly float[] s_prone    = { 0.43f, 1.0f };           // ≈ 0.15 / 0.35 m at 0.35 m
         private static readonly float[] s_hull     = { 0.25f, 0.5f, 0.85f };    // a vehicle's collider height
 
         /// <summary>The fractions for <paramref name="stance"/> (or the hull, for a target with a collider height).</summary>
@@ -373,7 +376,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
 
         /// <summary>
         /// ⭐ <c>CE-3136</c> P-2 (D2) — the height of a PERSON's body band above its feet for <paramref name="stance"/>: its highest
-        /// body point (standing ≈ 1.6 m, crouched ≈ 1.0 m, prone ≈ 0.3 m). A round passing above it misses.
+        /// body point (its eye: standing ≈ 1.7 m, crouched ≈ 1.1 m, prone ≈ 0.35 m — R-246). A round passing above it misses.
         /// </summary>
         public static float PersonTop(ISimulationView view, Entity person, StanceId stance)
         {
