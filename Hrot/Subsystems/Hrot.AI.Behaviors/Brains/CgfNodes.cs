@@ -76,6 +76,8 @@ namespace Hrot.AI.Behaviors.Brains
             public float Y;
             public float Speed;
             public float ArrivalRadius;
+            /// <summary>⭐ CE-3130 — the actor's road use for this move (R-230); Unspecified ⇒ by the unit's class.</summary>
+            public RoadUse RoadUse;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -167,7 +169,8 @@ namespace Hrot.AI.Behaviors.Brains
                 Speed = authored.Speed > 0 ? (float)authored.Speed : DefaultMoveToSpeed,
                 ArrivalRadius = authored.ArrivalRadius > 0 ? (float)authored.ArrivalRadius : 5f,
                 X = authored.X,
-                Y = authored.Y
+                Y = authored.Y,
+                RoadUse = authored.RoadUse,   // CE-3130
             };
 
             // If geo-coords provided, map them
@@ -277,7 +280,8 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 Destination  = new Vector3(p.X, p.Y, 0f), // blueprint-authored 2D destination (§0.2)
                 ArrivalRadius = p.ArrivalRadius,
-                Speed        = p.Speed
+                Speed        = p.Speed,
+                RoadUse      = p.RoadUse,   // ⭐ CE-3130 — packed into Flags bits 5–7
             });
 
             return NodeStatus.Running;

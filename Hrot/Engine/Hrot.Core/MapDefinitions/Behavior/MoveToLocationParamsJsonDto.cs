@@ -79,6 +79,16 @@ namespace Hrot.Map.Definitions.Behavior
         public float Y { get; set; }
 
         /// <summary>
+        /// ⭐ <c>CE-3130</c> (R-230) — how the mover treats the road network: <c>Never</c> (sneak, keep off it), <c>Neutral</c>,
+        /// <c>Prefer</c>, <c>StronglyPrefer</c> (a convoy). <c>Unspecified</c> (omitted) leaves it to the unit's class: a vehicle
+        /// prefers roads, infantry is neutral. 📄 docs/designs/navig-2/Navigation_Design_v2_0.md §5.2a D1.
+        /// </summary>
+        [JsonPropertyName("roadUse")]
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public Fdp.Toolkit.Navigation.RoadUse RoadUse { get; set; }
+
+        /// <summary>
         /// Composite facade exposing the target position as a single pickable value.
         /// Excluded from JSON serialization; <see cref="TargetLat"/> and
         /// <see cref="TargetLon"/> carry the wire representation.

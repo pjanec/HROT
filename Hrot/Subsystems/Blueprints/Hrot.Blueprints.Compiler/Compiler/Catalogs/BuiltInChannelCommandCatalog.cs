@@ -28,6 +28,9 @@ public sealed class BuiltInChannelCommandCatalog : IChannelCommandCatalog
         new("Flags",          "System.Byte"),
         new("MaxReplans",     "System.Byte"),
         new("BackendForce",   "System.Byte"),
+        // ⭐ CE-3130 — the read/write PROPERTY over Flags bits 5–7 (R-230); NodePinSchema reflects properties after fields,
+        //   enum-stamped. Set after Flags in the initializer, so a wired RoadUse wins over the bits of a wired Flags.
+        new("RoadUse",        "global::Fdp.Toolkit.Navigation.RoadUse"),
     };
 
     private static readonly ParamField[] FollowRouteFields =
