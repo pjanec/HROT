@@ -22,6 +22,15 @@ public sealed class DoorLeafGizmo : IGlobalStatelessGizmo
     private static readonly Rgba32 LockedColor    = new(150, 60, 200, 255);
     private static readonly Rgba32 DestroyedColor = new(220, 40, 40, 255);
 
+    /// <summary>⭐ <c>CE-3133</c> — a door state's colour, shared with the Navmesh layer's doorway polygons (one table).</summary>
+    public static Rgba32 ColorOf(TerrainDoorState state) => state switch
+    {
+        TerrainDoorState.Open      => OpenColor,
+        TerrainDoorState.Locked    => LockedColor,
+        TerrainDoorState.Destroyed => DestroyedColor,
+        _                          => ClosedColor,
+    };
+
     public void Draw(ISimulationView view, IDebugDrawBuilder draw)
     {
         if (view is not EntityRepository repo || !repo.HasSingletonManaged<TerrainWorld>()) return;

@@ -15,6 +15,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public const byte Roads      = 8;
         /// <summary>⭐ Stage 7a (<c>CE-3134</c>) — the terrain's cover points and window firing positions (<c>CoverPointsGizmo</c>).</summary>
         public const byte Cover      = 9;
+        /// <summary>⭐ <c>CE-3133</c> — the baked navmesh's polygons (<c>NavmeshGizmo</c>).</summary>
+        public const byte Navmesh    = 10;
     }
 }
 

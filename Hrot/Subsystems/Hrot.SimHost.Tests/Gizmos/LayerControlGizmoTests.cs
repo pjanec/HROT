@@ -7,6 +7,7 @@ using GizmoMap.Network;
 using Hrot.Common.Diagnostics.Gizmos;
 using Hrot.SimHost;
 using StructEdit.Core;
+using StructEdit.Json;
 using StructEdit.Reflection;
 using Xunit;
 
@@ -84,6 +85,34 @@ namespace Hrot.SimHost.Tests.Gizmos
             // ⭐ CE-3134 — the cover layer has its own toggle, OFF by default
             Assert.False(all.IsSet(DebugTraceLayers.Cover));
             Assert.True(new LayerControlDto { Cover = true }.ToMask().IsSet(DebugTraceLayers.Cover));
+            // ⭐ CE-3133 — so has the navmesh layer, OFF by default
+            Assert.False(all.IsSet(DebugTraceLayers.Navmesh));
+            Assert.True(new LayerControlDto { Navmesh = true }.ToMask().IsSet(DebugTraceLayers.Navmesh));
+        }
+
+        // ⭐ CE-3133 — the navmesh layer choice: Infantry by default, kept in the settings registry by the panel, and an enum that
+        // survives the panel's JSON round trip (the StructEdit session the projector opens).
+        [Fact]
+        public void CE3133_TheNavmeshLayerChoice_RoundTripsThroughThePanelAndTheRegistry()
+        {
+            Assert.Equal(NavmeshDrawLayers.Infantry, new LayerControlDto().NavmeshLayers);
+
+            var settings = new GizmoSettingsRegistry();
+            new LayerControlDto { NavmeshLayers = NavmeshDrawLayers.Vehicle }.WriteScopes(settings);
+            Assert.Equal(NavmeshDrawLayers.Vehicle, NavmeshLayerSetting.Of(settings));
+            var read = new LayerControlDto();
+            read.ReadScopes(settings);
+            Assert.Equal(NavmeshDrawLayers.Vehicle, read.NavmeshLayers);
+
+            var edit = MakeEditService();
+            string json;
+            using (var session = edit.Open(new LayerControlDto { NavmeshLayers = NavmeshDrawLayers.All, Navmesh = true }, typeof(LayerControlDto)))
+                json = session.ToJson();
+            using var back = edit.Open(new LayerControlDto(), typeof(LayerControlDto));
+            back.LoadJson(json);
+            var dto = (LayerControlDto)back.Commit();
+            Assert.Equal(NavmeshDrawLayers.All, dto.NavmeshLayers);
+            Assert.True(dto.Navmesh);
         }
 
         // ⭐ CE-3120 — the layer panel shows each family's scope from the settings registry and writes an edit back to it, so the

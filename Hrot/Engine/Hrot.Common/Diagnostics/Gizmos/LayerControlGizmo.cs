@@ -40,9 +40,14 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// <summary>⭐ Stage 7a (<c>CE-3134</c>) — cover points and window firing positions (CoverPointsGizmo, layer 9). Off by
         /// default: a town holds hundreds of points.</summary>
         public bool Cover { get; set; }
+        /// <summary>⭐ <c>CE-3133</c> — the baked navmesh (NavmeshGizmo, layer 10). Off by default: it draws the whole layer.</summary>
+        public bool Navmesh { get; set; }
+        /// <summary>⭐ <c>CE-3133</c> — which navmesh the Navmesh layer draws (R-233: Infantry by default). Kept in the settings registry
+        /// (<see cref="NavmeshLayerSetting"/>), read and written with the family scopes.</summary>
+        public NavmeshDrawLayers NavmeshLayers { get; set; } = NavmeshLayerSetting.Default;
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 10;
+        public const int FirstUntoggledLayer = 11;
 
         // ⭐ CE-3120 (R-227) — per gizmo FAMILY: true = draw only for the selected and the pinned units, false = for every unit.
         //   Written into the GizmoSettingsRegistry on Apply (map.scope.<Family>), where GizmoFamilyVisibilityPolicy reads it.
@@ -54,7 +59,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool UtilitySelectedOnly { get; set; } = true;
         public bool SquadSelectedOnly { get; set; } = true;
 
-        /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/>.</summary>
+        /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
         {
             GizmoFamilies.Register(settings);
@@ -64,9 +69,11 @@ namespace Hrot.Common.Diagnostics.Gizmos
             EqsSelectedOnly        = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs);
             UtilitySelectedOnly    = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision);
             SquadSelectedOnly      = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment);
+            NavmeshLayerSetting.Register(settings);
+            NavmeshLayers          = NavmeshLayerSetting.Of(settings);   // ⭐ CE-3133
         }
 
-        /// <summary>⭐ <c>CE-3120</c> — writes the families' scopes into <paramref name="settings"/>.</summary>
+        /// <summary>⭐ <c>CE-3120</c> — writes the families' scopes into <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void WriteScopes(GizmoSettingsRegistry settings)
         {
             GizmoFamilies.Register(settings);
@@ -76,6 +83,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
             Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs,             EqsSelectedOnly);
             Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision, UtilitySelectedOnly);
             Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment, SquadSelectedOnly);
+            NavmeshLayerSetting.Register(settings);
+            if (NavmeshLayerSetting.Of(settings) != NavmeshLayers) NavmeshLayerSetting.Set(settings, NavmeshLayers);   // ⭐ CE-3133
         }
 
         private static bool Selected(GizmoSettingsRegistry s, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags f) =>
@@ -101,6 +110,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Hearing) mask.SetBit(DebugTraceLayers.Hearing);
             if (Roads) mask.SetBit(DebugTraceLayers.Roads);
             if (Cover) mask.SetBit(DebugTraceLayers.Cover);
+            if (Navmesh) mask.SetBit(DebugTraceLayers.Navmesh);
             for (int i = FirstUntoggledLayer; i < 256; i++) mask.SetBit(i);
             return mask;
         }

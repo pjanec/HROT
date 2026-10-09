@@ -32,7 +32,7 @@ namespace Fdp.Toolkit.Navigation.Recast;
 /// </para>
 /// </summary>
 [ComponentId(GlobalComponentIds.INavmeshProvider)]
-public sealed class DotRecastNavmeshProvider : INavmeshProvider
+public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGeometry
 {
     // ── Search half-extents (metres) for FindNearestPoly ─────────────────────
 
@@ -73,6 +73,16 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
 
         /// <summary>The filter judging by <paramref name="doors"/> (R-219); null = the doors as authored (the shared filter).</summary>
         public DoorAwareQueryFilter FilterFor(DoorStates? doors) => doors == null ? Filter : _working.Value!.JudgeBy(doors);
+
+        // ⭐ CE-3133 — the polygons for the map's Navmesh layer, built on the first ask: a snapshot never changes, so neither does this.
+        private NavmeshDebugMesh? _debug;
+        public NavmeshDebugMesh DebugMesh(NavLayerMask layer, uint version)
+        {
+            var built = Volatile.Read(ref _debug);
+            if (built != null) return built;
+            built = ExportDebugMesh(NavMesh, Filter, layer, version);
+            return Interlocked.CompareExchange(ref _debug, built, null) ?? built;
+        }
 
         // ⚠ Deliberately NOT disposing the ThreadLocal: a swapped-out snapshot may still be mid-query on a background module
         //   (P1); a disposed ThreadLocal would throw there. The old queries are collected with the snapshot.
@@ -208,6 +218,43 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
 
     /// <summary>⭐ Stage 5c — how many polygons of <paramref name="layer"/> are doorway polygons (a rail reads it).</summary>
     public int DoorPolyCount(NavLayerMask layer) => Current.Layers.TryGetValue(layer, out var ls) ? ls.Filter.DoorPolyCount : 0;
+
+    // ── ⭐ CE-3133 — debug geometry for the map's Navmesh layer (docs/DESIGN_Terrain_Combat_Tuning.md §5c) ──────────
+
+    /// <inheritdoc/>
+    public NavmeshDebugMesh? DebugMesh(NavLayerMask layer)
+    {
+        var snapshot = Current;
+        return snapshot.Layers.TryGetValue(layer, out var ls) ? ls.DebugMesh(layer, snapshot.Version) : null;
+    }
+
+    /// <summary>Every polygon of every tile (off-mesh links skipped), Y-up → engine Z-up, each with its door (−1 for ground).</summary>
+    private static NavmeshDebugMesh ExportDebugMesh(DtNavMesh mesh, DoorAwareQueryFilter filter, NavLayerMask layer, uint version)
+    {
+        var vertices = new List<Vector3>();
+        var start = new List<int> { 0 };
+        var doors = new List<int>();
+        for (int t = 0; t < mesh.GetMaxTiles(); t++)
+        {
+            var tile = mesh.GetTile(t);
+            if (tile?.data?.header == null) continue;
+            var data = tile.data;
+            long baseRef = mesh.GetPolyRefBase(tile);
+            for (int p = 0; p < data.header.polyCount; p++)
+            {
+                var poly = data.polys[p];
+                if (poly.GetPolyType() == DtPolyTypes.DT_POLYTYPE_OFFMESH_CONNECTION) continue;
+                for (int j = 0; j < poly.vertCount; j++)
+                {
+                    int v = poly.verts[j] * 3;
+                    vertices.Add(ToVector3(new RcVec3f(data.verts[v], data.verts[v + 1], data.verts[v + 2])));
+                }
+                start.Add(vertices.Count);
+                doors.Add(filter.DoorOf(baseRef | (long)p));
+            }
+        }
+        return new NavmeshDebugMesh(layer, version, vertices.ToArray(), start.ToArray(), doors.ToArray());
+    }
 
     // ── NavMesh access (for DotRecastDtCrowdProvider construction) ───────────
 

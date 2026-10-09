@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-09 (rev 5 — §5c navmesh layer, CE-3133; rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
 build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07; §5a APPROVED 2026-10-08 (R-226); §5b APPROVED 2026-10-08 (R-227), BUILT 2026-10-08
-current-answer: §5c navmesh layer (CE-3133) · §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
+current-answer: §5c navmesh layer (CE-3133, BUILT) · §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -662,7 +662,7 @@ the dashed red edge is the remaining gap (IG has no AI to pin).
 
 ⚠ **Still not measured:** whether a `Transient` `DebugState` survives an in-host replay seek.
 
-## 5c. Navmesh layer — the baked navmesh on the map *(`CE-3133`, backend, `2026-10-09`; 🔒 user: *"Yes, navmesh layer after 7a as proposed"* (R-233); build-state: READY-TO-BUILD)*
+## 5c. Navmesh layer — the baked navmesh on the map *(`CE-3133`, backend, `2026-10-09`; 🔒 user: *"Yes, navmesh layer after 7a as proposed"* (R-233); build-state: BUILT — as built at the end of this section)*
 
 ### INVENTORY *(graph `search_graph .*Navmesh.*` Interface/Class + an Explore sweep + reads, `2026-10-09`)*
 
@@ -769,6 +769,16 @@ graph TD
 |---|---|---|
 | N-1 | `INavmeshDebugGeometry`, `NavmeshDebugMesh`, Recast export + cache, switchable forward | a baked mesh exports every polygon of every tile, Z-up; bt-range's doorway polygons carry their door index; same snapshot ⇒ same object, re-bake ⇒ new |
 | N-2 | `NavmeshGizmo`, the setting, the layer panel toggle + enum, `DoorLeafGizmo.ColorOf` | draws outlines on its layer for the chosen layer only; door polygons in their state colour; nothing without a baked mesh |
+
+### As built *(`2026-10-09`)* — the diagrams above hold
+
+| | as built |
+|---|---|
+| the export | `DotRecastNavmeshProvider.DebugMesh(layer)` walks every tile's polygons (off-mesh links skipped), Y-up → Z-up, door index from the layer's own `DoorAwareQueryFilter.DoorOf`; built on the first ask, cached on the snapshot's `LayerState` (a rebake builds new layer states, so a new mesh with `Version + 1`) |
+| 📐 what the rail measured | the one-door room world (60 × 60 m) exports 129 vertices; its flat 3 m roof is walkable, so a navmesh layer shows rooftops too (Z ≈ 3.2) — drawn at their own Z |
+| the setting | `NavmeshLayerSetting` (`map.navmesh.layers`, int) next to `GizmoFamilies`; `LayerControlDto.NavmeshLayers` (enum) is read and written with the family scopes, and survives the panel's StructEdit JSON round trip (rail) |
+| the layer | bit `Navmesh = 10`, `FirstUntoggledLayer = 11`, off by default; ground outlines 1 px, doorway outlines 2 px in `DoorLeafGizmo.ColorOf` (now public, the one door-colour table) |
+| rails | `RecastNavmeshFactoryTests.CE3133_*` (3: every polygon in engine space with its door · once per navmesh, fresh after a rebake · the node navmesh forwards), `NavmeshGizmoTests` (4), `LayerControlGizmoTests` (toggle + the choice's round trip) |
 
 ## 6. Slices
 

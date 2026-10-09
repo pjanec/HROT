@@ -149,6 +149,60 @@ public sealed class RecastNavmeshFactoryTests
         Assert.True(door, "a corner in the doorway must be a Door waypoint (N4)");
     }
 
+    // ── ⭐ CE-3133 — the navmesh's polygons for the map's Navmesh layer (docs/DESIGN_Terrain_Combat_Tuning.md §5c) ──────────
+
+    [Fact]
+    public void CE3133_TheDebugMesh_IsEveryPolygon_InEngineSpace_WithItsDoor()
+    {
+        var world = TerrainWorldParser.Parse(OneDoorRoom, "range");
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
+        Assert.True(nav.TryGetNavMesh(NavLayerMask.Infantry, out var dt));
+        int baked = 0;
+        for (int t = 0; t < dt!.GetMaxTiles(); t++) baked += dt.GetTile(t)?.data?.header?.polyCount ?? 0;
+
+        var mesh = nav.DebugMesh(NavLayerMask.Infantry)!;
+
+        Assert.Equal(baked, mesh.PolyCount);                                       // every polygon (this world has no off-mesh links)
+        // Z-up: a vertex is on the ground (Z 0) or on the room's walkable 3 m roof — and then inside the room's footprint
+        Assert.All(mesh.Vertices, v => Assert.True(MathF.Abs(v.Z) < 0.5f
+            || (v.Z > 2.9f && v.Z < 3.5f && v.X > 19.5f && v.X < 30.5f && v.Y > 19.5f && v.Y < 28.5f), $"{v}"));
+        Assert.Contains(mesh.Vertices, v => v.Z > 2.9f);
+        Assert.All(mesh.Vertices, v => Assert.InRange(v.Y, -1f, 61f));
+        for (int i = 0; i < mesh.PolyCount; i++) Assert.InRange(mesh.Polygon(i).Length, 3, 6);
+        Assert.Equal(nav.DoorPolyCount(NavLayerMask.Infantry), mesh.DoorIndex.Count(d => d == 0));   // the doorway polygons, door 0
+        Assert.All(mesh.DoorIndex, d => Assert.InRange(d, -1, 0));
+        // a doorway polygon sits in the doorway (x 24.4..25.6, the south wall y = 20)
+        for (int i = 0; i < mesh.PolyCount; i++)
+            if (mesh.DoorIndex[i] == 0)
+                Assert.All(mesh.Polygon(i).ToArray(), v => Assert.True(v.X > 23.5f && v.X < 26.5f && v.Y > 18.5f && v.Y < 21.5f, $"{v}"));
+        Assert.Null(nav.DebugMesh(NavLayerMask.Vehicle));                           // not baked
+    }
+
+    [Fact]
+    public void CE3133_TheDebugMesh_IsBuiltOncePerNavmesh_AndAfreshAfterARebake()
+    {
+        var world = TerrainWorldParser.Parse(OneDoorRoom, "range");
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
+        var first = nav.DebugMesh(NavLayerMask.Infantry);
+        Assert.Same(first, nav.DebugMesh(NavLayerMask.Infantry));
+
+        Assert.True(nav.TryGetNavMesh(NavLayerMask.Infantry, out var dt));
+        nav.Rebake(new System.Collections.Generic.Dictionary<NavLayerMask, DotRecast.Detour.DtNavMesh> { [NavLayerMask.Infantry] = dt! });
+        var second = nav.DebugMesh(NavLayerMask.Infantry)!;
+        Assert.NotSame(first, second);
+        Assert.Equal(first!.Version + 1, second.Version);
+    }
+
+    [Fact]
+    public void CE3133_TheNodeNavmesh_ForwardsThePublishedMesh()
+    {
+        var node = new SwitchableNavmeshProvider();
+        Assert.Null(node.DebugMesh(NavLayerMask.Infantry));                        // before a bake: the straight-line fallback
+        var nav = (DotRecastNavmeshProvider)Bake(BlockWorld);
+        node.Publish(nav);
+        Assert.Same(nav.DebugMesh(NavLayerMask.Infantry), node.DebugMesh(NavLayerMask.Infantry));
+    }
+
     [Fact]
     public void Stage5c_ALockedDoorIsAWall_AClosedOneIsPassable_JudgedByTheCallersDoorTable()
     {
