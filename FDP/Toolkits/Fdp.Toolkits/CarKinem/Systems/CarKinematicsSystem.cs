@@ -172,6 +172,17 @@ namespace CarKinem.Systems
                         && _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var pursued)
                         && (pursued.IsLooped != 0 || nav.ProgressS < pursued.TotalLength - 0.1f))
                     {
+                        // ⭐ CE-3145 (R-247) — a PERSON closes onto his path but never looks past the next corner (HumanGait.Aim)
+                        if (@params.Class == VehicleClass.Pedestrian && HumanGait.Aim(in pursued, ref nav.ProgressS, pos2D, out var corner))
+                        {
+                            var toCorner = corner - pos2D;
+                            if (toCorner.LengthSquared() > 1e-4f)
+                            {
+                                targetHeading = Vector2.Normalize(toCorner);
+                                targetPos = corner;
+                            }
+                            break;
+                        }
                         float ld = PathLookahead(in @params, state.Speed);
                         var (ahead, _, _) = _trajectoryPool.SampleTrajectory(nav.TrajectoryId, nav.ProgressS + ld);
                         var toAhead = new Vector2(ahead.X, ahead.Y) - pos2D;
@@ -344,7 +355,11 @@ namespace CarKinem.Systems
                 // ⭐ CE-2059 — only the motion ALONG the path is progress (targetHeading is the path tangent here); a turn
                 //   or a sideways drift no longer counts. ⚠ Not for the homing leg's direct heading, which is not a tangent —
                 //   progress is already at the end there.
-                nav.ProgressS += state.Speed * dt * MathF.Max(0f, Vector2.Dot(fwd2D, progressTangent ?? targetHeading));
+                // ⭐ CE-3145 — a person's progress is his position projected on the segment he walks (HumanGait.Progress)
+                if (person && _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var walked) && walked.IsLooped == 0)
+                    nav.ProgressS = HumanGait.Progress(in walked, nav.ProgressS, pos2D);
+                else
+                    nav.ProgressS += state.Speed * dt * MathF.Max(0f, Vector2.Dot(fwd2D, progressTangent ?? targetHeading));
             }
             else if (nav.Mode == KinematicsMode.RoadGraph)
             {
@@ -358,6 +373,19 @@ namespace CarKinem.Systems
             float z = _terrain != null
                 ? _terrain.SurfaceZ(pos2D.X, pos2D.Y, tf.Position.Z)
                 : tf.Position.Z;
+            // ⭐ CE-3145 (R-247) — A PERSON NEVER STEPS OFF A LEDGE: standing on a floor, a step whose floor is more than
+            //   HumanGait.MaxStepDown lower is not taken (he stays, stopped). Stairs and ramps descend in small steps, so they pass.
+            //   📐 bt-window-duel: the path skirts House A's stairwell by 5 cm and a cut corner dropped A 3 m to the ground floor.
+            if (person && _terrain != null && z < tf.Position.Z - HumanGait.MaxStepDown)
+            {
+                var here = new Vector2(tf.Position.X, tf.Position.Y);
+                if (MathF.Abs(_terrain.SurfaceZ(here.X, here.Y, tf.Position.Z) - tf.Position.Z) <= HumanGait.OnFloorTolerance)
+                {
+                    pos2D = here;
+                    z = tf.Position.Z;
+                    state.Speed = 0f;
+                }
+            }
             float dz = z - tf.Position.Z;
             tf.Position = new Vector3(pos2D.X, pos2D.Y, z);
             float yaw = MathF.Atan2(fwd2D.Y, fwd2D.X);
@@ -448,7 +476,9 @@ namespace CarKinem.Systems
         /// A walker at 1.5 m/s aims 1 m ahead; a car at 15 m/s 7.5 m.
         /// </summary>
         public static float PathLookahead(in VehicleParams p, float speed)
-            => MathF.Max(MathF.Max(MinPathLookaheadMetres, 2f * p.WheelBase), MathF.Abs(speed) * p.LookaheadTimeMin);
+            => p.Class == VehicleClass.Pedestrian
+                ? MathF.Max(HumanGait.MinPathLookahead, MathF.Abs(speed) * HumanGait.PathLookaheadSeconds)   // ⭐ CE-3145 — a person tracks his path
+                : MathF.Max(MathF.Max(MinPathLookaheadMetres, 2f * p.WheelBase), MathF.Abs(speed) * p.LookaheadTimeMin);
 
         /// <summary>⭐ CE-2059 — the slowest a vehicle approaches a trajectory's end, so the braking envelope (which tends to
         /// 0 at the end) still lets it get there.</summary>

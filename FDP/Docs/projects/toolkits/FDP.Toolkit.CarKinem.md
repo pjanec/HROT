@@ -133,7 +133,20 @@ least `StopDecel`, and the yaw rate reported is the turn actually made. Every ot
 |---|---|
 | 📐 `bt-window-duel`: A, facing east 0.4 m from House A's open stairwell, had to go west — the car model (0.3 m turn circle at full lock, up to ≈ 0.95 m/s while turning, `CarKinematicsSystem` cornering limit) walked him 0.5 m forward into the stairwell and he fell to the ground floor | a pedestrian as a tiny car (`WheelBase` 0.3, `MaxSteerAngle` 1.57) — "can turn in place" in the preset's comment, never in the model. 🔒 User: *"Feel free to modify the motion model to suite human movement. It has never been done only because not needed yet."* |
 
-Rail: `CarKinematicsSystemTests.CE3145_APerson_TurnsOnTheSpot_ThenWalks`.
+**On a path** (`KinematicsMode.CustomTrajectory`) a person differs from a car in three more ways, each measured on House A's stairs:
+
+| rule | why | ⛔ the car behaviour it replaces |
+|---|---|---|
+| he aims `HumanGait.PathAim` (1 m) ahead of his projection on the segment he walks, **clamped to that segment's end corner**; within `CornerReach` (0.25 m) of the corner he moves to the next segment (`HumanGait.Aim`) | a drift still closes onto the path (CE-3115), but a corner is never cut | a lookahead of ≥ 1 m along the whole path — at the corner beside the stairwell it aimed across the hole |
+| his progress is his position projected on that segment (`HumanGait.Progress`) | it neither stalls while he turns on the spot nor runs ahead when he drifts | progress dead-reckoned from speed × heading |
+| standing on a floor, a step that drops more than `HumanGait.MaxStepDown` (1 m) is not taken — he stops at the edge | a soldier steps or hops down a stair's side (0.5 m, which the navmesh plans); a storey is a fall | `SurfaceZ` took him to whatever lay below |
+
+📐 The path the navmesh plans from the upstairs window (107.1, 100.9, 3) to the ground-floor east window runs 5 cm from the stairwell's
+edge, turns north, and steps off the stair's side at 0.5 m — the car model fell 3 m at its first corner; the person walks it.
+
+Rails: `CarKinematicsSystemTests.CE3145_APerson_TurnsOnTheSpot_ThenWalks`, `CE3145_HumanGait_ANonPositiveStep_TurnsNothing`,
+`CE3145_APerson_DownTheStairs_NeverFallsThroughTheStairwell` (the planned route on the real `bt-range` house · a straight line over the
+stairwell), and the walker case of `CE3115_AMoverOffItsPath_ClosesOntoIt`.
 
 ## Core Components
 

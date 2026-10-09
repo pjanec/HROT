@@ -555,6 +555,72 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3145</c> — A PERSON ON THE REAL HOUSE: from House A's upstairs window (107.1, 100.9, 3) along the route the navmesh
+        /// plans to the ground-floor east window (109.1, 103.6, 0) — east past the stairwell's edge (5 cm away), north, down the stairs —
+        /// he arrives downstairs and never drops more than a step (`HumanGait.MaxStepDown`) in one frame; and sent STRAIGHT across the stairwell he never falls
+        /// (the ledge rule). 📐 Measured in-process before: the car-sized 1 m lookahead cut the corner over the hole and A fell 3 m.
+        /// 🔴 Red-proof: restore the vehicle lookahead and drop the ledge rule — the route run falls at the corner (≈ 108.1, 101.0).
+        /// </summary>
+        [Theory]
+        [InlineData("route")]
+        [InlineData("across")]
+        public void CE3145_APerson_DownTheStairs_NeverFallsThroughTheStairwell(string run)
+        {
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var world = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Directory.GetFiles(folder, "*.world.geojson")[0]),
+                "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+
+            // the navmesh's own route (measured: RecastNavmeshFactory over bt-range, Infantry), or a straight line over the hole
+            var route = run == "route"
+                ? new[] { new Vector3(107.10f, 100.90f, 3.00f), new Vector3(107.40f, 100.80f, 3.20f), new Vector3(108.75f, 100.95f, 3.20f),
+                          new Vector3(108.75f, 105.45f, 3.20f), new Vector3(108.15f, 105.45f, 2.80f), new Vector3(108.15f, 104.10f, 2.00f),
+                          new Vector3(108.30f, 101.85f, 0.60f), new Vector3(108.90f, 101.85f, 0.20f), new Vector3(109.10f, 103.60f, 0.00f) }
+                : new[] { new Vector3(107.10f, 100.90f, 3.00f), new Vector3(108.00f, 103.50f, 3.00f) };
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 2f, startSpeed: 0f, facing: SimMath.FacingEast,
+                vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            pool.RegisterTrajectoryWithKey(route, 8);
+            ref var tf0 = ref repo.GetComponentRW<SimTransform>(e);
+            tf0.Position = route[0];
+            ref var nav0 = ref repo.GetComponentRW<NavState>(e);
+            nav0.TrajectoryId = 8;
+            nav0.FinalDestination = route[^1];
+            nav0.ArrivalRadius = 0.5f;
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(world);
+
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float worstDrop = 0f, lowest = float.MaxValue, lastZ = route[0].Z;
+            string trace = "";
+            for (int i = 0; i < 30 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                float z = repo.GetComponent<SimTransform>(e).Position.Z;
+                worstDrop = MathF.Max(worstDrop, lastZ - z);
+                lowest = MathF.Min(lowest, z);
+                lastZ = z;
+                if (i % 60 == 0)
+                {
+                    var n = repo.GetComponent<NavState>(e);
+                    var st = repo.GetComponent<VehicleState>(e);
+                    trace += $" t{i / 60}:({repo.GetComponent<SimTransform>(e).Position.X:F2},{repo.GetComponent<SimTransform>(e).Position.Y:F2},{z:F2}) v{st.Speed:F2} s{n.ProgressS:F1} arr{n.HasArrived}";
+                }
+            }
+            var end = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(worstDrop <= CarKinem.Controllers.HumanGait.MaxStepDown, $"{run}: dropped {worstDrop:F2} m in one frame (ended at {end})");   // a step off the stair's side (0.5 m) is fine; a storey is not
+            if (run == "route")
+                Assert.True(Vector2.Distance(new Vector2(end.X, end.Y), new Vector2(109.1f, 103.6f)) <= 0.8f && end.Z < 0.5f,
+                    $"walked down the stairs to the east window; ended at {end};{trace}");
+            else
+                Assert.True(lowest > 2.5f, $"stayed on the upper floor at the stairwell's edge; lowest z {lowest:F2}, ended at {end}");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-3145</c> — a NEGATIVE or zero step (📐 the cluster hands one: the in-process duel crashed the mover with
         /// <c>Math.Clamp(min &gt; max)</c>) turns nothing and never throws.</summary>
         [Theory]
