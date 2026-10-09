@@ -8,6 +8,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception;
@@ -102,6 +103,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The aimed fire (the posture's ONE fire step) · the blind burst (<see cref="FireAtPointNodes.FireAtPoint"/>).</summary>
         public EngageState Fire;
         public FireAtPointNodeParams Blind;
+        /// <summary>⭐ P-7 D12 — 1 while suppressing before a bound: the next cover is picked (<see cref="NextHide"/>), the unit is up
+        /// firing a suppressive burst, and on the way down it runs THERE, not back to the old hide point.</summary>
+        public byte Bounding;
+        /// <summary>The next cover's stance (<see cref="StanceId"/> + 1; 0 = none).</summary>
+        public byte NextStance;
+        public Vector3 NextHide;
     }
 
     /// <summary>
@@ -225,7 +232,13 @@ namespace Hrot.AI.Behaviors.Brains
                                    EntityRepository world, double now, bool relocating)
         {
             if (!PickHide(ref ws, in p, ref mem, world, now, relocating, out var point, out var stance)) return;   // no answer yet
+            GoToHide(ref ws, in p, self, world, point, stance);
+        }
 
+        /// <summary>Takes <paramref name="point"/> as the hide point (its stances by the peek mode) and walks there.</summary>
+        private static void GoToHide(ref PeekAndFireState ws, in PeekAndFireParams p, Entity self, EntityRepository world,
+                                     Vector3 point, StanceId? stance)
+        {
             bool window = p.HideTemplate == FindWindowFiringPosition.BlueprintId;
             bool step = p.Mode == PeekMode.Step || (p.Mode == PeekMode.Auto && !window);
             ws.PeekIsStep = (byte)(step ? 1 : 0);
@@ -242,6 +255,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.HidePoint = point;
             ws.PeekPoint = point;
             ws.ExposuresHere = 0;
+            ws.Bounding = 0;
             ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, p.RelocateSpeed, ArrivalRadius) ? 1 : 0);
             ws.Phase = PeekPhase.MoveToHide;
         }
@@ -262,10 +276,26 @@ namespace Hrot.AI.Behaviors.Brains
 
             // B4/D8 — a used-up position: move on if there is somewhere else (a burned one with nowhere to go waits to cool)
             bool burned = PositionHeat.IsBurnedAt(ref mem, ws.HidePoint, now, Rules(in p));
-            if (burned || ws.ExposuresHere >= p.ExposuresPerPosition)
+            if (ws.Bounding == 0 && (burned || ws.ExposuresHere >= p.ExposuresPerPosition))
             {
-                Choose(ref ws, in p, ref mem, self, world, now, relocating: true);   // nothing elsewhere ⇒ changes nothing
-                if (ws.Phase == PeekPhase.MoveToHide || burned) return;
+                if (p.SuppressBeforeRelocate != 0)
+                {
+                    // ⭐ P-7 D12 — SUPPRESS AND BOUND: pick the next cover now, but first come up and fire a suppressive burst at the
+                    //   freshest evidence (below, through the exposure); the run to the new cover starts when the burst ends (Recover).
+                    if (PickHide(ref ws, in p, ref mem, world, now, relocating: true, out var next, out var nextStance))
+                    {
+                        ws.Bounding = 1;
+                        ws.NextHide = next;
+                        ws.NextStance = nextStance is { } ns ? (byte)((byte)ns + 1) : (byte)0;
+                        ws.PhaseUntil = now;   // no further wait: the bound is the reason to come up
+                    }
+                    else if (burned) return;   // nowhere to go: a burned spot waits to cool
+                }
+                else
+                {
+                    Choose(ref ws, in p, ref mem, self, world, now, relocating: true);   // nothing elsewhere ⇒ changes nothing
+                    if (ws.Phase == PeekPhase.MoveToHide || burned) return;
+                }
             }
 
             // B8 — reloading or under fire: stay down (the dispatcher runs the reload; an empty magazine starts one here)
@@ -304,6 +334,13 @@ namespace Hrot.AI.Behaviors.Brains
                 BeginExposure(ref ws, in p, ref mem, now);
             }
 
+            if (ws.Bounding == 1)
+            {
+                // ⭐ P-7 D12 — the suppressive burst: no aim time, no grace — at the freshest evidence, seen or not
+                if (!StartBurst(ref ws, in p, self, world, in threat)) Recover(ref ws, in p, ref mem, self, world, now, false);
+                return;
+            }
+
             if (!threat.IsPoint && SightNow.Sees(world, self, threat.Entity))
             {
                 ws.LastSeenAt = now;
@@ -314,14 +351,46 @@ namespace Hrot.AI.Behaviors.Brains
             }
             if (now - ws.ExposedAt < p.GraceSeconds) return;
 
-            // 4.2 — not seen in time: a blind burst at the remembered spot, raised to the body's middle (no aim time)
-            if (!EqsTacticsNodes.ThreatPosition(world, self, in threat, out var at)) { Recover(ref ws, in p, ref mem, self, world, now, false); return; }
+            // 4.2 — not seen in time: a blind burst at the FRESHEST evidence (D13), raised to the body's middle (no aim time)
+            if (!StartBurst(ref ws, in p, self, world, in threat)) Recover(ref ws, in p, ref mem, self, world, now, false);
+        }
+
+        /// <summary>A burst of <c>BlindRounds</c> at the freshest evidence (D13) + <c>BlindAimHeight</c>; false = nowhere known.</summary>
+        private static bool StartBurst(ref PeekAndFireState ws, in PeekAndFireParams p, Entity self, EntityRepository world, in ThreatAim threat)
+        {
+            if (!FreshestEvidence(world, self, in threat, out var at)) return false;
             ws.Blind = new FireAtPointNodeParams
             {
                 Point = at + new Vector3(0f, 0f, p.BlindAimHeight), CooldownSeconds = p.FireCooldownSeconds, Rounds = p.BlindRounds,
             };
             FireAtPointNodes.FireAtPoint(ref ws.Blind, self, world);
             ws.Phase = PeekPhase.Blind;
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐ P-7 D13 — THE FRESHEST EVIDENCE WINS for a burst: the newest (by <see cref="TargetMemory.LastSeenTick"/>) of the threat's
+        /// own slot and every HEARD (anonymous) contact. 📐 A shot heard more than ≈ 6 m from the remembered spot makes a NEW anonymous
+        /// slot (<c>TargetMemory.HearContact</c>) and the ranking prefers the identified one — without this the burst goes where the
+        /// enemy WAS. Ties keep the threat's own slot. ⚠ An aimed shot still needs sight (D4); this is only where a burst goes.
+        /// </summary>
+        internal static unsafe bool FreshestEvidence(EntityRepository world, Entity self, in ThreatAim threat, out Vector3 at)
+        {
+            bool have = EqsTacticsNodes.ThreatPosition(world, self, in threat, out at);
+            if (!world.HasComponent<TargetMemory>(self)) return have;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            long id = threat.IsPoint ? threat.HeardId : (long)threat.Entity.PackedValue;
+            uint newest = 0;
+            for (int i = 0; i < mem.Count; i++)
+                if (mem.EntityIds[i] == id) { newest = mem.LastSeenTick[i]; break; }
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (!TargetMemory.IsAnonymous(in mem, i) || mem.LastSeenTick[i] <= newest) continue;
+                newest = mem.LastSeenTick[i];
+                at = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
+                have = true;
+            }
+            return have;
         }
 
         private static void Aimed(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
@@ -375,6 +444,12 @@ namespace Hrot.AI.Behaviors.Brains
             StopBlind(ref ws, self, world);
             if (firedUpon) PositionHeat.Add(ref mem, ws.HidePoint, p.HeatWhenFiredUpon, now, Rules(in p), exposure: false);
             ws.Counted = 0;
+            if (ws.Bounding == 1)
+            {
+                // ⭐ P-7 D12 — the burst is over: RUN to the next cover (never back to the used one)
+                GoToHide(ref ws, in p, self, world, ws.NextHide, ws.NextStance != 0 ? (StanceId)(ws.NextStance - 1) : null);
+                return;
+            }
             if (ws.PeekIsStep == 1 && Vector3.Distance(ws.PeekPoint, ws.HidePoint) > ArrivalRadius)
             {
                 StanceRequest.Set(world, self, ws.HideStance, StanceBlendSeconds);

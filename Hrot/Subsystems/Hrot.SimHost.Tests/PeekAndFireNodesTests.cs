@@ -333,6 +333,81 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>P7_R1</c> — D13, THE FRESHEST EVIDENCE WINS: the enemy was SEEN at tick 10 at its remembered spot, then a shot was
+        /// HEARD at tick 50 far from it (an anonymous slot, as <c>TargetMemory.HearContact</c> makes for a sound &gt; 6 m away). The
+        /// blind burst goes to the HEARD spot. And the other way round: a sighting newer than the sound keeps the burst on the enemy.
+        /// 🔴 Red-proof: aim the burst with <c>EqsTacticsNodes.ThreatPosition</c> (P-6) and the first half shoots where the enemy WAS.
+        /// </summary>
+        [Fact]
+        public void P7_R1_ABlindBurst_GoesToTheFreshestEvidence()
+        {
+            var heard = new Vector3(26f, 6f, 0f);
+            Vector3 BurstWith(uint seenTick, uint heardTick)
+            {
+                var d = new Duel(Window(), seen: false);
+                ref var mem = ref d.Repo.GetComponentRW<TargetMemory>(d.Self);
+                mem.LastSeenTick[0] = seenTick;
+                mem.EntityIds[1] = -7;
+                mem.Anonymous[1] = 1;
+                mem.Freshness[1] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
+                mem.Modalities[1] = (byte)SensorModality.Acoustic;
+                mem.PositionsX[1] = heard.X; mem.PositionsY[1] = heard.Y; mem.PositionsZ[1] = heard.Z;
+                mem.LastSeenTick[1] = heardTick;
+                mem.Count = 2;
+                d.Step();
+                d.Answer(PeekAndFireNodes.CoverSite, 5, (0f, 0f, StanceId.Crouched));
+                Assert.Equal(PeekPhase.Blind, d.RunUntil(PeekPhase.Blind));
+                return Assert.Single(d.Fires).Point;
+            }
+
+            Assert.Equal(heard + new Vector3(0f, 0f, 1f), BurstWith(seenTick: 10, heardTick: 50));      // heard after seen: the sound
+            Assert.Equal(EnemyAt + new Vector3(0f, 0f, 1f), BurstWith(seenTick: 90, heardTick: 50));    // seen after heard: the enemy
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>P7_R2</c> — D12, SUPPRESS AND BOUND (B in the street, <c>SuppressBeforeRelocate</c>): the cover is used up, so the
+        /// unit picks the next one, but first steps out and fires a suppressive burst (<c>FireAtPoint</c>, no aim time) at the enemy's
+        /// freshest spot, and then RUNS to the new cover — never back to the used one. ⭐ Under fire it stays down: a near miss holds the
+        /// bound until <c>SuppressedSeconds</c> pass. 🔴 Red-proof: drop the <c>Bounding</c> branch in <c>Recover</c> and the unit walks
+        /// back to (10,10) before moving on.
+        /// </summary>
+        [Fact]
+        public void P7_R2_SuppressAndBound_BurstsThenRunsToTheNextCover_StayingDownUnderFire()
+        {
+            var d = new Duel(Street() with { SuppressBeforeRelocate = 1, ExposuresPerPosition = 1, BurnHeat = 99f, ReuseHeat = 98f });
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (10f, 10f, StanceId.Crouched), (20f, 10f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            d.Step();
+            d.Answer(PeekAndFireNodes.PeekSite, 7, (10f, 12f, null));
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));       // the one exposure this cover allows
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+
+            // under fire: no coming up, not even to suppress
+            d.Sense(SensorChange.NearMiss);
+            int moves = d.Moves.Count;
+            d.Run(2.5);
+            Assert.Equal(PeekPhase.Hidden, d.Ws.Phase);
+            Assert.Equal(moves, d.Moves.Count);
+            Assert.Equal(1, d.Ws.Bounding);                                      // the next cover is already picked
+
+            Assert.Equal(PeekPhase.Blind, d.RunUntil(PeekPhase.Blind));         // out to the peek point, a burst — no aim time
+            Assert.Equal(PeekPhase.MoveToHide, d.RunUntil(PeekPhase.MoveToHide));
+
+            Assert.Equal(new[]
+            {
+                new Vector3(10f, 10f, 0f), new Vector3(10f, 12f, 0f), new Vector3(10f, 10f, 0f),   // the exposure
+                new Vector3(10f, 12f, 0f), new Vector3(20f, 10f, 0f),                              // out, burst, RUN to the next cover
+            }, d.Moves);
+            Assert.Equal(2, d.Fires.Count);
+            Assert.Equal(CombatConstants.ActionIdAimAndFire, d.Fires[0].Action);
+            Assert.Equal(CombatConstants.ActionIdFireAtPoint, d.Fires[1].Action);
+            Assert.Equal(EnemyAt + new Vector3(0f, 0f, 1f), d.Fires[1].Point);
+            Assert.Equal(0, d.Ws.Bounding);
+            Assert.Equal(new Vector3(20f, 10f, 0f), d.Ws.HidePoint);
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>P6_R6</c> — B8: RELOADING keeps the unit down past its wait, and so does being SHOT AT (a near miss within
         /// <c>SuppressedSeconds</c>); once both are over it comes up.
         /// </summary>
