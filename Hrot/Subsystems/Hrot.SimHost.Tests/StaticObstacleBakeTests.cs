@@ -137,6 +137,38 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, sys.Bakes);
         }
 
+        /// <summary>
+        /// ⭐ <c>P7a_B5</c> — float noise is not a change: a replica's position arrives through the geo transform and wobbles by
+        /// micrometres every update; the bake signature is quantised to 1 cm, so the world is baked ONCE (📐 measured on the
+        /// live <c>bt-window-duel</c> before the fix: ≈ 150 re-bakes). A real move (5 cm) still re-bakes. 🔴 Red-proof: mix the raw
+        /// float bits into the signature and the noise loop re-bakes.
+        /// </summary>
+        [Fact]
+        public void P7a_B5_SubCentimetreNoise_DoesNotRebake_ARealMoveDoes()
+        {
+            Terrain();
+            var sys = System();
+            var car = Obstacle(10f);
+            sys.Execute(_world, 0.016f);
+            _wall = 1.0;
+            RunUntilBaked(sys, 1);
+            _world.SetLifecycleState(car, EntityLifecycle.Active);
+
+            for (int i = 0; i < 20; i++)
+            {
+                ref var t = ref _world.GetComponentRW<SimTransform>(car);
+                t.Position = new Vector3(10f + ((i % 2 == 0 ? 1 : -1) * 0.0004f), 0.0002f * (i % 3), 0f);
+                _wall += 1.0; sys.Execute(_world, 0.016f);
+            }
+            Assert.Equal(1, sys.Bakes);
+
+            ref var moved = ref _world.GetComponentRW<SimTransform>(car);
+            moved.Position = new Vector3(10.05f, 0f, 0f);
+            _wall += 0.1; sys.Execute(_world, 0.016f);
+            _wall += 1.0;
+            RunUntilBaked(sys, 2);
+        }
+
         /// <summary>⭐ <c>P7a_B4</c> — removing the obstacle re-bakes the world without it (a runtime change, debounced the same way).</summary>
         [Fact]
         public void P7a_B4_RemovingAnObstacle_RebakesWithoutIt()

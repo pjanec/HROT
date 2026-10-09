@@ -13,6 +13,7 @@ using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Utility;
 using Hrot.NED.Descriptors.Orchestration;
 using Xunit;
@@ -437,6 +438,63 @@ public sealed class PostureScenarioTests : IDisposable
         int ammo = Ammo();
         _out.WriteLine($"approach {ApproachWinner()}, ammo {ammo}");
         Assert.True(harness.PumpUntil(() => Ammo() < ammo, timeoutFrames: 12000), $"…and fires from there; ammo {Ammo()} (was {ammo})");
+    }
+
+    /// <summary>House A's upstairs window firing positions (the cover database, `bt-range`; measured by the P-8 probe).</summary>
+    private static readonly Vector2[] UpstairsWindows = { new(102.1f, 100.9f), new(107.1f, 100.9f), new(105.4f, 107.1f) };
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3136</c> P-8 (D10) — <c>bt-window-duel</c> in-process (the live check's twin): A at an upstairs window of House A,
+    /// B in the street with two parked vans for cover, each remembering the other. Both fire (aimed or a blind burst — the ammunition
+    /// falls), A fires from at least two upstairs windows (the exposure count moves it on), and B bounds to Van 2's cover.
+    /// 📄 docs/DESIGN_Peek_And_Fire.md §2, D10, D14–D15 (CE-3144: the duel stood still before them).
+    /// </summary>
+    [Fact(Timeout = 900_000)]
+    public async Task CE3136_P8_WindowDuel_BothFire_ARotatesWindows_BBoundsToTheSecondVan()
+    {
+        using var harness = await StartShippedScenario("bt-window-duel");
+        var cgf = harness.Cgf!.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Window Rifleman").IsNull && !ByName(cgf, "Street Rifleman").IsNull, timeoutFrames: 2000),
+            "both riflemen must spawn on CGF");
+        Entity a = ByName(cgf, "Window Rifleman"), b = ByName(cgf, "Street Rifleman");
+        int Ammo(Entity e) => cgf.HasComponent<WeaponState>(e) ? cgf.GetComponent<WeaponState>(e).Ammo : -1;
+        Vector3 Pos(Entity e) => cgf.HasComponent<SimTransform>(e) ? cgf.GetComponent<SimTransform>(e).Position : default;
+        int a0 = Ammo(a), b0 = Ammo(b);
+        var windows = new System.Collections.Generic.HashSet<(int, int)>();
+        var van2 = new Vector2(113f, 76f);
+        bool bounded = false;
+        float Hp(Entity e) => cgf.HasComponent<Health>(e) ? cgf.GetComponent<Health>(e).Current : -1f;
+        unsafe string Peek(Entity e)
+        {
+            if (!cgf.IsAlive(e)) return "dead";
+            var m = Fdp.Toolkit.Behavior.UnitMemory.Get<Fdp.Toolkit.Combat.FiringPositionMemory>(cgf, e);
+            var slots = "";
+            for (int i = 0; i < m.Count; i++) slots += $"({m.X[i]:F1},{m.Y[i]:F1},{m.Z[i]:F0})u{m.Uses[i]}h{m.Heat[i]:F1}{(m.Burned[i] != 0 ? "B" : "")} ";
+            var answers = "";
+            var sensor = EqsChildSensor.Find(cgf, e, Hrot.AI.Behaviors.Brains.PeekAndFireNodes.CoverSite);
+            if (!sensor.IsNull && cgf.HasComponent<EqsCognitiveBuffer>(sensor))
+                foreach (var r in cgf.GetComponentRO<EqsCognitiveBuffer>(sensor).GetSpanRO())
+                    answers += $"({r.PositionX:F1},{r.PositionY:F1},{r.PositionZ:F0}){r.Score:F2} ";
+            return $"phase={(Fdp.Toolkit.Combat.PeekPhase)m.Phase} slots[{slots}] cover[{answers}]";
+        }
+        string State() => $"A {Pos(a)} hp {Hp(a)} ammo {a0}→{Ammo(a)} windows [{string.Join(" ", windows)}] {Peek(a)} · B {Pos(b)} hp {Hp(b)} ammo {b0}→{Ammo(b)} bounded={bounded}";
+
+        for (int f = 0; f < 36000; f++)
+        {
+            harness.PumpFrames(1);
+            var pa = Pos(a);
+            foreach (var w in UpstairsWindows)   // at a window, not on the way between two
+                if (pa.Z >= 2f && Vector2.Distance(new Vector2(pa.X, pa.Y), w) <= 0.75f) windows.Add(((int)MathF.Round(w.X), (int)MathF.Round(w.Y)));
+            var pb = Pos(b);
+            bounded |= Vector2.Distance(new Vector2(pb.X, pb.Y), van2) <= 4f;
+            if (f % 600 == 0) _out.WriteLine($"f{f}: {State()}");
+            if (Ammo(a) < a0 && Ammo(b) < b0 && windows.Count >= 2 && bounded) break;
+        }
+        _out.WriteLine($"end: {State()}");
+        Assert.True(Ammo(a) < a0, $"A fires; {State()}");
+        Assert.True(Ammo(b) < b0, $"B fires; {State()}");
+        Assert.True(windows.Count >= 2, $"A fires from at least two upstairs windows; {State()}");
+        Assert.True(bounded, $"B bounds to Van 2's cover; {State()}");
     }
 
     /// <summary>

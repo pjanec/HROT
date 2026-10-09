@@ -65,6 +65,17 @@
         { "id": "a fragment from the roof burst is stopped by the roof slab", "kind": "fire", "round": "81mm", "from": [105, 104, 6.1], "to": [103, 104, 0.9], "expect": "stops" },
         { "id": "a fragment from the courtyard burst reaches the man in the open", "kind": "fire", "round": "81mm", "from": [95, 92, 0.1], "to": [95, 95, 0.9], "expect": "passes" }
       ]
+    },
+    "bt-window-duel": {
+      "summary": "CE-3136 P-8 — A upstairs in House A at the two south windows (firing points 0.9 m inside, crouched eye 4.1 m), B in the street south of it behind a van: both windows see B's step-out point and are seen from it, a rifle round goes through the window, and the brick between the windows hides. The vans are ENTITIES (static obstacles, R-243), so their cover is railed by StaticObstacleTests, not here",
+      "rounds": { "rifle": { "tkbType": 2002, "mount": 0 } },
+      "premises": [
+        { "id": "the west upstairs window sees B's step-out point", "kind": "sight", "from": [102.1, 100.9, 4.1], "to": [107.5, 81.0, 1.6], "expect": "seesThrough" },
+        { "id": "the east upstairs window sees B's step-out point", "kind": "sight", "from": [107.1, 100.9, 4.1], "to": [107.5, 81.0, 1.6], "expect": "seesThrough" },
+        { "id": "B at the step-out point sees A at the east window", "kind": "sight", "from": [107.5, 81.0, 1.7], "to": [107.1, 100.9, 4.1], "expect": "seesThrough" },
+        { "id": "a rifle round from B goes through the east window", "kind": "fire", "round": "rifle", "from": [107.5, 81.0, 1.7], "to": [107.1, 100.9, 4.1], "expect": "passes" },
+        { "id": "the brick between the upstairs windows hides", "kind": "sight", "from": [104.6, 81.0, 1.7], "to": [104.6, 100.9, 4.1], "expect": "blocks" }
+      ]
     }
   }
 }

@@ -191,7 +191,7 @@ namespace Hrot.SimHost.Tests
             var d = new Duel(Window());
             d.Step();
             Assert.False(d.Sensor(PeekAndFireNodes.CoverSite).IsNull, "the node points its own cover sensor at the threat");
-            Assert.Equal(d.Enemy, d.Repo.GetComponentRO<EqsSensor>(d.Sensor(PeekAndFireNodes.CoverSite)).ContextSlot1);
+            Assert.Equal(EnemyAt, d.Repo.GetComponentRO<EqsSensor>(d.Sensor(PeekAndFireNodes.CoverSite)).ContextPoint1);   // D14: the remembered spot
             Assert.Equal(PeekPhase.Choose, d.Ws.Phase);
 
             d.Answer(PeekAndFireNodes.CoverSite, 5, (2f, 3f, StanceId.Crouched));
@@ -362,6 +362,47 @@ namespace Hrot.SimHost.Tests
 
             Assert.Equal(heard + new Vector3(0f, 0f, 1f), BurstWith(seenTick: 10, heardTick: 50));      // heard after seen: the sound
             Assert.Equal(EnemyAt + new Vector3(0f, 0f, 1f), BurstWith(seenTick: 90, heardTick: 50));    // seen after heard: the enemy
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>P8_R1</c> — <c>CE-3144</c> D14: the sensors look for where the enemy is REMEMBERED, never where he is — the enemy stands
+        /// 30 m from his remembered spot and the sensor still points at the spot (a context POINT, no entity); a sighting that moves
+        /// the spot more than 2 m re-points it; a newer heard contact takes it over. 🔴 Red-proof: pass <c>threat</c> instead of
+        /// <c>SensorAim</c> in <c>KeepSensors</c> and the sensor names the enemy entity — whose true position, hidden, no window sees
+        /// (the live P-8 run stood still for 600 s).
+        /// </summary>
+        [Fact]
+        public void P8_R1_TheSensorsLookForTheRememberedSpot_NotTheEnemyItself()
+        {
+            var d = new Duel(Window());
+            d.Repo.AddComponent(d.Enemy, new SimTransform { Position = new Vector3(20f, 30f, 0f), Rotation = Quaternion.Identity });
+            d.Step();
+            EqsSensor Cover() => d.Repo.GetComponentRO<EqsSensor>(d.Sensor(PeekAndFireNodes.CoverSite));
+            Assert.True(Cover().ContextSlot1.IsNull, "no entity: the true position is not the sensor's business");
+            Assert.Equal(EnemyAt, Cover().ContextPoint1);
+            Assert.NotEqual(0, Cover().ContextPointMask & EqsSensor.Point1Bit);
+
+            ref var mem = ref d.Repo.GetComponentRW<TargetMemory>(d.Self);
+            mem.PositionsX[0] = EnemyAt.X + 1f;   // a 1 m drift keeps the sensor where it is
+            d.Step();
+            Assert.Equal(EnemyAt, Cover().ContextPoint1);
+            mem = ref d.Repo.GetComponentRW<TargetMemory>(d.Self);
+            mem.PositionsX[0] = EnemyAt.X + 5f;   // seen 5 m away: re-pointed
+            d.Step();
+            Assert.Equal(EnemyAt + new Vector3(5f, 0f, 0f), Cover().ContextPoint1);
+
+            var heard = new Vector3(26f, 6f, 0f);
+            mem = ref d.Repo.GetComponentRW<TargetMemory>(d.Self);
+            mem.LastSeenTick[0] = 10;
+            mem.EntityIds[1] = -7;
+            mem.Anonymous[1] = 1;
+            mem.Freshness[1] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
+            mem.Modalities[1] = (byte)SensorModality.Acoustic;
+            mem.PositionsX[1] = heard.X; mem.PositionsY[1] = heard.Y; mem.PositionsZ[1] = heard.Z;
+            mem.LastSeenTick[1] = 50;
+            mem.Count = 2;
+            d.Step();
+            Assert.Equal(heard, Cover().ContextPoint1);   // the freshest evidence (D13) is where he is looked for
         }
 
         /// <summary>

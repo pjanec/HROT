@@ -258,6 +258,7 @@ not layer 3 after five minutes with an opaque "target still alive".
 | `bt-grenade-posture` | grenade 8 m beyond a 0.5 m wall: standing target damaged, prone target undamaged | exposure standing ≥ 0.5; prone ≤ 0.1 |
 | `bt-mortar-roof` | 81 mm on the house: roof occupant damaged, ground-floor occupant not | slab resistance vs fragment penetration ≤ 0.6 |
 | `bt-spawn-levels` | Add Entity at level 0 / +1 / +2 inside the house → Z = ground / storey 2 / roof ± 0.3 m | — |
+| `bt-window-duel` *(CE-3136 P-8)* | A upstairs in House A rotates its south windows (stance peek), B in the street steps out from behind Van 1, fires, and when the van is used up suppresses and bounds to Van 2; both fire, A uses ≥ 2 windows — 📄 `DESIGN_Peek_And_Fire.md` §2, §8 | both upstairs windows see B's step-out point; a rifle round goes through the window; the brick between them hides |
 
 ## 4. Diagnostics API — every number explainable
 

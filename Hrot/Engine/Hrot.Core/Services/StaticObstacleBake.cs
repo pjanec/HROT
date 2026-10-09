@@ -184,8 +184,10 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     private ulong Signature()
     {
         // FNV-1a over every prism's identity and geometry, in query order (stable within a world).
+        // ⭐ Quantised to 1 cm: a REPLICA's position arrives through the geo transform with float noise (105.000015), and an
+        //   exact-bits hash re-baked the world on every position refresh — measured live on bt-window-duel (~150 bakes, CE-3136 P-8).
         ulong h = EmptySignature;
-        void Mix(float f) { h ^= (uint)BitConverter.SingleToInt32Bits(f); h *= 1099511628211UL; }
+        void Mix(float f) { h ^= (ulong)(long)MathF.Round(f * 100f); h *= 1099511628211UL; }
         foreach (var p in _prisms)
         {
             foreach (var v in p.Footprint) { Mix(v.X); Mix(v.Y); }

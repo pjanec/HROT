@@ -588,6 +588,53 @@ def run_mortar_roof(c, timeout):
     c.ok(hd is not None and hd >= 90, f"the man downstairs is spared — Health {hd}")
 
 
+# ── bt-window-duel (CE-3136 P-8, D10) — the window duel: PeekAndFire both sides ──────────────────────────────────────────────
+#   docs/DESIGN_Peek_And_Fire.md §2, §8, P-8. Premises in bt-range/premises.json (DemoPremisesTests). A (upstairs in House A)
+#   rotates its windows; B (in the street, behind Van 1) steps out to fire, and when its cover is used up suppresses and bounds
+#   to Van 2. ⭐ NO HTTP WRITE: the duel plays out on its own.
+
+def run_window_duel(c, timeout):
+    ids = ids_by_name()
+    a, b = ids.get("Window Rifleman"), ids.get("Street Rifleman")
+    if not c.ok(None not in (a, b, ids.get("Van 1"), ids.get("Van 2")), "both riflemen and both vans are loaded"):
+        return
+    a0, b0 = ammo(a)[0], ammo(b)[0]
+    call("POST", "/sim/play", {})
+
+    spots, b_spots = set(), set()
+    # House A's upstairs window firing positions (bt-range's cover database) — at a window, not on the way between two
+    windows = [(102.1, 100.9), (107.1, 100.9), (105.4, 107.1)]
+    def watch():
+        pa, pb = position(a), position(b)
+        if pa and pa[2] >= 2:
+            for w in windows:
+                if ((pa[0] - w[0]) ** 2 + (pa[1] - w[1]) ** 2) ** 0.5 <= 0.75:
+                    spots.add(w)
+        if pb: b_spots.add((round(pb[0]), round(pb[1])))
+        return pa and pb
+    def fired(nid, start):
+        n = ammo(nid)[0]
+        return n is not None and start is not None and n < start
+
+    # ① both expose and fire (aimed or a blind burst — each side's ammunition falls)
+    both = wait_for(lambda: watch() and fired(a, a0) and fired(b, b0), timeout * 2)
+    c.ok(both is not None, f"both fire — A ammo {a0}→{ammo(a)[0]}, B ammo {b0}→{ammo(b)[0]}")
+
+    # ② A uses at least two windows (the heat / exposure count moves it on); ③ B bounds to Van 2's cover
+    van2 = (113.0, 76.0)
+    def bounded():
+        watch()
+        pb = position(b)
+        return pb and ((pb[0] - van2[0]) ** 2 + (pb[1] - van2[1]) ** 2) ** 0.5 <= 4.0 and pb
+    two_windows = lambda: watch() and len(spots) >= 2
+    c.ok(wait_for(two_windows, timeout * 4, every=0.25) is not None,
+         f"A fires from at least two windows upstairs — {sorted(spots)}")
+    c.ok(wait_for(bounded, timeout * 4, every=0.25) is not None, f"B bounds to Van 2's cover — B was at {sorted(b_spots)[:12]}")
+
+    ha, hb = health(a), health(b)
+    print(f"    health: A {ha}, B {hb}; ammo: A {ammo(a)[0]}, B {ammo(b)[0]}")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
@@ -597,7 +644,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-attack-approach": run_attack_approach,
              "bt-doors": run_doors,
              "bt-grenade-posture": run_grenade_posture,
-             "bt-mortar-roof": run_mortar_roof}
+             "bt-mortar-roof": run_mortar_roof,
+             "bt-window-duel": run_window_duel}
 
 
 def main():

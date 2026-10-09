@@ -109,6 +109,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The next cover's stance (<see cref="StanceId"/> + 1; 0 = none).</summary>
         public byte NextStance;
         public Vector3 NextHide;
+        /// <summary>⭐ <c>CE-3144</c> (P-8 D14) — where both sensors look: the memory slot (its id) and the spot they were pointed at.</summary>
+        public long SensorId;
+        public Vector3 SensorAt;
     }
 
     /// <summary>
@@ -374,12 +377,18 @@ namespace Hrot.AI.Behaviors.Brains
         /// slot (<c>TargetMemory.HearContact</c>) and the ranking prefers the identified one — without this the burst goes where the
         /// enemy WAS. Ties keep the threat's own slot. ⚠ An aimed shot still needs sight (D4); this is only where a burst goes.
         /// </summary>
-        internal static unsafe bool FreshestEvidence(EntityRepository world, Entity self, in ThreatAim threat, out Vector3 at)
+        internal static bool FreshestEvidence(EntityRepository world, Entity self, in ThreatAim threat, out Vector3 at)
+            => FreshestEvidence(world, self, in threat, out at, out _);
+
+        /// <summary>As above, and <paramref name="slotId"/> = the memory slot the evidence came from (the threat's own id when no
+        /// heard slot is newer).</summary>
+        internal static unsafe bool FreshestEvidence(EntityRepository world, Entity self, in ThreatAim threat, out Vector3 at, out long slotId)
         {
             bool have = EqsTacticsNodes.ThreatPosition(world, self, in threat, out at);
+            long id = threat.IsPoint ? threat.HeardId : (long)threat.Entity.PackedValue;
+            slotId = id;
             if (!world.HasComponent<TargetMemory>(self)) return have;
             ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
-            long id = threat.IsPoint ? threat.HeardId : (long)threat.Entity.PackedValue;
             uint newest = 0;
             for (int i = 0; i < mem.Count; i++)
                 if (mem.EntityIds[i] == id) { newest = mem.LastSeenTick[i]; break; }
@@ -388,6 +397,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!TargetMemory.IsAnonymous(in mem, i) || mem.LastSeenTick[i] <= newest) continue;
                 newest = mem.LastSeenTick[i];
                 at = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
+                slotId = mem.EntityIds[i];
                 have = true;
             }
             return have;
@@ -521,19 +531,33 @@ namespace Hrot.AI.Behaviors.Brains
         private static void KeepSensors(ref PeekAndFireState ws, in PeekAndFireParams p, Entity self, EntityRepository world,
                                         in ThreatAim was, in ThreatAim threat)
         {
-            bool retarget = EqsTacticsNodes.Moved(in was, in threat);
+            // ⭐ CE-3144 (P-8 D14) — the sensors look from and for where the enemy is REMEMBERED (the freshest evidence, D13), never
+            //   where he is now: a hidden enemy's true position is seen from nowhere, so both soldiers' searches answered nothing and
+            //   the duel stood still (measured live). Re-pointed when that spot moves by RepointMetres or another slot becomes freshest.
+            var aim = SensorAim(world, self, in threat);
+            bool retarget = ws.SensorId == 0 || EqsTacticsNodes.Moved(new ThreatAim(Entity.Null, ws.SensorId, ws.SensorAt), in aim);
             var cover = new PostureSensorsParams { SearchRadius = p.SearchRadius, ScoreDeltaThreshold = p.ScoreDeltaThreshold, FactionFilter = p.FactionFilter };
-            ws.CoverSensor = PostureNodes.Keep(ws.CoverSensor, world, self, CoverSite, p.HideTemplate, in cover, in threat, retarget);
+            ws.CoverSensor = PostureNodes.Keep(ws.CoverSensor, world, self, CoverSite, p.HideTemplate, in cover, in aim, retarget);
             if (ws.PeekIsStep == 1)
             {
                 var peek = cover;
                 peek.SearchRadius = p.PeekSearchRadius;
-                ws.PeekSensor = PostureNodes.Keep(ws.PeekSensor, world, self, PeekSite, FindOpenFiringPosition.BlueprintId, in peek, in threat, retarget);
+                ws.PeekSensor = PostureNodes.Keep(ws.PeekSensor, world, self, PeekSite, FindOpenFiringPosition.BlueprintId, in peek, in aim, retarget);
             }
+            if (retarget) { ws.SensorId = aim.HeardId; ws.SensorAt = aim.Point; }
+            retarget = EqsTacticsNodes.Moved(in was, in threat);
             if (retarget || ws.HeardId != threat.HeardId) ws.HeardPoint = threat.Point;
             ws.Threat = threat.Entity;
             ws.HeardId = threat.HeardId;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3144</c> (P-8 D14) — the sensors' aim: the freshest evidence (<c>FreshestEvidence</c>) as a POINT, keyed by
+        /// the memory slot it came from (the threat's own, or a heard one). Falls back to <paramref name="threat"/> when nothing is
+        /// remembered as a spot.
+        /// </summary>
+        internal static ThreatAim SensorAim(EntityRepository world, Entity self, in ThreatAim threat)
+            => FreshestEvidence(world, self, in threat, out var at, out long id) && id != 0 ? new ThreatAim(Entity.Null, id, at) : threat;
 
         /// <summary>B8 — the unit's weapon is reloading, or its magazine is empty (then the reload starts here).</summary>
         private static bool ReloadingOrEmpty(EntityRepository world, Entity self)

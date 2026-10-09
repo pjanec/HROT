@@ -118,6 +118,39 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.False(default(EqsResult).TryGetStance(out _));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3144</c> (peek-and-fire D15) — "can I shoot him from there" looks at the target's BODY POINTS and is clear when
+        /// ANY is: a standing man 1 m behind a 1.2 m wall shows his head (1.6 m) though his middle (0.85 m — the old single aim) is
+        /// hidden; crouched (top ≈ 1.0 m) he is hidden; a remembered POINT is a standing man's points.
+        /// </summary>
+        [Fact]
+        public void CE3144_D15_TheCandidateSeesAnyBodyPoint_ByTheTargetsStance_AndAPointIsAStandingMan()
+        {
+            _repo.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            _repo.SetSingletonManaged(WallWorld(height: 1.2f));
+            var target = At(10, 11.5f);   // 1 m behind the wall (y 10 … 10.5)
+            var self = At(0, 0);
+            var test = new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible };
+
+            var sensor = new EqsSensor { ContextSlot0 = self, ContextSlot1 = target };
+            var c = new[] { Point(10, 0) };
+            test.ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(0L, c[0].EntityId);   // kept: the head clears the wall
+
+            _repo.AddComponent(target, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Crouched });
+            c = new[] { Point(10, 0) };
+            test.ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(-1L, c[0].EntityId);  // crouched: every body point is under the wall
+
+            var atPoint = new EqsSensor
+            {
+                ContextSlot0 = self, ContextPoint1 = new Vector3(10, 11.5f, 0), ContextPointMask = EqsSensor.Point1Bit,
+            };
+            c = new[] { Point(10, 0) };
+            test.ExecuteBatch(Entity.Null, ref atPoint, _repo, c);
+            Assert.Equal(0L, c[0].EntityId);   // a remembered spot: a standing man there would be seen
+        }
+
         /// <summary>No terrain resident ⇒ sight is unknown ⇒ nothing judged, nothing rejected (never the old "always blocked").</summary>
         [Fact]
         public void Los_WithNoTerrain_JudgesNothing()
