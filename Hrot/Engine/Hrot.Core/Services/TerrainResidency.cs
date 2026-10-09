@@ -383,8 +383,8 @@ public sealed class TerrainResidency
             ? world : new TerrainWorld());
         target.SetSingleton(source.HasSingleton<ZoneEnvironmentData>()
             ? source.GetSingleton<ZoneEnvironmentData>() : new ZoneEnvironmentData());
-        if (source.HasSingletonManaged<RoadNetworkHolder>())
-            target.SetSingletonManaged(source.GetSingletonManaged<RoadNetworkHolder>());
+        if (source.HasSingletonManaged<RoadNetworkHolder>() && source.GetSingletonManaged<RoadNetworkHolder>() is { } holder)
+            target.SetSingletonManaged(holder);
     }
 
     /// <summary>⭐ <c>CE-3128</c> — the node's road graph carrier as a world singleton (idempotent).</summary>
