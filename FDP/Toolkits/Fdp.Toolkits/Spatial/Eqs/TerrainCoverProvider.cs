@@ -54,45 +54,53 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 //   lintels) are not: they do not know their storey floor, and a lintel is not cover. Free walls/fences and solid
                 //   prisms keep this rule unchanged.
                 if (prism.Panel >= 0 && prism.Panel < world.Panels.Count && world.Panels[prism.Panel].Building >= 0) continue;
-                byte stance;
-                if (prism.Height >= 1.5f) stance = 2;
-                else if (prism.Height >= 0.9f) stance = 1;
-                else if (prism.Height >= 0.45f) stance = 0;
-                else continue;
-
-                var fp = prism.Footprint;
-                bool ccw = PolygonMath.SignedArea2(fp) > 0f;
-                for (int e = 0; e < fp.Length; e++)
-                {
-                    var a = fp[e];
-                    var b = fp[(e + 1) % fp.Length];
-                    var edge = b - a;
-                    float len = edge.Length();
-                    if (len < 1e-3f) continue;
-                    var dir = edge / len;
-                    // Outward normal: right of the edge for a counter-clockwise footprint.
-                    var outward = ccw ? new Vector2(dir.Y, -dir.X) : new Vector2(-dir.Y, dir.X);
-                    int n = Math.Max(1, (int)(len / Spacing));
-                    for (int k = 0; k < n; k++)
-                    {
-                        var p = a + (dir * ((k + 0.5f) * len / n)) + (outward * StandOff);
-                        if (EqsTerrainSight.InsideSolid(world, p)) continue;
-                        points.Add(new CoverPoint
-                        {
-                            PositionX = p.X,
-                            PositionY = p.Y,
-                            PositionZ = world.SurfaceZ(p.X, p.Y, prism.BaseZ),
-                            DirectionX = -outward.X,
-                            DirectionY = -outward.Y,
-                            Quality = 1f,
-                            StanceHeight = stance,
-                        });
-                    }
-                }
+                PointsAround(world, prism, points);
             }
             foreach (var panel in world.Panels)
                 if (panel.Building >= 0) AddPanelFaces(world, panel, points);
             return new TerrainCoverProvider(points.ToArray());
+        }
+
+        /// <summary>
+        /// The cover points round ONE solid piece: every <see cref="Spacing"/> along each footprint edge, <see cref="StandOff"/> out,
+        /// facing the piece, at the stance its height protects (<see cref="StanceFor"/>); none when it is too low to hide anyone.
+        /// ⭐ <c>CE-3142</c> (P-7a O5) — the same rule for a standing vehicle's box (<see cref="VehicleCover"/>): one rule, two callers
+        /// (R-174). <paramref name="world"/> null ⇒ no terrain to test against (a point inside a solid is then kept).
+        /// </summary>
+        public static void PointsAround(TerrainWorld? world, TerrainPrism prism, List<CoverPoint> points)
+        {
+            byte stance = StanceFor(prism.Height);
+            if (stance == 255) return;
+
+            var fp = prism.Footprint;
+            bool ccw = PolygonMath.SignedArea2(fp) > 0f;
+            for (int e = 0; e < fp.Length; e++)
+            {
+                var a = fp[e];
+                var b = fp[(e + 1) % fp.Length];
+                var edge = b - a;
+                float len = edge.Length();
+                if (len < 1e-3f) continue;
+                var dir = edge / len;
+                // Outward normal: right of the edge for a counter-clockwise footprint.
+                var outward = ccw ? new Vector2(dir.Y, -dir.X) : new Vector2(-dir.Y, dir.X);
+                int n = Math.Max(1, (int)(len / Spacing));
+                for (int k = 0; k < n; k++)
+                {
+                    var p = a + (dir * ((k + 0.5f) * len / n)) + (outward * StandOff);
+                    if (world != null && EqsTerrainSight.InsideSolid(world, p)) continue;
+                    points.Add(new CoverPoint
+                    {
+                        PositionX = p.X,
+                        PositionY = p.Y,
+                        PositionZ = world?.SurfaceZ(p.X, p.Y, prism.BaseZ) ?? prism.BaseZ,
+                        DirectionX = -outward.X,
+                        DirectionY = -outward.Y,
+                        Quality = 1f,
+                        StanceHeight = stance,
+                    });
+                }
+            }
         }
 
         /// <summary>How far a point's floor may sit from the panel's storey floor and still count as that floor (m).</summary>

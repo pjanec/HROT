@@ -48,6 +48,39 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 };
             }
 
+            // ⭐ CE-3142 (P-7a O5) — a STANDING vehicle's sides are cover too, read live from this view (never baked: a car that drives
+            //   away is gone from the next query). Same rule as a terrain piece (TerrainCoverProvider.PointsAround); the tests after this
+            //   generator see the vehicle as opaque (EqsTerrainSight.Sight), so only the side away from the threat survives.
+            if (Kind == CoverKind.Cover && rawCount < candidates.Length)
+            {
+                var world = EqsTerrainSight.World(view);
+                var vehicles = VehicleCover.Collect(view, world?.Materials, standingOnly: true);
+                if (vehicles != null)
+                {
+                    var around = new System.Collections.Generic.List<CoverPoint>();
+                    foreach (var box in vehicles)
+                    {
+                        around.Clear();
+                        TerrainCoverProvider.PointsAround(world, box, around);
+                        foreach (var p in around)
+                        {
+                            if (rawCount >= candidates.Length) break;
+                            if (Vector2.Distance(new Vector2(p.PositionX, p.PositionY), center) > sensor.SearchRadius) continue;
+                            if (VehicleCover.Inside(vehicles, new Vector2(p.PositionX, p.PositionY))) continue;   // not in another car
+                            candidates[rawCount++] = new EqsResult
+                            {
+                                EntityId  = 0L,
+                                PositionX = p.PositionX,
+                                PositionY = p.PositionY,
+                                PositionZ = p.PositionZ,
+                                Score     = p.Quality,
+                                Stance    = EqsResult.EncodeStance(StanceOf(p.StanceHeight)),
+                            };
+                        }
+                    }
+                }
+            }
+
             return rawCount;
         }
 

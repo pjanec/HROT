@@ -13,7 +13,7 @@ known-rot: §6.1 "registrar ... with RegisterAll" and §6.4 "AiHotReloadCoordina
 known-conflict: Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-D (keep area query separate) — overtaken by
   the user's 2026-09-30 decision to unify into EQS 1.3 (R-156).
 related-designs:
-  - ../../DESIGN_Peek_And_Fire.md — widens EqsResult with the cover point's Stance (CE-3135) and revives ThreatExposureTest (threats from the perception children)
+  - ../../DESIGN_Peek_And_Fire.md — widens EqsResult with the cover point's Stance (CE-3135) and revives ThreatExposureTest (threats from the perception children); §9 makes static obstacles terrain and vehicles live cover in the EQS sight and cover generator (CE-3136, CE-3142)
   - ../../DESIGN_Building_Interiors.md — cover per storey and window firing positions (slice B-3)
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — the behaviours that CONSUME §19.6's cover / retreat templates (CE-3031): TakeCoverBp, FallBackBp, the blueprint re-point.
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS perception on the sensor form (TKB sensor children, memory stage) and the cost-unit budget that will supersede §7.5–7.6.
@@ -1268,7 +1268,7 @@ milliseconds for a town.
 | block | rule |
 |---|---|
 | `EqsContext.Self` | slot 0 if it has a `SimTransform` ⇒ else the observer if it has one ⇒ else the carrier's `PartMetadata.ParentEntity`. The SAME entity drives `NavLayerSelection` (H5) and the threat read |
-| sight heights | from the entity's `SensorMount` (default 1.7 / 1.1 / 0.35 m — perception's `TerrainWorldLosStrategy.DefaultMount`). "Can I shoot from P" = self's **standing** eye at P → target's aim; "am I hidden at P" = threat's eye → self's **crouched** eye at P. Terrain only — vehicles are not cover (they move) |
+| sight heights | from the entity's `SensorMount` (default 1.7 / 1.1 / 0.35 m — perception's `TerrainWorldLosStrategy.DefaultMount`). "Can I shoot from P" = self's **standing** eye at P → target's aim; "am I hidden at P" = threat's eye → self's **crouched** eye at P. Terrain, plus every live vehicle's box (⭐ `CE-3142`, `2026-10-09`: a STANDING vehicle is cover and also adds cover points — read live from the query's view, never baked; 📄 [`DESIGN_Peek_And_Fire.md`](../../DESIGN_Peek_And_Fire.md) §9.7). ⛔ SUPERSEDED: "Terrain only — vehicles are not cover (they move)". Units are still not cover |
 | no terrain resident | sight is **unknown** ⇒ LOS tests do nothing (no flag bits set). ⛔ Never "always blocked" (the old stub) and never "always visible" |
 | flags (§4.2, now honoured) | LOS test sets bit `slot` = HasLOS; `ThreatExposureTest` bit 4 `IsInCover` (hidden from every known threat) / bit 5 `IsExposedFromKnownThreat`; `DotProductTest` bit 6. ⚠ **As-built change:** `CheapLineOfSightTest` used to set bit 0 for "covered from slot 1" — wrong per §4.2 and read by no production code (`grep Flags & 1`: tests only) |
 | `ThreatExposureTest` | known threats = the self's `SensorContactList` (perception's tracks — on the Muscle), filtered by the sensor's `FactionFilter`. Score = 1 − exposedFraction. ⭐ It IS §5.4's `CoverQuality` too: two kinds would be two implementations of one measurement |

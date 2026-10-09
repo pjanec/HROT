@@ -236,6 +236,99 @@ public sealed class StaticObstacleTests
         Assert.True(st.FromCache >= st.Tiles - 8, $"expected the rest from the cache, got {st.FromCache}/{st.Tiles}");
     }
 
+    // ── CE-3142 (P-7a O5) — a vehicle is cover read live ───────────────────────────────────────────────────────────
+
+    private static EntityRepository VehicleWorld()
+    {
+        var repo = new EntityRepository();
+        repo.RegisterComponent<SimTransform>();
+        repo.RegisterComponent<SimVelocity>();
+        repo.RegisterComponent<PhysicsCollider>();
+        repo.RegisterComponent<StaticObstacle>();
+        repo.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+        repo.RegisterComponent<global::CarKinem.Core.VehicleState>();
+        repo.RegisterManagedComponent<TerrainWorld>();
+        repo.RegisterManagedComponent<ICoverProvider>();
+        var flat = TerrainWorldParser.Parse(Flat);
+        repo.SetSingletonManaged(flat);
+        repo.SetSingletonManaged<ICoverProvider>(TerrainCoverProvider.Build(flat));
+        return repo;
+    }
+
+    private static Entity Vehicle(EntityRepository repo, float x, float y, float speed = 0f,
+        global::CarKinem.Core.VehicleClass cls = global::CarKinem.Core.VehicleClass.PersonalCar)
+    {
+        var e = repo.CreateEntity();
+        repo.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0), Rotation = Quaternion.Identity });
+        repo.AddComponent(e, new PhysicsCollider { Radius = 2.4f, Height = 1.5f, CollisionLayer = 1 });
+        repo.AddComponent(e, new global::CarKinem.Core.VehicleParams { Class = cls, Length = 4.5f, Width = 1.8f });
+        repo.AddComponent(e, new global::CarKinem.Core.VehicleState { Speed = speed });
+        return e;
+    }
+
+    private static Entity Point(EntityRepository repo, float x, float y)
+    {
+        var e = repo.CreateEntity();
+        repo.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0) });
+        return e;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>P7a_R10</c> (O5 ①) — the AI's sight sees a vehicle's BOX: a car hides a man below its roof and not above it, a viewer
+    /// whose eye is inside a vehicle (its own) is not hidden by it, and a person's collider is not cover. 🔴 Red-proof: drop the
+    /// <c>vehicles</c> argument in <c>EqsTerrainSight.Sight</c> and the first assertion fails.
+    /// </summary>
+    [Fact]
+    public void P7a_R10_TheAiSight_SeesAVehiclesBox_NotAPerson()
+    {
+        using var repo = VehicleWorld();
+        Vehicle(repo, 30, 30);
+        var los = EqsTerrainSight.Sight(repo, null)!;
+        Assert.False(los.HasLineOfSight(new Vector3(30, 20, 1.0f), new Vector3(30, 40, 1.0f)), "a car hides at 1.0 m");
+        Assert.True(los.HasLineOfSight(new Vector3(30, 20, 1.7f), new Vector3(30, 40, 1.7f)), "not over its 1.5 m roof");
+        Assert.True(los.HasLineOfSight(new Vector3(30, 30.5f, 1.0f), new Vector3(30, 40, 1.0f)), "its own vehicle never hides a viewer inside it");
+        // 1.65 m off the car's middle across its 1.8 m width — inside its 2.4 m collider circle, outside its box: a man at its side is hidden
+        Assert.False(los.HasLineOfSight(new Vector3(30, 31.65f, 1.0f), new Vector3(30, 20, 1.0f)), "a man beside the car is hidden from the far side");
+
+        using var people = VehicleWorld();
+        Vehicle(people, 30, 30, cls: global::CarKinem.Core.VehicleClass.Pedestrian);
+        Assert.True(EqsTerrainSight.Sight(people, null)!.HasLineOfSight(new Vector3(30, 20, 1.0f), new Vector3(30, 40, 1.0f)), "a person is not cover");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>P7a_R11</c> (O5 ②) — the cover generator adds points round a STANDING vehicle (all four sides, stance by its 1.5 m height:
+    /// stand), none round a moving one, none round a static obstacle's collider (that one is terrain already, R-243).
+    /// </summary>
+    [Fact]
+    public void P7a_R11_CoverPoints_RoundAStandingVehicle_NotAMovingOne()
+    {
+        using var repo = VehicleWorld();
+        var self = Point(repo, 30, 22);
+        var sensor = new EqsSensor { SearchRadius = 15f, ContextSlot0 = self };
+        var c = new EqsResult[64];
+
+        Assert.Equal(0, new CoverPointsGenerator().Generate(Entity.Null, ref sensor, repo, c));   // a flat world: no cover at all
+
+        var car = Vehicle(repo, 30, 30);
+        int n = new CoverPointsGenerator().Generate(Entity.Null, ref sensor, repo, c);
+        Assert.True(n >= 4, $"expected points round the parked car, got {n}");
+        for (int i = 0; i < n; i++)
+        {
+            float d = Vector2.Distance(new Vector2(c[i].PositionX, c[i].PositionY), new Vector2(30, 30));
+            Assert.InRange(d, 1.6f, 3.1f);   // 0.75 m off the 4.5 × 1.8 box
+            Assert.True(c[i].TryGetStance(out var st));
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, st);
+        }
+        Assert.Equal(0, new CoverPointsGenerator { Kind = CoverKind.WindowFiring }.Generate(Entity.Null, ref sensor, repo, c));
+
+        repo.SetComponent(car, new global::CarKinem.Core.VehicleState { Speed = 5f });
+        Assert.Equal(0, new CoverPointsGenerator().Generate(Entity.Null, ref sensor, repo, c));   // driving: not cover
+
+        repo.SetComponent(car, new global::CarKinem.Core.VehicleState { Speed = 0f });
+        repo.AddComponent(car, new StaticObstacle { Material = new FixedString32("car-body") });
+        Assert.Equal(0, new CoverPointsGenerator().Generate(Entity.Null, ref sensor, repo, c));   // terrain already: the provider owns it
+    }
+
     private sealed class V2Eq : IEqualityComparer<Vector2>
     {
         private readonly float _eps;
