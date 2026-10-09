@@ -22,6 +22,7 @@ related-designs:
   - designs/utility-ai/Runtime_Tuning_Console_and_AI_Overlays_Design_v1_0.md §6/§8 — the AI overlay family §5b folds into gizmos.
   - designs/mgmt-1/DESIGN.md §13.3 — the exercise archive folder that CE-3119 adds a scenario copy to.
   - DESIGN_Mcp_Diagnostics_Federation.md + RUNBOOK_Cluster_Debugging_Over_Http.md — the route → MCP tool flow §4 extends.
+  - GUIDE_Debug_Gizmos.md — the USER guide to §5's layers, families and pins (how to turn each on, how to read its colours); this design owns the why
   - DESIGN_Ai_Action_Status_Gizmo.md — OWNS the per-unit action status (why a unit is not firing) drawn by the Channels gizmo family (proposed; departs from §5a's armed-only precedent, argued there)
 -->
 

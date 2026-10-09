@@ -55,7 +55,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool PathSelectedOnly { get; set; } = true;
         public bool PerceptionSelectedOnly { get; set; }
         public bool ContactsSelectedOnly { get; set; }
-        public bool EqsSelectedOnly { get; set; }
+        public bool EqsSelectedOnly { get; set; } = true;   // ⭐ CE-3143 — EQS draws every candidate's verdict: selected by default
         public bool UtilitySelectedOnly { get; set; } = true;
         public bool SquadSelectedOnly { get; set; } = true;
         /// <summary>⭐ <c>CE-3136</c> — the action status (why a unit is not firing): selected and pinned units by default.</summary>
