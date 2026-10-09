@@ -1723,7 +1723,7 @@ namespace Hrot.Editor
                 storageDirectory: isolatedTempRoot));
 
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
-            _kernel.RegisterModule(new EditorSystemsModule());
+            _kernel.RegisterModule(new EditorSystemsModule(() => EntityCreation));   // ⭐ CE-3141 — the obstacle tool creates through the pack
 
             // ?? 4c. ELM + offline spawning module + scenario genesis pipeline ??????????????????
             // CreateEntityRequestSystem drains scenarioLoadSource each Input tick and emits
@@ -1745,13 +1745,14 @@ namespace Hrot.Editor
             //   anyway because Q65 §0 forbids removing a capability by composition — and because a host
             //   that skipped it would warn forever through Unserviceable().
             _kernel.RegisterGlobalSystem(creation.PromotionSystem);
+            _kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
 
             // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this
             //   design was silent.
             var unserviceable = creation.Unserviceable(new object[]
             {
                 creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-                creation.PromotionSystem,
+                creation.PromotionSystem, creation.ObstacleBakeSystem,
             });
             if (unserviceable.Length > 0)
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Warn(unserviceable);

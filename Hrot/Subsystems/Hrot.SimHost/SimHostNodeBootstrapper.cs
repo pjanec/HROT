@@ -556,13 +556,14 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //   consumer was NedReplicationModule's GhostPromotionSystem construction (see the note at :231);
         //   the pack now supplies that list directly, which is what that removal was waiting for.
         context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);       // BeforeSync
+        context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);    // ⭐ CE-3136 P-7a — static obstacles become terrain
 
         // ⭐⭐ Make an omission LOUD. Every one of the five defects behind this design was silent, so the
         //   pack reports any piece the host built and then forgot to schedule.
         var unserviceable = creation.Unserviceable(new object[]
         {
             creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-            creation.PromotionSystem,
+            creation.PromotionSystem, creation.ObstacleBakeSystem,
         }.Concat(creation.NetworkSystems));
         if (unserviceable.Length > 0)
             Fdp.Core.Logging.FdpLog<SimHostNodeBootstrapper>.Warn(unserviceable);

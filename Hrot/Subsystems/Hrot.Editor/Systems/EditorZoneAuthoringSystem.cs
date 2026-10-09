@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -35,25 +36,38 @@ namespace Hrot.Editor.Systems;
 [UpdateInPhase(SystemPhase.Simulation)]
 public sealed class EditorZoneAuthoringSystem : IEcsModuleSystem
 {
+    private readonly Func<Hrot.Common.EntityCreation.EntityCreation?> _creation;
+
+    /// <param name="creation">⭐ <c>CE-3141</c> — the node's creation pack (read late: the editor builds it after this module).
+    /// ⛔ Null drops the click LOUDLY — a placement that silently does nothing is the defect this replaced.</param>
+    public EditorZoneAuthoringSystem(Func<Hrot.Common.EntityCreation.EntityCreation?>? creation = null)
+        => _creation = creation ?? (() => null);
+
     /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <c>CE-3141</c> / <c>CE-3136</c> P-7a O4 (R-242) — the click now REQUESTS a typed static obstacle, a
+    /// <c>Concrete block</c>, through the creation pack: it gets a TKB type (so a save reloads it — it used to be a bare
+    /// <c>SimTransform</c> + <c>PhysicsCollider</c> that the load path rejected with <c>TkbType = 0</c>), it replicates, and it is
+    /// baked into every node's terrain like any obstacle. The radius slider becomes the block's footprint (a square of side 2r,
+    /// 1 m high — the area the old circle covered). 📄 docs/DESIGN_Peek_And_Fire.md §9.2 O4.
+    /// </remarks>
     public void Execute(ISimulationView view, float deltaTime)
     {
-        var repo = (EntityRepository)view;
-
         foreach (var cmd in view.ReadManagedEvents<SpawnZoneObstacleCommand>())
         {
-            var entity = repo.CreateEntity();
-
-            repo.AddComponent(entity, new SimTransform
+            var creation = _creation();
+            if (creation == null)
             {
-                Position = new Vector3(cmd.Position.X, cmd.Position.Y, 0f),
-            });
+                Fdp.Core.Logging.FdpLog<EditorZoneAuthoringSystem>.Warn(
+                    $"[Editor] Obstacle placement at ({cmd.Position.X:0.#}, {cmd.Position.Y:0.#}) DROPPED — this host has no entity-creation pack.");
+                continue;
+            }
 
-            repo.AddComponent(entity, new PhysicsCollider
-            {
-                Radius         = cmd.Radius,
-                CollisionLayer = PhysicsConstants.EntityCollisionLayer,
-            });
+            float side = MathF.Max(2f * cmd.Radius, 0.5f);
+            creation.RequestEntityCreation(
+                Hrot.Map.Common.TkbEntityTypes.Obstacle_ConcreteBlock,
+                transform: new SimTransform { Position = new Vector3(cmd.Position.X, cmd.Position.Y, 0f), Rotation = Quaternion.Identity },
+                initialComponents: new object[] { new Fdp.Toolkit.Terrain.ObstacleShape { Length = side, Width = side, Height = 1f } });
         }
     }
 }

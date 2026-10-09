@@ -268,6 +268,20 @@ namespace Hrot.Map.Definitions.Tkb
             //   its state (DoorState) and key (TerrainObjectKey) arrive with the creation request on the creator and through the
             //   EntityDoorState descriptor everywhere else — nothing for a TKB translator to inject.
             tkbDb.Register(new TkbTemplate("Door", TkbEntityTypes.Door));
+
+            // ⭐ CE-3136 P-7a (O4, R-242) — the four starter STATIC OBSTACLES: terrain made of a wall-library material
+            //   (📄 docs/DESIGN_Peek_And_Fire.md §9). ⚠ The sizes and the car-body material are starter values to tune (§3c).
+            RegisterObstacle(tkbDb, "Car",            TkbEntityTypes.Obstacle_Car,           4.5f, 1.8f, 1.5f, "car-body");
+            RegisterObstacle(tkbDb, "Sandbag wall",   TkbEntityTypes.Obstacle_SandbagWall,   3.0f, 0.6f, 1.0f, "sandbags");
+            RegisterObstacle(tkbDb, "Concrete block", TkbEntityTypes.Obstacle_ConcreteBlock, 2.0f, 1.0f, 1.0f, "concrete");
+            RegisterObstacle(tkbDb, "Crate",          TkbEntityTypes.Obstacle_Crate,         1.2f, 1.0f, 1.0f, "fence-wood");
+        }
+
+        private static void RegisterObstacle(TkbDatabase tkbDb, string name, long type, float length, float width, float height, string material)
+        {
+            var t = new TkbTemplate(name, type);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.StaticObstacleDto { Length = length, Width = width, Height = height, Material = material });
+            tkbDb.Register(t);
         }
     }
 }

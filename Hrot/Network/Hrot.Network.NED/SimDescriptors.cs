@@ -81,6 +81,28 @@ namespace Hrot.NED.Descriptors
         public string Key;
     }
 
+    // ⭐ CE-3136 P-7a (O3, R-242/R-243) — a static obstacle's box (the TKB's size or a scenario's per-instance one), published by the
+    //   obstacle's creator, applied on every other node BEFORE its ghost promotes ([PerInstanceValue] ObstacleShape), so every node bakes
+    //   the same box into its terrain. TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every obstacle.
+    //   📄 docs/DESIGN_Peek_And_Fire.md §9.
+    [DdsTopic("EntityObstacleShape")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityObstacleShape
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>Box length along the heading (m).</summary>
+        public float Length;
+
+        /// <summary>Box width (m).</summary>
+        public float Width;
+
+        /// <summary>Box height (m).</summary>
+        public float Height;
+    }
+
     // ── Navigation CQRS descriptors (MOD1-P1T1) ──────────────────────────────
     // These are the DDS wire representations of the engine-side NavigationIntent and
     // NavigationStatus ECS components.  The engine-side enums (NavigationMode,

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Fdp.Core;
 using Fdp.Core.Logging;
@@ -63,6 +64,14 @@ public sealed class TerrainResidency
     //   node without the NavigationSolver role (IG, a viewer).
     private Fdp.Toolkit.Navigation.INavmeshFactory?            _navmeshFactory;
     private Fdp.Toolkit.Navigation.SwitchableNavmeshProvider?  _navmesh;
+
+    // ⭐ CE-3136 P-7a (R-243) — the terrain WITHOUT static obstacles (what Commit/Unload published), and its version: the obstacle
+    //   bake derives every world from it, and a new terrain re-bakes the obstacles over the new one.
+    private volatile TerrainWorld _baseWorld = new();
+    private StaticObstacleBakery? _bakery;
+
+    /// <summary>⭐ <c>CE-3136</c> P-7a — bumped by every terrain commit / unload: an obstacle bake made over an older base is stale.</summary>
+    public int BaseVersion { get; private set; }
 
     // ⭐ The idempotency branch, and the only implementation of it: same name + same files ⇒ no work.
     private string?  _lastLoadedTerrainName;
@@ -260,6 +269,9 @@ public sealed class TerrainResidency
         //   terrain's buildings behind.
         world.RegisterManagedComponent<TerrainWorld>();
         world.SetSingletonManaged(staged.World ?? new TerrainWorld { Name = staged.TerrainName });   // CE-3028: named even when it has no world file
+        _baseWorld = world.GetSingletonManaged<TerrainWorld>() ?? new TerrainWorld();   // ⭐ CE-3136 P-7a — the base the obstacle bake builds on
+        BaseVersion++;
+        PublishBakery(world);
 
         // ⭐ W9 / CE-3018 — the spatial grids REBASE to this world on their own threads (SpatialHashSystem,
         //   LocalGridBuilderSystem — docs/DESIGN_Terrain_World.md §4.4); log where they will sit, and stay LOUD if even the
@@ -348,6 +360,9 @@ public sealed class TerrainResidency
             world.SetSingletonManaged<TerrainDefinition>(null!);   // CE-3075 — no terrain: a save must not stamp the old name
         if (world != null && world.HasSingletonManaged<TerrainWorld>())
             world.SetSingletonManaged(new TerrainWorld());
+        _baseWorld = new TerrainWorld();   // ⭐ CE-3136 P-7a — obstacles re-bake over flat ground
+        BaseVersion++;
+        PublishBakery(world);
         if (world != null && world.HasSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>())
             world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
                 Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(new TerrainWorld()));
@@ -392,6 +407,63 @@ public sealed class TerrainResidency
     }
 
     /// <summary>⭐ <c>CE-3128</c> — the node's road graph carrier as a world singleton (idempotent).</summary>
+    /// <summary>
+    /// ⭐ <c>CE-3136</c> P-7a (R-243) — what an obstacle bake built off-thread: the terrain + obstacle prisms, its cover database and
+    /// (on a navigation node) its navmesh. Published by <see cref="CommitObstacles"/>.
+    /// </summary>
+    public sealed class ObstacleBake
+    {
+        internal TerrainWorld World = new();
+        internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
+        internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
+        internal int BaseVersion;
+        /// <summary>Wall-clock duration of the bake (ms) — diagnostics only (R-143's exemptions).</summary>
+        public long Milliseconds { get; internal set; }
+        /// <summary>The obstacle prisms it holds.</summary>
+        public int Obstacles { get; internal set; }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3136</c> P-7a — the OFF-THREAD half of an obstacle rebuild (touches no ECS): the current base terrain +
+    /// <paramref name="obstacles"/> → a new immutable world (R-218), its cover database, and on a navigation node a navmesh baked
+    /// through the per-tile cache (only the tiles the obstacles touch are new). 📄 docs/DESIGN_Peek_And_Fire.md §9.
+    /// </summary>
+    public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var baseWorld = _baseWorld;
+        int baseVersion = BaseVersion;
+        var bake = new ObstacleBake { BaseVersion = baseVersion, Obstacles = obstacles.Count };
+        bake.World = TerrainObstacles.With(baseWorld, obstacles);
+        if (_navmeshFactory != null) bake.Navmesh = _navmeshFactory.Build(bake.World);
+        bake.Cover = Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World);
+        bake.Milliseconds = sw.ElapsedMilliseconds;
+        return bake;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3136</c> P-7a — the MAIN-THREAD half: publishes a bake's world, cover and navmesh in one commit. Returns false (and
+    /// publishes nothing) when the terrain changed since the bake began — the caller bakes again over the new base.
+    /// </summary>
+    public bool CommitObstacles(EntityRepository world, ObstacleBake bake)
+    {
+        if (bake.BaseVersion != BaseVersion) return false;
+        world.RegisterManagedComponent<TerrainWorld>();
+        world.SetSingletonManaged(bake.World);
+        _navmesh?.Publish(bake.Navmesh);
+        world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
+            bake.Cover ?? Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World));
+        return true;
+    }
+
+    private void PublishBakery(EntityRepository? world)
+    {
+        if (world == null) return;
+        _bakery ??= new StaticObstacleBakery(this);
+        if (world.HasSingletonManaged<StaticObstacleBakery>() && ReferenceEquals(world.GetSingletonManaged<StaticObstacleBakery>(), _bakery)) return;
+        world.SetSingletonManaged(_bakery);
+    }
+
     private void PublishHolder(EntityRepository? world)
     {
         if (world == null) return;

@@ -1057,13 +1057,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    the SAME list instance it gives the ELM and the spawn system, which is §6.3's invariant made
         //    true by construction for all three rather than two.
         _context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);
+        _context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
 
         // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this design
         //    was silent, and CE-138 (this host's own zero-iteration translator loop) was one of them.
         var unserviceable = creation.Unserviceable(new object[]
         {
             creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-            creation.PromotionSystem,
+            creation.PromotionSystem, creation.ObstacleBakeSystem,
         }.Concat(creation.NetworkSystems));
         if (unserviceable.Length > 0)
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Warn(unserviceable);

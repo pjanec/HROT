@@ -144,6 +144,10 @@ namespace Fdp.Toolkit.Physics.Systems
 
                     if (!repo.HasComponent<PhysicsCollider>(candidate)) continue;
 
+                    // ⭐ CE-3136 P-7a (R-243) — a static obstacle is TERRAIN: a round crosses it by the wall rule (TerrainPenetration,
+                    //   its material × the chord), never stopped dead by its movement collider.
+                    if (PhysicsConstants.IsBulletRay(req.RayId) && Fdp.Toolkit.Terrain.TerrainObstacles.IsObstacle(repo, candidate)) continue;
+
                     var collider = repo.GetComponent<PhysicsCollider>(candidate);
 
                     if ((req.LayerMask & collider.CollisionLayer) == 0) continue;

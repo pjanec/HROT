@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-09
-build-state: P-1–P-6 BUILT 2026-10-09 (§7); READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
-current-answer: §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles (O1–O5 PROPOSED) · §3 classes · §4 sequences · §5 modules · §7 slices
+build-state: P-1–P-6 and P-7a (O1–O4) BUILT 2026-10-09 (§7); O5 READY-TO-BUILD (CE-3142); READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
+current-answer: §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles (O1–O5 APPROVED; O1–O4 BUILT, §7 P-7a row is the as-built) · §3 classes · §4 sequences · §5 modules · §7 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
@@ -208,7 +208,7 @@ chosen on SimHost from geometry. The ~100–300 ms report latency is part of the
 | P-4 ✅ **BUILT `2026-10-09`** | D6 threat exposure revived. **As-built:** ⚠ the premise failed first — a sensor child's `SensorContactList` lives only on the node that SOLVES that sensor (written by `SensorMemoryStage`, replicated by no descriptor), and `SolverNodeId` was picked per sensor (least loaded). ✅ **R-239 (user: "yes"):** a NEW solver pick prefers the node already solving a SIBLING sensor of the same unit when it carries the sensor's role (`EqsSensorConfigEgressTranslator.SiblingSolver`, lowest part wins; `IClusterStateCache.HasRole` new), else the least loaded; existing picks are untouched (sticky, R-179). `ThreatExposureTest` reads the acquired contacts of the unit's **sensor children** (plus a legacy unit-level list), one threat counted once | rails `TerrainEqsTests.P4_ThreatExposure_ReadsTheUnitsSensorChildren`; `EqsSensorSolverPickTests` (sibling beats least-loaded · no sibling / sibling node lacking the role / gone ⇒ fallback · lowest part wins) |
 | P-5 ✅ **BUILT `2026-10-09`** | D9 reload (R-239). **As-built:** `Fdp.Toolkit.Combat.Magazine` is the one rule (`Load` · `Ready` · `Spend` · `StartIfEmpty` · `Tick`); `WeaponState` gains `MagazineRounds`, `MagazineSize` (0 = no magazine — the whole load, as before), `ReloadSeconds` (cached at spawn, like `MaxAmmo`), `ReloadSecondsRemaining`; `Ammo` stays the total. TKB: `WeaponMountDto.MagazineSize` / `ReloadSeconds` (fallback `EngineFallbacks.ReloadSeconds` 3 s), resolved as `Weapon[i].MagazineSize` / `ReloadSeconds` (`/tkb/resolve`). `CombatTkbTranslator` loads the first magazine at spawn. Both executors: an empty magazine **holds** (Running, no round) and starts the reload; out of ammunition altogether is still Failure / Success-after-a-burst. ⭐ The **dispatcher** runs every reload each frame (owner and mount children, beside the cooldown drain) — so a unit that hides to reload (B8) comes out loaded. Catalog: `InfantrySoldier` and `Grenadier` rifles = 5 × 30 rounds, 3 s reload (were 30 rounds, no reload). Two integration tests that compared against a literal 30 now compare against the spawned load | rails `AimAndFireExecutorTests.P5_TheThirtyFirstRound_WaitsForTheReload` (30 go, held 3 s ± one step, the 31st), `P5_NoMagazine_FiresTheWholeLoad`; `WeaponInteractionDispatcherTests.P5_WeaponDispatcher_RunsAReload_OnAMountChild_WhileNotFiring` |
 | P-6 ✅ **BUILT `2026-10-09`** | D7 + D8 `PeekAndFire` (+ T4 gizmo). **As-built:** `Hrot.AI.Behaviors/Brains/PeekAndFireNodes.cs` — `[SharedAiAction] PeekAndFire(ref PeekAndFireParams, ref PeekAndFireState, self, world)` + its `[BTreeDeactivator]`, the §8.2 machine (Choose → MoveToHide → Hidden → Expose → Aimed / Blind → Recover; *Relocate* is not a state of its own: Hidden re-runs Choose with `relocating`, and goes to MoveToHide when a cooler spot ≥ `MinRelocateMetres` away exists — a burned spot with nowhere to go waits to cool, a merely used-up one keeps fighting). `FiringPositionMemory` (`[UnitMemory]`, 8 slots: X/Y/Z, Heat, HeatAt, Burned, Uses) and `PositionHeat` (B2–B5: `HeatNow`, `Find`, `Add`, `IsBurned`, `Penalty`, over `HeatRules` = the node's five heat parameters, `PeekAndFireNodes.Rules`). Reuses, never copies (R-174): `EqsTacticsNodes.TopAim` / `ThreatPosition`, `PostureNodes.Keep` / `Drop` (the two sensors, sites `0x31360001/2`) and `PostureNodes.Fire` — which gained B7's `rounds` — plus `FireAtPointNodes.FireAtPoint`, `StanceRequest`, `LocomotionMoveTo`, `SightNow.Sees`, `RecentSensesOf`, `Magazine`. ⚠ **Deviations, argued:** ① the **node** lives in **`Hrot.AI.Behaviors`** (every shared step it calls lives there); its **data stays in `Fdp.Toolkits`** as B1 said — `FiringPositionMemory`, `PeekPhase`, `HeatRules` + `PositionHeat` (`Fdp.Toolkits/Combat/FiringPositionMemory.cs`) — so the gizmo can sit in `Hrot.Presentation`, which every map host loads (R-228; the hot-reload `Hrot.AI.Behaviors` is skipped by the deployment pre-load and would pin a projector, ST-035); ② the blind burst's **aim height is the node's** (`BlindAimHeight`, 1 m) added to the remembered spot, ⛔ not `FireAtPointExecutor`'s — a grenade or a mortar aims at the ground point it is given (§3's "AimHeight added to the point" SUPERSEDED); ③ the **heat is the HIDE point's** (the position), a step peek's step-out point is not remembered separately; ④ the memory also **mirrors the phase, its timer and the two points** (`Phase`, `PhaseAt`, `PhaseUntil`, `HidePoint`, `PeekPoint`) for `PeekAndFireGizmo` — the node's own state sits in a tree's blackboard at an offset no gizmo can know; ⑤ a **zero parameter means its default** (`PeekAndFireNodes.Effective`, the §8.4 default column); ⑥ the step peek's sensor is `FindOpenFiringPosition` with `PeekSearchRadius`, centred on the unit — which stands at the hide point when it asks. `SuppressBeforeRelocate` (D12) and the freshest evidence (D13) are P-7: the parameter exists and is inert; the blind burst aims at `ThreatPosition` (the ranking's top). No curated tree yet — P-8's `WindowDuel` is the first. **T4:** `Hrot.Presentation/ScenarioEditor/Gizmos/PeekAndFireGizmo.cs` (family `Channels` = "Actions", selected or pinned by default): a ring per remembered position, yellow → red with heat, red when burned, `h1.7 x3` = heat and uses; while the node ran within 1 s, `PF hidden 2.1s` above the unit and the hide (green) and peek (blue) points. Read through `UnitMemory.GetInView` (new: the view form of `Get`) — recorded, so a replay draws it | rails `PeekAndFireNodesTests` (SimHost.Tests): `P6_R1` stance peek (prone ↔ crouched, 3 aimed, one use, heat 1.0) · `P6_R2` step peek (moves cover → peek → cover, standing out, the cover point heats) · ⭐ `P6_R3` **the design rail**: three quick exposures burn the window by HEAT (the counter set to 10) and the unit moves to the next; after an exit and a fresh state the new run still skips it (B1) · `P6_R4` the exposure counter relocates past a too-close window · `P6_R5` not seen ⇒ after the grace a 3-round blind burst at the remembered spot + 1 m, no aimed round · `P6_R6` reloading / a near miss keeps it down, up again 3 s later · `P6_R7` near-missed while aimed ⇒ down at once, heat 1 + 1.5 · `P6_R8` nothing remembered ⇒ Success · `P6_R9` heat rules (half-life, hysteresis, match radius, coolest replaced) · `P6_R10` the gizmo's phase/slot text |
-| P-7a | D11 obstacle entity: TKB type, spawn, bullet stop, cover points, EQS sight, navmesh cut | a car blocks sight and rounds, has cover points behind it, and a path goes round it |
+| P-7a ✅ **BUILT `2026-10-09`** (O1–O4; O5 = `CE-3142`, next) | D11 obstacle entity: TKB type, spawn, bullet stop, cover points, EQS sight, navmesh cut. **As-built** (§9.3–§9.5 are the as-built diagrams): `StaticObstacle` (345, the material) + `[PerInstanceValue] ObstacleShape` (346) from `StaticObstacleDto` by `ObstacleTkbTranslator` (every node's `TkbTranslatorSet.Base`; collider radius = half the diagonal, entity layer); `ObstacleShape` is replicated (`EntityObstacleShape`, TransientLocal, `dtObstacleShape` 123) so a per-instance size reaches every node; four types `Car` 8806 · `Sandbag wall` 8807 · `Concrete block` 8808 · `Crate` 8809 (`BdcTkbCatalog.RegisterObstacle`), new material `car-body`. `TerrainObstacles` (Fdp.Toolkits) = `PrismOf` / `With` / `MaterialOf` / `Yaw` / `IsObstacle`. `StaticObstacleBakeSystem` (Hrot.Core, BeforeSync) = the terrain lifecycle participant, built by `EntityCreationPack` and scheduled by the five ECS hosts (IG, Stride NodeComposition, CGF, SimHost, Editor — `Unserviceable` names it when missing). ⚠ **Deviations, argued:** ① the lifecycle participant is not on each blueprint — `EntityLifecycleModule.RegisterTemplateRequirement(rule, module)` (new) makes every template carrying `StaticObstacleDto` wait for module `0x7E41` (`TerrainObstacles.LifecycleModuleId`), one rule instead of four catalog edits that a fifth type would forget; ② the bake reaches the node's `TerrainResidency` through a `StaticObstacleBakery` singleton (347) the residency publishes on every commit/unload — its ABSENCE (a node with no terrain) acks at once; ③ the scenario's ONE bake comes from the wall-clock debounce (each arrival restarts the quiet period), not from waiting on the load step's condition ① — a load that arrives slower than 0.5 s per batch may bake twice, which cannot leak into the result: every obstacle waits `Constructing` until a bake containing it commits and the load waits for nothing `Constructing`; ④ the navmesh is a full `Build` through the per-tile cache, not `Rebake` — the same touched-tile effect, measured; ⑤ the box top is a walkable roof (like a building's) unconnected to the ground, so `IsWalkable` there finds the roof. 📐 **Measured** (`P7a_R9`, real `test-town`, 576 tiles): base bake 1 793 ms; +3 obstacles = **238 ms** (2 tiles baked, 574 from the cache; world 0 ms, cover 2 ms) ⇒ with the 0.5 s quiet period ≈ 45 frames at 60 Hz — the lifecycle's 300-frame timeout is not near. ⚠ **Known gaps:** the Replay Browser runs no bake, so a recorded obstacle is not in its mirrored terrain; a world with no walkable ground gets no navmesh; the Editor's zone obstacle is now a `Concrete block` 2r × 2r × 1 m (`CE-3141` fixed) | rails `StaticObstacleTests` (Toolkits) R1 prism along the heading · R2 concrete stops a round, a crate lets it through with 40 mm left, over the top crosses nothing · R3 the car hides at 1.0 m, not at 1.7 m · R4 cover points round it (stand) · R5 the path goes round a 12 m wall · R6 translator, an instance size wins · R7 the sight occluder skips it · R8 the lifecycle holds an obstacle type until `0x7E41` acks · R9 the test-town measurement; `StaticObstacleBakeTests` (SimHost) ⭐ B1 acked only after the bake committed, after the quiet period · B2 three arrivals, one bake · B3 no terrain ⇒ at once · B4 removal re-bakes; Editor `SpawnObstacle_PublishCommand_RequestsATypedConcreteBlock_SizedByTheRadius`, `SpawnObstacle_WithNoCreationPack_CreatesNothing` |
 | P-7 | D12 bound + D13 freshest evidence, on the obstacles | B reaches a second cover while A is near-missed and stays down; A's next blind burst lands at B's heard spot |
 | P-8 | D10 scenario + rail + HTTP check; T3 baselines re-pinned if D4 moved them | the duel rail |
 
@@ -366,81 +366,101 @@ entities — **agrees.**
 | letting the swap happen whenever the bake ends, the obstacle already live | the bake time would leak into the result — the user's determinism point |
 | a sim-time debounce | sim time stands still while paused or loading — the job would never start |
 
-### 9.3 Classes
+### 9.3 Classes *(as built `2026-10-09`)*
 
 ```mermaid
 classDiagram
-  class StaticObstacle { <<NEW marker component>> }
-  class ObstacleShape { <<NEW component>> Length; Width; Height; Material }
-  class ObstacleTkbTranslator { <<NEW>> stamps marker + shape + collider from the TKB type }
-  class TerrainObstacles { <<NEW static>> PrismOf(shape, transform) ; SetHash(view) }
-  class StaticObstacleWatchSystem { <<NEW, every ECS node>> the terrain lifecycle participant: batch, rebuild, ack }
-  class EntityLifecycleModule { <<existing>> Constructing until every participant acks }
-  class TerrainResidency { <<existing, grows>> Rebuild(obstacles) off-thread ; Commit swaps }
+  class StaticObstacleDto { <<NEW TKB descriptor>> Length; Width; Height; Material }
+  class StaticObstacle { <<NEW component 345>> Material }
+  class ObstacleShape { <<NEW component 346, PerInstanceValue, replicated>> Length; Width; Height }
+  class ObstacleTkbTranslator { <<NEW, TkbTranslatorSet.Base>> marker + shape + collider }
+  class TerrainObstacles { <<NEW static, Fdp.Toolkits>> PrismOf ; With ; MaterialOf ; Yaw ; IsObstacle ; LifecycleModuleId 0x7E41 }
+  class StaticObstacleBakeSystem { <<NEW, Hrot.Core, BeforeSync>> collect ; debounce wall clock ; bake ; commit ; ack }
+  class StaticObstacleBakery { <<NEW singleton 347>> the node's residency handle }
+  class EntityCreationPack { <<existing, grows>> registers the ELM rule, builds the bake system }
+  class EntityLifecycleModule { <<existing, grows>> RegisterTemplateRequirement(rule, module) }
+  class TerrainResidency { <<existing, grows>> BakeObstacles off-thread ; CommitObstacles ; publishes the bakery }
   class TerrainWorld { <<existing>> Prisms += obstacle prisms }
   class TerrainCoverProvider { <<existing>> Build(world) }
-  class RecastNavmeshFactory { <<existing>> Rebake(provider, world) — touched tiles only }
+  class RecastNavmeshFactory { <<existing>> Build through the per-tile cache }
   class RaycastSolverSystem { <<existing, grows>> bullet rays skip StaticObstacle }
   class ColliderOcclusion { <<existing, grows>> skips StaticObstacle }
-  class EditorZoneAuthoringSystem { <<existing, grows>> spawns type Concrete block }
+  class EditorZoneAuthoringSystem { <<existing, grows>> requests a Concrete block }
+  StaticObstacleDto <.. ObstacleTkbTranslator
   ObstacleTkbTranslator ..> StaticObstacle
   ObstacleTkbTranslator ..> ObstacleShape
-  StaticObstacleWatchSystem ..> TerrainObstacles
-  StaticObstacleWatchSystem ..> EntityLifecycleModule : ConstructionAck after commit
-  StaticObstacleWatchSystem ..> TerrainResidency
+  EntityCreationPack ..> EntityLifecycleModule : rule StaticObstacleDto needs 0x7E41
+  EntityCreationPack ..> StaticObstacleBakeSystem : builds
+  StaticObstacleBakeSystem ..> TerrainObstacles
+  StaticObstacleBakeSystem ..> StaticObstacleBakery : reads
+  StaticObstacleBakery --> TerrainResidency
+  StaticObstacleBakeSystem ..> EntityLifecycleModule : ConstructionAck after commit
   TerrainResidency ..> TerrainWorld
   TerrainResidency ..> TerrainCoverProvider
   TerrainResidency ..> RecastNavmeshFactory
-  TerrainObstacles ..> ObstacleShape
-  RaycastSolverSystem ..> StaticObstacle
-  ColliderOcclusion ..> StaticObstacle
-  EditorZoneAuthoringSystem ..> ObstacleTkbTranslator
+  RaycastSolverSystem ..> TerrainObstacles
+  ColliderOcclusion ..> TerrainObstacles
+  EditorZoneAuthoringSystem ..> EntityCreationPack : RequestEntityCreation
 ```
 
 *What the picture shows that prose hid: every consumer of obstacles is an EXISTING terrain reader — the new code is only the path INTO the
-terrain (translator, watcher, prism builder) and the two places that must STOP seeing the entity's collider.*
+terrain (translator, bake system, prism builder) and the two places that must STOP seeing the entity's collider. The lifecycle learns of the
+terrain participant from ONE rule in the creation pack, not from each obstacle blueprint.*
 
-### 9.4 Sequence — a scenario with obstacles loads *(the lifecycle gate, O2)*
+### 9.4 Sequence — a scenario with obstacles loads *(the lifecycle gate, O2 — as built)*
 
 ```mermaid
 sequenceDiagram
   participant L as ScenarioLoadStep
   participant N as any ECS node
   participant ELM as EntityLifecycleModule
-  participant T as terrain participant (StaticObstacleWatchSystem)
+  participant T as StaticObstacleBakeSystem
   participant R as TerrainResidency (off-thread)
   L->>N: create every scenario entity
-  N->>ELM: obstacle Car - Constructing, waits for ModuleId.Terrain
-  T->>T: wait until every load request is consumed
-  T->>R: ONE rebuild - terrain + all obstacle prisms
-  R-->>R: world, cover, touched navmesh tiles
-  R->>N: Commit - swap the three singletons
+  N->>ELM: obstacle Car - Constructing, rule says wait for 0x7E41
+  loop each frame
+    T->>T: collect obstacles, hash the set
+  end
+  T->>T: set quiet for 0.5 s wall clock
+  T->>R: ONE BakeObstacles - terrain + all obstacle prisms
+  R-->>R: world, navmesh via tile cache, cover
+  T->>R: CommitObstacles - world, navmesh, cover
   T->>ELM: ConstructionAck for every obstacle in the batch
   ELM->>N: obstacles Active
   L->>L: IsResolved - nothing Constructing - load finished
 ```
 
 *What the picture shows that prose hid: the simulation cannot see an obstacle before the world it belongs to exists — the ack follows the
-commit, and the load waits on the ack. A runtime addition takes the same path, debounced, while the simulation runs on.*
+commit, and the load waits on the ack. The batching is the quiet period, so a slower load may bake twice; the gate still holds every obstacle
+until a bake containing it commits.*
 
-### 9.5 Modules — who registers, who runs it each frame
+### 9.5 Modules — who registers, who runs it each frame *(as built)*
 
 ```mermaid
 graph TD
-  TKB[TKB catalog: 4 obstacle types] --> TR[ObstacleTkbTranslator - every node's translator set]
+  TKB[TKB catalog: Car, Sandbag wall, Concrete block, Crate] --> TR[ObstacleTkbTranslator - TkbTranslatorSet.Base, every node]
   TR --> ENT[StaticObstacle + ObstacleShape + PhysicsCollider]
-  ENT --> WS[StaticObstacleWatchSystem - registered beside TerrainResidency on SimHost, Editor, CGF, IG]
-  WS --> RES[TerrainResidency.Rebuild]
-  RES --> TW[TerrainWorld singleton]
-  RES --> CP[ICoverProvider singleton]
-  RES --> NM[navmesh snapshot - nav nodes only]
-  TW --> SH[SimHost: Ballistics, HitResolution, perception LOS, EQS]
-  RB[Replay Browser: MirrorTerrain] -.->|copies the swapped world| TW
+  PACK[EntityCreationPack] --> BS[StaticObstacleBakeSystem]
+  PACK --> RULE[ELM template rule: wait for 0x7E41]
+  BS --> H1[scheduled by IG, Stride NodeComposition, CGF, SimHost, Editor]
+  RES[TerrainResidency.Commit or Unload] --> BK[StaticObstacleBakery singleton]
+  BK --> BS
+  BS --> RES2[TerrainResidency.BakeObstacles and CommitObstacles]
+  RES2 --> TW[TerrainWorld singleton]
+  RES2 --> CP[ICoverProvider singleton]
+  RES2 --> NM[navmesh - nav nodes only]
+  TW --> SH[Ballistics, HitResolution, perception LOS, EQS]
+  RB[Replay Browser: MirrorTerrain] -.->|runs no bake: recorded obstacles are not in its terrain| TW
+  style RB stroke-dasharray: 5 5
 ```
 
-*Caption: the watcher must be registered wherever `TerrainResidency` is constructed (SimHost, Editor, CGF, IG — I5); the Replay Browser
-gets the world through `MirrorTerrain`, as today. ⚠ Not measured yet: that `MirrorTerrain` re-runs after a mid-run swap — step 1 of the build
-measures it.*
+*Caption: the bake system is built by the creation pack, so every host that creates entities has it, and `Unserviceable` names it when a
+host forgets to schedule it. A node with no `TerrainResidency` publishes no bakery and acks at once. The dashed edge is the one host that
+never bakes: the Replay Browser mirrors a live node's terrain, and the recording holds no baked world — a known gap.*
+
+⛔ **SUPERSEDED `2026-10-09` by the build** (the proposal above was drawn before it): a `StaticObstacleWatchSystem` registered beside each
+`TerrainResidency`, a `ModuleId.Terrain` named on each obstacle blueprint, waiting on the load step's condition ① before one bake, `Rebake` of
+touched tiles, and `ObstacleShape` carrying the material. What replaced each: §7 P-7a row, deviations ①–⑤.
 
 ### 9.6 Claim table behind O1/O2
 

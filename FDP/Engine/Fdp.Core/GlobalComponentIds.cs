@@ -702,5 +702,18 @@
         /// (<c>CE-3136</c>, 📄 docs/DESIGN_Ai_Action_Status_Gizmo.md). 344 is free by a census of backend, behaviors and ui,
         /// <c>2026-10-09</c> — <c>R-44</c>.</summary>
         public const int ActionStatus = 344;
+
+        /// <summary><c>StaticObstacle</c> — marks an entity of a static-obstacle TKB type (a parked car, a sandbag wall …) and names its
+        /// wall-library material: it is TERRAIN, baked into each node's world (<c>CE-3136</c> P-7a, R-243). 345/346 free by a census of
+        /// backend, behaviors and ui, <c>2026-10-09</c> (the other lanes end at 334) — <c>R-44</c>.</summary>
+        public const int StaticObstacle = 345;
+
+        /// <summary><c>ObstacleShape</c> — a static obstacle's box (length × width × height), the TKB's or a per-instance override
+        /// (<c>CE-3136</c> P-7a O3).</summary>
+        public const int ObstacleShape = 346;
+
+        /// <summary><c>StaticObstacleBakery</c> — a node's terrain-residency handle for the obstacle bake, as a managed world singleton
+        /// (<c>CE-3136</c> P-7a, R-243). Absent ⇒ this node holds no terrain, and an obstacle is acked at once.</summary>
+        public const int StaticObstacleBakery = 347;
     }
 }

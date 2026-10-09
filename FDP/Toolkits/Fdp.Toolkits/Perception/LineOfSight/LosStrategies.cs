@@ -282,6 +282,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             foreach (var c in view.Query().With<SimTransform>().WithComponentId(GlobalComponentIds.PhysicsCollider).Build())
             {
                 if (!view.IsAlive(c)) continue;
+                if (Fdp.Toolkit.Terrain.TerrainObstacles.IsObstacle(view, c)) continue;   // ⭐ CE-3136 P-7a — terrain now (R-243), by its material
                 if (include != null && !include(view, c)) continue;
                 _colliders.Add((c, view.GetComponentRO<SimTransform>(c).Position,
                     radius?.Invoke(view, c) ?? 0f, height?.Invoke(view, c) ?? 0f));

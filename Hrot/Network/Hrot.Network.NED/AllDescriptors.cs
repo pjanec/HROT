@@ -69,6 +69,8 @@ namespace Hrot.NED.Descriptors
         // 121 retired (5d-1's door-only EntityDoorCommand; never reuse)
         // ⭐ R-221 — an actor's interaction with an entity it does not own (any kind) → the target's owner. 📄 docs/DESIGN_Entity_Interactions.md
         dtInteractionRequest          = 122,
+        // ⭐ CE-3136 P-7a — a static obstacle's box (creator → every node, before promotion). 📄 docs/DESIGN_Peek_And_Fire.md §9
+        dtObstacleShape               = 123,
         // etc., all known descriptor types here
     }
 

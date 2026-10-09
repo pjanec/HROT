@@ -38,8 +38,10 @@ namespace Hrot.Common.EntityCreation
             Fdp.Toolkit.Replication.Systems.GhostPromotionSystem promotionSystem,
             int nodeId,
             IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> networkSystems,
-            Fdp.Core.EntityRepository world)
+            Fdp.Core.EntityRepository world,
+            Hrot.Map.Common.Services.StaticObstacleBakeSystem obstacleBakeSystem)
         {
+            ObstacleBakeSystem = obstacleBakeSystem;
             Translators        = translators;
             Elm                = elm;
             LocalRequests      = localRequests;
@@ -58,6 +60,14 @@ namespace Hrot.Common.EntityCreation
         /// the selected node instead of a hard-wired one.
         /// </summary>
         public Fdp.Core.EntityRepository World { get; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3136</c> P-7a (R-243) — the terrain lifecycle participant: bakes static obstacles into this node's terrain and acks
+        /// their construction only then. ⛔ Not optional — the pack registered the lifecycle rule that WAITS for it, so a host that does
+        /// not schedule it leaves every obstacle Constructing until the lifecycle timeout destroys it. Schedule it
+        /// (<c>RegisterGlobalSystem</c>); <see cref="Unserviceable"/> names it when missing.
+        /// </summary>
+        public Hrot.Map.Common.Services.StaticObstacleBakeSystem ObstacleBakeSystem { get; }
 
         /// <summary>
         /// ⭐⭐ <b>This node's app-instance id — the value an author passes as <c>owner</c> to say
@@ -296,6 +306,9 @@ namespace Hrot.Common.EntityCreation
                             "process entity-creation requests, including ones it targets at itself");
             if (!seen.Contains(SpawnSystem))
                 missing.Add($"{nameof(SpawnSystem)} (NetworkSpawningSystem) — orders will never become entities");
+            if (!seen.Contains(ObstacleBakeSystem))
+                missing.Add($"{nameof(ObstacleBakeSystem)} (StaticObstacleBakeSystem) — every static obstacle (a parked car, a sandbag " +
+                            "wall) stays Constructing until the lifecycle timeout DESTROYS it: the pack registered the rule that waits for it");
             if (!seen.Contains(FinalizationSystem))
                 missing.Add($"{nameof(FinalizationSystem)} — phase-2 ACKs will never be dispatched, so a " +
                             "requester waits forever");

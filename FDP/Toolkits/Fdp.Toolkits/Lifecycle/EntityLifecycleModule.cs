@@ -41,6 +41,10 @@ namespace Fdp.Toolkit.Lifecycle
         /// Blueprint-specific participants.
         /// </summary>
         private readonly Dictionary<long, HashSet<int>> _blueprintRequirements = new();
+
+        // ⭐ CE-3136 P-7a (R-243) — requirements stated by a RULE over the TKB template, evaluated at BeginConstruction against the
+        //   TKB as it is then (a scenario's knowledge base may replace the in-code one after composition).
+        private readonly List<(Func<TkbTemplate, bool> Applies, int ModuleId)> _templateRequirements = new();
         
         private readonly int _timeoutFrames;
         
@@ -165,6 +169,14 @@ namespace Fdp.Toolkit.Lifecycle
             set.Add(moduleId);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3136</c> P-7a (R-243) — module <paramref name="moduleId"/> must ack the construction of every entity whose TKB template
+        /// satisfies <paramref name="applies"/> (e.g. "carries a static-obstacle descriptor"). Evaluated when construction BEGINS, so a
+        /// knowledge base loaded later is covered. ⚠ The module must exist on this node and ack, or the entity times out.
+        /// </summary>
+        public void RegisterTemplateRequirement(Func<TkbTemplate, bool> applies, int moduleId)
+            => _templateRequirements.Add((applies ?? throw new ArgumentNullException(nameof(applies)), moduleId));
+
         public void AcknowledgeConstruction(Entity entity, int moduleId, uint frame, IEntityCommandBuffer cmd)
         {
             cmd.PublishEvent(new ConstructionAck
@@ -192,6 +204,9 @@ namespace Fdp.Toolkit.Lifecycle
             {
                 participants.UnionWith(reqs);
             }
+            if (_templateRequirements.Count > 0 && _tkb != null && _tkb.TryGetByType(blueprintId, out var template) && template != null)
+                foreach (var (applies, moduleId) in _templateRequirements)
+                    if (applies(template)) participants.Add(moduleId);
 
             var order = new ConstructionOrder
             {
