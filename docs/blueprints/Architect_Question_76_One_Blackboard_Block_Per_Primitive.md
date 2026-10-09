@@ -34,6 +34,7 @@ known-conflict: ⚠ Blueprint_SharedState_GetShared_Design.md §7 rules the oppo
   proposes messages instead, on the user's ruling and on the adoption measurement in §1.4. That
   design's own status note already defers cross-entity WRITE to "a deferred-event bus", so it is
   half-conceded there.
+  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): entity-wide state that outlives a behaviour, declared by a designer as an ordinary ECS component and created on behaviour assign — the replacement for the cross-entity/Entity-scope memory decision A removed, built on components instead of the store
 related-designs:
   - DESIGN_Unified_Behaviour_Run.md — applies R-151 to the blueprint behaviour and generalises §12.1's hosted child slot to
     any tier (`[brain state][start][block]`).

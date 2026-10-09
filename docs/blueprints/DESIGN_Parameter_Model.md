@@ -25,6 +25,7 @@ known-rot: (2026-09-30, §P) §1's Scope row: Entity is REMOVED (CE-441) and Sco
   §0 row 2 "a blueprint has params only when Dispatch == AiPrimitive" predates §3.3's Instance params.
 known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. RESOLVED 2026-09-30 by
   CE-441 (Entity removed) — two remain, neither authorable.
+  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): entity-wide state that outlives a behaviour, declared by a designer as an ordinary ECS component and created on behaviour assign — it applies this doc's ":386" ruling (entity-wide data is an ECS component field) to designer-owned data
 related-designs:
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
     ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the

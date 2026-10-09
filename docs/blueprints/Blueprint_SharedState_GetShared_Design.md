@@ -1,3 +1,15 @@
+<!--STATUS
+state: HISTORICAL
+updated: 2026-10-09
+superseded-by: Architect_Question_76_One_Blackboard_Block_Per_Primitive.md (removal, decisions A/C, CE-440/CE-441) · Architect_Question_87_Unit_Memory.md (the replacement need)
+current-answer: none — the GetShared/SetShared nodes, BlueprintSharedState and the Entity scope this describes no longer exist
+stale-below: the whole document; read §1 for the NEEDS it served, never for the mechanism
+known-rot: the "IMPLEMENTED" status line below is history (2026-07-15)
+related-designs:
+  - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — OWNS the removal and its provenance (§9)
+  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): entity-wide state that outlives a behaviour, declared by a designer as an ordinary ECS component and created on behaviour assign — the same need, met by components
+-->
+
 # Blueprint AiPrimitive Shared Working-State — Design (`GetShared`)
 
 > **Status:** IMPLEMENTED through cross-entity read (2026-07-15). Architect-reviewed (Q1–Q5 + 2b-Q1–Q4). Slice 1, Slice 2a (accessor + nodes + provisioning + editor palette), and Slice 2b (cross-entity read) are shipped; cross-entity *write* (deferred-event bus) remains a future slice. See the Implementation Status note below.

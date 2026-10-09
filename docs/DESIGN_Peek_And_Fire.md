@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-09
-build-state: READY-TO-BUILD for D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 proposed (leans)
+build-state: READY-TO-BUILD for D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 proposed (leans); B1's storage rides on Q87 (unit memory, proposed)
 current-answer: §6 decisions (approved) · §8 behaviour detail (proposed) · §3 classes · §4 sequences · §5 modules · §7 slices
 stale-below: nothing
 known-rot: none yet
@@ -13,6 +13,7 @@ related-designs:
   - blueprints/Architect_Question_85_Hit_Chance.md — OWNS the hit chance (spread, stance, under fire) the aim time sits in front of
   - DESIGN_Decision_Layer.md — OWNS the posture tree (Suppress = Engage, §3.3) and the stance request (§3.3g) PeekAndFire uses
   - designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — OWNS SlotRotation (used/burned exposure slots, §3); D8 mirrors it per unit
+  - blueprints/Architect_Question_87_Unit_Memory.md — OWNS unit memory: how per-unit state that outlives a behaviour is declared, created and accessed; B1's FiringPositionMemory is its first instance
   - DESIGN_Terrain_Combat_Tuning.md — OWNS the defaults (EngineFallbacks, ParameterResolver) D3/D4 add to, and the demo/premise rules the duel follows (§3)
 -->
 
@@ -201,7 +202,7 @@ chosen on SimHost from geometry. The ~100–300 ms report latency is part of the
 | P-3 | D3 + D4 aim gate and timer | no round before `AimSeconds` of continuous sight; lost sight restarts it; blind `FireAtPoint` fires at once |
 | P-4 | D6 threat exposure revived | a cover point seen by a second known threat scores lower |
 | P-5 | D9 reload | 31st round after the reload time |
-| P-6 | D7 + D8 `PeekAndFire` | stance peek and step peek cycles; a window burned after 3 uses |
+| P-6 | D7 + D8 `PeekAndFire`; needs Q87 `U-1` (or the B1 spawn fallback) | stance peek and step peek cycles; a window burned after 3 uses |
 | P-7a | D11 obstacle entity: TKB type, spawn, bullet stop, cover points, EQS sight, navmesh cut | a car blocks sight and rounds, has cover points behind it, and a path goes round it |
 | P-7 | D12 bound + D13 freshest evidence, on the obstacles | B reaches a second cover while A is near-missed and stays down; A's next blind burst lands at B's heard spot |
 | P-8 | D10 scenario + rail + HTTP check; T3 baselines re-pinned if D4 moved them | the duel rail |
@@ -212,7 +213,7 @@ chosen on SimHost from geometry. The ~100–300 ms report latency is part of the
 
 ```mermaid
 classDiagram
-  class FiringPositionMemory { <<new unit component, brain>> Slots[8] }
+  class FiringPositionMemory { <<new unit memory, Q87>> Slots[8] }
   class PositionSlot { X; Y; Z; Heat; HeatAt (sim s); Burned; Kind; Uses }
   class PeekAndFireParams { <<node params, designer-edited>> see 8.4 }
   class PeekAndFireState { <<node working state, reset on exit>> see 8.3 }
@@ -230,12 +231,12 @@ classDiagram
   PositionHeat ..> FiringPositionMemory
 ```
 
-*What the picture shows: ONE new unit component (the position memory) and one helper; the node's own state is scratch
+*What the picture shows: ONE new unit memory (the position memory, an ECS component created on assign — Q87) and one helper; the node's own state is scratch
 that may be lost on every exit, so nothing that must OUTLIVE an exit lives there.*
 
 | B# | lean | why |
 |---|---|---|
-| B1 | the used positions live in a **new unit ECS component** `FiringPositionMemory` (8 slots) — the architecture's ONE home for per-unit state that outlives a behaviour: 🔒 *"True entity-wide data is an ECS component field — not a variable section"* (`blueprints/DESIGN_Parameter_Model.md:386`, user 2026-08-16); the entity-scope blackboard was REMOVED (Q76 decision A, CE-441 — `StatefulSlotScope.cs:18` *"Do not reuse 2"*) and every blackboard block is per running behaviour, emptied on assign (R-151, R-153). Attached **at spawn** beside `TargetMemory` (its TKB translator), registered in `CognitiveComponentRegistry`, `[DataPolicy(NoScenario)]` as `RecentSenses` (recorded for replay, not saved in a scenario), Brain-only — never on the wire (Brain group, Ownership §5); lost on a Brain failover, which is harmless for a memory that fades anyway | node state is reset on exit (`EqsTacticsNodes.Release`: `ws = default`) — a posture switch, a reload hold or a re-plan would forget every burned window. ⛔ Rejected: a "global blackboard slot" — designed once (Entity scope, GetShared/SetShared) and removed; adding the component from inside a node — a structural change mid-tree, where spawn attachment is the existing pattern (`PerceptionTkbTranslator.cs:66`) |
+| B1 | the used positions live in `FiringPositionMemory` (8 slots), ⭐ **the first UNIT MEMORY** ([Architect Question 87](blueprints/Architect_Question_87_Unit_Memory.md), proposed `2026-10-09`): an ordinary ECS component — the architecture's ONE home for per-unit state that outlives a behaviour, 🔒 *"True entity-wide data is an ECS component field — not a variable section"* (`blueprints/DESIGN_Parameter_Model.md:386`, user 2026-08-16). Declared **beside its reader** `PeekAndFire` in `Fdp.Toolkits` (Q87 §4: a toolkit C# node reads it) as `[UnitMemory(0)]` `[ComponentId(UnitMemoryIds.Base + 0)]` `[BlueprintWritable]` `[DataPolicy(NoScenario)]`, defaults as field initializers with a declared `public FiringPositionMemory() {}` (C# 12 requires it, and only a constructor call applies them — measured, Q87 §1). **Created at behaviour assign** by `UnitMemoryRegistry.EnsureAll` with `new()` if absent, never removed on a switch (Q87 §3 C); recorded for replay, never saved in a scenario, never on the wire (Brain group, Ownership §5); lost on a Brain failover, harmless for a memory that fades anyway. A blueprint behaviour can read it with `GetComponent` (Q87 §3 D). ⚠ **If Q87 is not approved**, the fallback is the earlier wording: attach at spawn beside `TargetMemory` (its TKB translator, `PerceptionTkbTranslator.cs:66`) with a fixed engine id — the component and every rail are the same either way | node state is reset on exit (`EqsTacticsNodes.Release`: `ws = default`) — a posture switch, a reload hold or a re-plan would forget every burned window. ⛔ Rejected: a "global blackboard slot" — designed once (Entity scope, GetShared/SetShared) and removed (Q76 decision A, CE-441, `StatefulSlotScope.cs:18` *"Do not reuse 2"*); every blackboard block is per running behaviour, emptied on assign (R-151, R-153). ⛔ Rejected: adding the component from inside a node — a structural change mid-tree; the assign path is where ingress already adds components (`BehaviorIngressSystem.cs` `AddAndInitializeTier`) |
 | B2 | **heat, not a counter**: an exposure adds `HeatPerExposure` (1.0); being near-missed or hit while exposed there adds `HeatWhenFiredUpon` (1.5); heat **cools exponentially** with `CoolHalfLifeSeconds` (45 s) | a counter needs a reset rule; heat fades by itself, so a window used long ago is usable again without any bookkeeping. Being shot at there is the strongest reason to leave, so it heats more |
 | B3 | heat is **evaluated lazily** — stored with its sim time, `heat(now) = heat · 2^-(now − at)/halfLife` — no per-tick system | deterministic, replay-exact (sim time, R-143), zero cost while nobody looks |
 | B4 | **burned with hysteresis**: a slot is burned at `BurnHeat` (2.5) and usable again only below `ReuseHeat` (1.0); between them a candidate keeps a soft penalty `heat × HeatPenalty` on its EQS score | without hysteresis a window flips usable/burned at one threshold and the unit dithers. Worked example: 3 exposures within 20 s ⇒ ≈ 2.7 → burned; it cools below 1.0 after ≈ 65 s |
