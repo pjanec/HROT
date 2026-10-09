@@ -295,7 +295,7 @@ his Relocate is "another window"; B's Expose is a step and his Relocate is "run 
 | group | parameter | default | A (window) | B (street) |
 |---|---|---|---|---|
 | where | `HideTemplate` | — | `FindWindowFiringPosition` | `FindCoverFromTarget` |
-| | `SearchRadius` · `PeekSearchRadius` (m) | 15 · 3 | 12 · — | 25 · 3 |
+| | `SearchRadius` · `PeekSearchRadius` (m) | 15 · 3 | 12 · — | **12** · 3 (✅ as built, P-8: 25 reached House A's own wall — B ran 20 m forward into the dead ground under the windows) |
 | | `PeekMode` | Auto (window point ⇒ Stance, else Step) | Stance | Step |
 | | `HideStanceOverride` | from the point | Prone | from the point |
 | timing | `HideSecondsMin` / `Max` | 2 / 5 | 2 / 5 | 2 / 4 |

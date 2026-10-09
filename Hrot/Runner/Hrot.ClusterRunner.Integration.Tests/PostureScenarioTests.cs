@@ -440,13 +440,16 @@ public sealed class PostureScenarioTests : IDisposable
         Assert.True(harness.PumpUntil(() => Ammo() < ammo, timeoutFrames: 12000), $"…and fires from there; ammo {Ammo()} (was {ammo})");
     }
 
-    /// <summary>House A's upstairs window firing positions (the cover database, `bt-range`; measured by the P-8 probe).</summary>
-    private static readonly Vector2[] UpstairsWindows = { new(102.1f, 100.9f), new(107.1f, 100.9f), new(105.4f, 107.1f) };
+    /// <summary>House A's window firing positions, both storeys (the cover database, `bt-range`; measured by the P-8 probe).</summary>
+    private static readonly Vector3[] HouseAWindows =
+    {
+        new(102.1f, 100.9f, 0f), new(109.1f, 103.6f, 0f), new(102.1f, 100.9f, 3f), new(107.1f, 100.9f, 3f), new(105.4f, 107.1f, 3f),
+    };
 
     /// <summary>
     /// ⭐⭐ <c>CE-3136</c> P-8 (D10) — <c>bt-window-duel</c> in-process (the live check's twin): A at an upstairs window of House A,
     /// B in the street with two parked vans for cover, each remembering the other. Both fire (aimed or a blind burst — the ammunition
-    /// falls), A fires from at least two upstairs windows (the exposure count moves it on), and B bounds to Van 2's cover.
+    /// falls), A fires from at least two windows (either storey) (the exposure count moves it on), and B bounds to Van 2's cover.
     /// 📄 docs/DESIGN_Peek_And_Fire.md §2, D10, D14–D15 (CE-3144: the duel stood still before them).
     /// </summary>
     [Fact(Timeout = 900_000)]
@@ -460,7 +463,7 @@ public sealed class PostureScenarioTests : IDisposable
         int Ammo(Entity e) => cgf.HasComponent<WeaponState>(e) ? cgf.GetComponent<WeaponState>(e).Ammo : -1;
         Vector3 Pos(Entity e) => cgf.HasComponent<SimTransform>(e) ? cgf.GetComponent<SimTransform>(e).Position : default;
         int a0 = Ammo(a), b0 = Ammo(b);
-        var windows = new System.Collections.Generic.HashSet<(int, int)>();
+        var windows = new System.Collections.Generic.HashSet<(int, int, int)>();
         var van2 = new Vector2(113f, 76f);
         bool bounded = false;
         float Hp(Entity e) => cgf.HasComponent<Health>(e) ? cgf.GetComponent<Health>(e).Current : -1f;
@@ -487,8 +490,9 @@ public sealed class PostureScenarioTests : IDisposable
             var pa = Pos(a);
             if (f % 30 == 0 && f > 2000 && f < 3000) _out.WriteLine($"f{f}: A {pa} {Peek(a)}");
             if (MathF.Abs(pa.Z - lastZ) > 0.5f) { _out.WriteLine($"f{f}: A z {lastZ:F2} -> {pa.Z:F2} at {pa}; {Peek(a)}"); lastZ = pa.Z; }
-            foreach (var w in UpstairsWindows)   // at a window, not on the way between two
-                if (pa.Z >= 2f && Vector2.Distance(new Vector2(pa.X, pa.Y), w) <= 0.75f) windows.Add(((int)MathF.Round(w.X), (int)MathF.Round(w.Y)));
+            foreach (var w in HouseAWindows)   // at a window (either storey), not on the way between two
+                if (MathF.Abs(pa.Z - w.Z) < 1f && Vector2.Distance(new Vector2(pa.X, pa.Y), new Vector2(w.X, w.Y)) <= 0.75f)
+                    windows.Add(((int)MathF.Round(w.X), (int)MathF.Round(w.Y), (int)w.Z));
             var pb = Pos(b);
             bounded |= Vector2.Distance(new Vector2(pb.X, pb.Y), van2) <= 4f;
             if (f % 600 == 0) _out.WriteLine($"f{f}: {State()}");
@@ -497,7 +501,7 @@ public sealed class PostureScenarioTests : IDisposable
         _out.WriteLine($"end: {State()}");
         Assert.True(Ammo(a) < a0, $"A fires; {State()}");
         Assert.True(Ammo(b) < b0, $"B fires; {State()}");
-        Assert.True(windows.Count >= 2, $"A fires from at least two upstairs windows; {State()}");
+        Assert.True(windows.Count >= 2, $"A fires from at least two windows; {State()}");
         Assert.True(bounded, $"B bounds to Van 2's cover; {State()}");
     }
 

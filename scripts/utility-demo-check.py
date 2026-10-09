@@ -602,13 +602,13 @@ def run_window_duel(c, timeout):
     call("POST", "/sim/play", {})
 
     spots, b_spots = set(), set()
-    # House A's upstairs window firing positions (bt-range's cover database) — at a window, not on the way between two
-    windows = [(102.1, 100.9), (107.1, 100.9), (105.4, 107.1)]
+    # House A's window firing positions, both storeys (bt-range's cover database) — at a window, not on the way between two
+    windows = [(102.1, 100.9, 0), (109.1, 103.6, 0), (102.1, 100.9, 3), (107.1, 100.9, 3), (105.4, 107.1, 3)]
     def watch():
         pa, pb = position(a), position(b)
-        if pa and pa[2] >= 2:
+        if pa:
             for w in windows:
-                if ((pa[0] - w[0]) ** 2 + (pa[1] - w[1]) ** 2) ** 0.5 <= 0.75:
+                if abs(pa[2] - w[2]) < 1 and ((pa[0] - w[0]) ** 2 + (pa[1] - w[1]) ** 2) ** 0.5 <= 0.75:
                     spots.add(w)
         if pb: b_spots.add((round(pb[0]), round(pb[1])))
         return pa and pb
@@ -628,7 +628,7 @@ def run_window_duel(c, timeout):
         return pb and ((pb[0] - van2[0]) ** 2 + (pb[1] - van2[1]) ** 2) ** 0.5 <= 4.0 and pb
     two_windows = lambda: watch() and len(spots) >= 2
     c.ok(wait_for(two_windows, timeout * 4, every=0.25) is not None,
-         f"A fires from at least two windows upstairs — {sorted(spots)}")
+         f"A fires from at least two windows — {sorted(spots)}")
     c.ok(wait_for(bounded, timeout * 4, every=0.25) is not None, f"B bounds to Van 2's cover — B was at {sorted(b_spots)[:12]}")
 
     ha, hb = health(a), health(b)
