@@ -16,6 +16,7 @@ related-designs:
   - UX/UX_Feature_Map_Parity.md §3.2a — pack constructs, host schedules: the rule §10 builds on.
   - DESIGN_Terrain_Combat_Tuning.md §5 — terrain/combat debug layers relying on uniform membership
   - DESIGN_Terrain_Combat_Tuning.md §5a — the debug-trace gizmos; global where SimHost/Replay Browser draw only the selected entity.
+  - DESIGN_Ai_Action_Status_Gizmo.md — OWNS the Channels family's gizmo (proposed)
 -->
 # DESIGN — **uniform gizmo membership** *(every host, every family)*
 

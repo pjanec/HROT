@@ -439,6 +439,42 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(0f, c[1].Score, 3);                    // both see it
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3136</c> P-4 (peek-and-fire D6) — the known threats come from the unit's PERCEPTION SENSOR CHILDREN (where
+        /// <c>CE-3038</c> moved the lists): the unit carries no list of its own, one child sensor holds the north threat, another the
+        /// east one — and both hold the east one, which counts once. Same geometry as the unit-level test ⇒ the same 0.5.
+        /// 🔴 Red-proof: before P-4 the test read only the unit's own list ⇒ no threats ⇒ 0 (inert in production).
+        /// </summary>
+        [Fact]
+        public unsafe void P4_ThreatExposure_ReadsTheUnitsSensorChildren()
+        {
+            if (!_repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>())
+                _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            _repo.SetSingletonManaged(WallWorld());
+            var self = At(10, 0);
+            var north = At(10, 30);
+            var east = At(40, 5);
+            Entity Child(int part, params Entity[] held)
+            {
+                var c = _repo.CreateEntity();
+                _repo.AddComponent(c, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = self, InstanceId = part });
+                var list = new SensorContactList();
+                foreach (var h in held) SensorContactList.UpdateSighting(ref list, (long)h.PackedValue, 1);
+                for (int i = 0; i < list.Count; i++) list.State[i] = (byte)SensorContactState.Acquired;
+                _repo.AddComponent(c, list);
+                return c;
+            }
+            Child(1000, north, east);
+            Child(1001, east);
+            var sensor = new EqsSensor { ContextSlot0 = self };
+            var c = new[] { Point(10, 8), Point(10, 40) };
+
+            new ThreatExposureTest().ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+
+            Assert.Equal(0.5f, c[0].Score, 3);
+            Assert.Equal(0f, c[1].Score, 3);
+        }
+
         [Fact]
         public void ThreatExposure_WithNoKnownThreats_ScoresNothing()
         {

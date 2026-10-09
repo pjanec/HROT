@@ -371,23 +371,6 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         }
 
         /// <summary>
-        /// ⭐ <c>CE-3136</c> P-2 (peek-and-fire D1) — where an aimed round aims: <paramref name="middle"/> (today's aim, the
-        /// mid-silhouette) when the shooter's <paramref name="eye"/> sees it through the terrain, else the HIGHEST body point it
-        /// sees (a crouched man behind a 0.9 m sill: his head over it), else <paramref name="middle"/> again (nothing seen).
-        /// ⚠ As built, a refinement of D1's "the highest seen point": a target in the open is still aimed at mid-body, so no
-        /// existing engagement changes its aim — only a partly hidden target does.
-        /// </summary>
-        public static Vector3 AimPoint(ISimulationView view, Fdp.Toolkit.Terrain.TerrainWorld? world, Fdp.Toolkit.Terrain.DoorStates? doors,
-            Vector3 eye, Vector3 middle, Entity target, StanceId stance, float hullHeight, List<Vector3> scratch)
-        {
-            if (world == null || !world.SegmentBlocked(eye, middle, doors)) return middle;
-            Points(view, target, stance, hullHeight, scratch);
-            for (int i = scratch.Count - 1; i >= 0; i--)
-                if (!world.SegmentBlocked(eye, scratch[i], doors)) return scratch[i];
-            return middle;
-        }
-
-        /// <summary>
         /// ⭐ <c>CE-3136</c> P-2 (D2) — the height of a PERSON's body band above its feet for <paramref name="stance"/>: its highest
         /// body point (standing ≈ 1.6 m, crouched ≈ 1.0 m, prone ≈ 0.3 m). A round passing above it misses.
         /// </summary>

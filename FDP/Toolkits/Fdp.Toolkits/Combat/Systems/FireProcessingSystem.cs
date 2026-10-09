@@ -118,12 +118,17 @@ namespace Fdp.Toolkit.Combat.Systems
                     var targetStance = HitModel.LogicalStance(repo, target);
                     float hull = Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, target);
                     targetPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.AimHeightFor(repo, target, targetStance, hull);   // ⭐ CE-3116 — a person by posture
-                    // ⭐ CE-3136 P-2 (D1) — the mid-silhouette when the eye sees it, else the highest body point it sees (a head over a sill).
+                    // ⭐ CE-3136 P-2 (D1, revised) — the middle when seen or shot through a weak cover, else the middle of the SEEN
+                    //   part of the body (AimPoint). The round's own penetration decides "weak" — the fired mount's, as below.
                     var terrain = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
                     if (terrain != null)
-                        targetPos = Fdp.Toolkit.Perception.LineOfSight.BodyProfile.AimPoint(repo, terrain,
+                    {
+                        var aimMount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
+                        float aimPen = aimMount != null && aimMount.DamagePerHit > 0f ? CombatTkb.PenetrationOf(repo, aimMount) : 0f;
+                        targetPos = AimPoint.For(repo, terrain,
                             terrain.Doors.Count > 0 ? Fdp.Toolkit.Terrain.DoorStates.Of(repo, terrain) : null,
-                            shooterPos, targetPos, target, targetStance, hull, _bodyPoints);
+                            shooterPos, targetPos, target, targetStance, hull, aimPen, _bodyPoints);
+                    }
                 }
 
                 // Compute normalised direction from shooter toward target.

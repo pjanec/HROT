@@ -52,6 +52,15 @@ namespace Hrot.Network.Routing
         }
 
         /// <inheritdoc/>
+        public bool HasRole(int nodeId, NodeRole role)
+        {
+            lock (_lock)
+            {
+                return _nodes.TryGetValue(nodeId, out var cap) && cap.Role.HasFlag(role);
+            }
+        }
+
+        /// <inheritdoc/>
         public bool Supports(int nodeId, string token)
         {
             lock (_lock)

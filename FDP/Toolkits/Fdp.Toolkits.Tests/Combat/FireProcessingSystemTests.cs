@@ -117,13 +117,22 @@ namespace Fdp.Toolkit.Combat.Tests
             return default;
         }
 
+        /// <summary>Where the round aims at <paramref name="x"/>, from a standing eye at the origin: the flight line's height there.</summary>
+        private float AimHeightAt(float x)
+        {
+            var d = FlightOfTheRound();
+            return Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding + d.Z / d.X * x;
+        }
+
         /// <summary>
-        /// ⭐⭐ <c>CE-3136</c> P-2 (peek-and-fire D1, as built) — a crouched man behind a 0.9 m sill: his mid-silhouette (0.55 m) is
-        /// hidden by the sill, so the round aims at the highest body point the shooter SEES — his head (≈ 1.0 m) over it. 🔴 Red-proof:
-        /// before, it aimed at 0.55 m and every round met the brick (G1: "A cannot be hit").
+        /// ⭐⭐ <c>CE-3136</c> P-2 (D1, revised by the user) — a crouched man behind a 0.5 m-thick CONCRETE sill 0.9 m high: his middle
+        /// (0.6 m) is hidden and a round cannot go through, so it aims at the middle of what the shooter SEES — halfway between the
+        /// lowest visible height (≈ 0.79 m, where the line clears the sill's far edge) and his top (≈ 1.0 m) ⇒ ≈ 0.89 m.
+        /// 🔴 Red-proofs: the original aim (0.6 m) met the concrete (G1); the first P-2 build aimed at his crown (1.0 m) — 🔒 user:
+        /// <i>"aiming at highest point meant we wont hit"</i>.
         /// </summary>
         [Fact]
-        public void P2_ACrouchedManBehindASill_IsAimedAtTheHighestPointTheShooterSees()
+        public void P2_ACrouchedManBehindAConcreteSill_IsAimedAtTheMiddleOfWhatTheShooterSees()
         {
             _world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
             SillWorld();
@@ -134,9 +143,45 @@ namespace Fdp.Toolkit.Combat.Tests
             PublishIntent(shooter, target);
             _sys.Execute(_world, 0.016f);
 
-            var eye  = new Vector3(0f, 0f, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding);
-            float head = 0.91f * Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched;   // BodyProfile's crouched top
-            AssertNear(Vector3.Normalize(new Vector3(12f, 0f, head) - eye), FlightOfTheRound(), 1e-3f);
+            float eye = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding;
+            float lowestSeen = eye - 0.8f * 12f / 10.5f;                                  // the line just clears (10.5, 0.9)
+            float top = 0.91f * Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched;   // BodyProfile's crouched top
+            float expected = 0.5f * (lowestSeen + top);
+            Assert.InRange(AimHeightAt(12f), expected - 0.01f, expected + 0.01f);   // the visible edge is bisected to ≈ 1 cm
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3136</c> P-2 (D1, revised) — the same man behind a thin WOODEN fence (5 cm of fence-wood ⇒ 3 mm RHA against the
+        /// light round's 5 mm): the shooter cannot see his middle, but a round goes through, so it aims at the MIDDLE. 🔒 User:
+        /// <i>"if the body is hidden behind a weak penetrable obstacle, we could aim to body center"</i>.
+        /// </summary>
+        [Fact]
+        public void P2_BehindAWeakFence_TheRoundAimsAtTheMiddle_Through_It()
+        {
+            _world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            _world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            Assert.True(Fdp.Toolkit.Terrain.TerrainMaterialLibrary.Shared.TryGet("fence-wood", out var wood));
+            var min = new Vector2(10f, -5f); var max = new Vector2(10.05f, 5f);
+            _world.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+            {
+                BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50),
+                Prisms = new[] { new Fdp.Toolkit.Terrain.TerrainPrism
+                {
+                    Kind = Fdp.Toolkit.Terrain.TerrainPrismKind.Wall, Material = wood,
+                    Footprint = new[] { min, new Vector2(max.X, min.Y), max, new Vector2(min.X, max.Y) },
+                    BaseZ = 0, TopZ = 0.9f, Min = min, Max = max,
+                } },
+            });
+            var shooter = SpawnShooter(Vector3.Zero);
+            var target  = SpawnTarget(new Vector3(12f, 0f, 0f));
+            _world.AddComponent(target, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Crouched });
+
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+
+            float middle = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.AimHeightFor(_world, target,
+                Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, 0f);
+            Assert.Equal(middle, AimHeightAt(12f), 2);
         }
 
         /// <summary>⭐ <c>CE-3136</c> P-2 — with terrain resident but nothing in the way, the round still aims at the MIDDLE (as-built

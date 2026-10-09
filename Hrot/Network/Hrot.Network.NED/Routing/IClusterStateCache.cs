@@ -31,6 +31,12 @@ namespace Hrot.Network.Routing
         System.Collections.Generic.IReadOnlyList<int> AllNodeIds();
 
         /// <summary>
+        /// ⭐ <c>CE-3136</c> P-4 — does node <paramref name="nodeId"/> carry every flag of <paramref name="role"/>? False for an
+        /// unknown node. Lets the EQS config egress keep a unit's sensors on one solver only where that solver can run them.
+        /// </summary>
+        bool HasRole(int nodeId, NodeRole role);
+
+        /// <summary>
         /// CE-285 (C-cap): does node <paramref name="nodeId"/> advertise the capability <paramref name="token"/>?
         /// Membership test over the gathered token set — absence (unknown node or unknown token) = unsupported
         /// (OpenGL-extension semantics, AQ-70 §Q70-B). The reliable-init wait-set includes only nodes for which
