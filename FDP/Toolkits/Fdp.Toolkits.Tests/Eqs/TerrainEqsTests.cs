@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -172,6 +173,167 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.All(cover.Points.Where(p => !(p.PositionX == two[0].PositionX && p.PositionY == two[0].PositionY)
                                             && !(p.PositionX == two[1].PositionX && p.PositionY == two[1].PositionY)),
                 p => Assert.True(Vector2.Distance(new(0, 9), new(p.PositionX, p.PositionY)) >= farthestKept - 1e-4f));
+        }
+
+        // ── Stage 7a: cover inside buildings (docs/DESIGN_Building_Interiors.md §3l, CE-3134) ──────────────────
+
+        /// <summary>A recipe terrain with its building templates (bt-range's House A is a two-storey template).</summary>
+        private static TerrainWorld Recipe(string name)
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+            Assert.NotNull(dir);
+            var folder = Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", name);
+            var file = Directory.GetFiles(folder, "*.world.geojson").Single();
+            return TerrainWorldParser.Parse(File.ReadAllText(file), name, TerrainAssets.ForFolder(folder));
+        }
+
+        /// <summary>House A on bt-range: footprint (100,100)–(110,108), storeys at Z 0 and 3, roof at 6; an inner wall at x = 105
+        /// on the ground storey; a stair ramp in (107.5..108.5, 101..106).</summary>
+        private static (TerrainWorld World, List<CoverPoint> Points) HouseA()
+        {
+            var w = Recipe("bt-range");
+            var pts = TerrainCoverProvider.Build(w).Points
+                .Where(p => p.PositionX > 97 && p.PositionX < 113 && p.PositionY > 97 && p.PositionY < 111).ToList();
+            Assert.NotEmpty(pts);
+            return (w, pts);
+        }
+
+        private static bool InHouseA(CoverPoint p) => p.PositionX > 100 && p.PositionX < 110 && p.PositionY > 100 && p.PositionY < 108;
+
+        /// <summary>📌 Measured before Stage 7a: 26 coincident pairs on House A — a storey's wall was read once per expanded piece AND
+        /// once per storey prism stacked on it. One point per spot and kind (a window has a Cover and a WindowFiring point).</summary>
+        [Fact]
+        public void CE3134_HouseA_NoTwoPointsOfOneKindStandOnOneSpot()
+        {
+            var (_, pts) = HouseA();
+            for (int i = 0; i < pts.Count; i++)
+                for (int j = i + 1; j < pts.Count; j++)
+                    Assert.False(pts[i].Kind == pts[j].Kind
+                                 && MathF.Abs(pts[i].PositionX - pts[j].PositionX) < 0.1f
+                                 && MathF.Abs(pts[i].PositionY - pts[j].PositionY) < 0.1f
+                                 && MathF.Abs(pts[i].PositionZ - pts[j].PositionZ) < 0.1f,
+                        $"two {pts[i].Kind} points at ({pts[i].PositionX:F2},{pts[i].PositionY:F2},{pts[i].PositionZ:F2})");
+        }
+
+        /// <summary>📌 Measured before Stage 7a: crouch cover IN the front doorway — the lintel above it read as a 0.9 m wall. A door
+        /// span gives no point on its storey.</summary>
+        [Fact]
+        public void CE3134_NoPointStandsInADoorway()
+        {
+            var (w, pts) = HouseA();
+            int doors = 0;
+            foreach (var panel in w.Panels.Where(q => q.Building == 0))
+            {
+                var dir = (panel.B - panel.A) / panel.Length;
+                foreach (var o in panel.Openings.Where(o => o.Kind != TerrainOpeningKind.Window))
+                {
+                    doors++;
+                    foreach (var p in pts.Where(p => MathF.Abs(p.PositionZ - panel.BaseZ) <= 0.3f))
+                    {
+                        var d = new Vector2(p.PositionX, p.PositionY) - panel.A;
+                        float t = Vector2.Dot(d, dir), off = MathF.Abs(dir.X * d.Y - dir.Y * d.X);
+                        Assert.False(t > o.At && t < o.At + o.Width && off < panel.Thickness * 0.5f + TerrainCoverProvider.StandOff + 0.1f,
+                            $"a point in the {o.Kind} of panel ({panel.A})→({panel.B}) at ({p.PositionX:F2},{p.PositionY:F2},{p.PositionZ:F2})");
+                    }
+                }
+            }
+            Assert.Equal(3, doors);   // front, back, the inner wall's
+        }
+
+        /// <summary>📌 Measured before Stage 7a: points OUTSIDE the house at Z 3 — the upper storey's outer face, standing in the
+        /// air. A point stands on its storey's floor (or the ground), never above nothing; none on the stair ramp's opening.</summary>
+        [Fact]
+        public void CE3134_EveryPointStandsOnItsStoreyFloor_AndAnUpperOneIsInside()
+        {
+            var (_, pts) = HouseA();
+            Assert.All(pts, p => Assert.True(MathF.Abs(p.PositionZ) < 0.05f || MathF.Abs(p.PositionZ - 3f) < 0.05f,
+                $"({p.PositionX:F2},{p.PositionY:F2}) at Z {p.PositionZ:F2} is on neither the ground nor the upper floor"));
+            var upper = pts.Where(p => p.PositionZ > 0.5f).ToList();
+            Assert.True(upper.Count >= 10, $"the upper storey has only {upper.Count} points");
+            Assert.All(upper, p => Assert.True(InHouseA(p), $"({p.PositionX:F2},{p.PositionY:F2}) on the upper storey is outside the house"));
+            Assert.DoesNotContain(upper, p => p.PositionX > 107.5f && p.PositionX < 108.5f && p.PositionY > 101f && p.PositionY < 106f);
+        }
+
+        /// <summary>The inner wall at x = 105 is cover from both rooms: a point on each face, facing it, on the ground floor.</summary>
+        [Fact]
+        public void CE3134_TheInnerWall_IsCoverOnBothFaces()
+        {
+            var (_, pts) = HouseA();
+            var west = pts.Where(p => MathF.Abs(p.PositionZ) < 0.05f && p.PositionX > 103.5f && p.PositionX < 105f && p.DirectionX > 0.9f).ToList();
+            var east = pts.Where(p => MathF.Abs(p.PositionZ) < 0.05f && p.PositionX > 105f && p.PositionX < 106.5f && p.DirectionX < -0.9f).ToList();
+            Assert.Equal(3, west.Count);
+            Assert.Equal(3, east.Count);
+            Assert.All(west.Concat(east), p => Assert.Equal(2, p.StanceHeight));
+        }
+
+        /// <summary>A window (sill 0.9 m) is crouch cover on both faces, and on the INSIDE face a crouch firing position facing out.</summary>
+        [Fact]
+        public void CE3134_AWindow_IsSillCoverOnBothFaces_AndAFiringPositionInside()
+        {
+            var (_, pts) = HouseA();
+            var at = pts.Where(p => MathF.Abs(p.PositionY - 103.6f) < 0.05f && MathF.Abs(p.PositionZ) < 0.05f).ToList();   // the east window
+            Assert.Contains(at, p => p.Kind == CoverKind.Cover && p.PositionX < 110 && p.StanceHeight == 1);
+            Assert.Contains(at, p => p.Kind == CoverKind.Cover && p.PositionX > 110 && p.StanceHeight == 1);
+            var fire = Assert.Single(at, p => p.Kind == CoverKind.WindowFiring);
+            Assert.True(InHouseA(fire));
+            Assert.Equal(1, fire.StanceHeight);
+            Assert.True(fire.DirectionX > 0.9f, "a firing position faces out through the window");
+            Assert.All(pts.Where(p => p.Kind == CoverKind.WindowFiring), p => Assert.True(InHouseA(p)));
+        }
+
+        /// <summary>A radius query returns one kind: the 3-argument form is cover only; the kind form is that kind only.</summary>
+        [Fact]
+        public void CE3134_ARadiusQuery_ReturnsOneKind()
+        {
+            var cover = TerrainCoverProvider.Build(Recipe("bt-range"));
+            var buf = new CoverPoint[256];
+            int n = cover.GetCoverPointsInRadius(new Vector2(105, 104), 8f, buf);
+            Assert.True(n > 0);
+            Assert.All(buf.Take(n), p => Assert.Equal(CoverKind.Cover, p.Kind));
+            n = cover.GetCoverPointsInRadius(new Vector2(105, 104), 8f, buf, CoverKind.WindowFiring);
+            Assert.True(n >= 5, $"House A has 5 windows with firing positions, found {n}");
+            Assert.All(buf.Take(n), p => Assert.Equal(CoverKind.WindowFiring, p.Kind));
+        }
+
+        /// <summary>A provider that knows only cover answers a window query with nothing (the interface default).</summary>
+        [Fact]
+        public void CE3134_AProviderThatKnowsOnlyCover_HasNoWindowPositions()
+        {
+            ICoverProvider manual = new OnlyCover();
+            Assert.Equal(1, manual.GetCoverPointsInRadius(Vector2.Zero, 5f, new CoverPoint[4], CoverKind.Cover));
+            Assert.Equal(0, manual.GetCoverPointsInRadius(Vector2.Zero, 5f, new CoverPoint[4], CoverKind.WindowFiring));
+        }
+
+        private sealed class OnlyCover : ICoverProvider
+        {
+            public int GetCoverPointsInRadius(Vector2 center, float radius, Span<CoverPoint> results) { results[0] = default; return 1; }
+        }
+
+        /// <summary>The lowest stance whose eye clears the sill by 0.1 m and stays under the head (eyes 0.35 / 1.1 / 1.7).</summary>
+        [Theory]
+        [InlineData(0.9f, 2.1f, 1)]     // a 0.9 m sill: crouch
+        [InlineData(0.2f, 2.1f, 0)]     // a floor-level slit: prone
+        [InlineData(1.3f, 2.1f, 2)]     // a high sill: standing
+        [InlineData(1.65f, 2.1f, 255)]  // above a standing eye: no firing position
+        [InlineData(0.9f, 1.1f, 255)]   // a crouch eye clears the sill but not the head
+        public void CE3134_FiringStance_IsTheLowestEyeThatFits(float sill, float head, int stance)
+            => Assert.Equal((byte)stance, TerrainCoverProvider.FiringStance(sill, head));
+
+        /// <summary>Solid prisms and free walls are read exactly as before Stage 7a: test-town and basic-desert (no building
+        /// templates) produce the same database, point for point (count + checksum measured on the pre-7a code).</summary>
+        [Theory]
+        [InlineData("test-town", 612, -1979792939338976871L)]
+        [InlineData("basic-desert", 303, 477476172774583660L)]
+        public void CE3134_TerrainsWithoutBuildings_KeepTheirCoverDatabase(string terrain, int count, long checksum)
+        {
+            var pts = TerrainCoverProvider.Build(Recipe(terrain)).Points;
+            long h = 17;
+            foreach (var p in pts)
+                h = h * 31 + (long)MathF.Round(p.PositionX * 100) * 7 + (long)MathF.Round(p.PositionY * 100) * 13
+                    + (long)MathF.Round(p.PositionZ * 100) + p.StanceHeight;
+            Assert.Equal(count, pts.Count);
+            Assert.Equal(checksum, h);
         }
 
         // ── threat exposure ──────────────────────────────────────────────────────────────────

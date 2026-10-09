@@ -50,6 +50,10 @@ namespace Fdp.Toolkit.Spatial.Eqs
             var points = new List<CoverPoint>();
             foreach (var prism in world.Prisms)
             {
+                // ⭐ Stage 7a (§3l C1) — a BUILDING wall is read by its panel's faces below; its expanded pieces (jambs, sill strips,
+                //   lintels) are not: they do not know their storey floor, and a lintel is not cover. Free walls/fences and solid
+                //   prisms keep this rule unchanged.
+                if (prism.Panel >= 0 && prism.Panel < world.Panels.Count && world.Panels[prism.Panel].Building >= 0) continue;
                 byte stance;
                 if (prism.Height >= 1.5f) stance = 2;
                 else if (prism.Height >= 0.9f) stance = 1;
@@ -86,11 +90,137 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     }
                 }
             }
+            foreach (var panel in world.Panels)
+                if (panel.Building >= 0) AddPanelFaces(world, panel, points);
             return new TerrainCoverProvider(points.ToArray());
+        }
+
+        /// <summary>How far a point's floor may sit from the panel's storey floor and still count as that floor (m).</summary>
+        public const float LevelTolerance = 0.3f;
+
+        /// <summary>A window position needs the eye at least this far above the sill (m).</summary>
+        public const float SillClearance = 0.1f;
+
+        /// <summary>Today's rule (EQS §19.5): ≥ 1.5 m stand · ≥ 0.9 crouch · ≥ 0.45 prone · lower is no cover (255).</summary>
+        private static byte StanceFor(float height)
+            => height >= 1.5f ? (byte)2 : height >= 0.9f ? (byte)1 : height >= 0.45f ? (byte)0 : (byte)255;
+
+        /// <summary>
+        /// ⭐ Stage 7a (§3l C4) — the LOWEST stance whose eye clears the sill by <see cref="SillClearance"/> and stays below the head
+        /// (eyes from <c>EngineFallbacks</c>: prone 0.35 · crouch 1.1 · stand 1.7 above the floor); 255 when none can fire from it.
+        /// </summary>
+        public static byte FiringStance(float sillAboveFloor, float headAboveFloor)
+        {
+            if (Fits(Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightProne)) return 0;
+            if (Fits(Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched)) return 1;
+            if (Fits(Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding)) return 2;
+            return 255;
+            bool Fits(float eye) => eye >= sillAboveFloor + SillClearance && eye <= headAboveFloor - 0.05f;
+        }
+
+        /// <summary>
+        /// ⭐ Stage 7a (§3l C2–C4) — a building panel by FACE: both faces, a point every <see cref="Spacing"/> m along each solid span,
+        /// <see cref="StandOff"/> m out, facing the wall, at the panel's STOREY FLOOR. A door or gap span gives nothing; a window
+        /// span is a low wall of its sill's height (both faces) and, on the face inside the building, a window firing position.
+        /// A point is kept only where that floor exists (<see cref="LevelTolerance"/>) and nothing solid stands where the unit would.
+        /// </summary>
+        private static void AddPanelFaces(TerrainWorld world, TerrainWallPanel panel, List<CoverPoint> points)
+        {
+            float len = panel.Length;
+            if (len < 1e-3f) return;
+            var dir = (panel.B - panel.A) / len;
+            var normal = new Vector2(-dir.Y, dir.X);
+            float floor = panel.BaseZ;
+            float off = panel.Thickness * 0.5f + StandOff;
+            var footprint = panel.Building < world.Buildings.Count ? world.Buildings[panel.Building].Footprint : null;
+
+            var openings = new List<TerrainOpening>(panel.Openings);
+            openings.Sort((x, y) => x.At.CompareTo(y.At));
+            float cursor = 0f;
+            foreach (var o in openings)
+            {
+                float s = Math.Clamp(o.At, 0f, len), e = Math.Clamp(o.At + o.Width, 0f, len);
+                if (s > cursor) SolidSpan(cursor, s);
+                if (o.Kind == TerrainOpeningKind.Window) WindowSpan(s, e, o);
+                cursor = Math.Max(cursor, e);
+            }
+            if (len > cursor) SolidSpan(cursor, len);
+
+            void SolidSpan(float a, float b)
+            {
+                byte stance = StanceFor(panel.TopZ - floor);
+                if (stance == 255 || b - a < 1e-3f) return;
+                int n = Math.Max(1, (int)((b - a) / Spacing));
+                for (int k = 0; k < n; k++)
+                {
+                    float t = a + (k + 0.5f) * (b - a) / n;
+                    Add(t, +1f, stance, CoverKind.Cover);
+                    Add(t, -1f, stance, CoverKind.Cover);
+                }
+            }
+
+            void WindowSpan(float a, float b, TerrainOpening o)
+            {
+                float mid = (a + b) * 0.5f;
+                byte sill = StanceFor(o.SillZ - floor);
+                if (sill != 255) { Add(mid, +1f, sill, CoverKind.Cover); Add(mid, -1f, sill, CoverKind.Cover); }
+                byte fire = FiringStance(o.SillZ - floor, o.HeadZ - floor);
+                if (fire == 255) return;
+                bool inPlus = Inside(mid, +1f), inMinus = Inside(mid, -1f);
+                if (inPlus) Add(mid, +1f, fire, CoverKind.WindowFiring);
+                if (inMinus) Add(mid, -1f, fire, CoverKind.WindowFiring);
+            }
+
+            bool Inside(float t, float side)
+                => footprint != null && footprint.Length >= 3 && PolygonMath.Contains(footprint, Point(t, side));
+
+            Vector2 Point(float t, float side) => panel.A + dir * t + normal * (side * off);
+
+            void Add(float t, float side, byte stance, CoverKind kind)
+            {
+                var p = Point(t, side);
+                if (!HasFloor(world, p, floor) || Occupied(world, p, floor)) return;
+                points.Add(new CoverPoint
+                {
+                    PositionX = p.X,
+                    PositionY = p.Y,
+                    PositionZ = floor,
+                    DirectionX = -normal.X * side,
+                    DirectionY = -normal.Y * side,
+                    Quality = 1f,
+                    StanceHeight = stance,
+                    Kind = kind,
+                });
+            }
+        }
+
+        /// <summary>A walkable level within <see cref="LevelTolerance"/> of <paramref name="floor"/> at <paramref name="p"/>.</summary>
+        private static bool HasFloor(TerrainWorld world, Vector2 p, float floor)
+        {
+            foreach (float level in world.SurfacesAt(p.X, p.Y))
+                if (MathF.Abs(level - floor) <= LevelTolerance) return true;
+            return false;
+        }
+
+        /// <summary>Something solid stands where a unit on <paramref name="floor"/> at <paramref name="p"/> would (another wall's
+        /// thickness, a solid block) — the 1 m above the floor.</summary>
+        private static bool Occupied(TerrainWorld world, Vector2 p, float floor)
+        {
+            foreach (var prism in world.Prisms)
+            {
+                if (p.X < prism.Min.X || p.Y < prism.Min.Y || p.X > prism.Max.X || p.Y > prism.Max.Y) continue;
+                if (prism.TopZ <= floor + 0.1f || prism.BaseZ >= floor + 1.0f) continue;
+                if (PolygonMath.Contains(prism.Footprint, p)) return true;
+            }
+            return false;
         }
 
         /// <inheritdoc/>
         public int GetCoverPointsInRadius(Vector2 center, float radius, Span<CoverPoint> results)
+            => GetCoverPointsInRadius(center, radius, results, CoverKind.Cover);
+
+        /// <inheritdoc/>
+        public int GetCoverPointsInRadius(Vector2 center, float radius, Span<CoverPoint> results, CoverKind kind)
         {
             if (results.Length == 0 || radius <= 0f) return 0;
             Span<float> dist = results.Length <= 256 ? stackalloc float[results.Length] : new float[results.Length];
@@ -104,6 +234,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     if (!_cells.TryGetValue((cx, cy), out var idx)) continue;
                     foreach (int i in idx)
                     {
+                        if (_points[i].Kind != kind) continue;   // ⭐ Stage 7a — one kind per query
                         float d2 = Vector2.DistanceSquared(center, new Vector2(_points[i].PositionX, _points[i].PositionY));
                         if (d2 > r2) continue;
                         if (count < results.Length) { results[count] = _points[i]; dist[count] = d2; count++; continue; }
