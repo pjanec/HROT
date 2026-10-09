@@ -273,8 +273,11 @@ namespace CarKinem.Systems
                 }
             }
 
+            // ⭐ CE-3145 (R-247) — a PERSON turns on the spot and walks where he faces (HumanGait); a vehicle steers.
+            bool person = @params.Class == VehicleClass.Pedestrian;
+
             // Pure Pursuit steering
-            float steerAngle = PurePursuitController.CalculateSteering(
+            float steerAngle = person ? 0f : PurePursuitController.CalculateSteering(
                 pos2D,
                 fwd2D,
                 avoidanceVelocity,
@@ -296,6 +299,8 @@ namespace CarKinem.Systems
             }
 
             float finalTargetSpeed = MathF.Min(targetSpeedAfterAvoidance, maxCorneringSpeed) * speedSign;
+            if (person)
+                finalTargetSpeed = HumanGait.SpeedTarget(fwd2D, avoidanceVelocity, targetSpeedAfterAvoidance);   // far off ⇒ turn first
 
             if (finalTargetSpeed < 0f)
                 finalTargetSpeed = MathF.Max(finalTargetSpeed, -@params.MaxSpeedRev);
@@ -307,10 +312,19 @@ namespace CarKinem.Systems
                 finalTargetSpeed,
                 @params.AccelGain,
                 @params.MaxAccel,
-                @params.MaxDecel);
+                person ? MathF.Max(@params.MaxDecel, HumanGait.StopDecel) : @params.MaxDecel);
             
-            // Integrate bicycle model
-            BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase);
+            // Integrate: a person's gait, else the bicycle model
+            float yawRate;
+            if (person)
+            {
+                yawRate = HumanGait.Integrate(ref pos2D, ref fwd2D, ref state, avoidanceVelocity, targetSpeedAfterAvoidance > 0.01f, accel, dt);
+            }
+            else
+            {
+                BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase);
+                yawRate = (state.Speed / @params.WheelBase) * MathF.Tan(steerAngle);
+            }
 
             if (nav.ReverseAllowed == 0 && state.Speed < 0f)
             {
@@ -354,7 +368,7 @@ namespace CarKinem.Systems
             tf.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw);
 
             vel.Linear = new Vector3(fwd2D.X * state.Speed, fwd2D.Y * state.Speed, dt > 0f ? dz / dt : 0f);
-            vel.Angular = new Vector3(0, 0, (state.Speed / @params.WheelBase) * MathF.Tan(steerAngle)); // Yaw rate around Z
+            vel.Angular = new Vector3(0, 0, yawRate); // Yaw rate around Z
 
             // Write back state
             repo.SetComponent(entity, state);

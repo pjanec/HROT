@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-09
+current-answer: the whole file; pedestrians move by "Human gait" (CE-3145), every other class by the bicycle model
+stale-below: none known
+known-rot: written as a vehicle toolkit; SimHost infantry has always been moved by this system too (Navigation_Design_v2_0 §D1 ②)
+related-designs:
+  - ../../../../docs/DESIGN_Peek_And_Fire.md — OWNS the window duel that found the pedestrian defect (D17)
+  - ../../../../docs/designs/navig-2/Navigation_Design_v2_0.md — OWNS the path a mover follows; this file owns how it moves along it
+-->
+
 # FDP.Toolkit.CarKinem
 
 ## Overview
@@ -98,6 +109,31 @@ Rotation Matrix Update:
 **Implementation**: `BicycleModel.Integrate(ref VehicleState state, float steerAngle, float accel, float dt, float wheelBase)` applies rotation matrices rather than trigonometric angle tracking for numerical stability.
 
 ---
+
+### Human gait — pedestrians *(`CE-3145`, R-247, `2026-10-09`)*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Standing
+  Standing --> TurnInPlace : a goal more than 30 deg off the heading
+  Standing --> Walk : a goal within 30 deg
+  TurnInPlace --> Walk : heading within 30 deg (turned at 2 pi rad/s)
+  Walk --> TurnInPlace : the path turns more than 30 deg - stop first (at least 4 m/s2)
+  Walk --> Standing : arrived or held
+```
+
+*What the picture shows that the bicycle section above cannot: a person has no turning circle — the heading turns straight to
+the wanted direction and he only walks when roughly facing it.*
+
+`VehicleClass.Pedestrian` is integrated by `Controllers/HumanGait.cs`, never `BicycleModel`: no Pure Pursuit steering angle, no
+cornering limit, the speed target 0 while the heading is more than `WalkWithinAngle` off (`HumanGait.SpeedTarget`), braking at
+least `StopDecel`, and the yaw rate reported is the turn actually made. Every other class is unchanged.
+
+| why | ⛔ what it replaced |
+|---|---|
+| 📐 `bt-window-duel`: A, facing east 0.4 m from House A's open stairwell, had to go west — the car model (0.3 m turn circle at full lock, up to ≈ 0.95 m/s while turning, `CarKinematicsSystem` cornering limit) walked him 0.5 m forward into the stairwell and he fell to the ground floor | a pedestrian as a tiny car (`WheelBase` 0.3, `MaxSteerAngle` 1.57) — "can turn in place" in the preset's comment, never in the model. 🔒 User: *"Feel free to modify the motion model to suite human movement. It has never been done only because not needed yet."* |
+
+Rail: `CarKinematicsSystemTests.CE3145_APerson_TurnsOnTheSpot_ThenWalks`.
 
 ## Core Components
 

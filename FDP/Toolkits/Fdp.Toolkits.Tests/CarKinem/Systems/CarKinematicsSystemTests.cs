@@ -523,6 +523,39 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3145</c> (R-247) — A PERSON TURNS ON THE SPOT, then walks: a walker facing WEST, his path going EAST, turns where
+        /// he stands (never more than 5 cm from it) in about half a second, then walks the path. 📐 The car model it replaces walked a
+        /// half-circle forward first — on <c>bt-window-duel</c> that carried A 0.5 m east into House A's open stairwell. 🔴 Red-proof:
+        /// route the walker through <c>BicycleModel</c> again and he swings ≈ 0.3 m west before coming round.
+        /// </summary>
+        [Fact]
+        public void CE3145_APerson_TurnsOnTheSpot_ThenWalks()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, facing: SimMath.FromYaw(MathF.PI),
+                vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float wander = 0f, turnedAt = -1f;
+            for (int i = 0; i < 20 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var tf = repo.GetComponent<SimTransform>(e);
+                var fwd = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+                if (turnedAt < 0f)
+                {
+                    wander = MathF.Max(wander, new Vector2(tf.Position.X, tf.Position.Y).Length());
+                    if (fwd.X > MathF.Cos(MathF.PI / 6f)) turnedAt = (i + 1) / 60f;
+                }
+            }
+            Assert.True(turnedAt > 0f && turnedAt <= 0.7f, $"turned round in {turnedAt:F2} s");
+            Assert.True(wander <= 0.05f, $"moved {wander:F2} m while turning — a person turns where he stands");
+            Assert.True(repo.GetComponent<SimTransform>(e).Position.X > 15f, "then walked the path");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ Buildings 5d-3 — <see cref="NavState.IsBlocked"/> ("obstacle ahead", designed in FDP.Toolkit.CarKinem.md and never read before):
         /// the mover brakes to a stop where it is, KEEPS its path and progress, and drives on along the same path when it clears.
         /// </summary>
