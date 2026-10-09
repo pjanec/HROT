@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: none
 related-designs:
+  - DESIGN_Peek_And_Fire.md — adds AimSeconds and reload to the defaults; its demo bt-window-duel follows §3
   - DESIGN_Building_Interiors.md — the terrain/combat/perception model these defaults, tests and diagnostics serve
     (§3c materials, §3d penetration, §3e warheads, §3f exposure).
   - DESIGN_Add_Entity_Picker.md §2d — SpawnHeight; its level probe is a layer here (§5).
