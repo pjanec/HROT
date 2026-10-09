@@ -641,7 +641,28 @@ namespace Hrot.Editor
         {
             private readonly PreviewClusterOpHandler _handler;
             private readonly MasterSyncController    _timeController;
+            private readonly Fdp.Toolkit.Time.ITimeCommands _timeCommands;
             private bool _inPreview;
+
+            /// <summary>
+            /// ⭐⭐⭐ <c>CE-3156</c> — <b>where the clock stood when the preview began</b>, so Stop can put it back.
+            /// <para>🔒 User, <c>2026-10-10</c>: <i>"Stop Preview does NOT reset time to zero (although the entity
+            /// state resets to initial state)."</i></para>
+            /// <para>📐 Measured: Stop did two things — <c>TriggerUnloadingPreview()</c> (the world rewind,
+            /// <c>_liveRepo.SyncFrom(_snap)</c>) and <c>SwitchToDeterministic</c> (a PAUSE). Neither repositions the
+            /// clock. <c>SyncFrom</c> restores entities and eight named singletons, <b>not</b> <c>GlobalTime</c>
+            /// (<c>EntityRepository.Sync.cs:112-123</c>) — and restoring that singleton would not help anyway: the
+            /// kernel rewrites it every frame from <c>MasterSyncController._totalTime</c>
+            /// (<c>ModuleHostKernel.cs:496-500</c>), which nothing on the Stop path touched. ⇒ the world went back
+            /// to its snapshot while the clock kept the time of the moment Stop was pressed.</para>
+            /// <para>⭐ The clock's accumulator is exactly what <c>DESIGN_Deterministic_Network_Ids.md</c> §2b calls
+            /// <i>"state outside the EntityRepository [that] survives the preview rewind"</i> — the same class as the
+            /// id allocator, the entity map and the ELM queues, which already have participants. ⚠ It is captured
+            /// HERE rather than as an <c>IPreviewRewindable</c> because the one legal way to move the clock is
+            /// <c>ITimeCommands.SnapTo</c> (<c>DESIGN_Time_Architecture.md</c> §12a), and on the cluster path only
+            /// the master owns the clock — a shared participant is a larger question, filed with the row.</para>
+            /// </summary>
+            private GlobalTime _enteredAt;
 
             /// <param name="rewindables">
             /// ⭐⭐ <b><c>HN-017</c> — the non-ECS state the preview must also put back.</b>
@@ -651,19 +672,31 @@ namespace Hrot.Editor
             /// controller is constructed in the same method, a few lines later, which is why the list is a
             /// constructor argument and not something attached afterwards.</para>
             /// </param>
+            /// <param name="timeCommands">
+            /// ⭐ <c>CE-3156</c> — the seam through which Stop asks the clock to go back
+            /// (<c>DESIGN_Time_Architecture.md</c> §12a: <i>"callers outside the clock no longer call it — they
+            /// ask: ITimeCommands.SnapTo"</i>). ⛔ Not optional and not defaulted: the caller HOLDS it
+            /// (<c>_timeCommands</c>, built at <c>Initialize</c>) — the same silent-default rule as
+            /// <paramref name="rewindables"/>.
+            /// </param>
             internal EditorPreviewController(
                 EntityRepository world,
                 MasterSyncController timeController,
+                Fdp.Toolkit.Time.ITimeCommands timeCommands,
                 System.Collections.Generic.IEnumerable<Fdp.Toolkit.Orchestration.Preview.IPreviewRewindable> rewindables)
             {
                 _handler        = new PreviewClusterOpHandler(world, rewindables);
                 _timeController = timeController;
+                _timeCommands   = timeCommands ?? throw new System.ArgumentNullException(nameof(timeCommands));
             }
 
             public bool IsInPreviewMode => _inPreview;
 
             public void EnterPreviewMode(bool startPaused = false)
             {
+                // ⭐ CE-3156 — BEFORE the clock starts running: this is the position the world snapshot belongs to.
+                _enteredAt = _timeController.GetCurrentState();
+
                 _handler.TriggerLoadingPreview();
                 if (!startPaused)
                     _timeController.SwitchToContinuous();
@@ -674,6 +707,14 @@ namespace Hrot.Editor
             {
                 _handler.TriggerUnloadingPreview();
                 _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
+
+                // ⭐⭐⭐ CE-3156 — and the CLOCK goes back with the world. The pause above stays (it takes effect at
+                //   once; CE-3068); the snap is applied by the clock FIRST on its next Update, before any
+                //   pause/resume intent (MasterSyncController.cs:162-163), and leaves the clock paused at the
+                //   position the preview started from — the whole position: frame number, sim time, unscaled time
+                //   and wall ticks, so nothing is left from the abandoned timeline.
+                _timeCommands.SnapTo(_enteredAt);
+
                 _inPreview = false;
             }
         }
@@ -2194,7 +2235,9 @@ namespace Hrot.Editor
                 Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMap(_entityMap!),
                 Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(elm),
             };
-            _previewController = new EditorPreviewController(_world, _timeController!, previewRewindables);
+            // ⭐ CE-3156 — _timeCommands is handed over because this method HOLDS it (built above, at the
+            //   orchestration-bus wiring): Stop Preview needs it to put the clock back with the world.
+            _previewController = new EditorPreviewController(_world, _timeController!, _timeCommands!, previewRewindables);
 
             // ── 8b. AI-debug API (MCP) host — ported from feat/ai-debug-api. Works headless. Enabled only
             //    when HROT_DEBUG_API_PORT names a port, so it costs nothing in normal runs; the MCP server

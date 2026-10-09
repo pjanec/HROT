@@ -57,6 +57,45 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
 
     public class DebugPrimitiveRenderer2DTests
     {
+        // ── CE-3154 — a closed shape's OUTLINE is stroked in screen pixels ────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3154</c> — <b>the outline of a ring or a box is the same number of PIXELS at every zoom,
+        /// whether the shape itself is sized in world metres or in screen pixels.</b>
+        /// 🔒 User, <c>2026-10-10</c>: <i>"the green selection circle now scales but is now extremely thick (was
+        /// single pixel regardless of zoom before - should be like that)."</i>
+        /// <para>📐 The renderer used ONE field, <c>SizeMode</c>, for both a shape's size and its stroke, so a
+        /// world-sized ring got a world-sized stroke: "2" meant 2 METRES — 200 px at zoom 100. Every ring emitter
+        /// in the repo writes a pixel-sized stroke (24 <c>DrawSphere</c> call sites, graph ∪ grep), so nobody
+        /// wanted that; it only looked tolerable below the old zoom cap of 10.</para>
+        /// <para>⭐ The value returned is in the camera's units (world units inside <c>BeginMode2D</c>), so
+        /// <c>result × zoom</c> is the stroke ON SCREEN — which is what each row asserts.</para>
+        /// </summary>
+        [Theory]
+        [InlineData(SizeMode.WorldMeters,  2f,   1f)]
+        [InlineData(SizeMode.WorldMeters,  2f,  10f)]
+        [InlineData(SizeMode.WorldMeters,  2f, 100f)]   // 🔴 was 200 px on screen
+        [InlineData(SizeMode.ScreenPixels, 2f, 100f)]   // unchanged: this mode was always pixels
+        [InlineData(SizeMode.WorldMeters,  1f, 0.1f)]   // zoomed far out: still 1 px, never sub-pixel
+        public void CE3154_AClosedShapesOutline_IsTheSamePixelsOnScreen_AtEveryZoom(
+            SizeMode mode, float strokePx, float zoom)
+        {
+            float world = GizmoMap.Presentation.DebugPrimitiveRenderer2D.OutlineStroke(strokePx, mode, zoom, screenSpace: false);
+
+            Assert.Equal(strokePx, world * zoom, precision: 3);
+        }
+
+        /// <summary>⭐ <c>CE-3154</c> — screen-space primitives are left exactly as they were (no camera there).</summary>
+        [Fact]
+        public void CE3154_AScreenSpacePrimitive_KeepsItsOldStroke()
+        {
+            Assert.Equal(2f,
+                GizmoMap.Presentation.DebugPrimitiveRenderer2D.OutlineStroke(2f, SizeMode.WorldMeters, 50f, screenSpace: true));
+            Assert.Equal(2f / 50f,
+                GizmoMap.Presentation.DebugPrimitiveRenderer2D.OutlineStroke(2f, SizeMode.ScreenPixels, 50f, screenSpace: true),
+                precision: 5);
+        }
+
         // SC-GZ011-1: TargetView=None => skipped.
         [Fact]
         public void SC_GZ011_1_TargetView_None_Skipped()

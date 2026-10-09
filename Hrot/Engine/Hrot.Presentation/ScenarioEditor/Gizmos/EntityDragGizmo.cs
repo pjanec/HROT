@@ -125,7 +125,20 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         if (_isDragging)
         {
             draw.DrawLine(_originalPos, _currentDragPos, DragLineColor, thickness: 2f);
-            draw.DrawSphere(_currentDragPos, 5f, DragSphereColor);
+
+            // ⭐⭐ CE-3154 — a 1 px OUTLINE at the entity's own footprint, at every zoom.
+            //   🔒 User, 2026-10-10: "The drag and drop yellow marker circle is thick - should be 1 pixel
+            //   regardless of zoom."
+            //   🔴 It was `DrawSphere(pos, 5f, color)` with NO thickness, which this pipeline reads as TWO things:
+            //   a FILLED disc (the "legacy fill" of a thickness-0 sphere) plus a default 1-unit rim — and with
+            //   DrawSphere's WorldMeters default that rim was 1 METRE wide, drawn in the same translucent colour
+            //   over the fill. ⇒ a 5 m disc with a dark 1 m band: the "thick circle".
+            //   ⭐ An explicit thickness makes it an outline only (no legacy fill), and the renderer now strokes
+            //   every closed outline in screen pixels (DebugPrimitiveRenderer2D.OutlineStroke).
+            //   ⭐ Radius = the same EntityFootprint query the select/drag areas and the selection ring use, so the
+            //   marker shows where the entity will sit at its real size instead of an arbitrary 5 m.
+            float markerRadius = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, _entity);
+            draw.DrawSphere(_currentDragPos, markerRadius, DragSphereColor, thickness: 1f);
         }
     }
 

@@ -35,8 +35,13 @@ namespace Hrot.Common.Diagnostics.Gizmos
         //   METRES (default 5 × 2.5), so the ring must be measured the same way.
         //   ⭐ The rule now lives in ONE place for all three consumers — EntityFootprint — because this assembly
         //   cannot see Hrot.Presentation's gizmos (siblings) and three copies is how they diverged before.
-        //   ⚠ Thickness stays in screen pixels on purpose: a 2 px outline should stay 2 px, or it vanishes zoomed
-        //   out and becomes a slab zoomed in.
+        //   ⭐⭐ CE-3154 — THE STROKE IS SCREEN PIXELS, and that is now the RENDERER'S rule, not this gizmo's.
+        //   🔒 User, 2026-10-10: "the green selection circle now scales but is now extremely thick (was single
+        //   pixel regardless of zoom before - should be like that)."
+        //   🔴 What went wrong: SizeMode governed BOTH the radius and the stroke, so switching the radius to
+        //   WorldMeters silently made this "2" mean 2 METRES. There was no way to ask for "world radius, pixel
+        //   stroke" — DebugPrimitiveRenderer2D.OutlineStroke is what makes it expressible, for every ring.
+        //   ⭐ The value is unchanged from before CE-3147 (2 px, the look the user calls single-pixel).
         private const float RingThicknessPx = 2f;
 
         private static readonly Rgba32 PrimaryOutline = Rgba32.Green;
