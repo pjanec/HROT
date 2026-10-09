@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-09 (§3l Stage 7a design · §3k Stage 6 warheads BUILT — as-built table; CE-3116 body profile · designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
+updated: 2026-10-09 (§3l Stage 7a BUILT — §3l.7 as built · §3k Stage 6 warheads BUILT — as-built table; CE-3116 body profile · designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3l Stage 7a cover per storey + window firing positions (APPROVED, R-232 — BUILDING) · §3k Stage 6 warheads (BUILT — "Stage 6 as built") · §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3l Stage 7a cover per storey + window firing positions (APPROVED, R-232 — BUILT, §3l.7 as built; §3l.2 diagram updated) · §3k Stage 6 warheads (BUILT — "Stage 6 as built") · §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: §3j's top classDiagram and "5b as built" still draw DoorStateMirrorSystem / TerrainWorld.SetDoorState — removed by 5b′ (R-219); the banner there says so
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -22,7 +22,7 @@ related-designs:
   - blueprints/Architect_Question_85_Hit_Chance.md §D — bullets against terrain walls; shares this doc's trace query.
   - DESIGN_Terrain_Combat_Tuning.md — OWNS the defaults (reference library + provenance), the demo/test plan and the
     diagnostics (routes, gizmo layers) for everything in this doc.
-  - designs/eqs-2/EQS_Design_v1.3_final.md §19 — TerrainCoverProvider (outer prism edges only today).
+  - designs/eqs-2/EQS_Design_v1.3_final.md §19 — OWNS the EQS pipeline, its tests and the starter templates (§19.6 lists FindWindowFiringPosition); TerrainCoverProvider reads building panels by face since §3l.
   - DESIGN_Terrain_Zones_And_Assets.md §2.1c — buildings are static/bakeable terrain content.
 -->
 
@@ -1284,7 +1284,7 @@ The diagrams above are updated to the as-built classes and sequence. What change
 | W-11 | rails `AreaEffectSystemTests` (6), `WarheadFlightTests` (4), `ReferenceLibraryTests` (2 new), `HrotEnvironmentTests` (munitions); premise rows `bt-grenade-posture`, `bt-mortar-roof`; scenarios + `scripts/utility-demo-check.py`; the curated test behaviour `HoldStance` | — |
 | — | ⭐ **`CE-3116` found here:** a soldier's 1.8 m collider (its capsule) made the body profile a HULL, so sight, aim and fragments ignored prone/crouched on the live world. `PhysicsColliderReaders.HullHeight` = 0 for a pedestrian; sight (`ForLiveWorld`), fire aim and the area effect read it; the collider still blocks lines up to its full height | §3f's profile, now true on the live world |
 
-## 3l. Stage 7a — cover per storey, window firing positions *(backend, `2026-10-09`; ✅ C1–C9 APPROVED by the user `2026-10-09` — *"Look ok."* … *"Approved."* (R-232); build-state: BUILDING)*
+## 3l. Stage 7a — cover per storey, window firing positions *(backend, `2026-10-09`; ✅ C1–C9 APPROVED by the user `2026-10-09` — *"Look ok."* … *"Approved."* (R-232); build-state: BUILT — `CE-3134`, §3l.7)*
 
 > 🔒 **User, `2026-10-09`:** *"Yes 7a first."* · Scope from the approved plan ([`HANDOFF_Buildings_Combat_Programme.md`](blueprints/batches/HANDOFF_Buildings_Combat_Programme.md)
 > §4 Stage 7) and §4 above (approved set): *"cover points per storey along panels (inner side too); window firing positions
@@ -1315,16 +1315,20 @@ classDiagram
   class TerrainOpening { <<existing>> Kind; At; Width; SillZ; HeadZ }
   class TerrainBuilding { <<existing>> Footprint; StoreyZ }
   class TerrainWorld { <<existing>> Prisms; Panels; Buildings; SurfacesAt(x,y) }
-  class CoverPointsGenerator { <<existing, grows>> +Kinds : CoverKind mask (default Cover) }
-  class FindWindowFiringPosition { <<new starter template>> CoverPoints(Kinds=WindowFiring) + LOS candidate→target Visible + Distance + PathCost }
-  class FindCoverFromTarget { <<existing, unchanged>> CoverPoints(Kinds=Cover) }
-  class CoverPointsGizmo { <<new>> layer Cover }
+  class CoverPointsGenerator { <<existing, grows>> +Kind : CoverKind (default Cover) }
+  class ICoverProvider { <<existing, grows>> +GetCoverPointsInRadius(center, r, span, kind) default: Cover only }
+  class ManualCoverProvider { <<existing, grows>> filters by kind }
+  class FindWindowFiringPosition { <<new starter template>> CoverPoints(Kind=WindowFiring) + LOS candidate→target Visible + Distance + PathCost }
+  class FindCoverFromTarget { <<existing, unchanged>> CoverPoints(Kind=Cover) }
+  class CoverPointsGizmo { <<new>> layer Cover = 9, off by default }
   TerrainCoverProvider ..> TerrainWorld : solid prisms + free-wall prisms (as today)
   TerrainCoverProvider ..> TerrainWallPanel : building panels by FACE (new)
   TerrainWallPanel --> TerrainOpening
   TerrainCoverProvider --> CoverPoint
   CoverPoint --> CoverKind
-  CoverPointsGenerator ..> TerrainCoverProvider
+  TerrainCoverProvider ..|> ICoverProvider
+  ManualCoverProvider ..|> ICoverProvider
+  CoverPointsGenerator ..> ICoverProvider : one kind per query
   FindWindowFiringPosition --> CoverPointsGenerator
   FindCoverFromTarget --> CoverPointsGenerator
   CoverPointsGizmo ..> TerrainCoverProvider
@@ -1411,6 +1415,25 @@ stance (§3l.5 C8, behaviors lane). Everything solid already ticks on every host
 | 7a-1 | C1–C3 in `TerrainCoverProvider` | ⭐ both faces of the inner wall on BOTH storeys at their floor Z (±0.05); no point outside an upper storey; none in a doorway; none under a lintel; test-town's database unchanged (count + checksum) |
 | 7a-2 | C4–C5 | ⭐ the plan's acceptance: from a rifleman on `House A` storey 2 and a target south of the house, `FindWindowFiringPosition` answers a point at a SOUTH window, Z ≈ 3.0, stance crouch, inside the footprint |
 | 7a-3 | C7 | gizmo rail: draws both kinds on its layer, nothing without a provider |
+
+### 3l.7 As built *(`2026-10-09`, `CE-3134`)*
+
+📐 **Measured on House A (bt-range) before → after:** 96 points → 53 · 26 coincident pairs → 0 of one kind (the 5 left are a
+window's Cover + WindowFiring pair, by design) · crouch cover in the front doorway → none in any door · Z histogram 0:79 3:17
+→ 0:36 3:17, every Z-3 point inside the house and none on the stair opening. test-town (612) and basic-desert (303) are
+point-for-point identical (count + checksum pinned).
+
+| # | as built | ⛔ the design above said |
+|---|---|---|
+| A1 | `CoverPointsGenerator.Kind` — ONE `CoverKind` per query, and `ICoverProvider` gains `GetCoverPointsInRadius(…, kind)` with a default that answers `Cover` from the old method and nothing else (a provider that knows only cover has no windows); `ManualCoverProvider` filters by kind | C5: `Kinds : CoverKind mask` — the enum is not a flag set (`Cover = 0`), and no template wants two kinds mixed |
+| A2 | the inner-wall rail checks the GROUND storey only | 7a-1 rail: *"both faces of the inner wall on BOTH storeys"* — `house-2f` has its inner wall on the ground storey only; the upper storey is asserted instead by *"every point stands on its storey floor, an upper one inside, none on the stair opening"* |
+| A3 | the rails assert the FIXED behaviour (`TerrainEqsTests.CE3134_*`), red-proved against the old rule: 5 of the 7 House A rails fail on it. The floor rail stays green on the old rule — its phantom upper-storey points fell to Z 0 outside the house, which the coincident-points rail catches | 7a-0: a `Stage7a_TodayHouse2f_*` rail written red-on-purpose against the defect |
+| A4 | "nothing solid stands there" = any prism overlapping floor + 0.1 … floor + 1.0 m whose footprint holds the point; a firing stance's eye must also stay 0.05 m under the head | C2 / C4 — the thresholds were not stated |
+| A5 | the `Cover` layer is bit 9, **off by default** (a town holds hundreds of points); the gizmo draws only a `TerrainCoverProvider` (the one database that enumerates its points); dot size by stance; `TerrainResidency.MirrorTerrain` copies the provider too, so the layer draws in the Replay Browser | C7 — default, enumeration and replay not stated |
+| A6 | the flat-terrain golden suite (one scenario per registered template) gains `FindWindowFiringPosition` over a manual window database | — (the suite's own rule) |
+
+⛔ **Not built here, as decided:** C8 — a behaviour taking the point's stance → `CE-3135` (behaviors lane). C9 — cover
+`Quality` from the wall's material → stays ⏭ with the penetration tables.
 
 ## 4. Change map — what each consumer must do
 
