@@ -62,7 +62,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
         }
 
         /// <summary>
-        /// The cover points round ONE solid piece: every <see cref="Spacing"/> along each footprint edge, <see cref="StandOff"/> out,
+        /// The cover points round ONE solid piece: one per started <see cref="Spacing"/> along each footprint edge (rounded up, CE-3143), <see cref="StandOff"/> out,
         /// facing the piece, at the stance its height protects (<see cref="StanceFor"/>); none when it is too low to hide anyone.
         /// ⭐ <c>CE-3142</c> (P-7a O5) — the same rule for a standing vehicle's box (<see cref="VehicleCover"/>): one rule, two callers
         /// (R-174). <paramref name="world"/> null ⇒ no terrain to test against (a point inside a solid is then kept).
@@ -84,7 +84,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 var dir = edge / len;
                 // Outward normal: right of the edge for a counter-clockwise footprint.
                 var outward = ccw ? new Vector2(dir.Y, -dir.X) : new Vector2(-dir.Y, dir.X);
-                int n = Math.Max(1, (int)(len / Spacing));
+                // ⭐ CE-3143 — ROUNDED UP: a side gets a point for every started 2.5 m (a car's 4.5 m side: 2, one per man; was 1 in
+                //   the middle). ⛔ SUPERSEDED: Math.Max(1, (int)(len / Spacing)) — rounded down.
+                int n = Math.Max(1, (int)MathF.Ceiling((len / Spacing) - 1e-3f));
                 for (int k = 0; k < n; k++)
                 {
                     var p = a + (dir * ((k + 0.5f) * len / n)) + (outward * StandOff);

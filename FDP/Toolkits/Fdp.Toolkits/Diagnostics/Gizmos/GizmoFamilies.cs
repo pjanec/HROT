@@ -37,7 +37,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public static GizmoScope DefaultScope(AiOverlayFlags family) => family switch
         {
             AiOverlayFlags.Path or AiOverlayFlags.UtilityDecision or AiOverlayFlags.SquadAssignment
-                or AiOverlayFlags.Channels => GizmoScope.SelectedOrPinned,
+                or AiOverlayFlags.Channels
+                or AiOverlayFlags.Eqs => GizmoScope.SelectedOrPinned,   // ⭐ CE-3143 — EQS draws every candidate's verdict now: per unit, busy
             _ => GizmoScope.All,
         };
 

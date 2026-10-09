@@ -85,6 +85,22 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 new ObstacleShape { Length = length, Width = width, Height = collider.Height }, material, "vehicle:" + e.Index);
         }
 
+        /// <summary>
+        /// ⭐ The cover points round every STANDING vehicle on <paramref name="view"/> — <see cref="TerrainCoverProvider.PointsAround"/> per
+        /// box, none inside another vehicle. ONE producer for the cover generator and the map's Cover layer (<c>CE-3143</c>), so what the
+        /// map draws is what the query generates. Appends to <paramref name="into"/>; returns false (nothing appended) when no vehicle stands.
+        /// </summary>
+        public static bool StandingPoints(ISimulationView view, TerrainWorld? world, List<CoverPoint> into)
+        {
+            var boxes = Collect(view, world?.Materials, standingOnly: true);
+            if (boxes == null) return false;
+            int start = into.Count;
+            foreach (var box in boxes) TerrainCoverProvider.PointsAround(world, box, into);
+            for (int i = into.Count - 1; i >= start; i--)
+                if (Inside(boxes, new Vector2(into[i].PositionX, into[i].PositionY))) into.RemoveAt(i);
+            return into.Count > start;
+        }
+
         /// <summary>True when <paramref name="p"/> (plan) lies inside any of <paramref name="boxes"/>.</summary>
         public static bool Inside(IReadOnlyList<TerrainPrism> boxes, Vector2 p)
         {

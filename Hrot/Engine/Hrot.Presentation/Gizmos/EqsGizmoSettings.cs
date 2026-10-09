@@ -11,12 +11,15 @@ namespace Hrot.ScenarioEditor.Gizmos
         public const string ShowRadius     = "EQS.ShowSearchRadius";
         public const string ShowCandidates = "EQS.ShowTopKCandidates";
         public const string ShowScores     = "EQS.ShowScores";
+        /// <summary>⭐ CE-3143 — every generated candidate, green when the filters keep it, red when they reject it.</summary>
+        public const string ShowVerdict    = "EQS.ShowVerdict";
 
         public static void Register(GizmoSettingsRegistry settings)
         {
             settings.RegisterSetting(ShowRadius,     GizmoSettingValue.From(true));
             settings.RegisterSetting(ShowCandidates, GizmoSettingValue.From(true));
             settings.RegisterSetting(ShowScores,     GizmoSettingValue.From(true));
+            settings.RegisterSetting(ShowVerdict,    GizmoSettingValue.From(true));
         }
     }
 }

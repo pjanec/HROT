@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-09
 build-state: P-1–P-6 and P-7a (O1–O5) BUILT 2026-10-09 (§7, §9.7); READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
-current-answer: §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles (O1–O5 APPROVED and BUILT; §7 P-7a row + §9.7 are the as-built) · §3 classes · §4 sequences · §5 modules · §7 slices
+current-answer: §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles (O1–O5 APPROVED and BUILT; §7 P-7a row + §9.7 are the as-built) · §9.8 cover and the AI's verdict on the map (CE-3143) · §3 classes · §4 sequences · §5 modules · §7 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
@@ -505,3 +505,43 @@ box and the same cover-point rule terrain uses.*
 Rails: `StaticObstacleTests.P7a_R10` (a car's box hides at 1.0 m, not at 1.7 m; its own vehicle never hides a viewer inside it; a man
 beside it — inside its collider circle — is hidden; a person is not cover), `P7a_R11` (points round a standing car, all standing stance;
 none when it drives; none for a window generator; none once it is a static obstacle).
+
+
+### 9.8 Seeing cover and the AI's verdict on the map *(`CE-3143`, built `2026-10-09`)*
+
+> 🔒 **User, `2026-10-09`:** *"is there an indication what cover points are seen as safe?"* → the lean (fix the EQS gizmo for child
+> sensors; colour points safe/exposed with the solver's own test; the parked-vehicle dots; round the per-side count up) → *"yes build it"*.
+
+```mermaid
+classDiagram
+  class TerrainCoverProvider { <<existing>> PointsAround — n = ceil(side / 2.5 m) }
+  class VehicleCover { <<existing, grows>> StandingPoints(view, world, into) }
+  class CoverPointsGenerator { <<existing>> provider points + StandingPoints }
+  class CoverPointsGizmo { <<existing, grows>> provider points + StandingPoints, lighter green }
+  class EqsFilters { <<NEW static>> Run(template, entity, sensor, view, candidates) }
+  class EqsSolverSystem { <<existing>> filters through EqsFilters.Run }
+  class EqsSensorGizmo { <<existing, grows>> keyed on EqsSensor; draws from the self; verdict dots }
+  class GizmoFamilyVisibilityPolicy { <<existing, grows>> UnitOf(part) — a part follows its unit }
+  CoverPointsGenerator ..> VehicleCover
+  CoverPointsGizmo ..> VehicleCover
+  VehicleCover ..> TerrainCoverProvider
+  EqsSolverSystem ..> EqsFilters
+  EqsSensorGizmo ..> EqsFilters : the same filters
+  GizmoFamilyVisibilityPolicy ..> EqsSensorGizmo : scope
+```
+
+*What the picture shows that prose hid: each picture on the map has ONE producer shared with what the AI runs — the vehicle points
+(`StandingPoints`) and the verdict (`EqsFilters.Run`) — so the map cannot show a different answer from the one the AI acts on.*
+
+| as built | why |
+|---|---|
+| **per-side count rounded UP**: a car's 4.5 m side gets 2 points (was 1 in the middle), a 12 m wall 5 per long side | two men can hide behind one car side, and a unit can pick the end nearer its target |
+| **Cover layer** draws the points beside every standing vehicle, lighter green (`CoverPointsGizmo.VehicleColor`) | they are in no database (read live, R-243/R-245) — the map showed less cover than the AI saw |
+| **`EqsSensorGizmo` keyed on `EqsSensor` alone**, drawn from the sensor's self (`EqsContext.SelfPosition` — the parent unit) | 📐 a unit's sensors are children with no `SimTransform` (`EqsChildSensor.cs:81-85`); the old `(SimTransform, EqsSensor)` key matched none — the gizmo drew nothing for every current tactic |
+| **the verdict**: every candidate the sensor's template generates, green when its FILTERS keep it, red when they reject it (`EQS.ShowVerdict`, on) — the template's own filters through `EqsFilters.Run`, now also the solver's | the same tests, never a copy. ⚠ The SCORE phases are not run (`AccurateLineOfSightTest` submits raycasts). A sensor whose threat gate is closed (no fresh threat) keeps everything ⇒ all green. A host with no template registry discovers one once (`EqsTemplateRegistry.Discover`) |
+| **EQS family = selected or pinned by default; a part follows its unit** (`GizmoFamilyVisibilityPolicy.UnitOf`) | the verdict is busy per unit; the user selects the unit, never its sensor child |
+
+Rails: `EqsVisualizersTests` (IG) — `EqsSensorGizmo_DrawsTheFiltersVerdict_ForAChildCoverSensor_GreenBehindTheCar` (a car between a unit
+and its threat: 2 green behind it, 4 red), T-VIS1 re-pinned (keyed on the sensor alone); `CoverPointsGizmoTests.CE3143_TheCoverLayer_ShowsTheLivePointsBesideAStandingVehicle`
+(6 dots for a car, none when it drives); `DebugTraceGizmoTests.CE3143_APartFollowsItsUnit_UnderSelectedOrPinned_AndEqsDefaultsToIt`;
+`StaticObstacleTests.P7a_R11` (6 points round a car).

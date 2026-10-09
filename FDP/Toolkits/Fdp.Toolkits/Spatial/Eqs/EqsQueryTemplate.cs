@@ -122,6 +122,34 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// <summary>
     /// Registry allowing the solver to look up a compiled template by BlueprintId.
     /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-3143</c> — a template's FILTER phases (cheap, then expensive) over generated candidates: a rejected candidate is marked
+    /// <c>EntityId = -1</c>. ONE pipeline for the solver and the map's EQS verdict (<c>EqsSensorGizmo</c>), so the map shows exactly what
+    /// the AI concluded. ⚠ The filter tests are pure (they read the view, mark candidates); the SCORE phases are not run here — one of
+    /// them submits raycasts (<c>AccurateLineOfSightTest</c>).
+    /// </summary>
+    public static class EqsFilters
+    {
+        /// <summary>Runs <paramref name="template"/>'s filter tests over <paramref name="candidates"/>; returns their cost (<see cref="EqsCost"/>).</summary>
+        public static int Run(in EqsQueryTemplate template, Entity entity, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
+        {
+            int cost = 0;
+            if (template.FilterCheap != null)
+                foreach (var test in template.FilterCheap)
+                {
+                    cost += candidates.Length * EqsCost.WeightOf(test);
+                    test.ExecuteBatch(entity, ref sensor, view, candidates);
+                }
+            if (template.FilterExpensive != null)
+                foreach (var test in template.FilterExpensive)
+                {
+                    cost += candidates.Length * EqsCost.WeightOf(test);
+                    test.ExecuteBatch(entity, ref sensor, view, candidates);
+                }
+            return cost;
+        }
+    }
+
     [ComponentId(GlobalComponentIds.IEqsTemplateRegistry)]
     public interface IEqsTemplateRegistry
     {

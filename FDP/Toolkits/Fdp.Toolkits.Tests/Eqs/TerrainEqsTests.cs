@@ -398,10 +398,12 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         }
 
         /// <summary>Solid prisms and free walls are read exactly as before Stage 7a: test-town and basic-desert (no building
-        /// templates) produce the same database, point for point (count + checksum measured on the pre-7a code).</summary>
+        /// templates) produce the same database, point for point (count + checksum measured on the pre-7a code).
+        /// ⭐ RE-PINNED `2026-10-09` by <c>CE-3143</c> (deliberate): a side now gets a point per STARTED 2.5 m (rounded up) — basic-desert
+        /// 303 → 313 (ten sides gained a second point); test-town unchanged (measured, count and checksum).</summary>
         [Theory]
         [InlineData("test-town", 612, -1979792939338976871L)]
-        [InlineData("basic-desert", 303, 477476172774583660L)]
+        [InlineData("basic-desert", 313, -1036683430095822395L)]
         public void CE3134_TerrainsWithoutBuildings_KeepTheirCoverDatabase(string terrain, int count, long checksum)
         {
             var pts = TerrainCoverProvider.Build(Recipe(terrain)).Points;

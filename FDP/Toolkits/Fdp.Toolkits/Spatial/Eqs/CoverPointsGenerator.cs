@@ -15,6 +15,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// meaning) or window firing positions (<see cref="FindWindowFiringPosition"/>). 📄 docs/DESIGN_Building_Interiors.md §3l C5.</summary>
         public CoverKind Kind { get; set; } = CoverKind.Cover;
 
+        [ThreadStatic] private static System.Collections.Generic.List<CoverPoint>? _vehicleScratch;
+
         /// <inheritdoc/>
         public int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
         {
@@ -53,32 +55,23 @@ namespace Fdp.Toolkit.Spatial.Eqs
             //   generator see the vehicle as opaque (EqsTerrainSight.Sight), so only the side away from the threat survives.
             if (Kind == CoverKind.Cover && rawCount < candidates.Length)
             {
-                var world = EqsTerrainSight.World(view);
-                var vehicles = VehicleCover.Collect(view, world?.Materials, standingOnly: true);
-                if (vehicles != null)
-                {
-                    var around = new System.Collections.Generic.List<CoverPoint>();
-                    foreach (var box in vehicles)
+                var around = _vehicleScratch ??= new System.Collections.Generic.List<CoverPoint>();   // R-220 — per thread, reused
+                around.Clear();
+                if (VehicleCover.StandingPoints(view, EqsTerrainSight.World(view), around))
+                    foreach (var p in around)
                     {
-                        around.Clear();
-                        TerrainCoverProvider.PointsAround(world, box, around);
-                        foreach (var p in around)
+                        if (rawCount >= candidates.Length) break;
+                        if (Vector2.Distance(new Vector2(p.PositionX, p.PositionY), center) > sensor.SearchRadius) continue;
+                        candidates[rawCount++] = new EqsResult
                         {
-                            if (rawCount >= candidates.Length) break;
-                            if (Vector2.Distance(new Vector2(p.PositionX, p.PositionY), center) > sensor.SearchRadius) continue;
-                            if (VehicleCover.Inside(vehicles, new Vector2(p.PositionX, p.PositionY))) continue;   // not in another car
-                            candidates[rawCount++] = new EqsResult
-                            {
-                                EntityId  = 0L,
-                                PositionX = p.PositionX,
-                                PositionY = p.PositionY,
-                                PositionZ = p.PositionZ,
-                                Score     = p.Quality,
-                                Stance    = EqsResult.EncodeStance(StanceOf(p.StanceHeight)),
-                            };
-                        }
+                            EntityId  = 0L,
+                            PositionX = p.PositionX,
+                            PositionY = p.PositionY,
+                            PositionZ = p.PositionZ,
+                            Score     = p.Quality,
+                            Stance    = EqsResult.EncodeStance(StanceOf(p.StanceHeight)),
+                        };
                     }
-                }
             }
 
             return rawCount;

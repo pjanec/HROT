@@ -3,6 +3,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
+using Fdp.Toolkit.Replication.Components;
 using Hrot.IG.Components;
 
 namespace Hrot.ScenarioEditor.Map
@@ -32,10 +33,25 @@ namespace Hrot.ScenarioEditor.Map
         public bool IsEntityVisible(ISimulationView view, Entity entity)
         {
             if (GizmoFamilies.ScopeOf(_settings, Family) == GizmoScope.All) return true;
-            if (IsRegistered<SelectionState>(view) && view.HasComponent<SelectionState>(entity)
-                && view.GetComponentRO<SelectionState>(entity).IsSelected) return true;
-            return IsRegistered<DebugState>(view) && view.HasComponent<DebugState>(entity)
-                   && (view.GetComponentRO<DebugState>(entity).Ai & Family) != 0;
+            // ⭐ CE-3143 — a PART (a unit's sensor child, …) follows its unit: the user selects or pins the unit, never the part.
+            var unit = UnitOf(view, entity);
+            if (IsRegistered<SelectionState>(view) && view.HasComponent<SelectionState>(unit)
+                && view.GetComponentRO<SelectionState>(unit).IsSelected) return true;
+            return IsRegistered<DebugState>(view) && view.HasComponent<DebugState>(unit)
+                   && (view.GetComponentRO<DebugState>(unit).Ai & Family) != 0;
+        }
+
+        /// <summary>The unit a part belongs to (its <see cref="PartMetadata.ParentEntity"/>, followed up to the root); itself otherwise.</summary>
+        public static Entity UnitOf(ISimulationView view, Entity entity)
+        {
+            if (!IsRegistered<PartMetadata>(view)) return entity;
+            for (int hop = 0; hop < 4 && view.IsAlive(entity) && view.HasComponent<PartMetadata>(entity); hop++)
+            {
+                var parent = view.GetComponentRO<PartMetadata>(entity).ParentEntity;
+                if (parent.IsNull || !view.IsAlive(parent)) break;
+                entity = parent;
+            }
+            return entity;
         }
 
         // A host that never registered the component cannot have it on a unit (and HasComponent on an unknown type is not safe on

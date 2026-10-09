@@ -59,6 +59,37 @@ public sealed class CoverPointsGizmoTests : IDisposable
         Assert.Equal(cover.Points.Count(p => p.Kind == CoverKind.Cover), dots.Count(d => d.Color.Equals(CoverPointsGizmo.CoverColor)));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3143</c> — the points beside a STANDING vehicle are drawn too (lighter green), from the same producer the cover query
+    /// uses; a driving vehicle has none. A 4.5 × 1.8 car: 2 per long side + 1 per end = 6 (rounded up). 🔴 Red-proof: drop the
+    /// <c>VehicleCover.StandingPoints</c> loop and the parked car draws nothing.
+    /// </summary>
+    [Fact]
+    public void CE3143_TheCoverLayer_ShowsTheLivePointsBesideAStandingVehicle()
+    {
+        _w.RegisterComponent<SimTransform>();
+        _w.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+        _w.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+        _w.RegisterComponent<global::CarKinem.Core.VehicleState>();
+        _w.RegisterComponent<StaticObstacle>();
+        _w.SetSingletonManaged<ICoverProvider>(TerrainCoverProvider.Build(new TerrainWorld()));
+        var car = _w.CreateEntity();
+        _w.AddComponent(car, new SimTransform { Position = new Vector3(30, 30, 0), Rotation = Quaternion.Identity });
+        _w.AddComponent(car, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 2.4f, Height = 1.5f, CollisionLayer = 1 });
+        _w.AddComponent(car, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.PersonalCar, Length = 4.5f, Width = 1.8f });
+        _w.AddComponent(car, new global::CarKinem.Core.VehicleState { Speed = 0f });
+
+        new CoverPointsGizmo().Draw(_w, _draw);
+        var dots = Cover().Where(p => p.Shape == DebugPrimitiveShape.Sphere).ToArray();
+        Assert.Equal(6, dots.Length);
+        Assert.All(dots, d => Assert.Equal(CoverPointsGizmo.VehicleColor, d.Color));
+
+        _w.SetComponent(car, new global::CarKinem.Core.VehicleState { Speed = 5f });
+        _draw.Clear();
+        new CoverPointsGizmo().Draw(_w, _draw);
+        Assert.Empty(Cover());
+    }
+
     [Fact]
     public void CE3134_NoTerrainCoverDatabase_DrawsNothing()
     {

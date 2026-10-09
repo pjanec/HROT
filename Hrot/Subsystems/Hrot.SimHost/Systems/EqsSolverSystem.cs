@@ -294,21 +294,8 @@ namespace Hrot.SimHost.Systems
 
             var activeCandidates = candidates.Slice(0, count);
 
-            // 2. FilterCheap.
-            if (template.FilterCheap != null)
-                foreach (var test in template.FilterCheap)
-                {
-                    cost += activeCandidates.Length * EqsCost.WeightOf(test);
-                    test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
-                }
-
-            // 3. FilterExpensive (stubs go here in Phase 3+).
-            if (template.FilterExpensive != null)
-                foreach (var test in template.FilterExpensive)
-                {
-                    cost += activeCandidates.Length * EqsCost.WeightOf(test);
-                    test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
-                }
+            // 2–3. FilterCheap, then FilterExpensive — ⭐ CE-3143: the shared pipeline (EqsFilters.Run), so the map's EQS verdict runs the same.
+            cost += EqsFilters.Run(in template, entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
 
             // 4. Compact rejected (-1L) candidates BEFORE cheap scoring so scoring tests never
             //    see rejection sentinels. Do NOT truncate here: no scoring has run yet, so the

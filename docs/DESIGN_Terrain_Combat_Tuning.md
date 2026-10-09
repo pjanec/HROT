@@ -635,7 +635,7 @@ the dashed red edge is the remaining gap (IG has no AI to pin).
 | ⭐ | rejected (one line each) |
 |---|---|
 | **A** the scope is a runtime setting per **gizmo family** (`map.scope.<Family>`, 0 = All, 1 = SelectedOrPinned), shown as checkboxes in the layer panel; the attribute declares the gizmo's family | per gizmo CLASS — several classes share a family (squad), and the panel would grow with every gizmo · attribute only — needs a rebuild to switch |
-| **B** two modes; defaults: Path, Utility, Squad = SelectedOrPinned · Perception, Contacts (TargetMemory), EQS = All; global gizmos have no per-entity scope | an "Off" mode — the layer toggle already is one |
+| **B** two modes; defaults: Path, Utility, Squad = SelectedOrPinned · Perception, Contacts (TargetMemory) = All; global gizmos have no per-entity scope. ⭐ `CE-3143` (`2026-10-09`): **EQS = SelectedOrPinned** (it now draws every candidate's verdict — busy), and a **part follows its unit** (`GizmoFamilyVisibilityPolicy.UnitOf`: a sensor child draws when its unit is selected or pinned). ⛔ SUPERSEDED: "EQS = All" | an "Off" mode — the layer toggle already is one |
 | **C** a pin is per unit × family, plus *Pin all* / *Unpin all* | per unit only — too coarse |
 | **D** the pins ARE `DebugState.Ai` (extended with `Path`) — one per-unit debug-flag store; `Transient` (not recorded, saved or replicated: a viewing choice) | a new pin component — a second store |
 | **E** the map's entity context menu gets a **Pin gizmos** submenu; actions registered in the pack so every map host has them; `DebugStatePatchSystem` registered on SimHost too (`CE-3122`) | per-host action copies — the duplicate `SimHostApp`/`EditorSubsystem` registration this avoids repeating |

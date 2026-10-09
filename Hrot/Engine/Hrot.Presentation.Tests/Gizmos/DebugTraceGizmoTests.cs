@@ -181,6 +181,30 @@ public sealed class DebugTraceGizmoTests : IDisposable
         Assert.Equal(Hrot.Common.Constants.GlobalActionIds.PinGizmosActions, Hrot.Common.Diagnostics.Gizmos.GizmoPins.ActionIdOf(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3143</c> — a PART follows its unit: under "selected or pinned" a unit's sensor child draws when the UNIT is selected or
+    /// pinned (the user never selects the part), and EQS now defaults to that scope. 🔴 Red-proof: read the selection from the entity
+    /// itself in <c>GizmoFamilyVisibilityPolicy.IsEntityVisible</c> and the first assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE3143_APartFollowsItsUnit_UnderSelectedOrPinned_AndEqsDefaultsToIt()
+    {
+        var eqs = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs;
+        Assert.Equal(GizmoScope.SelectedOrPinned, GizmoFamilies.DefaultScope(eqs));
+        _w.RegisterComponent<Hrot.IG.Components.SelectionState>();
+        _w.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+        var unit = _w.CreateEntity();
+        _w.AddComponent(unit, new Hrot.IG.Components.SelectionState { IsSelected = false });
+        var sensor = _w.CreateEntity();
+        _w.AddComponent(sensor, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = unit, InstanceId = 1 });
+        var policy = new Hrot.ScenarioEditor.Map.GizmoFamilyVisibilityPolicy(new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry(), eqs);
+
+        Assert.False(policy.IsEntityVisible(_w, sensor));
+        _w.SetComponent(unit, new Hrot.IG.Components.SelectionState { IsSelected = true });
+        Assert.True(policy.IsEntityVisible(_w, sensor), "the selected unit's sensor child must draw");
+        Assert.Equal(unit, Hrot.ScenarioEditor.Map.GizmoFamilyVisibilityPolicy.UnitOf(_w, sensor));
+    }
+
     // ⭐ CE-3121 — the squad gizmo draws a line from the commander to every LIVING member, at the members' real positions (the
     // dormant overlay drew them origin to origin).
     [Fact]

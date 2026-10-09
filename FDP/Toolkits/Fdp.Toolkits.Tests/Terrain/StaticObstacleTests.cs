@@ -311,7 +311,7 @@ public sealed class StaticObstacleTests
 
         var car = Vehicle(repo, 30, 30);
         int n = new CoverPointsGenerator().Generate(Entity.Null, ref sensor, repo, c);
-        Assert.True(n >= 4, $"expected points round the parked car, got {n}");
+        Assert.Equal(6, n);   // ⭐ CE-3143 — 2 per 4.5 m side + 1 per 1.8 m end (rounded up; was 4)
         for (int i = 0; i < n; i++)
         {
             float d = Vector2.Distance(new Vector2(c[i].PositionX, c[i].PositionY), new Vector2(30, 30));
