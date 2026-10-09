@@ -334,7 +334,7 @@ one-tick latency (the real one is three).
 | **Fire traces** | ✅ **built (T-5, `FireTraceGizmo`, layer bit 3 `FireTraces`)**: the last 64 records of the `ShotLog` — muzzle → end, coloured by OUTCOME (hit red · stopped orange · expired grey · in flight yellow, dashed), a dot at the end, green dots for crossings passed, an orange cross where the terrain stopped it. ⚠ coloured by outcome, not remaining penetration — the outcome is what a tuner looks for first; the numbers are one `get_combat_shots` away | SimHost, Editor |
 | **Blast / fragments** | radius rings; affected entities with exposure % and the shielding panel | SimHost, Editor |
 | **Hearing** | sound events with attenuated radius; who heard | SimHost, Editor |
-| **Cover & firing positions** | EQS cover points per storey, window positions, chosen point | wherever EQS answers live (SimHost / Editor) |
+| **Cover & firing positions** | ✅ **built (`CE-3134`, layer bit 9 `Cover`, `CoverPointsGizmo`, off by default)**: the terrain's cover database — cover green, window firing positions blue, dot size by stance, a tick toward the wall; ⏭ the point a query chose | every node with terrain (the database is built at terrain load), the Replay Browser too |
 | **Provenance badges** | small marker on entities whose combat parameters came from `EngineFallback` | every node |
 
 | ⭐ lean | rejected (one line each) |
@@ -779,5 +779,5 @@ graph TD
 | **T-2 premises** | ✅ §2b — `DemoPremisesTests` + the premise table format |
 | **T-3 routes** | `/tkb/resolve`, `/terrain/levels`, `/terrain/query`, `/doors` + MCP tools |
 | **T-4 records** | ✅ §4a shots + LOS explanation; ⏭ detonations with `CE-1032` |
-| **T-5 layers** | 🟡 fire traces ✅ (§5); ⏭ LOS probe (interactive tool), provenance badges, storeys/levels probe, doors, navmesh, paths, blast, hearing, cover |
+| **T-5 layers** | 🟡 fire traces ✅ (§5) · doors, paths, blast, hearing ✅ (§5a, `CE-3117`) · roads ✅ (`CE-3124`) · cover ✅ (`CE-3134`, Building Interiors §3l.7) · navmesh ✅ (§5c, `CE-3133`); ⏭ LOS probe (interactive tool), provenance badges, storeys/levels probe |
 | **T-6 demos** | `bt-range` terrain + the demo set, one per building/combat slice as it lands |
