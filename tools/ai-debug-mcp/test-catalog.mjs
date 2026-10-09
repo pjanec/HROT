@@ -78,6 +78,13 @@ const EXPECTED_TOOLS = [
   // ⛔ list_editor_commands is NOT list_commands: the latter enumerates publishable FDP event types
   //   and send_entity_command depends on it. Two different buses, two different prefixes.
   'list_editor_commands', 'get_editor_command', 'invoke_editor_command',
+  // ⭐ Ownership (CE-515), the create-request pipeline (CE-271), and the backend lane's AI / combat / terrain reads
+  //   (CE-3072 sensors · G7 weapons · CE-3087 squad · CE-3117 shots/detonations · Stage 4 LOS · Stage 0 resolve ·
+  //   Stage 5 doors · M1 terrain) — catalogued by their batches, handlers added CE-3144.
+  'get_entity_ownership', 'transfer_entity_ownership', 'create_entity_request',
+  'get_entity_utility', 'get_entity_sensors', 'get_entity_memory', 'get_entity_weapons', 'get_entity_squad',
+  'get_combat_shots', 'get_combat_detonations', 'explain_line_of_sight', 'resolve_entity_type_parameters',
+  'list_doors', 'get_terrain_levels', 'query_terrain',
 ];
 
 let passed = 0;

@@ -438,7 +438,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void BeginExposure(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, double now)
         {
             ws.ExposedAt = now;
-            ws.LastSeenAt = double.NegativeInfinity;
+            ws.LastSeenAt = 0;   // not seen this exposure (a time before any exposure) — ⛔ never an infinity: the block is dumped as JSON
             if (ws.Counted == 1) return;
             ws.Counted = 1;
             ws.ExposuresHere++;

@@ -1764,6 +1764,24 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "read which danger areas a unit sees ahead on its route, and how threatened each is"),
 
+        [("GET", "/entities/{networkId}/memory")] = new RouteDoc(
+            Tool:    "get_entity_memory",
+            Group:   "K — AI behavior traces",
+            Summary: "A unit's raw target memory, every slot — heard (anonymous) contacts included (CE-3144).",
+            Returns: "{ networkId, hasMemory, count, changeEpoch, anonymousSerial, slots:[{id, anonymous, position:[x,y,z], freshness, radius, lastSeenTick, modalities, sourceClass, alive?, networkId?}] }",
+            Hint:    "Req: networkId (number). Read on the Brain perspective (Scenario on a cluster) — memory is written there. Example: get_entity_memory({networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+            },
+            Notes: new[]
+            {
+                "GET /entities/{id} shows memory through the scenario translator, which drops heard slots and entities it cannot map; this route shows them all.",
+                "Slots are sorted freshest first; a heard slot has a negative synthetic id and a radius.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "read what a unit remembers — seen and heard contacts, how fresh, and where"),
+
         [("GET", "/attributes/schema")] = new RouteDoc(
             Tool:    "get_attributes_schema",
             Group:   "L — Mutation / fault injection",
@@ -1821,7 +1839,9 @@ namespace Hrot.Editor.DebugApi
                 "CE-271 seam ⑤ / CE-515 ③: the create-request pipeline (routing + ownership grants). POST /entities/spawn "
               + "now uses the same pipeline; the only difference is ownerNodeId:0 — here 'forward to the arbiter', "
               + "there 'this node'.",
-            }),
+            },
+            ExampleArgsJson: "{\"tkbType\":123,\"ownerNodeId\":1}",
+            ExampleGist: "create an entity through the create-request pipeline, owned by node 1"),
 
         [("GET", "/entities/{networkId}/ownership")] = new RouteDoc(
             Tool:    "get_entity_ownership",
@@ -1843,7 +1863,9 @@ namespace Hrot.Editor.DebugApi
                 "VERIFICATION SURFACE for transfer_entity_ownership: read ownership, POST the transfer, read again.",
                 "PERSPECTIVE-SCOPED on --mode all: reports the ACTIVE perspective node's view. Read on both the "
               + "giving and receiving node to confirm a transfer landed.",
-            }),
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "read which node owns each of an entity's descriptors"),
 
         [("POST", "/entities/{networkId}/ownership/transfer")] = new RouteDoc(
             Tool:    "transfer_entity_ownership",

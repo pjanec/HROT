@@ -26,9 +26,17 @@ namespace Fdp.Toolkit.Diagnostics
         /// Pass an empty <see cref="HashSet{T}"/> (with <see cref="ReferenceEqualityComparer.Instance"/>)
         /// as <paramref name="visited"/> to guard against circular references.
         /// </summary>
+        private static string NonFinite(double v) => double.IsNaN(v) ? "NaN" : v > 0 ? "Infinity" : "-Infinity";
+
         public static object? MapObject(object? obj, Type type, HashSet<object> visited)
         {
             if (obj == null) return null;
+            // ⭐ CE-3144 — a non-finite float is not a JSON number, so it leaves this graph as the DebugApi's sentinel string
+            //   ("NaN" / "Infinity" / "-Infinity", the NonFinite*SentinelConverter spelling). 🔴 Returned raw, it reached
+            //   ToJsonString and threw: measured live, a PeekAndFire behaviour block holding -Infinity made every
+            //   GET /entities and GET /entities/{id} on the brain node answer 500 from the unit's first exposure on.
+            if (obj is double d && !double.IsFinite(d)) return NonFinite(d);
+            if (obj is float fl && !float.IsFinite(fl)) return NonFinite(fl);
             if (type.IsPrimitive || type == typeof(string) || type == typeof(Guid))
                 return obj;
             if (type.IsEnum)

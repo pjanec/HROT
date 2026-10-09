@@ -1053,6 +1053,15 @@ namespace Hrot.Editor.DebugApi
                 return Ok(node);
             }));
 
+            // ⭐ CE-3144 — a unit's RAW TargetMemory (heard + unmappable slots too; GET /entities/{id} drops them).
+            _routes.Add(new("GET", "/entities/{networkId}/memory", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityMemory(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
             // ⭐ CE-3089 (G7) — a unit's weapon mounts; with ?target= the WeaponSelection inputs per mount and the choice.
             _routes.Add(new("GET", "/entities/{networkId}/weapons", async ctx =>
             {

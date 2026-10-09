@@ -306,6 +306,12 @@ export const TOOLS_CATALOG = [
       "VERIFICATION SURFACE for transfer_entity_ownership: read ownership, POST the transfer, read again.",
       "PERSPECTIVE-SCOPED on --mode all: reports the ACTIVE perspective node's view. Read on both the giving and receiving node to confirm a transfer landed."
     ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "read which node owns each of an entity's descriptors"
+    },
     "hint": "Req: networkId (number/long). 503 on a host with no NED transport (editor/AllInOne). Example: get_entity_ownership({networkId:1000})",
     "manualVerify": false
   },
@@ -411,6 +417,13 @@ export const TOOLS_CATALOG = [
     "notes": [
       "CE-271 seam ⑤ / CE-515 ③: the create-request pipeline (routing + ownership grants). POST /entities/spawn now uses the same pipeline; the only difference is ownerNodeId:0 — here 'forward to the arbiter', there 'this node'."
     ],
+    "example": {
+      "args": {
+        "tkbType": 123,
+        "ownerNodeId": 1
+      },
+      "gist": "create an entity through the create-request pipeline, owned by node 1"
+    },
     "hint": "Req: tkbType (long). Unlike spawn_entity this goes through the create-request pipeline. Example: create_entity_request({tkbType:123, ownerNodeId:1})",
     "manualVerify": false
   },
@@ -1521,11 +1534,12 @@ export const TOOLS_CATALOG = [
         "description": "how many bursts (newest first; default 10, ring of 64)"
       }
     ],
-    "returns": "{ count, returned, detonations:[{seq, tick, shooter, struck, burst, ammo, warhead, warheadSource, fragmentRadius, blastInjuryRadius, effects:[{entity, entityIndex, stance, bodyPoints, distance, fragmentExposure, fragmentFalloff, fragmentArmourChance, fragmentDamage, blastFalloff, blastBarrier, blastShadow, blastDamage, totalDamage, shieldedBy}], doorsBreached:[key]}] } — newest first",
+    "returns": "{ count, returned, detonations:[{seq, tick, shooter, struck, burst, ammo, warhead, warheadSource, fragmentRadius, blastInjuryRadius, effects:[{entity, entityIndex, stance, bodyPoints, distance, fragmentExposure, fragmentFalloff, fragmentArmourChance, fragmentDamage, blastFalloff, blastBarrier, blastShadow, blastDamage, totalDamage, shieldedBy, at}], doorsBreached:[key], rays:[{to, transmission, stopAt}]}] } — newest first",
     "notes": [
       "Written by AreaEffectSystem as it decides each burst — never recomputed. Only bursts of a munition WITH a warhead are recorded (a rifle round has none).",
       "fragmentExposure = the mean over the target's body points (its stance) of the fragments through the terrain and past any body or vehicle; blastBarrier = what slabs/walls/shut doors let through; blastShadow = the diffraction factor behind an obstacle taller than the target.",
-      "The entity the round struck is listed too (it is at the burst); its direct hit is a separate damage event."
+      "The entity the round struck is listed too (it is at the burst); its direct hit is a separate damage event.",
+      "rays = every fragment line the map's blast layer draws (CE-3117): the body point, the fragment transmission 0..1, and the first obstacle on the way (a terrain piece where the fragments enter it, or the point nearest a blocking collider), null for a clear line."
     ],
     "example": {
       "args": {
@@ -1578,6 +1592,37 @@ export const TOOLS_CATALOG = [
       "gist": "find out why a rifleman's rounds never hurt the target behind the wall"
     },
     "hint": "Optional: last (default 20), shooter, target (network ids). Example: get_combat_shots({last:10, shooter:1001})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_entity_memory",
+    "group": "K — AI behavior traces",
+    "summary": "A unit's raw target memory, every slot — heard (anonymous) contacts included (CE-3144).",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/memory"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      }
+    ],
+    "returns": "{ networkId, hasMemory, count, changeEpoch, anonymousSerial, slots:[{id, anonymous, position:[x,y,z], freshness, radius, lastSeenTick, modalities, sourceClass, alive?, networkId?}] }",
+    "notes": [
+      "GET /entities/{id} shows memory through the scenario translator, which drops heard slots and entities it cannot map; this route shows them all.",
+      "Slots are sorted freshest first; a heard slot has a negative synthetic id and a radius."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "read what a unit remembers — seen and heard contacts, how fresh, and where"
+    },
+    "hint": "Req: networkId (number). Read on the Brain perspective (Scenario on a cluster) — memory is written there. Example: get_entity_memory({networkId:1000})",
     "manualVerify": false
   },
 

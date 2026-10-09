@@ -1544,6 +1544,218 @@ const TOOLS = [
       } catch (err) { return toolError(err.message, err.envelope, 'add_annotation'); }
     },
   },
+
+  // ── Routes catalogued after their batch but never given a handler (CE-3144) ──────────────────
+  // ⛔ ListTools serves THIS array, so a catalogued tool missing here is advertised in SKILL.md and
+  //    unreachable over MCP. Mirrors the hand-written shape above: path params substituted, the rest
+  //    sent as the query (GET) or the JSON body (POST) — exactly what each RouteDoc names.
+
+  {
+    name: 'get_entity_ownership',
+    description: TOOL_DEFS['get_entity_ownership'].description,
+    inputSchema: TOOL_DEFS['get_entity_ownership'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('GET', `/entities/${encodeURIComponent(toolArgs.networkId)}/ownership`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_entity_ownership'); }
+    },
+  },
+
+  {
+    name: 'transfer_entity_ownership',
+    description: TOOL_DEFS['transfer_entity_ownership'].description,
+    inputSchema: TOOL_DEFS['transfer_entity_ownership'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const payload = {};
+        if (toolArgs.newOwnerNodeId !== undefined) payload.newOwnerNodeId = toolArgs.newOwnerNodeId;
+        if (toolArgs.scope !== undefined) payload.scope = toolArgs.scope;
+        if (toolArgs.descriptors !== undefined) payload.descriptors = toolArgs.descriptors;
+        return toolSuccess(await callApi('POST', `/entities/${encodeURIComponent(toolArgs.networkId)}/ownership/transfer`, payload));
+      } catch (err) { return toolError(err.message, err.envelope, 'transfer_entity_ownership'); }
+    },
+  },
+
+  {
+    name: 'create_entity_request',
+    description: TOOL_DEFS['create_entity_request'].description,
+    inputSchema: TOOL_DEFS['create_entity_request'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const payload = {};
+        if (toolArgs.tkbType !== undefined) payload.tkbType = toolArgs.tkbType;
+        if (toolArgs.ownerNodeId !== undefined) payload.ownerNodeId = toolArgs.ownerNodeId;
+        if (toolArgs.transform !== undefined) payload.transform = toolArgs.transform;
+        if (toolArgs.attributesJson !== undefined) payload.attributesJson = toolArgs.attributesJson;
+        return toolSuccess(await callApi('POST', `/entities/create-request`, payload));
+      } catch (err) { return toolError(err.message, err.envelope, 'create_entity_request'); }
+    },
+  },
+
+  {
+    name: 'get_combat_detonations',
+    description: TOOL_DEFS['get_combat_detonations'].description,
+    inputSchema: TOOL_DEFS['get_combat_detonations'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const params = new URLSearchParams();
+        if (toolArgs.last != null) params.set('last', String(toolArgs.last));
+        const qs = params.toString() ? `?${params}` : '';
+        return toolSuccess(await callApi('GET', `/combat/detonations${qs}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_combat_detonations'); }
+    },
+  },
+
+  {
+    name: 'get_combat_shots',
+    description: TOOL_DEFS['get_combat_shots'].description,
+    inputSchema: TOOL_DEFS['get_combat_shots'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const params = new URLSearchParams();
+        if (toolArgs.last != null) params.set('last', String(toolArgs.last));
+        if (toolArgs.shooter != null) params.set('shooter', String(toolArgs.shooter));
+        if (toolArgs.target != null) params.set('target', String(toolArgs.target));
+        const qs = params.toString() ? `?${params}` : '';
+        return toolSuccess(await callApi('GET', `/combat/shots${qs}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_combat_shots'); }
+    },
+  },
+
+  {
+    name: 'get_entity_memory',
+    description: TOOL_DEFS['get_entity_memory'].description,
+    inputSchema: TOOL_DEFS['get_entity_memory'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('GET', `/entities/${encodeURIComponent(toolArgs.networkId)}/memory`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_entity_memory'); }
+    },
+  },
+
+  {
+    name: 'get_entity_sensors',
+    description: TOOL_DEFS['get_entity_sensors'].description,
+    inputSchema: TOOL_DEFS['get_entity_sensors'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('GET', `/entities/${encodeURIComponent(toolArgs.networkId)}/sensors`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_entity_sensors'); }
+    },
+  },
+
+  {
+    name: 'get_entity_squad',
+    description: TOOL_DEFS['get_entity_squad'].description,
+    inputSchema: TOOL_DEFS['get_entity_squad'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('GET', `/entities/${encodeURIComponent(toolArgs.networkId)}/squad`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_entity_squad'); }
+    },
+  },
+
+  {
+    name: 'get_entity_utility',
+    description: TOOL_DEFS['get_entity_utility'].description,
+    inputSchema: TOOL_DEFS['get_entity_utility'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('GET', `/entities/${encodeURIComponent(toolArgs.networkId)}/utility`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_entity_utility'); }
+    },
+  },
+
+  {
+    name: 'get_entity_weapons',
+    description: TOOL_DEFS['get_entity_weapons'].description,
+    inputSchema: TOOL_DEFS['get_entity_weapons'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const params = new URLSearchParams();
+        if (toolArgs.target != null) params.set('target', String(toolArgs.target));
+        const qs = params.toString() ? `?${params}` : '';
+        return toolSuccess(await callApi('GET', `/entities/${encodeURIComponent(toolArgs.networkId)}/weapons${qs}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_entity_weapons'); }
+    },
+  },
+
+  {
+    name: 'explain_line_of_sight',
+    description: TOOL_DEFS['explain_line_of_sight'].description,
+    inputSchema: TOOL_DEFS['explain_line_of_sight'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const params = new URLSearchParams();
+        if (toolArgs.observer != null) params.set('observer', String(toolArgs.observer));
+        if (toolArgs.target != null) params.set('target', String(toolArgs.target));
+        const qs = params.toString() ? `?${params}` : '';
+        return toolSuccess(await callApi('GET', `/perception/los${qs}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'explain_line_of_sight'); }
+    },
+  },
+
+  {
+    name: 'resolve_entity_type_parameters',
+    description: TOOL_DEFS['resolve_entity_type_parameters'].description,
+    inputSchema: TOOL_DEFS['resolve_entity_type_parameters'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const params = new URLSearchParams();
+        if (toolArgs.type != null) params.set('type', String(toolArgs.type));
+        if (toolArgs.ammo != null) params.set('ammo', String(toolArgs.ammo));
+        if (toolArgs.weapon != null) params.set('weapon', String(toolArgs.weapon));
+        if (toolArgs.library != null) params.set('library', String(toolArgs.library));
+        const qs = params.toString() ? `?${params}` : '';
+        return toolSuccess(await callApi('GET', `/tkb/resolve${qs}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'resolve_entity_type_parameters'); }
+    },
+  },
+
+  {
+    name: 'list_doors',
+    description: TOOL_DEFS['list_doors'].description,
+    inputSchema: TOOL_DEFS['list_doors'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('GET', `/doors`));
+      } catch (err) { return toolError(err.message, err.envelope, 'list_doors'); }
+    },
+  },
+
+  {
+    name: 'get_terrain_levels',
+    description: TOOL_DEFS['get_terrain_levels'].description,
+    inputSchema: TOOL_DEFS['get_terrain_levels'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const params = new URLSearchParams();
+        if (toolArgs.x != null) params.set('x', String(toolArgs.x));
+        if (toolArgs.y != null) params.set('y', String(toolArgs.y));
+        const qs = params.toString() ? `?${params}` : '';
+        return toolSuccess(await callApi('GET', `/terrain/levels${qs}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_terrain_levels'); }
+    },
+  },
+
+  {
+    name: 'query_terrain',
+    description: TOOL_DEFS['query_terrain'].description,
+    inputSchema: TOOL_DEFS['query_terrain'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const params = new URLSearchParams();
+        if (toolArgs.from != null) params.set('from', String(toolArgs.from));
+        if (toolArgs.to != null) params.set('to', String(toolArgs.to));
+        if (toolArgs.purpose != null) params.set('purpose', String(toolArgs.purpose));
+        if (toolArgs.penetration != null) params.set('penetration', String(toolArgs.penetration));
+        if (toolArgs.damage != null) params.set('damage', String(toolArgs.damage));
+        const qs = params.toString() ? `?${params}` : '';
+        return toolSuccess(await callApi('GET', `/terrain/query${qs}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'query_terrain'); }
+    },
+  },
+
 ];
 
 // ── MCP Server setup ────────────────────────────────────────────────────────

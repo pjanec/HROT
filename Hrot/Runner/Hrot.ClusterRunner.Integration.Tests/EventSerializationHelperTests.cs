@@ -122,6 +122,28 @@ public sealed class EventSerializationHelperTests
         Assert.Equal(new object?[] { "Left", "None", "Right" }, Assert.IsType<List<object?>>(mapped["Items"]));
     }
 
+    // ── CE-3144: a non-finite float leaves the graph as a sentinel string ───────────────────
+    private struct WithTimes { public double LastSeenAt; public float Heat; public double Ok; }
+
+    /// <summary>
+    /// ⭐ <c>CE-3144</c> — a behaviour block holding <c>-Infinity</c> made every <c>GET /entities</c> on the brain node 500
+    /// (the mapped graph reached <c>ToJsonString</c>). ⭐ Non-finite values map to the DebugApi sentinel strings and the graph
+    /// serialises with stock options.
+    /// </summary>
+    [Fact]
+    public void CE3144_MapObject_NonFiniteFloats_BecomeSentinelStrings_AndSerialise()
+    {
+        var value = new WithTimes { LastSeenAt = double.NegativeInfinity, Heat = float.NaN, Ok = 2.5 };
+        var mapped = Assert.IsType<Dictionary<string, object?>>(
+            DtoDiagnosticMapper.MapObject(value, typeof(WithTimes), new HashSet<object>()));
+
+        Assert.Equal("-Infinity", mapped["LastSeenAt"]);
+        Assert.Equal("NaN", mapped["Heat"]);
+        Assert.Equal(2.5, mapped["Ok"]);
+        var json = System.Text.Json.JsonSerializer.SerializeToNode(mapped)!.ToJsonString();
+        Assert.Contains("\"-Infinity\"", json);
+    }
+
     // ── CE-2030: a `fixed bool` buffer, read exactly ────────────────────────────────────────
     private unsafe struct WithFixedFlags { public int Count; public fixed bool Flags[3]; }
 
