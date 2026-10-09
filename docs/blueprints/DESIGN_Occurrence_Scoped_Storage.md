@@ -10451,6 +10451,17 @@ the only new types are two plain value carriers.*
 | `Hrot.AiEditor.Generators.Tests` · `Hrot.AiEditor.Persistence.Tests` | **395 / 0** · **166 / 0** | working tree clean after the run |
 | generated goldens | unchanged — the thunks' call `TryResolveOccurrence` kept its signature | |
 
+**Gates, second pass — with the per-tick view (U-0c)** (`2026-10-09`, `--no-build` after one build of each test project):
+
+| suite | result |
+|---|---|
+| `Fdp.Toolkits.Tests` (full) | **2978 / 0** (+3: `U0_R6`, `U0_R7`, `U0_R8`) |
+| `Hrot.Blueprints.Tests` (full) | **4201 / 0** |
+| `Hrot.SimHost.Tests` (full) | 1151 / 1 — `LiveFromReplayTests.AfterBranch_RecordingModuleIsInstalled` **timed out (20 s)** under load; its class passes **3/3 in isolation, 3 runs**, and it touches no store or brain code (a record/replay kernel loop with real delays). ⇒ the known rotating-red family of `TM-036`, not this change |
+| `Hrot.Editor.Tests` | **469 / 0** |
+| `Hrot.AiEditor.Generators.Tests` | **395 / 0** — goldens unmoved, tree clean |
+| integration `BlueprintKernelRunTests` | **6 / 0** |
+
 **Residual:** the world-singleton silent drop on a full tier (`BlueprintTickSystem.EnsureAndTickSingleton`, outside U-0) · §3b ④ search
 order is LARGEST-first, not assign-time-block-first (the store records no attach order; a one-block unit is unaffected, and inside a view
 the cost difference is one ~14 ns scan).
