@@ -13,6 +13,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public const byte Hearing    = 7;
         /// <summary>⭐ <c>CE-3124</c> — the loaded terrain's road network (<c>RoadNetworkGizmo</c>).</summary>
         public const byte Roads      = 8;
+        /// <summary>⭐ Stage 7a (<c>CE-3134</c>) — the terrain's cover points and window firing positions (<c>CoverPointsGizmo</c>).</summary>
+        public const byte Cover      = 9;
     }
 }
 

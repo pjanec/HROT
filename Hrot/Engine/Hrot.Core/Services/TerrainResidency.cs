@@ -362,7 +362,7 @@ public sealed class TerrainResidency
 
     /// <summary>
     /// ⭐ <c>CE-3118</c> — copies the terrain a residency committed into <paramref name="source"/> onto <paramref name="target"/>:
-    /// the definition, the world, the road network and its holder — exactly what the map's terrain and road gizmos read. For a
+    /// the definition, the world, the road network and its holder, and the cover database — exactly what the map's terrain, road and cover gizmos read. For a
     /// host that DRAWS several worlds over one terrain (the Replay Browser: one sandbox per node plus the merged master, rebound
     /// on every seek). ⭐ Always writes the world and the road network, an empty one when the source has none, so nothing a
     /// replay restored can survive in their place. ⛔ Touches no geo origin. 📄 docs/DESIGN_Geo_Origin.md §5.
@@ -385,6 +385,10 @@ public sealed class TerrainResidency
             ? source.GetSingleton<ZoneEnvironmentData>() : new ZoneEnvironmentData());
         if (source.HasSingletonManaged<RoadNetworkHolder>() && source.GetSingletonManaged<RoadNetworkHolder>() is { } holder)
             target.SetSingletonManaged(holder);
+        // ⭐ CE-3134 — the cover database too, so the Cover layer draws in replay (an empty one when the source has none).
+        target.SetSingletonManaged(source.HasSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>()
+            && source.GetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>() is { } cover
+            ? cover : Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(new TerrainWorld()));
     }
 
     /// <summary>⭐ <c>CE-3128</c> — the node's road graph carrier as a world singleton (idempotent).</summary>

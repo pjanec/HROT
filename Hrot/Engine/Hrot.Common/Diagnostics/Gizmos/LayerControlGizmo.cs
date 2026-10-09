@@ -37,9 +37,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool Hearing { get; set; } = true;
         /// <summary>⭐ <c>CE-3124</c> — the loaded terrain's road network (RoadNetworkGizmo, layer 8).</summary>
         public bool Roads { get; set; } = true;
+        /// <summary>⭐ Stage 7a (<c>CE-3134</c>) — cover points and window firing positions (CoverPointsGizmo, layer 9). Off by
+        /// default: a town holds hundreds of points.</summary>
+        public bool Cover { get; set; }
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 9;
+        public const int FirstUntoggledLayer = 10;
 
         // ⭐ CE-3120 (R-227) — per gizmo FAMILY: true = draw only for the selected and the pinned units, false = for every unit.
         //   Written into the GizmoSettingsRegistry on Apply (map.scope.<Family>), where GizmoFamilyVisibilityPolicy reads it.
@@ -97,6 +100,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Blast) mask.SetBit(DebugTraceLayers.Blast);
             if (Hearing) mask.SetBit(DebugTraceLayers.Hearing);
             if (Roads) mask.SetBit(DebugTraceLayers.Roads);
+            if (Cover) mask.SetBit(DebugTraceLayers.Cover);
             for (int i = FirstUntoggledLayer; i < 256; i++) mask.SetBit(i);
             return mask;
         }

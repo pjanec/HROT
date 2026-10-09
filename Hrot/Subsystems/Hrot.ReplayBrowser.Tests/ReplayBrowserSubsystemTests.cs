@@ -953,6 +953,10 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var roads = world.GetSingleton<global::CarKinem.Road.ZoneEnvironmentData>().RoadNetwork;
         Assert.Equal(5, roads.Nodes.Length);   // the terrain's roads.json — ⛔ not the 2-node blob the recording process held
         Assert.Equal(4, roads.Segments.Length);
+        // ⭐ CE-3134 — and its cover database, so the Cover layer draws in replay (test-town: 612 points)
+        var cover = Assert.IsType<Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider>(
+            world.GetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>());
+        Assert.Equal(612, cover.Points.Count);
     }
 
     /// <summary>
