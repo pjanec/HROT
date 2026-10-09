@@ -144,6 +144,46 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.True(reread.ContactsSelectedOnly);
             Assert.True(reread.SquadSelectedOnly);   // untouched family keeps its default
         }
+
+        // ⭐ CE-3149 — Apply in the layer panel must REACH the gizmo through the arbiter that owns it. 🔒 User, 2026-10-10:
+        // "the LayerControlDto dialog … has no effect". 📐 The route is GizmoStructUpdateEvent → GlobalGizmoManager.Execute →
+        // OnStructUpdate, and Execute returned early when nothing held the exclusive focus — which the layer control (a
+        // permanent, non-exclusive gizmo) never does. ⛔ Every earlier rail called OnStructUpdate directly, skipping the route.
+        [Fact]
+        public void CE3149_ApplyInTheLayerPanel_ReachesTheGizmo_WithNoFocusHolder()
+        {
+            var bus = new FdpEventBus();
+            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
+            var edit = MakeEditService();
+            var buffer = new DebugPrimitiveBuffer();
+            var manager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(buffer, bus);
+            long id = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();
+            var gizmo = new LayerControlGizmo(id, bus, edit);
+            manager.Register(id, gizmo);
+            Assert.Null(manager.Focus.Holder);   // the premise: nothing holds focus
+
+            string json;
+            using (var s = edit.Open(new LayerControlDto { FireTraces = false, Doors = false }, typeof(LayerControlDto)))
+                json = StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
+            bus.PublishManaged(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoStructUpdateEvent { AnchorId = id, PayloadJson = json });
+            bus.SwapBuffers();
+
+            var repo = new EntityRepository();
+            manager.Execute(repo, 0f);   // frame 1 routes the Apply (the mask is emitted BEFORE the routing step) …
+            buffer.Clear();
+            manager.Execute(repo, 0f);   // … frame 2 emits the mask the Apply produced
+
+            var emitted = new LayerMask256();
+            bool found = false;
+            foreach (var p in buffer.GetFrame())
+            {
+                if (p.Shape == DebugPrimitiveShape.LayerControlMask) { emitted = p.ActiveLayers; found = true; }
+            }
+            Assert.True(found, "no LayerControlMask primitive was emitted");
+            Assert.False(emitted.IsSet(DebugTraceLayers.FireTraces), "FireTraces was unchecked and applied, yet its layer is still on");
+            Assert.False(emitted.IsSet(DebugTraceLayers.Doors));
+            Assert.True(emitted.IsSet(DebugTraceLayers.Paths));
+        }
     }
 
     // ==========================================================================

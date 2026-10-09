@@ -187,7 +187,14 @@ verified individually:
 | routed to the gizmo | `GlobalGizmoManager.cs:169` → `OnStructUpdate` |
 | mask recomputed | `LayerControlGizmo.cs:117-121` |
 
-🔴 **So the break is not visible from the source.** It needs a **Windows session** to observe. Candidates
+✅ **ANSWERED `2026-10-10` (`CE-3149`, backend) — the broken link was "routed to the gizmo".** 📐 `GlobalGizmoManager.Execute` routed
+`GizmoStructUpdateEvent` BELOW a `if (focused == null) return;`, so only a focus holder's panel could ever Apply — and the layer
+control is permanent and non-exclusive, so it never holds focus: the panel opened, the checkboxes toggled, Apply published the event,
+and the gizmo never heard it. ⛔ The table above was "verified individually" by presence, not by running the route. ✅ Struct updates
+are anchored (they name their gizmo), so they now route by `AnchorId` before the focus gate. 🧪 `LayerControlGizmoTests.CE3149_*`
+drives the real route. ⚠ The COVERAGE gaps in `CE-3149`'s row (which gizmos sit on a toggleable layer) are unchanged and still open.
+
+~~🔴 **So the break is not visible from the source.** It needs a **Windows session** to observe.~~ *(superseded — see above)* Candidates
 to check in order, cheapest first: whether the panel appears at all (schema registration /
 `ComponentEditService`), whether the toggle reaches `OnStructUpdate`, and whether the recomputed mask
 reaches the renderer's frame. ⚠ **Do not begin this design until that is known** — if the round-trip is
