@@ -28,10 +28,10 @@ namespace Hrot.AI.Behaviors.Brains
         public static PeekAndFireParams Shape(int shape) => shape == 1
             ? new PeekAndFireParams   // B — in the street: behind a cover, steps out, suppresses and bounds
             {
-                HideTemplate = FindCoverFromTarget.BlueprintId, Mode = PeekMode.Step, SearchRadius = 12f, PeekSearchRadius = 3f,
+                HideTemplate = FindCoverFromTarget.BlueprintId, Mode = PeekMode.Step, SearchRadius = 15f, PeekSearchRadius = 3f,
                 HideStanceOverride = (byte)(StanceId.Crouched + 1),   // ⚠ crouched behind the van: a window above sees a man standing
                 HideSecondsMin = 2f, HideSecondsMax = 4f, ExposeSeconds = 2.5f, BlindRounds = 4, FireCooldownSeconds = 0.25f,
-                ExposuresPerPosition = 2, RelocateSpeed = 5f, MinRelocateMetres = 6f, SuppressBeforeRelocate = 1,
+                ExposuresPerPosition = 2, RelocateSpeed = 5f, MinRelocateMetres = 8f, SuppressBeforeRelocate = 1,
             }
             : new PeekAndFireParams   // A — at a window: prone under the sill, up at it, another window after a few exposures
             {
