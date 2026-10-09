@@ -38,6 +38,9 @@ namespace Fdp.Toolkit.Perception.Systems
         private readonly Stack<List<(Entity, Vector2, ForceId)>> _pool = new();
         private readonly List<(float DistSq, Entity Target)> _passed = new();
 
+        /// <summary>⭐ CE-3146 — how many <see cref="Rebuild"/>s have seen a malformed chain; rate-limits the warning.</summary>
+        private int _malformedRebuilds;
+
         /// <summary>
         /// The candidates <paramref name="observer"/> can look at (it needs <see cref="EntityInfo"/> and
         /// <see cref="SimTransform"/>; otherwise none), nearest first when over the cap, else in cell-scan order.
@@ -147,17 +150,27 @@ namespace Fdp.Toolkit.Perception.Systems
                     walkedTotal++;
                     if (steps > slotCapacity || walkedTotal > slotCapacity)
                     {
+                        // ⚠ RATE-LIMITED ACROSS REBUILDS, not just within one. 📌 User, `2026-10-09`: "prints lots of
+                        //   messages" — `reportedMalformedChain` alone is per-Rebuild and this runs at 10 Hz, so a
+                        //   standing corruption printed ~10 lines/s and buried the log it exists to serve.
+                        bool first = _malformedRebuilds == 0;
                         if (!reportedMalformedChain)
                         {
                             reportedMalformedChain = true;
-                            // ⚠ FdpLog.Warn takes at most 4 format args — pre-format instead of splitting the message.
-                            int next = grid.GridNext[head];
-                            Fdp.Core.Logging.FdpLog<VisionBroadphase>.Warn(
-                                $"[VisionBroadphase] CE-3146 — MALFORMED grid chain in cell {c}: walked {steps} slots, "
-                                + $"capacity is {slotCapacity}. head={head}, GridNext[head]={next}"
-                                + (next == head ? " (SELF-CYCLE)" : string.Empty)
-                                + ". Abandoning this cell; perception under-reports here. The producer is a grid "
-                                + "Add/Remove pair (LocalGridBuilderSystem / SpatialHashGrid), not this walk.");
+                            _malformedRebuilds++;
+                            if (first || _malformedRebuilds % 600 == 0)   // ⭐ the first, then ~once a minute at 10 Hz
+                            {
+                                // ⚠ FdpLog.Warn takes at most 4 format args — pre-format instead of splitting it.
+                                int next = grid.GridNext[head];
+                                Fdp.Core.Logging.FdpLog<VisionBroadphase>.Warn(
+                                    $"[VisionBroadphase] CE-3146 — MALFORMED grid chain in cell {c}: walked {steps} "
+                                    + $"slots, capacity is {slotCapacity}. head={head}, GridNext[head]={next}"
+                                    + (next == head ? " (SELF-CYCLE)" : string.Empty)
+                                    + $". Abandoning this cell; perception under-reports here. [rebuild #{_malformedRebuilds} "
+                                    + "with a malformed grid] ⭐ CE-3152 found ONE producer — SpatialHashGrid.Create did "
+                                    + "not initialise GridHead to -1, so a grid was malformed until its first Clear(); "
+                                    + "if this still fires AFTER that fix, the producer is a different one.");
+                            }
                         }
                         break;
                     }
