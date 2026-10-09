@@ -494,7 +494,7 @@ public sealed class PostureScenarioTests : IDisposable
                 }
             }
         }
-        int lastAmmo = 30;
+        int lastAmmo = cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).Ammo : -1;   // ⭐ CE-3136 P-5: the spawned load, not a literal 30
         for (int f = 0; f < 24000; f++)
         {
             harness.PumpFrames(1);

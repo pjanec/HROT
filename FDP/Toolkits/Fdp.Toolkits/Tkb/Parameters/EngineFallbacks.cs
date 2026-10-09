@@ -44,6 +44,12 @@ namespace Fdp.Toolkit.Tkb.Parameters
         /// <summary>The mount's aim time, or <see cref="AimSeconds"/> when it declares none (≤ 0).</summary>
         public static float AimSecondsOrFallback(float declared) => declared > 0f ? declared : AimSeconds;
 
+        /// <summary>⭐ <c>CE-3136</c> P-5 (peek-and-fire D9) — the magazine change time when a mount with a magazine declares none.</summary>
+        public const float ReloadSeconds = 3f;
+
+        /// <summary>The mount's reload time, or <see cref="ReloadSeconds"/> when it declares none (≤ 0).</summary>
+        public static float ReloadSecondsOrFallback(float declared) => declared > 0f ? declared : ReloadSeconds;
+
         /// <summary>The NED builder's health rule: <c>armourFront × 5</c>, else 100.</summary>
         public static float HealthFromArmour(float armourFront)
             => armourFront > 0f ? armourFront * HealthPerArmourMm : HealthWithoutArmour;

@@ -615,5 +615,54 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(expectedStatus, channel.Status);
             Assert.Equal(10 - fired, _world.GetComponent<WeaponState>(shooter).Ammo);
         }
+            /// <summary>
+        /// ⭐ <c>CE-3136</c> P-5 (peek-and-fire D9, R-239) — a 30-round magazine of a 150-round load: 30 rounds go, the 31st waits
+        /// for the 3 s reload (held — Running, no round), then fire resumes. <see cref="WeaponState.Ammo"/> stays the TOTAL.
+        /// The dispatcher runs the reload; here <see cref="Fdp.Toolkit.Combat.Magazine.Tick"/> stands in for it.
+        /// </summary>
+        [Fact]
+        public void P5_TheThirtyFirstRound_WaitsForTheReload()
+        {
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 150, 0f, target, cooldownSeconds: 0f);
+            ref var w = ref _world.GetComponentRW<WeaponState>(shooter);
+            Fdp.Toolkit.Combat.Magazine.Load(ref w, 30, 3f);
+            EnterAimed(shooter, ref channel);
+
+            int StepWithReload(float dt)
+            {
+                Fdp.Toolkit.Combat.Magazine.Tick(ref _world.GetComponentRW<WeaponState>(shooter), dt);
+                return Step(shooter, ref channel, dt);
+            }
+
+            int fired = 0;
+            for (int i = 0; i < 30; i++) fired += StepWithReload(0.1f);
+            Assert.Equal(30, fired);
+            var after30 = _world.GetComponent<WeaponState>(shooter);
+            Assert.Equal(120, after30.Ammo);                 // the total
+            Assert.Equal(0, after30.MagazineRounds);
+            Assert.True(Fdp.Toolkit.Combat.Magazine.Reloading(after30));
+
+            int steps = 0;
+            while (fired == 30 && steps < 50) { fired += StepWithReload(0.1f); steps++; }
+            Assert.Equal(31, fired);
+            Assert.InRange(steps * 0.1f, 2.95f, 3.15f);       // held for the 3 s reload (±1 step), Running all along
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            Assert.Equal(29, _world.GetComponent<WeaponState>(shooter).MagazineRounds);
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> P-5 — a mount with NO magazine (size 0) fires its whole load, as before P-5.</summary>
+        [Fact]
+        public void P5_NoMagazine_FiresTheWholeLoad()
+        {
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 40, 0f, target, cooldownSeconds: 0f);
+            EnterAimed(shooter, ref channel);
+            int fired = 0;
+            for (int i = 0; i < 40; i++) fired += Step(shooter, ref channel, 0.1f);
+            Assert.Equal(40, fired);
+            Step(shooter, ref channel, 0.1f);
+            Assert.Equal(NodeStatus.Failure, channel.Status);   // out of ammunition altogether
+        }
     }
 }

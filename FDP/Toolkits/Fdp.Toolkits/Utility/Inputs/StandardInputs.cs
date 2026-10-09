@@ -93,14 +93,15 @@ namespace Fdp.Toolkit.Utility
 
         /// <summary>
         /// Returns 1 if CooldownSecondsRemaining &lt;= 0 on ctx.Self's WeaponState, else 0.
-        /// Returns 0 if WeaponState is absent.
+        /// Returns 0 if WeaponState is absent. ⭐ <c>CE-3136</c> P-5 — and 0 while the magazine is reloading or empty
+        /// (<see cref="Fdp.Toolkit.Combat.Magazine.Ready"/>): a weapon mid-reload is not ready.
         /// </summary>
         [UtilityInput("WeaponReadiness")]
         public static float WeaponReadiness(in UtilityInputCtx ctx)
         {
             if (!ctx.Repo.HasComponent<WeaponState>(ctx.Self)) return 0f;
             ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(ctx.Self);
-            float result = ws.CooldownSecondsRemaining <= 0f ? 1f : 0f;
+            float result = ws.CooldownSecondsRemaining <= 0f && Fdp.Toolkit.Combat.Magazine.Ready(ws) ? 1f : 0f;
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
         }

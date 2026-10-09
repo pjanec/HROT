@@ -130,6 +130,15 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
+            // ⭐ CE-3136 P-5 (D9) — an empty magazine RELOADS instead of failing (the dispatcher runs the reload every frame, so it
+            //   also finishes while the unit is hidden); the action holds meanwhile. Out of ammunition altogether is still Failure.
+            if (!Magazine.Ready(weapon))
+            {
+                Magazine.StartIfEmpty(ref weapon);
+                channel.Status = NodeStatus.Running;
+                return;
+            }
+
             // ⭐ CE-321 — hold fire while a friendly is on the line (LineOfFire): the action keeps running and no round is spent,
             //   so a unit that moves clear (or a friendly that moves away) fires again.
             if (LineOfFire.BlockedByFriendly(world, entity, p.Target))
@@ -154,7 +163,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 WeaponIndex = mountIndex,
             });
 
-            weapon.Ammo--;
+            Magazine.Spend(ref weapon);   // ⭐ CE-3136 P-5 — the total and the magazine; an emptied magazine starts its reload
             weapon.CooldownSecondsRemaining = p.CooldownSeconds;
 
             int fired = ++RoundsFired(ref channel);
@@ -170,6 +179,9 @@ namespace Fdp.Toolkit.Combat.Executors
             public byte   Stance;
             public byte   Ready;
         }
+
+        /// <summary>⭐ <c>CE-3136</c> B7 — the rounds the CURRENT AimAndFire action has fired (valid once the dispatcher has entered it).</summary>
+        public static int RoundsFiredOf(ref WeaponChannel channel) => RoundsFired(ref channel);
 
         /// <summary>⭐ <c>CE-3136</c> B7 — rounds fired by this action, in the channel state after the aim timer (bytes 24–27).</summary>
         private static unsafe ref int RoundsFired(ref WeaponChannel channel)

@@ -58,12 +58,14 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
             if (!AimAndFireExecutor.RoePermitsFire(world, entity)) { channel.Status = NodeStatus.Running; return; }
+            // ⭐ CE-3136 P-5 (D9) — an empty magazine reloads (held, Running) instead of ending the burst
+            if (!Magazine.Ready(weapon)) { Magazine.StartIfEmpty(ref weapon); channel.Status = NodeStatus.Running; return; }
 
             world.Bus.Publish(new WeaponFireIntent
             {
                 Shooter = entity, Target = Entity.Null, WeaponIndex = p.Mount, AtPoint = true, TargetPoint = p.Point,
             });
-            weapon.Ammo--;
+            Magazine.Spend(ref weapon);   // ⭐ CE-3136 P-5
             weapon.CooldownSecondsRemaining = p.CooldownSeconds;
             fixed (byte* st = channel.State) *(int*)st = fired + 1;
             channel.Status = p.Rounds > 0 && fired + 1 >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;

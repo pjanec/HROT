@@ -53,6 +53,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     ref var ws = ref repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(mount);
                     if (ws.CooldownSecondsRemaining > 0f) ws.CooldownSecondsRemaining -= deltaTime;
+                    Fdp.Toolkit.Combat.Magazine.Tick(ref ws, deltaTime);   // ⭐ CE-3136 P-5 — a reload runs whether or not the mount fires
                 }
             }
 
@@ -70,6 +71,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                     {
                         weaponState.CooldownSecondsRemaining -= deltaTime;
                     }
+                    // ⭐ CE-3136 P-5 (D9) — the reload runs here, every frame, so it finishes while the unit is hidden (B8)
+                    Fdp.Toolkit.Combat.Magazine.Tick(ref weaponState, deltaTime);
                 }
 
                 ref var channel = ref repo.GetComponentRW<WeaponChannel>(entity);

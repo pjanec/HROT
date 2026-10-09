@@ -23,6 +23,21 @@ namespace Fdp.Toolkit.Combat.Components
 
         /// <summary>Maximum ammo capacity cached from <c>WeaponMountDto.InitialAmmunition</c> at spawn. Never mutated by firing.</summary>
         public int MaxAmmo;
+
+        // ⭐ CE-3136 P-5 (peek-and-fire D9, R-239) — the magazine, beside the TOTAL above (Ammo stays the total carried). The rule
+        //   is Combat.Magazine; a mount with MagazineSize 0 has no magazine and fires from its whole load, as before.
+
+        /// <summary>Rounds in the current magazine (0 with no magazine model).</summary>
+        public int MagazineRounds;
+
+        /// <summary>Rounds a full magazine holds; <b>0 = no magazine</b> (the whole load).</summary>
+        public int MagazineSize;
+
+        /// <summary>Seconds a reload takes (cached from the mount's TKB at spawn, like <see cref="MaxAmmo"/>).</summary>
+        public float ReloadSeconds;
+
+        /// <summary>Seconds left of the running reload; 0 = not reloading.</summary>
+        public float ReloadSecondsRemaining;
     }
 
     /// <summary>

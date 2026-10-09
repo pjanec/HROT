@@ -45,6 +45,8 @@ namespace Fdp.Toolkit.Tkb.Parameters
         public const string Range          = "Range";
         public const string DispersionMils = "DispersionMils";
         public const string AimSeconds     = "AimSeconds";
+        public const string MagazineSize   = "MagazineSize";
+        public const string ReloadSeconds  = "ReloadSeconds";
 
         /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — a munition type's warhead (<see cref="WarheadDto"/>).</summary>
         public const string WarheadBlastLethalRadius  = "Warhead.BlastLethalRadius";
@@ -93,6 +95,8 @@ namespace Fdp.Toolkit.Tkb.Parameters
                     list.Add(MountRange(template, i));
                     list.Add(Dispersion(template, i));
                     list.Add(AimSeconds(template, i));
+                    list.Add(MagazineSize(template, i));
+                    list.Add(ReloadSeconds(template, i));
                 }
             var (warhead, source, provenance) = Warhead(template);
             if (warhead != null || template.DisType.Kind == 2)
@@ -324,6 +328,29 @@ namespace Fdp.Toolkit.Tkb.Parameters
             return m.AimSeconds > 0f
                 ? Stated(t, name, m.AimSeconds, $"WeaponSuiteDto.Mounts[{mount}].AimSeconds")
                 : new(name, EngineFallbacks.AimSeconds, ParameterProvenance.EngineFallback, "EngineFallbacks.AimSeconds (peek-and-fire D3)");
+        }
+
+        /// <summary><c>Weapon[i].MagazineSize</c> — ⭐ <c>CE-3136</c> P-5: rounds per magazine; 0 = no magazine (the whole load).</summary>
+        public static ResolvedParameter MagazineSize(TkbTemplate t, int mount)
+        {
+            var name = ParameterNames.Mount(mount, ParameterNames.MagazineSize);
+            var m = Mount(t, mount);
+            if (m == null) return NotApplicable(name, "no such mount");
+            return m.MagazineSize > 0
+                ? Stated(t, name, m.MagazineSize, $"WeaponSuiteDto.Mounts[{mount}].MagazineSize")
+                : new(name, 0f, ParameterProvenance.EngineFallback, "0 = no magazine: fires the whole load without reloading (P-5)");
+        }
+
+        /// <summary><c>Weapon[i].ReloadSeconds</c> — ⭐ <c>CE-3136</c> P-5: the magazine change time; not applicable without a magazine.</summary>
+        public static ResolvedParameter ReloadSeconds(TkbTemplate t, int mount)
+        {
+            var name = ParameterNames.Mount(mount, ParameterNames.ReloadSeconds);
+            var m = Mount(t, mount);
+            if (m == null) return NotApplicable(name, "no such mount");
+            if (m.MagazineSize <= 0) return NotApplicable(name, "no magazine");
+            return m.ReloadSeconds > 0f
+                ? Stated(t, name, m.ReloadSeconds, $"WeaponSuiteDto.Mounts[{mount}].ReloadSeconds")
+                : new(name, EngineFallbacks.ReloadSeconds, ParameterProvenance.EngineFallback, "EngineFallbacks.ReloadSeconds (peek-and-fire D9)");
         }
 
         private static WeaponMountDto? Mount(TkbTemplate t, int i)

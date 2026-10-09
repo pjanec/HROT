@@ -4,6 +4,7 @@
     "schemaVersion": 1
   },
   "header": {
+    "terrainName": "berlin",
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0"
   },
@@ -17,7 +18,7 @@
               "taskId": "57e4221b-65d0-46ce-861f-093fe49cb439",
               "executingEngine": "",
               "behaviorName": "MoveToLocation",
-              "behaviorParams": "{\u0022targetLat\u0022:0.002676933689646662,\u0022targetLon\u0022:0.00439276174326934,\u0022speed\u0022:5,\u0022arrivalRadius\u0022:5}",
+              "behaviorParams": "{\u0022targetLat\u0022:52.522659803707434,\u0022targetLon\u0022:13.412204386581816,\u0022speed\u0022:5,\u0022arrivalRadius\u0022:5}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",

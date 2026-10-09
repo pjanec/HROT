@@ -56,6 +56,16 @@ namespace Fdp.Toolkit.Tkb.Domain
         public float AimSeconds { get; init; }
 
         /// <summary>
+        /// ⭐ <c>CE-3136</c> P-5 (peek-and-fire D9) — rounds per MAGAZINE. <b>0 = no magazine</b>: the mount fires its whole
+        /// <see cref="InitialAmmunition"/> without reloading (every mount before P-5). <see cref="InitialAmmunition"/> stays the total carried.
+        /// </summary>
+        public int MagazineSize { get; init; }
+
+        /// <summary>⭐ <c>CE-3136</c> P-5 — seconds to change a magazine. <b>0 = not declared</b> ⇒ <c>EngineFallbacks.ReloadSeconds</c> (3 s).</summary>
+        [EditUnit("s")]
+        public float ReloadSeconds { get; init; }
+
+        /// <summary>
         /// ⭐ Buildings §3d P1b (R-217) — the TKB GUID of the AMMUNITION type loaded in this mount (one of the weapon's supported
         /// ammo). With it, the round's penetration comes from the launcher × ammo pair (<see cref="AmmoWeaponBallisticsDto"/>);
         /// <b>0 = not declared</b> ⇒ this mount's own <see cref="Penetration"/> applies, as before. Ammo switching is later.

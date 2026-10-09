@@ -90,12 +90,7 @@ namespace Fdp.Toolkit.Combat.Translators
                 var primary = suite.Mounts[0];
                 // Primary mount: WeaponState stays on the owner entity (back-compat with actuators).
                 if (repo.IsComponentTypeRegistered<WeaponState>() && !repo.HasComponent<WeaponState>(entity))
-                    repo.AddComponent(entity, new WeaponState
-                    {
-                        Ammo           = primary.InitialAmmunition,
-                        MaxAmmo        = primary.InitialAmmunition,
-                        MuzzleVelocity = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocityOrFallback(primary.MuzzleVelocity)
-                    });
+                    repo.AddComponent(entity, Loaded(primary));
 
                 // Additional mounts (index 1+): each gets a child entity.
                 if (repo.IsComponentTypeRegistered<WeaponMountInfo>() && repo.IsComponentTypeRegistered<PartMetadata>())
@@ -113,12 +108,7 @@ namespace Fdp.Toolkit.Combat.Translators
                         if (have) continue;
                         var mount = suite.Mounts[i];
                         var child = repo.CreateEntity();
-                        repo.AddComponent(child, new WeaponState
-                        {
-                            Ammo           = mount.InitialAmmunition,
-                            MaxAmmo        = mount.InitialAmmunition,
-                            MuzzleVelocity = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocityOrFallback(mount.MuzzleVelocity)
-                        });
+                        repo.AddComponent(child, Loaded(mount));
                         repo.AddComponent(child, new WeaponMountInfo
                         {
                             MountIndex     = i,
@@ -136,5 +126,18 @@ namespace Fdp.Toolkit.Combat.Translators
                 }
             }
         }
-    }
+    
+        /// <summary>A mount's <see cref="WeaponState"/> at spawn: the total load, and — ⭐ <c>CE-3136</c> P-5 — its first magazine full.</summary>
+        private static WeaponState Loaded(WeaponMountDto mount)
+        {
+            var w = new WeaponState
+            {
+                Ammo           = mount.InitialAmmunition,
+                MaxAmmo        = mount.InitialAmmunition,
+                MuzzleVelocity = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocityOrFallback(mount.MuzzleVelocity)
+            };
+            Magazine.Load(ref w, mount.MagazineSize, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.ReloadSecondsOrFallback(mount.ReloadSeconds));
+            return w;
+        }
+}
 }
