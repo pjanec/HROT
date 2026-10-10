@@ -3,8 +3,8 @@ state: UNASSESSED — this STATUS block was added 2026-10-10 only to carry relat
   was not reviewed. Its own Summary calls it the TARGET architecture of the gizmo framework.
 updated: 2026-10-10
 related-designs:
-  - ../../DESIGN_Godot_3D_Viewer.md — a Godot 3-D viewer that is one more DUMB TERMINAL of this stream: raw DebugPrimitive
-    over its link, §10 ContextMenuBinding rendered as a Godot popup, the MenuAction return trip reused.
+  - ../../DESIGN_Map_3D_Mode.md — the map's 3-D mode: a second, 3-D terminal of this stream in-process (the 3-D subset via
+    the extracted triage); §10 menus reused unchanged. ../../DESIGN_Godot_3D_Viewer.md is the DEFERRED Godot terminal.
   - ../../DESIGN_Stride_Node_Modes.md — owns §8, the 3-D subset of this stream Stride draws (DebugPrimitiveRenderer3D).
 -->
 

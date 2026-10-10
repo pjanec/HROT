@@ -1,10 +1,12 @@
 <!--STATUS
-state: LIVE
+state: DEFERRED — the user put Godot aside on 2026-10-10 (U13) and chose alternative B; KEEP this design for a
+  possible later Godot terminal. superseded-by (as the current approach): DESIGN_Map_3D_Mode.md
 build-state: DESIGN — ⚠ THE APPROACH IS OPEN between A (§4-§7: a Godot process on full NED) and B (§8: an in-process
   Raylib 3-D panel). ⭐ Lean: B. Nothing built.
 updated: 2026-10-10 (rev 5 — U11: D12 resolved, Map2D; U12: §8 alternative B, in-process Raylib, LEAN. Rev 4 — U10: §3.4 the reuse ledger, D12 the viewer role. Rev 3 — U7-U9: the camera is an ordinary spatial entity; the gateway is a hot-installable module in
   Editor/ReplayBrowser instantiating the same NED translators; no dedicated DDS partition. Rev 2: full NED.)
-current-answer: ⭐ §8 ALTERNATIVE B (the lean) · §1 requirements · §1a rulings · §3.4 the reuse ledger (for A) · §5 D1a why not in-process · §3 what exists, incl. what NED already carries (§3.3) ·
+current-answer: ⭐ the CURRENT approach is docs/DESIGN_Map_3D_Mode.md. Here: §1 the requirements V-01..V-20 and §1a the
+  rulings U1..U12 (still the requirement record) · §8 the measured A-vs-B comparison that chose B · §1 requirements · §1a rulings · §3.4 the reuse ledger (for A) · §5 D1a why not in-process · §3 what exists, incl. what NED already carries (§3.3) ·
   §4 the architecture (module / class / sequence diagrams) · §5 decisions · §6 open questions · §7 stages.
 stale-below: the HISTORY heading at the end — rev 1's loopback socket + host-side producer, rev 2's ViewCamera descriptor
   and Editor-wide NED mode.

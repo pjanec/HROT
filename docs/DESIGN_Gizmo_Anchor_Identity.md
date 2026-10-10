@@ -31,8 +31,8 @@ related-designs:
     CE-463): a CANVAS pick carries its target node in PickStreamId; amended here as §6.3a.
   - docs/UX/UX_Feature_Selection.md — owns UXI-11; §2.7.14 records the local-only empty-space
     clear that the drop above causes.
-  - docs/DESIGN_Godot_3D_Viewer.md — a 3-D dumb terminal addressing entities by network id; it reads
-    ContextMenuBinding from the stream and returns MenuAction (its D8).
+  - docs/DESIGN_Map_3D_Mode.md — the map's 3-D mode draws the 3-D subset of this stream and keeps 2-D picking
+    (a 3-D ray hit is handed to the layers as the entity's ground XY).
 -->
 # ⭐⭐⭐ Gizmo Anchor Identity — **one id, and it is the network id**
 
