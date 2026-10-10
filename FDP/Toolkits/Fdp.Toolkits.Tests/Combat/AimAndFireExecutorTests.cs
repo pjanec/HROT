@@ -701,5 +701,83 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Reloading, Row().Reason);
             Assert.Equal(2f, Row().Needed, 3);
         }
+            // ── CE-3158 G3 — a BURST never flies through a friend; an indirect warhead does ─────────────────────────────────────
+
+        /// <summary>A burst-firing unit at the origin with a <see cref="FireAtPointParams"/> action at <paramref name="point"/>, a friend
+        /// (radius 3.5) at (8, 1) on the line; optionally the unit's type fires <paramref name="ammoName"/> from mount 0.</summary>
+        private unsafe (Entity shooter, Entity friend) BurstWithAFriendOnTheLine(Vector3 point, string? ammoName = null)
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var shooter = _world.CreateEntity();
+            _world.AddComponent(shooter, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            _world.AddComponent(shooter, new WeaponState { Ammo = 5 });
+            _world.AddComponent(shooter, new WeaponChannel());
+            _world.AddComponent(shooter, new EntityInfo { ForceId = ForceId.Friend });
+            if (ammoName != null)
+            {
+                var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+                db.Register(new Fdp.Interfaces.TkbTemplate(ammoName, 900));
+                var type = new Fdp.Interfaces.TkbTemplate("burst unit", 901);
+                type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = new System.Collections.Generic.List<Fdp.Toolkit.Tkb.Domain.WeaponMountDto>
+                    { new() { AmmoGuid = 900 } } });
+                db.Register(type);
+                _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+                _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+                _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 901 });
+            }
+            var friend = _world.CreateEntity();
+            _world.AddComponent(friend, new SimTransform { Position = new Vector3(8f, 1f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(friend, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(friend, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f });
+
+            ref var channel = ref _world.GetComponentRW<WeaponChannel>(shooter);
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new FireAtPointParams { Point = point, CooldownSeconds = 0.05f, Rounds = 3 });
+            new FireAtPointExecutor().OnEnter(shooter, ref channel, _world);
+            return (shooter, friend);
+        }
+
+        private int BurstStep(Entity shooter)
+        {
+            ref var channel = ref _world.GetComponentRW<WeaponChannel>(shooter);
+            new FireAtPointExecutor().Execute(shooter, ref channel, _world, 0.016f);
+            _world.Bus.SwapBuffers();
+            return _world.Bus.Read<WeaponFireIntent>().Length;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>G3_R1</c> — A DIRECT BURST HOLDS while a friend is on the line to its POINT (Running, no round, no ammo spent) and
+        /// fires once the friend moves off. 🔴 Red-proof: before G3 the burst had no friendly check (BS-1 §5.1a guarded aimed fire
+        /// only) and the first step fired through him.
+        /// </summary>
+        [Fact]
+        public void G3_R1_ADirectBurst_HoldsWhileAFriendIsOnTheLineToItsPoint()
+        {
+            var (shooter, friend) = BurstWithAFriendOnTheLine(new Vector3(20f, 0f, 1f));
+            Assert.Equal(0, BurstStep(shooter));
+            Assert.Equal(NodeStatus.Running, _world.GetComponentRO<WeaponChannel>(shooter).Status);
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+
+            _world.GetComponentRW<SimTransform>(friend).Position = new Vector3(8f, 5f, 0f);
+            Assert.Equal(1, BurstStep(shooter));
+            Assert.Equal(4, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
+
+        /// <summary>⭐⭐ <c>G3_R2</c> — an INDIRECT warhead (an 81 mm bomb, from the reference library) arcs over friends: the same
+        /// burst over the same friend FIRES.</summary>
+        [Fact]
+        public void G3_R2_AnIndirectWarhead_FiresOverAFriend()
+        {
+            var (shooter, _) = BurstWithAFriendOnTheLine(new Vector3(20f, 0f, 0f), "81mm mortar HE");
+            Assert.Equal(1, BurstStep(shooter));
+        }
+
+        /// <summary>⭐ <c>G3_R3</c> — a KINETIC round (no warhead) is direct fire: held, as without a TKB.</summary>
+        [Fact]
+        public void G3_R3_AKineticRound_IsDirectFire_AndHolds()
+        {
+            var (shooter, _) = BurstWithAFriendOnTheLine(new Vector3(20f, 0f, 0f), "5.56x45 ball");
+            Assert.Equal(0, BurstStep(shooter));
+        }
     }
 }

@@ -10,11 +10,13 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Tkb.Domain;
+using Fdp.Toolkit.Utility;
 using Hrot.MuscleCharacter.Animation.Stance;
 
 namespace Hrot.AI.Behaviors.Brains
@@ -80,6 +82,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-3158</c> G1 — the stance a STANCE peek comes up to: 0 = from the point (a window's stance; one taller than a
         /// cover's), else <c>StanceId + 1</c> — e.g. "crouch behind a low wall, stand to fire".</summary>
         public byte PeekStanceOverride;
+        /// <summary>⭐ <c>CE-3158</c> G2 — with no usable cover point this long the node answers Failure (the posture re-scores);
+        /// a step peek with no step-out point this long moves to the next cover (s).</summary>
+        public float NoCoverSeconds;
+        /// <summary>⭐ <c>CE-3158</c> G4 — a heard shot moves a burst only when it is within this of the locked target's remembered spot
+        /// (m); a shot heard elsewhere is another enemy, not this one moving.</summary>
+        public float HeardMatchRadius;
     }
 
     /// <summary>
@@ -118,6 +126,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-3144</c> (P-8 D14) — where both sensors look: the memory slot (its id) and the spot they were pointed at.</summary>
         public long SensorId;
         public Vector3 SensorAt;
+        /// <summary>⭐ <c>CE-3158</c> G2 — 1 while the node waits for a point (no cover answer, or no step-out point) · since when (sim s).
+        /// 2 = every answered cover point is burned: the unit fires from where it stands meanwhile.</summary>
+        public byte Waiting;
+        public double WaitingSince;
     }
 
     /// <summary>
@@ -125,7 +137,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// on when a position is used up. ONE machine flies both soldiers of the window duel — a stance peek (A: prone under the sill,
     /// kneel at it) and a step peek (B: behind a corner, step out) — only the parameters differ. 📄 docs/DESIGN_Peek_And_Fire.md §8.
     /// <para>Reuses the shared steps (R-174): the threat ranking and heard-contact aim (<see cref="EqsTacticsNodes.TopAim"/>), the
-    /// sensor keeping (<see cref="PostureNodes.Keep"/>), the ONE aimed fire step (<see cref="PostureNodes.Fire"/> with B7's round
+    /// sensor keeping (<see cref="PostureNodes.Keep"/>), the ONE aimed fire step (<c>PostureNodes.Fire</c> with B7's round
     /// count — the executor's sight gate and aim time apply), the blind burst (<see cref="FireAtPointNodes.FireAtPoint"/>), the
     /// stance request and the move.</para>
     /// </summary>
@@ -151,6 +163,8 @@ namespace Hrot.AI.Behaviors.Brains
             CoolHalfLifeSeconds = 45f, MatchRadius = 1.0f,
             RelocateSpeed = 4.5f, MinRelocateMetres = 4f,
             ScoreDeltaThreshold = 0.05f,
+            NoCoverSeconds = 3f,
+            HeardMatchRadius = 15f,
         };
 
         /// <summary>The parameters with every zero replaced by its default (the enums, flags and filter stay as authored).</summary>
@@ -181,6 +195,8 @@ namespace Hrot.AI.Behaviors.Brains
             if (e.RelocateSpeed <= 0f) e.RelocateSpeed = d.RelocateSpeed;
             if (e.MinRelocateMetres <= 0f) e.MinRelocateMetres = d.MinRelocateMetres;
             if (e.ScoreDeltaThreshold <= 0f) e.ScoreDeltaThreshold = d.ScoreDeltaThreshold;
+            if (e.NoCoverSeconds <= 0f) e.NoCoverSeconds = d.NoCoverSeconds;
+            if (e.HeardMatchRadius <= 0f) e.HeardMatchRadius = d.HeardMatchRadius;
             return e;
         }
 
@@ -213,8 +229,15 @@ namespace Hrot.AI.Behaviors.Brains
             ref var mem = ref UnitMemory.Ref<FiringPositionMemory>(world, self);
             switch (ws.Phase)
             {
-                case PeekPhase.Choose:     Choose(ref ws, in p, ref mem, self, world, now, relocating: false); break;
-                case PeekPhase.MoveToHide: MoveToHide(ref ws, in p, self, world, now); break;
+                case PeekPhase.Choose:
+                    // ⭐ CE-3158 G2 — no cover for NoCoverSeconds: say so, the posture picks something else
+                    if (!ChooseOrWait(ref ws, in p, ref mem, self, world, now, in threat))
+                    {
+                        Release(ref ws, self, world);
+                        return NodeStatus.Failure;
+                    }
+                    break;
+                case PeekPhase.MoveToHide: MoveToHide(ref ws, in p, ref mem, self, world, now); break;
                 case PeekPhase.Hidden:     Hidden(ref ws, in p, ref mem, self, world, now, in threat); break;
                 case PeekPhase.Expose:     Expose(ref ws, in p, ref mem, self, world, now, in threat); break;
                 case PeekPhase.Aimed:      Aimed(ref ws, in p, ref mem, self, world, now, in threat); break;
@@ -237,6 +260,44 @@ namespace Hrot.AI.Behaviors.Brains
 
         // ── the phases ──────────────────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// ⭐ <c>CE-3158</c> G2 (📄 docs/DESIGN_Peek_And_Fire.md §10.5) — the Choose phase with its honest outcomes: a usable point ⇒ go;
+        /// answered points but every one burned ⇒ AIMED FIRE FROM WHERE IT STANDS while they cool (never silent); no answer at all
+        /// for <c>NoCoverSeconds</c> ⇒ false (the node answers Failure).
+        /// </summary>
+        private static bool ChooseOrWait(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
+                                         EntityRepository world, double now, in ThreatAim threat)
+        {
+            if (PickHide(ref ws, in p, ref mem, world, now, relocating: false, out var point, out var stance, out byte kind))
+            {
+                if (ws.Waiting == 2) PostureNodes.StopFiring(world, self, ref ws.Fire);
+                ws.Waiting = 0;
+                GoToHide(ref ws, in p, self, world, point, stance, kind);
+                return true;
+            }
+            if (Answered(in ws, world))
+            {
+                // every point burned (or claimed): fight from here — the aimed step, only at a SEEN enemy (D4)
+                ws.Waiting = 2;
+                var target = LockTarget(world, self, in threat);
+                if (!target.IsNull && SightNow.Sees(world, self, target))
+                    PostureNodes.Fire(world, self, ref ws.Fire, p.FireCooldownSeconds, 0, target);
+                else PostureNodes.StopFiring(world, self, ref ws.Fire);
+                return true;
+            }
+            if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = now; }
+            return now - ws.WaitingSince < p.NoCoverSeconds;
+        }
+
+        /// <summary>The cover sensor has answered with at least one point.</summary>
+        private static bool Answered(in PeekAndFireState ws, EntityRepository world)
+        {
+            if (!ws.CoverSensor.IsValid || !world.IsAlive(ws.CoverSensor.ChildId)
+                || !world.HasComponent<EqsCognitiveBuffer>(ws.CoverSensor.ChildId)) return false;
+            ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(ws.CoverSensor.ChildId);
+            return buffer.IsReady && buffer.Count > 0;
+        }
+
         private static void Choose(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
                                    EntityRepository world, double now, bool relocating)
         {
@@ -251,6 +312,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.PeekIsStep = (byte)(ChoosePeek(in p, stance, kind, StanceRequest.CanCarry(world, self), out var hide, out var peek) ? 1 : 0);
             ws.HideStance = hide;
             ws.PeekStance = peek;
+            ws.Waiting = 0;
             ws.HidePoint = point;
             ws.PeekPoint = point;
             ws.ExposuresHere = 0;
@@ -305,14 +367,24 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static StanceId OneTaller(StanceId s) => s == StanceId.Prone ? StanceId.Crouched : StanceId.Standing;
 
-        private static void MoveToHide(ref PeekAndFireState ws, in PeekAndFireParams p, Entity self, EntityRepository world, double now)
+        private static void MoveToHide(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
+                                       EntityRepository world, double now)
         {
             var status = LocomotionMoveTo.Status(world, self);
             if (status == NodeStatus.Running) return;
             ws.Moving = 0;
-            if (status == NodeStatus.Success) EnterHidden(ref ws, in p, self, world, now);
-            else ws.Phase = PeekPhase.Choose;   // the move failed: ask again
+            if (status == NodeStatus.Success) { EnterHidden(ref ws, in p, self, world, now); return; }
+            // ⭐ CE-3158 G2 — the move failed: the point is (maybe) unreachable — heat it by UnreachableHeat × BurnHeat, so a second
+            //   failure burns it and it is never picked again while it stays hot (one failure may be a path not ready yet)
+            Unreachable(ref mem, ws.HidePoint, in p, now);
+            ws.Phase = PeekPhase.Choose;
         }
+
+        /// <summary>⭐ <c>CE-3158</c> G2 — the share of <c>BurnHeat</c> one failed move adds: two failures burn the point.</summary>
+        public const float UnreachableHeat = 0.6f;
+
+        private static void Unreachable(ref FiringPositionMemory mem, Vector3 point, in PeekAndFireParams p, double now)
+            => PositionHeat.Add(ref mem, point, UnreachableHeat * p.BurnHeat, now, Rules(in p), exposure: false);
 
         private static void Hidden(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
                                    EntityRepository world, double now, in ThreatAim threat)
@@ -346,7 +418,11 @@ namespace Hrot.AI.Behaviors.Brains
 
             // B8 — reloading or under fire: stay down (the dispatcher runs the reload; an empty magazine starts one here)
             bool reloading = ReloadingOrEmpty(world, self);
-            if (reloading || Suppressed(world, self, in p) || now < ws.PhaseUntil) return;
+            // ⭐ CE-3158 G3 — the ROE decides whether to come up at all: HoldFire never exposes (hide only); ReturnFire exposes
+            //   only inside the return-fire window, and then WITHOUT the random wait (the window is the reason to come up)
+            if (!AimAndFireExecutor.RoePermitsFire(world, self)) return;
+            bool returning = world.IsComponentTypeRegistered<Roe>() && RoeOf.Fire(world, self) == RoeFire.ReturnFire;
+            if (reloading || Suppressed(world, self, in p) || (!returning && now < ws.PhaseUntil)) return;
 
             if (ws.PeekIsStep == 0)
             {
@@ -357,7 +433,19 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
 
-            if (!PickPeek(ref ws, in p, ref mem, world, now, out var peek, out var peekStance)) return;   // no step-out point yet
+            if (!PickPeek(ref ws, in p, ref mem, world, now, out var peek, out var peekStance))
+            {
+                // ⭐ CE-3158 G2 — no step-out point for NoCoverSeconds: this cover cannot be fought from — to the next one
+                if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = now; }
+                else if (now - ws.WaitingSince >= p.NoCoverSeconds)
+                {
+                    PositionHeat.Add(ref mem, ws.HidePoint, p.BurnHeat, now, Rules(in p), exposure: false);
+                    ws.Waiting = 0;
+                    ws.Phase = PeekPhase.Choose;
+                }
+                return;
+            }
+            ws.Waiting = 0;
             ws.PeekPoint = peek;
             ws.PeekStance = peekStance ?? StanceId.Standing;
             ws.Stepping = 1;
@@ -387,11 +475,13 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
 
-            if (!threat.IsPoint && SightNow.Sees(world, self, threat.Entity))
+            var target = LockTarget(world, self, in threat);
+            if (!target.IsNull && SightNow.Sees(world, self, target))
             {
                 ws.LastSeenAt = now;
                 ws.Fire = default;   // a fresh aimed action each exposure (B7's count starts at 0)
-                PostureNodes.Fire(world, self, ref ws.Fire, p.FireCooldownSeconds, p.RoundsPerExposure);
+                // ⭐ CE-3158 G4 — the target is LOCKED for the exposure: the one whose sight was just checked is the one shot at
+                PostureNodes.Fire(world, self, ref ws.Fire, p.FireCooldownSeconds, p.RoundsPerExposure, target);
                 ws.Phase = PeekPhase.Aimed;
                 return;
             }
@@ -401,10 +491,24 @@ namespace Hrot.AI.Behaviors.Brains
             if (!StartBurst(ref ws, in p, self, world, in threat)) Recover(ref ws, in p, ref mem, self, world, now, false);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3158</c> G4 — the target of this exposure: the squad's ASSIGNED target (<see cref="SquadAssignment"/>) when the unit has
+        /// one that is alive and seen, else the top threat's entity; <see cref="Entity.Null"/> when the threat is only a heard point.
+        /// </summary>
+        internal static Entity LockTarget(EntityRepository world, Entity self, in ThreatAim threat)
+        {
+            if (SquadAssignment.TargetOf(world, self, out long handle))
+            {
+                var assigned = new Entity((ulong)handle);
+                if (world.IsAlive(assigned) && SightNow.Sees(world, self, assigned)) return assigned;
+            }
+            return threat.IsPoint ? Entity.Null : threat.Entity;
+        }
+
         /// <summary>A burst of <c>BlindRounds</c> at the freshest evidence (D13) + <c>BlindAimHeight</c>; false = nowhere known.</summary>
         private static bool StartBurst(ref PeekAndFireState ws, in PeekAndFireParams p, Entity self, EntityRepository world, in ThreatAim threat)
         {
-            if (!FreshestEvidence(world, self, in threat, out var at)) return false;
+            if (!FreshestEvidence(world, self, in threat, out var at, out _, p.HeardMatchRadius)) return false;
             ws.Blind = new FireAtPointNodeParams
             {
                 Point = at + new Vector3(0f, 0f, p.BlindAimHeight), CooldownSeconds = p.FireCooldownSeconds, Rounds = p.BlindRounds,
@@ -425,9 +529,14 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>As above, and <paramref name="slotId"/> = the memory slot the evidence came from (the threat's own id when no
         /// heard slot is newer).</summary>
-        internal static unsafe bool FreshestEvidence(EntityRepository world, Entity self, in ThreatAim threat, out Vector3 at, out long slotId)
+        internal static unsafe bool FreshestEvidence(EntityRepository world, Entity self, in ThreatAim threat, out Vector3 at, out long slotId,
+                                                     float matchRadius = 0f)
         {
             bool have = EqsTacticsNodes.ThreatPosition(world, self, in threat, out at);
+            // ⭐ CE-3158 G4 — with a radius, a heard slot counts only near where THIS threat is remembered (another enemy's shot does
+            //   not drag the burst away from the locked target); a heard-only threat has no spot of its own to measure from
+            var origin = at;
+            bool filter = matchRadius > 0f && have && !threat.IsPoint;
             long id = threat.IsPoint ? threat.HeardId : (long)threat.Entity.PackedValue;
             slotId = id;
             if (!world.HasComponent<TargetMemory>(self)) return have;
@@ -438,8 +547,10 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < mem.Count; i++)
             {
                 if (!TargetMemory.IsAnonymous(in mem, i) || mem.LastSeenTick[i] <= newest) continue;
+                var heard = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
+                if (filter && Vector3.Distance(heard, origin) > matchRadius) continue;
                 newest = mem.LastSeenTick[i];
-                at = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
+                at = heard;
                 slotId = mem.EntityIds[i];
                 have = true;
             }
@@ -449,7 +560,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Aimed(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
                                   EntityRepository world, double now, in ThreatAim threat)
         {
-            if (!threat.IsPoint && SightNow.Sees(world, self, threat.Entity)) ws.LastSeenAt = now;
+            if (!ws.Fire.Threat.IsNull && SightNow.Sees(world, self, ws.Fire.Threat)) ws.LastSeenAt = now;   // the LOCKED target
             ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);
             bool done = channel.ActiveAction == CombatConstants.ActionIdAimAndFire && channel.Status != NodeStatus.Running;
             bool firedUpon = FiredUponSince(world, self, ws.ExposedAt);

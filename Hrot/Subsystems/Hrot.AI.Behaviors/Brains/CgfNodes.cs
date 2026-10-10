@@ -538,16 +538,11 @@ namespace Hrot.AI.Behaviors.Brains
                 p.RoundsFired = Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.RoundsFiredOf(ref channel);   // the real count
             if (needsActivation)
             {
-                WriteToWeaponParams(ref channel, new Fdp.Toolkit.Combat.Executors.AimAndFireParams
-                {
-                    Target          = target,
-                    CooldownSeconds = p.CooldownSeconds,
-                    Rounds          = p.MaxRounds > 0 ? System.Math.Max(p.MaxRounds - alreadyFired, 1) : 0,
-                });
-
-                unchecked { channel.ActionInstanceId++; }
-                channel.ActiveAction = Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire;
-                channel.Status = Fbt.NodeStatus.Running;
+                // ⭐ CE-3158 L5 (R-256) — through the ONE aimed step (PostureNodes.Fire at a named target): the executor picks the
+                //   weapon per shot (MountAuto) as every other aimed fire does. ⛔ SUPERSEDED: its own AimAndFireParams write (mount 0).
+                var issue = new EngageState();
+                PostureNodes.Fire(world, self, ref issue, p.CooldownSeconds,
+                    p.MaxRounds > 0 ? System.Math.Max(p.MaxRounds - alreadyFired, 1) : 0, target);
             }
 
             return NodeStatus.Running;

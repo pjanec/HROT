@@ -154,8 +154,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   launcher, a throw for a hand weapon). The flight never looks the warhead up again.
                 long ammo = firedMount != null ? unchecked((long)firedMount.AmmoGuid) : 0L;
                 byte warheadBits = 0; float fuze = 0f;
-                if (ammo != 0 && repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
-                    && Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(), ammo).Warhead is { } wh)
+                if (CombatTkb.WarheadOf(repo, firedMount) is { } wh)   // ⭐ CE-3158 G3 — the one lookup
                 {
                     if (wh.HasAreaEffect) warheadBits |= WarheadRound.Area;
                     if (wh.Fuze == Fdp.Toolkit.Tkb.Domain.FuzeKind.Time && wh.FuzeDelayS > 0f) { warheadBits |= WarheadRound.TimeFuze; fuze = wh.FuzeDelayS; }

@@ -17,12 +17,25 @@ namespace Fdp.Toolkit.Combat
         /// False when either end has no position or the shooter has no force (nothing to be friendly with).</summary>
         public static bool BlockedByFriendly(EntityRepository world, Entity shooter, Entity target)
         {
+            if (!world.HasComponent<SimTransform>(target)) return false;
+            return Blocked(world, shooter, target, world.GetComponentRO<SimTransform>(target).Position);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3158</c> G3 (📄 docs/DESIGN_Peek_And_Fire.md §10.5) — the same test to a POINT: a burst at a remembered spot, a
+        /// round at a ground point. ⚠ XY only, like the entity form (a friend below a shot on a slope counts as blocking —
+        /// conservative); both move behind <c>IWorldQuery.Trace(Fire)</c> with WQ-F (§10.8).
+        /// </summary>
+        public static bool BlockedByFriendly(EntityRepository world, Entity shooter, Vector3 point)
+            => Blocked(world, shooter, Entity.Null, point);
+
+        private static bool Blocked(EntityRepository world, Entity shooter, Entity target, Vector3 b3)
+        {
             if (!world.IsComponentTypeRegistered<PhysicsCollider>() || !world.IsComponentTypeRegistered<EntityInfo>()) return false;
-            if (!world.HasComponent<SimTransform>(shooter) || !world.HasComponent<SimTransform>(target)) return false;
+            if (!world.HasComponent<SimTransform>(shooter)) return false;
             if (!world.HasComponent<EntityInfo>(shooter)) return false;
             var force = world.GetComponentRO<EntityInfo>(shooter).ForceId;
             var a3 = world.GetComponentRO<SimTransform>(shooter).Position;
-            var b3 = world.GetComponentRO<SimTransform>(target).Position;
             var a = new Vector2(a3.X, a3.Y);
             var ab = new Vector2(b3.X, b3.Y) - a;
             float len2 = ab.LengthSquared();

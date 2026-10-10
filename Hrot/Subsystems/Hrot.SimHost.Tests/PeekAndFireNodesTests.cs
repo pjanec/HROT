@@ -46,6 +46,10 @@ namespace Hrot.SimHost.Tests
             public readonly List<Vector3> Moves = new();
             public readonly List<(ushort Action, int Rounds, Vector3 Point)> Fires = new();
             public int AimedRounds, BlindRounds;
+            /// <summary>⭐ <c>CE-3158</c> G2 — moves to these points FAIL (an unreachable point) instead of arriving.</summary>
+            public readonly List<Vector3> Unreachable = new();
+            /// <summary>⭐ <c>CE-3158</c> G4 — the target of every aimed action started, in order.</summary>
+            public readonly List<Entity> AimedAt = new();
             private uint _moveInst, _fireInst;
             private int _fired;
             private long _frame;
@@ -128,7 +132,7 @@ namespace Hrot.SimHost.Tests
                     fixed (byte* src = loco.Params) Moves.Add(((MoveToParams*)src)->Destination);
                     return;   // arrives on the next step
                 }
-                loco.Status = NodeStatus.Success;
+                loco.Status = Unreachable.Contains(Moves[^1]) ? NodeStatus.Failure : NodeStatus.Success;
             }
 
             private void Weapon()
@@ -143,6 +147,7 @@ namespace Hrot.SimHost.Tests
                     _fireInst = ch.ActionInstanceId;
                     _fired = 0;
                     Fires.Add((ch.ActiveAction, rounds, aimed ? default : Unsafe.As<byte, FireAtPointParams>(ref ch.Params[0]).Point));
+                    if (aimed) AimedAt.Add(Unsafe.As<byte, AimAndFireParams>(ref ch.Params[0]).Target);
                 }
                 _fired++;
                 if (aimed) AimedRounds++; else BlindRounds++;
@@ -674,6 +679,214 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
             Assert.Equal(0, d.Ws.PeekIsStep);
             Assert.Equal(StanceId.Standing, d.Stance);
+        }
+            // ── CE-3158 G2 — the node says when it cannot work (📄 docs/DESIGN_Peek_And_Fire.md §10.5) ───────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>G2_R1</c> — NO COVER: the cover sensor answers nothing ⇒ the node answers <c>Failure</c> once <c>NoCoverSeconds</c>
+        /// (3 s) have passed — not before — so the posture can pick something else. 🔴 Red-proof: before G2 it ran forever.
+        /// </summary>
+        [Fact]
+        public void G2_R1_NoCover_FailsAfterNoCoverSeconds()
+        {
+            var d = new Duel(Rifleman());
+            var status = NodeStatus.Running;
+            double start = d.Time;
+            while (d.Time - start < 10 && status == NodeStatus.Running) status = d.Step();
+            Assert.Equal(NodeStatus.Failure, status);
+            Assert.InRange(d.Time - start, 3.0, 3.3);
+            Assert.True(d.Sensor(PeekAndFireNodes.CoverSite).IsNull, "a failed run releases its sensors");
+            Assert.Empty(d.Fires);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>G2_R2</c> — AN UNREACHABLE POINT: a failed move heats it (<c>UnreachableHeat × BurnHeat</c>), so the node takes the next
+        /// point instead of re-trying the same one. 🔴 Red-proof: before G2 a failed move only re-asked, and the best point was
+        /// picked again forever.
+        /// </summary>
+        [Fact]
+        public void G2_R2_AFailedMove_HeatsThePoint_AndTheNextOneIsTaken()
+        {
+            var d = new Duel(Rifleman());
+            d.Unreachable.Add(new Vector3(4f, 1f, 0f));
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched), (8f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Equal(new[] { new Vector3(4f, 1f, 0f), new Vector3(8f, 1f, 0f) }, d.Moves);
+            var m = d.Memory;
+            int slot = PositionHeat.Find(ref m, new Vector3(4f, 1f, 0f), 1f);
+            Assert.True(slot >= 0, "the failed point is remembered");
+            Assert.InRange(PositionHeat.HeatNow(ref m, slot, d.Time, 45f), 1.4f, 1.5f);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>G2_R3</c> — EVERY POINT BURNED: the unit does not go silent — it fires AIMED from where it stands (no move), and goes
+        /// to a point again once one cools.
+        /// </summary>
+        [Fact]
+        public void G2_R3_EveryPointBurned_FiresAimedFromWhereItStands()
+        {
+            var d = new Duel(Rifleman());
+            d.Unreachable.Add(new Vector3(4f, 1f, 0f));
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched));
+            d.Run(3);
+            int moves = d.Moves.Count;
+            Assert.Equal(2, moves);   // tried twice — the only point — and burned
+            var m = d.Memory;
+            Assert.True(PositionHeat.IsBurnedAt(ref m, new Vector3(4f, 1f, 0f), d.Time, HeatRules.Default));
+            d.Run(3);
+            Assert.Equal(moves, d.Moves.Count);   // stays where it stands
+            Assert.Equal(2, d.Ws.Waiting);
+            Assert.Contains(d.Fires, f => f.Action == CombatConstants.ActionIdAimAndFire);
+            Assert.True(d.AimedRounds > 0, "fights from where it stands, never silent");
+        }
+
+        /// <summary>
+        /// ⭐ <c>G2_R4</c> — A STEP PEEK WITH NOWHERE TO STEP: no step-out point for <c>NoCoverSeconds</c> ⇒ this cover cannot be fought
+        /// from ⇒ to the next one. 🔴 Red-proof: before G2 the unit crouched behind it forever.
+        /// </summary>
+        [Fact]
+        public void G2_R4_StepPeekWithNoStepOutPoint_MovesToTheNextCover()
+        {
+            var d = new Duel(Rifleman());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (10f, 10f, StanceId.Standing), (20f, 10f, StanceId.Standing));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Equal(1, d.Ws.PeekIsStep);
+            d.Step();
+            d.Answer(PeekAndFireNodes.PeekSite, 7);   // the step-peek sensor answers nothing
+            Assert.Equal(PeekPhase.MoveToHide, d.RunUntil(PeekPhase.MoveToHide, maxSeconds: 10));
+            Assert.Equal(new Vector3(20f, 10f, 0f), d.Moves[^1]);
+        }
+            // ── CE-3158 G3 — the ROE decides whether the unit comes up at all ─────────────────────────────────────────────────────
+
+        private static void SetRoe(Duel d, RoeFire fire)
+        {
+            if (!d.Repo.IsComponentTypeRegistered<Roe>()) d.Repo.RegisterComponent<Roe>();
+            var roe = new Roe { Fire = fire };
+            if (d.Repo.HasComponent<Roe>(d.Self)) d.Repo.SetComponent(d.Self, roe); else d.Repo.AddComponent(d.Self, roe);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>G3_R4</c> — HOLD FIRE ⇒ NEVER EXPOSES: the unit takes cover and stays down (= the old TakeCover); no round, no
+        /// exposure. 🔴 Red-proof: before G3 the node came up, the executor held the trigger, and the unit stood exposed for nothing.
+        /// </summary>
+        [Fact]
+        public void G3_R4_HoldFire_NeverExposes()
+        {
+            var d = new Duel(Rifleman());
+            SetRoe(d, RoeFire.HoldFire);
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched));
+            d.Run(20);
+            Assert.Equal(PeekPhase.Hidden, d.Ws.Phase);
+            Assert.Equal(0, d.Ws.Exposures);
+            Assert.Equal(StanceId.Crouched, d.Stance);
+            Assert.Empty(d.Fires);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>G3_R5</c> — RETURN FIRE ⇒ DOWN until fired upon, then UP inside the window (after the B8 suppression, without the
+        /// random hide wait), and down again when the window closes.
+        /// </summary>
+        [Fact]
+        public void G3_R5_ReturnFire_ExposesOnlyInsideTheWindow()
+        {
+            var d = new Duel(Rifleman() with { HideSecondsMin = 30f, HideSecondsMax = 30f });
+            SetRoe(d, RoeFire.ReturnFire);
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched));
+            d.Run(10);
+            Assert.Equal(0, d.Ws.Exposures);   // not fired upon: stays down
+
+            d.Sense(SensorChange.NearMiss);    // fired upon ⇒ the 5 s window opens; B8 keeps it down 3 s, then it comes up
+            double at = d.Time;
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed, maxSeconds: 5));
+            Assert.InRange(d.Time - at, 3.0, 5.0);   // ⭐ not after the 30 s hide wait
+        }
+            // ── CE-3158 G4 — one target LOCKED per exposure ─────────────────────────────────────────────────────────────────────────
+
+        /// <summary>A second enemy at <paramref name="at"/>, remembered and seen (slot 1).</summary>
+        private static Entity SecondEnemy(Duel d, Vector3 at)
+        {
+            var e = d.Repo.CreateEntity();
+            ref var mem = ref d.Repo.GetComponentRW<TargetMemory>(d.Self);
+            mem.EntityIds[1] = (long)e.PackedValue;
+            mem.Freshness[1] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
+            mem.Modalities[1] = (byte)SensorModality.Visual;
+            mem.PositionsX[1] = at.X; mem.PositionsY[1] = at.Y; mem.PositionsZ[1] = at.Z;
+            mem.Count = 2;
+            ref var t = ref d.Repo.GetComponentRW<ActiveSensorTracks>(d.Self);
+            t.EntityIds[1] = (long)e.PackedValue;
+            t.Modalities[1] = (byte)SensorModality.Visual;
+            t.Count = 2;
+            return e;
+        }
+
+        /// <summary>Makes the unit a member of a squad whose threat matrix assigned it <paramref name="target"/>.</summary>
+        private static void AssignBySquad(Duel d, Entity target)
+        {
+            var r = d.Repo;
+            if (!r.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitRoster>()) r.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+            if (!r.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>()) r.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Squad.SquadCognitiveState>()) r.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+            var leader = r.CreateEntity();
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();
+            int idx = Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, d.Self);
+            r.AddComponent(leader, roster);
+            var squad = new Fdp.Toolkit.Squad.SquadCognitiveState();
+            squad.Assignment.SetAssignment(idx, target.PackedValue);
+            r.AddComponent(leader, squad);
+            r.AddComponent(d.Self, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = leader });
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>G4_R1</c> — THE SQUAD'S ASSIGNED TARGET IS THE ONE SHOT AT: two enemies, both seen; the squad assigned the second — the
+        /// exposure's sight check and its aimed action are both on it. 🔴 Red-proof: before G4 the fire step re-ranked by itself and
+        /// shot at the top threat whatever the squad had assigned.
+        /// </summary>
+        [Fact]
+        public void G4_R1_TheSquadsAssignedTarget_IsTheOneShotAt()
+        {
+            var d = new Duel(Rifleman());
+            var second = SecondEnemy(d, new Vector3(25f, 5f, 0f));
+            AssignBySquad(d, second);
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            Assert.Equal(second, Assert.Single(d.AimedAt));
+        }
+
+        /// <summary>⭐ <c>G4_R2</c> — without a squad the top threat is the locked target, and the exposure's shot goes at it.</summary>
+        [Fact]
+        public void G4_R2_ALoneSoldier_ShootsTheTopThreat()
+        {
+            var d = new Duel(Rifleman());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            Assert.Equal(d.Enemy, Assert.Single(d.AimedAt));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>G4_R3</c> — A SHOT HEARD ELSEWHERE IS ANOTHER ENEMY: the burst at a hidden locked target goes to its remembered spot,
+        /// not to a fresher heard shot 40 m away; a heard shot NEAR it (the same man moved) does move the burst (D13 kept).
+        /// </summary>
+        [Fact]
+        public void G4_R3_AHeardShotMovesTheBurst_OnlyNearTheLockedTarget()
+        {
+            var d = new Duel(Rifleman());
+            var t = new ThreatAim(d.Enemy, 0, default);
+            ref var mem = ref d.Repo.GetComponentRW<TargetMemory>(d.Self);
+            mem.EntityIds[1] = -42; mem.Anonymous[1] = 1; mem.PositionsX[1] = 20f; mem.PositionsY[1] = 40f; mem.LastSeenTick[1] = 99; mem.Count = 2;
+            Assert.True(TargetMemory.IsAnonymous(in mem, 1));
+            Assert.True(PeekAndFireNodes.FreshestEvidence(d.Repo, d.Self, in t, out var far, out _, 15f));
+            Assert.Equal(EnemyAt, far);                                   // 40 m away: not him
+
+            mem.PositionsY[1] = 6f;                                        // 6 m from where he was: him, moved
+            Assert.True(PeekAndFireNodes.FreshestEvidence(d.Repo, d.Self, in t, out var near, out _, 15f));
+            Assert.Equal(new Vector3(20f, 6f, 0f), near);
         }
     }
 }

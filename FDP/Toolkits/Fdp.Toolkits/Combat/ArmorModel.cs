@@ -101,6 +101,16 @@ namespace Fdp.Toolkit.Combat
             return suite != null && mountIndex >= 0 && mountIndex < suite.Mounts.Count ? suite.Mounts[mountIndex] : null;
         }
 
+        /// <summary>⭐ <c>CE-3158</c> G3 — the warhead of the round <paramref name="mount"/> fires (its loaded ammo), or null: a kinetic
+        /// round, no ammo, or no TKB database in this world. The ONE lookup the flight (<c>FireProcessingSystem</c>) and the burst's
+        /// friendly-line exemption (<c>FireAtPointExecutor</c>, an indirect warhead flies over friends) both read.</summary>
+        public static WarheadDto? WarheadOf(EntityRepository world, WeaponMountDto? mount)
+        {
+            long ammo = mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+            if (ammo == 0 || !world.HasSingletonManaged<ITkbDatabase>()) return null;
+            return Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(world.GetSingletonManaged<ITkbDatabase>(), ammo).Warhead;
+        }
+
         /// <summary>
         /// ⭐ Buildings §3d P1 (R-217) — the penetration (mm RHA) of the round <paramref name="mount"/> fires: its loaded ammo × this
         /// weapon, else the ammo's generic profile, else the mount's own value (<c>ParameterResolver.MountPenetration</c> — the rule

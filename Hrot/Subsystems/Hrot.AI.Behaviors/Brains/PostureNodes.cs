@@ -295,7 +295,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Aims the weapon at the top threat (a new command only when the target changed or the last one failed).
         /// False when the unit has no weapon channel. ⭐ <c>CE-2108</c>: the ONE fire step — <see cref="EqsTacticsNodes"/>
         /// fires on the move through it too.</summary>
-        internal static unsafe bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown, int rounds = 0)
+        internal static bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown, int rounds = 0)
         {
             if (!world.HasComponent<WeaponChannel>(self)) return false;
             if (!EqsTacticsNodes.TopThreat(world, self, ws.Threat, out var threat) || !world.IsAlive(threat))
@@ -303,6 +303,17 @@ namespace Hrot.AI.Behaviors.Brains
                 StopFiring(world, self, ref ws);
                 return true;
             }
+            return Fire(world, self, ref ws, cooldown, rounds, threat);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3158</c> G4 / L5 — the same ONE aimed step at a NAMED target (no re-ranking): what the caller checked for sight is
+        /// what is shot at. Used by the fire-from-cover node's locked target and by <c>CgfNodes.Action_FireAtTarget</c>.
+        /// </summary>
+        internal static unsafe bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown, int rounds, Entity threat)
+        {
+            if (!world.HasComponent<WeaponChannel>(self)) return false;
+            if (threat.IsNull || !world.IsAlive(threat)) { StopFiring(world, self, ref ws); return true; }
             ref var channel = ref world.GetComponentRW<WeaponChannel>(self);
             if (world.HasComponent<BehaviorState>(self)) channel.BehaviorInstanceId = world.GetComponent<BehaviorState>(self).InstanceId;
             bool reissue = !threat.Equals(ws.Threat)
