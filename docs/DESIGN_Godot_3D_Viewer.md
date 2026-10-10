@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — requirements (§1) and user rulings (§1a) recorded; transport shaped by the user (full NED, D3);
-  open: Q6 first host, Q8 ReplayBrowser, and two measurements D3 names (authority bits on offline hosts). Nothing built.
-updated: 2026-10-10 (rev 4 — U10: §3.4 the reuse ledger, D12 the viewer role. Rev 3 — U7-U9: the camera is an ordinary spatial entity; the gateway is a hot-installable module in
+build-state: DESIGN — ⚠ THE APPROACH IS OPEN between A (§4-§7: a Godot process on full NED) and B (§8: an in-process
+  Raylib 3-D panel). ⭐ Lean: B. Nothing built.
+updated: 2026-10-10 (rev 5 — U11: D12 resolved, Map2D; U12: §8 alternative B, in-process Raylib, LEAN. Rev 4 — U10: §3.4 the reuse ledger, D12 the viewer role. Rev 3 — U7-U9: the camera is an ordinary spatial entity; the gateway is a hot-installable module in
   Editor/ReplayBrowser instantiating the same NED translators; no dedicated DDS partition. Rev 2: full NED.)
-current-answer: §1 requirements · §1a the user's rulings · §3.4 THE REUSE LEDGER · §5 D1a why not in-process · §3 what exists, incl. what NED already carries (§3.3) ·
+current-answer: ⭐ §8 ALTERNATIVE B (the lean) · §1 requirements · §1a rulings · §3.4 the reuse ledger (for A) · §5 D1a why not in-process · §3 what exists, incl. what NED already carries (§3.3) ·
   §4 the architecture (module / class / sequence diagrams) · §5 decisions · §6 open questions · §7 stages.
 stale-below: the HISTORY heading at the end — rev 1's loopback socket + host-side producer, rev 2's ViewCamera descriptor
   and Editor-wide NED mode.
@@ -88,6 +88,8 @@ stream enters the **same gateway** (stage 3). The host menu toggle starts and st
 | **U8** | *"What is the issue with in process solution?"* | answered in §5 **D1a** |
 | **U9** | *"the gateway sitting as a pluggable dynamically enablable module in the editor and replaybrowser will need to instantiate the same translators as the networked hosts. Already networked host will need no special care … No dedicated dds partition required"* | D3 / Q8: the offline hosts get a **hot-installed viewer gateway module** (kernel `InstallModuleAsync`) instantiating the **same NED translators**; networked hosts change nothing; the normal domain |
 | **U10** | *"We need to use code as much as possible, unification over duplication. What can be reused as is, including the bootstrap code? What needs to be new?"* | ⭐ §3.4 — the reuse ledger, measured; D12 — the role |
+| **U11** | *"Ad d12 - we can reuse map2d as view3d would not really be a new node, just alias, wouldnt it?"* | ✅ D12 **resolved: the viewer node declares `Map2D`** — it is the same kind of node (receive-only presentation). No new flag. ⚠ Moot under alternative B (§8): B has no viewer node |
+| **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder … with imgui on top for menus?"* | ⭐ §8 — **alternative B, measured; lean B** |
 
 ---
 
@@ -464,7 +466,7 @@ is the simulation's animation contract.
 
 ### D11 · Effects (V-08) — ⭐ **NED `WeaponFire` / `MunitionDetonation` → `EffectEvent` → Godot one-shot particles**
 
-### D12 · The viewer node's role — ⭐ **lean: a new `View3D` flag, admitted to NED's receive-only arm beside `Map2D`**
+### D12 · The viewer node's role — ✅ **RESOLVED by U11: declare `Map2D`** *(the lean below is SUPERSEDED; kept for the record)*
 
 NED composes a node by role (`NedReplicationModule.cs:243-254`): `Map2D` gets exactly what a viewer needs — ghost creation,
 entity-state ingress, dead reckoning, `driveFromNetwork` — and a role with none of Muscle/Map2D/Brain **throws**. The
@@ -510,6 +512,85 @@ replication entirely (`HrotNodeBuilder.cs:113`).
 ⭐ Each slice gated in the cloud by Core unit tests, a `godot --headless` smoke and an Xvfb screenshot (City3D's
 `run-smoke.sh` / `screenshot.sh`). DDS cross-process works in this cloud (`ddsmonitor` captured a multi-process cluster,
 `docs/RUNBOOK_Cluster_Debugging_Over_Http.md` §5a). ⚠ The aesthetic check stays a human one.
+
+---
+
+## 8. ⭐⭐ ALTERNATIVE B — an in-process Raylib 3-D panel *(U12, measured `2026-10-10`)* — ⭐ **LEAN: B**
+
+> 🔒 **User (U12):** *"check alternative idea of building own simple in-process 3d viewer, with no advanced stuff like
+> character animations, just simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) etc? Would
+> that simplify stuff significantly? With imgui on top for menus?"*
+
+### 8.1 Modules — what B is
+
+```mermaid
+graph TD
+  subgraph HOST["any host: Editor / CGF / SimHost / ReplayBrowser / IG - ONE process, ONE window"]
+    W[(ECS world)]
+    MP["MapInteractionPack<br/>(existing, all five hosts)"]
+    SEL["ISelectionState<br/>(existing)"]
+    GZ["gizmo buffer + intern map<br/>(existing, in-process)"]
+    CM["ContextMenuAdapter<br/>(existing ImGui popup)"]
+    P3["Map3DPanel<br/>ImGui window + RenderTexture"]
+    R3["Map3DRenderer<br/>Raylib BeginMode3D"]
+    MP --> P3
+    P3 --> R3
+    R3 -- reads --> W
+    R3 -- reads --> GZ
+    P3 -- "click: SelectionChangeRequest" --> SEL
+    P3 -- "right-click: menu JSON" --> CM
+  end
+```
+
+*What it shows that the A diagrams cannot:* **no DDS, no second process, no second node, no gateway module** — the panel
+reads the host's own world on the host's own frame, and the two interaction paths go into objects that already exist.
+IG is one of the five hosts, so **a networked viewer is just an IG node with the panel open** (V-18).
+
+### 8.2 The claim table
+
+| B rests on | how it IS | how it was MEANT |
+|---|---|---|
+| the hosts' graphics stack can draw 3-D | ✅ Raylib-cs **7.0.2** (17 csproj) exposes `BeginMode3D`, `DrawCylinderEx`, `DrawCubeWires`, `DrawPlane`, `DrawMeshInstanced`, `UploadMesh`, `GetScreenToWorldRay`, `GetRayCollisionBox`/`Mesh` — checked in the restored assembly | ⛔ searched `docs/`+`.dev/`, no design for 3-D in Raylib — and ⛔ **no 3-D Raylib code exists in the repo today** |
+| a 3-D render can live inside an ImGui panel | ✅ rlImGui-cs **3.2.0** exposes `ImageRenderTexture` / `ImageRenderTextureFit` | — |
+| one wiring site covers every host | ✅ `MapInteractionPack` is built by IG, CGF, ReplayBrowser, SimHost, Editor | ✅ UXI-11 S-3c: *"MapInteractionPack now CONSTRUCTS the selection for all five hosts"* |
+| the context menu needs no new UI | ✅ `ContextMenuAdapter.Schedule(anchorId, json)` / `DrawScheduled(onAction)` — the ImGui popup the 2-D map uses | ✅ gizmos-1 §10.6 |
+| selection, gizmos, menu JSON are in-process already | ✅ `ISelectionState` / `SelectionChangeRequest`; the host's gizmo buffer carries its `StringInternMap` | ✅ UXI-11 §2.7; gizmos-1 §1.3 |
+
+### 8.3 What B removes from A, and what it costs
+
+| A needs | B |
+|---|---|
+| Godot toolchain fetched in the cloud, `Godot.NET.Sdk`, an engine binary to run | ⛔ gone — existing packages |
+| a process launcher; a viewer node (`ViewerNodeBootstrapper`); D12's role; late-join; assembly weight in Godot | ⛔ gone — no second node |
+| `ViewerGatewayModule` on Editor/ReplayBrowser; revising "the editor is networkless"; the authority-bits question; domain sharing | ⛔ gone — nothing goes on the wire |
+| wiring `SelectionEgressSystem` and `DdsStringInternPublisher` | ⛔ not needed in-process (still needed later for a REMOTE terminal, not for this viewer) |
+| `Godot.RenderModelDef`, real models, animation | ⛔ boxes / cylinders from TKB dimensions + `StanceStatus` |
+
+| ⚠ what B costs — said plainly | |
+|---|---|
+| **V-09 changes**: the viewer is an **ImGui window inside the host's window**, not a separate OS window — Raylib opens one window per process | closable without closing the host ✅; a separate OS window ⛔ |
+| **visual ceiling**: flat-shaded primitives, simple lighting at best; no animation, no particles (detonations as short-lived spheres/rings) | accepted by U12 |
+| **frame cost on the host's main thread** — the 3-D render shares the host frame | hundreds of entities + a static terrain mesh is small; ⚠ unmeasured on the cloud's software renderer |
+| a networked viewer through IG shows **standing** humans until IG ingests stance (`CE-2121` "IG ingress open") | in-process hosts that run stance are fine |
+| V-19 (SumoSharp) | ✅ still open: SumoSharp's `CityLib` returns plain arrays, not Godot meshes (`DEMO-CITY3D-DESIGN.md` "Code structure"), so its road ribbons can be uploaded with `UploadMesh` |
+
+### 8.4 B's new code — the whole list
+
+| new | reuses |
+|---|---|
+| `Map3DPanel` — ImGui window, `RenderTexture2D`, toggle `View ▸ 3D View` | `GlobalMenuRegistry`, `MapInteractionPack` |
+| `Map3DRenderer` — terrain mesh, entity primitives, selection wire cube, gizmos, effects | `TerrainWorldMesh.Build` → `UploadMesh`; extracted `DebugPrimitiveRenderer3D` triage with a Raylib sink; `SimTransform`, `TkbIdentity`, `StanceStatus`, `Health` |
+| entity shapes: box by TKB dimensions (tank = hull + turret box), human = cylinder — **upright standing, shorter crouched, lying prone** | `StanceStatus.CurrentStance` |
+| free camera (Unity-style: RMB look + WASD/QE, wheel dolly, MMB pan, F frame selection) | — |
+| picking — `GetScreenToWorldRay` + `GetRayCollisionBox` per entity, ground hit for menus | `SelectionChangeRequest`; `ContextMenuAdapter` + the host's existing menu-action callback |
+| camera entity — ordinary spatial entity (U7), created on first move, pose written through the host's own request path | `EntityCreation.RequestEntityCreation`; `UpdateEntityAttributeCommand` |
+| the HROT → Raylib transform — Raylib is Y-up right-handed like Godot ⇒ the same `(x, z, −y)` map (D5) | — |
+
+### 8.5 Rejected for now
+- **A (Godot process)** — the quality ceiling is higher, but for primitives it buys a toolchain, a second node, a network
+  module on two hosts and four open measurements. ⭐ Keep `RenderProjection`'s seam engine-neutral so a Godot terminal can
+  be added later **without** a second implementation of anything B builds.
+- **Both at once** — two 3-D viewers for one concept (ruling 9).
 
 ---
 
