@@ -686,6 +686,27 @@ combat / network lanes' code; the map reads the pose through `EntityBodyLayer3D`
 
 ---
 
+### 3.12 The camera entity (S5) — ⏸ PAUSED on three questions for the user *(measured `2026-10-11`)*
+
+📐 **Inventory** (graph `search_graph .*Camera.*` label Class: 20 results, `has_more:false`, plus grep; `check_index_coverage`
+not available through the CLI): no code saves or restores the map view today. The scenario JSON has only `header` +
+`entities` (all 21 scenarios grepped). There is no camera / viewpoint ECS component on any host. The only "camera" a scenario
+carries is ExCon's fake observer slice (`ExConScenarioSaveHandler.cs:63-65`). Stride's `CameraBookmarkStore` is per-user,
+not per-scenario. The requirement record is `DESIGN_Godot_3D_Viewer.md` V-12..V-15, U3, U7 and D7 (`:69-72, :85, :89,
+:445`): one ordinary spatial entity of a camera TKB type per launching host, its pose in the usual position component.
+
+| the question | what the code does | design basis | ⭐ lean |
+|---|---|---|---|
+| **Q-S5a: who owns a saved camera after a reload?** | on load every saved entity is re-spawned through `EntityCreationRequest` (`ScenarioLoadStep.cs:129,152-154`), with ownership stripped (`StagingEntityExtractor.cs:49-60`) ⇒ the LOADING node owns it, not the map host that made it | V-13: *"owned by the host that created"* · 🔒 **R-140**: IG never owns persistable entities | ⭐ **the camera is a SCENARIO entity, owned by the saving node** (Editor / Brain), like a tactical graphic. Every map host READS it when the scenario opens (V-12), and a map host that is not the owner only asks for it to move (`UpdateEntityAttributeRequest`, D7). ⇒ ⚠ **this reads V-13 differently**: the creator asks for the camera, it does not own it. IG never saves one (R-140) |
+| **Q-S5b: one camera per scenario, or one per host?** | nothing exists; any map host can make one (the Editor, CGF, SimHost, IG; never ReplayBrowser) | U3: *"one per launching host"* | ⭐ **one per scenario: "the view the scenario opens in".** Per-host cameras would save N views and leave it unclear which one opens. ⚠ This changes U3 for the map case; Godot's per-viewer camera was a different situation, a separate window per host |
+| **Q-S5c: where do distance and the 2-D / 3-D mode live?** | `SimTransform` has a position + rotation. `CameraPose` is (look-at, distance, yaw, pitch) (`MapCamera3D.cs:13`) | U7: *"usual world position component"* · M10: *"look-at, distance, yaw, pitch and the mode"* | ⭐ **no new component**: `SimTransform.Position` = the EYE, `Rotation` = yaw and pitch. Look-at and distance follow from the eye and the ground. Mode = 2-D iff the pitch is overhead (M10: *"the 2-D map is simply that camera at pitch −90°"*), so an overhead 3-D view reopens as 2-D, the same picture |
+
+⚠ **Also found:** `EntityBodyLayer3D` would draw a camera entity as an "Unknown" box (`EntityBodyLayer3D.cs:249-261`), so a
+camera type must be excluded the way effect types are. And no "camera moved" event exists (grep `CameraMoved|ViewChanged`: 0).
+⭐ **The build shape, once ruled:** a `MapViewModeLayer`-style layer added in `AttachMapLayers` (every host by construction).
+It adopts the camera entity's pose and mode once when the scenario opens (`MapCamera3D.Pose`,
+`MapViewSwitch.Set(on, animate: false)`, `MapViewSwitch.cs:44`) and asks for a move when the user leaves the camera still.
+
 ## 4. THE REUSE LEDGER
 
 | piece | verdict | evidence |
@@ -747,7 +768,7 @@ combat / network lanes' code; the map reads the pose through `EntityBodyLayer3D`
 | **S3b** | ⭐ **realism effects** — muzzle fire, explosions, impact decals as temporary TKB-typed entities with two map layers, on every host: [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) slices E1–E4 | U27, U28 |
 | **S3c** | ⭐ **the articulated turret, live** — the turret part + `TurretPose` (M23), the weapon-side slew (M24), the TKB turret descriptor (M25), the sensor-style multi-instance descriptor (M26); the map plugs `poseOf` | §3.11, R-255 |
 | **S4** ✅ *(§6f)* | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
-| **S5** | camera entity — create, follow, scenario save | V-12..V-15 |
+| **S5** ⏸ *(§3.12)* | camera entity — create, follow, scenario save — ⏸ PAUSED on Q-S5a..c (owner after reload vs R-140, one per scenario or per host, where distance and mode live) | V-12..V-15 |
 | **S5b** ✅ *(§6g)* | **the card**: `CoordinateSpace.EntityCard`; `EntityCardRenderer` (rows by `ZIndex`, row 0 card-wide, `%` of the card, leader line) in 2-D and 3-D; `CardBuilder` sugar; `EntityCardFrameGizmo` + one side palette (M16); `HealthBarGizmo` re-targeted to a bar row; `EntityNameGizmo`; `EntityEditorLabelGizmo` rows moved in; a "Labels" layer default | U19, U20 |
 | **S5c** | **entity colour**: `EntityAppearance` per M15 — only after the user's answer | U19 colour |
 | ~~**S6**~~ | ⛔ **withdrawn `2026-10-10` (U25)** — every host gets 3-D from the shared attach; see §6b | V-01, V-18 (IG) — met by §6b |
