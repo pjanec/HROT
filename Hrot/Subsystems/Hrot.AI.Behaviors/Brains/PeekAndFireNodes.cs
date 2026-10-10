@@ -22,7 +22,10 @@ namespace Hrot.AI.Behaviors.Brains
     /// <summary>⭐ <c>CE-3136</c> P-6 (D7) — how the unit exposes itself.</summary>
     public enum PeekMode : byte
     {
-        /// <summary>A window point (<see cref="FindWindowFiringPosition"/>) ⇒ <see cref="Stance"/>, any other template ⇒ <see cref="Step"/>.</summary>
+        /// <summary>⭐ <c>CE-3158</c> G1 — from the POINT (<see cref="EqsResult.Kind"/>): a window ⇒ <see cref="Stance"/> at its stance; a
+        /// cover ⇒ hide at its stance and come up one stance taller; a cover already standing, a point that is not cover, or a
+        /// unit with no stance ⇒ <see cref="Step"/>. ⛔ SUPERSEDED (CE-3136 D7): keyed on the hide TEMPLATE, so a window found by
+        /// another query peeked wrong.</summary>
         Auto = 0,
         /// <summary>The same spot: hide low (prone under the sill), expose at the point's stance.</summary>
         Stance = 1,
@@ -74,6 +77,9 @@ namespace Hrot.AI.Behaviors.Brains
         public uint FactionFilter;
         /// <summary>The sensors publish a new answer only when a top score moved by more than this.</summary>
         public float ScoreDeltaThreshold;
+        /// <summary>⭐ <c>CE-3158</c> G1 — the stance a STANCE peek comes up to: 0 = from the point (a window's stance; one taller than a
+        /// cover's), else <c>StanceId + 1</c> — e.g. "crouch behind a low wall, stand to fire".</summary>
+        public byte PeekStanceOverride;
     }
 
     /// <summary>
@@ -106,8 +112,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ P-7 D12 — 1 while suppressing before a bound: the next cover is picked (<see cref="NextHide"/>), the unit is up
         /// firing a suppressive burst, and on the way down it runs THERE, not back to the old hide point.</summary>
         public byte Bounding;
-        /// <summary>The next cover's stance (<see cref="StanceId"/> + 1; 0 = none).</summary>
-        public byte NextStance;
+        /// <summary>The next cover's stance (<see cref="StanceId"/> + 1; 0 = none) · its kind (<see cref="EqsResult.Kind"/>'s encoding).</summary>
+        public byte NextStance, NextKind;
         public Vector3 NextHide;
         /// <summary>⭐ <c>CE-3144</c> (P-8 D14) — where both sensors look: the memory slot (its id) and the spot they were pointed at.</summary>
         public long SensorId;
@@ -234,27 +240,17 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Choose(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
                                    EntityRepository world, double now, bool relocating)
         {
-            if (!PickHide(ref ws, in p, ref mem, world, now, relocating, out var point, out var stance)) return;   // no answer yet
-            GoToHide(ref ws, in p, self, world, point, stance);
+            if (!PickHide(ref ws, in p, ref mem, world, now, relocating, out var point, out var stance, out byte kind)) return;   // no answer yet
+            GoToHide(ref ws, in p, self, world, point, stance, kind);
         }
 
         /// <summary>Takes <paramref name="point"/> as the hide point (its stances by the peek mode) and walks there.</summary>
         private static void GoToHide(ref PeekAndFireState ws, in PeekAndFireParams p, Entity self, EntityRepository world,
-                                     Vector3 point, StanceId? stance)
+                                     Vector3 point, StanceId? stance, byte kind)
         {
-            bool window = p.HideTemplate == FindWindowFiringPosition.BlueprintId;
-            bool step = p.Mode == PeekMode.Step || (p.Mode == PeekMode.Auto && !window);
-            ws.PeekIsStep = (byte)(step ? 1 : 0);
-            if (step)
-            {
-                ws.HideStance = p.HideStanceOverride != 0 ? (StanceId)(p.HideStanceOverride - 1) : stance ?? StanceId.Crouched;
-                ws.PeekStance = StanceId.Standing;   // chosen at the peek point
-            }
-            else
-            {
-                ws.PeekStance = stance ?? StanceId.Crouched;   // the window's stance (P-1: crouched at a sill)
-                ws.HideStance = p.HideStanceOverride != 0 ? (StanceId)(p.HideStanceOverride - 1) : StanceId.Prone;
-            }
+            ws.PeekIsStep = (byte)(ChoosePeek(in p, stance, kind, StanceRequest.CanCarry(world, self), out var hide, out var peek) ? 1 : 0);
+            ws.HideStance = hide;
+            ws.PeekStance = peek;
             ws.HidePoint = point;
             ws.PeekPoint = point;
             ws.ExposuresHere = 0;
@@ -262,6 +258,52 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, p.RelocateSpeed, ArrivalRadius) ? 1 : 0);
             ws.Phase = PeekPhase.MoveToHide;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3158</c> G1 (📄 docs/DESIGN_Peek_And_Fire.md §10.5) — HOW THE UNIT EXPOSES, from the point it hides at: true = a
+        /// step peek (hide at <paramref name="hide"/>, the peek stance is chosen at the peek point), false = a stance peek (hide at
+        /// <paramref name="hide"/>, come up to <paramref name="peek"/> on the same spot). <paramref name="kind"/> is
+        /// <see cref="EqsResult.Kind"/>'s encoding; <paramref name="canStance"/> = the unit carries a stance at all.
+        /// </summary>
+        internal static bool ChoosePeek(in PeekAndFireParams p, StanceId? stance, byte kind, bool canStance, out StanceId hide, out StanceId peek)
+        {
+            StanceId? hideOverride = p.HideStanceOverride != 0 ? (StanceId)(p.HideStanceOverride - 1) : null;
+            StanceId? peekOverride = p.PeekStanceOverride != 0 ? (StanceId)(p.PeekStanceOverride - 1) : null;
+            var mode = p.Mode;
+            if (mode == PeekMode.Auto)
+            {
+                var r = new EqsResult { Kind = kind };
+                if (!canStance || !r.TryGetKind(out var k)) mode = PeekMode.Step;   // no stance, or not a cover point: step out
+                else if (k == CoverKind.WindowFiring) mode = PeekMode.Stance;       // a window: up at it, at its stance
+                else
+                {
+                    // a cover: hide at ITS stance, come up one taller — a cover already standing has nothing taller ⇒ step out
+                    hide = hideOverride ?? stance ?? StanceId.Crouched;
+                    if (peekOverride is { } po ? Taller(po, hide) : Taller(StanceId.Standing, hide))
+                    {
+                        peek = peekOverride ?? OneTaller(hide);
+                        return false;
+                    }
+                    mode = PeekMode.Step;
+                }
+            }
+            if (mode == PeekMode.Step)
+            {
+                hide = hideOverride ?? stance ?? StanceId.Crouched;
+                peek = StanceId.Standing;   // chosen at the peek point
+                return true;
+            }
+            peek = peekOverride ?? stance ?? StanceId.Crouched;   // the window's stance (P-1: crouched at a sill)
+            hide = hideOverride ?? StanceId.Prone;
+            return false;
+        }
+
+        /// <summary>True when <paramref name="a"/> is a taller stance than <paramref name="b"/> (Standing &gt; Crouched &gt; Prone).</summary>
+        private static bool Taller(StanceId a, StanceId b) => Height(a) > Height(b);
+
+        private static int Height(StanceId s) => s switch { StanceId.Prone => 0, StanceId.Crouched => 1, _ => 2 };
+
+        private static StanceId OneTaller(StanceId s) => s == StanceId.Prone ? StanceId.Crouched : StanceId.Standing;
 
         private static void MoveToHide(ref PeekAndFireState ws, in PeekAndFireParams p, Entity self, EntityRepository world, double now)
         {
@@ -285,11 +327,12 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     // ⭐ P-7 D12 — SUPPRESS AND BOUND: pick the next cover now, but first come up and fire a suppressive burst at the
                     //   freshest evidence (below, through the exposure); the run to the new cover starts when the burst ends (Recover).
-                    if (PickHide(ref ws, in p, ref mem, world, now, relocating: true, out var next, out var nextStance))
+                    if (PickHide(ref ws, in p, ref mem, world, now, relocating: true, out var next, out var nextStance, out byte nextKind))
                     {
                         ws.Bounding = 1;
                         ws.NextHide = next;
                         ws.NextStance = nextStance is { } ns ? (byte)((byte)ns + 1) : (byte)0;
+                        ws.NextKind = nextKind;
                         ws.PhaseUntil = now;   // no further wait: the bound is the reason to come up
                     }
                     else if (burned) return;   // nowhere to go: a burned spot waits to cool
@@ -457,7 +500,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Bounding == 1)
             {
                 // ⭐ P-7 D12 — the burst is over: RUN to the next cover (never back to the used one)
-                GoToHide(ref ws, in p, self, world, ws.NextHide, ws.NextStance != 0 ? (StanceId)(ws.NextStance - 1) : null);
+                GoToHide(ref ws, in p, self, world, ws.NextHide, ws.NextStance != 0 ? (StanceId)(ws.NextStance - 1) : null, ws.NextKind);
                 return;
             }
             if (ws.PeekIsStep == 1 && Vector3.Distance(ws.PeekPoint, ws.HidePoint) > ArrivalRadius)
@@ -481,9 +524,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>B6 — the best hide point of the cover sensor's answer span by <c>score − heat penalty</c>: burned ones skipped,
         /// and when relocating none closer than <c>MinRelocateMetres</c> to the current one.</summary>
         private static unsafe bool PickHide(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem,
-                                            EntityRepository world, double now, bool relocating, out Vector3 point, out StanceId? stance)
+                                            EntityRepository world, double now, bool relocating, out Vector3 point, out StanceId? stance,
+                                            out byte kind)
         {
-            point = default; stance = null;
+            point = default; stance = null; kind = 0;
             if (!ws.CoverSensor.IsValid || !world.IsAlive(ws.CoverSensor.ChildId)
                 || !world.HasComponent<EqsCognitiveBuffer>(ws.CoverSensor.ChildId)) return false;
             ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(ws.CoverSensor.ChildId);
@@ -501,6 +545,7 @@ namespace Hrot.AI.Behaviors.Brains
                 best = score;
                 point = at;
                 stance = r.TryGetStance(out var s) ? s : null;
+                kind = r.Kind;
             }
             return !float.IsNegativeInfinity(best);
         }

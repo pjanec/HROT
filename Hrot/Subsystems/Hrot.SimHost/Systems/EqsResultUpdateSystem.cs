@@ -81,6 +81,7 @@ namespace Hrot.SimHost.Systems
                         Flags           = (short)evt.Results[i].Flags,
                         FlagsMeaningful = (short)evt.Results[i].FlagsMeaningful,
                         Stance          = evt.Results[i].Stance,   // ⭐ CE-3135
+                        Kind            = evt.Results[i].Kind,     // ⭐ CE-3158 G1
                     };
                 }
                 NotifyTopChanged(repo, evt.Observer, topBefore, in buffer);

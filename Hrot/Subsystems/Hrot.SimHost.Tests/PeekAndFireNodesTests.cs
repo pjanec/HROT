@@ -39,6 +39,9 @@ namespace Hrot.SimHost.Tests
             public readonly Entity Self, Enemy;
             public PeekAndFireParams P;
             public PeekAndFireState Ws;
+            /// <summary>⭐ <c>CE-3158</c> G1 — the kind the cover sensor's points carry, as the real generator writes it: a window
+            /// template's <see cref="CoverPointsGenerator"/> answers windows, the cover template's answers covers.</summary>
+            public CoverKind Kind;
             public double Time;
             public readonly List<Vector3> Moves = new();
             public readonly List<(ushort Action, int Rounds, Vector3 Point)> Fires = new();
@@ -55,6 +58,7 @@ namespace Hrot.SimHost.Tests
                 Fdp.Toolkit.Utility.StandardInputs.RegisterAll();   // the threat ranking's inputs, as CgfLogicPack's scan does
                 if (!Repo.IsComponentTypeRegistered<ActiveSensorTracks>()) Repo.RegisterComponent<ActiveSensorTracks>();
                 P = p;
+                Kind = p.HideTemplate == FindWindowFiringPosition.BlueprintId ? CoverKind.WindowFiring : CoverKind.Cover;
 
                 Self = Repo.CreateEntity();
                 Repo.AddComponent(Self, new BehaviorState());
@@ -161,6 +165,8 @@ namespace Hrot.SimHost.Tests
                     {
                         PositionX = points[i].X, PositionY = points[i].Y, Score = 1f - 0.1f * i,
                         Stance = points[i].Stance is { } s ? (byte)((byte)s + 1) : (byte)0,
+                        // the cover sensor answers cover points of the duel's kind; the step-peek sensor's open points are not cover
+                        Kind = site == PeekAndFireNodes.CoverSite ? EqsResult.EncodeKind(Kind) : (byte)0,
                     };
                 Repo.SetComponent(sensor, buf);
             }
@@ -176,7 +182,15 @@ namespace Hrot.SimHost.Tests
             ExposuresPerPosition = exposuresPerPosition,
         };
 
+        /// <summary>B's column: a step peek from cover, as <c>WindowDuelBehavior</c> flies it (⭐ <c>CE-3158</c> G1: <c>Auto</c> on a
+        /// crouched cover now comes up on the spot — the duel's B asks for the step explicitly).</summary>
         private static PeekAndFireParams Street() => new()
+        {
+            HideTemplate = FindCoverFromTarget.BlueprintId, Mode = PeekMode.Step, HideSecondsMin = 2f, HideSecondsMax = 2f,
+        };
+
+        /// <summary>A generic rifleman: cover template, the peek chosen from the point (<see cref="PeekMode.Auto"/>).</summary>
+        private static PeekAndFireParams Rifleman() => new()
         {
             HideTemplate = FindCoverFromTarget.BlueprintId, HideSecondsMin = 2f, HideSecondsMax = 2f,
         };
@@ -562,6 +576,104 @@ namespace Hrot.SimHost.Tests
             Assert.StartsWith("PF hidden 1.", PeekAndFireGizmo.PhaseText(in m, d.Time));
             Assert.Null(PeekAndFireGizmo.PhaseText(in m, d.Time + 5d));
             Assert.Equal("h1.7 x3", PeekAndFireGizmo.SlotText(1.66f, 3));
+        }
+            // ── CE-3158 G1 — the peek is chosen from the POINT (📄 docs/DESIGN_Peek_And_Fire.md §10.5) ─────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>G1_R1</c> — A COVER POINT, CROUCHED (a low wall): the rifleman hides crouched at it and comes up ONE STANCE TALLER on
+        /// the same spot — no step-out sensor, one move. 🔴 Red-proof: keyed on the template (CE-3136 D7), the cover template meant a
+        /// step peek, so the unit stood waiting for a step-out point and never fired.
+        /// </summary>
+        [Fact]
+        public void G1_R1_CrouchedCover_HidesCrouched_ExposesStandingOnTheSpot()
+        {
+            var d = new Duel(Rifleman());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Equal(0, d.Ws.PeekIsStep);
+            Assert.Equal(StanceId.Crouched, d.Stance);
+
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            Assert.Equal(StanceId.Standing, d.Stance);
+            Assert.True(d.Sensor(PeekAndFireNodes.PeekSite).IsNull, "a stance peek needs no step-out sensor");
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Equal(StanceId.Crouched, d.Stance);
+            Assert.Equal(new Vector3(4f, 1f, 0f), Assert.Single(d.Moves));
+            Assert.Equal(3, d.AimedRounds);
+        }
+
+        /// <summary>⭐ <c>G1_R2</c> — a PRONE cover (a kerb, a slit) comes up to a crouch, not to standing.</summary>
+        [Fact]
+        public void G1_R2_ProneCover_ExposesCrouched()
+        {
+            var d = new Duel(Rifleman());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Prone));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Equal(StanceId.Prone, d.Stance);
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            Assert.Equal(StanceId.Crouched, d.Stance);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>G1_R3</c> — a cover ALREADY STANDING (a full-height wall, a corner) has nothing taller to come up to ⇒ STEP PEEK:
+        /// out to the step-peek sensor's point, standing, and back.
+        /// </summary>
+        [Fact]
+        public void G1_R3_StandingCover_StepsOut()
+        {
+            var d = new Duel(Rifleman());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (10f, 10f, StanceId.Standing));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Equal(1, d.Ws.PeekIsStep);
+            d.Step();
+            d.Answer(PeekAndFireNodes.PeekSite, 7, (10f, 12f, null));
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            Assert.Equal(new[] { new Vector3(10f, 10f, 0f), new Vector3(10f, 12f, 0f) }, d.Moves);
+        }
+
+        /// <summary>⭐⭐ <c>G1_R4</c> — a unit with NO STANCE (no <see cref="StanceIntent"/>) cannot come up ⇒ step peek even at a crouched
+        /// cover.</summary>
+        [Fact]
+        public void G1_R4_NoStanceSystem_StepsOut()
+        {
+            var d = new Duel(Rifleman());
+            d.Repo.RemoveComponent<StanceIntent>(d.Self);
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Equal(1, d.Ws.PeekIsStep);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>G1_R5</c> — THE POINT DECIDES, NOT THE QUERY: a WINDOW answered by the cover template (a template that finds both)
+        /// is a stance peek at the window's stance, prone below the sill. 🔴 Red-proof: keyed on the template it was a step peek.
+        /// </summary>
+        [Fact]
+        public void G1_R5_AWindowFoundByTheCoverQuery_IsAStancePeek()
+        {
+            var d = new Duel(Rifleman()) { Kind = CoverKind.WindowFiring };
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (2f, 3f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Equal(0, d.Ws.PeekIsStep);
+            Assert.Equal(StanceId.Prone, d.Stance);
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            Assert.Equal(StanceId.Crouched, d.Stance);
+        }
+
+        /// <summary>⭐ <c>G1_R6</c> — <see cref="PeekAndFireParams.PeekStanceOverride"/>: prone behind a low wall, STAND to fire.</summary>
+        [Fact]
+        public void G1_R6_PeekStanceOverride_StandsUpFromProne()
+        {
+            var d = new Duel(Rifleman() with { PeekStanceOverride = (byte)(StanceId.Standing + 1) });
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Prone));
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            Assert.Equal(0, d.Ws.PeekIsStep);
+            Assert.Equal(StanceId.Standing, d.Stance);
         }
     }
 }

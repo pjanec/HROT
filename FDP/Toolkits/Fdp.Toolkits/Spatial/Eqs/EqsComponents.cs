@@ -40,6 +40,22 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// a former padding byte, so the struct stays 32 bytes). Read it through <see cref="TryGetStance"/>.
         /// </summary>
         public byte Stance;
+        /// <summary>
+        /// ⭐ <c>CE-3158</c> G1 (📄 docs/DESIGN_Peek_And_Fire.md §10.5) — what kind of cover point this is, stored as
+        /// <c>(byte)CoverKind + 1</c>; <c>0</c> = not a cover point (every other generator, and every recording made before it — a
+        /// former padding byte, the struct stays 32 bytes). Read it through <see cref="TryGetKind"/>.
+        /// </summary>
+        public byte Kind;
+
+        /// <summary>The <see cref="Kind"/> encoding of <paramref name="kind"/>.</summary>
+        public static byte EncodeKind(CoverKind kind) => (byte)((byte)kind + 1);
+
+        /// <summary>The point's cover kind, or <see langword="false"/> when it is not a cover point.</summary>
+        public readonly bool TryGetKind(out CoverKind kind)
+        {
+            kind = Kind == 0 ? default : (CoverKind)(Kind - 1);
+            return Kind != 0;
+        }
 
         /// <summary>The <see cref="Stance"/> encoding of <paramref name="stance"/>.</summary>
         public static byte EncodeStance(Fdp.Toolkit.Tkb.Domain.StanceId stance) => (byte)((byte)stance + 1);
