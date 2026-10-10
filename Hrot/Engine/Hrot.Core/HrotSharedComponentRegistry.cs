@@ -86,6 +86,7 @@ public static class HrotSharedComponentRegistry
 
         // ── Shared managed definitions ────────────────────────────────────────
         world.RegisterComponent<VisualData>();
+        world.RegisterComponent<EntityAppearance>();   // ⭐ CE-1033 S5c — the body colour, stamped beside VisualData from the same TKB visual
         world.RegisterManagedComponent<SimCombatDef>();
         world.RegisterManagedComponent<TkbCompositionDef>();
 

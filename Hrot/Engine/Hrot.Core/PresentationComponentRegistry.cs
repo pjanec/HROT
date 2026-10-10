@@ -50,6 +50,7 @@ public static class PresentationComponentRegistry
         RegisterDebugViewState(world);
         RegisterEffects(world);   // ⭐ CE-1042 E2
         world.RegisterComponent<EntityInfo>();
+        world.RegisterComponent<EntityAppearance>();   // ⭐ CE-1033 S5c — also here so the ReplayBrowser (no shared registry) reads it
         world.RegisterComponent<SelectionState>();
         world.RegisterManagedComponent<EditablePolyline>();
         world.RegisterComponent<MapOverlayStyle>();

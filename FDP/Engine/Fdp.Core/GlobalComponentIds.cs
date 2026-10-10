@@ -721,5 +721,9 @@
         /// <summary><c>StaticObstacleBakery</c> — a node's terrain-residency handle for the obstacle bake, as a managed world singleton
         /// (<c>CE-3136</c> P-7a, R-243). Absent ⇒ this node holds no terrain, and an obstacle is acked at once.</summary>
         public const int StaticObstacleBakery = 347;
+
+        /// <summary><c>EntityAppearance</c> — an entity's body colour: the TKB's (<c>VisualData.ColorHex</c>) stamped at spawn, or a
+        /// per-instance value saved in the scenario (<c>CE-1033</c> S5c, docs/DESIGN_Map_3D_Mode.md §3.7, M15).</summary>
+        public const int EntityAppearance = 348;
     }
 }

@@ -47,6 +47,7 @@ namespace Hrot.Map.Definitions.Tkb
         {
             yield return typeof(VisualData);
             yield return typeof(EntityInfo);
+            yield return typeof(EntityAppearance);   // ⭐ CE-1033 S5c
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -66,6 +67,11 @@ namespace Hrot.Map.Definitions.Tkb
                     MapShapeName = new FixedString32(dto.MapShapeName ?? string.Empty)
                 });
             }
+
+            // ⭐ CE-1033 S5c (§3.7, M15) — the body colour, the TKB's ONLY IF ABSENT (a per-spawn value wins), and ALWAYS stamped when
+            //   the template has a visual — even "no colour" — so a [PerInstanceValue] component never leaves a ghost waiting.
+            if (repo.IsComponentTypeRegistered<EntityAppearance>() && !repo.HasComponent<EntityAppearance>(entity))
+                repo.AddComponent(entity, EntityAppearance.FromHex(dto.ColorHex));
 
             if (repo.IsComponentTypeRegistered<EntityInfo>() && !repo.HasComponent<EntityInfo>(entity))
             {

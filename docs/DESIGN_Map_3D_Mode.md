@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g). ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 PAUSED on Q-S5a..c (§3.12). ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -770,7 +770,7 @@ It adopts the camera entity's pose and mode once when the scenario opens (`MapCa
 | **S4** ✅ *(§6f)* | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
 | **S5** ⏸ *(§3.12)* | camera entity — create, follow, scenario save — ⏸ PAUSED on Q-S5a..c (owner after reload vs R-140, one per scenario or per host, where distance and mode live) | V-12..V-15 |
 | **S5b** ✅ *(§6g)* | **the card**: `CoordinateSpace.EntityCard`; `EntityCardRenderer` (rows by `ZIndex`, row 0 card-wide, `%` of the card, leader line) in 2-D and 3-D; `CardBuilder` sugar; `EntityCardFrameGizmo` + one side palette (M16); `HealthBarGizmo` re-targeted to a bar row; `EntityNameGizmo`; `EntityEditorLabelGizmo` rows moved in; a "Labels" layer default | U19, U20 |
-| **S5c** | **entity colour**: `EntityAppearance` per M15 — only after the user's answer | U19 colour |
+| **S5c** 🟡 *(§6h)* | **entity colour**: `EntityAppearance` per M15 — local part BUILT; descriptor arm + `"Color"` attribute = backend (`CE-1047`) | U19 colour |
 | ~~**S6**~~ | ⛔ **withdrawn `2026-10-10` (U25)** — every host gets 3-D from the shared attach; see §6b | V-01, V-18 (IG) — met by §6b |
 | **S7** | CC0 textures, triplanar | U13's texture wish |
 
@@ -1070,6 +1070,47 @@ now dormant (the card's width governs); kept registered so saved settings stay r
 **Gates:** `Map3DGizmoTests.S5b_*` (6: sugar, layout, skipped shapes + min width, the 3-D hand-off + anchor, the 2-D north-up
 anchor, the gizmos) · `DebugPrimitiveRenderer2DTests.CE1033_S5b_*` (set aside after the mask) · IG `HealthBarGizmoTests` (bar
 row) · `HostOnlyWiringTests.CE3123_*` (hit points row) · frame rails: shot ⑦ and `map2d-north-up.png` each draw one card.
+
+### 6h. S5c — AS-BUILT `2026-10-11` (the entity colour, its local part)
+
+```mermaid
+classDiagram
+  class EntityAppearance { <<new, Fdp.Core, id 348>> ColorRgba 0xRRGGBBAA; HasColour; FromHex; ToHex }
+  class EntityInfo { <<exists, the model>> ForceId }
+  class PresentationTkbTranslator { <<exists>> + stamps EntityAppearance from VisualDefinitionDto.ColorHex if absent }
+  class VisualData { <<exists, TKB-derived>> ColorHex }
+  class HrotSharedComponentRegistry { <<exists>> + registers it beside VisualData }
+  class PresentationComponentRegistry { <<exists>> + registers it (ReplayBrowser) }
+  class EntityBodyLayer3D { <<exists>> ColourOf: own, then TKB, then family }
+  class ScenarioSerializer { <<exists, unchanged>> saves every registered struct }
+  class DescriptorArm["EntityAppearance descriptor + Color attribute"] { <<NOT BUILT, backend, CE-1047>> }
+  PresentationTkbTranslator ..> EntityAppearance : stamps
+  PresentationTkbTranslator ..> VisualData : stamps
+  EntityBodyLayer3D ..> EntityAppearance
+  EntityBodyLayer3D ..> VisualData
+  ScenarioSerializer ..> EntityAppearance : saved and loaded
+  DescriptorArm ..> EntityAppearance
+```
+
+*What the picture shows that prose hid:* the colour reaches the scenario with NO new save code (the serializer saves every
+registered struct), and the network half is a separate box. Until that box exists each node stamps the TKB colour for
+itself, so a replica shows the TKB colour, not the authored one.
+
+| built | where |
+|---|---|
+| `EntityAppearance { ColorRgba }` — `[PerInstanceValue]` like `EntityInfo`; alpha 0 = no colour; `#RRGGBB` / `#RRGGBBAA` in and out | `FDP/Engine/Fdp.Core/Components/EntityAppearance.cs`, `GlobalComponentIds.EntityAppearance = 348` |
+| the TKB default, stamped ONLY IF ABSENT (a per-spawn value wins: `NetworkSpawningSystem` applies `InitialComponents` over the translators) and ALWAYS when the template has a visual, even with no colour — so once its descriptor exists, no ghost waits forever | `PresentationTkbTranslator.Inject`, `GetProducedComponents` |
+| registered on every host — the shared registry (IG, Stride, CGF, SimHost, the Editor via CGF) and the presentation one (the ReplayBrowser) | `HrotSharedComponentRegistry`, `PresentationComponentRegistry` |
+| the 3-D body: its own colour → the TKB's `VisualData.ColorHex` → the family default | `EntityBodyLayer3D.ColourOf` |
+
+⚠ **Left, named ([`CE-1047`](blueprints/Blueprint_Issues_Tracker.md)):** the descriptor arm and the runtime `"Color"`
+attribute (backend lane), plus a latent defect found on the way: the attribute-ack mask is 256 bits and would throw for
+id 348. · No UI sets a colour yet, so an authored colour comes only from a scenario file, until the `"Color"` attribute
+exists (`get_attributes_schema` / `patch_attribute` pick it up by construction). · Child entities do not inherit the
+parent's colour. · The 2-D map does not use it: 2-D tints by side (M16). · ⚠ `VisualData` itself has no `[DataPolicy]`
+and is still saved into scenarios (`scenarios/hill-attack/scenario.json:117-122`), which conflicts with R-136 §3 ②. So a
+reloaded `VisualData.ColorHex` can be stale, and that is why the colour reads `EntityAppearance` first.
+**Gates:** `Map3DTests.S5c_*` (stamp-if-absent + per-spawn wins + always stamped · the colour order · the scenario round trip).
 
 ## 7. NOT VERIFIED — say so before it is built on
 

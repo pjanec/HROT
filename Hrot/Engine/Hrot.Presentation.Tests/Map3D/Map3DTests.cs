@@ -532,6 +532,82 @@ public sealed class Map3DTests
         Assert.InRange(Vector3.Distance(centre, Vector3.Transform(Vector3.Zero, blade.BodyTransform(size))), 0f, 1e-3f);
     }
 
+    // ── S5c — the entity colour (§3.7, M15): built like affiliation ──
+
+    [Fact]
+    public void S5c_TheTkbColour_IsStampedOnlyIfAbsent_APerSpawnColourWins_AndNoColourIsStillStamped()
+    {
+        using var w = new EntityRepository();
+        w.RegisterComponent<VisualData>();
+        w.RegisterComponent<EntityInfo>();
+        w.RegisterComponent<EntityAppearance>();
+        var tpl = new TkbTemplate("Painted", 90101);
+        tpl.AddDescriptor(new VisualDefinitionDto { SymbolCode = "SFGPUCA---", ColorHex = "#2E4057" });
+        var blank = new TkbTemplate("Blank", 90102);
+        blank.AddDescriptor(new VisualDefinitionDto { SymbolCode = "SFGPUCA---", ColorHex = "" });
+        var translator = new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator();
+
+        var fromTkb = w.CreateEntity();
+        translator.Inject(w, fromTkb, tpl);
+        var authored = w.CreateEntity();
+        w.AddComponent(authored, EntityAppearance.Of(200, 30, 30));   // the scenario's own value, applied before / kept after
+        translator.Inject(w, authored, tpl);
+        var none = w.CreateEntity();
+        translator.Inject(w, none, blank);
+
+        Assert.Equal("#2E4057", w.GetComponentRO<EntityAppearance>(fromTkb).ToHex());
+        Assert.Equal("#C81E1E", w.GetComponentRO<EntityAppearance>(authored).ToHex());
+        Assert.True(w.HasComponent<EntityAppearance>(none), "always stamped — a [PerInstanceValue] component must never leave a ghost waiting");
+        Assert.False(w.GetComponentRO<EntityAppearance>(none).HasColour);
+        Assert.Contains(typeof(EntityAppearance), translator.GetProducedComponents());
+    }
+
+    [Fact]
+    public void S5c_TheBodyColour_IsTheEntitysOwn_ThenTheTkbs_ThenTheFamilys()
+    {
+        using var w = new EntityRepository();
+        w.RegisterComponent<VisualData>();
+        w.RegisterComponent<EntityAppearance>();
+        var family = new Raylib_cs.Color((byte)1, (byte)2, (byte)3, (byte)255);
+        var bare = w.CreateEntity();
+        var tkbOnly = w.CreateEntity();
+        w.AddComponent(tkbOnly, new VisualData { ColorHex = new FixedString32("#102030") });
+        var own = w.CreateEntity();
+        w.AddComponent(own, new VisualData { ColorHex = new FixedString32("#102030") });
+        w.AddComponent(own, EntityAppearance.Of(250, 200, 10));
+        var noColour = w.CreateEntity();
+        w.AddComponent(noColour, new VisualData { ColorHex = new FixedString32("#102030") });
+        w.AddComponent(noColour, default(EntityAppearance));
+
+        Assert.Equal(family, EntityBodyLayer3D.ColourOf(w, bare, family));
+        Assert.Equal(new Raylib_cs.Color((byte)0x10, (byte)0x20, (byte)0x30, (byte)255), EntityBodyLayer3D.ColourOf(w, tkbOnly, family));
+        Assert.Equal(new Raylib_cs.Color((byte)250, (byte)200, (byte)10, (byte)255), EntityBodyLayer3D.ColourOf(w, own, family));
+        Assert.Equal(new Raylib_cs.Color((byte)0x10, (byte)0x20, (byte)0x30, (byte)255), EntityBodyLayer3D.ColourOf(w, noColour, family));
+    }
+
+    [Fact]
+    public void S5c_TheColour_IsSavedInTheScenario_AndComesBack()
+    {
+        using var w = new EntityRepository();
+        w.RegisterComponent<EntityAppearance>();
+        var e = w.CreateEntity();
+        w.AddComponent(e, EntityAppearance.FromHex("#C81E1E"));
+        var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.Editor").Build();
+
+        string json = serializer.Serialize(w, new Fdp.Toolkit.Scenario.ScenarioHeader("Hrot.Editor")).ToJsonString();
+        Assert.Contains("\"EntityAppearance\"", json);
+
+        using var back = new EntityRepository();
+        back.RegisterComponent<EntityAppearance>();
+        serializer.Deserialize(back, json);
+        Entity loaded = default;
+        int count = 0;
+        foreach (var x in back.Query().With<EntityAppearance>().Build()) { loaded = x; count++; }
+        Assert.Equal(1, count);   // the coloured entity comes back
+        Assert.Equal("#C81E1E", back.GetComponentRO<EntityAppearance>(loaded).ToHex());
+        Assert.Equal(0x2E4057AAu, EntityAppearance.FromHex("#2E4057AA").ColorRgba);   // #RRGGBBAA keeps its alpha
+    }
+
     // ── CE-1040 — the 2-D map is north-up (docs/DESIGN_Map_North_Up.md) ──
 
     [Fact]

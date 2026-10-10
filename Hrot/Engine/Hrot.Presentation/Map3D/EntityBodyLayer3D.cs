@@ -315,8 +315,15 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         return new Vector3(p.Length > 0f ? p.Length : look.Size.X, p.Width > 0f ? p.Width : look.Size.Y, look.Size.Z);
     }
 
-    private static Color ColourOf(EntityRepository world, Entity e, Color fallback)
+    /// <summary>⭐ CE-1033 S5c (§3.7) — the body colour: the entity's own <see cref="EntityAppearance"/> (scenario / per spawn) →
+    /// the TKB's <c>VisualData.ColorHex</c> → the family default.</summary>
+    public static Color ColourOf(EntityRepository world, Entity e, Color fallback)
     {
+        if (world.IsComponentTypeRegistered<EntityAppearance>() && world.HasComponent<EntityAppearance>(e))
+        {
+            var a = world.GetComponentRO<EntityAppearance>(e);
+            if (a.HasColour) return new Color(a.R, a.G, a.B, (byte)255);
+        }
         if (!world.IsComponentTypeRegistered<VisualData>() || !world.HasComponent<VisualData>(e)) return fallback;
         string hex = world.GetComponentRO<VisualData>(e).ColorHex;
         return ParseHex(hex) ?? fallback;
