@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-10
-current-answer: §5 DECISIONS (user, 2026-10-10: L1–L4 accepted = R-254; L6 replaced by the user's own ruling = R-255) · §6 the retreat
+current-answer: §5 DECISIONS (user, 2026-10-10: L1–L4 accepted = R-256; L6 replaced by the user's own ruling = R-255) · §6 the retreat
   concepts (L7) · §4 keeps the leans as proposed. Nothing built yet.
 stale-below: nothing
 known-rot: none
@@ -129,9 +129,9 @@ not in ①. Peek-and-fire is a ① node used only by a ③ tree.*
 
 | # | decision | ledger |
 |---|---|---|
-| L1–L4 | ✅ accepted as proposed in §4 | **R-254** |
+| L1–L4 | ✅ accepted as proposed in §4 | **R-256** |
 | L6 | ✅ **REPLACED by the user's ruling:** the three posture hosts were a PROOF. The library keeps the **BTree** form; its **blueprint and HSM copies are dropped**; library BTrees may be C#-built | **R-255** |
-| L5 | ✅ approved | **R-254** (extended) |
+| L5 | ✅ approved | **R-256** (extended) |
 | L7 | ⏳ the retreat question — §6 | — |
 
 > 🔒 **User, `2026-10-10`, correcting my reading:** *"..we can drop blueprint and HSM, not btrees"*

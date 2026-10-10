@@ -1,13 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-10 (§10 generalisation design — G1–G8 awaiting the user)
+updated: 2026-10-10 (§10 generalisation — G1–G8 APPROVED, R-257; §10.7 CoverClaim)
 build-state: P-1–P-7 and P-7a (O1–O5) BUILT 2026-10-09 (§7, §9.7); P-8 (the duel scenario) next; READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
-current-answer: ⭐ §10 GENERALISATION (R-254 L2: the library's fight-from-cover node, squad-aware) — DESIGN, G1–G8 awaiting the user · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles
+current-answer: ⭐ §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles
 stale-below: nothing
 known-rot: none yet
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
 related-designs:
-  - REVIEW_Behaviour_Library_Genericity.md — OWNS the genericity verdict; its §3 audit is what §10 answers (R-254 L2, R-255)
+  - REVIEW_Behaviour_Library_Genericity.md — OWNS the genericity verdict; its §3 audit is what §10 answers (R-256 L2, R-255)
   - designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — OWNS the squad (roster, roles, PhaseSequencer, fire allocation); §10 READS its assignment and leaves turn-taking to it (G6)
   - REVIEW_Behaviour_Library_Genericity.md — §3 audits PeekAndFire's genericity (duel-tuned core; five changes before it joins the library).
   - DESIGN_Eqs_Consuming_Behaviours.md — OWNS the tactics nodes (TakeCover, FiringPosition, Flank — EqsTacticsNodes.Run) PeekAndFire sits beside; its §9 F1/G3 "move, then fire / cover stops firing" is what this adds to
@@ -553,7 +553,7 @@ and its threat: 2 green behind it, 4 red), T-VIS1 re-pinned (keyed on the sensor
 (6 dots for a car, none when it drives); `DebugTraceGizmoTests.CE3143_APartFollowsItsUnit_UnderSelectedOrPinned_AndEqsDefaultsToIt`;
 `StaticObstacleTests.P7a_R11` (6 points round a car).
 
-## 10. Generalisation — the library's "fight from cover" node *(R-254 L2 · DESIGN, `2026-10-10`, G1–G8 awaiting the user)*
+## 10. Generalisation — the library's "fight from cover" node *(R-256 L2 · ✅ G1–G8 APPROVED `2026-10-10`, R-257 · READY-TO-BUILD, `CE-3158`)*
 
 > 🔒 **User, `2026-10-10`:** *"the peek-and-fire was written as part of the duel scenario … might not be generic enough"* ·
 > *"we aim to having behaviors that are largely generic, usable in any military combat scenario"* · *"that squad-aware
@@ -562,7 +562,7 @@ and its threat: 2 green behind it, 4 red), T-VIS1 re-pinned (keyed on the sensor
 
 ⭐ **What this section does:** keeps the §8 machine (hide → expose → fire → recover, heat, stay down under fire) and fixes
 the five places it is the duel's, so it can become CombatPosture's TakeCover child (`CE-3157`) and the per-member action of a
-squad. ⛔ **No new node** — R-254: one implementation per concept. Audit: [`REVIEW_Behaviour_Library_Genericity.md`](REVIEW_Behaviour_Library_Genericity.md) §3.
+squad. ⛔ **No new node** — R-256: one implementation per concept. Audit: [`REVIEW_Behaviour_Library_Genericity.md`](REVIEW_Behaviour_Library_Genericity.md) §3.
 
 ### 10.1 INVENTORY *(`2026-10-10`, graph re-indexed after the merge + three read-only sweeps)*
 
@@ -735,3 +735,46 @@ Squad design §2 "All Brain-resident"); the red dashed edge is the squad's turn-
 ⚠ **Blast radius:** `EqsResult` + its wire entry (one byte, D5 precedent) · `FireAtPointExecutor` (also `bt-grenade-posture`,
 `bt-mortar-roof` — indirect, exempt by G3) · `PostureNodes.Fire` callers (`Engage`, `FireOnTheMove`) · `SimRng` users (wander,
 slot picks — baselines re-pinned) · the duel scenario keeps its behaviour through its parameters (rail P8 stays the regression).
+
+> 🔒 **User, `2026-10-10`:** *"approved. pls explain the component for cover point negotiation and how it is used"*
+
+### 10.7 `CoverClaim` — how squad-mates keep off each other's cover *(G5, as approved)*
+
+⭐ **It is not a negotiation — it is "first claim wins".** No messages, no locks, no commander: every unit that fights from
+cover publishes where it is going, and every unit picking a point skips the points friends have published.
+
+| | |
+|---|---|
+| **what** | an ECS component on the unit: `CoverClaim { Vector3 Hide; Vector3 Peek; double Until }` (32 B), `[DataPolicy(NoScenario)]`; force from the unit's own `EntityInfo.ForceId` |
+| **why an ECS component** | other units must READ it — 🔒 AQ87 G keeps unit memory *"Self only"*, and AQ87 §4 sends data other readers need to a component |
+| **written** | by the PeekAndFire node the moment it COMMITS to a point — when it issues the move, not on arrival, so nobody races it there; `Peek` when it picks a step-peek point; `Until = now + ClaimTtl` (2 s) refreshed every tick it runs |
+| **released** | relocation overwrites it (the old point is free at once); the node's deactivator clears it; ⭐ a brain that dies or aborts without cleanup simply stops refreshing and the claim **expires by `Until`** — no cleanup system |
+| **read** | at pick time (B6 — the answer span, score − heat): candidates within `ClaimRadius` (1.5 m) of another live claim (`Hide` or `Peek`) of a unit of the **same force** are skipped |
+| **who wins a tie** | the brain ticks a squad's members one after another in one pass on the same CGF node, so the unit ticked first writes its claim before the next one reads — deterministic, entity order. No preemption: a later, "better" unit never steals a claimed point |
+| **nothing left** | every good point claimed or burned ⇒ G2: `Failure` after `NoCoverSeconds`, or aimed fire from where it stands |
+| **cost** | a query over claim holders only (units running the node) × at most 16 candidates |
+| **seen** | the existing `PeekAndFireGizmo` draws each unit's hide point; claims add an owner line (who holds which point) |
+| **limits** | ⚠ brain-local — claims are not replicated, so units of one force whose brains run on DIFFERENT CGF nodes do not see each other's claims (a squad's members share one node — Squad design §2 *"All Brain-resident"*) · a friend that only walks past a point does not claim it |
+| **the squad later** | the same component is the seam for the squad layer: the `RoleSlotAssignmentPrimitive` can pre-place members by writing their claims, and the `PhaseSequencer` can read who holds which point — without the node changing (G6) |
+
+```mermaid
+sequenceDiagram
+  participant BT as BrainTick (one pass, one CGF node)
+  participant A as Rifleman A - PeekAndFire
+  participant C as CoverClaim components
+  participant B as Rifleman B - PeekAndFire
+  BT->>A: tick
+  A->>C: read live claims of my force
+  A->>A: best of the answer span not near a claim - P1
+  A->>C: write A.Hide = P1, Until = now + 2 s
+  BT->>B: tick (same pass)
+  B->>C: read live claims - P1 is A's
+  B->>B: best point not near P1 - P2
+  B->>C: write B.Hide = P2
+  Note over A,C: A relocates later - its claim moves, P1 is free at once
+  Note over B,C: B's brain stops - its claim expires at Until, nothing to clean
+```
+
+*What the picture shows that prose hid: the ordering of ONE brain pass is the whole conflict rule — the second reader always
+sees the first writer's claim, so no lock or negotiation is needed on one node.*
+
