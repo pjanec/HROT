@@ -132,7 +132,7 @@ not in ①. Peek-and-fire is a ① node used only by a ③ tree.*
 | L1–L4 | ✅ accepted as proposed in §4 | **R-256** |
 | L6 | ✅ **REPLACED by the user's ruling:** the three posture hosts were a PROOF. The library keeps the **BTree** form; its **blueprint and HSM copies are dropped**; library BTrees may be C#-built | **R-258** |
 | L5 | ✅ approved | **R-256** (extended) |
-| L7 | ⏳ the retreat question — §6 | — |
+| L7 | ✅ **approved** (user, `2026-10-10`: *"the still open one approved, go"*): ONE retreat = `FallBack`; `FleeExecutor` is legacy, out of the library (L3 rule — it stays in code, marked) | **R-259** |
 
 > 🔒 **User, `2026-10-10`, correcting my reading:** *"..we can drop blueprint and HSM, not btrees"*
 
@@ -161,6 +161,6 @@ not in ①. Peek-and-fire is a ① node used only by a ③ tree.*
 | `HoldProne` | the alternative when too hurt to flee (`CE-3090`) | posture | not a retreat |
 | `Demo_Retreat.bp` | delay stub | `Demo_MissionPlan` | demo |
 
-⇒ **Lean:** ONE retreat = `FallBack`. `FleeExecutor` leaves the library (legacy per L3); ⚠ revisit only if `FallBack` needs a
+⇒ ✅ **Approved (R-259):** ONE retreat = `FallBack`. `FleeExecutor` leaves the library (legacy per L3); ⚠ revisit only if `FallBack` needs a
 no-cover escape (what it does when the EQS finds no point is ⛔ not measured).
 
