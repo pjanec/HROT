@@ -560,6 +560,7 @@ public sealed class PostureScenarioTests : IDisposable
                 }
             }
         }
+        int maxLeg = -1, firstHitFrame = -1; Vector3 posAtFirstHit = default; float movedAfterHit = 0f; bool defensiveAfterHit = false;
         int lastAmmo = cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).Ammo : -1;   // ⭐ CE-3136 P-5: the spawned load, not a literal 30
         for (int f = 0; f < 24000; f++)
         {
@@ -580,6 +581,13 @@ public sealed class PostureScenarioTests : IDisposable
             }
             if (Winner() is { } w && (postures.Count == 0 || postures[^1] != w)) postures.Add(w);
             if (ApproachWinner() is { } a && (approaches.Count == 0 || approaches[^1] != a)) approaches.Add(a);
+            maxLeg = Math.Max(maxLeg, Leg());
+            if (firstHitFrame < 0 && Hp(rifleman) is > 0f and < 100f) { firstHitFrame = f; posAtFirstHit = Pos(rifleman); }
+            if (firstHitFrame >= 0 && Hp(rifleman) > 0f)
+            {
+                movedAfterHit = MathF.Max(movedAfterHit, Vector3.Distance(Pos(rifleman), posAtFirstHit));
+                if (Winner() is Posture.TakeCover or Posture.Flee or Posture.HoldProne) defensiveAfterHit = true;
+            }
             if (f % 150 == 0) _out.WriteLine($"f{f}: {State()}");
             if (Hp(rifleman) <= 0f) { _out.WriteLine($"f{f}: RIFLEMAN DOWN — {State()}"); break; }
             if (Leg() >= 1 && Vector3.Distance(Pos(rifleman), final) <= 3.5f) { _out.WriteLine($"f{f}: FINAL OBJECTIVE — {State()}"); break; }
@@ -610,5 +618,20 @@ public sealed class PostureScenarioTests : IDisposable
         foreach (var g in bullets.GroupBy(kv => (kv.Key.Item1, kv.Value.Shooter)))
             _out.WriteLine($"shots[{g.Key.Item1}] {g.Key.Shooter}: {g.Count()} — " +
                 string.Join(" ", g.Select(kv => $"f{kv.Value.Frame}:{kv.Value.Spawn.X:F0},{kv.Value.Spawn.Y:F0},{kv.Value.Spawn.Z:F1}→{kv.Value.Last.X:F0},{kv.Value.Last.Y:F0},{kv.Value.Last.Z:F1}")));
+
+        // ⭐ CE-3094 — locked on what the composition does today (measured 2026-10-10, after AQ85 hit chance and CE-3095):
+        //   hidden until ~f5950, both legs reached, 2 rounds both on Hostile 1, wounded ⇒ Flee → TakeCover → HoldProne, then
+        //   killed in cover by a second hostile closing from another bearing (CE-3157). It does NOT assert that he wins.
+        Assert.True(firstHitFrame < 0 || firstHitFrame > 4000,
+            $"the approach behind Block C must keep him unseen for most of the walk; first hit at f{firstHitFrame}");
+        Assert.True(maxLeg >= 1, $"the mission must advance to its second leg (reached {maxLeg})");
+        Assert.True(bullets.Any(kv => kv.Value.Shooter == "Rifleman"),
+            "CE-3095: the rifleman's rounds must reach SimHost as bullets");
+        Assert.True(hostileNames.Any(n => Hp(ByName(cgf, n)) < 100f), "he must hurt at least one hostile");
+        if (firstHitFrame >= 0)
+        {
+            Assert.True(defensiveAfterHit, $"wounded, he must pick a defensive posture (postures: {string.Join(" → ", postures)})");
+            Assert.True(movedAfterHit >= 2f, $"CE-3092: a wounded rifleman keeps moving (moved {movedAfterHit:F1} m after the first hit)");
+        }
     }
 }
