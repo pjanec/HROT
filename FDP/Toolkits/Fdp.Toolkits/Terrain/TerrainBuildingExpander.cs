@@ -27,13 +27,15 @@ namespace Fdp.Toolkit.Terrain
         }
 
         internal readonly record struct Placement(
-            Vector2 Position, float RotationDegrees, float BaseZ, string Label, string? TemplateName,
+            Vector2 Position, float RotationDegrees, float? BaseZ, string Label, string? TemplateName,
             IReadOnlyDictionary<string, TerrainDoorState> DoorOverrides);
 
         /// <summary>Default sill/head (m above the storey floor) per opening kind; a gap is full height.</summary>
         public const float DoorHead = 2.1f, WindowSill = 0.9f, WindowHead = 2.1f;
 
-        public static void Expand(JsonObject template, Placement at, float groundZ, TerrainMaterialLibrary materials,
+        /// <param name="groundUnder">⭐ CE-1034 H1 (TH-C) — the lowest ground under a world-space footprint; a placement with no
+        /// explicit base stands on it, and the ground storey needs no floor slab when it stands on the ground.</param>
+        public static void Expand(JsonObject template, Placement at, Func<IReadOnlyList<Vector2>, float> groundUnder, TerrainMaterialLibrary materials,
             string? terrainName, Sink sink, string where)
         {
             float rad = at.RotationDegrees * MathF.PI / 180f;
@@ -48,13 +50,14 @@ namespace Fdp.Toolkit.Terrain
             {
                 var fp = Ccw(ReadRing(template["footprint"], where + ".footprint").Select(W).ToArray());
                 float height = ReadFloat(template["height"], where + ".height");
-                var prism = TerrainWorldParser.MakePrismForExpander(TerrainPrismKind.Building, fp, at.BaseZ, at.BaseZ + height,
+                float solidBase = at.BaseZ ?? groundUnder(fp);
+                var prism = TerrainWorldParser.MakePrismForExpander(TerrainPrismKind.Building, fp, solidBase, solidBase + height,
                     template["floors"]?.GetValue<int>() ?? 0, at.Label, where);
                 sink.Prisms.Add(Clone(prism, materials.Get(defaultMaterial, where), -1));
                 sink.Buildings.Add(new TerrainBuilding
                 {
                     Label = at.Label, Template = at.TemplateName, Position = at.Position, RotationDegrees = at.RotationDegrees,
-                    BaseZ = at.BaseZ, StoreyZ = new[] { at.BaseZ, at.BaseZ + height }, Footprint = fp, Solid = true,
+                    BaseZ = solidBase, StoreyZ = new[] { solidBase, solidBase + height }, Footprint = fp, Solid = true,
                 });
                 return;
             }
@@ -62,19 +65,21 @@ namespace Fdp.Toolkit.Terrain
             if (template["storeys"] is not JsonArray storeys || storeys.Count == 0)
                 throw new ArgumentException($"Terrain world {where}: a building template needs 'storeys' (or \"solid\": true).");
 
-            // ── storey floors ──────────────────────────────────────────────────────────────────────────
-            var storeyZ = new List<float> { at.BaseZ };
-            foreach (var (s, i) in storeys.Select((s, i) => (s, i)))
-            {
-                if (s is not JsonObject so) throw new ArgumentException($"Terrain world {where}.storeys[{i}] is not an object.");
-                storeyZ.Add(storeyZ[^1] + ReadFloat(so["height"], $"{where}.storeys[{i}].height"));
-            }
-
             // ── footprint: explicit, else the bounding box of the ground storey's walls ───────────────
             Vector2[] localFootprint = template["footprint"] is JsonNode fpn
                 ? ReadRing(fpn, where + ".footprint")
                 : WallBox((JsonObject)storeys[0]!, where);
             var footprint = Ccw(localFootprint.Select(W).ToArray());
+            float ground = groundUnder(footprint);   // ⭐ TH-C — the lowest ground under it
+            float baseZ = at.BaseZ ?? ground;
+
+            // ── storey floors ──────────────────────────────────────────────────────────────────────────
+            var storeyZ = new List<float> { baseZ };
+            foreach (var (s, i) in storeys.Select((s, i) => (s, i)))
+            {
+                if (s is not JsonObject so) throw new ArgumentException($"Terrain world {where}.storeys[{i}] is not an object.");
+                storeyZ.Add(storeyZ[^1] + ReadFloat(so["height"], $"{where}.storeys[{i}].height"));
+            }
 
             for (int k = 0; k < storeys.Count; k++)
             {
@@ -97,7 +102,7 @@ namespace Fdp.Toolkit.Terrain
                     }
 
                 // the floor of every upper storey (the ground storey stands on the ground unless the building is raised)
-                if (k > 0 || MathF.Abs(at.BaseZ - groundZ) > TerrainWorld.LevelMergeDistance)
+                if (k > 0 || MathF.Abs(baseZ - ground) > TerrainWorld.LevelMergeDistance)
                 {
                     var rings = so["floor"] is JsonNode fl ? ReadRings(fl, sw + ".floor") : new List<Vector2[]> { localFootprint };
                     foreach (var r in rings)
@@ -140,7 +145,7 @@ namespace Fdp.Toolkit.Terrain
             sink.Buildings.Add(new TerrainBuilding
             {
                 Label = at.Label, Template = at.TemplateName, Position = at.Position, RotationDegrees = at.RotationDegrees,
-                BaseZ = at.BaseZ, StoreyZ = storeyZ, Footprint = footprint, Solid = false,
+                BaseZ = baseZ, StoreyZ = storeyZ, Footprint = footprint, Solid = false,
             });
         }
 

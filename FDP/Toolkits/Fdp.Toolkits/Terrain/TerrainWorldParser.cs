@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -69,6 +70,19 @@ namespace Fdp.Toolkit.Terrain
                     nameof(geojson));
 
             float groundZ = meta?["groundZ"] is JsonNode gz ? ReadFloat(gz, "hrot.groundZ") : 0f;
+            // ⭐ CE-1034 H1 (TH-A) — the ground's relief: an ESRI ASCII grid beside the world file, named here. ⚠ Here, not in
+            //   terrain.json: it REPLACES the groundZ above, and a world file must describe its whole ground (DESIGN_Terrain_Height §4b).
+            TerrainHeightGrid? grid = null;
+            if (meta?["heightGrid"] is JsonNode hg)
+            {
+                string file = (string?)hg ?? throw new ArgumentException("Terrain world hrot.heightGrid must be a file name.", nameof(geojson));
+                string text = assets.ReadFile?.Invoke(file)
+                    ?? throw new ArgumentException($"Terrain world hrot.heightGrid: '{file}' was not found beside the world file.", nameof(geojson));
+                grid = TerrainHeightGrid.ParseAsciiGrid(text, file, groundZ);
+            }
+            // ⭐ TH-C — a piece with no explicit baseZ stands on the LOWEST ground under it (no gap on the downhill side)
+            float GroundUnder(IReadOnlyList<Vector2> polygon) => grid?.LowestUnder(polygon) ?? groundZ;
+            float GroundAlong(IReadOnlyList<Vector2> line) => grid?.LowestAlong(line) ?? groundZ;
 
             var sink = new TerrainBuildingExpander.Sink();
             var prisms = sink.Prisms;
@@ -114,23 +128,25 @@ namespace Fdp.Toolkit.Terrain
                         var placement = new TerrainBuildingExpander.Placement(
                             new Vector2(pos[0].X, pos[0].Y),
                             props["rotation"] is JsonNode rot ? ReadFloat(rot, where + ".rotation") : 0f,
-                            props["baseZ"] is JsonNode bz ? ReadFloat(bz, where + ".baseZ") : groundZ,
+                            props["baseZ"] is JsonNode bz ? ReadFloat(bz, where + ".baseZ") : (float?)null,   // null ⇒ TH-C, resolved on the footprint
                             label ?? templateName ?? $"building-{sink.Buildings.Count}",
                             props["building"] is JsonObject ? null : templateName,
                             overrides);
-                        TerrainBuildingExpander.Expand(template, placement, groundZ, materials, name, sink, where);
+                        TerrainBuildingExpander.Expand(template, placement, GroundUnder, materials, name, sink, where);
                         break;
                     }
                     case "building":
                     {
                         // the solid special case — today's polygon building, unchanged
-                        float baseZ = props["baseZ"] is JsonNode b ? ReadFloat(b, where + ".baseZ") : groundZ;
+                        float? explicitBase = props["baseZ"] is JsonNode b ? ReadFloat(b, where + ".baseZ") : null;
                         float height = RequireFloat(props, "height", where);
                         int floors = props["floors"]?.GetValue<int>() ?? 0;
                         var material = materials.Get((string?)props["material"] ?? TerrainMaterialLibrary.DefaultMaterial, where);
                         foreach (var ring in OuterRings(geometry, geomType, where))
                         {
-                            var pr = MakePrism(TerrainPrismKind.Building, Flatten(ring), baseZ, baseZ + height, floors, label, where);
+                            var flat = Flatten(ring);
+                            float baseZ = explicitBase ?? GroundUnder(flat);
+                            var pr = MakePrism(TerrainPrismKind.Building, flat, baseZ, baseZ + height, floors, label, where);
                             prisms.Add(new TerrainPrism
                             {
                                 Kind = pr.Kind, Footprint = pr.Footprint, BaseZ = pr.BaseZ, TopZ = pr.TopZ, Floors = pr.Floors,
@@ -146,13 +162,14 @@ namespace Fdp.Toolkit.Terrain
                         //   its prisms are exactly the old thin prisms, now carrying a material.
                         if (geomType != "LineString")
                             throw new ArgumentException($"Terrain world {where}: a {kind} must be a LineString (got '{geomType}').");
-                        float baseZ = props["baseZ"] is JsonNode b ? ReadFloat(b, where + ".baseZ") : groundZ;
+                        float? explicitWallBase = props["baseZ"] is JsonNode b ? ReadFloat(b, where + ".baseZ") : null;
                         float height = RequireFloat(props, "height", where);
                         float thickness = props["thickness"] is JsonNode th ? ReadFloat(th, where + ".thickness")
                             : kind == "fence" ? 0.05f : 0.3f;
                         var material = materials.Get((string?)props["material"]
                             ?? (kind == "fence" ? TerrainMaterialLibrary.DefaultFenceMaterial : TerrainMaterialLibrary.DefaultMaterial), where);
                         var line = ReadPositions(geometry["coordinates"], where);
+                        float baseZ = explicitWallBase ?? GroundAlong(line.Select(p => new Vector2(p.X, p.Y)).ToList());
                         var openings = props["openings"] as JsonArray;
                         if (openings != null && line.Count != 2)
                             throw new ArgumentException($"Terrain world {where}: openings need a single-segment {kind} (got {line.Count - 1} segments).");
@@ -218,6 +235,7 @@ namespace Fdp.Toolkit.Terrain
                 foreach (var p in prisms) { bMin = Vector2.Min(bMin, p.Min); bMax = Vector2.Max(bMax, p.Max); }
                 foreach (var w in walkables) { bMin = Vector2.Min(bMin, w.Min); bMax = Vector2.Max(bMax, w.Max); }
                 foreach (var s in surfaces) { bMin = Vector2.Min(bMin, s.Min); bMax = Vector2.Max(bMax, s.Max); }
+                if (grid != null) { bMin = Vector2.Min(bMin, grid.Origin); bMax = Vector2.Max(bMax, grid.Max); }   // ⭐ H1 — the relief is ground too
                 if (bMin.X > bMax.X) { bMin = Vector2.Zero; bMax = Vector2.Zero; }
                 bMin -= new Vector2(DefaultBoundsMargin);
                 bMax += new Vector2(DefaultBoundsMargin);
@@ -229,6 +247,7 @@ namespace Fdp.Toolkit.Terrain
                 BoundsMin = bMin,
                 BoundsMax = bMax,
                 GroundZ = groundZ,
+                Height = grid,
                 Prisms = prisms,
                 Walkables = walkables,
                 Surfaces = surfaces,

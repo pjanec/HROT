@@ -108,6 +108,7 @@ namespace Fdp.Toolkit.Terrain
                 BoundsMin = min,
                 BoundsMax = max,
                 GroundZ   = terrain.GroundZ,
+                Height    = terrain.Height,   // ⭐ CE-1034 H1
                 Prisms    = prisms,
                 Walkables = terrain.Walkables,
                 Surfaces  = terrain.Surfaces,

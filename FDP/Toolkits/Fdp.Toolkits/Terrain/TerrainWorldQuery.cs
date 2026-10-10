@@ -35,8 +35,7 @@ namespace Fdp.Toolkit.Terrain
             return t_last = new TerrainWorldQuery(world, doors);
         }
 
-        // ⚠ TH-B (DESIGN_Terrain_Height.md, slice H1) replaces this with the height grid; level 0 is the ground either way.
-        public float GroundHeightAt(float x, float y) => World.ResolveLevel(x, y, 0);
+        public float GroundHeightAt(float x, float y) => World.GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — the height grid, else the flat ground
 
         public float SurfaceZ(float x, float y, float zHint) => World.SurfaceZ(x, y, zHint);
 

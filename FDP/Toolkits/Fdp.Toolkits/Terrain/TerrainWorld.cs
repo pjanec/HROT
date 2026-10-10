@@ -91,6 +91,13 @@ namespace Fdp.Toolkit.Terrain
         public Vector2 BoundsMin { get; init; }
         public Vector2 BoundsMax { get; init; }
         public float GroundZ { get; init; }
+
+        /// <summary>⭐ CE-1034 H1 (TH-B) — the ground's relief, or null for the temporary flat ground at <see cref="GroundZ"/> (R-248).</summary>
+        public TerrainHeightGrid? Height { get; init; }
+
+        /// <summary>⭐ CE-1034 H1 — the ground's height at (x, y): the height grid where there is one, else <see cref="GroundZ"/>. Every
+        /// question about "the ground" goes through this — never read <see cref="GroundZ"/> as the ground (R-248).</summary>
+        public float GroundHeightAt(float x, float y) => Height?.Sample(x, y) ?? GroundZ;
         public IReadOnlyList<TerrainPrism> Prisms { get; init; } = Array.Empty<TerrainPrism>();
         public IReadOnlyList<TerrainWalkable> Walkables { get; init; } = Array.Empty<TerrainWalkable>();
         public IReadOnlyList<TerrainSurface> Surfaces { get; init; } = Array.Empty<TerrainSurface>();
@@ -221,10 +228,11 @@ namespace Fdp.Toolkit.Terrain
 
             // The ground is a candidate unless the point is inside a solid prism (you cannot stand under a
             // building's footprint at ground level — it is solid in v1).
-            if (!insideSolid) Consider(GroundZ, reach, ref best, ref lowest);
+            float ground = GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — the ground HERE, not one flat height
+            if (!insideSolid) Consider(ground, reach, ref best, ref lowest);
 
             if (!float.IsNegativeInfinity(best)) return best;
-            return float.IsPositiveInfinity(lowest) ? GroundZ : lowest;
+            return float.IsPositiveInfinity(lowest) ? ground : lowest;
         }
 
         /// <summary>Surfaces closer than this merge into one LEVEL (a ramp foot meeting the ground is not a second level).</summary>
@@ -240,13 +248,14 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public float[] SurfacesAt(float x, float y, out int groundIndex)
         {
+            float ground = GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — level 0 is the ground at (x, y)
             var p = new Vector2(x, y);
             var below = new List<float>();
             var above = new List<float>();
             void Add(float z)
             {
-                if (z < GroundZ - LevelMergeDistance) below.Add(z);
-                else if (z > GroundZ + LevelMergeDistance) above.Add(z);
+                if (z < ground - LevelMergeDistance) below.Add(z);
+                else if (z > ground + LevelMergeDistance) above.Add(z);
                 // else: merges into the ground level
             }
 
@@ -267,7 +276,7 @@ namespace Fdp.Toolkit.Terrain
             var levels = new List<float>(below.Count + above.Count + 1);
             MergeAscending(below, levels);
             groundIndex = levels.Count;
-            levels.Add(GroundZ);
+            levels.Add(ground);
             MergeAscending(above, levels);
             return levels.ToArray();
         }

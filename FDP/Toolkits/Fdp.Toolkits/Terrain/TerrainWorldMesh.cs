@@ -52,9 +52,16 @@ namespace Fdp.Toolkit.Terrain
         {
             var min = world.BoundsMin;
             var max = world.BoundsMax;
+            // ⭐ CE-1034 H1 — with a height grid the cells ARE the grid's cells (origin and size), so the triangles here, the navmesh
+            //   baked from them and TerrainWorld.GroundHeightAt describe one surface; without one, the flat cells as before.
+            if (world.Height is { } grid)
+            {
+                cell = grid.CellSize;
+                min = new Vector2(MathF.Floor((min.X - grid.Origin.X) / cell) * cell + grid.Origin.X,
+                                  MathF.Floor((min.Y - grid.Origin.Y) / cell) * cell + grid.Origin.Y);
+            }
             int nx = Math.Max(1, (int)MathF.Ceiling((max.X - min.X) / cell));
             int ny = Math.Max(1, (int)MathF.Ceiling((max.Y - min.Y) / cell));
-            float z = world.GroundZ;
 
             for (int iy = 0; iy < ny; iy++)
             for (int ix = 0; ix < nx; ix++)
@@ -64,10 +71,10 @@ namespace Fdp.Toolkit.Terrain
                 if (Excluded(world, new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f))) continue;
 
                 int b = v.Count;
-                v.Add(new Vector3(x0, y0, z));
-                v.Add(new Vector3(x1, y0, z));
-                v.Add(new Vector3(x1, y1, z));
-                v.Add(new Vector3(x0, y1, z));
+                v.Add(new Vector3(x0, y0, world.GroundHeightAt(x0, y0)));
+                v.Add(new Vector3(x1, y0, world.GroundHeightAt(x1, y0)));
+                v.Add(new Vector3(x1, y1, world.GroundHeightAt(x1, y1)));
+                v.Add(new Vector3(x0, y1, world.GroundHeightAt(x0, y1)));
                 t.Add(b); t.Add(b + 1); t.Add(b + 2);
                 t.Add(b); t.Add(b + 2); t.Add(b + 3);
             }

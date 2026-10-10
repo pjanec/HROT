@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — leans TH-A..TH-H APPROVED (2026-10-10, R-249); UML present; not yet marked READY-TO-BUILD while
-  the library question is open (§7 → DESIGN_World_Query_Seam.md: IWorldQuery, Bepu inside the stand-in, spike Q0). Nothing built.
-updated: 2026-10-10 (rev 3 — §7 corrected by R-250/R-251: a real interface, Bepu not Jolt. Rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
+build-state: BUILDING — H1 BUILT 2026-10-10 (§5a as-built); H2–H4 to come. Leans TH-A..TH-H APPROVED (R-249); the library
+  question settled by the Q0 spike (DESIGN_World_Query_Seam.md §5a: Bepu for objects, the height stays a grid).
+updated: 2026-10-10 (rev 4 — §5a H1 as built, with its deviations argued. Rev 3 — §7 corrected by R-250/R-251: a real interface, Bepu not Jolt. Rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
   (R-249, §4a); §7 the library question. Rev 1 — R-248: the flat ground is a temporary simplification; this file plans its removal)
 current-answer: §1 why · §2 INVENTORY · §3 the diagrams · §4 decisions with leans · §5 slices · §6 not verified.
 stale-below: nothing.
@@ -187,13 +187,36 @@ not by a second system.
 
 | slice | delivers | proves |
 |---|---|---|
-| **H1** | `AsciiGridReader`, `TerrainHeightGrid`, `GroundHeightAt`; the 9 reads routed; the mesher samples corners; TH-C defaults; the sloped fixture | an entity drives up a hill (kinematics, unchanged), spawns on the slope, the navmesh follows it — and every existing flat terrain is byte-identical |
+| **H1** ✅ | `TerrainHeightGrid` (+ its ASCII-grid reader), `GroundHeightAt`; the reads routed; the mesher on the grid's cells; TH-C defaults; the clamping flag in the movement model; the sloped fixture — §5a | an entity drives up a hill (kinematics, unchanged), spawns on the slope, the navmesh follows it — and every existing flat terrain is byte-identical |
 | **H2** | `GroundTrace` in the three queries; ballistics ground burst | a hill blocks sight and fragments |
 | **H3** | the `Z = 0` entry points grounded; the navmesh search box on the grounded hint | 2-D orders and route legs work on a hill |
 | **H4** | basic-desert's ridge and wadi as a grid (with the backend lane) | the utility demos on real relief |
 
 ⭐ Gates: the terrain feature suites first (`TerrainWorldTests`, the Recast and SimHost terrain tests — about 35 asserts assume
 ground 0 and stay green on flat terrains), then new rails on the sloped fixture.
+
+## 5a. H1 — as built `2026-10-10`
+
+| piece | as built |
+|---|---|
+| the file (TH-A) | an ESRI ASCII grid beside the world file, named by **`hrot.heightGrid`** in the world file; read through the new `TerrainAssets.ReadFile` (bare names only); a corner origin becomes the first cell's centre, the north row first, NODATA takes `groundZ` |
+| the model (TH-B) | `TerrainHeightGrid` (samples, two triangles per cell split south-west → north-east, the edge holds outside); `TerrainWorld.Height` + **`GroundHeightAt(x, y)`**; `SurfaceZ` and `SurfacesAt` take the ground HERE (level 0 = the ground at (x, y)); `StaticObstacles.With` carries the grid; `TerrainWorldQuery.GroundHeightAt` answers from it |
+| the mesher (TH-E) | with a grid, the ground cells ARE the grid's cells (origin and size) and every corner sits on it — so the navmesh, the future 3-D terrain and `GroundHeightAt` are one surface; without a grid, unchanged |
+| buildings and walls (TH-C) | no explicit `baseZ` ⇒ the lowest ground under the footprint (corners + every sample inside) / along the wall; a template building resolves it on its rotated footprint inside the expander, and its ground storey gets no slab when it stands on that ground |
+| bounds | a file with no `bounds` includes the grid's extent |
+| the clamping flag (R-249, §4a) | `CarKinematicsSystem` holds an entity to the surface only when its `GroundClampingConfig` says so; no flag = clamped, as before |
+
+**Deviations, argued:** ① the grid is named in the **world file**, not in `terrain.json` (TH-A said the latter): it REPLACES the
+world file's `groundZ`, so the world file describes its whole ground and the parser — which sees only the world file and the
+terrain folder — needs no second input. ② the mesher **adopts the grid's cells** instead of sampling its own 2 m cells: two
+triangulations of one surface disagree between samples, and the navmesh, the drawn terrain and the movement model must agree.
+
+**Finding:** ⚠ `GroundClampingConfig` has **no production producer** — its comment says *"seeded from the TKB blueprint"*, but no
+translator adds it (graph + grep: only tests and the dormant IG pipeline). ⇒ today every entity is clamped exactly as before; an
+aircraft keeps its altitude only once something gives it the flag. Filed with the TKB/air-domain work, not built here.
+
+**Gates:** the 7 new rails (`TerrainHeightTests` ×5 on `SlopeFixture`, `CarKinematicsSystemTests.H1_…` ×2) pass; the regression
+runs are reported in the commit and the tracker.
 
 ## 7. Build or use a library? — the user's question, `2026-10-10` *(⚠ rev 1 below is CORRECTED by `R-250`/`R-251` — read the banner first)*
 
@@ -245,7 +268,7 @@ library and its optimized raycasts and similar capabilities?"*
 | claim | how it is settled |
 |---|---|
 | ⚠ `HumanGait.MaxStepDown`'s "never step off a ledge" rule (`CarKinematicsSystem.cs:377-386`) does not fire on a steep slope | H1 rail |
-| ⚠ `filterLedgeSpans: false` (`RecastNavmeshBaker.cs:431`, *"flat terrain edges are valid"*) is still right over relief | H1 bake on the fixture |
-| ⚠ grid cell size vs the mesher's 2 m ground cells — sample per corner, or match the grid | H1 |
+| ✅ the bake over relief works on a 10 % slope and a path climbs it (`TerrainHeightTests.H1_TheNavmesh_BakesOverTheSlope_AndAPathClimbsIt`); ⚠ `filterLedgeSpans: false` over steep relief (near the 20° vehicle limit) still unmeasured | H1 / H4 |
+| ✅ grid cell size vs the mesher's cells — resolved: with a grid the mesher uses the grid's cells (§5a) | H1 |
 | ✅ `GroundTrace` as a grid march: 11.9 µs for a 300 m line on a 2 km grid at 2 m, no extra memory, exact vs a full triangle scan (Debug, cloud) — and a Bepu mesh is NOT the way (+477 MB for that grid) — `DESIGN_World_Query_Seam.md` §5a | measured in Q0 |
 | ✅ scenarios that saved Z = 0: no special case — the clamping flag and the motion model decide (`R-249`, §4a) | ruled |
