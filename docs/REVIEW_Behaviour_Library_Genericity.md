@@ -129,14 +129,15 @@ not in ①. Peek-and-fire is a ① node used only by a ③ tree.*
 | # | decision | ledger |
 |---|---|---|
 | L1–L4 | ✅ accepted as proposed in §4 | **R-254** |
-| L6 | ✅ **REPLACED by the user's ruling:** the three posture hosts were a PROOF, not a library requirement. The library keeps ONE form; BTree and HSM copies may be dropped; library behaviours may be rewritten as C# for maintainability | **R-255** |
+| L6 | ✅ **REPLACED by the user's ruling:** the three posture hosts were a PROOF. The library keeps the **BTree** form; its **blueprint and HSM copies are dropped**; library BTrees may be C#-built | **R-255** |
 | L5 | ⏳ explained in chat; awaiting a nod | — |
 | L7 | ⏳ the retreat question — §6 | — |
 
-⚠ **Open interpretation of R-255 (asked):** *"C# form"* read as — library behaviours become **C#-built trees** registered by
-name (as `MoveToLocation`, `FireAtPoint`, `WindowDuel` already are, R-223), their JSON BTree/HSM/blueprint copies (and the
-`ua-three-hosts` demo) retired; **blueprints stay the authoring surface for scenario doctrine** (R-156: *"a GENERIC engine
-library … counts as built-in; doctrine logic in C# does not"*); the HSM ENGINE stays, only library HSM assets go.
+> 🔒 **User, `2026-10-10`, correcting my reading:** *"..we can drop blueprint and HSM, not btrees"*
+
+⭐ **R-255 as ruled:** the library's form is the **BTREE**. The **blueprint and HSM copies** of library behaviours (`CombatPostureBp` + its `Posture*` wrapper trees, `CombatPostureHsm`, `DangerCrossingBp`, the `ua-three-hosts` demo) are dropped. Library BTrees may be **C#-built** (as `MoveToLocation`, `FireAtPoint`, `WindowDuel` already are, R-223) for maintainability. ⚠ The blueprint and HSM ENGINES stay — this is about the library's copies, not the hosts.
+
+~~Open interpretation (asked): blueprints stay the doctrine surface, HSM engine stays~~ — ⛔ SUPERSEDED by the correction above.
 
 ## 6. Retreat concepts (L7)
 
