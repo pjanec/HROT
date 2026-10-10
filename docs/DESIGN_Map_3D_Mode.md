@@ -2,7 +2,8 @@
 state: LIVE
 build-state: DESIGN — approach chosen by the user (U13: alternative B, a 2-D/3-D switch on the existing map); the
   leans in §5 await approval before S1. Nothing built.
-updated: 2026-10-10 (rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
+updated: 2026-10-10 (rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
+  side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §7 what is NOT verified.
@@ -50,6 +51,7 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 | **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) … with imgui on top for menus?"* | measured in `DESIGN_Godot_3D_Viewer.md` §8 — lean B |
 | **U13** | *"The internal 3d solution could be switchable 2d/3d instead of current 2d only map so no new 3d window would be required. I think we should focus on B … Lets put godot aside (but keep its design as deferred). We need the simple renderer to handle the terrain geometry, use lighting color shaded polygons to give it some usable feeling of a real world, if not some freely available texture pack."* | ⭐ this file: a **mode of the map**, not a window; **lit, colour-shaded terrain**; textures as a later slice |
 | **U15** | *"Every host having the 2d map will get simple 3d, correct? Not just IG. … The current 2d map can be switched to 3d view and back (some camera animation between 2d camera and 3d camera or something)."* | ✅ yes, all five map hosts (S6). ⭐ M12: the switch is an animated camera move, not a cut |
+| **U19** | *"The entity 3d mode color needs to be somehow settable (from scenario - special component) with tkb default color. Entity needs to support some label rectangle on top of it, with thin line down to entity model, showing health bar on top of entity name and lines for extra colored text info, all together framed in a rectangle with line colored according entity side … switchable on/off (layer for labels) … maybe the label area is just another mode of anchoring the 2d gizmo graphics?"* | ⭐ §3.6 card = a new anchoring mode (M14); §3.7 colour = a published descriptor under R-136 (M15) |
 | **U18** | *"Vehicles and aircraft should be also composed of multiple pieces to resemble what they are in real world, still cheap."* | ⭐ M7 rewritten: **shape kits** (§3.5), chosen by one visual-family classifier the icons already use |
 | **U16** | *"The 3d entities will need some label system so that we can show various texts provided by gizmos. So far gizmos were using 2d text, how to adapt to text for entities in 3d?"* | ⭐ §3.4 + M13: the same text primitives, projected; one overlay pass |
 | **U17** | *"ok one camera entity."* | ✅ M10 approved |
@@ -154,6 +156,9 @@ classDiagram
   class TerrainWorldMesh { <<exists>> +optional per-triangle tag }
   class LitShader { <<new>> GLSL directional light + fog }
   class LabelOverlay3D { <<new>> project, LOD, cull }
+  class EntityCardGizmo { <<new>> header + health bar }
+  class EntityCardRenderer { <<new>> one card, 2-D and 3-D }
+  class EntityAppearance { <<new>> published colour, R-136 4.1 }
   class GizmoTextDraw { <<extracted>> from DebugPrimitiveRenderer2D }
   MapCamera <|-- MapCamera3D
   MapCanvas --> MapCamera
@@ -176,6 +181,8 @@ classDiagram
   DebugGizmoLayer ..> LabelOverlay3D : text, badges
   LabelOverlay3D ..> GizmoTextDraw
   LabelOverlay3D ..> MapCamera3D : WorldToScreen
+  DebugGizmoLayer ..> EntityCardRenderer : card-space primitives
+  EntityBodyLayer3D ..> EntityAppearance : colour, else TKB
   BlockFigure ..> LogicalStance
   BlockFigure ..> LocomotionBlend
 ```
@@ -286,7 +293,7 @@ being a composite unit) to a family: person, tank, AFV, wheeled, unit. ⇒ that 
 
 | family *(DIS)* | built-in types today | kit — parts, as fractions of the type's L × W × H |
 |---|---|---|
-| **person** *(kind 3)* | Rifleman, InfantrySoldier, Grenadier, MortarTeam, Insurgent, CivilianPedestrian | the six-box block figure; **rifle** part for soldiers (category 1), none for civilians |
+| **person** *(kind 3)* | Rifleman, InfantrySoldier, Grenadier, MortarTeam, Insurgent, CivilianPedestrian | the six-box block figure; **rifle** part for soldiers (category 1), none for civilians; body in the entity colour (§3.7), side shown by the card frame |
 | **tank** *(1.1, cat 1)* | M1 Abrams, T-72 | lower hull · two track blocks (dark) · turret box set back · barrel cylinder forward |
 | **AFV / APC** *(1.1, cat 2)* | Bradley, MilitaryAPC | hull with a sloped front wedge · tracks or wheels (dark) · small turret · thin barrel |
 | **wheeled — car** *(1.1, cat 81)* | CivilianCar | lower body · cabin (glass) · four wheels (roll with speed) |
@@ -302,6 +309,86 @@ stay cheap; instancing per part shape is the later lever. ⭐ **Size:** length /
 only** — rotor spin from time, wheel roll from speed; the turret follows the hull (no aim component is read).
 ⛔ **Air:** the kits are built and railed, but **no built-in type is in the air domain**, and the DIS air category numbers
 for helicopter vs fixed wing are **not yet confirmed** against SISO-REF-010 — settled when the first air type is added.
+
+### 3.6 The entity CARD — a new way of ANCHORING gizmo graphics *(U19)*
+
+📐 Measured `2026-10-10`: ⭐ the card's content **already exists as gizmos, drawn as loose lines** —
+`EntityEditorLabelGizmo` stacks the id, the active behaviour and `HP:x/y` as separate `DrawText` lines at the entity's
+world point (`EntityEditorLabelGizmo.cs:61-100`); `HealthBarGizmo` draws health as a text badge (`HealthBarGizmo.cs:54`).
+⇒ The user's instinct is right: ⭐⭐ **the card is a new anchoring mode, not a new label system.** A gizmo says
+*"put this in entity N's card"* instead of *"put this at entity N's world point"*; the terminal lays the card out.
+
+```text
+                ┌──────────────────────┐   ← frame in the SIDE colour (friend / opposing / neutral)
+                │ ████████████░░░░░░░░ │   ← health bar          (CardBar, from the standard card gizmo)
+                │ T-72 #1043           │   ← title = entity name (CardHeader)
+                │ Attack (moving)      │   ← rows, coloured, in ZIndex order — from ANY gizmo
+                │ ammo 34/40           │
+                └──────────┬───────────┘
+                           │               ← thin leader line down to the body top (3-D) / the symbol (2-D)
+                         [body]
+```
+
+| piece | what it is | fits the existing 64-byte primitive? |
+|---|---|---|
+| **card space** | ⭐ a 4th `CoordinateSpace`: `EntityCard` (today `World`=0, `Screen`=1, `EntityLocal`=2) | ✅ the `Space` byte at offset 1; `AnchorIndex` already carries the entity's network id (`DebugPrimitive.cs:24,63`) |
+| **rows** | the existing `Text` primitive in card space — colour = its `Color`, size = `ThicknessU16`, order = `ZIndex` | ✅ `ZIndex` byte at offset 15 is already "intra-layer sort" |
+| **bar** | a new shape `CardBar` — fraction 0..1, fill colour, back colour (health; later fuel, ammo) | ✅ payload union |
+| **header** | a new shape `CardHeader` — title text + frame colour | ✅ payload union |
+| **on / off** | ⭐ the card's primitives sit on a **"Labels" layer** — the **existing** 256-bit layer mask and layer panel switch it | ✅ the `DebugLayer` byte; ⛔ no new UI |
+
+**Who emits what**
+- ⭐ one standard **`EntityCardGizmo`** (projector on `NetworkIdentity` + `EntityInfo`): the header (name from
+  `EntityInfo`, frame colour from the side) and the health `CardBar` from `Health` — it **replaces** `HealthBarGizmo`'s
+  text badge.
+- ⭐ **any other gizmo adds rows** by drawing its text in card space — `EntityEditorLabelGizmo`'s id / behaviour lines
+  become card rows. ⭐ A row whose entity has no header still renders, in a plain grey card — gizmos stay independent.
+- ⭐ each row keeps **its own layer**, so turning off "AI" hides the behaviour row while the card stays.
+
+**Who draws it** — the terminal, one `EntityCardRenderer` **for both modes**: collects card primitives per entity,
+measures the rows, draws the frame, bar, title, rows and the leader line. Positioned above the body top (3-D, projected
+like M13's labels) or beside the symbol (2-D). Far cards hide by LOD; overlap decluttering later.
+
+```mermaid
+sequenceDiagram
+  participant EG as EntityCardGizmo (host)
+  participant LG as other gizmos (host)
+  participant BUF as primitive buffer / DDS
+  participant CR as EntityCardRenderer (terminal)
+  participant K as camera (2-D or 3-D)
+  EG->>BUF: CardHeader(netId, name, side colour) + CardBar(netId, health) on "Labels"
+  LG->>BUF: Text in EntityCard space (netId, colour, ZIndex) on their own layers
+  BUF->>CR: one frame - layer mask applied first
+  CR->>CR: group by netId, sort rows by ZIndex, measure
+  CR->>K: WorldToScreen(body top or symbol)
+  CR->>CR: draw frame, bar, title, rows, leader line
+```
+
+*What it shows:* the card travels as ordinary primitives — so it works **in-process and over DDS (IG)** with no new
+topic — and the layout decision lives in one place, the terminal, as the gizmo design intends.
+
+### 3.7 Entity colour — a scenario-settable value with a TKB default *(U19)*
+
+📐 Measured `2026-10-10`: a TKB colour **already exists** — `VisualData.ColorHex`, filled from the TKB visual definition
+at spawn (`PresentationTkbTranslator.cs:65`; e.g. `#2E4057` for the M1, `BdcTkbCatalog.cs:30`), already used by IG's 2-D
+style as a tint (`StyleResolutionSystem.cs:103`).
+
+🔒🔒 ⛔ **But it may NOT be overridden in place.** `R-136`: *"entity state has exactly two legal sources: the TKB, or a
+published TransientLocal descriptor; anything in neither must not exist as durable state"*
+(`DESIGN_Entity_State_Sourcing.md` §1). `VisualData` is TKB-derived, and saving TKB-derived components into a scenario is
+an error (§3 ②). ⇒ ⭐ **the user's "special component" is exactly what the rule demands** — and its only legal shape is
+§4.1's recipe, with `SimTransform` → `dtWorldPos` as the worked example:
+
+| step *(§4.1)* | for the colour |
+|---|---|
+| ① classify it as published state | ⭐ a new component `EntityAppearance { ColorRgba }` — authored, so it MAY live in the scenario |
+| ② a descriptor arm | `EDescriptorType` / `EntityDescriptorUnion` |
+| ③ its own topic, `Reliable` + `TransientLocal` | ⭐ what makes a late-joining IG see the colour |
+| ④ egress + ingress translators, gated on authority | the established pattern |
+| resolution at draw time | `EntityAppearance` if present → else `VisualData.ColorHex` (TKB) → else the family default |
+
+⚠ **This would be the FIRST implementation of §4.1's override shape** — a precedent, and NED work in the backend lane's
+area. ⛔ Not decided silently: §5 M15 asks.
 
 ---
 
@@ -337,13 +424,16 @@ for helicopter vs fixed wing are **not yet confirmed** against SISO-REF-010 — 
 | **M4** | terrain mesh | ⭐ extend `TerrainWorldMesh` with optional tags; the renderer adds what navigation does not need (water surface, surface colours, road ribbons) beside it | a second mesher for rendering — duplicates prisms/walls/slabs |
 | **M5** | lighting | ⭐ **one small GLSL shader** (330): vertex colour × (ambient + sun·N), distance fog to a sky colour; flat normals by un-indexing triangles | CPU-baked vertex lighting — entities rotate, so it would need re-baking every frame |
 | **M6** | textures | ⭐ a later slice: **CC0** packs only, mapped in the shader from **world position** (triplanar) so the mesh needs no UVs | UV-unwrapping terrain — work the triplanar trick avoids |
-| **M7** | entities | ⭐ **shape kits** (§3.5): a kit is a short list of parts (box / cylinder / cone / wedge) placed as fractions of the type's length, width and height, each with a colour role (body = side colour, dark, glass, metal) and an optional cheap motion (rotor spin, wheel roll, limb swing). The kit is chosen by **one visual-family classifier** extracted from the icon fallback. **Humans are the person kit** — the six-box block figure (U14), posed by the shared stance rule `LogicalStance.Of` (`StanceComponents.cs:82`), blended by `StanceStatus.TransitionProgress`, limbs swinging via `LocomotionBlend.FromSpeed`; a rifle part when the entity is a soldier (DIS life form, category 1), none for civilians | one box per vehicle (rev 1) — U18 · real models — U12 · a second classifier for 3-D — the icon fallback already answers "what is this type" · showing `StanceStatus.CurrentStance` alone — would disagree with `LogicalStance` readers |
+| **M7** | entities | ⭐ **shape kits** (§3.5): a kit is a short list of parts (box / cylinder / cone / wedge) placed as fractions of the type's length, width and height, each with a colour role (body = the entity colour, §3.7; dark; glass; metal) and an optional cheap motion (rotor spin, wheel roll, limb swing). The kit is chosen by **one visual-family classifier** extracted from the icon fallback. **Humans are the person kit** — the six-box block figure (U14), posed by the shared stance rule `LogicalStance.Of` (`StanceComponents.cs:82`), blended by `StanceStatus.TransitionProgress`, limbs swinging via `LocomotionBlend.FromSpeed`; a rifle part when the entity is a soldier (DIS life form, category 1), none for civilians | one box per vehicle (rev 1) — U18 · real models — U12 · a second classifier for 3-D — the icon fallback already answers "what is this type" · showing `StanceStatus.CurrentStance` alone — would disagree with `LogicalStance` readers |
 | **M8** | free camera | ⭐ Unity scene view: **RMB-drag** look, **WASD/QE only while RMB is held** (so tools keep their keys), wheel dolly, MMB pan, **F** frames the selection; right-**click** stays the context menu (the canvas already tells drag from click) | always-on WASD — collides with tool keyboard input |
 | **M9** | coordinates | ⭐ one transform: HROT `(x, y, z)` → Raylib `(x, z, −y)`, quaternion `(x, y, z, w)` → `(x, z, −y, w)` (det +1, no flip) | — |
 | **M10** | the camera entity (V-12..V-15) — **what it stores** | ✅ **APPROVED (U17): one camera entity for the map, in both modes**: look-at point, distance, yaw, pitch and the mode. The 2-D map is simply that camera at pitch −90°, north up. An ordinary spatial entity (U7), owned by the host, saved with the scenario, created on the first camera move — so a saved scenario reopens the map where it was looking, in the mode it was in | 3-D pose only (rev 2's lean) — two camera states for one map · no entity at all — simpler, but drops V-12's "saveable to scenario" |
 | **M11** | network viewer (V-18) | ⭐ an IG node with the map in 3-D — nothing extra | a dedicated viewer node — IG already is one |
 | **M12** | the 2-D ↔ 3-D switch (U15) | ⭐ an **animated camera move** pivoting at the overhead pose (§3.3): both swaps happen where 2-D and 3-D look the same | a hard cut — the user asked for animation · morphing orthographic into perspective — needless; overhead perspective at matched height is close enough |
 | **M13** | labels in 3-D (U16) | ⭐ a screen-space `LabelOverlay3D` pass after the 3-D pass: the existing `Text` / `EntityBadge` primitives, anchors resolved with Z, lifted to the top of the entity's 3-D body, projected by `MapCamera3D.WorldToScreen`, drawn by the 2-D renderer's screen-space text code (extracted, one implementation). Far labels hide by the primitives' own `MinZoomLod` / `MaxZoomLod`, using an equivalent zoom = pixels per metre at the label's distance. Drawn always on top first (name-tag style); hiding labels behind buildings by a ray test is a later option; decluttering overlaps later | 3-D text meshes (billboarded geometry in the scene) — a second text renderer, unreadable at distance · a new label primitive — every gizmo would have to change |
+| **M14** | the entity card (U19) | ⭐ **a 4th anchoring mode, `CoordinateSpace.EntityCard`** + two shapes (`CardHeader`, `CardBar`); rows are ordinary `Text` in card space ordered by `ZIndex`; one standard `EntityCardGizmo` emits header + health bar on a "Labels" layer; any gizmo adds rows on its own layer; one `EntityCardRenderer` draws it in **both** 2-D and 3-D (§3.6) | a card drawn by the terminal from ECS — not network-capable and not extensible by gizmos · keeping loose stacked text — the user's own objection: it does not read in 3-D · a card only in 3-D — the 2-D renderer would still have to skip or misplace card-space primitives |
+| **M15** | entity colour (U19) | ⭐ `EntityAppearance { ColorRgba }` as **published state by `R-136` §4.1** (descriptor arm + `Reliable`/`TransientLocal` topic + translators), authored and saved in the scenario; default `VisualData.ColorHex` from the TKB. ⚠ the first §4.1 override ever built, in NED (backend lane's area) — **asks the user** | writing the override into `VisualData` — illegal under R-136 (TKB-derived, §3 ②) · a command to set it — §5: unreconstructible by a late joiner |
+| **M16** | side colours | ⭐ **one palette**: friend / opposing / neutral colours defined once, looked up by `ForceId` (the card frame, placement ghost) and by the 2525 affiliation letter (the symbol renderer) | ⚠ today there are **two** mappings: `MilStd2525Renderer.GetAffiliationColor` (`:84`, by symbol code) and `EntityPlacementGizmo.GetAffiliationColor` (`:278`, by `ForceId`) — a third consumer would make three |
 
 ---
 
@@ -356,6 +446,8 @@ for helicopter vs fixed wing are **not yet confirmed** against SISO-REF-010 — 
 | **S3** | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters; **labels**: `GizmoTextDraw` extracted, `LabelOverlay3D` with projection + LOD | gizmos, fire traces, detonations and gizmo text in 3-D (U16) |
 | **S4** | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
 | **S5** | camera entity — create, follow, scenario save | V-12..V-15 |
+| **S5b** | **the card**: `CoordinateSpace.EntityCard`, `CardHeader`, `CardBar`, `EntityCardGizmo` on a "Labels" layer, `EntityCardRenderer` in 2-D and 3-D; `EntityEditorLabelGizmo` rows moved into the card; one side palette (M16) | U19 card |
+| **S5c** | **entity colour**: `EntityAppearance` per M15 — only after the user's answer | U19 colour |
 | **S6** | all five hosts through `MapInteractionPack` | V-01, V-18 (IG) |
 | **S7** | CC0 textures, triplanar | U13's texture wish |
 
@@ -375,5 +467,7 @@ for helicopter vs fixed wing are **not yet confirmed** against SISO-REF-010 — 
 | ⚠ the overhead perspective camera at matched height looks close enough to the 2-D map at the swap (tall buildings lean slightly at the edges) | S1 screenshot pair |
 | ⚠ every built-in TKB type maps to a non-`unknown` family (units excepted) — and the icon fallback's output is unchanged by the extraction | S1 rail over the whole catalog |
 | ⚠ DIS air categories for helicopter / fixed wing | when the first air type is added |
+| ⚠ a terminal that does not know `CoordinateSpace.EntityCard` (an old build on the wire) must skip card primitives, not draw them as world text — the 2-D renderer treats every non-`EntityLocal` space as world today | S5b rail on the 2-D renderer |
+| ⚠ M15 is a precedent under R-136 and lands in NED | the user |
 | ⚠ IG humans stand upright until IG ingests stance (`CE-2121` "IG ingress open") | S6 |
 | ⚠ `LogicalStance.Of` and `StanceStatus` are present on every host's entities (they are `NoScenario` runtime components; the Editor may not run the stance systems) — no stance ⇒ standing, as the rule itself says | S1 rail |
