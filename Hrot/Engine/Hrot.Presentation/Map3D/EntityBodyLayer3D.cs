@@ -35,7 +35,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     private bool _meshes;
 
     /// <summary>What a TKB type looks like — resolved once per type.</summary>
-    public readonly record struct TypeLook(VisualFamily Family, Vector3 Size, Color Colour, bool Soldier);
+    public readonly record struct TypeLook(VisualFamily Family, Vector3 Size, Color Colour, bool Soldier,
+                                           BodyGeometryDto? Geometry = null);
 
     /// <param name="poseOf">⭐ CE-1033 §3.11 — the turret azimuth and gun elevation of an entity with an articulated kit. ⚠ Null today
     /// in production: the component that will carry the pose awaits the user's ruling (§3.11, M23–M26); until then turrets face
@@ -98,16 +99,68 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
             ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
             var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
+            // ⭐ CE-1041 — a type with Body.Geometry: the kit's box sits where the TKB puts it relative to the reference point
+            //   (an aircraft's CG), and the gear is drawn AT the TKB's contact points instead of the kit's generic gear.
+            var geometry = look.Geometry;
+            var kitToBody = geometry == null
+                ? Matrix4x4.Identity
+                : Matrix4x4.CreateTranslation(geometry.BodyCentreX, geometry.BodyCentreY, geometry.BodyCentreZ - size.Z / 2f);
             foreach (var part in parts)
             {
-                var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size, pivots, pose) * body);
+                if (geometry != null && part.Role == PartRole.Gear) continue;
+                var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size, pivots, pose) * kitToBody * body);
                 var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
                 Raylib.DrawMesh(mesh, shader.Tinted(Shade(part.Colour, colour)), model);
                 PartsDrawn++;
             }
+            if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader);
             BodiesDrawn++;
         }
     }
+
+    /// <summary>Gear legs and wheels / skids drawn at the TKB's contact points. ⚠ Retractable gear is hidden when the body is
+    /// clearly airborne — a PRESENTATION guess until a gear-state component exists (docs/DESIGN_Body_Geometry_And_Ground_Contact.md §5).</summary>
+    private void DrawGear(EntityRepository world, BodyGeometryDto geometry, Vector3 position, Matrix4x4 body, LitShader shader)
+    {
+        float rest = BodyGeometry.RestingHeight(geometry);
+        float ground = Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(position.X, position.Y) ?? 0f;
+        bool airborne = position.Z - ground > rest + AirborneMargin;
+        float skidLeftMin = float.MaxValue, skidLeftMax = float.MinValue, skidRightMin = float.MaxValue, skidRightMax = float.MinValue;
+        float skidZ = 0f, skidLeftY = 0f, skidRightY = 0f;
+        foreach (var c in geometry.GroundContacts)
+        {
+            if (c.Retractable && airborne) continue;
+            float strut = c.StrutLength > 0f ? c.StrutLength : 1f;
+            float hub = c.Z + c.WheelRadius;
+            DrawPart(_cube, Matrix4x4.CreateScale(0.14f, 0.14f, strut) * Matrix4x4.CreateTranslation(c.X, c.Y, hub + strut / 2f), Metal, body, shader);
+            if (c.Kind == GroundContactKind.Wheel && c.WheelRadius > 0f)
+            {
+                float d = 2f * c.WheelRadius;
+                DrawPart(_cylinder, Matrix4x4.CreateTranslation(0, 0, -0.5f) * Matrix4x4.CreateScale(d, d, MathF.Max(0.12f, 0.6f * c.WheelRadius))
+                                    * Matrix4x4.CreateRotationX(-MathF.PI / 2f) * Matrix4x4.CreateTranslation(c.X, c.Y, hub), Dark, body, shader);
+            }
+            else if (c.Kind == GroundContactKind.Skid)
+            {
+                skidZ = c.Z;
+                if (c.Y >= 0f) { skidLeftMin = MathF.Min(skidLeftMin, c.X); skidLeftMax = MathF.Max(skidLeftMax, c.X); skidLeftY = c.Y; }
+                else { skidRightMin = MathF.Min(skidRightMin, c.X); skidRightMax = MathF.Max(skidRightMax, c.X); skidRightY = c.Y; }
+            }
+        }
+        if (skidLeftMax > skidLeftMin) DrawSkid(skidLeftMin, skidLeftMax, skidLeftY, skidZ, body, shader);
+        if (skidRightMax > skidRightMin) DrawSkid(skidRightMin, skidRightMax, skidRightY, skidZ, body, shader);
+    }
+
+    private void DrawSkid(float x0, float x1, float y, float z, Matrix4x4 body, LitShader shader)
+        => DrawPart(_cube, Matrix4x4.CreateScale(x1 - x0 + 0.6f, 0.12f, 0.1f) * Matrix4x4.CreateTranslation((x0 + x1) / 2f, y, z + 0.05f), Dark, body, shader);
+
+    private void DrawPart(Mesh mesh, Matrix4x4 local, Color colour, Matrix4x4 body, LitShader shader)
+    {
+        Raylib.DrawMesh(mesh, shader.Tinted(colour), HrotToRaylib.ModelFromHrot(local * body));
+        PartsDrawn++;
+    }
+
+    /// <summary>How far above its resting height a body must be before its retractable gear is drawn up.</summary>
+    public const float AirborneMargin = 5f;
 
     /// <summary>What <paramref name="tkbType"/> looks like: its family, TKB size (else the family's) and colour.</summary>
     public TypeLook LookOf(long tkbType, ITkbDatabase? tkb)
@@ -124,7 +177,12 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (t == null) return new TypeLook(VisualFamily.Unknown, ShapeKits.DefaultSize(VisualFamily.Unknown), DefaultColour(VisualFamily.Unknown), false);
         var family = VisualFamilies.Of(t);
         var size = ShapeKits.DefaultSize(family);
-        if (family != VisualFamily.Person && family != VisualFamily.Unit)
+        var geometry = t.GetDescriptor<BodyGeometryDto>();
+        if (geometry is { Length: > 0f, Width: > 0f, Height: > 0f })
+        {
+            size = new Vector3(geometry.Length, geometry.Width, geometry.Height);   // ⭐ CE-1041 — engine-neutral size wins
+        }
+        else if (family != VisualFamily.Person && family != VisualFamily.Unit)
         {
             var sim = t.GetDescriptor<SimVehicleDef>();
             var kin = t.GetDescriptor<VehicleParametersDto>();
@@ -138,7 +196,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             size *= tall / size.Z;
         }
         var colour = ParseHex(t.GetDescriptor<VisualDefinitionDto>()?.ColorHex) ?? DefaultColour(family);
-        return new TypeLook(family, size, colour, VisualFamilies.IsSoldier(t));
+        return new TypeLook(family, size, colour, VisualFamilies.IsSoldier(t), geometry);
     }
 
     private static Vector3 SizeOf(EntityRepository world, Entity e, in TypeLook look)

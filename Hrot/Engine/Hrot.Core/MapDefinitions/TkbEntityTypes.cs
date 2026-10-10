@@ -42,6 +42,12 @@ namespace Hrot.Map.Common
         /// <summary>The four starter obstacle types (O4).</summary>
         public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate };
 
+        // ⭐ CE-1041 — Aircraft (400–499): CG-referenced bodies resting on their gear (Body.Geometry).
+        //   📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md G4.
+        public const long Heli_UH60  = 400;
+        public const long Jet_F16    = 401;
+        public const long Cargo_C130 = 402;
+
         // Composite Units
         public const long Unit_TankPlatoon = 301;
         public const long Unit_InfantrySquad = 302;

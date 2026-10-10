@@ -10,6 +10,8 @@ known-rot: §7's rev-1 lean (Jolt; TerrainWorld's methods as the seam; Bepu reje
 known-conflict: none. CE-3086 (backend) plans a ramp ridge + wadi on basic-desert because "a heightfield (not built)"
   (DESIGN_Utility_AI_Demo_Scenarios.md:104); TH-G proposes a real height grid there instead — the backend lane decides.
 related-designs:
+  - DESIGN_Body_Geometry_And_Ground_Contact.md — the gear height and resting pose (pitch/roll on a slope) of a CG-referenced
+    body; the motion model that grounds an aircraft (§4a, R-249) uses it.
   - DESIGN_World_Query_Seam.md — owns the engine-neutral interface (IWorldQuery) GroundHeightAt is exposed through, and the
     library choice (Bepu inside the stand-in).
   - DESIGN_Terrain_World.md — OWNS TerrainWorld, the world file, the parser, TerrainWorldMesh and the queries; this file

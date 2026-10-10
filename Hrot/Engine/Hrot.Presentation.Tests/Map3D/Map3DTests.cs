@@ -170,6 +170,41 @@ public sealed class Map3DTests
         Assert.True(apex.X > baseCentre.X + 1f, $"cone base {baseCentre} apex {apex}");
     }
 
+    // ── built-in aircraft (CE-1041, Body.Geometry) ──
+
+    [Theory]
+    [InlineData(TkbEntityTypes.Heli_UH60, VisualFamily.Helicopter)]
+    [InlineData(TkbEntityTypes.Jet_F16, VisualFamily.Jet)]
+    [InlineData(TkbEntityTypes.Cargo_C130, VisualFamily.CargoPlane)]
+    public void Aircraft_BuiltIn_HaveTheirKit_TheirGeometry_AndNoCarKinematics(long type, VisualFamily family)
+    {
+        var t = BuiltIn().GetByType(type);
+        Assert.Equal(family, VisualFamilies.Of(t));
+        Assert.Null(t.GetDescriptor<VehicleParametersDto>());            // no car kinematics for an aircraft
+        var g = Assert.IsType<BodyGeometryDto>(t.GetDescriptor<BodyGeometryDto>());
+        Assert.Equal(ReferencePointKind.CentreOfGravity, g.ReferencePoint);
+        Assert.True(g.GroundContacts.Count >= 3, "a body rests on at least three points");
+
+        // The size box's bottom is where the tyres touch: the drawing and the landing agree on the ground line.
+        float lowestTyre = g.GroundContacts.Min(c => c.Z);
+        Assert.InRange(g.BodyCentreZ - g.Height / 2f - lowestTyre, -0.05f, 0.05f);
+        Assert.InRange(BodyGeometry.RestingHeight(g), 1f, 4f);
+
+        // ⭐ The map sizes the kit from the geometry, not the family default.
+        var look = EntityBodyLayer3D.Resolve(t);
+        Assert.Equal(new Vector3(g.Length, g.Width, g.Height), look.Size);
+        Assert.Same(g, look.Geometry);
+    }
+
+    [Fact]
+    public void Aircraft_AreListedInAddEntity_UnderTheirDisAirCategory()
+    {
+        var catalog = EntityTypeCatalog.Build(BuiltIn());
+        Assert.Contains(catalog, e => e.TkbType == TkbEntityTypes.Heli_UH60 && e.Category.Contains("Utility Helicopter"));
+        Assert.Contains(catalog, e => e.TkbType == TkbEntityTypes.Jet_F16 && e.Category.Contains("Fighter"));
+        Assert.Contains(catalog, e => e.TkbType == TkbEntityTypes.Cargo_C130 && e.Category.Contains("Cargo"));
+    }
+
     // ── articulation (§3.11) ──
 
     private static Vector3 Muzzle(ShapeKit kit, Vector3 size, ArticulationPose pose)

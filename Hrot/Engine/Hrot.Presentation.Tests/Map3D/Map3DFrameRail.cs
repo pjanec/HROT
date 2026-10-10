@@ -122,23 +122,33 @@ public sealed class Map3DFrameRail
         Assert.Equal(Cast.Length - 1, bodies.BodiesDrawn);
         Assert.True(bodies.PartsDrawn > 40, $"parts drawn: {bodies.PartsDrawn}");
 
-        // ④ aircraft overhead — test types on the SISO-REF-010 air categories the classifier maps (no built-in air type yet)
-        var air = new (string Name, long Type, byte Category, float Dx, float Dy, float Alt)[]
+        // ④ the built-in aircraft (CE-1041): two flying (gear up), the C-130 parked on the ground resting on its gear
+        var air = new (long Type, float Dx, float Dy, float Alt)[]
         {
-            ("TestUtilityHelicopter", 9221, 21, 14f, 30f, 22f),
-            ("TestFighter", 9201, 1, -30f, 45f, 38f),
-            ("TestCargoPlane", 9204, 4, 40f, 85f, 55f),
+            (TkbEntityTypes.Heli_UH60, 14f, 30f, 22f),
+            (TkbEntityTypes.Jet_F16, -30f, 45f, 38f),
+            (TkbEntityTypes.Cargo_C130, 0f, 0f, 0f),         // 0 ⇒ parked on open ground (found below): its CG at the resting pose
         };
+        var apron = FindOpenArea(query, spot + new Vector2(40f, 60f), 24f);
         foreach (var a in air)
         {
-            tkb.Register(new Fdp.Interfaces.TkbTemplate(a.Name, a.Type) { DisType = new DISEntityType { Kind = 1, Domain = 2, Category = a.Category } });
             var e = world.CreateEntity();
-            float x = spot.X + a.Dx, y = spot.Y + a.Dy;
-            world.AddComponent(e, new SimTransform
+            float x = a.Alt > 0f ? spot.X + a.Dx : apron.X, y = a.Alt > 0f ? spot.Y + a.Dy : apron.Y, yaw = 0.9f;
+            Vector3 position;
+            Quaternion rotation;
+            if (a.Alt > 0f)
             {
-                Position = new Vector3(x, y, query.GroundHeightAt(x, y) + a.Alt),
-                Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.9f) * Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.15f),
-            });
+                position = new Vector3(x, y, query.GroundHeightAt(x, y) + a.Alt);
+                rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) * Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.15f);
+            }
+            else
+            {
+                var geometry = tkb.GetByType(a.Type).GetDescriptor<Fdp.Toolkit.Tkb.Domain.BodyGeometryDto>()!;
+                var rest = Fdp.Toolkit.Tkb.Domain.BodyGeometry.RestingPose(geometry, new Vector2(x, y), yaw, query.GroundHeightAt);
+                position = new Vector3(x, y, rest.Z);
+                rotation = Fdp.Toolkit.Tkb.Domain.BodyGeometry.Rotation(yaw, rest);
+            }
+            world.AddComponent(e, new SimTransform { Position = position, Rotation = rotation });
             world.AddComponent(e, new TkbIdentity { TkbType = a.Type });
         }
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 6f, spot.Y + 50f, query.GroundHeightAt(spot.X, spot.Y) + 30f), 120f,
@@ -155,8 +165,34 @@ public sealed class Map3DFrameRail
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "map3d-5-turrets.png"));
 
+        // ⑥ the parked C-130 on its gear (the gear drawn at the TKB's contact points)
+        {
+            float cx = apron.X, cy = apron.Y;
+            sw.Camera3D.Pose = new CameraPose(new Vector3(cx, cy, query.GroundHeightAt(cx, cy) + 3f), 46f, 0.9f - MathF.PI / 2f, -0.14f);   // from its left side
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            frame.Screenshot(Path.Combine(shots, "map3d-6-parked-c130.png"));
+        }
+
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-2-tilted.png"));
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-3-close.png"));
+    }
+
+    /// <summary>The point nearest <paramref name="from"/> with a clear square of ground ±<paramref name="half"/> metres around it.</summary>
+    private static Vector2 FindOpenArea(IWorldQuery query, Vector2 from, float half)
+    {
+        for (float r = 0f; r < 500f; r += 8f)
+            for (int k = 0; k < 16; k++)
+            {
+                float a = k * MathF.PI / 8f;
+                var p = from + new Vector2(MathF.Cos(a), MathF.Sin(a)) * r;
+                bool open = true;
+                for (float dx = -half; dx <= half && open; dx += 4f)
+                    for (float dy = -half; dy <= half && open; dy += 4f)
+                        open = MathF.Abs(query.SurfaceZ(p.X + dx, p.Y + dy, 0) - query.GroundHeightAt(p.X + dx, p.Y + dy)) < 0.2f;
+                if (open) return p;
+            }
+        return from;
     }
 
     /// <summary>A point of plain ground (not inside a building footprint) closest to the town's middle.</summary>

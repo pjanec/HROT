@@ -14,6 +14,8 @@ known-rot: §3.3's switch sequence and M10 say the 2-D map is "north up" — mea
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - DESIGN_Body_Geometry_And_Ground_Contact.md — owns Body.Geometry: an aircraft's size, box offset and landing-gear points
+    relative to its CG; the kits are placed by it and the gear is drawn at its points (CE-1041).
   - DESIGN_World_Query_Seam.md — the 3-D map's picking and terrain geometry go through IWorldQuery.Pick and
     ITerrainRenderGeometry (WQ-G), so the editor is not bound to the stand-in.
   - DESIGN_Map_Rendering_And_Interaction.md — owns MapCanvas, IMapLayer, the render frame (§2.3) and the input chain
@@ -347,6 +349,9 @@ being a composite unit) to a family: person, tank, AFV, wheeled, unit. ⇒ that 
 stay cheap; instancing per part shape is the later lever. ⭐ **Size:** length / width / height from
 `VehicleParametersDto` / `SimVehicleDef`; a per-family default where the TKB has none. ⭐ **Motion is presentation
 only** — rotor spin from time, wheel roll from speed; the turret follows the hull (no aim component is read).
+✅ **Built-in aircraft, `2026-10-10` (CE-1041):** UH-60A, F-16C and C-130H carry `Body.Geometry` — the kit is placed by its
+box offset from the CG and the gear is drawn at the TKB's contact points (the kit's generic gear, `PartRole.Gear`, steps aside);
+retractable gear is hidden when clearly airborne. 📄 [`DESIGN_Body_Geometry_And_Ground_Contact.md`](DESIGN_Body_Geometry_And_Ground_Contact.md).
 ✅ **Air, `2026-10-10`:** the three air kits are built and railed, and the platform/air categories are mapped from the
 IEEE 1278.1 enumerations (JDBE DIS data dictionary, the SISO-REF-010 lineage) — also added to `DisNames.json` for the picker. For
 aircraft the kit's y extent is the **span** (wing or main rotor). ⚠ No built-in type is in the air domain yet; the frame rail
