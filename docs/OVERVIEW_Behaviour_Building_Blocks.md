@@ -1,10 +1,11 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-06
+updated: 2026-10-10 (§6a the LIBRARY line + promotion rule — R-256 L1; R-258 BTrees; R-259 one retreat)
 current-answer: the whole file — an EXPLAINER (map of what exists), not a design; every box names its owning design
 stale-below: none
 known-rot: none known; built/partial/missing colours are a 2026-10-06 snapshot — re-check the tracker before relying on a red or amber box
 related-designs:
+  - DESIGN_Peek_And_Fire.md — OWNS the library's fight-from-cover node (§10, CE-3158) that CombatPosture's TakeCover runs.
   - REVIEW_Behaviour_Library_Genericity.md — OWNS the genericity verdict on these blocks (library vs demo-local vs legacy) and the leans L1–L7.
   - docs/TUTORIAL_Behaviour_Composition.md — the GUIDE to choosing between blocks (host, decision, starter, sensing) and composing them
   - docs/DESIGN_Decision_Layer.md — owns task/SOP/reaction slots, ROE, utility hosting in BTree/HSM/blueprint (§3, §4)
@@ -209,6 +210,53 @@ graph TD
 
 *What the picture shows:* the SOP and the posture decision are themselves built FROM the tactics — the same
 composition an author would do.
+
+## 6a. The library — what an author may assign, and how a block gets in *(R-256 L1)*
+
+```mermaid
+graph TD
+  subgraph L1["① CAPABILITY NODES — shared C#, one per concept (R-174)"]
+    PS["PostureNodes: Sensors · Fire (aimed, ONE step) · Advance · Hold · HoldProne"]
+    PF["PeekAndFireNodes: fight from cover (CE-3158)"]
+    ET["EqsTacticsNodes: FallBack · Flank · FiringPosition · TakeCover (hide only)"]
+    FP["FireAtPoint · DoorNodes · DangerArea · Sensor · SOP nodes"]
+    UT["Utility decisions: CombatPosture · AttackApproach · ThreatRanking · WeaponSelection"]
+  end
+  subgraph L2["② LIBRARY BEHAVIOURS — BTrees (R-258), assets an author assigns"]
+    CP["CombatPosture"]
+    TK["FallBack (THE retreat, R-259) · Flank · FiringPosition · TakeCover · Sentry · DangerCrossing"]
+    SOP["BasicInfantrySop"]
+    ORD["MoveToLocation · FollowRoute · JoinFormation · FireAtTarget · FireAtPoint · HoldStance"]
+  end
+  subgraph L3["③ NOT LIBRARY — never offered as a building block"]
+    DM["demo-local: hill attack (PlatoonHillAttack, HullDownAttackRun, SlotOps) · WindowDuel · insurgent"]
+    LG["legacy: HideInCover_BT/_v2 · EqsCombatNodes · EqsLifecycleNodes · FleeExecutor (R-259)"]
+    LR["learning: Authoring T01–T40 · showcases · blueprint feature witnesses · Demo_* stubs"]
+  end
+  CP --> PS
+  CP --> PF
+  CP --> ET
+  CP --> UT
+  TK --> ET
+  SOP --> TK
+  DM -.->|may use| L1
+```
+
+*What the picture shows that prose hid: a library behaviour is built only from ① nodes; ③ may use ① but nothing in ② may
+use ③. CombatPosture's TakeCover option now runs the fight-from-cover node (`PeekAndFire`), so cover means "fire from it"
+(Decision Layer §3.1).*
+
+**Promotion rule — a block enters ② only when ALL four hold** *(R-256 L1)*:
+
+| | rule | why |
+|---|---|---|
+| (a) | **no scenario constant** — only tunable defaults (a zero param = the default) | a constant from the demo it was born in makes it that demo's behaviour |
+| (b) | **states its unit scope** — infantry / vehicle / any | e.g. `PeekAndFire` is infantry (stance or step peek) |
+| (c) | **has a rail outside its originating demo** | the feature's own suite, not the scenario that motivated it |
+| (d) | **is the ONE implementation of its concept** (ruling 9, R-174) | a second retreat, a second cover node is clutter — `FleeExecutor` stayed out for this (R-259) |
+
+**Form** *(R-258)*: a library behaviour is a **BTree** (JSON or C#-built). A blueprint or HSM copy of a library behaviour is
+kept only where it is not redundant or that host fits better; the three-host proof stays a DEMO (`ua-three-hosts`).
 
 ## 7. Demos — which building blocks each one exercises
 

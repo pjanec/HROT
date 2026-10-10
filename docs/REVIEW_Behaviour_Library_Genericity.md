@@ -129,7 +129,7 @@ not in ①. Peek-and-fire is a ① node used only by a ③ tree.*
 
 | # | decision | ledger |
 |---|---|---|
-| L1–L4 | ✅ accepted as proposed in §4 | **R-256** |
+| L1–L4 | ✅ accepted as proposed in §4 · ⭐ **L1 DONE `2026-10-10`**: [`OVERVIEW_Behaviour_Building_Blocks.md`](OVERVIEW_Behaviour_Building_Blocks.md) §6a (the line + the promotion rule) · ⭐ **L2 BUILT** as `CE-3158` | **R-256** |
 | L6 | ✅ **REPLACED by the user's ruling:** the three posture hosts were a PROOF. The library keeps the **BTree** form; its **blueprint and HSM copies are dropped**; library BTrees may be C#-built | **R-258** |
 | L5 | ✅ approved | **R-256** (extended) |
 | L7 | ✅ **approved** (user, `2026-10-10`: *"the still open one approved, go"*): ONE retreat = `FallBack`; `FleeExecutor` is legacy, out of the library (L3 rule — it stays in code, marked) | **R-259** |
