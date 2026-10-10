@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — leans TH-A..TH-H await the user. Nothing built.
-updated: 2026-10-10 (rev 1 — R-248: the flat ground is a temporary simplification; this file plans its removal)
+build-state: DESIGN — leans TH-A..TH-H APPROVED (2026-10-10, R-249); UML present; not yet marked READY-TO-BUILD while
+  the physics-library question (§7) is open. Nothing built.
+updated: 2026-10-10 (rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
+  (R-249, §4a); §7 the library question. Rev 1 — R-248: the flat ground is a temporary simplification; this file plans its removal)
 current-answer: §1 why · §2 INVENTORY · §3 the diagrams · §4 decisions with leans · §5 slices · §6 not verified.
 stale-below: nothing.
 known-rot: none.
@@ -163,6 +165,22 @@ sequenceDiagram
 | **TH-G** | test terrains | ⭐ a small **sloped fixture** for rails, and `basic-desert`'s ridge and wadi as a real height grid (proposal to the backend lane's CE-3086, which plans them as ramps only because no heightfield existed) | ramps as fake hills — the workaround this file removes |
 | **TH-H** | what is NOT in this design | ⭐ Stride stays flat (U1); a 2-D hillshade or contour layer and terrain streaming/tiles come later; the dormant IG clamp pipeline is retired in a follow-up, not reused | — |
 
+## 4a. Who puts an entity on the ground — 🔒 `R-249`
+
+🔒 **User, `2026-10-10`:** *"Whether entity should be ground clamped needs to be controlled by its 'ground clamping enabled'
+realtime flag and its motion model, not by adding exception for zero coordinate. Motion model usually lifts such entity on
+the ground anyway."*
+
+| | |
+|---|---|
+| ⛔ | no special case for a saved `Z = 0` — a loaded entity keeps the Z it was saved with |
+| ⭐ the motion model | grounds as it moves: `CarKinematicsSystem` already sets Z from `SurfaceZ` every step (`CarKinematicsSystem.cs:370-375`, W8/`R-182`) |
+| ⭐ the flag | the per-entity, runtime **ground-clamping flag** decides whether an entity is held to the surface at all. 📐 One already exists: `GroundClampingConfig { Mode: Auto/ForceOn/…, BaseRequiresClamping }` — TKB default (1 = ground vehicle, 0 = aircraft), overridable at runtime over DDS (`GroundClampingOverrideTranslator`) (`GroundClampingConfig.cs:12-35`) |
+| ⚠ the gap | today that flag drives only the dormant IG clamp pipeline (`TerrainQuerySubmitSystem.cs:45`), and the motion model grounds regardless of it ⇒ the motion model must read the flag (an aircraft keeps its altitude) — H1 |
+
+⚠ `R-182` ("no ground clamp") ruled out a SEPARATE clamp step; `R-249` keeps that — the flag is read BY the motion model,
+not by a second system.
+
 ## 5. SLICES
 
 | slice | delivers | proves |
@@ -183,4 +201,4 @@ ground 0 and stay green on flat terrains), then new rails on the sloped fixture.
 | ⚠ `filterLedgeSpans: false` (`RecastNavmeshBaker.cs:431`, *"flat terrain edges are valid"*) is still right over relief | H1 bake on the fixture |
 | ⚠ grid cell size vs the mesher's 2 m ground cells — sample per corner, or match the grid | H1 |
 | ⚠ `GroundTrace` cost inside the per-frame perception budget (`R-220` allocation contract) | H2, measured |
-| ⚠ scenarios that saved entity Z = 0 on a terrain that gains height: re-grounded at load, or left as authored | H1 — needs a rule |
+| ✅ scenarios that saved Z = 0: no special case — the clamping flag and the motion model decide (`R-249`, §4a) | ruled |
