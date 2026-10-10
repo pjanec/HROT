@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — leans WQ-A..WQ-G await the user. Nothing built.
-updated: 2026-10-10 (rev 2 — R-252: the interface and the brain may not assume the stand-in terrain's simplifications;
+build-state: DESIGN — leans WQ-A..WQ-H APPROVED (2026-10-10, R-253); spike Q0 decides the library. Nothing built.
+updated: 2026-10-10 (rev 3 — all leans approved; §4a Bepu vs Jolt compared on the user's criteria (simplicity, pure
+  C#, interop cost, Jolt's extra features). Rev 2 — R-252: the interface and the brain may not assume the stand-in terrain's simplifications;
   §3.3 what the interface must not expose, §2a the brain's own assumptions found; Trace loses its DoorStates parameter.
   Rev 1 — R-250: every engine capability the editor, map and brain use sits behind an interface)
 current-answer: §1 why · §2 INVENTORY · §3 diagrams · §4 decisions · §5 slices · §6 not verified.
@@ -186,18 +187,44 @@ being engine seams — they call `IWorldQuery`. Three ray seams collapse to one 
 | **WQ-A** | the seam | ⭐ **one `IWorldQuery`** (ground, levels, `Trace(from, to, purpose)` with crossings, `Pick`) + **`ITerrainRenderGeometry`** for the editor's 3-D view; registered as a world resource like `INavmeshProvider` | `TerrainWorld`'s own methods as the seam (Terrain_Height §7 rev 1) — a concrete class is not replaceable · one interface per purpose (sight, fire, sound, height) — four things for an engine to implement where one trace serves all, as Building Interiors §3a already asked |
 | **WQ-B** | the ray seams that exist | ⭐ `ILosService` and `ILosStrategy` become policies over `IWorldQuery`; `IRaycastBackend` folds into it; Stride's two unadopted adapters are reworked into `StrideWorldQuery` | keeping three engine-facing ray seams — the overlap is why none of Stride's adapters was ever installed |
 | **WQ-C** | moving the ~38 consumers | ⭐ module by module (combat, EQS, perception, squad, kinematics, editor), each slice green on its feature suite; `TerrainWorld` stays the stand-in's data model (`R-181`) | a big-bang switch — 38 files across lanes at once |
-| **WQ-D** | the library inside the stand-in | ⭐ **BepuPhysics v2** as the spatial index under `TerrainWorldQuery`: pure C#, no native binaries (headless Linux and the cloud just work, debuggable), net8.0, allocation-free buffer pools, a ray handler that reports **every** hit with its distance (needed for materials and dB), static meshes for terrain and height. Queries only — no dynamics. A spike first (the existing terrain rails give identical answers; faster on a large terrain) | Jolt — its current C# binding targets net9/net10 (HROT is net8) and needs a separate native package · our own BVH — fixes the scan, not sweeps or overlaps |
+| **WQ-D** | the library inside the stand-in | ⭐ **BepuPhysics v2** as the spatial index under `TerrainWorldQuery`: pure C#, no native binaries (headless Linux and the cloud just work, debuggable), net8.0, allocation-free buffer pools, a ray handler that reports **every** hit with its distance (needed for materials and dB), static meshes for terrain and height. Queries only — no dynamics. A spike first (the existing terrain rails give identical answers; faster on a large terrain) | Jolt — see §4a: its distinctive features are motion and dynamics the production engine owns (`R-250`), and it adds native binaries and an interop boundary; the .NET version is NOT an argument (the user: *"we could move HROT to c# 10"*) · our own BVH — fixes the scan, not sweeps or overlaps |
 | **WQ-E** | sound around corners and in buildings | ⭐ **build Building Interiors' B-6 as designed, behind `Trace(Sound)`**: (1) a **loudness model** — keep the TKB ranges but read them as "the distance where the sound falls to the hearing threshold", so wall losses in dB subtract naturally; (2) v1 straight trace summing each crossed wall's `SoundAttenuationDb` (already in `materials.json`, read by nothing today); (3) v2 the louder of the straight path and the **shortest open path** room-to-room through openings (a corner costs a diffraction loss, a closed door its dB). The heard direction is the last opening, not the source | Steam Audio (open source, Apache-2.0, a C# binding with native libraries; occlusion, transmission, pathing around corners) — built to render audio for one listener with baked probes, heavy and native for many AI listeners in a stand-in; it stays a candidate for a production implementation of the same seam · a physics library — none of them models sound; they help only with the straight trace, equally |
 | **WQ-F** | entity collision shapes | ⭐ phase 2: entities join the same index as oriented boxes (from the TKB size) so `Trace` and `Pick` hit them; `PhysicsCollider`'s ~20 readers move behind the seam later | doing it now — doubles the first slice |
 | **WQ-H** | the brain's 2-D assumptions (§2a) | ⭐ a destination is a **3-D point from its source** (EQS sample, entity, waypoint, map pick); a 2-D intent is sent as 2-D and resolved by the motion model; `VectorOps.Vec2` stops inventing `Z = 0`; slot geometry states "horizontal distance" as a deliberate choice. A rail runs a brain scenario on a terrain with a bridge or a multi-storey building | leaving `Z = 0` because "the motion model lifts it" — on a stacked terrain it lifts to the wrong level |
 | **WQ-G** | the 3-D map | ⭐ picks with `IWorldQuery.Pick` and draws `ITerrainRenderGeometry` — the 3-D map design's §3.10 seams become these interfaces | the map reading `TerrainWorldMesh` directly — binds the editor to the stand-in |
+
+## 4a. Bepu vs Jolt — on the user's criteria *(user, `2026-10-10`: "the simplicity of use is also a criteria … not sure how we could utilize jolt's features like vehicle controller and character controller … pure c# is a big advantage, jolt could suffer if we called thousands p/invoke calls")*
+
+⚠ Library facts below are from the libraries' own documentation and samples as known, **not run here** — Q0 measures.
+
+| criterion | BepuPhysics v2 | Jolt (via its C# binding) |
+|---|---|---|
+| what WE need: rays reporting every hit, shape sweeps, overlaps, static meshes, moving door bodies, filtering | ✅ all | ✅ all |
+| terrain height | a static **mesh** built from the grid (more memory per km²) | ✅ a native **height-field shape** (compact, fast) |
+| per-hit logic (materials, dB) | in our own struct handler, inlined, in C# | in a managed callback the native side calls, or hits collected natively then copied back |
+| crossing a native boundary | ⭐ none | ⚠ every query; a simple blittable call costs on the order of tens of nanoseconds (thousands per tick ≈ tens of microseconds — fine); **native → managed callbacks per hit cost more**, and a native crash kills the process with no stack trace |
+| packaging, cloud, debugging | ⭐ one managed package; step into it; runs anywhere .NET runs | native libraries per platform (Linux build needed for the cloud); can't step into the engine |
+| setup simplicity | ⚠ some boilerplate even for queries only (callback structs, a buffer pool) | ⚠ comparable (layer filters, a body interface) |
+| Jolt's extras: wheeled and **tracked vehicle** controllers, a **character controller** (stairs, slopes), ragdolls, soft bodies, cross-platform determinism | ⛔ not in the library (Bepu ships characters and a car only as **demos**) | ✅ |
+
+⭐ **How Jolt's extras could be used — and why the lean does not take them now.** A vehicle controller would replace our
+kinematic car with suspension, wheel slip and tracks; a character controller would replace the human gait with physical
+stepping. ⛔ Both are **motion models** — exactly what the production engine will supply (`R-250`) — so in the stand-in they
+would build a heavier second motion stack that is thrown away later, cost tuning, and bring non-determinism the rails do
+not want (`R-216` "rails stay exact"). Slope pitch and roll for a vehicle needs only four ground samples, not a physics
+vehicle.
+
+⭐ **Lean: Bepu**, because for a query-only stand-in it gives everything needed with no interop, no native packaging and full
+debuggability — the user's simplicity criterion. **What would flip it:** ① Q0 shows a Bepu mesh is too heavy or slow on a
+large height grid where Jolt's height field is not; ② the user wants physical motion (vehicles over rough ground,
+ragdolls) **in the stand-in**. Either way the switch stays inside `TerrainWorldQuery` — nothing above the interface changes.
 
 ## 5. SLICES
 
 | slice | delivers | proves |
 |---|---|---|
 | **Q0b** | WQ-H: the brain's destinations from their sources; a stacked-terrain brain rail | the brain is terrain-agnostic |
-| **Q0** | the Bepu spike: `Trace(Sight/Fire)` + `GroundHeightAt` over Bepu inside `TerrainWorld`; timing on a scaled terrain; headless cloud run | identical answers, faster, Linux — or WQ-D falls back to a hand BVH |
+| **Q0** | the Bepu spike: `Trace(Sight/Fire)` + `GroundHeightAt` over Bepu inside `TerrainWorld`; timing and memory on a scaled terrain **with a large height grid**; headless cloud run | identical answers, faster, Linux, acceptable memory — otherwise §4a's flip condition ① (Jolt's height field) |
 | **Q1** | `IWorldQuery` + `TerrainWorldQuery`; combat and EQS moved; `ILosService` as a policy | the busiest consumers on the seam, feature suites green |
 | **Q2** | perception (`ILosStrategy`), squad, kinematics, spawn, editor debug API, gizmos moved; `ITerrainRenderGeometry` | no production `TerrainWorld` use outside the stand-in |
 | **Q3** | sound v1 — the loudness model + `Trace(Sound)` straight with per-wall dB; the hearing gizmo shows the loss | a shot behind a concrete wall is heard less far |
