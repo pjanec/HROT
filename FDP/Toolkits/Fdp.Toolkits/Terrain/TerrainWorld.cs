@@ -302,6 +302,47 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>
+        /// ⭐ CE-1035 Q0 (<c>docs/DESIGN_World_Query_Seam.md</c> WQ-D) — an optional spatial index that narrows the pieces and
+        /// walkables a segment query examines. Null (the default) = every piece, exactly as before. It only ever NARROWS: the
+        /// per-piece maths below is unchanged, so an index that returns a superset of the true crossings, in ascending order,
+        /// gives identical answers. Set once after the world is built; a derived world (<see cref="StaticObstacles"/>) has none.
+        /// </summary>
+        public ITerrainSpatialIndex? SpatialIndex { get; set; }
+
+        /// <summary>The pieces (prisms, then door leaves when doors exist) and walkables one segment query visits.</summary>
+        private ref struct CandidateSet
+        {
+            private readonly int[]? _pieces;
+            private readonly int[]? _walkables;
+            public readonly int PieceCount;
+            public readonly int WalkableCount;
+
+            public CandidateSet(TerrainWorld world, Vector3 from, Vector3 to, int pieceTotal)
+            {
+                var index = world.SpatialIndex;
+                if (index == null)
+                {
+                    _pieces = null; _walkables = null;
+                    PieceCount = pieceTotal; WalkableCount = world.Walkables.Count;
+                    return;
+                }
+                _pieces = System.Buffers.ArrayPool<int>.Shared.Rent(Math.Max(1, pieceTotal));   // ⭐ R-220 — pooled, no allocation once warm
+                _walkables = System.Buffers.ArrayPool<int>.Shared.Rent(Math.Max(1, world.Walkables.Count));
+                index.Candidates(from, to, pieceTotal, _pieces, out int pc, _walkables, out int wc);
+                PieceCount = pc; WalkableCount = wc;
+            }
+
+            public readonly int Piece(int k) => _pieces == null ? k : _pieces[k];
+            public readonly int Walkable(int k) => _walkables == null ? k : _walkables[k];
+
+            public readonly void Dispose()
+            {
+                if (_pieces != null) System.Buffers.ArrayPool<int>.Shared.Return(_pieces);
+                if (_walkables != null) System.Buffers.ArrayPool<int>.Shared.Return(_walkables);
+            }
+        }
+
+        /// <summary>
         /// ⭐ True when the straight sight line <paramref name="from"/>→<paramref name="to"/> is blocked by the
         /// terrain: its SIGHT TRANSMITTANCE is below <see cref="SightThreshold"/> — the product of the materials of the
         /// solid pieces it passes within their height (concrete/brick 0, chain-link 0.85, hedge 0.3, §3c M3), with any
@@ -327,8 +368,10 @@ namespace Fdp.Toolkit.Terrain
             int maxV = MaxFootprintVertices;
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
-            for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
+            using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
+            for (int k = 0; k < cand.PieceCount; k++)
             {
+                int pi = cand.Piece(k);
                 if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                 var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
@@ -345,9 +388,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
-            for (int wi = 0; wi < Walkables.Count; wi++)   // ⭐ R-220 — an index loop: no interface enumerator
+            for (int kw = 0; kw < cand.WalkableCount; kw++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
-                var w = Walkables[wi];
+                var w = Walkables[cand.Walkable(kw)];
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -393,8 +436,10 @@ namespace Fdp.Toolkit.Terrain
             int maxV = MaxFootprintVertices;
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
-            for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
+            using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
+            for (int k = 0; k < cand.PieceCount; k++)
             {
+                int pi = cand.Piece(k);
                 if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                 var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
@@ -412,9 +457,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
-            for (int wi = 0; wi < Walkables.Count; wi++)   // ⭐ R-220 — an index loop: no interface enumerator
+            for (int kw = 0; kw < cand.WalkableCount; kw++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
-                var w = Walkables[wi];
+                var w = Walkables[cand.Walkable(kw)];
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -486,8 +531,10 @@ namespace Fdp.Toolkit.Terrain
             int maxV = MaxFootprintVertices;
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
-            for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
+            using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
+            for (int k = 0; k < cand.PieceCount; k++)
             {
+                int pi = cand.Piece(k);
                 if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                 var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
@@ -515,9 +562,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
-            for (int wi = 0; wi < Walkables.Count; wi++)   // ⭐ R-220 — an index loop: no interface enumerator
+            for (int kw = 0; kw < cand.WalkableCount; kw++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
-                var w = Walkables[wi];
+                var w = Walkables[cand.Walkable(kw)];
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
