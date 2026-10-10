@@ -130,7 +130,7 @@ not in ①. Peek-and-fire is a ① node used only by a ③ tree.*
 |---|---|---|
 | L1–L4 | ✅ accepted as proposed in §4 | **R-254** |
 | L6 | ✅ **REPLACED by the user's ruling:** the three posture hosts were a PROOF. The library keeps the **BTree** form; its **blueprint and HSM copies are dropped**; library BTrees may be C#-built | **R-255** |
-| L5 | ⏳ explained in chat; awaiting a nod | — |
+| L5 | ✅ approved | **R-254** (extended) |
 | L7 | ⏳ the retreat question — §6 | — |
 
 > 🔒 **User, `2026-10-10`, correcting my reading:** *"..we can drop blueprint and HSM, not btrees"*
@@ -138,6 +138,15 @@ not in ①. Peek-and-fire is a ① node used only by a ③ tree.*
 ⭐ **R-255 as ruled:** the library's form is the **BTREE**. The **blueprint and HSM copies** of library behaviours (`CombatPostureBp` + its `Posture*` wrapper trees, `CombatPostureHsm`, `DangerCrossingBp`, the `ua-three-hosts` demo) are dropped. Library BTrees may be **C#-built** (as `MoveToLocation`, `FireAtPoint`, `WindowDuel` already are, R-223) for maintainability. ⚠ The blueprint and HSM ENGINES stay — this is about the library's copies, not the hosts.
 
 ~~Open interpretation (asked): blueprints stay the doctrine surface, HSM engine stays~~ — ⛔ SUPERSEDED by the correction above.
+
+
+> 🔒 **User, `2026-10-10`, refining R-255:** *"yes but only where there is redundancy and where HSM not the most suitable option from the three possibilities (HSM, btree, blueprints)"* · *"ok as long as the demo showing the feature stays, just using the library c# implementation"* · *"L5 approved"*.
+
+| refinement | meaning |
+|---|---|
+| ⭐ HSM / blueprint copies go **only where REDUNDANT and where that host is not the most suitable** | not a blanket deletion: each library behaviour keeps the host that fits it best; a copy is retired only when it duplicates the BTree and adds nothing |
+| ⭐ the three-host DEMO stays | `ua-three-hosts` keeps showing that one decision runs on all three hosts — rewritten to call the library's C# implementation, not to keep three library copies |
+| ✅ L5 approved | `FireAtTarget` routes onto `PostureNodes.Fire` (with an explicit target); `CgfNodes.Action_FireAtTarget` is retired |
 
 ## 6. Retreat concepts (L7)
 
