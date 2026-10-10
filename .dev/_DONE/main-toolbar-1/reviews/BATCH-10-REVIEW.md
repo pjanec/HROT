@@ -10,7 +10,7 @@ contributors override to `AssetRoots.AssetsFor(Kind)`).
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings.
+- `dotnet build HROT.sln` → 0 errors, 0 new warnings.
 - New tests run by lead: `FolderTreePickerTests` + `AssetRelPathTests` → **14 passed, 0 failed**.
 - `AssetRelPath`: file asset → `Path.GetRelativePath(base, source)` normalized to `/` + trimmed;
   non-file (empty source or null base) → `Name`. Matches §10.2.

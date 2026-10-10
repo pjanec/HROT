@@ -5,7 +5,7 @@
 Completes Phase 4 / M-Blueprint. AIE-047 (`BlueprintMyBlueprintModel` + `MyBlueprintPanel` registered in the Blueprint perspective) and AIE-048 (Blueprint `Details` window resolving node drawers + `BlueprintVariablesWindow` wrapped into the perspective). Blueprint now opens on the shared canvas with a My Blueprint outliner, a node-drawer Details panel, and a Variables window — on top of BATCH-11/12 structural editing.
 
 ## Verification performed (ran myself)
-- **`dotnet build IOS-IG-SimHost.sln` → Build succeeded, 0 Warnings, 0 Errors** (GizmoMap.Contracts on 0.2.2, unchanged).
+- **`dotnet build HROT.sln` → Build succeeded, 0 Warnings, 0 Errors** (GizmoMap.Contracts on 0.2.2, unchanged).
 - `Hrot.Blueprints.Tests` **1027 pass / 10 fail / 8 skip** — the 10 are the pre-existing DEBT-006 set (golden emit, allocation-free, library/MoveToAndFire snapshots); same count as the BATCH-12 baseline, **no new failures**. 19 new tests.
 - `Hrot.Editor.AiShared.Tests` **702 / 0**.
 - `Hrot.ClusterRunner.Integration.Tests --filter EditorSubsystemBoot` **10 / 0**.

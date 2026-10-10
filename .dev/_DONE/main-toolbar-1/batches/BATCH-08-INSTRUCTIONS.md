@@ -77,7 +77,7 @@ that is the intended relocation, NOT a forbidden legacy deletion.
 - Do NOT weaken/skip/auto-pass tests; zero new warnings (TreatWarningsAsErrors).
 
 ## Definition of done (all required)
-- `dotnet build IOS-IG-SimHost.sln` green (zero new warnings).
+- `dotnet build HROT.sln` green (zero new warnings).
 - Run WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS`. New tests pass UNFILTERED. Run `Fdp.Presentation.Tests`
   by CLASS FILTER (PRE-2 full-suite deadlock; also PRE-4 RouteWaypoint flake — ignore both). The hot
   suites `Fdp.Toolkits.Tests` + `Hrot.SimHost.Tests` 0-failed with the Stability filter (PRE-3 EQS

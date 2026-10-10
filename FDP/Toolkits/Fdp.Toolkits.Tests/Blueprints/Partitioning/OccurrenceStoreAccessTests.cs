@@ -899,9 +899,9 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
         private static string FindRepoRoot()
         {
             var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "IOS-IG-SimHost.sln")))
+            while (dir != null && !System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "HROT.sln")))
                 dir = dir.Parent;
-            Assert.True(dir != null, "repo root (IOS-IG-SimHost.sln) not found above the test binary");
+            Assert.True(dir != null, "repo root (HROT.sln) not found above the test binary");
             return dir!.FullName;
         }
 }

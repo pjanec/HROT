@@ -66,7 +66,7 @@ together in one rail so they cannot collapse.
 
 | gate | command | `--no-build`? | result | Δ |
 |---|---|---|---|---|
-| solution | `dotnet build IOS-IG-SimHost.sln -t:Rebuild` | — | ✅ **0 err / 69 warn** | = |
+| solution | `dotnet build HROT.sln -t:Rebuild` | — | ✅ **0 err / 69 warn** | = |
 | ⭐ **AiShared** | `dotnet test …/Hrot.Editor.AiShared.Tests.csproj --no-build` | yes | ✅ **1349** | **+19** |
 | Blueprints | `…/Hrot.Blueprints.Tests.csproj --no-build` | yes | ✅ **3727 / 3737, 10 skipped** | = |
 | BTree.Editor · Hsm.Editor | `--no-build` | yes | ✅ **615** · **551** | = |

@@ -24,7 +24,7 @@
 
 **Command:**
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 ```
 
 **Build result:** 0 errors, 0 warnings (all projects, ~9s)

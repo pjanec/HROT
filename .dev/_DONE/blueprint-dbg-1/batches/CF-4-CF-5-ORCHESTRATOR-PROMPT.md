@@ -12,7 +12,7 @@
 - **Never weaken, skip, or delete an existing test to make the suite pass.** If behavior legitimately changed,
   change only the expected value and list every such test by name (old→new) in the report.
 - **Never** regenerate golden snapshots (`BLUEPRINT_REGENERATE_SNAPSHOTS`). If a golden changes, STOP and report.
-- Build gate: `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors (the editor must be CLOSED — it locks DLLs).
+- Build gate: `dotnet build HROT.sln -c Debug` → 0 errors (the editor must be CLOSED — it locks DLLs).
 - Report the **full failing-test set by name** before and after, with exact `dotnet test` command lines. The lead
   reviews the **diff** (not the report) and commits. If blocked, STOP and report rather than guess.
 - Full spec for both tasks: `.dev/_DONE/blueprint-dbg-1/TASK-DETAIL.md` (sections "Batch CF-4" and "Batch CF-5").

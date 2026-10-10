@@ -10,7 +10,7 @@ icon keys on `SilkIconProvider`, and an `AssetKind → IconKey` map. MTB-P1-T1/T
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → **0 errors, 0 new warnings**.
+- `dotnet build HROT.sln` → **0 errors, 0 new warnings**.
 - New tests run by lead: `MainToolbarManagerTests` + all `IconWidgetsTests` → **43 passed, 0 failed**
   (incl. the 8 toolbar + 13 new IconHandle tests). `IconKeysTests` (9) pass within the green
   `Hrot.Editor.AiShared.Tests` suite (885/0).

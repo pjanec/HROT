@@ -35,7 +35,7 @@ In `ReconcileFromCatalog`: **guard by Kind** — `if (doc.Asset.Kind is AssetKin
 - [ ] PU-301: JSON contributors discover/lazy-load editor-owned BTree/HSM from `.json`; `IsEditorOwned=true`, `SourceFilePath=.json`; malformed skipped; JSON wins AssetId collision; wired into the catalog (dormant in live editor — zero `.json` today).
 - [ ] PU-301 acceptance: editor-owned asset **opens from JSON with no assembly / when C# won't compile**; `ReconcileFromCatalog(empty)` doesn't drop it.
 - [ ] PU-302: `ReconcileFromCatalog` **Kind-guarded** (BTree/HSM editor-owned → stitch; Blueprint/hand-authored → full replace, unchanged); `StitchKernelIndices` maps VisualId/StableId→indices, updates Blob, diagnostics unmatched; **no MarkDirty on load/stitch**; debug overlay re-wired.
-- [ ] Global gate: `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 new warnings (touched); new tests green; **`EditorSubsystemBoot` 10/10** (composition with new contributors); `Hrot.Editor.AiShared.Tests` green; `Hrot.BTree.Editor.Tests`/`Hrot.Hsm.Editor.Tests` green; persistence/generator gates green; `Hrot.Blueprints.Tests` only pre-existing (0 new — **prove the Blueprint reconcile path is untouched**). Report exact counts/classification.
+- [ ] Global gate: `dotnet build HROT.sln` 0 errors / 0 new warnings (touched); new tests green; **`EditorSubsystemBoot` 10/10** (composition with new contributors); `Hrot.Editor.AiShared.Tests` green; `Hrot.BTree.Editor.Tests`/`Hrot.Hsm.Editor.Tests` green; persistence/generator gates green; `Hrot.Blueprints.Tests` only pre-existing (0 new — **prove the Blueprint reconcile path is untouched**). Report exact counts/classification.
 - [ ] Report → `.dev/_DONE/persistence-unification/reports/BATCH-05-REPORT.md`.
 
 ## Report Requirements

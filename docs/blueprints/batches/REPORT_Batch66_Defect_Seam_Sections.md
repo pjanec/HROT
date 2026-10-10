@@ -26,7 +26,7 @@ here touches emission.**
 
 | gate | command | result |
 |---|---|---|
-| solution build | `dotnet build IOS-IG-SimHost.sln -t:Rebuild -v q --nologo` | ✅ **0 errors / 69 warnings** *(full rebuild)* |
+| solution build | `dotnet build HROT.sln -t:Rebuild -v q --nologo` | ✅ **0 errors / 69 warnings** *(full rebuild)* |
 | Blueprints | `dotnet test …/Hrot.Blueprints.Tests.csproj --no-build -v q --nologo` | ✅ **3638 / 3628 / 0 / 10** *(was 3628/3618 ⇒ **+10**)* |
 | AiShared | `dotnet test …/Hrot.Editor.AiShared.Tests.csproj --no-build -v q --nologo` | ✅ **1216 / 1216 / 0 / 0** |
 | BTree.Editor | `dotnet test …/Hrot.BTree.Editor.Tests.csproj --no-build -v q --nologo` | ✅ **612 / 612 / 0 / 0** |

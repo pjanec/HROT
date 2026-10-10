@@ -9,7 +9,7 @@ to `IEditorLogic` via an `IScenarioCreationSession` seam) + `FolderPickerState` 
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings.
+- `dotnet build HROT.sln` → 0 errors, 0 new warnings.
 - New tests run by lead: FolderTreePickerPickTests 17/17, BTreeNewAssetTests 7/7, ScenarioNewAssetTests
   6/6 (HSM 6/6 per worker). 36 total. Suites green (AiShared 968, BTree.Editor 406, Hsm.Editor 358,
   Hrot.Editor 156, Fdp.Toolkits 1856, SimHost 585). The lone AiShared "flaky" is the known

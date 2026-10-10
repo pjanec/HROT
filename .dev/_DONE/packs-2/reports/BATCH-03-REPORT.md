@@ -31,7 +31,7 @@
 | `Hrot.ScenarioEditor/ScenarioEditorModule.cs` | New |
 | `Hrot.ScenarioEditor.Tests/Hrot.ScenarioEditor.Tests.csproj` | New |
 | `Hrot.ScenarioEditor.Tests/ScenarioEditorModuleTests.cs` | New — 2 tests |
-| `IOS-IG-SimHost.sln` | Added `Hrot.ScenarioEditor` + `Hrot.ScenarioEditor.Tests` |
+| `HROT.sln` | Added `Hrot.ScenarioEditor` + `Hrot.ScenarioEditor.Tests` |
 | `Hrot.Map.Common/Hrot.Map.Common.csproj` | Added `InternalsVisibleTo: Hrot.SimHost.Tests` |
 | `FDP/ModuleHost/ModuleHost.Network.Cyclone/Translators/CycloneTranslator.cs` | Made `participant` nullable; added null-guard in `PollIngress` |
 | `Hrot.Map.Common/Replication/Ingress/GeoSpatialIngressTranslator.cs` | Changed constructor to accept `DdsParticipant?` |
@@ -42,7 +42,7 @@
 ## Test Results
 
 ### Build
-- `dotnet build IOS-IG-SimHost.sln --no-incremental` → **Build succeeded. 0 Error(s)** ✅
+- `dotnet build HROT.sln --no-incremental` → **Build succeeded. 0 Error(s)** ✅
 
 ### Unit Tests
 

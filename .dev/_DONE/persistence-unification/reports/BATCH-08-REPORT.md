@@ -107,7 +107,7 @@ dotnet test Hrot.AiEditor.Generators.Tests.csproj -c Debug
     (+ pre-existing 2 generator shape tests still green)
     (+ pre-existing 1 determinism test still green)
 
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
   0 Errors / 26 Warnings (all pre-existing; 0 new warnings on touched projects)
 
 dotnet test Hrot.ClusterRunner.Integration.Tests.csproj -c Debug --filter "FullyQualifiedName~EditorSubsystemBoot"

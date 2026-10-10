@@ -216,7 +216,7 @@ the clean `HEAD` tree. Not catalogued in `.dev/_DONE/test-health/TEST-HEALTH.md`
 
 ### Build
 
-`dotnet build IOS-IG-SimHost.sln` — 0 errors, 20 warnings (all pre-existing xUnit2013/CS0618/CS8602
+`dotnet build HROT.sln` — 0 errors, 20 warnings (all pre-existing xUnit2013/CS0618/CS8602
 in other projects; 0 new warnings from this batch's changes).
 
 ## Developer Insights

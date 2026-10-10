@@ -430,7 +430,7 @@ Complete tasks in this exact order (each has a hard dependency):
 6. **Task 6 (S406):** TargetMemoryTranslator → Intent — depends on S401+S404 (run concurrently with S405 is OK).
 
 After each task:
-- Run `dotnet build IOS-IG-SimHost.sln --no-restore 2>&1 | Select-String "error CS"` to verify no compile errors.
+- Run `dotnet build HROT.sln --no-restore 2>&1 | Select-String "error CS"` to verify no compile errors.
 - Run affected test projects with `--no-build`.
 - Fix any failures before moving on.
 

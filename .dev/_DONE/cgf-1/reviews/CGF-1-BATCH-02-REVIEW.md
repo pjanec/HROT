@@ -29,7 +29,7 @@ Part A debt from BATCH-01 is implemented in code: single `ProcessRequests` path 
 
 ### Issue 3: Standalone executables vs Runner-only subsystems (P2 — product consistency)
 
-**Solution:** `IOS-IG-SimHost.sln` includes `Hrot.Orchestrator.Standalone` and `Hrot.CGF.Standalone`. Other subsystems have no separate `.Standalone` exe; production expectation is **Hrot.ClusterRunner** only.  
+**Solution:** `HROT.sln` includes `Hrot.Orchestrator.Standalone` and `Hrot.CGF.Standalone`. Other subsystems have no separate `.Standalone` exe; production expectation is **Hrot.ClusterRunner** only.  
 **Required:** Remove both standalone projects from the solution and delete or retire their project folders; document Runner-only launch in `.dev/cgf-1/CGF-1-ONBOARDING.md`. Keep `CgfApplication` for in-process tests and `CgfSubsystem` for Runner.
 
 ### Issue 4: Parameterless `SimHost.ClusterSlave()` (P3 — “DDS-less” escape hatch)

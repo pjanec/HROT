@@ -89,7 +89,7 @@ save delegates + a recording `requestSaveAs`:
 - Zero new warnings (TreatWarningsAsErrors on across these projects).
 
 ## Definition of done (all required)
-- `dotnet build IOS-IG-SimHost.sln` green (zero new warnings).
+- `dotnet build HROT.sln` green (zero new warnings).
 - Run WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS`. New tests pass UNFILTERED. 0-failed with the Stability
   filter for: `Hrot.Editor.AiShared.Tests`, and the hot suites `Fdp.Toolkits.Tests` +
   `Hrot.SimHost.Tests`. (For `Fdp.Presentation.Tests`, if touched, use a class filter — PRE-2 deadlock.)

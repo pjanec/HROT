@@ -493,7 +493,7 @@ Search for `new ScenarioHeader(` — remove any `SchemaVersion:` argument.
 Before writing the report:
 
 ```powershell
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
 dotnet test "Hrot/Engine/Hrot.Common.Tests/Hrot.Common.Tests.csproj" -c Debug 2>&1 | Select-Object -Last 5
 dotnet test "Hrot/Engine/Hrot.Presentation.Tests/Hrot.Presentation.Tests.csproj" -c Debug 2>&1 | Select-Object -Last 5
 dotnet test "FDP/Engine/Fdp.Core.Tests/Fdp.Core.Tests.csproj" -c Debug --no-build 2>&1 | Select-String "Passed!|Failed!" | Select-Object -Last 3

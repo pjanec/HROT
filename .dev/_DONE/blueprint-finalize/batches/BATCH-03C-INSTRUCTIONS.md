@@ -86,7 +86,7 @@ Extend `Hrot.Blueprints.Tests/Host/NodePinSchemaEnrichmentTests.cs` (follow its 
   data-IN pins and a data-OUT pin) — so the projection provably matches BATCH-03A's consumption.
 
 ## Verification (paste real output)
-1. `dotnet build IOS-IG-SimHost.sln` — 0 errors; 0 new warnings in touched projects.
+1. `dotnet build HROT.sln` — 0 errors; 0 new warnings in touched projects.
 2. New + existing NodePinSchema tests green.
 3. Full `Hrot.Blueprints.Tests`: failures a SUBSET of the pre-existing **7** (AiPrimitiveEmitGolden ×2,
    LibraryEmitGolden, LibraryMath snapshot, MoveToAndFire snapshot, ConditionSummary, AllocationFree).

@@ -9,7 +9,7 @@ resolution (`ShellSaveCommands.requestSaveAs` now drives a `SaveAsDialog`). Comp
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings.
+- `dotnet build HROT.sln` → 0 errors, 0 new warnings.
 - New tests run by lead: `SaveAsDialogTests` → **17 passed, 0 failed** (incl. the 4 named). Suites
   green: AiShared 1024, Fdp.Toolkits 1856, SimHost 585 (re-run; the 1 ZeroAlloc/EQS flake is PRE-1/3 family).
 - `SaveAsDialog` read: every Confirm mints a **fresh AssetId** via `INewAssetService.CreateNew(source,

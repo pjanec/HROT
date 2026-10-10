@@ -69,7 +69,7 @@ registered paths. Together they let the AI mutate/fault-inject sim state.
 - **Tier-2 (live headless / MCP `verify.mjs`):** load test-move → `get_attributes_schema` non-empty →
   `patch_attribute {networkId:1000, patchJson:{"Name":"Alpha"}}` → `get_entity {1000}` shows the new name.
   Re-runnable; no orphans. RE-RUN `npm run verify` to a real PASS tally before reporting.
-- `dotnet build IOS-IG-SimHost.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
+- `dotnet build HROT.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
 
 ## Constraints (hard)
 - Attribute patch is authority-aware; unregistered keys ignored (not an error). StructEdit validates via the

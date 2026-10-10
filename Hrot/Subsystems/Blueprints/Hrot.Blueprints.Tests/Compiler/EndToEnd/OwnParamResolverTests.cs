@@ -207,7 +207,7 @@ public sealed class OwnParamResolverTests
     public void TheCompilersAssetCopy_CarriesEveryPublicProperty()
     {
         string root = AppContext.BaseDirectory;
-        while (root != null && !System.IO.File.Exists(System.IO.Path.Combine(root, "IOS-IG-SimHost.sln")))
+        while (root != null && !System.IO.File.Exists(System.IO.Path.Combine(root, "HROT.sln")))
             root = System.IO.Path.GetDirectoryName(root)!;
         var src = System.IO.File.ReadAllText(System.IO.Path.Combine(root!,
             "Hrot", "Subsystems", "Blueprints", "Hrot.Blueprints.Compiler", "Compiler", "BlueprintCompiler.cs"));

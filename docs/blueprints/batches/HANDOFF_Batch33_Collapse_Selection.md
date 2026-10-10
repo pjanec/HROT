@@ -220,7 +220,7 @@ inverse, and **there is no function-inlining pass**. The Function path gets the 
 
 ## 6. Gates
 
-The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.sln`** (⚠ not `Hrot.sln`).
+The eight, `--logger "console;verbosity=normal"`. Solution is **`HROT.sln`** (⚠ not `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** (`RESUME_START_HERE.md` §3).
 ⭐ **Run `python3 scripts/tracker-counts.py --check`** before your final commit — Batch 32 was the first
 batch to arrive with the counts already right; keep that.

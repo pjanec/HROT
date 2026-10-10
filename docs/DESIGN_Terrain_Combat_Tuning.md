@@ -660,7 +660,7 @@ the dashed red edge is the remaining gap (IG has no AI to pin).
 | family tags | `PlannedPathGizmo` Path · `VisibilityConeGizmo` Perception · `LineOfSightGizmo` TargetMemory · `EqsSensorGizmo` (IG) Eqs · `UtilityDecisionGizmo` UtilityDecision · `SquadGizmo` SquadAssignment | — |
 | `UtilityDecisionGizmo` | `Hrot.Presentation` | ⭐ deviation from F: one line per LOGGED decision (`UtilityDecisionLog` holds up to 4), not only the latest — a unit with two decision points showed one before |
 | `SquadGizmo` | `Hrot.Presentation` | skips dead or position-less members (the skeleton drew them at the origin); the danger box reuses `DangerAreaGizmo.Box` |
-| deletion | `Hrot.Diagnostics.Overlays` (+ `.Tests`) | removed from disk and from `IOS-IG-SimHost.sln`; its project doc carries a WITHDRAWN block; `docs/projects` pointers updated |
+| deletion | `Hrot.Diagnostics.Overlays` (+ `.Tests`) | removed from disk and from `HROT.sln`; its project doc carries a WITHDRAWN block; `docs/projects` pointers updated |
 
 **Rails** *(each in its feature's existing suite)*: `MapCullingPolicyTests` — `CE3120_ThePathFamily_DrawsTheSelectedAndThePinned_UntilItsScopeIsAll`, `CE3120_ThePackRegistersThePinActions_AndAPinTouchesOnlyItsFamily` (also asserts the menu carries every pin id) · `LayerControlGizmoTests` — `CE3120_TheLayerPanel_ReadsAndWritesTheFamilyScopes` · `DebugTraceGizmoTests` — `CE3121_TheUtilityGizmo_WritesOneLinePerLoggedDecision`, `CE3121_TheSquadGizmo_LinksTheCommanderToItsLivingMembers`.
 

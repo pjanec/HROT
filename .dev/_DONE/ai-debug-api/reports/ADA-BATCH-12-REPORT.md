@@ -69,7 +69,7 @@ From the live verify.mjs Step 13c (entity 1000 = M2 Bradley, test-move scenario)
 
 ## Build Results
 
-`dotnet build IOS-IG-SimHost.sln` → **0 errors**, 2 pre-existing NU1903 warnings (MessagePack CVE, unrelated).
+`dotnet build HROT.sln` → **0 errors**, 2 pre-existing NU1903 warnings (MessagePack CVE, unrelated).
 
 ---
 

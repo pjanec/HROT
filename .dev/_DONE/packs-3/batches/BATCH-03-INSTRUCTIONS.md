@@ -253,7 +253,7 @@ public void CommitLoad(EntityRepository repo, string rawJson)
 
 Run regressions before submitting:
 ```
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln --no-incremental
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln --no-incremental
 dotnet test Hrot.ClusterRunner.Integration.Tests --filter "EditorFileIO|ZoneScenario" --no-build
 dotnet test Hrot.Map.Common.Tests --no-build
 ```

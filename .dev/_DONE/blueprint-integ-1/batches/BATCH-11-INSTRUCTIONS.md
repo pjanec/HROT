@@ -39,7 +39,7 @@ Build the four read/validate NodeEdit host adapters that project the Blueprint *
 ## Success Criteria
 - [ ] AIE-040..043 per success conditions, in `Hrot.Blueprints.Editor/Host/`.
 - [ ] Green (full, no crashes): `Hrot.Blueprints.Tests` (no **new** failures beyond the 10 pre-existing DEBT-006), `Hrot.Editor.AiShared.Tests`, `EditorSubsystemBoot` filter.
-- [ ] `dotnet build IOS-IG-SimHost.sln` still 0 errors.
+- [ ] `dotnet build HROT.sln` still 0 errors.
 - [ ] No warnings; docs; no leftover TODO/debug.
 - [ ] Report at `.dev/blueprint-integ-1/reports/BATCH-11-REPORT.md`.
 

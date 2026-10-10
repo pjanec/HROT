@@ -25,7 +25,7 @@ This document breaks down the implementation of the IOS Mock into specific, acti
    ```bash
    dotnet new console -n Hrot.ExCon -f net8.0
    ```
-2. Add to solution `IOS-IG-SimHost.sln`.
+2. Add to solution `HROT.sln`.
 3. Location: `Hrot.ExCon/`
 
 **Dependencies**: None

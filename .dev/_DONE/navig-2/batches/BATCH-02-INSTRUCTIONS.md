@@ -53,7 +53,7 @@ until the full batch is done. Write the report only when all tests pass.
 
 ```powershell
 # Build the full solution
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run navigation-related tests only
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --filter "Navigation" -v quiet
@@ -719,7 +719,7 @@ Add:
 - [ ] NAV-P0-T5: NavWaypoint 24 bytes; CorridorPreview 144 bytes; ComponentIds 69–73 allocated; 6+ new tests; no ID collisions
 - [ ] All nav tests passing: `dotnet test --filter Navigation` → 0 failures
 - [ ] Translator tests passing
-- [ ] `dotnet build IOS-IG-SimHost.sln` → 0 errors
+- [ ] `dotnet build HROT.sln` → 0 errors
 - [ ] Report submitted to `.dev/navig-2/reports/BATCH-02-REPORT.md`
 
 ---

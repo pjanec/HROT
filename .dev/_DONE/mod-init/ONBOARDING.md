@@ -48,7 +48,7 @@ See [DESIGN.md](./DESIGN.md) for full architecture context, rationale, and const
 
 ```powershell
 # Full solution build
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 
 # Run all integration tests
 dotnet test Hrot.ClusterRunner.Integration.Tests --no-build

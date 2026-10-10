@@ -122,7 +122,7 @@ Fhsm.Demo.Visual      DemoApp.cs(68,13)            error CS0234: … 'Generated'
 Fhsm.Examples.Console TrafficLightExample.cs(65,13) error CS0234: … 'Generated' does not exist
 ```
 
-⛔ **Neither is in `IOS-IG-SimHost.sln`**, so `-t:Rebuild` has never touched them.
+⛔ **Neither is in `HROT.sln`**, so `-t:Rebuild` has never touched them.
 ⭐⭐ **Third instance of one family in three batches:** `BP-304` *(a gate asserting on a dead buffer)* ·
 `BP-307` *(a gate measuring a stub)* · **`BP-309` (code that is not a gate at all)**.
 
@@ -161,7 +161,7 @@ are no longer live as filed**, and the six that survive are smaller than their t
 
 | gate | command | result |
 |---|---|---|
-| ⭐ **solution** *(item 1's own gate)* | `dotnet build IOS-IG-SimHost.sln -t:Rebuild` | ✅ **0 errors / 69 warnings** |
+| ⭐ **solution** *(item 1's own gate)* | `dotnet build HROT.sln -t:Rebuild` | ✅ **0 errors / 69 warnings** |
 | ⭐ **Generators** | `dotnet test …/Hrot.AiEditor.Generators.Tests.csproj` | ✅ **270 / 270** *(was 268 — the two `BP-306` rails)* |
 | ⭐ **FastHSM** *(NO `--no-build`)* | `dotnet test FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Fhsm.Tests.csproj` | ✅ **300 / 300, 0 skipped** |
 | Blueprints | `dotnet test …/Hrot.Blueprints.Tests.csproj --no-build` | ✅ **3681 / 3691, 0 failed, 10 skipped** |

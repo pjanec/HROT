@@ -740,7 +740,7 @@ the text now misleads:
 ##### ✅ A pre-existing break the merge also resolves
 
 ⭐ Their baseline was **5** pre-existing reds, not 4: the fifth is the `AttributeCompilerFactory` **build**
-break in `Hrot.SimHost.Integration.Tests`, which **blocked the whole `IOS-IG-SimHost.sln` build on
+break in `Hrot.SimHost.Integration.Tests`, which **blocked the whole `HROT.sln` build on
 Windows**. ✅ **Obstacle ①'s commit already fixed it** *(§5.4)*, so their next full-solution build should
 clear.
 

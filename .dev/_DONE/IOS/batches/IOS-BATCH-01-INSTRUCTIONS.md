@@ -23,7 +23,7 @@ Welcome to the IOS Mock development! This is the first batch for the IOS applica
 
 ### Source Code Location
 - **Primary Work Area:** `Hrot.ExCon/`
-- **Solution File:** `IOS-IG-SimHost.sln`
+- **Solution File:** `HROT.sln`
 - **Dependencies from:** `Hrot.NED/`, `Hrot.Map.Common/`, `Hrot.Map.Definitions/`, `FDP/FDP.Toolkit.DER/`, `FDP/FDP.Toolkit.Commands/`
 
 ### Report Submission
@@ -76,7 +76,7 @@ This batch initializes the standalone IOS Mock application and builds the data m
 
 ### Task 1: Project Setup (P5.1, P5.2)
 
-**File:** `Hrot.ExCon/Hrot.ExCon.csproj`, `IOS-IG-SimHost.sln`
+**File:** `Hrot.ExCon/Hrot.ExCon.csproj`, `HROT.sln`
 **Task Definition:** See [TASK-DETAILS-IOS.md Phase P5](docs/design/TASK-DETAILS-IOS.md#phase-p5-project-setup-05-days)
 
 **Description:** Initialize the C# console app and add referenced libraries.

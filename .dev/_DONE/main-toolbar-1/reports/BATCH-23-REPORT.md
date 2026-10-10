@@ -64,7 +64,7 @@
 
 ### Build
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
   Build succeeded.
   10 Warning(s)   (all pre-existing: CS0618 obsolete, CS8602 null-ref)
   0 Error(s)

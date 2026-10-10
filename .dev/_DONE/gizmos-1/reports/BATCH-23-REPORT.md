@@ -74,7 +74,7 @@ All test files using `Raylib_cs.MouseButton`, `Raylib_cs.KeyboardKey`, or `Rende
 
 ## Build Result
 
-`dotnet build IOS-IG-SimHost.sln --no-incremental` -- **0 errors, 0 warnings relevant to BATCH-23.**
+`dotnet build HROT.sln --no-incremental` -- **0 errors, 0 warnings relevant to BATCH-23.**
 
 ---
 

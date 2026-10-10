@@ -61,7 +61,7 @@ Existing BT-01 tests continue to pass unchanged — they use the single-arg cons
 ## Validation
 
 ```
-dotnet build IOS-IG-SimHost.sln  →  0 errors, 0 new warnings in Hrot.BTree.Editor
+dotnet build HROT.sln  →  0 errors, 0 new warnings in Hrot.BTree.Editor
 dotnet test Hrot.BTree.Editor.Tests  →  505 passed, 0 failed, 0 skipped
 ```
 

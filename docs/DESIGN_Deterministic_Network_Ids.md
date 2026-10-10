@@ -317,7 +317,7 @@ component tables and **only the EQS solver's singleton tables** — a managed si
 
 | gate | verbatim | result |
 |---|---|---|
-| build | `dotnet build IOS-IG-SimHost.sln` | ⭐ **succeeded, 0 errors** |
+| build | `dotnet build HROT.sln` | ⭐ **succeeded, 0 errors** |
 | ⭐⭐ **the requirement** | `quick-check.sh Fdp.Toolkits.Tests APreviewLeavesNoTrace` | ⭐ **11 / 11 pass** |
 | ⭐⭐ **revert-goes-red** | inverse edits to `SequentialIdAllocator.RestoreIssuingPosition` + `BlockIdManager.RestoreIssuingPosition`; then to `RepositoryEntityMapRewind` | ⭐ **4 of 9 red**, then **2 of 2 new red** — restored green |
 | preview handler | `Hrot.SimHost.Tests --filter PreviewClusterOpHandler` | ⭐ **6 / 6 pass** |

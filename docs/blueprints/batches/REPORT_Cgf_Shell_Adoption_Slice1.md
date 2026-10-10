@@ -66,7 +66,7 @@ no assertions)*, so each carries its D7 pairing case.
 
 | # | gate | command | result | `--no-build`? | delta vs `df8efa938` |
 |---|---|---|---|---|---|
-| 1 | solution build | `dotnet build IOS-IG-SimHost.sln --no-restore` | ✅ **0 errors**, 52 warnings | n/a | unchanged |
+| 1 | solution build | `dotnet build HROT.sln --no-restore` | ✅ **0 errors**, 52 warnings | n/a | unchanged |
 | 2 | ⭐⭐⭐ **conformance (the acceptance vehicle)** | `scripts/run-system-tests.sh --no-build ClusterConformanceRails` | ✅ **10 / 0** | yes | **baseline 7 / 0** ⇒ +3 rails, all green |
 | 3 | ⭐ **T0 baseline, run BEFORE any edit** | same, at the dispatch sha | ✅ **7 / 0** | no *(built)* | — |
 | 4 | panel goldens | `scripts/run-system-tests.sh --no-build PanelGoldenRails` | ✅ **19 / 0** | yes | 17 → 19 *(the two new goldens + their two pairing cases; the 6→8 budget row)* |

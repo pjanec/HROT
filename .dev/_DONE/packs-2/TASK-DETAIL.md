@@ -362,7 +362,7 @@ so the distributed IG deployment forwards entity commands over DDS exactly as be
 - Create `ScenarioEditorModule.cs` implementing `IEcsModule` with `ExecutionPolicy.Synchronous()`.
 - Implement empty `RegisterSystems(ISystemRegistry registry)` stub — populated in PACK2-E002
   and PACK2-E003.
-- Add `Hrot.ScenarioEditor` to `IOS-IG-SimHost.sln`.
+- Add `Hrot.ScenarioEditor` to `HROT.sln`.
 
 **Out of Scope:**
 
@@ -374,7 +374,7 @@ so the distributed IG deployment forwards entity commands over DDS exactly as be
 |------|--------|
 | `Hrot.ScenarioEditor/Hrot.ScenarioEditor.csproj` | New file |
 | `Hrot.ScenarioEditor/ScenarioEditorModule.cs` | New file |
-| `IOS-IG-SimHost.sln` | Add project reference |
+| `HROT.sln` | Add project reference |
 
 **Success Conditions:**
 

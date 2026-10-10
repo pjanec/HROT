@@ -103,7 +103,7 @@ public void OnExternalHit(string tag, Entity entity)
 ## Build and test
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug --no-build --filter "BreakpointTests"
 ```
 

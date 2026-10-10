@@ -10,7 +10,7 @@
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Build clean | PASS | 0 errors, 0 warnings — full IOS-IG-SimHost.sln |
+| Build clean | PASS | 0 errors, 0 warnings — full HROT.sln |
 | Pre-existing Vis2D test failures | CONFIRMED PRE-EXISTING | DebugGizmoLayerActivation/DebugPrimitiveRenderer2D failures existed before BATCH-05 (confirmed via terminal history) |
 | 27/27 Hrot.ReplayBrowser.Tests pass | PASS | 10 new RBF_P5 tests + 17 prior tests |
 | 15/15 Fdp.Presentation.Tests (RBF_P5) pass | PASS | 9 P5T2 tests + 6 P5T4 tests |

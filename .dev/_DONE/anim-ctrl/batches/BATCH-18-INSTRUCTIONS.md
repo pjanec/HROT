@@ -121,7 +121,7 @@ Each mirrors the corresponding stage-1 scenario with:
 - ✅ Round-trip latency absorbed by +4-6 frame budgets per `PumpUntil`
 - ✅ Brain-side assertions only (assertions on BrainWorld, not MuscleWorld directly) — this proves replication works
 - ✅ S7 confirms FootstepEvent stays Muscle-local (Brain bus clean)
-- ✅ Build succeeds: `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4` → 0 errors
+- ✅ Build succeeds: `dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4` → 0 errors
 - ✅ Tests run under 500ms total (in-process loopback, no real DDS)
 
 ---

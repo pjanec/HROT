@@ -21,7 +21,7 @@ The actual StructEdit API is described below. Do NOT copy the pseudocode literal
 
 ## Pre-existing Failures (Do NOT count against your work)
 
-Run `dotnet test IOS-IG-SimHost.sln --no-build` before starting and note any pre-existing failures.  
+Run `dotnet test HROT.sln --no-build` before starting and note any pre-existing failures.  
 Known pre-existing failures (ignore):
 - ~26 tests in `Fdp.Toolkits.Tests` (AimAndFire, MissionDirector, etc.)
 - ~4 tests in `Hrot.IG.Tests` (CS011_ EntityInfoTranslator)
@@ -720,7 +720,7 @@ are the correct interfaces/types used in the test infrastructure — look at exi
 After implementing all three tasks:
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental -clp:ErrorsOnly
+dotnet build HROT.sln --no-incremental -clp:ErrorsOnly
 ```
 → **Must show 0 errors.**
 

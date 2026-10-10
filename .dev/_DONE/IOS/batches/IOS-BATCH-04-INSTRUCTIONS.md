@@ -23,7 +23,7 @@ Welcome back! BATCH-03 successfully implemented our primary `IosLogic` shell and
 
 ### Source Code Location
 - **Primary Work Area:** `Hrot.ExCon.Tests/IntegrationTests.cs`, `Hrot.ExCon.Tests/WorkflowTests.cs`
-- **Solution File:** `IOS-IG-SimHost.sln`
+- **Solution File:** `HROT.sln`
 
 ### Report Submission
 **When done, submit your report to:**  

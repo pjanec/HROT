@@ -61,7 +61,7 @@ filtering so the AI doesn't pull everything.
     entities within radius `r` (spawn/move entities to known positions to assert).
 - **Tier-2 (live headless / MCP `verify.mjs`):** `get_logs` returns non-empty after load; `list_entities`
   with `component=` narrows the result vs unfiltered. Re-runnable; no orphans.
-- `dotnet build IOS-IG-SimHost.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
+- `dotnet build HROT.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
 
 ## Constraints (hard)
 - Logs read off-thread (lock-guarded sinks); entity extraction marshalled (as today). Filtering in the

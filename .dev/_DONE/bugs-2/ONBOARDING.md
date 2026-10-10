@@ -115,13 +115,13 @@ It defines how batches are structured, how to write a batch report, and what "do
 
 ```powershell
 # Restore NuGet packages (once)
-dotnet restore IOS-IG-SimHost.sln
+dotnet restore HROT.sln
 
 # Build everything
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run all tests
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 
 Individual project tests:

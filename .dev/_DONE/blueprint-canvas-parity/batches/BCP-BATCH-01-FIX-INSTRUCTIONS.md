@@ -36,7 +36,7 @@ Rewrite the slow path so it is **driven by the incident links, not pin index**:
 - [ ] Nodes stay where dropped in BTree, HSM, and Blueprint (drop persists via ChangeParentMultiple).
 - [ ] Loaded Blueprint assets render their wires (all links resolve), including partial-connection multi-output nodes.
 - [ ] Byte-stability test still green; compiler golden suite unchanged.
-- [ ] `dotnet build IOS-IG-SimHost.sln` 0/0; GizmoMap.Contracts 0.2.2.
+- [ ] `dotnet build HROT.sln` 0/0; GizmoMap.Contracts 0.2.2.
 - [ ] Green: `Hrot.Blueprints.Tests` (no new failures beyond the 10 DEBT-006; the sub-80ns `WhenNodePerfTests` is flaky under load — re-run isolated if needed), `Hrot.Editor.AiShared.Tests`, `Hrot.BTree.Editor.Tests`, `Hrot.Hsm.Editor.Tests`, `EditorSubsystemBoot` filter.
 - [ ] Report at `.dev/_DONE/blueprint-canvas-parity/reports/BCP-BATCH-01-FIX-REPORT.md`.
 

@@ -158,7 +158,7 @@ Total tests: 124
 ## Full Build Summary
 
 ```
-dotnet build IOS-IG-SimHost.sln --configuration Debug --no-incremental
+dotnet build HROT.sln --configuration Debug --no-incremental
 
 Build succeeded.
     0 Error(s)

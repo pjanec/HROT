@@ -10,7 +10,7 @@
 
 All five components have been implemented.  57 of 58 tests pass; the single remaining failure
 (`SaveScenario_WritesValidJson_WithCorrectHeaderAndEntityCount`) is pre-existing and unrelated to
-this batch.  The full solution (`IOS-IG-SimHost.sln`) builds with zero errors.
+this batch.  The full solution (`HROT.sln`) builds with zero errors.
 
 ---
 

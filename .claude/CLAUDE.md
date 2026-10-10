@@ -261,7 +261,7 @@ lines across 17 `Stride/` files)*:
 | `Stride/HrotStrideApp.Game.Tests/…csproj` | ✅ true | ⛔ **`Symbol not found`** — ⭐ **CAUSE FOUND: the project was never RESTORED.** After `dotnet restore` *(9.5 s)* the same query returns **49 refs, 29 of them in `Game.Tests`** |
 
 ⛔⛔ **SUPERSEDED `2026-09-13` — `Stride/` IS IN THE ROOT SOLUTION NOW.** 📐 Measured during the `CE-212`
-rename: `IOS-IG-SimHost.sln` holds **156** projects and **six** Stride entries — `Hrot.Stride.Core(.Tests)`,
+rename: `HROT.sln` holds **156** projects and **six** Stride entries — `Hrot.Stride.Core(.Tests)`,
 `Hrot.Stride.Animation(.Tests)`, `HrotStrideApp.Game(.Tests)`. ⇒ ⭐ **one workspace opened from any
 root-solution project now covers Stride too** *(verified: a rename from `Hrot.IG.csproj` found all 31
 references including `Stride/HrotStrideApp.Game.Tests`, and the full 156-project build was clean)*.
@@ -276,13 +276,13 @@ the solution discovered by walking UP from it. 📌 That bit me on `CE-212`: poi
 ⇒ ⭐⭐⭐ **ALWAYS sanity-check a reference count against grep before acting on it**, and point renames at a
 project inside the solution you actually mean.
 
-⛔ **HISTORY:** *"`Stride/` is NOT inherently invisible — it just is not in `IOS-IG-SimHost.sln` (149
+⛔ **HISTORY:** *"`Stride/` is NOT inherently invisible — it just is not in `HROT.sln` (149
 projects, zero `HrotStrideApp` entries). Point the query at `Stride/HrotStrideApp.Game.csproj` and the
 Stride references come back."* ⚠ *(An earlier version of this section said Stride was invisible to the tool. That
 was true of the query, not of the tool — SUPERSEDED.)*
 
 📐 **The observed scoping rule** *(inferred, not measured directly)*: it opens the solution discovered at the
-server's working directory — the repo root's `IOS-IG-SimHost.sln`. A project **inside** it gets the whole
+server's working directory — the repo root's `HROT.sln`. A project **inside** it gets the whole
 149-project solution *(hence downstream test hits)*; a project **outside** it gets that project **plus its
 `ProjectReference` closure only** — which is why `HrotStrideApp.Game.Tests` was absent even though
 `Stride/HrotStrideApp.sln` contains it.
@@ -292,7 +292,7 @@ server's working directory — the repo root's `IOS-IG-SimHost.sln`. A project *
 | ⭐⭐⭐ **for a rename or blast-radius on anything in `Hrot.Core` / `Hrot.Common`, run the query TWICE and UNION** | once at an in-solution project, once at `Stride/HrotStrideApp.Game.csproj` |
 | ⭐⭐⭐ **RESTORE an out-of-solution project before querying it** | ⛔⛔ **`obj/project.assets.json` missing ⇒ MSBuildWorkspace loads the project with NO references resolved ⇒ `Symbol not found`, silently.** 📌 That — not any Stride weirdness — is why `HrotStrideApp.Game.Tests` looked unreachable. ⭐ `dotnet restore <proj>` costs ~10 s and the answer comes back complete. ⚠ Check the same for `NodeEditor.Core`, `NodeEditor.UI`, `Fhsm.Tests` |
 | ⭐ **grep as the final corroboration** | ⛔ still cheaper than a third workspace, and it covers docs and non-C# files |
-| ⛔ **do NOT "fix" this by adding the Stride projects to `IOS-IG-SimHost.sln`** | ⚠ they target `net8.0-windows`; folding them in changes what a full-solution build builds. ⭐ Two queries cost seconds; a broken solution build costs a session |
+| ⛔ **do NOT "fix" this by adding the Stride projects to `HROT.sln`** | ⚠ they target `net8.0-windows`; folding them in changes what a full-solution build builds. ⭐ Two queries cost seconds; a broken solution build costs a session |
 
 ⛔⛔ **And row 3 weakens check ③: `is_msbuild_workspace: true` is NECESSARY, NOT SUFFICIENT.** ⭐ The
 workspace was genuinely MSBuild and still had **no references resolved**, because the project had never been
@@ -909,7 +909,7 @@ assertions** — 📌 those would have caught **4 of the 7** the user found.
 
 📌 **The case, MEASURED `2026-08-24` — and the first guess was wrong.** `HN-037`'s tail spent **~30 min**,
 and it was **NOT the tests** *(they run `--no-build` in 3–8 s)*. 📐 **The sink was the BUILD:** the report's
-Gate 1 is `dotnet build IOS-IG-SimHost.sln` — the **whole 149-project solution** — and deleting
+Gate 1 is `dotnet build HROT.sln` — the **whole 149-project solution** — and deleting
 `ScenarioFileService.LoadScenario` broke that file **plus ~8 test files across several projects**, so the
 compile-cascade was chased with **repeated full-solution builds.** ⛔⛔ **Measured on this repo, warm,
 `--no-restore`:**

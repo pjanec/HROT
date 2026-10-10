@@ -14,7 +14,7 @@ public class PlatoonHillAttackBpAuthoringTests
     internal static string AssetPath()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "IOS-IG-SimHost.sln"))) dir = dir.Parent;
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln"))) dir = dir.Parent;
         Assert.NotNull(dir);
         return Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints",
             PlatoonHillAttackBpAuthoring.Name + ".bp.json");

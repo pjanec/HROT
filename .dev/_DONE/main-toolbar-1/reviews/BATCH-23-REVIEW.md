@@ -29,7 +29,7 @@ from unrelated fixture `*.bp.json`. **Fix:** (a) `BlueprintPeerSource.EnumerateA
 prior empty-stub semantics). The 3 QuickReload tests now pass in isolation (and dropped 42s→~1s).
 
 ## Verification (done by lead)
-- Full `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings.
+- Full `dotnet build HROT.sln` → 0 errors, 0 new warnings.
 - 3 types confirmed deleted; AiShared `IAssetCatalog` untouched (different interface).
 - `Hrot.Blueprints.Tests` (Stability filter) → **exactly the 9 PRE-1 failures, no others** (the 8 window
   + 3 quick-reload tests all GREEN; Passed 1842→1853). `Hrot.Editor.Tests` 176/0, AiShared 1014/0,

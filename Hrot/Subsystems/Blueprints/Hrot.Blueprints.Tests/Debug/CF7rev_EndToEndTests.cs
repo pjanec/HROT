@@ -74,12 +74,12 @@ public sealed class CF7rev_EndToEndTests : IDisposable
         var dir = AppContext.BaseDirectory;
         while (dir != null)
         {
-            if (File.Exists(Path.Combine(dir, "IOS-IG-SimHost.sln")))
+            if (File.Exists(Path.Combine(dir, "HROT.sln")))
                 return dir;
             dir = Path.GetDirectoryName(dir);
         }
         throw new DirectoryNotFoundException(
-            "Could not find repo root (looked for IOS-IG-SimHost.sln upward from " +
+            "Could not find repo root (looked for HROT.sln upward from " +
             AppContext.BaseDirectory + ")");
     }
 

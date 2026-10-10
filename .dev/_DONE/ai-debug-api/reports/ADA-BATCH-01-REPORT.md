@@ -121,7 +121,7 @@ This test is annotated as `[Fact(Skip = "Tier-2 process smoke — requires headl
 
 ## Test Results
 
-### `dotnet build IOS-IG-SimHost.sln` (no-incremental)
+### `dotnet build HROT.sln` (no-incremental)
 
 ```
 Build succeeded.

@@ -10,7 +10,7 @@ tabs, per-kind folder tree (via FolderTreePicker + AssetRelPath + AssetRoots bas
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings.
+- `dotnet build HROT.sln` → 0 errors, 0 new warnings.
 - New tests run by lead: `AssetBrowserPanelTests` → **4 passed, 0 failed**.
 - Model read: `Tabs` = `PermittedKinds(options.Kinds)`; `TreeFor(kind)` groups
   `catalog.All.Where(Kind==kind)` by `AssetRelPath.RelPath(asset, BaseFolderFor(kind))`

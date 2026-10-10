@@ -303,7 +303,7 @@ For each task:
 2. **Explore the existing code** — read the attribute files, the existing `BlackboardSchemaBuilder`, the `IAssetCatalog`, the `FluentCSharpEmitterBase`, to understand patterns
 3. **Write the tests first** — they define the contract
 4. **Implement** the minimal code to make tests pass
-5. **Run:** `dotnet build IOS-IG-SimHost.sln` + the specific test project
+5. **Run:** `dotnet build HROT.sln` + the specific test project
 6. **Move to next task** only when current task's tests pass
 
 ---
@@ -371,6 +371,6 @@ This batch is DONE when:
 - [ ] TASK-BB-1a-02: `IAssetCatalog.Changed` → `Rebuild()` → exporter's `Changed` fires; tests verify the chain
 - [ ] TASK-BB-1a-04: `BlackboardSourceTextParser.Parse()` returns correct spans for all fixture scenarios; byte-exact span boundary tests pass
 - [ ] TASK-BB-1a-05: `BlackboardFieldClassifier.Classify()` returns `EditorManaged`/`ReadOnlyPassthrough` correctly for each of the six conditions; all ten classifier tests pass
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds with no errors
+- [ ] `dotnet build HROT.sln` succeeds with no errors
 - [ ] `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj` — new tests all pass, no regressions
 - [ ] Report submitted to `.dev/_DONE/ai-hsm-btree-vis-edit/reports/BATCH-02-REPORT.md`

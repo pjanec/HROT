@@ -146,7 +146,7 @@ Passed: 761, Failed: 0, Skipped: 0
 Passed: 10, Failed: 0  (QuickReloadService now constructed at composition; boot unaffected)
 ```
 
-### `dotnet build IOS-IG-SimHost.sln`
+### `dotnet build HROT.sln`
 ```
 0 Errors, 18 Warnings (all pre-existing; 0 new warnings in touched projects)
 ```

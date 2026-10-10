@@ -9,7 +9,7 @@
 
 ## Build
 
-`dotnet build IOS-IG-SimHost.sln --no-incremental` -> **0 errors** (verified locally).
+`dotnet build HROT.sln --no-incremental` -> **0 errors** (verified locally).
 Warnings are pre-existing xUnit2017 issues in `Hrot.ClusterRunner.Tests`, unrelated to this batch.
 
 ---

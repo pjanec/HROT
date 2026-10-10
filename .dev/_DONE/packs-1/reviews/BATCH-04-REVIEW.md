@@ -12,7 +12,7 @@
 |---------|--------|
 | `Hrot.Orchestrator.Tests` | ✅ 0 failed / 88 passed |
 | `Hrot.ClusterRunner.Tests` | ✅ 192/195 (3 pre-existing DDS-timing failures unchanged) |
-| `dotnet build IOS-IG-SimHost.sln` | ✅ 0 errors |
+| `dotnet build HROT.sln` | ✅ 0 errors |
 
 ## Task Verification
 

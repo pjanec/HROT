@@ -111,7 +111,7 @@ Supported annotation types: `sphere`, `anchor`, `line`. Color is optional hex st
 
 ## Build
 
-`dotnet build IOS-IG-SimHost.sln` → **0 errors, 28 warnings** (all pre-existing, none from this batch).
+`dotnet build HROT.sln` → **0 errors, 28 warnings** (all pre-existing, none from this batch).
 
 ---
 

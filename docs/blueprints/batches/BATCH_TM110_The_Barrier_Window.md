@@ -62,7 +62,7 @@ have widened the diff for no measured benefit.
 
 | gate | `--no-build`? | baseline | after | Δ |
 |---|---|---|---|---|
-| solution build *(`IOS-IG-SimHost.sln`)* | builds | 0 errors | ✅ **0 errors** | **0** |
+| solution build *(`HROT.sln`)* | builds | 0 errors | ✅ **0 errors** | **0** |
 | `Fdp.Toolkits.Tests` — `~ClusterTimeObservationTests\|~HaltReasonTests\|~MasterSyncControllerTests` | `--no-build` | 50 / 0 | ✅ **62 / 0** | **+12 rails** |
 | `~TimeControlIntegrationTests` ×2 | `--no-build` | 9 / 0 | ✅ **9 / 0**, **9 / 0** | **0** — no flake |
 | `~ThePauseFlagOnTheClockIsFalseWhilePausedTests` | `--no-build` | 4 / 0 | ✅ **4 / 0** | **0** |

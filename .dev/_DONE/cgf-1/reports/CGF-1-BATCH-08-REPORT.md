@@ -222,7 +222,7 @@ Test runs performed per-project (pre-existing intermittent contention in full pa
 | `Hrot.SimHost.Tests.dll` | **364 passed, 0 failed** |
 | `Fdp.Examples.NetworkDemo.Tests.dll` | **27 passed, 0 failed** |
 
-**Full solution parallel run (`dotnet test IOS-IG-SimHost.sln`):**  
+**Full solution parallel run (`dotnet test HROT.sln`):**  
 Intermittent failures observed across `FDP.Toolkit.Replication.Tests`, `FDP.Toolkit.Time.Tests`, `Fdp.Examples.NetworkDemo.Tests`, and `Hrot.SimHost.Integration.Tests` — different assemblies fail on each run. Root cause is pre-existing DDS domain contention: `TestDomainAllocator.Next()` allocates domains starting at 10, and `Hrot.Orchestrator.Tests` uses fixed domain 15, causing overlapping allocation after 5 domain increments. All affected tests pass in isolated per-project runs. This is a pre-existing infrastructure issue not introduced by BATCH-08.
 
 ---

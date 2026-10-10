@@ -10,7 +10,7 @@ Atomic task specs. Brief checklist + status lives in [TASK-TRACKER.md](./TASK-TR
 
 ## Verification & baseline
 
-- **Build:** `dotnet build IOS-IG-SimHost.sln` — 0 errors; touched projects 0 *new* warnings.
+- **Build:** `dotnet build HROT.sln` — 0 errors; touched projects 0 *new* warnings.
 - **Test projects (run the ones a task names):**
   - `Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests`
   - `Hrot/Subsystems/AI/Hrot.Hsm.Editor.Tests`

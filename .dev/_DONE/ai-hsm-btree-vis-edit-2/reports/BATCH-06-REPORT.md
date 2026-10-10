@@ -53,7 +53,7 @@ Added `MakeStarterDto()` to `BTreeNewAssetService.cs`:
 
 ## Build & Test Results
 
-- `dotnet build IOS-IG-SimHost.sln` — **0 errors**, 22 warnings (all pre-existing, none from these changes)
+- `dotnet build HROT.sln` — **0 errors**, 22 warnings (all pre-existing, none from these changes)
 - `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **485 passed, 0 failed, 0 skipped** (including 8 new tests)
 
 ## Deviations & Notes
@@ -105,7 +105,7 @@ The original BATCH-06B instructions suggested `ThreeParamReusable` with null `Ex
 
 ### Build & Test Results
 
-- `dotnet build IOS-IG-SimHost.sln` — **0 errors, 0 new warnings**
+- `dotnet build HROT.sln` — **0 errors, 0 new warnings**
 - `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **485 passed, 0 failed, 0 skipped**
 - Round-trip byte stability confirmed (serialize→deserialize→serialize is idempotent)
 
@@ -144,7 +144,7 @@ Three changes:
 
 ### Build & Test Results
 
-- `dotnet build IOS-IG-SimHost.sln` — **0 errors**, 0 new warnings
+- `dotnet build HROT.sln` — **0 errors**, 0 new warnings
 - `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **485 passed, 0 failed, 0 skipped**
 - `git diff -- Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CgfNodes.cs` — **empty** (no unauthorized production changes)
 - Round-trip byte stability confirmed; `CombatShowcase.g.cs` compiles cleanly

@@ -11,7 +11,7 @@
 
 | Check | Result |
 |-------|--------|
-| `dotnet build IOS-IG-SimHost.sln` | Build succeeded. 0 Error(s), 0 Warning(s) |
+| `dotnet build HROT.sln` | Build succeeded. 0 Error(s), 0 Warning(s) |
 | Full test sweep | 10 pre-existing integration failures, baseline unchanged |
 
 ---

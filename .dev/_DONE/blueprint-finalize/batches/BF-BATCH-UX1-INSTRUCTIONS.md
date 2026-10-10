@@ -124,7 +124,7 @@ The real editing canvas is the NodeEdit-based canvas. Remove the confusion:
 ---
 
 ## Gate (all)
-- `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors / 0 new warnings.
+- `dotnet build HROT.sln -c Debug` → 0 errors / 0 new warnings.
 - Blueprints suite WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS` set: failures a SUBSET of the current 2 pre-existing
   (`ConditionSummary ScoreCrossed`, `AllocationFree`). List the final failing set by name; 0 new. Run it a final
   time with the env var UNSET (regen mode masks snapshot failures — see lessons).

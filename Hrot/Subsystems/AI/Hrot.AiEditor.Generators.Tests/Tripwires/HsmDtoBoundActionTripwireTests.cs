@@ -294,11 +294,11 @@ namespace Synthetic
             var dir = AppContext.BaseDirectory;
             while (dir != null)
             {
-                if (File.Exists(Path.Combine(dir, "IOS-IG-SimHost.sln"))) return dir;
+                if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
                 dir = Path.GetDirectoryName(dir.TrimEnd(Path.DirectorySeparatorChar));
             }
             throw new InvalidOperationException(
-                "Could not find repo root (looked for IOS-IG-SimHost.sln upward from " +
+                "Could not find repo root (looked for HROT.sln upward from " +
                 AppContext.BaseDirectory + ").");
         }
     }

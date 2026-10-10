@@ -84,7 +84,7 @@
 - Do NOT weaken/skip/auto-pass tests; zero new warnings (TreatWarningsAsErrors).
 
 ## Definition of done (all required)
-- `dotnet build IOS-IG-SimHost.sln` green (zero new warnings) — incl. the netstandard2.0 generator target.
+- `dotnet build HROT.sln` green (zero new warnings) — incl. the netstandard2.0 generator target.
 - Run WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS`. New tests pass UNFILTERED. 0-failed with the Stability
   filter for `Hrot.Editor.AiShared.Tests` + the blueprint editor test project + the hot suites
   `Fdp.Toolkits.Tests` + `Hrot.SimHost.Tests` (PRE-3 EQS flake → re-run). For `Hrot.Blueprints.Tests`

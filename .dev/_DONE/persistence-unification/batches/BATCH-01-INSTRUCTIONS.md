@@ -45,7 +45,7 @@ As Task 1 for `HsmAsset` (§5.2/§5.4): states/transitions/regions/global-transi
 - [ ] PU-104: BTree/HsmJsonServices mirror Blueprint settings; `$meta` first; header-lazy discovery skips malformed. + tests pass.
 - [ ] PU-105 (RT): serialize→deserialize→serialize byte-identical for all fixtures; determinism. + tests pass.
 - [ ] DTOs + JSON services compile in a `netstandard2.0` library with **no net8/editor/ImGui reference** (verify via project refs — record in report).
-- [ ] Global gate: `dotnet build IOS-IG-SimHost.sln` 0 errors, 0 new warnings in touched projects; `EditorSubsystemBoot` filter 10/10; `Hrot.Editor.AiShared.Tests` green; `Hrot.Blueprints.Tests` only the 10 pre-existing DEBT-006 (0 new); no other baseline regression. **Report exact failing-test counts.**
+- [ ] Global gate: `dotnet build HROT.sln` 0 errors, 0 new warnings in touched projects; `EditorSubsystemBoot` filter 10/10; `Hrot.Editor.AiShared.Tests` green; `Hrot.Blueprints.Tests` only the 10 pre-existing DEBT-006 (0 new); no other baseline regression. **Report exact failing-test counts.**
 - [ ] Report submitted to `.dev/_DONE/persistence-unification/reports/BATCH-01-REPORT.md`.
 
 ## Report Requirements (answer in the report)

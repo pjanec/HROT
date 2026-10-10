@@ -14,7 +14,7 @@
 | Hrot.SimHost.Tests | 0 | 445 | 3 (DDS) | 448 |
 | Fdp.Toolkits.Tests | 7 (pre-existing) | 753 | 0 | 760 |
 
-Build: **no CS errors** (`dotnet build IOS-IG-SimHost.sln --no-restore`).
+Build: **no CS errors** (`dotnet build HROT.sln --no-restore`).
 
 ---
 

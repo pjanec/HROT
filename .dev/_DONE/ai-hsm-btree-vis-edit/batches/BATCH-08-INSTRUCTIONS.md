@@ -291,7 +291,7 @@ Same pattern for `HsmAsset`:
 ## Build and test commands
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj --no-build
 dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Hrot.BTree.Editor.Tests.csproj --no-build
 dotnet test Hrot/Subsystems/AI/Hrot.Hsm.Editor.Tests/Hrot.Hsm.Editor.Tests.csproj --no-build
@@ -322,5 +322,5 @@ Create `.dev/_DONE/ai-hsm-btree-vis-edit/reports/BATCH-08-REPORT.md` with:
 - [ ] `DrawClientArea` renders aliased-by badge below variable rows
 - [ ] `DrawClientArea` provides "Remove alias" context menu on badge rows
 - [ ] 18+ new tests; all prior tests still pass
-- [ ] `dotnet build IOS-IG-SimHost.sln` = 0 errors
+- [ ] `dotnet build HROT.sln` = 0 errors
 - [ ] Report filed

@@ -77,7 +77,7 @@ Build assets as hand-constructed `BlueprintAsset` object graphs (as 03A tests do
 same entry point the existing Stage2 tests use (find it; cite).
 
 ## Verification (paste real output)
-1. `dotnet build IOS-IG-SimHost.sln` — 0 errors; 0 new warnings in touched projects.
+1. `dotnet build HROT.sln` — 0 errors; 0 new warnings in touched projects.
 2. New validation tests green; the 03A tests still green.
 3. Full `Hrot.Blueprints.Tests`: failures must remain the SUBSET of the pre-existing **7**
    (AiPrimitiveEmitGolden ×2, LibraryEmitGolden, LibraryMath snapshot, MoveToAndFire snapshot,

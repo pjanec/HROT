@@ -110,7 +110,7 @@ snapshot / allocation tests:
 `BlueprintCommandSink`, `NodePinSchema`, the wire-drop path, or `SampleWiredDemo`.
 
 ## Build status
-- `dotnet build IOS-IG-SimHost.sln`: **0 errors, 26 warnings** (the pre-existing ~26 in
+- `dotnet build HROT.sln`: **0 errors, 26 warnings** (the pre-existing ~26 in
   unrelated test projects; none in touched projects). Touched-project build
   (`Hrot.Blueprints.Editor` + `Hrot.Blueprints.Tests`): **0 errors**; the 8 warnings in the test
   project are all pre-existing (`IBlueprintTimeController` obsolete, `EntityQuery.ForEach`

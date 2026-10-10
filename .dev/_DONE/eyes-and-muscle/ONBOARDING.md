@@ -83,7 +83,7 @@ Hrot.IG/
 
 **Build the solution:**
 ```
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 ```
 
 **Run unit tests for ClusterRunner:**

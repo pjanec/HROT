@@ -128,7 +128,7 @@ Re-run passes clean.
 
 ### Build
 ```
-dotnet build IOS-IG-SimHost.sln — Build succeeded. 0 Error(s), 0 new Warning(s)
+dotnet build HROT.sln — Build succeeded. 0 Error(s), 0 new Warning(s)
 ```
 
 ## Developer Insights

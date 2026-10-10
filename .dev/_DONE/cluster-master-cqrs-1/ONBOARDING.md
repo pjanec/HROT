@@ -33,7 +33,7 @@ We are refactoring the cluster state management architecture to achieve the same
 The workspace root is `d:\Work\IOS-IG-SimHost-FDP-2`.
 
 ```
-IOS-IG-SimHost.sln              ← main solution
+HROT.sln              ← main solution
 FDP/FDP.sln                     ← FDP engine sub-solution
 FDP/Toolkits/FDP.Toolkit.Orchestration/   ← ClusterSlave, IClusterStateHandler, enums (your main FDP target)
 Hrot.Orchestrator/              ← ClusterMaster, Translators (your main Hrot target)
@@ -63,7 +63,7 @@ Hrot.Orchestrator.Integration.Tests/      ← Orchestrator-specific integration 
 ```powershell
 # Build everything
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Build just the FDP engine (faster for Phase 1-3 work)
 dotnet build FDP/FDP.sln

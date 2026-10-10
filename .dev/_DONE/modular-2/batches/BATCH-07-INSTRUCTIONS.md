@@ -697,10 +697,10 @@ namespace Hrot.BDC.Factory
 
 ## STEP 6 — Add to solution
 
-Add both new projects to `IOS-IG-SimHost.sln` using:
+Add both new projects to `HROT.sln` using:
 ```
-dotnet sln IOS-IG-SimHost.sln add Hrot.Network.BDC/Hrot.Network.BDC.csproj
-dotnet sln IOS-IG-SimHost.sln add Hrot.Network.BDC.Tests/Hrot.Network.BDC.Tests.csproj
+dotnet sln HROT.sln add Hrot.Network.BDC/Hrot.Network.BDC.csproj
+dotnet sln HROT.sln add Hrot.Network.BDC.Tests/Hrot.Network.BDC.Tests.csproj
 ```
 
 ---
@@ -909,20 +909,20 @@ on `SimTransform`, and replicate that pattern.
 
 ```powershell
 # Build the full solution
-dotnet build IOS-IG-SimHost.sln -v q
+dotnet build HROT.sln -v q
 
 # Run BDC tests
 dotnet test Hrot.Network.BDC.Tests/Hrot.Network.BDC.Tests.csproj -v q
 
 # Run all tests to ensure nothing is broken
-dotnet test IOS-IG-SimHost.sln -v q --filter "FullyQualifiedName!~Integration"
+dotnet test HROT.sln -v q --filter "FullyQualifiedName!~Integration"
 ```
 
 ---
 
 ## Success Criteria
 
-- [ ] `Hrot.Network.BDC` and `Hrot.Network.BDC.Tests` added to `IOS-IG-SimHost.sln`
+- [ ] `Hrot.Network.BDC` and `Hrot.Network.BDC.Tests` added to `HROT.sln`
 - [ ] Solution builds with zero errors (`0 Error(s)`)
 - [ ] All BDC tests pass: `Hrot.Network.BDC.Tests`
 - [ ] All pre-existing tests still pass

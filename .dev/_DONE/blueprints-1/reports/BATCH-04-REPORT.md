@@ -141,7 +141,7 @@ This pattern matches the official Microsoft documentation at
 ## 4. Build Status
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Build succeeded.
     0 Warning(s)
     0 Error(s)

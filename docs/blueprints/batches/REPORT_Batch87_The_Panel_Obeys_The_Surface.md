@@ -163,7 +163,7 @@ miniature, inside the rail written to catch `R-67`.** ⭐ **Rewritten to go thro
 
 | # | gate | `--no-build`? | result | Δ vs baseline |
 |---|---|---|---|---|
-| 1 | `dotnet build IOS-IG-SimHost.sln` | n/a | ✅ **0 errors** | — |
+| 1 | `dotnet build HROT.sln` | n/a | ✅ **0 errors** | — |
 | 2 | `dotnet test Hrot.Editor.AiShared.Tests` | ✅ | ✅ **1424 / 1424 / 0 skipped** | ⭐ **+27 — the new rails** |
 | 3 | `dotnet test Hrot.Blueprints.Tests` | ✅ | ✅ **3767 / 3777 / 10 skipped** | **0** |
 | 4 | `dotnet test Hrot.BTree.Editor.Tests` | ✅ | ✅ **615 / 615** | **0** |

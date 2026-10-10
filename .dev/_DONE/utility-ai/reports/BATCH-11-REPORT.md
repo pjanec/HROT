@@ -44,7 +44,7 @@ Implemented Phase 3 of the Utility AI editor workstream: the standalone `CurveWi
 |---|---|
 | `FDP/Toolkits/Fdp.Toolkits/Utility/Core/PiecewiseCurveCatalog.cs` | Added `internal static (float x, float y)[]? GetPoints(short curveId)` for editor round-trip |
 | `FDP/Toolkits/Fdp.Toolkits/Fdp.Toolkits.csproj` | Added `InternalsVisibleTo` for `Hrot.Utility.Editor` and `Hrot.Utility.Editor.Tests` |
-| `IOS-IG-SimHost.sln` | Added both new projects (Project entries, build config, NestedProjects under Editor folder) |
+| `HROT.sln` | Added both new projects (Project entries, build config, NestedProjects under Editor folder) |
 
 ---
 

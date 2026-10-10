@@ -68,7 +68,7 @@ MUST stay green (RegisterWindows must not throw on the bare subsystem — null-g
   the same for any toolbar deps that may be null in the bare-subsystem unit-test path).
 
 ## Definition of done
-- `dotnet build IOS-IG-SimHost.sln` green (zero new warnings). NOTE: if the editor is running, the build
+- `dotnet build HROT.sln` green (zero new warnings). NOTE: if the editor is running, the build
   may show MSB3027/MSB3021 **file-lock** copy errors into `Hrot.ClusterRunner/bin` — those are
   environmental (close the running editor), NOT compile errors; confirm the library projects compile.
 - Run WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS`. New + existing `EditorSubsystemBlueprintWindowsTests`

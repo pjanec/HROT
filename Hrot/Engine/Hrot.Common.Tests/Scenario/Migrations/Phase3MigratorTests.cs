@@ -54,7 +54,7 @@ public sealed class Phase3MigratorTests
     private static string FindWorkspaceRoot()
     {
         DirectoryInfo? dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "IOS-IG-SimHost.sln")))
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
             dir = dir.Parent;
         if (dir == null)
             throw new InvalidOperationException("Cannot locate workspace root.");

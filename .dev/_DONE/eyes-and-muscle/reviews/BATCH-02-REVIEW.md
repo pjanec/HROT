@@ -13,7 +13,7 @@
 |---|---|---|
 | `Hrot.ClusterRunner.Tests` (filter: NedReplication\|EyesAndMuscle) | 12 | ✅ All passing |
 | `Hrot.ClusterRunner.Integration.Tests` (filter: EyesAndMuscle) | 3 | ✅ All passing |
-| `dotnet build IOS-IG-SimHost.sln` | — | ✅ Succeeded, 0 errors |
+| `dotnet build HROT.sln` | — | ✅ Succeeded, 0 errors |
 
 ---
 

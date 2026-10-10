@@ -631,7 +631,7 @@ INVESTIGATION**, not a deletion.
 | | `Hrot.MuscleCharacter.Animation.Stride` | `Hrot.Stride.Animation` |
 |---|---|---|
 | TFM | `net8.0` | `net8.0-windows` |
-| ⭐⭐ **in `IOS-IG-SimHost.sln`?** | ✅ **YES** | ⛔ **NO** |
+| ⭐⭐ **in `HROT.sln`?** | ✅ **YES** | ⛔ **NO** |
 | production consumers | 🔴 **NONE** — only its own test project | ⭐ **the live host**: `EditorStrideSubsystem:874` and `:1270` construct it; `MannequinAnimationBinder`, `StrideViewBracket`, `StrideAnimationHarnessCases` all use it |
 | own tests | `StrideBackendSmokeTests` | `StrideAnimationBackendBehaviorTests` · `…ContractTests` · `BackendBuilderHookTests` |
 | lines | 657 | 663 |
@@ -1294,7 +1294,7 @@ machine**, which is why it was never written into the csproj files.
 | `HrotStrideApp.Game` *(the shell, 6 Stride packages + the asset-compiler package)* | ✅ **Build succeeded** *(75 s cold)* |
 
 ⇒ ⭐⭐⭐ **Adding `Hrot.Stride.Core`, `Hrot.Stride.Animation` and `HrotStrideApp.Game` to
-`IOS-IG-SimHost.sln` then requires NO code to move and NO project to be created.** ⛔ `HrotStrideApp.Windows`
+`HROT.sln` then requires NO code to move and NO project to be created.** ⛔ `HrotStrideApp.Windows`
 stays out — it is the one that genuinely cannot build here *(the Stride asset compiler wants Direct3D11,
 MSB3073 exit 150)*.
 
@@ -1321,7 +1321,7 @@ MSB3073 exit 150)*.
 | | |
 |---|---|
 | `Directory.Build.props` | ⭐ `EnableWindowsTargeting` declared **conditioned on non-Windows**, so `stride-check.sh`'s `-p:` flag is no longer needed for a Linux/CI restore. ⚠ Conditioned rather than unconditional — on Windows it is meaningless and setting it would state something untrue about the machine |
-| `IOS-IG-SimHost.sln` | ⭐ **6 entries** under a `Stride` solution folder: `Hrot.Stride.Core` · `.Core.Tests` · `Hrot.Stride.Animation` · `.Animation.Tests` · `HrotStrideApp.Game` · `.Game.Tests` |
+| `HROT.sln` | ⭐ **6 entries** under a `Stride` solution folder: `Hrot.Stride.Core` · `.Core.Tests` · `Hrot.Stride.Animation` · `.Animation.Tests` · `HrotStrideApp.Game` · `.Game.Tests` |
 | ⛔ **`HrotStrideApp.Windows` stays OUT** | it is the one that genuinely cannot build off Windows *(the Stride asset compiler wants Direct3D11, `MSB3073` exit 150)* |
 
 📐 **MEASURED ON WINDOWS:**

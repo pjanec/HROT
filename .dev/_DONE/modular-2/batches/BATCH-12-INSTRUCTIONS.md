@@ -300,10 +300,10 @@ cd D:\Work\IOS-IG-SimHost-FDP-2
 
 # Verify subsystem types no longer in ClusterRunner.dll
 # (after building, check ClusterRunner.dll with reflection)
-dotnet build IOS-IG-SimHost.sln -v quiet
+dotnet build HROT.sln -v quiet
 
 # Run unit tests
-dotnet test IOS-IG-SimHost.sln --filter "FullyQualifiedName!~Integration" -v quiet
+dotnet test HROT.sln --filter "FullyQualifiedName!~Integration" -v quiet
 ```
 
 **Success conditions:**

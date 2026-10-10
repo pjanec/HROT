@@ -38,7 +38,7 @@ Read it before starting.
 
 ```powershell
 # From repo root:
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj
 ```
 

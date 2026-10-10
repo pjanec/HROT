@@ -78,7 +78,7 @@ None. All three tasks were implemented per the BATCH-01-INSTRUCTIONS.md specific
 ## Build Verification
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
   Build succeeded.
     0 Warning(s)
     0 Error(s)

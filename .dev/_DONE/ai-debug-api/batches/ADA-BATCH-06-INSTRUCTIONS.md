@@ -31,7 +31,7 @@ verbatim.
 
 ### Location & stack
 - Place the server at **`tools/ai-debug-mcp/`** (repo root; it is an external companion app, NOT part of
-  `IOS-IG-SimHost.sln`). `package.json`, `src/`, `README.md`.
+  `HROT.sln`). `package.json`, `src/`, `README.md`.
 - Node 18+, `@modelcontextprotocol/sdk`, native `fetch`. stdio transport. Keep dependencies minimal.
 
 ### Ground truth from the running API (use these EXACT details — learned from real reproduce)
@@ -96,7 +96,7 @@ Currently-implemented endpoints to mirror (verify each against the route table i
 - Thin proxy ONLY — no business logic, no client-side wait reasoning; envelope verbatim.
 - 1:1 tools↔endpoints; no composites; names mirror the API paths/groups.
 - `localhost` (not 127.0.0.1); empty body on bodyless POSTs; graceful→hard kill with timeout; no orphan children.
-- The server is external — do NOT add it to `IOS-IG-SimHost.sln` or the .NET build.
+- The server is external — do NOT add it to `HROT.sln` or the .NET build.
 
 ## Deliverables
 - `tools/ai-debug-mcp/` (package.json, src, README with run + verify instructions + the "tools are 1:1 with

@@ -402,7 +402,7 @@ should not be relayed until this is folded in.
 
 | Claim | Reality |
 |---|---|
-| *"`Hrot.UI.Common` is listed in `IOS-IG-SimHost.sln`"* | It is in **no** solution — `grep` across all `.sln` returns empty |
+| *"`Hrot.UI.Common` is listed in `HROT.sln`"* | It is in **no** solution — `grep` across all `.sln` returns empty |
 | *"`MessageLogPanel` (713 L) has no consumer"* | It **is** used — `MessageLogWindow.cs:30`, which `LocalWindowController.cs:50` registers for **every** mode. The scan checked only subsystems, not the host |
 
 Also corrected against the programme's own docs:

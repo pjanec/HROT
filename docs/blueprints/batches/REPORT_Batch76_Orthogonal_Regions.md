@@ -11,7 +11,7 @@
 
 | gate | command | result |
 |---|---|---|
-| solution build | `dotnet build IOS-IG-SimHost.sln -t:Rebuild -v q --nologo` | ✅ **0 errors / 69 warnings** |
+| solution build | `dotnet build HROT.sln -t:Rebuild -v q --nologo` | ✅ **0 errors / 69 warnings** |
 | ⭐⭐ **FastHSM** *(NEW — item 1's home)* | `dotnet test FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/*.csproj -v q --nologo` ⚠ **NO `--no-build`** | ⚠ **298 / 300** — **2 PRE-EXISTING reds**, §1a |
 | Blueprints | `dotnet test …/Hrot.Blueprints.Tests.csproj --no-build -v q --nologo` | ✅ **3691 / 3681 / 0 / 10** |
 | AiShared | `dotnet test …/Hrot.Editor.AiShared.Tests.csproj --no-build -v q --nologo` | ✅ **1289 / 1289 / 0 / 0** |
@@ -37,7 +37,7 @@ why, and the handoff expected otherwise.
 📐 **My first full run reported FastHSM at 3 red — one more than baseline, and the extra one was MY OWN
 new test.** ⛔ **It was a stale binary, not a regression.**
 
-📐 **`Fhsm.Tests` is not in `IOS-IG-SimHost.sln`** *(`grep -c "Fhsm.Tests" IOS-IG-SimHost.sln` → **0**;
+📐 **`Fhsm.Tests` is not in `HROT.sln`** *(`grep -c "Fhsm.Tests" HROT.sln` → **0**;
 only `Fhsm.Compiler` and `Fhsm.Kernel` are)*. ⇒ ⭐⭐ **`dotnet build <sln> -t:Rebuild` never builds it,
 so `--no-build` then runs whatever was in its `bin` from some earlier session** — in my case a
 `Fhsm.Kernel.dll` from before the fix.

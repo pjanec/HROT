@@ -26,7 +26,7 @@ build time is **dependency DEPTH, not project count**.
 
 ```bash
 git ls-files '*.csproj' | wc -l                      # 157 (94 production, 63 test)
-grep -c 'Project(' IOS-IG-SimHost.sln                # 151 in the main solution
+grep -c 'Project(' HROT.sln                # 151 in the main solution
 # + a python walk of every csproj's <ProjectReference> to build the DAG
 ```
 

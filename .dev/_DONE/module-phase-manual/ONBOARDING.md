@@ -89,13 +89,13 @@ The workspace root contains two solution files:
 
 ```bat
 # Build everything
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Build FDP engine and toolkits only
 dotnet build FDP/FDP.sln
 
 # Run all tests
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 
 There is also a convenience batch script at the workspace root:
@@ -103,7 +103,7 @@ There is also a convenience batch script at the workspace root:
 build_all_standalone.bat
 ```
 
-Before finishing any task, confirm `dotnet build IOS-IG-SimHost.sln` produces **zero errors**.
+Before finishing any task, confirm `dotnet build HROT.sln` produces **zero errors**.
 
 ---
 

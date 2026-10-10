@@ -281,7 +281,7 @@ in the view-model.
 
 After each task:
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 After completing all tasks:
@@ -315,5 +315,5 @@ Create `.dev/_DONE/ai-hsm-btree-vis-edit/reports/BATCH-07-REPORT.md` with:
 - [ ] `BlackboardDtoEmitter.EmitHeavy(model, structName)` (or equivalent) added
 - [ ] `BlackboardWindowViewModel` has `TotalHeavyBytes`, `InlineBudget`, `HeavyBudget`, `RequiresHeavyComponent`
 - [ ] 20+ new tests; all prior tests still pass
-- [ ] `dotnet build IOS-IG-SimHost.sln` = 0 errors
+- [ ] `dotnet build HROT.sln` = 0 errors
 - [ ] Report filed

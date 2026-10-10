@@ -170,7 +170,7 @@ while reading different storage.
 
 ## 6. Gates
 
-The eight, `--logger "console;verbosity=normal"`. Solution **`IOS-IG-SimHost.sln`**.
+The eight, `--logger "console;verbosity=normal"`. Solution **`HROT.sln`**.
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — **§4 moves both.**
 ⭐ **`python3 scripts/tracker-counts.py --check`** — clean **ten** batches running.
 

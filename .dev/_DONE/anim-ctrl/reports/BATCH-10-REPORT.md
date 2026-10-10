@@ -4,7 +4,7 @@
 **Date:** 2026-05-27  
 **Batch ID:** BATCH-10  
 **Developer:** Claude Haiku 4.5  
-**Build Target:** IOS-IG-SimHost.sln  
+**Build Target:** HROT.sln  
 
 ---
 
@@ -163,7 +163,7 @@ Duration: 1 s - Hrot.MuscleCharacter.Animation.Tests.dll (net8.0)
 
 ## Build Status
 
-**Command:** `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4`
+**Command:** `dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4`
 
 **Result:** ✅ Build succeeded (0 errors, 0 warnings)
 

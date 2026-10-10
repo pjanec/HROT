@@ -75,7 +75,7 @@ correctly and requires no changes.
 ```powershell
 # Build entire solution
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 
 # Run relevant test projects
 dotnet test FDP/Engine/Fdp.Core.Tests/Fdp.Core.Tests.csproj --no-build

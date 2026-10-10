@@ -20,7 +20,7 @@
 
 ## Test Results
 
-Full solution run: `dotnet test IOS-IG-SimHost.sln`
+Full solution run: `dotnet test HROT.sln`
 
 | Assembly | Failed | Passed | Skipped |
 |---|---|---|---|

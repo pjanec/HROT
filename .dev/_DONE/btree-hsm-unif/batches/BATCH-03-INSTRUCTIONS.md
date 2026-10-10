@@ -25,7 +25,7 @@
 
 Before writing any test, run the full build to confirm your baseline:
 ```
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet
+dotnet build HROT.sln --no-restore -v quiet
 dotnet test FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Fhsm.Tests.csproj --no-build --verbosity quiet
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --no-build --verbosity quiet
 ```
@@ -164,7 +164,7 @@ Full specs in TASK-DETAIL.md "Group E" section. Key points:
 - [ ] IT-BHU-D1 through D3 pass (3 tests)
 - [ ] IT-BHU-E1 and E2 pass (2 tests) — or E1 alone if E2 requires infrastructure not available in ClusterRunner.Integration.Tests
 - [ ] Zero regressions in any existing passing test
-- [ ] `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` — zero `error CS` lines
+- [ ] `dotnet build HROT.sln --no-restore -v quiet` — zero `error CS` lines
 
 ---
 

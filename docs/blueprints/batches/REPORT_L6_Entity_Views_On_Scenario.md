@@ -272,7 +272,7 @@ deliberate *("so that tests can verify the call without a render context")*.
 
 | # | gate | command | result | `--no-build`? | Δ vs base |
 |---|---|---|---|---|---|
-| **1** | solution build | `dotnet build IOS-IG-SimHost.sln --no-restore` | ⭐ **0 errors** | ⛔ builds | — |
+| **1** | solution build | `dotnet build HROT.sln --no-restore` | ⭐ **0 errors** | ⛔ builds | — |
 | **2** | `Hrot.Editor.AiShared.Tests` | `dotnet test … --no-build` | ⭐ **1858 pass / 0 fail / 1 skip — 1859 total** | ✅ in solution | **+13** *(1846 → 1859: `L6.1a`'s 7 stage-gate rails + `L6.5`'s 6 predicate rails)* |
 | **3** | `Hrot.Blueprints.Tests` | `dotnet test … --no-build` | ⭐ **3898 pass / 0 fail / 18 skip — 3916 total** *(identical pre- and post-merge)* | ✅ in solution | **+19** *(`L6.1c` 4 · `L6.3` 7 · `L6.4` 8)* |
 | **4** | ⛔⛔ `Fdp.Presentation.Tests` | ⛔ **CANNOT run whole — `BP-419`** | 🛑 **test host CRASHES mid-run, at BASE TOO** | — | — |

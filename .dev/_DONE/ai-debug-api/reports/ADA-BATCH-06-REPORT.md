@@ -13,7 +13,7 @@
 - `tools/ai-debug-mcp/verify.mjs` — end-to-end verification script
 - `tools/ai-debug-mcp/README.md` — run + verify instructions + 1:1 tool set note
 
-**NOT added to `IOS-IG-SimHost.sln`** — external companion app only, as required.
+**NOT added to `HROT.sln`** — external companion app only, as required.
 
 Dependencies installed: `npm install` in `tools/ai-debug-mcp/` installs 92 packages
 (all transitive deps of `@modelcontextprotocol/sdk`). No vulnerabilities.

@@ -17,7 +17,7 @@ one-batch-per-commit changes on branch `main-toolbar-1`.
 | 7 — Menu/workspace/retirement | T1–T5 | 21, 22, 23 | Scenario menu, Workspace submenu, retire 3 legacy browser/catalog types |
 
 ## Test posture (verified green on `main-toolbar-1`)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings (incl. the netstandard2.0 blueprint generator).
+- `dotnet build HROT.sln` → 0 errors, 0 new warnings (incl. the netstandard2.0 blueprint generator).
 - ~330+ new tests added across the project, all passing unfiltered.
 - Gated suites (Stability filter `Stability!=Flaky&!=Environment&!=Broken`), 0 failed:
   `Hrot.Editor.AiShared.Tests` (1014), `Hrot.Editor.Tests` (176), `Hrot.BTree.Editor.Tests` (406),

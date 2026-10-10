@@ -29,7 +29,7 @@ so it did not exist for the coordinator. This is that table, in the repo.
 
 | # | gate — verbatim command | `--no-build`? | result | delta vs `5963fffd4` |
 |---|---|---|---|---|
-| 1 | `dotnet build IOS-IG-SimHost.sln` | builds | ✅ **0 errors**, 24 warnings | none |
+| 1 | `dotnet build HROT.sln` | builds | ✅ **0 errors**, 24 warnings | none |
 | 2 | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter Category=SystemModes` | `--no-build` | ✅ **8 / 0** | **+8 new** |
 | 3 | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build` *(whole suite)* | `--no-build` | ⚠ **47 / 1** | **39 → 47 passing**; the 1 red is pre-existing (row A) |
 | 4 | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --no-build --filter FullyQualifiedName~TimeControlIntegrationTests` | `--no-build` | ✅ **9 / 0** | none |

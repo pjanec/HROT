@@ -101,7 +101,7 @@ Modified `CapturingDebugSession.cs`:
 
 ## Test Results
 
-**Command:** `dotnet build IOS-IG-SimHost.sln -c Debug` → **0 errors, 9 warnings (pre-existing)**
+**Command:** `dotnet build HROT.sln -c Debug` → **0 errors, 9 warnings (pre-existing)**
 
 **Command:** `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug --no-build`
 
@@ -141,7 +141,7 @@ Modified `CapturingDebugSession.cs`:
 - [x] Adapter wired in `BlueprintDocumentFactory.Build()` via `SetDebugSession`
 - [x] `editor.toggle-breakpoint` command registered and invokable
 - [x] Dead `BlueprintBreakpointContextMenuProvider` wiring removed from factory
-- [x] **`dotnet build IOS-IG-SimHost.sln -c Debug` passes with 0 errors, 0 new warnings**
+- [x] **`dotnet build HROT.sln -c Debug` passes with 0 errors, 0 new warnings**
 - [x] **`Hrot.Blueprints.Tests` — all existing tests pass; 0 new failures; 3 pre-existing failures unchanged**
 - [x] **New adapter tests (7+ scenarios) all pass**
 - [x] Report submitted

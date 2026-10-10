@@ -244,7 +244,7 @@ benefit.
 
 ## 4. Gates
 
-The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.sln`** (⚠ not `Hrot.sln`).
+The eight, `--logger "console;verbosity=normal"`. Solution is **`HROT.sln`** (⚠ not `Hrot.sln`).
 
 **Baseline — ⭐ all eight gates coordinator-RUN on THIS tree (`0bef2f2`) today, not carried forward:**
 
@@ -267,7 +267,7 @@ The two **NodeEdit** gates as written in `RESUME_START_HERE.md` §3 use `--no-bu
 dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.Core.Tests/NodeEditor.Core.Tests.csproj --no-build …
 ```
 
-⇒ On a clean tree this **does not run the tests**. Those projects are **not in `IOS-IG-SimHost.sln`**,
+⇒ On a clean tree this **does not run the tests**. Those projects are **not in `HROT.sln`**,
 so the solution build never produces their assemblies, and the runner exits with
 *"The argument …NodeEditor.Core.Tests.dll is invalid"* — ⭐ **no test output, and easy to read as
 "nothing to report" rather than "the gate did not run."** Trap #5 in the gate script itself.

@@ -12,7 +12,7 @@
 
 **Modified:**
 
-1. IOS-IG-SimHost.sln — added Hrot.Examples.NetworkDemo project under a new `Examples` solution folder nested under Hrot, with all 6 build configurations
+1. HROT.sln — added Hrot.Examples.NetworkDemo project under a new `Examples` solution folder nested under Hrot, with all 6 build configurations
 
 
 ---------------

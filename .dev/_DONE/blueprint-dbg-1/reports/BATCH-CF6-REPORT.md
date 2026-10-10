@@ -133,7 +133,7 @@ Graphs are registered on the debug session inside `Build()` where `bpAsset.Graph
 ### Build: 0 errors ✅
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug → Build succeeded.
+dotnet build HROT.sln -c Debug → Build succeeded.
 ```
 
 ---
@@ -167,7 +167,7 @@ dotnet build IOS-IG-SimHost.sln -c Debug → Build succeeded.
 ## Test Commands
 
 ```bash
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug --filter "FullyQualifiedName~Debug"
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug --filter "FullyQualifiedName~CF6"
 ```

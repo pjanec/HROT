@@ -436,7 +436,7 @@ From [TASK-DETAILS.md](../TASK-DETAILS.md):
 ## Build Verification
 
 ```bash
-dotnet build IOS-IG-SimHost.sln -c Debug --no-incremental
+dotnet build HROT.sln -c Debug --no-incremental
 dotnet test Hrot\Subsystems\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj --no-build
 dotnet test Hrot\Subsystems\Hrot.IG.Tests\Hrot.IG.Tests.csproj --no-build
 dotnet test Hrot\Subsystems\Hrot.StrideMock\Hrot.StrideMock.Tests\Hrot.StrideMock.Tests.csproj --no-build

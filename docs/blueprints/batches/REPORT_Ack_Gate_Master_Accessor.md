@@ -98,12 +98,12 @@ seam; §6c carries the gate. **Two deviations from it:**
 
 | # | gate | verbatim command | `--no-build`? | result · delta vs `3d5743a84` / base `259220e84` |
 |---|---|---|---|---|
-| 1 | build | `dotnet build IOS-IG-SimHost.sln --no-restore` | must build | ⭐ **0 errors** *(rebuilt before every conclusion — the stale-binary trap)* |
+| 1 | build | `dotnet build HROT.sln --no-restore` | must build | ⭐ **0 errors** *(rebuilt before every conclusion — the stale-binary trap)* |
 | 1 · 8 | ⭐⭐⭐ **the integration gate** | `bash scripts/run-system-tests.sh` | builds | ⭐⭐ **81 / 81 pass, 0 fail, 0 skip** *(baseline `80/80` ⇒ **+1**, the new ack rail)*. 🔴 **This is the gate that mattered: the new condition sits under EVERY `StepAsync` in the suite** |
 | 8 | ⭐⭐ **the TIME-lane time suites** *(the invariant: nodes stay time-synced)* | `dotnet test Hrot.ClusterRunner.Integration.Tests --no-build --filter "FullyQualifiedName~SimTimeSyncIntegrationTests"` | `--no-build` | ⭐ **6 / 6 pass** |
 | 8 | ⭐⭐ *(same)* | `… --filter "FullyQualifiedName~TimeControlIntegrationTests"` | `--no-build` | ⭐ **9 / 9 pass** |
 | 8 | the kernel suite | `dotnet test FDP/Engine/Fdp.ModuleHost.Tests --no-build` | `--no-build` | ⚠ **192 / 198, 6 fail — ALL PRE-EXISTING, and the base is WORSE**: on the stashed base tree the same run fails **7**, a strict superset *(it adds `ModuleHostKernelTests.ModuleDeltaTime_AccumulatesCorrectly`)* ⇒ the suite is also **rotating-flaky**, `DEBT-AIB-030`'s shape. Named in §4b |
-| 2 | out-of-solution / stale bin | — | — | ⭐ every project gated here is in `IOS-IG-SimHost.sln`; every `--no-build` run followed a full build of the same tree |
+| 2 | out-of-solution / stale bin | — | — | ⭐ every project gated here is in `HROT.sln`; every `--no-build` run followed a full build of the same tree |
 | 3 | golden movement | `git status --short` | — | ⭐ **ZERO goldens moved** *(0 created, 0 modified, 0 deleted)* — this batch adds a rail and a field, not a baseline |
 | 4 | every RED pre-existing, by name | *(§4b)* | — | ⭐ all 6 named and proven against base `259220e84` by stash |
 | 5 | working tree clean after every suite | `git status --short` | — | ⭐ clean; both mutation probes reverted by **inverse edit** and verified *(`grep -c "MUTATION PROBE"` ⇒ **0**)* |

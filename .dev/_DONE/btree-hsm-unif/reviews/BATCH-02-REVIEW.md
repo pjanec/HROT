@@ -13,7 +13,7 @@
 | Fhsm.Tests | 241 | 251 | +10 |
 | Solution build | clean | clean | 0 errors |
 
-All pass. Zero error CS lines in IOS-IG-SimHost.sln build.
+All pass. Zero error CS lines in HROT.sln build.
 
 ---
 

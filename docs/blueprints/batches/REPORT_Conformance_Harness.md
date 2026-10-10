@@ -54,7 +54,7 @@ shape; §6e now says so and points at `Q54`'s UML.
 | # | gate | verbatim command | `--no-build`? | result · delta vs `045773154` |
 |---|---|---|---|---|
 | 1 · 8 | ⭐⭐⭐ **the integration gate** | `bash scripts/run-system-tests.sh` | builds | ⭐ **80 / 80 pass, 0 fail, 0 skip** *(baseline `76/76` ⇒ **+4**, all new conformance/lockstep/manifest cases)* |
-| 1 | build | `dotnet build IOS-IG-SimHost.sln --no-restore` | must build | ⭐ **succeeded, 0 errors** *(rebuilt for every mutation and every restore)* |
+| 1 | build | `dotnet build HROT.sln --no-restore` | must build | ⭐ **succeeded, 0 errors** *(rebuilt for every mutation and every restore)* |
 | 1 | ⭐⭐ **`--mode all` boots and answers** | `HROT_DEBUG_API_PORT=… xvfb-run dotnet Hrot.ClusterRunner.dll --mode all` + `curl` | n/a | ⭐ five subsystems over DDS; slaves `#1/#100/#400` enrol; the API answers. ⛔ **No DDS-allocator crash on this machine** — the handoff's worry did not materialise |
 | 2 | out-of-solution / stale bin | — | — | ⭐ all gated projects are in the solution; every `--no-build` run followed a full build of the same tree |
 | 3 | golden movement | `git status` | — | ⭐ **ZERO goldens moved** *(0 created, 0 modified, 0 deleted)* — this batch adds rails, not baselines. ⭐ The one committed "baseline" is the conformance **known-absent set**, in code, with a reason per entry |

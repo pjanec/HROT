@@ -388,7 +388,7 @@ private static UtilityDecisionAsset MakeAsset(DecisionKind kind = DecisionKind.P
 
 ## Build & Test Requirements
 
-1. `dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln -c Debug` — **0 errors required**
+1. `dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln -c Debug` — **0 errors required**
 2. `dotnet test Hrot\Editor\Hrot.Utility.Editor.Tests\Hrot.Utility.Editor.Tests.csproj` — **all pass**
 3. `dotnet test Hrot\Editor\Hrot.Editor.AiShared.Tests\Hrot.Editor.AiShared.Tests.csproj` — **no regressions**
 

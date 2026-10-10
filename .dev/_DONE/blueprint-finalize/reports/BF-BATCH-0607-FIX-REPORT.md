@@ -95,7 +95,7 @@ registry.Register(typeof(ChannelCommandNode),
 
 ## Build & test results
 
-### `dotnet build IOS-IG-SimHost.sln -c Debug`
+### `dotnet build HROT.sln -c Debug`
 - **0 errors / 0 new warnings** (18 pre-existing warnings, all xUnit2013 analyzer or CS0618 obsolete)
 
 ### `dotnet test Hrot.Blueprints.Tests -c Debug`

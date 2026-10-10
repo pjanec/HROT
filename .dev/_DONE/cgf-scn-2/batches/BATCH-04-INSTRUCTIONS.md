@@ -52,7 +52,7 @@ S503 → S504); each task depends on the previous one.
 
 ```powershell
 # Build everything
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 
 # Run relevant test projects
 dotnet test FDP/Engine/Fdp.Core.Tests/Fdp.Core.Tests.csproj --no-build

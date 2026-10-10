@@ -153,7 +153,7 @@ dotnet test "Hrot\Subsystems\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj" --no-
 dotnet test "Hrot\Subsystems\Hrot.IG.Tests\Hrot.IG.Tests.csproj" --no-build -q
 ```
 
-Note: The full solution build (`IOS-IG-SimHost.sln`) may show CycloneDDS code-gen errors
+Note: The full solution build (`HROT.sln`) may show CycloneDDS code-gen errors
 on clean builds — this is a pre-existing infrastructure issue unrelated to this workstream.
 Use individual project builds instead.
 

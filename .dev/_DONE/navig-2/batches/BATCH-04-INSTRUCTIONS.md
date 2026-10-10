@@ -59,13 +59,13 @@ Use a sub-namespace `Fdp.Toolkit.Navigation.Fake` for the fake implementations.
 
 ```powershell
 # Build full solution
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run navigation tests only
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --filter "Navigation" -v quiet
 
 # Run all tests (final gate)
-dotnet test IOS-IG-SimHost.sln -v quiet
+dotnet test HROT.sln -v quiet
 ```
 
 ### Report Submission
@@ -345,4 +345,4 @@ Your report MUST answer:
 - [ ] Fake ComponentIds in the 250-279 block (no collision with existing blocks).
 - [ ] All listed tests pass.
 - [ ] All pre-existing tests remain green.
-- [ ] `dotnet build IOS-IG-SimHost.sln` → 0 errors.
+- [ ] `dotnet build HROT.sln` → 0 errors.

@@ -157,7 +157,7 @@ Passed: 10, Failed: 0
 
 ### Full solution build
 ```
-dotnet build IOS-IG-SimHost.sln -p:CycloneDdsDisableCodeGen=true
+dotnet build HROT.sln -p:CycloneDdsDisableCodeGen=true
 Build succeeded. 0 Warnings, 0 Errors.
 ```
 

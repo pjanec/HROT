@@ -238,7 +238,7 @@ When all three tasks are complete, write `.dev/anim-ctrl/reports/BATCH-05-REPORT
   - **New tests:** XX passing
   - **Total:** YY passing
 - [ ] No warnings, no errors
-- [ ] Full solution `IOS-IG-SimHost.sln` builds clean
+- [ ] Full solution `HROT.sln` builds clean
 
 ## Developer Insights
 
@@ -307,7 +307,7 @@ Phase 3 is now complete and ready for Phase 4 (ANC-P4-01 through ANC-P4-04). Pha
 3. **Implement** to satisfy tests.
 4. **Run full test suite** locally: `dotnet test Hrot.MuscleCharacter.Animation.Tests -c Debug`
 5. **Verify build:** `dotnet build Hrot.MuscleCharacter.Animation.csproj -c Debug` — 0 errors, 0 warnings.
-6. **Check full solution:** `dotnet build IOS-IG-SimHost.sln -c Debug` — no regressions.
+6. **Check full solution:** `dotnet build HROT.sln -c Debug` — no regressions.
 7. **Commit each task** (use meaningful commit messages per git log style).
 
 ---

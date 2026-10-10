@@ -15,7 +15,7 @@
   - `Generator_ValidAsset_EmitsTopologyAndBridge_NoWarning` → normal emit, no warning.
   - Emit-core unit tests (`BTreeEmitCoreValidationTests`): reachable unbound → throws; disconnected unbound → does not throw.
 - Test projects: `Hrot.AiEditor.Persistence.Tests` 118/0, `Hrot.AiEditor.Generators.Tests` 44/2(pre-existing MigrationEquivalence, verified pre-existing in BATCH-09), `Hrot.BTree.Editor.Tests` 493/0.
-- **Clean full `dotnet build IOS-IG-SimHost.sln` → 0 errors** (after `build-server shutdown`) — BT-12 doesn't regress the normal build.
+- **Clean full `dotnet build HROT.sln` → 0 errors** (after `build-server shutdown`) — BT-12 doesn't regress the normal build.
 
 ## ⚠️ Empirical full-build-with-invalid-asset proof: BLOCKED by sandbox (not BT-12)
 Attempted to add a temp unbound-leaf `.btree.json` and full-build to prove the real assembly survives. It repeatedly hit **MSB1025** — root-caused to MSBuild's own `FileUtilities.CreateFolderUnderTemp()` / `ClearCacheDirectory()` **at MSBuild startup, before any compilation or our generator runs** (`IOException` creating its temp/cache folder in this sandbox shell). This is an MSBuild temp-infra anomaly triggered by adding a new file in this session's shell — **not** our generated code/generator/BTREE0002. The generator-driver tests are the authoritative in-harness equivalent (no Error diagnostics, asset skipped). **→ REVIEW-BT-2: please confirm in your environment that "add node → wire → build" now produces a warning + builds (editor launches), rather than an error.**

@@ -20,7 +20,7 @@ While `AutonomousPerceptionModule` correctly implements our `Phase 4` design by 
 If `PerceptionModule` is used, it will completely evade the `SystemPhase.Manual` UI tracking and profiling. You must delete `PerceptionModule.cs` to enforce a single source of truth for the perception pipeline.
 
 ### 3. NetworkDemo Remnants (Phase 1)
-You successfully deleted the FDP-level network demo and the auto-translators. However, the HROT-level consumer, `Hrot.Examples.NetworkDemo`, is still fully registered in the `IOS-IG-SimHost.sln` and retains its project files. 
+You successfully deleted the FDP-level network demo and the auto-translators. However, the HROT-level consumer, `Hrot.Examples.NetworkDemo`, is still fully registered in the `HROT.sln` and retains its project files. 
 
 Since we have eradicated the rapid-prototyping auto-translators, this demo project serves no purpose and introduces dead-code maintenance overhead. Remove the `Hrot.Examples.NetworkDemo` directory and strip it from the solution configuration.
 

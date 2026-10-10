@@ -64,10 +64,10 @@ The repository has **three** solutions you'll touch:
 
 ```powershell
 # Top-level
-dotnet build IOS-IG-SimHost.sln
-dotnet test  IOS-IG-SimHost.sln
+dotnet build HROT.sln
+dotnet test  HROT.sln
 
-# FastBTree sub-solution (NOT in IOS-IG-SimHost.sln but YOU MUST KEEP IT GREEN — Phase 6)
+# FastBTree sub-solution (NOT in HROT.sln but YOU MUST KEEP IT GREEN — Phase 6)
 dotnet build FDP\ExtDeps\FastBTree\FastBTree.sln
 dotnet test  FDP\ExtDeps\FastBTree\FastBTree.sln
 

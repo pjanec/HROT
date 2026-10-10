@@ -201,7 +201,7 @@ phrase. ⛔ **Not deleted: restored in its new home**, with the refinement recor
 
 | gate | command | `--no-build`? | result | Δ |
 |---|---|---|---|---|
-| solution | `dotnet build IOS-IG-SimHost.sln -t:Rebuild` | — | ✅ **0 err / 69 warn** | = |
+| solution | `dotnet build HROT.sln -t:Rebuild` | — | ✅ **0 err / 69 warn** | = |
 | ⭐ **AiShared** | `dotnet test …/Hrot.Editor.AiShared.Tests.csproj --no-build` | yes | ✅ **1330** | **+12** |
 | ⭐ **Blueprints** | `dotnet test …/Hrot.Blueprints.Tests.csproj --no-build` | yes | ✅ **3709 / 3719, 10 skipped** | **+28** |
 | BTree.Editor | `dotnet test …/Hrot.BTree.Editor.Tests.csproj --no-build` | yes | ✅ **615** | = |

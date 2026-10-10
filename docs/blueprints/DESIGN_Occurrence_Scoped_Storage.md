@@ -1176,7 +1176,7 @@ name has been wrong since `BehaviorIngressSystem` started allocating from it.
 |---|---|
 | 🔴 **Roslyn only** | never a text rename — the standing rule, and a preview here will reach assemblies a reference list does not name |
 | 🔴 **Rename the FIELD, never the VALUE** | `GlobalComponentIds.BlueprintBlackboard*` field names change; **the numeric ids must not** — `R-44`: ids are globally unique and partitioned for multi-process determinism |
-| ⚠ **union rule** | query from a root-solution project **and** check `HrotStrideApp.Windows` separately — it is the one project outside `IOS-IG-SimHost.sln` |
+| ⚠ **union rule** | query from a root-solution project **and** check `HrotStrideApp.Windows` separately — it is the one project outside `HROT.sln` |
 | ⭐ **do it AFTER `O3`** | `O3` already touches the slot header; renaming first means two passes over the same files |
 
 ---
@@ -3022,7 +3022,7 @@ defect, not a test one.
 |---|---|
 | ⛔ **no thunk looks the pair up yet** | that is `O7` — *"HSM per-region actions key on the occurrence"*. `O6` delivers the identity and nothing reads it in production. ⭐ Stated plainly so nobody reads these rails as proof that per-region HSM storage works |
 | ⛔ **the golden test does not exercise this** | 📐 `hill-attack-close` runs the hand-written BTree node path; **zero** shipped assets use `AiPrimitiveHosting.HsmGuard`. ⇒ the golden shows `O6` **broke nothing**, not that the new path works — the same honest caveat `O4` carried |
-| ⚠ **`Fhsm.Tests` and `Fhsm.Demo.Visual` are updated but CANNOT gate** | they are outside `IOS-IG-SimHost.sln`, so a root-solution build does not build them and a `--no-build` run of them would report a stale bin |
+| ⚠ **`Fhsm.Tests` and `Fhsm.Demo.Visual` are updated but CANNOT gate** | they are outside `HROT.sln`, so a root-solution build does not build them and a `--no-build` run of them would report a stale bin |
 
 
 ## 24. ⏳ `O7` — **HSM PER-REGION ACTIONS KEY ON THE OCCURRENCE** *(started `2026-09-20`; SLICE 1 LANDED)*

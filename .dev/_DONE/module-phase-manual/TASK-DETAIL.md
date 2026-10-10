@@ -77,11 +77,11 @@ Delete the ACL-violating auto-translators and the entire NetworkDemo project tha
 
 **Solution files to update:**
 - `FDP/FDP.sln`: Remove project entries for `Fdp.Examples.NetworkDemo` and `Fdp.Examples.NetworkDemo.Tests`.
-- `IOS-IG-SimHost.sln`: Remove project entries for `Fdp.Examples.NetworkDemo` and `Fdp.Examples.NetworkDemo.Tests`.
+- `HROT.sln`: Remove project entries for `Fdp.Examples.NetworkDemo` and `Fdp.Examples.NetworkDemo.Tests`.
 
 **Success conditions:**
 - All listed files/directories no longer exist in the filesystem.
-- `FDP/FDP.sln` and `IOS-IG-SimHost.sln` no longer reference the deleted projects.
+- `FDP/FDP.sln` and `HROT.sln` no longer reference the deleted projects.
 - Searching the entire codebase for `AutoCycloneTranslator`, `ManagedAutoCycloneTranslator`, `ReplicationBootstrap`, `[FdpDescriptor`, `FdpDescriptorAttribute` yields zero results.
 - Full solution builds without errors.
 - No test references the deleted test file.

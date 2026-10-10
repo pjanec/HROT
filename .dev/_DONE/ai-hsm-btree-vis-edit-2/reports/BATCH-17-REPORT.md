@@ -98,7 +98,7 @@ Combining `rawFiles` with the full `CompilationProvider` (via `.Combine(context.
 ## Build result
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Build succeeded.
     2 Warning(s)  ← pre-existing NU1903 (MessagePack), NOT BTREE0002
     0 Error(s)

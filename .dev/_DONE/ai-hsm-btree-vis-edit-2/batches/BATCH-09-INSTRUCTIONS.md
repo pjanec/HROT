@@ -37,7 +37,7 @@ One task; **NO cheating** (no excluding files / suppressing diagnostics / weaken
 - **REBASELINE:** any existing test/golden that asserts the old `[BTreeDefinition("X")]` string (e.g. emit-core determinism tests, `Hrot.AiEditor.Generators.Tests` migration-equivalence) must be updated to the new `AssetId`-bearing form. Update them to the correct expected output; do NOT delete or weaken them.
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings.
 - [ ] **Failed: 0** in ALL touched test projects: `Fbt.Tests` (FastBTree), `Hrot.AiEditor.Persistence.*Tests` (emit core, if present), `Hrot.AiEditor.Generators.Tests`, `Hrot.BTree.Editor.Tests`. List each project's pass count in the report.
 - [ ] Generated `obj/.../CombatShowcase.g.cs` emits `[BTreeDefinition("CombatShowcase", AssetId = "aaaaaaaa-0000-0000-0000-000000000001")]`.
 - [ ] Contributor uses the attribute AssetId when present, else FromName.

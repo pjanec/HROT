@@ -140,7 +140,7 @@ public sealed class CrossHostPanelKindRails
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "IOS-IG-SimHost.sln")))
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
             dir = dir.Parent;
 
         Assert.NotNull(dir);   // ⛔ a source-level rail cannot run without sources; say so rather than skip (R-131)

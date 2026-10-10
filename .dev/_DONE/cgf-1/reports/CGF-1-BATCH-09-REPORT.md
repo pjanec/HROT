@@ -200,7 +200,7 @@ The test docstring no longer contains "Phase 1 broadcast limitation" notes.
 ## Build & Test Results
 
 ```
-dotnet build IOS-IG-SimHost.sln --nologo
+dotnet build HROT.sln --nologo
 → 0 Error(s)   251 Warning(s)   (all pre-existing)
 
 dotnet test Hrot.Orchestrator.Tests

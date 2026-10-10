@@ -131,7 +131,7 @@ None. All changes are strictly additive and follow the patterns in the instructi
 | `Hrot.Hsm.Editor.Tests` | 333 | 0 | |
 | `EditorSubsystemBoot` (filter) | 10 | 0 | |
 
-**Build**: `dotnet build IOS-IG-SimHost.sln` — 0 errors, 18 pre-existing warnings (CS0618 IBlueprintTimeController, xUnit2013, CS8601).
+**Build**: `dotnet build HROT.sln` — 0 errors, 18 pre-existing warnings (CS0618 IBlueprintTimeController, xUnit2013, CS8601).
 
 ---
 

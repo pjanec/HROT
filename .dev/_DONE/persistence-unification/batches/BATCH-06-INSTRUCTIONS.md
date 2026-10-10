@@ -43,7 +43,7 @@ Avoid circular assembly refs: inject the BTree/HSM (and Blueprint) save as `Func
 - [ ] PU-602: Save-All writes JSON for every dirty **path'd** doc by Kind (BTree/HSM via mappers+services+atomic write; Blueprint via existing `Save`), `MarkClean`s them; **no-path docs skipped with a report warning, left dirty, never throws**. + tests.
 - [ ] PU-603: Ctrl+Shift+S + "Save All" button + flush-on-close + Shutdown flush wired; `Ctrl+S` unchanged. + command/callback tests.
 - [ ] **Debounced `flushAction` BTree/HSM `.cs` routing UNCHANGED** (edit-to-live not regressed); deferral to PU-401 noted in the report.
-- [ ] Global gate: `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 new warnings (touched); new tests green; `SaveActiveBlueprintCommandTests` + `RegenerationSchedulerTests` green (no regression); `EditorSubsystemBoot` 10/10; `Hrot.Editor.AiShared.Tests` green; `Hrot.Blueprints.Tests` only pre-existing (0 new — **Blueprint save path unchanged**). Report exact counts.
+- [ ] Global gate: `dotnet build HROT.sln` 0 errors / 0 new warnings (touched); new tests green; `SaveActiveBlueprintCommandTests` + `RegenerationSchedulerTests` green (no regression); `EditorSubsystemBoot` 10/10; `Hrot.Editor.AiShared.Tests` green; `Hrot.Blueprints.Tests` only pre-existing (0 new — **Blueprint save path unchanged**). Report exact counts.
 - [ ] Report → `.dev/_DONE/persistence-unification/reports/BATCH-06-REPORT.md`.
 
 ## Report Requirements

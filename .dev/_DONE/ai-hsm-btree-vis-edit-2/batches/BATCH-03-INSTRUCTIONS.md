@@ -38,7 +38,7 @@ Build a `BTreeEditorPill` directly (or via the asset's pill API) and wrap a `BTr
 (If wrapping `BTreePillAttachmentModel` directly is awkward, build a `BehaviorTreeAsset`, add the pill via its pill API, construct `BTreeGraphModel`, and read the attachment via `GetAttachmentsForNode`/`FindAttachment` — assert the same.)
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`.
 - [ ] `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **Failed: 0**.
 - [ ] Every decorator type has a non-null glyph; Repeater/Cooldown labels include their param; Cooldown label is locale-invariant.
 - [ ] Only `BTreePillAttachmentModel.Glyph`/`Label` changed.

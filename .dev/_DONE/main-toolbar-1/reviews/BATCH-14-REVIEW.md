@@ -10,7 +10,7 @@ contributor's `Kind`; `ReferenceCatalog.OnCatalogChanged` early-returns on `Asse
 No issues found.
 
 ## Verification (done by lead)
-- **Full `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 warnings** — the signature change compiles
+- **Full `dotnet build HROT.sln` → 0 errors, 0 warnings** — the signature change compiles
   across all subscribers/fakes solution-wide (the critical check).
 - New tests run by lead: `ReferenceCatalogTests` → **14 passed, 0 failed**.
 - Wiring read: `IAssetCatalog.Changed` = `event Action<AssetKind>?`; `AssetCatalog` wires

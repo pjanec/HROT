@@ -2,7 +2,7 @@
 **Status:** ✅ APPROVED   **Date:** 2026-06-03
 
 ## Verification (ran myself)
-- **`dotnet build IOS-IG-SimHost.sln` → 0 Errors.** Warnings: a full (`--no-incremental`) rebuild shows ~26 **pre-existing** warnings, all in test projects untouched by any BCP batch (`Fdp.Core.Tests` migration tests, `Hrot.Common.Tests`, `Hrot.Utility.Editor.Tests`, plus `BlueprintTestFixture.cs`/benchmarks with CS0618/CS8601 and xUnit2013 analyzer hints). **None are from the BCP changes.** Correction: prior FIX/FIX2 reviews reported "0 warnings" from *incremental* builds, which don't recompile unchanged projects — the coders' warning counts were correct; this work adds zero new warnings but the pre-existing test-debt is real.
+- **`dotnet build HROT.sln` → 0 Errors.** Warnings: a full (`--no-incremental`) rebuild shows ~26 **pre-existing** warnings, all in test projects untouched by any BCP batch (`Fdp.Core.Tests` migration tests, `Hrot.Common.Tests`, `Hrot.Utility.Editor.Tests`, plus `BlueprintTestFixture.cs`/benchmarks with CS0618/CS8601 and xUnit2013 analyzer hints). **None are from the BCP changes.** Correction: prior FIX/FIX2 reviews reported "0 warnings" from *incremental* builds, which don't recompile unchanged projects — the coders' warning counts were correct; this work adds zero new warnings but the pre-existing test-debt is real.
 - `Hrot.Blueprints.Tests` **1104 / 10 / 8** (10 = DEBT-006; perf flake passed this run); golden + byte-stability unchanged. `Hrot.Editor.AiShared.Tests` **761 / 0**, `Hrot.BTree.Editor.Tests` **382 / 0**, `Hrot.Hsm.Editor.Tests` **333 / 0**, `EditorSubsystemBoot` **10 / 0**.
 
 ## Code read

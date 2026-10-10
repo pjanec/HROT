@@ -115,7 +115,7 @@ work (0 of 8 marker files present). A tree diff from our branch to `feat` report
 ### Non-code
 
 - `tools/ai-debug-mcp/` — **17 files**, Node.js. Its README states it is *"an external companion, NOT part
-  of `IOS-IG-SimHost.sln`"*, so it adds a **Node toolchain dependency** but no C# build coupling.
+  of `HROT.sln`"*, so it adds a **Node toolchain dependency** but no C# build coupling.
   Includes `SKILL.md` + `skill-parts/` (a generated agent skill guide) and `tool-catalog.mjs` (959 lines,
   single-source tool catalog).
 - `.dev/_DONE/ai-debug-api/` — **52 docs**: `DESIGN.md`, `TASK-TRACKER.md`, `TASK-DETAIL.md`, `DEBT-TRACKER.md`,

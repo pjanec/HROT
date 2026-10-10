@@ -121,7 +121,7 @@ cases would then exercise the write half unchanged.
 
 | # | gate — verbatim command | result | `--no-build`? | delta vs base |
 |---|---|---|---|---|
-| 1 | `dotnet build IOS-IG-SimHost.sln --no-restore` | ⭐ **0 errors**, 28 warnings | builds | unchanged *(the warnings are the pre-existing `BP3010` orphan-node ones)* |
+| 1 | `dotnet build HROT.sln --no-restore` | ⭐ **0 errors**, 28 warnings | builds | unchanged *(the warnings are the pre-existing `BP3010` orphan-node ones)* |
 | 2 | ⭐⭐ **`bash scripts/run-system-tests.sh`** *(Row 8 — the integration gate, real editor headless under Xvfb, `Category=SystemSmoke`)* | ⭐⭐⭐ **34 passed · 0 failed · 0 skipped** | builds first | **+7 cases, and the 2 SKIPS ARE GONE** *(27/0/2 → 34/0/0)* — the skips were `HN-001` |
 | 3 | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/… ` | **218 / 0** | builds | **+4** *(`DebugApiCompositionTests`)* |
 | 4 | `dotnet test …Hrot.Blueprints.Tests --no-build --filter "FullyQualifiedName~Hrot.Blueprints.Tests.Editor"` ⭐ *(the gate for anything touching `EditorSubsystem`)* | **1045 / 0**, 9 skipped | ✅ `--no-build` after a solution build | unchanged |

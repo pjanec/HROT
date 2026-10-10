@@ -124,7 +124,7 @@ All 10 tests in `AN8b_DemoSharedActionTests` pass:
 | `NodePinSchema_DemoSharedNode_HasExecInAndExecOut_AN8b` | Exec In + Out present |
 
 ### Build results
-- `dotnet build IOS-IG-SimHost.sln`: **0 CS errors, 18 pre-existing warnings**
+- `dotnet build HROT.sln`: **0 CS errors, 18 pre-existing warnings**
 - `Fdp.Toolkits.csproj`: 0 errors (BHU_001 analyzer + HSM generator pass with Entity/EntityRepository signature)
 - `Hrot.Blueprints.Tests.csproj`: 0 errors
 

@@ -58,7 +58,7 @@ BATCH-17-CONTINUATION successfully completes the `PlayMontageChainNode` custom e
 
 ### Build & Regression ✅
 
-- Solution builds clean: `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4`
+- Solution builds clean: `dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4`
   - **Result:** Build succeeded
   - **Errors:** 0 new (pre-existing 9 unrelated warnings remain)
   - **Hrot.Blueprints.Editor:** ✓ 0 errors, 0 new warnings

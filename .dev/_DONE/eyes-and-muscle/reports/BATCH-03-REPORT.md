@@ -15,7 +15,7 @@ All seven tasks completed. Primary deliverable: `HrotNodeBuilder`, `HrotNodeCont
 ## 2. Build & Test Results
 
 ### Build
-✅ `dotnet build IOS-IG-SimHost.sln --no-restore` — **Build succeeded.** 0 errors. 6 pre-existing CS0618/CS8602/CS0169 warnings (all unchanged).
+✅ `dotnet build HROT.sln --no-restore` — **Build succeeded.** 0 errors. 6 pre-existing CS0618/CS8602/CS0169 warnings (all unchanged).
 
 ### Test Results
 

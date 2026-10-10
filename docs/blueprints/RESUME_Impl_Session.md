@@ -667,7 +667,7 @@ through its consumers is a contract change nobody is watching.*
 
 ## 11 · Gates
 
-The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
+The eight, solution **`HROT.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
 **Post-Batch-55** *(full `-t:Rebuild`)*: build **0 errors / 69 warnings** ·

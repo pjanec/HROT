@@ -10,7 +10,7 @@
 ## Build Status
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 → 0 Error(s), 29 Warning(s) (all pre-existing — no new warnings introduced)
 ```
 

@@ -260,7 +260,7 @@ public class PerformanceMetricsTests
 
 After completing all tasks, verify:
 
-1. **Build:** `dotnet build IOS-IG-SimHost.sln --no-incremental` → **0 errors**
+1. **Build:** `dotnet build HROT.sln --no-incremental` → **0 errors**
 2. **Tests:**
    - `dotnet test Hrot.IG.Tests --no-build` → all pass (408 pre-existing + new audit/U003 tests)
    - `dotnet test Hrot.ExCon.Tests --no-build` → all pass (existing + new boundary tests)

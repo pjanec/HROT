@@ -221,7 +221,7 @@ Verify in the source files that these are actually resolved before marking them 
 2. `AllSubsystems_FullCycleTwice_LoadOperateUnloadIdle` → **PASSES**  
 3. All existing passing tests remain passing — no regressions (37→39+ pass, or better)
 4. New unit tests for multi-intent behavior → all pass
-5. `dotnet build IOS-IG-SimHost.sln -v q` → 0 errors
+5. `dotnet build HROT.sln -v q` → 0 errors
 
 ---
 

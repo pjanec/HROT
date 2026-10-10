@@ -69,7 +69,7 @@ stale-below: nothing.
 
 | # | gate | command | result | Δ vs `5d1fd44d` |
 |---|---|---|---|---|
-| 1 | solution build | `dotnet build IOS-IG-SimHost.sln --no-restore` | ✅ **0 errors** | — |
+| 1 | solution build | `dotnet build HROT.sln --no-restore` | ✅ **0 errors** | — |
 | 2 | AiShared | `dotnet test … --no-build` | ✅ **1904 pass / 0 fail / 1 skip** | **+16** *(8+8 new rails)* |
 | 3 | Blueprints | `dotnet test … --no-build` | ✅ **3908 pass / 0 fail / 18 skip** | **+2** *(2 composition-root rails)* |
 | 4 | Hrot.Editor | `dotnet test … --no-build` | ✅ **214 / 0** | 0 |

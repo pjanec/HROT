@@ -35,7 +35,7 @@ Your job is to complete the wiring so the merged view actually updates on scrub.
 
 ```powershell
 # Full solution build (run after every significant change)
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run only the tests relevant to this batch
 dotnet test FDP/Engine/Fdp.Presentation.Tests/Fdp.Presentation.Tests.csproj --filter "FullyQualifiedName~RBF_P5"
@@ -580,7 +580,7 @@ Structure:
 
 ## Success criteria for this batch
 
-- `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 warnings.
+- `dotnet build HROT.sln` — 0 errors, 0 warnings.
 - All existing tests continue to pass (no regressions).
 - All RBF_P5T1 through RBF_P5T4 test methods pass.
 - Reflection test confirms `ReplayBrowserSubsystem` has no `ReplayBrowserContext` field.

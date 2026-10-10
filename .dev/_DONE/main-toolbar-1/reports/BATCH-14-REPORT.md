@@ -79,7 +79,7 @@ dotnet test Hrot.Editor.AiShared.Tests --filter "FullyQualifiedName~ReferenceCat
 
 ### Build
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
   Build succeeded. 0 Warning(s), 0 Error(s)
 ```
 

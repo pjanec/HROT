@@ -14,7 +14,7 @@
 
 | gate | command | result |
 |---|---|---|
-| solution build | `dotnet build IOS-IG-SimHost.sln -t:Rebuild -v q --nologo` | ✅ **0 errors / 69 warnings** |
+| solution build | `dotnet build HROT.sln -t:Rebuild -v q --nologo` | ✅ **0 errors / 69 warnings** |
 | Blueprints | `dotnet test …/Hrot.Blueprints.Tests.csproj --no-build -v q --nologo` | ✅ **3691 / 3681 / 0 / 10** |
 | AiShared | `dotnet test …/Hrot.Editor.AiShared.Tests.csproj --no-build -v q --nologo` | ✅ **1289 / 1289 / 0 / 0** *(**+8**)* |
 | BTree.Editor | `dotnet test …/Hrot.BTree.Editor.Tests.csproj --no-build -v q --nologo` | ✅ **615 / 615 / 0 / 0** |

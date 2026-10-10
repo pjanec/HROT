@@ -290,7 +290,7 @@ non-breaking) to support the assertion headlessly.
 
 | Target | Result |
 |--------|--------|
-| `dotnet build IOS-IG-SimHost.sln` | **0 errors** (26 pre-existing warnings, unchanged) |
+| `dotnet build HROT.sln` | **0 errors** (26 pre-existing warnings, unchanged) |
 | `Hrot.Editor.AiShared.Tests` | **842 pass / 0 fail** (840 + 2 new forwarding tests) |
 | `Hrot.Hsm.Editor.Tests` | **339 pass / 0 fail** |
 | `Hrot.BTree.Editor.Tests` | **391 pass / 0 fail** |

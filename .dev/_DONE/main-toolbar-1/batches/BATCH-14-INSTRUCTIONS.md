@@ -58,7 +58,7 @@
 - Do NOT weaken/skip/auto-pass tests; zero new warnings (TreatWarningsAsErrors).
 
 ## Definition of done (all required)
-- `dotnet build IOS-IG-SimHost.sln` green (zero new warnings) — the signature change must compile
+- `dotnet build HROT.sln` green (zero new warnings) — the signature change must compile
   across ALL subscribers.
 - Run WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS`. New tests pass UNFILTERED. 0-failed with the Stability
   filter for `Hrot.Editor.AiShared.Tests` + the hot suites `Fdp.Toolkits.Tests` + `Hrot.SimHost.Tests`

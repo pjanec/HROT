@@ -52,7 +52,7 @@ call, not just first creation.
 
 | # | gate — verbatim command | `--no-build`? | result | delta vs `5db5c60bc` |
 |---|---|---|---|---|
-| 1 | `dotnet build IOS-IG-SimHost.sln` | builds | ✅ **0 errors** | none |
+| 1 | `dotnet build HROT.sln` | builds | ✅ **0 errors** | none |
 | 2 | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter Category=SystemModes` | `--no-build` | ✅ **8 / 0** | ⭐ run **per host converted**, not once at the end |
 | 3 | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build` | `--no-build` | ✅ **58 / 0** | ⭐ **exactly the stated baseline** |
 | 4 | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Tests --no-build --filter FullyQualifiedName~GizmoSchemaFollowsDeclarationRails` | `--no-build` | ✅ **4 / 0** | rails rewritten (§4) |

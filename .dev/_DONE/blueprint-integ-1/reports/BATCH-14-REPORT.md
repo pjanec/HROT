@@ -120,7 +120,7 @@ The three per-kind sanitizers are constructed directly, mirroring the DI-extensi
 
 ### Build
 
-`dotnet build IOS-IG-SimHost.sln` → **0 errors / 0 warnings** (all production assemblies). GizmoMap.Contracts remains on 0.2.2, Hrot.IG/DDS untouched.
+`dotnet build HROT.sln` → **0 errors / 0 warnings** (all production assemblies). GizmoMap.Contracts remains on 0.2.2, Hrot.IG/DDS untouched.
 
 ---
 

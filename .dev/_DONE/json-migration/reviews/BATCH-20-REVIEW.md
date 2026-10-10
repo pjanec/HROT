@@ -33,7 +33,7 @@ dotnet test "FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj" --no-bui
   --> Passed: 31, Failed: 0
 ```
 
-Full solution build (`IOS-IG-SimHost.sln -c Debug --no-restore`) succeeded. Only pre-existing
+Full solution build (`HROT.sln -c Debug --no-restore`) succeeded. Only pre-existing
 `Hrot.Blueprints.Tests` CS0234/CS0246 errors remain (known, do not fix).
 
 ### Pre-existing failures in full `Fdp.Toolkits.Tests` run

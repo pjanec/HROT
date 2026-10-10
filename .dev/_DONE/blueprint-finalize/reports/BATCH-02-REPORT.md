@@ -109,7 +109,7 @@ Passed! - Failed: 0, Passed: 10, Skipped: 0, Total: 10, Duration: 1 s
 ### Build
 
 ```
-dotnet build IOS-IG-SimHost.sln — 0 errors, 0 new warnings in Hrot.Blueprints.Editor or Hrot.Blueprints.Tests.
+dotnet build HROT.sln — 0 errors, 0 new warnings in Hrot.Blueprints.Editor or Hrot.Blueprints.Tests.
 ```
 
 ## Developer Insights

@@ -54,7 +54,7 @@ Cooldown label uses `FormattableString.Invariant(...)` to guarantee decimal-dot 
 
 ```
 dotnet build Hrot.BTree.Editor.csproj           → 0 warnings, 0 errors
-dotnet build IOS-IG-SimHost.sln                  → 0 errors (only pre-existing warnings in other projects)
+dotnet build HROT.sln                  → 0 errors (only pre-existing warnings in other projects)
 dotnet test Hrot.BTree.Editor.Tests              → 469 passed, 0 failed, 0 skipped
 ```
 

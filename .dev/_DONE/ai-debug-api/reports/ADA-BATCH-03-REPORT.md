@@ -214,10 +214,10 @@ Previously (before Fix B): `waitForReady:true` returned `504 "Scenario 'test-mov
 ## Build & Test Results (Round 2)
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
   → Build succeeded.  13 Warning(s) (all pre-existing)  0 Error(s)
 
-dotnet test IOS-IG-SimHost.sln --filter "DebugApi"
+dotnet test HROT.sln --filter "DebugApi"
   → Passed!  Failed: 0, Passed: 21, Skipped: 0, Total: 21
 ```
 

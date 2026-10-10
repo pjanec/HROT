@@ -167,4 +167,4 @@ The batch instructions specified "reassign from the 20–49 toolkit block". Howe
 | `FDP/Toolkits/FDP.Toolkit.Combat.Tests/DamageSystemTests.cs` | Added `HealthData_DirtyGuard_OnlyWritesWhenCurrentChanges` |
 | `FDP/Toolkits/FDP.Toolkit.Replay.Tests/ReplayModuleTests.cs` | `Assert.False(seekTask.IsCompleted)` before await |
 | `Hrot.Map.Common.Tests/ComponentIdTests.cs` | **New file**: `HrotComponentIds_NoDuplicates` |
-| `IOS-IG-SimHost.sln` | Added `FDP.Toolkit.Navigation.Contracts` project and build configs |
+| `HROT.sln` | Added `FDP.Toolkit.Navigation.Contracts` project and build configs |

@@ -61,7 +61,7 @@ files and confirm the ONLY changes are `Hrot.Blueprints.Core.Assets.NodeStatus` 
 dropped `(global::Fbt.NodeStatus)(int)` cast**. If ANY other text changed, STOP and report — do not accept it.
 
 ## Verification (all required; report exact numbers)
-1. `dotnet build IOS-IG-SimHost.sln -c Debug` → **0 errors / 0 new warnings**. This is the REAL proof: the
+1. `dotnet build HROT.sln -c Debug` → **0 errors / 0 new warnings**. This is the REAL proof: the
    MSBuild generator runs on `Hrot/Subsystems/Hrot.AI.Behaviors/Blueprints/Loco1.bp.json` (an AiPrimitive
    blueprint) + the recipes, in the game assembly that does NOT reference the compiler. The prior CS0234 in
    `Loco1_A9036715_Bp.g.cs` must be gone. (If the editor app is running and locks DLLs, STOP and report —

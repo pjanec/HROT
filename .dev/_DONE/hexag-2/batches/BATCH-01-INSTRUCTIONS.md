@@ -18,8 +18,8 @@ You are implementing the first phase of the hexag-2 design. Read these documents
 
 **Development branch:** All changes go on the current working branch.
 
-**Build command:** `dotnet build IOS-IG-SimHost.sln -v q`
-**Test command:** `dotnet test IOS-IG-SimHost.sln --no-build -v q`
+**Build command:** `dotnet build HROT.sln -v q`
+**Test command:** `dotnet test HROT.sln --no-build -v q`
 
 ---
 
@@ -38,7 +38,7 @@ For every task:
 1. **Read the success conditions** in TASK-DETAIL.md before touching any code.
 2. **Write or verify the unit tests first.** The tests define the contract.
 3. **Implement** until all tests pass.
-4. **Run the full test suite** (`dotnet test IOS-IG-SimHost.sln --no-build -v q`) after each task.
+4. **Run the full test suite** (`dotnet test HROT.sln --no-build -v q`) after each task.
 5. **Do not move to the next task** until the current task's unit tests pass AND the full suite is not newly broken.
 
 ---
@@ -218,5 +218,5 @@ Submit your report to `.dev/hexag-2/reports/BATCH-01-REPORT.md` with the followi
 - [ ] Unit test `OrchestratorSubsystem_ResumeClears_IsPaused` exists and passes
 - [ ] Unit test `ExConSubsystem_ClusterUiCache_UpdatesIsPaused_AfterSwitchTimeModeEvent` exists and passes
 - [ ] `PauseTimeIntent`, `ResumeTimeIntent`, `StepTimeIntent`, `SetTimeScaleIntent` exist in `Fdp.Toolkits.Time.Domain`
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds with zero errors
+- [ ] `dotnet build HROT.sln` succeeds with zero errors
 - [ ] All PREVIOUSLY PASSING tests still pass

@@ -119,4 +119,4 @@ Total StructEdit.Tests: 184 passed, 0 failed.
 | Pre-existing StructEdit.Tests | 171 tests | 171/171 PASS |
 | **Total** | **184 tests** | **184/184 PASS** |
 
-`dotnet test IOS-IG-SimHost.sln` — running at time of report submission (StructEdit.Tests is not part of the main solution; the Hrot/FDP integration projects are unaffected by StructEdit changes since no files outside `FDP/ExtDeps/StructEdit/` were modified).
+`dotnet test HROT.sln` — running at time of report submission (StructEdit.Tests is not part of the main solution; the Hrot/FDP integration projects are unaffected by StructEdit changes since no files outside `FDP/ExtDeps/StructEdit/` were modified).

@@ -76,12 +76,12 @@ Additionally:
 **Build the solution:**
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 ```
 
 **Run all tests:**
 ```
-dotnet test IOS-IG-SimHost.sln --no-build
+dotnet test HROT.sln --no-build
 ```
 
 **Run only the most relevant test projects for this workstream:**

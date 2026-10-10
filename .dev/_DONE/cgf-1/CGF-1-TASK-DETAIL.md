@@ -1801,14 +1801,14 @@ ensures no test regression has been introduced across the full solution.
 2. Verify no `FDP.Toolkit.*` project contains a `using Hrot.*` directive:
    - Run `rg "using Hrot\." FDP/` in the terminal; assert zero matches.
 
-3. Update `IOS-IG-SimHost.sln` to include the new
+3. Update `HROT.sln` to include the new
    `FDP.Toolkit.Orchestration.csproj`.
 
-4. Run the full solution build (`dotnet build IOS-IG-SimHost.sln`) and assert
+4. Run the full solution build (`dotnet build HROT.sln`) and assert
    zero warnings of type CS0234 (missing type), CS0246 (type not found), or
    CS0535 (interface not fully implemented).
 
-5. Run the full test suite (`dotnet test IOS-IG-SimHost.sln`); assert all tests pass.
+5. Run the full test suite (`dotnet test HROT.sln`); assert all tests pass.
    Failures are P1 blockers for this task.
 
 6. Update `CGF-1-DESIGN.md` §6 (New Projects & File Map) to include
@@ -1822,9 +1822,9 @@ ensures no test regression has been introduced across the full solution.
   separation.
 
 - `Fact: Solution builds with zero new warnings` — `dotnet build --no-incremental
-  IOS-IG-SimHost.sln` exits 0.
+  HROT.sln` exits 0.
 
-- `Fact: Full test suite green` — `dotnet test IOS-IG-SimHost.sln` exits 0; all
+- `Fact: Full test suite green` — `dotnet test HROT.sln` exits 0; all
   tests that existed before Phase 4 still pass; new tests added in G0401–G0405
   also pass.
 

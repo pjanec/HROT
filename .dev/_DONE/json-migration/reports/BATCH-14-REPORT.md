@@ -86,7 +86,7 @@ All directly-affected projects build clean:
 | `Hrot.SimHost.Tests` | Build succeeded |
 | `Hrot.IG.Tests` | Build succeeded |
 
-Full solution build (`IOS-IG-SimHost.sln`) reports `Build FAILED` due to pre-existing
+Full solution build (`HROT.sln`) reports `Build FAILED` due to pre-existing
 errors in `Hrot.Blueprints.Tests` (missing `Hrot.Editor` assembly reference and
 `IAnimationTkbQueries` type). These errors are unrelated to BATCH-14 changes.
 

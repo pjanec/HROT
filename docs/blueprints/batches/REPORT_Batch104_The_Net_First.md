@@ -290,7 +290,7 @@ were not run.
 
 | # | gate | built? | before *(`91b53840`)* | after | Δ |
 |---|---|---|---|---|---|
-| **1** | ⭐⭐⭐ `dotnet build IOS-IG-SimHost.sln` | — | 0 errors | ✅ **0 errors**, 60 warnings, 67 s | **0** |
+| **1** | ⭐⭐⭐ `dotnet build HROT.sln` | — | 0 errors | ✅ **0 errors**, 60 warnings, 67 s | **0** |
 | **2** | ⭐⭐⭐ **`~TimeControlIntegrationTests`** *(the standing row)* | ✅ | ⛔ **4P / 2F** | ✅ **9P / 0F** | **+2 fixed, +3 added** |
 | **3** | ⭐ same, **run 2** | `--no-build` | — | ✅ **9P / 0F**, 52 s | ⭐ **no flake** |
 | **4** | ⭐⭐ `~MasterSyncControllerTests` | ✅ | 34 tests | ✅ **39P / 0F** | **+5 rails** — ⚠ **the base figure is a COUNT, not a run**: 📐 `git show 91b53840:…MasterSyncControllerTests.cs \| grep -c '\[Fact'` = **34**, and the 5 additions are the delta. ⭐ The 34 are covered green by row 5 |

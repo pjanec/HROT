@@ -132,7 +132,7 @@ None — the implementation follows the batch instructions exactly. All constrai
 
 No EqsModuleTests flake appeared. Zero new warnings in full solution build.
 
-`dotnet build IOS-IG-SimHost.sln`: 0 errors, 20 pre-existing warnings, 0 new warnings.
+`dotnet build HROT.sln`: 0 errors, 20 pre-existing warnings, 0 new warnings.
 
 ## Developer Insights
 

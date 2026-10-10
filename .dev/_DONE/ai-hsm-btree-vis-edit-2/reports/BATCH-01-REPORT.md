@@ -40,7 +40,7 @@ dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests  → 449 passed, 0 failed
 dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests      → 1059 passed, 0 failed
 ```
 
-Build: `dotnet build IOS-IG-SimHost.sln` — 0 errors in touched projects. The 36 pre-existing errors in `Fdp.Presentation.Tests` (missing `NodeEditor` references) are unrelated.
+Build: `dotnet build HROT.sln` — 0 errors in touched projects. The 36 pre-existing errors in `Fdp.Presentation.Tests` (missing `NodeEditor` references) are unrelated.
 
 ## Decisions beyond spec
 

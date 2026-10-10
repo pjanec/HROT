@@ -303,7 +303,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
   ```
 - Also build the full solution to ensure the Hrot subsystem change compiles:
   ```powershell
-  dotnet build IOS-IG-SimHost.sln
+  dotnet build HROT.sln
   ```
 - Minimum 20 new tests across all tasks.
 - The critical tests are `RBF_P3T3_*` — read the auto-serializer source before writing them.
@@ -345,7 +345,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
 - [ ] `BitwiseAndNot` exists on `BitMask512` (added or already present)
 - [ ] `RepositoryPriming.RegisterDiscoveredComponents` extracted and used by `ReplayBrowserContext`
 - [ ] All new tests pass; all existing tests still pass
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds with zero errors
+- [ ] `dotnet build HROT.sln` succeeds with zero errors
 - [ ] Report submitted to `.dev/replay-browser-frankenstein/reports/BATCH-02-REPORT.md`
 
 ---

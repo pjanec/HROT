@@ -62,7 +62,7 @@ nothing to point at. 📐 Railed with a **mixed world** — one agent of each ki
 
 | gate | `--no-build`? | baseline | after | Δ |
 |---|---|---|---|---|
-| main solution build *(`IOS-IG-SimHost.sln`)* | builds | 0 errors | ✅ **0 errors** | **0** |
+| main solution build *(`HROT.sln`)* | builds | 0 errors | ✅ **0 errors** | **0** |
 | ⭐⭐ **`Fdp.Toolkits.Tests` — `~Navigation`** *(the regression surface)* | `--no-build` | 292 / 0 | ✅ **295 / 0** | **+3 rails** |
 | ⭐ **`Fdp.Toolkits.Tests` — `~Physics`** *(`RaycastSolverSystem`)* | `--no-build` | 31 / 0 | ✅ **31 / 0** | **0** |
 | `Hrot.MuscleCharacter.Animation.Tests` | `--no-build` | — | ✅ **195 / 0** | — |

@@ -44,7 +44,7 @@ Exact mirror of `Hrot.Blueprints.Generators.csproj`.
 - Diagnostic descriptor created inline in `MakeParseErrorDiagnostic()` (not as `static readonly`) to avoid RS2008 (analyzer release tracking), mirroring `BlueprintIncrementalGenerator.ToRoslynDiagnostic`.
 - `DiagnosticId` exposed as `public const string` for test access.
 
-Added to `IOS-IG-SimHost.sln` (project entry + ProjectConfigurationPlatforms + NestedProjects in the AI folder `D3B7249C-3319-3F27-102C-CEC9C8633A0C`).
+Added to `HROT.sln` (project entry + ProjectConfigurationPlatforms + NestedProjects in the AI folder `D3B7249C-3319-3F27-102C-CEC9C8633A0C`).
 
 ### Task 3 — PU-205: Migration-equivalence test harness (NEW test project)
 
@@ -55,7 +55,7 @@ Added to `IOS-IG-SimHost.sln` (project entry + ProjectConfigurationPlatforms + N
 - `Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/Generator/HsmJsonGeneratorTests.cs`
 - `Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/Equivalence/MigrationEquivalenceTests.cs`
 
-Added to `IOS-IG-SimHost.sln`.
+Added to `HROT.sln`.
 
 ---
 
@@ -172,7 +172,7 @@ Pre-existing failures confirmed:
 - `MoveToAndFire_GeneratedSource_Snapshot` (snapshot divergence, DEBT-006)
 - 6 other DEBT-006/014 tests (same category as baseline)
 
-### `dotnet build IOS-IG-SimHost.sln`
+### `dotnet build HROT.sln`
 ```
 0 Error(s)
 26 Warning(s)  — ALL pre-existing (DEBT-BCP-004); 0 new in touched projects
@@ -224,7 +224,7 @@ Task 2 — New netstandard2.0 Hrot.AiEditor.Generators (mirroring
   each: AdditionalTextsProvider.Where → deserialize → EmitTopologyCore →
   AddSource {Name}.g.cs; per-asset failure → BTREE0001/HSM0001 diagnostic
   (inline descriptor, RS2008-safe), never throws, never fails siblings.
-  Added to IOS-IG-SimHost.sln.
+  Added to HROT.sln.
 
 Task 3 — Hrot.AiEditor.Generators.Tests (net8.0, 26 tests):
   GeneratorDriver tests: valid → source contains CreateBuilder+[*Definition],

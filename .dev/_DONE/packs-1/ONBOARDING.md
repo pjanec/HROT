@@ -50,7 +50,7 @@ The five phases are:
 Workspace root: `d:\Work\IOS-IG-SimHost-FDP-2`
 
 ```
-IOS-IG-SimHost.sln                        ← main solution
+HROT.sln                        ← main solution
 FDP/FDP.sln                               ← FDP engine sub-solution
 
 ── FDP engine (pure domain — NO CycloneDDS) ───────────────────────────────────────────
@@ -120,7 +120,7 @@ Hrot.Orchestrator.Tests/                ← Orchestrator unit tests
 ```powershell
 # Build everything
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Build FDP sub-solution separately if needed
 dotnet build FDP/FDP.sln

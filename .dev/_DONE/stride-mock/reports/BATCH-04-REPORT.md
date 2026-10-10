@@ -17,7 +17,7 @@
 | `Hrot\Runner\Hrot.FakeStrideApp\Hrot.FakeStrideApp.csproj` | Modified (exclude test subdir) |
 | `Hrot\Runner\Hrot.FakeStrideApp\Hrot.FakeStrideApp.Tests\Hrot.FakeStrideApp.Tests.csproj` | Created (SM-008) |
 | `Hrot\Runner\Hrot.FakeStrideApp\Hrot.FakeStrideApp.Tests\FakeStrideAppTests.cs` | Created (SM-008) |
-| `IOS-IG-SimHost.sln` | Modified — added Hrot.FakeStrideApp.Tests project |
+| `HROT.sln` | Modified — added Hrot.FakeStrideApp.Tests project |
 
 ---
 
@@ -138,7 +138,7 @@ SM-008: FakeStrideApp standalone windowed runner
 - Program.cs: top-level entry with --domain / --node CLI args; defaults 0/700
 - Hrot.FakeStrideApp.Tests: 3/3 tests (type conformance, ctor, config defaults)
 - Hrot.FakeStrideApp.csproj: exclude test subdir from glob compilation
-- IOS-IG-SimHost.sln: Hrot.FakeStrideApp.Tests added (Runner solution folder)
+- HROT.sln: Hrot.FakeStrideApp.Tests added (Runner solution folder)
 
 DT-005 resolved: DemoTkbSetup.RegisterAll not called; NedTkbCatalog already
 registers TkbType 100 via HrotNodeBuilder.Build() -> HrotEnvironment.CreateTkb()

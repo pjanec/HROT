@@ -64,7 +64,7 @@ Register `BlueprintMathPaletteEntries.All()` into the same palette `NodeKindRegi
   Stage5 test harness if convenient; optional but valuable).
 
 ## Verification (paste real output)
-1. `dotnet build IOS-IG-SimHost.sln` — 0 errors; 0 new warnings in touched projects.
+1. `dotnet build HROT.sln` — 0 errors; 0 new warnings in touched projects.
 2. New palette tests green; existing palette/catalog tests green.
 3. Full `Hrot.Blueprints.Tests`: failures a SUBSET of the pre-existing **7**, 0 new, no golden changed.
 4. `Hrot.ClusterRunner.Integration.Tests --filter FullyQualifiedName~EditorSubsystemBoot` → 10/10.

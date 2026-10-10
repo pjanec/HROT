@@ -42,7 +42,7 @@ Load the **shipped** showcase file (resolve its real committed path — e.g. via
 (Use the `BTreeNewAssetService(string assetRootPath)` ctor with a temp directory for the recipe tests so they don't touch the real assets root.)
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings in touched projects.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings in touched projects.
 - [ ] `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **Failed: 0** (incl. the new tests).
 - [ ] `CombatShowcase.btree.json` exists under the BTree assets root, round-trips byte-stable, projects with all features, and references `SampleScout` for its subtree.
 - [ ] "Starter" recipe present and produces a Root+Sequence tree.

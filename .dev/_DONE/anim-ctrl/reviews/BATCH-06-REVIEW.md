@@ -11,7 +11,7 @@
 
 | Check | Status | Notes |
 |-------|--------|-------|
-| **Build** | ✅ Clean | Full solution `IOS-IG-SimHost.sln` builds with 0 errors, 0 warnings |
+| **Build** | ✅ Clean | Full solution `HROT.sln` builds with 0 errors, 0 warnings |
 | **Event Type Tests** | ✅ 19/19 passing | Event IDs, field ordering, data policies all correct |
 | **Catalog Tests** | ✅ 7/7 passing | Event registration, propagation flags, QoS verified |
 | **Validator Tests** | ✅ 8/8 passing | BP2016 (BestEffort) and BP2017 (LocalOnly) rules validated |

@@ -35,9 +35,9 @@ Also fix the pre-existing audit test path bug (HEXAG2-DEBT-005).
 
 **Development branch:** All changes go on the current working branch (hexag).
 
-**Build command:** `dotnet build IOS-IG-SimHost.sln -v q`
+**Build command:** `dotnet build HROT.sln -v q`
 **Test command single project:** `dotnet test <project.csproj> -v q`
-**Test command full:** `dotnet test IOS-IG-SimHost.sln -v q`
+**Test command full:** `dotnet test HROT.sln -v q`
 
 **Key project paths:**
 - `Hrot.Core` (interfaces): `Hrot/Engine/Hrot.Core/Hrot.Core.csproj`
@@ -90,13 +90,13 @@ which does not exist. The file actually lives at `Hrot/Subsystems/Hrot.ExCon/ExC
 **What to do:**
 Replace the hard-coded relative path traversal with a robust approach. The recommended fix
 is to walk up from `AppDomain.CurrentDomain.BaseDirectory` until a known sentinel file is
-found (e.g., `IOS-IG-SimHost.sln`), then build the path from there. Use this helper pattern:
+found (e.g., `HROT.sln`), then build the path from there. Use this helper pattern:
 
 ```csharp
 private static string FindWorkspaceRoot()
 {
     var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
-    while (dir != null && !File.Exists(Path.Combine(dir.FullName, "IOS-IG-SimHost.sln")))
+    while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
         dir = dir.Parent;
     return dir?.FullName ?? throw new DirectoryNotFoundException("Workspace root not found.");
 }

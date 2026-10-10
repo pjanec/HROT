@@ -23,7 +23,7 @@ None. All three scope items implemented exactly as specified in BATCH-04-INSTRUC
 - `dotnet build Fdp.Presentation` — **0 warnings, 0 errors**
 - `dotnet build Fdp.Presentation.Tests` — **0 warnings, 0 errors**
 - `dotnet build Hrot.ClusterRunner` — **0 warnings, 0 errors**
-- `dotnet build IOS-IG-SimHost.sln` — **0 errors**, 20 pre-existing warnings (all in `Hrot.Blueprints.Tests`, unrelated)
+- `dotnet build HROT.sln` — **0 errors**, 20 pre-existing warnings (all in `Hrot.Blueprints.Tests`, unrelated)
 
 ### Targeted test run: `--filter "FullyQualifiedName~DockspaceLayout|FullyQualifiedName~MainToolbar|FullyQualifiedName~WindowManager"`
 ```

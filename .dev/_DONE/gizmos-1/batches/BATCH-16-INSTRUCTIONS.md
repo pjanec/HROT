@@ -293,7 +293,7 @@ dotnet build FDP.sln --no-incremental -clp:ErrorsOnly
 Then full solution:
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln --no-incremental -clp:ErrorsOnly
+dotnet build HROT.sln --no-incremental -clp:ErrorsOnly
 ```
 
 Fix all errors. Common issues:
@@ -350,7 +350,7 @@ SC-GZ042-5: `Fdp.Diagnostics.Network` is in `FDP.sln` → verified by `dotnet bu
 ## Full Test Suite Verification
 
 ```
-dotnet test IOS-IG-SimHost.sln --no-build --logger "console;verbosity=quiet" 2>&1 | Select-String "Passed|Failed|Error" | Select-Object -Last 20
+dotnet test HROT.sln --no-build --logger "console;verbosity=quiet" 2>&1 | Select-String "Passed|Failed|Error" | Select-Object -Last 20
 ```
 
 Check that no NEW failures appear beyond the pre-existing ones listed above.
@@ -403,7 +403,7 @@ Update `.dev/gizmos-1/TASK-TRACKER.md`: mark GZ041 and GZ042 as `[x]` done.
    `Fdp.Toolkits` → `Fdp.Diagnostics.Network`, projects that already reference `Fdp.Toolkits`  
    get the new types transitively. No changes needed for most downstream consumers.
 
-5. **Do not change `IOS-IG-SimHost.sln`** (root solution file). Only modify `FDP/FDP.sln`.
+5. **Do not change `HROT.sln`** (root solution file). Only modify `FDP/FDP.sln`.
 
 6. **If CycloneDDS codegen fails**: The codegen in `Fdp.Diagnostics.Network` may fail if it  
    can't find referenced types from `Fdp.Diagnostics.Contracts`. Try adding  
