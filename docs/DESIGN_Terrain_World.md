@@ -26,6 +26,7 @@ related-designs:
   - docs/DESIGN_Stride_Node_Modes.md — owns the Stride host's scene-baked navmesh (stays as it is in slice 1; its coordinate conversion moves inside the implementations, W7).
   - docs/designs/promote-to-3d/3D_Cognitive_Spatial_Awareness_Promotion_Design_v1_1.md — owns "SimTransform.Position.Z is authoritative"; W8 is how SimHost honours it.
   - docs/designs/anim-ctrl/AnimationControl_BrainMuscle_MiniDesign_v0_3.md — owns StanceIntent/StanceStatus, which W5's posture-driven eye height reads.
+  - docs/DESIGN_Godot_3D_Viewer.md — a 3-D viewer that loads this world BY NAME and builds per-kind Godot meshes from it (its D6), cached by content hash.
 -->
 
 # DESIGN — **the terrain world** *(SimHost's test terrain: one file, one model, every query derived)*

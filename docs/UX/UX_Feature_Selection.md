@@ -183,6 +183,8 @@ related-designs:
     SECOND store on both authoring hosts. Found with the graph 2026-09-20, not by the slice work.
   - docs/designs/replay-browser-2/DESIGN.md — owns EntitySelectionHistory, the replay browser's
     selection history. ReplayBrowser joined this design's protocol at S-3b; the history is its own.
+  - docs/DESIGN_Godot_3D_Viewer.md — the Godot 3-D viewer is one more requester (rule 2): a click becomes
+    SelectEntityCommand, the selection returns in its frame (its D8).
 -->
 # Feature design — selection
 
