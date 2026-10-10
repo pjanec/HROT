@@ -1740,10 +1740,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐ The camera was RIGHT THERE — built at :1550 and given its offset at :1551, two lines up.
             //   🔒 This is the silent-default rule exactly: a production caller that HAS a dependency
             //      must PASS it. Every other host does.
-            _cgfGizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
-                _cgfGizmoBuffer, _cgfInteractionBus!, _canvas.Camera, () => _context.World);
-            _canvas.AddLayer(_cgfGizmoLayer);
-            _canvas.DrawBuffer = _cgfGizmoBuffer;
+            // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
+            _cgfGizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                _canvas, _cgfGizmoBuffer, _cgfInteractionBus!, () => _context.World).GizmoLayer;
 
             // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
 

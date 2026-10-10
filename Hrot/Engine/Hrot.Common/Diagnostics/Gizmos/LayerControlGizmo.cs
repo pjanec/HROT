@@ -18,6 +18,11 @@ namespace Hrot.Common.Diagnostics.Gizmos
     [DataPolicy(DataPolicy.NoReplay)]
     public struct OpenLayerEditorEvent { }
 
+    /// <summary>⭐ CE-1033 — the operator asked for the other map mode (2-D ↔ 3-D); the map's view switch drains it.</summary>
+    [EventId(8062)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct ToggleMap3DEvent { }
+
     // DTO that matches the StructEdit schema used by the StructInspector panel.
     // Must be JSON-serializable; property names match the schema produced by the terminal.
     public class LayerControlDto
@@ -146,7 +151,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
         private static readonly string MainMenuJson =
             "[{\"label\":\"View\",\"priority\":30,\"children\":[{\"id\":"
             + GlobalActionIds.OpenLayerControl
-            + ",\"label\":\"Tactical Map Layers...\"}]}]";
+            + ",\"label\":\"Tactical Map Layers...\"},{\"id\":"
+            + GlobalActionIds.ToggleMap3D            // ⭐ CE-1033 — the map's 2-D / 3-D switch, on every map host
+            + ",\"label\":\"2-D / 3-D Map\"}]}]";
 
         private readonly long _anchorId;
         private readonly FdpEventBus _interactionBus;

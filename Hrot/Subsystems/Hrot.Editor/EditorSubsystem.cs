@@ -251,7 +251,6 @@ namespace Hrot.Editor
         private EditorApplication?      _editorApp;
         private MapCanvas?              _canvas;
         private MapCamera?              _camera;
-        private Fdp.Toolkit.Vis3D.MapViewSwitch? _mapViewSwitch;   // ⭐ CE-1033 S1 — View > 3D map
         private bool                    _headless;
         // GZH-016: gate — false when another subsystem owns the map view.
         private Func<bool>              _isActiveMapOwner = () => true;
@@ -2554,22 +2553,15 @@ namespace Hrot.Editor
                 // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked
                 //   anchor's network id to an Entity. ⚠ NOT a revival of R3's deleted `view` parameter,
                 //   which was stored nowhere. See DebugGizmoLayer._world.
-                _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
-                    _gizmoBuffer!, interactionBus, _canvas!.Camera, () => _world);
-                _canvas!.AddLayer(_gizmoLayer);
-                if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
+                // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode (View › 2-D / 3-D Map), the same on
+                //   every host. The TKB is passed because this host HOLDS it (silent-default rule), not left to the singleton.
+                _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                    _canvas!, _gizmoBuffer!, interactionBus, () => _world, () => _tkbDatabase).GizmoLayer;
 
                 // Grid map layer ? reads MapViewConfig.ShowGrid each frame.
                 var gridLayer = new GridMapLayer(() => _mapViewConfig!.ShowGrid);
                 _canvas!.AddLayer(gridLayer);
 
-                // ⭐ CE-1033 S1 — the map's 3-D mode (docs/DESIGN_Map_3D_Mode.md M1/M3/M12): one switch that swaps the canvas
-                //   camera, and the two layers that draw only in 3-D. The 2-D layers stay as they are; in 3-D the canvas skips the
-                //   ones with no 3-D path and counts them (MapCanvas.LayersWithout3D).
-                _mapViewSwitch = new Fdp.Toolkit.Vis3D.MapViewSwitch(_canvas!, _camera!);
-                _mapViewSwitch.Camera3D.GroundHeight = (x, y) => Fdp.Toolkit.World.WorldQuery.Of(_world)?.GroundHeightAt(x, y) ?? 0f;
-                _canvas!.AddLayer(new Fdp.Toolkit.Vis3D.TerrainLayer3D(() => Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(_world)));
-                _canvas!.AddLayer(new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => _world, () => _tkbDatabase));
 
                 // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
             }
@@ -3080,11 +3072,6 @@ namespace Hrot.Editor
             if (_gizmoLayer != null)
                 _gizmoLayer.ContextMenuIconResolver = windowManager.MenuIcons; // gizmo right-click menus
 
-            // ⭐ CE-1033 S1 — View > 3D map: the animated 2-D ↔ 3-D switch (docs/DESIGN_Map_3D_Mode.md M12). Checkable, so the
-            //   mode is visible; absent in headless (no canvas, no switch).
-            if (_mapViewSwitch != null)
-                windowManager.GlobalMenu.RegisterCheckableItem(
-                    "View/3D map", () => _mapViewSwitch.Is3D, on => _mapViewSwitch.Set(on));
 
             // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
             // Harmless no-op for the Win32 backend: WindowManager only draws the service

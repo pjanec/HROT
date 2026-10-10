@@ -342,10 +342,9 @@ namespace Hrot.SimHost
             // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked anchor's
             //   network id to an Entity. ⚠ NOT a revival of R3's deleted `view` parameter, which was
             //   stored nowhere. See DebugGizmoLayer._world.
-            _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
-                _gizmoBuffer, interactionBus ?? repo.Bus, _map.Camera, () => _repo);
-            _map.AddLayer(_gizmoLayer);
-            _map.DrawBuffer = _gizmoBuffer;
+            // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
+            _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                _map, _gizmoBuffer, interactionBus ?? repo.Bus, () => _repo).GizmoLayer;
             _interactionBus = interactionBus;
 
             // ── Interaction ───────────────────────────────────────────────────

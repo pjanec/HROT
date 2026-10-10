@@ -49,6 +49,8 @@ namespace Hrot.Common.Constants
 
         // --- Layer control ---
         public const int OpenLayerControl = 250;
+        /// <summary>⭐ CE-1033 — View › 2-D / 3-D map: the animated switch, on every map host (<c>DESIGN_Map_3D_Mode.md</c> M12).</summary>
+        public const int ToggleMap3D      = 253;
 
         // --- AI Diagnostics (behav-diag-1) ---
         /// <summary>Toggle <c>DebugState.Behavior.EnableTraceBuffer</c> on the target entity.</summary>

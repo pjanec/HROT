@@ -1,4 +1,5 @@
 using System.Numerics;
+using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Terrain;
 using Fdp.Toolkit.Tkb;
@@ -102,16 +103,19 @@ public sealed class Map3DTests
     [InlineData(VisualFamily.Afv)]
     [InlineData(VisualFamily.WheeledCar)]
     [InlineData(VisualFamily.WheeledUtility)]
+    [InlineData(VisualFamily.Helicopter)]
+    [InlineData(VisualFamily.Jet)]
+    [InlineData(VisualFamily.CargoPlane)]
     public void S1_EveryVehiclePart_SitsInsideTheTypesBox_AndTheKitStandsOnTheGround(VisualFamily family)
     {
         var size = ShapeKits.DefaultSize(family);
         float lowest = float.MaxValue;
-        foreach (var part in ShapeKits.For(family))
+        foreach (var part in ShapeKits.For(family).Parts)
         {
             var m = part.BodyTransform(size);
             for (int i = 0; i < 8; i++)
             {
-                var corner = new Vector3((i & 1) == 0 ? -0.5f : 0.5f, (i & 2) == 0 ? -0.5f : 0.5f, part.Shape == PartShape.Cylinder ? ((i & 4) == 0 ? 0f : 1f) : ((i & 4) == 0 ? -0.5f : 0.5f));
+                var corner = new Vector3((i & 1) == 0 ? -0.5f : 0.5f, (i & 2) == 0 ? -0.5f : 0.5f, part.Shape != PartShape.Box ? ((i & 4) == 0 ? 0f : 1f) : ((i & 4) == 0 ? -0.5f : 0.5f));
                 var p = Vector3.Transform(corner, m);
                 Assert.InRange(p.X, -size.X * 0.75f, size.X * 0.75f);   // a barrel may overhang the hull
                 Assert.InRange(p.Y, -size.Y * 0.55f, size.Y * 0.55f);
@@ -126,12 +130,77 @@ public sealed class Map3DTests
     public void S1_TheTankBarrel_PointsForward()
     {
         var size = ShapeKits.DefaultSize(VisualFamily.Tank);
-        var barrel = ShapeKits.Tank.Single(p => p.Shape == PartShape.Cylinder);
+        var barrel = ShapeKits.Tank.Parts.Single(p => p.Shape == PartShape.Cylinder);
         var m = barrel.BodyTransform(size);
         var a = Vector3.Transform(new Vector3(0, 0, 0), m);
         var b = Vector3.Transform(new Vector3(0, 0, 1), m);
         Assert.True(MathF.Abs(b.X - a.X) > 3f && MathF.Abs(b.Y - a.Y) < 1e-3f && MathF.Abs(b.Z - a.Z) < 1e-3f, $"barrel axis {a} → {b}");
         Assert.True(MathF.Max(a.X, b.X) > size.X / 2f, "the barrel reaches past the hull front");
+    }
+
+    // ── aircraft (SISO-REF-010 platform / air categories) ──
+
+    [Theory]
+    [InlineData(20, VisualFamily.Helicopter)]
+    [InlineData(21, VisualFamily.Helicopter)]
+    [InlineData(23, VisualFamily.Helicopter)]
+    [InlineData(25, VisualFamily.Helicopter)]
+    [InlineData(1, VisualFamily.Jet)]
+    [InlineData(2, VisualFamily.Jet)]
+    [InlineData(50, VisualFamily.Jet)]
+    [InlineData(4, VisualFamily.CargoPlane)]
+    [InlineData(3, VisualFamily.CargoPlane)]
+    [InlineData(57, VisualFamily.CargoPlane)]
+    [InlineData(0, VisualFamily.Unknown)]
+    public void Air_TheDisCategory_PicksTheKit(byte category, VisualFamily expected)
+    {
+        var t = new TkbTemplate("air", 9100 + category) { DisType = new DISEntityType { Kind = 1, Domain = 2, Category = category } };
+        Assert.Equal(expected, VisualFamilies.Of(t));
+        Assert.Null(EntityTypeCatalog.FallbackIconName(t));   // no air glyph exists — the picker's icon is unchanged
+    }
+
+    [Fact]
+    public void Air_TheJetsNoseCone_PointsForward()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Jet);
+        var cone = ShapeKits.Jet.Parts.Single(p => p.Shape == PartShape.Cone);
+        var m = cone.BodyTransform(size);
+        var baseCentre = Vector3.Transform(Vector3.Zero, m);
+        var apex = Vector3.Transform(new Vector3(0, 0, 1), m);
+        Assert.True(apex.X > baseCentre.X + 1f, $"cone base {baseCentre} apex {apex}");
+    }
+
+    // ── articulation (§3.11) ──
+
+    private static Vector3 Muzzle(ShapeKit kit, Vector3 size, ArticulationPose pose)
+    {
+        var gun = kit.Parts.Single(p => p.Role == PartRole.Gun);
+        return Vector3.Transform(new Vector3(0, 0, 1), gun.BodyTransform(size, kit.Pivots, pose));   // the cylinder's far end
+    }
+
+    [Theory]
+    [InlineData(VisualFamily.Tank)]
+    [InlineData(VisualFamily.Afv)]
+    public void Articulation_TheTurretTraverses_AndTheGunElevates_TheHullStays(VisualFamily family)
+    {
+        var kit = ShapeKits.For(family);
+        var size = ShapeKits.DefaultSize(family);
+        Assert.True(kit.IsArticulated);
+
+        var ahead = Muzzle(kit, size, ArticulationPose.Neutral);
+        var left = Muzzle(kit, size, new ArticulationPose(MathF.PI / 2f, 0f));
+        var raised = Muzzle(kit, size, new ArticulationPose(0f, 0.3f));
+
+        var pivot = new Vector2(kit.Pivots.Turret.X * size.X, kit.Pivots.Turret.Y * size.Y);
+        float reach = 0.25f * size.X;
+        Assert.True(ahead.X > pivot.X + reach && MathF.Abs(ahead.Y) < 0.01f, $"neutral muzzle {ahead}");
+        Assert.True(left.Y > pivot.Y + reach && MathF.Abs(left.X - pivot.X) < 0.01f, $"turret 90° left: muzzle {left}");   // CCW = left
+        Assert.True(raised.Z > ahead.Z + 0.3f, $"elevated muzzle {raised} vs {ahead}");
+
+        Assert.InRange(Vector2.Distance(new Vector2(ahead.X, ahead.Y), pivot) - Vector2.Distance(new Vector2(left.X, left.Y), pivot), -0.01f, 0.01f);
+
+        foreach (var hull in kit.Parts.Where(p => p.Role == PartRole.Hull))
+            Assert.Equal(hull.BodyTransform(size), hull.BodyTransform(size, kit.Pivots, new ArticulationPose(1.2f, 0.4f)));
     }
 
     // ── the camera ──

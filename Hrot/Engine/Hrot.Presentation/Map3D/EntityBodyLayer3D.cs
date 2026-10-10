@@ -30,14 +30,20 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     private readonly Dictionary<long, TypeLook> _looks = new();
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
-    private Mesh _cube, _cylinder;
+    private readonly Func<EntityRepository, Entity, ArticulationPose>? _poseOf;
+    private Mesh _cube, _cylinder, _cone;
     private bool _meshes;
 
     /// <summary>What a TKB type looks like — resolved once per type.</summary>
     public readonly record struct TypeLook(VisualFamily Family, Vector3 Size, Color Colour, bool Soldier);
 
-    public EntityBodyLayer3D(Func<EntityRepository?> world, Func<ITkbDatabase?> tkb)
+    /// <param name="poseOf">⭐ CE-1033 §3.11 — the turret azimuth and gun elevation of an entity with an articulated kit. ⚠ Null today
+    /// in production: the component that will carry the pose awaits the user's ruling (§3.11, M23–M26); until then turrets face
+    /// forward. The seam is here so that ruling plugs in at ONE place.</param>
+    public EntityBodyLayer3D(Func<EntityRepository?> world, Func<ITkbDatabase?> tkb,
+                             Func<EntityRepository, Entity, ArticulationPose>? poseOf = null)
     {
+        _poseOf = poseOf;
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _tkb = tkb ?? throw new ArgumentNullException(nameof(tkb));
     }
@@ -77,16 +83,25 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
             var size = SizeOf(world, e, look);
             var colour = ColourOf(world, e, look.Colour);
-            var parts = look.Family == VisualFamily.Person
-                ? BlockFigure.Parts(LogicalStance.Of(world, e), look.Soldier)
-                : ShapeKits.For(look.Family);
+            KitPart[] parts;
+            KitPivots pivots = default;
+            var pose = ArticulationPose.Neutral;
+            if (look.Family == VisualFamily.Person)
+                parts = BlockFigure.Parts(LogicalStance.Of(world, e), look.Soldier);
+            else
+            {
+                var kit = ShapeKits.For(look.Family);
+                parts = kit.Parts;
+                pivots = kit.Pivots;
+                if (_poseOf != null && kit.IsArticulated) pose = _poseOf(world, e);
+            }
 
             ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
             var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
             foreach (var part in parts)
             {
-                var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size) * body);
-                var mesh = part.Shape == PartShape.Cylinder ? _cylinder : _cube;
+                var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size, pivots, pose) * body);
+                var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
                 Raylib.DrawMesh(mesh, shader.Tinted(Shade(part.Colour, colour)), model);
                 PartsDrawn++;
             }
@@ -156,6 +171,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         VisualFamily.Afv => new Color(122, 116, 84, 255),
         VisualFamily.WheeledCar => new Color(72, 104, 168, 255),
         VisualFamily.WheeledUtility => new Color(128, 120, 92, 255),
+        VisualFamily.Helicopter => new Color(96, 104, 92, 255),
+        VisualFamily.Jet => new Color(128, 136, 146, 255),
+        VisualFamily.CargoPlane => new Color(118, 124, 116, 255),
         _ => new Color(180, 120, 200, 255),
     };
 
@@ -180,6 +198,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (_meshes) return;
         _cube = Raylib.GenMeshCube(1f, 1f, 1f);
         _cylinder = Raylib.GenMeshCylinder(0.5f, 1f, 14);
+        _cone = Raylib.GenMeshCone(0.5f, 1f, 14);
         _meshes = true;
     }
 
@@ -188,6 +207,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (!_meshes) return;
         Raylib.UnloadMesh(_cube);
         Raylib.UnloadMesh(_cylinder);
+        Raylib.UnloadMesh(_cone);
         _meshes = false;
     }
 }

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a as-built); S2 next. ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 next. ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -32,6 +32,8 @@ related-designs:
     that affiliation follows and the entity colour copies (§3.7).
   - designs/promote-to-3d/3D_Cognitive_Spatial_Awareness_Promotion_Design_v1_1.md — owns Tier 2, the generators that
     stop flattening Z (EntitiesInArea); §3.9's "area on a level" relies on it.
+  - DESIGN_Ownership_Groups_And_Grants.md — owns descriptor ownership and PARTS (F-6: mount parts never created); §3.11's
+    turret part (M23) is a part of that model — one owner per descriptor instance.
 -->
 
 # DESIGN — a 3-D mode for the map
@@ -59,7 +61,10 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 |---|---|---|
 | **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) … with imgui on top for menus?"* | measured in `DESIGN_Godot_3D_Viewer.md` §8 — lean B |
 | **U13** | *"The internal 3d solution could be switchable 2d/3d instead of current 2d only map so no new 3d window would be required. I think we should focus on B … Lets put godot aside (but keep its design as deferred). We need the simple renderer to handle the terrain geometry, use lighting color shaded polygons to give it some usable feeling of a real world, if not some freely available texture pack."* | ⭐ this file: a **mode of the map**, not a window; **lit, colour-shaded terrain**; textures as a later slice |
-| **U15** | *"Every host having the 2d map will get simple 3d, correct? Not just IG. … The current 2d map can be switched to 3d view and back (some camera animation between 2d camera and 3d camera or something)."* | ✅ yes, all five map hosts (S6). ⭐ M12: the switch is an animated camera move, not a cut |
+| **U15** | *"Every host having the 2d map will get simple 3d, correct? Not just IG. … The current 2d map can be switched to 3d view and back (some camera animation between 2d camera and 3d camera or something)."* | ✅ yes, all five map hosts — by construction since U25 (§6b). ⭐ M12: the switch is an animated camera move, not a cut |
+| **U26** | *"It would be great if you built the heli and jet and cargo plane models including their mapping so we do not need to think about that later."* | ✅ built: three air kits + the SISO-REF-010 platform/air category mapping (§3.5) |
+| **U25** | *"ad 'the 3-D mode on the other four hosts' - this sounds alarming, we should be unifying and sharing from the day zero so something like 'not on all host' can not happen by construction"* | ✅ §6b: one shared attach + one shared menu item + a rail; S6 withdrawn |
+| **U24** | *"the tank models need the turret to be movable left/right as well as the barrel (up/down) as articulated part - tank entity needs a way describing the orientation of its turret+barrel (maybe a sub-entity with component containing turret hull relative azimuth and turret-relative barrel elevation - there used to be a multi-entity tank demo)"* | ✅ articulated kit parts built; ⭐ where the pose lives: §3.11 M23–M26, leans awaiting the user |
 | **U23** | *"Leans accepted. Terrain needs height. Current flat terrain bed is unbearable. never count with terrain being flat, this is just current simplification that should be removed soon."* | ✅ M17–M22 approved; 🔒 `R-248`; ⭐ §3.10 — every rule here reworded for terrain with relief |
 | **U22** | *"What are height 0 gizmos? Maybe some might become height aware? Some 2d only stuff areas might be turned into 3d, like area with height? Approval covered m15, color would be then similar to attribute like affiliation - runtime stuff (i hope affiliation is runtime stuff, nothing tkb static). Pls summarize the 3d editing concepts with gizmos"* | ✅ M15 approved; ⭐ §3.7 colour follows `EntityInfo.ForceId`'s pattern; ⭐ §3.9 + M21–M22 |
 | **U21** | *"Approved. The 3d entities need to support hit tests so clicking entity (some invisible simple oriented box collider on it) can select it - the same raycast machinery as for simulation can be reused maybe … 3d stays mostly rendering only. I think card should remain unclickable. The map tools like measurement and placement tool and area authoring tool should be made 3d aware so same tool can be used in both environments. So gizmo based handle points and hit testing them etc should still be supported just in 3d, rendered in a way clickable and draggable in 3d (draggable to new location using raycast from camera to the terrain...)"* | ✅ M1–M16 approved; ⭐ §3.8 + M17–M20 |
@@ -101,7 +106,7 @@ graph TD
     MC["MapCanvas<br/>(existing, 2 edits)"]
     C2["MapCamera (2-D)"]
     C3["MapCamera3D (new)"]
-    SW["View > 3D map<br/>switch (new)"]
+    SW["MapViewSwitch + MapViewModeLayer<br/>View > 2-D / 3-D Map (new)"]
     L1["DebugGizmoLayer"]
     L2["SelectionRenderSystem"]
     L3["GridMapLayer"]
@@ -110,6 +115,9 @@ graph TD
     E3["EntityBodyLayer3D (new)"]
     W[(ECS world)]
     MP --> MC
+    MP -- "AttachMapLayers (one call, every host)" --> SW
+    MP -- AttachMapLayers --> T3
+    MP -- AttachMapLayers --> E3
     LOOP --> MC
     SW -- "swaps Camera" --> MC
     MC --> C2
@@ -127,7 +135,8 @@ graph TD
 ```
 
 *What the picture shows that prose hid:* **no new composition root and no new tick** — the host loop that draws the
-2-D map draws the 3-D one; the pack that builds the 2-D canvas builds both cameras and the two new layers.
+2-D map draws the 3-D one; the pack attaches the gizmo layer, both 3-D layers and the switch in ONE call
+(`MapInteractionPack.AttachMapLayers`), which all five hosts make — so no host can be "2-D only" (§6b).
 `PerceptionMapLayer` has **no 3-D path** in slice 1 — drawn as a dead edge so its absence is visible, not silent.
 
 ### 3.2 Classes — existing (with file) vs new
@@ -328,8 +337,9 @@ being a composite unit) to a family: person, tank, AFV, wheeled, unit. ⇒ that 
 | **AFV / APC** *(1.1, cat 2)* | Bradley, MilitaryAPC | hull with a sloped front wedge · tracks or wheels (dark) · small turret · thin barrel |
 | **wheeled — car** *(1.1, cat 81)* | CivilianCar | lower body · cabin (glass) · four wheels (roll with speed) |
 | **wheeled — utility** *(1.1, cat 3/6/7)* | HMMWV | wide low body · cab (glass) · rear bed · four wheels |
-| **helicopter** *(air)* | ⛔ none in the built-in TKB | fuselage · tail boom · tail fin · main rotor blades (spin) · tail rotor · skids |
-| **fixed wing** *(air)* | ⛔ none in the built-in TKB | fuselage cylinder + nose cone · swept wing slab · two fins · canopy (glass) |
+| **helicopter** *(1.2, cat 20–25)* | ⛔ none in the built-in TKB | fuselage · cockpit glass · tail boom · swept fin · tail rotor · mast · two crossed main blades (spin: S4) · skids on struts — ✅ built |
+| **jet** *(1.2, cat 1, 2, 6, 7, 40, 47, 50)* | ⛔ none in the built-in TKB | fuselage + nose cone · canopy · swept wings and tailplanes · swept fin · nozzle · gear — ✅ built |
+| **cargo plane** *(1.2, cat 3, 4, 5, 8, 57)* | ⛔ none in the built-in TKB | round fuselage + nose · cockpit glass · straight high wing · four engines · raised tail, fin, tailplane · gear pods — ✅ built |
 | **unit** *(composite)* | tank platoon, infantry squad | **no body** — its members are entities and draw themselves; its symbol shows as a label |
 | unknown | — | one box, the TKB size |
 
@@ -337,8 +347,10 @@ being a composite unit) to a family: person, tank, AFV, wheeled, unit. ⇒ that 
 stay cheap; instancing per part shape is the later lever. ⭐ **Size:** length / width / height from
 `VehicleParametersDto` / `SimVehicleDef`; a per-family default where the TKB has none. ⭐ **Motion is presentation
 only** — rotor spin from time, wheel roll from speed; the turret follows the hull (no aim component is read).
-⛔ **Air:** the kits are built and railed, but **no built-in type is in the air domain**, and the DIS air category numbers
-for helicopter vs fixed wing are **not yet confirmed** against SISO-REF-010 — settled when the first air type is added.
+✅ **Air, `2026-10-10`:** the three air kits are built and railed, and the platform/air categories are mapped from the
+IEEE 1278.1 enumerations (JDBE DIS data dictionary, the SISO-REF-010 lineage) — also added to `DisNames.json` for the picker. For
+aircraft the kit's y extent is the **span** (wing or main rotor). ⚠ No built-in type is in the air domain yet; the frame rail
+draws test types on those categories.
 
 ### 3.6 The entity CARD — a small canvas for gizmos, the SAME in 2-D and 3-D *(U19, reshaped by U20)*
 
@@ -629,6 +641,38 @@ S1/S2 run on a small sloped test terrain, so the map is never built against the 
 ⚠ Supplying terrain height (file format, mesher, navmesh, sensors, ballistics) is planned in
 [`DESIGN_Terrain_Height.md`](DESIGN_Terrain_Height.md), extending `DESIGN_Terrain_World.md` — not in this file.
 
+### 3.11 Articulated parts — the turret traverses, the gun elevates *(U24)*
+
+🔒 **User, `2026-10-10`:** *"the tank models need the turret to be movable left/right as well as the barrel (up/down) as
+articulated part - tank entity needs a way describing the orientation of its turret+barrel (maybe a sub-entity with component
+containing turret hull relative azimuth and turret-relative barrel elevation - there used to be a multi-entity tank demo)."*
+
+📐 **Measured, `2026-10-10` (graph + grep + a corpus sweep of `docs/`, `.dev/`, `FDP/Docs`):**
+
+| what exists | where | live? |
+|---|---|---|
+| the PART link `PartMetadata { ParentEntity, InstanceId }`, children destroyed with the parent | `Replication/Components/PartMetadata.cs:13` · `SubEntityCleanupSystem` (`NedReplicationModule.cs:467`) | ✅ production (EQS sensors, weapon mounts) |
+| a child entity per extra weapon mount, carrying `PartMetadata` | `CombatTkbTranslator.cs:95-122` | ⚠ **designed, never created in production** — `WeaponMountInfo` is registered only in tests (`DESIGN_Ownership_Groups_And_Grants.md` F-6, re-grepped `2026-10-10`) |
+| the multi-instance wire pattern: key `(EntityId, InstanceId)`, per-instance authority | `MultiInstanceCycloneTranslator.cs:19-151` · `docs/reference/BDC_NED_SST_Descriptor_Rules.md:49` | ⚠ tests only (`Q79` §0.10) |
+| a turret angle anywhere | — | ⛔ **none**: fire computes the shot direction per shot and drops it (`FireProcessingSystem.cs:132-150`); the brain's aim state is a timer |
+| the "multi-entity tank demo" | `.dev/_DONE/demos-1/FDP-demos-all.md:921-1025` (spec: a turret entity with a parent link, yaw 90 vs hull 0) | ⛔ never built as specified — `DistributedTankScenario` has a turret entity with no link and no angle |
+| `TurretState`, `TurretRotation`, "✅ Production" multi-turret | `FDP/Docs/projects/examples/Fdp.Examples.NetworkDemo.md:173` · `Fdp.ModuleHost/docs/UserGuide/08_NetworkIntegration.md:4073` · `FDP.Toolkit.Replication.md:1048` | ⛔ **known-rot**: those types do not exist |
+
+✅ **Built now (map side):** a kit part has a ROLE — hull, turret or gun — and the kit names its turret axis and gun trunnion
+(`KitPivots`). `EntityBodyLayer3D` poses them from an `ArticulationPose` (turret azimuth relative to the hull, gun elevation
+relative to the turret) taken from ONE seam (`poseOf`). That seam is null in production until M23 is ruled, so turrets face
+forward; the frame rail poses two to prove the drawing.
+
+| # | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **M23** | where the pose lives | ⭐ **a part child per turret**: `PartMetadata { Parent = hull, InstanceId = turret index }` + a new `TurretPose { float Azimuth; float Elevation; }` (radians; azimuth counter-clockwise from the hull's forward, elevation up from the turret plane) — the turret and its gun are ONE assembly | a component on the hull — one turret only, and no separate owner for a gunner node (`R-168`) · one entity per joint (turret + gun) — elevation only ever means "relative to its turret" |
+| **M24** | who writes it | ⭐ the **motion side**: a turret slew system turns the turret and gun toward the active `WeaponChannel` target at the TKB rates, within its limits; the brain names the TARGET, never an angle | the brain writing angles — kinematics in the brain (`R-252`) · fire writing its shot direction back — per shot and dispersed |
+| **M25** | the TKB | ⭐ a turret descriptor per turret part: pivot offset, traverse and elevation limits, slew rates; weapon mounts name the turret they sit on | angles with no limits — a turret could aim through its own hull |
+| **M26** | the wire | ⭐ a multi-instance descriptor keyed `(EntityId, InstanceId)` per the descriptor rules, through the existing multi-instance translator pattern; a DIS gateway maps it to the articulated parts 4107 (turret 1 azimuth = 4096 + 11) and 4429 (gun 1 elevation = 4416 + 13) | putting the angles into the hull's geo descriptor — breaks the one-descriptor-per-concept rule and multi-turret vehicles |
+
+⚠ **Cross-lane:** M24–M26 are the combat / motion / network lanes' code — this section is the map's ask, with leans; the user
+rules, and the owning lane builds.
+
 ---
 
 ## 4. THE REUSE LEDGER
@@ -693,7 +737,7 @@ S1/S2 run on a small sloped test terrain, so the map is never built against the 
 | **S5** | camera entity — create, follow, scenario save | V-12..V-15 |
 | **S5b** | **the card**: `CoordinateSpace.EntityCard`; `EntityCardRenderer` (rows by `ZIndex`, row 0 card-wide, `%` of the card, leader line) in 2-D and 3-D; `CardBuilder` sugar; `EntityCardFrameGizmo` + one side palette (M16); `HealthBarGizmo` re-targeted to a bar row; `EntityNameGizmo`; `EntityEditorLabelGizmo` rows moved in; a "Labels" layer default | U19, U20 |
 | **S5c** | **entity colour**: `EntityAppearance` per M15 — only after the user's answer | U19 colour |
-| **S6** | all five hosts through `MapInteractionPack` | V-01, V-18 (IG) |
+| ~~**S6**~~ | ⛔ **withdrawn `2026-10-10` (U25)** — every host gets 3-D from the shared attach; see §6b | V-01, V-18 (IG) — met by §6b |
 | **S7** | CC0 textures, triplanar | U13's texture wish |
 
 ⭐ Gates per slice: the touched suites + the map's own rails (T-1), a frame rail per R-124, and the Xvfb screenshot.
@@ -717,12 +761,12 @@ grey) and one entity of every built-in kit — tanks, AFVs, utility truck, car, 
 | `ShapeKits`, `KitPart`, `BlockFigure` | `…/Map3D/ShapeKit.cs` | §3.5 kits for tank, AFV, car, utility, unknown; the six-box person in three stance poses, rifle for soldiers |
 | `EntityBodyLayer3D` | `…/Map3D/EntityBodyLayer3D.cs` | every entity with `SimTransform` + `TkbIdentity`; size from `SimVehicleDef` → `VehicleParametersDto` → `ShapeHeight` → family default; colour from `VisualData.ColorHex` → the TKB visual → family default; units draw nothing |
 | canvas hooks | `MapCanvas.Draw3D`, `IMapLayer.Draw3D`/`Has3D`, `MapCamera.Is3D`/`ScreenDeltaToWorld`, `MapCanvas.LayersWithout3D` | as §4 planned — the 2-D path is byte-identical |
-| editor | `EditorSubsystem`: the switch, both layers, **View › 3D map** (checkable) | the other four hosts are S6 |
+| editor | `EditorSubsystem`: the switch, both layers, **View › 3D map** (checkable) | ⛔ SUPERSEDED the same day by §6b — every host, one shared call and one shared menu item |
 
 | ⚠ deviation / finding | why |
 |---|---|
 | 🔴 **the 2-D map draws north DOWN** — it is a mirror of the view from above (`MapCamera` maps world Y screen-down and `DebugPrimitiveRenderer2D.cs:273` draws world XY straight). §3.3 and M10 assumed "north up" | a camera above the ground cannot show a mirror ⇒ **3-D is north-up, east-right, and the switch flips north–south** (scale, centre and east-is-right are kept). ⚠ Whether the 2-D map should become north-up is a separate question for the user — it touches every 2-D gizmo |
-| air kits (helicopter, fixed wing) not built | no built-in air type, and the DIS categories are unconfirmed (§3.5) — built with the first air type |
+| ~~air kits not built~~ | ✅ built the same day (§3.5): helicopter, jet, cargo plane, with the DIS air mapping |
 | **F** (frame the selection) not built | it needs the selection — S2, with picking |
 | the editor's `MapCullingModule` still reads the 2-D camera's rectangle | culling is off by default (`map.entity.cullOffscreen`); in 3-D it would cull by a stale rectangle — S2 |
 | test-town shows a HOLE where its water is | the navmesh soup has no water (M4) — water surfaces are S4 |
@@ -736,6 +780,27 @@ no display); `Hrot.Presentation.Tests` **405/405** (the catalog's own suite incl
 ⚠ **Under a display, `Hrot.Presentation.Tests` aborts in about one run in three** (test host crash between tests, no test left
 incomplete — `--blame`); without a display it is clean 3/3. ✅ **Pre-existing:** the base commit `2e90e208f` (no 3-D code, no
 window rail) crashes the same way, 1 run in 5 under Xvfb — filed `CE-1039`.
+
+### 6b. Every host, by construction — AS-BUILT `2026-10-10` *(U25)*
+
+🔒 **User, `2026-10-10`:** *"we should be unifying and sharing from the day zero so something like 'not on all host' can not
+happen by construction."* ⇒ ⛔ S6 ("all five hosts") is **withdrawn as a slice** — there is nothing left to roll out.
+
+| piece | where |
+|---|---|
+| `MapInteractionPack.AttachMapLayers(canvas, buffer, bus, world, tkb?)` — gizmo layer, draw buffer, `TerrainLayer3D`, `EntityBodyLayer3D`, `MapViewSwitch`, `MapViewModeLayer`; returns `MapLayers` | `Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs` |
+| the five hosts' three hand-written lines (`BuildRenderLayer` → `AddLayer` → `DrawBuffer`) replaced by that one call | Editor, CGF, IG, SimHost, ReplayBrowser |
+| **View › 2-D / 3-D Map** in the shared View menu (`LayerControlGizmo`, every host) → `GlobalActionIds.ToggleMap3D` → `ToggleMap3DEvent` on the interaction bus → `MapViewModeLayer` toggles the switch | the editor's own S1 menu item is removed — one menu path for one concept |
+| rail `EveryMapHostAttachesTheSharedLayersTests`: every subsystem that calls `MapInteractionPack.Build(` also calls `AttachMapLayers(`; nothing outside the pack builds a gizmo layer, a 3-D layer, a switch or a mode layer | `Hrot/Engine/Hrot.Presentation.Tests/Map3D/` |
+
+⚠ The TKB the bodies are classified from defaults to the world's `ITkbDatabase` singleton — IG, CGF, SimHost and the editor set
+one; the editor passes its own. ⚠ **ReplayBrowser sets none** (searched its subsystem) ⇒ replayed entities draw as unknown
+boxes until a replay carries or loads its TKB — a finding, not fixed here.
+
+**Gates:** `Hrot.Presentation.Tests` **427/428** (1 skip — the frame rail without a display), the frame rail **1/1** under Xvfb;
+`Hrot.Editor.Tests` **474/476**; `Hrot.IG.Tests` **461/462**; `Hrot.ReplayBrowser.Tests` **34/34**; `Hrot.SimHost.Tests`
+**1177/1180** (3 skips); all five hosts build. 📌 The existing pack suites caught one real defect on the way — the new
+`ToggleMap3DEvent` lacked its `[EventId]`, which would have thrown at every host's start-up.
 
 ## 7. NOT VERIFIED — say so before it is built on
 
@@ -757,7 +822,7 @@ window rail) crashes the same way, 1 run in 5 under Xvfb — filed `CE-1039`.
 | ⚠ `FilledTriangle` bytes 48-51 are free (no reader treats `BoxAnchorId` or anything else there as set for a triangle) | before H2's flat fill height |
 | ⚠ route waypoint axes: `RouteWaypoint.Position` is documented as ENU (`RoutePlan.cs:11-20`), yet every route gizmo reads **Z as north** (`RouteWaypointGizmo.cs:18-21,111-128`, `AuthoredRouteGizmo.cs:70`) — one of the two is wrong, and a route in 3-D needs to know which is up | before routes get height (H1) |
 | ⚠ until `TerrainWorld` gets terrain height (`:319`), S1's screenshot shows flat ground — 🔒 `R-248`: the 3-D map is built for relief regardless (§3.10), and a test fixture with relief proves it | S1–S2, a sloped test terrain |
-| ⚠ IG humans stand upright until IG ingests stance (`CE-2121` "IG ingress open") | S6 |
+| ⚠ IG humans stand upright until IG ingests stance (`CE-2121` "IG ingress open") | the IG ingress work (`CE-2121`) |
 | ⚠ `LogicalStance.Of` and `StanceStatus` are present on every host's entities (they are `NoScenario` runtime components; the Editor may not run the stance systems) — no stance ⇒ standing, as the rule itself says | S1 rail |
 
 ## ⛔ HISTORY — superseded the same day, do NOT quote

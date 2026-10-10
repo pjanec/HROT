@@ -972,11 +972,10 @@ public class IgApplication : IDisposable
             //   `view` parameter was stored nowhere; EntityLocal resolves through SpatialAnchor
             //   primitives instead (.dev/_DONE/gizmos-1/feedback2.md:798). Named arguments because the
             //   two constructors collapsed into one.
-            var gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
-                _gizmoBuffer!, _interactionBus, _canvas.Camera, () => _world);
+            // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode, the same on every host.
+            var gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                _canvas, _gizmoBuffer!, _interactionBus, () => _world).GizmoLayer;
             _gizmoLayer = gizmoLayer;
-            _canvas.AddLayer(gizmoLayer);
-            _canvas.DrawBuffer = _gizmoBuffer;
             // Route gizmo interaction translators and publisher through the network factory
             // so that IgApplication has no direct dependency on Hrot.Network.NED.
             CycloneNetworkIngressSystem? gizmoIngress = null;

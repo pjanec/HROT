@@ -42,6 +42,13 @@ namespace Hrot.ScenarioEditor.Map
     /// it was protecting is untouched: <b>the pack constructs, the host schedules.</b>
     /// 📄 <c>docs/UX/UX_Feature_Selection.md</c> §2.7.10.</para>
     /// </summary>
+    /// <summary>⭐ CE-1033 — what <see cref="MapInteractionPack.AttachMapLayers"/> attached to a host's canvas.</summary>
+    public sealed record MapLayers(
+        Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer GizmoLayer,
+        Fdp.Toolkit.Vis3D.MapViewSwitch ViewSwitch,
+        Fdp.Toolkit.Vis3D.TerrainLayer3D Terrain,
+        Hrot.UI.Common.Map3D.EntityBodyLayer3D Bodies);
+
     public static class MapInteractionPack
     {
         /// <summary>
@@ -287,6 +294,9 @@ namespace Hrot.ScenarioEditor.Map
             globalManager.Register(layerControlId, layerControl);
             actions.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent()));
+            // ⭐ CE-1033 — View › 2-D / 3-D Map, on every map host; AttachMapLayers' view switch drains the event.
+            actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleMap3D, (_, _) =>
+                bus.Publish(new Hrot.Common.Diagnostics.Gizmos.ToggleMap3DEvent()));
             // ⭐ CE-3120 (R-227) — the Pin gizmos submenu's actions, on every map host (one registration, not one per host).
             Hrot.Common.Diagnostics.Gizmos.GizmoPins.RegisterActions(actions);
             // ⭐ CE-3123 (R-228) — the AI-trace toggles, once for every map host (SimHost and the Editor each had a copy; the rest none).
@@ -337,6 +347,43 @@ namespace Hrot.ScenarioEditor.Map
                 shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
                 schemaRegistry: schemas,
                 worldProvider: worldProvider);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ CE-1033 — THE map's layers, attached the same way on EVERY host: the gizmo render layer (as
+        /// <see cref="BuildRenderLayer"/>), the canvas' draw buffer, and the 3-D mode — the terrain and entity layers and the
+        /// animated 2-D ↔ 3-D switch, driven by View › 2-D / 3-D Map (<see cref="Hrot.Common.Constants.GlobalActionIds.ToggleMap3D"/>).
+        /// 🔒 User, 2026-10-10: <i>"we should be unifying and sharing from the day zero so something like 'not on all host' can not
+        /// happen by construction."</i> ⇒ a host that has a map calls THIS, and gets 3-D; there is no per-host 3-D wiring to forget
+        /// (the rail <c>EveryMapHostAttachesTheSharedLayers</c> pins it). 📄 docs/DESIGN_Map_3D_Mode.md §3.1, §6b.
+        /// </summary>
+        /// <param name="tkbProvider">The TKB the entity bodies are sized and classified from; default: the world's
+        /// <see cref="Fdp.Interfaces.ITkbDatabase"/> singleton (every host that spawns sets one).</param>
+        public static MapLayers AttachMapLayers(
+            Fdp.Toolkit.Vis2D.MapCanvas canvas,
+            DebugPrimitiveBuffer buffer,
+            FdpEventBus bus,
+            Func<EntityRepository?> worldProvider,
+            Func<Fdp.Interfaces.ITkbDatabase?>? tkbProvider = null,
+            int layerBitIndex = 31)
+        {
+            if (canvas is null) throw new ArgumentNullException(nameof(canvas));
+            var gizmoLayer = BuildRenderLayer(buffer, bus, canvas.Camera, worldProvider, layerBitIndex);
+            canvas.AddLayer(gizmoLayer);
+            canvas.DrawBuffer = buffer;
+
+            var tkb = tkbProvider ?? (() => worldProvider() is { } w && w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                                          ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null);
+            var viewSwitch = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, canvas.Camera);
+            viewSwitch.Camera3D.GroundHeight = (x, y) =>
+                worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.Of(w)?.GroundHeightAt(x, y) ?? 0f : 0f;
+            var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>
+                worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null);
+            var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb);
+            canvas.AddLayer(terrain);
+            canvas.AddLayer(bodies);
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.MapViewModeLayer(viewSwitch, bus));
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)

@@ -12,6 +12,12 @@ public enum VisualFamily : byte
     Afv,
     WheeledCar,
     WheeledUtility,
+    /// <summary>Rotary wing — DIS platform/air categories 20–25.</summary>
+    Helicopter,
+    /// <summary>Fast fixed wing — DIS platform/air 1, 2, 6, 7, 40, 47, 50.</summary>
+    Jet,
+    /// <summary>Large fixed wing — DIS platform/air 3, 4, 5, 8, 57 (bomber, cargo/tanker, patrol, AEW, commercial).</summary>
+    CargoPlane,
     /// <summary>A composite unit: no body of its own, its members draw themselves.</summary>
     Unit,
 }
@@ -36,6 +42,14 @@ public static class VisualFamilies
                 2 => VisualFamily.Afv,
                 81 => VisualFamily.WheeledCar,                         // car
                 3 or 6 or 7 => VisualFamily.WheeledUtility,            // utility vehicles
+                _ => VisualFamily.Unknown,
+            };
+        if (d.Kind == 1 && d.Domain == 2)                            // Platform / Air — SISO-REF-010 categories (§3.5)
+            return d.Category switch
+            {
+                >= 20 and <= 25 => VisualFamily.Helicopter,            // attack, utility, ASW, cargo, observation, special ops
+                1 or 2 or 6 or 7 or 40 or 47 or 50 => VisualFamily.Jet, // fighter, attack, EW, recce, trainer, light, UAV
+                3 or 4 or 5 or 8 or 57 => VisualFamily.CargoPlane,      // bomber, cargo/tanker, patrol, AEW/C2, commercial
                 _ => VisualFamily.Unknown,
             };
         return VisualFamily.Unknown;

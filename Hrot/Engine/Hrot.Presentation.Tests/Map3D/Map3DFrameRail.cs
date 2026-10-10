@@ -60,9 +60,13 @@ public sealed class Map3DFrameRail
         // The cast stands on a street near the middle of the town, on the ground there (R-248).
         var query = WorldQuery.Of(world)!;
         var spot = FindOpenGround(terrain, query);
+        var poses = new Dictionary<Entity, ArticulationPose>();
         foreach (var c in Cast)
         {
             var e = world.CreateEntity();
+            // ⭐ §3.11 — the M1 traverses 60° left with the gun raised, the Bradley 90° right: the articulated parts, posed.
+            if (c.Type == TkbEntityTypes.Tank_M1Abrams) poses[e] = new ArticulationPose(MathF.PI / 3f, 0.25f);
+            if (c.Type == TkbEntityTypes.IFV_Bradley) poses[e] = new ArticulationPose(-MathF.PI / 2f, 0.1f);
             float x = spot.X + c.Dx, y = spot.Y + c.Dy;
             world.AddComponent(e, new SimTransform
             {
@@ -84,7 +88,8 @@ public sealed class Map3DFrameRail
         two.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
         canvas.Camera = two;
         var terrainLayer = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
-        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb,
+            (w, e) => poses.TryGetValue(e, out var p) ? p : ArticulationPose.Neutral);
         canvas.AddLayer(terrainLayer);
         canvas.AddLayer(bodies);
         var sw = new MapViewSwitch(canvas, two);
@@ -116,6 +121,39 @@ public sealed class Map3DFrameRail
         frame.Screenshot(Path.Combine(shots, "map3d-3-close.png"));
         Assert.Equal(Cast.Length - 1, bodies.BodiesDrawn);
         Assert.True(bodies.PartsDrawn > 40, $"parts drawn: {bodies.PartsDrawn}");
+
+        // ④ aircraft overhead — test types on the SISO-REF-010 air categories the classifier maps (no built-in air type yet)
+        var air = new (string Name, long Type, byte Category, float Dx, float Dy, float Alt)[]
+        {
+            ("TestUtilityHelicopter", 9221, 21, 14f, 30f, 22f),
+            ("TestFighter", 9201, 1, -30f, 45f, 38f),
+            ("TestCargoPlane", 9204, 4, 40f, 85f, 55f),
+        };
+        foreach (var a in air)
+        {
+            tkb.Register(new Fdp.Interfaces.TkbTemplate(a.Name, a.Type) { DisType = new DISEntityType { Kind = 1, Domain = 2, Category = a.Category } });
+            var e = world.CreateEntity();
+            float x = spot.X + a.Dx, y = spot.Y + a.Dy;
+            world.AddComponent(e, new SimTransform
+            {
+                Position = new Vector3(x, y, query.GroundHeightAt(x, y) + a.Alt),
+                Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.9f) * Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.15f),
+            });
+            world.AddComponent(e, new TkbIdentity { TkbType = a.Type });
+        }
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 6f, spot.Y + 50f, query.GroundHeightAt(spot.X, spot.Y) + 30f), 120f,
+                                          MathF.PI * 0.5f, -0.22f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "map3d-4-aircraft.png"));
+        Assert.Equal(Cast.Length - 1 + air.Length, bodies.BodiesDrawn);
+
+        // ⑤ the posed turrets, close
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 18f, spot.Y, query.GroundHeightAt(spot.X - 18f, spot.Y)), 24f,
+                                          MathF.PI * 0.62f, -0.5f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "map3d-5-turrets.png"));
 
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-2-tilted.png"));
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-3-close.png"));
