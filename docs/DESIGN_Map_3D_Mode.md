@@ -734,7 +734,8 @@ no display); `Hrot.Presentation.Tests` **405/405** (the catalog's own suite incl
 `Fdp.Toolkits.Tests` terrain query / height / mesh **12/12**; the Blueprints frame rails **8/8** on the fixed screenshot harness;
 `Fdp.Presentation.Tests` **563/572** — its 8 reds are the pre-existing set `CE-259aa` names, identical at `2e90e208f`.
 ⚠ **Under a display, `Hrot.Presentation.Tests` aborts in about one run in three** (test host crash between tests, no test left
-incomplete — `--blame`); without a display it is clean 3/3. Whether that is new is being measured at the base commit.
+incomplete — `--blame`); without a display it is clean 3/3. ✅ **Pre-existing:** the base commit `2e90e208f` (no 3-D code, no
+window rail) crashes the same way, 1 run in 5 under Xvfb — filed `CE-1039`.
 
 ## 7. NOT VERIFIED — say so before it is built on
 
