@@ -322,6 +322,10 @@ namespace Fdp.Toolkit.Navigation
             readonly get => NavigationConstants.RoadUseOf(Flags);
             set => Flags = NavigationConstants.WithRoadUse(Flags, value);
         }
+
+        /// <summary>⭐ CE-1035 Q0b — true when <see cref="FinalDestination"/>'s Z is NOT given; read it through
+        /// <see cref="NavigationDestination.Of"/>, never directly.</summary>
+        public readonly bool OnSurface => (Flags & (1 << NavigationConstants.FlagBitDestinationOnSurface)) != 0;
     }
 
     /// <summary>

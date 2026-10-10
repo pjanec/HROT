@@ -194,6 +194,8 @@ namespace Hrot.AI.Behaviors.Brains
             var attackDir = new Vector2(p.AttackDirX, p.AttackDirY);
             var currentPos = new Vector2(tf.Position.X, tf.Position.Y);
 
+            // ⭐ CE-1035 Q0b (WQ-H) — HORIZONTAL distance on purpose: a slot is a place on the map; over a hill the tank's height
+            //   differs from the slot's authored (x, y) and must not count as "not there yet".
             float distToSlot = Vector2.Distance(currentPos, slotPos);
 
             // Overshoot check: positive dot-product of (currentPos - slot) along attackDir
@@ -297,7 +299,8 @@ namespace Hrot.AI.Behaviors.Brains
                 loco.Status = NodeStatus.Running;
                 WriteToLocomotionParams(ref loco, new MoveToParams
                 {
-                    Destination   = new Vector3(destination.X, destination.Y, 0f), // 2D-authored (§0.2)
+                    Destination   = new Vector3(destination.X, destination.Y, 0f), // 2-D slot: its height is not given —
+                    Flags         = NavigationConstants.FlagDestinationOnSurface,   //   ⭐ CE-1035 Q0b (R-252)
                     ArrivalRadius = 1f,
                     Speed         = speed,
                 });
@@ -487,7 +490,8 @@ namespace Hrot.AI.Behaviors.Brains
                 loco.ActiveAction = NavigationConstants.ActionIdMoveTo;
                 WriteToLocomotionParams(ref loco, new MoveToParams
                 {
-                    Destination    = new Vector3(p.BaselineX, p.BaselineY, 0f), // 2D-authored baseline (§0.2)
+                    Destination    = new Vector3(p.BaselineX, p.BaselineY, 0f), // 2-D baseline: its height is not given —
+                    Flags          = NavigationConstants.FlagDestinationOnSurface,   //   ⭐ CE-1035 Q0b (R-252)
                     ArrivalRadius  = 5f,
                     Speed          = 12f,
                     ReverseAllowed = 1,

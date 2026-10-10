@@ -73,7 +73,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 return false;
             ref readonly var intent = ref repo.GetComponentRO<NavigationIntent>(unit);
             if (intent.Mode == NavigationMode.None) return false;
-            end = intent.FinalDestination;
+            end = Fdp.Toolkit.Navigation.NavigationDestination.Of(repo, unit, intent);   // ⭐ CE-1035 Q0b
             roadUse = PathRequests.ResolveRoadUse(repo, unit, intent.RoadUse);
             return true;
         }

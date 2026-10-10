@@ -146,7 +146,7 @@ namespace Fdp.Toolkit.Navigation.Systems
 
                     case NavigationMode.DirectPoint:
                         nav.Mode             = KinematicsMode.Direct;
-                        nav.FinalDestination = intent.FinalDestination;
+                        nav.FinalDestination = NavigationDestination.Of(repo, entity, intent);   // ⭐ CE-1035 Q0b
                         nav.TargetSpeed      = intent.TargetSpeed;
                         nav.ArrivalRadius    = intent.ArrivalRadius;
                         nav.ReverseAllowed   = intent.ReverseAllowed;
@@ -157,7 +157,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                         // ⭐ CE-3026 — wait (no straight-line start) until the path arrives; the request is published
                         //   below once the NavState is stored. Speed/arrival are kept for the trajectory follower.
                         nav.Mode             = KinematicsMode.None;
-                        nav.FinalDestination = intent.FinalDestination;
+                        nav.FinalDestination = NavigationDestination.Of(repo, entity, intent);   // ⭐ CE-1035 Q0b
                         nav.TargetSpeed      = intent.TargetSpeed;
                         nav.ArrivalRadius    = intent.ArrivalRadius;
                         nav.ReverseAllowed   = intent.ReverseAllowed;
@@ -183,7 +183,7 @@ namespace Fdp.Toolkit.Navigation.Systems
 
                     default:
                         nav.Mode             = KinematicsMode.Direct;
-                        nav.FinalDestination = intent.FinalDestination;
+                        nav.FinalDestination = NavigationDestination.Of(repo, entity, intent);   // ⭐ CE-1035 Q0b
                         nav.TargetSpeed      = intent.TargetSpeed;
                         nav.ArrivalRadius    = intent.ArrivalRadius;
                         nav.HasArrived       = 0;
@@ -398,7 +398,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             }
 
             // Registered now, or already registered: (re)target it and tag it crowd-managed.
-            _dtCrowd.SetAgentTarget(entity, intent.FinalDestination);   // carries real Z (P3D-302)
+            _dtCrowd.SetAgentTarget(entity, NavigationDestination.Of(repo, entity, intent));   // carries real Z (P3D-302); ⭐ CE-1035 Q0b
             if (!repo.HasComponent<CrowdAgent>(entity))
                 repo.AddComponent(entity, default(CrowdAgent));
             Log.Info("[BridgeReg] entity #{0} crowd target: radius={1:F2} maxSpd={2:F1} dest=({3:F1},{4:F1}) intent={5}",
