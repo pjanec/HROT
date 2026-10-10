@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — leans TH-A..TH-H APPROVED (2026-10-10, R-249); UML present; not yet marked READY-TO-BUILD while
-  the physics-library question (§7) is open. Nothing built.
+  the library question (§7: a collision library behind the query seams, lean Jolt, spike first) is open. Nothing built.
 updated: 2026-10-10 (rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
   (R-249, §4a); §7 the library question. Rev 1 — R-248: the flat ground is a temporary simplification; this file plans its removal)
 current-answer: §1 why · §2 INVENTORY · §3 the diagrams · §4 decisions with leans · §5 slices · §6 not verified.
@@ -192,6 +192,43 @@ not by a second system.
 
 ⭐ Gates: the terrain feature suites first (`TerrainWorldTests`, the Recast and SimHost terrain tests — about 35 asserts assume
 ground 0 and stay green on flat terrains), then new rails on the sloped fixture.
+
+## 7. Build or use a library? — the user's question, `2026-10-10` *(OPEN — lean below, a spike before any commitment)*
+
+🔒 **User:** *"we iterated quite far into a small 3d engine … Does it still make sense to do it all by ourselves? isnt most
+of that already solved by … existing highly optimized and reliable libraries? Could we benefit for introducing physics
+library and its optimized raycasts and similar capabilities?"*
+
+| claim | code — how it IS | design basis — how it was MEANT |
+|---|---|---|
+| the terrain's ray queries scan **every** prism per ray (an AABB reject each), no spatial index | ✅ `TerrainWorld.cs:330-360` (`SegmentBlocked`); same shape in `QueryFire` | ⛔ searched `docs/`+`.dev/`: no timing, no BVH ever considered; the recorded work is allocation only (`DESIGN_Terrain_World.md` §6a, R-220) |
+| the sim's own physics is a deliberate cheap stand-in | ✅ `RaycastSolverSystem` (async, 2-D circle colliders) | ✅ `.dev/_DONE/stride-1/Stride-Integration_v0_3.md:105-107` *"SimHost's kinematics, perception, and ground queries are themselves the fakes"* |
+| a swap seam for rays already exists | ✅ `IRaycastBackend` (`Physics/IRaycastBackend.cs:31`), `ILosService` (`Eqs/ILosService.cs:15`), a Stride implementation `StrideRaycastLosService` (unadopted) | ✅ `DESIGN_Stride_Port.md:160-163` |
+| the user ruled against Bepu | ✅ Stride uses Bullet (`Stride.Physics`) | ✅ `STRANDED_FEATURES_AUDIT.md:12-18` *"bepu is too young and not the most proven solution; the bullet was intentional"* — written for Stride |
+| a library must run headless on Linux and stay out of `Fdp.Toolkits` | ✅ SimHost/Toolkits are `net8.0`; Stride is `net8.0-windows` | ✅ `DESIGN_Terrain_World.md` W1 (DotRecast kept in its own project) · `DESIGN_Stride_Node_Modes.md:797` *"Bullet cannot be stepped headless"* (Bullet inside Stride) |
+
+**Decision (lean):**
+- ⭐ **The 3-D map stays on Raylib.** It is not an engine: the mesh, the picking maths and the GPU work already come from
+  libraries (`TerrainWorldMesh`, Raylib). Ours is the glue: a small shader, shape kits, draping, the card.
+- ⭐ **The simulation's spatial queries move onto a proven collision library, used for QUERIES ONLY** (rays with all hits,
+  shape sweeps, overlaps, a native height-field) — no rigid-body dynamics, which the motion models own. It sits **behind
+  the existing seams** (`TerrainWorld`'s queries, `IRaycastBackend`, `ILosService`) in its own project (the W1 precedent);
+  `TerrainWorld` stays the one model (`R-181`) and the library holds an index built from it. Materials, transmittance,
+  levels and doors stay ours, in the hit callbacks. The 3-D map's terrain pick uses the same backend — the user's U21
+  wish, *"the same raycast machinery as for simulation"*.
+- ⭐ **Candidate: Jolt** (via its C# binding) — proven in shipped games, native Linux and Windows builds, a height-field
+  shape, batched ray and shape casts. ⚠ From the library's own documentation, **not verified here**; the C# binding is
+  the young part.
+- ⭐ **A spike first:** `SegmentBlocked` + `QueryFire` + `GroundHeightAt` on the library behind one seam; the existing terrain
+  rails must give **identical** answers (R-216 "rails stay exact"); timed against the scan on a terrain scaled to
+  thousands of prisms; run headless in the cloud. Commit only if all three pass.
+
+**Rejected — one line each:**
+- a full engine (Godot, Stride) for the map — Godot §8 (no supported .NET 8 in-process path); Stride is `net8.0-windows` and not headless.
+- Bepu standalone — the user called it *"too young and not the most proven"*.
+- Bullet standalone — its C# bindings are old and thinly maintained; inside Stride it cannot run headless.
+- writing our own BVH — fixes the scan but not sweeps, overlaps or the height-field; a second implementation of what a library does.
+- doing nothing — the per-ray scan grows with every building, and relief adds a ground trace to every ray.
 
 ## 6. NOT VERIFIED — say so before it is built on
 
