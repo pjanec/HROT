@@ -33,7 +33,7 @@
 
 ```powershell
 dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj" -c Debug
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
 ```
 
 ### Report Submission
@@ -370,7 +370,7 @@ The guide does NOT require code tests. It is the manual gate deliverable for C-3
 - [ ] C-33: `ComparisonErrorMessages.cs` created, strings centralized, 3 new tests
 - [ ] C-34: `USER-GUIDE.md` with all 4 use cases + 2 additional sections
 - [ ] `dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/..."` passes
-- [ ] `dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4` — 0 errors
+- [ ] `dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4` — 0 errors
 - [ ] Report submitted to `.dev\visual-asset-comparison\reports\BATCH-07-REPORT.md`
 
 ---

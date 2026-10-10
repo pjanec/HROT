@@ -12,7 +12,7 @@ No real `[BTreeCondition]` has a 4-param `NodeLogicDelegate<BrainBlackboard,BTre
 
 ## Verification (independent, final state)
 - `git diff -- Brains/CgfNodes.cs` → **empty** (production hack fully reverted). ✅
-- `dotnet build IOS-IG-SimHost.sln` → **0 errors** (regenerated `CombatShowcase.g.cs` compiles without the condition). ✅
+- `dotnet build HROT.sln` → **0 errors** (regenerated `CombatShowcase.g.cs` compiles without the condition). ✅
 - `dotnet test Hrot.BTree.Editor.Tests` → **485 passed / 0 failed**. ✅
 - Showcase (`Assets/BTrees/CombatShowcase.btree.json`): Root → ObserverSelector(→Sequence only) → Sequence(Action `Action_Wander` + Repeater(3)+Cooldown(2.0) pills, Wait(1.5), Subtree→SampleScout). Round-trips byte-stable.
 - Tests assert real values (pills order/params, Wait duration, Subtree name + resolved + non-empty AssetId, Starter Root+Sequence + fresh AssetId, Empty coexists). Condition assertions removed.

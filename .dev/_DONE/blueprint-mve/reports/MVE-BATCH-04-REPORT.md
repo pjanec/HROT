@@ -173,7 +173,7 @@ Pre-existing DEBT-006 failures (unchanged, 10 total):
 ## Build Status
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet
+dotnet build HROT.sln --no-restore -v quiet
   Build succeeded.  0 Error(s),  1 Warning(s)
   (1 warning: pre-existing CS0618 in Hrot.Diagnostics.Breakpoints.Tests — not a touched project)
 

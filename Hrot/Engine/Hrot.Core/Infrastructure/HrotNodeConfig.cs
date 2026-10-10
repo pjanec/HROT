@@ -47,6 +47,13 @@ public sealed class HrotNodeConfig
     public CycloneDDS.Runtime.DdsParticipant? ExternalParticipant { get; set; }
 
     /// <summary>
+    /// ⭐ <c>CE-3126</c> — the node's ONE geo transform, when the composition root created it before the builder (SimHost
+    /// closes over it while composing). <see cref="HrotNodeBuilder"/> then uses it as <c>HrotNodeContext.GeoTransform</c>
+    /// instead of making another; otherwise the network factory's, otherwise a fresh one. 📄 docs/DESIGN_Geo_Origin.md §2 C.
+    /// </summary>
+    public Fdp.Modules.Geographic.IGeographicTransform? ExternalGeoTransform { get; set; }
+
+    /// <summary>
     /// Directory where this node writes its log files.
     /// Used by <c>LogArchiveExtractionService</c> to locate and archive matching logs.
     /// Defaults to an empty string (feature disabled when empty).

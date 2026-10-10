@@ -122,7 +122,16 @@ namespace Hrot.SimHost.Tests
                     {
                         weapon.Status = Fbt.NodeStatus.Running;
                         FireTargets.Add(Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.AimAndFireParams>(ref weapon.Params[0]).Target);
+                        _weaponFrames = 0;
                     }
+                }
+                // ⭐ CE-3136 B7 — the played executor's round count: with the weapon ready, one round a frame, and an action that
+                //   asked for Rounds ends in Success after that many (the node no longer guesses rounds from the cooldown).
+                else if (weapon.ActiveAction != 0 && weapon.Status == Fbt.NodeStatus.Running
+                         && Repo.GetComponent<WeaponState>(Unit).CooldownSecondsRemaining <= 0f)
+                {
+                    int rounds = Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.AimAndFireParams>(ref weapon.Params[0]).Rounds;
+                    if (rounds > 0 && ++_weaponFrames >= rounds) weapon.Status = Fbt.NodeStatus.Success;
                 }
             }
 
@@ -144,6 +153,7 @@ namespace Hrot.SimHost.Tests
             }
 
             public string Behaviour = "";
+            private int _weaponFrames;
             private readonly Dictionary<string, int> _last = new();   // the block is cleared at the end: keep the last seen
         }
 

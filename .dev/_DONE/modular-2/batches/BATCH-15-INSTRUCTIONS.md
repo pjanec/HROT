@@ -161,10 +161,10 @@ to the test utilities and update those tests to use it.
 ```powershell
 cd D:\Work\IOS-IG-SimHost-FDP-2
 
-dotnet build IOS-IG-SimHost.sln -v quiet
+dotnet build HROT.sln -v quiet
 
 # Run all tests including integration (some may require DDS environment)
-dotnet test IOS-IG-SimHost.sln -v quiet
+dotnet test HROT.sln -v quiet
 ```
 
 **Success conditions from TASK-P6-001:**

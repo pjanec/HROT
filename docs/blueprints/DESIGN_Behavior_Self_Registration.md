@@ -3,7 +3,7 @@ state: LIVE
 build-state: ✅ BUILT (2026-09-27) — all five §9 items shipped as CE-371..CE-375. ⚠ This line read
   READY-TO-BUILD for the whole of the build and was corrected afterwards; §10a is the AS-BUILT and
   wins over §9 wherever they disagree.
-updated: 2026-09-27
+updated: 2026-10-08 (§10b — which form a test behaviour takes, R-223)
 current-answer: ⭐ §10a is the AS-BUILT — read it FIRST for what actually exists. §4 is the decision,
   §5-§7 the UML, §9 the build items as dispatched. ⭐ Start at §2 (INVENTORY)
   if you are about to argue that something here already exists — it probably does, and §2 says which.
@@ -392,6 +392,30 @@ overlay carrying it across.
 property of the design space.* ⭐ The fix was a one-line carry-across, not a build.
 
 ---
+
+## 10b. ⭐ WHICH FORM A TEST BEHAVIOUR TAKES — **C# for tests, JSON only for human demos** *(R-223, user, `2026-10-08`)*
+
+🔒 **User:** *"Only demos for human need to stay json assets. c# hardcoded behaviors of course need to live in Hrot.AI.Behaviors."*
+· *"for production use the blueprints does not need any c# hardcoding, as c# itself can be used directly"*.
+
+| what the test is about | ⭐ the form | where |
+|---|---|---|
+| a node's logic | call the `[SharedAiAction]` C# method directly — no tree | the feature's test suite |
+| an engine feature end to end (doors, navigation, sensors) | a **curated C# tree**: `[BTreeDefinition(Name, Curated = true)]` + `BTreeBuilder`, or `[HsmDefinition(Name, Curated = true)]` + `HsmBuilder` returning the graph (§10a); registered by name through this design's generator, loaded by scenarios like any asset | `Hrot.AI.Behaviors/Brains` |
+| a blueprint feature | the existing test builder **`BlueprintAssetBuilder`** (`Hrot.Blueprints.Tests/Builders`, ~115 files) | `Hrot.Blueprints.Tests` |
+| a demo a human watches or edits in the editor (ua-*, tutorials), or the asset pipeline itself | a JSON asset | `Hrot.AI.Behaviors/Assets`, `Recipes` |
+
+| ⭐ why | |
+|---|---|
+| C# is compiler-checked and rename-safe | a JSON asset names actions as `MethodFqn` STRINGS — a Roslyn rename never reaches them, a wrong name fails only at load |
+| C# diffs are the logic | a JSON asset carries VisualIds, editor coordinates and generated registrars with baked offsets (`…@80`) |
+| it already works | 9 curated `BTreeDefinition`s (e.g. `MoveToLocation`) and `CuratedMachines.Idle` load by name today |
+
+⚠ **HSM, measured:** `HsmBuilder` (`Fhsm.Compiler`) is a fluent builder, and curated machines are supported (`CuratedMachines.cs`), but it names
+actions and guards by STRING (`OnEntry(string)`, `Activity(string)`, `TransitionBuilder` guard/action). ⭐ Write them as
+`nameof(Nodes.Method)` so the compiler and a rename still reach them. Only one curated machine (`Idle`) exists so far.
+⭐ **Blueprints:** no new builder — the test builder exists; production needs none (C# is used directly where a blueprint would be
+hand-coded).
 
 ## 11. ⛔ REJECTED
 

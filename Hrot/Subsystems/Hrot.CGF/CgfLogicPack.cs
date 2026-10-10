@@ -96,7 +96,7 @@ namespace Hrot.CGF
         /// tier registration). ⭐ Exposing it here lets the ONE capability that provides this pack
         /// provide it too.</para>
         /// </summary>
-        public BlueprintMaintenanceSystem MaintenanceSystem { get; }
+
 
         // ── Constructor ───────────────────────────────────────────────────────
 
@@ -171,16 +171,20 @@ namespace Hrot.CGF
                 weaponExecutors: new (ushort, IActionExecutor<WeaponChannel>)[]
                 {
                     (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor()),
+                    (CombatConstants.ActionIdFireAtPoint, new Fdp.Toolkit.Combat.Executors.FireAtPointExecutor()),   // ⭐ CE-1032 W-8
                 },
                 // ⭐ CE-502 — the Brain writes embarkation state (DESIGN_Role_Affinity_Ownership.md §6, "the Brain's
                 //   EmbarkExecutor / EjectPassengersExecutor"). 🔴 None was registered here, so the dispatcher ran with no
                 //   interaction executors: an APC's HSM issued EjectPassengers on MobilityLost and nothing executed it — the
                 //   squad stayed aboard with no capabilities. The same set the example hosts register (HeadlessDemoApp).
-                interactionExecutors: new (ushort, IActionExecutor<InteractionChannel>)[]
-                {
-                    (BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor()),
-                    (BehaviorConstants.ActionIdOpenDoor,        new OpenDoorExecutor()),
-                });
+                interactionExecutors: System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Concat(
+                    new (ushort, IActionExecutor<InteractionChannel>)[]
+                    {
+                        (BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor()),
+                    },
+                    // ⭐ Buildings 5d — Open/Close/Lock/Unlock/Breach door, one list so no host forgets a verb
+                    System.Linq.Enumerable.Select(BehaviorConstants.DoorActionExecutors(),
+                        d => (d.Id, (IActionExecutor<InteractionChannel>)d.Executor)))));
 
             _healthApplicationSystem   = new HealthApplicationSystem();
             _activeSensorTracksUpdateSystem = new ActiveSensorTracksUpdateSystem();
@@ -211,6 +215,8 @@ namespace Hrot.CGF
             simList.Add(_tacticalIntentResolutionSystem);
             foreach (var s in _missionControlModule.SimulationSystems) simList.Add(s);
             simList.Add(_healthApplicationSystem);
+            // ⭐ Buildings 5d — the door's OWNER applies door commands (an actor's, or one carried here from another node)
+            simList.Add(new Fdp.Toolkit.Terrain.DoorCommandSystem());
             simList.Add(_activeSensorTracksUpdateSystem);
             simList.Add(_cgfThreatEvaluationSystem);
             // ⭐ CE-3064 (R-206) — a near miss becomes the unit's SensorChange.NearMiss, beside Hit.
@@ -232,7 +238,6 @@ namespace Hrot.CGF
             //      by _actionDispatchModule just above): module-group order is ARRAY POSITION, and an
             //      appended tick dispatches intent a tick late — the Q#16-B contract. The shared helper
             //      reads the targets off the attributes so this stays true by construction.
-            MaintenanceSystem = new BlueprintMaintenanceSystem();
             SimulationSystems = BlueprintRuntimeComposition.SpliceIntoSimulation(
                 simList, new BlueprintTickSystem(blueprintRegistry));
 

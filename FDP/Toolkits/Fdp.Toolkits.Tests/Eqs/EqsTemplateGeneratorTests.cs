@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 {
     /// <summary>
     /// Unit tests for EqsTemplateGenerator (TASK-EQS-020).
-    /// Follow the same in-memory Roslyn test pattern as GizmoRegistrarGeneratorTests.
+    /// In-memory Roslyn test pattern (the one the retired GizmoRegistrarGeneratorTests used).
     /// </summary>
     public sealed class EqsTemplateGeneratorTests
     {

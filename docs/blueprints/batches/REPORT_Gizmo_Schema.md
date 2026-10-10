@@ -30,7 +30,7 @@ matches on mechanism, with **two deviations**, both argued and folded into
 
 | # | gate — verbatim command | `--no-build`? | result | delta vs `7977adace` |
 |---|---|---|---|---|
-| 1 | `dotnet build IOS-IG-SimHost.sln -t:Rebuild` | builds | ✅ **0 errors**, 74 warnings | none |
+| 1 | `dotnet build HROT.sln -t:Rebuild` | builds | ✅ **0 errors**, 74 warnings | none |
 | 2 | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Tests --no-build --filter FullyQualifiedName~GizmoSchemaFollowsDeclarationRails` | `--no-build` | ✅ **5 / 0** | **+5 new** |
 | 3 | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter Category=SystemModes` | `--no-build` | ✅ **8 / 0** | `ig` **quarantined → healthy**; quarantine table gone |
 | 4 | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build` *(whole suite)* | `--no-build` | ✅ **52 / 0** | matches the dispatch's stated baseline exactly |

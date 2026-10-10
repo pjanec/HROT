@@ -8,6 +8,7 @@ known-rot: none.
 known-conflict:
   - docs/blueprints/batches/FRAME_Eqs_Consuming_Behaviours.md — D1 (one "cover, fall back if overrun" loop), D3 (re-point "with an epoch bump") and D5 (extend tt-nav-los) are adjusted here, each with the measured reason (§4).
 related-designs:
+  - DESIGN_Peek_And_Fire.md — OWNS PeekAndFire (expose → aim → fire → hide, position rotation) beside the tactics here, and the aim time every aimed shot gets
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — U4 adds Flank / MoveToFiringPosition on this document's TakeCover pattern (the idle FindFlankingPosition / FindOpenFiringPosition templates).
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md — OWNS the templates (§19.6), their sight rules and flags (§19.5), the child-sensor recipe (§17.6). This design only CONSUMES them.
   - docs/blueprints/batches/FRAME_Eqs_Consuming_Behaviours.md — the backend's frame (goal, fences, leans) this design answers.

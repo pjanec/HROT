@@ -5,7 +5,7 @@
 `NodePinSchema` now projects the real data pins the compiler consumes, so node kinds show value pins like the demo (was exec-only for most).
 
 ## Verification (ran myself)
-- `dotnet build IOS-IG-SimHost.sln` **0 errors**; the touched projects (Blueprints.Editor, Hrot.Editor) build with **0 warnings** (the ~26 full-rebuild warnings are all pre-existing `Hrot.Utility.Editor.Tests`/`Fdp.Core.Tests`/etc., unrelated — DEBT-BCP-004).
+- `dotnet build HROT.sln` **0 errors**; the touched projects (Blueprints.Editor, Hrot.Editor) build with **0 warnings** (the ~26 full-rebuild warnings are all pre-existing `Hrot.Utility.Editor.Tests`/`Fdp.Core.Tests`/etc., unrelated — DEBT-BCP-004).
 - `Hrot.Blueprints.Tests` **1116 / 11 / 8** → 10 = DEBT-006, 11th = flaky sub-80ns perf (passes isolated; BATCH-03 touches no runtime path); golden + byte-stability unchanged. `Hrot.Editor.AiShared.Tests` **761/0**, `Hrot.BTree.Editor.Tests` **382/0**, `Hrot.Hsm.Editor.Tests` **333/0**, `EditorSubsystemBoot` **10/0**. +13 new pin tests.
 
 ## Code read (each pin cites its compiler source)

@@ -175,7 +175,7 @@ Update the body to use the parameters. Update any call sites if needed (all test
 **Success Conditions:**
 - Unit test (new): `ClusterMaster` constructed with `FdpEventBus`. Publish `NodeHeartbeatEvent` to bus, tick once. Assert node appears in `NodeRoster`.
 - Unit test (new): Publish `TransitionStateIntent { TargetState = ClusterState.LoadingLive }`. Tick. Assert `ExecuteNodeOpIntent` with `Operation = NodeOpType.PrepareLive` appears on bus.
-- `dotnet build IOS-IG-SimHost.sln` succeeds.
+- `dotnet build HROT.sln` succeeds.
 
 ---
 

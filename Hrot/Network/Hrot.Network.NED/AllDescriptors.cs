@@ -64,6 +64,13 @@ namespace Hrot.NED.Descriptors
         //    Side-buffer pair (queue spec + queue progress)
         dtAnimationMontageQueue       = 106, // Brain → Muscle: AnimationMontageQueue (DD-2 §4)
         dtAnimationMontageQueueState  = 107, // Muscle → Brain: queue-state           (DD-2 §4.3)
+        // ⭐ Buildings Stage 5b — a terrain door's live state (owner → every node). 📄 docs/DESIGN_Building_Interiors.md §3j
+        dtDoorState                   = 120,
+        // 121 retired (5d-1's door-only EntityDoorCommand; never reuse)
+        // ⭐ R-221 — an actor's interaction with an entity it does not own (any kind) → the target's owner. 📄 docs/DESIGN_Entity_Interactions.md
+        dtInteractionRequest          = 122,
+        // ⭐ CE-3136 P-7a — a static obstacle's box (creator → every node, before promotion). 📄 docs/DESIGN_Peek_And_Fire.md §9
+        dtObstacleShape               = 123,
         // etc., all known descriptor types here
     }
 

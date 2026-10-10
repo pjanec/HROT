@@ -11,9 +11,12 @@ using Hrot.IG.Components;
 namespace Hrot.ScenarioEditor.Gizmos
 {
     // GZ058: mirrors MissionRenderLayer rendering logic via StatelessGizmoSystem.
-    // Draws orange gradient lines from each selected entity to its mission task targets.
-    // No [GizmoProjector] because the constructor requires IGeographicTransform;
-    // registered manually in composition roots (IgApplication and CgfSubsystem).
+    // Draws orange gradient lines from a unit to its mission task targets.
+    // ⭐ CE-3123 (R-228): a [GizmoProjector] now — the registrar hands the constructor the host's IGeographicTransform
+    //   (MapInteractionContext.Services), so it is no longer registered by hand on the two hosts that remembered. Family Path:
+    //   which units it draws for (selected / pinned / all) is the family policy's call, not a selection check of its own.
+    //   📄 docs/DESIGN_Uniform_Gizmo_Membership.md §10.
+    [GizmoProjector(typeof(SimTransform), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path)]
     public sealed class MissionPresentationGizmo : IStatelessGizmo
     {
         private static readonly Rgba32 StartColor = new Rgba32(255, 165, 0, 200);  // orange
@@ -28,10 +31,6 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
-            if (!view.HasComponent<SelectionState>(entity)) return;
-            ref readonly var sel = ref view.GetComponentRO<SelectionState>(entity);
-            if (!sel.IsSelected) return;
-
             if (!view.HasManagedComponent<ActiveMissionPlan>(entity)) return;
             var activePlan = view.GetManagedComponentRO<ActiveMissionPlan>(entity);
             if (activePlan?.Plan?.Tasks == null) return;

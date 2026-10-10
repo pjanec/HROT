@@ -45,7 +45,7 @@ Full solution builds with 0 errors. 21 new tests added; all prior tests still pa
 ## Build
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
   0 Error(s)
   9 Warning(s) — all pre-existing, unrelated to this batch
 ```
@@ -64,7 +64,7 @@ dotnet build IOS-IG-SimHost.sln
 - [x] `BlackboardDtoEmitter.EmitHeavy(model, structName)` added
 - [x] `BlackboardWindowViewModel` has `TotalHeavyBytes`, `InlineBudget`, `HeavyBudget`, `RequiresHeavyComponent`
 - [x] 21 new tests; all prior tests still pass
-- [x] `dotnet build IOS-IG-SimHost.sln` = 0 errors
+- [x] `dotnet build HROT.sln` = 0 errors
 - [x] Report filed
 
 ---

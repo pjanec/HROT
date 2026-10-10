@@ -105,7 +105,7 @@ intended files, before and after.
 
 | # | gate — verbatim command | `--no-build` | result | Δ vs `c6f54318c` |
 |---|---|---|---|---|
-| **1** | `dotnet build IOS-IG-SimHost.sln --no-restore` | n/a | ✅ **0 errors**, 62 warnings | **0 / 0** |
+| **1** | `dotnet build HROT.sln --no-restore` | n/a | ✅ **0 errors**, 62 warnings | **0 / 0** |
 | **2** | `dotnet test FDP/Engine/Fdp.Presentation.Tests/… --no-build --filter "…PerspectiveLabelTests\|…PerspectiveToolbar\|…WindowManagerTests\|…WindowManagerSettings"` | ✅ yes | ✅ **50 passed, 0 failed, 0 skipped** | **48 → 50: +2 tests** *(the two new `A0` rails)*, 0 red either side |
 | **3** | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Tests/… --no-build` | ✅ yes | ⚠ **269 passed / 2 failed / 0 skipped** | **264 → 271: +7 tests** *(`TheLayoutIsOneUnitTests`’ new `A0` rails)*; ⛔ **the SAME 2 reds at base — PRE-EXISTING, named below** |
 | **4** | `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/… --no-build` | ✅ yes | ✅ **1989 passed / 0 failed / 1 skipped** | **1986 → 1990: +4 tests** *(`FindResultsWindowScopeTests`)*, 0 red either side, skips **1 → 1** |

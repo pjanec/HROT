@@ -25,7 +25,7 @@ public sealed class BehaviorResolverAuthoringTests
     private static string RepoFile(params string[] parts)
     {
         string dir = AppContext.BaseDirectory;
-        while (dir != null && !File.Exists(Path.Combine(dir, "IOS-IG-SimHost.sln")))
+        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln")))
             dir = Path.GetDirectoryName(dir)!;
         return Path.Combine(new[] { dir! }.Concat(parts).ToArray());
     }

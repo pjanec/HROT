@@ -7,7 +7,7 @@ Fixes two user-reported defects:
 2. **Loaded Blueprint wires not shown.** Root cause: positional pin-GUID binding dropped link GUIDs when same-direction pins outnumbered incident links. Rewrote the slow path to be **link-GUID-driven** (assign each distinct incident link GUID to a pin of the matching direction) → every link resolves.
 
 ## Verification (ran myself)
-- **`dotnet build IOS-IG-SimHost.sln` → 0 Warnings / 0 Errors.** (Coder report claimed "18 pre-existing warnings" — that was **false**; clean build. Also reverted a stray whitespace-only edit the coder made to `Hrot.Blueprints.Compiler.csproj`.)
+- **`dotnet build HROT.sln` → 0 Warnings / 0 Errors.** (Coder report claimed "18 pre-existing warnings" — that was **false**; clean build. Also reverted a stray whitespace-only edit the coder made to `Hrot.Blueprints.Compiler.csproj`.)
 - `Hrot.Blueprints.Tests` **1072 / 10 / 8** — 10 = DEBT-006, golden suite unchanged (projection-only held), byte-stability green. `Hrot.Hsm.Editor.Tests` **333 / 0**. `Hrot.BTree.Editor.Tests` **382 / 0**. `Hrot.Editor.AiShared.Tests` **745 / 0**. `EditorSubsystemBoot` **10 / 0**.
 
 ## Code read

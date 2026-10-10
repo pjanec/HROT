@@ -64,23 +64,19 @@ public static class BlueprintTierTable
     };
 
     /// <summary>
-    /// ⭐⭐ <b>Largest first</b> — the PROBE order, and it is load-bearing rather than cosmetic: an
-    /// entity carries AT MOST ONE tier, so the first match is authoritative. Every ladder this
-    /// replaces probed largest-first, and <see cref="OccurrenceStoreAccess"/> documents why.
+    /// ⭐⭐ <b>Largest first</b> — the order <see cref="OccurrenceStoreAccess"/> searches a unit's blocks in.
+    /// ⚠ <c>CE-3137</c> U-0: a unit may carry several tiers; the first match is no longer "the" store.
     /// </summary>
     public static IReadOnlyList<BlueprintTierSpec> Descending { get; } = BuildDescending();
 
-    /// <summary>
-    /// ⭐ The adjacent (smaller → larger) pairs a promotion can take, smallest pair first.
-    /// <c>BlueprintMaintenanceSystem</c>'s two hand-written <c>UpgradeTier_A_to_B</c> methods are
-    /// exactly this list. ⚠ With a 4th tier it grows to 3 entries and NO code changes.
-    /// </summary>
-    public static IReadOnlyList<(BlueprintTierSpec From, BlueprintTierSpec To)> AdjacentPairs { get; }
-        = BuildAdjacentPairs();
+    // ⛔ HISTORY — AdjacentPairs, Promote (add the larger tier, copy, remove the smaller) and EnsureAtLeast ("never a second
+    //   store") were RETIRED by CE-3137 U-0 (R-236, DESIGN_Occurrence_Scoped_Storage.md §34): the store is multi-block and
+    //   never moves a slot; growth appends a block (OccurrenceStoreAccess.AppendBlockFor / TryAttachSlot).
 
     /// <summary>
-    /// The spec for the tier <paramref name="entity"/> currently carries, or <see langword="null"/>
-    /// when it carries none — ⛔ a normal, expected answer.
+    /// The LARGEST tier <paramref name="entity"/> carries, or <see langword="null"/> when it carries none — ⛔ a normal,
+    /// expected answer. ⚠ <c>CE-3137</c> U-0: a unit may carry several tiers (blocks); production lookups use
+    /// <see cref="OccurrenceStoreAccess"/>'s key API, not this.
     /// </summary>
     public static BlueprintTierSpec? Of(EntityRepository repo, Entity entity)
     {
@@ -262,89 +258,6 @@ public static class BlueprintTierTable
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b>THE promotion body: add the larger, copy, remove the smaller.</b> <c>O3b</c> / task
-    /// <c>B4</c> — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §17.7.
-    ///
-    /// <para>🔴🔴 <b>Why it had to become a shared member.</b> §17.1's inventory found THREE copies of
-    /// this three-line sequence (<c>BehaviorIngressSystem.UpgradeTier</c>,
-    /// <c>BlueprintMaintenanceSystem.UpgradePair</c>, <c>EntityBlueprintsPanel.UpgradeTier</c>) and
-    /// <c>B3</c>-① left them as three, because each was already correct. ⛔ <c>B4</c> found a FOURTH
-    /// site that needs it — <c>BlueprintInstanceService.AttachToEntity</c> — and adding a fourth copy
-    /// is what ruling 9 forbids. ⭐ One body; the callers keep their own eligibility rules.</para>
-    ///
-    /// <para>⛔⛔ <c>CopyToLargerTier</c> is where <c>H1</c> lives — it carries the header's
-    /// <c>Reserved</c>, which since <c>A3</c> holds the per-slot <c>Kind</c> nibble array. Rail
-    /// <c>A3_R2</c> pins it, and every caller must keep going THROUGH this helper: a hand-rolled copy
-    /// zeroes every slot's kind and the tick walker then skips the entity entirely.</para>
-    ///
-    /// <para>⚠ A no-op when <paramref name="to"/> is not larger, or when the entity does not carry
-    /// <paramref name="from"/> — both were guards the callers already had, hoisted here so the fourth
-    /// caller cannot forget them.</para>
-    /// </summary>
-    public static unsafe void Promote(
-        EntityRepository repo, Entity entity, BlueprintTierSpec from, BlueprintTierSpec to)
-    {
-        if (repo is null) throw new ArgumentNullException(nameof(repo));
-        if (from is null) throw new ArgumentNullException(nameof(from));
-        if (to   is null) throw new ArgumentNullException(nameof(to));
-
-        if (to.TotalSize <= from.TotalSize) return;   // ⛔ no downgrade path, ever
-        if (!from.Has(repo, entity)) return;          // nothing to carry over
-
-        if (!to.Has(repo, entity))
-            to.Add(repo, entity);
-
-        // ⚠ Both pointers are resolved AFTER the add and used within this call only — the seam's
-        //   LIFETIME RULE. An add can move the source chunk, so a pointer taken before it is stale.
-        BlueprintBlackboardPartitions.CopyToLargerTier(
-            from.Memory(repo, entity), from.TotalSize,
-            to.Memory(repo, entity),   to.TotalSize, (byte)to.MaxSlots);
-
-        from.Remove(repo, entity);
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b>The tier an attach must land on, given what the entity ALREADY carries — never a
-    /// second store, never a downgrade.</b> <c>O3b</c> / task <c>B4</c> —
-    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §17.7.
-    ///
-    /// <para>🔴🔴 <b>The invariant this protects</b> is the one <see cref="OccurrenceStoreAccess"/>
-    /// documents and every consumer reads through: <i>an entity carries AT MOST ONE tier</i>.
-    /// ⛔ Two sites picked a tier from the CONTENT alone — <c>BlueprintInstanceService.AttachToEntity</c>
-    /// (one instance's <c>StateSize</c>) and <c>BlueprintMaterializationSystem</c> (a scenario's
-    /// aggregate) — and then added that component. Whenever the pick differed from the tier already
-    /// present, the entity ended up with <b>two</b> stores and the largest-first probe order decided
-    /// which one was authoritative, silently orphaning the other's slots.</para>
-    ///
-    /// <para>⚠ <b>Before <c>O3b</c> this was reachable only UPWARDS</b> (a big instance landing on a
-    /// 1024-carrying entity) and left the smaller store stranded. ⭐ The 256 tier made the DOWNGRADE
-    /// direction the common case — every small instance on a 1024 entity — which is how it surfaced.
-    /// 📌 Neither direction was covered by a rail; <c>B4_R3</c>/<c>B4_R4</c> now pin both.</para>
-    ///
-    /// <para>⛔ It does NOT promise the content fits: <c>TryAttach</c> still reports slot exhaustion
-    /// and fragmentation, and the over-size case still truncates downstream. This decides only WHICH
-    /// store the attach writes into.</para>
-    /// </summary>
-    public static BlueprintTierSpec EnsureAtLeast(
-        EntityRepository repo, Entity entity, BlueprintTierSpec required)
-    {
-        if (required is null) throw new ArgumentNullException(nameof(required));
-
-        var current = Of(repo, entity);
-        if (current == null)
-            return required;
-
-        // ⭐ The store the entity already has is big enough — use it, never downgrade.
-        if (required.TotalSize <= current.TotalSize)
-            return current;
-
-        // ⚠ It genuinely is not. PROMOTE — carrying the existing slots and their Kind nibbles —
-        //   rather than bolting a second component on beside it.
-        Promote(repo, entity, current, required);
-        return required;
-    }
-
-    /// <summary>
     /// ⭐⭐⭐ <b>Is <paramref name="a"/> a LARGER tier than <paramref name="b"/>?</b> <c>O3b</c> /
     /// task <c>B4</c> — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §17.7.
     ///
@@ -368,15 +281,6 @@ public static class BlueprintTierTable
         var result = new BlueprintTierSpec[ascending.Count];
         for (int i = 0; i < ascending.Count; i++)
             result[i] = ascending[ascending.Count - 1 - i];
-        return result;
-    }
-
-    private static (BlueprintTierSpec From, BlueprintTierSpec To)[] BuildAdjacentPairs()
-    {
-        var ascending = Ascending;
-        var result = new (BlueprintTierSpec, BlueprintTierSpec)[ascending.Count - 1];
-        for (int i = 0; i < ascending.Count - 1; i++)
-            result[i] = (ascending[i], ascending[i + 1]);
         return result;
     }
 }

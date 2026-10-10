@@ -105,7 +105,7 @@ New Blueprint tests:
 ### EditorSubsystemBoot integration tests
 - **10 passed, 0 failed.**
 
-### Full solution build (`IOS-IG-SimHost.sln`)
+### Full solution build (`HROT.sln`)
 - **0 errors, 18 warnings (all pre-existing, none from changed files).**
 
 ### Byte-stability test

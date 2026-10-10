@@ -81,7 +81,7 @@ files ship to `bin`:
   their scan root (see T3).
 
 ### T2 success conditions
-- `dotnet build IOS-IG-SimHost.sln` green after the move + glob update (zero new warnings —
+- `dotnet build HROT.sln` green after the move + glob update (zero new warnings —
   TreatWarningsAsErrors is on in `Hrot.AI.Behaviors`).
 - New test `FolderLayoutTests.Output_HasAssetsAndRecipesRoots` (place in the most appropriate
   existing `*.Tests` project that already runs against the Behaviors build output — e.g.
@@ -160,7 +160,7 @@ future move only touches `AssetRoots`.
 - Do NOT weaken/skip/auto-pass tests or add a Stability trait to dodge a failure. Fix root causes.
 
 ## Definition of done (all required)
-- `dotnet build IOS-IG-SimHost.sln` green (zero new warnings).
+- `dotnet build HROT.sln` green (zero new warnings).
 - Run the FULL suite WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS`. If any snapshot/golden test
   touches these blueprints, re-run clean to get the true baseline; fix root causes, do not regen.
   At minimum these must be 0-failed with `--filter "Stability!=Flaky&Stability!=Environment&Stability!=Broken"`:

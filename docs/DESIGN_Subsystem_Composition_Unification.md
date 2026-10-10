@@ -1252,7 +1252,7 @@ this is called done.**
 | `Hrot.SimHost.Tests` | 877 / **1** — `FullBranchPipelineTests`, baselined pre-existing |
 | `Hrot.Editor.Tests` | **344 / 0** ⚠ one run showed 343/1 on `TwoReloadCycles_OldAlcIsCollected` *(a GC-collection assertion)*; **3 isolated re-runs and a full re-run all green** ⇒ flake, not composition |
 | `Hrot.IG.Tests` | 410 / **5** — ⭐ **BASELINED: identical 410/5 with the IG changes stashed** |
-| `IOS-IG-SimHost.sln` build | clean |
+| `HROT.sln` build | clean |
 | live, both hosts | editor + `--mode all` boot, `/status` serves, **0** guard fires |
 | live, behaviour preserved | `hill-attack-close`: **6 engagements, 0 overshoot failures, 0 EQS timeouts**, leader **35** components holding `1234950103` — unchanged from before `B2` |
 
@@ -2409,7 +2409,7 @@ and **10**.
 
 | ⭐ the lean, with the trade stated | |
 |---|---|
-| ⭐⭐ **still start with CGF** | ⛔ **not** because it is cheapest — it is not — but because it is **in `IOS-IG-SimHost.sln` and gateable**: `CgfSubsystemHeadlessTests` exercises a real boot. ⚠ The Stride editor is **out of solution** *(`net8.0-windows`)*, so a migration there is measured by a suite that does not run in the normal gate. ⛔⛔ **OVERSTATED — see §4.1T ④:** there are TWO classes of that name, and the in-solution one is `[Fact(Skip=…)]`. The real boot gate is `Hrot.ClusterRunner.Integration.Tests`, which is **T3**. ⭐ The choice stands; this reason was weaker than written |
+| ⭐⭐ **still start with CGF** | ⛔ **not** because it is cheapest — it is not — but because it is **in `HROT.sln` and gateable**: `CgfSubsystemHeadlessTests` exercises a real boot. ⚠ The Stride editor is **out of solution** *(`net8.0-windows`)*, so a migration there is measured by a suite that does not run in the normal gate. ⛔⛔ **OVERSTATED — see §4.1T ④:** there are TWO classes of that name, and the in-solution one is `[Fact(Skip=…)]`. The real boot gate is `Hrot.ClusterRunner.Integration.Tests`, which is **T3**. ⭐ The choice stands; this reason was weaker than written |
 | ⭐ **and the gap is small** | 10 vs 8 — ⛔ two values do not outweigh a gateable boot |
 | ⚠ **what would change it** | if the Stride editor's suite becomes gateable in CI, take it first — it is genuinely the smallest |
 
@@ -2432,7 +2432,7 @@ textually, so `out`/deconstruction/pattern forms are missed *(⇒ counts are a L
 ### 4.1T ⭐⭐⭐ STEP 5 — **the first INLINE ECS root takes a plan, and the honest result is MIXED. ✅ `build-state: BUILT` `2026-09-04`**
 
 > ⭐ §4.1S ③ chose CGF over the Stride editor *"not because it is cheapest — it is not — but because it is
-> in `IOS-IG-SimHost.sln` and gateable."* ⭐⭐ Built here. ⛔⛔ **And the gate half of that reasoning turned
+> in `HROT.sln` and gateable."* ⭐⭐ Built here. ⛔⛔ **And the gate half of that reasoning turned
 > out to be partly false — see ④.**
 
 #### ① ⭐ WHAT WAS BUILT — the head only, and the boundary is explicit
@@ -5817,7 +5817,7 @@ feature"* — and a claim about **whether a host can be verified at all** is exa
 
 ### 🔴 WHAT THE MISSING GATE COST — **and it is the whole answer to *"how will we find out?"***
 
-📐 Stride is **not in `IOS-IG-SimHost.sln`** *(measured: 0 `HrotStrideApp` entries)*, so nothing in the
+📐 Stride is **not in `HROT.sln`** *(measured: 0 `HrotStrideApp` entries)*, so nothing in the
 ordinary gate table compiles it. ⇒ `CE-203` `E1` widened `EditorSubsystem.TkbDatabase` to `ITkbDatabase`
 on the strength of a grep that said *"the only consumer assigns it straight into an `ITkbDatabase` field"*.
 ⛔⛔ **It did not.** `EditorStrideSubsystem.TkbDb` was declared `public TkbDatabase`, and the Stride host

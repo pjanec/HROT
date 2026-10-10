@@ -98,6 +98,64 @@ namespace Fdp.Toolkit.Scenario.Tests
             Assert.Equal(new[] { 1f, 3f }, savedX);   // non-vacuous: the X=2 foreign entity is the one dropped
         }
 
+        // ── ⭐ Buildings 5e — the TerrainObjects section (📄 docs/DESIGN_Building_Interiors.md §3b K5, §3j "5e") ──
+
+        private const string TwoDoorHouse = """
+            { "type": "FeatureCollection", "features": [ { "type": "Feature",
+                "properties": { "kind": "building", "label": "H", "doors": { "front": "locked" },
+                  "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                    "storeys": [ { "height": 3, "walls": [
+                      { "from": [0,0], "to": [10,0], "thickness": 0.3, "openings": [ { "kind": "door", "at": 4.5, "width": 1, "doorId": "front" } ] },
+                      { "from": [5,0], "to": [5,8], "thickness": 0.15, "openings": [ { "kind": "door", "at": 6, "width": 0.9, "doorId": "hall" } ] } ] } ] } },
+                "geometry": { "type": "Point", "coordinates": [20, 20] } } ] }
+            """;
+
+        /// <summary>
+        /// ⭐ 5e — a save writes the state of the doors this host OWNS that differ from what the terrain authored, keyed by terrain-object
+        /// key, in a <c>TerrainObjects</c> section; the door ENTITIES themselves stay out of <c>Entities</c> (<c>ScenarioIgnoreTag</c>, K5).
+        /// A door owned by another node is that node's to save (one door, one slice); a door as authored says nothing; nothing to say ⇒
+        /// no section at all.
+        /// </summary>
+        [Fact]
+        public void Stage5e_TheSaveWritesTheOwnedDoorsThatDifferFromTheTerrain_KeyedByTerrainObjectKey()
+        {
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+            _repo.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+            _repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            _repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(TwoDoorHouse, "range"));
+            Entity Door(string key, Fdp.Toolkit.Terrain.TerrainDoorState state, int owner)
+            {
+                var e = _repo.CreateEntity();
+                _repo.AddComponent(e, new Fdp.Toolkit.Terrain.DoorState { State = state });
+                _repo.SetManagedComponent(e, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = key });
+                _repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: owner, localNodeId: 1));
+                _repo.AddComponent(e, new ScenarioIgnoreTag());
+                return e;
+            }
+            var front = Door("range/H/front", Fdp.Toolkit.Terrain.TerrainDoorState.Open, owner: 1);     // authored locked — differs
+            var hall  = Door("range/H/hall",  Fdp.Toolkit.Terrain.TerrainDoorState.Locked, owner: 2);   // differs, but node 2's
+            JsonObject? Section() => (JsonObject?)BuildSerializer().Serialize(_repo, new ScenarioHeader("TestSubsystem"))[Fdp.Toolkit.Terrain.TerrainObjectsSection.Name];
+
+            var dom = BuildSerializer().Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+            Assert.Empty(dom["Entities"]!.AsObject());                                   // K5 — the entities are never saved
+            var section = Assert.IsType<JsonObject>(dom["TerrainObjects"]);
+            Assert.Equal(new[] { "range/H/front" }, section.Select(kv => kv.Key));
+            Assert.Equal("Open", (string)section["range/H/front"]!["door"]!);
+
+            _repo.SetComponent(hall, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _repo.SetComponent(hall, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
+            Assert.Equal(new[] { "range/H/front" }, Section()!.Select(kv => kv.Key));   // owned now, but as authored
+
+            _repo.SetComponent(front, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Locked });
+            Assert.Null(Section());                                                       // every door as authored ⇒ no section
+
+            // the reader is the writer's inverse, and a bad state fails loudly
+            var read = Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadDoors(dom);
+            Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open, Assert.Single(read).Value);
+            var bad = new JsonObject { ["TerrainObjects"] = new JsonObject { ["range/H/front"] = new JsonObject { ["door"] = "Ajar" } } };
+            Assert.Contains("Ajar", Assert.Throws<InvalidOperationException>(() => Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadDoors(bad)).Message);
+        }
+
         // �� RoundTrip_1to1_PreservesAllFields ������������������������������������
 
         /// <summary>

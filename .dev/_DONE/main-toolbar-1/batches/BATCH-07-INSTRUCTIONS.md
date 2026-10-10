@@ -75,7 +75,7 @@ handlers. Re-read facade state every frame.
 - Do NOT weaken/skip/auto-pass tests; zero new warnings (TreatWarningsAsErrors).
 
 ## Definition of done (all required)
-- `dotnet build IOS-IG-SimHost.sln` green (zero new warnings).
+- `dotnet build HROT.sln` green (zero new warnings).
 - Run WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS`. New tests pass UNFILTERED. 0-failed with the Stability
   filter for `Hrot.Presentation.Tests`, plus the hot suites `Fdp.Toolkits.Tests` + `Hrot.SimHost.Tests`.
   (NOTE: if `Hrot.SimHost.Tests` shows a lone `EqsModuleTests` "EditablePolyline not registered"

@@ -119,7 +119,7 @@ All existing `RegenerationSchedulerTests` (5 tests) remain green — debounce be
 
 | Gate | Result |
 |------|--------|
-| `dotnet build IOS-IG-SimHost.sln` | **0 errors / 0 new warnings** in touched projects |
+| `dotnet build HROT.sln` | **0 errors / 0 new warnings** in touched projects |
 | `Hrot.Editor.AiShared.Tests` (all) | **789 passed / 0 failed** |
 | `Hrot.AiEditor.Persistence.Tests` (persistence 88) | **88 passed / 0 failed** |
 | `Hrot.AiEditor.Generators.Tests` (generators 37) | **37 passed / 0 failed** |

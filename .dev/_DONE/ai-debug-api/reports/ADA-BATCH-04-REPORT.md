@@ -10,7 +10,7 @@
 
 ## Built
 
-`dotnet build IOS-IG-SimHost.sln` → **0 errors, 27 warnings (all pre-existing)**.
+`dotnet build HROT.sln` → **0 errors, 27 warnings (all pre-existing)**.
 
 ---
 

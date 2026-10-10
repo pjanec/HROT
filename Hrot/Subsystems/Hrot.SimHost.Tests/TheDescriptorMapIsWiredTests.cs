@@ -166,7 +166,7 @@ public class TheDescriptorMapIsWiredTests
             participant:          null,
             role:                 Fdp.Core.NodeRole.MuscleGround,
             entityMap:            new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
-            geoTransform:         Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(),
+            geoTransform:         Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:             new FdpEventBus(),
             localNodeId:          1,
             domainId:             0,
@@ -247,7 +247,7 @@ public class TheDescriptorMapIsWiredTests
             participant:          null,
             role:                 role,
             entityMap:            new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
-            geoTransform:         Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(),
+            geoTransform:         Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:             new FdpEventBus(),
             localNodeId:          1,
             domainId:             0,
@@ -273,10 +273,12 @@ public class TheDescriptorMapIsWiredTests
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtEntityDamage), D(Hrot.NED.Descriptors.EDescriptorType.dtEntityMission),
                     D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationIntent), D(Hrot.NED.Descriptors.EDescriptorType.dtSensorConfig),
                     D(Hrot.NED.Descriptors.EDescriptorType.dtEqsSensorConfig),
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtBrainIntent) },   // ⭐ CE-3048 — the AI intent moves with the Brain
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtBrainIntent),     // ⭐ CE-3048 — the AI intent moves with the Brain
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtStanceIntent) },  // ⭐ CE-2121 — the body-stance request
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
-            new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus) },
+            new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtStanceStatus) },   // ⭐ CE-2121 — the body's stance report
             map.DescriptorsOf(Fdp.Core.NodeRole.MuscleGround).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtEqsResult) },

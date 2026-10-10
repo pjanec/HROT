@@ -104,12 +104,14 @@ namespace Fdp.Toolkit.Navigation.Tests
         /// ⭐ <c>CE-2059</c> — a road route ENDS AT THE REQUESTED POINT: the nodes, then a connector to <c>req.End</c>.
         /// 🔴 Red before: the trajectory ended at the road node nearest the destination, and the vehicle reported
         /// <c>Arrived</c> there (measured live 14.8 m out on a 5 m arrival radius). A destination ON the last node adds no
-        /// zero-length segment.
+        /// zero-length segment. ⭐ CE-3128 D4 — the road leg is now sampled along the segment's curve, so the waypoint COUNT is no
+        /// longer the node count; the claim is unchanged: the route ends at the requested point, at the right length, with no
+        /// zero-length segment anywhere.
         /// </summary>
         [Theory]
-        [InlineData(100f, 14f, 3, 114f)]   // 14 m off the last node: a connector is appended
-        [InlineData(100f,  0f, 2, 100f)]   // on the last node: none
-        public void CE2059_ARoadRoute_EndsAtTheRequestedPoint(float endX, float endY, int expectedWaypoints, float expectedLength)
+        [InlineData(100f, 14f, 114f)]   // 14 m off the last node: a connector is appended
+        [InlineData(100f,  0f, 100f)]   // on the last node: none
+        public void CE2059_ARoadRoute_EndsAtTheRequestedPoint(float endX, float endY, float expectedLength)
         {
             var builder = new RoadNetworkBuilder();
             builder.AddNode(new Vector2(0f, 0f));
@@ -126,7 +128,10 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             Assert.True(r.IsReachable);
             Assert.True(pool.TryGetTrajectory(r.RouteHandle, out var traj));
-            Assert.Equal(expectedWaypoints, traj.Waypoints.Length);
+            Assert.True(traj.Waypoints.Length >= 2);
+            for (int i = 1; i < traj.Waypoints.Length; i++)
+                Assert.True(Vector3.Distance(traj.Waypoints[i - 1].Position, traj.Waypoints[i].Position) > 0.05f,
+                    $"zero-length segment at waypoint {i}");
             var last = traj.Waypoints[traj.Waypoints.Length - 1].Position;
             Assert.Equal(endX, last.X, 3);
             Assert.Equal(endY, last.Y, 3);

@@ -27,4 +27,13 @@ namespace Fbt.Kernel
     /// </summary>
     [AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
     public sealed class BlackboardReadWriteAttribute : Attribute { }
+
+    /// <summary>
+    /// Marks a struct as a UNIT MEMORY (Q87, R-237): one instance per unit, shared by every behaviour that touches it,
+    /// created on first touch with <c>new T()</c> and living as long as the unit. Declare the defaults as field
+    /// initializers AND a parameterless constructor (<c>public Foo() {}</c>) — C# applies initializers only through a
+    /// constructor call (CS8983 without one). Reached at runtime through <c>Fdp.Toolkit.Behavior.UnitMemory</c>.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
+    public sealed class UnitMemoryAttribute : Attribute { }
 }

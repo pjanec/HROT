@@ -378,7 +378,9 @@ public static unsafe class BlueprintBlackboardPartitions
 
     /// <summary>
     /// Copies header + slot table + payload from a smaller tier component to a larger one.
-    /// Used by BlueprintMaintenanceSystem during tier upgrade.
+    /// ⛔ DORMANT since CE-3137 U-0 (R-236): every production promotion site (BehaviorIngressSystem.UpgradeTier,
+    /// BlueprintMaintenanceSystem, EntityBlueprintsPanel) is retired — growth APPENDS a block and nothing moves.
+    /// Kept as an allocator primitive (rail PartitionAllocatorTests.A3_R2), not called by production.
     /// </summary>
     public static void CopyToLargerTier(
         byte* src, int srcSize,
@@ -422,8 +424,8 @@ public static unsafe class BlueprintBlackboardPartitions
         // Reserved is NOT among them -- so without this line EVERY tier upgrade silently zeroes the
         // whole array while entries and payloads copy correctly, and all occurrences read kind 0.
         // Slot ORDER is preserved (i -> i) directly above, so a whole-word copy is exactly right, and
-        // it covers all THREE production promotion sites at once because they all funnel through here
-        // (BehaviorIngressSystem.UpgradeTier, BlueprintMaintenanceSystem, EntityBlueprintsPanel).
+        // it covered all THREE former promotion sites at once because they all funneled through here
+        // (BehaviorIngressSystem.UpgradeTier, BlueprintMaintenanceSystem, EntityBlueprintsPanel — all retired by CE-3137 U-0 (R-236)).
         dstHeader.Reserved         = srcHeader.Reserved;
 
         dstHeader.PayloadFree      = (ushort)(dstHeader.PayloadSize - SumAllocated(srcHeader, srcSlots));

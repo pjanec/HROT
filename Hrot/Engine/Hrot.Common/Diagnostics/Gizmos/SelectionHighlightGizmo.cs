@@ -26,9 +26,23 @@ namespace Hrot.Common.Diagnostics.Gizmos
     [GizmoProjector(typeof(SelectionState), typeof(SimTransform))]
     public sealed class SelectionHighlightGizmo : IStatelessGizmo
     {
-        // Radius in screen pixels.
-        private const float SelectionRadiusPx = 20f;
-        private const float RingThicknessPx   = 2f;
+        // ⭐⭐⭐ CE-3147 — THE RING IS SIZED IN WORLD METRES, FROM THE ENTITY'S OWN FOOTPRINT.
+        //   🔒 User, 2026-10-09: "the green selection circle must change size with zoom, now it is zoom independent
+        //   so when i zoom out the circle is enormous in comparison to entity symbol (which scales)."
+        //   🔴 It was `SelectionRadiusPx` in SCREEN PIXELS — a constant on-screen size, which is only ever right at
+        //   one zoom: I first raised it 20 → 100 to fix "extremely small" zoomed IN, which made it enormous zoomed
+        //   OUT. ⛔ Both readings are the same mistake, not two defects. The symbol is drawn from VehicleParams in
+        //   METRES (default 5 × 2.5), so the ring must be measured the same way.
+        //   ⭐ The rule now lives in ONE place for all three consumers — EntityFootprint — because this assembly
+        //   cannot see Hrot.Presentation's gizmos (siblings) and three copies is how they diverged before.
+        //   ⭐⭐ CE-3154 — THE STROKE IS SCREEN PIXELS, and that is now the RENDERER'S rule, not this gizmo's.
+        //   🔒 User, 2026-10-10: "the green selection circle now scales but is now extremely thick (was single
+        //   pixel regardless of zoom before - should be like that)."
+        //   🔴 What went wrong: SizeMode governed BOTH the radius and the stroke, so switching the radius to
+        //   WorldMeters silently made this "2" mean 2 METRES. There was no way to ask for "world radius, pixel
+        //   stroke" — DebugPrimitiveRenderer2D.OutlineStroke is what makes it expressible, for every ring.
+        //   ⭐ The value is unchanged from before CE-3147 (2 px, the look the user calls single-pixel).
+        private const float RingThicknessPx = 2f;
 
         private static readonly Rgba32 PrimaryOutline = Rgba32.Green;
         private static readonly Rgba32 Secondary      = Rgba32.Yellow;
@@ -46,7 +60,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
             var pos = new Vector3(tf.Position.X, tf.Position.Y, 0f);
 
             var color = sel.IsPrimarySelection ? PrimaryOutline : Secondary;
-            draw.DrawSphere(pos, SelectionRadiusPx, color, thickness: RingThicknessPx, sizeMode: SizeMode.ScreenPixels);
+            // ⭐ CE-3147 — the same query the pick areas use, so ring and hit area agree for a truck AND for a man.
+            float radiusMetres = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, entity);
+            draw.DrawSphere(pos, radiusMetres, color, thickness: RingThicknessPx, sizeMode: SizeMode.WorldMeters);
         }
     }
 }

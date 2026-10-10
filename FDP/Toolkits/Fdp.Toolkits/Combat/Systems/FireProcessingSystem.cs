@@ -41,6 +41,8 @@ namespace Fdp.Toolkit.Combat.Systems
     [UpdateInPhase(SystemPhase.Input)]
     public class FireProcessingSystem : IEcsModuleSystem
     {
+        private readonly System.Collections.Generic.List<Vector3> _bodyPoints = new(3);   // ⭐ P-2 scratch (main thread)
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
@@ -64,7 +66,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 // Skip if either entity is no longer alive.
                 if (!repo.IsAlive(shooter)) continue;
-                if (!repo.IsAlive(target))  continue;
+                if (!evt.AtPoint && !repo.IsAlive(target)) continue;   // ⭐ CE-1032 W-8 — a point needs no target entity
 
                 // ⛔⛔ CE-198 — THERE IS DELIBERATELY NO NetworkAuthority GATE HERE.
                 //
@@ -105,7 +107,29 @@ namespace Fdp.Toolkit.Combat.Systems
                 // Read muzzle velocity from the shooter's WeaponState.
                 var weapon      = repo.GetComponent<WeaponState>(shooter);
                 var shooterPos  = repo.GetComponent<SimTransform>(shooter).Position;
-                var targetPos   = repo.GetComponent<SimTransform>(target).Position;
+                var targetPos   = evt.AtPoint ? evt.TargetPoint : repo.GetComponent<SimTransform>(target).Position;
+                // ⭐ Buildings §3d P2 (R-217; AQ85 §D's first half) — the shot flies along the SIGHT line: from the shooter's eye to
+                //   the middle of the target's silhouette, both for the LOGICAL stance (§3f — one profile for being seen and being
+                //   shot). ⛔ Before, it flew feet to feet, so once bullets meet the terrain every low wall and window sill would
+                //   have stopped a round the shooter aimed over. The ENTITY hit test stays 2-D (a circle) — body profiles are later.
+                shooterPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(repo, shooter, HitModel.LogicalStance(repo, shooter));
+                if (!evt.AtPoint)
+                {
+                    var targetStance = HitModel.LogicalStance(repo, target);
+                    float hull = Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, target);
+                    targetPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.AimHeightFor(repo, target, targetStance, hull);   // ⭐ CE-3116 — a person by posture
+                    // ⭐ CE-3136 P-2 (D1, revised) — the middle when seen or shot through a weak cover, else the middle of the SEEN
+                    //   part of the body (AimPoint). The round's own penetration decides "weak" — the fired mount's, as below.
+                    var terrain = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
+                    if (terrain != null)
+                    {
+                        var aimMount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
+                        float aimPen = aimMount != null && aimMount.DamagePerHit > 0f ? CombatTkb.PenetrationOf(repo, aimMount) : 0f;
+                        targetPos = AimPoint.For(repo, terrain,
+                            terrain.Doors.Count > 0 ? Fdp.Toolkit.Terrain.DoorStates.Of(repo, terrain) : null,
+                            shooterPos, targetPos, target, targetStance, hull, aimPen, _bodyPoints);
+                    }
+                }
 
                 // Compute normalised direction from shooter toward target.
                 var delta     = targetPos - shooterPos;
@@ -117,12 +141,38 @@ namespace Fdp.Toolkit.Combat.Systems
                 float muzzle = weapon.MuzzleVelocity;
                 if (evt.WeaponIndex > 0 && CombatTkb.MountOf(repo, shooter, evt.WeaponIndex) is { MuzzleVelocity: > 0f } fired)
                     muzzle = fired.MuzzleVelocity;
-                var velocity  = direction * muzzle;
+                // ⭐⭐ AQ85 A–C (R-216) — the shot's DEFLECTION: θ = σ · d(k), σ from the fired mount's dispersion × the shooter's
+                //   state (moving, under fire, logical stance), k its shot count. σ = 0 (no DispersionMils) ⇒ exact aim, as before.
+                //   The muzzle offset below stays on the aim line; only the flight direction turns.
+                var firedMount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
+                float sigma = HitModel.Sigma(repo, shooter, firedMount, HitModel.Now(repo));
+                uint ordinal = sigma > 0f ? HitModel.NextOrdinal(repo, shooter) : 0u;
+                float theta = sigma > 0f ? HitModel.Deflection(sigma, ordinal) : 0f;
+                var flight = sigma > 0f ? HitModel.Rotate(direction, theta) : direction;
+                var velocity  = flight * muzzle;
+
+                // ⭐⭐ Stage 6 (CE-1032, W-1/W-4/W-8) — the round's warhead, read ONCE here: an area effect makes a terrain stop a
+                //   detonation; a time fuze starts counting; an INDIRECT warhead flies a gravity arc to the aim point (high for a
+                //   launcher, a throw for a hand weapon). The flight never looks the warhead up again.
+                long ammo = firedMount != null ? unchecked((long)firedMount.AmmoGuid) : 0L;
+                byte warheadBits = 0; float fuze = 0f;
+                if (ammo != 0 && repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                    && Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(), ammo).Warhead is { } wh)
+                {
+                    if (wh.HasAreaEffect) warheadBits |= WarheadRound.Area;
+                    if (wh.Fuze == Fdp.Toolkit.Tkb.Domain.FuzeKind.Time && wh.FuzeDelayS > 0f) { warheadBits |= WarheadRound.TimeFuze; fuze = wh.FuzeDelayS; }
+                    if (wh.Indirect)
+                    {
+                        warheadBits |= WarheadRound.Arc;
+                        velocity = ArcLaunch(shooterPos, targetPos, muzzle, high: muzzle >= CombatConstants.HighArcMinMuzzleVelocity);
+                    }
+                }
 
                 // ⭐ CE-3059 — the shot starts MuzzleOffsetMeters along the aim line (never past half way to the target), so a
                 //   bullet does not spawn inside a squad-mate standing on the shooter's spot. 📐 Measured on the split cluster:
                 //   four dismounted soldiers on one point, 90 rounds, every hit on the squad.
                 var muzzlePos = shooterPos + direction * MathF.Min(CombatConstants.MuzzleOffsetMeters, delta.Length() * 0.5f);
+                if ((warheadBits & WarheadRound.Arc) != 0) muzzlePos = shooterPos;   // an arc leaves from the hand / tube
 
                 // 1. Spawn the bullet entity.
                 var bullet = repo.CreateEntity();
@@ -145,14 +195,33 @@ namespace Fdp.Toolkit.Combat.Systems
                 //    ⭐ CE-3071 — the bullet carries the FIRED mount's munition from the TKB (by the shooter's type and the
                 //    request's WeaponIndex), so the hit knows what struck. No TKB numbers ⇒ an unknown munition: damage stays
                 //    the flat default and penetration 0 (ArmorModel.HitDamage).
-                var mount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
+                var mount = firedMount;
+                var (penetration, penetrationSource) = mount != null && mount.DamagePerHit > 0f
+                    ? CombatTkb.PenetrationWithSourceOf(repo, mount)                     // ⭐ R-217 P1 — the ammo × weapon pair first
+                    : (0f, "unknown munition (no DamagePerHit) — ignores armour");
+                float damage = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(mount?.DamagePerHit ?? 0f);
                 repo.AddComponent(bullet, new BallisticProjectile
                 {
                     Shooter          = shooter,
                     PreviousPosition = muzzlePos,
-                    Damage           = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(mount?.DamagePerHit ?? 0f),
-                    Penetration      = mount != null && mount.DamagePerHit > 0f ? mount.Penetration : 0f,
+                    Damage           = damage,
+                    Penetration      = penetration,
                     SpawnTick        = currentTick,
+                    Muzzle           = muzzlePos,      // ⭐ R-217 — a hit carries the round from here, whenever it resolves
+                    FrontDamage      = damage,
+                    FrontPenetration = penetration,
+                    TerrainFlags     = 1,
+                    Ammo             = ammo,   // ⭐ CE-1032 W-2 — what the round IS
+                    Warhead          = warheadBits,
+                    FuzeRemaining    = fuze,
+                });
+
+                // ⭐ T-4 — the shot's record, with the inputs it was fired with (GET /combat/shots)
+                ShotLog.For(repo).Add(new ShotRecord
+                {
+                    Tick = currentTick, Shooter = shooter, Target = target, Bullet = bullet, WeaponIndex = evt.WeaponIndex,
+                    Muzzle = muzzlePos, Aim = targetPos, Ordinal = ordinal, Sigma = sigma, Deflection = theta,
+                    Penetration = penetration, PenetrationSource = penetrationSource, Damage = damage,
                 });
 
                 // 5. Physics collider — small sphere for broadphase candidate selection.
@@ -172,6 +241,24 @@ namespace Fdp.Toolkit.Combat.Systems
                     WeaponIndex = evt.WeaponIndex,
                 });
             }
+        }
+
+        /// <summary>
+        /// ⭐ Stage 6 (<c>CE-1032</c>, W-8) — the launch velocity that carries a round at <paramref name="speed"/> from
+        /// <paramref name="from"/> to <paramref name="to"/> under gravity: the HIGH solution (a mortar — steep, onto roofs and over
+        /// walls) or the LOW one (a throw). Out of reach ⇒ 45°, the furthest it can go (it falls short).
+        /// </summary>
+        public static Vector3 ArcLaunch(Vector3 from, Vector3 to, float speed, bool high)
+        {
+            var flat = new Vector2(to.X - from.X, to.Y - from.Y);
+            float d = flat.Length();
+            var dir = d > 1e-4f ? flat / d : Vector2.UnitX;
+            float h = to.Z - from.Z, g = CombatConstants.Gravity, v2 = speed * speed;
+            float disc = v2 * v2 - g * (g * d * d + 2f * h * v2);
+            float angle = disc < 0f || d < 1e-4f
+                ? MathF.PI / 4f
+                : MathF.Atan((v2 + (high ? 1f : -1f) * MathF.Sqrt(disc)) / (g * d));
+            return new Vector3(dir.X * MathF.Cos(angle), dir.Y * MathF.Cos(angle), MathF.Sin(angle)) * speed;
         }
     }
 }

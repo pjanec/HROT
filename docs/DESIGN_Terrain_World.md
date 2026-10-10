@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-03; open: CE-3010, CE-3027 hull clearance; CE-3017 + CE-3018 + CE-3025 + CE-3026 closed 2026-10-03; live-run results in §8) — Q81 §0 APPROVED (R-181); §7.1 W2–W8 RULED (R-182); §7.2 W1/W9/W10/W11 APPROVED 2026-10-03 (R-183); §7.3 W12–W14 decided by the backend lane under the user's 'go autonomously'.
-updated: 2026-10-03
-current-answer: §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
+updated: 2026-10-08
+current-answer: §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §6a the allocation contract (R-220), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
 stale-below: nothing quotable — §7's HISTORY row block records the first-draft leans the user overturned.
 known-rot: nothing yet. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (rebase, not resize — §4.4, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
 known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. RESOLVED 2026-10-03: Cluster_Load_Phase §4.1a and Node_Roles §3.2 updated for the universal world part; INavmeshProvider is Z-up in code (CE-3011) and Navigation_Design_v2_0.md carries a Z-up supersession note.
 related-designs:
+  - designs/navig-2/Navigation_Design_v2_0.md §5.2a — CE-3128 (R-231): the road GRAPH (`roadNetworks`) is the road; D8 retires this file's `surface: road` polygons
+  - designs/navig-2/Navigation_Design_v2_0.md §14 — OWNS runtime navmesh change (R-218): the W6 bake becomes one immutable snapshot (P1), tiled with CE-1029 (P2, built 2026-10-08: 24 m tiles, 0.15 m infantry cells over buildings, a per-node tile cache — "P2 as built"); §15 points to §6a here for the path queries' allocation contract (R-220)
   - DESIGN_Building_Interiors.md — the enterable-building v2 that §6 L459 deferred (wall panels with openings, storeys as slabs, doors as entities, transmittance trace); CE-1031
   - DESIGN_Add_Entity_Picker.md §2a — chooses an entity's BIRTH level (SurfacePlacement, resolved by the creating node) and proposes TerrainWorld.SurfacesAt; adds no clamp step (W8 stands); §2c records the solid-building consequence, filed as CE-1031 against this doc's §2
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — reuses test-town and extends basic-desert with a ramp ridge + wadi for the utility demos (§3 there).
@@ -76,7 +78,7 @@ related-designs:
 |---|---|---|---|---|---|
 | `building` | Polygon | solid prism `baseZ`..`baseZ+height` (`floors` = label only in v1) | ✅ | ✅ | roof no |
 | `wall` | LineString + `thickness` | thin prism | ✅ | ✅ | — |
-| `surface` | Polygon | `road`/`open`/`forest`/`water`; cost + draw colour (water = unwalkable) | water only | `forest` partial — ⛔ v1: no | ✅ |
+| `surface` | Polygon | `road`/`open`/`forest`/`water`; cost + draw colour (water = unwalkable). ⚠ `road` retires with CE-3128 (R-231, [Nav v2 §5.2a](designs/navig-2/Navigation_Design_v2_0.md) D8): roads are the terrain's road graph | water only | `forest` partial — ⛔ v1: no | ✅ |
 | `slab` | Polygon with Z | walkable floor at that Z (T7 — format v1, built later) | under/over | ✅ (from below/above) | ✅ |
 | `ramp` | Polygon with per-vertex Z | sloped walkable link between levels | — | ✅ | ✅ |
 | ⭐ `building` *(Stage 1)* | **Point** + `template` or inline `building` | an ENTERABLE building instance — walls with openings, storey floors, stairs, roof (📄 `DESIGN_Building_Interiors.md` §3a, §3g) | walls ✅ | walls ✅ (openings pass) | floors, stairs, roof |
@@ -460,6 +462,78 @@ load. ⚠ The injected (Stride) arm is unchanged — it brings its own scene-bak
 - **Why Z-up everywhere:** a Y-up API leaks the library's convention into every caller — and already produced four
   mixed sites, one of them a live route bug (`CE-3013`).
 - **Why prisms are solid in v1:** enterable buildings need doors/stairs; garages cover multi-level through slabs+ramps.
+- **Why an OVERHEAD piece does not take the ground away** *(`SurfaceZ`, as built `2026-10-08`)*: a prism counts as solid
+  under you only when it starts within step reach (`BaseZ ≤ zHint + StepHeight`). ⛔ A door's lintel (2.1–3 m) used to count,
+  removed the ground, and an agent walking through a doorway under an upper floor came out at 3 m (`bt-doors` live run). Its top
+  is still a candidate surface. Rail `TerrainWorldTests.Stage5d2_UnderADoorwaysLintel_*`.
+- **Why a WALL PANEL never takes the ground away** *(`SurfaceZ`, `CE-3111`, as built `2026-10-08`)*: only a SOLID prism
+  (`Panel < 0` — a building block) removes the ground under a point inside it. ⛔ SUPERSEDED: *"a full-height wall still takes
+  the ground"* — with real 0.9 m doors a mover turning through a doorway clips a jamb by centimetres; the wall's top (3 m) became
+  the only surface, and the agent's Z hint then held it on the upper floor's slab across the whole storey (probe on the
+  `bt-doors` live run: z 3.0 in the east room). The same rule as the ground mesh below. Rail
+  `TerrainWorldTests.CE3111_InsideAWallPanel_TheGroundStays_*`.
+- **Why the ground grid skips only SOLID prisms** *(`TerrainWorldMesh`, as built `2026-10-08`)*: the ground is a grid of cells
+  (2 m on a 200 m world), and a cell is dropped when its CENTRE lies in a prism — so the hollow inside of a solid block never
+  bakes as floor. ⛔ It used to apply to WALL PANELS too (building walls, fences, free walls: `Panel ≥ 0`), and a 0.15 m inner
+  wall that crossed a cell centre cut a 2 m strip out of the floor — bt-range House A's hall and front doorways never
+  connected (found by the `bt-doors` live run). ⭐ A panel is thin and its own side faces block, so it keeps the ground under
+  it. 📄 `DESIGN_Building_Interiors.md` §3j "5d-3 / 5d-4 as built".
+
+## 6a. ALLOCATION — a background batch allocates nothing per query *(R-220, backend, `2026-10-08`)*
+
+> 🔒 **User, `2026-10-08`:** *"Are those background batches writeen in a garbage collection friendly way, to avoid gc stutters?"*
+> → *"Approved, do it first"*.
+
+⭐ **Rule:** a query that a background module (path solver, EQS, perception, danger sensor) or a per-tick system runs per
+candidate or per entity allocates **0 bytes per call once warm**. Scratch is owned **per thread**, because two background
+modules query one provider at once (`CE-2122`). A table handed to a caller is **immutable**, so the caller may hold it for its batch.
+
+```mermaid
+classDiagram
+    direction LR
+    class TerrainWorld { <<immutable>> SegmentBlocked · QueryFire(into) · QuerySight ⚠ diagnostic — allocates its answer }
+    class PolygonMath { InsideIntervals(poly, a, b, Span ts, Span into) NEW · List overload ⚠ allocates }
+    class DoorStates { <<immutable once returned>> Of(view, terrain) }
+    class DoorStatesThreadCache { <<ThreadStatic>> scratch byte[] · last table · door EntityQuery of the last repo }
+    class DotRecastNavmeshProvider { PlanPath · PathExists · PathCost · IsWalkable · Sample… }
+    class Snapshot { <<P1, immutable>> Layers + Masks[] + States[] NEW }
+    class LayerState { Query ThreadLocal · working filter ThreadLocal NEW · FilterFor(doors) }
+    class ProviderThreadScratch { <<ThreadStatic>> poly path · straight path · waypoints · circle buffers · NearestPolyQuery }
+    class DoorAwareQueryFilter { shared Base filter (static) · WorkingCopy() · JudgeBy(doors) NEW · With(doors) ⚠ allocates }
+    class DtNodePool { <<DotRecast, not ours>> one List per visited node ⚠ }
+    TerrainWorld ..> PolygonMath : stack spans
+    DoorStates ..> DoorStatesThreadCache : re-read, reuse if equal
+    DotRecastNavmeshProvider --> Snapshot : read ONCE
+    Snapshot --> LayerState
+    DotRecastNavmeshProvider ..> ProviderThreadScratch
+    LayerState --> DoorAwareQueryFilter : shared (authored) + one working copy per thread
+    LayerState ..> DtNodePool : A* inside DotRecast
+```
+*What it shows that prose hid:* every piece of scratch has exactly one owner thread. The only object a caller keeps, the door table, is
+immutable. The one allocation left is inside DotRecast, below our seam.
+
+| measured (bytes per call, warm) | before | after |
+|---|---|---|
+| `SegmentBlocked` · `QueryFire(into)` · `DoorStates.Of` (doors unchanged) | 320 · 360 · 664 | **0 · 0 · 0** |
+| `IsWalkable` · `ProjectToNavmesh` | 64 | **0** |
+| `PlanPath` / `PathExists` / `PathCost` (the 5c room, no doors) | 9 392 / 16 360 / 16 360 | **440 = DotRecast's own `FindPath`+`FindStraightPath`** |
+| the same, judged by the caller's doors | 10 192 / 16 360 / 16 360 | **= DotRecast's own cost for that search** |
+
+| decision | ⭐ as built | rejected (one line each) |
+|---|---|---|
+| path scratch | `[ThreadStatic]` arrays in the provider | a pool — a rent/return pair at every exit for no gain · `stackalloc` — `DtStraightPath` and the 256-slot buffers are too large for comfort on a module thread |
+| the door filter per call | one **working copy per thread and layer**, re-pointed by `JudgeBy` (throws on a shared filter) | `With(doors)` per call — the allocation being removed · a lock around the shared filter — it would serialise the two modules `CE-2122` let run in parallel |
+| `DoorStates.Of` | always **re-read** the door entities into thread scratch; hand back the thread's previous table when the bytes are equal | a key on `GlobalVersion` — it moves once per tick, so a door written within the tick would be served stale · a per-view cache keyed by repo — a snapshot replica is reused, so the repo key says nothing about its content |
+| DotRecast's node pool | ⚠ **left alone, measured and pinned**: our queries are held to DotRecast's own cost for the same search | fork DotRecast — a vendored A* to maintain for ~0.5 KB/query · our own A* over `DtNavMesh` — a second path planner (ruling 9) |
+| `FindNearestPoly` | our own per-thread `IDtPolyQuery`, running DotRecast's `Process` rule verbatim through the public `QueryPolygons` | accept DotRecast's 64 B — it runs twice per path |
+
+| rails | `TerrainWorldTests.R220_SightFireAndTheDoorTable_AllocateNothingPerCall` · `R220_TheDoorTable_IsReusedOnlyWhileTheDoorsAreUnchanged_AndAHandedOutTableNeverChanges` (a door written within the tick is seen at once) · `RecastNavmeshFactoryTests.R220_PathQueries_AllocateNothingOfTheirOwn_WithOrWithoutTheCallersDoors` (per query, against DotRecast alone) |
+|---|---|
+
+⭐ **`CE-1032` (warheads, `2026-10-08`):** `QueryFire(into)` is also the FRAGMENT trace — one query for rounds and fragments — and each `FireCrossing` now carries the piece's `TopZ` (a wall's top, a slab's level: what a blast wave diffracts over). Still zero allocations (`R220_*`). 📄 [`DESIGN_Building_Interiors.md`](DESIGN_Building_Interiors.md) §3k "Stage 6 as built".
+
+⚠ **Not covered:** `DotRecastDtCrowdProvider` (synchronous on the main thread, not a background batch) and the per-batch objects a
+solver makes once per batch (`EqsTerrainSight.Sight`'s `TerrainLosService`), which are not per-query costs.
 
 ## 7. DESIGN CALLS
 

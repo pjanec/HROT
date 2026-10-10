@@ -90,7 +90,7 @@ This golden additionally shows the full WaitLowering implementation (StructureHa
 ## 3. Solution Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 Build succeeded.
 8 Warning(s) [all pre-existing: CS0618 obsolete, CS8601 nullable, xUnit2013 — zero new]
 0 Error(s)

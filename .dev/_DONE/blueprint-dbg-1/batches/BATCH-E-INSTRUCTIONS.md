@@ -230,7 +230,7 @@ This batch is DONE when:
 - [ ] Adapter wired in `BlueprintDocumentFactory.Build()` via `SetDebugSession`
 - [ ] `editor.toggle-breakpoint` command registered and invokable
 - [ ] Dead `BlueprintBreakpointContextMenuProvider` wiring removed from factory
-- [ ] **`dotnet build IOS-IG-SimHost.sln -c Debug` passes with 0 errors, 0 warnings**
+- [ ] **`dotnet build HROT.sln -c Debug` passes with 0 errors, 0 warnings**
 - [ ] **`Hrot.Blueprints.Tests` — all existing tests pass; 0 new failures; 7 pre-existing failures unchanged**
 - [ ] **New adapter tests (7+ scenarios) all pass**
 - [ ] Report submitted

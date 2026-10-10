@@ -210,6 +210,7 @@ namespace Hrot.Map.Definitions.Tkb
                         Range             = wm.Range,
                         Penetration       = wm.Penetration,
                         DamagePerHit      = wm.DamagePerHit,
+                        DispersionMils    = wm.DispersionMils,   // ⭐ AQ85 C
                     });
                 }
                 template.AddDescriptor(suite);

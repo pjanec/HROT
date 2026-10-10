@@ -79,7 +79,7 @@ All new tests pass. No regressions in any of the three named test projects.
 ## Solution build
 
 ```
-dotnet build IOS-IG-SimHost.sln → 0 Error(s), 22 Warning(s)
+dotnet build HROT.sln → 0 Error(s), 22 Warning(s)
 ```
 
 - All 22 warnings are pre-existing (xUnit2013, CS0618 obsolete, CS8602 nullable, NU1903 vulnerability).

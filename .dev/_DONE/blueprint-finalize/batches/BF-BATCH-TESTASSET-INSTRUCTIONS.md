@@ -48,7 +48,7 @@ editor types (int/float/bool/string/enum). Plus a headless test confirming the C
       both VALID + compile + project the intended pins (headless-verified). Appear in New-from-Recipe.
 - [ ] Drawer diagnostic test added; report states whether ChannelCommand drawer resolves headlessly (and if not,
       the fix).
-- [ ] `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 new warnings; Full Rebuild succeeds (recipes excluded from
+- [ ] `dotnet build HROT.sln` 0 errors / 0 new warnings; Full Rebuild succeeds (recipes excluded from
       generator, so no BP0002).
 - [ ] Blueprints failures a SUBSET of the 7 pre-existing (0 new) — list the final set. Boot 10/10.
 - [ ] Report → `.dev/_DONE/blueprint-finalize/reports/BF-BATCH-TESTASSET-REPORT.md` with: the recipe contents +

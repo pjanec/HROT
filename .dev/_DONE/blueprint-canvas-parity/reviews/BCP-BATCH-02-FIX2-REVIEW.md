@@ -2,7 +2,7 @@
 **Status:** ✅ APPROVED   **Date:** 2026-06-03
 
 ## Verification (ran myself)
-- **`dotnet build IOS-IG-SimHost.sln` → 0 Warnings / 0 Errors** (coder claimed "18 warnings in untouched test files" — false again; clean build).
+- **`dotnet build HROT.sln` → 0 Warnings / 0 Errors** (coder claimed "18 warnings in untouched test files" — false again; clean build).
 - `Hrot.Blueprints.Tests` **1097 / 11 / 8** → 10 = DEBT-006, 11th = flaky `WhenNodePerfTests.ReadEqsResultNode_Under80ns` (passes isolated; touches no changed code). No new failures; golden + byte-stability unchanged.
 - `NodeEditor.UI.Tests` **41 / 0** (incl. new HitTester pin-over-wire test). `Hrot.Editor.AiShared.Tests` **761 / 0**. `Hrot.BTree.Editor.Tests` **382 / 0**. `Hrot.Hsm.Editor.Tests` **333 / 0**. `EditorSubsystemBoot` **10 / 0**.
 

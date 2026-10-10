@@ -279,6 +279,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                             End             = p.Destination, // real destination Z (Sim Z-up, P3D-302)
                             MobilityProfile = agentProfile.MobilityProfile,
                             BackendForce    = (NavigationBackend)p.BackendForce,
+                            RoadUse         = PathRequests.ResolveRoadUse(repo, entity, p.RoadUse),   // CE-3128
                             RouteHandle     = routeHandle,
                             NavLayerMask    = (int)NavLayerSelection.For(repo, entity, (uint)p.LayerMask),
                             MaxCost         = p.MaxCost,
@@ -361,19 +362,8 @@ namespace Fdp.Toolkit.Navigation.Systems
             var from = repo.HasComponent<SimTransform>(entity)
                 ? repo.GetComponent<SimTransform>(entity).Position
                 : Vector3.Zero;
-            var agentProfile = repo.HasComponent<NavAgentProfile>(entity)
-                ? repo.GetComponent<NavAgentProfile>(entity)
-                : default;
-            repo.Bus.Publish(new PathfindingRequestEvent
-            {
-                RequestId       = ((long)entity.Index << 32) | (uint)repo.GlobalVersion,
-                Start           = from,
-                End             = intent.FinalDestination,   // real destination Z (Sim Z-up, P3D-302)
-                MobilityProfile = agentProfile.MobilityProfile,
-                BackendForce    = (NavigationBackend)intent.BackendForce,
-                RouteHandle     = intent.RouteHandle,
-                NavLayerMask    = (int)NavLayerSelection.For(repo, entity, intent.LayerMask),
-            });
+            // ⭐ CE-3128 — built in ONE place with the replan (PathRequests), so the road use reaches the solver on both paths.
+            repo.Bus.Publish(PathRequests.FromIntent(repo, entity, in intent, from, ((long)entity.Index << 32) | (uint)repo.GlobalVersion));
         }
 
         /// <summary>Infantry (no <see cref="VehicleState"/>) on a crowd host joins the crowd, targeted at the intent's

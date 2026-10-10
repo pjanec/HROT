@@ -72,7 +72,7 @@ dotnet build FDP.sln
 Build the full solution (engine + HROT + examples):
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 Run tests (the new gizmo tests should be in `Fdp.Toolkits.Tests`):
@@ -82,7 +82,7 @@ dotnet test FDP\Engine\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj --nologo
 
 Or all tests:
 ```
-dotnet test IOS-IG-SimHost.sln --nologo
+dotnet test HROT.sln --nologo
 ```
 
 ---

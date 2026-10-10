@@ -61,6 +61,37 @@ public sealed class PreviewLifecycleRails
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-3156</c> — Stop Preview puts the CLOCK back with the world.</b>
+    /// 🔒 User, <c>2026-10-10</c>: <i>"Stop Preview does NOT reset time to zero (although the entity state resets
+    /// to initial state)."</i>
+    /// <para>📐 Stop rewound the repository (<c>SyncFrom</c>) and paused, and nothing repositioned
+    /// <c>MasterSyncController</c>'s accumulator — which the kernel writes into <c>GlobalTime</c> every frame —
+    /// so <c>simTime</c> stayed at the moment Stop was pressed. ⛔ No rail read time after a preview exit: the
+    /// one above asserts only that the editor survives.</para>
+    /// <para>⚠ Asserted against the time the preview STARTED from, not against literal zero: a preview entered
+    /// at a non-zero edit time must return THERE. In the normal case that value is 0.</para>
+    /// </summary>
+    [Fact]
+    public async Task Exiting_preview_returns_the_clock_to_where_the_preview_started()
+    {
+        (await Mcp.LoadScenarioEditAsync("hill-attack")).EnsureOk();
+        double before = (await Mcp.GetStatusAsync()).Double("simTime");
+
+        (await Mcp.EnterPreviewIfNeededAsync(startPaused: false)).EnsureOk();
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        double during = (await Mcp.GetStatusAsync()).Double("simTime");
+        Assert.True(during > before + 0.5,
+            $"the preview clock did not run (before {before}, during {during}) — the rail cannot prove a reset.");
+
+        (await Mcp.ExitPreviewAsync()).EnsureOk();
+        await Task.Delay(TimeSpan.FromSeconds(1));   // the snap is applied on the clock's next Update
+        var after = await Mcp.GetStatusAsync();
+
+        Assert.False(after.Bool("inPreview"));
+        Assert.Equal(before, after.Double("simTime"), precision: 3);
+    }
+
+    /// <summary>
     /// The record→replay round trip from the design's H4 list (record → stop → load → step frames).
     /// It was blocked by <c>HN-001</c>: <c>/recording/stop</c> ends with <c>ExitPreviewMode</c>, so it
     /// died on the same rewind.

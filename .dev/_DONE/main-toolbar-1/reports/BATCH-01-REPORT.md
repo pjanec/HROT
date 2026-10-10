@@ -90,7 +90,7 @@ are pre-existing skips, unrelated to this batch.
 ### Full solution build
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Build succeeded.  13 Warning(s)  0 Error(s)
 ```
 

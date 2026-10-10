@@ -29,7 +29,7 @@ Make the BTree codegen **fault-tolerant per asset**: an asset that cannot emit v
 - Also add an emit-core unit test (`Hrot.AiEditor.Persistence.Tests`): `BTreeEmitCore.EmitTopologyCore(dtoWithReachableUnboundAction)` **throws `InvalidOperationException`**; and with a disconnected (non-reachable) unbound node it does **not** throw.
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings introduced into existing assets (the real committed assets are all valid, so no BTREE0002 fires for them).
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings introduced into existing assets (the real committed assets are all valid, so no BTREE0002 fires for them).
 - [ ] **Failed: 0** in `Hrot.AiEditor.Generators.Tests`, `Hrot.AiEditor.Persistence.Tests`, `Hrot.BTree.Editor.Tests`.
 - [ ] An asset with a reachable unbound Action/Condition → generator skips it + emits a **Warning** (BTREE0002); the output compilation has **no errors** (verified by test).
 - [ ] Valid assets unchanged (normal emission).

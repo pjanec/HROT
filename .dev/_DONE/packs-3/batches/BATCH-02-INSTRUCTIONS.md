@@ -254,7 +254,7 @@ Do tasks in this order to unblock dependencies:
 
 Run regressions before submitting:
 ```
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln --no-incremental
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln --no-incremental
 dotnet test Hrot.ClusterRunner.Integration.Tests --filter "EditorFileIO|EditorPreview|UrbanCombat|CarKinematics" --no-build
 ```
 

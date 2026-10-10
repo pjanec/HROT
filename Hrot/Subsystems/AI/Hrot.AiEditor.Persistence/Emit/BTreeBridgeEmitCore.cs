@@ -598,9 +598,10 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{ind}return {methodRef}(ref dto, ctx.Self, ctx.World);");
             return;
         }
+        string um = info.UnitMemoryArgs("ctx.Self", "ctx.World");   // ⭐ CE-3137 U-2
         sb.AppendLine(info.ReturnsBool
-            ? $"{ind}var status = {methodRef}(ref dto, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;"
-            : $"{ind}var status = {methodRef}(ref dto, ctx.Self, ctx.World);");
+            ? $"{ind}var status = {methodRef}(ref dto, ctx.Self, ctx.World{um}) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;"
+            : $"{ind}var status = {methodRef}(ref dto, ctx.Self, ctx.World{um});");
         if (info.WritesChannels.Count > 0)
             ChannelClearEmit.Emit(sb, info.WritesChannels, ind);
         sb.AppendLine($"{ind}return status;");
@@ -682,9 +683,10 @@ public static class BTreeBridgeEmitCore
             // ⭐ CE-504 C-2 — the shared stateful form takes (ref P, ref WS, Entity, EntityRepository).
             //   ⭐ slice 4 — the only stateful call; the (ref dto, ref ws, ref st, ref ctx) arm is retired.
             var shared = sharedAi?.Invoke(methodFqn);
+            string um = shared?.UnitMemoryArgs("ctx.Self", "ctx.World") ?? "";   // ⭐ CE-3137 U-2
             string call = shared is { ReturnsBool: true }
-                ? $"({methodRef}(ref dto, ref ws, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure)"
-                : $"{methodRef}(ref dto, ref ws, ctx.Self, ctx.World)";
+                ? $"({methodRef}(ref dto, ref ws, ctx.Self, ctx.World{um}) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure)"
+                : $"{methodRef}(ref dto, ref ws, ctx.Self, ctx.World{um})";
             AppendReusableStatefulThunk(sb, dto, packedFields, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
                 call);
         }
@@ -807,9 +809,10 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}actionRegistry.{(isCond ? "RegisterCondition" : "Register")}(\"{fqn}\",");
             sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
             sb.AppendLine($"{pad2}{Indent}{{");
+            string um = info?.UnitMemoryArgs("ctx.Self", "ctx.World") ?? "";   // ⭐ CE-3137 U-2
             sb.AppendLine(info is { ReturnsBool: true }
-                ? $"{ind}var status = {GlobalMethodRef(fqn)}(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;"
-                : $"{ind}var status = {GlobalMethodRef(fqn)}(ctx.Self, ctx.World);");
+                ? $"{ind}var status = {GlobalMethodRef(fqn)}(ctx.Self, ctx.World{um}) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;"
+                : $"{ind}var status = {GlobalMethodRef(fqn)}(ctx.Self, ctx.World{um});");
             if (info is { WritesChannels.Count: > 0 })
                 ChannelClearEmit.Emit(sb, info.WritesChannels, ind);
             sb.AppendLine($"{ind}return status;");

@@ -38,7 +38,7 @@ Build test compilations that DEFINE the methods being referenced (either referen
 - `Generator_WrongArityOrReturn_IsInvalid`: a method with the blackboard first param but wrong arity/return → invalid (proves it's a real signature check, not just first-param).
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors; 0 new warnings for the committed (valid) assets (no BTREE0002 fires for them — they bind `Action_Wander`-style compatible methods).
+- [ ] `dotnet build HROT.sln` — 0 errors; 0 new warnings for the committed (valid) assets (no BTREE0002 fires for them — they bind `Action_Wander`-style compatible methods).
 - [ ] **`Failed: 0`** in `Hrot.AiEditor.Generators.Tests`, `Hrot.AiEditor.Persistence.Tests`, `Hrot.BTree.Editor.Tests`. (Pre-existing `Generators.Tests` MigrationEquivalence ×2 may remain — list them explicitly and confirm they are unchanged/pre-existing by stashing if unsure.)
 - [ ] A bound-but-incompatible (or unresolved) method → asset skipped + BTREE0002 + **zero Error diagnostics** in the generator output (the guarantee). Compatible methods emit normally. Sibling isolation holds.
 - [ ] No global TWAE change; no excluded files; no suppressed diagnostics.

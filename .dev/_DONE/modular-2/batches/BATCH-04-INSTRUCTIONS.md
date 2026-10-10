@@ -422,24 +422,24 @@ Keep `Hrot.Map.Common` (stub) in the solution for now.
 
 **Before starting:**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 **After Task A (Hrot.Network.Orchestration):**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 **After Task B (Hrot.Core):**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot.Core.Tests/Hrot.Core.Tests.csproj
 ```
 
 **Final verification:**
 ```
-dotnet build IOS-IG-SimHost.sln
-dotnet test IOS-IG-SimHost.sln --filter "FullyQualifiedName~Hrot.Core|FullyQualifiedName~Hrot.Map.Common"
+dotnet build HROT.sln
+dotnet test HROT.sln --filter "FullyQualifiedName~Hrot.Core|FullyQualifiedName~Hrot.Map.Common"
 ```
 
 ---

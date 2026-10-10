@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.Terrain
     ///   <item><term><c>wall</c></term><description>LineString + <c>thickness</c> → one thin prism per segment</description></item>
     ///   <item><term><c>slab</c></term><description>Polygon with Z per vertex (or <c>z</c>) → walkable floor</description></item>
     ///   <item><term><c>ramp</c></term><description>Polygon with Z per vertex → sloped walkable link</description></item>
-    ///   <item><term><c>surface</c></term><description>Polygon + <c>surface</c> = road / open / forest / water</description></item>
+    ///   <item><term><c>surface</c></term><description>Polygon + <c>surface</c> = open / forest / water (⛔ road retired, CE-3128 — roads are the road graph)</description></item>
     /// </list>
     ///
     /// <para>⛔ <b>Fails loudly</b> on anything it does not understand — an unknown kind, a polygon with
@@ -176,12 +176,17 @@ namespace Fdp.Toolkit.Terrain
                             ?? throw new ArgumentException($"Terrain world {where}: a surface needs 'properties.surface'.");
                         var type = surface switch
                         {
-                            "road" => TerrainSurfaceType.Road,
+                            // ⛔ CE-3128 (R-231) — roads are the terrain's road GRAPH now (terrain.json "roadNetworks"):
+                            //   lanes with widths, junctions, the route planner and the danger sensor all read it. A road
+                            //   polygon would be a second, drifting shape of the same road (R-132).
+                            "road" => throw new ArgumentException(
+                                $"Terrain world {where}: 'surface: road' is retired — declare the road in the terrain's road "
+                              + "network (terrain.json \"roadNetworks\", lanes with widths) instead (CE-3128)."),
                             "open" => TerrainSurfaceType.Open,
                             "forest" => TerrainSurfaceType.Forest,
                             "water" => TerrainSurfaceType.Water,
                             _ => throw new ArgumentException(
-                                $"Terrain world {where}: unknown surface '{surface}' (road, open, forest, water)."),
+                                $"Terrain world {where}: unknown surface '{surface}' (open, forest, water)."),
                         };
                         foreach (var ring in OuterRings(geometry, geomType, where))
                         {

@@ -641,7 +641,28 @@ namespace Hrot.Editor
         {
             private readonly PreviewClusterOpHandler _handler;
             private readonly MasterSyncController    _timeController;
+            private readonly Fdp.Toolkit.Time.ITimeCommands _timeCommands;
             private bool _inPreview;
+
+            /// <summary>
+            /// ⭐⭐⭐ <c>CE-3156</c> — <b>where the clock stood when the preview began</b>, so Stop can put it back.
+            /// <para>🔒 User, <c>2026-10-10</c>: <i>"Stop Preview does NOT reset time to zero (although the entity
+            /// state resets to initial state)."</i></para>
+            /// <para>📐 Measured: Stop did two things — <c>TriggerUnloadingPreview()</c> (the world rewind,
+            /// <c>_liveRepo.SyncFrom(_snap)</c>) and <c>SwitchToDeterministic</c> (a PAUSE). Neither repositions the
+            /// clock. <c>SyncFrom</c> restores entities and eight named singletons, <b>not</b> <c>GlobalTime</c>
+            /// (<c>EntityRepository.Sync.cs:112-123</c>) — and restoring that singleton would not help anyway: the
+            /// kernel rewrites it every frame from <c>MasterSyncController._totalTime</c>
+            /// (<c>ModuleHostKernel.cs:496-500</c>), which nothing on the Stop path touched. ⇒ the world went back
+            /// to its snapshot while the clock kept the time of the moment Stop was pressed.</para>
+            /// <para>⭐ The clock's accumulator is exactly what <c>DESIGN_Deterministic_Network_Ids.md</c> §2b calls
+            /// <i>"state outside the EntityRepository [that] survives the preview rewind"</i> — the same class as the
+            /// id allocator, the entity map and the ELM queues, which already have participants. ⚠ It is captured
+            /// HERE rather than as an <c>IPreviewRewindable</c> because the one legal way to move the clock is
+            /// <c>ITimeCommands.SnapTo</c> (<c>DESIGN_Time_Architecture.md</c> §12a), and on the cluster path only
+            /// the master owns the clock — a shared participant is a larger question, filed with the row.</para>
+            /// </summary>
+            private GlobalTime _enteredAt;
 
             /// <param name="rewindables">
             /// ⭐⭐ <b><c>HN-017</c> — the non-ECS state the preview must also put back.</b>
@@ -651,19 +672,31 @@ namespace Hrot.Editor
             /// controller is constructed in the same method, a few lines later, which is why the list is a
             /// constructor argument and not something attached afterwards.</para>
             /// </param>
+            /// <param name="timeCommands">
+            /// ⭐ <c>CE-3156</c> — the seam through which Stop asks the clock to go back
+            /// (<c>DESIGN_Time_Architecture.md</c> §12a: <i>"callers outside the clock no longer call it — they
+            /// ask: ITimeCommands.SnapTo"</i>). ⛔ Not optional and not defaulted: the caller HOLDS it
+            /// (<c>_timeCommands</c>, built at <c>Initialize</c>) — the same silent-default rule as
+            /// <paramref name="rewindables"/>.
+            /// </param>
             internal EditorPreviewController(
                 EntityRepository world,
                 MasterSyncController timeController,
+                Fdp.Toolkit.Time.ITimeCommands timeCommands,
                 System.Collections.Generic.IEnumerable<Fdp.Toolkit.Orchestration.Preview.IPreviewRewindable> rewindables)
             {
                 _handler        = new PreviewClusterOpHandler(world, rewindables);
                 _timeController = timeController;
+                _timeCommands   = timeCommands ?? throw new System.ArgumentNullException(nameof(timeCommands));
             }
 
             public bool IsInPreviewMode => _inPreview;
 
             public void EnterPreviewMode(bool startPaused = false)
             {
+                // ⭐ CE-3156 — BEFORE the clock starts running: this is the position the world snapshot belongs to.
+                _enteredAt = _timeController.GetCurrentState();
+
                 _handler.TriggerLoadingPreview();
                 if (!startPaused)
                     _timeController.SwitchToContinuous();
@@ -674,6 +707,14 @@ namespace Hrot.Editor
             {
                 _handler.TriggerUnloadingPreview();
                 _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
+
+                // ⭐⭐⭐ CE-3156 — and the CLOCK goes back with the world. The pause above stays (it takes effect at
+                //   once; CE-3068); the snap is applied by the clock FIRST on its next Update, before any
+                //   pause/resume intent (MasterSyncController.cs:162-163), and leaves the clock paused at the
+                //   position the preview started from — the whole position: frame number, sim time, unscaled time
+                //   and wall ticks, so nothing is left from the abandoned timeline.
+                _timeCommands.SnapTo(_enteredAt);
+
                 _inPreview = false;
             }
         }
@@ -1638,9 +1679,9 @@ namespace Hrot.Editor
             // ── Blueprint runtime ─────────────────────────────────────────────────────
             // ⭐⭐⭐ A4 / O0 (2026-09-20) — THE EDITOR NO LONGER WIRES THIS AT ITS ROOT.
             //   The tick system is spliced by CgfLogicPack (constructed above with
-            //   _blueprintRegistry), and BlueprintMaintenanceSystem is provided by
-            //   CgfCapabilities.Brain as a SingleSystemModule. Both reach this composition through
-            //   the plan, exactly as they now reach CGF's.
+            //   _blueprintRegistry) and reaches this composition through the plan, exactly as it
+            //   reaches CGF's. ⛔ BlueprintMaintenanceSystem (once a CgfCapabilities.Brain
+            //   SingleSystemModule) is retired by CE-3137 U-0 (R-236) — the store never moves a slot.
             //   ⛔ THE ROOT SPLICE HAD TO GO, not merely become redundant: the pack's tick is inside
             //     planSimSystems, so splicing a SECOND instance here would put two BlueprintTickSystems
             //     in one group (DistinctByType runs BEFORE the splice and cannot see it).
@@ -1723,7 +1764,7 @@ namespace Hrot.Editor
                 storageDirectory: isolatedTempRoot));
 
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
-            _kernel.RegisterModule(new EditorSystemsModule());
+            _kernel.RegisterModule(new EditorSystemsModule(() => EntityCreation));   // ⭐ CE-3141 — the obstacle tool creates through the pack
 
             // ?? 4c. ELM + offline spawning module + scenario genesis pipeline ??????????????????
             // CreateEntityRequestSystem drains scenarioLoadSource each Input tick and emits
@@ -1745,13 +1786,14 @@ namespace Hrot.Editor
             //   anyway because Q65 §0 forbids removing a capability by composition — and because a host
             //   that skipped it would warn forever through Unserviceable().
             _kernel.RegisterGlobalSystem(creation.PromotionSystem);
+            _kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
 
             // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this
             //   design was silent.
             var unserviceable = creation.Unserviceable(new object[]
             {
                 creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-                creation.PromotionSystem,
+                creation.PromotionSystem, creation.ObstacleBakeSystem,
             });
             if (unserviceable.Length > 0)
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Warn(unserviceable);
@@ -1926,12 +1968,13 @@ namespace Hrot.Editor
             // ⚠ The three manual registrations go through ContributeExtras, which the pack invokes AFTER
             // the reflection pass and BEFORE building StatelessGizmoSystem — the system sizes its
             // visibility cache from registry.Rules.Count, so a rule added later would silently ignore its
-            // visibility policy. MissionPresentationGizmo needs an IGeographicTransform and
-            // EntityEditorLabelGizmo a BehaviorRegistry; reflection cannot supply either.
+            // visibility policy. ⭐ CE-3123: the mission and label gizmos get their services through Services now.
             _editorMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _world,
+                    // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
+                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry),
                     GizmoUiPublisher = _gizmoUiHub,
                     Inspector = () => _fdpInspectorState,
                     // ⭐⭐⭐ CE-300 — the AI editors' entity cell follows the ANNOUNCEMENT, not a map
@@ -1963,12 +2006,7 @@ namespace Hrot.Editor
                     StartEnabled = true,
                     ContributeExtras = regs =>
                     {
-                        regs.Stateless.Register(
-                            new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),
-                            new[] { typeof(SimTransform), typeof(SelectionState) });
-                        regs.Stateless.Register(
-                            new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
-                            new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+                        // ⭐ CE-3123 — the mission and label gizmos are reflected now (Services above).
                         regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
                             writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));   // ⭐ AX-007
                     },
@@ -2070,56 +2108,8 @@ namespace Hrot.Editor
                 //   consumer; until then the handler still points the inspector at its own choice.
                 _fdpInspectorState.SelectedEntity = target;
             });
-            actionRegistry.Register(GlobalActionIds.ToggleAiTrace, (view, target) =>
-            {
-                if (target == Entity.Null) return;
-                if (view is not EntityRepository repo) return;
-                if (!repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(target)) return;
-
-                const Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EnableTraceBuffer;
-                bool current = repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target)
-                    && (repo.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target).Behavior & flag) != 0;
-                bool next = !current;
-                string nextStr = next ? "true" : "false";
-                string patchJson = $$"""
-                {
-                    "{{nameof(Fdp.Toolkit.Behavior.Diagnostics.DebugState.Behavior)}}": {
-                        "{{flag}}": {{nextStr}}
-                    }
-                }
-                """;
-
-                repo.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand
-                {
-                    Target = target,
-                    PatchJson = patchJson,
-                });
-            });
-            actionRegistry.Register(GlobalActionIds.ToggleAiTraceLog, (view, target) =>
-            {
-                if (target == Entity.Null) return;
-                if (view is not EntityRepository repo) return;
-                if (!repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(target)) return;
-
-                const Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EmitToLog;
-                bool current = repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target)
-                    && (repo.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target).Behavior & flag) != 0;
-                bool next = !current;
-                string nextStr = next ? "true" : "false";
-                string patchJson = $$"""
-                {
-                    "{{nameof(Fdp.Toolkit.Behavior.Diagnostics.DebugState.Behavior)}}": {
-                        "{{flag}}": {{nextStr}}
-                    }
-                }
-                """;
-
-                repo.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand
-                {
-                    Target = target,
-                    PatchJson = patchJson,
-                });
-            });
+            // ⭐ CE-3123 — ToggleAiTrace / ToggleAiTraceLog are registered by MapInteractionPack (AiTraceActions) on every map
+            //   host; the inspector menu below still publishes the same action ids.
 
             var contextIngress = new ContextActionIngressSystem(entityMap, interactionBus);
             // ⛔ The RubberBandGizmo registration MOVED into MapInteractionPack (2026-09-20, §2.7.16) —
@@ -2248,7 +2238,9 @@ namespace Hrot.Editor
                 Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMap(_entityMap!),
                 Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(elm),
             };
-            _previewController = new EditorPreviewController(_world, _timeController!, previewRewindables);
+            // ⭐ CE-3156 — _timeCommands is handed over because this method HOLDS it (built above, at the
+            //   orchestration-bus wiring): Stop Preview needs it to put the clock back with the world.
+            _previewController = new EditorPreviewController(_world, _timeController!, _timeCommands!, previewRewindables);
 
             // ── 8b. AI-debug API (MCP) host — ported from feat/ai-debug-api. Works headless. Enabled only
             //    when HROT_DEBUG_API_PORT names a port, so it costs nothing in normal runs; the MCP server

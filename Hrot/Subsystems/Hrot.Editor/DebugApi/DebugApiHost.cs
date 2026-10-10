@@ -683,8 +683,11 @@ namespace Hrot.Editor.DebugApi
             // ⭐ Buildings programme Stage 0 — every parameter of a type with its value and provenance.
             _routes.Add(new("GET", "/tkb/resolve", ctx =>
             {
+                // ⭐ tuning T-1 — no type: the generated reference library (a pair with ammo=&weapon=, or the whole library)
+                if (ctx.Query("type") is null && (ctx.Query("ammo") is not null || ctx.Query("library") is not null))
+                    return Task.FromResult(Ok(ReferenceReport.Resolve(ctx.Query("ammo"), ctx.Query("weapon"))));
                 if (!long.TryParse(ctx.Query("type"), out var tkbType))
-                    return Task.FromResult(Fail(400, "Query 'type' (TKB type id) is required.", DebugApiHints.TkbType));
+                    return Task.FromResult(Fail(400, "Query 'type' (TKB type id) is required — or 'ammo' (and 'weapon') for the reference library, or 'library=1' to list it.", DebugApiHints.TkbType));
                 var node = Service().ResolveTkbParameters(tkbType);
                 return Task.FromResult(node is null
                     ? Fail(404, $"TKB type {tkbType} not found.", DebugApiHints.TkbType)
@@ -703,14 +706,48 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/terrain/query", ctx =>
             {
                 var purpose = ctx.Query("purpose") ?? "sight";
-                if (purpose != "sight")
-                    return Task.FromResult(Fail(400, $"purpose '{purpose}' is not available yet — Stage 1 serves 'sight' (fire, sound, fragment, blast come with their solvers)."));
+                if (purpose != "sight" && purpose != "fire")
+                    return Task.FromResult(Fail(400, $"purpose '{purpose}' is not available yet — 'sight' and 'fire' are served (sound, fragment, blast come with their solvers)."));
                 if (!TryVec3(ctx.Query("from"), out var from) || !TryVec3(ctx.Query("to"), out var to))
                     return Task.FromResult(Fail(400, "Query 'from' and 'to' are required as 'x,y,z' (local metres)."));
+                if (purpose == "fire")
+                {
+                    float pen = 0f, dmg = 0f;
+                    if (ctx.Query("penetration") is string ps && !float.TryParse(ps, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out pen))
+                        return Task.FromResult(Fail(400, $"penetration '{ps}' is not a number (mm RHA)."));
+                    if (ctx.Query("damage") is string ds && !float.TryParse(ds, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dmg))
+                        return Task.FromResult(Fail(400, $"damage '{ds}' is not a number."));
+                    return Task.FromResult(Ok(Service().QueryTerrainFire(from, to, pen, dmg)));
+                }
                 return Task.FromResult(Ok(Service().QueryTerrain(from, to)));
             }));
 
             _routes.Add(new("GET", "/doors", _ => Task.FromResult(Ok(Service().GetDoors()))));
+
+            // ⭐ Tuning T-4 — line of sight with its evidence (docs/DESIGN_Terrain_Combat_Tuning.md §4).
+            _routes.Add(new("GET", "/perception/los", ctx =>
+            {
+                if (!long.TryParse(ctx.Query("observer"), out var obs) || !long.TryParse(ctx.Query("target"), out var tgt))
+                    return Task.FromResult(Fail(400, "Query 'observer' and 'target' (network ids) are required."));
+                var node = Service().ExplainLos(obs, tgt);
+                return Task.FromResult(node["error"] is JsonNode err ? Fail(404, (string)err!) : Ok(node));
+            }));
+
+            // ⭐ Tuning T-4 — the shot records the fire chain writes (docs/DESIGN_Terrain_Combat_Tuning.md §4).
+            _routes.Add(new("GET", "/combat/shots", ctx =>
+            {
+                int last = int.TryParse(ctx.Query("last"), out var l) && l > 0 ? l : 20;
+                long? shooter = long.TryParse(ctx.Query("shooter"), out var sh) ? sh : null;
+                long? target = long.TryParse(ctx.Query("target"), out var tg) ? tg : null;
+                return Task.FromResult(Ok(Service().GetShots(last, shooter, target)));
+            }));
+
+            // ⭐ CE-1032 (W-10) — the warhead bursts the area effect assessed (docs/DESIGN_Building_Interiors.md §3k).
+            _routes.Add(new("GET", "/combat/detonations", ctx =>
+            {
+                int last = int.TryParse(ctx.Query("last"), out var l) && l > 0 ? l : 10;
+                return Task.FromResult(Ok(Service().GetDetonations(last)));
+            }));
 
             // Group N — world/coordinate info
             _routes.Add(new("GET", "/world/info", _ =>
@@ -1013,6 +1050,15 @@ namespace Hrot.Editor.DebugApi
                 if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntitySensors(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            // ⭐ CE-3144 — a unit's RAW TargetMemory (heard + unmappable slots too; GET /entities/{id} drops them).
+            _routes.Add(new("GET", "/entities/{networkId}/memory", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityMemory(id)).ConfigureAwait(false);
                 return Ok(node);
             }));
 

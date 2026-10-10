@@ -297,20 +297,41 @@ namespace Hrot.Network.NED.SimHost
         }
 
         /// <summary>
-        /// ⭐ <c>R-179</c> — the solver of one child sensor: picked ONCE (the least-loaded Perception node) and kept; a
-        /// sensor this node inherited keeps the solver already on the wire; re-picked only when that node has left the
-        /// cluster cache (a departure removes it, S7). <c>0</c> while no Perception node is known — the next scan retries.
+        /// ⭐ <c>R-179</c> — the solver of one child sensor: picked ONCE and kept; a sensor this node inherited keeps the solver
+        /// already on the wire; re-picked only when that node has left the cluster cache (a departure removes it, S7). <c>0</c>
+        /// while no Perception node is known — the next scan retries.
+        /// ⭐⭐ <c>CE-3136</c> P-4 (R-239) — a NEW pick prefers the node already solving a SIBLING sensor of the same unit when it
+        /// carries this sensor's role, else the least-loaded node: a unit's sensors share one solver, so a query that reads
+        /// what the unit's other sensors hold (<c>ThreatExposureTest</c> reads the perception sensors' contact lists, which
+        /// live only where those sensors are solved) finds them there. 🔒 User: <i>"when the brain picks a node for a sensor,
+        /// prefer the node already solving another sensor of the same unit" — "yes"</i>.
         /// </summary>
         private int SolverFor((long ParentNetworkId, int LocalChildIndex) key, uint blueprintId)
         {
             if (_clusterCache == null) return 0;
             var known = _clusterCache.AllNodeIds();
             if (_solverOf.TryGetValue(key, out int solver) && Contains(known, solver)) return solver;
+            var role = RoleFor(blueprintId);
             solver = _onWire.TryGetValue(key, out var wire) && wire.SolverNodeId != 0 && Contains(known, wire.SolverNodeId)
                 ? wire.SolverNodeId
-                : _clusterCache.GetLeastLoadedNode(RoleFor(blueprintId)) ?? 0;
+                : SiblingSolver(_solverOf, key, role, known, _clusterCache) ?? _clusterCache.GetLeastLoadedNode(role) ?? 0;
             if (solver != 0) _solverOf[key] = solver;
             return solver;
+        }
+
+        /// <summary>The solver of the unit's lowest-numbered OTHER sensor that is still known and carries <paramref name="role"/>.</summary>
+        internal static int? SiblingSolver(IReadOnlyDictionary<(long ParentNetworkId, int LocalChildIndex), int> solverOf,
+            (long ParentNetworkId, int LocalChildIndex) key, NodeRole role, IReadOnlyList<int> known,
+            Hrot.Network.Routing.IClusterStateCache cache)
+        {
+            int? best = null; int bestIndex = int.MaxValue;
+            foreach (var (other, node) in solverOf)
+            {
+                if (other.ParentNetworkId != key.ParentNetworkId || other.LocalChildIndex == key.LocalChildIndex) continue;
+                if (other.LocalChildIndex >= bestIndex || !Contains(known, node) || !cache.HasRole(node, role)) continue;
+                best = node; bestIndex = other.LocalChildIndex;
+            }
+            return best;
         }
 
         /// <summary>

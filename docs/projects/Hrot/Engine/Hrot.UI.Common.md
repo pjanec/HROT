@@ -10,7 +10,7 @@ stale-below: EVERYTHING. Every path, type and claim below refers to a project th
 🔒 **User ruling:** *"delete dead code Hrot.UI.Common."*
 
 📐 **Why, measured twice and independently:** `Hrot.UI.Common.csproj` had **ZERO `ProjectReference`s
-anywhere in the repository** and was **absent from `IOS-IG-SimHost.sln`** — ⇒ it was never compiled, by
+anywhere in the repository** and was **absent from `HROT.sln`** — ⇒ it was never compiled, by
 anything, ever. ⛔⛔ **And it was not merely unused — it was a COMPLETE DUPLICATE of live source:** every
 one of its 20 files had a counterpart in **`Hrot.Presentation`** at the same relative path, and the live
 copies declare the **`Hrot.UI.Common.*` namespaces themselves**. ⇒ ⭐⭐⭐ **the shipped types this document

@@ -32,7 +32,7 @@ This batch eliminates magic integer literals from all network translator ordinal
 - `Hrot/Network/Hrot.Network.NED.Tests/` (if it exists)
 - `FDP/Toolkits/Fdp.Toolkits.Tests/` - Run after Task 3 changes
 - `Hrot/Network/Hrot.Network.BDC.Tests/` (if it exists)
-- Full solution build: `dotnet build IOS-IG-SimHost.sln` from repo root
+- Full solution build: `dotnet build HROT.sln` from repo root
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -74,7 +74,7 @@ Replace all raw integer literals in translator ordinal properties with type-safe
 
 **DO NOT** move to the next task until:
 - ✅ Current task implementation complete
-- ✅ **Build passes** (`dotnet build IOS-IG-SimHost.sln` from `d:\Work\IOS-IG-SimHost-FDP-2`)
+- ✅ **Build passes** (`dotnet build HROT.sln` from `d:\Work\IOS-IG-SimHost-FDP-2`)
 - ✅ **Relevant tests pass**
 
 **No stopping to ask for permission. Fix any compilation errors before moving on. Work autonomously until all success criteria are met.**
@@ -112,7 +112,7 @@ dtMissionControlAck     = 91
 The DESIGN.md § 2.1 shows the complete final enum with all existing + new values and their associated translator names as comments.
 
 **Verify:**
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 - No existing enum values changed.
 
 ---
@@ -141,7 +141,7 @@ The DESIGN.md § 2.1 shows the complete final enum with all existing + new value
 **Additional sweep:** Scan all files under `Hrot/Network/Hrot.Network.NED/Replication/` for any remaining `OrdinalValue = [digit]` or `DescriptorOrdinal => [digit]` patterns. Update each to reference the corresponding `EDescriptorType` member added in Task 1.
 
 **Verify:**
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 - `Select-String -Path "Hrot/Network/Hrot.Network.NED/Replication/**/*.cs" -Pattern "OrdinalValue = [0-9]|DescriptorOrdinal => [0-9]"` - should yield zero results.
 
 ---
@@ -179,7 +179,7 @@ namespace Fdp.Toolkit.Time
 
 **Verify:**
 - `TimeDescriptorType.cs` exists at `FDP/Toolkits/Fdp.Toolkits/Time/TimeDescriptorType.cs`.
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 - Run time toolkit tests: `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --no-build` (if the project exists).
 - The numeric values at runtime are unchanged (201, 202, 203, 205, 206).
 
@@ -212,18 +212,18 @@ namespace Hrot.BDC
 
 **Verify:**
 - `BdcDescriptorType.cs` exists at `Hrot/Network/Hrot.Network.BDC/BdcDescriptorType.cs`.
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 - `Select-String -Path "Hrot/Network/Hrot.Network.BDC/**/*.cs" -Pattern "=> 1000|=> 1002"` yields zero matches in translator files.
 
 ---
 
 ## 🧪 Testing Requirements
 
-1. **Build after each task:** `dotnet build IOS-IG-SimHost.sln` from `d:\Work\IOS-IG-SimHost-FDP-2`
+1. **Build after each task:** `dotnet build HROT.sln` from `d:\Work\IOS-IG-SimHost-FDP-2`
 2. **After Task 3:** `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj`
 3. **Final full test sweep:**
    ```
-   dotnet test IOS-IG-SimHost.sln --no-build
+   dotnet test HROT.sln --no-build
    ```
 
 No new tests required by this batch - ordinal cleanup is mechanical. However, verify existing time toolkit tests still pass (they validate ordinal values at runtime).
@@ -244,7 +244,7 @@ Submit your report to `.dev/module-phase-manual/reports/BATCH-02-REPORT.md`.
 - [ ] MPM-P2-T04: Create BdcDescriptorType + update BDC translators
 
 ## Build Status
-[Result of: dotnet build IOS-IG-SimHost.sln]
+[Result of: dotnet build HROT.sln]
 
 ## Test Status
 [Result of relevant test runs]
@@ -275,7 +275,7 @@ This batch is DONE when:
 - [ ] All NED translators in `Hrot.Network.NED/Replication/` use `(long)EDescriptorType.dtXxx` - zero raw integer literals remain
 - [ ] `TimeDescriptorType.cs` exists; all 5 time translators use `(long)TimeDescriptorType.Xxx`
 - [ ] `BdcDescriptorType.cs` exists; both BDC translators use `(long)BdcDescriptorType.Xxx`
-- [ ] `dotnet build IOS-IG-SimHost.sln` passes with zero errors
+- [ ] `dotnet build HROT.sln` passes with zero errors
 - [ ] Existing toolkit tests pass
 - [ ] Report submitted
 

@@ -1,3 +1,13 @@
+<!--STATUS
+state: LIVE (§6/§8 overlays SUPERSEDED)
+updated: 2026-10-08
+current-answer: the TUNING CONSOLE sections; ⛔ the AI OVERLAYS (§6, §8 overlay enablement) are superseded
+stale-below: §6 "Overlay architecture" and the overlay half of §8 — the IGizmoSource overlay family was folded into
+  [GizmoProjector] gizmos with per-family scope and per-unit pins (R-227); DebugState.Ai survives as the pin store
+superseded-by: ../../DESIGN_Terrain_Combat_Tuning.md §5b (overlay half only)
+related-designs:
+  - ../../DESIGN_Terrain_Combat_Tuning.md §5b — owns map-gizmo scope and pins; folded this file's overlays (CE-3121).
+-->
 # Runtime AI Tuning Console & AI Debug Overlays — Design v1.0
 
 Consolidated design from the brainstorming sessions between the project owner and Claude.

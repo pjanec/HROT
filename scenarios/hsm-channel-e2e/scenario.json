@@ -4,6 +4,7 @@
     "schemaVersion": 1
   },
   "header": {
+    "terrainName": "berlin",
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0"
   },

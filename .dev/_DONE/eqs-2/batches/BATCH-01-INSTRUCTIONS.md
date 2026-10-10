@@ -42,7 +42,7 @@ translators. No solver logic or systems in this batch — only types and compile
 
 ```powershell
 # Build the full solution
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Build FDP only (faster iteration)
 dotnet build FDP/FDP.sln
@@ -206,7 +206,7 @@ For each translator stub:
 **No tests required** for translator stubs — compile-only objective.
 
 **Build Verification:**
-- `dotnet build IOS-IG-SimHost.sln` must succeed without errors.
+- `dotnet build HROT.sln` must succeed without errors.
 
 ---
 
@@ -251,7 +251,7 @@ This batch is DONE when:
 - [ ] `EqsSensorConfigTopic`, `EqsResultTopic`, `EqsResultEntry` DDS structs compile
 - [ ] All four translator class stubs compile against `IDescriptorTranslator`
 - [ ] `GlobalComponentIds` has `EqsSensor = 207`, `EqsCognitiveBuffer = 208`, `EqsResultPool = 209`
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds without errors
+- [ ] `dotnet build HROT.sln` succeeds without errors
 - [ ] All 7+ unit tests pass
 - [ ] Report submitted
 

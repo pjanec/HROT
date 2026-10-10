@@ -176,7 +176,7 @@ holds only `DEBT-NOTE-1`, about `DebugState` placement. ⭐ **`BP-304` is now th
 
 | gate | command | result |
 |---|---|---|
-| solution | `dotnet build IOS-IG-SimHost.sln -t:Rebuild` | ✅ **0 errors / 69 warnings** |
+| solution | `dotnet build HROT.sln -t:Rebuild` | ✅ **0 errors / 69 warnings** |
 | ⭐ **FastHSM** *(NO `--no-build`)* | `dotnet test FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Fhsm.Tests.csproj` | ✅ **300 / 300, 0 skipped** *(was 298 / 300)* |
 | Blueprints | `dotnet test …/Hrot.Blueprints.Tests.csproj --no-build` | ✅ **3681 / 3691, 0 failed, 10 skipped** |
 | AiShared | `dotnet test …/Hrot.Editor.AiShared.Tests.csproj --no-build` | ✅ **1289** |

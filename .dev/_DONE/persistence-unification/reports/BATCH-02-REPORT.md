@@ -106,7 +106,7 @@ The emitter emits `builder.Event("Name", EventId, ...)` with a literal integer. 
 ### Full suite results:
 
 ```
-dotnet build IOS-IG-SimHost.sln       →  0 errors, 0 warnings (touched projects clean)
+dotnet build HROT.sln       →  0 errors, 0 warnings (touched projects clean)
 EditorSubsystemBoot filter            →  10/10 PASS
 Hrot.Editor.AiShared.Tests            →  761/761 PASS
 Hrot.AiEditor.Persistence.Tests      →  88/88 PASS  (75 BATCH-01 + 13 new)

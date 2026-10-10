@@ -93,6 +93,9 @@
   <ItemGroup>
     <!-- Buildings programme Stage 1 — the shared terrain material library (data, not code). -->
     <EmbeddedResource Include="Terrain\Data\materials.json" LogicalName="Fdp.Toolkit.Terrain.materials.json" />
+    <EmbeddedResource Include="Tkb\Reference\Data\ammo.json" LogicalName="Fdp.Toolkit.Tkb.Reference.ammo.json" />
+    <EmbeddedResource Include="Tkb\Reference\Data\weapons.json" LogicalName="Fdp.Toolkit.Tkb.Reference.weapons.json" />
+    <EmbeddedResource Include="Tkb\Reference\Data\coefficients.json" LogicalName="Fdp.Toolkit.Tkb.Reference.coefficients.json" />
   </ItemGroup>
 
   <ItemGroup>

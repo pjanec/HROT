@@ -10,7 +10,7 @@ Performed the atomic swap via git:
 - `git rm Hrot/Subsystems/Hrot.AI.Behaviors/Trees/SampleScout.cs Hrot/Subsystems/Hrot.AI.Behaviors/Machines/SampleGuard.cs`
 - Removed now-empty `.dev/_DONE/persistence-unification/migration-artifacts/` directory tree.
 
-**Build result:** `dotnet build IOS-IG-SimHost.sln -c Debug --no-incremental` → **0 errors / 26 warnings (all pre-existing DEBT-BCP-004)**.
+**Build result:** `dotnet build HROT.sln -c Debug --no-incremental` → **0 errors / 26 warnings (all pre-existing DEBT-BCP-004)**.
 
 **Generated files confirmed present:**
 - `obj/GeneratedFiles/Hrot.AiEditor.Generators/Hrot.AiEditor.Generators.BTreeJsonGenerator/SampleScout.g.cs`

@@ -46,7 +46,7 @@ Five new tests appended to the existing `BTreeCommandSinkTests` class:
 
 ## Build
 
-- `dotnet build IOS-IG-SimHost.sln` — **0 errors, 0 new warnings** in `Hrot.BTree.Editor`.
+- `dotnet build HROT.sln` — **0 errors, 0 new warnings** in `Hrot.BTree.Editor`.
 
 ## Design notes
 

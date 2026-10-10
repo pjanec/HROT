@@ -84,7 +84,7 @@ referenced the now-deleted type). Resolution: removed the `.RegisterTranslator(n
 WeaponChannelTranslator())` line from all three call sites.
 
 **Issue 2 — Full solution build locked by running process.**
-The `dotnet build IOS-IG-SimHost.sln` command failed with MSB3027 (DLL locked by
+The `dotnet build HROT.sln` command failed with MSB3027 (DLL locked by
 `Hrot.ClusterRunner` process). Resolution: built individual test projects
 (`Fdp.Toolkits.Tests.csproj` and `Hrot.SimHost.Tests.csproj`) directly, which avoided
 the lock and confirmed all relevant compilation units are error-free.

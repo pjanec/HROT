@@ -568,11 +568,12 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //   would leave every received entity stuck in EntityLifecycle.Ghost with no TKB projection.
         //   ⭐ No ordering argument needed here — [UpdateAfter(GhostCreationSystem)] carries it.
         context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
+        context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
 
         var unserviceable = creation.Unserviceable(new object[]
         {
             creation.RequestSystem, creation.FinalizationSystem, creation.SpawnSystem,
-            creation.PromotionSystem,
+            creation.PromotionSystem, creation.ObstacleBakeSystem,
         }.Concat(creation.NetworkSystems));
         if (unserviceable.Length > 0)
             FdpLog<IgNodeBootstrapper>.Info(

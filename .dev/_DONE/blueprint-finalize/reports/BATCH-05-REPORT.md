@@ -139,7 +139,7 @@ Notably `InstanceEmitGoldenTests.Instance_EmitMatchesGoldenSource` passes — Co
 Passed! - Failed: 0, Passed: 10, Skipped: 0, Total: 10
 ```
 
-### dotnet build IOS-IG-SimHost.sln
+### dotnet build HROT.sln
 ```
 Build succeeded. 0 Error(s). 0 new warnings in touched projects.
 ```

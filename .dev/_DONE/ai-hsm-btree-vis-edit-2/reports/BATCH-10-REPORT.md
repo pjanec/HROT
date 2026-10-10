@@ -49,7 +49,7 @@ Added an opt-in **vertical pin orientation** to NodeEditor. BTree graphs now dec
 
 | Criterion | Result |
 |-----------|--------|
-| `dotnet build IOS-IG-SimHost.sln` — 0 errors | ✅ 0 errors, 21 warnings (all pre-existing) |
+| `dotnet build HROT.sln` — 0 errors | ✅ 0 errors, 21 warnings (all pre-existing) |
 | `Failed: 0` in NodeEditor.UI.Tests | ✅ 59 passed, 0 failed |
 | `Failed: 0` in Hrot.BTree.Editor.Tests | ✅ 506 passed, 0 failed |
 | Blueprint/HSM unchanged (Horizontal default) | ✅ `PinOrientation.Horizontal` is the default; no Blueprint/HSM graph kind modified |

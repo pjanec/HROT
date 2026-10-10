@@ -33,7 +33,7 @@ Re-point `SaveBTreeEmitTests`/`SaveHsmEmitTests` to assert the **emit core**'s o
 - [ ] **Byte-identical gate:** `core.Emit(ToDto(model))` == current emitter output for **every** `Trees/*.cs` + `Machines/*.cs` fixture, incl. `[*Layout]` + const `AssetId`. `WriteAtomic` no-op preserved.
 - [ ] PU-105: `SaveBTreeEmitTests`/`SaveHsmEmitTests` green against the core (or documented reviewed re-baseline).
 - [ ] Any DTO/mapper extension needed for byte-identity is added with a round-trip assertion (BATCH-01 tests still green).
-- [ ] Global gate: `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 new warnings (touched); `EditorSubsystemBoot` 10/10; `Hrot.AiEditor.Persistence.Tests` green (BATCH-01, 75+); `Hrot.Editor.AiShared.Tests` green; `Hrot.Blueprints.Tests` only the pre-existing failures (0 new). **Report exact counts + classification.**
+- [ ] Global gate: `dotnet build HROT.sln` 0 errors / 0 new warnings (touched); `EditorSubsystemBoot` 10/10; `Hrot.AiEditor.Persistence.Tests` green (BATCH-01, 75+); `Hrot.Editor.AiShared.Tests` green; `Hrot.Blueprints.Tests` only the pre-existing failures (0 new). **Report exact counts + classification.**
 - [ ] Report → `.dev/_DONE/persistence-unification/reports/BATCH-02-REPORT.md`.
 
 ## Report Requirements

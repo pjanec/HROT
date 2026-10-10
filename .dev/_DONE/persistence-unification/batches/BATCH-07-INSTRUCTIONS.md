@@ -69,7 +69,7 @@ Rules to implement precisely:
 - [ ] Guard wired into the BTree/HSM JSON write in `SaveAllAiDocumentsCommand`: a collision **blocks the write**, reports it, leaves the doc dirty, never throws. + test.
 - [ ] Blueprint write path UNCHANGED (`SaveActiveBlueprintCommand`/`BlueprintJsonServices` untouched).
 - [ ] flushAction UNCHANGED; no `SourceFilePath` pointed at `.json`; no new BTree/HSM creation command (PU-501 deferred — note it in the report).
-- [ ] Global gate: `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 new warnings (touched); new tests green; `Hrot.Editor.AiShared.Tests` green (esp. `SaveAllAndFlushTests` — BATCH-06 regression); `SaveActiveBlueprintCommandTests` 8/8; `EditorSubsystemBoot` 10/10; `Hrot.Blueprints.Tests` only pre-existing (0 new). Report exact counts.
+- [ ] Global gate: `dotnet build HROT.sln` 0 errors / 0 new warnings (touched); new tests green; `Hrot.Editor.AiShared.Tests` green (esp. `SaveAllAndFlushTests` — BATCH-06 regression); `SaveActiveBlueprintCommandTests` 8/8; `EditorSubsystemBoot` 10/10; `Hrot.Blueprints.Tests` only pre-existing (0 new). Report exact counts.
 - [ ] Report → `.dev/_DONE/persistence-unification/reports/BATCH-07-REPORT.md`.
 
 ## Report Requirements

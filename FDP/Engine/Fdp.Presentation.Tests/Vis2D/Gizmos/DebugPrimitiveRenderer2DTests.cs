@@ -57,6 +57,45 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
 
     public class DebugPrimitiveRenderer2DTests
     {
+        // ── CE-3154 — a closed shape's OUTLINE is stroked in screen pixels ────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3154</c> — <b>the outline of a ring or a box is the same number of PIXELS at every zoom,
+        /// whether the shape itself is sized in world metres or in screen pixels.</b>
+        /// 🔒 User, <c>2026-10-10</c>: <i>"the green selection circle now scales but is now extremely thick (was
+        /// single pixel regardless of zoom before - should be like that)."</i>
+        /// <para>📐 The renderer used ONE field, <c>SizeMode</c>, for both a shape's size and its stroke, so a
+        /// world-sized ring got a world-sized stroke: "2" meant 2 METRES — 200 px at zoom 100. Every ring emitter
+        /// in the repo writes a pixel-sized stroke (24 <c>DrawSphere</c> call sites, graph ∪ grep), so nobody
+        /// wanted that; it only looked tolerable below the old zoom cap of 10.</para>
+        /// <para>⭐ The value returned is in the camera's units (world units inside <c>BeginMode2D</c>), so
+        /// <c>result × zoom</c> is the stroke ON SCREEN — which is what each row asserts.</para>
+        /// </summary>
+        [Theory]
+        [InlineData(SizeMode.WorldMeters,  2f,   1f)]
+        [InlineData(SizeMode.WorldMeters,  2f,  10f)]
+        [InlineData(SizeMode.WorldMeters,  2f, 100f)]   // 🔴 was 200 px on screen
+        [InlineData(SizeMode.ScreenPixels, 2f, 100f)]   // unchanged: this mode was always pixels
+        [InlineData(SizeMode.WorldMeters,  1f, 0.1f)]   // zoomed far out: still 1 px, never sub-pixel
+        public void CE3154_AClosedShapesOutline_IsTheSamePixelsOnScreen_AtEveryZoom(
+            SizeMode mode, float strokePx, float zoom)
+        {
+            float world = GizmoMap.Presentation.DebugPrimitiveRenderer2D.OutlineStroke(strokePx, mode, zoom, screenSpace: false);
+
+            Assert.Equal(strokePx, world * zoom, precision: 3);
+        }
+
+        /// <summary>⭐ <c>CE-3154</c> — screen-space primitives are left exactly as they were (no camera there).</summary>
+        [Fact]
+        public void CE3154_AScreenSpacePrimitive_KeepsItsOldStroke()
+        {
+            Assert.Equal(2f,
+                GizmoMap.Presentation.DebugPrimitiveRenderer2D.OutlineStroke(2f, SizeMode.WorldMeters, 50f, screenSpace: true));
+            Assert.Equal(2f / 50f,
+                GizmoMap.Presentation.DebugPrimitiveRenderer2D.OutlineStroke(2f, SizeMode.ScreenPixels, 50f, screenSpace: true),
+                precision: 5);
+        }
+
         // SC-GZ011-1: TargetView=None => skipped.
         [Fact]
         public void SC_GZ011_1_TargetView_None_Skipped()
@@ -78,6 +117,27 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         //     primitives. Default SetAll(); a backend LayerControlMask primitive asserts authority for
         //     the frame." ⇒ these now assert THAT, which is the mechanism the product actually uses.
 
+
+        // ⭐ CE-3149 — a PANEL is not a map layer. 🔒 User, 2026-10-10: "if i turn off the 'Entities' layer, i can no longer
+        // display that layer setting dialog anymore". 📐 The dialog is a StructInspector primitive on layer 0 — the default
+        // layer, which the Entities checkbox owns — so unchecking Entities filtered the panel out with everything else, and
+        // the one control that could turn it back on was gone. ⇒ the layer filter must not apply to panels.
+        [Fact]
+        public void CE3149_APanel_IsNotHiddenByALayerBeingSwitchedOff()
+        {
+            var renderer = new CapturingRenderer2D();
+            var mask = new LayerMask256();
+            for (int i = 1; i < 256; i++) mask.SetBit(i);   // every layer on EXCEPT bit 0 — "Entities" off
+            var panel = DebugPrimitive.MakeStructInspector(networkId: 1, schemaHash: 7);   // DebugLayer 0, as the layer control emits it
+            var line  = RenderTestHelpers.MakeLine(layer: 0);
+
+            renderer.Render(
+                new[] { DebugPrimitive.MakeLayerControlMask(mask), panel, line },
+                RenderTestHelpers.MakeCtx());
+
+            Assert.Contains(renderer.Dispatched, p => p.Shape == DebugPrimitiveShape.StructInspector);
+            Assert.DoesNotContain(renderer.Dispatched, p => p.Shape == DebugPrimitiveShape.Line);   // the layer still hides what it owns
+        }
         // SC-GZ011-2: layer-5 primitive, bit 5 SET in the frame's LayerControlMask => dispatched.
         [Fact]
         public void SC_GZ011_2_Layer5_MaskBitSet_Dispatched()

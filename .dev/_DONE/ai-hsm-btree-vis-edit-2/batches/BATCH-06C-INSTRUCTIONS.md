@@ -21,7 +21,7 @@ BATCH-06B added a 4-param `Condition_TargetAliveAndVisible(ref BrainBlackboard, 
 
 ## ✅ Success criteria
 - [ ] `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CgfNodes.cs` identical to HEAD (no added overload). Verify: `git diff -- Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CgfNodes.cs` is EMPTY.
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings.
 - [ ] `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **Failed: 0**.
 - [ ] Showcase has no Condition node; ObserverSelector → Sequence only; everything else intact; round-trips byte-stable; `CombatShowcase.g.cs` compiles.
 - [ ] Update `.dev/_DONE/ai-hsm-btree-vis-edit-2/reports/BATCH-06-REPORT.md` (note the two correctives + that real-condition binding is deferred to VE-DEBT-002).

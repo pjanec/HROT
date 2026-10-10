@@ -19,7 +19,7 @@
 | | |
 |---|---|
 | Tracker | **14 open + 5 closed**, HSM-001…HSM-019 |
-| Build | `IOS-IG-SimHost.sln` — 0 errors (69 pre-existing warnings) |
+| Build | `HROT.sln` — 0 errors (69 pre-existing warnings) |
 | Tests | `Hrot.Hsm.Editor.Tests` **619/619 green** |
 | Committed | integration map, tracker, concepts primer, opening prompt, 3 hand-authored SVGs, this file |
 | Environment | .NET 8.0.424 at `/root/.dotnet`; `codebase-memory-mcp` 0.10.3 at `/opt/codebase-memory-mcp`, project `home-user-HROT` indexed (166k nodes / 537k edges), warm daemon running |

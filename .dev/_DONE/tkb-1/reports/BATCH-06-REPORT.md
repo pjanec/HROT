@@ -68,7 +68,7 @@ Build succeeded.
 0 Error(s)
 ```
 
-### IOS-IG-SimHost.sln
+### HROT.sln
 
 Build fails due to **22 pre-existing errors** in `Hrot.SimHost.Integration.Tests\Infrastructure\SimHostInstance.cs` (`TkbTemplate.AddComponent` / `TkbTemplate.AddManagedComponent` API was removed in a prior batch). Confirmed pre-existing via `git stash` + build test — same errors appear without BATCH-06 changes. Not caused by this batch.
 

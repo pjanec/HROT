@@ -127,7 +127,7 @@ Follow this workflow for each task:
 1. **Read the task spec** in TASK-DETAIL.md and the referenced design sections
 2. **Write the tests first** (failing is fine — they define the contract)
 3. **Implement** the minimal code to make tests pass
-4. **Verify** nothing else broke: `dotnet build IOS-IG-SimHost.sln` + `dotnet test IOS-IG-SimHost.sln`
+4. **Verify** nothing else broke: `dotnet build HROT.sln` + `dotnet test HROT.sln`
 5. **Move to the next task** only after all tests for the current task pass
 
 ---
@@ -135,7 +135,7 @@ Follow this workflow for each task:
 ## Testing Requirements
 
 - All 4 tasks have unit tests demonstrating the property/attribute is correctly declared and readable
-- All existing tests continue to pass after changes (`dotnet test IOS-IG-SimHost.sln`)
+- All existing tests continue to pass after changes (`dotnet test HROT.sln`)
 - Tests live in the appropriate test project (find the existing test project for FastBTree/FastHSM, or create `*Tests.cs` files there)
 - No test should "assert true" or only check for no exceptions — each must assert specific values
 
@@ -181,6 +181,6 @@ This batch is DONE when:
 - [ ] TASK-BB-K-02: `HeavyDtoType` property exists on both attributes, defaults `null`, tests pass
 - [ ] TASK-BB-K-03: `[BlackboardDtoStruct]` marker attribute created and reflection-discoverable, tests pass
 - [ ] TASK-BB-K-04: `[BlackboardReadOnly]` and `[BlackboardReadWrite]` parameter attributes created, readable via ParameterInfo, tests pass
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds with no errors
-- [ ] `dotnet test IOS-IG-SimHost.sln` all pass (or no regressions from pre-existing failures)
+- [ ] `dotnet build HROT.sln` succeeds with no errors
+- [ ] `dotnet test HROT.sln` all pass (or no regressions from pre-existing failures)
 - [ ] Report submitted to `.dev/_DONE/ai-hsm-btree-vis-edit/reports/BATCH-01-REPORT.md`

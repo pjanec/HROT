@@ -37,6 +37,19 @@ namespace Fdp.Toolkit.Tkb.Parameters
         /// <inheritdoc cref="EyeHeightStanding"/>
         public const float EyeHeightProne    = 0.35f;
 
+        /// <summary>⭐ <c>CE-3136</c> P-3 (peek-and-fire D3) — the aim time when a mount declares none: continuous sight before an
+        /// aimed round leaves. 🔒 User: <i>"the shot after exposing needs some small aiming time"</i>.</summary>
+        public const float AimSeconds = 0.8f;
+
+        /// <summary>The mount's aim time, or <see cref="AimSeconds"/> when it declares none (≤ 0).</summary>
+        public static float AimSecondsOrFallback(float declared) => declared > 0f ? declared : AimSeconds;
+
+        /// <summary>⭐ <c>CE-3136</c> P-5 (peek-and-fire D9) — the magazine change time when a mount with a magazine declares none.</summary>
+        public const float ReloadSeconds = 3f;
+
+        /// <summary>The mount's reload time, or <see cref="ReloadSeconds"/> when it declares none (≤ 0).</summary>
+        public static float ReloadSecondsOrFallback(float declared) => declared > 0f ? declared : ReloadSeconds;
+
         /// <summary>The NED builder's health rule: <c>armourFront × 5</c>, else 100.</summary>
         public static float HealthFromArmour(float armourFront)
             => armourFront > 0f ? armourFront * HealthPerArmourMm : HealthWithoutArmour;
@@ -50,5 +63,16 @@ namespace Fdp.Toolkit.Tkb.Parameters
 
         /// <summary>The runtime muzzle-velocity rule: the mount's value when stated (&gt; 0), else <see cref="MuzzleVelocity"/>.</summary>
         public static float MuzzleVelocityOrFallback(float muzzleVelocity) => muzzleVelocity > 0f ? muzzleVelocity : MuzzleVelocity;
+
+        /// <summary>
+        /// ⭐ Buildings §3d P2 (R-217) — the penetration (mm RHA) a round of UNKNOWN penetration is assumed to carry when it meets
+        /// TERRAIN (a wall, a fence, a floor). ⛔ Not used against armour: an unknown round still ignores armour
+        /// (<c>ArmorModel.HitDamage</c>). Without it an unknown round would be stopped by chain-link (any resistance &gt; 0 defeats
+        /// a 0 mm round). The value is the light rifle round the built-in catalogs declare (5 mm).
+        /// </summary>
+        public const float UnknownRoundTerrainPenetrationMm = 5f;
+
+        /// <summary>The terrain penetration rule: the round's own value when known (&gt; 0), else <see cref="UnknownRoundTerrainPenetrationMm"/>.</summary>
+        public static float TerrainPenetrationOrFallback(float penetration) => penetration > 0f ? penetration : UnknownRoundTerrainPenetrationMm;
     }
 }

@@ -93,6 +93,7 @@ namespace Fdp.Toolkit.Squad.Systems
         private void Rate(EntityRepository repo, ISimulationView view)
         {
             var terrain = repo.HasSingletonManaged<TerrainWorld>() ? repo.GetSingletonManaged<TerrainWorld>() : null;
+            var doors = terrain is { Doors.Count: > 0 } ? DoorStates.Of(view, terrain) : null;   // ⭐ R-219 — this view's doors
             bool memory = repo.IsComponentTypeRegistered<TargetMemory>();
             bool tags = repo.IsComponentTypeRegistered<SensorTag>();
             _next.Clear();
@@ -106,7 +107,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 var span = buffer.GetSpanRW();
                 for (int i = 0; i < buffer.Count && i < span.Length; i++)
                     span[i].ThreatRating = memory && repo.HasComponent<TargetMemory>(unit)
-                        ? ThreatOn(repo, unit, terrain, in span[i])
+                        ? ThreatOn(repo, unit, terrain, in span[i], doors)
                         : 0f;
 
                 // ③ edges on the next area ahead (slot 0 — the solve keeps route order)
@@ -132,7 +133,8 @@ namespace Fdp.Toolkit.Squad.Systems
         /// last-known position sees the area — <c>danger × sight</c>, sight 1 when nothing blocks it (or the node has no
         /// terrain), else 0.
         /// </summary>
-        public static unsafe float ThreatOn(EntityRepository repo, Entity unit, TerrainWorld? terrain, in DangerAreaDescriptor area)
+        public static unsafe float ThreatOn(EntityRepository repo, Entity unit, TerrainWorld? terrain, in DangerAreaDescriptor area,
+            DoorStates? doors = null)
         {
             ref readonly var mem = ref repo.GetComponentRO<TargetMemory>(unit);
             var target = area.Center + new Vector3(0f, 0f, AreaHeight);
@@ -142,7 +144,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 float danger = ThreatDanger.OfSlot(repo, unit, in mem, i);
                 if (danger <= best) continue;
                 var eye = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i] + EyeHeight);
-                if (terrain != null && terrain.SegmentBlocked(eye, target)) continue;
+                if (terrain != null && terrain.SegmentBlocked(eye, target, doors)) continue;
                 best = danger;
             }
             return Math.Clamp(best, 0f, 1f);

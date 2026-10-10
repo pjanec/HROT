@@ -160,7 +160,7 @@ public sealed class ThereIsOneNetworkIdResolverTests
         var dir = AppContext.BaseDirectory;
         for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
         {
-            if (File.Exists(Path.Combine(dir, "IOS-IG-SimHost.sln"))) return dir;
+            if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
             dir = Directory.GetParent(dir)?.FullName;
         }
         return null;

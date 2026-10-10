@@ -3,7 +3,7 @@
 External Node.js MCP server that proxies the Hrot ClusterRunner AI Debug HTTP API as MCP tools.
 
 **Stack:** Node.js 18+, `@modelcontextprotocol/sdk`, native `fetch`, stdio transport.  
-**Location:** `tools/ai-debug-mcp/` — external companion, NOT part of `IOS-IG-SimHost.sln`.
+**Location:** `tools/ai-debug-mcp/` — external companion, NOT part of `HROT.sln`.
 
 ---
 

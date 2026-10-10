@@ -140,7 +140,7 @@ public class DragDropIntegrationTests
                 {
                     if (!s.IsValid) continue;
                     if (s.Data.EntityId != (int)networkId) continue;
-                    var igGeo = HrotEnvironment.CreateGeoTransform();
+                    var igGeo = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
                     var pos = igGeo.ToCartesian(s.Data.Pos.Latitude, s.Data.Pos.Longitude, s.Data.Pos.Altitude);
                     var observedPos = new Vector3((float)pos.X, (float)pos.Y, (float)pos.Z);
                     _out.WriteLine($"[D5c] Observer saw GeoSpatial for entity {s.Data.EntityId}: ({observedPos.X:F2}, {observedPos.Y:F2})");

@@ -42,7 +42,7 @@ Uses a `BTreeNodePickerSourceInvoker` helper that obtains the internal `BTreeNod
 |-------|--------|
 | `dotnet build Hrot.BTree.Editor.csproj` | 0 errors, 0 warnings |
 | `dotnet build Hrot.BTree.Editor.Tests.csproj` | 0 errors, 0 warnings |
-| `dotnet build IOS-IG-SimHost.sln` | 0 errors, 21 pre-existing warnings (none in BTree.Editor) |
+| `dotnet build HROT.sln` | 0 errors, 21 pre-existing warnings (none in BTree.Editor) |
 | `dotnet test Hrot.BTree.Editor.Tests` | **Failed: 0, Passed: 491** |
 | New tests (BTreePickerSourceTests) | 6 passed, 0 failed |
 

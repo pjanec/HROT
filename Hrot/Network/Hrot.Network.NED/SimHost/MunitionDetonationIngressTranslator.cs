@@ -80,7 +80,9 @@ namespace Hrot.Network.NED.SimHost
             // PACK-P003: DetonationNotification now carries Entity handles.
             // Resolve both network IDs to local Entity handles.
             // If the target is unknown on this node, skip (same guard as before).
-            if (!_entityMap.TryGetEntity(msg.HitEntityId, out var hitEntity)) return;
+            // ⭐ CE-1032 W-3 — HitEntityId 0 = a terrain burst: kept, with no target (the IG still shows it).
+            var hitEntity = Entity.Null;
+            if (msg.HitEntityId != 0 && !_entityMap.TryGetEntity(msg.HitEntityId, out hitEntity)) return;
 
             // Shooter may be unknown on Muscle (cross-node entity); default to Entity.Null if not found.
             _entityMap.TryGetEntity(msg.ShooterEntityId, out var shooterEntity);
@@ -92,6 +94,7 @@ namespace Hrot.Network.NED.SimHost
                 HitX    = msg.HitX,
                 HitY    = msg.HitY,
                 HitZ    = msg.HitZ,
+                Ammo    = msg.MunitionType,
                 IsRemote = true,
             });
         }

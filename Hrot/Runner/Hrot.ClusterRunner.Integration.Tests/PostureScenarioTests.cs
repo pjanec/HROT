@@ -13,6 +13,7 @@ using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Utility;
 using Hrot.NED.Descriptors.Orchestration;
 using Xunit;
@@ -439,6 +440,71 @@ public sealed class PostureScenarioTests : IDisposable
         Assert.True(harness.PumpUntil(() => Ammo() < ammo, timeoutFrames: 12000), $"…and fires from there; ammo {Ammo()} (was {ammo})");
     }
 
+    /// <summary>House A's window firing positions, both storeys (the cover database, `bt-range`; measured by the P-8 probe).</summary>
+    private static readonly Vector3[] HouseAWindows =
+    {
+        new(102.1f, 100.9f, 0f), new(109.1f, 103.6f, 0f), new(102.1f, 100.9f, 3f), new(107.1f, 100.9f, 3f), new(105.4f, 107.1f, 3f),
+    };
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3136</c> P-8 (D10) — <c>bt-window-duel</c> in-process (the live check's twin): A at an upstairs window of House A,
+    /// B in the street with two parked vans for cover, each remembering the other. Both fire (aimed or a blind burst — the ammunition
+    /// falls), A fires from at least two windows (either storey) (the exposure count moves it on), and B bounds to Van 2's cover.
+    /// 📄 docs/DESIGN_Peek_And_Fire.md §2, D10, D14–D15 (CE-3144: the duel stood still before them).
+    /// </summary>
+    [Fact(Timeout = 900_000)]
+    public async Task CE3136_P8_WindowDuel_BothFire_ARotatesWindows_BBoundsToTheSecondVan()
+    {
+        using var harness = await StartShippedScenario("bt-window-duel");
+        var cgf = harness.Cgf!.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Window Rifleman").IsNull && !ByName(cgf, "Street Rifleman").IsNull, timeoutFrames: 2000),
+            "both riflemen must spawn on CGF");
+        Entity a = ByName(cgf, "Window Rifleman"), b = ByName(cgf, "Street Rifleman");
+        int Ammo(Entity e) => cgf.HasComponent<WeaponState>(e) ? cgf.GetComponent<WeaponState>(e).Ammo : -1;
+        Vector3 Pos(Entity e) => cgf.HasComponent<SimTransform>(e) ? cgf.GetComponent<SimTransform>(e).Position : default;
+        int a0 = Ammo(a), b0 = Ammo(b);
+        var windows = new System.Collections.Generic.HashSet<(int, int, int)>();
+        var van2 = new Vector2(113f, 76f);
+        bool bounded = false;
+        float Hp(Entity e) => cgf.HasComponent<Health>(e) ? cgf.GetComponent<Health>(e).Current : -1f;
+        unsafe string Peek(Entity e)
+        {
+            if (!cgf.IsAlive(e)) return "dead";
+            var m = Fdp.Toolkit.Behavior.UnitMemory.Get<Fdp.Toolkit.Combat.FiringPositionMemory>(cgf, e);
+            var slots = "";
+            for (int i = 0; i < m.Count; i++) slots += $"({m.X[i]:F1},{m.Y[i]:F1},{m.Z[i]:F0})u{m.Uses[i]}h{m.Heat[i]:F1}{(m.Burned[i] != 0 ? "B" : "")} ";
+            var answers = "";
+            var sensor = EqsChildSensor.Find(cgf, e, Hrot.AI.Behaviors.Brains.PeekAndFireNodes.CoverSite);
+            if (!sensor.IsNull && cgf.HasComponent<EqsCognitiveBuffer>(sensor))
+                foreach (var r in cgf.GetComponentRO<EqsCognitiveBuffer>(sensor).GetSpanRO())
+                    answers += $"({r.PositionX:F1},{r.PositionY:F1},{r.PositionZ:F0}){r.Score:F2} ";
+            var face = cgf.HasComponent<SimTransform>(e) ? Vector3.Transform(Vector3.UnitX, cgf.GetComponent<SimTransform>(e).Rotation) : default;
+            return $"phase={(Fdp.Toolkit.Combat.PeekPhase)m.Phase} hide={m.HidePoint} facing=({face.X:F2},{face.Y:F2}) slots[{slots}] cover[{answers}]";
+        }
+        string State() => $"A {Pos(a)} hp {Hp(a)} ammo {a0}→{Ammo(a)} windows [{string.Join(" ", windows)}] {Peek(a)} · B {Pos(b)} hp {Hp(b)} ammo {b0}→{Ammo(b)} bounded={bounded}";
+
+        float lastZ = Pos(a).Z;
+        for (int f = 0; f < 36000; f++)
+        {
+            harness.PumpFrames(1);
+            var pa = Pos(a);
+            if (f % 30 == 0 && f > 2000 && f < 3000) _out.WriteLine($"f{f}: A {pa} {Peek(a)}");
+            if (MathF.Abs(pa.Z - lastZ) > 0.5f) { _out.WriteLine($"f{f}: A z {lastZ:F2} -> {pa.Z:F2} at {pa}; {Peek(a)}"); lastZ = pa.Z; }
+            foreach (var w in HouseAWindows)   // at a window (either storey), not on the way between two
+                if (MathF.Abs(pa.Z - w.Z) < 1f && Vector2.Distance(new Vector2(pa.X, pa.Y), new Vector2(w.X, w.Y)) <= 0.75f)
+                    windows.Add(((int)MathF.Round(w.X), (int)MathF.Round(w.Y), (int)w.Z));
+            var pb = Pos(b);
+            bounded |= Vector2.Distance(new Vector2(pb.X, pb.Y), van2) <= 4f;
+            if (f % 600 == 0) _out.WriteLine($"f{f}: {State()}");
+            if (Ammo(a) < a0 && Ammo(b) < b0 && windows.Count >= 2 && bounded) break;
+        }
+        _out.WriteLine($"end: {State()}");
+        Assert.True(Ammo(a) < a0, $"A fires; {State()}");
+        Assert.True(Ammo(b) < b0, $"B fires; {State()}");
+        Assert.True(windows.Count >= 2, $"A fires from at least two windows; {State()}");
+        Assert.True(bounded, $"B bounds to Van 2's cover; {State()}");
+    }
+
     /// <summary>
     /// ⭐ <c>CE-3094</c> — the "universal soldier" (<c>ua-universal-soldier</c>): a rifleman on a two-leg MISSION of
     /// <c>CombatPosture</c> along Main Street (ROE FireAtWill + StayOnTask, SOP <c>BasicInfantrySop</c>) meets a GROUP of three
@@ -494,7 +560,8 @@ public sealed class PostureScenarioTests : IDisposable
                 }
             }
         }
-        int lastAmmo = 30;
+        int maxLeg = -1, firstHitFrame = -1; Vector3 posAtFirstHit = default; float movedAfterHit = 0f; bool defensiveAfterHit = false;
+        int lastAmmo = cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).Ammo : -1;   // ⭐ CE-3136 P-5: the spawned load, not a literal 30
         for (int f = 0; f < 24000; f++)
         {
             harness.PumpFrames(1);
@@ -514,6 +581,13 @@ public sealed class PostureScenarioTests : IDisposable
             }
             if (Winner() is { } w && (postures.Count == 0 || postures[^1] != w)) postures.Add(w);
             if (ApproachWinner() is { } a && (approaches.Count == 0 || approaches[^1] != a)) approaches.Add(a);
+            maxLeg = Math.Max(maxLeg, Leg());
+            if (firstHitFrame < 0 && Hp(rifleman) is > 0f and < 100f) { firstHitFrame = f; posAtFirstHit = Pos(rifleman); }
+            if (firstHitFrame >= 0 && Hp(rifleman) > 0f)
+            {
+                movedAfterHit = MathF.Max(movedAfterHit, Vector3.Distance(Pos(rifleman), posAtFirstHit));
+                if (Winner() is Posture.TakeCover or Posture.Flee or Posture.HoldProne) defensiveAfterHit = true;
+            }
             if (f % 150 == 0) _out.WriteLine($"f{f}: {State()}");
             if (Hp(rifleman) <= 0f) { _out.WriteLine($"f{f}: RIFLEMAN DOWN — {State()}"); break; }
             if (Leg() >= 1 && Vector3.Distance(Pos(rifleman), final) <= 3.5f) { _out.WriteLine($"f{f}: FINAL OBJECTIVE — {State()}"); break; }
@@ -544,5 +618,20 @@ public sealed class PostureScenarioTests : IDisposable
         foreach (var g in bullets.GroupBy(kv => (kv.Key.Item1, kv.Value.Shooter)))
             _out.WriteLine($"shots[{g.Key.Item1}] {g.Key.Shooter}: {g.Count()} — " +
                 string.Join(" ", g.Select(kv => $"f{kv.Value.Frame}:{kv.Value.Spawn.X:F0},{kv.Value.Spawn.Y:F0},{kv.Value.Spawn.Z:F1}→{kv.Value.Last.X:F0},{kv.Value.Last.Y:F0},{kv.Value.Last.Z:F1}")));
+
+        // ⭐ CE-3094 — locked on what the composition does today (measured 2026-10-10, after AQ85 hit chance and CE-3095):
+        //   hidden until ~f5950, both legs reached, 2 rounds both on Hostile 1, wounded ⇒ Flee → TakeCover → HoldProne, then
+        //   killed in cover by a second hostile closing from another bearing (CE-3157). It does NOT assert that he wins.
+        Assert.True(firstHitFrame < 0 || firstHitFrame > 4000,
+            $"the approach behind Block C must keep him unseen for most of the walk; first hit at f{firstHitFrame}");
+        Assert.True(maxLeg >= 1, $"the mission must advance to its second leg (reached {maxLeg})");
+        Assert.True(bullets.Any(kv => kv.Value.Shooter == "Rifleman"),
+            "CE-3095: the rifleman's rounds must reach SimHost as bullets");
+        Assert.True(hostileNames.Any(n => Hp(ByName(cgf, n)) < 100f), "he must hurt at least one hostile");
+        if (firstHitFrame >= 0)
+        {
+            Assert.True(defensiveAfterHit, $"wounded, he must pick a defensive posture (postures: {string.Join(" → ", postures)})");
+            Assert.True(movedAfterHit >= 2f, $"CE-3092: a wounded rifleman keeps moving (moved {movedAfterHit:F1} m after the first hit)");
+        }
     }
 }

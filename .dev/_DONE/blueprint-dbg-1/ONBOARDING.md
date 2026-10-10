@@ -138,7 +138,7 @@ tick, (b) step Over/Into/Out via the toolbar/time-controller, (c) see live value
 - **Don't regenerate golden snapshots** unless codegen intentionally changes (`BLUEPRINT_REGENERATE_SNAPSHOTS=1`).
 - **The running editor LOCKS dlls** — builds/tests fail to copy while the app is open. If a build/test reports a
   file-lock, ask the user to close the editor; don't work around with stale binaries.
-- **Standard gates per batch:** `dotnet build IOS-IG-SimHost.sln -c Debug` (0/0), `Hrot.Blueprints.Tests`
+- **Standard gates per batch:** `dotnet build HROT.sln -c Debug` (0/0), `Hrot.Blueprints.Tests`
   (7 pre-existing/0 new), `Hrot.Editor.AiShared.Tests`, `EditorSubsystemBoot` 10/10. Plus a **user interactive
   smoke** for the debugging UX.
 - Constraints: branch `blueprint-integ-1`; GizmoMap.Contracts 0.2.2; no `Hrot.IG`/DDS/`Stride/`; stay on

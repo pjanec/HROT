@@ -12,7 +12,7 @@
 - [x] TASK-C-02: `BTreeComparisonSanitizer` produces correct output for the §3.3 examples; all `BTreeComparisonSanitizerTests` pass; sanitizer registered in BTree DI
 - [x] TASK-C-03: 3 fixture files created; all `BTreeSanitizationDeterminismTests` pass (10-run loop, reorder test)
 - [x] TASK-C-04: All `BTreeSelfComparisonTests` pass
-- [x] `dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4` — **0 errors** (4 pre-existing file-copy warnings unrelated to this batch)
+- [x] `dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4` — **0 errors** (4 pre-existing file-copy warnings unrelated to this batch)
 - [x] `dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/..."` — **Passed: 390, Failed: 0**
 - [x] `dotnet test "Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/..."` — **Passed: 291, Failed: 0**
 

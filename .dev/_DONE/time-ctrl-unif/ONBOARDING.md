@@ -101,13 +101,13 @@ Hrot.SimHost.Integration.Tests/                        ← existing integration 
 dotnet build FDP/FDP.sln
 
 # Build the full solution (Hrot apps)
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run time toolkit unit tests only
 dotnet test FDP/Toolkits/FDP.Toolkit.Time.Tests/FDP.Toolkit.Time.Tests.csproj
 
 # Run all tests
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 
 ---

@@ -250,7 +250,7 @@ For each task in order:
 1. Read the spec and design sections
 2. Read all referenced existing code
 3. Write tests first (failing), then implement
-4. Run `dotnet build IOS-IG-SimHost.sln -v minimal` after each task
+4. Run `dotnet build HROT.sln -v minimal` after each task
 5. Run `dotnet test` on affected test projects
 6. Move to next task only when tests pass
 
@@ -312,6 +312,6 @@ Submit `.dev/_DONE/ai-hsm-btree-vis-edit/reports/BATCH-05-REPORT.md`:
 - [ ] Window shows `[+] Add variable...` popup with name, type, comment, validation
 - [ ] Window shows remove option per row with dangling-reference count confirmation
 - [ ] Rename routes through `IRefactorService` with the `"{assetId}::{name}"` key convention
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds
+- [ ] `dotnet build HROT.sln` succeeds
 - [ ] All tests pass
 - [ ] Report submitted

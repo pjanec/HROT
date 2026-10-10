@@ -82,7 +82,7 @@ verify the buffer actually populates — do NOT assume.**
 - **Tier-2 (live headless / MCP `verify.mjs`):** load test-move → `observe_trace {networkId:1000, on:true}` →
   play/step a few → `get_entity_trace {1000}` returns a non-empty BTree trace (active node path). Re-runnable;
   no orphans. RE-RUN `npm run verify` to a real PASS tally before reporting.
-- `dotnet build IOS-IG-SimHost.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
+- `dotnet build HROT.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
 
 ## Constraints (hard)
 - This is the one genuine engine seam — **prove buffer allocation actually happens** (absent→populated), don't

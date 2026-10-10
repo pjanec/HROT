@@ -3,7 +3,7 @@
 **Batch ID:** BATCH-10  
 **Status:** Ready for Implementation  
 **Developer:** @developer-subagent (Claude Sonnet 4.6)  
-**Build Target:** `IOS-IG-SimHost.sln`  
+**Build Target:** `HROT.sln`  
 **Test Target:** All animation control tests (baseline 180 + new tests from this batch)
 
 ---

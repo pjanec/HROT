@@ -102,7 +102,7 @@ Check: Is the window's `_asset` the same instance that owns the selected node? I
 
 | Gate | Result |
 |------|--------|
-| `dotnet build IOS-IG-SimHost.sln -c Debug` | **0 errors / 0 new warnings** (26 pre-existing warnings unchanged) |
+| `dotnet build HROT.sln -c Debug` | **0 errors / 0 new warnings** (26 pre-existing warnings unchanged) |
 | `Hrot.Blueprints.Tests` failures subset of 7 pre-existing | **7 failures, all pre-existing** (golden snapshots + allocation test + condition summary) |
 | New tests pass | **10 new tests added, all pass** |
 | EditorSubsystem tests | **9/9 pass** |

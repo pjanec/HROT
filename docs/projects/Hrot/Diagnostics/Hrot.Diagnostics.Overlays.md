@@ -1,3 +1,11 @@
+<!--STATUS
+state: WITHDRAWN
+updated: 2026-10-08
+superseded-by: ../../../DESIGN_Terrain_Combat_Tuning.md §5b
+current-answer: none — the project was DELETED by CE-3121 (R-227). Its duplicates (Perception, TargetMemory, EQS) had working
+  gizmos; Utility and Squad were rewritten as UtilityDecisionGizmo and SquadGizmo; DebugState.Ai survives as the per-unit PIN store.
+stale-below: everything
+-->
 # Hrot.Diagnostics.Overlays -- AI Debug Overlay Sources
 
 **Project path:** `Hrot/Diagnostics/Hrot.Diagnostics.Overlays/`

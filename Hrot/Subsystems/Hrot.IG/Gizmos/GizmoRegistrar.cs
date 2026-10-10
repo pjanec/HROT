@@ -5,7 +5,7 @@ namespace Hrot.IG.Gizmos
 {
     // Registers all concrete gizmo definitions with the GizmoRegistry and StatelessGizmoRegistry.
     // Call once after IgApplication.Initialize().
-    public static partial class GizmoRegistrar
+    public static class GizmoRegistrar
     {
         public static void Register(
             GizmoRegistry registry,

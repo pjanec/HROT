@@ -3,7 +3,7 @@
 **Target tasks:** TASK-TH-008, TASK-TH-009, plus prerequisite type stubs needed by TH-003.
 **Design documents:** `.dev/blueprints-1/TASK-DETAIL.md`, `.dev/blueprints-1/Blueprint_Subsystem_Debug_Protocol_Detailed_Design.md`, `.dev/blueprints-1/Blueprint_Subsystem_Test_Harness_Detailed_Design.md`
 **Workspace root:** `d:\Work\IOS-IG-SimHost-FDP-2`
-**Solution:** `IOS-IG-SimHost.sln`
+**Solution:** `HROT.sln`
 
 ---
 

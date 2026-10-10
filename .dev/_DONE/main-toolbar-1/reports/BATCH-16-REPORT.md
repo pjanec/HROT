@@ -28,6 +28,6 @@
 
 ## Tests (run by dev-lead)
 - `ScenarioNestedNameTests` + `AssetPickActionRouterTests` → **21 passed, 0 failed** (unfiltered).
-- Full `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings.
+- Full `dotnet build HROT.sln` → 0 errors, 0 new warnings.
 - (A lone `Hrot.SimHost.Tests.AtomicMultiFileWriterTests` ordering flake was observed by the worker;
   it passes in isolation — same nondeterministic test-infra family as PRE-3/PRE-4, unrelated.)

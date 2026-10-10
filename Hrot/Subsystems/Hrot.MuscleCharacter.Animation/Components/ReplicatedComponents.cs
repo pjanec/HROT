@@ -14,22 +14,9 @@ namespace Hrot.MuscleCharacter.Animation.Components
     //   catalogue without referencing this subsystem.
     //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
 
-    /// <summary>
-    /// Stance transition phase tracking for multi-frame blend sequences.
-    /// Synchronizes between Brain intent and Muscle execution.
-    /// </summary>
-    [Serializable]
-    public enum StanceTransitionPhase : byte
-    {
-        /// <summary>No active transition; current stance is stable.</summary>
-        Idle = 0,
-
-        /// <summary>Transition blend in progress.</summary>
-        Transitioning = 1,
-
-        /// <summary>Transition complete and locked (final state written).</summary>
-        Locked = 2,
-    }
+    // ⚠ StanceTransitionPhase, StanceIntent and StanceStatus MOVED to FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/StanceComponents.cs
+    //   (2026-10-07, AQ85 / R-216): the hit model and the AI's estimate in Fdp.Toolkits read the LOGICAL stance. Same
+    //   namespace, same ComponentIds, same layout — no reference changed. Precedent: StanceId (CE-145).
 
     /// <summary>
     /// Animation channel: the Brain's REQUEST for one-shot montage playback (DD-1 §5.1).
@@ -135,48 +122,6 @@ namespace Hrot.MuscleCharacter.Animation.Components
         public LookAtChannelStatus Report;
     }
 
-    /// <summary>
-    /// Brain-authored stance intention descriptor.
-    /// Brain writes the target stance; Muscle initiates transition blend.
-    /// Replicates from Brain → Muscle; Muscle writes back StanceStatus.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.StanceIntent)]
-    [DataPolicy(DataPolicy.NoScenario)]
-    public struct StanceIntent
-    {
-        /// <summary>Target stance (Standing, Crouched, Prone).</summary>
-        public StanceId TargetStance;
-
-        /// <summary>Blend duration in seconds for smooth transition (0 = immediate).</summary>
-        public float BlendTime;
-
-        /// <summary>Version counter; bumped each time intent changes (triggers Muscle transition).</summary>
-        public uint Version;
-    }
-
-    /// <summary>
-    /// Muscle-authored stance status descriptor.
-    /// Tracks current stance and transition progress; replicates from Muscle → Brain.
-    /// Brain observes this via ValueChanged to know when transitions are complete.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.StanceStatus)]
-    [DataPolicy(DataPolicy.NoScenario)]
-    public struct StanceStatus
-    {
-        /// <summary>Current stable stance (Standing, Crouched, Prone).</summary>
-        public StanceId CurrentStance;
-
-        /// <summary>Transition phase: Idle, Transitioning, Locked.</summary>
-        public StanceTransitionPhase Phase;
-
-        /// <summary>Progress of active transition blend (0.0 = start, 1.0 = complete).</summary>
-        public float TransitionProgress;
-
-        /// <summary>Version observed by Muscle (ack counter to Brain's StanceIntent.Version).</summary>
-        public uint AckVersion;
-    }
 
     /// <summary>
     /// Single entry in a montage queue (used inside AnimationMontageQueue.Entries [InlineArray]).

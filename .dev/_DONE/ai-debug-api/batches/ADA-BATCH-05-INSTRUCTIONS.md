@@ -79,7 +79,7 @@ read-only / stateless and therefore off-thread-safe — no `RunOnMainThread` nee
     `RotationToHeadingDeg` degenerate-pitch bug — out of scope to fix; avoid that pitch in the test.)
 - **Tier-2 (headless smoke, extend `DebugApiHeadlessSmokeTests`):** after scenario load, `GET /tkb/types`
   non-empty and `GET /world/info` returns a non-null origin. Keep it ENV-gated like the existing smoke.
-- `dotnet build IOS-IG-SimHost.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
+- `dotnet build HROT.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
 
 ## Constraints (hard)
 - DTO / `EventSerializationHelper` path for domain data; never the host CamelCase serializer for descriptors.

@@ -70,6 +70,13 @@ public interface INetworkFactory : IGizmoNetworkFactory
     IIgNetworkAdapter CreateIgNetworkAdapter(DdsParticipant? participant, long nodeId = 0);
 
     /// <summary>
+    /// ⭐ <c>CE-3126</c> — the geo transform this factory's translators convert with, or <c>null</c> when it holds none. The node
+    /// builder adopts it as the node's one transform, so a terrain commit that sets the world singleton's origin moves the
+    /// wire too. 📄 docs/DESIGN_Geo_Origin.md §2 C.
+    /// </summary>
+    IGeographicTransform? GeoTransform => null;
+
+    /// <summary>
     /// Creates the IG-side egress translators that convert bus events (SpawnEntityCommand,
     /// UpdateEntityCommand, DestroyEntityCommand) into DDS write calls.
     /// Returns an empty collection when the protocol does not support IG egress.

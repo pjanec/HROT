@@ -621,6 +621,9 @@ namespace Hrot.Editor
 
                 foreach (var entity in query)
                 {
+                    // ⭐ CE-3137 U-0: a multi-block unit sits in several tier queries — reload it once.
+                    if (!OccurrenceStoreAccess.IsFirstVisit(_world, entity, t)) continue;
+
                     var state = _world.GetComponent<BehaviorState>(entity);
                     if (state.BrainTier != BehaviorConstants.BrainTierHsm) continue;
                     if (!_liveRegistry.TryGetDefinition(state.ActiveBehaviorHash, out var def)) continue;
@@ -637,29 +640,11 @@ namespace Hrot.Editor
                     int width = RootHsmAccess.InstanceBytes(blob);
                     if (width != size)
                     {
-                        // 🔴🔴 THE REBUILD MOVED THE MACHINE TO A DIFFERENT TIER, AND GROWING THE
-                        //   STORE MUST COME FIRST. 📄 §31.19.2 — this was measured, not foreseen:
-                        //   ResolveOrAttachRoot DETACHES on a guard mismatch and only then attaches,
-                        //   so if the store cannot hold the wider instance the entity is left with
-                        //   NO machine at all — strictly worse than the stale one it had. ⇒ promote
-                        //   BEFORE asking for the slot. `O7_R54` is the rail, and it failed exactly
-                        //   this way before the promotion was added.
-                        //
-                        //   ⚠ The floor is the store's CURRENT payload plus the growth delta, not
-                        //   just the new width: the entity's other occurrences are still in there
-                        //   and must not be squeezed out to make room for the machine.
-                        if (width > size)
-                        {
-                            var store = (BlueprintBlackboardHeader*)
-                                OccurrenceStoreAccess.TryGetStore(_world, entity, out _);
-                            if (store != null)
-                                BlueprintTierTable.EnsureAtLeast(
-                                    _world, entity,
-                                    BlueprintTierTable.SelectByPayload(store->PayloadSize + (width - size)));
-                        }
-
-                        // ⚠ A promotion swaps the tier COMPONENT, so every pointer read above this
-                        //   line is now dangling. Nothing below reads one.
+                        // ⭐⭐ CE-3137 U-0 (R-236): no pre-growth any more. §31.19.2's hazard was that the re-attach
+                        //   DETACHES first and the old single store might not hold the wider instance, leaving NO
+                        //   machine. ResolveOrAttachRoot now attaches into any block with room or APPENDS one, and
+                        //   nothing already allocated moves — so the only failure left is the whole ladder being
+                        //   full, which the warning below reports. `O7_R54` is the rail.
                         instance = RootHsmAccess.ResolveOrAttachRoot(
                             _world, entity, state.ActiveBehaviorHash, width,
                             OccurrenceKind.Hsm, out _);

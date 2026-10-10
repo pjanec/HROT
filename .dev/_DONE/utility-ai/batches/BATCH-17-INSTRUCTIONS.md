@@ -383,7 +383,7 @@ The test class must be `unsafe` and use `IDisposable` with `UtilityInputReaderSt
 
 ## Build and test requirements
 
-1. `dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln -c Debug` → **0 errors**
+1. `dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln -c Debug` → **0 errors**
 2. `dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot\Editor\Hrot.Utility.Editor.Tests\Hrot.Utility.Editor.Tests.csproj`
    → all tests pass; at least **137 tests** total (123 existing + at least 14 new)
 3. No regressions.

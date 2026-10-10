@@ -28,7 +28,7 @@ One task; **NO cheating**; finish without asking until build clean + `Failed: 0`
 - `RemoveLinks_UnknownLink_NoThrow`: removing a random/non-existent `LinkId` → no exception, model unchanged.
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`.
 - [ ] `Failed: 0` in `Hrot.BTree.Editor.Tests` (incl. new tests).
 - [ ] Break-link deletes BOTH projected (JSON-loaded) and session-added links.
 - [ ] Report written. (Visual confirm of the "Break link" context menu → REVIEW-BT-2.)

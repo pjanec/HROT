@@ -277,8 +277,8 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
     {
         if (timing == CommitTiming.Paused)
         {
-            if (plan.UpgradeToTier.HasValue)
-                UpgradeTier(_model.GetCurrentTier(), plan.UpgradeToTier.Value);
+            // ⭐ CE-3137 U-0 (R-236): no promotion step — AttachToEntity appends a block when the store is full, and
+            //   no slot already attached moves. `plan.UpgradeToTier` remains a DISPLAY fact ("needs more room").
 
             foreach (int bpId in plan.DetachBlueprintIds)
                 BlueprintInstanceService.DetachFromEntity(_world, bpId, _model.GetEntity());
@@ -296,35 +296,7 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
         }
     }
 
-    /// <summary>
-    /// ⭐ <c>O3a</c> / task <c>B3</c> — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §17.
-    /// The editor's own promotion, now the same one body as
-    /// <c>BehaviorIngressSystem.UpgradeTier</c> and <c>BlueprintMaintenanceSystem.UpgradePair</c>.
-    ///
-    /// <para>🔴🔴 <b>AND IT FIXES A LATENT HOLE, which is a real behaviour change — stated, not
-    /// buried.</b> The two hand-written <c>switch</c>es this replaces covered only the ADJACENT
-    /// promotions (<c>1024→4096</c>, <c>4096→16384</c>). A <b><c>1024→16384</c></b> jump added the
-    /// 16384 component and then matched no copy arm ⇒ the entity was left carrying <b>both</b>
-    /// components, the new one <b>never initialised and never copied into</b>, and nothing repaired
-    /// it — <c>BlueprintMaintenanceSystem</c> only queries ADJACENT pairs, and <c>1024+16384</c> is
-    /// not one. ⚠ <c>BehaviorIngressSystem.UpgradeTier</c> always handled that jump, so the editor
-    /// was the odd one out: an omission, not a policy. The generic form has no such gap.</para>
-    ///
-    /// <para>⛔⛔ <c>CopyToLargerTier</c> carries <c>H1</c> — the header's <c>Reserved</c>, which since
-    /// <c>A3</c> holds the per-slot <c>Kind</c> nibble array. Rail <c>A3_R2</c> pins it.</para>
-    /// </summary>
-    private unsafe void UpgradeTier(BlackboardTier oldTier, BlackboardTier newTier)
-    {
-        var entity = _model.GetEntity();
-
-        // ⭐ B4: the three guards this method used to spell out (no downgrade, add-if-absent,
-        //   nothing-to-carry-over) are now inside BlueprintTierTable.Promote, with the fourth
-        //   caller — BlueprintInstanceService.AttachToEntity — sharing them.
-        BlueprintTierTable.Promote(
-            _world, entity,
-            BlueprintTierTable.ByTier(oldTier),
-            BlueprintTierTable.ByTier(newTier));
-    }
+    // ⛔ HISTORY — UpgradeTier (the editor's copy-promotion, O3a/B3) RETIRED by CE-3137 U-0 (R-236): the store never moves.
 
     public override void OnActivated() { }
     public override void OnDeactivated() { }

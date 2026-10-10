@@ -148,7 +148,7 @@ Build succeeded.
 Time Elapsed 00:01:55.23
 ```
 
-Target framework: net8.0. Solution: `IOS-IG-SimHost.sln`.
+Target framework: net8.0. Solution: `HROT.sln`.
 
 ```
 Passed!  - Failed: 0, Passed: 74, Skipped: 0, Total: 74, Duration: 3 s    - Hrot.BTree.Editor.Tests.dll (net8.0)

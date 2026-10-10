@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -212,6 +213,94 @@ namespace Hrot.Presentation.Tests.Gizmos
 
             foreach (var p in mi.Buffer.GetFrame().ToArray())
                 Assert.NotEqual(DebugPrimitiveShape.SemanticShape, p.Shape);
+        }
+
+        // ── CE-3120 (R-227) — a gizmo FAMILY's scope and per-unit PINS, through the same per-projector seam ──────────────
+
+        private Entity Mover(float x, bool selected = false)
+        {
+            var e = _repo.CreateEntity();
+            _repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 0f, 0f) });
+            var trace = new CarKinem.Core.PathTrace { TrajectoryId = 1, TotalLength = 10f, Count = 2 };
+            trace.PointsRW()[0] = new CarKinem.Core.PathTracePoint { Position = new Vector3(x, 0, 0), S = 0f };
+            trace.PointsRW()[1] = new CarKinem.Core.PathTracePoint { Position = new Vector3(x, 10, 0), S = 10f };
+            _repo.AddComponent(e, trace);
+            _repo.AddComponent(e, new CarKinem.Core.NavState { Mode = CarKinem.Core.KinematicsMode.CustomTrajectory, TrajectoryId = 1 });
+            if (selected) _repo.AddComponent(e, new SelectionState { IsSelected = true });
+            return e;
+        }
+
+        private void RegisterFamilyTypes()
+        {
+            _repo.RegisterComponent<CarKinem.Core.PathTrace>();
+            _repo.RegisterComponent<CarKinem.Core.NavState>();
+            _repo.RegisterComponent<SelectionState>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>();
+            _repo.RegisterManagedEvent<Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand>();
+        }
+
+        /// <summary>The path lines a frame drew, grouped by the mover's x (each mover's path runs along its own x).</summary>
+        private static float[] PathXs(MapInteraction mi) => mi.Buffer.GetFrame().ToArray()
+            .Where(p => p.DebugLayer == DebugTraceLayers.Paths && p.Shape == DebugPrimitiveShape.Line)
+            .Select(p => p.LineStart.X).Distinct().OrderBy(x => x).ToArray();
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3120</c> — the Path family defaults to <i>selected or pinned</i>: the pack attaches the family policy to
+        /// <c>PlannedPathGizmo</c>, so only the selected mover's path draws; PINNING the other (a <c>PatchDebugStateCommand</c> applied
+        /// by <c>DebugStatePatchSystem</c>, exactly what the context-menu action publishes) makes it draw too; switching the family to
+        /// <i>All</i> draws every mover.
+        /// </summary>
+        [Fact]
+        public void CE3120_ThePathFamily_DrawsTheSelectedAndThePinned_UntilItsScopeIsAll()
+        {
+            RegisterFamilyTypes();
+            var settings = new GizmoSettingsRegistry();
+            Mover(0f, selected: true);
+            var other = Mover(50f);
+            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _repo, StartEnabled = true, Settings = settings });
+
+            mi.StatelessSystem.Execute(_repo, 0.016f);
+            Assert.Equal(new[] { 0f }, PathXs(mi));
+
+            Hrot.Common.Diagnostics.Gizmos.GizmoPins.Set(_repo, other, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path, true);
+            _repo.Bus.SwapBuffers();
+            new Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem().Execute(_repo, 0.016f);
+            mi.Buffer.Clear();
+            mi.StatelessSystem.Execute(_repo, 0.016f);
+            Assert.Equal(new[] { 0f, 50f }, PathXs(mi));
+
+            Hrot.Common.Diagnostics.Gizmos.GizmoPins.Set(_repo, other, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path, false);
+            _repo.Bus.SwapBuffers();
+            new Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem().Execute(_repo, 0.016f);
+            GizmoFamilies.SetScope(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path, GizmoScope.All);
+            mi.Buffer.Clear();
+            mi.StatelessSystem.Execute(_repo, 0.016f);
+            Assert.Equal(new[] { 0f, 50f }, PathXs(mi));   // unpinned, but the family now draws for every mover
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3120</c> — the pin actions reach every map host through the pack, and a pin of ONE family leaves the others alone.
+        /// </summary>
+        [Fact]
+        public void CE3120_ThePackRegistersThePinActions_AndAPinTouchesOnlyItsFamily()
+        {
+            RegisterFamilyTypes();
+            var unit = Mover(0f);
+            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _repo, StartEnabled = true });
+            foreach (var f in GizmoFamilies.All)
+                Assert.True(mi.Actions.TryGetHandler(Hrot.Common.Diagnostics.Gizmos.GizmoPins.ActionIdOf(f), out _), $"pin action for {f}");
+
+            Hrot.Common.Diagnostics.Gizmos.GizmoPins.Toggle(_repo, unit, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory);
+            _repo.Bus.SwapBuffers();
+            new Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem().Execute(_repo, 0.016f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory,
+                _repo.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(unit).Ai);
+
+            // ⭐ the unit's right-click menu carries the "Pin gizmos" submenu with every family's action (the DTO serialises camelCase)
+            string menu = Hrot.Common.Diagnostics.Gizmos.ContextMenuProjectorGizmo.MenuJsonFor(_repo, unit);
+            Assert.Contains("Pin gizmos", menu);
+            foreach (var f in GizmoFamilies.All)
+                Assert.Contains($"\"id\":{Hrot.Common.Diagnostics.Gizmos.GizmoPins.ActionIdOf(f)},", menu);
         }
 
         /// <summary>

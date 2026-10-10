@@ -228,7 +228,7 @@ Before submitting report, verify:
 - [ ] ANC-P5-08d implemented: Drawer registered in `CreateNodeDrawerRegistry` with optional queries
 - [ ] ANC-P5-08d tests: 4 wiring tests, all passing
 - [ ] Full suite: 8 new tests, no regressions
-- [ ] Build: `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4` → 0 new errors
+- [ ] Build: `dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4` → 0 new errors
 - [ ] BATCH-17 tests: `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/Tests/NodeDrawers/PlayMontageChainNodeDrawerTests.cs` → all green
 - [ ] Git ready: 2 commits planned (08c complete, 08d complete) or 1 combined if appropriate
 - [ ] Report written: `.dev/anim-ctrl/reports/BATCH-17-CONTINUATION-REPORT.md` with findings + test results

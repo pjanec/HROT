@@ -249,7 +249,7 @@ The channel-command path (`_channelCommands` → `ChannelCommandPinsFromCatalog`
 
 ### 10.5 Verification (live-style wiring)
 
-**Build:** `dotnet build IOS-IG-SimHost.sln` → **0 errors**, 8 warnings (all pre-existing, none in changed files).
+**Build:** `dotnet build HROT.sln` → **0 errors**, 8 warnings (all pre-existing, none in changed files).
 
 **New tests** — `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Host/AN7_LiveWiringTests.cs` (3, all pass), exercising the production composition path (real `BehaviorActionCatalog` from a channel catalog + `IActionSchemaExporter` with a `Shared` entry):
 - `CreatePaletteRegistry_WithLiveCatalog_ContainsNonChannelActionEntry_AN7` — palette registry built with the real catalog contains the `Action:{FQN}` kind and bakes `ActionFqn`.

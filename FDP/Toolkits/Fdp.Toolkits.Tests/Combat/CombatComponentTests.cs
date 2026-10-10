@@ -97,8 +97,9 @@ namespace Fdp.Toolkit.Combat.Tests
         public void WeaponFireIntent_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(WeaponFireIntent).IsValueType);
-            // Current actual layout: 2×Entity(8) + int(4) + bool(1) padded to 24 bytes.
-            Assert.Equal(24, Marshal.SizeOf<WeaponFireIntent>());
+            // Current actual layout: 2×Entity(8) + int(4) + bool(1) padded to 24 bytes; ⭐ CE-1032 + AtPoint (bool) and
+            // TargetPoint (Vector3) = 40. A LOCAL event — the wire (WeaponFireRequest) is mapped field by field.
+            Assert.Equal(40, Marshal.SizeOf<WeaponFireIntent>());
         }
 
         /// <summary>
@@ -136,8 +137,9 @@ namespace Fdp.Toolkit.Combat.Tests
         {
             Assert.True(typeof(DetonationNotification).IsValueType);
             // Current actual layout: 2×Entity(8) + 3×float(4) + bool (marshalled as 4) = 32, ⭐ CE-3071 + Penetration and
-            // Damage (2×float) = 40. A LOCAL event — the wire message (MunitionDetonation) is mapped field by field.
-            Assert.Equal(40, Marshal.SizeOf<DetonationNotification>());
+            // Damage (2×float) = 40, ⭐ CE-1032 + Ammo (long) = 48. A LOCAL event — the wire message (MunitionDetonation) is
+            // mapped field by field.
+            Assert.Equal(48, Marshal.SizeOf<DetonationNotification>());
         }
 
         /// <summary>

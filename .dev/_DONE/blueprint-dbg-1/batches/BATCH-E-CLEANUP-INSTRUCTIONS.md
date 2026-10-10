@@ -91,7 +91,7 @@ Also check for any remaining `using` statements that referenced these types' nam
 ## Task 4: Build and test
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 ```
 Must be 0 errors. If build fails, fix all errors before proceeding.
 

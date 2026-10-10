@@ -10,7 +10,7 @@ CreateNew → save → callback) with explicit DEC-12 reconciliation.
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings.
+- `dotnet build HROT.sln` → 0 errors, 0 new warnings.
 - New tests run by lead: `AssetSavePathTests` (22) + `NewAssetDialogTests` (16) → **38 passed, 0 failed**.
   Suites green: AiShared 1007, Fdp.Toolkits 1856, SimHost 585, BTree.Editor 406, Hsm.Editor 358.
 - `AssetSavePath.Compose`: `AssetsFor(kind)/relPath/name.ext`, root-escape validation (no `..`/absolute),

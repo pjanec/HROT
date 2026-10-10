@@ -74,7 +74,7 @@ Hrot.Network.BDC/      BdcNetworkFactory + BdcReplicationModule + BDC translator
 Build the entire solution:
 ```
 cd d:\Work\IOS-IG-SimHost-FDP
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 Build only the FDP layer:
@@ -85,7 +85,7 @@ dotnet build FDP.sln
 
 Run all tests:
 ```
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 
 Run specific project tests:

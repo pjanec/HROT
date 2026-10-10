@@ -5,7 +5,7 @@
 Fixes the three user-visible Blueprint-canvas defects: yellow marquee → demo scheme (all 3 perspectives), nodes now draggable, pins+wires now render on loaded assets.
 
 ## Verification (ran myself)
-- **`dotnet build IOS-IG-SimHost.sln` → 0 Warnings / 0 Errors** (GizmoMap.Contracts 0.2.2; Hrot.IG/DDS untouched).
+- **`dotnet build HROT.sln` → 0 Warnings / 0 Errors** (GizmoMap.Contracts 0.2.2; Hrot.IG/DDS untouched).
 - `Hrot.Blueprints.Tests` **1066 / 10 / 8** — the 10 are exactly the DEBT-006 set; the MoveToAndFire/Library **golden emit tests fail identically to baseline → compiler output did NOT drift → projection-only held**. +39 new passing (pin-hydration + byte-stability + move identity).
 - `Hrot.Editor.AiShared.Tests` **745 / 0** (theme assertions pass). `Hrot.BTree.Editor.Tests` **380 / 0**. `Hrot.Hsm.Editor.Tests` **330 / 0**. `EditorSubsystemBoot` **10 / 0**.
 

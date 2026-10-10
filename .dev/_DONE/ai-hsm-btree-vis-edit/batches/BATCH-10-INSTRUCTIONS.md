@@ -282,7 +282,7 @@ Project | Before | After
 
 Before declaring the batch done:
 
-- [ ] `dotnet build IOS-IG-SimHost.sln` exits 0 with 0 errors and 0 warnings
+- [ ] `dotnet build HROT.sln` exits 0 with 0 errors and 0 warnings
 - [ ] `Hrot.BTree.Editor.Tests`: all tests pass, count >= 221 (new tests added for 1e-01, 1e-02)
 - [ ] `Hrot.Hsm.Editor.Tests`: all tests pass, count >= 215 (new tests added for 1f-07 HSM side)
 - [ ] `Hrot.Editor.AiShared.Tests`: all tests pass, count >= 365 (new tests for 1f-07 window states)

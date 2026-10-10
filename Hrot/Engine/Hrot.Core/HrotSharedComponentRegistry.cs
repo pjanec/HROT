@@ -70,6 +70,19 @@ public static class HrotSharedComponentRegistry
         //    parsed terrain definition starts being written into flight recordings, silently, despite
         //    carrying NoReplay. Pinned by SettingTheSingletonWithoutRegistering_SilentlyIgnoresTheDataPolicy.
         world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
+        // ⭐ Buildings Stage 5b — door entities: the replicated state and the terrain-object key (§3j). Shared: every node mirrors them.
+        world.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+        world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+        // ⭐ CE-3136 P-7a — static obstacles (a parked car, a sandbag wall …): terrain every node bakes. Shared: every node derives the
+        //   marker from the TKB and receives the box (EntityObstacleShape). 📄 docs/DESIGN_Peek_And_Fire.md §9.
+        world.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.ObstacleShape>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.DoorCommandEvent>();   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
+        // ⭐⭐ The transient-spawn tag (R-140 D2): NetworkSpawningSystem.ProcessSpawn stamps it on EVERY node that materialises a
+        //   transient entity — a door entity (5b, transient: the terrain recreates it), an IG sketch. 🔴 It was registered by no
+        //   host, only by the rails (each registers it itself), so the first door spawned in a cluster threw "ScenarioIgnoreTag is
+        //   not registered" in CGF's kernel and killed the process (found by the bt-doors live run, 2026-10-08).
+        world.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
 
         // ── Shared managed definitions ────────────────────────────────────────
         world.RegisterComponent<VisualData>();

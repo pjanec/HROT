@@ -9,6 +9,8 @@ namespace Hrot.Map.Definitions.Tkb
     public static class NedTkbCatalog
     {
         /// <summary>⭐ CE-1017 S0 — SISO-REF-010 country codes used by the built-in types (names: <c>DisNameTable</c>).</summary>
+        /// <summary>⭐ AQ85 C (R-216) — the rifle's aim dispersion, mils (same as UrbanCombat's).</summary>
+        public const float RifleDispersionMils = 6f;
         public const ushort UnitedStates = 225;
         /// <summary>⭐ CE-1017 S0 — SISO-REF-010 Russia.</summary>
         public const ushort Russia = 222;
@@ -182,7 +184,8 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithCombat(TkbEntityTypes.Infantry_Rifleman, c =>
                 {
                     c.ArmorFront = 5; // Body armor
-                    c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25 });
+                    c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
+                        DispersionMils = RifleDispersionMils });   // ⭐ AQ85 C — the first opt-in (~50 % at 100 m standing still)
                     c.SensorRange = 500;
                 })
                 .WithFaction(TkbEntityTypes.Infantry_Rifleman, 1)
@@ -260,6 +263,25 @@ namespace Hrot.Map.Definitions.Tkb
             var routeTemplate = new TkbTemplate("TacGraphic_Route", TkbEntityTypes.TacGraphic_Route);
             // TKB-014 (Phase 6): ECS components will be injected by translators.
             tkbDb.Register(routeTemplate);
+
+            // ⭐ Buildings Stage 5b — a terrain door (📄 docs/DESIGN_Building_Interiors.md §3j). A bare template like the two above:
+            //   its state (DoorState) and key (TerrainObjectKey) arrive with the creation request on the creator and through the
+            //   EntityDoorState descriptor everywhere else — nothing for a TKB translator to inject.
+            tkbDb.Register(new TkbTemplate("Door", TkbEntityTypes.Door));
+
+            // ⭐ CE-3136 P-7a (O4, R-242) — the four starter STATIC OBSTACLES: terrain made of a wall-library material
+            //   (📄 docs/DESIGN_Peek_And_Fire.md §9). ⚠ The sizes and the car-body material are starter values to tune (§3c).
+            RegisterObstacle(tkbDb, "Car",            TkbEntityTypes.Obstacle_Car,           4.5f, 1.8f, 1.5f, "car-body");
+            RegisterObstacle(tkbDb, "Sandbag wall",   TkbEntityTypes.Obstacle_SandbagWall,   3.0f, 0.6f, 1.0f, "sandbags");
+            RegisterObstacle(tkbDb, "Concrete block", TkbEntityTypes.Obstacle_ConcreteBlock, 2.0f, 1.0f, 1.0f, "concrete");
+            RegisterObstacle(tkbDb, "Crate",          TkbEntityTypes.Obstacle_Crate,         1.2f, 1.0f, 1.0f, "fence-wood");
+        }
+
+        private static void RegisterObstacle(TkbDatabase tkbDb, string name, long type, float length, float width, float height, string material)
+        {
+            var t = new TkbTemplate(name, type);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.StaticObstacleDto { Length = length, Width = width, Height = height, Material = material });
+            tkbDb.Register(t);
         }
     }
 }

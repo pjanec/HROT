@@ -90,7 +90,7 @@ Extend `NodePinSchemaEnrichmentTests.cs`:
   ExportedFunctions as the in-memory builder). If the parser test needs a real fixture, reuse an existing one.
 
 ## Verification (paste real output)
-1. `dotnet build IOS-IG-SimHost.sln` — 0 errors; 0 new warnings in touched projects. (The signature
+1. `dotnet build HROT.sln` — 0 errors; 0 new warnings in touched projects. (The signature
    change touches the compiler too — confirm the whole solution builds.)
 2. New + existing tests green (NodePinSchema + any BlueprintSignature/peer-ref tests).
 3. Full `Hrot.Blueprints.Tests`: failures a SUBSET of the pre-existing **7**, 0 new, no golden changed.

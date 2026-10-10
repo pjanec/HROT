@@ -149,7 +149,7 @@ Create unit tests in `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/Tests/No
 - ✅ Session can be created from a valid node
 - ✅ 6 unit tests pass (3 drawer + 3 session lifecycle)
 - ✅ Dispatch-keying route (A or B) documented in code comments
-- ✅ Solution builds clean: `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4`
+- ✅ Solution builds clean: `dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4`
 
 ---
 
@@ -281,7 +281,7 @@ The report should gather valuable professional feedback:
 - ✅ Current task implementation complete
 - ✅ Current task tests written
 - ✅ **ALL tests passing** (including previous task tests)
-- ✅ Build clean: `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4`
+- ✅ Build clean: `dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4`
 
 **Why:** Ensures each component is solid before building on top of it. Prevents cascading failures.
 
@@ -303,7 +303,7 @@ Run and **include summary output** in your report:
 
 3. Full solution build (verify no unrelated regressions):
    ```
-   dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4
+   dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4
    ```
 
 **Include test output:**
@@ -348,7 +348,7 @@ Run and **include summary output** in your report:
 
 **Files to Update:**
 1. `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/BlueprintEditorBootstrap.cs` — Extend `CreateNodeDrawerRegistry`
-2. `IOS-IG-SimHost.sln` — No project changes needed (test file added to existing test project)
+2. `HROT.sln` — No project changes needed (test file added to existing test project)
 
 ---
 

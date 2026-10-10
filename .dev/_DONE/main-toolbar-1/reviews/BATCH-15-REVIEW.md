@@ -10,7 +10,7 @@ generic hosts over `AssetBrowserPanel`, in `Hrot.Editor.AiShared/Browser`.
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings.
+- `dotnet build HROT.sln` → 0 errors, 0 new warnings.
 - New tests run by lead: `AssetPickerModalTests` (14) + `AssetBrowserDockedWindowTests` (8) →
   **22 passed, 0 failed**. Suites green: AiShared 947, Fdp.Toolkits 1856, SimHost 585.
 - `AssetPickerModal`: `Open(options, callback)` with `_callbackInvoked` guard (one callback per open);

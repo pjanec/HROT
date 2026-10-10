@@ -79,7 +79,7 @@ else if (info.Source == ReloadSource.FullRebuildViaFileWatcher)
 ## Build and test
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 ```
 Must be 0 errors.
 

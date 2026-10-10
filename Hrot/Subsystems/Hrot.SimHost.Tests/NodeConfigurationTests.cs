@@ -22,7 +22,6 @@ namespace Hrot.SimHost.Tests
 
             Assert.Equal(42u, config.DdsDomainId);
             Assert.Equal(string.Empty, config.CycloneDdsConfigPath);
-            Assert.Equal(string.Empty, config.RoadNetworkBlobPath);
             Assert.Equal(string.Empty, config.BehaviorRegistryPath);
             Assert.Equal(string.Empty, config.EntityTemplatePath);
         }
@@ -61,7 +60,6 @@ namespace Hrot.SimHost.Tests
                 {
                     DdsDomainId         = 7u,
                     CycloneDdsConfigPath = "Config/dds-node.xml",
-                    RoadNetworkBlobPath  = "Assets/roads.json",
                 });
                 File.WriteAllText(tempFile, json);
 
@@ -69,7 +67,6 @@ namespace Hrot.SimHost.Tests
 
                 Assert.Equal(7u, config.DdsDomainId);
                 Assert.Equal("Config/dds-node.xml", config.CycloneDdsConfigPath);
-                Assert.Equal("Assets/roads.json", config.RoadNetworkBlobPath);
             }
             finally
             {

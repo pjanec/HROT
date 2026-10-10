@@ -70,7 +70,7 @@ Tests run:
 Build succeeded.  0 Error(s).  0 Warning(s).
 ```
 
-Full solution: `IOS-IG-SimHost.sln`.
+Full solution: `HROT.sln`.
 
 ---
 

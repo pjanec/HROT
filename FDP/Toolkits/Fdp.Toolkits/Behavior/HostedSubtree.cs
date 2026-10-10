@@ -488,12 +488,12 @@ public static unsafe class HostedSubtree
     /// </summary>
     private static void ResetAt(EntityRepository world, Entity self, int templateKey, int parentOccurrenceKey, int depth)
     {
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-        if (store == null) return;   // ⚠ torn down already — nothing to reset, and not an error
+        if (!OccurrenceStoreAccess.HasStore(world, self)) return;   // ⚠ torn down already — nothing to reset, and not an error
 
         int key = OccurrenceSlots.HostedKeyAt(parentOccurrenceKey, templateKey);
         HostedChildren.TryGetDefinition(templateKey, out var childDef);
-        if (BlueprintBlackboardPartitions.TryGetSlotIndex(store, key, out int index))
+        // ⭐ CE-3137 U-0: whichever block holds it.
+        if (OccurrenceStoreAccess.TryFindSlotIndex(world, self, key, out byte* store, out int index))
         {
             ref var entry = ref BlueprintBlackboardPartitions.GetSlot(store, index);
             byte* payload = store + entry.PayloadOffset;
@@ -569,15 +569,13 @@ public static unsafe class HostedSubtree
     /// <summary>The hosted slot's payload base and its allocated size. ⛔ Throws on a missing slot — §19.6 ⑤.</summary>
     private static byte* ResolvePayload(ref BTreeContext ctx, int treeStateSlotKey, out int payloadSize)
     {
-        byte* store = OccurrenceStoreAccess.TryGetStore(ctx.World, ctx.Self, out _);
-
-        if (store == null)
+        if (!OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self))
             throw new InvalidOperationException(
                 $"Entity {ctx.Self} carries no occurrence store, so hosted subtree slot " +
                 $"{treeStateSlotKey} cannot be resolved. The hosting site's slot must be declared in " +
                 "the behaviour's stateful manifest so BehaviorIngressSystem provisions it.");
 
-        if (!BlueprintBlackboardPartitions.TryGetSlotIndex(store, treeStateSlotKey, out int slotIndex))
+        if (!OccurrenceStoreAccess.TryFindSlotIndex(ctx.World, ctx.Self, treeStateSlotKey, out byte* store, out int slotIndex))
             throw new InvalidOperationException(
                 $"Entity {ctx.Self} has an occurrence store but no slot {treeStateSlotKey} for the " +
                 "hosted subtree's BehaviorTreeState. Either the manifest does not declare it, or the " +

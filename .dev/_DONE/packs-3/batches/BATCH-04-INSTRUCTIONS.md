@@ -248,7 +248,7 @@ builds clean.
 
 Run regressions before submitting:
 ```
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln --no-incremental
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln --no-incremental
 dotnet test Hrot.ClusterRunner.Integration.Tests --filter "AclBackdoor|NetworkGate|OfflineEditor|AreaAuthoring" --no-build
 dotnet test Hrot.Map.Common.Tests --filter "EgressTranslator" --no-build
 ```

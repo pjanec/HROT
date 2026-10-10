@@ -254,6 +254,7 @@ namespace Hrot.Presentation.Tests.Gizmos
 
             var scheduled = mi.GizmoGroup.GetSystems().Select(s => s.GetType()).ToHashSet();
             scheduled.Add(mi.ActionDispatch.GetType());
+            scheduled.Add(mi.DebugStatePatch.GetType());   // ⭐ CE-3123 — the third member of InteractionSystems
 
             foreach (Type required in mi.RequiredSystems)
                 Assert.Contains(required, scheduled);
@@ -272,8 +273,10 @@ namespace Hrot.Presentation.Tests.Gizmos
 
             var missing = mi.Unserviceable(mi.GizmoGroup.GetSystems());
 
-            var only = Assert.Single(missing);
-            Assert.Contains("GlobalActionDispatchSystem", only, StringComparison.Ordinal);
+            // ⭐ CE-3123 — the debug-state patch is the other non-group member of InteractionSystems, so it is named too.
+            Assert.Equal(2, missing.Count);
+            Assert.Contains(missing, m => m.Contains("GlobalActionDispatchSystem", StringComparison.Ordinal));
+            Assert.Contains(missing, m => m.Contains("DebugStatePatchSystem", StringComparison.Ordinal));
         }
 
         /// <summary>⭐ The pack builds the layer control and wires its menu action, so every host has it.</summary>
@@ -285,7 +288,8 @@ namespace Hrot.Presentation.Tests.Gizmos
             Assert.NotNull(mi.LayerControl);
             Assert.True(mi.Actions.TryGetHandler(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, out _));
             Assert.Same(mi.ActionDispatch, mi.InteractionSystems[0]);
-            Assert.Same(mi.GizmoGroup, mi.InteractionSystems[1]);
+            Assert.Same(mi.DebugStatePatch, mi.InteractionSystems[1]);   // ⭐ CE-3123
+            Assert.Same(mi.GizmoGroup, mi.InteractionSystems[2]);
         }
 
         /// <summary>⭐ The shared renderer factory registers the layer-control panel schema on every host.</summary>

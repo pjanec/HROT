@@ -135,7 +135,7 @@ dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/
 dotnet test ... --filter "FullyQualifiedName~EditorSubsystemBoot"
   Passed: 10, Failed: 0, Skipped: 0, Total: 10
 
-dotnet build IOS-IG-SimHost.sln → Build succeeded. 0 Error(s), 1 Warning (pre-existing xUnit2013).
+dotnet build HROT.sln → Build succeeded. 0 Error(s), 1 Warning (pre-existing xUnit2013).
 ```
 
 The 10 `Hrot.Blueprints.Tests` failures are all DEBT-006 pre-existing:

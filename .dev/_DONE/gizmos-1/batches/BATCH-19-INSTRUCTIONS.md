@@ -27,7 +27,7 @@
 ## Build and Test Commands
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental -clp:ErrorsOnly
+dotnet build HROT.sln --no-incremental -clp:ErrorsOnly
 dotnet build ExtDeps/GizmoMap/GizmoMap.Contracts/GizmoMap.Contracts.csproj
 dotnet build ExtDeps/GizmoMap/GizmoMap.Network/GizmoMap.Network.csproj
 dotnet test FDP/Diagnostics/Fdp.Diagnostics.Contracts.Tests/Fdp.Diagnostics.Contracts.Tests.csproj
@@ -70,7 +70,7 @@ Complete tasks in sequence. Build and verify before proceeding:
 1. **GZ053** → create assembly → migrate types → ensure backward compat → standalone build → tests
 2. **GZ054** → create assembly → migrate DDS topics → create transport adapters → standalone build → tests
 
-Run `dotnet build IOS-IG-SimHost.sln --no-incremental -clp:ErrorsOnly` after EACH task.
+Run `dotnet build HROT.sln --no-incremental -clp:ErrorsOnly` after EACH task.
 
 ---
 
@@ -100,7 +100,7 @@ Create `ExtDeps/GizmoMap/GizmoMap.Contracts/GizmoMap.Contracts.csproj`:
 </Project>
 ```
 
-Add `ExtDeps/GizmoMap/GizmoMap.Contracts/GizmoMap.Contracts.csproj` to `IOS-IG-SimHost.sln`.
+Add `ExtDeps/GizmoMap/GizmoMap.Contracts/GizmoMap.Contracts.csproj` to `HROT.sln`.
 
 ### Step 2: Copy types into GizmoMap.Contracts
 
@@ -202,7 +202,7 @@ Create `ExtDeps/GizmoMap/GizmoMap.Network/GizmoMap.Network.csproj`:
 To reference CycloneDDS, look at how `Fdp.Diagnostics.Network.csproj` references it and use the
 same `<PackageReference>` or `<ProjectReference>` pattern.
 
-Add the project to `IOS-IG-SimHost.sln`.
+Add the project to `HROT.sln`.
 
 ### Step 2: Copy DDS topic struct definitions
 
@@ -276,7 +276,7 @@ continues to use the existing `Fdp.Diagnostics.Network` types.
 - REQUIRED: Tests that verify the assembly boundary itself (standalone build success)
 
 **BACKWARD COMPATIBILITY:**
-- `dotnet build IOS-IG-SimHost.sln --no-incremental` must still succeed with 0 errors
+- `dotnet build HROT.sln --no-incremental` must still succeed with 0 errors
 - `dotnet build FDP/FDP.sln` must still succeed with 0 errors
 - Do NOT delete or rename any type in `Fdp.Diagnostics.Contracts` or `Fdp.Diagnostics.Network`
 
@@ -287,7 +287,7 @@ continues to use the existing `Fdp.Diagnostics.Network` types.
 This batch is DONE when:
 - [ ] GZ053: `ExtDeps/GizmoMap/GizmoMap.Contracts/` exists; builds standalone with 0 errors; 6 tests pass from a test project with no FDP/HROT references
 - [ ] GZ054: `ExtDeps/GizmoMap/GizmoMap.Network/` exists; builds standalone with 0 errors; 5 tests pass
-- [ ] Full solution: `dotnet build IOS-IG-SimHost.sln --no-incremental` → 0 errors
+- [ ] Full solution: `dotnet build HROT.sln --no-incremental` → 0 errors
 - [ ] All existing tests still pass (no regressions)
 - [ ] TASK-TRACKER.md updated (GZ053, GZ054 marked done)
 - [ ] Report submitted

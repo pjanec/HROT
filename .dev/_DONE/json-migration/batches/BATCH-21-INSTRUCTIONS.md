@@ -389,7 +389,7 @@ After all tasks:
 
 3. Build the full solution:
    ```
-   dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+   dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
    ```
    (Only `Hrot.Blueprints.Tests` CS0234/CS0246 errors are expected.)
 

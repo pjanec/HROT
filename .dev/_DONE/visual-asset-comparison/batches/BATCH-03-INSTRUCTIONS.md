@@ -58,7 +58,7 @@ dotnet test "Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Hrot.BTree.Editor.Tests.
 dotnet test "Hrot/Subsystems/AI/Hrot.Hsm.Editor.Tests/Hrot.Hsm.Editor.Tests.csproj" -c Debug
 
 # Full solution build
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
 ```
 
 ### Report Submission
@@ -513,7 +513,7 @@ This batch is DONE when:
 - [ ] D-08 debt fix: FakeCatalog/FakeAsset consolidated within each test project; all BTree tests pass; all HSM tests pass
 - [ ] TASK-C-08: `NoOpComparisonMigrationAdapter` and `NoOpMetaEnvelopeSanitizer` created + DI wiring; all 3 NoOpAdapterTests pass
 - [ ] TASK-C-09: `BlueprintComparisonSanitizer` + fixtures + 13 tests created; all pass
-- [ ] `dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4` — 0 errors
+- [ ] `dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4` — 0 errors
 - [ ] All AiShared tests pass
 - [ ] All Blueprint tests pass
 - [ ] All BTree tests pass

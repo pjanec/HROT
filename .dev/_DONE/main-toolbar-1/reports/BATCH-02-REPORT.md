@@ -138,7 +138,7 @@ All 9 failures use either test-local assets (TestAssets/) or exercise logic unre
     - **(c) No leftovers**: bare `Blueprints/`, `Machines/`, and `Trees/` directories do NOT exist in the source project
   - Does **not** assert finals in the output tree (they are generator `AdditionalFiles` compiled into the assembly, not copied to output)
   - Mirrors existing patterns: resolves source dir via repo-root walk (like `CF7rev_EndToEndTests`), resolves output dir via `Assembly.Load("Hrot.AI.Behaviors")` (like `DiscoverRecipesTests`)
-- **Build**: `dotnet build IOS-IG-SimHost.sln` — **green, 0 errors, 9 pre-existing warnings, 0 new warnings**
+- **Build**: `dotnet build HROT.sln` — **green, 0 errors, 9 pre-existing warnings, 0 new warnings**
 - **Test run**: `dotnet test Hrot.Blueprints.Tests --filter 'FullyQualifiedName~FolderLayout'` — **1 passed, 0 failed, 0 skipped** (Duration: 7 ms)
 
 ## Suggested Commit Message

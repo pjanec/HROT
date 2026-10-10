@@ -104,7 +104,7 @@ Both tests pass: `Passed! - Failed: 0, Passed: 2, Skipped: 0, Total: 2`.
 
 ### Gate 1: Build
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Build succeeded.
     0 Error(s)
 ```
@@ -286,7 +286,7 @@ dotnet test ... --filter "FullyQualifiedName~InstanceEmitGoldenTests|FullyQualif
 
 **A. Build:**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Build succeeded.  0 Error(s)
 ```
 

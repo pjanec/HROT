@@ -146,7 +146,7 @@ Append one row per working session. Keep it factual.
 | 1 | **Which branch receives the port?** Not a feature branch — this is infrastructure everything builds on. `main`? A dedicated `port/ai-debug-api` that other sessions then merge from? | Everything |
 | 2 | **Does the trunk's history topology get fixed?** `main` being an unrelated 120-commit line beside a 2137-commit line is a landmine: the next person to merge any old branch hits the same wall | Not blocking this port, but the same problem will recur |
 | 3 | **Is anything else stranded on `feat/ai-debug-api`?** The inventory covered only files **absent** from the trunk line. Files present on **both** but *diverged* were never compared — **there may be ADA-era improvements a port-by-addition silently drops** | Completeness of the port |
-| 4 | **Does the Node toolchain matter** for build/CI, given `tools/ai-debug-mcp` sits deliberately outside `IOS-IG-SimHost.sln`? | Packaging / "stays operational" |
+| 4 | **Does the Node toolchain matter** for build/CI, given `tools/ai-debug-mcp` sits deliberately outside `HROT.sln`? | Packaging / "stays operational" |
 | 5 | **What does "stays operational" mean concretely** — is the API expected up in every editor run, behind a flag, or on an explicit port argument? | Wiring decision in step 3 |
 
 ---

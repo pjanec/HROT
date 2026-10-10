@@ -65,7 +65,7 @@ The tests use `NodePinSchema.GetCanonicalPins(node, channelCommands: BuiltInChan
 
 ## 5. Gate Results
 
-### `dotnet build IOS-IG-SimHost.sln -c Debug`
+### `dotnet build HROT.sln -c Debug`
 ```
 Build succeeded.
 0 Error(s)

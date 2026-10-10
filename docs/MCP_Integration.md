@@ -118,7 +118,7 @@ GET /entities  → []
 
 ## Notes
 
-- The Node server is deliberately outside `IOS-IG-SimHost.sln`; it adds a Node dependency, no C# build coupling.
+- The Node server is deliberately outside `HROT.sln`; it adds a Node dependency, no C# build coupling.
 - Once wired, the API becomes a second consumer of the editor's internals (co-owned surface).
 
 ---

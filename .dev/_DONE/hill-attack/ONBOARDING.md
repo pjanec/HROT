@@ -96,13 +96,13 @@ Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs                       -- Register mappe
 Build the full solution from the workspace root:
 
 ```bat
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 Run all tests (no build step):
 
 ```bat
-dotnet test IOS-IG-SimHost.sln --no-build
+dotnet test HROT.sln --no-build
 ```
 
 Run only hill-attack-relevant tests (once they exist):

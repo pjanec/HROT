@@ -93,7 +93,9 @@ namespace GizmoMap.Presentation
                 if ((prim.TargetView & PipelineTarget.Map2D) == 0) continue;
 
                 // Filter: robust 256-bit layer mask evaluation.
-                if (!activeLayers.IsSet(prim.DebugLayer)) continue;
+                // ⭐ CE-3149 — a PANEL (StructInspector) is not a map layer: it is exempt, or unchecking "Entities" (bit 0, the default
+                //    layer of everything that names none) would hide the layer dialog that could turn it back on.
+                if (prim.Shape != DebugPrimitiveShape.StructInspector && !activeLayers.IsSet(prim.DebugLayer)) continue;
 
                 // Filter: LOD zoom culling.
                 if (prim.MinZoomLod != 0 && zoom < prim.MinZoomLod * 0.25f) continue;
@@ -201,6 +203,48 @@ namespace GizmoMap.Presentation
         }
 
         /// <summary>
+        /// ⭐⭐⭐ <c>CE-3154</c> — <b>THE OUTLINE OF A CLOSED SHAPE IS STROKED IN SCREEN PIXELS, whatever unit its
+        /// GEOMETRY is in.</b> Returns the stroke width in the units the camera is drawing in (world units inside
+        /// <c>BeginMode2D</c>), i.e. <c>pixels / zoom</c>.
+        ///
+        /// <para>🔒 <b>User, <c>2026-10-10</c>:</b> <i>"the green selection circle now scales but is now extremely
+        /// thick (was single pixel regardless of zoom before - should be like that). The drag and drop yellow marker
+        /// circle is thick - should be 1 pixel regardless of zoom."</i></para>
+        ///
+        /// <para>🔴 <b>The defect was a COUPLING, not a number.</b> One field, <see cref="SizeMode"/>, decided the
+        /// unit of BOTH a shape's size and its stroke, so "a ring 3 m across with a 2 px line" could not be said at
+        /// all: making the selection ring world-sized (<c>CE-3147</c>) silently turned its 2-unit stroke into
+        /// 2 METRES — ~200 px at zoom 100.</para>
+        ///
+        /// <para>📐 <b>INVENTORY, which is what made this a rule and not a patch</b> *(grep + graph text search,
+        /// <c>2026-10-10</c>: every non-test <c>DrawSphere(… thickness: …)</c>)* — 11 call sites, and <b>every one
+        /// writes a pixel-sized stroke</b> (1, 1.2, 1.5, 2) on a world-sized ring, because <c>DrawSphere</c>'s
+        /// <c>sizeMode</c> DEFAULTS to <c>WorldMeters</c> while <c>DrawLine</c>'s defaults to <c>ScreenPixels</c>:
+        /// <c>DetonationGizmo</c> ×2, <c>HearingGizmo</c> ×2, <c>PeekAndFireGizmo</c> ×3, <c>PlannedPathGizmo</c>,
+        /// <c>SquadGizmo</c>, <c>LineOfSightGizmo</c>, <c>SelectionHighlightGizmo</c>. ⚠ Several were therefore
+        /// drawing something other than what they wrote — <c>PeekAndFireGizmo</c> asks for a "2" stroke on a 0.35 m
+        /// circle, i.e. a 2 m band on a 0.35 m radius, which collapses to a SOLID DISC. Both explicit
+        /// <c>WorldMeters</c> boxes (<c>BoundingBoxPickerGizmo</c>, the replay browser's) ask for <c>1.5</c> too.
+        /// ⇒ ⛔ nobody wants a world-thick outline; it only looked tolerable below the old zoom cap of 10.</para>
+        ///
+        /// <para>⭐ <b>Precedent in this same method:</b> the <c>Arrow</c> case has always drawn <i>"a 1 px stroke …
+        /// and a fixed-pixel arrowhead, regardless of zoom"</i> on world-space geometry.</para>
+        ///
+        /// <para>⛔ <b>LINES ARE DELIBERATELY NOT INCLUDED.</b> A line has no size for <see cref="SizeMode"/> to
+        /// govern except its width, so an explicit <c>WorldMeters</c> on a line is a real request — that is how
+        /// <c>RoadNetworkGizmo</c> draws a road at its true width.</para>
+        ///
+        /// <para>⚠ <b>Screen-space primitives are left exactly as they were</b> (the camera transform is off there;
+        /// this method never knew their zoom relationship and this change does not guess at it).</para>
+        /// </summary>
+        public static float OutlineStroke(float baseThicknessPx, SizeMode sizeMode, float zoom, bool screenSpace)
+        {
+            if (screenSpace || zoom <= 0f)
+                return sizeMode == SizeMode.ScreenPixels && zoom > 0f ? baseThicknessPx / zoom : baseThicknessPx;
+            return baseThicknessPx / zoom;
+        }
+
+        /// <summary>
         /// Issues the actual Raylib draw call(s) for one primitive.
         /// Override in test subclasses to capture dispatches without Raylib.
         /// </summary>
@@ -218,6 +262,9 @@ namespace GizmoMap.Presentation
 
             bool screenSpace = prim.Space == CoordinateSpace.Screen;
             if (screenSpace) Raylib.EndMode2D();
+
+            // ⭐ CE-3154 — the stroke of a CLOSED shape's outline (Sphere ring, Box2D border). See OutlineStroke.
+            float outlineThickness = OutlineStroke(baseThickness, prim.SizeMode, zoom, screenSpace);
 
             switch (prim.Shape)
             {
@@ -252,7 +299,7 @@ namespace GizmoMap.Presentation
                     }
                     if (baseThickness > 0f)
                     {
-                        float scaledThickness = thickness;
+                        float scaledThickness = outlineThickness;   // ⭐ CE-3154 — pixels, whatever the radius is measured in
                         if (prim.LineStyle == LineStyle.Solid)
                         {
                             float innerRadius = Math.Max(0f, scaledRadius - scaledThickness);
@@ -317,7 +364,7 @@ namespace GizmoMap.Presentation
                         Raylib.DrawRectanglePro(rect, origin, prim.BoxAngleDeg, fillColor);
                     }
 
-                    if (thickness > 0f && color.A > 0)
+                    if (outlineThickness > 0f && color.A > 0)
                     {
                         float ex = prim.BoxExtentX * geomScale;
                         float ey = prim.BoxExtentY * geomScale;
@@ -329,10 +376,11 @@ namespace GizmoMap.Presentation
                         var tr = c + new Vector2( ex * cos + ey * sin,  ex * sin - ey * cos);
                         var br = c + new Vector2( ex * cos - ey * sin,  ex * sin + ey * cos);
                         var bl = c + new Vector2(-ex * cos - ey * sin, -ex * sin + ey * cos);
-                        DrawStyledLine(tl, tr, thickness, color, prim.LineStyle, geomScale);
-                        DrawStyledLine(tr, br, thickness, color, prim.LineStyle, geomScale);
-                        DrawStyledLine(br, bl, thickness, color, prim.LineStyle, geomScale);
-                        DrawStyledLine(bl, tl, thickness, color, prim.LineStyle, geomScale);
+                        // ⭐ CE-3154 — the border is an OUTLINE: pixels, like the Sphere ring above.
+                        DrawStyledLine(tl, tr, outlineThickness, color, prim.LineStyle, geomScale);
+                        DrawStyledLine(tr, br, outlineThickness, color, prim.LineStyle, geomScale);
+                        DrawStyledLine(br, bl, outlineThickness, color, prim.LineStyle, geomScale);
+                        DrawStyledLine(bl, tl, outlineThickness, color, prim.LineStyle, geomScale);
                     }
                     break;
                 }

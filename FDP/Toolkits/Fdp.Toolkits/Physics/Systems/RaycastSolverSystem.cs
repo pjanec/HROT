@@ -144,6 +144,10 @@ namespace Fdp.Toolkit.Physics.Systems
 
                     if (!repo.HasComponent<PhysicsCollider>(candidate)) continue;
 
+                    // ⭐ CE-3136 P-7a (R-243) — a static obstacle is TERRAIN: a round crosses it by the wall rule (TerrainPenetration,
+                    //   its material × the chord), never stopped dead by its movement collider.
+                    if (PhysicsConstants.IsBulletRay(req.RayId) && Fdp.Toolkit.Terrain.TerrainObstacles.IsObstacle(repo, candidate)) continue;
+
                     var collider = repo.GetComponent<PhysicsCollider>(candidate);
 
                     if ((req.LayerMask & collider.CollisionLayer) == 0) continue;
@@ -153,6 +157,19 @@ namespace Fdp.Toolkit.Physics.Systems
 
                     if (Intersection2D.RaycastCircle(start2D, end2D, c2D, collider.Radius, out float t))
                     {
+                        // ⭐ CE-3136 P-2 (peek-and-fire D2) — a ROUND hits a person only inside the body band of its logical stance
+                        //   (feet … highest body point): a round through a window passes over a man lying prone below the sill.
+                        //   Vehicles keep the circle; sight and query rays are unchanged.
+                        if (PhysicsConstants.IsBulletRay(req.RayId) && PhysicsColliderReaders.IsPerson(repo, candidate))
+                        {
+                            float z = req.Start.Z + t * (req.End.Z - req.Start.Z);
+                            float feet = tf.Position.Z;
+                            var stance = repo.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceIntent>()
+                                ? Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(repo, candidate)
+                                : Fdp.Toolkit.Tkb.Domain.StanceId.Standing;   // a world with no stance runtime: standing
+                            float top = feet + Fdp.Toolkit.Perception.LineOfSight.BodyProfile.PersonTop(repo, candidate, stance);
+                            if (z < feet || z > top) continue;
+                        }
                         if (t < bestT)
                         {
                             bestT   = t;

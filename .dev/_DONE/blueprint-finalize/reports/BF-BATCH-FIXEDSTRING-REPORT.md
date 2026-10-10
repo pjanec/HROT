@@ -92,7 +92,7 @@ Added a new `FunctionCall` node (node `f7000007-0090-bb90-0090-000000000001`) wi
 ## Build Gate
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug --no-incremental
+dotnet build HROT.sln -c Debug --no-incremental
 ```
 
 **Result:** Zero `error CS`. 96 MSB3027/MSB3021 copy-lock errors only — all from `Hrot.ClusterRunner` (process 59280) + `Microsoft Visual Studio 2022` (59284) locking output DLLs. These are running-editor copy conflicts, not compile errors, as expected per batch instructions.

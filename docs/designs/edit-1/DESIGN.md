@@ -301,6 +301,8 @@ These events travel on `FdpEventBus` and are consumed by execution systems in th
 
 ### 3.A — Embarkation Commands
 
+> ⭐ `2026-10-08`: these commands also cross the network to the owner of what they change: [`docs/DESIGN_Entity_Interactions.md`](../../DESIGN_Entity_Interactions.md) slice I-2.
+
 ```
 // FDP/Toolkits/FDP.Toolkit.Behavior/Events/
 EmbarkEntityCommand   { Entity Passenger; Entity Vehicle; }

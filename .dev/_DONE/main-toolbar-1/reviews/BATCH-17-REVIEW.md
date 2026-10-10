@@ -9,7 +9,7 @@ MTB-P6-T1/T2: shared kind-agnostic `RecipeMetadata` (AiShared) + Compiler→shar
 No issues found.
 
 ## Verification (done by lead)
-- **Full `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 warnings** (incl. the netstandard2.0 generator
+- **Full `dotnet build HROT.sln` → 0 errors, 0 warnings** (incl. the netstandard2.0 generator
   target — the Compiler `RecipeMetadata`/generator were left untouched per DEC-11).
 - New tests run by lead: `RecipeMetadataTests` 5/5; `NewAssetServiceTests` + `RecipeMetadataAdapterTests`
   12/12. Suites green: AiShared 952, Fdp.Toolkits 1856, SimHost 585.

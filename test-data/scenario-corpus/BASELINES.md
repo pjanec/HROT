@@ -17,7 +17,7 @@ Regenerate baselines when:
 ## Prerequisites
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 ```
 
 ---
@@ -27,7 +27,7 @@ dotnet build IOS-IG-SimHost.sln -c Debug
 1. **Identify which corpus file needs updating.**
    Run the T5 tests to see the diff between expected and actual output:
    ```
-   dotnet test IOS-IG-SimHost.sln -c Debug --no-build --filter "T5"
+   dotnet test HROT.sln -c Debug --no-build --filter "T5"
    ```
    The failure message shows the corpus file path and the field(s) that changed.
 
@@ -41,7 +41,7 @@ dotnet build IOS-IG-SimHost.sln -c Debug
 
 4. **Re-run T5 tests to confirm green.**
    ```
-   dotnet test IOS-IG-SimHost.sln -c Debug --no-build --filter "T5"
+   dotnet test HROT.sln -c Debug --no-build --filter "T5"
    ```
 
 5. **Commit atomically.**

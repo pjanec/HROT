@@ -33,7 +33,7 @@ action's REAL parameter struct FQN, so `NodePinSchema.ChannelCommandPins` projec
 
 ## Success criteria
 - [ ] Catalog entries carry real ParamsTypeFqn; editor ChannelCommand nodes project rich per-arg pins. + test.
-- [ ] `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 new warnings; Full Rebuild still succeeds (no BP0002).
+- [ ] `dotnet build HROT.sln` 0 errors / 0 new warnings; Full Rebuild still succeeds (no BP0002).
 - [ ] Blueprints suite failures stay a SUBSET of the current 7 pre-existing (0 new) — list the exact final set;
       do NOT claim 0 regressions without the before/after comparison. EditorSubsystemBoot 10/10.
 - [ ] Report → `.dev/_DONE/blueprint-finalize/reports/BF-BATCH-06-REPORT.md`.

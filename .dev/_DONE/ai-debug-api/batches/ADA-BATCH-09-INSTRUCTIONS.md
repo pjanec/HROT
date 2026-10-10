@@ -68,7 +68,7 @@ as raw array elements) and/or scalar float fields.
   `GET /entities/{newId}`, and a `/diff/capture`→`/diff/compare` spanning the spawn **all return `ok:true`**,
   and the MCP client (`npm run verify`, Node) parses the responses without error. Add a step to `verify.mjs`
   that dumps/lists with the NaN entity present. No orphan processes.
-- **Full regression:** `dotnet build IOS-IG-SimHost.sln` (0 errors) AND run the **broad** serialization tests
+- **Full regression:** `dotnet build HROT.sln` (0 errors) AND run the **broad** serialization tests
   (at minimum `EventSerializationHelperTests`, the DebugApi suite, and any FdpJsonOptionsRegistry/serializer
   goldens) — report the full results. If you scoped to DebugApi-local options, confirm the shared registry
   tests/goldens are untouched.

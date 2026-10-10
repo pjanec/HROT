@@ -510,10 +510,10 @@ Report *"not in the commit they built from (run starting `<sha>`)"*.
 
 ## 3 · The eight gates — commands and current baseline
 
-Solution is **`IOS-IG-SimHost.sln`** (⚠ not `Hrot.sln`).
+Solution is **`HROT.sln`** (⚠ not `Hrot.sln`).
 
 ```bash
-dotnet build IOS-IG-SimHost.sln -v q --nologo
+dotnet build HROT.sln -v q --nologo
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj      --no-build -v q --nologo
 dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj           --no-build -v q --nologo
 dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Hrot.BTree.Editor.Tests.csproj          --no-build -v q --nologo
@@ -526,7 +526,7 @@ dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/*.csproj          
 
 ### ⚠⚠ The two NodeEdit gates silently do not run under `--no-build`
 
-Corrected 2026-08-10 after actually running them. Those projects are **not in `IOS-IG-SimHost.sln`**,
+Corrected 2026-08-10 after actually running them. Those projects are **not in `HROT.sln`**,
 so the solution build never produces their assemblies and the runner exits with *"The argument
 …`NodeEditor.Core.Tests.dll` is invalid"* — ⭐ **no test output at all**, which reads as *"nothing to
 report"* rather than *"the gate did not run."* Trap #5, in the gate script itself.

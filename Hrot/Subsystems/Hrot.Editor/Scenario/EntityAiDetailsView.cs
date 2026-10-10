@@ -53,17 +53,22 @@ public sealed class EntityAiEditModel
     {
         var rows = new List<InstanceRow>();
         if (_world() is not { } world || _blueprints() is not { } reg || !world.IsAlive(entity)) return rows;
-        byte* memory = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryGetStoreReadOnly(world, entity, out _);
-        if (memory == null || Unsafe.AsRef<Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardHeader>(memory).MagicAndVersion != 0x42504257u)
-            return rows;
-        int count = Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.GetSlotCount(memory);
-        for (int i = 0; i < count; i++)
+        // ⭐ CE-3137 U-0: every block the unit carries.
+        Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.GetBlocksReadOnly(world, entity, out var blocks);
+        for (int b = 0; b < blocks.Count; b++)
         {
-            ref var slot = ref Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.GetSlot(memory, i);
-            if (slot.BlueprintId == 0 || !reg.TryGetById(slot.BlueprintId, out var def) || def == null) continue;
-            string? json = def.FormatParams != null && def.ParamsSize > 0
-                ? def.FormatParams(memory + slot.PayloadOffset + def.ParamsOffset, def.ParamsSize) : null;
-            rows.Add(new InstanceRow(slot.BlueprintId, def.Name, def.ParamsClrType, json ?? "{}"));
+            byte* memory = blocks.Memory(b);
+            if (Unsafe.AsRef<Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardHeader>(memory).MagicAndVersion != 0x42504257u)
+                continue;
+            int count = Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.GetSlotCount(memory);
+            for (int i = 0; i < count; i++)
+            {
+                ref var slot = ref Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.GetSlot(memory, i);
+                if (slot.BlueprintId == 0 || !reg.TryGetById(slot.BlueprintId, out var def) || def == null) continue;
+                string? json = def.FormatParams != null && def.ParamsSize > 0
+                    ? def.FormatParams(memory + slot.PayloadOffset + def.ParamsOffset, def.ParamsSize) : null;
+                rows.Add(new InstanceRow(slot.BlueprintId, def.Name, def.ParamsClrType, json ?? "{}"));
+            }
         }
         return rows;
     }
@@ -82,9 +87,8 @@ public sealed class EntityAiEditModel
             {
                 Entity = entity, OldBlueprintId = blueprintId, NewBlueprintId = blueprintId, ParamsJson = Json(json),
             });
-        byte* memory = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-        if (memory == null || !Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out int off))
-            return false;
+        if (!Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryFindSlot(world, entity, blueprintId, out byte* memory, out int off, out _))
+            return false;   // ⭐ CE-3137 U-0: any block
         return Fdp.Toolkit.Blueprints.BlueprintInstanceService.ApplyParams(memory + off, def, Json(json), world, entity) == null;
     }
 

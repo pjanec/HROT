@@ -187,7 +187,7 @@ namespace Hrot.SimHost.Tests
         }
     }
 
-    [ComponentId(220)]
+    [ComponentId(497)]   // ⭐ was 220 = AnimationChannel: collided once SimHost tests registered the animation components (CE-2121 merge). 497: free, test-only, below the 512-bit mask.
     internal struct EpisodeTagForTest
     {
         public float X;

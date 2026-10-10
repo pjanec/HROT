@@ -9,7 +9,7 @@ Shell command set (`WindowManager.ShellCommands` wrapping `EditorCommandsImpl`) 
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → **0 errors, 0 new warnings**.
+- `dotnet build HROT.sln` → **0 errors, 0 new warnings**.
 - New tests run by lead: 18 (ShellCommands 5, MenuCommandAdapter 6, ToolbarCommandAdapter 7) +
   `GlobalMenuRegistryTests` 10 (backward-compat) → **28 passed, 0 failed**.
 - Disabled semantics verified at source: `EditorCommandsImpl.Invoke` already guards `IsEnabled()`

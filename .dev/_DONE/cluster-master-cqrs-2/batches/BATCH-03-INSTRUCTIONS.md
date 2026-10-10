@@ -50,7 +50,7 @@ Do NOT stop and ask for permission for any obvious step. Work through the fix-ch
 
 Build & test commands (run from `d:\Work\IOS-IG-SimHost-FDP-2`):
 ```powershell
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test FDP/Toolkits/FDP.Toolkit.Orchestration.Tests/FDP.Toolkit.Orchestration.Tests.csproj --no-build -v n
 dotnet test FDP/Toolkits/FDP.Toolkit.Scenario.Tests/FDP.Toolkit.Scenario.Tests.csproj --no-build -v n
 dotnet test Hrot.Orchestrator.Tests/Hrot.Orchestrator.Tests.csproj --no-build -v n

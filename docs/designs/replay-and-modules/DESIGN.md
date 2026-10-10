@@ -71,6 +71,8 @@ related-designs:
   - docs/DESIGN_Entity_State_Sourcing.md — the RECORDED-vs-RE-DERIVED principle (R-136): state must be reconstructible from the TKB or a published TransientLocal descriptor.
   - FDP/Engine/Fdp.ModuleHost/docs/ModuleHost-network-ELM-design-talk.md — §1/§2/Part 1 — WHY the construction barrier exists (local modules ACK before Active) and why the gateway joins the ELM loop as a blocking participant.
   - docs/designs/two-ack/TwoAck-DESIGN.md — the IOS-facing two-phase ack that is BUILT ON TOP of the ELM handshake.
+  - ../../DESIGN_Terrain_Combat_Tuning.md §5a — debug traces kept as recorded components so a seek restores what the map draws; CE-3118 (browser loads the terrain).
+  - ../../DESIGN_Geo_Origin.md §5 — CE-3118: the Replay Browser loads the recording's terrain by name and mirrors it onto every replay world it draws; ZoneEnvironmentData is NoReplay (its pointers were recorded).
 -->
 # Design: Replay Isolation and Modern Module System
 

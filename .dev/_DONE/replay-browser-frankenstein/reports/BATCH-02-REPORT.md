@@ -146,7 +146,7 @@
 dotnet test FDP/Engine/Fdp.Core.Tests  --filter "RBF_P3T4"    => Passed: 2
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests  --filter "RBF_P3" => Passed: 23
 dotnet test Hrot.ReplayBrowser.Tests  --filter "RBF_P2T3"       => Passed: 3
-dotnet build IOS-IG-SimHost.sln                                 => 0 Errors, 5 pre-existing Warnings
+dotnet build HROT.sln                                 => 0 Errors, 5 pre-existing Warnings
 ```
 
 ---

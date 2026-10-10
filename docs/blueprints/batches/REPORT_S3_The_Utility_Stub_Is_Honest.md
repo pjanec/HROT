@@ -95,7 +95,7 @@ sequence rather than inferring the remainder.** Folded into §7.4, §7.6 ⑤ and
 
 | # | gate | command | result | Δ vs `81499350` |
 |---|---|---|---|---|
-| 1 | solution build | `dotnet build IOS-IG-SimHost.sln --no-restore` | ✅ **0 errors** | — |
+| 1 | solution build | `dotnet build HROT.sln --no-restore` | ✅ **0 errors** | — |
 | 2 | AiShared | `dotnet test … --no-build` | ✅ **1913 / 0 / 1 skip** | **+9** *(the behaviour rails)* |
 | 3 | Blueprints | `dotnet test … --no-build` | ✅ **3911 / 0 / 18 skip** | **+3** *(the composition-root rail)* |
 | 4 | Hrot.Editor | `dotnet test … --no-build` | ✅ **214 / 0** | 0 |

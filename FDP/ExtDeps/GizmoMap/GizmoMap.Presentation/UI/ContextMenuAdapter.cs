@@ -65,6 +65,20 @@ namespace GizmoMap.Presentation
             Console.WriteLine($"[Debug] ImGui.BeginPopup returned: {isOpen}");
             if (isOpen)
             {
+                // ⭐⭐ CE-3155 — ESCAPE CLOSES THE MENU. 🔒 User, 2026-10-10: "Context menu once open can not be
+                //   closed by ESC key."
+                //   📐 Measured: this popup had exactly two exits — picking an item, or clicking outside. ImGui's own
+                //   "Escape closes a popup" only fires with keyboard NAVIGATION on, and every shell here sets
+                //   ImGuiConfigFlags.DockingEnable alone (RaylibPresentationShell.cs:131-135). The gizmo raw-input
+                //   route cannot deliver it either: this menu is terminal-side ImGui state, not a gizmo handler.
+                //   ⭐ So it is handled here, the way every other popup in the repo already does it
+                //   (WindowManager.cs:650,665 · EntityRenameModal.cs:97) — IsKeyPressed needs no nav flag.
+                //   ⚠ A CENTRAL Escape is designed and unbuilt (UX_Feature_Tool_Model.md migration step 6,
+                //   UX_Issues.md:68); when it lands this folds into it. Until then a menu that cannot be dismissed
+                //   from the keyboard is the worse state.
+                if (ImGui.IsKeyPressed(ImGuiKey.Escape))
+                    ImGui.CloseCurrentPopup();
+
                 DrawMenuItems(_pendingMenuJson, _pendingAnchorId, onAction);
                 ImGui.EndPopup();
             }

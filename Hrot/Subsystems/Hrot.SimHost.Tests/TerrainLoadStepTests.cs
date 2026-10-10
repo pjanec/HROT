@@ -687,4 +687,66 @@ public sealed class TerrainLoadStepTests : IDisposable
         Assert.False(File.Exists(Path.Combine(_terrainDir, "basic-desert.json")),
             "nothing in the TKB staging path publishes a terrain definition — that is S4's finding");
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-3126 (R-229) — committing a terrain sets the node's geo transform (the world singleton) to the terrain's own
+    /// origin; a terrain that declares none, and unloading, give 0,0,0. 📄 docs/DESIGN_Geo_Origin.md §2 B/D.
+    /// </summary>
+    [Fact]
+    public void CE3126_Commit_SetsTheGeoOriginFromTheTerrain_MissingAndUnloadAreZero()
+    {
+        foreach (var (name, json) in new[]
+        {
+            ("placed", """{"schemaVersion":2,"origin":{"lat":48.1,"lon":11.5,"alt":500}}"""),
+            ("unplaced", """{"schemaVersion":2}"""),
+        })
+        {
+            var folder = Path.Combine(_terrainDir, name);
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(folder, "terrain.json"), json, new UTF8Encoding(false));
+        }
+
+        using var holder = new RoadNetworkHolder();
+        using var world = NewWorld();
+        var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+        world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+
+        residency.Commit(world, residency.Prepare("placed"));
+        Assert.Equal(48.1, geo.Origin.lat, 9);
+        Assert.Equal(11.5, geo.Origin.lon, 9);
+        Assert.Equal(500.0, geo.Origin.alt, 9);
+
+        residency.Commit(world, residency.Prepare("unplaced"));
+        Assert.Equal((0.0, 0.0, 0.0), geo.Origin);   // ⛔ no default: missing geo = zeros
+
+        residency.Commit(world, residency.Prepare("placed"));
+        residency.Unload(world);
+        Assert.Equal((0.0, 0.0, 0.0), geo.Origin);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3128 (Nav v2 §5.2a D7) — a terrain commit publishes the node's road graph CARRIER as a world singleton, so a reader on a
+    /// background snapshot (the EQS solver's danger sensor) leases the graph through <c>RoadNetworkSource.Live</c>; unload keeps it
+    /// published (empty graph), never a stale one.
+    /// </summary>
+    [Fact]
+    public void CE3128_Commit_PublishesTheRoadHolder_ForBackgroundReaders()
+    {
+        var folder = Path.Combine(_terrainDir, "plain");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "terrain.json"), """{"schemaVersion":2}""", new UTF8Encoding(false));
+
+        using var holder = new RoadNetworkHolder();
+        using var world = NewWorld();
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+        var live = CarKinem.Road.RoadNetworkSource.Live(world);
+        Assert.Null(live());
+
+        residency.Commit(world, residency.Prepare("plain"));
+        Assert.Same(holder, live());
+
+        residency.Unload(world);
+        Assert.Same(holder, live());
+    }
 }

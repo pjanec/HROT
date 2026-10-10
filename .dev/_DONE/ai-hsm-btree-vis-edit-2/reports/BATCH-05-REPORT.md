@@ -44,6 +44,6 @@ Four new `[Fact]` methods, using the `EmptyBlob()`/`MakeAsset()`/`MakeNode()` he
 
 ## Verification
 
-- `dotnet build IOS-IG-SimHost.sln` — **0 errors**, 0 new warnings in `Hrot.BTree.Editor`
+- `dotnet build HROT.sln` — **0 errors**, 0 new warnings in `Hrot.BTree.Editor`
 - `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **Failed: 0**, Passed: 477 (incl. 4 new tests)
 - Only `BTreeGraphModel.cs` changed; inspector banner NOT touched (deferred per D-04)

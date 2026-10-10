@@ -6,7 +6,7 @@
 Dynamic Action/Condition palette entries from `IActionSchemaExporter`, wired through `BTreeDocumentFactory` → composition root; placement bakes `MethodFqn`. Verified independently (diffs + tests re-run), not trusted from report.
 
 ## Verification (independent)
-- `dotnet build IOS-IG-SimHost.sln` → **Build succeeded, 0 errors**, 29 warnings (within pre-existing band; touched-project diffs warning-clean on inspection).
+- `dotnet build HROT.sln` → **Build succeeded, 0 errors**, 29 warnings (within pre-existing band; touched-project diffs warning-clean on inspection).
 - `dotnet test Hrot.BTree.Editor.Tests` → **449 passed / 0 failed** (incl. T2–T8, 14 new).
 - `dotnet test Hrot.Editor.AiShared.Tests` → **1059 passed / 0 failed** (T1 + BB1 picker tests intact → additive `ActionSchemaEntry` change is BB1-safe).
 - Read all 7 impl diffs + both test files. Impl matches D-01/D-02. Tests assert **actual values** (exact encoded `Kind.Id`, `MethodFqn` baked through the real `BTreeCommandSink`, before/after `Changed`) — not string-presence shams; would catch a broken impl.

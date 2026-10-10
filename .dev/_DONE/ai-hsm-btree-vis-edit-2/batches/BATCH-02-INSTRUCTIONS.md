@@ -43,7 +43,7 @@ New file `Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Model/BTreeNodeCategoryTest
 (One `[Theory]` with `[InlineData(NodeType.X, NodeCategory.Y)]` rows is acceptable and preferred — assert `model.Category == expected`.)
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`.
 - [ ] `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **Failed: 0** (incl. the new category tests).
 - [ ] `BTreeNodeModel.Category` reflects `KernelType` per the table; no other member changed.
 - [ ] Report written.

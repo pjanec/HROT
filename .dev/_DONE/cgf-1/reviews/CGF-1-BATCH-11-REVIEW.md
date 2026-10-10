@@ -18,7 +18,7 @@
 
 **Part B (CGF1-S0306)** is **substantively delivered**:
 
-- Projects **`FDP.Toolkit.Scenario`** and **`FDP.Toolkit.Scenario.Tests`** exist, reference **`Fdp.Kernel`** only (no Hrot), and are in **`IOS-IG-SimHost.sln`**.
+- Projects **`FDP.Toolkit.Scenario`** and **`FDP.Toolkit.Scenario.Tests`** exist, reference **`Fdp.Kernel`** only (no Hrot), and are in **`HROT.sln`**.
 - **Non-generic** **`IEntityScenarioTranslator`** with **`BitMask256`**, **`Dictionary<string, object>`**, **`IGuidResolver`** — matches task detail.
 - **`ScenarioSerializer`**: two-pass save/load, **`GetSaveableMask`** ∩ entity mask, translators then **`FdpAutoSerializer`**, subsystem header peek, **`ScenarioIgnoreTag`** skip, **`StoryTag`** on story load.
 - **`FdpAutoSerializer`**: **`Expression.Field`**-based extract/inject, **`GetSaveableTypeIds()`** at build time.

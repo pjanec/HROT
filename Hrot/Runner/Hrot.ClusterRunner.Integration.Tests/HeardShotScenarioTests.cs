@@ -119,10 +119,22 @@ public sealed class HeardShotScenarioTests : IDisposable
             return s;
         }
         int ShooterAmmo() => cgf.HasComponent<WeaponState>(shooter) ? cgf.GetComponent<WeaponState>(shooter).Ammo : -1;
-        string State() => $"task={Task()} {Memory()} shooterAmmo={ShooterAmmo()} pos={Pos(simRifleman)} start={start}";
+        // ⭐ CE-3136 P-3 — what the SHOOTER holds by sight: an aimed shot needs its target seen now (SightNow.Sees, D4)
+        unsafe string ShooterTracks()
+        {
+            if (!cgf.HasComponent<Fdp.Toolkit.Perception.Components.ActiveSensorTracks>(shooter)) return "shooter: no tracks component";
+            var t = cgf.GetComponent<Fdp.Toolkit.Perception.Components.ActiveSensorTracks>(shooter);
+            var cgfDecoy = ByName(cgf, "Decoy");
+            var s = $"shooter tracks {t.Count} (decoy on CGF = {(cgfDecoy.IsNull ? "none" : cgfDecoy.PackedValue.ToString())}):";
+            for (int i = 0; i < t.Count; i++) s += $" [{t.EntityIds[i]} mod={t.Modalities[i]}]";
+            return s + $" seesDecoy={(!cgfDecoy.IsNull && Fdp.Toolkit.Perception.SightNow.Sees(cgf, shooter, cgfDecoy))}";
+        }
+        string State() => $"task={Task()} {Memory()} shooterAmmo={ShooterAmmo()} pos={Pos(simRifleman)} start={start} {ShooterTracks()}";
 
         // ① the shooter fires (the decoy is in its sight).
-        Assert.True(harness.PumpUntil(() => ShooterAmmo() >= 0 && ShooterAmmo() < 30, timeoutFrames: 3000), $"the hidden shooter must fire; {State()}");
+        // ⭐ CE-3136 P-5 — "fired" = below the load it spawned with (MaxAmmo: 5 × 30 rounds since the magazine), not a literal 30
+        int Loaded() => cgf.HasComponent<WeaponState>(shooter) ? cgf.GetComponent<WeaponState>(shooter).MaxAmmo : 0;
+        Assert.True(harness.PumpUntil(() => ShooterAmmo() >= 0 && ShooterAmmo() < Loaded(), timeoutFrames: 3000), $"the hidden shooter must fire; {State()}");
 
         // ② the rifleman HEARS it: a heard (anonymous) contact, and it never SEES the shooter.
         unsafe bool Heard()

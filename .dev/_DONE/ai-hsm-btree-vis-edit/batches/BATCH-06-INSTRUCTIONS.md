@@ -511,7 +511,7 @@ internal sealed class StubCatalog : IAssetCatalog
 
 After each task:
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 After completing both tasks:
@@ -546,6 +546,6 @@ Include:
 - [ ] `BlackboardAggregatorServiceTests` in `AiShared.Tests` (4+ tests)
 - [ ] `BTreeBlackboardAggregatorTests` in `BTree.Editor.Tests` (7+ tests)
 - [ ] `HsmBlackboardAggregatorTests` in `Hsm.Editor.Tests` (10+ tests)
-- [ ] `dotnet build IOS-IG-SimHost.sln` = 0 errors
+- [ ] `dotnet build HROT.sln` = 0 errors
 - [ ] All tests pass (no regressions in existing 320 + 201 + existing HSM tests)
 - [ ] Report filed at `.dev/_DONE/ai-hsm-btree-vis-edit/reports/BATCH-06-REPORT.md`

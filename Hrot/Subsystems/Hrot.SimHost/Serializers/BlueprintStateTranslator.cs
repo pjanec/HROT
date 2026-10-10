@@ -141,12 +141,10 @@ namespace Hrot.SimHost.Serializers
             EntityRepository repo, Entity entity,
             List<BlueprintAssignmentDto> dtos)
         {
-            byte* memory = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
-                               .TryGetStoreReadOnly(repo, entity, out _);
-            if (memory == null)
-                return;
-
-            CollectAssignments(memory, dtos);
+            // ⭐ CE-3137 U-0: every block the unit carries — an instance may sit in an appended one.
+            Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.GetBlocksReadOnly(repo, entity, out var blocks);
+            for (int b = 0; b < blocks.Count; b++)
+                CollectAssignments(blocks.Memory(b), dtos);
         }
 
         private unsafe void CollectAssignments(

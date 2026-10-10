@@ -12,6 +12,7 @@ known-rot: ⛔⛔ THIS DESIGN NEVER COVERED SCENARIO PERSISTENCE, and the omissi
   the waypoints are never written. A save/load silently yields a vehicle pointing at an EMPTY route.
   📄 §16, filed as BP-518.
 related-designs:
+  - DESIGN_Uniform_Gizmo_Membership.md §10 — CE-3123: the route overlay as a reflected gizmo (AuthoredRouteGizmo) on every host.
   - docs/DESIGN_Terrain_Zones_And_Assets.md — §2.1a: routes are NOT terrain assets and are NOT the road
     network; that design explicitly defers the route model to THIS one.
   - docs/DESIGN_Distributed_Scenario_Persistence.md — owns the scenario save gate and which file an
@@ -92,6 +93,8 @@ public KinematicsMode Mode;  // CustomTrajectory, RoadGraph, Formation, Direct, 
 `CarKinematicsSystem` (`FDP/Toolkits/FDP.Toolkit.CarKinem/Systems/CarKinematicsSystem.cs`) handles `KinematicsMode.CustomTrajectory` by calling `TrajectoryPoolManager.SampleTrajectory(nav.TrajectoryId, nav.ProgressS)` each physics tick. No changes to this system are required by this workstream — routes will be compiled into the same pool and the vehicle's `NavState.TrajectoryId` will reference the compiled entry.
 
 ### 2.5 SimHostTrajectoryLayer
+
+> ⛔ **SUPERSEDED `2026-10-08` (`CE-3123`, R-228):** the layer is deleted. Its followed-trajectory half became `PlannedPathGizmo` (CE-3117) and its route half `AuthoredRouteGizmo` — reflected gizmos (Family Path) that draw on every host. 📄 [`DESIGN_Uniform_Gizmo_Membership.md`](../../DESIGN_Uniform_Gizmo_Membership.md) §10.
 
 `SimHostTrajectoryLayer` (`Hrot.SimHost/Visualization/SimHostTrajectoryLayer.cs`) is an always-visible overlay that reads the selected vehicle's `NavState`, fetches its `CustomTrajectory` from the pool, and draws the path as grey line segments with an orange circle at the current `ProgressS`. This layer will need to be extended to also handle route entities.
 
@@ -292,6 +295,8 @@ A new `IMapLayer` implementation in `Hrot.IG` — analogous to `MapOverlayRender
 - **Selected highlight:** When the entity is selected (`IInspectorContext.SelectedEntity == routeEntity`), draws the route in a highlighted colour with vertex drag handles visible.
 
 ### 8.2 SimHostTrajectoryLayer Extension
+
+> ⛔ **SUPERSEDED `2026-10-08`:** built later as `AuthoredRouteGizmo` (`CE-3123`) — same data and colours, on every host; see §2.5.
 
 The existing `SimHostTrajectoryLayer` is extended to also show the route geometry for selected vehicles that follow a route entity:
 

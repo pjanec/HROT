@@ -8,8 +8,8 @@ namespace Hrot.Blueprints.Tests.Runtime;
 /// <para>
 /// This is the reusable run logic that the future editor "Run Opened Blueprint on a
 /// Test Entity" button (MVE-06) will call: spawn an entity, attach the (already
-/// registered) blueprint, pump frames through the real <c>BlueprintTickSystem</c> +
-/// <c>BlueprintMaintenanceSystem</c>, and read an observable field back out of the slot.
+/// registered) blueprint, pump frames through the real <c>BlueprintTickSystem</c>,
+/// and read an observable field back out of the slot.
 /// </para>
 /// <para>
 /// It wraps <see cref="BlueprintTestFixture"/> (the proven minimal world + registry +
@@ -54,8 +54,7 @@ public sealed class BlueprintRunHarness
 
     /// <summary>
     /// Advances the real simulation by <paramref name="frames"/> frames at a fixed
-    /// <paramref name="deltaTime"/>, running the production <c>BlueprintTickSystem</c> and
-    /// <c>BlueprintMaintenanceSystem</c> each frame.
+    /// <paramref name="deltaTime"/>, running the production <c>BlueprintTickSystem</c> each frame.
     /// </summary>
     public void Pump(int frames, float deltaTime = 0.016f)
     {

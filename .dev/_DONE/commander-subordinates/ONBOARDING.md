@@ -88,10 +88,10 @@ Hrot/Subsystems/Hrot.ExCon/Adapters/ExConOrbatAdapter.cs      -- CS021
 
 ```powershell
 # Build the full solution
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet
+dotnet build HROT.sln --no-restore -v quiet
 
 # Run all tests
-dotnet test IOS-IG-SimHost.sln --no-build --nologo
+dotnet test HROT.sln --no-build --nologo
 
 # Run only the command-hierarchy relevant test projects
 dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build

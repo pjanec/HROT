@@ -26,5 +26,12 @@ namespace Fdp.Toolkit.Combat.Executors
 
         /// <summary>The <see cref="Mount"/> value that asks the executor to choose the weapon per shot.</summary>
         public const byte MountAuto = 255;
+
+        /// <summary>
+        /// ⭐ <c>CE-3136</c> B7 (peek-and-fire §8.1) — aimed rounds to fire, then Success; <b>0 = until stopped</b> (every
+        /// zero-filled writer — today's behaviour). The same rule as <see cref="FireAtPointParams.Rounds"/>, so both fire
+        /// actions end the same way and no behaviour counts intents.
+        /// </summary>
+        public int Rounds;
     }
 }

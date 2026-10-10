@@ -29,7 +29,7 @@ On the BTree canvas, pressing Tab or right-click → "Add Node…" calls `view.H
 - `PickerSource_GetItemKey_IsKindId`: for a Sequence entry, `GetItemKey(entry) == entry.Kind.Id`.
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`.
 - [ ] `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **Failed: 0** (incl. new tests).
 - [ ] `"nodes.all"` (and `"nodes.by-pin"`) registered for BTree; source returns catalog entries.
 - [ ] Report written. Note: the actual "picker opens visually + places node" is confirmed at the next visual review (it's ImGui UI) — your tests prove the source is registered + queryable.

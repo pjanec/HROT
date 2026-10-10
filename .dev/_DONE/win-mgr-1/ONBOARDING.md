@@ -105,7 +105,7 @@ Hrot.ClusterRunner/
 
 ```powershell
 cd D:\Work\IOS-IG-SimHost-FDP
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 To build only the toolkit project:
@@ -117,7 +117,7 @@ dotnet build FDP/Toolkits/FDP.Toolkit.ImGui/FDP.Toolkit.ImGui.csproj
 Clean build:
 
 ```powershell
-dotnet build IOS-IG-SimHost.sln --no-incremental
+dotnet build HROT.sln --no-incremental
 ```
 
 ---

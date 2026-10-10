@@ -165,7 +165,7 @@ about the published selection. ⭐ The new one switches **AFTER**.
 
 | gate | `--no-build`? | item 0 | item 2 | item 3 | item 4 | Δ vs baseline |
 |---|---|---|---|---|---|---|
-| `dotnet build IOS-IG-SimHost.sln` | — | 0 err | 0 err | 0 err | **0 err** | ⭐ see the warning note |
+| `dotnet build HROT.sln` | — | 0 err | 0 err | 0 err | **0 err** | ⭐ see the warning note |
 | `Hrot.Editor.AiShared.Tests` | ✅ | 1370 | 1370 | 1390 | **1397** | **+28** |
 | `Hrot.Blueprints.Tests` | ✅ | 3752 | 3759 | 3769 | **3772** | **+35**, skipped **10** unchanged |
 | `Hrot.BTree.Editor.Tests` | ✅ | 615 | 615 | 615 | **615** | — |

@@ -95,6 +95,7 @@ namespace Hrot.Network.NED.SimHost
                             Score          = r.Score,
                             Flags          = (ushort)r.Flags,
                             FlagsMeaningful = (ushort)r.FlagsMeaningful,
+                            Stance         = r.Stance,   // ⭐ CE-3135
                         });
                     }
                 }

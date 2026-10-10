@@ -77,7 +77,7 @@ present; H/I/J/K/L still pending). Extend `verify.mjs` with a breakpoint flow (s
 - **Tier-2 (MCP `verify.mjs`):** after load + play, `set_breakpoint` → drive → `get_breakpoint_status`
   reflects the pause (or, if a real hit isn't drivable headless, assert set/list/remove round-trip and note
   it). Keep it re-runnable via `npm run verify`.
-- `dotnet build IOS-IG-SimHost.sln` (full build — `DebugApiService` ctor change ripples to the harness);
+- `dotnet build HROT.sln` (full build — `DebugApiService` ctor change ripples to the harness);
   `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
 
 ## Constraints (hard)

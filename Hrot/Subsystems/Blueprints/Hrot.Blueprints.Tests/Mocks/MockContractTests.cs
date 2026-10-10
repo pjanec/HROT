@@ -12,7 +12,7 @@ namespace Hrot.Blueprints.Tests.Mocks;
 /// Mock contract enforcement tests (TH-007 / TH-DD SS8.3).
 /// All tests use MockSimulationView + MockEntityCommandBuffer directly
 /// because BlueprintTestFixture (TH-003) is implemented in a later batch.
-/// Test 6 (TierUpgrade) is skipped until BlueprintMaintenanceSystem exists (BATCH-04).
+/// Test 6 (TierUpgrade) is retired with BlueprintMaintenanceSystem (CE-3137 U-0 (R-236)).
 /// </summary>
 [Collection("DebugProbe")]
 public sealed class MockContractTests
@@ -104,44 +104,7 @@ public sealed class MockContractTests
         Assert.Equal(3, repo.GetComponentRO<TestComponent>(e).Value);
     }
 
-    // 6. TierUpgrade -- BlueprintMaintenanceSystem upgrades BB1024->BB4096 in BeforeSync.
-    [Fact]
-    public void TierUpgrade_HappensInBeforeSync_NotInSimulation()
-    {
-        using var fixture = new BlueprintTestFixture();
-        var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "TestBp" };
-        var staging = fixture.Registry.BeginStaging();
-        var def = new BlueprintDefinition
-        {
-            Name = "TestBp",
-            Kind = Fdp.Toolkit.Blueprints.BlueprintDispatchKind.Instance,
-            StructureHash = 0xABCDEF01UL,
-            StateSize = 8,
-            InitDefault = b => b.Clear(),
-        };
-        staging.Add(BlueprintIdHash.Compute(asset.AssetId), def);
-        fixture.Registry.CommitStaging(staging);
-
-        var entity = fixture.CreateEntity();
-        fixture.AttachBlueprint(asset, entity);
-
-        // BPF-046: queue BB4096 addition via ECB (the production path), not direct world mutation.
-        fixture.Ecb.AddEmptyComponent<BlueprintBlackboard4096>(entity);
-
-        // BB4096 is NOT observable during Simulation (ECB not yet played back).
-        Assert.False(fixture.World.HasComponent<BlueprintBlackboard4096>(entity));
-
-        // Play back ECB: BB4096 is now in the world (models BeforeSync ECB flush).
-        fixture.Ecb.Playback(fixture.World);
-        Assert.True(fixture.World.HasComponent<BlueprintBlackboard4096>(entity));
-
-        // MaintenanceSystem (BeforeSync phase) copies BB1024->BB4096 and removes BB1024.
-        fixture.MaintenanceSystem.Execute(fixture.World, 0.016f);
-
-        // After maintenance: BB4096 present, BB1024 promoted and removed.
-        Assert.True(fixture.World.HasComponent<BlueprintBlackboard4096>(entity));
-        Assert.False(fixture.World.HasComponent<BlueprintBlackboard1024>(entity));
-    }
+    // 6. ⛔ TierUpgrade (BlueprintMaintenanceSystem, BeforeSync copy-promotion) RETIRED by CE-3137 U-0 (R-236).
 
     // 7. AddEmptyComponent with large struct -- all bytes zero after playback.
     [Fact]

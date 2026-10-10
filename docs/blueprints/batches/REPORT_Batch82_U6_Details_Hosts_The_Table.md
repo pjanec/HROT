@@ -137,7 +137,7 @@ reads as a live rail. ⛔ **No back-catalogue sweep.**
 
 | gate | command | `--no-build`? | result | Δ |
 |---|---|---|---|---|
-| solution | `dotnet build IOS-IG-SimHost.sln -t:Rebuild` | — | ✅ **0 err / 69 warn** | = |
+| solution | `dotnet build HROT.sln -t:Rebuild` | — | ✅ **0 err / 69 warn** | = |
 | AiShared | `dotnet test …/Hrot.Editor.AiShared.Tests.csproj --no-build` | yes | ✅ **1330** | = |
 | ⭐ **Blueprints** | `dotnet test …/Hrot.Blueprints.Tests.csproj --no-build` | yes | ✅ **3727 / 3737, 10 skipped** | **+18** |
 | BTree.Editor | `dotnet test …/Hrot.BTree.Editor.Tests.csproj --no-build` | yes | ✅ **615** | = |

@@ -37,18 +37,16 @@ public static unsafe class OccurrenceWorkingState
         OccurrenceKind kind, out bool freshlyAttached)
         where TWorkingState : unmanaged
     {
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-
-        if (store == null)
+        if (!OccurrenceStoreAccess.HasStore(world, self))
             throw new InvalidOperationException(
                 $"Entity {self} carries no occurrence store, so hosted slot {slotKey} cannot be " +
-                "attached. Adding a tier component is a structural change and must not happen inside " +
-                "a tick — the entity must already carry one. Two causes, in order of likelihood: " +
+                "attached. Creating a unit's FIRST block is ingress's job (it sizes it for the behaviour) — " +
+                "the entity must already carry one. Two causes, in order of likelihood: " +
                 "(1) this host never registered the BlueprintBlackboard* tier components, so " +
                 "BehaviorIngressSystem skipped provisioning — call BlueprintTierTable.RegisterAll; " +
                 "(2) the entity was built by hand and never went through a behaviour assign.");
 
-        if (BlueprintBlackboardPartitions.TryGetSlotOffset(store, slotKey, out int offset, out uint existingHash))
+        if (OccurrenceStoreAccess.TryFindSlot(world, self, slotKey, out byte* store, out int offset, out uint existingHash))
         {
             if (existingHash == (uint)structureHash)
             {
@@ -60,17 +58,17 @@ public static unsafe class OccurrenceWorkingState
             BlueprintBlackboardPartitions.TryDetach(store, slotKey);
         }
 
-        if (!BlueprintBlackboardPartitions.TryAttach(
-                store, slotKey, sizeof(TWorkingState), structureHash, kind, out int newOffset))
+        // ⭐ CE-3137 U-0: any block with room, else an APPENDED one — mid-tick is safe, nothing moves.
+        if (!OccurrenceStoreAccess.TryAttachSlot(
+                world, self, slotKey, sizeof(TWorkingState), structureHash, kind, out byte* store2, out int newOffset))
             throw new InvalidOperationException(
                 $"Entity {self} has an occurrence store with no room for hosted slot {slotKey} " +
-                $"({sizeof(TWorkingState)} bytes). The tier is full — provision a larger one, or " +
-                "declare this occurrence in the behaviour's stateful manifest so the ingress sizes " +
-                "the tier for it.");
+                $"({sizeof(TWorkingState)} bytes): every block is full and every tier is already carried " +
+                "(the whole ladder, 47 slots, is in use).");
 
         freshlyAttached = true;
         Components.SopStartRecord.NoteHosted(world, self, slotKey);   // ⭐ CE-2085 — attached inside the SOP's scope ⇒ the SOP's
-        return ref Unsafe.AsRef<TWorkingState>(store + newOffset);
+        return ref Unsafe.AsRef<TWorkingState>(store2 + newOffset);
     }
 
     /// <summary>
@@ -121,18 +119,16 @@ public static unsafe class OccurrenceWorkingState
         //   computes the offset through this same helper — needs to know params exist at all.
         int stateBytes = AlignedBytes(sizeof(TWorkingState));
 
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-
-        if (store == null)
+        if (!OccurrenceStoreAccess.HasStore(world, self))
             throw new InvalidOperationException(
                 $"Entity {self} carries no occurrence store, so hosted slot {slotKey} cannot be " +
-                "attached. Adding a tier component is a structural change and must not happen inside " +
-                "a tick — the entity must already carry one. Two causes, in order of likelihood: " +
+                "attached. Creating a unit's FIRST block is ingress's job (it sizes it for the behaviour) — " +
+                "the entity must already carry one. Two causes, in order of likelihood: " +
                 "(1) this host never registered the BlueprintBlackboard* tier components, so " +
                 "BehaviorIngressSystem skipped provisioning — call BlueprintTierTable.RegisterAll; " +
                 "(2) the entity was built by hand and never went through a behaviour assign.");
 
-        if (BlueprintBlackboardPartitions.TryGetSlotOffset(store, slotKey, out int offset, out uint existingHash))
+        if (OccurrenceStoreAccess.TryFindSlot(world, self, slotKey, out byte* store, out int offset, out uint existingHash))
         {
             if (existingHash == (uint)structureHash)
             {
@@ -145,18 +141,18 @@ public static unsafe class OccurrenceWorkingState
         }
 
         int payload = stateBytes + sizeof(TParams);
-        if (!BlueprintBlackboardPartitions.TryAttach(
-                store, slotKey, payload, structureHash, kind, out int newOffset))
+        // ⭐ CE-3137 U-0: any block with room, else an APPENDED one — mid-tick is safe, nothing moves.
+        if (!OccurrenceStoreAccess.TryAttachSlot(
+                world, self, slotKey, payload, structureHash, kind, out byte* store2, out int newOffset))
             throw new InvalidOperationException(
                 $"Entity {self} has an occurrence store with no room for hosted slot {slotKey} " +
                 $"({payload} bytes = {stateBytes} working state + {sizeof(TParams)} params). " +
-                "The tier is full — provision a larger one, or declare this occurrence in the " +
-                "behaviour's stateful manifest so the ingress sizes the tier for it.");
+                "Every block is full and every tier is already carried (the whole ladder, 47 slots, is in use).");
 
         freshlyAttached = true;
         Components.SopStartRecord.NoteHosted(world, self, slotKey);   // ⭐ CE-2085
-        paramsPtr = (TParams*)(store + newOffset + stateBytes);
-        return ref Unsafe.AsRef<TWorkingState>(store + newOffset);
+        paramsPtr = (TParams*)(store2 + newOffset + stateBytes);
+        return ref Unsafe.AsRef<TWorkingState>(store2 + newOffset);
     }
 
     /// <summary>

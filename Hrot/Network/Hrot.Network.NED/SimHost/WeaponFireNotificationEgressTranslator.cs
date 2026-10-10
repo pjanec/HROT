@@ -81,7 +81,8 @@ namespace Hrot.Network.NED.SimHost
                     continue;
                 }
 
-                if (!_entityMap.TryGetNetworkId(evt.Target, out long targetNetId))
+                long targetNetId = 0;   // ⭐ CE-1032 W-8 — a point fire has no target: the shot (muzzle flash, sound) still goes out
+                if (evt.Target != Entity.Null && !_entityMap.TryGetNetworkId(evt.Target, out targetNetId))
                 {
                     FdpLog<WeaponFireNotificationEgressTranslator>.Warn(
                         "[WeaponFireNotificationEgress] Target entity #{0} not in NetworkEntityMap — skipping notification.",

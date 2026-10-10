@@ -61,7 +61,7 @@ and a spawn convenience. Follow the patterns BATCH-02 established.
     don't fake it.)
 - **Tier-2 (headless smoke, extend):** `GET /commands` returns non-empty; `POST /entities/spawn` then
   `GET /status` shows `entityCount` increased.
-- `dotnet build IOS-IG-SimHost.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
+- `dotnet build HROT.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
 
 ## Constraints (hard)
 - Payloads via JsonNode / DTO path; never the host's CamelCase serializer for domain data.

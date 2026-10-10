@@ -67,7 +67,7 @@
 
 ## Phase 6 — Out-of-Solution Examples & Unit Tests
 
-**Goal:** Repair FastBTree/FastHSM examples and unit-test projects that live outside `IOS-IG-SimHost.sln` and would otherwise silently break.
+**Goal:** Repair FastBTree/FastHSM examples and unit-test projects that live outside `HROT.sln` and would otherwise silently break.
 
 - [ ] **BHD-T6.1** Fix `Fbt.Tests` for new `ITreeTracer` constraint [details](./TASK-DETAIL.md#t61--fix-fbttests-for-itreetracer-constraint)
 - [ ] **BHD-T6.2** Fix `Fbt.Benchmarks`, `Fbt.Examples.*`, `Fbt.Demo.Visual.Tests` [details](./TASK-DETAIL.md#t62--fix-fbtbenchmarks-fbtexamples-fbtdemovisualtests)

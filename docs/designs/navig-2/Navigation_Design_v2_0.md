@@ -1,14 +1,23 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
-current-answer: §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; the rest is the
-  architectural contract.
+updated: 2026-10-08 (§14 P2 as built: tiled bake + tile cache + touched-tile rebuild, CE-3111/CE-1029 · §15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
+current-answer: §5.2a (CE-3128 — the road network as a chosen layer, DESIGN 2026-10-08, R-230/R-231); §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; §14 (runtime
+  navmesh change, rewritten 2026-10-08, R-218; "P2 as built" for the tiled bake and the tile cache); the rest is the architectural contract.
 stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
   the as-built keys it on NavigationIntent.Mode == PathToPoint + IntentId (the Brain's channel never leaves the Brain).
 known-rot: the top banner supersedes any Y-up wording (CE-3011).
 related-designs:
-  - ../../DESIGN_Building_Interiors.md — authors the doors behind TraversalKind.Door (door area on navmesh polygons, B5/B6)
-  - docs/DESIGN_Terrain_World.md — owns the terrain world, the Recast bake per terrain and W6 (which hosts compose the solver).
+  - ../../DESIGN_Terrain_Combat_Tuning.md §5c — draws this navmesh on the map (the Navmesh layer, CE-3133) through a debug-geometry export on the provider
+  - ../../DESIGN_Utility_AI_Demo_Scenarios.md §10.7 — owns the danger-along-route sensor; §5.2a D7 here moves its classifier onto the
+    road graph and its route onto the shared RoutePlanner (CE-3128 ④)
+  - ../../DESIGN_Terrain_World.md §2 — owns the world file; §5.2a D8 retires its `surface: road` polygons (CE-3128 ⑤)
+  - ../../DESIGN_Uniform_Gizmo_Membership.md §10 — RoadNetworkGizmo, which becomes the only drawing of a road
+  - ../../DESIGN_Building_Interiors.md — authors the doors behind TraversalKind.Door (door area on navmesh polygons, B5/B6);
+    §3j 5c is the STATE half of §14 (the door-aware query filter)
+  - ../../blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — T6: placed static obstacles are baked by rebuilding
+    the affected tiles — the GEOMETRY half of §14 (P2)
+  - ../../blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md — R7: the per-node tile cache (P2's cache)
+  - docs/DESIGN_Terrain_World.md — owns the terrain world, the Recast bake per terrain and W6 (which hosts compose the solver); §6a owns the allocation contract (R-220) of the path queries here.
   - docs/designs/brain-death/BD1-DESIGN.md — owns the Brain lifecycle; §1.1 is why MoveToExecutor.OnExit's STOP must reach the
     Muscle (the egress publishes a Mode None with an IntentId since CE-3026).
 -->
@@ -628,6 +637,19 @@ on intent.ActiveAction:
 
 ### 5.2 Solver
 
+> ⭐⭐ **USER RULING, `2026-10-08` (backend, R-230) — the navmesh and the road net are PARALLEL, and using the road net is the
+> actor's per-use-case choice.** 🔒 *"Navmesh should be also where roadnet is, independently on it. Not all vehicles/people want
+> to respect road net. Roadnet cost can affect whether actor wants to use it for navigation (sometimes actor want use roadnet,
+> sometimes no - per use case - sneaking along wall or hard terrain vs comfortable transporting over distance using fast road
+> net)."* · earlier: *"If navigation should prefer routes over navmesh, it will try to get to the route net using navmesh, then
+> travel along road net until close to target, then use navmesh to drive to target."*
+> ⇒ the navmesh is baked over road areas too (roads are never carved out of it); the road graph is a second, independent layer
+> in the terrain (`terrain.json` `roadNetworks`). ⇒ the backend choice below is made PER REQUEST from a road-net cost the actor
+> sets (a sneaking unit: never; a convoy over distance: strongly prefer), not by geometry alone; the splice (navmesh → road →
+> navmesh) is the "prefer" case. ⚠ Today's Auto heuristic (`PathfindingSolverSystem.cs:197`) picks by distance to the network
+> only, and Hybrid is Phase-1 (road graph end to end + straight connector) — both are what this ruling corrects (`CE-3128`).
+
+
 `PathfindingSolverSystem` (in `NavigationSolverModule`, `ExecutionPolicy.SlowBackground(10Hz)`, snapshotted) consumes the events:
 
 ```
@@ -649,6 +671,187 @@ multi-modal backend selection [inside the solver]:
 ```
 
 **Scale-out topology only:** when the `NavigationSolverModule` is on its own node, the `PathRequestEgressTranslator` and `PathResponseIngressTranslator` bridge the request/response across DDS. The wire format is `PathRequestBatch` / `PathResponseBatch` with `[DdsManaged] List<NavWaypoint>` for variable-length result data.
+
+### 5.2a The road network as a chosen layer — `CE-3128` *(DESIGN `2026-10-08`, backend; ✅ D1–D9 APPROVED by the user `2026-10-08` — "Leans ok."; `build-state: BUILT` — as-built below the build slices)*
+
+> 🔒 **R-230** (above) rules the WHAT: two parallel layers; the actor chooses road use per use case; "prefer" = navmesh → road →
+> navmesh. 🔒 **R-231**, user `2026-10-08`: *"4 and 5 approved, write the CE-3128 design"* — ④ the danger-along-route sensor
+> classifies against the road GRAPH, ⑤ the world file's `surface: road` polygons retire (the graph with widths is the road).
+
+#### INVENTORY *(codebase-memory CLI `search_graph` + grep, `2026-10-08`)*
+
+| query | result |
+|---|---|
+| `search_graph .*RoadGraph.*` / `.*RoadNetwork.*` (production) | `RoadGraphNavigator` (Hermite eval + a 4-phase demo follower that never leaves its segment) · `RoadNetworkBlob`/`Builder`/`Holder`/`Json`/`Loader` · `ZoneEnvironmentData.RoadNetwork` · `RoadNetworkGizmo` · `NavigationBackend.NavRoadGraph` · `KinematicsMode.RoadGraph` |
+| `search_graph .*Hybrid.*` | `NavigationBackend.Hybrid` + `PathfindingSolverSystem.SolveHybrid` only — a re-tag of the road-only solve (`:376`) |
+| `grep "new PathfindingRequestEvent"` | **5** publishers: the bridge's `PathToPoint` (`NavigationIntentBridgeSystem.cs:367`) and `PlanRoute` (`:275`), the replan (`NavigationExecutionSystem.cs:270` — ⚠ drops `BackendForce` and the intent's layer mask), `PathfindingActionNode.cs:50`, the scale-out DDS ingress (`PathfindingTranslators.cs:280`) |
+| `search_graph .*DangerAlongRoute.*` | `DangerAlongRouteClassifier` (road POLYGONS, `:116`) · `DangerAlongRouteSolve` (re-plans the unit's route on the NAVMESH only, `:63`) — called by `EqsSolverSystem` (`EqsModule`, SlowBackground 10 Hz) |
+| `grep TerrainSurfaceType.Road` | **3** readers: the world parser, the danger classifier, `TerrainWorldGizmo` (grey fill). ⛔ No navmesh cost, no speed effect — the bake drops water cells only (`TerrainWorldMesh.cs:88`) |
+| `NavAgentProfile` production writers | **0** (only a Stride harness) — AQ67 B/C; ⇒ a default keyed on `MobilityProfile` would never fire |
+| crowd (`DotRecastDtCrowdProvider`) | Stride nodes only — there an infantry agent steers to `FinalDestination` itself and ignores the solver's route |
+| shipped road data | ⛔ no terrain declares `roadNetworks`; road POLYGONS on test-town (Main St y 190–210, Cross St x 190–210) and basic-desert (Track y 290–300); `sample_road.json` lists every segment ONE way while the solver relaxes start→end only |
+
+#### Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class RoadUse { <<NEW enum byte>> Default Never Neutral Prefer StronglyPrefer }
+  class MoveToParams { <<existing, grows>> +RoadUse }
+  class NavigationIntent { <<existing, grows>> +RoadUse }
+  class DdsNavigationIntent { <<wire, grows>> +RoadUse }
+  class PathfindingRequestEvent { <<existing>> +RoadUse in a pad byte, layout unchanged }
+  class PathRequests { <<NEW static>> FromIntent(repo, entity, intent, from, id) ResolveRoadUse }
+  class RoutePlanner { <<NEW static>> Plan(start, end, roadUse, force, layers, doors, navmesh, roads, scratch) }
+  class RoadGraphRouter { <<NEW static>> NearestAccess, Dijkstra undirected, EmitLeg Hermite }
+  class RoutePlan { <<NEW struct>> Waypoints Traversals Backend Distance }
+  class PathfindingSolverSystem { <<existing, slims>> Solve via RoutePlanner }
+  class DangerAlongRouteSolve { <<existing, changes>> route via RoutePlanner }
+  class DangerAlongRouteClassifier { <<existing, changes>> runs inside segment BANDS and junctions }
+  class EqsSolverSystem { <<existing, changes>> +RoadNetworkHolder lease }
+  class INavmeshProvider { <<existing>> PlanPath PathCost ProjectToNavmesh }
+  class RoadNetworkBlob { <<existing>> Nodes Segments LaneWidth LaneCount }
+  class RoadGraphNavigator { <<existing>> EvaluateHermite reused }
+  class TerrainWorld { <<existing, shrinks>> Road surface type retired }
+  MoveToParams --> RoadUse
+  NavigationIntent --> RoadUse
+  PathRequests ..> NavigationIntent
+  PathRequests ..> PathfindingRequestEvent
+  PathfindingSolverSystem ..> RoutePlanner
+  DangerAlongRouteSolve ..> RoutePlanner
+  DangerAlongRouteSolve ..> DangerAlongRouteClassifier
+  EqsSolverSystem ..> DangerAlongRouteSolve
+  RoutePlanner ..> RoadGraphRouter
+  RoutePlanner ..> INavmeshProvider
+  RoutePlanner --> RoutePlan
+  RoadGraphRouter ..> RoadNetworkBlob
+  RoadGraphRouter ..> RoadGraphNavigator
+  DangerAlongRouteClassifier ..> RoadNetworkBlob
+```
+
+*What the picture shows that prose hid:* the route is planned in ONE place for two callers — the vehicle's solver and the danger
+sensor — so the sensor watches the route the unit will actually drive; and every request is built from the intent in ONE place
+(`PathRequests`), which is what keeps `RoadUse` from being dropped the way the replan drops `BackendForce` today.
+
+#### Sequence — a convoy told to `MoveTo` with `RoadUse = Prefer`
+
+```mermaid
+sequenceDiagram
+  participant B as Brain MoveTo
+  participant I as NavigationIntent (wire)
+  participant G as Bridge / replan
+  participant S as PathfindingSolverSystem
+  participant P as RoutePlanner
+  participant N as INavmeshProvider
+  participant R as RoadGraphRouter
+  B->>I: RoadUse = Prefer, FinalDestination
+  I->>G: PathToPoint
+  G->>S: PathRequests.FromIntent (RoadUse resolved)
+  S->>P: Plan(start, end, Prefer)
+  P->>N: PathCost(start, end) = direct
+  P->>R: NearestAccess(start), NearestAccess(end)
+  P->>N: PathCost(start, entry), PathCost(exit, end)
+  P->>R: Dijkstra(entry, exit) over the undirected graph
+  Note over P: road = access + 0.5 x road + egress, taken only when below direct
+  P->>N: PlanPath(start, entry)
+  P->>R: EmitLeg(entry to exit), Hermite samples
+  P->>N: PlanPath(exit, end)
+  P-->>S: RoutePlan(stitched, Backend = Hybrid)
+  S->>S: register in the trajectory pool, PathfindingResultEvent
+```
+
+*What it shows:* the cost comparison comes BEFORE any leg is planned, from `PathCost` (no waypoints) — only the winner is
+materialised; `Never` skips the road half entirely, so a sneaking unit pays nothing for the road graph existing.
+
+#### Modules — who calls the planner each frame
+
+```mermaid
+graph TD
+  TR[TerrainResidency.Commit, every ECS node] -->|publishes| H[RoadNetworkHolder + ZoneEnvironmentData]
+  NSM[NavigationSolverModule, SimHost + Editor, 10 Hz] --> PSS[PathfindingSolverSystem]
+  EQM[EqsModule, SimHost + Editor, 10 Hz] --> EQS[EqsSolverSystem] --> DAS[DangerAlongRouteSolve]
+  PSS -->|lease| H
+  EQS -->|lease, NEW| H
+  PSS --> RP[RoutePlanner]
+  DAS --> RP
+  VEH[Vehicles, every host with a solver] -->|follow the route| PSS
+  CROWD[Stride infantry on dtCrowd] -.->|ignores the solver route| PSS
+  style CROWD stroke:#c00,stroke-dasharray: 5 5
+```
+
+*What it shows:* the dashed edge is the one host family where a road route is NOT followed — a Stride infantry crowd agent
+re-plans to the destination itself. Vehicles everywhere and SimHost infantry follow the solver's route.
+
+#### Decisions *(leans — for the user)*
+
+| # | ⭐ lean | rejected (one line each) |
+|---|---|---|
+| **D1** | **`RoadUse` per request**, a byte enum: `Default`, `Never` (sneak), `Neutral` (×1.0), `Prefer` (×0.5), `StronglyPrefer` (×0.25 — convoy). On `MoveToParams`/`PlanRouteParams` → `NavigationIntent` → the wire intent → `PathfindingRequestEvent` (a pad byte, layout unchanged) → `DdsPathRequest`. `Default` resolves on the vehicle side: a vehicle (`VehicleState`) → `Prefer`, anything else → `Neutral` | a float cost on the wire — not a nameable tactic, and the factor table belongs in one place; a default keyed on `MobilityProfile` — it has 0 production writers (AQ67) |
+| **D2** | **ONE planner, `RoutePlanner`**, pure over (navmesh, road blob, doors), used by the path solver AND the danger solve. It replaces `SelectBackend`'s distance heuristic, `SolvePath` and the Phase-1 `SolveHybrid` | keep the danger solve's own navmesh re-plan — once roads are used it would watch a route the unit does not drive |
+| **D3** | **The road is taken on COST, not geometry**: direct = `PathCost(start, end)`; road = `PathCost(start, entry) + f·road + PathCost(exit, end)` with entry/exit the nearest points ON the network (projection over all segments, within 500 m, entering mid-segment); take the road iff cheaper. `BackendForce = NavRoadGraph` still forces it; `Never` never computes it. Result backend: `Navmesh` / `Hybrid` (spliced) / `NavRoadGraph` (forced) | the both-ends-within-500 m heuristic — R-230 makes it the actor's choice; K entry candidates — v1 takes the nearest, revisit on a measured bad route |
+| **D4** | **The road leg follows the curve**: 8 Hermite samples per segment (as `RoadNetworkGizmo`), walked in travel direction, on the centre line; Z from `ProjectToNavmesh`, 0 without a navmesh. A road-only map (no navmesh) keeps straight access legs (today's CE-2059 connector) | node-to-node polyline — cuts every curve (the follower already cuts corners, CE-3029); a lane offset — no traffic model asks for it yet |
+| **D5** | **Segments are two-way in planning** | honour start→end — every `sample_road.json` lists one direction only, so routes would come out unreachable; no one-way road is authored anywhere (a `oneWay` flag can come with the first) |
+| **D6** | **Every request is built by `PathRequests.FromIntent`** — the bridge and the replan (which today drops `BackendForce` and the intent's layer mask: fixed by the same move) | add `RoadUse` to each of the five publishers by hand — the replan is the proof that hand-copying drops fields |
+| **D7** ④ | **The danger classifier reads the GRAPH**: a run inside a segment's BAND (distance to the centre line ≤ `LaneWidth·LaneCount/2`) for ≤ 40 m is a `StreetCrossing`; inside a JUNCTION (a node with ≥ 3 incident segments, radius = its widest band) it is an `Intersection`; driving ALONG a road is a long run, not a crossing (unchanged rule). `FeatureId` = hash(segment or junction index, exit on the 10 m grid). The blob comes by LEASE from the node's `RoadNetworkHolder`, which `EqsSolverSystem` now receives (its host holds it — a forwarding rail, the silent-default rule) | read `ZoneEnvironmentData` from the solver's snapshot — a background module must lease the blob (the C6 use-after-free, `PathfindingSolverSystem.cs:131`) |
+| **D8** ⑤ | **`surface: road` retires**: `TerrainSurfaceType.Road` goes, the world parser REJECTS `surface: road` naming `roadNetworks` instead (it fails loudly by policy), `TerrainWorldGizmo` loses its road fill (`RoadNetworkGizmo` draws the band). test-town gets `roads.json` (5 nodes, 4 segments, 4 × 5 m lanes = the 20 m polygons), basic-desert its Track (2 × 5 m); both `terrain.json` declare `roadNetworks` | keep the polygons as drawing-only — two shapes for one road would drift (two producers, R-132) |
+| **D9** | **Stride infantry stays out of scope**: a crowd agent targets the destination itself; handing it the corridor is a follow-up | route crowd agents through the solver now — a Stride lane change, not this item |
+
+⚠ **What changes on screen:** vehicle demos on test-town (and basic-desert) will start using the roads once the graph lands
+(`Prefer` by default) — their live checks are re-run as part of the build. Infantry defaults to `Neutral` (×1.0), where the road
+wins only when walking direct is genuinely longer, so `ua-danger-crossing`'s walk keeps its route.
+
+#### Build slices
+
+| # | slice | rails *(the feature's own suites first)* |
+|---|---|---|
+| S1 | `RoadUse` + `PathRequests.FromIntent` + wire field; replan carries `BackendForce`/layer/`RoadUse` | `NavigationIntentBridgeSystem` + replan suites: a field set on the intent reaches the request on BOTH paths |
+| S2 | `RoadGraphRouter` + `RoutePlanner`; the solver delegates (zero per-request scratch allocation: reused buffers sized to the graph, R-220) | `PathfindingSolverSystem` suite: Never stays off, Prefer splices, forced RoadGraph, two-way segment, mid-segment entry, curve-following leg |
+| S3 | test-town + basic-desert `roads.json`; `surface: road` retired (parser, enum, gizmo, geojson) | terrain world parser suite; the shipped-terrain rail |
+| S4 | the danger classifier on the graph; the solve via `RoutePlanner`; `EqsSolverSystem` gets the holder | `DangerAlongRouteClassifierTests` rewritten on a graph; `DangerAreaSensorSystemTests`; a forwarding rail on the constructed solver |
+| S5 | live: a test-town vehicle with `Prefer` drives Main Street, with `Never` cuts across; `ua-danger-crossing` still PASSes; the vehicle `ua-*` demos re-run | T3, backgrounded |
+
+⚠ **Not decided here, filed with the build:** exposing `RoadUse` in the AUTHORED move nodes and blueprint blocks is the behaviors
+lane's surface (`Hrot.AI.Behaviors`) — the engine default makes it optional for the common case.
+
+#### As-built *(`2026-10-08`)* — three deviations, each argued
+
+| # | as built | ⚠ deviation from the decision above, and why |
+|---|---|---|
+| ① D1 | `RoadUse { Unspecified, Never, Neutral, Prefer, StronglyPrefer }` rides in **bits 5–7 of `Flags`** on `MoveToParams` and `NavigationIntent` (properties over the byte; `NavigationConstants.FlagShiftRoadUse`), as a field on `PlanRouteParams` (a pad byte) and on `PathfindingRequestEvent` (its former `_pad1`) | ⚠ not a new field on the params, the intent or the wire: `MoveToParams` is AT its 32-byte channel limit, and `Flags` already rides params → intent → wire → ingress unchanged — **no struct or IDL change**. ⚠ The default member is `Unspecified`, not `Default`/`Auto`: the enum is generated into IDL, where `default` is a keyword and enum members share one scope with `NavigationBackend.Auto` (both measured as idlc errors) |
+| ② D1 | the default is keyed on the locomotion CLASS (`VehicleParams.Class != Pedestrian`, else a bare `VehicleState`) — `PathRequests.IsVehicle` | ⚠ not "has `VehicleState`": SimHost infantry carries `VehicleState` too (CarKinem moves it — `NavLayerSelection`'s own finding), so that test would have made every soldier prefer roads |
+| ③ D7 | `TerrainResidency` publishes its `RoadNetworkHolder` as a managed WORLD SINGLETON (`GlobalComponentIds.RoadNetworkHolder = 343`, `NoScenario | NoReplay`); `RoadNetworkSource.Live(world)` reads it; `EqsModule.ForTerrainHost` hands that source to `EqsSolverSystem.RoadSource` | ⚠ not a constructor dependency threaded through the host capabilities: the composition path (`EqsInfrastructureCapability`) holds no holder, and the singleton is the same "has data" shape as `TerrainWorldSource.Live` |
+
+Also as built: `RoadGraphRouter` (nearest access by arc-length projection over all segments; two-way Dijkstra from virtual
+entry/exit points; Hermite legs) and `RoutePlanner` (cost choice; a leg shorter than `ShortMoveMeters` (0.5 m) costs 0, because a
+real navmesh reports no path between coincident points). ⚠ **A whole MOVE shorter than 0.5 m is the two points as asked**, on any
+map, before any cost is taken. 📌 Found by the S5 live run: in `ua-danger-crossing` the rifleman holds inside the street's band, so
+`Cross` first sends it to a near handle where it already stands. The navmesh cost of that move was "no path", and the point merge
+in `RoadGraphRouter.Append` collapsed it to one point. Either way the move failed every tick and the unit crept across at about
+0.03 m/s without arriving. The pre-CE-3128 navmesh solve had returned the two points. Rail:
+`CE3128_RealNavmesh_AMoveToWhereTheUnitStands_IsATwoPointRoute`. ⚠ **Those two points can coincide**, and the end-of-path
+heading normalised the zero last segment unguarded in two places (`TrajectoryPoolManager.SampleTrajectory`'s end and
+`CarKinematicsSystem`'s arrived branch). The rifleman's position became NaN in the `ua-danger-crossing-bp` in-process twin
+(3/3 runs). Both now use `TrajectoryPoolManager.EndTangent`: the last segment of non-zero length, else +X, as for a one-point
+path. Rail: `CarKinematicsSystemTests.CE3128_APathOfTwoCoincidentPoints_Arrives_AndThePositionStaysFinite`.
+
+**S5 as run (`2026-10-08`).** Live on fresh clusters: `ua-danger-crossing` FAILED at first (the defect above, and the
+pre-CE-3128 base passed the same run), then PASSED with the fix. `ua-danger-crossing-bp`, `ua-posture`, `ua-attack-approach`
+and `ua-threat-ranking` PASSED. ⚠ **The "vehicle with `Prefer` drives Main Street, with `Never` cuts across" check ran
+in-process, not live** (`CE3128_ShippedTestTown_PreferDrivesMainStreet_NeverDoesNot`, a real Recast mesh on the shipped
+test-town). No scenario can author `Never` until `CE-3130`, and the only test-town vehicle scenario (`tt-nav-los`) has no
+check script. **With no navmesh the road graph remains the only planner** (as before), so a `Never` order
+there is unreachable. ~~`DdsPathRequest` still carries only `MobilityProfile`~~ ⛔ SUPERSEDED `2026-10-09` (`CE-3129`): it
+carries `BackendForce`, `NavLayerMask` and `RoadUse` now, so a NavigationSolver on its own node plans what the actor ordered.
+⚠ Found on the same wire and fixed with it: the solver's response batch carried the LAST reachable route's first point as
+`BatchOrigin` while each route was encoded against its OWN first point, so with two routes for one Brain in one frame every
+route but the last arrived displaced (`PathResponseSolverEgressTranslator.BuildBatches` now encodes all against one anchor;
+rails `PathfindingTranslatorsTests`). ⭐ `CE-3130` (`2026-10-09`): the authored moves take it — `MoveToLocation`'s contract
+key `roadUse` (an enum by name, omitted when Unspecified) reaches the MoveTo through the blackboard, and the blueprint
+`MoveTo` channel command has a `RoadUse` pin (rails `MoveToLocationRoadUseTests`, `CatalogTests` MoveTo pins). Rails: `PathfindingSolverBackendSelectionTests`
+`CE3128_*` (the actor's choice, two-way, mid-segment entry, curve, the replan carrying the order, the default by class),
+`PathfindingAutoSelectionIntegrationTests` `CE3128_*` (a real Recast mesh), `DangerAlongRouteClassifierTests` /
+`DangerAreaSensorSystemTests` on the graph, `TerrainWorldTests.CE3128_SurfaceRoad_IsRetired…`,
+`TerrainDefinitionTests.CE3128_ShippedTerrains_DeclareALoadableRoadGraph`.
 
 ### 5.3 Response materialization
 
@@ -994,6 +1197,17 @@ struct NavAgentProfile {
 
 EQS `NavmeshReachable`/`PathCost` default `layerMask` from `ctx.Self`'s `NavAgentProfile.PreferredLayerMask`.
 
+> ⛔ **§8.3 SUPERSEDED for layer selection, `2026-10-08` (`CE-3112`, backend).** `NavAgentProfile` was never stamped in production
+> (Q67 §3C), so the rule fell back on "a `VehicleState` entity is a vehicle" (`CE-3025`) — and SimHost infantry carries
+> `VehicleState`, so every soldier planned on the 1.8 m vehicle mesh. 🔒 **User:** *"we could have navmeshes in baked in several
+> variants (profiles for different parameters ranges - soldier, usual vehicle...), and based on the true entity params (from TKB)
+> to map to the exiting supported profile"* · *"Approved, go with class mapping"*. ⭐ **As built:** `NavLayerSelection.For` maps the
+> TKB locomotion class already on the entity (`VehicleParams.Class`, copied from `VehicleParametersDto`) onto the FIXED baked layers:
+> `Pedestrian` ⇒ Infantry, any other class ⇒ Vehicle; an explicit layer on the order still wins (the hook for a runtime change —
+> prone, caves). The class decides, not the size: a soldier opens doors and climbs stairs, a vehicle does neither. ⛔ No runtime
+> per-entity profile component is stamped (the user: *"this feels a bit like an overkill for this stage of the engine"*); the
+> `NavAgentProfile` read stays only for callers that set it explicitly. The human TKB templates carry `VehicleClass = Pedestrian`.
+
 ### 8.4 EQS revision (separate doc, mentioned here for completeness)
 
 Mandatory but mechanical: add `NavLayerMask` parameter to `NavmeshReachable` and `PathCost` tests. Default = entity's `PreferredLayerMask`. Backwards-compatible at the BTree-author level if default is auto-supplied.
@@ -1209,15 +1423,143 @@ In all-in-one mode, the same call resolves directly against the shared in-proces
 | `ActionIdJoinFormation` | Kept (deferred design) | Will surface in formations doc |
 | `ActionIdFollowRoadGraph` | **Removed** | Subsumed by `MoveTo` with `BackendForce = RoadGraph` |
 
-## 14. Patch-propagation forward-compatibility
+## 14. Runtime navmesh change — patch propagation *(rewritten `2026-10-08`, approved)*
 
-- API surface in place:
-  - `INavmeshProvider.QueryVersion(bounds, layerMask)` → returns constant `1` initially
-  - `PathResult.NavmeshVersionAtPlan` carried but never differs initially
-  - `NavigationStatus.NavmeshVersionObserved` carried but never differs initially
-  - `MoveToExecutor` replan-on-version-mismatch logic in place but never fires initially
-- Final stage: `INavmeshProvider` implementation maintains regional version vectors; patches bump regional versions; `QueryVersion` becomes meaningful. No Brain-side code changes required.
-- Patch propagation DDS shape: deferred, brief sketch in §14.x of the final doc.
+> 🔒 **User, `2026-10-08`:** *"So we cant write to the navmesh at all? No changes ever at runtime? We will need to one day. How
+> can we make it possible, prepare for that?"* → **"Approved"** — runtime navmesh change: P1 snapshot now, P2 tiles with
+> CE-1029, P3 replan in 5d (R-218).
+
+⭐ **The navmesh CAN change at runtime — never IN PLACE under a query.** Two kinds of change, two mechanisms:
+
+| change | examples | mechanism | state |
+|---|---|---|---|
+| **STATE on fixed geometry** | a door, smoke, a danger cost, a pre-baked bridge up/down | the **query filter** judges by the state at query time — ⭐ the CALLER's `DoorStates`, built from the view it runs on (R-219: a background solver sees its own snapshot's doors) — the polygons were baked with their own area id | ✅ doors (`DoorAwareQueryFilter`, Building Interiors §3j 5c + 5b′) |
+| **GEOMETRY** | a breached wall, a crater, a collapsed or placed building (AQ81 T6) | **copy-on-write**: rebuild off-thread, **swap one immutable snapshot** atomically; in-flight queries finish on the old one | ⭐ P1 snapshot ✅ · P2 tiles + cache ✅ (`2026-10-08`) |
+
+```mermaid
+classDiagram
+    direction LR
+    class INavmeshProvider { <<existing>> PlanPath · PathExists · PathCost · QueryVersion() }
+    class SwitchableNavmeshProvider { <<existing>> Publish(provider) — whole-provider swap at terrain commit, generation in QueryVersion }
+    class DotRecastNavmeshProvider { <<existing>> Volatile Snapshot NEW (P1) · Rebake = build a new snapshot, swap }
+    class NavmeshSnapshot { <<NEW P1, immutable>> per layer: DtNavMesh + filter + door polys · Version }
+    class DoorAwareQueryFilter { <<existing, 5c>> STATE changes: reads live door state }
+    class RecastNavmeshFactory { <<existing, P2>> Build(world) · Rebake(provider, world) — FineAreas = building footprints + doorways }
+    class RecastNavmeshBaker { <<existing, TILED in P2>> 24 m tiles on an origin-anchored grid · infantry over a building 0.15 m, else 0.3 m · parallel }
+    class NavTileCache { <<NEW P2>> memory + local folder · key = layer, tile x/z, hash of the tile's inputs · stores BYTES }
+    class PathReplanCheck { <<P3, with 5d>> a path whose stamped version is older than the region's ⇒ replan }
+    INavmeshProvider <|.. SwitchableNavmeshProvider
+    INavmeshProvider <|.. DotRecastNavmeshProvider
+    SwitchableNavmeshProvider o-- DotRecastNavmeshProvider
+    DotRecastNavmeshProvider --> NavmeshSnapshot : one field, swapped whole
+    NavmeshSnapshot *-- DoorAwareQueryFilter : one per layer
+    RecastNavmeshFactory --> RecastNavmeshBaker : bakes through
+    RecastNavmeshBaker --> NavTileCache : unchanged tiles come from
+    RecastNavmeshFactory ..> DotRecastNavmeshProvider : Rebake = a NEW snapshot
+    PathReplanCheck ..> INavmeshProvider : QueryVersion
+```
+*What it shows that prose hid:* a query reads ONE snapshot field once and uses only that object, so a swap can never be seen
+half-done — the same reason the whole-provider `Publish` at terrain load is already safe. ⭐ **P2 has no separate tile
+rebuilder**: the touched-tile rebuild IS a bake through the cache (an unchanged tile's key is unchanged ⇒ a hit), and it only
+ever PRODUCES a snapshot; nothing writes into one. ⛔ SUPERSEDED: the first draft's `NavmeshTileRebuilder` class.
+
+```mermaid
+sequenceDiagram
+    participant C as a geometry change (AQ81 T6 — not built)
+    participant F as RecastNavmeshFactory.Rebake (off-thread)
+    participant K as NavTileCache
+    participant P as DotRecastNavmeshProvider
+    participant Q as solver / EQS query (background)
+    participant N as NavigationExecution (P3)
+    C->>F: the changed TerrainWorld
+    F->>K: per tile: key = hash(its triangles, doorways, settings)
+    K-->>F: hit (unchanged tile, a fresh copy) / miss
+    F->>F: bake the misses only, in parallel
+    Q->>P: PlanPath — reads snapshot S1 once
+    F->>P: swap S1 for S2 (Volatile write), version + 1
+    Q-->>Q: finishes on S1, untouched
+    N->>P: QueryVersion() newer than the path's stamp
+    N->>N: replan (P3)
+```
+
+```mermaid
+graph TD
+    TR["TerrainResidency.Commit — main thread"] -->|"Publish(whole provider)"| SW["SwitchableNavmeshProvider"]
+    SW --> DR["DotRecastNavmeshProvider"]
+    SOL["PathfindingSolverSystem — SlowBackground"] -->|"reads one snapshot per call"| DR
+    EQS["EQS module — background"] -->|"reads one snapshot per call"| DR
+    RB["RecastNavmeshFactory.Rebake — P2 touched-tile rebuild"] -.->|"swaps the snapshot (P1 makes this safe)"| DR
+    TR -->|"Build — tiled, through NavTileCache"| CACHE["NavTileCache — memory + local folder"]
+    NX["NavigationExecutionSystem"] -.->|"P3 — compares versions, not built"| SW
+    style RB stroke-dasharray: 5 5
+    style NX stroke-dasharray: 5 5
+```
+*Dashed = not reached today:* `RecastNavmeshFactory.Rebake` has no production caller — no runtime geometry change exists yet
+(AQ81 T6 is its first caller) — and is proven by a rail. The load path goes through the cache on every node that bakes
+(SimHost, editor). Nothing compares path versions yet — 📐 re-measured `2026-10-08`: `NavmeshVersionAtPlan` is stamped and
+carried by the path registries, no production reader; Building Interiors 5d-4 built P3's DOOR half (replan when a door ahead
+locks, §3j), not the version check.
+
+| step | what | when | why then |
+|---|---|---|---|
+| **P1** | the provider's per-layer state becomes ONE immutable `NavmeshSnapshot` behind a `Volatile` field; every query reads it once; `Rebake` builds a new one and swaps | ✅ built `2026-10-08` | the seam every later change goes through; closes the race `Rebake`'s own comment admitted — 📐 **red-proved**: the rail `P1_RebakeWhileOtherThreadsQuery_NeverSeesAHalfSwappedMesh_AndTheVersionMoves` against the pre-P1 provider gives 1493 bad answers in one run (queries seeing no mesh, *"Collection was modified"*); green with P1 |
+| **P2** | tiled bake + per-tile cache; the touched-tile rebuild is a bake through the cache | ✅ built `2026-10-08` with **CE-1029** + **CE-3111** — see *P2 as built* below | the same change gave parallel bake, a disk cache and real-width doors |
+| **P3** | replan when the navmesh version moved under a path (regional versions when P2 has regions) | with **Building Interiors 5d** | a door change needs it too; the stamps already ride every path |
+
+⭐ **P2 spike — measured `2026-10-08` (CE-3111, user: *"Approved, start with the spike"*).** Real doors (0.8–0.9 m) bake only
+at 0.15 m cells (CE-3111's table); 0.15 m everywhere costs 2–3.5× the bake. The question was whether ONE Detour navmesh may
+hold tiles of DIFFERENT cell sizes. 📐 Rail `TiledBakeSpikeTests.CE3111_Spike_TilesOfDifferentCellSizes_JoinIntoOneNavmesh_AndPathsCrossTheBorders`
+(a 10 × 8 m room with one 0.9 m door; 12 m tiles; tiled `RcConfig` + `RcBuilder.BuildTile` + `DtNavMesh.AddTile`):
+
+| bake | tiles | through the 0.9 m door | open path across a coarse→fine border (12 m straight) |
+|---|---|---|---|
+| all 0.3 m | 25 | ⛔ none | — |
+| all 0.15 m | 25 | ✅ 15.0 m | — |
+| **mixed** — 0.15 m where the tile overlaps a building footprint | **4 fine + 21 coarse** | ✅ **15.0 m** | ✅ **12.00 m** — no detour |
+
+⇒ ⭐ **yes**: the tile's WORLD size is fixed (`DtNavMeshParams.tileWidth`), its cell count is not (`tileCells = tileMetres / cs`);
+Detour links tiles by their portal edges, so a fine tile and a coarse tile join. The fine set is chosen per tile from the
+terrain (building footprints) — no new authoring. (Measured on the shipped terrains in *P2 as built*, below.)
+
+⭐⭐ **P2 as built — `2026-10-08` (CE-3111 · CE-1029 · R-218 P2; user: *"Approved, go ahead with all steps"*).**
+
+| piece | as built |
+|---|---|
+| the grid | 24 m tiles, anchored at the WORLD ORIGIN (absolute tile x/z in each tile's header; `DtNavMeshParams.orig = 0`) — a tile means the same square in every bake (Q71 R7). 24 m is a multiple of both cells (32 m, the first draft, is not: 106.7 cells at 0.3 m) |
+| the cell | INFANTRY tiles within 1 m of a building footprint or a doorway: 0.15 m; every other tile, and the whole vehicle layer: 0.3 m (`RecastNavmeshFactory.FineAreas`). Region thresholds are in m², so both cells drop the same islands |
+| a tile's height | its OWN triangles, padded, snapped to the 0.2 m lattice — neighbours quantise alike, and a far hill never changes a tile's key |
+| the cache | `NavTileCache`: key = layer + tile x/z + SHA-256 of everything the bake reads (its triangles incl. border, the doorway volumes over it, the layer params, the cell, `BakeFormat`); stores BYTES (Detour writes links into a tile's polygons when it is added to a mesh — `DtPoly.firstLink` — so one tile object can never sit in two snapshots); an EMPTY tile is cached too; disk = `<local app data>/Hrot/navtiles/<layer>/<x>_<z>_<hash>.navtile` (or `HROT_NAVTILE_CACHE`, `off` = memory only), temp-file + rename |
+| rebuild | `RecastNavmeshFactory.Rebake(provider, world)` = bake through the cache, swap one snapshot (`DotRecastNavmeshProvider.Rebake(meshes, world, doorways)`, door-aware) |
+
+| 📐 measured (infantry + vehicle, this container) | before: one 0.3 m tile | tiled 24 m, no cache | reload from the cache |
+|---|---|---|---|
+| bt-range | 0.8 s | 0.5 s (162 tiles, 2 fine) | 0.05 s, 0 baked |
+| test-town | 2.6 s | 1.2 s (576 tiles) | 0.18 s, 0 baked |
+| basic-desert | 8.1 s | 2.8 s (1352 tiles) | 0.30 s, 0 baked |
+
+12 m tiles: 0.8 / 1.5 / 4.9 s; 30 m: 0.4 / 2.1 / 3.8 s — 24 m is the best of the three overall. ⇒ the tiled bake is FASTER than
+the single tile even with fine interiors (parallel), and a reload bakes nothing. Rails: `RecastNavmeshFactoryTests` —
+`CE3111_RealWidthDoors_…`, `CE1029_ASecondLoad_BakesNoTile_…`, `R218P2_Rebake_BakesOnlyTheTilesAChangeTouched_…`; House A's
+doors are real 0.9 m again (`Stage5d_BtRangeHouseA_…`). bt-doors live 6/6: the route changed, and the mover's drift off
+its path ran through the wall until `CE-3115` made it steer back onto the path (Building Interiors §3j). The straight path now takes a vertex only
+where the AREA changes (`AREA_CROSSINGS`; ⛔ SUPERSEDED `ALL_CROSSINGS`: the fine tiles cut a corner into 10 cm segments).
+⚠ Not done: the disk folder is never pruned (each changed tile leaves its old file) — `CE-3114`.
+
+| rejected | the one fact |
+|---|---|
+| in-place edits (`SetPolyFlags`, tile replace) under a lock | every query pays the lock; a second concurrency model on the shared mesh (CE-2122) |
+| DotRecast TileCache obstacles | AQ81 T6 rejected them — boxes/cylinders only, a 2nd mechanism beside the asset build; package not referenced |
+| whole-map rebake per change | grows with the map; unmeasured (CE-1029: no bake time ever logged) — tiles fix it structurally |
+
+⛔ **Corrected claims of the original §14** *(it said "API surface in place")*: `QueryVersion(bounds, layerMask)` was never
+built — the as-built is `QueryVersion()` with no region; "`MoveToExecutor` replan-on-version-mismatch logic in place" — **no
+such logic exists** (measured). Both are P3's work. Patch-propagation DDS shape: still deferred — each navigation node rebuilds
+from the SAME terrain change (AQ81 T6's asset op), so no mesh crosses the wire.
+
+## ⛔ HISTORY — §14 as first written
+
+> - API surface in place: `INavmeshProvider.QueryVersion(bounds, layerMask)` → returns constant `1` initially · `PathResult.NavmeshVersionAtPlan` carried but never differs initially · `NavigationStatus.NavmeshVersionObserved` carried but never differs initially · `MoveToExecutor` replan-on-version-mismatch logic in place but never fires initially
+> - Final stage: `INavmeshProvider` implementation maintains regional version vectors; patches bump regional versions; `QueryVersion` becomes meaningful. No Brain-side code changes required.
 
 ## 15. Performance & budgeting
 
@@ -1235,6 +1577,7 @@ In all-in-one mode, the same call resolves directly against the shared in-proces
 - **DDS bandwidth — Muscle↔Solver (only DDS in scale-out mode; in-process otherwise):**
   - `PathRequestBatch` / `PathResponseBatch`: dominated by `[DdsManaged] List<NavWaypoint>` in responses. In the default collocated topology this traffic doesn't hit the wire.
 
+- ⭐ **Allocation (R-220, `2026-10-08`):** the provider's queries allocate nothing of their own per call once warm: per-thread scratch, the snapshot's layers walked as arrays, a per-thread working door filter, and a reusable nearest-polygon search. DotRecast's A* node pool still allocates one list per visited node, about 0.5 KB per short path; the rail pins us to exactly that. 📄 Owning section: [`DESIGN_Terrain_World.md`](../../DESIGN_Terrain_World.md) §6a.
 - **`MoveToExecutor` per-tick cost (Brain):** O(1) per active mover — read `NavigationStatus.Result`, branch on it, return BTree state. No window sliding required.
 
 ## 16. Hot reload

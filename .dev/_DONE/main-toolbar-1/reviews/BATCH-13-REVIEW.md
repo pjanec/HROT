@@ -9,7 +9,7 @@ mapping), and added `ScenarioCatalogContributor` (Hrot.Editor) projecting the ed
 No issues found.
 
 ## Verification (done by lead)
-- **Full `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 warnings** — confirms the enum addition broke
+- **Full `dotnet build HROT.sln` → 0 errors, 0 warnings** — confirms the enum addition broke
   no exhaustive switch anywhere (the critical risk). Worker also added `default: break;` to the
   EditorSubsystem switches my grep missed.
 - New/updated tests run by lead: `ScenarioContributorTests` 13/13; `AssetRootsTests`+`IconKeysTests`+

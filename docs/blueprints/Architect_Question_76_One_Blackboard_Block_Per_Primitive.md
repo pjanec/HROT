@@ -34,6 +34,8 @@ known-conflict: ⚠ Blueprint_SharedState_GetShared_Design.md §7 rules the oppo
   proposes messages instead, on the user's ruling and on the adoption measurement in §1.4. That
   design's own status note already defers cross-entity WRITE to "a deferred-event bus", so it is
   half-conceded there.
+  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — the user-required RE-IMPLEMENTATION of the capability decision A removed (type key, not name; outside both switch sweeps)
+known-rot-87: ⚠ 2026-10-09 — decision A removed shared memory with no replacement; the user now REQUIRES it re-implemented ("it is required to re-implement the unit-scoped shared blackboard structs"). The removal of the name-keyed Entity scope and its nodes stands; the capability returns as Architect_Question_87_Unit_Memory.md.
 related-designs:
   - DESIGN_Unified_Behaviour_Run.md — applies R-151 to the blueprint behaviour and generalises §12.1's hosted child slot to
     any tier (`[brain state][start][block]`).

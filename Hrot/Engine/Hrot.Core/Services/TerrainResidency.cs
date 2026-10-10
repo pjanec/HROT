@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Fdp.Core;
 using Fdp.Core.Logging;
@@ -63,6 +64,14 @@ public sealed class TerrainResidency
     //   node without the NavigationSolver role (IG, a viewer).
     private Fdp.Toolkit.Navigation.INavmeshFactory?            _navmeshFactory;
     private Fdp.Toolkit.Navigation.SwitchableNavmeshProvider?  _navmesh;
+
+    // ⭐ CE-3136 P-7a (R-243) — the terrain WITHOUT static obstacles (what Commit/Unload published), and its version: the obstacle
+    //   bake derives every world from it, and a new terrain re-bakes the obstacles over the new one.
+    private volatile TerrainWorld _baseWorld = new();
+    private StaticObstacleBakery? _bakery;
+
+    /// <summary>⭐ <c>CE-3136</c> P-7a — bumped by every terrain commit / unload: an obstacle bake made over an older base is stale.</summary>
+    public int BaseVersion { get; private set; }
 
     // ⭐ The idempotency branch, and the only implementation of it: same name + same files ⇒ no work.
     private string?  _lastLoadedTerrainName;
@@ -246,6 +255,10 @@ public sealed class TerrainResidency
             return;
         }
 
+        // ⭐ CE-3126 (R-229) — the terrain says where on the Earth its local metres are. Set FIRST, in the same commit, so no
+        //   frame sees the new terrain with the old origin. 📄 docs/DESIGN_Geo_Origin.md §2 D.
+        ApplyGeoOrigin(world, staged.Definition!.Origin, staged.TerrainName);
+
         world.RegisterManagedComponent<TerrainDefinition>();
         // ⭐ CE-3015 — remember the name the scenario resolved it by, so a save writes it back.
         staged.Definition!.ResolvedName = staged.TerrainName ?? string.Empty;
@@ -256,6 +269,9 @@ public sealed class TerrainResidency
         //   terrain's buildings behind.
         world.RegisterManagedComponent<TerrainWorld>();
         world.SetSingletonManaged(staged.World ?? new TerrainWorld { Name = staged.TerrainName });   // CE-3028: named even when it has no world file
+        _baseWorld = world.GetSingletonManaged<TerrainWorld>() ?? new TerrainWorld();   // ⭐ CE-3136 P-7a — the base the obstacle bake builds on
+        BaseVersion++;
+        PublishBakery(world);
 
         // ⭐ W9 / CE-3018 — the spatial grids REBASE to this world on their own threads (SpatialHashSystem,
         //   LocalGridBuilderSystem — docs/DESIGN_Terrain_World.md §4.4); log where they will sit, and stay LOUD if even the
@@ -276,6 +292,7 @@ public sealed class TerrainResidency
         world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
             staged.Cover ?? Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(new TerrainWorld()));
 
+        PublishHolder(world);   // ⭐ CE-3128 — background readers lease the graph through the world (RoadNetworkSource)
         if (staged.HasRoadNetwork)
         {
             // ⛔ The previous blob is NOT disposed here — the holder retires it and frees it once its last
@@ -335,6 +352,7 @@ public sealed class TerrainResidency
     {
         // An empty blob retires the live one through the holder's normal generation swap.
         _roadNetworkHolder.Publish(default);
+        PublishHolder(world);
 
         if (world != null && world.HasSingleton<ZoneEnvironmentData>())
             world.SetSingleton(new ZoneEnvironmentData { RoadNetwork = default });
@@ -342,15 +360,138 @@ public sealed class TerrainResidency
             world.SetSingletonManaged<TerrainDefinition>(null!);   // CE-3075 — no terrain: a save must not stamp the old name
         if (world != null && world.HasSingletonManaged<TerrainWorld>())
             world.SetSingletonManaged(new TerrainWorld());
+        _baseWorld = new TerrainWorld();   // ⭐ CE-3136 P-7a — obstacles re-bake over flat ground
+        BaseVersion++;
+        PublishBakery(world);
         if (world != null && world.HasSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>())
             world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
                 Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(new TerrainWorld()));
         _navmesh?.Publish(null);
+        ApplyGeoOrigin(world, TerrainGeoOrigin.Zero, terrainName: null);   // CE-3126 — no terrain: origin 0,0,0
 
         _lastLoadedTerrainName = null;
         _lastLoadedTimestamp   = default;
 
         FdpLog<TerrainResidency>.Info("[Terrain] Terrain residency released — the world has no terrain (flat ground).");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3118</c> — copies the terrain a residency committed into <paramref name="source"/> onto <paramref name="target"/>:
+    /// the definition, the world, the road network and its holder, and the cover database — exactly what the map's terrain, road and cover gizmos read. For a
+    /// host that DRAWS several worlds over one terrain (the Replay Browser: one sandbox per node plus the merged master, rebound
+    /// on every seek). ⭐ Always writes the world and the road network, an empty one when the source has none, so nothing a
+    /// replay restored can survive in their place. ⛔ Touches no geo origin. 📄 docs/DESIGN_Geo_Origin.md §5.
+    /// </summary>
+    public static void MirrorTerrain(EntityRepository source, EntityRepository target)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (target == null) throw new ArgumentNullException(nameof(target));
+
+        target.RegisterManagedComponent<TerrainDefinition>();
+        target.RegisterManagedComponent<TerrainWorld>();
+        if (source.HasSingletonManaged<TerrainDefinition>() && source.GetSingletonManaged<TerrainDefinition>() is { } definition)
+            target.SetSingletonManaged(definition);
+        else if (target.HasSingletonManaged<TerrainDefinition>())
+            target.SetSingletonManaged<TerrainDefinition>(null!);
+
+        target.SetSingletonManaged(source.HasSingletonManaged<TerrainWorld>() && source.GetSingletonManaged<TerrainWorld>() is { } world
+            ? world : new TerrainWorld());
+        target.SetSingleton(source.HasSingleton<ZoneEnvironmentData>()
+            ? source.GetSingleton<ZoneEnvironmentData>() : new ZoneEnvironmentData());
+        if (source.HasSingletonManaged<RoadNetworkHolder>() && source.GetSingletonManaged<RoadNetworkHolder>() is { } holder)
+            target.SetSingletonManaged(holder);
+        // ⭐ CE-3134 — the cover database too, so the Cover layer draws in replay (an empty one when the source has none).
+        target.SetSingletonManaged(source.HasSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>()
+            && source.GetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>() is { } cover
+            ? cover : Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(new TerrainWorld()));
+    }
+
+    /// <summary>⭐ <c>CE-3128</c> — the node's road graph carrier as a world singleton (idempotent).</summary>
+    /// <summary>
+    /// ⭐ <c>CE-3136</c> P-7a (R-243) — what an obstacle bake built off-thread: the terrain + obstacle prisms, its cover database and
+    /// (on a navigation node) its navmesh. Published by <see cref="CommitObstacles"/>.
+    /// </summary>
+    public sealed class ObstacleBake
+    {
+        internal TerrainWorld World = new();
+        internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
+        internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
+        internal int BaseVersion;
+        /// <summary>Wall-clock duration of the bake (ms) — diagnostics only (R-143's exemptions).</summary>
+        public long Milliseconds { get; internal set; }
+        /// <summary>The obstacle prisms it holds.</summary>
+        public int Obstacles { get; internal set; }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3136</c> P-7a — the OFF-THREAD half of an obstacle rebuild (touches no ECS): the current base terrain +
+    /// <paramref name="obstacles"/> → a new immutable world (R-218), its cover database, and on a navigation node a navmesh baked
+    /// through the per-tile cache (only the tiles the obstacles touch are new). 📄 docs/DESIGN_Peek_And_Fire.md §9.
+    /// </summary>
+    public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var baseWorld = _baseWorld;
+        int baseVersion = BaseVersion;
+        var bake = new ObstacleBake { BaseVersion = baseVersion, Obstacles = obstacles.Count };
+        bake.World = TerrainObstacles.With(baseWorld, obstacles);
+        if (_navmeshFactory != null) bake.Navmesh = _navmeshFactory.Build(bake.World);
+        bake.Cover = Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World);
+        bake.Milliseconds = sw.ElapsedMilliseconds;
+        return bake;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3136</c> P-7a — the MAIN-THREAD half: publishes a bake's world, cover and navmesh in one commit. Returns false (and
+    /// publishes nothing) when the terrain changed since the bake began — the caller bakes again over the new base.
+    /// </summary>
+    public bool CommitObstacles(EntityRepository world, ObstacleBake bake)
+    {
+        if (bake.BaseVersion != BaseVersion) return false;
+        world.RegisterManagedComponent<TerrainWorld>();
+        world.SetSingletonManaged(bake.World);
+        _navmesh?.Publish(bake.Navmesh);
+        world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
+            bake.Cover ?? Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World));
+        return true;
+    }
+
+    private void PublishBakery(EntityRepository? world)
+    {
+        if (world == null) return;
+        _bakery ??= new StaticObstacleBakery(this);
+        if (world.HasSingletonManaged<StaticObstacleBakery>() && ReferenceEquals(world.GetSingletonManaged<StaticObstacleBakery>(), _bakery)) return;
+        world.SetSingletonManaged(_bakery);
+    }
+
+    private void PublishHolder(EntityRepository? world)
+    {
+        if (world == null) return;
+        if (world.HasSingletonManaged<RoadNetworkHolder>() && ReferenceEquals(world.GetSingletonManaged<RoadNetworkHolder>(), _roadNetworkHolder)) return;
+        world.SetSingletonManaged(_roadNetworkHolder);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3126</c> (R-229) — sets the node's geo transform (the world's <see cref="Fdp.Modules.Geographic.IGeographicTransform"/>
+    /// singleton — the ONE instance the node's translators and modules hold, docs/DESIGN_Geo_Origin.md §2 C) to
+    /// <paramref name="origin"/>; <c>null</c> means the terrain declares none, which is 0,0,0 and is said in the log (⛔ no
+    /// default in code — user: <i>"No default berlin. Missing geo = zeros."</i>). A world with no transform has nothing to
+    /// convert and is left alone. Public because the Replay Browser applies a RECORDING's origin the same way (§2 F).
+    /// </summary>
+    public static void ApplyGeoOrigin(EntityRepository? world, TerrainGeoOrigin? origin, string? terrainName)
+    {
+        if (world == null || !world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()) return;
+        var geo = world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>();
+        if (geo == null) return;
+        var o = origin ?? TerrainGeoOrigin.Zero;
+        if (origin == null && terrainName != null)
+            FdpLog<TerrainResidency>.Warn(
+                $"[Terrain] '{terrainName}' declares no 'origin' — its local metres are placed at 0,0,0 (lat, lon, alt).");
+        var current = geo.Origin;
+        if (current.lat == o.Lat && current.lon == o.Lon && current.alt == o.Alt) return;
+        geo.SetOrigin(o.Lat, o.Lon, o.Alt);
+        FdpLog<TerrainResidency>.Info(
+            $"[Terrain] geo origin set to {o.Lat}, {o.Lon}, {o.Alt} ({(terrainName != null ? $"terrain '{terrainName}'" : "no terrain")}).");
     }
 
     /// <summary>

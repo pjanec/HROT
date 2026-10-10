@@ -1106,7 +1106,7 @@ The codebase already contains mature, ACL-compliant network integration examples
 
 **5\. Clean Up Solution Files** Remove the project references for both `Fdp.Examples.NetworkDemo` and `Fdp.Examples.NetworkDemo.Tests` from the solution files to restore the build:
 
--   `FDP/FDP.sln`-   `IOS-IG-SimHost.sln`
+-   `FDP/FDP.sln`-   `HROT.sln`
 
 This safely purges the leaky abstractions and guarantees that all network serialization relies on explicit, hand-authored domain translators.
 

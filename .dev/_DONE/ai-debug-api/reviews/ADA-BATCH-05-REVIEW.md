@@ -3,7 +3,7 @@
 **Verdict:** ACCEPTED (first pass). **Reviewer:** dev lead (full-solution build + diff + real headless reproduce, run personally).
 
 ## Verified independently (lead)
-- **Full-solution build** (`dotnet build IOS-IG-SimHost.sln`) → **0 errors, 0 warnings**. This was the key
+- **Full-solution build** (`dotnet build HROT.sln`) → **0 errors, 0 warnings**. This was the key
   risk: `IGeographicTransform` gained a member (`Origin`), a breaking change for every implementer. Only one
   production implementer (`WGS84Transform`, updated); the rest are test mocks (11 files, all updated). The
   full build confirms no implementer was missed across Map.Common.Tests / IG.Tests / SimHost.Tests.

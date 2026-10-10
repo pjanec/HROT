@@ -199,7 +199,8 @@ namespace Hrot.ScenarioEditor.Map
         public Action? StartPlacementMode { get; init; }
 
         /// <summary>
-        /// Where <i>"this host cannot service tool X"</i> goes. ⭐ Defaults to the FDP log.
+        /// Where <i>"this host cannot service tool X"</i> goes — ⭐ <c>CE-3123</c>: and <i>"gizmo X needs a service this host lacks"</i>
+        /// (<see cref="Services"/>). ⭐ Defaults to the FDP log.
         /// ⚠ Separate from <c>ReportMapDiagnostic</c>: that one is the self-check's channel, and merging
         /// them would put a tool's refusal into the map's health report.
         /// </summary>
@@ -227,7 +228,9 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>
         /// ⭐⭐ <b><c>S4</c> — which visibility policy each projector gets.</b> Optional: when null the pack
         /// attaches <see cref="CullingStateVisibilityPolicy"/> to the entity projector and the framework
-        /// default to everything else.
+        /// default to everything else. ⭐ <c>CE-3120</c>: also a <c>GizmoFamilyVisibilityPolicy</c> to every projector that
+        /// names a family. A host resolver is LAYERED over these defaults — it wins for the types it answers (non-null), the
+        /// defaults fill in the rest.
         ///
         /// <para>⭐ The right axis: policy varies per HOST and per PROJECTOR. An attribute or an interface
         /// member could only vary per projector, which is why §3.4's design needed a resolver rather than
@@ -245,13 +248,22 @@ namespace Hrot.ScenarioEditor.Map
         public Action<string>? ReportMapDiagnostic { get; init; }
 
         /// <summary>
+        /// ⭐ <c>CE-3123</c> (R-228) — the services this host can hand a gizmo projector's constructor (today
+        /// <c>IGeographicTransform</c> for <c>MissionPresentationGizmo</c>, <c>BehaviorRegistry</c> for <c>EntityEditorLabelGizmo</c>).
+        /// Build it with <see cref="MapServices"/>. A projector whose constructors need a service the host lacks is REPORTED
+        /// (<see cref="ReportUnserviceableTool"/>, else the log) and skipped — ⛔ never registered by hand on the hosts that happen to
+        /// have the service. 🔒 Silent-default rule: a host that HOLDS one of these must pass it.
+        /// 📄 <c>DESIGN_Uniform_Gizmo_Membership.md</c> §10.
+        /// </summary>
+        public Func<Type, object?>? Services { get; init; }
+
+        /// <summary>
         /// ⭐⭐ <b>The host's own gizmos.</b> Invoked AFTER the reflection pass and BEFORE the systems are
         /// constructed — see <see cref="MapInteractionRegistries"/> for why that ordering is load-bearing.
         ///
-        /// <para>📐 Four hosts need this, for projectors reflection cannot find: <c>EntityEditorLabelGizmo</c>
-        /// and <c>EntityEditorPolylineGizmo</c> (deliberately attribute-less — their constructors need a
-        /// <c>BehaviorRegistry</c>), <c>RubberBandGizmo</c>, <c>ReplaySpatialBoundsGizmo</c>,
-        /// <c>LayerControlGizmo</c>, <c>EntityDragGizmoDefinition</c>.</para>
+        /// <para>📐 For host affordances reflection must not own: <c>ReplaySpatialBoundsGizmo</c>, <c>EntityDragGizmoDefinition</c>,
+        /// tool gizmos. ⭐ <c>CE-3123</c>: a projector that only needs a SERVICE goes through <see cref="Services"/> instead — the
+        /// label and mission gizmos left this list that way.</para>
         /// </summary>
         public Action<MapInteractionRegistries>? ContributeExtras { get; init; }
 
@@ -272,4 +284,17 @@ namespace Hrot.ScenarioEditor.Map
         public Hrot.UI.Common.AddEntity.EntityAuthoringInputs? EntityAuthoring { get; init; }
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3123</c> — builds <see cref="MapInteractionContext.Services"/> from whatever services a host holds; a <see langword="null"/>
+    /// one is simply not offered. Matches by assignability, so an interface parameter finds its implementation.
+    /// </summary>
+    public static class MapServices
+    {
+        public static Func<Type, object?> Of(params object?[] services) => type =>
+        {
+            foreach (var s in services)
+                if (s != null && type.IsInstanceOfType(s)) return s;
+            return null;
+        };
+    }
 }

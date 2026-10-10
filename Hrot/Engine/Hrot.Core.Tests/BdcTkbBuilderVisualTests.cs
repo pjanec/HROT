@@ -192,6 +192,26 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal(new[] { "Platform", "Land", "Russia", "Tank" }, names.Path(db.GetByType(TkbEntityTypes.Tank_T72)!.DisType));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3112</c> / 5d-2 — every built-in HUMAN template is a pedestrian that can interact: the Pedestrian class maps
+        /// it to the Infantry navmesh layer (R-222), and <c>CanInteract</c> lets the interaction channel run its door actions.
+        /// 🔴 Both were missing on the UrbanCombat humans: soldiers planned on the vehicle mesh (no doorway fits) and a door
+        /// action failed at once (the bt-doors live run, 2026-10-08).
+        /// </summary>
+        [Fact]
+        public void CE3112_BuiltInHumans_ArePedestrians_ThatCanInteract()
+        {
+            var db = new TkbDatabase();
+            NedTkbCatalog.RegisterAll(db);
+            Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(db);
+            foreach (var type in new long[] { 1001, 2002, 2003, TkbEntityTypes.Infantry_Rifleman })
+            {
+                var t = db.GetByType(type)!;
+                Assert.Equal(CarKinem.Core.VehicleClass.Pedestrian, t.GetDescriptor<VehicleParametersDto>()?.VehicleClass);
+                Assert.True(t.GetDescriptor<BehaviorProfileDto>()?.CanInteract, $"TKB type {type} ({t.Name}) cannot interact");
+            }
+        }
+
         /// <summary>⭐ <c>CE-1017</c> S0 — the names table: unknown numbers read "Category 7", a 0 level is skipped.</summary>
         [Fact]
         public void CE1017_DisNameTable_NamesKnownLevels_SkipsZero_AndNumbersTheUnknown()

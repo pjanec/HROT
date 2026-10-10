@@ -49,7 +49,7 @@ You will create a new project `Hrot.Animation.Replication` under `Hrot/Subsystem
 - `FDP/Engine/Fdp.Core/Abstractions/INetworkTranslator.cs`
 - `FDP/Engine/Fdp.Core/Abstractions/INetworkEventTranslator.cs`
 
-**Solution file:** `IOS-IG-SimHost.sln`
+**Solution file:** `HROT.sln`
 
 ### Report Submission
 
@@ -112,7 +112,7 @@ as the dirty signal instead of `IntentId`).
   - `FDP/Engine/Fdp.Core/Fdp.Core.csproj`
   - `FDP/Toolkits/Fdp.Toolkits/Fdp.Toolkits.csproj`
   - `FDP/Network/Fdp.Network.Cyclone/Fdp.Network.Cyclone.csproj` (for DdsParticipant + CycloneNativeEventTranslator)
-- Add the project to `IOS-IG-SimHost.sln`
+- Add the project to `HROT.sln`
 - Namespace root: `Hrot.Animation.Replication`
 
 **Folder layout:**
@@ -348,7 +348,7 @@ This batch is DONE when:
 - [ ] All 7 event translator pairs implemented and tested (no FootstepEvent translator)
 - [ ] `AnimationReplicationModule` registers all 15 translators
 - [ ] Minimum 20 unit tests passing
-- [ ] `dotnet build IOS-IG-SimHost.sln` completes without errors
+- [ ] `dotnet build HROT.sln` completes without errors
 - [ ] Report submitted
 
 ---
@@ -378,7 +378,7 @@ This batch is DONE when:
 6. Implement side-buffer serializer → tests passing
 7. Implement event translators → tests passing
 8. Implement `AnimationReplicationModule` → topic-table test passing
-9. Full solution build: `dotnet build IOS-IG-SimHost.sln`
+9. Full solution build: `dotnet build HROT.sln`
 10. Write report
 
 Do not stop between steps for permission. Complete everything and then report.

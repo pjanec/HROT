@@ -68,7 +68,7 @@ File: extend/add in `FDP/Engine/Fdp.Presentation.Tests/ImGui/WindowManager/`.
 - Do NOT weaken/skip/auto-pass tests or add a Stability trait to dodge a failure.
 
 ## Definition of done (all required)
-- `dotnet build IOS-IG-SimHost.sln` green (zero new warnings).
+- `dotnet build HROT.sln` green (zero new warnings).
 - Run WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS`. New tests pass UNFILTERED. `Fdp.Presentation.Tests`
   0-failed for the toolbar/dockspace/WindowManager tests with
   `--filter "Stability!=Flaky&Stability!=Environment&Stability!=Broken"`.

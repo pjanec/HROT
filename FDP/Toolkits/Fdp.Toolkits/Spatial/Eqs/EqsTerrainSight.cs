@@ -11,7 +11,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// ⭐ Sight and placement over the resident terrain for EQS — the SAME occluder perception uses
     /// (<see cref="TerrainWorld.SegmentBlocked"/>, R-174: one source), with perception's eye heights
     /// (docs/designs/eqs-2/EQS_Design_v1.3_final.md §19.5).
-    /// <para>⛔ Terrain only: vehicles and units are not cover (they move). ⭐ No terrain resident ⇒ sight is UNKNOWN —
+    /// <para>⭐ Terrain, plus every live VEHICLE's box (<c>CE-3142</c>, P-7a O5 — read from the query's own view, <see cref="VehicleCover"/>);
+    /// units are not cover. ⛔ SUPERSEDED `2026-10-09`: "Terrain only: vehicles and units are not cover (they move)" (EQS §19.5) — a
+    /// standing car is, and a moving one hides what is behind it at that instant. ⭐ No terrain resident ⇒ sight is UNKNOWN —
     /// callers do nothing rather than guess (the retired <c>BlockedLosService</c> answered "always blocked").</para>
     /// </summary>
     public static class EqsTerrainSight
@@ -35,7 +37,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
         {
             if (injected != null) return injected;
             var world = World(view);
-            return world == null ? null : new TerrainLosService(world);
+            // ⭐ R-219 — the EQS solver's view is its snapshot: the doors it sees are the doors of that snapshot
+            return world == null ? null : new TerrainLosService(world, world.Doors.Count > 0 ? DoorStates.Of(view, world) : null,
+                VehicleCover.Collect(view, world.Materials, standingOnly: false));   // ⭐ CE-3142 — the view's vehicles, once per batch
         }
 
         /// <summary>True when <paramref name="p"/> (XY) is inside a building or wall footprint.</summary>

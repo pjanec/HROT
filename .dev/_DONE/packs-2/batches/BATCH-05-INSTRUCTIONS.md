@@ -613,7 +613,7 @@ public class CgfSubsystemTests : IDisposable
 
 After completing all tasks, verify:
 
-1. **Build:** `dotnet build IOS-IG-SimHost.sln --no-incremental` → **0 errors**
+1. **Build:** `dotnet build HROT.sln --no-incremental` → **0 errors**
 2. **Tests:**
    - `dotnet test Hrot.ScenarioEditor.Tests --no-build` → all pass (at minimum previous 7 + 3 new A001/E004 tests)
    - `dotnet test Hrot.ClusterRunner.Tests --no-build` → new CgfSubsystem test passes

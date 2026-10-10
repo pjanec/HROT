@@ -43,7 +43,7 @@ Tests use the real model API (`BehaviorTreeAsset` constructor + internal `AddNod
 
 ## Verification
 
-- `dotnet build IOS-IG-SimHost.sln` — **0 errors**, 0 new warnings in touched projects
+- `dotnet build HROT.sln` — **0 errors**, 0 new warnings in touched projects
 - `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **Failed: 0**, Passed: 473 (incl. 4 new tests)
 - `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests` — **Failed: 0**, Passed: 1059 (DiagnosticsWindow tests still green)
 - BTree registrar is now constructed with a non-empty `validators:` list containing `BTreeAssetValidator`

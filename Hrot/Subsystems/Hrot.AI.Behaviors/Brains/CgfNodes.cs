@@ -76,6 +76,8 @@ namespace Hrot.AI.Behaviors.Brains
             public float Y;
             public float Speed;
             public float ArrivalRadius;
+            /// <summary>⭐ CE-3130 — the actor's road use for this move (R-230); Unspecified ⇒ by the unit's class.</summary>
+            public RoadUse RoadUse;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -167,7 +169,8 @@ namespace Hrot.AI.Behaviors.Brains
                 Speed = authored.Speed > 0 ? (float)authored.Speed : DefaultMoveToSpeed,
                 ArrivalRadius = authored.ArrivalRadius > 0 ? (float)authored.ArrivalRadius : 5f,
                 X = authored.X,
-                Y = authored.Y
+                Y = authored.Y,
+                RoadUse = authored.RoadUse,   // CE-3130
             };
 
             // If geo-coords provided, map them
@@ -277,7 +280,8 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 Destination  = new Vector3(p.X, p.Y, 0f), // blueprint-authored 2D destination (§0.2)
                 ArrivalRadius = p.ArrivalRadius,
-                Speed        = p.Speed
+                Speed        = p.Speed,
+                RoadUse      = p.RoadUse,   // ⭐ CE-3130 — packed into Flags bits 5–7
             });
 
             return NodeStatus.Running;
@@ -523,26 +527,25 @@ namespace Hrot.AI.Behaviors.Brains
                 channel.ActiveAction != Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire
                 || channel.Status    == Fbt.NodeStatus.Failure;
 
+            // ⭐ CE-3136 B7 (backend, cross-lane — said in the commit) — the EXECUTOR counts the rounds and ends the action after
+            //   MaxRounds (AimAndFireParams.Rounds); the node no longer predicts a round from "cooldown is 0". ⛔ That prediction
+            //   counted every tick of the aim time (P-3, the weapon is cooled but not yet aimed) and reached MaxRounds before a
+            //   single round left — measured on HeardShotScenarioTests: the hidden shooter "fired" 30 rounds and spent none.
+            int alreadyFired = p.RoundsFired;
+            if (!needsActivation && channel.DispatchedInstanceId == channel.ActionInstanceId)
+                p.RoundsFired = Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.RoundsFiredOf(ref channel);   // the real count
             if (needsActivation)
             {
                 WriteToWeaponParams(ref channel, new Fdp.Toolkit.Combat.Executors.AimAndFireParams
                 {
                     Target          = target,
                     CooldownSeconds = p.CooldownSeconds,
+                    Rounds          = p.MaxRounds > 0 ? System.Math.Max(p.MaxRounds - alreadyFired, 1) : 0,
                 });
 
                 unchecked { channel.ActionInstanceId++; }
                 channel.ActiveAction = Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire;
-            }
-
-            // Only increment RoundsFired exactly when the weapon is ready to shoot this tick.
-            // Writing back through the ref parameter updates the blackboard in-place -- no
-            // pointer arithmetic required.
-            if (world.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(self))
-            {
-                var weapon = world.GetComponent<Fdp.Toolkit.Combat.Components.WeaponState>(self);
-                if (weapon.CooldownSecondsRemaining <= 0f)
-                    p.RoundsFired = p.RoundsFired + 1;
+                channel.Status = Fbt.NodeStatus.Running;
             }
 
             return NodeStatus.Running;

@@ -1006,6 +1006,19 @@ re-anchored the master only and told no slave. Rails: `MasterSyncControllerTests
 `…_KeepsTheSlaveRoster_UnlessANewOneIsGiven`. ⚠ The editor still lacks the orchestrator's load handler — owned by the
 editor/orchestrator unification question, not this section.
 
+⭐⭐ **`2026-10-10` — A FOURTH CALLER: the editor's STOP PREVIEW** *(`CE-3156`, backend lane)*. 🔒 User: *"Stop Preview
+does NOT reset time to zero (although the entity state resets to initial state)."* 📐 Stop did two things — the world
+rewind (`PreviewClusterOpHandler` → `_liveRepo.SyncFrom(_snap)`) and a PAUSE (`SwitchToDeterministic`) — and neither
+is a position: `SyncFrom` does not carry `GlobalTime` (`EntityRepository.Sync.cs:112-123`), and carrying it would not
+help, since the kernel rewrites that singleton every frame from the controller's accumulator
+(`ModuleHostKernel.cs:496-500`). ⇒ the world went back to its snapshot and the clock stayed where Stop was pressed.
+✅ `EditorPreviewController` now captures `GetCurrentState()` on Enter and asks `ITimeCommands.SnapTo(thatPosition)`
+on Exit — through the seam above, never a direct call. The pause stays (immediate, `CE-3068`); the snap lands on the
+clock's next `Update`, before any pause/resume intent. ⚠ **Editor only.** The cluster twin
+(`ReferencePreviewHandler`) has the same shape and the same gap, but there only the master owns the clock — a shared
+`IPreviewRewindable` clock participant is the open question, not built here. Rail (system):
+`PreviewLifecycleRails.Exiting_preview_returns_the_clock_to_where_the_preview_started`.
+
 ### ⚠ Two consequences worth writing down
 
 | ⚠ | |

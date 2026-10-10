@@ -99,7 +99,7 @@ Add `Stage0_Rehydrate.Run(asset, options);` as the first statement of `Compile`,
 - [ ] `INodeRegistry.GetStaticPins` returns correct ordered shapes for Branch/Sequence/Literal/Cast (+ exec-only kinds).
 - [ ] Existing suites stay green: `Hrot.Blueprints.Tests` (only the 7 pre-existing DEBT-006 fail; 0 new),
       `Hrot.Blueprints.Compiler` tests, `CountingDemo_ProofTests` 2/2.
-- [ ] Build `IOS-IG-SimHost.sln` 0 errors / 0 new warnings. Report exact counts.
+- [ ] Build `HROT.sln` 0 errors / 0 new warnings. Report exact counts.
 - [ ] Report → `.dev/blueprint-compile-fix/BP-2-REPORT.md`.
 
 ## Report Requirements

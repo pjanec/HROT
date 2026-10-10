@@ -49,7 +49,7 @@ Do not stop and ask for permission to run tests, fix failures, or complete obvio
 
 1. Fix invalid `ProjectReference` path to `Fdp.Core.csproj` so the path resolves correctly.
 2. Ensure `dotnet test Hrot/Subsystems/Hrot.Animation.Replication.Tests/Hrot.Animation.Replication.Tests.csproj -c Debug` has zero warnings.
-3. Ensure `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore` stays clean.
+3. Ensure `dotnet build HROT.sln -c Debug --no-restore` stays clean.
 
 ### Tests Required
 
@@ -179,5 +179,5 @@ This batch is done only when:
 - [ ] ANC-P6-02 LookAtEntity ingress remap implemented and tested (positive + negative)
 - [ ] ANC-P6-06 QoS policy verification added and passing
 - [ ] Replication tests pass
-- [ ] `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore` passes
+- [ ] `dotnet build HROT.sln -c Debug --no-restore` passes
 - [ ] Report submitted to `.dev/anim-ctrl/reports/BATCH-14-REPORT.md`

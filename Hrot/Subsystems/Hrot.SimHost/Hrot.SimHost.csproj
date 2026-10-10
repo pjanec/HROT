@@ -56,7 +56,9 @@
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <!-- ⭐ CE-2121 — the body-stance Muscle (AnimationMuscleModule over the fake backend). -->
     <ProjectReference Include="..\Hrot.MuscleCharacter.Animation\Hrot.MuscleCharacter.Animation.csproj" />
-    <ProjectReference Include="..\Hrot.MuscleCharacter.Animation.Fake\Hrot.MuscleCharacter.Animation.Fake.csproj" />    <!-- GZ057: source generator for [GizmoProjector] attribute on SimHostEntityPresentationGizmo. -->
+    <ProjectReference Include="..\Hrot.MuscleCharacter.Animation.Fake\Hrot.MuscleCharacter.Animation.Fake.csproj" />
+    <!-- ⭐ CE-2121 slice ② — the body-stance wire (StanceIntent in, StanceStatus out). -->
+    <ProjectReference Include="..\Hrot.Animation.Replication\Hrot.Animation.Replication.csproj" />    <!-- GZ057: source generator for [GizmoProjector] attribute on SimHostEntityPresentationGizmo. -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />  </ItemGroup>
 

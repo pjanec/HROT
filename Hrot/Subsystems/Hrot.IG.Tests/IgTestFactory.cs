@@ -24,7 +24,7 @@ internal static class IgTestFactory
         => new NedNetworkFactory(
             participant:  domainId.HasValue ? new DdsParticipant((uint)domainId.Value) : null,
             entityMap:    new NetworkEntityMap(),
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.Map2D);

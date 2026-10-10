@@ -306,6 +306,12 @@ export const TOOLS_CATALOG = [
       "VERIFICATION SURFACE for transfer_entity_ownership: read ownership, POST the transfer, read again.",
       "PERSPECTIVE-SCOPED on --mode all: reports the ACTIVE perspective node's view. Read on both the giving and receiving node to confirm a transfer landed."
     ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "read which node owns each of an entity's descriptors"
+    },
     "hint": "Req: networkId (number/long). 503 on a host with no NED transport (editor/AllInOne). Example: get_entity_ownership({networkId:1000})",
     "manualVerify": false
   },
@@ -411,6 +417,13 @@ export const TOOLS_CATALOG = [
     "notes": [
       "CE-271 seam ⑤ / CE-515 ③: the create-request pipeline (routing + ownership grants). POST /entities/spawn now uses the same pipeline; the only difference is ownerNodeId:0 — here 'forward to the arbiter', there 'this node'."
     ],
+    "example": {
+      "args": {
+        "tkbType": 123,
+        "ownerNodeId": 1
+      },
+      "gist": "create an entity through the create-request pipeline, owned by node 1"
+    },
     "hint": "Req: tkbType (long). Unlike spawn_entity this goes through the create-request pipeline. Example: create_entity_request({tkbType:123, ownerNodeId:1})",
     "manualVerify": false
   },
@@ -1506,6 +1519,114 @@ export const TOOLS_CATALOG = [
   // ── Group K — AI behavior traces ────────────────────────────────────────────
 
   {
+    "name": "get_combat_detonations",
+    "group": "K — AI behavior traces",
+    "summary": "The last warhead bursts on this node (grenades, mortars, HE) — the warhead and where its numbers came from, every entity in reach with its stance, fragment exposure and blast barrier/shadow, the damage each effect did, and the doors breached (buildings Stage 6).",
+    "http": {
+      "method": "GET",
+      "path": "/combat/detonations"
+    },
+    "params": [
+      {
+        "name": "last",
+        "type": "number",
+        "required": false,
+        "description": "how many bursts (newest first; default 10, ring of 64)"
+      }
+    ],
+    "returns": "{ count, returned, detonations:[{seq, tick, shooter, struck, burst, ammo, warhead, warheadSource, fragmentRadius, blastInjuryRadius, effects:[{entity, entityIndex, stance, bodyPoints, distance, fragmentExposure, fragmentFalloff, fragmentArmourChance, fragmentDamage, blastFalloff, blastBarrier, blastShadow, blastDamage, totalDamage, shieldedBy, at}], doorsBreached:[key], rays:[{to, transmission, stopAt}]}] } — newest first",
+    "notes": [
+      "Written by AreaEffectSystem as it decides each burst — never recomputed. Only bursts of a munition WITH a warhead are recorded (a rifle round has none).",
+      "fragmentExposure = the mean over the target's body points (its stance) of the fragments through the terrain and past any body or vehicle; blastBarrier = what slabs/walls/shut doors let through; blastShadow = the diffraction factor behind an obstacle taller than the target.",
+      "The entity the round struck is listed too (it is at the burst); its direct hit is a separate damage event.",
+      "rays = every fragment line the map's blast layer draws (CE-3117): the body point, the fragment transmission 0..1, and the first obstacle on the way (a terrain piece where the fragments enter it, or the point nearest a blocking collider), null for a clear line."
+    ],
+    "example": {
+      "args": {
+        "last": 3
+      },
+      "gist": "find out why the prone soldier behind the wall survived the grenade"
+    },
+    "hint": "Optional: last (default 10, ring of 64). Example: get_combat_detonations({last:3})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_combat_shots",
+    "group": "K — AI behavior traces",
+    "summary": "The last rounds fired on this node — the inputs each was fired with (penetration and its provenance, AQ85 sigma/deflection) and why it ended (hit, stopped by a wall, expired), with every terrain crossing (tuning T-4).",
+    "http": {
+      "method": "GET",
+      "path": "/combat/shots"
+    },
+    "params": [
+      {
+        "name": "last",
+        "type": "number",
+        "required": false,
+        "description": "how many records (newest first; default 20, ring of 256)"
+      },
+      {
+        "name": "shooter",
+        "type": "number",
+        "required": false,
+        "description": "only rounds fired by this network id"
+      },
+      {
+        "name": "target",
+        "type": "number",
+        "required": false,
+        "description": "only rounds fired at this network id"
+      }
+    ],
+    "returns": "{ count, returned, shots:[{seq, tick, endTick, shooter, target, weaponIndex, muzzle, aim, ordinal, sigmaRad, deflectionRad, penetration, penetrationSource, damage, outcome:InFlight|Hit|StoppedByTerrain|Expired, end, hit, arrivingDamage, arrivingPenetration, crossings:[{kind, label, material, resistanceMmRha, roundPenetrationMm, chance, passed, at}]}] } — newest first",
+    "notes": [
+      "Written by the systems that decide each round (FireProcessing, Ballistics, HitResolution) — never recomputed, so it cannot disagree with what happened.",
+      "Served where the fire chain runs (SimHost, Editor); elsewhere it says no round was fired on this node.",
+      "A round that hit a unit lists only the crossings before the unit; arrivingDamage is what the damage step received."
+    ],
+    "example": {
+      "args": {
+        "last": 10
+      },
+      "gist": "find out why a rifleman's rounds never hurt the target behind the wall"
+    },
+    "hint": "Optional: last (default 20), shooter, target (network ids). Example: get_combat_shots({last:10, shooter:1001})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_entity_memory",
+    "group": "K — AI behavior traces",
+    "summary": "A unit's raw target memory, every slot — heard (anonymous) contacts included (CE-3144).",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/memory"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      }
+    ],
+    "returns": "{ networkId, hasMemory, count, changeEpoch, anonymousSerial, slots:[{id, anonymous, position:[x,y,z], freshness, radius, lastSeenTick, modalities, sourceClass, alive?, networkId?}] }",
+    "notes": [
+      "GET /entities/{id} shows memory through the scenario translator, which drops heard slots and entities it cannot map; this route shows them all.",
+      "Slots are sorted freshest first; a heard slot has a negative synthetic id and a radius."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "read what a unit remembers — seen and heard contacts, how fresh, and where"
+    },
+    "hint": "Req: networkId (number). Read on the Brain perspective (Scenario on a cluster) — memory is written there. Example: get_entity_memory({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_entity_sensors",
     "group": "K — AI behavior traces",
     "summary": "Every sensor of a unit — kind, result family and last answer in its own shape (CE-3072).",
@@ -1672,6 +1793,45 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "explain_line_of_sight",
+    "group": "K — AI behavior traces",
+    "summary": "Why one unit does or does not see another, as this node's perception decides it — eye and aim heights, stances, every terrain crossing with its transmittance, and any entity in the way (tuning T-4).",
+    "http": {
+      "method": "GET",
+      "path": "/perception/los"
+    },
+    "params": [
+      {
+        "name": "observer",
+        "type": "number",
+        "required": true,
+        "description": "the seeing unit's network id"
+      },
+      {
+        "name": "target",
+        "type": "number",
+        "required": true,
+        "description": "the seen unit's network id"
+      }
+    ],
+    "returns": "{ observer, target, visible, verdict, eye, eyeHeight, observerStance, targetStance, threshold, points:[{height, aim, clear, verdict, terrainTransmittance, crossed:[{along, kind, label, material, transmittance, building, storey}], blockingEntity}], note }",
+    "notes": [
+      "A dry run of the SAME strategy perception composes (TerrainWorldLosStrategy.ForLiveWorld) — it cannot disagree with it.",
+      "Answers where perception runs with the entities resident (SimHost, Editor); 404 when either unit is not on this node.",
+      "Stage 4: the target is SEEN when ANY body point (per its logical stance) has a clear line; every point is listed with its own verdict."
+    ],
+    "example": {
+      "args": {
+        "observer": 1001,
+        "target": 1002
+      },
+      "gist": "find out which wall hides the enemy from the rifleman"
+    },
+    "hint": "Req: observer, target (network ids). Example: explain_line_of_sight({observer:1001, target:1002})",
+    "manualVerify": false
+  },
+
+  {
     "name": "observe_trace",
     "group": "K — AI behavior traces",
     "summary": "Arm or disarm AI behavior trace buffer allocation for an entity.",
@@ -1832,7 +1992,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "resolve_entity_type_parameters",
     "group": "M (TKB) — Entity-type catalog",
-    "summary": "Every combat/perception parameter of a TKB type with its value and where it came from (buildings Stage 0).",
+    "summary": "Every combat/perception parameter of a TKB type with its value and where it came from (buildings Stage 0) — or, with ammo/weapon, the generated reference library's launcher × ammo pair (tuning T-1).",
     "http": {
       "method": "GET",
       "path": "/tkb/resolve"
@@ -1841,15 +2001,34 @@ export const TOOLS_CATALOG = [
       {
         "name": "type",
         "type": "number",
-        "required": true,
+        "required": false,
         "description": "TKB type ID (long)"
+      },
+      {
+        "name": "ammo",
+        "type": "string",
+        "required": false,
+        "description": "reference-library ammo name (e.g. '5.56x45 ball') — answers the generated pair instead of a type"
+      },
+      {
+        "name": "weapon",
+        "type": "string",
+        "required": false,
+        "description": "reference-library weapon name (e.g. 'M4_Carbine'); omitted or not firing this ammo ⇒ the ammo's generic profile"
+      },
+      {
+        "name": "library",
+        "type": "string",
+        "required": false,
+        "description": "any value with no type/ammo: list the whole reference library"
       }
     ],
-    "returns": "{ tkbType, name, disType, engineFallbacks, parameters:[{name, value, provenance:Explicit|Generated|ReferenceByDis|ReferenceByName|EngineFallback|NotApplicable, source}] }",
+    "returns": "type: { tkbType, name, disType, engineFallbacks, parameters:[{name, value, provenance:Explicit|Generated|ReferenceByDis|ReferenceByName|EngineFallback|NotApplicable, source}] } · ammo: { ammo, weapon, found, weaponMatched, muzzleSpeed, penetrationMm, penetrationFormula, damage, damageFormula, driving } · library=1: { ammo:[…], weapons:[…] }",
     "notes": [
       "The values are the ones the simulation uses: the translators and the fire chain call the same resolver rules.",
       "Generated = a builder derived it by formula (source names the formula and its inputs); EngineFallback = the type said nothing and an engine default applies.",
-      "engineFallbacks counts the parameters on engine defaults — the place to look when a type behaves 'generically'."
+      "engineFallbacks counts the parameters on engine defaults — the place to look when a type behaves 'generically'.",
+      "ReferenceByName = the generated reference library (tuning T-1): a mount's loaded ammo named by its TKB type's name, when the TKB states no penetration; the formula and its inputs are in source."
     ],
     "example": {
       "args": {
@@ -1857,7 +2036,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "see which of the M1's numbers are stated, derived or engine defaults"
     },
-    "hint": "Req: type (number — tkbType from list_entity_types). Example: resolve_entity_type_parameters({type:100})",
+    "hint": "Req: type (number — tkbType from list_entity_types), OR ammo (+ optional weapon), OR library=1. Example: resolve_entity_type_parameters({type:100}) · resolve_entity_type_parameters({ammo:'12.7x99 AP', weapon:'M2HB'})",
     "manualVerify": false
   },
 
@@ -1920,15 +2099,16 @@ export const TOOLS_CATALOG = [
   {
     "name": "list_doors",
     "group": "N — World / coordinates",
-    "summary": "The doors the resident terrain defines, by terrain-object key, with their state (buildings Stage 1: initial state; door entities in Stage 5).",
+    "summary": "The doors the resident terrain defines, by terrain-object key, with their live state (what sight and fire see) and the door entity that stands for each (buildings Stage 5b).",
     "http": {
       "method": "GET",
       "path": "/doors"
     },
     "params": [],
-    "returns": "{ terrain, count, doors:[{key, state:Open|Closed|Locked|Destroyed, source, x, y, sillZ, building, storey, runtimeId}] }",
+    "returns": "{ terrain, count, doors:[{key, state:Open|Closed|Locked|Destroyed, initial, source, x, y, sillZ, building, storey, runtimeId, entityState}] }",
     "notes": [
-      "key = '<terrain>/<building>/<doorId>', a string — never a network id (runtimeId is null until door entities exist)."
+      "key = '<terrain>/<building>/<doorId>', a string — never a network id. runtimeId is the door ENTITY's network id (created by the scenario load), null before it exists.",
+      "state = the terrain's live state; entityState = the door entity's replicated DoorState. They differ only for the frame before the mirror runs."
     ],
     "example": {
       "args": {},
@@ -1978,7 +2158,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "query_terrain",
     "group": "N — World / coordinates",
-    "summary": "Dry-run terrain trace between two points — every crossed wall/fence/floor with its material and transmittance (buildings Stage 1: purpose=sight).",
+    "summary": "Dry-run terrain trace between two points — every crossed wall/fence/floor with its material and, per purpose, its transmittance (sight) or ballistic resistance and the round's chance through it (fire).",
     "http": {
       "method": "GET",
       "path": "/terrain/query"
@@ -2000,13 +2180,26 @@ export const TOOLS_CATALOG = [
         "name": "purpose",
         "type": "string",
         "required": false,
-        "description": "sight (fire/sound/fragment/blast arrive with their solvers)"
+        "description": "sight (default) or fire (sound/fragment/blast arrive with their solvers)"
+      },
+      {
+        "name": "penetration",
+        "type": "number",
+        "required": false,
+        "description": "fire: the round's penetration, mm RHA (0 = unknown round — the engine fallback meets the terrain)"
+      },
+      {
+        "name": "damage",
+        "type": "number",
+        "required": false,
+        "description": "fire: the round's damage (0 = the flat default)"
       }
     ],
-    "returns": "{ terrain, purpose, transmittance, seesThrough, threshold, length, crossed:[{along, kind:panel|prism|slab|ramp, label, material, transmittance, building, storey}], note }",
+    "returns": "sight: { terrain, purpose, transmittance, seesThrough, threshold, length, crossed:[{along, kind:panel|prism|slab|ramp, label, material, transmittance, building, storey}], note } · fire: { terrain, purpose, penetration, length, stopped, stopAlong, arrivingDamage, arrivingPenetration, crossed:[{along, kind, label, material, pathMetres, resistanceMmRha, roundPenetrationMm, chance, passes, building, storey}], note }",
     "notes": [
       "Transmittance multiplies along the line (chain-link 0.85, hedge 0.3, solid walls 0); seesThrough = transmittance >= 0.5.",
-      "Perception uses the same rule (TerrainWorld.SegmentBlocked = transmittance < 0.5), so this answer is what a sensor sees."
+      "Perception uses the same rule (TerrainWorld.SegmentBlocked = transmittance < 0.5), so this answer is what a sensor sees.",
+      "fire (R-217): resistance = material mm RHA/m × the path inside the piece; chance = ArmorModel.PenetrationChance(round, resistance); damage multiplies by each chance; a crossing the round cannot pass stops it — exactly what bullets do."
     ],
     "example": {
       "args": {
@@ -2015,7 +2208,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "check whether a window lets a soldier outside see into a room"
     },
-    "hint": "Req: from, to ('x,y,z' local metres). Optional: purpose (sight). Example: query_terrain({from:'102,90,1.6', to:'102,104,1.6'})",
+    "hint": "Req: from, to ('x,y,z' local metres). Optional: purpose (sight|fire), penetration (mm RHA, fire), damage (fire). Example: query_terrain({from:'102,90,1.6', to:'102,104,1.6', purpose:'fire', penetration:'5'})",
     "manualVerify": false
   },
 

@@ -81,7 +81,11 @@ namespace Fdp.Toolkit.Vis2D.Components
         // Configuration
         public float ZoomSpeed { get; set; } = 0.1f;
         public float MinZoom { get; set; } = 0.1f;
-        public float MaxZoom { get; set; } = 10.0f;
+        // ⭐ CE-3150 — 10 → 50 (5×) on the user's ask, `2026-10-09`: "camera zoom-in limit is very low, i need much
+        //   more detailed (zoomed-in) view, 5 times more than now." ⚠ This is the DEFAULT every host but IG inherits
+        //   (MapCanvas, EditorSubsystem, StrideNodeBootstrapper each `new MapCamera()`); IG keeps its own 5.0 in
+        //   IgCameraConstants. ⛔ No test pins this value — IG's assert reads IgCameraConstants.MaxZoom.
+        public float MaxZoom { get; set; } = 100.0f;
         
         // ── NEW: Smoothing Toggle ─────────────────────────────────────────
         public bool EnableSmoothing { get; set; } = false;

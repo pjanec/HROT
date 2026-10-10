@@ -19,6 +19,10 @@ internal sealed class StanceIntentEgressTranslator : INetworkTranslator
 {
     private const string TopicNameConst = "hrot/anim/StanceIntent";
 
+    /// <summary>⭐ <c>CE-2121</c> — NED's <c>dtStanceIntent</c> (104): the Brain group's descriptor for <see cref="StanceIntent"/>
+    /// (<c>NedOwnershipGroupBinding</c>); a rail pins the two equal.</summary>
+    public const long DescriptorOrdinal = 104;
+
     private readonly IAnimDdsWriter<DdsStanceIntent> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, (StanceId, float, uint)> _lastPublished = new();
@@ -51,9 +55,11 @@ internal sealed class StanceIntentEgressTranslator : INetworkTranslator
             .With<NetworkIdentity>()
             .Build();
 
+        long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
         foreach (var entity in query)
         {
-            if (!view.HasAuthority(entity)) continue;
+            // ⭐ CE-2121 — the GROUP that owns the request (Brain), not the entity's primary owner. ⛔ SUPERSEDED: HasAuthority(entity).
+            if (!view.HasAuthority(entity, packedKey)) continue;
 
             ref readonly var intent = ref view.GetComponentRO<StanceIntent>(entity);
 

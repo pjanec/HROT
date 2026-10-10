@@ -9,7 +9,7 @@ Fixes the user-reported canvas breakages. Root cause (confirmed in code): the in
 - **Task 3:** `BlueprintCommandSink.CreateAssetNode` maps `Util.GetVar`/`Util.SetVar` (+ aliases) to real `GetVariableNode`/`SetVariableNode` (was falling through to `FunctionCallNode` → exec pins, no data). `NodePinSchema` projects Get = pure data-out `Value`, Set = exec in/out + typed `Value`. `BlueprintDocumentFactory.RegisterCreateVariableCommand` implements `editor.create-variable`; `EditorSubsystem` now passes the document's real `ctx.Commands` to the My Blueprint window (was an empty instance).
 
 ## Verification (ran myself)
-- **`dotnet build IOS-IG-SimHost.sln` → 0 Warnings / 0 Errors** (coder claimed "4 pre-existing warnings" — false; clean. Consistent miscount across this project — always re-checked).
+- **`dotnet build HROT.sln` → 0 Warnings / 0 Errors** (coder claimed "4 pre-existing warnings" — false; clean. Consistent miscount across this project — always re-checked).
 - `Hrot.Blueprints.Tests` **1089 / 10 / 8** — 10 = DEBT-006; golden suite unchanged (projection-only held); a perf benchmark flakes under load (`WhenNode_*_perTick`/`ReadEqsResultNode_Under80ns`) — passes isolated. `Hrot.Editor.AiShared.Tests` **760 / 0**. `Hrot.BTree.Editor.Tests` **382 / 0**. `Hrot.Hsm.Editor.Tests` **333 / 0**. `EditorSubsystemBoot` **10 / 0**.
 
 ## Code read

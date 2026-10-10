@@ -368,7 +368,7 @@ public sealed class EditorHarness : IDisposable
         //   BeforeSync maintenance system — which the capability contributes on the real hosts — is
         //   registered here explicitly, from the SAME instance the pack built.
         Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.RegisterTierComponents(Repo);
-        Kernel.RegisterGlobalSystem(cgfLogicPackInst.MaintenanceSystem);
+        // ⛔ CE-3137 U-0: the BeforeSync maintenance system is retired (R-236).
 
         Kernel.RegisterModule(new EditorSimulationModule(
             cgfLogicPackInst.SimulationSystems,

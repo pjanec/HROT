@@ -255,7 +255,7 @@ public sealed class TheGateCannotBeForgottenTests
         var dir = AppContext.BaseDirectory;
         for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
         {
-            if (System.IO.File.Exists(System.IO.Path.Combine(dir, "IOS-IG-SimHost.sln"))) return dir;
+            if (System.IO.File.Exists(System.IO.Path.Combine(dir, "HROT.sln"))) return dir;
             dir = System.IO.Directory.GetParent(dir)?.FullName;
         }
         return null;

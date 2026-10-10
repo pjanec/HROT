@@ -819,7 +819,7 @@ if (tracePtr != null
 
 ### Out-of-Solution Test/Example Projects (Critical!)
 
-The following projects are **not** included in `IOS-IG-SimHost.sln` but **will break** when the FastBTree/FastHSM kernel signatures change. They live in separate sub-solutions (`FDP/ExtDeps/FastBTree/FastBTree.sln`, `FDP/ExtDeps/FastHSM/FastHSM.sln`):
+The following projects are **not** included in `HROT.sln` but **will break** when the FastBTree/FastHSM kernel signatures change. They live in separate sub-solutions (`FDP/ExtDeps/FastBTree/FastBTree.sln`, `FDP/ExtDeps/FastHSM/FastHSM.sln`):
 
 - `Fbt.Tests` — 33+ unit tests, several construct `BTreeContext` and run `Interpreter`.
 - `Fbt.Benchmarks`, `Fbt.Examples.Console`, `Fbt.Examples.FluentBTree`, `Fbt.Examples.FluentBTree.Trees`, `Fbt.Demo.Visual.Tests`.
@@ -889,7 +889,7 @@ Rewire the kernels to consume the new contracts.
 - T6.3 — Fix `Fhsm.Tests` — rewrite `Tooling/TraceTests.cs` and `Tooling/TraceSymbolicationTests.cs` to construct `HsmTraceContext` over a caller-owned buffer; replace any `HsmKernelCore.SetTraceBuffer` calls; update `OrthogonalRegionTests`, `FailSafeTests` accordingly
 - T6.4 — Fix `Fhsm.Benchmarks`, `Fhsm.Examples.Console`, `Fhsm.Demo.Visual`, `Fhsm.Demo.Visual.Tests`
 
-> Important: developers must build and test the sub-solutions `FDP/ExtDeps/FastBTree/FastBTree.sln` and `FDP/ExtDeps/FastHSM/FastHSM.sln` explicitly, because they are excluded from the top-level `IOS-IG-SimHost.sln`. The main solution can compile green while these sub-projects are broken.
+> Important: developers must build and test the sub-solutions `FDP/ExtDeps/FastBTree/FastBTree.sln` and `FDP/ExtDeps/FastHSM/FastHSM.sln` explicitly, because they are excluded from the top-level `HROT.sln`. The main solution can compile green while these sub-projects are broken.
 
 ---
 

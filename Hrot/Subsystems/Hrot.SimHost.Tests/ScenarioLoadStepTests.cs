@@ -177,6 +177,116 @@ public sealed class ScenarioLoadStepTests : IDisposable
         Assert.Empty(Drain(source));
     }
 
+    // ── Buildings Stage 5b — the terrain's doors become entities at commit ────────────────────
+
+    private const string TwoDoorHouse = """
+        { "type": "FeatureCollection", "features": [ { "type": "Feature",
+            "properties": { "kind": "building", "label": "H", "doors": { "front": "locked" },
+              "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                "storeys": [ { "height": 3, "walls": [
+                  { "from": [0,0], "to": [10,0], "thickness": 0.3, "openings": [ { "kind": "door", "at": 4.5, "width": 1, "doorId": "front" } ] },
+                  { "from": [5,0], "to": [5,8], "thickness": 0.15, "openings": [ { "kind": "door", "at": 6, "width": 0.9, "doorId": "hall" } ] } ] } ] } },
+            "geometry": { "type": "Point", "coordinates": [20, 20] } } ] }
+        """;
+
+    private static EntityRepository TerrainRepo()
+    {
+        var repo = new EntityRepository();
+        repo.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+        repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+        repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(TwoDoorHouse, "range"));
+        return repo;
+    }
+
+    /// <summary>
+    /// ⭐ Stage 5b (📄 docs/DESIGN_Building_Interiors.md §3b K1/K3/K5, §3j) — a NEW scenario still gets the terrain's doors: one
+    /// transient <c>Door</c> request per door, in KEY order, ids from the one allocator, carrying the door's live state, its key
+    /// and its position.
+    /// </summary>
+    [Fact]
+    public async Task Stage5b_ANewScenario_GetsOneDoorEntityPerTerrainDoor_InKeyOrder()
+    {
+        using var world = TerrainRepo();
+        var source = new ScenarioEntityCreationRequestSource();
+        var step = new ScenarioLoadStep(
+            new ScenarioSerializerBuilder(SubsystemType).Build(),
+            new LambdaScenarioLoader(_ => throw new InvalidOperationException("must not be read")),
+            new StagingEntityExtractor(), source, new StubIdAllocator(100));
+        var ctx = Ctx(Guid.NewGuid(), ClusterState.LoadingEdit, scenarioId: null, isNew: true);
+
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        step.Commit(ctx, world);
+
+        var doors = Drain(source);
+        Assert.Equal(new[] { "range/H/front", "range/H/hall" },
+            doors.Select(r => r.InitialComponents!.OfType<Fdp.Toolkit.Terrain.TerrainObjectKey>().Single().Key));
+        Assert.All(doors, r => Assert.Equal(Hrot.Map.Common.TkbEntityTypes.Door, r.TkbType));
+        Assert.All(doors, r => Assert.True(r.IsTransient));                     // K5 — never written into a scenario
+        Assert.Equal(new long[] { 100, 101 }, doors.Select(r => r.PreAllocatedNetworkId));   // K1 — the one allocator
+        Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Locked,
+            doors[0].InitialComponents!.OfType<Fdp.Toolkit.Terrain.DoorState>().Single().State);   // the instance override
+        Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open,
+            doors[1].InitialComponents!.OfType<Fdp.Toolkit.Terrain.DoorState>().Single().State);
+        var at = doors[0].InitialComponents!.OfType<SimTransform>().Single().Position;
+        Assert.Equal(25f, at.X, 2); Assert.Equal(20f, at.Y, 2);                  // the doorway's centre
+    }
+
+    /// <summary>⭐ Stage 5b — the doors follow the scenario's own requests (K3), and a door that already has an entity is never doubled.</summary>
+    [Fact]
+    public async Task Stage5b_DoorsFollowTheScenariosEntities_AndAnExistingDoorIsNotCreatedTwice()
+    {
+        _goldRepo.CreateEntity();
+        using var world = TerrainRepo();
+        var existing = world.CreateEntity();
+        world.SetManagedComponent(existing, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "range/H/hall" });
+
+        var source = new ScenarioEntityCreationRequestSource();
+        var step   = MakeStep(SerializeGold(), source);
+        var ctx    = Ctx(Guid.NewGuid());
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        step.Commit(ctx, world);
+
+        var all = Drain(source);
+        Assert.Equal(2, all.Count);
+        Assert.NotEqual(Hrot.Map.Common.TkbEntityTypes.Door, all[0].TkbType);   // the scenario's entity first
+        Assert.Equal("range/H/front", all[1].InitialComponents!.OfType<Fdp.Toolkit.Terrain.TerrainObjectKey>().Single().Key);
+    }
+
+    /// <summary>
+    /// ⭐⭐ Stage 5e (📄 docs/DESIGN_Building_Interiors.md §3b K5, §3j "5e") — a door's state survives save → load. The saving world
+    /// opened the authored-LOCKED front door; the save writes it to <c>TerrainObjects</c>; the load creates the door entity in that
+    /// state, while the untouched hall door starts as the terrain authored it.
+    /// </summary>
+    [Fact]
+    public async Task Stage5e_ADoorsStateSurvivesSaveAndLoad_AnUntouchedDoorStartsAsAuthored()
+    {
+        using var saving = TerrainRepo();
+        saving.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
+        foreach (var (key, state) in new[] { ("range/H/front", Fdp.Toolkit.Terrain.TerrainDoorState.Open), ("range/H/hall", Fdp.Toolkit.Terrain.TerrainDoorState.Open) })
+        {
+            var e = saving.CreateEntity();
+            saving.AddComponent(e, new Fdp.Toolkit.Terrain.DoorState { State = state });
+            saving.SetManagedComponent(e, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = key });
+            saving.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+        }
+        string json = _serializer.Serialize(saving, new ScenarioHeader(SubsystemType)).ToJsonString();
+        Assert.Contains("\"TerrainObjects\"", json);
+
+        using var loading = TerrainRepo();
+        var source = new ScenarioEntityCreationRequestSource();
+        var step   = MakeStep(json, source);
+        var ctx    = Ctx(Guid.NewGuid());
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        step.Commit(ctx, loading);
+
+        var doors = Drain(source).ToDictionary(
+            r => r.InitialComponents!.OfType<Fdp.Toolkit.Terrain.TerrainObjectKey>().Single().Key,
+            r => r.InitialComponents!.OfType<Fdp.Toolkit.Terrain.DoorState>().Single().State);
+        Assert.Equal(2, doors.Count);                                                       // K5 — no door came in as a scenario entity
+        Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open, doors["range/H/front"]);    // the saved state, not the authored lock
+        Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open, doors["range/H/hall"]);     // authored open, never written
+    }
+
     // ── THE readiness predicate — one implementation, asked of both targets ───────────────────
 
     /// <summary>⭐ Nothing prepared and nothing queued ⇒ resolved. The trivial arm, stated so the rest mean something.</summary>

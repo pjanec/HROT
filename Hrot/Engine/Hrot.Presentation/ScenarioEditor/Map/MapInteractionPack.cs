@@ -51,9 +51,19 @@ namespace Hrot.ScenarioEditor.Map
         private static Func<Type, IGizmoVisibilityPolicy?> DefaultVisibilityPolicy(GizmoSettingsRegistry settings)
         {
             var culling = new CullingStateVisibilityPolicy(settings);
-            return type => type == typeof(Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo)
-                ? culling
-                : null;
+            // ⭐ CE-3120 (R-227) — one GizmoFamilyVisibilityPolicy per family, attached to every projector that names one, so the
+            //   family's scope (all / selected or pinned) and the per-unit pins decide. 📄 DESIGN_Terrain_Combat_Tuning.md §5b.
+            var families = new System.Collections.Generic.Dictionary<Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags, GizmoFamilyVisibilityPolicy>();
+            return type =>
+            {
+                if (type == typeof(Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo)) return culling;
+                var family = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<GizmoProjectorAttribute>(type)?.Family
+                             ?? Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.None;
+                if (family == Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.None) return null;
+                if (!families.TryGetValue(family, out var policy))
+                    families[family] = policy = new GizmoFamilyVisibilityPolicy(settings, family);
+                return policy;
+            };
         }
 
         /// <summary>
@@ -77,6 +87,9 @@ namespace Hrot.ScenarioEditor.Map
                 Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
             }
 
+            // ⭐ CE-3123 (R-228) — the debug view state the pin and AI-trace actions patch, on every map host.
+            Hrot.Map.Common.PresentationComponentRegistry.RegisterDebugViewState(ctx.World);
+
             var settings          = ctx.Settings ?? new GizmoSettingsRegistry();
             var gizmoRegistry     = new GizmoRegistry();
             var statelessRegistry = new StatelessGizmoRegistry();
@@ -86,10 +99,20 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐⭐ S4: the resolver is how a reflection-discovered projector gets a visibility policy.
             // The DEFAULT attaches CullingStateVisibilityPolicy to the entity projector — the policy itself
             // is off unless the host sets map.entity.cullOffscreen, so this changes no behaviour until
-            // asked. A host may override the whole resolver to attach any policy to any projector.
+            // asked. A host resolver attaches its own policy to any projector it names (layered below).
             // 📄 UX_Feature_Map_Parity.md §3.2f · UX_Feature_Entity_Symbology.md §3.4.
-            var resolve = ctx.VisibilityPolicyResolver ?? DefaultVisibilityPolicy(settings);
-            GizmoReflectionRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settings, resolve);
+            // ⭐ CE-3120 — the host's resolver is LAYERED over the default (it wins for the types it answers), so a host override
+            //   does not silently drop the family policies.
+            var defaults = DefaultVisibilityPolicy(settings);
+            var hostResolve = ctx.VisibilityPolicyResolver;
+            Func<Type, IGizmoVisibilityPolicy?> resolve = hostResolve == null ? defaults : type => hostResolve(type) ?? defaults(type);
+            // ⭐ CE-3123 (R-228) — a projector's constructor services come from the host's Services; one the host lacks is reported.
+            GizmoReflectionRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settings, resolve,
+                services: ctx.Services,
+                // ⚠ The "this host cannot serve it" channel, as for tools — NOT ReportMapDiagnostic, the self-check's "the map
+                //   draws nothing" channel (MapInteractionContext.ReportUnserviceableTool says why the two stay apart).
+                reportUnserviceable: ctx.ReportUnserviceableTool
+                    ?? (m => Fdp.Core.Logging.FdpLog<MapInteraction>.Info("[Map] " + m)));
 
             // ⚠⚠ ORDERING IS LOAD-BEARING (§3.2d ③). The host's own gizmos go in AFTER reflection and
             // BEFORE the systems are constructed, because StatelessGizmoSystem sizes its visibility cache
@@ -260,10 +283,14 @@ namespace Hrot.ScenarioEditor.Map
             long layerControlId = GlobalGizmoManager.NewId();
             var layerControl = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
                 layerControlId, bus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(),
-                ctx.GizmoUiPublisher);
+                ctx.GizmoUiPublisher, settings);   // ⭐ CE-3120 — the panel edits the family scopes in the shared settings
             globalManager.Register(layerControlId, layerControl);
             actions.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent()));
+            // ⭐ CE-3120 (R-227) — the Pin gizmos submenu's actions, on every map host (one registration, not one per host).
+            Hrot.Common.Diagnostics.Gizmos.GizmoPins.RegisterActions(actions);
+            // ⭐ CE-3123 (R-228) — the AI-trace toggles, once for every map host (SimHost and the Editor each had a copy; the rest none).
+            Hrot.Common.Diagnostics.Gizmos.AiTraceActions.RegisterActions(actions);
 
             // ⭐ CE-1017 — ONE entity-authoring surface per map, built here for every host that can author (Editor,
             //   CGF, SimHost, IG): spawn adapter, picker, Add Entity action and the canvas menu. The host only

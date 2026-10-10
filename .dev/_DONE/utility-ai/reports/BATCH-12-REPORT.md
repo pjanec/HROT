@@ -140,7 +140,7 @@ Channels, SquadAssignment, Eqs, TargetMemory, Perception, UtilityDecision
 
 ### Solution Update
 
-`IOS-IG-SimHost.sln` updated with:
+`HROT.sln` updated with:
 - Two new `Project(...)` entries for `Hrot.Diagnostics.Overlays` and `Hrot.Diagnostics.Overlays.Tests`
 - Full `Debug|Any CPU`, `Debug|x64`, `Debug|x86`, `Release|Any CPU`, `Release|x64`, `Release|x86` configuration entries for both projects
 - Both projects nested under the existing `Diagnostics` solution folder (`{5E4C52BA-6213-E083-B735-5DDE0CCE6DA3}`)
@@ -173,4 +173,4 @@ Zero errors. Zero new warnings introduced by BATCH-12 code (pre-existing warning
 | `Hrot/Diagnostics/Hrot.Diagnostics.Overlays/SquadAssignmentOverlaySource.cs` | Created |
 | `Hrot/Diagnostics/Hrot.Diagnostics.Overlays.Tests/Hrot.Diagnostics.Overlays.Tests.csproj` | Created |
 | `Hrot/Diagnostics/Hrot.Diagnostics.Overlays.Tests/OverlaySourceTests.cs` | Created |
-| `IOS-IG-SimHost.sln` | Modified |
+| `HROT.sln` | Modified |

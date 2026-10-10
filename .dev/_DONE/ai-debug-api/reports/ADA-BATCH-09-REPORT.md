@@ -85,7 +85,7 @@ The `SanitizeNonFinite(componentsJson)` pass is retained for the non-throwing ca
 ## Build Status
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 → 0 Error(s), 2 Warning(s) (pre-existing NU1903 for MessagePack, unrelated)
 ```
 

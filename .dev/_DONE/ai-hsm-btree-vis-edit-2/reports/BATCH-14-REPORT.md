@@ -49,7 +49,7 @@ Added a DFS pre-pass cycle detector (`CheckNoCycles`) to `BTreeEmitCore` that th
 
 ## Build
 
-- `dotnet build IOS-IG-SimHost.sln` — **0 errors, 0 new warnings** (only pre-existing warnings: NU1903, CS0618, xUnit2013, CS8601/CS8602).
+- `dotnet build HROT.sln` — **0 errors, 0 new warnings** (only pre-existing warnings: NU1903, CS0618, xUnit2013, CS8601/CS8602).
 - Committed assets are acyclic → no BTREE0002 fires.
 
 ## Design notes

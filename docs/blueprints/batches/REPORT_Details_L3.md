@@ -185,7 +185,7 @@ solution build.
 
 | gate | env | result | Δ vs `L2` |
 |---|---|---|---|
-| **solution build** *(`IOS-IG-SimHost.sln`)* | — | ⭐ **0 errors, 0 warnings** | — |
+| **solution build** *(`HROT.sln`)* | — | ⭐ **0 errors, 0 warnings** | — |
 | `Hrot.Editor.AiShared.Tests` | **Xvfb** | **1802 / 0 / 0** | ⭐ **+14 — mine** |
 | `Hrot.Blueprints.Tests` | **Xvfb** | **3887 / 0 / 10** | ⭐ **+5 — mine** *(`L3.2`'s rail)* |
 | `Hrot.BTree.Editor.Tests` | **Xvfb** | **622 / 0 / 0** | **0** |

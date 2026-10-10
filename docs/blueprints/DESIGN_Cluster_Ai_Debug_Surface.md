@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (2026-10-01) — §4 is the as-built
-updated: 2026-10-01
+updated: 2026-10-09
 current-answer: §2 (decisions), §3 (the UML — true as built) and §4 (as-built + rails). §1 is the measured inventory.
 stale-below: nothing.
 known-rot: none.
@@ -184,6 +184,8 @@ and the routes say so, rather than borrowing CGF's sessions for a different worl
 | ⭐ CGF composes its **asset catalogue** in `Initialize` too (`BuildAssetCatalog`), as the editor does — its `BTreeAssetContributor` is what calls `SetDebugMetadata` on the BTree session (`CE-345`) | `CgfSubsystem.cs`, right after the surface |
 | ⭐ `BehaviorRegistry.TryGetTreeBlob` — the one *"which tree does this entity run"* lookup; `BTreeVisualizerRenderer` routed to it; `BTreeDebugSession` (given the registry by the composer) names nodes from it, the `SetDebugMetadata` slot as fallback | `Fdp.Toolkits/Behavior/BehaviorRegistry.cs` · `Hrot.Presentation/Renderers/BTreeVisualizerRenderer.cs` · `Hrot.BTree.Editor/Debug/BTreeDebugSession.cs` |
 | ⭐ `DtoDiagnosticMapper` reads an `[InlineArray]` element generically (`Unsafe.Add` over the array) instead of `Marshal.SizeOf`/`StructureToPtr` | `Fdp.Toolkits/Diagnostics/DtoDiagnosticMapper.cs` |
+| ⭐ `CE-3144` (`2026-10-09`) — `DtoDiagnosticMapper` maps a non-finite `float`/`double` to the DebugApi sentinel string (`"NaN"`/`"Infinity"`/`"-Infinity"`, the `NonFinite*SentinelConverter` spelling). 🔴 Measured live: a behaviour block holding `-Infinity` (`PeekAndFireState.LastSeenAt`) reached `ToJsonString` through `BrainDiagnosticsTranslator` and **every** `GET /entities` and `GET /entities/{id}` on the brain node answered 500 — the same failure shape as the InlineArray row above. Rail `EventSerializationHelperTests.CE3144_MapObject_NonFiniteFloats_BecomeSentinelStrings_AndSerialise` | `Fdp.Toolkits/Diagnostics/DtoDiagnosticMapper.cs` |
+| ⭐ `CE-3144` — `GET /entities/{networkId}/memory`: a unit's RAW `TargetMemory`, every slot (heard/anonymous slots, radius, modalities, freshness). ⚠ `GET /entities/{id}` shows memory through the scenario translator, which drops heard slots and unmappable entities — so it cannot answer *"did the shot reach the brain?"* | `DebugApiService.Memory.cs` · route doc `get_entity_memory` |
 | the cluster ctor's `aiDebugSurface: Func<EntityRepository, AiDebugSurface?>`; the five dependencies are properties — editor value, else the active world's surface; the tracer is a `ConditionalWeakTable` per world | `DebugApiService.cs` (Group K fields) |
 
 | `BlueprintDebugSession.CaptureLiveBehaviorState` — the root block read as `BlackboardLayoutType` with the session's own `TryReadStruct`, sized and re-imaged through `ComponentBytes` (the ONE owner of *"a value's managed bytes"*), fields formatted by its fixed-list arm | `Hrot.Blueprints.Editor/BlueprintDebugSession.cs` |

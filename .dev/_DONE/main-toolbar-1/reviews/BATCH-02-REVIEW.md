@@ -16,7 +16,7 @@ compiled into the assembly — only recipes (`Content`) ship to output. **Fix:**
 no leftover bare `Blueprints/`/`Machines/`/`Trees/`). Verified passing.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → **0 errors, 0 new warnings** (TWAE clean).
+- `dotnet build HROT.sln` → **0 errors, 0 new warnings** (TWAE clean).
 - New tests run by lead: FolderLayout(1) + AssetScan(2) + DiscoverRecipes(2) + AssetRoots relative(7) → **all pass unfiltered**.
 - **Pre-existing-failure audit (the key check):** worker reported 9 Blueprints.Tests + 2
   Generators.Tests failures as "pre-existing". Verified by running those exact tests in a detached

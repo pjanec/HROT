@@ -74,7 +74,7 @@ The scenario correctly verifies the event replication path for keyframe-authored
 
 ### Build Regression Check ✅
 
-- Full solution: `dotnet build IOS-IG-SimHost.sln` → Build succeeded, 0 new errors
+- Full solution: `dotnet build HROT.sln` → Build succeeded, 0 new errors
 - Stage-1 suite: `Hrot.Animation.Integration.Tests` unaffected
 - Phase 6 replication tests: `Hrot.Animation.Replication.Tests` (42 tests) unaffected
 

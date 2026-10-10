@@ -150,6 +150,6 @@ Pre-existing failures: `EntityInspectorPanelTests` (3), `EntityInfoTranslatorTes
 ## Build
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental
+dotnet build HROT.sln --no-incremental
 Build succeeded. 0 Error(s).
 ```

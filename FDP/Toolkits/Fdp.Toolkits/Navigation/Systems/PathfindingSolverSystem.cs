@@ -59,20 +59,18 @@ namespace Fdp.Toolkit.Navigation.Systems
 
         private readonly TrajectoryPoolManager  _trajectoryPool;
         private readonly INavmeshProvider?      _navmesh;
+        private Fdp.Toolkit.Terrain.DoorStates? _doors;   // ⭐ R-219 — this solver tick's view of the doors
         private readonly IVolumetricPathProvider? _volumetric;
 
         // MobilityProfile byte value for Flying entities (section 5.1).
         private const byte MobilityProfileFlying = 4;
 
-        // Squared distance threshold: within this radius a point is considered "on road".
-        private const float RoadRadiusThresholdSq = 500f * 500f;
-
         // Maximum waypoints a navmesh / volumetric path may produce per request.
         private const int MaxNavWaypoints = 128;
 
-        /// <summary>⭐ CE-2059 — a road route gets a final connector to the requested point when that point is farther than
-        /// this from the last road node (closer is "on" the node: no zero-length segment).</summary>
-        private const float EndConnectorMinMeters = 0.5f;
+        /// <summary>⭐ CE-3128 — the ground route planner (reused buffers: one per solver, R-220). CE-2059's "the route ends at
+        /// the requested point" is its egress leg.</summary>
+        private readonly RoutePlanner _planner = new();
 
         /// <summary>
         /// Initialises the solver with the road network and trajectory pool.
@@ -153,6 +151,10 @@ namespace Fdp.Toolkit.Navigation.Systems
 
             var cmd = view.GetCommandBuffer();
 
+            // ⭐ R-219 — the doors as THIS view sees them (on a background module: its snapshot), once per solver tick, so every
+            //   path in the batch is planned against the same door states — never a live value written mid-batch.
+            _doors = Fdp.Toolkit.Terrain.DoorStates.Of(view);
+
             // Budget cap: process at most DefaultCapacity requests per tick (oldest-evict).
             int limit = Math.Min(requests.Length, PathfindingBatchData.DefaultCapacity);
 
@@ -165,8 +167,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                     ? NavigationHandleAllocator.Allocate()
                     : req.RouteHandle;
 
-                var selected = SelectBackend(in req);
-                PathfindingResultEvent result = ResolveRequest(in req, handle, selected);
+                PathfindingResultEvent result = ResolveRequest(in req, handle);
 
                 cmd.PublishEvent(result);
             }
@@ -175,252 +176,48 @@ namespace Fdp.Toolkit.Navigation.Systems
         // ── Backend selection ────────────────────────────────────────────────────
 
         /// <summary>
-        /// Selects the appropriate path-planning backend for <paramref name="req"/>
-        /// following the section 5.2 pseudocode.
+        /// ⭐ CE-3128 (§5.2a) — flying goes to the volumetric provider; everything on the ground goes to the ONE route planner,
+        /// which takes the road network on COST from the request's <see cref="PathfindingRequestEvent.RoadUse"/> (R-230). ⛔ The
+        /// former "both ends within 500 m of a road node ⇒ road graph, one end ⇒ Hybrid" heuristic and the Phase-1 Hybrid (the
+        /// road graph end to end, re-tagged) are gone with it.
         /// </summary>
-        private NavigationBackend SelectBackend(in PathfindingRequestEvent req)
+        private PathfindingResultEvent ResolveRequest(in PathfindingRequestEvent req, int handle)
         {
-            // Explicit override takes precedence.
-            if (req.BackendForce != NavigationBackend.Auto)
-                return req.BackendForce;
-
-            // Flying entities use the volumetric provider when available.
-            if (req.MobilityProfile == MobilityProfileFlying && _volumetric != null)
-                return NavigationBackend.Volumetric;
-
-            // Auto heuristic per §5.2: check both endpoints against the road network.
-            // Both near road -> RoadGraph; one near, one far -> Hybrid; neither -> Navmesh.
-            bool networkHasNodes = _activeRoadNetwork.Nodes.IsCreated && _activeRoadNetwork.Nodes.Length > 0;
-            if (networkHasNodes)
-            {
-                var start2D = new Vector2(req.Start.X, req.Start.Y);
-                var end2D   = new Vector2(req.End.X,   req.End.Y);
-
-                bool startNear = IsNearRoad(start2D);
-                bool endNear   = IsNearRoad(end2D);
-
-                if (startNear && endNear)
-                    return NavigationBackend.NavRoadGraph;
-
-                if (startNear || endNear)
-                    return NavigationBackend.Hybrid;
-            }
-
-            if (_navmesh != null)
-                return NavigationBackend.Navmesh;
-
-            return NavigationBackend.NavRoadGraph;
+            bool volumetric = req.BackendForce == NavigationBackend.Volumetric
+                           || (req.BackendForce == NavigationBackend.Auto && req.MobilityProfile == MobilityProfileFlying);
+            if (volumetric && _volumetric != null)
+                return SolveVolumetric(in req, handle);
+            return SolveGround(in req, handle);
         }
 
-        /// <summary>Returns true if <paramref name="point2D"/> is within
-        /// <see cref="RoadRadiusThresholdSq"/> of the nearest road node.</summary>
-        private bool IsNearRoad(Vector2 point2D)
-        {
-            int nearest = FindNearestNode(point2D);
-            if (nearest < 0) return false;
-            float distSq = Vector2.DistanceSquared(point2D, _activeRoadNetwork.Nodes[nearest].Position);
-            return distSq < RoadRadiusThresholdSq;
-        }
+        // ── Ground: navmesh, road graph, or the splice — one planner ─────────────────────
 
-        // ── Dispatch ─────────────────────────────────────────────────────────────
-
-        private PathfindingResultEvent ResolveRequest(
-            in PathfindingRequestEvent req, int handle, NavigationBackend backend)
+        private PathfindingResultEvent SolveGround(in PathfindingRequestEvent req, int handle)
         {
-            switch (backend)
+            var query = new RouteQuery(req.Start, req.End, req.RoadUse, req.BackendForce,
+                req.NavLayerMask != 0 ? (uint)req.NavLayerMask : 0xFFFFFFFFu);
+            var backend = _planner.Plan(in query, in _activeRoadNetwork, _navmesh, _doors, out float distance);
+            if (backend == null)
             {
-                case NavigationBackend.Navmesh when _navmesh != null:
-                    return SolveNavmesh(in req, handle);
-
-                case NavigationBackend.Volumetric when _volumetric != null:
-                    return SolveVolumetric(in req, handle);
-
-                // Hybrid: road-graph for macro routing, navmesh for local correction.
-                // Phase-1 implementation: road-graph Dijkstra covers the full path.
-                // Full splice is a future enhancement.
-                case NavigationBackend.Hybrid:
-                    bool hybridNetworkEmpty = !_activeRoadNetwork.Nodes.IsCreated || _activeRoadNetwork.Nodes.Length == 0;
-                    if (!hybridNetworkEmpty)
-                        return SolveHybrid(in req, handle);
-                    if (_navmesh != null)
-                        return SolveNavmesh(in req, handle);
-                    return Unreachable(in req, handle, NavigationBackend.Hybrid);
-
-                // RoadGraph, or forced backend whose provider is absent all fall through to
-                // the Dijkstra road-graph solver.
-                default:
-                    bool networkEmpty = !_activeRoadNetwork.Nodes.IsCreated || _activeRoadNetwork.Nodes.Length == 0;
-                    return networkEmpty
-                        ? Unreachable(in req, handle, NavigationBackend.NavRoadGraph)
-                        : SolvePath(in req, handle);
-            }
-        }
-
-        // ── Road-graph (Dijkstra) backend ─────────────────────────────────────────
-
-        /// <summary>Runs Dijkstra from the road node nearest to <c>req.Start</c> to the node
-        /// nearest to <c>req.End</c>, then registers the resulting waypoints under
-        /// <paramref name="handle"/>.</summary>
-        private PathfindingResultEvent SolvePath(in PathfindingRequestEvent req, int handle)
-        {
-            var start2D = new Vector2(req.Start.X, req.Start.Y);
-            var end2D   = new Vector2(req.End.X,   req.End.Y);
-
-            int startNode = FindNearestNode(start2D);
-            int endNode   = FindNearestNode(end2D);
-
-            if (startNode < 0 || endNode < 0)
-                return Unreachable(in req, handle, NavigationBackend.NavRoadGraph);
-
-            // Dijkstra
-            int  nodeCount = _activeRoadNetwork.Nodes.Length;
-            var  dist      = new float[nodeCount];
-            var  prev      = new int[nodeCount];
-            var  visited   = new bool[nodeCount];
-
-            for (int i = 0; i < nodeCount; i++) { dist[i] = float.MaxValue; prev[i] = -1; }
-            dist[startNode] = 0f;
-
-            // Simple O(N^2) Dijkstra — road graphs are small (hundreds of nodes).
-            for (int iter = 0; iter < nodeCount; iter++)
-            {
-                // Pick unvisited node with smallest distance
-                int u = -1;
-                for (int j = 0; j < nodeCount; j++)
-                {
-                    if (!visited[j] && dist[j] < float.MaxValue)
-                    {
-                        if (u < 0 || dist[j] < dist[u]) u = j;
-                    }
-                }
-                if (u < 0) break;
-                if (u == endNode) break;
-
-                visited[u] = true;
-
-                // Relax outgoing edges (segments whose StartNodeIndex == u)
-                for (int s = 0; s < _activeRoadNetwork.Segments.Length; s++)
-                {
-                    ref readonly var seg = ref _activeRoadNetwork.Segments[s];
-                    if (seg.StartNodeIndex != u) continue;
-
-                    int v = seg.EndNodeIndex;
-                    if (v < 0 || v >= nodeCount) continue;
-                    if (visited[v]) continue;
-
-                    float newDist = dist[u] + seg.Length;
-                    if (newDist < dist[v])
-                    {
-                        dist[v] = newDist;
-                        prev[v] = u;
-                    }
-                }
+                var failed = req.BackendForce == NavigationBackend.NavRoadGraph || _navmesh == null
+                    ? NavigationBackend.NavRoadGraph : NavigationBackend.Navmesh;
+                return Unreachable(in req, handle, failed);
             }
 
-            // No path found
-            if (dist[endNode] == float.MaxValue)
-                return Unreachable(in req, handle, NavigationBackend.NavRoadGraph);
-
-            // Reconstruct node sequence
-            var nodePath = new List<int>();
-            for (int n = endNode; n >= 0; n = prev[n])
-            {
-                nodePath.Add(n);
-                if (n == startNode) break;
-            }
-            nodePath.Reverse();
-
-            // Convert to 3D waypoints (Sim Z-up). Road nodes are 2D (ground plane), so altitude
-            // is 0 here; the navmesh/volumetric backends below carry real altitude (P3D-303).
-            // ⭐ CE-2059 — the route ENDS AT THE REQUESTED POINT: the road nodes, then a straight connector to req.End when it
-            //   is off the last node. ⛔ Without it the vehicle "arrived" at the road node NEAREST the destination (measured
-            //   14.8 m out on a 5 m arrival radius). Navigation design §3.1 (CE-2059) · §5.2 (the full navmesh splice is
-            //   the Hybrid target, not built — there is no navmesh on a road-only map).
-            var endNodeXY  = _activeRoadNetwork.Nodes[nodePath[nodePath.Count - 1]].Position;
-            float connector = Vector2.Distance(endNodeXY, end2D);
-            bool appendEnd  = connector > EndConnectorMinMeters;
-            var waypoints  = new Vector3[nodePath.Count + (appendEnd ? 1 : 0)];
-            for (int k = 0; k < nodePath.Count; k++)
-            {
-                var np = _activeRoadNetwork.Nodes[nodePath[k]].Position;
-                waypoints[k] = new Vector3(np.X, np.Y, 0f);
-            }
-            if (appendEnd)
-                waypoints[^1] = new Vector3(req.End.X, req.End.Y, 0f);
-
-            _trajectoryPool.RegisterTrajectoryWithKey(waypoints, handle);
-
-            return new PathfindingResultEvent
-            {
-                RequestId           = req.RequestId,
-                IsReachable         = true,
-                TotalDistanceMeters = dist[endNode] + (appendEnd ? connector : 0f),
-                RouteHandle         = handle,
-                SourceNodeId        = req.SourceNodeId,
-                PrimaryBackend      = NavigationBackend.NavRoadGraph,
-                FailureReason       = NavigationFailureReason.NoFailure,
-            };
-        }
-
-        // ── Hybrid backend ─────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Phase-1 Hybrid: road-graph Dijkstra for the full path, tagged as Hybrid.
-        /// Full navmesh-splice is a future enhancement (§5.2).
-        /// </summary>
-        private PathfindingResultEvent SolveHybrid(in PathfindingRequestEvent req, int handle)
-        {
-            var result = SolvePath(in req, handle);
-            // Re-tag as Hybrid so callers can distinguish from pure NavRoadGraph.
-            return new PathfindingResultEvent
-            {
-                RequestId           = result.RequestId,
-                IsReachable         = result.IsReachable,
-                TotalDistanceMeters = result.TotalDistanceMeters,
-                RouteHandle         = result.RouteHandle,
-                SourceNodeId        = result.SourceNodeId,
-                PrimaryBackend      = result.IsReachable ? NavigationBackend.Hybrid : result.PrimaryBackend,
-                FailureReason       = result.FailureReason,
-            };
-        }
-
-        // ── Navmesh backend ────────────────────────────────────────────────────────
-
-        private unsafe PathfindingResultEvent SolveNavmesh(in PathfindingRequestEvent req, int handle)
-        {
-            var buf = stackalloc NavWaypoint[MaxNavWaypoints];
-            var span = new Span<NavWaypoint>(buf, MaxNavWaypoints);
-
-            uint layerMask = req.NavLayerMask != 0 ? (uint)req.NavLayerMask : 0xFFFFFFFFu;
-            int count = _navmesh!.PlanPath(req.Start, req.End, span, layerMask);
-
-            if (count < 2)
-                return Unreachable(in req, handle, NavigationBackend.Navmesh);
-
-            // INavmeshProvider speaks the engine's Z-up space (R-182 / W7): req.Start/End go in as they are and the
-            // NavWaypoints come back as Sim (Z-up) waypoints unchanged — NO swizzle here (CE-3011). Arc length is XY.
-            var positions = new Vector3[count];
-            float totalDist = 0f;
-            for (int k = 0; k < count; k++)
-            {
-                positions[k] = span[k].Position;
-                if (k > 0)
-                    totalDist += Vector2.Distance(
-                        new Vector2(positions[k - 1].X, positions[k - 1].Y),
-                        new Vector2(positions[k].X, positions[k].Y));
-            }
-
-            _trajectoryPool.RegisterTrajectoryWithKey(positions, handle);
+            var points = _planner.Points;
+            var positions = new Vector3[points.Count];
+            for (int k = 0; k < positions.Length; k++) positions[k] = points[k];
+            _trajectoryPool.RegisterTrajectoryWithKey(positions, handle, _planner.TraversalsOrNull());
 
             return new PathfindingResultEvent
             {
                 RequestId            = req.RequestId,
                 IsReachable          = true,
-                TotalDistanceMeters  = totalDist,
+                TotalDistanceMeters  = distance,
                 RouteHandle          = handle,
                 SourceNodeId         = req.SourceNodeId,
-                NavmeshVersionAtPlan = (int)(_navmesh.QueryVersion()),
-                PrimaryBackend       = NavigationBackend.Navmesh,
+                NavmeshVersionAtPlan = _navmesh != null && backend != NavigationBackend.NavRoadGraph ? (int)_navmesh.QueryVersion() : 0,
+                PrimaryBackend       = backend.Value,
                 FailureReason        = NavigationFailureReason.NoFailure,
             };
         }
@@ -463,19 +260,6 @@ namespace Fdp.Toolkit.Navigation.Systems
         }
 
         // ── Shared utilities ──────────────────────────────────────────────────────
-
-        private int FindNearestNode(Vector2 pos)
-        {
-            int   best     = -1;
-            float bestDist = float.MaxValue;
-
-            for (int i = 0; i < _activeRoadNetwork.Nodes.Length; i++)
-            {
-                float d = Vector2.DistanceSquared(pos, _activeRoadNetwork.Nodes[i].Position);
-                if (d < bestDist) { bestDist = d; best = i; }
-            }
-            return best;
-        }
 
         private static PathfindingResultEvent Unreachable(
             in PathfindingRequestEvent req,

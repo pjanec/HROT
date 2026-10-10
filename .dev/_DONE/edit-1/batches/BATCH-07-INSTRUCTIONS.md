@@ -179,7 +179,7 @@ If method signatures don't exactly match `ISpawnController`, adjust to match the
 
 ```powershell
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln 2>&1 | Select-String "error CS" | Select-Object -Last 10
+dotnet build HROT.sln 2>&1 | Select-String "error CS" | Select-Object -Last 10
 dotnet test Hrot.ExCon.Tests
 dotnet test Hrot.Editor.Tests --no-build
 ```

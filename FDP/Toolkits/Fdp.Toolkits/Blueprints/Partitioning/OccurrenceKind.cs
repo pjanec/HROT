@@ -53,4 +53,12 @@ public enum OccurrenceKind : byte
     /// reaches the slot by the behaviour's key.
     /// </summary>
     BlueprintBehavior = 4,
+
+    /// <summary>
+    /// ⭐ <c>CE-3137</c> (<c>Q87</c>, <c>R-237</c>) — a UNIT MEMORY: a <c>[UnitMemory]</c> struct shared by every behaviour of
+    /// the unit, keyed by its TYPE (<c>UnitMemory.Key&lt;T&gt;</c>) and living as long as the unit. ⛔ Neither behaviour-switch
+    /// sweep touches it — <c>DetachStatefulSlots</c> frees manifest keys only and <c>DetachHostedOccurrenceSlots</c> kinds
+    /// <see cref="Hsm"/>/<see cref="Blueprint"/> only — and nothing walks it; it is reached only through <c>UnitMemory</c>.
+    /// </summary>
+    UnitMemory = 5,
 }

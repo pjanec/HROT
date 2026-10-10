@@ -1,5 +1,7 @@
 {
   "schemaVersion": 2,
+  "origin": { "lat": 52.52, "lon": 13.405, "alt": 0.0 },
   "name": "basic-desert",
+  "roadNetworks": [ "roads.json" ],
   "world": "basic-desert.world.geojson"
 }

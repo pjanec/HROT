@@ -48,7 +48,7 @@ design **before this batch closed** *(obligation ⑤)*. ⭐ Read §4d, not this 
 
 | # | gate | verbatim command | `--no-build`? | result |
 |---|---|---|---|---|
-| 1 | **build** | `dotnet build IOS-IG-SimHost.sln` | must build | ⭐ **succeeded, 0 errors** |
+| 1 | **build** | `dotnet build HROT.sln` | must build | ⭐ **succeeded, 0 errors** |
 | 1 | ⭐⭐ **the requirement** | `bash scripts/quick-check.sh FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj APreviewLeavesNoTrace` | builds | ⭐ **11 / 11 pass, 0 fail** *(new file)* |
 | 1 | **preview handler** | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/… --filter FullyQualifiedName~PreviewClusterOpHandler` | `--no-build` | ⭐ **6 / 6 pass** — ⛔ 0 delta |
 | 1 | **editor** | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/… ` | `--no-build` | ⭐ **234 pass · 1 skip · 0 fail** — ⛔ 0 delta |

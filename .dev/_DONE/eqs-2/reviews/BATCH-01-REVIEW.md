@@ -87,5 +87,5 @@ DDS stubs (compile-only, logic deferred to TASK-EQS-007):
 - AllDescriptors: dtEqsSensorConfig=95, dtEqsResult=96
 
 Tests: 7 EQS tests passing
-Build: dotnet build IOS-IG-SimHost.sln -> succeeded, 0 errors
+Build: dotnet build HROT.sln -> succeeded, 0 errors
 ```

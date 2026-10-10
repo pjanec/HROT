@@ -110,7 +110,7 @@ AssetBrowserPanelTests (10 total, 0 failed):
 ### Build
 
 ```
-dotnet build IOS-IG-SimHost.sln: 0 Error(s), 13 Warning(s) (all pre-existing)
+dotnet build HROT.sln: 0 Error(s), 13 Warning(s) (all pre-existing)
 ```
 
 Zero new warnings. `TreatWarningsAsErrors` active — no regressions.

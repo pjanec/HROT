@@ -336,7 +336,10 @@ namespace Hrot.SimHost
             FdpLog<SimHostApp>.Info("[Node-{0}] Simulation Rate: {1} Hz", localNodeId, nodeConfig.SimulationRateHz);
 
             // ── 2. Geodetic transform — created before builder so behavior lambdas can close over it ──
-            var wgs84     = HrotEnvironment.CreateGeoTransform();
+            // ⭐ CE-3126 — the node's ONE transform: the network factory's (its translators already convert with it), else a
+            //   fresh one; handed to the builder below (ExternalGeoTransform) so the context, the world singleton and the wire
+            //   agree, and a terrain commit moves all of them. 📄 docs/DESIGN_Geo_Origin.md §2 C.
+            var wgs84     = _networkFactory?.GeoTransform ?? HrotEnvironment.CreateGeoTransform();
             _geoTransform = wgs84;
 
             // ── 3. Behavior registry (empty on the Muscle shell; Brain behaviors live in CgfBehaviorSetup) ──
@@ -365,6 +368,7 @@ namespace Hrot.SimHost
                 NodeId              = localNodeId,
                 Headless            = false,  // SimHostApp always creates DDS; _headless only controls Raylib window
                 ExternalParticipant = shellParticipant,
+                ExternalGeoTransform = wgs84,   // CE-3126
                 LocalTempRoot       = Path.Combine(
                     string.IsNullOrEmpty(nodeConfig.LocalTempRoot)
                         ? Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot()
@@ -385,8 +389,7 @@ namespace Hrot.SimHost
                 nodeConfig.LocalTempRoot,
                 _eventHistoryService,
                 hrotConfig,
-                nodeConfig.RoadNetworkBlobPath,
-                nodeConfig.SimulationRateHz);
+                simulationRateHz: nodeConfig.SimulationRateHz);
 
             // -- Gizmo systems (GZ032) --------------------------------------------------------
             // Registered via Phase 6d callback so they are part of the kernel before Initialize().
@@ -405,6 +408,8 @@ namespace Hrot.SimHost
                     new Hrot.ScenarioEditor.Map.MapInteractionContext
                     {
                         World = ctx.World,
+                        // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
+                        Services = Hrot.ScenarioEditor.Map.MapServices.Of(_geoTransform, _behaviorRegistry),
                         GizmoUiPublisher = _gizmoUiHub,
                         // ⭐ UXI-11 — the shared predicate, no longer hand-written here. ⛔ Still an
                         //   explicit CHOICE: `null` means "handles on everything", which IG wants.
@@ -459,13 +464,7 @@ namespace Hrot.SimHost
                 actionRegistry.Register(GlobalActionIds.Rotate, (_, target) =>
                     mapTools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Rotate, target));
 
-                // ── AI diagnostics toggles (behav-diag-1) ─────────────────────────
-                actionRegistry.Register(GlobalActionIds.ToggleAiTrace, (view, target) =>
-                    Hrot.SimHost.Diagnostics.AiTraceContextMenu.PublishToggle(
-                        view, target, Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EnableTraceBuffer));
-                actionRegistry.Register(GlobalActionIds.ToggleAiTraceLog, (view, target) =>
-                    Hrot.SimHost.Diagnostics.AiTraceContextMenu.PublishToggle(
-                        view, target, Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EmitToLog));
+                // ⭐ CE-3123 — the AI-trace toggles (behav-diag-1) are registered by MapInteractionPack on every map host now.
                 // Route gizmo interaction translators and publisher through the network factory
                 // so that SimHostApp has no direct dependency on Hrot.Network.NED.
                 CycloneNetworkIngressSystem? gizmoIngress = null;
@@ -998,31 +997,6 @@ namespace Hrot.SimHost
         // ── Private helpers ───────────────────────────────────────────────────
         // NOTE: EnsureIdAllocatorRouting deleted (EAM-M001). DdsIdAllocatorHelper.EnsureRouting
         // is now called by HrotNodeBuilder.Build() internally.
-
-        /// <summary>
-        /// Loads a road-network blob from <paramref name="path"/> using the supplied
-        /// <paramref name="loader"/> (default: <see cref="RoadNetworkLoader.LoadFromJson"/>).
-        /// Returns a default <see cref="RoadNetworkBlob"/> when the path is empty or the
-        /// loader throws.  The <paramref name="loader"/> parameter exists for unit-testing.
-        /// </summary>
-        internal static RoadNetworkBlob LoadRoadNetwork(
-            string?                         path,
-            Func<string, RoadNetworkBlob>?  loader = null,
-            long                            localNodeId = 0)
-        {
-            if (string.IsNullOrWhiteSpace(path))
-                return new RoadNetworkBlob();
-
-            try
-            {
-                return (loader ?? (p => RoadNetworkLoader.LoadFromJson(p)))(path);
-            }
-            catch (Exception ex)
-            {
-                FdpLog<SimHostApp>.Warn("[Node-{0}] Failed to load road network: {1}", localNodeId, ex.Message);
-                return new RoadNetworkBlob();
-            }
-        }
 
         // IEcsModule wrapper that routes TogglableSimulationGroup into the Simulation phase slot.
         // RegisterGlobalSystem rejects SystemPhase.Simulation; it must be registered via RegisterModule.

@@ -163,7 +163,7 @@ surfaces are live — and scaling the work down is the user's call, not mine.
 
 | # | gate | result | `--no-build`? | Δ |
 |---|---|---|---|---|
-| **1** | `dotnet build IOS-IG-SimHost.sln --no-restore` | ⭐ **0 errors** | ⛔ builds | — |
+| **1** | `dotnet build HROT.sln --no-restore` | ⭐ **0 errors** | ⛔ builds | — |
 | **2** | `Hrot.Editor.AiShared.Tests` | ⭐ **1866 pass / 0 fail / 1 skip — 1867 total** | ✅ in solution | **+8** *(1859 → 1867, `VC-1`)* |
 | **3** | `Hrot.Blueprints.Tests` | ⭐ **3901 / 0 / 18 skip — 3919 total** | ✅ in solution | **+3** *(3916 → 3919, `VC-4`)* |
 | **4** | `Hrot.Editor.Tests` | ⭐ **214 / 0 / 0** | ✅ in solution | **+5** *(`VC-3`)* · ⭐⭐ **and 2 PRE-EXISTING REDS FIXED** *(`BP-425`)* |

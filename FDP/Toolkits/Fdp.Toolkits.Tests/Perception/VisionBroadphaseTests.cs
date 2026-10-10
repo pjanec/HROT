@@ -388,11 +388,58 @@ namespace Fdp.Toolkit.Perception.Tests
 
             var selected = Selected(view, grid, observer);
 
-            
+
             Assert.Single(selected);
             Assert.Equal(inside, selected[0]);
             _ = outside; _ = notInGrid;
             grid.Dispose();
+        }
+
+        // ── CE-3146 — the chain guard ────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3146</c> — <b>a MALFORMED grid chain must not hang <see cref="VisionBroadphase.Rebuild"/>.</b>
+        /// 📌 The user reported the editor "easily gets stuck, looping inside Rebuild"; the walk follows the perception
+        /// grid's intrusive linked list and terminates only when that list does.
+        /// <para>⚠ <b>This rail HANGS FOREVER without the guard</b> — that is the point, and it is why it carries an
+        /// explicit timeout rather than just calling Rebuild: a plain call would wedge the whole test run instead of
+        /// failing it. ⭐ The red-proof is to delete the `steps > slotCapacity` branch and watch this time out.</para>
+        /// </summary>
+        [Fact]
+        public void CE3146_ASelfCyclingGridChain_DoesNotHangRebuild()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var view  = (ISimulationView)world;
+            var grid  = CreateTestGrid();
+            try
+            {
+                var target = world.CreateEntity();
+                world.AddComponent(target, new SimTransform { Position = new Vector3(100f, 0f, 0f), Rotation = Quaternion.Identity });
+                world.AddComponent(target, new EntityInfo  { ForceId = ForceId.Hostile });
+                grid.Add(target, new Vector2(100f, 0f));
+
+                // Corrupt the list exactly as a double-handed-out slot would: the cell's head points at itself.
+                int corruptedCell = -1;
+                for (int c = 0; c < grid.Width * grid.Height; c++)
+                {
+                    if (grid.GridHead[c] >= 0) { corruptedCell = c; break; }
+                }
+                Assert.True(corruptedCell >= 0, "the target was not inserted — the fixture, not the guard, is wrong");
+                int head = grid.GridHead[corruptedCell];
+                grid.GridNext[head] = head;          // 🔴 self-cycle
+
+                var broadphase = new VisionBroadphase();
+                var rebuilt = System.Threading.Tasks.Task.Run(() => broadphase.Rebuild(view, grid));
+
+                Assert.True(rebuilt.Wait(TimeSpan.FromSeconds(10)),
+                    "Rebuild did not return within 10 s on a self-cycling chain — the CE-3146 guard is missing or "
+                  + "its bound is wrong, and the editor will hang here.");
+                Assert.Null(rebuilt.Exception);      // ⛔ it must DEGRADE, not throw: this runs on a module thread
+            }
+            finally
+            {
+                grid.Dispose();
+            }
         }
     }
 }

@@ -81,7 +81,7 @@ Hrot.Hsm.Editor.Tests:     215 passed, 0 failed
 Hrot.Editor.AiShared.Tests: 365 passed, 0 failed
 ```
 
-Build: `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 warnings.
+Build: `dotnet build HROT.sln` — 0 errors, 0 warnings.
 
 Failures in unrelated projects (`StructEdit`, `Hrot.Core`, `FDP`, etc.) are pre-existing and were not introduced by this batch.
 

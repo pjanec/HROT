@@ -195,7 +195,7 @@ undocumented. Silent (doc generation off). **One-line fix, no row.**
 
 ## 7. Gates
 
-The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.sln`** (⚠ not `Hrot.sln`).
+The eight, `--logger "console;verbosity=normal"`. Solution is **`HROT.sln`** (⚠ not `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — and **§5 moves both**, so run them properly.
 ⭐ **Run `python3 scripts/tracker-counts.py --check`** — clean on arrival **nine** batches running.
 

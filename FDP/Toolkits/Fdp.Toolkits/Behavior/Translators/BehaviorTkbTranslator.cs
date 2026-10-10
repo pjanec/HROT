@@ -144,6 +144,11 @@ namespace Fdp.Toolkit.Behavior.Translators
             if (repo.IsComponentTypeRegistered<InteractionChannel>() && !repo.HasComponent<InteractionChannel>(entity))
                 repo.AddComponent(entity, new InteractionChannel());
 
+            // ⭐ CE-3136 (T2) — the channels' status, always present beside them: the executors write it, the map draws it
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>()
+                && !repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(entity))
+                repo.AddComponent(entity, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+
             // ── Mission and passenger buffers ─────────────────────────────────────
             if (repo.IsComponentTypeRegistered<MissionPlanQueue>() && !repo.HasComponent<MissionPlanQueue>(entity))
                 repo.AddComponent(entity, new MissionPlanQueue());

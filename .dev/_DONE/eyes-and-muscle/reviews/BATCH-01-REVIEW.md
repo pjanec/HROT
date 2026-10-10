@@ -10,7 +10,7 @@
 ## 1. Implementation Verification
 
 ### Build Status
-✅ `dotnet build IOS-IG-SimHost.sln` — **Build succeeded.** Zero new errors or warnings.
+✅ `dotnet build HROT.sln` — **Build succeeded.** Zero new errors or warnings.
 
 ### Test Results
 | Test Suite | Before | After | Delta |

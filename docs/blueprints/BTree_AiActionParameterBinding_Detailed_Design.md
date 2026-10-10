@@ -6,7 +6,10 @@ current-answer: §3 (stateless multi-action binding) and §4 (multiple stateful 
 known-rot: ⚠ 2026-09-30 (R-155) — this document's live-bound action (a field of the host's
   params struct, projected each tick) IS the target model for every action and condition, C# or
   blueprint, BTree or HSM (DESIGN_Parameter_Model.md §P.3). Nothing here is overturned.
+known-rot-2: ⛔ 2026-10-09 — §4's `Entity` scope (FNV(variableId), "all behaviors on the entity") and the Mode-2 GetShared/GetSharedRW accessor are REMOVED (Q76 decisions A/C, CE-440/CE-441; StatefulSlotScope.cs "Do not reuse 2"). Per-unit memory that outlives a behaviour is Architect_Question_87_Unit_Memory.md.
 related-designs:
+  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — re-implements what §4's Entity scope was for, keyed by type
+
   - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): generalises this
     document's binding to every action/condition, including HSM activities and guards.
   - DESIGN_Occurrence_Scoped_Storage.md — owns the storage model this binds against: the root

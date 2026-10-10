@@ -1,4 +1,5 @@
 using System;
+using CarKinem.Core;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior;
@@ -8,7 +9,7 @@ namespace Hrot.Core.Tkb
 {
     /// <summary>
     /// The ONE shared source of the UrbanCombat TKB templates (types 1001-2003):
-    /// CivilianPedestrian, CivilianCar, MilitaryAPC, InfantrySoldier, Insurgent.
+    /// CivilianPedestrian, CivilianCar, MilitaryAPC, InfantrySoldier, Insurgent, and (⭐ CE-1032) Grenadier and MortarTeam.
     ///
     /// <para><b>Why this lives in Hrot.Core.</b> These templates used to live in
     /// <c>Fdp.Examples.Scenarios</c>, an assembly referenced by exactly TWO production projects
@@ -48,6 +49,10 @@ namespace Hrot.Core.Tkb
         public const int TkbInfantrySoldier    = 2002;
         /// <summary>TKB type code for the Insurgent template.</summary>
         public const int TkbInsurgent          = 2003;
+        /// <summary>⭐ <c>CE-1032</c> — an infantry soldier who also carries hand grenades (mount 1).</summary>
+        public const int TkbGrenadier          = 2004;
+        /// <summary>⭐ <c>CE-1032</c> — an 81 mm mortar team (one mount, indirect).</summary>
+        public const int TkbMortarTeam         = 2005;
 
         // ── Tuning constants — moved verbatim with the templates; used only here. ────────────────
         private const float CivilianVisionRange  = 30f;
@@ -67,14 +72,29 @@ namespace Hrot.Core.Tkb
         private const float RpgShotRange     = 500f;
         private const float RpgBurstRange    = 800f;
 
-        private const int   RifleAmmo           = 30;
+        // ⭐ CE-3136 P-5 (peek-and-fire D9, R-239) — 5 magazines of 30 (was one load of 30, G4: "a duel runs dry in a minute"); a
+        //   3 s magazine change. RifleAmmo stays the TOTAL carried (WeaponState.Ammo), the magazine is beside it.
+        private const int   RifleMagazine       = 30;
+        private const int   RifleAmmo           = 5 * RifleMagazine;
+        private const float RifleReloadSeconds  = 3f;
         private const float RifleMuzzleVelocity = 800f;
         private const int   RpgAmmo             = 1;
         private const float RpgMuzzleVelocity   = 300f;
 
         // ⭐ CE-3071 — the munitions (docs/DESIGN_Utility_AI_Demo_Scenarios.md §9 calibration). The rifle keeps today's 25 per hit.
         private const float RifleRange = 300f, RiflePenetration = 5f,   RifleDamage = 25f;
+        /// <summary>⭐ AQ85 C (R-216) — the rifle's aim dispersion: σ = 6 mils ⇒ a 0.3 m target is hit ~50 % at 100 m standing
+        /// still, ~always inside 37 m, ~42 % at 120 m; half that while moving or under fire.</summary>
+        public const float RifleDispersionMils = 6f;
         private const float RpgRange   = 300f, RpgPenetration   = 300f, RpgDamage   = 400f;
+
+        // ⭐ CE-1032 (W-8) — the warhead mounts. Their numbers are the munition's (MunitionTkbCatalog → the reference library by name);
+        //   the mount states only how it is fired: a THROW (15 m/s ⇒ ~23 m at 45°) and a mortar on a reduced charge (60 m/s ⇒ up to
+        //   ~370 m, fired high). No DamagePerHit/Penetration: a direct hit is the flat default; the warhead does the work.
+        private const int   GrenadeCount = 4;
+        private const float GrenadeThrowSpeed = 15f, GrenadeRange = 25f;
+        private const int   MortarBombs = 10;
+        private const float MortarMuzzleVelocity = 60f, MortarRange = 360f;
 
         /// <summary>
         /// Registers all five UrbanCombat entity blueprints into <paramref name="tkb"/>.
@@ -104,8 +124,8 @@ namespace Hrot.Core.Tkb
                 var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
                 Master(t, "CivilianPedestrian", new DISEntityType { Kind = 3, Domain = 1 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.7f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true, CanInteract = true });   // ⭐ 5d-2 — a person opens doors (the interaction channel requires CanInteract)
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps));
                 tkb.Register(t);
@@ -139,13 +159,47 @@ namespace Hrot.Core.Tkb
                 var t = new TkbTemplate("InfantrySoldier", TkbInfantrySoldier);
                 Master(t, "InfantrySoldier", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });   // ⭐ 5d-2 — doors
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, DamagePerHit = RifleDamage } } });
+                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
+                tkb.Register(t);
+            }
+
+            // ⭐ CE-1032 — Grenadier (2004): the InfantrySoldier, plus hand grenades on mount 1
+            {
+                var t = new TkbTemplate("Grenadier", TkbGrenadier);
+                Master(t, "Grenadier", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });
+                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+                t.AddDescriptor(new WeaponSuiteDto { Mounts =
+                {
+                    new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils },
+                    new WeaponMountDto { InitialAmmunition = GrenadeCount, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade },
+                } });
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms, RpgBurstRange));
+                t.AddDescriptor(BuildMannequinAnimationDef());
+                tkb.Register(t);
+            }
+
+            // ⭐ CE-1032 — MortarTeam (2005): an 81 mm mortar, fired high at a point
+            {
+                var t = new TkbTemplate("MortarTeam", TkbMortarTeam);
+                Master(t, "MortarTeam", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 1.5f, MaxAccel = 1.0f });
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
+                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = MortarBombs, MuzzleVelocity = MortarMuzzleVelocity, Range = MortarRange, AmmoGuid = MunitionTkbCatalog.Tkb81mmMortarHe } } });
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange));
+                t.AddDescriptor(BuildMannequinAnimationDef());
                 tkb.Register(t);
             }
 
@@ -154,8 +208,8 @@ namespace Hrot.Core.Tkb
                 var t = new TkbTemplate("Insurgent", TkbInsurgent);
                 Master(t, "Insurgent", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });   // ⭐ 5d-2 — doors
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity, Range = RpgRange, Penetration = RpgPenetration, DamagePerHit = RpgDamage } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });

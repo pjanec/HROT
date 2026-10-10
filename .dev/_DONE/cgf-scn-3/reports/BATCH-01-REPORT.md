@@ -9,7 +9,7 @@
 ## Summary
 
 All four Phase 1 tasks have been implemented. Production code compiles cleanly
-(`dotnet build IOS-IG-SimHost.sln --no-restore` — Build succeeded, zero errors).
+(`dotnet build HROT.sln --no-restore` — Build succeeded, zero errors).
 
 ---
 

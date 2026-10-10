@@ -132,7 +132,7 @@ BATCH-04 completes the modular decomposition by creating `Hrot.Core` (absorbing 
 | `Hrot.Network.Orchestration/Hrot.Network.Orchestration.csproj` | Added AllowUnsafeBlocks, Hrot.NED reference, InternalsVisibleTo for Hrot.SimHost.Tests and Hrot.Editor.Tests |
 | `Hrot.Core/Hrot.Core.csproj` | Added InternalsVisibleTo for Hrot.Common and Hrot.Core.Tests |
 | `Hrot.Map.Common.Tests/Hrot.Map.Common.Tests.csproj` | Updated: references Hrot.Map.Common, Hrot.Core, Hrot.NED, Fdp.Core; removed Assets section |
-| `IOS-IG-SimHost.sln` | Added: Hrot.Core ({A1B2C3D4-E5F6-7890-ABCD-EF1234567890}), Hrot.Network.Orchestration ({B2C3D4E5-F6A7-8901-BCDE-F12345678901}), Hrot.Core.Tests ({C3D4E5F6-A7B8-9012-CDEF-012345678902}) with full config entries |
+| `HROT.sln` | Added: Hrot.Core ({A1B2C3D4-E5F6-7890-ABCD-EF1234567890}), Hrot.Network.Orchestration ({B2C3D4E5-F6A7-8901-BCDE-F12345678901}), Hrot.Core.Tests ({C3D4E5F6-A7B8-9012-CDEF-012345678902}) with full config entries |
 
 ---
 
@@ -157,7 +157,7 @@ BATCH-04 completes the modular decomposition by creating `Hrot.Core` (absorbing 
 ## Build Status
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Build succeeded.
     0 Error(s)
 ```

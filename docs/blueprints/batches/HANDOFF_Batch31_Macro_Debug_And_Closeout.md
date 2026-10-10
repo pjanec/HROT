@@ -200,7 +200,7 @@ row rather than implementing it.
 
 ## 6. Gates
 
-The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.sln`** (⚠ not `Hrot.sln`).
+The eight, `--logger "console;verbosity=normal"`. Solution is **`HROT.sln`** (⚠ not `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** (see `RESUME_START_HERE.md` §3).
 
 **Baseline — coordinator-RUN on this tree, all eight:**

@@ -75,7 +75,7 @@ New tests (10 of 202 total passed):
 
 ## Build
 
-`dotnet build IOS-IG-SimHost.sln -c Debug` -- 0 errors, 0 warnings treated as errors.
+`dotnet build HROT.sln -c Debug` -- 0 errors, 0 warnings treated as errors.
 
 ---
 

@@ -372,33 +372,35 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         RegisterFakeBp(FakeBpC_Id, "FakeBpC");
         RegisterFakeBp(FakeBpD_Id, "FakeBpD");
         RegisterFakeBp(FakeBpE_Id, "FakeBpE");
-        var entity = _repo.CreateEntity();
-
-        int attached = 0, spare = 0;
+        // ⛔ CE-3137 U-0 (R-236): an attach no longer FAILS when the store is full — it APPENDS a block. So "full"
+        //   is measured as "one more would add a block", on a PROBE entity, and the property becomes: a remove and
+        //   an add drained in ONE frame reuse the freed slot rather than GROW the store (was: "force a promotion").
+        var probe = _repo.CreateEntity();
+        int fits = 0;
         foreach (int id in ids)
         {
-            if (BlueprintInstanceService.AttachToEntity(_repo, _registry, id, entity).Status
-                == BlueprintAttachStatus.Attached)
-            {
-                attached++;
-                continue;
-            }
-
-            spare = id;   // the first that did NOT fit — the store is now at capacity
-            break;
+            Assert.Equal(BlueprintAttachStatus.Attached,
+                BlueprintInstanceService.AttachToEntity(_repo, _registry, id, probe).Status);
+            if (OccurrenceStoreAccess.Measure(_repo, probe).Blocks > 1) break;
+            fits++;
         }
 
-        Assert.True(attached >= 2, $"expected to seat at least two blueprints, seated {attached}");
-        Assert.True(spare != 0,
-            "the pool must be large enough that one blueprint does NOT fit; add ids if the ladder grows");
+        Assert.True(fits >= 2, $"expected one block to seat at least two blueprints, seated {fits}");
+        Assert.True(fits < ids.Length,
+            "the pool must be large enough that one blueprint does NOT fit one block; add ids if the ladder grows");
 
-        var tier = BlueprintTierTable.Of(_repo, entity)!;
+        var entity = _repo.CreateEntity();
+        for (int i = 0; i < fits; i++)
+            Assert.Equal(BlueprintAttachStatus.Attached,
+                BlueprintInstanceService.AttachToEntity(_repo, _registry, ids[i], entity).Status);
+        int spare = ids[fits];
 
-        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
-        byte* mem1 = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
-        Assert.Equal(attached, BlueprintBlackboardPartitions.GetSlotCount(mem1));
+        var before = OccurrenceStoreAccess.Measure(_repo, entity);
+        Assert.Equal(1, before.Blocks);
+        Assert.Equal(fits, before.SlotCount);
+        var tier = OccurrenceStoreAccess.LargestBlock(_repo, entity)!;
 
-        // Publish Remove(A) + Attach(E) in the same frame.
+        // Publish Remove(A) + Attach(spare) in the same frame.
         var sys = new BlueprintEventIngressSystem(_registry);
         _repo.Bus.Publish(new RemoveInstanceBlueprintEvent
         {
@@ -413,15 +415,14 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         _repo.Bus.SwapBuffers();
         sys.Execute(_repo, 0f);
 
-        // After execution: A detached, the spare attached, still at capacity, SAME tier.
-        Assert.Same(tier, BlueprintTierTable.Of(_repo, entity));
-
-        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
-        byte* mem2 = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
-        Assert.Equal(attached, BlueprintBlackboardPartitions.GetSlotCount(mem2));
-        Assert.False(BlueprintBlackboardPartitions.TryGetSlotOffset(mem2, ids[0], out _),
+        // After execution: A detached, the spare attached, still ONE block of the SAME tier.
+        var after = OccurrenceStoreAccess.Measure(_repo, entity);
+        Assert.Equal(1, after.Blocks);
+        Assert.Same(tier, OccurrenceStoreAccess.LargestBlock(_repo, entity));
+        Assert.Equal(fits, after.SlotCount);
+        Assert.False(OccurrenceStoreAccess.TryFindSlot(_repo, entity, ids[0], out _, out _, out _),
             "A should be removed");
-        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem2, spare, out _),
-            "the spare should be attached — it reused A's freed slot rather than forcing a promotion");
+        Assert.True(OccurrenceStoreAccess.TryFindSlot(_repo, entity, spare, out _, out _, out _),
+            "the spare should be attached — it reused A's freed slot rather than growing the store");
     }
 }

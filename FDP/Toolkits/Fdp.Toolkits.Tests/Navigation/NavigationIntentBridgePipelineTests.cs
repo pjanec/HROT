@@ -170,6 +170,31 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.Equal(NavLayerMask.Infantry, NavLayerSelection.For(_repo, e, (uint)NavLayerMask.Infantry));
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-3112 (🔒 user, 2026-10-08: "Approved, go with class mapping") — the kind is the TKB's locomotion CLASS on
+        /// <see cref="VehicleParams"/>, not the presence of <see cref="VehicleState"/>: SimHost infantry carries both, and the old
+        /// rule planned every soldier on the 1.8 m vehicle mesh (no doorway admitted it — the bt-doors live run).
+        /// </summary>
+        [Fact]
+        public void NavLayerSelection_MapsTheLocomotionClass_ASoldierWithVehicleStateIsInfantry()
+        {
+            if (!_repo.IsComponentTypeRegistered<VehicleState>()) _repo.RegisterComponent<VehicleState>();
+            if (!_repo.IsComponentTypeRegistered<VehicleParams>()) _repo.RegisterComponent<VehicleParams>();
+            var soldier = _repo.CreateEntity();
+            _repo.AddComponent(soldier, new VehicleState());
+            _repo.AddComponent(soldier, new VehicleParams { Class = VehicleClass.Pedestrian });
+            Assert.Equal(NavLayerMask.Infantry, NavLayerSelection.For(_repo, soldier, 0));
+
+            foreach (var cls in new[] { VehicleClass.PersonalCar, VehicleClass.Truck, VehicleClass.Tank })
+            {
+                var v = _repo.CreateEntity();
+                _repo.AddComponent(v, new VehicleState());
+                _repo.AddComponent(v, new VehicleParams { Class = cls });
+                Assert.Equal(NavLayerMask.Vehicle, NavLayerSelection.For(_repo, v, 0));
+            }
+            Assert.Equal(NavLayerMask.Vehicle, NavLayerSelection.For(_repo, soldier, (uint)NavLayerMask.Vehicle));   // an explicit order still wins
+        }
+
         // ── Test 2: PlanRoute carries the Brain-allocated RouteHandle ──────────────
 
         [Fact]

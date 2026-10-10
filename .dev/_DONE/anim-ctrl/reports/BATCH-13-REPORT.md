@@ -3,7 +3,7 @@
 **Status:** COMPLETED  
 **Tasks:** ANC-P6-01 through ANC-P6-06  
 **Tests:** 35 / 35 passing  
-**Build:** `dotnet build IOS-IG-SimHost.sln -c Debug` — succeeded
+**Build:** `dotnet build HROT.sln -c Debug` — succeeded
 
 ---
 
@@ -12,7 +12,7 @@
 ### ANC-P6-01 — Project scaffolding
 - Created `Hrot/Subsystems/Hrot.Animation.Replication/Hrot.Animation.Replication.csproj`
 - Created `Hrot/Subsystems/Hrot.Animation.Replication.Tests/Hrot.Animation.Replication.Tests.csproj`
-- Both projects added to `IOS-IG-SimHost.sln` (project entries + platform config + nested project entries)
+- Both projects added to `HROT.sln` (project entries + platform config + nested project entries)
 - Added `<InternalsVisibleTo>` to main project for test access
 
 ### ANC-P6-02 — DDS wire types
@@ -112,7 +112,7 @@
 ## 7. Build & Test Results
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
   Build succeeded. 0 Error(s) 0 Warning(s)
 
 dotnet test Hrot.Animation.Replication.Tests.csproj --no-build

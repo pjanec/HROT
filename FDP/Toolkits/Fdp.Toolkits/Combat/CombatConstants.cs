@@ -15,6 +15,9 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public const ushort ActionIdAimAndFire = 1;
 
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-8) — fire at a ground POINT (<c>FireAtPointExecutor</c>): a thrown grenade, a mortar.</summary>
+        public const ushort ActionIdFireAtPoint = 2;
+
         // ── Event IDs ─────────────────────────────────────────────────────────
         // Range 5001–5099 is reserved for combat-domain events.
         // 5001 was previously defined in FDP.Toolkit.Physics.PhysicsConstants.HitEventId.
@@ -72,5 +75,20 @@ namespace Fdp.Toolkit.Combat
         /// At 60 Hz this is approximately 2 seconds.
         /// </summary>
         public const uint  BulletLifetimeTicks   = 120;
+
+        /// <summary>⭐ R-217 — how long a round stopped by the terrain is kept (frozen at the wall) before it is destroyed: long enough
+        /// for the raycasts of its last segments to resolve (they take three ticks), so a unit in front of the wall is still hit.</summary>
+        public const uint  StoppedRoundGraceTicks = 8;
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — the lifetime of a WARHEAD round on an arc, or lying on the ground on a time fuze (a
+        /// mortar bomb flies for tens of seconds; a thrown grenade lies until its fuze).</summary>
+        public const uint  ArcRoundLifetimeTicks = 3600;
+
+        /// <summary>⭐ <c>CE-1032</c> (W-8) — gravity on an arc round, m/s².</summary>
+        public const float Gravity = 9.81f;
+
+        /// <summary>⭐ <c>CE-1032</c> (W-8) — a mount at least this fast fires its arc HIGH (a mortar: steep, over walls and onto
+        /// roofs); slower is a THROW (low: a grenade).</summary>
+        public const float HighArcMinMuzzleVelocity = 40f;
     }
 }

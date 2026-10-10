@@ -37,7 +37,7 @@ Implement debug session persistence: save node breakpoints + data breakpoints (w
 - Do NOT regenerate golden snapshots
 - Report full failing-test set by name before and after
 - Editor CLOSED during build
-- Gate: `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors
+- Gate: `dotnet build HROT.sln -c Debug` → 0 errors
 - `Hrot.Blueprints.Tests` → 7 pre-existing failures, 0 new
 
 ---
@@ -209,13 +209,13 @@ Add methods to support persistence without exposing internal state:
 
 The repo root can be resolved the same way as in `EditorSubsystem` initialization:
 ```csharp
-// Find repo root by walking up from BaseDirectory looking for IOS-IG-SimHost.sln
+// Find repo root by walking up from BaseDirectory looking for HROT.sln
 private string? ResolveRepoRoot()
 {
     var dir = AppDomain.CurrentDomain.BaseDirectory;
     while (dir != null)
     {
-        if (File.Exists(Path.Combine(dir, "IOS-IG-SimHost.sln")))
+        if (File.Exists(Path.Combine(dir, "HROT.sln")))
             return dir;
         dir = Path.GetDirectoryName(dir);
     }

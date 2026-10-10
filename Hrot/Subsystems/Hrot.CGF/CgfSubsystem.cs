@@ -1057,13 +1057,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    the SAME list instance it gives the ELM and the spawn system, which is §6.3's invariant made
         //    true by construction for all three rather than two.
         _context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);
+        _context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
 
         // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this design
         //    was silent, and CE-138 (this host's own zero-iteration translator loop) was one of them.
         var unserviceable = creation.Unserviceable(new object[]
         {
             creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-            creation.PromotionSystem,
+            creation.PromotionSystem, creation.ObstacleBakeSystem,
         }.Concat(creation.NetworkSystems));
         if (unserviceable.Length > 0)
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Warn(unserviceable);
@@ -1095,6 +1096,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         nodeFactory?.CreateSimHostAuxiliaryTranslators()?.RegisterOn(_context.Kernel);
         nodeFactory?.CreateSimHostPerceptionTranslators()?.RegisterOn(_context.Kernel);
         nodeFactory?.CreateSimHostPathfindingTranslators()?.RegisterOn(_context.Kernel);
+        // ⭐ CE-2121 slice ② — the Brain's half of the stance wire: its request out, the body's report in.
+        Hrot.Animation.Replication.AnimationReplicationModule.RegisterStanceOn(
+            _context.Kernel, _context.Participant, _context.EntityMap, DefaultRole);
 
 
         // ── Wire ClusterSlave with EcsRecordReplayController (CGF-Point-4) ────────
@@ -1378,6 +1382,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new Hrot.ScenarioEditor.Map.MapInteractionContext
             {
                 World = _context.World,
+                // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
+                Services = Hrot.ScenarioEditor.Map.MapServices.Of(_context.GeoTransform, _behaviorRegistry),
                 // CGF is a dumb terminal for handles — it draws all active gizmos, like IG.
                 IsSelectedPredicate = null,
                 Inspector = () => _fdpInspectorState,

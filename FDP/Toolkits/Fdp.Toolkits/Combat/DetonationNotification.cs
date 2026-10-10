@@ -47,5 +47,9 @@ namespace Fdp.Toolkit.Combat.Contracts
 
         /// <summary>⭐ <c>CE-3071</c> — the round's damage per penetrating hit, copied from the bullet. 0 = unknown munition.</summary>
         public float Damage;
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-2) — the TKB type id of the munition (0 = unknown); its warhead decides the area
+        /// effect. <see cref="Target"/> is <see cref="Entity.Null"/> for a round that detonated on the terrain (W-3).</summary>
+        public long Ammo;
     }
 }

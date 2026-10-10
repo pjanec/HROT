@@ -202,7 +202,7 @@ whether these belong behind a category the full-suite run skips, and say what yo
 
 ## 6. Gates
 
-The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.sln`** (⚠ not `Hrot.sln`).
+The eight, `--logger "console;verbosity=normal"`. Solution is **`HROT.sln`** (⚠ not `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — those projects are outside the solution, and with
 `--no-build` they silently do not run (see `RESUME_START_HERE.md` §3).
 

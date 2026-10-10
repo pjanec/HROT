@@ -53,16 +53,62 @@ public sealed class GizmoSchemaFollowsDeclarationRails
             + "vacuous.");
 
         var statelessRegistry = new StatelessGizmoRegistry();
+        // ⭐ CE-3123 — a projector whose constructor needs a service this (test) host does not provide is REPORTED by name
+        //   rather than registered (MissionPresentationGizmo needs an IGeographicTransform); that counts as reaching the registrar.
+        var reported = new List<string>();
         var registered = GizmoReflectionRegistrar.RegisterAll(
-            new GizmoRegistry(), statelessRegistry, new GizmoSettingsRegistry());
+            new GizmoRegistry(), statelessRegistry, new GizmoSettingsRegistry(), reportUnserviceable: reported.Add);
 
-        var missing = discovered.Except(registered).ToArray();
+        var missing = discovered.Except(registered)
+            .Where(t => !reported.Any(r => r.Contains($"'{t.Name}'", StringComparison.Ordinal)))
+            .ToArray();
 
         Assert.True(missing.Length == 0,
             $"{missing.Length} projector(s) were discovered but not registered:\n  "
             + string.Join("\n  ", missing.Select(t => t.FullName))
             + "\n⭐ Every discovered projector must end up registered — a projector that is found and then "
             + "dropped is worse than one that was never found, because nothing else will report it.");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-3123</c> — COMPLETENESS AGAINST THE DEPLOYMENT, not against itself.</b> The rail above compares two answers
+    /// read from the SAME loaded set, so a projector whose assembly is never loaded is missing from both and it stays green
+    /// (<c>DESIGN_Uniform_Gizmo_Membership.md</c> §9.6). This one reads every <c>[GizmoProjector]</c> type from the deployed
+    /// DLLs' METADATA (no load), runs the runner's own pre-load (<see cref="Hrot.Common.Infrastructure.DeploymentAssemblies.LoadAll"/>),
+    /// and requires each projector to reach the registrar — registered, or reported as needing a service this host lacks.
+    /// Projectors in an assembly the pre-load deliberately skips are NAMED, so a new one there is a decision, not an accident.
+    /// </summary>
+    [Fact]
+    public void CE3123_EveryProjectorInTheDeployment_ReachesTheRegistrar()
+    {
+        string dir = AppContext.BaseDirectory;
+        var deployed = System.IO.Directory.GetFiles(dir, "*.dll")
+            .Select(f => (asm: System.IO.Path.GetFileNameWithoutExtension(f), path: f))
+            .Where(d => Hrot.Common.Infrastructure.DeploymentAssemblies.IsOurs(d.asm))
+            .SelectMany(d => Hrot.Common.Infrastructure.DeploymentAssemblies
+                .TypesWithAttribute(d.path, nameof(GizmoProjectorAttribute))
+                .Select(t => (d.asm, type: t)))
+            .ToArray();
+        Assert.True(deployed.Length > 20, $"only {deployed.Length} projectors found in {dir} — the scan itself is broken");
+
+        Hrot.Common.Infrastructure.DeploymentAssemblies.LoadAll(dir);
+        var reported = new List<string>();
+        var registered = GizmoReflectionRegistrar.RegisterAll(
+                new GizmoRegistry(), new StatelessGizmoRegistry(), new GizmoSettingsRegistry(),
+                reportUnserviceable: reported.Add)
+            .Select(t => t.FullName!)
+            .ToHashSet(StringComparer.Ordinal);
+        bool Reached(string type) => registered.Contains(type) || reported.Any(r => r.Contains($"'{type.Split('.').Last()}'"));
+
+        var skipped = deployed.Where(d => Hrot.Common.Infrastructure.DeploymentAssemblies.Skipped.Contains(d.asm)).ToArray();
+        var missing = deployed.Except(skipped).Where(d => !Reached(d.type)).ToArray();
+        Assert.True(missing.Length == 0,
+            "deployed [GizmoProjector] types that never reach the registrar (their assembly is not loaded on a host):\n  "
+            + string.Join("\n  ", missing.Select(m => $"{m.type} ({m.asm})")));
+
+        // 🔒 The hot-reload assembly is kept out of the pre-load on purpose (DeploymentAssemblies.Skipped). Its projectors are
+        //    found only on a host that loads it for its own reasons (CGF, Editor, IG). Named here so adding one is a decision.
+        Assert.Equal(new[] { "Hrot.AI.Behaviors.Gizmos.HillAttackGizmo" }, skipped.Select(s => s.type).OrderBy(t => t).ToArray());
     }
 
     /// <summary>

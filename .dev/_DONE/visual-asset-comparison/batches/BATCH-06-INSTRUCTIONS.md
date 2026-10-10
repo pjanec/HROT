@@ -42,7 +42,7 @@
 
 ```powershell
 dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj" -c Debug
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
 ```
 
 ### Report Submission
@@ -528,7 +528,7 @@ public sealed class StaleBadgeWatcher
 - [ ] TASK-C-27: `ExitComparisonAction` + toolbar wiring with 4 tests
 - [ ] TASK-C-28: `StaleBadgeWatcher` + DI registration with 3 tests
 - [ ] `dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/..."` passes
-- [ ] `dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4` — 0 errors
+- [ ] `dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4` — 0 errors
 - [ ] Report submitted to `.dev\visual-asset-comparison\reports\BATCH-06-REPORT.md`
 
 ---

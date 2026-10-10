@@ -51,7 +51,7 @@
 
 Build & test command (run from repo root):
 ```powershell
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test FDP/Toolkits/FDP.Toolkit.Orchestration.Tests/FDP.Toolkit.Orchestration.Tests.csproj --no-build -v n
 dotnet test Hrot.Orchestrator.Tests/Hrot.Orchestrator.Tests.csproj --no-build -v n
 dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build -v n
@@ -493,7 +493,7 @@ This batch is DONE when:
 - [ ] TASK-D03: `ClusterStateTransitionedEvent.NewStateId` is `ClusterState` type; new structural test passes.
 - [ ] TASK-D05: `OrchestrationStatusCode` is an `enum`; all three event `StatusCode` fields are `OrchestrationStatusCode`; `IsError` is an extension method; all 4 test files updated; full test suite passes.
 - [ ] TASK-D06: `CheckBootstrapLatch()` uses `OrdinalIgnoreCase`; new bootstrap case-sensitivity tests pass.
-- [ ] Full build succeeds: `dotnet build IOS-IG-SimHost.sln`
+- [ ] Full build succeeds: `dotnet build HROT.sln`
 - [ ] All affected test projects pass.
 - [ ] Report submitted to `.dev/cluster-master-cqrs-2/reports/BATCH-01-REPORT.md`.
 

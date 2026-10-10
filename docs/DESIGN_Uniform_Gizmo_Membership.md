@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT
-updated: 2026-09-22
-current-answer: §9 is the AS-BUILT and it CLOSES §7.3/§7.4; §8 is the mechanism, §7.2 still corrects §1's inventory. The rest of the file — UXI-23 §3.2's GIZMO HALF, made concrete. §1's matrix is the measurement
+updated: 2026-10-08
+current-answer: §10 (CE-3123) closes the host-only wiring beside membership · §9 is the AS-BUILT and it CLOSES §7.3/§7.4; §8 is the mechanism, §7.2 still corrects §1's inventory. The rest of the file — UXI-23 §3.2's GIZMO HALF, made concrete. §1's matrix is the measurement
   that matters: the editor declares all six projector families and every other host declares a subset.
   §3 the design, §4 the UML, §5 the rails, §6 the risks.
 design-basis: 🔒 user 2026-08-23 ("replaybrowser is no exception… same full set of gizmos as everyone
@@ -12,7 +12,11 @@ design-basis: 🔒 user 2026-08-23 ("replaybrowser is no exception… same full 
 known-conflict: none. ⭐ This IMPLEMENTS UXI-23's gizmo half; ⛔ it does not build the rest of
   MapInteractionPack (actions, selection, rubber-band, layer control) — §6.
 related-designs:
+  - designs/routes-1/ROUTES1-DESIGN.md §2.5/§8.2 — the route overlay; §10 replaces its SimHost-only layer with AuthoredRouteGizmo.
+  - UX/UX_Feature_Map_Parity.md §3.2a — pack constructs, host schedules: the rule §10 builds on.
   - DESIGN_Terrain_Combat_Tuning.md §5 — terrain/combat debug layers relying on uniform membership
+  - DESIGN_Terrain_Combat_Tuning.md §5a — the debug-trace gizmos; global where SimHost/Replay Browser draw only the selected entity.
+  - DESIGN_Ai_Action_Status_Gizmo.md — OWNS the Channels family's gizmos (ActionStatusGizmo, PeekAndFireGizmo — built); §9.7 here says where a behaviour's gizmo goes
 -->
 # DESIGN — **uniform gizmo membership** *(every host, every family)*
 
@@ -457,3 +461,152 @@ recorded because it arms itself the day a hot-reloaded assembly carries a projec
 
 ⭐ **§8.7's headless publish-gate** — the user ruled the cost acceptable and gating optional; untouched.
 ⭐ **§8.5's uncosted-publishing finding** stands as recorded; this batch changed **membership**, not gating.
+
+### ⚠ 9.6 Measured `2026-10-08` (backend, investigating "what is still wired on only some hosts") — **two facts §9 did not state**
+
+| fact | evidence | consequence |
+|---|---|---|
+| ⭐ **discovery is complete in production because of the RUNNER, not the registrar** — every host is a library run inside `Hrot.ClusterRunner`, the one executable, which pre-loads every `Hrot.*`/`Fdp.*` DLL from its folder **except `Hrot.AI.Behaviors`** (kept out of the default load context for hot reload) | `Hrot.ClusterRunner/Program.cs` `LoadReferencedAssemblies`; all five host `.csproj` are `OutputType=Library`. ⚠ Of the five host assemblies only Editor and IG reference `Hrot.IG`, where `EqsSensorGizmo`, `EffectPresentationGizmo`, `ProjectilePresentationGizmo` live | the three `Hrot.IG` projectors reach SimHost/CGF/Replay only through the pre-load. ⛔ **Not measured:** whether `HillAttackGizmo` (`Hrot.AI.Behaviors`) is registered on a process running no CGF/Editor/IG |
+| 🔴 **the completeness rail is weaker than §8.2 ④ says** — it compares `DiscoverProjectorTypes()` with `RegisterAll()`'s result, **both read from the same loaded set**, so a projector whose assembly is not loaded is absent from BOTH and the rail stays green | `Hrot.ClusterRunner.Tests/GizmoSchemaFollowsDeclarationRails.cs` `EveryProjectorInSource_IsRegisteredAtRuntime` | §8.2 ④'s *"source count vs runtime … a projector whose assembly a mode never loads"* is **not** what the rail checks |
+
+### ⭐ 9.7 Where a BEHAVIOUR's gizmo goes *(`CE-3136` P-6, backend, `2026-10-09`)*
+
+> 🔒 **User, `2026-10-09`:** *"where else to put behavior dependent gizmos???"*
+
+⭐ **A behaviour gizmo draws the behaviour's RECORDED DATA, not its code** (R-226). ⇒ the data type is declared outside the
+hot-reload assembly — `Fdp.Toolkits` (generic) or `Hrot.Core` (Hrot-specific) — and the gizmo lives in **`Hrot.Presentation`**,
+which every host loads (R-228). 📐 Measured: `Hrot.AI.Behaviors` is in `DeploymentAssemblies.Skipped` and is referenced by CGF,
+Editor and IG only — ⛔ not by SimHost or `Hrot.ReplayBrowser` — and a projector there is the ST-035 pin hazard (§9.4).
+
+| case | where | example |
+|---|---|---|
+| the state is recorded data (a unit memory, a component, a params struct with a fixed layout) | data type → `Fdp.Toolkits` / `Hrot.Core`; gizmo → `Hrot.Presentation` | `PeekAndFireGizmo` over `FiringPositionMemory` (`Fdp.Toolkits/Combat`) |
+| ⚠ the gizmo needs a type that exists ONLY in `Hrot.AI.Behaviors` | stays there, named in `CE3123_EveryProjectorInTheDeployment_ReachesTheRegistrar` — draws on brain hosts only | `HillAttackGizmo` (`PlatoonHillAttackParams`) |
+
+⛔ Rejected: a separate gizmo assembly referencing `Hrot.AI.Behaviors` — it loads only where the behaviours do, so it changes nothing.
+
+## ⭐⭐⭐ 10. NO HOST-ONLY GIZMO WIRING *(`CE-3123`, backend, `2026-10-08`; build-state: BUILT — as-built at §10 end)*
+
+> 🔒 **User, `2026-10-08`:** *"Are there unification and sharing opportunities in the gizmo related stuff? Like that something is wired juat on some host? Rhis should be unified and data driven (has data = can draw)"* · on the six-item lean: *"Approved, build all six"* — **R-228**.
+
+§8/§9 made gizmo **membership** uniform. ⭐ This section closes what still sat beside it, per host: the debug toggles that feed the
+gizmos, gizmos registered by hand because of a constructor, one raw SimHost drawing, three projectors living in a host assembly, and
+the rail that should have noticed. 🔒 The shape is the one `UX_Feature_Map_Parity.md` §3.2a ruled: **the pack CONSTRUCTS, the host
+SCHEDULES** — everything new rides in `MapInteraction.InteractionSystems`, which all five hosts already schedule (or tick, on Replay).
+
+### INVENTORY *(graph CLI + grep + two read-only sweeps, `2026-10-08`)*
+
+| query | result |
+|---|---|
+| ⚠ **corrected while building:** the source generator `GizmoRegistrarGenerator` still runs on every Hrot project — it flows in through the `Fdp.Toolkits` reference, so the claim made during the investigation (*"no Hrot project uses the old generator"*, measured from `.csproj` files only) was WRONG; the first build failed on its `new MissionPresentationGizmo()` | the generator now SKIPS a projector without a `()`/`(GizmoSettingsRegistry)` constructor and reports `FDP_003` (Info) |
+| `[GizmoProjector]` classes per assembly (grep, non-test) | `Hrot.Presentation` 20 · `Hrot.Common` 8 · `Hrot.IG` 3 · `Fdp.Toolkits` 2 · `Hrot.AI.Behaviors` 1 · `Hrot.MuscleCharacter.Animation` 1 |
+| hand-registered map gizmos (`ContributeExtras`, `RegisterGlobal`) | `MissionPresentationGizmo` (Editor, IG — ctor needs `IGeographicTransform`) · `EntityEditorLabelGizmo` (Editor, Replay — ctor needs `BehaviorRegistry`; `CE-1022`) · `EntityEditorPolylineGizmo` (Replay only; its attribute was commented out in favour of the presentation gizmo) · `EntityDragGizmoDefinition`, tools, `ReplaySpatialBoundsGizmo` (host affordances — stay) |
+| `DebugStatePatchSystem` registrations | `BehaviorDiagnosticsModule` (CGF, Editor) · `SimHostApp` one-off (`CE-3122`) · ⛔ IG, Replay none |
+| `DebugState` registered on the world | CGF (`CgfComponentRegistry.cs:27`), SimHost (`SimHostComponentRegistry.cs:41`) · ⛔ IG, Replay none ⇒ pins inert there |
+| `ToggleAiTrace` / `ToggleAiTraceLog` handlers | SimHost (`AiTraceContextMenu` helper) · Editor (inline copy) · ⛔ CGF, IG, Replay none · menu entry only in the Editor's inspector |
+| raw per-host map drawing | `SimHostTrajectoryLayer` (authored route of the selected mover, raylib) · `SimHostRoadLayer` (road blob — waits on `CE-3118`) |
+| who can mutate the world in `InteractionSystems` | `GizmoInteractionModule.Policy = Synchronous()` ⇒ `DataStrategy.Direct` (`ExecutionPolicy.cs:51-54`) — the live `EntityRepository` |
+
+### Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class MapInteractionPack { <<existing, grows>> Build(ctx) ensures DebugState + PatchDebugStateCommand; registers pin AND trace actions }
+  class MapInteraction { <<existing, grows>> +DebugStatePatch InteractionSystems = dispatch, patch, group }
+  class MapInteractionContext { <<existing, grows>> +Services Func of Type to object }
+  class GizmoReflectionRegistrar { <<existing, grows>> RegisterAll(..., services, report) picks the richest satisfiable ctor }
+  class DebugStatePatchSystem { <<existing>> }
+  class GizmoPins { <<existing>> }
+  class AiTraceActions { <<NEW, replaces 2 copies>> Toggle, RegisterActions, Submenu }
+  class ContextMenuProjectorGizmo { <<existing, grows>> AI trace submenu when the unit has a brain }
+  class MissionPresentationGizmo { <<existing, now GizmoProjector>> Family Path }
+  class EntityEditorLabelGizmo { <<existing, now GizmoProjector>> optional BehaviorRegistry }
+  class AuthoredRouteGizmo { <<NEW, replaces SimHostTrajectoryLayer>> Family Path }
+  class EqsSensorGizmo { <<moved to Hrot.Presentation>> }
+  class EffectPresentationGizmo { <<moved to Hrot.Presentation>> }
+  class ProjectilePresentationGizmo { <<moved to Hrot.Presentation>> }
+  class DeploymentAssemblies { <<NEW, Hrot.Common>> LoadAll() — the runner pre-load, shared with the rail }
+  MapInteractionPack ..> MapInteraction
+  MapInteractionPack ..> GizmoReflectionRegistrar
+  MapInteractionPack ..> AiTraceActions
+  MapInteractionPack ..> GizmoPins
+  MapInteraction o-- DebugStatePatchSystem
+  ContextMenuProjectorGizmo ..> AiTraceActions
+  ContextMenuProjectorGizmo ..> GizmoPins
+  GizmoReflectionRegistrar ..> MissionPresentationGizmo
+  GizmoReflectionRegistrar ..> EntityEditorLabelGizmo
+  GizmoReflectionRegistrar ..> AuthoredRouteGizmo
+```
+
+*What the picture shows that prose hid:* every arrow starts at the pack or the registrar — no box hangs off a host. A host's only
+remaining inputs are DATA: which services it has (`Services`) and which components its entities carry.
+
+### Sequence — a debug toggle on a host that never had one (Replay)
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant M as Map context menu
+  participant D as GlobalActionDispatchSystem
+  participant A as AiTraceActions / GizmoPins
+  participant B as World bus
+  participant P as DebugStatePatchSystem (from the pack)
+  participant S as DebugState on the unit
+  U->>M: right-click, Pin gizmos, Path
+  M->>D: GlobalActionRequestedEvent(PinGizmosPath)
+  D->>A: handler(view, target)
+  A->>B: PatchDebugStateCommand
+  Note over B: next frame
+  P->>B: read commands
+  P->>S: add if missing, apply patch
+```
+
+*What it shows:* no step names a host. Replay ticks `InteractionSystems` like the kernel hosts run it, so the same five calls happen
+everywhere.
+
+### Module relationships — who registers and who runs each piece every frame
+
+```mermaid
+graph TD
+  PACK[MapInteractionPack.Build, all 5 hosts] -->|constructs| IS[InteractionSystems: dispatch, DebugStatePatch, gizmo group]
+  PACK -->|registers if absent| DS[DebugState + PatchDebugStateCommand]
+  PACK -->|registers| ACT[pin actions 260-267 + AI trace 251-252]
+  GIM[GizmoInteractionModule, SimHost Editor IG CGF] -->|runs each frame| IS
+  RB[ReplayBrowser Update, no kernel] -->|ticks each frame| IS
+  BDM[BehaviorDiagnosticsModule, CGF Editor] -->|also runs| P2[DebugStatePatchSystem, headless HTTP tracer path]
+  RUN[ClusterRunner pre-load via DeploymentAssemblies] -->|loads| ASM[Hrot.* Fdp.* except Hrot.AI.Behaviors]
+  RAIL[completeness rail] -->|same LoadAll| ASM
+  style P2 stroke:#c60,stroke-dasharray: 5 5
+```
+
+*What it shows:* the dashed box is a SECOND patch system on CGF and the Editor. It stays because a headless Editor schedules no
+`InteractionSystems` and its HTTP AI tracer still publishes patches; a patch sets absolute values, so running both applies the same
+state twice (a rail proves it).
+
+### Decisions *(the six, as approved)*
+
+| # | ⭐ built | rejected (one line each) |
+|---|---|---|
+| **1** | the pack registers `DebugState` + `PatchDebugStateCommand` when the world lacks them, and puts `DebugStatePatchSystem` in `InteractionSystems` (and `RequiredSystems`); Replay ticks `InteractionSystems`; SimHost's one-off is deleted. ⚠ `AiDiagnosticsTkbTranslator` adds `DebugState` when registered, but only on SimHost's own world, which already registers it | remove it from `BehaviorDiagnosticsModule` — a headless Editor would lose its HTTP tracer toggles |
+| **2** | `AiTraceActions` (Hrot.Common, beside `GizmoPins`) — one toggle implementation, registered by the pack; the map menu gains an **AI trace** submenu on units with a `BehaviorState`; SimHost's helper and the Editor's inline copy are deleted (the Editor's inspector menu keeps publishing the same action ids) | keep per-host handlers — two copies already diverged in shape |
+| **3** | `MapInteractionContext.Services` + `GizmoReflectionRegistrar` picks the public constructor with the most parameters that are ALL resolvable (`GizmoSettingsRegistry` or a service); a projector with constructors but none satisfiable is SKIPPED and REPORTED (`ReportMapDiagnostic`), never silent; no public constructor still throws. `MissionPresentationGizmo` (Family Path, its own selection check removed — the family policy decides) and `EntityEditorLabelGizmo` (an extra parameterless constructor: no behaviour line without a registry) gain `[GizmoProjector]`; the hand registrations and the dead `EntityEditorPolylineGizmo` registration on Replay go | read the services from world singletons — only SimHost and the Editor set `IGeographicTransform`, and setting it elsewhere changes `AttributeInterpreterProvider` |
+| **4** | `AuthoredRouteGizmo` (`[GizmoProjector(NavState, SimTransform)]`, Family Path): the mover's personal route, else the shared route whose `RouteTrajectoryCache` matches its trajectory — the same data `SimHostTrajectoryLayer` read; the layer and its registration are deleted | keep the raylib layer — never on the wire, never in Editor or Replay |
+| **5** | `EqsSensorGizmo`, `EffectPresentationGizmo`, `ProjectilePresentationGizmo` move to `Hrot.Presentation/Gizmos`, namespace `Hrot.ScenarioEditor.Gizmos`; their data types are in `Fdp.Toolkits` / `Hrot.Core`. ⚠ *as built — deviation:* the plan kept `Hrot.IG.Gizmos`, but `GizmoRegistrarGenerator` emits one `GizmoRegistrar` per namespace per assembly, so a second `Hrot.IG.Gizmos.GizmoRegistrar` in `Hrot.Presentation` would be ambiguous for `Hrot.IG.Tests`, which sees both | keep the namespace — collides as above |
+| **6** | `DeploymentAssemblies.LoadAll()` (Hrot.Common) is the runner's pre-load, called by `Program` AND by the rail; the rail then reads every `[GizmoProjector]` type from the deployed DLL **metadata** (`System.Reflection.Metadata`, no load) and asserts each is registered — except projectors in assemblies `LoadAll` deliberately skips, which it NAMES | the old runtime-vs-runtime comparison (§9.6) |
+
+### As built *(`2026-10-08`)* — the class view holds; what each item landed as
+
+| # | as built | deviation from the decision above |
+|---|---|---|
+| **1** | `PresentationComponentRegistry.RegisterDebugViewState(world)` (Hrot.Core) — called by `RegisterAll` (so the Replay Browser gets it on every repo it rebinds to) AND by `MapInteractionPack.Build` (IG); `MapInteraction.DebugStatePatch` in `InteractionSystems` = dispatch, patch, group, and in `RequiredSystems`; Replay ticks it after the dispatch; SimHost's `CE-3122` one-off deleted | ⭐ registration sits in the shared presentation registry as well as the pack — the pack alone would miss Replay's rebound repos |
+| **2** | `AiTraceActions` (Hrot.Common) — `Toggle`, `HasBrain`, `RegisterActions`, `Submenu`; the unit menu has `…Brain` variants (`ContextMenuProjectorGizmo.MenuJsonFor`) offering **AI trace** only for a `BehaviorState` unit; `AiTraceContextMenu.cs` and the Editor's inline handlers deleted (the Editor inspector's menu still publishes the ids) | — |
+| **3** | `GizmoReflectionRegistrar.RegisterAll(…, services, reportUnserviceable)` + public `Instantiate` (richest satisfiable public ctor; `null` + what was missing; throws only with no public ctor); `MapInteractionContext.Services` + `MapServices.Of(…)`; all five hosts pass theirs (SimHost geo + registry, Editor geo + registry, IG geo, CGF geo + registry, Replay registry). `MissionPresentationGizmo` and `EntityEditorLabelGizmo` carry `[GizmoProjector]`; hand registrations gone; Replay's `EntityEditorPolylineGizmo` registration removed | ⚠ `GizmoRegistrarGenerator` still runs on Hrot projects (it flows in through `Fdp.Toolkits`) — it now SKIPS a projector without a `()`/`(GizmoSettingsRegistry)` constructor and reports `FDP_003` (Info). Replay has no geo transform ⇒ the mission gizmo is reported there, not drawn |
+| **4** | `AuthoredRouteGizmo` (`[GizmoProjector(NavState, SimTransform)]`, Family Path, `Paths` layer); `SimHostTrajectoryLayer` + its tests deleted; tests ported as `AuthoredRouteGizmoTests` | — |
+| **5** | `EqsSensorGizmo`, `EffectPresentationGizmo`, `ProjectilePresentationGizmo` and `EqsGizmoSettings` (now `public`) in `Hrot.Presentation/Gizmos`, namespace `Hrot.ScenarioEditor.Gizmos` | ⚠ namespace changed — see decision 5's row |
+| **6** | `DeploymentAssemblies` (Hrot.Common/Infrastructure): `LoadAll` (the runner's `LoadReferencedAssemblies` is now a call to it), `Skipped = { Hrot.AI.Behaviors }`, `TypesWithAttribute` (metadata read via `System.Reflection.Metadata`); rail `CE3123_EveryProjectorInTheDeployment_ReachesTheRegistrar` names `HillAttackGizmo` as the one projector in a skipped assembly | — |
+
+🔴 **Defect found by the rails, fixed:** `DebugStatePatchCompiler.Build()` set its `_built` flag BEFORE filling its setter table, so a second thread constructing a `DebugStatePatchSystem` saw *built* with an EMPTY table and every patch it applied was dropped — the pin rail passed alone and failed under xunit's parallel classes. With item 1 every map host builds one, so hosts started side by side were exposed. Now built under a lock and published only when complete.
+
+**Rails:** `HostOnlyWiringTests` (6, Presentation) · `AuthoredRouteGizmoTests` (5) · `GizmoSchemaFollowsDeclarationRails.CE3123_…` (ClusterRunner).
+

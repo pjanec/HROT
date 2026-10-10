@@ -25,7 +25,7 @@ This document provides **detailed task breakdown** for implementing IG Mock comp
    ```bash
    dotnet new console -n Hrot.IG -f net8.0
    ```
-2. Add to solution `IOS-IG-SimHost.sln`.
+2. Add to solution `HROT.sln`.
 3. Location: `Hrot.IG/`
 
 4. Add project references:
@@ -415,7 +415,7 @@ public class StubVisualizerAdapter : IVisualizerAdapter
    dotnet new mstest -n Hrot.IG.Tests -f net8.0
    ```
 2. Location: `Hrot.IG.Tests/`
-3. Add to solution `IOS-IG-SimHost.sln`.
+3. Add to solution `HROT.sln`.
 4. Add reference to `Hrot.IG` project.
 
 **Acceptance Criteria:**

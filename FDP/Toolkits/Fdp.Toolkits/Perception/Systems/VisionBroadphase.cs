@@ -38,6 +38,9 @@ namespace Fdp.Toolkit.Perception.Systems
         private readonly Stack<List<(Entity, Vector2, ForceId)>> _pool = new();
         private readonly List<(float DistSq, Entity Target)> _passed = new();
 
+        /// <summary>⭐ CE-3146 — how many <see cref="Rebuild"/>s have seen a malformed chain; rate-limits the warning.</summary>
+        private int _malformedRebuilds;
+
         /// <summary>
         /// The candidates <paramref name="observer"/> can look at (it needs <see cref="EntityInfo"/> and
         /// <see cref="SimTransform"/>; otherwise none), nearest first when over the cap, else in cell-scan order.
@@ -112,10 +115,66 @@ namespace Fdp.Toolkit.Perception.Systems
             if (!grid.GridHead.IsCreated) return;
 
             int cells = grid.Width * grid.Height;
-            for (int c = 0; c < cells; c++)
+
+            // ⭐⭐⭐ CE-3146 — THE CHAIN GUARD. 🔴 This walk follows the perception grid's INTRUSIVE linked list and
+            //   terminates ONLY when that list does: a cycle (`GridNext[i] == i`, or any loop) spins here forever, and
+            //   a duplicate explosion makes it effectively forever. 📌 Reported by the user `2026-10-09` as "the editor
+            //   easily gets stuck, looping inside Rebuild"; corroborated the same evening by this module's own breaker
+            //   firing on a `--mode all` run (`Module 'Eqs' timed out after 400ms` → `CIRCUIT-OPEN`). ⚠ The timeout
+            //   ABANDONS the task ("may continue running in background as zombie"), so the thread keeps spinning —
+            //   which is why it presents as "stuck" rather than as a clean 400 ms miss.
+            //
+            //   ⭐ The bound is EXACT, not a heuristic: every live entry occupies one slot, so a well-formed chain can
+            //   never be longer than the slot capacity. Exceeding it is PROOF the list is malformed — never a false
+            //   positive on a merely dense cell.
+            //   ⭐ On breach: abandon THAT cell and keep going. Perception degrades for one cell instead of hanging the
+            //   host, and the log names the cell so the producer can be found. ⛔ Do not throw — this runs on a
+            //   background module thread whose exceptions the module host SWALLOWS.
+            int slotCapacity = grid.GridValues.Length;
+            bool reportedMalformedChain = false;   // ⭐ once per Rebuild: a warning that floods is a warning nobody reads
+
+            // ⭐⭐⭐ THE BOUND IS GLOBAL, NOT PER-CELL — 📌 measured `2026-10-09`, and the per-cell version was MY OWN
+            //   defect: with a 50 000-slot capacity and 40 000 cells, a per-cell bound still permits 2·10⁹ steps per
+            //   Rebuild, which is a hang with extra steps. ⭐ Every live entry is visited exactly once across the WHOLE
+            //   walk, so the TOTAL can never exceed the slot capacity either. That makes the whole Rebuild O(cells +
+            //   capacity) even on a fully corrupt grid.
+            int walkedTotal = 0;
+
+            // ⭐ the outer condition is what makes the GLOBAL bound actually stop the walk, not just this cell's.
+            for (int c = 0; c < cells && walkedTotal <= slotCapacity; c++)
             {
+                int steps = 0;
                 for (int head = grid.GridHead[c]; head >= 0; head = grid.GridNext[head])
                 {
+                    steps++;
+                    walkedTotal++;
+                    if (steps > slotCapacity || walkedTotal > slotCapacity)
+                    {
+                        // ⚠ RATE-LIMITED ACROSS REBUILDS, not just within one. 📌 User, `2026-10-09`: "prints lots of
+                        //   messages" — `reportedMalformedChain` alone is per-Rebuild and this runs at 10 Hz, so a
+                        //   standing corruption printed ~10 lines/s and buried the log it exists to serve.
+                        bool first = _malformedRebuilds == 0;
+                        if (!reportedMalformedChain)
+                        {
+                            reportedMalformedChain = true;
+                            _malformedRebuilds++;
+                            if (first || _malformedRebuilds % 600 == 0)   // ⭐ the first, then ~once a minute at 10 Hz
+                            {
+                                // ⚠ FdpLog.Warn takes at most 4 format args — pre-format instead of splitting it.
+                                int next = grid.GridNext[head];
+                                Fdp.Core.Logging.FdpLog<VisionBroadphase>.Warn(
+                                    $"[VisionBroadphase] CE-3146 — MALFORMED grid chain in cell {c}: walked {steps} "
+                                    + $"slots, capacity is {slotCapacity}. head={head}, GridNext[head]={next}"
+                                    + (next == head ? " (SELF-CYCLE)" : string.Empty)
+                                    + $". Abandoning this cell; perception under-reports here. [rebuild #{_malformedRebuilds} "
+                                    + "with a malformed grid] ⭐ CE-3152 found ONE producer — SpatialHashGrid.Create did "
+                                    + "not initialise GridHead to -1, so a grid was malformed until its first Clear(); "
+                                    + "if this still fires AFTER that fix, the producer is a different one.");
+                            }
+                        }
+                        break;
+                    }
+
                     var entity = grid.GridValues[head];
                     // Generational liveness check — grid stores full Entity handles.
                     if (!view.IsAlive(entity)) continue;

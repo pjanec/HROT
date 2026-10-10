@@ -68,10 +68,10 @@ rules, and the named remaining work. ⭐ The STATUS block gains a `build-state` 
 
 | # | gate | verbatim command | `--no-build`? | result · delta vs `304b9180e` |
 |---|---|---|---|---|
-| 1 | build | `dotnet build IOS-IG-SimHost.sln --no-restore` | must build | ⭐ **0 errors** |
+| 1 | build | `dotnet build HROT.sln --no-restore` | must build | ⭐ **0 errors** |
 | 1 · 8 | ⭐⭐⭐ **the touched suite** | `dotnet test Hrot.Editor.AiShared.Tests --no-build` | `--no-build` | ⭐⭐ **1999 / 2000 pass, 0 fail, 1 skip** *(baseline **1989 / 1990**, MEASURED at a clean tree via `git stash push -u` ⇒ **+10**, this batch's rails)*. ⚠ The 1 skip is pre-existing and present at baseline |
 | 8 | ⭐⭐ **the integration gate** *(the Watch `PanelSnapshot` rails live here)* | `bash scripts/run-system-tests.sh` | builds | ⭐ **83 / 83 pass, 0 fail, 0 skip** — unchanged |
-| 2 | out-of-solution / stale bin | — | — | ⭐ both gated projects are in `IOS-IG-SimHost.sln`; every `--no-build` run followed a full build of the same tree |
+| 2 | out-of-solution / stale bin | — | — | ⭐ both gated projects are in `HROT.sln`; every `--no-build` run followed a full build of the same tree |
 | 3 | golden movement | `git status --short Hrot/Runner/Hrot.SystemTests/Goldens/` | — | ⭐ **ZERO — 0 files.** ⭐ Expected: the golden budget holds no Watch panel, and grouping changes the Watch's VIEW only |
 | 4 | every RED pre-existing, by name | — | — | ⭐ **no reds anywhere on the final tree** |
 | 5 | working tree clean after every suite | `git status --short` | — | ⭐ clean; all three mutation probes reverted by **inverse edit** and verified *(`grep -rc "MUTATION PROBE"` ⇒ nothing)* |

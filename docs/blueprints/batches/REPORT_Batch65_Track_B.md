@@ -22,7 +22,7 @@ registered element, so it never took the fallback.
 
 | gate | command | result |
 |---|---|---|
-| solution build | `dotnet build IOS-IG-SimHost.sln -t:Rebuild -v q --nologo` | ✅ **0 errors / 69 warnings** *(full rebuild, not incremental)* |
+| solution build | `dotnet build HROT.sln -t:Rebuild -v q --nologo` | ✅ **0 errors / 69 warnings** *(full rebuild, not incremental)* |
 | BP diagnostics | `dotnet build …/Hrot.AI.Behaviors.csproj -t:Rebuild -v n --nologo \| grep -oE "warning BP[0-9]+: [^[]*" \| sort -u \| wc -l` | ✅ **10 distinct** |
 | Blueprints | `dotnet test …/Hrot.Blueprints.Tests.csproj --no-build -v q --nologo` | ✅ **3628 / 3618 / 0 / 10** *(was 3618/3608/0/10 ⇒ **+10**)* |
 | AiShared | `dotnet test …/Hrot.Editor.AiShared.Tests.csproj --no-build -v q --nologo` | ✅ **1216 / 1216 / 0 / 0** |

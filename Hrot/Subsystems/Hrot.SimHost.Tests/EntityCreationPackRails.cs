@@ -276,15 +276,17 @@ namespace Hrot.SimHost.Tests
             //   of NedReplicationModule (DESIGN_Role_Affinity_Ownership.md §3.7). ⭐⭐ This rail REDDENED on
             //   that change and was right to: it is the control that every built piece is accounted for,
             //   so a new piece must be added here deliberately rather than the assertion relaxed.
+            // ⭐ FIVE since CE-3136 P-7a — ObstacleBakeSystem, the terrain lifecycle participant (R-243): an obstacle type waits for
+            //   its ack, so a host that builds the pack and forgets to schedule it would hold every obstacle until the ELM timeout.
             Assert.Equal(string.Empty, creation.Unserviceable(new object[]
             {
                 creation.RequestSystem, creation.SpawnSystem, creation.FinalizationSystem,
-                creation.PromotionSystem,
+                creation.PromotionSystem, creation.ObstacleBakeSystem,
             }));
 
             var missingRequest = creation.Unserviceable(new object[]
             {
-                creation.SpawnSystem, creation.FinalizationSystem, creation.PromotionSystem,
+                creation.SpawnSystem, creation.FinalizationSystem, creation.PromotionSystem, creation.ObstacleBakeSystem,
             });
             Assert.Contains("RequestSystem", missingRequest);
 
@@ -293,6 +295,7 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("SpawnSystem", missingAll);
             Assert.Contains("FinalizationSystem", missingAll);
             Assert.Contains("PromotionSystem", missingAll);
+            Assert.Contains("ObstacleBakeSystem", missingAll);
         }
 
         /// <summary>
@@ -454,11 +457,11 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("PromotionSystem", missing);
             Assert.Contains("EntityLifecycle.Ghost", missing);
 
-            // ⭐ And it is silent once the host schedules all four.
+            // ⭐ And it is silent once the host schedules every piece (five since CE-3136 P-7a).
             Assert.Equal(string.Empty, creation.Unserviceable(new object[]
             {
                 creation.RequestSystem, creation.SpawnSystem, creation.FinalizationSystem,
-                creation.PromotionSystem,
+                creation.PromotionSystem, creation.ObstacleBakeSystem,
             }));
         }
 
@@ -619,6 +622,23 @@ namespace Hrot.SimHost.Tests
                 "longer gets it for free: arrived ghosts will never receive their TKB projection and " +
                 "will stay in EntityLifecycle.Ghost forever. That is a capability this host ALREADY HAD " +
                 "being lost silently — the exact regression the design's one-commit rule exists to stop.");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3136</c> P-7a (R-243) — every production root that builds the pack SCHEDULES the obstacle bake. An obstacle
+        /// type waits for the terrain participant's ack; a host that builds the pack and never ticks it would hold every
+        /// obstacle <c>Constructing</c> until the lifecycle timeout destroys it. 🔴 Red-proof: delete the
+        /// <c>creation.ObstacleBakeSystem</c> registration from any one root.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(RootsThatBuildThePack))]
+        public void EveryRootThatBuildsThePack_SchedulesTheObstacleBake(string rootPath)
+        {
+            var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(rootPath));
+            Assert.True(src.Contains("EntityCreationPack.Build"), $"{rootPath} no longer builds the pack, so this row cannot assert anything.");
+            Assert.True(src.Contains("creation.ObstacleBakeSystem"),
+                $"{rootPath} builds EntityCreationPack but never schedules creation.ObstacleBakeSystem: every static obstacle on " +
+                "this host would stay Constructing until the lifecycle timeout destroys it.");
         }
 
         private sealed class CountingTranslator : ITkbEntityTranslator

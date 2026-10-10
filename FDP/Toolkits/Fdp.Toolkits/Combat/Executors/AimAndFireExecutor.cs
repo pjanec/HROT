@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fbt;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Events;
@@ -54,6 +55,8 @@ namespace Fdp.Toolkit.Combat.Executors
 
             fixed (byte* dst = channel.State)
                 *(Entity*)dst = p.Target;
+            AimTimer(ref channel) = default;   // ⭐ CE-3136 P-3 — a new action aims afresh
+            RoundsFired(ref channel) = 0;      // ⭐ CE-3136 B7
 
             channel.Status = NodeStatus.Running;
         }
@@ -71,6 +74,15 @@ namespace Fdp.Toolkit.Combat.Executors
             if (!CombatLife.IsAlive(world, p.Target))
             {
                 channel.Status = NodeStatus.Success;
+                Say(world, entity, ActionReason.Done, p.Target);
+                return;
+            }
+
+            // ⭐ CE-3136 B7 — the asked rounds are fired: done.
+            if (p.Rounds > 0 && RoundsFired(ref channel) >= p.Rounds)
+            {
+                channel.Status = NodeStatus.Success;
+                Say(world, entity, ActionReason.Done, p.Target);
                 return;
             }
 
@@ -84,7 +96,28 @@ namespace Fdp.Toolkit.Combat.Executors
             if (weapon.Ammo == 0)
             {
                 channel.Status = NodeStatus.Failure;
+                Say(world, entity, ActionReason.OutOfAmmo, p.Target);
                 return;
+            }
+
+            // ⭐⭐ CE-3136 P-3 (peek-and-fire D3 + D4) — an aimed shot needs the target SEEN NOW (D4), continuously for the aim time
+            //   (D3). The aim clock runs beside the cooldown, never after it; it restarts on lost sight, a new target or the
+            //   shooter's stance change, and OnEnter starts it fresh. Once aimed, later rounds need only the cooldown. Not seen ⇒
+            //   hold (Running, no round spent), like the ROE hold. Blind fire (FireAtPoint) has neither gate.
+            ref var aim = ref AimTimer(ref channel);
+            bool seen = Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
+            if (!seen)
+                aim = default;
+            else
+            {
+                byte stance = (byte)ShooterStance(world, entity);
+                if (aim.Target != p.Target || aim.Stance != stance)
+                    aim = new AimState { Target = p.Target, Stance = stance };
+                if (aim.Ready == 0)
+                {
+                    aim.Elapsed += dt;
+                    if (aim.Elapsed >= AimSecondsFor(world, entity, mountIndex)) aim.Ready = 1;
+                }
             }
 
             // Drain cooldown continuously each frame; fire only after cooldown reaches zero.
@@ -92,6 +125,25 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 weapon.CooldownSecondsRemaining -= dt;
                 channel.Status = NodeStatus.Running;
+                if (!seen || aim.Ready == 0) SayAim(world, entity, p.Target, seen, in aim, mountIndex);
+                else Say(world, entity, ActionReason.Cooldown, p.Target, weapon.CooldownSecondsRemaining);
+                return;
+            }
+
+            if (!seen || aim.Ready == 0)
+            {
+                channel.Status = NodeStatus.Running;
+                SayAim(world, entity, p.Target, seen, in aim, mountIndex);
+                return;
+            }
+
+            // ⭐ CE-3136 P-5 (D9) — an empty magazine RELOADS instead of failing (the dispatcher runs the reload every frame, so it
+            //   also finishes while the unit is hidden); the action holds meanwhile. Out of ammunition altogether is still Failure.
+            if (!Magazine.Ready(weapon))
+            {
+                Magazine.StartIfEmpty(ref weapon);
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
                 return;
             }
 
@@ -100,6 +152,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (LineOfFire.BlockedByFriendly(world, entity, p.Target))
             {
                 channel.Status = NodeStatus.Running;
+                Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target);
                 return;
             }
 
@@ -109,6 +162,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (!RoePermitsFire(world, entity))
             {
                 channel.Status = NodeStatus.Running;
+                Say(world, entity, ActionReason.HoldRoe, p.Target);
                 return;
             }
 
@@ -119,11 +173,59 @@ namespace Fdp.Toolkit.Combat.Executors
                 WeaponIndex = mountIndex,
             });
 
-            weapon.Ammo--;
+            Magazine.Spend(ref weapon);   // ⭐ CE-3136 P-5 — the total and the magazine; an emptied magazine starts its reload
             weapon.CooldownSecondsRemaining = p.CooldownSeconds;
 
-            channel.Status = NodeStatus.Running;
+            int fired = ++RoundsFired(ref channel);
+            channel.Status = p.Rounds > 0 && fired >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
+            Say(world, entity, ActionReason.Firing, p.Target, fired, p.Rounds);
         }
+
+        // ⭐ CE-3136 (T1) — the weapon row of the unit's ActionStatus: why this action is (not) firing this frame.
+        private static void Say(EntityRepository world, Entity unit, ActionReason reason, Entity target, float progress = 0f, float needed = 0f)
+            => ActionStatusOf.Weapon(world, unit, CombatConstants.ActionIdAimAndFire, reason, target, progress, needed);
+
+        private static void SayAim(EntityRepository world, Entity unit, Entity target, bool seen, in AimState aim, int mountIndex)
+        {
+            if (!seen) Say(world, unit, ActionReason.HoldNotSeen, target);
+            else Say(world, unit, ActionReason.Aiming, target, aim.Elapsed, AimSecondsFor(world, unit, mountIndex));
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> P-3 — the aim timer, in the channel state after the target (bytes 8–23 of 32).</summary>
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        public struct AimState
+        {
+            public Entity Target;
+            public float  Elapsed;
+            public byte   Stance;
+            public byte   Ready;
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> B7 — the rounds the CURRENT AimAndFire action has fired (valid once the dispatcher has entered it).</summary>
+        public static int RoundsFiredOf(ref WeaponChannel channel) => RoundsFired(ref channel);
+
+        /// <summary>⭐ <c>CE-3136</c> B7 — rounds fired by this action, in the channel state after the aim timer (bytes 24–27).</summary>
+        private static unsafe ref int RoundsFired(ref WeaponChannel channel)
+        {
+            fixed (byte* s = channel.State)
+                return ref Unsafe.AsRef<int>(s + sizeof(Entity) + sizeof(AimState));
+        }
+
+        private static unsafe ref AimState AimTimer(ref WeaponChannel channel)
+        {
+            fixed (byte* s = channel.State)
+                return ref Unsafe.AsRef<AimState>(s + sizeof(Entity));
+        }
+
+        private static Fdp.Toolkit.Tkb.Domain.StanceId ShooterStance(EntityRepository world, Entity e)
+            => world.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceIntent>()
+                ? Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(world, e)
+                : Fdp.Toolkit.Tkb.Domain.StanceId.Standing;
+
+        /// <summary>The fired mount's aim time (TKB, by type), else <c>EngineFallbacks.AimSeconds</c>.</summary>
+        public static float AimSecondsFor(EntityRepository world, Entity shooter, int mountIndex)
+            => Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.AimSecondsOrFallback(
+                   CombatTkb.MountOf(world, shooter, mountIndex)?.AimSeconds ?? 0f);
 
         /// <summary>The mount child with <paramref name="index"/> (its WeaponState entity); mount 0 on the owner when there is none.</summary>
         private static int MountByIndex(EntityRepository world, Entity owner, int index, out Entity mount)

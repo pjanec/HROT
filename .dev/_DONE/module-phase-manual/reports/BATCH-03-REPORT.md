@@ -20,7 +20,7 @@
 
 ## Build Status
 
-`dotnet build IOS-IG-SimHost.sln` -> **Build succeeded. 0 Error(s)**
+`dotnet build HROT.sln` -> **Build succeeded. 0 Error(s)**
 
 ---
 
@@ -31,7 +31,7 @@
 Passed!  - Failed: 0, Passed: 40, Skipped: 0, Total: 40, Duration: 2 s
 ```
 
-**Full solution sweep (`dotnet test IOS-IG-SimHost.sln --no-build`):**
+**Full solution sweep (`dotnet test HROT.sln --no-build`):**
 ```
 Failed!  - Failed: 10, Passed: 130, Skipped: 4, Total: 144, Duration: 6 m 34 s
            - Hrot.ClusterRunner.Integration.Tests.dll (net8.0)

@@ -719,7 +719,7 @@ zero wire a function return).
 
 ```bash
 # gates used throughout (all headless)
-dotnet build IOS-IG-SimHost.sln -v q --nologo
+dotnet build HROT.sln -v q --nologo
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj -v q --nologo
 dotnet test Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints.Tests/Hrot.Diagnostics.Breakpoints.Tests.csproj -v q --nologo
 dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.Core.Tests/NodeEditor.Core.Tests.csproj -v q --nologo

@@ -91,7 +91,7 @@ public static class PanelIds
     // "PanelKind must agree" case this file exists for. 📄 QUEUE_Panel_Observability_Sweep.md
     // group 5's twin-diff finding: a SEPARATE, unreferenced Hrot.UI.Common PROJECT holds a
     // stale copy of the same source under an identical namespace — that copy is dead (zero
-    // ProjectReferences, absent from IOS-IG-SimHost.sln) and is NOT part of this kind scheme.
+    // ProjectReferences, absent from HROT.sln) and is NOT part of this kind scheme.
 
     /// <summary>⭐ The map-layer visibility config panel.</summary>
     public const string Config = "config";

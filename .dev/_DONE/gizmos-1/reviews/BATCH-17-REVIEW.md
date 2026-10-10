@@ -9,7 +9,7 @@
 
 ## Build
 
-`dotnet build IOS-IG-SimHost.sln --no-incremental` → **0 errors, 109 warnings** (was 108 before
+`dotnet build HROT.sln --no-incremental` → **0 errors, 109 warnings** (was 108 before
 batch; the extra warning is from new using directives — acceptable).
 
 ---

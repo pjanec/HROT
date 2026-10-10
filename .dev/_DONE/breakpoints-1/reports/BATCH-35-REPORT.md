@@ -203,4 +203,4 @@ All 16 new tests pass. Blueprints test build: 0 errors.
 | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Core/IBlueprintTimeController.cs` | Added IEngineDebugTimeController; IBlueprintTimeController is now [Obsolete] |
 | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/Debug/MasterSyncTimeControllerAdapter.cs` | Implements both interfaces; #pragma suppresses CS0618 |
 | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/BlueprintDebugSession.cs` | Field/ctor param updated to IEngineDebugTimeController |
-| `IOS-IG-SimHost.sln` | Both new projects added via dotnet sln add |
+| `HROT.sln` | Both new projects added via dotnet sln add |

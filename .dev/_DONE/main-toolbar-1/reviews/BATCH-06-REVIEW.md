@@ -10,7 +10,7 @@ gated), and removal of the focus-gated inline Ctrl+S in EditorSubsystem (§20). 
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → **0 errors, 0 new warnings**.
+- `dotnet build HROT.sln` → **0 errors, 0 new warnings**.
 - New tests run by lead: `SaveCommandsTests` → **5 passed, 0 failed** (unfiltered).
 - **SimHost "regression" investigated:** worker reported `Hrot.SimHost.Tests` 584/1
   (`EqsModuleTests` "EditablePolyline not registered"). Verified it's a pre-existing nondeterministic

@@ -25,7 +25,10 @@ def call(method, path, body=None):
     req = urllib.request.Request(BASE + path, data=data, method=method, headers={"Content-Type": "application/json"})
     try:
         with OPENER.open(req, timeout=60) as r:
-            return json.loads(r.read())
+            raw = r.read()
+            if not raw:   # the host died while answering (the headers were already sent) — see the cluster log
+                return {"http": r.status, "body": "(empty reply — did the cluster process exit? see its log)"}
+            return json.loads(raw)
     except urllib.error.HTTPError as e:
         return {"http": e.code, "body": e.read().decode()[:400]}
     except (urllib.error.URLError, ConnectionError, TimeoutError) as e:   # nothing listening (yet)
@@ -454,13 +457,195 @@ def run_attack_approach(c, timeout):
     c.ok(fired is not None, f"…and from there it regains sight and fires ({a0} → {fired})")
 
 
+# ── bt-doors (CE-3104, buildings 5d) — a locked front door is routed round; a closed back door is opened on the way ─────
+#   docs/DESIGN_Building_Interiors.md §3j "5d-3 / 5d-4 as built". House A (bt-range, SW corner (100,100)): front (104.2,100), 0.9 m (real width since the tiled bake, CE-3111)
+#   LOCKED by the terrain, back (107.4,108) CLOSED by the scenario's TerrainObjects section, hall (105,106) open. The Visitor
+#   starts south of the locked front and is ordered into the west room. The Locksmith (5d-2) runs DoorLocksmith on the front.
+
+def doors_by_key():
+    return {d["key"]: d for d in (data(call("GET", "/doors")) or {}).get("doors") or []}
+
+
+def run_doors(c, timeout):
+    ids = ids_by_name()
+    visitor = ids.get("Visitor")
+    if not c.ok(visitor is not None, "the Visitor is loaded"):
+        return
+    front, back, hall = "bt-range/House A/front", "bt-range/House A/back", "bt-range/House A/hall"
+    d = wait_for(lambda: (x := doors_by_key()) and all((x.get(k) or {}).get("runtimeId") for k in (front, back, hall)) and x, timeout)
+    if not c.ok(d is not None, "House A's doors exist as entities"):
+        return
+    c.ok(d[front]["state"] == "Locked", f"the front door is Locked (terrain) — {d[front]['state']}")
+    c.ok(d[back]["state"] == "Closed", f"the back door is Closed (the scenario's TerrainObjects section) — {d[back]['state']}")
+    c.ok(d[hall]["state"] == "Open", f"the hall door is Open — {d[hall]['state']}")
+    call("POST", "/sim/play", {})
+
+    # the Locksmith (④) works the front door at the same time — its positions are sampled from the start
+    smith = ids.get("Locksmith")
+    smith_front = []
+    def watch_smith():
+        p = position(smith) if smith is not None else None
+        if p and 103.5 <= p[0] <= 104.9 and 99.5 <= p[1] <= 101.0:
+            smith_front.append(p)
+        return p
+
+    # ① the route goes round the locked front: the Visitor never enters the house by the front doorway
+    went_in_front = []
+    def watch():
+        watch_smith()
+        p = position(visitor)
+        if p and 103.5 <= p[0] <= 104.9 and 99.5 <= p[1] <= 101.0:
+            went_in_front.append(p)
+        return p
+
+    # ② it stops at the CLOSED back door and opens it; the door opens while the Visitor stands at it
+    opened = wait_for(lambda: (watch() and doors_by_key().get(back, {}).get("state") == "Open") and position(visitor), timeout * 2)
+    if not c.ok(opened is not None, "the back door is opened"):
+        return
+    dist = ((opened[0] - 107.4) ** 2 + (opened[1] - 108.0) ** 2) ** 0.5
+    c.ok(dist <= 3.0, f"by the Visitor standing at it ({dist:.1f} m from the doorway)")
+
+    # ③ it walks on, through the hall door, into the west room
+    objective = (102.0, 104.0)
+    arrived = wait_for(lambda: (p := watch()) and ((p[0] - objective[0]) ** 2 + (p[1] - objective[1]) ** 2) ** 0.5 <= 1.5 and p, timeout * 2)
+    c.ok(arrived is not None, f"the Visitor arrives in the west room {objective}")
+    c.ok(not went_in_front, f"never through the locked front doorway ({went_in_front[:1]})")
+
+    # ④ 5d-2 — the Locksmith runs the curated DoorLocksmith tree (MoveToDoor → Unlock → Open → walk in): the front ends Open,
+    #    and the walk after it goes through the front (the next path uses the door it opened)
+    if not c.ok(smith is not None, "the Locksmith is loaded"):
+        return
+    opened_front = wait_for(lambda: (watch_smith() or True) and doors_by_key().get(front, {}).get("state") == "Open", timeout * 2)
+    c.ok(opened_front is not None, "the Locksmith unlocks and opens the front door")
+    inside = (102.0, 103.0)
+    got_in = wait_for(lambda: (p := watch_smith()) and ((p[0] - inside[0]) ** 2 + (p[1] - inside[1]) ** 2) ** 0.5 <= 1.5 and p, timeout * 2)
+    c.ok(got_in is not None, f"the Locksmith walks in to {inside}")
+    c.ok(bool(smith_front), "through the front doorway it opened")
+
+
+# ── bt-grenade-posture / bt-mortar-roof (CE-1032, buildings Stage 6) — warheads: blast and fragments ──────────────────────────
+#   docs/DESIGN_Building_Interiors.md §3k. Premises in bt-range/premises.json (DemoPremisesTests). The burst is read back from
+#   GET /combat/detonations — what AreaEffectSystem decided — and the damage from each unit's Health.
+
+def detonations():
+    # ⚠ the area effect runs where damage is assessed (SimHost): read its log there, then give the checks their perspective back
+    call("POST", "/perspective", {"name": "SimHost"})
+    try:
+        return (data(call("GET", "/combat/detonations?last=10")) or {}).get("detonations") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+
+
+def effect_on(d, nid):
+    return next((e for e in d.get("effects") or [] if e.get("entity") == nid), None)
+
+
+def run_grenade_posture(c, timeout):
+    ids = ids_by_name()
+    standing, prone = ids.get("Standing"), ids.get("Prone")
+    if not c.ok(None not in (ids.get("Thrower"), standing, prone), "the Thrower, Standing and Prone are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    dets = wait_for(lambda: (x := detonations()) and x, timeout + 10)   # the throw (~1.5 s) + the 4.5 s fuze
+    if not c.ok(dets is not None, "the grenade burst (GET /combat/detonations)"):
+        return
+    d = dets[0]
+    c.ok("M67" in d.get("warheadSource", ""), f"its warhead is the M67's — {d.get('warheadSource', '')[:60]}")
+    b = d.get("burst") or [0, 0, 0]
+    c.ok(abs(b[1] - 35) < 2.0 and b[2] < 0.5, f"it burst on the ground ~5 m in front of the Low Wall — {b}")
+    es, ep = effect_on(d, standing), effect_on(d, prone)
+    if not c.ok(es is not None and ep is not None, "both men were in reach"):
+        return
+    c.ok(es["fragmentExposure"] >= 0.5, f"the STANDING man is exposed over the wall — exposure {es['fragmentExposure']:.2f} (chest and head)")
+    c.ok(ep["fragmentExposure"] <= 0.1 and ep["stance"] == "Prone", f"the PRONE man is not — exposure {ep['fragmentExposure']:.2f}, {ep['stance']}")
+    wait_for(lambda: (h := health(standing)) is not None and h < 99, 5)   # ⚠ a predicate, not the value: Health 0 is falsy
+    hs, hp = health(standing), health(prone)
+    c.ok(hs is not None and hs < 99, f"the standing man is hurt — Health {hs}")
+    c.ok(hp is not None and hp >= 99, f"the prone man is not — Health {hp}")
+
+
+def run_mortar_roof(c, timeout):
+    ids = ids_by_name()
+    down, up, yard = ids.get("Downstairs"), ids.get("Upstairs"), ids.get("Courtyard")
+    if not c.ok(None not in (down, up, yard, ids.get("Mortar Roof"), ids.get("Mortar Yard")), "both mortars and the three men are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    dets = wait_for(lambda: (x := detonations()) and len(x) >= 2 and x, timeout + 20)   # two bombs, ~12 s of flight each
+    if not c.ok(dets is not None, f"both bombs burst — {len(detonations())}"):
+        return
+    roof = next((d for d in dets if (d.get("burst") or [0, 0, 0])[2] > 5.5), None)
+    yard_burst = next((d for d in dets if (d.get("burst") or [0, 0, 9])[2] < 0.5), None)
+    c.ok(roof is not None, f"one burst on House A's roof (z ≈ 6.1) — {[d.get('burst') for d in dets]}")
+    c.ok(yard_burst is not None, "one burst in the courtyard")
+    if roof is not None:
+        e = effect_on(roof, down)
+        c.ok(e is None or (e["fragmentExposure"] == 0 and e["blastBarrier"] < 0.1),
+             f"the roof burst reaches the man downstairs only through the slabs — {e and (e['fragmentExposure'], e['blastBarrier'])}")
+    wait_for(lambda: (h := health(yard)) is not None and h < 80, 5)   # ⚠ a predicate, not the value: Health 0 is falsy
+    hy = health(yard)
+    c.ok(hy is not None and hy < 80, f"the man in the open courtyard is badly hurt — Health {hy}")
+    hd = health(down)
+    c.ok(hd is not None and hd >= 90, f"the man downstairs is spared — Health {hd}")
+
+
+# ── bt-window-duel (CE-3136 P-8, D10) — the window duel: PeekAndFire both sides ──────────────────────────────────────────────
+#   docs/DESIGN_Peek_And_Fire.md §2, §8, P-8. Premises in bt-range/premises.json (DemoPremisesTests). A (upstairs in House A)
+#   rotates its windows; B (in the street, behind Van 1) steps out to fire, and when its cover is used up suppresses and bounds
+#   to Van 2. ⭐ NO HTTP WRITE: the duel plays out on its own.
+
+def run_window_duel(c, timeout):
+    ids = ids_by_name()
+    a, b = ids.get("Window Rifleman"), ids.get("Street Rifleman")
+    if not c.ok(None not in (a, b, ids.get("Van 1"), ids.get("Van 2")), "both riflemen and both vans are loaded"):
+        return
+    a0, b0 = ammo(a)[0], ammo(b)[0]
+    call("POST", "/sim/play", {})
+
+    spots, b_spots = set(), set()
+    # House A's window firing positions, both storeys (bt-range's cover database) — at a window, not on the way between two
+    windows = [(102.1, 100.9, 0), (109.1, 103.6, 0), (102.1, 100.9, 3), (107.1, 100.9, 3), (105.4, 107.1, 3)]
+    def watch():
+        pa, pb = position(a), position(b)
+        if pa:
+            for w in windows:
+                if abs(pa[2] - w[2]) < 1 and ((pa[0] - w[0]) ** 2 + (pa[1] - w[1]) ** 2) ** 0.5 <= 0.75:
+                    spots.add(w)
+        if pb: b_spots.add((round(pb[0]), round(pb[1])))
+        return pa and pb
+    def fired(nid, start):
+        n = ammo(nid)[0]
+        return n is not None and start is not None and n < start
+
+    # ① both expose and fire (aimed or a blind burst — each side's ammunition falls)
+    both = wait_for(lambda: watch() and fired(a, a0) and fired(b, b0), timeout * 2)
+    c.ok(both is not None, f"both fire — A ammo {a0}→{ammo(a)[0]}, B ammo {b0}→{ammo(b)[0]}")
+
+    # ② A uses at least two windows (the heat / exposure count moves it on); ③ B bounds to Van 2's cover
+    van2 = (113.0, 76.0)
+    def bounded():
+        watch()
+        pb = position(b)
+        return pb and ((pb[0] - van2[0]) ** 2 + (pb[1] - van2[1]) ** 2) ** 0.5 <= 4.0 and pb
+    two_windows = lambda: watch() and len(spots) >= 2
+    c.ok(wait_for(two_windows, timeout * 4, every=0.25) is not None,
+         f"A fires from at least two windows — {sorted(spots)}")
+    c.ok(wait_for(bounded, timeout * 4, every=0.25) is not None, f"B bounds to Van 2's cover — B was at {sorted(b_spots)[:12]}")
+
+    ha, hb = health(a), health(b)
+    print(f"    health: A {ha}, B {hb}; ammo: A {ammo(a)[0]}, B {ammo(b)[0]}")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,
              "ua-weapon-choice": run_weapon_choice,
              "ua-three-hosts": run_three_hosts,
-             "ua-attack-approach": run_attack_approach}
+             "ua-attack-approach": run_attack_approach,
+             "bt-doors": run_doors,
+             "bt-grenade-posture": run_grenade_posture,
+             "bt-mortar-roof": run_mortar_roof,
+             "bt-window-duel": run_window_duel}
 
 
 def main():

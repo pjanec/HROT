@@ -679,7 +679,7 @@ calls in the non-abstracted rendering path). Only the `HandleInput` signature ne
 ## Step 20 -- Build verification
 
 ```
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln --no-incremental
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln --no-incremental
 ```
 
 Fix all errors. Key things that commonly cause errors:
@@ -696,7 +696,7 @@ Fix all errors. Key things that commonly cause errors:
 ## Step 21 -- Run tests and check counts
 
 ```
-dotnet test d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln
+dotnet test d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln
 ```
 
 Expected: all previously-passing tests continue to pass. The draw tests for MeasureTool should

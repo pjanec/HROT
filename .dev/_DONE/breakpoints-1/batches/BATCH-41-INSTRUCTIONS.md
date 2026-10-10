@@ -339,7 +339,7 @@ public void Manager_CastToIMutationInterceptor_IsPaused_FalseWhenRunning()
 
 ## Build and Test Requirements
 
-1. Run: `dotnet build IOS-IG-SimHost.sln -c Debug` — must complete with 0 errors, 0 warnings
+1. Run: `dotnet build HROT.sln -c Debug` — must complete with 0 errors, 0 warnings
    from BATCH-41 files. (Pre-existing 5 CS0618 warnings in Hrot.Blueprints.Tests and
    DataBreakpointManagerTests.cs are acceptable — do not suppress them with new NoWarn entries.)
 2. Run: `dotnet test FDP/Engine/Fdp.Presentation.Tests/Fdp.Presentation.Tests.csproj`

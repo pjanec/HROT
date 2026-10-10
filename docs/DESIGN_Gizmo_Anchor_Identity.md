@@ -803,7 +803,7 @@ would still get through.**
 |---|---|
 | ⛔ **Release builds** | `Debug.Assert` is compiled out. ⇒ the enforcement is dev + CI, and the *guards* (§6.7's tool refusal, this section's binding refusal) are what hold in production |
 | ⛔ **A WRONG id** | it checks presence, never correctness. An id that names another node's entity passes |
-| ⛔ **`Stride/` is outside `IOS-IG-SimHost.sln`** | 📌 so "the solution build is clean" never covered it — a gate gap I had asserted past. ✅ **Measured:** Stride touches none of the changed APIs in a breaking way — only `prim.AnchorIndex` as the `EntityLocal` anchor key *(the role §6.7 preserved)*, `GizmoPrimitiveBuffer` and `NetworkEntityMap` |
+| ⛔ **`Stride/` is outside `HROT.sln`** | 📌 so "the solution build is clean" never covered it — a gate gap I had asserted past. ✅ **Measured:** Stride touches none of the changed APIs in a breaking way — only `prim.AnchorIndex` as the `EntityLocal` anchor key *(the role §6.7 preserved)*, `GizmoPrimitiveBuffer` and `NetworkEntityMap` |
 | ⚠ **`GizmoMap.Example` / `Viewer`** | now under the invariant too. If a demo emits an identity-less interactive primitive it will assert — correctly, but it is new noise in those apps |
 
 ---

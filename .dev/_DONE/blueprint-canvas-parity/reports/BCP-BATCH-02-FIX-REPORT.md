@@ -36,7 +36,7 @@
 - **`Hrot.BTree.Editor.Tests`**: 382 passed, 0 failed.
 - **`Hrot.Hsm.Editor.Tests`**: 333 passed, 0 failed.
 - **`Hrot.ClusterRunner.Integration.Tests --filter EditorSubsystemBoot`**: 10 passed, 0 failed (confirms the production canvas-window wiring boots).
-- **`dotnet build IOS-IG-SimHost.sln`**: **0 errors.** 4 warnings, all in two projects I did not touch (`Hrot.Utility.Editor.Tests` xUnit2013 style, `Hrot.Diagnostics.Breakpoints.Tests` CS0618 obsolete-API) — pre-existing, unrelated to this batch. Every project I modified (`Hrot.Editor.AiShared`, `Hrot.Blueprints.Editor`, `NodeEditor.Core`, `NodeEditor.UI`, `Hrot.Editor`, and the touched test projects) builds at 0 warnings.
+- **`dotnet build HROT.sln`**: **0 errors.** 4 warnings, all in two projects I did not touch (`Hrot.Utility.Editor.Tests` xUnit2013 style, `Hrot.Diagnostics.Breakpoints.Tests` CS0618 obsolete-API) — pre-existing, unrelated to this batch. Every project I modified (`Hrot.Editor.AiShared`, `Hrot.Blueprints.Editor`, `NodeEditor.Core`, `NodeEditor.UI`, `Hrot.Editor`, and the touched test projects) builds at 0 warnings.
 
 ## Developer Insights
 - The canvas-stuck symptom was a single missing per-frame call; the demo's `DemoShell.Frame` proved it (`_host.PickerRegistry_.DrawFrame()` at line 150). The fix is small and high-leverage.

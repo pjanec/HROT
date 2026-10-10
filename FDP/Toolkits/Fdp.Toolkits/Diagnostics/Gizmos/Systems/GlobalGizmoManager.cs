@@ -237,10 +237,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             //    applies, stated once. ⛔ This arbiter has no second (target-lookup) arm, hence the null
             //    resolver: it never read evt.Token and still does not. §6.2b ⑨.
             var focused = _focus.RecipientFor(this, null);
+            var bus = _interactionBus ?? ((EntityRepository)view).Bus;
+
+            // ⭐⭐⭐ CE-3149 — StructUpdate is ANCHORED (it names its gizmo), so it is routed by AnchorId whether or not anything
+            //    holds the focus. 🔴 It used to sit BELOW the `focused == null` return, so only a focus holder's panel could ever
+            //    Apply — and the layer control is a permanent, non-exclusive gizmo that never holds focus: "Apply does nothing".
+            var structUpdates = bus.ReadManaged<GizmoStructUpdateEvent>();
+            foreach (var evt in structUpdates)
+            {
+                if (_activeGizmos.TryGetValue(evt.AnchorId, out var target))
+                    target.OnStructUpdate(evt.PayloadJson);
+            }
+
             if (focused == null)
                 return;
-
-            var bus = _interactionBus ?? ((EntityRepository)view).Bus;
 
             var drags = bus.Read<GizmoDragUpdateEvent>();
             foreach (ref readonly var evt in drags)
@@ -253,15 +263,6 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var keyEvents = bus.Read<GizmoKeyEvent>();
             foreach (ref readonly var evt in keyEvents)
                 focused.OnKeyEvent(evt.Key, evt.IsPressed);
-
-            // Route StructUpdate events by AnchorId so the gizmo receives JSON mutations
-            // committed via its StructInspector panel on the terminal.
-            var structUpdates = bus.ReadManaged<GizmoStructUpdateEvent>();
-            foreach (var evt in structUpdates)
-            {
-                if (_activeGizmos.TryGetValue(evt.AnchorId, out var target))
-                    target.OnStructUpdate(evt.PayloadJson);
-            }
         }
 
         // FNV-1a 32-bit hash used to derive GizmoTypeId for stamping purposes.

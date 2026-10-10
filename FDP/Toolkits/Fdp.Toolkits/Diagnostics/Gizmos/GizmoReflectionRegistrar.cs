@@ -57,11 +57,23 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// neither an attribute (per projector only) nor an interface member (per projector only) can
         /// express. Return <see langword="null"/> for the default.</para>
         /// </param>
+        /// <param name="services">
+        /// ⭐ <c>CE-3123</c> (R-228) — the host's services for projector constructors (e.g. <c>IGeographicTransform</c>,
+        /// <c>BehaviorRegistry</c>). The registrar picks the public constructor with the most parameters it can ALL supply
+        /// (<see cref="GizmoSettingsRegistry"/> or a service), so a projector that needs a service no longer has to be registered
+        /// by hand on the hosts that happen to have it. 📄 <c>DESIGN_Uniform_Gizmo_Membership.md</c> §10.
+        /// </param>
+        /// <param name="reportUnserviceable">
+        /// Told, by name, about every projector skipped because this host provides none of the services its constructors need —
+        /// ⛔ never silent. A projector with no public constructor at all is still an authoring mistake and throws.
+        /// </param>
         public static IReadOnlyList<Type> RegisterAll(
             GizmoRegistry gizmoRegistry,
             StatelessGizmoRegistry statelessRegistry,
             GizmoSettingsRegistry settings,
-            Func<Type, IGizmoVisibilityPolicy?>? visibilityPolicy = null)
+            Func<Type, IGizmoVisibilityPolicy?>? visibilityPolicy = null,
+            Func<Type, object?>? services = null,
+            Action<string>? reportUnserviceable = null)
         {
             if (statelessRegistry == null) throw new ArgumentNullException(nameof(statelessRegistry));
 
@@ -72,10 +84,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 var attr = type.GetCustomAttribute<GizmoProjectorAttribute>();
                 if (attr == null) continue;
 
-                object instance;
+                object? instance;
                 try
                 {
-                    instance = Instantiate(type, settings);
+                    instance = Instantiate(type, settings, services, out string? missing);
+                    if (instance == null)
+                    {
+                        reportUnserviceable?.Invoke(
+                            $"gizmo '{type.Name}' is not drawn on this host: it needs {missing}, which the host does not provide");
+                        continue;
+                    }
                 }
                 catch (Exception ex) when (ex is MissingMethodException or TargetInvocationException)
                 {
@@ -161,15 +179,38 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             }
         }
 
-        private static object Instantiate(Type type, GizmoSettingsRegistry settings)
+        /// <summary>
+        /// The richest public constructor whose parameters can ALL be supplied — <see cref="GizmoSettingsRegistry"/> from
+        /// <paramref name="settings"/>, anything else from <paramref name="services"/>, an optional parameter from its default.
+        /// ⭐ <c>CE-3123</c>: before, only <c>()</c> and <c>(GizmoSettingsRegistry)</c> were possible (the generator's rule), so a
+        /// projector needing a service was registered by hand on some hosts. Returns <see langword="null"/> (and what was missing)
+        /// when no constructor can be satisfied; throws when there is no public constructor at all.
+        /// </summary>
+        public static object? Instantiate(Type type, GizmoSettingsRegistry settings, Func<Type, object?>? services, out string? missing)
         {
-            // Mirrors the generator's rule exactly: it passes `settings` when the class has a constructor
-            // taking GizmoSettingsRegistry, and nothing otherwise.
-            var withSettings = type.GetConstructor(new[] { typeof(GizmoSettingsRegistry) });
-            if (withSettings != null) return withSettings.Invoke(new object?[] { settings });
+            missing = null;
+            var ctors = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance)
+                .OrderByDescending(c => c.GetParameters().Length)
+                .ToArray();
+            if (ctors.Length == 0) throw new MissingMethodException(type.FullName, ".ctor");
 
-            return Activator.CreateInstance(type)
-                ?? throw new MissingMethodException(type.FullName, ".ctor");
+            foreach (var ctor in ctors)
+            {
+                var parameters = ctor.GetParameters();
+                var args = new object?[parameters.Length];
+                string? unmet = null;
+                for (int i = 0; i < parameters.Length && unmet == null; i++)
+                {
+                    var p = parameters[i];
+                    object? value = p.ParameterType == typeof(GizmoSettingsRegistry) ? settings : services?.Invoke(p.ParameterType);
+                    if (value != null && p.ParameterType.IsInstanceOfType(value)) args[i] = value;
+                    else if (p.HasDefaultValue) args[i] = p.DefaultValue;
+                    else unmet = p.ParameterType.Name;
+                }
+                if (unmet == null) return ctor.Invoke(args);
+                missing ??= unmet;   // what the RICHEST constructor lacked — the useful thing to report
+            }
+            return null;
         }
 
         /// <summary>

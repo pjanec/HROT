@@ -20,7 +20,7 @@ changes **HSM** emission, and the golden corpus is 43 `.bp.json` assets with **z
 
 | gate | command | result |
 |---|---|---|
-| solution build | `dotnet build IOS-IG-SimHost.sln -t:Rebuild -v q --nologo` | ✅ **0 errors / 69 warnings** *(full rebuild — baseline exactly)* |
+| solution build | `dotnet build HROT.sln -t:Rebuild -v q --nologo` | ✅ **0 errors / 69 warnings** *(full rebuild — baseline exactly)* |
 | Blueprints | `dotnet test …/Hrot.Blueprints.Tests.csproj --no-build -v q --nologo` | ✅ **3649 / 3639 / 0 / 10** *(was 3638/3628 ⇒ **+11**)* |
 | AiShared | `dotnet test …/Hrot.Editor.AiShared.Tests.csproj --no-build -v q --nologo` | ✅ **1216 / 1216 / 0 / 0** |
 | BTree.Editor | `dotnet test …/Hrot.BTree.Editor.Tests.csproj --no-build -v q --nologo` | ✅ **612 / 612 / 0 / 0** |

@@ -4,8 +4,8 @@
 
 **Project:** `d:\Work\IOS-IG-SimHost-FDP-2` (Windows, .NET 8, C#)
 
-**Build command:** `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet`
-**Test command:** `dotnet test IOS-IG-SimHost.sln --no-build --nologo`
+**Build command:** `dotnet build HROT.sln --no-restore -v quiet`
+**Test command:** `dotnet test HROT.sln --no-build --nologo`
 
 **FDP submodule:** `d:\Work\IOS-IG-SimHost-FDP-2\FDP` — has its own `git` history. Commit FDP
 changes separately with `cd FDP ; git add -A ; git commit -m "..."` before committing the parent.
@@ -505,7 +505,7 @@ Implement in this order:
 
 ## Success Criteria
 
-- `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` → 0 errors.
+- `dotnet build HROT.sln --no-restore -v quiet` → 0 errors.
 - `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build --nologo`
   → passes (only pre-existing 2 `MissionPlanTranslatorTests` failures remain).
 - `CgfLogicPackTests` simulation-system count = 16, total = 18.

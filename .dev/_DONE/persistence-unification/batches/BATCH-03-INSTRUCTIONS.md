@@ -31,7 +31,7 @@ Prove `json → generated .cs (topology core)` is **byte-identical** to today's 
 - [ ] PU-201/202: `Hrot.AiEditor.Generators` is `netstandard2.0`/`IsRoslynComponent`, references `Hrot.AiEditor.Persistence` (`ExcludeAssets="runtime"`), no editor/net8 ref. Two generators emit `CreateBuilder()`+thunk (no `[*Layout]`); malformed input → diagnostic, sibling-safe.
 - [ ] Emit core has a layout-excluding mode; full byte-identical gate (BATCH-02) still green.
 - [ ] PU-205: json→generated-core byte-identical to the committed `.cs` topology core for both fixtures (exact-string).
-- [ ] Global gate: `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 new warnings (touched); all new generator tests green; `Hrot.AiEditor.Persistence.Tests` green (BATCH-01/02); `EditorSubsystemBoot` 10/10; `Hrot.Editor.AiShared.Tests` green; `Hrot.Blueprints.Tests` only pre-existing (0 new). Report exact counts/classification.
+- [ ] Global gate: `dotnet build HROT.sln` 0 errors / 0 new warnings (touched); all new generator tests green; `Hrot.AiEditor.Persistence.Tests` green (BATCH-01/02); `EditorSubsystemBoot` 10/10; `Hrot.Editor.AiShared.Tests` green; `Hrot.Blueprints.Tests` only pre-existing (0 new). Report exact counts/classification.
 - [ ] Report → `.dev/_DONE/persistence-unification/reports/BATCH-03-REPORT.md`.
 
 ## Report Requirements

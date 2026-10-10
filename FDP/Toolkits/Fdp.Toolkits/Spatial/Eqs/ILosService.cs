@@ -24,9 +24,21 @@ namespace Fdp.Toolkit.Spatial.Eqs
     {
         private readonly TerrainWorld _world;
 
-        public TerrainLosService(TerrainWorld world) => _world = world ?? throw new System.ArgumentNullException(nameof(world));
+        private readonly DoorStates? _doors;
+
+        private readonly System.Collections.Generic.IReadOnlyList<TerrainPrism>? _vehicles;
+
+        /// <param name="doors">⭐ R-219 — the door states of the view the query runs on; null = as authored.</param>
+        /// <param name="vehicles">⭐ <c>CE-3142</c> (P-7a O5) — the live vehicle boxes of that view (<see cref="VehicleCover.Collect"/>); null = none.</param>
+        public TerrainLosService(TerrainWorld world, DoorStates? doors = null, System.Collections.Generic.IReadOnlyList<TerrainPrism>? vehicles = null)
+        {
+            _world = world ?? throw new System.ArgumentNullException(nameof(world));
+            _doors = doors;
+            _vehicles = vehicles;
+        }
 
         /// <inheritdoc/>
-        public bool HasLineOfSight(Vector3 eye, Vector3 aim) => !_world.SegmentBlocked(eye, aim);
+        public bool HasLineOfSight(Vector3 eye, Vector3 aim)
+            => !_world.SegmentBlocked(eye, aim, _doors) && (_vehicles == null || !VehicleCover.Blocks(_vehicles, eye, aim));
     }
 }

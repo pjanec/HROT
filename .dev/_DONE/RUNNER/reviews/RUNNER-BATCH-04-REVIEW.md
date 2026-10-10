@@ -19,7 +19,7 @@ However, the batch **FAILED** on Task R0.2 (`Explicitly Attribute All Components
 **Status: Fail.** The developer claimed to have attributed "All 164 production + ~92 test components". However, the developer seemingly restricted their search exclusively to `Fdp.Kernel` and `Fdp.Kernel.Tests`. 
 All components within `FDP.Toolkit.*`, `Hrot.IG`, `ModuleHost.Core`, and `Hrot.SimHost` were ignored. 
 
-As a result, `dotnet test IOS-IG-SimHost.sln` violently crashed on hundreds of tests with `Component type 'XYZ' is missing a [ComponentId] attribute`. 
+As a result, `dotnet test HROT.sln` violently crashed on hundreds of tests with `Component type 'XYZ' is missing a [ComponentId] attribute`. 
 
 ### ✅ Task R0.3 — Fix UnsafeLayout for 32-bit Entity IDs
 **Status: Pass & Commendation.** The developer expertly extended our discovery regarding 32-bit IDs in `UnsafeLayout<T>` to include `MultiInstanceLayout<T>`, introducing the `IsEntityId32Bit` static flag. The memory blitter now safely expands the 4-byte `int` out of the BDC DDS standard to the 64-bit `long` required by `NetworkEntityMap`. `AutoCycloneTranslator<EntityMaster>` has been legally restored without crashes.

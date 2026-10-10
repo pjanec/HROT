@@ -107,7 +107,7 @@ No placeholder structs needed. `MockSystems/Placeholders.cs` was NOT created.
 
 ## 3. Build Status
 
-`dotnet build IOS-IG-SimHost.sln` -- **succeeded with 0 errors, 0 warnings** (in tested projects).
+`dotnet build HROT.sln` -- **succeeded with 0 errors, 0 warnings** (in tested projects).
 
 ---
 

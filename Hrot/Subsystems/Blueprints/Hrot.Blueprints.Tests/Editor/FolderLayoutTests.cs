@@ -17,19 +17,19 @@ public sealed class FolderLayoutTests
 
     /// <summary>
     /// Resolve the repository root by walking up from the test assembly
-    /// output directory until IOS-IG-SimHost.sln is found.
+    /// output directory until HROT.sln is found.
     /// </summary>
     private static string ResolveRepoRoot()
     {
         var dir = AppContext.BaseDirectory;
         while (dir != null)
         {
-            if (File.Exists(Path.Combine(dir, "IOS-IG-SimHost.sln")))
+            if (File.Exists(Path.Combine(dir, "HROT.sln")))
                 return dir;
             dir = Path.GetDirectoryName(dir);
         }
         throw new DirectoryNotFoundException(
-            "Could not find repo root (looked for IOS-IG-SimHost.sln upward from " +
+            "Could not find repo root (looked for HROT.sln upward from " +
             AppContext.BaseDirectory + ")");
     }
 

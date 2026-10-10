@@ -59,6 +59,29 @@ namespace Hrot.Editor.Tests
             Assert.Equal("H", (string?)wall["crossed"]![0]!["building"]);
         }
 
+        /// <summary>⭐ R-217 — <c>purpose=fire</c>: the window is a plain opening (the round arrives whole); the concrete wall stops a rifle
+        /// round and passes an anti-tank one — the same <c>TerrainPenetration.Cross</c> the bullets use.</summary>
+        [Fact]
+        public void QueryFire_TheWindowLetsTheRoundThrough_TheWallStopsARifle_NotAnAntiTankRound()
+        {
+            using var repo = Repo();
+            var window = TerrainReport.QueryFire(repo, new Vector3(22.1f, 10, 1.6f), new Vector3(22.1f, 24, 1.6f), penetration: 5f, damage: 25f);
+            Assert.False((bool)window["stopped"]!);
+            Assert.Equal(25f, (float)window["arrivingDamage"]!);
+
+            var rifle = TerrainReport.QueryFire(repo, new Vector3(23.5f, 10, 1.6f), new Vector3(23.5f, 24, 1.6f), penetration: 5f, damage: 25f);
+            Assert.True((bool)rifle["stopped"]!);
+            var wall = rifle["crossed"]![0]!;
+            Assert.Equal("concrete", (string?)wall["material"]);
+            Assert.False((bool)wall["passes"]!);
+            Assert.Equal(1500f * (float)wall["pathMetres"]!, (float)wall["resistanceMmRha"]!, 1);
+
+            var atgm = TerrainReport.QueryFire(repo, new Vector3(23.5f, 10, 1.6f), new Vector3(23.5f, 24, 1.6f), penetration: 800f, damage: 2000f);
+            Assert.False((bool)atgm["stopped"]!);
+            Assert.Equal(2000f, (float)atgm["arrivingDamage"]!);
+            Assert.True((float)atgm["arrivingPenetration"]! < 800f);
+        }
+
         [Fact]
         public void Doors_ListByKey_WithTheInitialState_AndNoRuntimeIdYet()
         {
@@ -67,6 +90,24 @@ namespace Hrot.Editor.Tests
             Assert.Equal("range/H/front", (string?)door["key"]);
             Assert.Equal("Locked", (string?)door["state"]);
             Assert.Null(door["runtimeId"]);
+        }
+
+        [Fact]
+        public void Doors_NameTheDoorEntity_AndReportItsState_FromTheWorldsView()
+        {
+            using var repo = Repo();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(1007L));
+            repo.AddComponent(e, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
+            repo.SetManagedComponent(e, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "range/H/front" });
+
+            var door = Assert.Single((JsonArray)TerrainReport.Doors(repo)["doors"]!)!;
+            Assert.Equal(1007L, (long)door["runtimeId"]!);
+            Assert.Equal("Open", (string?)door["entityState"]);
+            Assert.Equal("Open", (string?)door["state"]);     // ⭐ R-219 — the state is the world's door entity, read from this view
         }
 
         [Fact]

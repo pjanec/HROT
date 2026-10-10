@@ -46,6 +46,62 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             return p;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3147</c> — a box in the mode PRODUCTION actually emits: <c>MakeBox2D</c>'s <c>sizeMode</c>
+        /// defaults to <see cref="SizeMode.ScreenPixels"/> (<c>DebugPrimitive.cs:331</c>), whereas
+        /// <c>default(DebugPrimitive)</c> leaves <c>WorldMeters</c> (= 0). ⛔⛔ That is why this suite never saw the
+        /// defect: <see cref="EntityBox"/> builds world-metre boxes AND every rail runs at <see cref="Zoom"/> = 1,
+        /// the one zoom at which the drawn and picked extents agree anyway.
+        /// </summary>
+        private static DebugPrimitive ScreenPixelEntityBox(long networkId, float x, float y, float halfExtentPx = 8f)
+        {
+            var p = EntityBox(networkId, x, y, halfExtentPx);
+            p.SizeMode = SizeMode.ScreenPixels;
+            return p;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3147</c> — <b>a screen-pixel box's PICK area must shrink with zoom exactly as its DRAWN area
+        /// does.</b> 🔒 User, <c>2026-10-09</c>: <i>"select sensitive area still big, diameter shouldn't be much
+        /// bigger than entity symbol."</i>
+        /// <para>📐 The renderer scales a <see cref="SizeMode.ScreenPixels"/> extent by <c>1/zoom</c>
+        /// (<c>DebugPrimitiveRenderer2D.cs:211</c>), so at zoom 10 an 8 px half-extent covers 0.8 m of world. The
+        /// hit-test used to compare the RAW 8 and scale only its 5 px slack ⇒ ~8.5 m of world, a 10× oversized
+        /// target. A probe 5 m away must therefore MISS.</para>
+        /// </summary>
+        [Fact]
+        public void CE3147_AScreenPixelBoxesPickArea_ShrinksWithZoom_LikeItsDrawnArea()
+        {
+            var prims = new[] { ScreenPixelEntityBox(networkId: 4242L, x: 100f, y: 50f, halfExtentPx: 8f) };
+
+            // At zoom 10 the symbol covers 0.8 m; with the 0.5 m slack, 5 m away is far outside it.
+            Assert.Null(GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
+                prims, new Vector2(105f, 50f), zoom: 10f));
+
+            // …and dead centre still hits, at the same zoom.
+            var centre = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
+                prims, new Vector2(100f, 50f), zoom: 10f);
+            Assert.Equal(4242L, centre!.Value);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3147</c> — <b>among equal layers the NEAREST entity wins, not the first emitted.</b>
+        /// 🔒 User: <i>"clicking on entity in vicinity of another is ignored as the click falls into the sensitive
+        /// area of the first one."</i> 📐 The test had no distance term at all, so emission order decided.
+        /// </summary>
+        [Fact]
+        public void CE3147_AmongEqualLayers_TheNearestEntityWins_NotTheFirstEmitted()
+        {
+            // Both world-metre boxes overlap the probe; 'far' is emitted FIRST and used to win for that reason.
+            var far  = EntityBox(networkId: 1L, x: 100f, y: 50f, size: 6f);
+            var near = EntityBox(networkId: 2L, x: 104f, y: 50f, size: 6f);
+
+            var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
+                new[] { far, near }, new Vector2(103.5f, 50f), Zoom);
+
+            Assert.Equal(2L, hit!.Value);
+        }
+
         /// <summary>⭐⭐⭐ THE claim: a click over an entity's drawn primitive resolves that entity.</summary>
         [Fact]
         public void AClickOverAnEntitysPrimitiveResolvesThatEntity()

@@ -138,7 +138,7 @@ Result: HTTP 400 with helpful error message, Health.Current unchanged (still 50)
 
 ## Build & Test Results
 
-### dotnet build IOS-IG-SimHost.sln
+### dotnet build HROT.sln
 ```
 0 Error(s)
 29 Warning(s) (pre-existing)

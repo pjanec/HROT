@@ -219,11 +219,11 @@ public sealed class Phase2ConventionTests
     private static string FindWorkspaceRoot()
     {
         DirectoryInfo? dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "IOS-IG-SimHost.sln")))
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
             dir = dir.Parent;
         if (dir == null)
             throw new InvalidOperationException(
-                "Cannot locate workspace root (IOS-IG-SimHost.sln not found). " +
+                "Cannot locate workspace root (HROT.sln not found). " +
                 $"Started search from: {AppContext.BaseDirectory}");
         return dir.FullName;
     }

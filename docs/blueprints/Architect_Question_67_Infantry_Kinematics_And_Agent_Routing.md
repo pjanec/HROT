@@ -149,6 +149,7 @@ in mode 1. ⇒ ⭐⭐ **the fix is a Stride-lane composition change** *(hand the
 hosted arm, mirroring `MuscleCapabilitiesFactory`)*, **not the shared-`Fdp.Toolkits` discriminator change
 §3D proposed.** ⛔ My §3D lean *("leave `VehicleState`, change the discriminator")* is **withdrawn** —
 the codebase committed to stripping, and the strip is right.
+⭐ **`2026-10-08` (`CE-3112`, R-222):** the routing half is settled without §3C's component — `NavLayerSelection` maps `VehicleParams.Class` (Pedestrian ⇒ Infantry), and the human templates now carry `VehicleClass = Pedestrian` (§3E's "PersonalCar" is gone); 🔒 the user ruled a per-entity runtime profile overkill for now.
 ⚠ **Still open and worth doing separately:** `NavAgentProfile` has no production writer (§3C), and
 infantry reads `Class: "PersonalCar"` rather than `Pedestrian` (§3E) — neither blocks the fix.
 

@@ -568,7 +568,9 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
         }
 
         // ⚠ Anti-vacuity: if the scan matches nothing the assertion below is meaningless.
-        Assert.True(sites >= 3,
+        //   ⭐ ≥ 1, not ≥ 3: since d52367578 ("renderer built by the shared pack for every map host") there is ONE production
+        //   construction site for every map host — the unification this rail guarded towards. Three would now be a stale count.
+        Assert.True(sites >= 1,
             $"expected to find production DebugGizmoLayer constructions; found {sites}");
 
         Assert.True(

@@ -51,6 +51,44 @@ namespace Fdp.Toolkit.Tkb.Tests
             Assert.Equal("WeaponSuiteDto.Mounts[1].Penetration", Get(t, "Weapon[1].Penetration").Source);
         }
 
+        /// <summary>⭐ Buildings §3d P1/P1b (R-217) — penetration comes from the launcher × ammo pair: (ammo, this weapon) →
+        /// (ammo, generic) → the mount's own value → 0; the fire chain and the resolver read one rule.</summary>
+        [Fact]
+        public void R217_Penetration_PairThenGenericThenMount_TheRuntimeReadsTheSameRule()
+        {
+            var db = new TkbDatabase();
+            var ammo = new TkbTemplate("5.56 ball", 900);
+            ammo.AddDescriptor(new AmmoWeaponBallisticsDto { WeaponGuid = 0,   PenetrationMm = 6f }, partId: 0);   // generic
+            ammo.AddDescriptor(new AmmoWeaponBallisticsDto { WeaponGuid = 501, PenetrationMm = 8f }, partId: 1);   // from the long barrel
+            ammo.AddDescriptor(new AmmoWeaponBallisticsDto { WeaponGuid = 502, PenetrationMm = 0f }, partId: 2);   // states nothing
+            db.Register(ammo);
+
+            var t = new TkbTemplate("Rifleman", 2);
+            t.AddDescriptor(new WeaponSuiteDto { Mounts = new List<WeaponMountDto>
+            {
+                new() { WeaponGuid = 501, AmmoGuid = 900, Penetration = 5f, DamagePerHit = 25f },   // the pair
+                new() { WeaponGuid = 503, AmmoGuid = 900, Penetration = 5f, DamagePerHit = 25f },   // no profile for 503 ⇒ generic
+                new() { WeaponGuid = 502, AmmoGuid = 900, Penetration = 5f, DamagePerHit = 25f },   // 502 states nothing ⇒ generic
+                new() { WeaponGuid = 501, AmmoGuid = 0,   Penetration = 5f, DamagePerHit = 25f },   // no loaded ammo ⇒ the mount
+                new() { WeaponGuid = 501, AmmoGuid = 777, Penetration = 5f, DamagePerHit = 25f },   // unknown ammo type ⇒ the mount
+            } });
+            db.Register(t);
+
+            float[] expected = { 8f, 6f, 6f, 5f, 5f };
+            var all = ParameterResolver.ResolveAll(t, db);
+            for (int i = 0; i < expected.Length; i++)
+            {
+                var p = all.Single(x => x.Name == $"Weapon[{i}].Penetration");
+                Assert.Equal(expected[i], p.Value);
+                Assert.Equal(expected[i], ParameterResolver.MountPenetration(db, t.GetDescriptor<WeaponSuiteDto>()!.Mounts[i]).Value);
+            }
+            Assert.Equal("5.56 ball: Gen.AmmoWeaponBallistics#1.PenetrationMm (this weapon)", all.Single(x => x.Name == "Weapon[0].Penetration").Source);
+            Assert.Contains("(generic)", all.Single(x => x.Name == "Weapon[1].Penetration").Source);
+            Assert.Equal("WeaponSuiteDto.Mounts[3].Penetration", all.Single(x => x.Name == "Weapon[3].Penetration").Source);
+            // without a database the mount's own value is reported (as before R-217)
+            Assert.Equal(5f, ParameterResolver.ResolveAll(t).Single(x => x.Name == "Weapon[0].Penetration").Value);
+        }
+
         [Fact]
         public void ARecordedFormula_MakesAStatedValueGenerated()
         {

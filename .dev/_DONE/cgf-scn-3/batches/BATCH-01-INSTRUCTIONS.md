@@ -205,7 +205,7 @@ After all four tasks are done:
 
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 dotnet test Hrot\Subsystems\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj --no-build
 dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj --no-build
 ```
@@ -231,7 +231,7 @@ zero test failures are the acceptance bar.
 - [ ] TASK-S302: `Span<MissionPhase> phases = queue.Phases` extraction present; 3-phase test passes
 - [ ] TASK-S303: `[DataPolicy(DataPolicy.NoScenario)]` on `BrainBlackboard`; JSON exclusion test passes
 - [ ] TASK-S304: `GetMode()` returns `TimeMode.Deterministic`; unit test passes
-- [ ] `dotnet build IOS-IG-SimHost.sln --no-restore` succeeds (zero errors)
+- [ ] `dotnet build HROT.sln --no-restore` succeeds (zero errors)
 - [ ] All touched test projects pass
 
 ---

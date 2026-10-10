@@ -29,7 +29,7 @@ Detect a cycle **before** the recursive emit walk and **throw a normal `InvalidO
 - `Generator_CyclicAsset_DoesNotEmitSource_AndReportsWarning_NoErrors`: a cyclic `.btree.json` → generator emits no source for it, reports **BTREE0002 Warning**, and the run has **zero Error diagnostics** (build survives). Also assert a valid sibling asset still emits (fault isolation).
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings (committed assets are acyclic → no BTREE0002 fires).
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings (committed assets are acyclic → no BTREE0002 fires).
 - [ ] `Failed: 0` in `Hrot.AiEditor.Persistence.Tests`, `Hrot.AiEditor.Generators.Tests`, `Hrot.BTree.Editor.Tests` (pre-existing Generators.Tests MigrationEquivalence ×2 may remain — list them).
 - [ ] A cyclic tree → `InvalidOperationException` (NOT stack overflow); generator → BTREE0002 + skip + no Error.
 - [ ] Acyclic trees unchanged.

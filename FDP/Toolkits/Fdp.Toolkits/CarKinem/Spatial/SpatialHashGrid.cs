@@ -67,7 +67,7 @@ namespace CarKinem.Spatial
             geometry[0] = cellSize;
             geometry[1] = originX;
             geometry[2] = originY;
-            return new SpatialHashGrid
+            var grid = new SpatialHashGrid
             {
                 Geometry = geometry,
                 GridHead = new NativeArray<int>(width * height, allocator),
@@ -80,6 +80,19 @@ namespace CarKinem.Spatial
                 Height = height,
                 EntityCount = 0,
             };
+
+            // ⭐⭐⭐ CE-3152 — ESTABLISH THE EMPTY-CELL INVARIANT HERE. 🔴 This one missing line was the producer behind
+            //   CE-3146's hang, measured live on 2026-10-09: "cell 0 … head=0, GridNext[head]=0 (SELF-CYCLE)".
+            //   📐 In this structure "-1" means "empty", but NativeArray DELIBERATELY zero-fills its block
+            //   (NativeArray.cs:39-41 — "Marshal.AllocHGlobal does not zero-initialize. Clear the block …"), so a grid
+            //   straight out of Create() has EVERY cell claiming slot 0 as its head, and GridNext[0] is 0 too ⇒ any
+            //   walk of cell 0 follows 0 → 0 → 0 forever.
+            //   ⛔ It was NOT a double-free / double hand-out of a slot: Clear() and Rebase() were the only writers of
+            //   the -1 sentinel, so the grid was only well formed AFTER the first Clear(). It bites whenever anything
+            //   reads the grid before the builder's first FullRebuild — on the editor host, scenario load does exactly
+            //   that. ⭐ Contrast RoadNetworkBuilder.cs:203-204, which has always initialised its heads explicitly.
+            grid.Clear();
+            return grid;
         }
         
         /// <summary>

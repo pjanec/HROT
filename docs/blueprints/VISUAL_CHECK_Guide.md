@@ -17,7 +17,7 @@
 
 | | |
 |---|---|
-| **Build** | `dotnet build IOS-IG-SimHost.sln` — ✅ coordinator-verified **0 errors / 69 warnings** at `e202dbed5` |
+| **Build** | `dotnet build HROT.sln` — ✅ coordinator-verified **0 errors / 69 warnings** at `e202dbed5` |
 | **Launch** | the Stride editor app as you normally do (`HrotStrideApp.Windows`) |
 | ⭐ **The asset to open** | **`LibraryFunctionsDemo`** — it has **three Function graphs**, which is what §A3 needs. Any Instance blueprint works for the rest |
 | ⚠ **One thing to know first** | ⭐⭐ **every shipped asset is now `schemaVersion: 2` on disk** (Batch 55). §C1 is where that gets its only human check |

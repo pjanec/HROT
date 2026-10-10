@@ -614,8 +614,9 @@ See [AI Behavior Authoring](relationships/AI-Behavior-Authoring.md) and
 **Adding a new gizmo projector:**
 
 1. Implement a class with `[GizmoProjector]` in the appropriate project.
-2. The `GizmoRegistrarGenerator` source generator discovers it and emits the registration
-   call -- no manual wiring needed.
+2. `GizmoReflectionRegistrar` discovers it at runtime on every map host -- no manual wiring needed. If its
+   constructor needs a service, the host passes it through `MapInteractionContext.Services` (CE-3123; the old
+   `GizmoRegistrarGenerator` source generator is retired).
 
 **Adding a Blueprint node type:**
 

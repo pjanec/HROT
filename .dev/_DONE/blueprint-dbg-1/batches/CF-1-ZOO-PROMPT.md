@@ -57,7 +57,7 @@ only for `...0004` and `976ef338-34f2-1469-973f-ee53538aab17` (a synthesized id 
 
 ## SUCCESS CONDITION (must all hold)
 
-- `dotnet build IOS-IG-SimHost.sln -c Debug` → **0 errors** (close the editor first; it locks DLLs).
+- `dotnet build HROT.sln -c Debug` → **0 errors** (close the editor first; it locks DLLs).
 - The new test passes; the file `.dev/_DONE/blueprint-dbg-1/reports/CF1-NODE-IDENTITY-REPORT.md` is produced and
   definitively answers: (a) which authored node ids have a DebugMap entry keyed by that **exact** id; (b) for
   Delay `0b561966` and Sequence `da9a9c0b`, the synthesized id that replaced them and the lowering stage/tag

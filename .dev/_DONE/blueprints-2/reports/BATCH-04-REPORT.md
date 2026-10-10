@@ -22,7 +22,7 @@ All tasks implemented, all tests pass, solution builds cleanly.
 - [x] TASK-S1-10: `InspectorWindow` created
 - [x] TASK-S1-14: `SharedAiWindowRegistrar`, `SharedAiEditorServiceCollectionExtensions` created
 - [x] All 139 tests pass (110 existing + 29 new)
-- [x] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 warnings
+- [x] `dotnet build HROT.sln` — 0 errors, 0 warnings
 
 ---
 
@@ -86,7 +86,7 @@ None. All implementations match the spec exactly.
 ## Build Results
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Build succeeded.
     0 Warning(s)
     0 Error(s)

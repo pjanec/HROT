@@ -12,12 +12,14 @@ using FixedString32 = Fdp.Core.FixedString32;
 
 namespace Hrot.ScenarioEditor.Gizmos
 {
-    // No [GizmoProjector] because the constructor requires BehaviorRegistry.
-    // Registered manually in EditorSubsystem with required types: SimTransform + NetworkIdentity.
+    // ⭐ CE-3123 (R-228) / CE-1022: a [GizmoProjector] now, on every host. The registrar passes the host's BehaviorRegistry
+    //   (MapInteractionContext.Services) when it has one; without one the parameterless constructor is used and the behaviour
+    //   line is left out — has data = can draw. 📄 docs/DESIGN_Uniform_Gizmo_Membership.md §10.
     // Emits three world-space text labels east of the entity showing:
     //   Line 1: NetworkIdentity.Value
     //   Line 2: Active behavior name (truncated to 20 chars)
     //   Line 3: HP current/max coloured by ratio
+    [GizmoProjector(typeof(SimTransform), typeof(NetworkIdentity))]
     public sealed class EntityEditorLabelGizmo : IStatelessGizmo
     {
         private static readonly Rgba32 IdColor     = new Rgba32(255, 255, 255, 255);
@@ -29,7 +31,10 @@ namespace Hrot.ScenarioEditor.Gizmos
         // Horizontal offset east of the entity (world metres).
         private const float LabelOffsetX = 12f;
 
-        private readonly BehaviorRegistry _behaviorRegistry;
+        private readonly BehaviorRegistry? _behaviorRegistry;
+
+        /// <summary>No behaviour names on this host: the label shows the id and the hit points.</summary>
+        public EntityEditorLabelGizmo() { }
 
         public EntityEditorLabelGizmo(BehaviorRegistry behaviorRegistry)
         {
@@ -57,7 +62,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                 fontSizePx: 13f, lineOffsetPx: -16f);
 
             // Middle line: Active behavior name (yellow), 30 px above the entity.
-            if (view.HasComponent<BehaviorState>(entity))
+            if (_behaviorRegistry != null && Has<BehaviorState>(view, entity))
             {
                 ref readonly var bs = ref view.GetComponentRO<BehaviorState>(entity);
 
@@ -85,7 +90,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             }
 
             // Top line: HP current/max (coloured by ratio), 44 px above the entity.
-            if (view.HasComponent<Health>(entity))
+            if (Has<Health>(view, entity))
             {
                 ref readonly var hp = ref view.GetComponentRO<Health>(entity);
                 float ratio = hp.Max > 0f ? hp.Current / hp.Max : 0f;
@@ -96,5 +101,9 @@ namespace Hrot.ScenarioEditor.Gizmos
                     fontSizePx: 13f, lineOffsetPx: -44f);
             }
         }
+
+        // ⭐ CE-3123 — on every host now, so a type the host never registered must read as "absent", not be asked of the world.
+        private static bool Has<T>(ISimulationView view, Entity entity) where T : unmanaged =>
+            (view is not EntityRepository repo || repo.IsComponentTypeRegistered<T>()) && view.HasComponent<T>(entity);
     }
 }

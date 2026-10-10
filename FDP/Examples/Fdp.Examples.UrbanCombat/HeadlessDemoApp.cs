@@ -360,7 +360,7 @@ namespace Fdp.Examples.UrbanCombat
 
             var interactSys = new InteractionDispatcherSystem();
             interactSys.RegisterExecutor(BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor());
-            interactSys.RegisterExecutor(BehaviorConstants.ActionIdOpenDoor, new OpenDoorExecutor());
+            interactSys.RegisterExecutor(BehaviorConstants.ActionIdOpenDoor, new DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Open));
             _simModuleSystems.Add(interactSys);
 
             _simModuleSystems.Add(new LocomotionDispatcherSystem());

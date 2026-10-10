@@ -5,7 +5,7 @@
 ## Verification summary
 
 ### Build
-`dotnet build IOS-IG-SimHost.sln` — **0 errors**, Build succeeded.
+`dotnet build HROT.sln` — **0 errors**, Build succeeded.
 
 ### Tests
 | Project | Passed | Failed |

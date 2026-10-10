@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 using Fdp.Core;
 
 namespace Fdp.Toolkit.Terrain
@@ -12,7 +13,8 @@ namespace Fdp.Toolkit.Terrain
     public enum TerrainWalkableKind : byte { Slab = 0, Ramp = 1 }
 
     /// <summary>The ground cover of a flat surface area.</summary>
-    public enum TerrainSurfaceType : byte { Open = 0, Road = 1, Forest = 2, Water = 3 }
+    /// <summary>A ground surface's type. ⛔ <c>Road = 1</c> retired with CE-3128 (R-231): roads are the terrain's road graph.</summary>
+    public enum TerrainSurfaceType : byte { Open = 0, Forest = 2, Water = 3 }
 
     /// <summary>
     /// A SOLID extruded polygon — a building or a wall: blocks movement and sight from <see cref="BaseZ"/>
@@ -56,7 +58,7 @@ namespace Fdp.Toolkit.Terrain
         public float MaxZ { get; init; }
     }
 
-    /// <summary>A flat ground-cover area at ground level (road, open, forest, water).</summary>
+    /// <summary>A flat ground-cover area at ground level (open, forest, water — roads are the road graph, CE-3128).</summary>
     public sealed class TerrainSurface
     {
         public TerrainSurfaceType Type { get; init; }
@@ -104,6 +106,79 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ Stage 1 — the material library this world was parsed with (shared + terrain overrides).</summary>
         public TerrainMaterialLibrary Materials { get; init; } = TerrainMaterialLibrary.Shared;
 
+        // ── ⭐ Stage 5 (doors) — the door LEAVES and their live state ─────────────────────────────────────────────
+
+        /// <summary>The material a closed door leaf is (sight 0; a wooden door — a rifle round goes through).</summary>
+        public const string DoorMaterial = "door-wood";
+        /// <summary>A door leaf's thickness (m), centred in its wall.</summary>
+        public const float DoorLeafThickness = 0.05f;
+
+        /// <summary>
+        /// ⭐ Stage 5 (📄 docs/DESIGN_Building_Interiors.md §3a, §3j) — one closing leaf per door (index-aligned with <see cref="Doors"/>):
+        /// a thin piece across the doorway, from its sill to its head. ⛔ NOT in <see cref="Prisms"/> — the navmesh is baked with every
+        /// door OPEN (§3a), so nothing that reads prisms ever sees a leaf; the sight and fire queries add the leaves of doors that are
+        /// not open (in the caller's <see cref="DoorStates"/>).
+        /// </summary>
+        public IReadOnlyList<TerrainPrism> DoorLeaves => _doorLeaves.Value;
+
+        /// <summary>⭐ R-220 — the most vertices any prism or door leaf has: sizes the queries' stack scratch, computed once.</summary>
+        private int MaxFootprintVertices => _maxFootprintVertices >= 0 ? _maxFootprintVertices : (_maxFootprintVertices = ComputeMaxFootprintVertices());
+        private int _maxFootprintVertices = -1;
+        private int ComputeMaxFootprintVertices()
+        {
+            int m = 4;   // a door leaf
+            for (int i = 0; i < Prisms.Count; i++) m = Math.Max(m, Prisms[i].Footprint.Length);
+            return m;
+        }
+
+        /// <summary>The index of the door whose terrain-object key is <paramref name="key"/>, or −1.</summary>
+        public int DoorIndexOf(string key) => _doorIndex.Value.TryGetValue(key, out int i) ? i : -1;
+
+        private Lazy<Dictionary<string, int>> _doorIndex => _doorIndexLazy ??= new Lazy<Dictionary<string, int>>(() =>
+        {
+            var d = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (int i = 0; i < Doors.Count; i++) d[Doors[i].Key] = i;
+            return d;
+        });
+        private Lazy<Dictionary<string, int>>? _doorIndexLazy;
+
+        /// <summary>
+        /// A door blocks when it is closed or locked (an open or destroyed door is a gap). ⭐ R-219: the state comes from the CALLER's
+        /// <paramref name="doors"/> — the table built from the view it runs on; with none, the door is as the terrain authored it.
+        /// ⛔ <see cref="TerrainWorld"/> holds NO live state: it is shared by reference into every background snapshot.
+        /// </summary>
+        private bool DoorBlocks(int index, DoorStates? doors)
+            => (doors != null ? doors[index] : Doors[index].Initial) is TerrainDoorState.Closed or TerrainDoorState.Locked;
+
+        private Lazy<IReadOnlyList<TerrainPrism>> _doorLeaves => _doorLeavesLazy ??= new Lazy<IReadOnlyList<TerrainPrism>>(BuildDoorLeaves);
+        private Lazy<IReadOnlyList<TerrainPrism>>? _doorLeavesLazy;
+
+        private IReadOnlyList<TerrainPrism> BuildDoorLeaves()
+        {
+            var leaves = new List<TerrainPrism>(Doors.Count);
+            Materials.TryGet(DoorMaterial, out var material);
+            foreach (var d in Doors)
+            {
+                var panel = Panels[d.Panel];
+                var o = panel.Openings[d.Opening];
+                var dir = panel.B - panel.A;
+                float len = dir.Length();
+                dir = len > 0f ? dir / len : Vector2.UnitX;
+                var n = new Vector2(-dir.Y, dir.X) * (DoorLeafThickness * 0.5f);
+                var p0 = panel.A + dir * o.At;
+                var p1 = panel.A + dir * (o.At + o.Width);
+                var fp = new[] { p0 - n, p1 - n, p1 + n, p0 + n };
+                leaves.Add(new TerrainPrism
+                {
+                    Kind = TerrainPrismKind.Wall, Footprint = fp, BaseZ = o.SillZ, TopZ = o.HeadZ, Label = d.Key,
+                    Min = Vector2.Min(Vector2.Min(fp[0], fp[1]), Vector2.Min(fp[2], fp[3])),
+                    Max = Vector2.Max(Vector2.Max(fp[0], fp[1]), Vector2.Max(fp[2], fp[3])),
+                    Material = material, Panel = d.Panel, Triangles = new[] { 0, 1, 2, 0, 2, 3 },
+                });
+            }
+            return leaves;
+        }
+
         /// <summary>
         /// ⭐ The Z an entity at (<paramref name="x"/>, <paramref name="y"/>) stands on — the ground, a roof or
         /// a floor. <paramref name="zHint"/> is the entity's current Z: the highest surface no more than
@@ -122,7 +197,14 @@ namespace Fdp.Toolkit.Terrain
             foreach (var prism in Prisms)
             {
                 if (!InBox(p, prism.Min, prism.Max) || !PolygonMath.Contains(prism.Footprint, p)) continue;
-                insideSolid = true;
+                // ⭐ Buildings 5d-2 (live, bt-doors) — a piece that STARTS above reach (a door's lintel at 2.1 m, a window's head)
+                //   is OVERHEAD: you stand under it, so it does not take the ground away. ⛔ It did, and an agent walking through a
+                //   doorway under an upper floor came out at that floor's height (3 m).
+                // ⭐ CE-3111 (live, bt-doors with real 0.9 m doors) — a WALL PANEL (Panel ≥ 0) never takes the ground away: it is thin,
+                //   nobody stands inside it, and a mover turning through a narrow doorway clips a jamb by centimetres. ⛔ It did: the
+                //   wall's top (3 m) became the only surface, and the agent's Z hint then held it on the upper floor's slab. The same
+                //   rule as the ground mesh (TerrainWorldMesh: a panel keeps its ground). Its top is still a candidate surface.
+                if (prism.BaseZ <= reach && prism.Panel < 0) insideSolid = true;
                 Consider(prism.TopZ, reach, ref best, ref lowest);
             }
 
@@ -228,7 +310,8 @@ namespace Fdp.Toolkit.Terrain
         /// <c>GET /terrain/query</c> and perception agree. A prism with no material reads as opaque (concrete), so every
         /// world built before materials behaves exactly as before.</para>
         /// </summary>
-        public bool SegmentBlocked(Vector3 from, Vector3 to)
+        /// <param name="doors">⭐ R-219 — the door states of the caller's view (<see cref="DoorStates.Of(Fdp.Core.ISimulationView, TerrainWorld)"/>); null = as authored.</param>
+        public bool SegmentBlocked(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
             float transmittance = 1f;
             // Under the ground at either end means a malformed query, not an occluder — ignore; a line that
@@ -239,10 +322,17 @@ namespace Fdp.Toolkit.Terrain
             var segMin = Vector2.Min(a, b);
             var segMax = Vector2.Max(a, b);
 
-            foreach (var prism in Prisms)
+            // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
+            var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            int maxV = MaxFootprintVertices;
+            Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
+            Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
+            for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
             {
+                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
+                var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
-                foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
+                foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
                 {
                     float z0 = from.Z + ((to.Z - from.Z) * t0);
                     float z1 = from.Z + ((to.Z - from.Z) * t1);
@@ -255,8 +345,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
-            foreach (var w in Walkables)
+            for (int wi = 0; wi < Walkables.Count; wi++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
+                var w = Walkables[wi];
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -285,7 +376,10 @@ namespace Fdp.Toolkit.Terrain
         /// <para>⚠ Stage 1 serves it for diagnostics (<c>GET /terrain/query</c>); perception still asks
         /// <see cref="SegmentBlocked"/> until Stage 3 makes that <c>QuerySight(...) &lt; threshold</c>.</para>
         /// </summary>
-        public TraceResult QuerySight(Vector3 from, Vector3 to)
+        /// <param name="doors">⭐ R-219 — the door states of the caller's view; null = as authored.</param>
+        /// <remarks>⚠ R-220 — allocates its answer (the crossing list): a DIAGNOSTIC trace, not a per-tick query. Perception
+        /// asks <see cref="SegmentBlocked"/>, which allocates nothing.</remarks>
+        public TraceResult QuerySight(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
             var crossed = new List<Crossing>();
             var a = new Vector2(from.X, from.Y);
@@ -294,25 +388,33 @@ namespace Fdp.Toolkit.Terrain
             var segMax = Vector2.Max(a, b);
             float length = Vector3.Distance(from, to);
 
-            foreach (var prism in Prisms)
+            // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
+            var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            int maxV = MaxFootprintVertices;
+            Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
+            Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
+            for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
             {
+                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
+                var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
-                foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
+                foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
                 {
                     float z0 = from.Z + ((to.Z - from.Z) * t0);
                     float z1 = from.Z + ((to.Z - from.Z) * t1);
                     if (!(MathF.Min(z0, z1) < prism.TopZ && MathF.Max(z0, z1) > prism.BaseZ)) continue;
                     var panel = prism.Panel >= 0 && prism.Panel < Panels.Count ? Panels[prism.Panel] : null;
                     string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
-                    crossed.Add(new Crossing(t0 * length, panel != null ? "panel" : "prism", prism.Label,
+                    crossed.Add(new Crossing(t0 * length, pi >= Prisms.Count ? "door" : panel != null ? "panel" : "prism", prism.Label,
                         prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, prism.Material?.SightTransmittance ?? 0f,
                         building, panel?.Storey ?? -1));
                     break;   // one entry per piece
                 }
             }
 
-            foreach (var w in Walkables)
+            for (int wi = 0; wi < Walkables.Count; wi++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
+                var w = Walkables[wi];
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -331,6 +433,110 @@ namespace Fdp.Toolkit.Terrain
             foreach (var c in crossed) transmittance *= c.Transmittance;
             return new TraceResult(transmittance, crossed);
         }
+
+        /// <summary>⭐ §3d P2 — the thickness (m) a floor slab or stair ramp presents to a round, of the default material (concrete):
+        /// a walkable is a surface with no thickness of its own. 0.2 m of concrete = 300 mm RHA with the starter table.</summary>
+        public const float SlabThicknessMetres = 0.2f;
+
+        /// <summary>
+        /// One piece a FIRE trace crossed: where the round enters it (<see cref="T"/>, 0..1 along the segment), the length of its
+        /// path inside (m), and the ballistic resistance that path presents (mm RHA = the material's per-metre value × the path).
+        /// </summary>
+        public readonly record struct FireCrossing(float T, float PathMetres, float ResistanceMmRha, string Kind, string? Label,
+            string Material, string? Building, int Storey)
+        {
+            /// <summary>⭐ <c>CE-1032</c> (W-7′) — the top of the piece crossed (a wall's top, a slab's level): how tall an obstacle a
+            /// blast wave diffracts over.</summary>
+            public float TopZ { get; init; }
+        }
+
+        /// <summary>
+        /// ⭐⭐ Buildings §3d P2 (R-217) — the FIRE purpose of the one terrain query (§3a "one query, a solver per purpose"): every
+        /// solid piece the segment passes within its height, with the length of the path INSIDE it (so a wall crossed obliquely
+        /// resists more than its thickness — the same rule as armour), and every slab/ramp it passes through as
+        /// <see cref="SlabThicknessMetres"/> of the default material. A piece with no material is the default material
+        /// (concrete — a solid building stops any round). Ordered along the line. ⛔ The ground is not an occluder (flat ground;
+        /// a shot line never dips below it between two points above it). What a round DOES with this is the combat rule
+        /// (<c>TerrainPenetration</c>), not the terrain's.
+        /// </summary>
+        public IReadOnlyList<FireCrossing> QueryFire(Vector3 from, Vector3 to, DoorStates? doors = null)
+        {
+            var list = new List<FireCrossing>();
+            QueryFire(from, to, list, doors);
+            return list;
+        }
+
+        /// <inheritdoc cref="QueryFire(Vector3, Vector3, DoorStates?)"/>
+        /// <param name="into">Cleared, then filled — a caller tracing every round each tick reuses one list.</param>
+        public void QueryFire(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors = null)
+        {
+            into.Clear();
+            var a = new Vector2(from.X, from.Y);
+            var b = new Vector2(to.X, to.Y);
+            var segMin = Vector2.Min(a, b);
+            var segMax = Vector2.Max(a, b);
+            float length = Vector3.Distance(from, to);
+            if (length <= 0f) return;
+            float dz = to.Z - from.Z;
+            Materials.TryGet(TerrainMaterialLibrary.DefaultMaterial, out var fallback);
+            float fallbackPerMetre = fallback?.ResistanceMmRhaPerMetre ?? 1500f;
+
+            // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
+            var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            int maxV = MaxFootprintVertices;
+            Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
+            Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
+            for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
+            {
+                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
+                var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
+                if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
+                foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
+                {
+                    // the part of [t0, t1] where the line is also within the piece's height
+                    float lo = t0, hi = t1;
+                    if (MathF.Abs(dz) < 1e-6f)
+                    {
+                        if (!(from.Z > prism.BaseZ && from.Z < prism.TopZ)) continue;
+                    }
+                    else
+                    {
+                        float ta = (prism.BaseZ - from.Z) / dz, tb = (prism.TopZ - from.Z) / dz;
+                        lo = MathF.Max(lo, MathF.Min(ta, tb));
+                        hi = MathF.Min(hi, MathF.Max(ta, tb));
+                    }
+                    if (hi <= lo) continue;
+                    var panel = prism.Panel >= 0 && prism.Panel < Panels.Count ? Panels[prism.Panel] : null;
+                    string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
+                    float path = (hi - lo) * length;
+                    float perMetre = prism.Material?.ResistanceMmRhaPerMetre ?? fallbackPerMetre;
+                    into.Add(new FireCrossing(lo, path, perMetre * path, pi >= Prisms.Count ? "door" : panel != null ? "panel" : "prism", prism.Label,
+                        prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, building, panel?.Storey ?? -1) { TopZ = prism.TopZ });
+                }
+            }
+
+            for (int wi = 0; wi < Walkables.Count; wi++)   // ⭐ R-220 — an index loop: no interface enumerator
+            {
+                var w = Walkables[wi];
+                if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    var p0 = w.Vertices[w.Triangles[t]]; var p1 = w.Vertices[w.Triangles[t + 1]]; var p2 = w.Vertices[w.Triangles[t + 2]];
+                    if (!PolygonMath.SegmentCrossesTriangle(from, to, p0, p1, p2)) continue;
+                    var n = Vector3.Cross(p1 - p0, p2 - p0);
+                    float denom = Vector3.Dot(n, to - from);
+                    float along = MathF.Abs(denom) < 1e-9f ? 0f : Vector3.Dot(n, p0 - from) / denom;
+                    into.Add(new FireCrossing(along, SlabThicknessMetres, fallbackPerMetre * SlabThicknessMetres,
+                        w.Kind == TerrainWalkableKind.Ramp ? "ramp" : "slab", null, TerrainMaterialLibrary.DefaultMaterial, null, -1)
+                        { TopZ = MathF.Max(p0.Z, MathF.Max(p1.Z, p2.Z)) });
+                    break;
+                }
+            }
+
+            into.Sort(ByT);   // a cached static comparison — no delegate per call
+        }
+
+        private static readonly Comparison<FireCrossing> ByT = (x, y) => x.T.CompareTo(y.T);
 
         /// <summary>The surface type at a point (the last-listed surface wins on overlap), Open by default.</summary>
         public TerrainSurfaceType SurfaceTypeAt(float x, float y)

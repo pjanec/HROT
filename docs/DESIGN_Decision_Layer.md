@@ -8,6 +8,7 @@ known-rot: none.
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:
+  - REVIEW_Behaviour_Library_Genericity.md — L2 (TakeCover child = generalised PeekAndFire) and L6 (host parity: library vs three-host demo).
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the utility demo scenarios (U1–U7) that exercise §3.3 live over HTTP, and the measured findings F1–F9 (F1: ThreatRanking scores every contact 0 — DistanceToContext reads an unregistered component).
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS the CE-3031 children (TakeCoverBp, FallBackBp) that CombatPosture picks between and that replace the SOP stand-ins.
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the SOP slot (its text still says "doctrine" — renamed by R-198), the origin gate (R-188, R-189, R-193) and the sensor side; this document owns what decides inside the slot (missions, threat, intent, utility).
@@ -936,7 +937,7 @@ left without a defence. Flee is no longer a wounded option at all.
 `NearDeath_With_No_Escape_And_No_Cover_*` now expects HoldProne (was the plain Hold floor); `Wounded_Member_Vetoes_*` (§10.3) breaks
 off by HoldProne; NEW `CE3090_HalfHealth_Outmatched_With_HiddenEscape_Flees`.
 
-### 3.3g `CE-2121` — body stance: the brain asks for prone, the body performs it, the map shows it *(behaviors, `2026-10-07`; build-state: slice ① BUILT, slice ② next; approved)*
+### 3.3g `CE-2121` — body stance: the brain asks for prone, the body performs it, the map shows it *(behaviors, `2026-10-07`; build-state: BUILT (slices ① ② — IG ingress open); approved)*
 
 > 🔒 **User, `2026-10-07`:** *"the effect is that the entity should change its stance to 'prone' — the stance could be shown on the
 > map as just another text indicator on the entity. we need the stance support, and we could add some fake implementation of the
@@ -1073,6 +1074,21 @@ on the base too (pre-existing, unrelated).
 0.13, Advance 0.02), CGF's `StanceIntent` = Prone. ⛔ SimHost's copy stays Standing (`Version 0`) — **the expected gap slice ② closes**:
 nothing carries `StanceIntent` across nodes yet. Both nodes carry the components (`CanChangeStance` granted). Once the hostiles die the
 member rightly stands up again (`Version 2`, Standing).
+
+⭐ **AS-BUILT slice ② (`2026-10-07`, 🔒 user: "Yes do it")** — stance crosses nodes by GROUP ownership:
+
+| as built | why |
+|---|---|
+| `NedOwnershipGroupBinding` maps `dtStanceIntent` (104) → `StanceIntent` (Brain group) and `dtStanceStatus` (105) → `StanceStatus` (MuscleGround) | the groups already listed both as "dormant"; the grant strategy now hands 104 to the Brain node and 105 to the Muscle node |
+| the two stance EGRESS translators gate on `HasAuthority(entity, PackKey(ordinal, 0))` | ⛔ SUPERSEDED: `HasAuthority(entity)` — the primary owner (the CGF), so the body's report never left SimHost |
+| only the stance pair is wired: `AnimationReplicationModule.StanceTranslators` / `RegisterStanceOn`, on CGF (Brain) and SimHost (MuscleGround) | montage / look-at stay `CE-3010`; their components are registered nowhere |
+| `DdsStanceIntent` / `DdsStanceStatus` became real DDS topics (`[DdsTopic]`, `[DdsKey] EntityId`, Reliable + TransientLocal, KeepLast 1; the CycloneDDS generator) | ⛔ found live: they had NO generated serialiser — only the loopback tests' fake writers used them — and the first real `DdsWriter` aborted the cluster at boot |
+
+📐 **LIVE, `--mode all`:** U6 PASS; Rifleman 4's `StanceIntent` Prone v1 reached SimHost, SimHost's `StanceStatus` (AckVersion 1, Transitioning)
+came back to CGF; when the hostiles died the stand-up v2 made the same round trip and both nodes agree (Standing / Idle, AckVersion 2).
+0 exceptions in that run. Rails: `StanceWireTests` (role halves; ordinals = NED's), the two pinned group-descriptor sets
+(`RoleGroupOwnershipStrategyTests`, `TheDescriptorMapIsWiredTests`). ⚠ `Networked_Locomotion_BrainSeesFootstepEvents` is red on the base too.
+⏳ Not done: IG (the 3D map) does not take in `StanceStatus` yet.
 
 **Slices:** ① single world — registry, capability, module line, TKB + capability flag, the brain's request, the gizmo, rails (editor-shaped
 world). ② the wire — `AnimationReplicationModule` on CGF (Brain) and SimHost (Muscle), live on `--mode all`. Owned by `CE-3010` for the

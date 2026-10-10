@@ -75,7 +75,7 @@ already runs in Trace mode.
   VERIFICATION PENDING", then user smokes.
 
 ## Gates & baseline (per onboarding §4)
-- `dotnet build IOS-IG-SimHost.sln -c Debug` → 0/0. Editor must be CLOSED (DLL locks).
+- `dotnet build HROT.sln -c Debug` → 0/0. Editor must be CLOSED (DLL locks).
 - `Hrot.Blueprints.Tests` → **7 pre-existing failures, 0 new** (list full failure-set by name in every review).
 - `Hrot.Editor.AiShared.Tests`; `EditorSubsystemBoot` 10/10.
 - Don't regenerate golden snapshots unless codegen intentionally changes.

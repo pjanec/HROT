@@ -75,7 +75,7 @@ This behavior was verified by test JM-P2-004-T02 (Phase 2 round-trip) and JM-P2-
 Hrot.Blueprints.Compiler (net8.0 + netstandard2.0): Build succeeded
 Hrot.Blueprints.Compiler.Tests (net8.0):             Build succeeded
 Hrot.SimHost.Tests (net8.0):                          Build succeeded
-IOS-IG-SimHost.sln (full):                            Build FAILED (pre-existing Hrot.Blueprints.Tests only)
+HROT.sln (full):                            Build FAILED (pre-existing Hrot.Blueprints.Tests only)
 ```
 
 ### Tests
@@ -98,4 +98,4 @@ IOS-IG-SimHost.sln (full):                            Build FAILED (pre-existing
 - `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/BlueprintJsonServices.cs` — `Serialize` stamps `$meta` via `JsonEnvelope.Write`; `Deserialize` unchanged; added `#if NET8_0_OR_GREATER` using directives
 - `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Hrot.Blueprints.Compiler.csproj` — added `InternalsVisibleTo` for new test project; added conditional `Hrot.Common` project reference (net8.0 only)
 - `Hrot/Subsystems/Hrot.SimHost.Tests/TkbLoadClusterStateHandlerTests.cs` — updated `WriteScenarioHeader` to accept `phase2Format` parameter; added `ExtractTkbName_Phase2Format_ReturnsCorrectName` test
-- `IOS-IG-SimHost.sln` — new test project registered (`dotnet sln add`)
+- `HROT.sln` — new test project registered (`dotnet sln add`)

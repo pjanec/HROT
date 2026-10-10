@@ -99,7 +99,7 @@ Tests cover:
 |---|---|
 | `Hrot.Editor.AiShared.Tests` (full) | **Passed: 819 / Failed: 0** (incl. `SaveAllAndFlushTests`, `SaveAllAiDocumentsCommandTests`, `FlushOnCloseTests`) |
 | `Hrot.Blueprints.Tests` | Failed: 7 (pre-existing DEBT-006 golden snapshots — identical to baseline), Passed: 1357 — **0 new failures** |
-| `dotnet build IOS-IG-SimHost.sln -c Debug` | **0 errors, 26 warnings (all pre-existing, 0 new on touched projects)** |
+| `dotnet build HROT.sln -c Debug` | **0 errors, 26 warnings (all pre-existing, 0 new on touched projects)** |
 
 ## Developer Insights
 

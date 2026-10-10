@@ -45,6 +45,27 @@ namespace Fdp.Toolkit.Physics.Components
 
         public static float Height(ISimulationView view, Entity e)
             => view.HasComponent<PhysicsCollider>(e) ? view.GetComponentRO<PhysicsCollider>(e).Height : 0f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3116</c> — the height a TARGET's body profile scales by: its collider height for a vehicle, ⛔ 0 for a person
+        /// (<see cref="global::CarKinem.Core.VehicleClass.Pedestrian"/>), whose profile follows its posture instead (Buildings §3f). A soldier's
+        /// collider is 1.8 m tall (its capsule), and using that as a hull made sight, aim and fragments ignore prone and crouched on
+        /// the live world. ⚠ <see cref="Height"/> stays what a BLOCKER is: a body still blocks a line up to its full height.
+        /// </summary>
+        public static float HullHeight(ISimulationView view, Entity e)
+        {
+            float h = Height(view, e);
+            return h > 0f && IsPedestrian(view, e) ? 0f : h;
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> P-2 — a PERSON (<see cref="global::CarKinem.Core.VehicleClass.Pedestrian"/>): hit only within its
+        /// body band (peek-and-fire D2), where a vehicle is hit anywhere in its circle.</summary>
+        public static bool IsPerson(ISimulationView view, Entity e) => IsPedestrian(view, e);
+
+        private static bool IsPedestrian(ISimulationView view, Entity e)
+            => (view is not EntityRepository repo || repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>())
+               && view.HasComponent<global::CarKinem.Core.VehicleParams>(e)
+               && view.GetComponentRO<global::CarKinem.Core.VehicleParams>(e).Class == global::CarKinem.Core.VehicleClass.Pedestrian;
     }
 
     // ── RaycastRequest ────────────────────────────────────────────────────────────
@@ -176,6 +197,9 @@ namespace Fdp.Toolkit.Physics.Components
     /// results are written here by <c>RaycastResultMaterializationSystem</c> after the solver resolves them.
     /// Indexed by <c>RayId % RaycastBatchCapacity</c> (modulo ring buffer).
     /// </summary>
+    // ⭐ CE-3132 — NoScenario | NoReplay: the NativeArray is this process's memory; recorded, it carried raw pointers into a replay
+    //   (the class ZoneEnvironmentData showed, CE-3118). docs/DESIGN_Geo_Origin.md §5.6.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
     [ComponentId(GlobalComponentIds.RaycastBatchData)]
     public struct RaycastBatchData
     {

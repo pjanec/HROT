@@ -13,7 +13,7 @@
 | `FDP.Toolkit.Combat.Tests` | ✅ 0 failed / 52 passed |
 | `FDP.Toolkit.Physics.Tests` | ✅ 0 failed / 25 passed |
 | `Hrot.SimHost.Tests` | ✅ 0 failed / 421 passed (1 pre-existing excluded) |
-| `dotnet build IOS-IG-SimHost.sln` | ✅ 0 errors |
+| `dotnet build HROT.sln` | ✅ 0 errors |
 
 ## Task Verification
 

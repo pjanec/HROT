@@ -168,7 +168,7 @@ while [ "$(ps aux | grep -c '[d]otnet build\|[d]otnet test')" != "0" ]; do sleep
 
 ## 4. Gates
 
-The eight, `--logger "console;verbosity=normal"`. Solution **`IOS-IG-SimHost.sln`**.
+The eight, `--logger "console;verbosity=normal"`. Solution **`HROT.sln`**.
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`.** ⛔ **Neither task should move them.**
 ⭐ **Run the five `--no-build` suites in PARALLEL** — your own measurement, 3m40s → 2m05s — **and keep
 `\[FAIL\]` in the result grep.**

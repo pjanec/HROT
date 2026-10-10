@@ -76,7 +76,15 @@ namespace Fdp.Toolkit.Terrain
         private static bool Excluded(TerrainWorld world, Vector2 p)
         {
             foreach (var prism in world.Prisms)
+            {
+                // ⭐ Buildings 5d — a WALL PANEL (a building's wall, a fence, a free-standing wall: Panel ≥ 0) is thin, and its own
+                //   side faces already block. ⛔ Excluding the ground cell whose CENTRE it covers cut a whole cell (2 m on bt-range)
+                //   out of the floor along every inner wall that happened to cross a cell centre — the doorways in it never
+                //   connected (House A's hall and front, found by the bt-doors live run, 2026-10-08). Only a SOLID prism (a
+                //   block building) excludes the ground: its hollow inside would otherwise bake as walkable floor.
+                if (prism.Panel >= 0) continue;
                 if (InBox(p, prism.Min, prism.Max) && PolygonMath.Contains(prism.Footprint, p)) return true;
+            }
             foreach (var s in world.Surfaces)
                 if (s.Type == TerrainSurfaceType.Water && InBox(p, s.Min, s.Max) && PolygonMath.Contains(s.Polygon, p))
                     return true;

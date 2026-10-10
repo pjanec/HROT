@@ -12,7 +12,7 @@
 
 All six tasks completed. `Fdp.Core` and `Fdp.Core.Tests` created by merging three
 projects each. All 53 project references updated. Both solution files updated.
-`IOS-IG-SimHost.sln` builds with 0 errors, 0 warnings. `Fdp.Core.Tests` passes all
+`HROT.sln` builds with 0 errors, 0 warnings. `Fdp.Core.Tests` passes all
 912 tests (2 skipped).
 
 The only failing tests are in Hrot-layer test projects (`Hrot.SimHost.Tests`,
@@ -68,7 +68,7 @@ Affected project groups:
 Fdp.Core.Tests) under the existing `Kernel` solution folder (`{13E3BE55}`). All build
 configuration lines (12 per project) updated.
 
-**`IOS-IG-SimHost.sln`:** Same changes. Note: `FDP.Interfaces` had a different GUID in
+**`HROT.sln`:** Same changes. Note: `FDP.Interfaces` had a different GUID in
 this file (`{CBB74ACA}`) than in `FDP.sln` (`{E7FF3CB4}`); both correctly removed.
 
 New GUIDs assigned:
@@ -184,7 +184,7 @@ the numeric ID constants assigned to test-only components and events.
 ### Final build
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Build succeeded.
   0 Warning(s)
   0 Error(s)
@@ -197,7 +197,7 @@ dotnet test FDP/Kernel/Fdp.Core.Tests/Fdp.Core.Tests.csproj
 Passed: 912, Skipped: 2, Failed: 0
 ```
 
-### IOS-IG-SimHost.sln full test run
+### HROT.sln full test run
 
 | Project | Passed | Skipped | Failed | Notes |
 |---|---|---|---|---|
@@ -281,7 +281,7 @@ constraint; not run in CI without a DDS participant.
 ### Solution files modified
 
 - `FDP/FDP.sln`
-- `IOS-IG-SimHost.sln`
+- `HROT.sln`
 
 ### .csproj files with updated ProjectReferences (53 total)
 

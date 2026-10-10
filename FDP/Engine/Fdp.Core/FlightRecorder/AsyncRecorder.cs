@@ -41,6 +41,12 @@ namespace Fdp.Core.FlightRecorder
         private readonly FileStream _outputStream;
         private readonly RecorderSystem _recorderSystem;
         private readonly RecordingMetadata _metadata;
+
+        /// <summary>
+        /// The metadata written to <c>.meta.json</c> at <see cref="Dispose"/>. Main-thread callers may fill fields that describe
+        /// the recorded world (<c>CE-3126</c>: terrain name, geo origin) while recording.
+        /// </summary>
+        public RecordingMetadata Metadata => _metadata;
         private readonly string _filePath;
         
         // Stats

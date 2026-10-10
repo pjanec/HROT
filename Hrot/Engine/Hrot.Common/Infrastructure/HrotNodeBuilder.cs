@@ -241,7 +241,13 @@ public sealed class HrotNodeBuilder
 
         // Step 9 — Infrastructure EcsModules
         var tkbDb       = HrotEnvironment.CreateTkb();
-        var geoTransform = HrotEnvironment.CreateGeoTransform();
+        // ⭐ CE-3126 — ONE transform per node: the one the composition root made, else the one the network factory's
+        //   translators already hold, else a fresh one (origin 0,0,0 until a terrain commit sets it). Before, this was always
+        //   a new instance, so the translators and the world singleton could disagree. 📄 docs/DESIGN_Geo_Origin.md §2 C.
+        var geoTransform = _config.ExternalGeoTransform ?? _networkFactory?.GeoTransform ?? HrotEnvironment.CreateGeoTransform();
+        // ⭐ ...and it is the world singleton on EVERY node (IG published none before): the terrain commit sets the origin
+        //   THROUGH it (TerrainResidency.ApplyGeoOrigin), and the debug API, map pick and AI nodes read it.
+        world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geoTransform);
         var elm         = new EntityLifecycleModule(tkbDb, new List<int>(), localNodeId: _config.NodeId);
         var geoModule   = new GeographicModule(geoTransform);
         var baseModules = new List<IEcsModule> { elm, geoModule };

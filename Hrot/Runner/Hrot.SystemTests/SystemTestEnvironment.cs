@@ -87,7 +87,7 @@ public static class SystemTestEnvironment
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "IOS-IG-SimHost.sln")))
+            if (File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
             {
                 var runnerBin = Path.Combine(dir.FullName, "Hrot", "Runner", "Hrot.ClusterRunner", "bin");
                 if (Directory.Exists(runnerBin))

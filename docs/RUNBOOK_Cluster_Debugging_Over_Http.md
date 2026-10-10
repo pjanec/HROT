@@ -521,3 +521,8 @@ pkill -9 -f 'ClusterRunner[.]dll'; sleep 2; pkill -9 -f '[X]vfb'
 
 ⚠ Leftover nodes hold ports **and** DDS domains; the next run then fails in ways that look like product
 defects.
+
+📌 **Measured `2026-10-08` (backend):** one `--mode all` cluster left running for 41 minutes on domain 0 made
+`DdsIntegrationTests.CanPublishAndSubscribeEntityMaster` read the cluster's own entity (`Expected 12345, Actual 1000`) AND made the
+editor system tests (`DeterminismRails`) time out on `POST /sim/step` — both green the moment it was killed, and the second had
+been written off as an environment hang. ⇒ ⭐ **before trusting a red DDS or system test, `pgrep -af ClusterRunner`.**

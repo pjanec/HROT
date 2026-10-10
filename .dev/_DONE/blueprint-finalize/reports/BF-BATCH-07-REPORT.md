@@ -80,7 +80,7 @@ The `Pins:[]` invariant is preserved:
 
 | Gate | Result |
 |------|--------|
-| `dotnet build IOS-IG-SimHost.sln -c Debug` | **0 errors, 18 warnings (all pre-existing)** |
+| `dotnet build HROT.sln -c Debug` | **0 errors, 18 warnings (all pre-existing)** |
 | Blueprints test failures | **7 / 7 pre-existing (no regressions)** |
 | `BlueprintPinDefaultValueTests` (new) | **24 / 24 passed** |
 

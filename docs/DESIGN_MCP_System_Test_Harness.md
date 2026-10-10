@@ -235,7 +235,7 @@ world still**.
 - ⭐ **The world is loaded ONCE per editor**, not per case. 📌 Reloading rebuilds entities with fresh
   network ids, so a case listing entities while another's reload settles holds an id the map has already
   dropped — **a 404 that says nothing about the system.** It cost three false failures before being seen.
-- ⭐ **The project IS in `IOS-IG-SimHost.sln`** *(D1 did not settle this)*. ⛔ An out-of-solution test
+- ⭐ **The project IS in `HROT.sln`** *(D1 did not settle this)*. ⛔ An out-of-solution test
   project runs a **stale binary** when a run skips the build — a false green this repo has already paid
   for twice. It stays off the fast path by **trait**, not by exclusion.
 - ⭐ **`H6` ships MANUAL-trigger** *(`workflow_dispatch`)*: it is **the repository's first GitHub Actions

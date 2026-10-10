@@ -882,7 +882,7 @@ business logic.
 ## 14. Project Layout
 
 ```
-IOS-IG-SimHost.sln          -- Master solution (HROT + FDP combined)
+HROT.sln                    -- Master solution (HROT + FDP combined)
 FDP/
   FDP.sln                   -- FDP standalone solution
   Engine/
@@ -962,7 +962,7 @@ This compiles the `cyclonedds` submodule and deposits the resulting binaries und
 **Step 2 -- Restore NuGet packages:**
 
 ```powershell
-dotnet restore IOS-IG-SimHost.sln
+dotnet restore HROT.sln
 ```
 
 **Step 3 -- Build:**
@@ -973,7 +973,7 @@ build_all_standalone.bat
 
 REM Or build each sub-solution individually
 cd FDP && dotnet build FDP.sln -c Release
-dotnet build IOS-IG-SimHost.sln -c Release
+dotnet build HROT.sln -c Release
 ```
 
 ### Run -- Editor Mode (Recommended First Step)

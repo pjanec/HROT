@@ -89,7 +89,7 @@ it near the other Instance compile tests. This is the proof DEBT-MVE-002 is clos
 
 ## Verification (paste real output)
 
-1. `dotnet build IOS-IG-SimHost.sln` — 0 errors; 0 new warnings in touched projects.
+1. `dotnet build HROT.sln` — 0 errors; 0 new warnings in touched projects.
 2. The regenerated goldens pass; the diff is purely additive `StateFields` (state this explicitly).
 3. Full `Hrot.Blueprints.Tests` — the previously-failing **DEBT-006 golden tests that you regenerated now
    PASS** (so the pre-existing failure count DROPS by the number you regenerated); confirm no NEW failures

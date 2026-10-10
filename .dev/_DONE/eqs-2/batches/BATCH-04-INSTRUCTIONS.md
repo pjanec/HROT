@@ -513,7 +513,7 @@ Add a dedicated unit test in `FDP/Toolkits/Fdp.Toolkits.Tests/Eqs/EqsSolverSyste
 
 After implementing all changes:
 
-1. `dotnet build IOS-IG-SimHost.sln` — must succeed with 0 errors.
+1. `dotnet build HROT.sln` — must succeed with 0 errors.
 2. `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/ --filter "FullyQualifiedName~Eqs"` — ALL existing EQS tests (T1-T10 + new T-S1, T-S2, T-S3) must pass, including T4 (Phase1Stub).
 3. `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/ --filter "FullyQualifiedName~Eqs"` — all unit tests must pass (including EntitiesInRadius, Filter+Score, ReduceTopK).
 

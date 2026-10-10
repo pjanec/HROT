@@ -189,7 +189,7 @@ Passed: 10, Failed: 0
 
 ### Full solution build
 ```
-dotnet build IOS-IG-SimHost.sln: 0 errors, 0 warnings
+dotnet build HROT.sln: 0 errors, 0 warnings
 ```
 
 ---

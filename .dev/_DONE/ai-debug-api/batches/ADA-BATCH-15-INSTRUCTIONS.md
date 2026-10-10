@@ -99,7 +99,7 @@ source of all narrative detail; the generator emits them unchanged.
   `send_entity_command` with an unknown `eventType`; `spawn_entity` with no `tkbType`) and assert the MCP
   error output now contains BOTH `error` and a non-empty `hint`.
 - `npm run verify` green; no orphan runner processes. (No .NET changes expected in this batch — if you touch
-  any .cs, run `dotnet build IOS-IG-SimHost.sln`.)
+  any .cs, run `dotnet build HROT.sln`.)
 
 ## Constraints (hard)
 - Tool runtime behavior, names, params, and `callApi` semantics are UNCHANGED — this is a

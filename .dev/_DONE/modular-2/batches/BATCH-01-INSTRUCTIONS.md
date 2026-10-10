@@ -30,7 +30,7 @@ This is a **pure project consolidation** — no source logic changes, no namespa
 - **`ModuleHost.Core`:** `FDP/ModuleHost/ModuleHost.Core/` (and `ModuleHost.Core.Tests/`)
 - **Target new project:** `FDP/Kernel/Fdp.Core/Fdp.Core.csproj`
 - **FDP solution file:** `FDP/FDP.sln`
-- **Top-level solution file:** `IOS-IG-SimHost.sln`
+- **Top-level solution file:** `HROT.sln`
 
 ### Report Submission
 
@@ -135,7 +135,7 @@ the workspace root to get the full list.
   become merged — see Task 5 note)
 - Add a new solution entry for `Fdp.Core`
 
-**`IOS-IG-SimHost.sln`:**
+**`HROT.sln`:**
 - Remove solution entries for the same three projects (if they appear here)
 - Add a new solution entry for `Fdp.Core`
 
@@ -171,14 +171,14 @@ After updating all references and solution files, delete:
 
 **After completing each task step:**
 1. Run `dotnet build FDP/FDP.sln` — fix all errors before proceeding.
-2. Run `dotnet build IOS-IG-SimHost.sln` — fix cross-solution errors.
+2. Run `dotnet build HROT.sln` — fix cross-solution errors.
 3. Never leave the build broken between steps.
 
 **Final verification:**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test FDP/FDP.sln
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 All must pass with zero errors before submitting the report.
 

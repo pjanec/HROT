@@ -84,4 +84,4 @@ When using NLog's `${cached:...}` layout in the filename, the actual file path i
 
 - The NLog obsolete warning (CS0618) on `MappedDiagnosticsContext.Set` should be addressed in a future batch by migrating to `ScopeContext.PushProperty` with `${scopeproperty:scenario}`.
 - `DemoLocomotionMsg`, `DemoWeaponMsg` roundtrip tests were not specified in the batch requirements; only `DemoTransformMsg`, `DemoSpawnMsg`, and `DemoCombatInteractionMsg` were required. The two omitted structs are identical in shape to `DemoLocomotionMsg`/`DemoWeaponMsg` and will be covered when the DistributedTank scenario exercises them.
-- `Fdp.Examples.DDS` and the other new projects have been added to `IOS-IG-SimHost.sln` via `dotnet sln add`.
+- `Fdp.Examples.DDS` and the other new projects have been added to `HROT.sln` via `dotnet sln add`.

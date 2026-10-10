@@ -109,7 +109,7 @@ weaken the test's intent.
 - Do NOT weaken/skip/auto-pass tests or add a Stability trait to dodge a failure. Fix root causes.
 
 ## Definition of done (all required)
-- `dotnet build IOS-IG-SimHost.sln` green (zero new warnings — TreatWarningsAsErrors is on in these projects).
+- `dotnet build HROT.sln` green (zero new warnings — TreatWarningsAsErrors is on in these projects).
 - Run WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS`. New tests pass UNFILTERED. These suites 0-failed
   with `--filter "Stability!=Flaky&Stability!=Environment&Stability!=Broken"`:
   `Fdp.Presentation.Tests`, `Hrot.Editor.AiShared.Tests`, plus the hot suites

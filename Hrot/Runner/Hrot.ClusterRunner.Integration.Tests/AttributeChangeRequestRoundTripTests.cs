@@ -319,7 +319,7 @@ public class AttributeChangeRequestRoundTripTests
     /// <summary>
     /// A debug service bound to one node's world, as the cluster composition binds the active perspective.
     /// ⚠ It passes an explicit geographic transform because <c>Program.cs</c> does
-    /// (<c>geoTransform: HrotEnvironment.CreateGeoTransform()</c>): the IG world publishes no transform
+    /// (<c>geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0)</c>): the IG world publishes no transform
     /// singleton, so without it the service's attribute compiler cannot be built on the IG perspective.
     /// </summary>
     private static Hrot.Editor.DebugApi.DebugApiService DebugServiceOver(

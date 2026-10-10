@@ -38,11 +38,13 @@ public sealed class EditorSystemsModule : IEcsModule
     /// mirrors authored zones into a save-pipeline DTO, because a zone is an entity and the ordinary save
     /// gate already carries it. 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6.</para>
     /// </summary>
-    public EditorSystemsModule()
+    /// <param name="creation">⭐ <c>CE-3141</c> — the node's creation pack, read late (the obstacle tool requests typed obstacles
+    /// through it). A host that has it MUST pass it; null drops placements loudly.</param>
+    public EditorSystemsModule(System.Func<Hrot.Common.EntityCreation.EntityCreation?>? creation = null)
     {
         _cargo      = new EditorCargoSystem();
         _perception = new EditorPerceptionSetupSystem();
-        _zone       = new EditorZoneAuthoringSystem();
+        _zone       = new EditorZoneAuthoringSystem(creation);
     }
 
     /// <inheritdoc/>

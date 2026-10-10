@@ -106,6 +106,14 @@ namespace Hrot.Common.EntityCreation
 
             ctx.Elm.SetTranslators(translators);   // ⚠ must precede the kernel's Initialize
 
+            // ⭐⭐ CE-3136 P-7a (R-243) — a static obstacle is held Constructing until THIS node's terrain holds it: the rule here, the
+            //   participant that acks below (ObstacleBakeSystem). Both in the pack, so no node can have one without the other.
+            //   📄 docs/DESIGN_Peek_And_Fire.md §9.
+            ctx.Elm.RegisterTemplateRequirement(
+                t => t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.StaticObstacleDto>() != null,
+                Fdp.Toolkit.Terrain.TerrainObstacles.LifecycleModuleId);
+            var obstacleBake = new Hrot.Map.Common.Services.StaticObstacleBakeSystem();
+
             // ⭐⭐ The LOCAL request source. This is what makes path 2 (a node creating an entity it
             //   OWNS) possible without a DDS round trip: an authoring site enqueues a request targeted
             //   at this node, and the request system below drains it on the next tick.
@@ -236,7 +244,7 @@ namespace Hrot.Common.EntityCreation
 
             return new EntityCreation(
                 translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem,
-                promotionSystem, ctx.NodeId, networkSystems, ctx.World);
+                promotionSystem, ctx.NodeId, networkSystems, ctx.World, obstacleBake);
         }
     }
 }

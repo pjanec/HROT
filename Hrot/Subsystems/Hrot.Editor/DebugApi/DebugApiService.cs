@@ -2095,7 +2095,7 @@ namespace Hrot.Editor.DebugApi
                 return null;
             var arr = new JsonArray();
             int fallbacks = 0;
-            foreach (var p in Fdp.Toolkit.Tkb.Parameters.ParameterResolver.ResolveAll(t))
+            foreach (var p in Fdp.Toolkit.Tkb.Parameters.ParameterResolver.ResolveAll(t, _tkbDb))
             {
                 if (p.Provenance == Fdp.Toolkit.Tkb.Parameters.ParameterProvenance.EngineFallback) fallbacks++;
                 arr.Add(new JsonObject
@@ -2208,6 +2208,22 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>GET /terrain/query — ⭐ buildings Stage 1: a sight trace with every crossed occluder (dry run).</summary>
         public JsonNode QueryTerrain(System.Numerics.Vector3 from, System.Numerics.Vector3 to) => TerrainReport.Query(_world, from, to);
+
+        /// <summary>GET /terrain/query?purpose=fire — ⭐ R-217: a round of the given penetration/damage carried through the terrain.</summary>
+        public JsonNode QueryTerrainFire(System.Numerics.Vector3 from, System.Numerics.Vector3 to, float penetration, float damage)
+            => TerrainReport.QueryFire(_world, from, to, penetration, damage);
+
+        /// <summary>GET /combat/shots — ⭐ tuning T-4: the last rounds fired on this node, as the combat systems recorded them.</summary>
+        public JsonNode GetShots(int last, long? shooter, long? target)
+            => CombatReport.Shots(_world, _editorEntityMap ?? _dispatcher?.EntityMap, last, shooter, target);
+
+        /// <summary>GET /combat/detonations — ⭐ CE-1032 (W-10): the last warhead bursts on this node, as the area effect decided them.</summary>
+        public JsonNode GetDetonations(int last)
+            => CombatReport.Detonations(_world, _editorEntityMap ?? _dispatcher?.EntityMap, last);
+
+        /// <summary>GET /perception/los — ⭐ tuning T-4: why one unit does (not) see another, as this node's perception decides it.</summary>
+        public JsonNode ExplainLos(long observer, long target)
+            => CombatReport.Los(_world, _editorEntityMap ?? _dispatcher?.EntityMap, observer, target);
 
         /// <summary>GET /doors — ⭐ buildings Stage 1: the doors the terrain defines.</summary>
         public JsonNode GetDoors() => TerrainReport.Doors(_world);

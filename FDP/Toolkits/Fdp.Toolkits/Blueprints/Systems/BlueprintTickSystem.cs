@@ -67,9 +67,10 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
         //   relying on an implementation detail of QueryBuilder, and the guard costs one branch once.
         _tierQueries ??= BlueprintTierTable.BuildTierQueries(repo);
 
-        // ⚠ Smallest-first, which is the order the three named calls ran in. An entity carries at
-        //   most one tier, so the order is not observable — it is preserved anyway, because
-        //   "not observable" is a claim and preserving it costs nothing.
+        // ⚠ Smallest-first, which is the order the three named calls ran in.
+        // ⭐ CE-3137 U-0 (R-236): a unit may now carry SEVERAL blocks, so it appears in several tier
+        //   queries. That needs no visit dedupe HERE: this walk is SLOT-level, each slot lives in
+        //   exactly one block, so every Instance still ticks once per frame (in the order of its blocks).
         for (int t = 0; t < tiers.Count; t++)
         {
             var q = _tierQueries[t];

@@ -91,11 +91,14 @@ namespace Fdp.Toolkit.CarKinem.Modules
                 new FormationTargetSystem(FormationTemplates, TrajectoryPool),
                 new VehicleCommandSystem(),
                 new NavigationExecutionSystem(),
+                // ⭐ Buildings 5d-3 — stops at a closed door on the path, opens it, walks on; replans round a locked one
+                new DoorPassageSystem(TrajectoryPool),
             };
             PostSimulationSystems = new IEcsModuleSystem[]
             {
                 new CarKinematicsSystem(TrajectoryPool),
                 new LinearKinematicsSystem(),
+                new PathTraceSystem(TrajectoryPool),   // ⭐ CE-3117 — the planned path as recorded state, for the map
             };
         }
 

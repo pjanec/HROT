@@ -91,7 +91,7 @@ One-time tool/pass: load each existing `[BTreeDefinition]`/`[HsmDefinition]` ass
 - **Don't break the blueprint path:** blueprint already works the right way; reuse its patterns, don't regress it.
 
 ## Verification (reach green before reporting)
-- `dotnet build IOS-IG-SimHost.sln` 0 errors; touched projects 0 new warnings (~26 pre-existing unrelated warnings on full rebuild — leave them, DEBT-BCP-004).
+- `dotnet build HROT.sln` 0 errors; touched projects 0 new warnings (~26 pre-existing unrelated warnings on full rebuild — leave them, DEBT-BCP-004).
 - New JSON round-trip + migration tests; `SaveBTreeEmitTests`/`SaveHsmEmitTests` (green or reviewed re-baseline); `EditorSubsystemBoot` filter 10/10; `Hrot.Editor.AiShared.Tests`; `Hrot.Blueprints.Tests` (only the 10 pre-existing DEBT-006).
 
 ## Pre-existing failures (NOT regressions)

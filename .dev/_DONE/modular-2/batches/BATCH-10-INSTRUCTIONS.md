@@ -266,7 +266,7 @@ Once all NED usages are resolved, remove the NED project reference from
 ## Phase 4: Final Build and Test Pass
 
 ```powershell
-dotnet build IOS-IG-SimHost.sln -v quiet
+dotnet build HROT.sln -v quiet
 dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj
 dotnet test Hrot.SimHost.Integration.Tests/Hrot.SimHost.Integration.Tests.csproj
 dotnet test Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj

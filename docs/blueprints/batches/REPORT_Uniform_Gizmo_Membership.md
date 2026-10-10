@@ -55,7 +55,7 @@ edges** is a materially different blast radius from *"one new file"* ⇒ **the c
 
 | # | gate — verbatim command | `--no-build`? | result | delta vs `ba472e0ce` |
 |---|---|---|---|---|
-| 1 | `dotnet build IOS-IG-SimHost.sln` | builds | ✅ **0 errors**, 74 warnings | none |
+| 1 | `dotnet build HROT.sln` | builds | ✅ **0 errors**, 74 warnings | none |
 | 2 | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter Category=SystemModes` **after ①** | `--no-build` | ✅ **8 / 0** | none — ⭐ the integration gate, run after ① as §4 required |
 | 3 | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build` *(whole)* | `--no-build` | ✅ **57 / 0** | ⭐ **exactly the stated baseline** |
 | 4 | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Tests --no-build --filter FullyQualifiedName~GizmoSchemaFollowsDeclarationRails` | `--no-build` | ✅ **5 / 0** | profiles synced to the new call sites |

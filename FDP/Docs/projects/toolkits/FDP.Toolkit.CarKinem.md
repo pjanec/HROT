@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-09
+current-answer: the whole file; pedestrians move by "Human gait" (CE-3145), every other class by the bicycle model
+stale-below: none known
+known-rot: written as a vehicle toolkit; SimHost infantry has always been moved by this system too (Navigation_Design_v2_0 §D1 ②)
+related-designs:
+  - ../../../../docs/DESIGN_Peek_And_Fire.md — OWNS the window duel that found the pedestrian defect (D17)
+  - ../../../../docs/designs/navig-2/Navigation_Design_v2_0.md — OWNS the path a mover follows; this file owns how it moves along it
+-->
+
 # FDP.Toolkit.CarKinem
 
 ## Overview
@@ -99,6 +110,44 @@ Rotation Matrix Update:
 
 ---
 
+### Human gait — pedestrians *(`CE-3145`, R-247, `2026-10-09`)*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Standing
+  Standing --> TurnInPlace : a goal more than 30 deg off the heading
+  Standing --> Walk : a goal within 30 deg
+  TurnInPlace --> Walk : heading within 30 deg (turned at 2 pi rad/s)
+  Walk --> TurnInPlace : the path turns more than 30 deg - stop first (at least 4 m/s2)
+  Walk --> Standing : arrived or held
+```
+
+*What the picture shows that the bicycle section above cannot: a person has no turning circle — the heading turns straight to
+the wanted direction and he only walks when roughly facing it.*
+
+`VehicleClass.Pedestrian` is integrated by `Controllers/HumanGait.cs`, never `BicycleModel`: no Pure Pursuit steering angle, no
+cornering limit, the speed target 0 while the heading is more than `WalkWithinAngle` off (`HumanGait.SpeedTarget`), braking at
+least `StopDecel`, and the yaw rate reported is the turn actually made. Every other class is unchanged.
+
+| why | ⛔ what it replaced |
+|---|---|
+| 📐 `bt-window-duel`: A, facing east 0.4 m from House A's open stairwell, had to go west — the car model (0.3 m turn circle at full lock, up to ≈ 0.95 m/s while turning, `CarKinematicsSystem` cornering limit) walked him 0.5 m forward into the stairwell and he fell to the ground floor | a pedestrian as a tiny car (`WheelBase` 0.3, `MaxSteerAngle` 1.57) — "can turn in place" in the preset's comment, never in the model. 🔒 User: *"Feel free to modify the motion model to suite human movement. It has never been done only because not needed yet."* |
+
+**On a path** (`KinematicsMode.CustomTrajectory`) a person differs from a car in three more ways, each measured on House A's stairs:
+
+| rule | why | ⛔ the car behaviour it replaces |
+|---|---|---|
+| he aims `HumanGait.PathAim` (1 m) ahead of his projection on the segment he walks, **clamped to that segment's end corner**; within `CornerReach` (0.25 m) of the corner he moves to the next segment (`HumanGait.Aim`) | a drift still closes onto the path (CE-3115), but a corner is never cut | a lookahead of ≥ 1 m along the whole path — at the corner beside the stairwell it aimed across the hole |
+| his progress is his position projected on that segment (`HumanGait.Progress`) | it neither stalls while he turns on the spot nor runs ahead when he drifts | progress dead-reckoned from speed × heading |
+| standing on a floor, a step that drops more than `HumanGait.MaxStepDown` (1 m) is not taken — he stops at the edge | a soldier steps or hops down a stair's side (0.5 m, which the navmesh plans); a storey is a fall | `SurfaceZ` took him to whatever lay below |
+
+📐 The path the navmesh plans from the upstairs window (107.1, 100.9, 3) to the ground-floor east window runs 5 cm from the stairwell's
+edge, turns north, and steps off the stair's side at 0.5 m — the car model fell 3 m at its first corner; the person walks it.
+
+Rails: `CarKinematicsSystemTests.CE3145_APerson_TurnsOnTheSpot_ThenWalks`, `CE3145_HumanGait_ANonPositiveStep_TurnsNothing`,
+`CE3145_APerson_DownTheStairs_NeverFallsThroughTheStairwell` (the planned route on the real `bt-range` house · a straight line over the
+stairwell), and the walker case of `CE3115_AMoverOffItsPath_ClosesOntoIt`.
+
 ## Core Components
 
 ### VehicleState (Core/VehicleState.cs)
@@ -142,7 +191,7 @@ public struct NavState
     public float LastSteerCmd;         // Steering command smoothing
     public byte ReverseAllowed;        // 1 = allow reverse (not implemented)
     public byte HasArrived;            // 1 = within arrival radius
-    public byte IsBlocked;             // 1 = obstacle ahead
+    public byte IsBlocked;             // 1 = obstacle ahead: brake to a stop, keep the path (read since 2026-10-08)
 }
 ```
 
@@ -430,6 +479,15 @@ Algorithm:
 - `lookaheadTime` (0.5s): Time-based lookahead scaling
 
 **Geometric Insight**: Pure Pursuit creates a circular arc from the vehicle to the lookahead point. The curvature of this arc determines the steering angle.
+
+**On a trajectory — the lookahead point is ON THE PATH** *(`CE-3115`, as built `2026-10-08`)*: in `CustomTrajectory` mode the
+desired direction is towards the path point `PathLookahead` metres ahead of the progress
+(`Ld = max(1 m, 2·WheelBase, |v|·LookaheadTimeMin)` — a walker at 1.5 m/s aims 1 m ahead, a car at 15 m/s 7.5 m), so a sideways
+error (a cut corner, an avoidance swerve) closes. Progress still counts motion along the path TANGENT only (CE-2059).
+⛔ SUPERSEDED: the desired direction was the path's tangent at the progress, so the lookahead point was `P_current + tangent·Ld` and
+any drift stayed for good — the mover drove parallel to its path (measured live: a walker 1.4 m off, through a building wall, past
+a closed door). Rail `CarKinematicsSystemTests.CE3115_AMoverOffItsPath_ClosesOntoIt` (car 3 m off, walker 1.5 m off → < 0.3 m;
+red before: 3.00 / 1.50 m to the end).
 
 ### Speed Controller (Controllers/SpeedController.cs)
 
@@ -749,7 +807,7 @@ public class SpatialHashGrid
 
 **Future Implementation**: The toolkit has stubs for RVO-based collision avoidance in `Avoidance/RVOAvoidance.cs`. RVO allows multiple agents to cooperatively avoid collisions by selecting velocities outside each other's velocity obstacles.
 
-**Current Status**: Basic obstacle detection via `NavState.IsBlocked` flag. Vehicles slow down when obstacles detected ahead via spatial hash queries.
+**Current Status**: ⛔ ~~Basic obstacle detection via `NavState.IsBlocked` flag. Vehicles slow down when obstacles detected ahead via spatial hash queries.~~ *(known-rot, measured `2026-10-08`: nothing read `IsBlocked`; the spatial-hash avoidance is `ApplyCollisionAvoidance`, which never set it.)* Since Buildings 5d-3 `CarKinematicsSystem` reads `IsBlocked` as a HOLD: target speed 0, path and progress kept, drives on when it clears; the frustration watchdog ignores a held agent. Its one writer today is `DoorPassageSystem` (a closed door being opened) — 📄 `docs/DESIGN_Building_Interiors.md` §3j "5d-3 / 5d-4 as built".
 
 ---
 

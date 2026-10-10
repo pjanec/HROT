@@ -85,7 +85,8 @@ namespace Hrot.Network.NED.SimHost
                     continue;
                 }
 
-                if (!_entityMap.TryGetNetworkId(evt.Target, out long hitNetId))
+                long hitNetId = 0;   // ⭐ CE-1032 W-3 — a round that detonated on the terrain has no target
+                if (evt.Target != Entity.Null && !_entityMap.TryGetNetworkId(evt.Target, out hitNetId))
                 {
                     FdpLog<MunitionDetonationEgressTranslator>.Warn(
                         "[MunitionDetonationEgress] Target entity #{0} not in NetworkEntityMap â€” skipping detonation.",
@@ -100,6 +101,7 @@ namespace Hrot.Network.NED.SimHost
                     HitX            = evt.HitX,
                     HitY            = evt.HitY,
                     HitZ            = evt.HitZ,
+                    MunitionType    = evt.Ammo,
                 });
                 SentSampleCount++;
             }

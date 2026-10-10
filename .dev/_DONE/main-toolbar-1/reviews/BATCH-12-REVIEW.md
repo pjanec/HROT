@@ -10,7 +10,7 @@ per-kind last-opened persist/restore. Completes Phase 4.
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings.
+- `dotnet build HROT.sln` → 0 errors, 0 new warnings.
 - New + existing tests run by lead: `AssetBrowserPanelTests` → **10 passed, 0 failed** (5 BATCH-11 +
   5 BATCH-12). Suites green: AiShared 914, Fdp.Toolkits 1856, SimHost 585.
 - Seams read: `Filter`, `FilteredTreeFor(kind)` (prune to matching leaves + ancestors),

@@ -8,6 +8,7 @@ known-rot: none.
 known-conflict:
   - docs/DESIGN_Decision_Layer.md §3 INVENTORY says five decisions are registered at CGF start — four are (ManeuverSelect has no [UtilityDecision]); its STATUS line still calls §3.3 "not started" while its body records CE-2067…2073 BUILT. Noted there, 2026-10-05.
 related-designs:
+  - docs/designs/navig-2/Navigation_Design_v2_0.md §5.2a — CE-3128 (R-231): the danger classifier moves onto the road GRAPH (D7) and the watched route onto the shared RoutePlanner (D2), so it watches the route the unit drives
   - DESIGN_Terrain_Combat_Tuning.md — premise tables + the same two-forms rule for building/combat demos
   - docs/blueprints/Architect_Question_85_Hit_Chance.md — OWNS hit chance (does the round hit at all), the term BEFORE §9's armour model; proposes the same one-function-for-shot-and-AI shape (R-212 A1).
   - docs/DESIGN_Decision_Layer.md — OWNS the utility step (ChooseOption / IsOption / RankCandidates, §3.3) and CombatPosture (§3.3b); this document only DEMONSTRATES them and lists what is missing to do so.
@@ -863,6 +864,10 @@ H1/H2 need nothing at all and can start at once; the backend merges `behaviors` 
 | B4′ | `PathfindingResultMaterializationSystem`'s move branch writes `NavigationStatus.RouteHandle`; ⚠ `NavigationExecutionSystem` resets the status only on a NEW intent, so the handle survives (the plan lands a solver round-trip after the intent) — the live run (B6) confirms it on the wire | |
 
 ### 10.7 B3 + B4 — the `DangerAlongRoute` solve, its transport, and the Brain-side rating *(`2026-10-06`; `build-state: BUILT`, §10.7a)*
+
+> ⚠ **`2026-10-08` — CE-3128 (R-231) will change two things here** ([Nav v2 §5.2a](designs/navig-2/Navigation_Design_v2_0.md) D2/D7):
+> the classifier reads the road GRAPH (segment bands, junction nodes) instead of `surface: road` polygons, and the route comes from the
+> shared `RoutePlanner` with the unit's `RoadUse` instead of a navmesh-only re-plan. The transport and the Brain-side rating are unchanged.
 
 📐 **Measured** (a read-only sweep, every row `file:line` in the batch notes): ① a SimHost in BOTH cluster forms carries
 `MuscleGround | Perception | NavigationSolver` (`SimHostApp.cs:186`) — so "the node holding the navmesh" IS a Perception
