@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — leans VE-A..VE-I APPROVED (U3, 2026-10-10); §4b VE-J..VE-M (the muzzle binding) await the user; slices E1–E4 (§6). Nothing built.
+build-state: READY-TO-BUILD — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); slices E1–E4 (§6). Nothing built. Programme index: PLAN_3D_World_And_Realism.md.
 updated: 2026-10-10
 current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - PLAN_3D_World_And_Realism.md — the programme index: where these slices sit among the 3-D map, turret, aircraft and sound work.
   - DESIGN_Map_3D_Mode.md — the 3-D renderer of these effects (its S3 effects wait for this design; §6c U27); the muzzle point
     comes from its §3.11 articulated turret (M23–M26).
   - DESIGN_Map_Rendering_And_Interaction.md — owns MapCanvas and its layers; the effect layers are two more layers attached by
@@ -22,6 +23,7 @@ related-designs:
 | # | verbatim |
 |---|---|
 | **U1** | *"each effect entity has its TKB type of course defining the effect"* |
+| **U5** | *"VE-J to VE-M approved. pls presetn the plan even beyond the effects and make sure it is saved as compaction will come in few iterations"* — ✅; the plan is `PLAN_3D_World_And_Realism.md` |
 | **U4** | *"how the muzzle effect will be bound to the barrel? what is expected from the shot effect entity regarding its parenting or location?"* — §4b, leans VE-J..VE-M |
 | **U3** | *"VE leans approved. pls explain 'The old effect gizmo is retired once the 2-D effect layer replaces it.' What are old effect gizmos? Some gizmos like the firing line from the shooter entity to the target point still makes sense even in 3d to indicate the firing target whenever shot is made."* — ✅ approved; §4a answers which gizmo retires and which stay |
 | **U2** | *"some kind of simple fire effect (from the barrel, multiple size based on ammo type) and explosion effect (at hit position, multiple sizes based on ammo type), decal effect (at hit position, multiple sizes to be mapped to ammo type) - this adds a lot to the realism and should be cheap with todays possibilities. all those effect could be special types of temporary entities (counting their lifetime so the render can show them in proper phase) that are rendered in their special way and removed once their lifetime expired; so no gizmos as such - pls add those to the plan, many might require design steps."* |
@@ -163,7 +165,7 @@ sequenceDiagram
 the layer on, the **outcome-coloured firing line** (analysis, S3). ⚠ The tracer kind and the firing line overlap in purpose; the
 tracer is short and decorative, the firing line is the one that says what the round DID.
 
-### 4b. Binding the muzzle flash to the barrel *(U4 — leans VE-J..VE-M await the user)*
+### 4b. Binding the muzzle flash to the barrel *(U4 — VE-J..VE-M ✅ APPROVED, U5)*
 
 🔒 **User, `2026-10-10`:** *"how the muzzle effect will be bound to the barrel? what is expected from the shot effect entity
 regarding its parenting or location?"*

@@ -1,7 +1,11 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-06
-current-answer: ⭐ 2026-10-07 — THE BUILDINGS/COMBAT PROGRAMME IS HANDED OFF to backend (batches/HANDOFF_Buildings_Combat_Programme.md;
+updated: 2026-10-10
+current-answer: ⭐⭐⭐ 2026-10-10 — THE ui LANE'S CURRENT PROGRAMME IS THE 3-D WORLD AND COMBAT REALISM ⇒ read
+  ../PLAN_3D_World_And_Realism.md FIRST (§2 roadmap A1…E2, §3 dependencies, §6 how to resume). Built today: CE-1035 Q0–Q2,
+  CE-1034 H1–H3, CE-1033 S1 + every host + air kits, CE-1041 aircraft gear; designed + approved: CE-1042 effects (VE-A..VE-M),
+  the live turret (R-255). Everything below this line is OLDER state.
+  ⛔ OLDER: 2026-10-07 — THE BUILDINGS/COMBAT PROGRAMME IS HANDED OFF to backend (batches/HANDOFF_Buildings_Combat_Programme.md;
   designs DESIGN_Building_Interiors.md + DESIGN_Terrain_Combat_Tuning.md, all approved). ui FOCUS = Add Entity
   (DESIGN_Add_Entity_Picker.md, READY-TO-BUILD): S0 TKB data, S2 SurfacesAt/ResolveLevel + SpawnHeight + placement tool —
   ⭐ commit S2 as `feat(CE-1017 S2)`: backend waits on it (merge point M1) before touching TerrainWorld.cs. Also built
