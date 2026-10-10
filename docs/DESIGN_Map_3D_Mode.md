@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — approach chosen by the user (U13: alternative B, a 2-D/3-D switch on the existing map); the
   leans in §5 await approval before S1. Nothing built.
-updated: 2026-10-10 (rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
+updated: 2026-10-10 (rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §7 what is NOT verified.
@@ -50,6 +50,8 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 | **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) … with imgui on top for menus?"* | measured in `DESIGN_Godot_3D_Viewer.md` §8 — lean B |
 | **U13** | *"The internal 3d solution could be switchable 2d/3d instead of current 2d only map so no new 3d window would be required. I think we should focus on B … Lets put godot aside (but keep its design as deferred). We need the simple renderer to handle the terrain geometry, use lighting color shaded polygons to give it some usable feeling of a real world, if not some freely available texture pack."* | ⭐ this file: a **mode of the map**, not a window; **lit, colour-shaded terrain**; textures as a later slice |
 | **U15** | *"Every host having the 2d map will get simple 3d, correct? Not just IG. … The current 2d map can be switched to 3d view and back (some camera animation between 2d camera and 3d camera or something)."* | ✅ yes, all five map hosts (S6). ⭐ M12: the switch is an animated camera move, not a cut |
+| **U16** | *"The 3d entities will need some label system so that we can show various texts provided by gizmos. So far gizmos were using 2d text, how to adapt to text for entities in 3d?"* | ⭐ §3.4 + M13: the same text primitives, projected; one overlay pass |
+| **U17** | *"ok one camera entity."* | ✅ M10 approved |
 | **U14** | *"Human characters as simple as in minecraft would be a bit nicer and still feasible i guess."* | ⭐ M7 rewritten: a **six-box figure**, stance poses blended by the transition, limb swing from speed |
 
 The requirements V-01..V-20 live in `DESIGN_Godot_3D_Viewer.md` §1. ⭐ What changes under U13: **V-09** (own window) →
@@ -148,6 +150,8 @@ classDiagram
   class StrideDrawSink3D { <<exists>> PooledEntityDebugDrawSink3D }
   class TerrainWorldMesh { <<exists>> +optional per-triangle tag }
   class LitShader { <<new>> GLSL directional light + fog }
+  class LabelOverlay3D { <<new>> project, LOD, cull }
+  class GizmoTextDraw { <<extracted>> from DebugPrimitiveRenderer2D }
   MapCamera <|-- MapCamera3D
   MapCanvas --> MapCamera
   MapCanvas --> IMapLayer
@@ -164,6 +168,9 @@ classDiagram
   TerrainLayer3D ..> LitShader
   EntityBodyLayer3D ..> LitShader
   EntityBodyLayer3D ..> BlockFigure
+  DebugGizmoLayer ..> LabelOverlay3D : text, badges
+  LabelOverlay3D ..> GizmoTextDraw
+  LabelOverlay3D ..> MapCamera3D : WorldToScreen
   BlockFigure ..> LogicalStance
   BlockFigure ..> LocomotionBlend
 ```
@@ -234,6 +241,37 @@ sequenceDiagram
 neither one jumps; the tilt in between is ordinary camera animation. The only thing that changes at the swap is what
 is drawn (2-D symbols ↔ 3-D bodies), and the motion masks it.
 
+### 3.4 Labels in 3-D — the same gizmo text, projected *(U16)*
+
+📐 Measured `2026-10-10` in `DebugPrimitiveRenderer2D.cs`: ⭐ **every gizmo text is already a constant-PIXEL label at a
+world point** — *"All gizmo text is rendered at a constant on-screen pixel size regardless of camera zoom"* (`:390`);
+badges are already drawn in screen space after `GetWorldToScreen2D` (`:437-447`); stacked lines use a pixel offset
+(`LineOffsetPx`, `:413-429`); the anchor cache already keeps **Z** (`:58-69`). ⇒ In 3-D only the **world → screen** step
+changes; the text drawing itself is reused.
+
+```mermaid
+sequenceDiagram
+  participant C as MapCanvas (3-D)
+  participant G as DebugGizmoLayer
+  participant B as EntityBodyLayer3D
+  participant O as LabelOverlay3D
+  participant K as MapCamera3D
+  participant T as GizmoTextDraw (extracted)
+  C->>G: Draw3D - triage draws lines, arrows, spheres
+  G->>O: hand over Text / EntityBadge primitives (anchors resolved, Z kept)
+  C->>K: EndMode()
+  C->>O: DrawOverlay()
+  O->>B: body top height for this anchor's network id
+  O->>O: point = anchor XYZ + body height + margin (unanchored text: terrain SurfaceZ + lift)
+  O->>K: WorldToScreen(point) - behind camera or off screen: skip
+  O->>O: LOD - equivalent zoom from distance, the primitive's own MinZoomLod / MaxZoomLod
+  O->>T: draw at that pixel position - same font, size, line stacking, rich-text badge
+```
+
+*What it shows:* gizmo authors change **nothing** — the same `Text` / `EntityBadge` primitives. The 3-D mode adds one
+overlay pass after the 3-D pass; the drawing code is the 2-D renderer's screen-space branch, extracted so both modes call it.
+
+
 ---
 
 ## 4. THE REUSE LEDGER
@@ -252,7 +290,8 @@ is drawn (2-D symbols ↔ 3-D bodies), and the motion masks it.
 | vehicle sizes | ✅ `VehicleParametersDto` / `SimVehicleDef` | TKB |
 | stance | ✅ `LogicalStance.Of` for the pose; `StanceStatus.Phase` / `TransitionProgress` to blend into it | `Tkb/Domain/StanceComponents.cs:58,82` |
 | `LocomotionBlend` (speed → idle/walk/run weights, pure `System`) | 🔁 **extract** beside the gizmo triage — drives the limb swing | `Stride/Hrot.Stride.Animation/LocomotionBlend.cs:99-145` |
-| `MapCamera3D`, `TerrainLayer3D`, `EntityBodyLayer3D`, `BlockFigure` (the six-box pose math, unit-tested), `RaylibDrawSink3D`, the lit shader, the switch | 🆕 new | — |
+| 2-D renderer's screen-space text + badge drawing | 🔁 **extract** to `GizmoTextDraw` — the 2-D screen-space branch and the 3-D overlay both call it | `DebugPrimitiveRenderer2D.cs:388-447` |
+| `MapCamera3D`, `TerrainLayer3D`, `EntityBodyLayer3D`, `LabelOverlay3D`, `BlockFigure` (the six-box pose math, unit-tested), `RaylibDrawSink3D`, the lit shader, the switch | 🆕 new | — |
 
 ---
 
@@ -269,9 +308,10 @@ is drawn (2-D symbols ↔ 3-D bodies), and the motion masks it.
 | **M7** | entities | ⭐ box per vehicle from TKB size (tank: hull + turret box). **Human = a six-box block figure (U14)**: head, torso, two arms, two legs, ~1.8 m, torso in the side's colour. **Pose** = the shared stance rule `LogicalStance.Of` (`StanceComponents.cs:82`: *"a unit's LOGICAL stance is what its brain ordered … an animation only shows it and never gates it"*) — standing; crouched (hips lowered, knees bent); prone (the whole figure laid along its heading). While `StanceStatus.Phase` is transitioning, the pose blends by `TransitionProgress`. **Limb swing** (arms and legs counter-swinging, Minecraft-style) from planar speed through the extracted `LocomotionBlend.FromSpeed` (`LocomotionBlend.cs:114`) — walk and run weights set amplitude and rate; a per-entity phase advances with distance walked. Optional rifle = a thin box in the hands | cylinders (rev 1) — U14 · real models — U12 · showing `StanceStatus.CurrentStance` alone — it would disagree with the hit model, fire chain and perception, which all read `LogicalStance` |
 | **M8** | free camera | ⭐ Unity scene view: **RMB-drag** look, **WASD/QE only while RMB is held** (so tools keep their keys), wheel dolly, MMB pan, **F** frames the selection; right-**click** stays the context menu (the canvas already tells drag from click) | always-on WASD — collides with tool keyboard input |
 | **M9** | coordinates | ⭐ one transform: HROT `(x, y, z)` → Raylib `(x, z, −y)`, quaternion `(x, y, z, w)` → `(x, z, −y, w)` (det +1, no flip) | — |
-| **M10** | the camera entity (V-12..V-15) — **what it stores** | ⭐ **one camera entity for the map, in both modes**: look-at point, distance, yaw, pitch and the mode. The 2-D map is simply that camera at pitch −90°, north up. An ordinary spatial entity (U7), owned by the host, saved with the scenario, created on the first camera move — so a saved scenario reopens the map where it was looking, in the mode it was in | 3-D pose only (rev 2's lean) — two camera states for one map · no entity at all — simpler, but drops V-12's "saveable to scenario" |
+| **M10** | the camera entity (V-12..V-15) — **what it stores** | ✅ **APPROVED (U17): one camera entity for the map, in both modes**: look-at point, distance, yaw, pitch and the mode. The 2-D map is simply that camera at pitch −90°, north up. An ordinary spatial entity (U7), owned by the host, saved with the scenario, created on the first camera move — so a saved scenario reopens the map where it was looking, in the mode it was in | 3-D pose only (rev 2's lean) — two camera states for one map · no entity at all — simpler, but drops V-12's "saveable to scenario" |
 | **M11** | network viewer (V-18) | ⭐ an IG node with the map in 3-D — nothing extra | a dedicated viewer node — IG already is one |
 | **M12** | the 2-D ↔ 3-D switch (U15) | ⭐ an **animated camera move** pivoting at the overhead pose (§3.3): both swaps happen where 2-D and 3-D look the same | a hard cut — the user asked for animation · morphing orthographic into perspective — needless; overhead perspective at matched height is close enough |
+| **M13** | labels in 3-D (U16) | ⭐ a screen-space `LabelOverlay3D` pass after the 3-D pass: the existing `Text` / `EntityBadge` primitives, anchors resolved with Z, lifted to the top of the entity's 3-D body, projected by `MapCamera3D.WorldToScreen`, drawn by the 2-D renderer's screen-space text code (extracted, one implementation). Far labels hide by the primitives' own `MinZoomLod` / `MaxZoomLod`, using an equivalent zoom = pixels per metre at the label's distance. Drawn always on top first (name-tag style); hiding labels behind buildings by a ray test is a later option; decluttering overlaps later | 3-D text meshes (billboarded geometry in the scene) — a second text renderer, unreadable at distance · a new label primitive — every gizmo would have to change |
 
 ---
 
@@ -281,7 +321,7 @@ is drawn (2-D symbols ↔ 3-D bodies), and the motion masks it.
 |---|---|---|
 | **S1** | `MapCamera3D` + the animated switch (Editor); `TerrainLayer3D` from `TerrainWorldMesh` as-is, one colour per kind, lit shader + fog; `EntityBodyLayer3D` vehicle boxes + block figures in their three stance poses (static); free camera; **Xvfb screenshot of the editor in 3-D on `test-town`** | the render path, the shader on the cloud's software GL, M8 |
 | **S2** | `ScreenToWorld` ray picking; `deltaWorld` through the camera; `SelectionRenderSystem.Draw3D` wire cubes | select, context menu and tools work in 3-D unchanged |
-| **S3** | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters | gizmos, fire traces, detonations in 3-D |
+| **S3** | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters; **labels**: `GizmoTextDraw` extracted, `LabelOverlay3D` with projection + LOD | gizmos, fire traces, detonations and gizmo text in 3-D (U16) |
 | **S4** | mesh tags; colours by surface and material; water; road ribbons from the road network; **figures come alive**: stance blending + limb swing (`LocomotionBlend` extracted), optional rifle | "a usable feeling of a real world" (U13), U14 |
 | **S5** | camera entity — create, follow, scenario save | V-12..V-15 |
 | **S6** | all five hosts through `MapInteractionPack` | V-01, V-18 (IG) |
@@ -299,7 +339,7 @@ is drawn (2-D symbols ↔ 3-D bodies), and the motion masks it.
 | ⚠ 3-D frame cost inside the host frame (terrain mesh + a few hundred entities) | S1, measured on Windows and in the cloud |
 | ⚠ an entity box hit returning that entity's ground XY lands inside its 2-D pick box for every entity kind | S2 rail per kind |
 | ⚠ which CC0 texture pack — ambientCG / Poly Haven are CC0 by their own terms; specific textures and repo size not chosen | S7, with a licence table |
-| ⚠ M10: one camera entity for both modes — the lean, explained to the user `2026-10-10`; awaiting a yes | the user |
+| ⚠ the 3-D pass must accept primitives that target `PipelineTarget.Map2D` (the 2-D renderer filters on it, `DebugPrimitiveRenderer2D.cs:93`; `Viewport3D` is declared and read by nobody) — otherwise every label is filtered out | S3 rail |
 | ⚠ the overhead perspective camera at matched height looks close enough to the 2-D map at the swap (tall buildings lean slightly at the edges) | S1 screenshot pair |
 | ⚠ IG humans stand upright until IG ingests stance (`CE-2121` "IG ingress open") | S6 |
 | ⚠ `LogicalStance.Of` and `StanceStatus` are present on every host's entities (they are `NoScenario` runtime components; the Editor may not run the stance systems) — no stance ⇒ standing, as the rule itself says | S1 rail |
