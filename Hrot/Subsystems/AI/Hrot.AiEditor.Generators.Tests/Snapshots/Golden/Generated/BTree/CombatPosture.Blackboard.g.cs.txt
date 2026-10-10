@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Explicit, Size = 296)]
+[StructLayout(LayoutKind.Explicit, Size = 304)]
 public struct CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard
 {
     [FieldOffset(0)]
@@ -26,21 +26,21 @@ public struct CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard
     public global::Hrot.AI.Behaviors.Brains.AdvanceParams advance;
     [FieldOffset(56)]
     public global::Hrot.AI.Behaviors.Brains.PeekAndFireParams peek;
-    [FieldOffset(172)]
-    public global::Hrot.AI.Behaviors.Brains.EngageParams engage;
     [FieldOffset(176)]
+    public global::Hrot.AI.Behaviors.Brains.EngageParams engage;
+    [FieldOffset(184)]
     public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams fallback;
-    [FieldOffset(208)]
-    public global::Fdp.Toolkit.Utility.ChooseOptionParams approach;
-    [FieldOffset(212)]
-    public global::Fdp.Toolkit.Utility.IsOptionParams isFlank;
-    [FieldOffset(213)]
-    public global::Fdp.Toolkit.Utility.IsOptionParams isFiringPos;
     [FieldOffset(216)]
+    public global::Fdp.Toolkit.Utility.ChooseOptionParams approach;
+    [FieldOffset(220)]
+    public global::Fdp.Toolkit.Utility.IsOptionParams isFlank;
+    [FieldOffset(221)]
+    public global::Fdp.Toolkit.Utility.IsOptionParams isFiringPos;
+    [FieldOffset(224)]
     public global::Hrot.AI.Behaviors.Brains.PostureSensorsParams approachSensors;
-    [FieldOffset(232)]
+    [FieldOffset(240)]
     public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams flank;
-    [FieldOffset(264)]
+    [FieldOffset(272)]
     public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams firing;
 }
 
@@ -58,6 +58,6 @@ public struct CombatPosture_Block
 {
     [FieldOffset(0)]
     public CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard In;
-    [FieldOffset(296)]
+    [FieldOffset(304)]
     public CombatPosture_BlockState St;
 }
