@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
         {
             if (!EqsContext.AnchorPosition(view, observer, sensor, AnchorSlot, out var anchor)) return -1;
-            var world = EqsTerrainSight.World(view);
+            var world = Fdp.Toolkit.World.WorldQuery.Of(view);   // ⭐ CE-1035 Q1
             var emit = new Emitter(world, anchor.Z, candidates);
             Layout(view, observer, ref sensor, new Vector2(anchor.X, anchor.Y), ref emit);
             return emit.Count;
@@ -33,12 +33,12 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <summary>Collects placed points into the candidate span until it is full.</summary>
         protected ref struct Emitter
         {
-            private readonly Terrain.TerrainWorld? _world;
+            private readonly Fdp.Toolkit.World.IWorldQuery? _world;
             private readonly float _zHint;
             private readonly Span<EqsResult> _out;
             public int Count;
 
-            public Emitter(Terrain.TerrainWorld? world, float zHint, Span<EqsResult> output)
+            public Emitter(Fdp.Toolkit.World.IWorldQuery? world, float zHint, Span<EqsResult> output)
             {
                 _world = world; _zHint = zHint; _out = output; Count = 0;
             }

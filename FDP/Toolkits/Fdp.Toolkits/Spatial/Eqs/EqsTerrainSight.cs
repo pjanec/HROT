@@ -36,10 +36,12 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public static ILosService? Sight(ISimulationView view, ILosService? injected)
         {
             if (injected != null) return injected;
-            var world = World(view);
-            // ⭐ R-219 — the EQS solver's view is its snapshot: the doors it sees are the doors of that snapshot
-            return world == null ? null : new TerrainLosService(world, world.Doors.Count > 0 ? DoorStates.Of(view, world) : null,
-                VehicleCover.Collect(view, world.Materials, standingOnly: false));   // ⭐ CE-3142 — the view's vehicles, once per batch
+            // ⭐ CE-1035 Q1 — the world query is bound to the EQS solver's view (its snapshot's doors, R-219)
+            var query = Fdp.Toolkit.World.WorldQuery.Of(view);
+            if (query == null) return null;
+            // ⚠ the vehicles' boxes still come from the terrain stand-in's material table — entities join the world query in WQ-F (Q5)
+            var materials = World(view)?.Materials ?? TerrainMaterialLibrary.Shared;
+            return new TerrainLosService(query, VehicleCover.Collect(view, materials, standingOnly: false));   // ⭐ CE-3142 — once per batch
         }
 
         /// <summary>True when <paramref name="p"/> (XY) is inside a building or wall footprint.</summary>
@@ -57,11 +59,11 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// Puts a sampled point on the ground: Z from <see cref="TerrainWorld.SurfaceZ"/> (the surface reachable from
         /// <paramref name="zHint"/>), rejected inside a solid. Without a terrain the point keeps <paramref name="zHint"/>.
         /// </summary>
-        public static bool TryPlace(TerrainWorld? world, Vector2 p, float zHint, out Vector3 placed)
+        public static bool TryPlace(Fdp.Toolkit.World.IWorldQuery? world, Vector2 p, float zHint, out Vector3 placed)
         {
             if (world == null) { placed = new Vector3(p, zHint); return true; }
-            if (InsideSolid(world, p)) { placed = default; return false; }
-            placed = new Vector3(p, world.SurfaceZ(p.X, p.Y, zHint));
+            if (!world.TryStandAt(p.X, p.Y, zHint, out float z)) { placed = default; return false; }   // ⭐ CE-1035 Q1
+            placed = new Vector3(p, z);
             return true;
         }
     }

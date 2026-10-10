@@ -10,6 +10,7 @@ using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Perception.LineOfSight;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Terrain;
+using Fdp.Toolkit.World;
 using Fdp.Toolkit.Tkb.Parameters;
 
 namespace Fdp.Toolkit.Combat.Systems
@@ -33,7 +34,8 @@ namespace Fdp.Toolkit.Combat.Systems
     public sealed class AreaEffectSystem : IEcsModuleSystem
     {
         private readonly ColliderOcclusion _occlusion = new();
-        private readonly List<TerrainWorld.FireCrossing> _crossings = new();
+        private readonly List<TerrainWorld.FireCrossing> _crossings = new();   // BreachDoors — the stand-in's door list (not on the seam yet)
+        private readonly List<TraceCrossing> _traces = new();                   // ⭐ CE-1035 Q1 — exposure, through IWorldQuery
         private readonly List<Vector3> _points = new(3);
 
         /// <summary>Detonations this system assessed (a rail and a diagnostics counter read it).</summary>
@@ -50,6 +52,7 @@ namespace Fdp.Toolkit.Combat.Systems
             bool built = false;
             TerrainWorld? terrain = null;
             DoorStates? doors = null;
+            IWorldQuery? world = null;
             for (int i = 0; i < events.Length; i++)
             {
                 ref readonly var evt = ref events[i];
@@ -60,12 +63,13 @@ namespace Fdp.Toolkit.Combat.Systems
                 {
                     terrain = repo.HasSingletonManaged<TerrainWorld>() ? repo.GetSingletonManaged<TerrainWorld>() : null;
                     doors = terrain is { Doors.Count: > 0 } ? DoorStates.Of(repo, terrain) : null;
+                    world = WorldQuery.Of(repo);
                     bool bullets = repo.IsComponentTypeRegistered<BallisticProjectile>();
                     _occlusion.Build(repo, PhysicsColliderReaders.Radius, PhysicsColliderReaders.Height,
                         bullets ? static (v, e) => !v.HasComponent<BallisticProjectile>(e) : null);   // a round in flight is not cover
                     built = true;
                 }
-                Assess(repo, in evt, warhead, source, terrain, doors);
+                Assess(repo, in evt, warhead, source, world, terrain, doors);
                 Assessed++;
             }
         }
@@ -80,7 +84,7 @@ namespace Fdp.Toolkit.Combat.Systems
         }
 
         private void Assess(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, string source,
-            TerrainWorld? terrain, DoorStates? doors)
+            IWorldQuery? world, TerrainWorld? terrain, DoorStates? doors)
         {
             var burst = new Vector3(evt.HitX, evt.HitY, evt.HitZ);
             var struck = evt.Target.IsNull ? ColliderOcclusion.Nobody : evt.Target;   // ⚠ never skip "index 0" for a terrain burst
@@ -116,10 +120,10 @@ namespace Fdp.Toolkit.Combat.Systems
                 for (int i = 0; i < _points.Count; i++)
                 {
                     var p = _points[i];
-                    if (terrain != null) terrain.QueryFire(burst, p, _crossings, doors); else _crossings.Clear();
-                    float ft = fragFall > 0f ? AreaEffect.FragmentTransmission(_crossings, w.FragmentPenetrationMm) : 0f;
+                    if (world != null) world.Trace(burst, p, TracePurpose.Fire, _traces); else _traces.Clear();
+                    float ft = fragFall > 0f ? AreaEffect.FragmentTransmission(_traces, w.FragmentPenetrationMm) : 0f;
                     // ⭐ CE-3117 — the first obstacle on the ray, for the map: a terrain piece where the fragments enter it, or a collider
-                    Vector3? stopAt = _crossings.Count > 0 ? burst + (p - burst) * _crossings[0].T : null;
+                    Vector3? stopAt = _traces.Count > 0 ? burst + (p - burst) * _traces[0].T : null;
                     if (ft > 0f && _occlusion.Blocking(burst, p, e, struck, out _) is { } blocker)
                     {
                         ft = 0f;
@@ -127,13 +131,13 @@ namespace Fdp.Toolkit.Combat.Systems
                         if (repo.HasComponent<SimTransform>(blocker))
                             stopAt = ClosestOnSegment(burst, p, repo.GetComponentRO<SimTransform>(blocker).Position);
                     }
-                    else if (ft <= 0f && fragFall > 0f && _crossings.Count > 0)
-                        shieldedBy ??= $"{_crossings[0].Kind} {_crossings[0].Label ?? _crossings[0].Material}";
+                    else if (ft <= 0f && fragFall > 0f && _traces.Count > 0)
+                        shieldedBy ??= $"{_traces[0].Kind} {_traces[0].Label ?? _traces[0].Material}";
                     if (fragFall > 0f) record.Rays.Add(new DetonationRayRecord(p, ft, stopAt));
                     exposure += ft;
-                    barrier = MathF.Max(barrier, AreaEffect.ClosedBarrierTransmission(_crossings));
+                    barrier = MathF.Max(barrier, AreaEffect.ClosedBarrierTransmission(_traces));
                     if (i == _points.Count - 1)   // the highest point (the fractions ascend)
-                        shadow = AreaEffect.TerrainShadow(_crossings, tf.Position.Z,
+                        shadow = AreaEffect.TerrainShadow(_traces, tf.Position.Z,
                             Vector2.Distance(new Vector2(burst.X, burst.Y), new Vector2(p.X, p.Y)));
                 }
                 exposure /= _points.Count;

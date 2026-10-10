@@ -110,18 +110,23 @@ graph TD
 animation ones — and nothing above them knows which engine runs. Bepu and the sound solver live **inside** the stand-in;
 a production engine replaces the whole box, not the library.
 
-### 3.2 Classes
+### 3.2 Classes — ⭐ AS BUILT by Q1 (`2026-10-10`)
 
 ```mermaid
 classDiagram
   class IWorldQuery {
-    new
+    built Q1, World/IWorldQuery.cs
     +float GroundHeightAt(x, y)
     +float SurfaceZ(x, y, zHint)
-    +int SurfacesAt(x, y, Span~float~ levels)
-    +float ResolveLevel(x, y, n)
-    +TraceResult Trace(from, to, TracePurpose, Span~TraceCrossing~ into)
-    +bool Pick(ray, out PickHit)
+    +IReadOnlyList~float~ SurfacesAt(x, y, out groundIndex)
+    +float ResolveLevel(x, y, level)
+    +bool TryStandAt(x, y, zHint, out z)
+    +bool SightBlocked(from, to)
+    +void Trace(from, to, TracePurpose, List~TraceCrossing~ into)
+  }
+  class WorldQuery {
+    built Q1, static
+    +IWorldQuery? Of(ISimulationView view)
   }
   class TracePurpose {
     enum
@@ -129,46 +134,51 @@ classDiagram
     Fire
     Sound
   }
-  class TraceResult {
-    +float Transmittance
-    +float AttenuationDb
-    +int CrossingCount
-    +bool Blocked
-  }
-  class ITerrainRenderGeometry {
-    new
-    +MeshData Build(tags)
+  class TraceCrossing {
+    record struct
+    +float T
+    +float PathMetres
+    +float Loss
+    +float TopZ
+    +bool ClosedBarrier
+    +string Kind  descriptive
   }
   class TerrainWorldQuery {
-    new stand-in
-    -TerrainWorld world
-    -BepuIndex index
-    -ISoundPropagation sound
+    built Q1, the stand-in
+    +TerrainWorld World
+    +DoorStates? Doors
+    +For(world, doors) cached per thread
   }
   class TerrainWorld {
-    existing, the stand-in model
+    existing; SpatialIndex (Q0)
   }
-  class ILosService {
-    existing, EQS policy
+  class TerrainLosService {
+    existing, now the EQS sight POLICY
   }
-  class ILosStrategy {
-    existing, perception policy
+  class ITerrainRenderGeometry {
+    planned Q2
   }
   class StrideWorldQuery {
-    reworked from StrideRaycastLosService
+    planned Q5
   }
   IWorldQuery <|.. TerrainWorldQuery
   IWorldQuery <|.. StrideWorldQuery
-  ITerrainRenderGeometry <|.. TerrainWorldQuery
+  WorldQuery ..> TerrainWorldQuery : today
   TerrainWorldQuery --> TerrainWorld
-  ILosService ..> IWorldQuery : Trace(Sight)
-  ILosStrategy ..> IWorldQuery : Trace(Sight)
+  TerrainLosService --> IWorldQuery : SightBlocked
   IWorldQuery ..> TracePurpose
-  IWorldQuery ..> TraceResult
+  IWorldQuery ..> TraceCrossing
 ```
 
-*What it shows:* `ILosService` and `ILosStrategy` stay as **policies** (eye heights, thresholds, what counts as cover) but stop
-being engine seams — they call `IWorldQuery`. Three ray seams collapse to one an engine has to implement.
+*What it shows:* callers get an `IWorldQuery` from ONE place (`WorldQuery.Of(view)`), already bound to that view's doors, so no
+signature carries engine state. `TerrainLosService` (EQS) is now a policy over the seam. ⚠ **Deviations from rev 1, argued:**
+① `Trace` fills a `List` and returns nothing — the lists are reused per thread (R-220), a `Span` would need a capacity the caller
+cannot know; ② a fast `SightBlocked` sits next to `Trace(Sight)` — perception asks the yes/no question every frame, and the full
+crossing list is a diagnostic that allocates; ③ **`TryStandAt`** replaces the "inside solid?" geometry question EQS asked
+(R-252: a meaning, not a footprint test); ④ `TraceResult` is gone — callers sum what they need from the crossings; ⑤ **`Pick`**
+and `ITerrainRenderGeometry` move to Q2 (their first users are the editor and the 3-D map); ⑥ there is **no registered source
+yet** — `WorldQuery.Of` resolves the terrain stand-in directly; the lookup a second implementation needs is added WITH that
+implementation (Q5), in that one method.
 
 ### 3.3 What the interface must NOT expose — 🔒 `R-252`
 
@@ -226,7 +236,7 @@ ragdolls) **in the stand-in**. Either way the switch stays inside `TerrainWorldQ
 |---|---|---|
 | **Q0b** | WQ-H: the brain's destinations from their sources; a stacked-terrain brain rail | the brain is terrain-agnostic |
 | **Q0** | the Bepu spike: `Trace(Sight/Fire)` + `GroundHeightAt` over Bepu inside `TerrainWorld`; timing and memory on a scaled terrain **with a large height grid**; headless cloud run | identical answers, faster, Linux, acceptable memory — otherwise §4a's flip condition ① (Jolt's height field) |
-| **Q1** | `IWorldQuery` + `TerrainWorldQuery`; combat and EQS moved; `ILosService` as a policy | the busiest consumers on the seam, feature suites green |
+| **Q1** ✅ | `IWorldQuery` + `TerrainWorldQuery` + `WorldQuery.Of`; combat and EQS moved; `ILosService` as a policy — §5b | the busiest consumers on the seam, feature suites green |
 | **Q2** | perception (`ILosStrategy`), squad, kinematics, spawn, editor debug API, gizmos moved; `ITerrainRenderGeometry` | no production `TerrainWorld` use outside the stand-in |
 | **Q3** | sound v1 — the loudness model + `Trace(Sound)` straight with per-wall dB; the hearing gizmo shows the loss | a shot behind a concrete wall is heard less far |
 | **Q4** | sound v2 — rooms from walls, the room/portal path (shared with blast confinement, Building Interiors W-7v2) | sound comes round a corner and through an open door; a closed door muffles it |

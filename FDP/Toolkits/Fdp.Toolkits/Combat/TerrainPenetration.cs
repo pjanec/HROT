@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Combat
         /// <summary>What a KNOWN round that has spent its penetration keeps: it still kills a soft target, never armour.</summary>
         public const float SpentPenetrationMm = 1e-3f;
 
-        [ThreadStatic] private static List<TerrainWorld.FireCrossing>? t_crossings;
+        [ThreadStatic] private static List<Fdp.Toolkit.World.TraceCrossing>? t_crossings;
 
         /// <summary>
         /// Carries a round of <paramref name="damage"/> and <paramref name="penetration"/> along <paramref name="from"/> →
@@ -36,18 +36,18 @@ namespace Fdp.Toolkit.Combat
         /// <returns>True when a crossing stopped the round.</returns>
         /// <param name="log">⭐ T-4 — when given, each crossing is appended (what, where, the round's chance through it) for the shot log.</param>
         /// <param name="doors">⭐ R-219 — the door states of the caller's view (<see cref="DoorStates.Of(Fdp.ModuleHost.Abstractions.ISimulationView, TerrainWorld)"/>); null = as authored.</param>
-        public static bool Carry(TerrainWorld world, Vector3 from, Vector3 to, ref float damage, ref float penetration, out float stopT,
-            List<ShotCrossing>? log = null, DoorStates? doors = null)
+        public static bool Carry(Fdp.Toolkit.World.IWorldQuery world, Vector3 from, Vector3 to, ref float damage, ref float penetration, out float stopT,
+            List<ShotCrossing>? log = null)
         {
             stopT = 1f;
-            var crossings = t_crossings ??= new List<TerrainWorld.FireCrossing>();
-            world.QueryFire(from, to, crossings, doors);
+            var crossings = t_crossings ??= new List<Fdp.Toolkit.World.TraceCrossing>();
+            world.Trace(from, to, Fdp.Toolkit.World.TracePurpose.Fire, crossings);   // ⭐ CE-1035 Q1 — through the world query (its doors are bound)
             foreach (var c in crossings)
             {
                 float roundPen = EngineFallbacks.TerrainPenetrationOrFallback(penetration);
-                bool passed = Cross(c.ResistanceMmRha, ref damage, ref penetration);
-                log?.Add(new ShotCrossing(c.Kind, c.Label, c.Material, c.ResistanceMmRha, roundPen,
-                    ArmorModel.PenetrationChance(roundPen, c.ResistanceMmRha), passed, Vector3.Lerp(from, to, Math.Clamp(c.T, 0f, 1f))));
+                bool passed = Cross(c.Loss, ref damage, ref penetration);
+                log?.Add(new ShotCrossing(c.Kind, c.Label, c.Material ?? "", c.Loss, roundPen,
+                    ArmorModel.PenetrationChance(roundPen, c.Loss), passed, Vector3.Lerp(from, to, Math.Clamp(c.T, 0f, 1f))));
                 if (!passed)
                 {
                     stopT = Math.Clamp(c.T, 0f, 1f);

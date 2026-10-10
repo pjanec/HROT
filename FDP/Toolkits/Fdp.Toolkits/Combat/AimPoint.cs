@@ -3,7 +3,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Perception.LineOfSight;
-using Fdp.Toolkit.Terrain;
+using Fdp.Toolkit.World;
 using Fdp.Toolkit.Tkb.Domain;
 
 namespace Fdp.Toolkit.Combat
@@ -31,34 +31,34 @@ namespace Fdp.Toolkit.Combat
         /// <summary>Bisection steps per visible edge (body samples are ≥ 0.15 m apart ⇒ ≤ 1 cm).</summary>
         private const int EdgeSteps = 5;
 
-        public static Vector3 For(ISimulationView view, TerrainWorld? world, DoorStates? doors, Vector3 eye, Vector3 middle,
+        public static Vector3 For(ISimulationView view, IWorldQuery? world, Vector3 eye, Vector3 middle,
             Entity target, StanceId stance, float hullHeight, float penetration, List<Vector3> scratch)
         {
-            if (world == null || !world.SegmentBlocked(eye, middle, doors)) return middle;
+            if (world == null || !world.SightBlocked(eye, middle)) return middle;
 
             float damage = 1f, pen = penetration;
-            if (!TerrainPenetration.Carry(world, eye, middle, ref damage, ref pen, out _, doors: doors) && damage >= ShootThroughMinFraction)
+            if (!TerrainPenetration.Carry(world, eye, middle, ref damage, ref pen, out _) && damage >= ShootThroughMinFraction)
                 return middle;
 
             BodyProfile.Points(view, target, stance, hullHeight, scratch);   // ascending heights
             int lo = -1, hi = -1;
             for (int i = 0; i < scratch.Count; i++)
-                if (!world.SegmentBlocked(eye, scratch[i], doors)) { if (lo < 0) lo = i; hi = i; }
+                if (!world.SightBlocked(eye, scratch[i])) { if (lo < 0) lo = i; hi = i; }
             if (lo < 0) return middle;
 
-            float bottom = lo > 0 ? Edge(world, doors, eye, scratch[lo - 1], scratch[lo]) : scratch[lo].Z;
-            float top = hi < scratch.Count - 1 ? Edge(world, doors, eye, scratch[hi + 1], scratch[hi]) : scratch[hi].Z;
+            float bottom = lo > 0 ? Edge(world, eye, scratch[lo - 1], scratch[lo]) : scratch[lo].Z;
+            float top = hi < scratch.Count - 1 ? Edge(world, eye, scratch[hi + 1], scratch[hi]) : scratch[hi].Z;
             return scratch[lo] with { Z = 0.5f * (bottom + top) };
         }
 
         /// <summary>The visible edge between a <paramref name="hidden"/> and a <paramref name="seen"/> point on one vertical.</summary>
-        private static float Edge(TerrainWorld world, DoorStates? doors, Vector3 eye, Vector3 hidden, Vector3 seen)
+        private static float Edge(IWorldQuery world, Vector3 eye, Vector3 hidden, Vector3 seen)
         {
             float h = hidden.Z, s = seen.Z;
             for (int k = 0; k < EdgeSteps; k++)
             {
                 float m = 0.5f * (h + s);
-                if (world.SegmentBlocked(eye, seen with { Z = m }, doors)) h = m; else s = m;
+                if (world.SightBlocked(eye, seen with { Z = m })) h = m; else s = m;
             }
             return s;
         }

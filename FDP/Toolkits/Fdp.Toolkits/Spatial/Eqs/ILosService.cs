@@ -22,23 +22,24 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// test perception's <c>TerrainWorldLosStrategy</c> makes (R-174: one source). Terrain only: units are not cover.</summary>
     public sealed class TerrainLosService : ILosService
     {
-        private readonly TerrainWorld _world;
-
-        private readonly DoorStates? _doors;
+        private readonly Fdp.Toolkit.World.IWorldQuery _world;   // ⭐ CE-1035 Q1 — the EQS sight POLICY over the world query (WQ-B)
 
         private readonly System.Collections.Generic.IReadOnlyList<TerrainPrism>? _vehicles;
 
         /// <param name="doors">⭐ R-219 — the door states of the view the query runs on; null = as authored.</param>
         /// <param name="vehicles">⭐ <c>CE-3142</c> (P-7a O5) — the live vehicle boxes of that view (<see cref="VehicleCover.Collect"/>); null = none.</param>
-        public TerrainLosService(TerrainWorld world, DoorStates? doors = null, System.Collections.Generic.IReadOnlyList<TerrainPrism>? vehicles = null)
+        public TerrainLosService(Fdp.Toolkit.World.IWorldQuery world, System.Collections.Generic.IReadOnlyList<TerrainPrism>? vehicles = null)
         {
             _world = world ?? throw new System.ArgumentNullException(nameof(world));
-            _doors = doors;
             _vehicles = vehicles;
         }
 
+        /// <summary>Convenience for a bare terrain (tests, tools): the same policy over <see cref="TerrainWorldQuery"/>.</summary>
+        public TerrainLosService(TerrainWorld world, DoorStates? doors = null, System.Collections.Generic.IReadOnlyList<TerrainPrism>? vehicles = null)
+            : this(new TerrainWorldQuery(world ?? throw new System.ArgumentNullException(nameof(world)), doors), vehicles) { }
+
         /// <inheritdoc/>
         public bool HasLineOfSight(Vector3 eye, Vector3 aim)
-            => !_world.SegmentBlocked(eye, aim, _doors) && (_vehicles == null || !VehicleCover.Blocks(_vehicles, eye, aim));
+            => !_world.SightBlocked(eye, aim) && (_vehicles == null || !VehicleCover.Blocks(_vehicles, eye, aim));
     }
 }

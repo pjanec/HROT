@@ -1,0 +1,102 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Fdp.Toolkit.World;
+
+namespace Fdp.Toolkit.Terrain
+{
+    /// <summary>
+    /// ⭐ The terrain stand-in's answer to <see cref="IWorldQuery"/> (<c>docs/DESIGN_World_Query_Seam.md</c> §3.2): a
+    /// <see cref="TerrainWorld"/> bound to one view's door states. Every answer is the terrain's own (identical to calling it
+    /// directly); what this class adds is the engine-neutral shape — crossings say <see cref="TraceCrossing.ClosedBarrier"/> instead of
+    /// handing callers the terrain's piece kinds (R-252).
+    /// </summary>
+    public sealed class TerrainWorldQuery : IWorldQuery
+    {
+        public TerrainWorld World { get; }
+        public DoorStates? Doors { get; }
+
+        [ThreadStatic] private static TerrainWorldQuery? t_last;
+        [ThreadStatic] private static List<TerrainWorld.FireCrossing>? t_fire;
+
+        public TerrainWorldQuery(TerrainWorld world, DoorStates? doors = null)
+        {
+            World = world ?? throw new ArgumentNullException(nameof(world));
+            Doors = doors;
+        }
+
+        /// <summary>The query for <paramref name="world"/> under <paramref name="doors"/> — this thread's previous one when both are the
+        /// same objects (⭐ R-220: <see cref="DoorStates.Of(Fdp.Core.ISimulationView, TerrainWorld)"/> hands back the same table while no
+        /// door changed, so a per-tick lookup allocates nothing).</summary>
+        public static TerrainWorldQuery For(TerrainWorld world, DoorStates? doors = null)
+        {
+            var last = t_last;
+            if (last != null && ReferenceEquals(last.World, world) && ReferenceEquals(last.Doors, doors)) return last;
+            return t_last = new TerrainWorldQuery(world, doors);
+        }
+
+        // ⚠ TH-B (DESIGN_Terrain_Height.md, slice H1) replaces this with the height grid; level 0 is the ground either way.
+        public float GroundHeightAt(float x, float y) => World.ResolveLevel(x, y, 0);
+
+        public float SurfaceZ(float x, float y, float zHint) => World.SurfaceZ(x, y, zHint);
+
+        public IReadOnlyList<float> SurfacesAt(float x, float y, out int groundIndex) => World.SurfacesAt(x, y, out groundIndex);
+
+        public float ResolveLevel(float x, float y, int level) => World.ResolveLevel(x, y, level);
+
+        /// <summary>The stand-in's rule: not inside any piece's footprint (a building is solid at every height), then the surface near the hint.</summary>
+        public bool TryStandAt(float x, float y, float zHint, out float z)
+        {
+            var p = new Vector2(x, y);
+            foreach (var prism in World.Prisms)
+            {
+                if (p.X < prism.Min.X || p.Y < prism.Min.Y || p.X > prism.Max.X || p.Y > prism.Max.Y) continue;
+                if (PolygonMath.Contains(prism.Footprint, p)) { z = default; return false; }
+            }
+            z = World.SurfaceZ(x, y, zHint);
+            return true;
+        }
+
+        public bool SightBlocked(Vector3 from, Vector3 to) => World.SegmentBlocked(from, to, Doors);
+
+        public void Trace(Vector3 from, Vector3 to, TracePurpose purpose, List<TraceCrossing> into)
+        {
+            into.Clear();
+            switch (purpose)
+            {
+                case TracePurpose.Fire:
+                {
+                    var fire = t_fire ??= new List<TerrainWorld.FireCrossing>();   // ⭐ R-220 — one list per thread
+                    World.QueryFire(from, to, fire, Doors);
+                    for (int i = 0; i < fire.Count; i++)
+                    {
+                        var c = fire[i];
+                        into.Add(new TraceCrossing(c.T, c.PathMetres, c.ResistanceMmRha, c.TopZ, IsClosedBarrier(c.Kind, c.Building),
+                            c.Kind, c.Label, c.Material, c.Building, c.Storey));
+                    }
+                    break;
+                }
+                case TracePurpose.Sight:
+                {
+                    // ⚠ QuerySight is the terrain's DIAGNOSTIC form and allocates its answer; the per-frame question is SightBlocked
+                    var r = World.QuerySight(from, to, Doors);
+                    float length = Vector3.Distance(from, to);
+                    foreach (var c in r.Crossed)
+                        into.Add(new TraceCrossing(length > 0f ? c.Along / length : 0f, 0f, c.Transmittance, 0f, IsClosedBarrier(c.Kind, c.Building),
+                            c.Kind, c.Label, c.Material, c.Building, c.Storey));
+                    break;
+                }
+                default:
+                    throw new NotSupportedException($"Trace({purpose}) is not built yet — DESIGN_World_Query_Seam.md slice Q3 (sound).");
+            }
+        }
+
+        /// <summary>
+        /// The stand-in's meaning of a closed barrier: a floor or stair (slab, ramp), a door leaf, or a wall panel of a building — the
+        /// pieces that ENCLOSE a space, so a blast does not diffract round them (<c>DESIGN_Building_Interiors.md</c> W-7′). A free-standing
+        /// wall or a solid block is not one.
+        /// </summary>
+        public static bool IsClosedBarrier(string kind, string? building)
+            => kind is "slab" or "ramp" or "door" || (kind == "panel" && building != null);
+    }
+}

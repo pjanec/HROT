@@ -63,11 +63,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 repo.HasSingleton<global::CarKinem.Spatial.SpatialGridData>() && repo.Bus.IsRegistered<Events.NearMissEvent>()
                     ? repo.GetSingleton<global::CarKinem.Spatial.SpatialGridData>().Grid : null;
 
-            // ⭐ R-217 — the resident terrain the rounds fly through (immutable, swapped by reference); none ⇒ no terrain, as before.
-            var terrain = repo.HasSingletonManaged<global::Fdp.Toolkit.Terrain.TerrainWorld>()
-                ? repo.GetSingletonManaged<global::Fdp.Toolkit.Terrain.TerrainWorld>() : null;
-            // ⭐ R-219 — the doors as THIS view sees them (built once per tick from the door entities)
-            var doors = terrain != null && terrain.Doors.Count > 0 ? global::Fdp.Toolkit.Terrain.DoorStates.Of(view, terrain) : null;
+            // ⭐ R-217 — the world the rounds fly through; none ⇒ no terrain, as before. ⭐ CE-1035 Q1 — through the world query,
+            //   bound to the doors as THIS view sees them (R-219), so nothing here knows the terrain stand-in.
+            var terrain = global::Fdp.Toolkit.World.WorldQuery.Of(view);
 
             var shots = ShotLog.Peek(repo);   // ⭐ T-4 — rounds fired through FireProcessingSystem have a record
 
@@ -107,7 +105,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     if (currentTick - proj.StoppedTick >= CombatConstants.StoppedRoundGraceTicks)
                     {
                         if (shot != null && (proj.Warhead & WarheadRound.Spent) == 0)
-                            ShotLog.EndCarried(shot, ShotOutcome.StoppedByTerrain, currentTick, proj.PreviousPosition, terrain, in proj, doors);
+                            ShotLog.EndCarried(shot, ShotOutcome.StoppedByTerrain, currentTick, proj.PreviousPosition, terrain, in proj);
                         repo.DestroyEntity(entity);
                     }
                     continue;
@@ -135,7 +133,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     ? CombatConstants.ArcRoundLifetimeTicks : CombatConstants.BulletLifetimeTicks;
                 if (currentTick - proj.SpawnTick >= lifetime)
                 {
-                    if (shot != null) ShotLog.EndCarried(shot, ShotOutcome.Expired, currentTick, repo.GetComponent<SimTransform>(entity).Position, terrain, in proj, doors);
+                    if (shot != null) ShotLog.EndCarried(shot, ShotOutcome.Expired, currentTick, repo.GetComponent<SimTransform>(entity).Position, terrain, in proj);
                     repo.DestroyEntity(entity);
                     continue;   // do NOT submit a raycast for a just-destroyed bullet
                 }
@@ -155,7 +153,7 @@ namespace Fdp.Toolkit.Combat.Systems
                         proj.Muzzle = proj.PreviousPosition; proj.FrontDamage = proj.Damage; proj.FrontPenetration = proj.Penetration;
                         proj.TerrainFlags |= 1;
                     }
-                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref proj.FrontDamage, ref proj.FrontPenetration, out float stopT, null, doors);
+                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref proj.FrontDamage, ref proj.FrontPenetration, out float stopT, null);
                     if (stopped)
                     {
                         end = System.Numerics.Vector3.Lerp(proj.PreviousPosition, tf.Position, stopT);
@@ -172,7 +170,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   LANDS and waits. Its last raycast still goes out (a unit in the way is struck first — a contact burst).
                 if ((proj.Warhead & WarheadRound.Area) != 0)
                 {
-                    float groundZ = terrain?.GroundZ ?? 0f;
+                    // ⚠ the ground under the round's end (TH-D will make this a real ground trace — the ground is not flat, R-248)
+                    float groundZ = terrain?.GroundHeightAt(end.X, end.Y) ?? 0f;
                     bool stoppedHere = proj.StoppedTick == (currentTick == 0 ? 1u : currentTick);
                     if (!stoppedHere && end.Z < groundZ && proj.PreviousPosition.Z >= groundZ)
                     {

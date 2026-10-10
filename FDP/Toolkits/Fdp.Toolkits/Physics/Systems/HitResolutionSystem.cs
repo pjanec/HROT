@@ -113,13 +113,11 @@ namespace Fdp.Toolkit.Physics.Systems
                         //   ticks the segment's raycast took (three). A unit in FRONT of a fence takes the full round. A round built
                         //   without a muzzle (older tests, examples) is carried from this segment's start.
                         var shot = Fdp.Toolkit.Combat.ShotLog.Peek(repo)?.Of(bulletEntity);   // ⭐ T-4
-                        if (repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
-                            && repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is Fdp.Toolkit.Terrain.TerrainWorld terrain)
+                        if (Fdp.Toolkit.World.WorldQuery.Of(repo) is { } terrain)   // ⭐ CE-1035 Q1 — bound to this view's doors (R-219)
                         {
                             shot?.Crossings.Clear();
                             Fdp.Toolkit.Combat.TerrainPenetration.Carry(terrain, (bp.TerrainFlags & 1) != 0 ? bp.Muzzle : hit.Start, hitPos,
-                                ref damage, ref penetration, out _, shot?.Crossings,
-                                terrain.Doors.Count > 0 ? Fdp.Toolkit.Terrain.DoorStates.Of(repo, terrain) : null);   // ⭐ R-219
+                                ref damage, ref penetration, out _, shot?.Crossings);
                         }
                         if (shot != null)
                         {
