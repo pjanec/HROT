@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); slices E1–E4 (§6). Nothing built. Programme index: PLAN_3D_World_And_Realism.md.
-updated: 2026-10-10
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices.
+build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 waits for the turret (B1). Programme index: PLAN_3D_World_And_Realism.md.
+updated: 2026-10-11
+current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -205,3 +205,54 @@ spawns — a combat-lane change, hence a separate nod.
 | **E2** | `EffectSpawnSystem` / `EffectLifetimeSystem` reworked onto TKB types and sim time, built by the pack, declared in `RequiredSystems`, scheduled on all five hosts (rail) | E1 |
 | **E3** | `EffectLayer2D` + `EffectLayer3D`; `EffectPresentationGizmo` retired; screenshot rail | E2 |
 | **E4** | `Muzzle.Of` (VE-K) used by the fire code and the renderer; the flash at the posed barrel; the kit's barrel from the TKB (VE-L) | the turret build (3-D map §3.11, M23–M26) + VE-J..VE-M |
+
+### 6a. E1–E3 — AS-BUILT `2026-10-11`
+
+```mermaid
+graph TD
+  EV["WeaponFireNotification / DetonationNotification<br/>(local fire or NED ingress)"]
+  CAT["EffectTkbCatalog (Hrot.Core)<br/>10 types, EffectsFor, VisualOf"]
+  MI["MapInteraction.InteractionSystems<br/>(every host schedules it)"]
+  SP["EffectSpawnSystem"]
+  LF["EffectLifetimeSystem"]
+  W[("effect entities<br/>TkbIdentity + EffectLifetime (+ EffectAnchor)")]
+  LAY["EffectLayer (2-D + 3-D)<br/>AttachMapLayers"]
+  RB["ReplayBrowser<br/>drives them by hand"]
+  OLD["EventEffectModule<br/>(Stride only now)"]
+  GZ["EffectPresentationGizmo"]
+  EV --> SP
+  CAT --> SP
+  CAT --> LAY
+  MI --> SP
+  MI --> LF
+  RB --> SP
+  RB --> LF
+  SP --> W
+  LF --> W
+  W --> LAY
+  style GZ stroke-dasharray: 5 5
+  style OLD stroke-dasharray: 5 5
+```
+
+*What the picture shows that prose hid:* the effects ride the ONE scheduled set every map host already runs
+(`InteractionSystems`), so no host can have the map without the effects; the replay browser — the one host that drives map
+systems by hand and has no kernel — drives them too, and plays their commands back itself. The dashed edges are what retired:
+the gizmo (deleted) and the IG/Editor effect module (Stride keeps it — "Stride untouched").
+
+| built | where |
+|---|---|
+| `EffectKind`, `EffectVisualDto` (`"Effect.Visual"`), `MunitionEffectsDto` (`"Effect.Set"`, + a tracer reference) | `Fdp.Toolkits/Tkb/Domain/EffectDtos.cs` |
+| the ten effect types (7101–7103 flash, 7111–7113 explosion, 7121–7123 decal, 7131 tracer), hidden from the palette; the grenade and the mortar name their sets; `EffectsFor` = the ammo's set, else the calibre class from damage per hit (small < 50 ≤ medium < 500 ≤ large — rifle / 25 mm, RPG / tank gun, ATGM); `VisualOf` falls back to the built-in table on a host with no TKB | `Hrot.Core/Tkb/EffectTkbCatalog.cs`, registered by `HrotEnvironment.CreateTkb` |
+| `EffectLifetime` (124), `EffectAnchor` (125) — registered by `PresentationComponentRegistry.RegisterEffects` (from `RegisterAll` and the pack) | `Hrot.Core/Components/Map/EffectComponents.cs` |
+| `EffectSpawnSystem` (fire ⇒ a flash attached to the weapon + a tracer toward the target when the round has one; hit ⇒ an explosion at the hit, a decal on the ground under it unless the round hit a live body) and `EffectLifetimeSystem` (age by the tick's dt, expire, shooter gone ⇒ end, decals capped at 256 oldest first) — in `MapInteraction.InteractionSystems` and `RequiredSystems` with `Unserviceable` reasons | `Hrot.Presentation/Effects/EffectSystems.cs`, `MapInteraction.cs` |
+| `EffectLayer` — 2-D star / disc / blot / streak; 3-D additive spheres, a draped decal disc, a tracer streak; the look and phase from the TKB | `Hrot.Presentation/Effects/EffectLayer.cs`, attached by `AttachMapLayers` |
+| retired: `EffectPresentationGizmo` (deleted with its two IG rails); `EventEffectModule` no longer registered on IG or the Editor | — |
+| ⭐ kept out of everything durable (VE-B): `EffectLifetime` / `EffectAnchor` are `DataPolicy.Transient`; every effect entity carries `ScenarioIgnoreTag` — 📐 measured: the scenario save takes EVERY owned entity without that tag (`ScenarioSerializer.CollectSaveableEntities`), so the old `VisualEffectState` explosions were saveable too; the body layer gives an effect type no body (by its `Effect.Visual`, and by the catalog where there is no TKB), else a recorded effect would draw as an unknown box | `EffectComponents.cs`, `EffectSystems.cs`, `EntityBodyLayer3D.LookOf` |
+
+⚠ **Deviations, argued:** ONE `EffectLayer` with both passes, not two classes (one query, one muzzle, one TKB lookup, as the gizmo
+layer). · The **muzzle** is the front of the shooter's drawn box in its upper half until E4's `Muzzle.Of`. · The replay browser
+ages effects by the **replayed** time it stepped (paused ⇒ frozen); the other hosts by the interaction module's dt — 📐 the
+kernel's per-module accumulated delta (`ModuleHostKernel.cs:689`), which is the same delta every other module gets.
+· Effect sets live on the AMMO type (VE-D) and only two built-in ammo types exist; every other mount resolves by calibre class.
+**Gates:** `EffectTests` (Hrot.Presentation.Tests) · frame rail shot ⑧ `map3d-8-effects.png` · IG module rails updated.
+

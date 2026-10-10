@@ -34,6 +34,7 @@ namespace Hrot.Map.Common
             //    synced to all nodes (user, 2026-08-31).
             Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(tkb);
             Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(tkb);   // ⭐ CE-1032 — the munition types mounts load (warheads by name)
+            Hrot.Core.Tkb.EffectTkbCatalog.RegisterAll(tkb);     // ⭐ CE-1042 E1 — the realism effect types + the munitions' effect sets
             RouteTkbExtensions.ApplyRoutePlanToBlueprint(tkb);
             return tkb;
         }

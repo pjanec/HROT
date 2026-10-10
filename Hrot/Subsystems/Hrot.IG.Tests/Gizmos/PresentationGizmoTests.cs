@@ -54,63 +54,8 @@ namespace Hrot.IG.Tests.Gizmos
         //
         // 📄 docs/UX/UX_Feature_Map_Parity.md §3.9j.
 
-        // SC_GZ058_1: EffectPresentationGizmo emits a Sphere for Explosion effects.
-        [Fact]
-        public void SC_GZ058_1_EffectGizmo_Explosion_EmitsSphere()
-        {
-            var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new SimTransform { Position = new Vector3(100f, 200f, 0f) });
-            _repo.AddComponent(entity, new VisualEffectState
-            {
-                Type      = EffectType.Explosion,
-                ColorR    = 255,
-                ColorG    = 100,
-                ColorB    = 0,
-                ColorA    = 255,
-                Duration  = 1f,
-                ElapsedTime = 0f,
-                Scale     = 5f,
-            });
-
-            var draw  = new FullCapturingDrawBuilder();
-            var gizmo = new EffectPresentationGizmo();
-            gizmo.Draw(_repo, entity, draw);
-
-            Assert.Single(draw.SphereCalls);
-            var sphere = draw.SphereCalls[0];
-            Assert.Equal(100f, sphere.Center.X);
-            Assert.Equal(200f, sphere.Center.Y);
-            Assert.Equal(5f,   sphere.Radius);
-        }
-
-        // SC_GZ058_2: EffectPresentationGizmo emits a Line for Tracer effects.
-        [Fact]
-        public void SC_GZ058_2_EffectGizmo_Tracer_EmitsLine()
-        {
-            var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new SimTransform { Position = new Vector3(0f, 0f, 0f) });
-            _repo.AddComponent(entity, new VisualEffectState
-            {
-                Type      = EffectType.Tracer,
-                ColorR    = 255,
-                ColorG    = 255,
-                ColorB    = 0,
-                ColorA    = 255,
-                Duration  = 0.5f,
-                ElapsedTime = 0f,
-                Scale     = 1f,
-            });
-            _repo.AddComponent(entity, new TracerTarget { EndX = 500f, EndY = 600f });
-
-            var draw  = new FullCapturingDrawBuilder();
-            var gizmo = new EffectPresentationGizmo();
-            gizmo.Draw(_repo, entity, draw);
-
-            Assert.Single(draw.LineCalls);
-            var line = draw.LineCalls[0];
-            Assert.Equal(500f, line.End.X);
-            Assert.Equal(600f, line.End.Y);
-        }
+        // ⛔ SC_GZ058_1 / SC_GZ058_2 removed with EffectPresentationGizmo (CE-1042 E3, VE-F): the effects are TKB-typed entities
+        //   drawn by the map's EffectLayer in both modes — its rails are Hrot.Presentation.Tests' EffectTests.
 
         // SC_GZ058_3: RouteGizmo emits N-1 lines for N waypoints in a non-loop route.
         [Fact]

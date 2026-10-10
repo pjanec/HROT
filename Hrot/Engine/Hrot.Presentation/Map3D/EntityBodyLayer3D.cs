@@ -208,6 +208,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     public TypeLook LookOf(long tkbType, ITkbDatabase? tkb)
     {
         if (_looks.TryGetValue(tkbType, out var look)) return look;
+        // ⭐ CE-1042 — an EFFECT type (muzzle flash, explosion, decal, tracer) has no body: the effect layer draws it. Checked by
+        //   the catalog too, so a host with no TKB (the replay browser) does not draw a recorded effect as an unknown box.
+        if (Hrot.Core.Tkb.EffectTkbCatalog.BuiltIn.ContainsKey(tkbType))
+            return _looks[tkbType] = new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         look = Resolve(tkb != null && tkb.TryGetByType(tkbType, out var t) ? t : null);
         _looks[tkbType] = look;
         return look;
@@ -217,6 +221,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     public static TypeLook Resolve(TkbTemplate? t)
     {
         if (t == null) return new TypeLook(VisualFamily.Unknown, ShapeKits.DefaultSize(VisualFamily.Unknown), DefaultColour(VisualFamily.Unknown), false);
+        if (t.GetDescriptor<EffectVisualDto>() != null)   // ⭐ CE-1042 — an effect type has no body
+            return new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         var family = VisualFamilies.Of(t);
         var size = ShapeKits.DefaultSize(family);
         var geometry = t.GetDescriptor<BodyGeometryDto>();

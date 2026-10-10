@@ -47,7 +47,8 @@ namespace Hrot.ScenarioEditor.Map
         Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer GizmoLayer,
         Fdp.Toolkit.Vis3D.MapViewSwitch ViewSwitch,
         Fdp.Toolkit.Vis3D.TerrainLayer3D Terrain,
-        Hrot.UI.Common.Map3D.EntityBodyLayer3D Bodies);
+        Hrot.UI.Common.Map3D.EntityBodyLayer3D Bodies,
+        Hrot.UI.Common.Effects.EffectLayer Effects);
 
     public static class MapInteractionPack
     {
@@ -96,6 +97,8 @@ namespace Hrot.ScenarioEditor.Map
 
             // ⭐ CE-3123 (R-228) — the debug view state the pin and AI-trace actions patch, on every map host.
             Hrot.Map.Common.PresentationComponentRegistry.RegisterDebugViewState(ctx.World);
+            // ⭐ CE-1042 E2 — the effect entities' components, so the effect systems below can run on every map host.
+            Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(ctx.World);
 
             var settings          = ctx.Settings ?? new GizmoSettingsRegistry();
             var gizmoRegistry     = new GizmoRegistry();
@@ -390,8 +393,11 @@ namespace Hrot.ScenarioEditor.Map
             viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.EntityBoxPicker(worldProvider, tkb, bodies));
             canvas.AddLayer(terrain);
             canvas.AddLayer(bodies);
+            // ⭐ CE-1042 E3 — muzzle flashes, tracers, explosions and decals, from their TKB type, in both modes (VE-F).
+            var effects = new Hrot.UI.Common.Effects.EffectLayer(worldProvider, tkb, bodies) { GroundHeight = viewSwitch.Camera3D.GroundHeight };
+            canvas.AddLayer(effects);
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapViewModeLayer(viewSwitch, bus));
-            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies);
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)

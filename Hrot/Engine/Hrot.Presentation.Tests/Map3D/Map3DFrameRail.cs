@@ -212,6 +212,39 @@ public sealed class Map3DFrameRail
             Assert.Equal(1, gizmos.LabelsDrawn3D);
         }
 
+        // ⑧ CE-1042 E3 — realism effects from their TKB type: a large explosion mid-bloom, a crater decal draped on the ground,
+        //   a medium explosion, and a 125 mm muzzle flash at the T-72's hull front.
+        {
+            Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(world);
+            world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+            var effectsLayer = new Hrot.UI.Common.Effects.EffectLayer(() => world, () => tkb, bodies) { GroundHeight = query.GroundHeightAt };
+            canvas.AddLayer(effectsLayer);
+            void Fx(long type, Vector3 at, float age, Entity shooter = default)
+            {
+                var e = world.CreateEntity();
+                world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                world.AddComponent(e, new TkbIdentity { TkbType = type });
+                var look = Hrot.Core.Tkb.EffectTkbCatalog.VisualOf(tkb, type)!;
+                world.AddComponent(e, new Hrot.Map.Common.Components.EffectLifetime { Age = age, Duration = look.Duration });
+                if (shooter != default) world.AddComponent(e, new Hrot.Map.Common.Components.EffectAnchor { Shooter = shooter });
+            }
+            var blast = new Vector2(spot.X + 25f, spot.Y + 25f);
+            float bz = query.GroundHeightAt(blast.X, blast.Y);
+            Fx(Hrot.Core.Tkb.EffectTkbCatalog.ExplosionLarge, new Vector3(blast, bz + 1f), 0.5f);
+            Fx(Hrot.Core.Tkb.EffectTkbCatalog.DecalLarge, new Vector3(blast.X - 9f, blast.Y - 4f, query.GroundHeightAt(blast.X - 9f, blast.Y - 4f)), 5f);
+            Fx(Hrot.Core.Tkb.EffectTkbCatalog.ExplosionMedium, new Vector3(blast.X - 15f, blast.Y + 8f, bz + 0.5f), 0.3f);
+            Entity t72 = default;
+            foreach (var e in world.Query().With<TkbIdentity>().Build())
+                if (world.GetComponentRO<TkbIdentity>(e).TkbType == TkbEntityTypes.Tank_T72) t72 = e;
+            Fx(Hrot.Core.Tkb.EffectTkbCatalog.MuzzleFlashLarge, Vector3.Zero, 0.02f, t72);
+
+            sw.Camera3D.Pose = new CameraPose(new Vector3(blast.X - 15f, blast.Y - 5f, bz), 70f, MathF.PI * 0.8f, -0.35f);
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            frame.Screenshot(Path.Combine(shots, "map3d-8-effects.png"));
+            Assert.Equal(4, effectsLayer.Drawn);
+        }
+
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-2-tilted.png"));
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-3-close.png"));
     }

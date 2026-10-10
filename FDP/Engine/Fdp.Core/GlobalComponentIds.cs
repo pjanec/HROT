@@ -339,6 +339,12 @@
         /// <summary><c>IgMissionHolder</c> â€” managed component caching decoded EntityMission for rendering.</summary>
         public const int IgMissionHolder             = 123;
 
+        /// <summary><c>EffectLifetime</c> — ⭐ CE-1042 E2: the age of a realism effect entity (muzzle flash, explosion, decal, tracer).</summary>
+        public const int EffectLifetime          = 124;
+
+        /// <summary><c>EffectAnchor</c> — ⭐ CE-1042 E2: the shooter and weapon a muzzle flash / tracer is attached to.</summary>
+        public const int EffectAnchor            = 125;
+
         // IDs 124â€“139 are reserved for future IG components.
 
         // â”€â”€ ModuleHost Network (140â€“159) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

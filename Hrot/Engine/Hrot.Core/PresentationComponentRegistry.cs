@@ -48,6 +48,7 @@ public static class PresentationComponentRegistry
     public static void RegisterAll(EntityRepository world)
     {
         RegisterDebugViewState(world);
+        RegisterEffects(world);   // ⭐ CE-1042 E2
         world.RegisterComponent<EntityInfo>();
         world.RegisterComponent<SelectionState>();
         world.RegisterManagedComponent<EditablePolyline>();
@@ -105,6 +106,20 @@ public static class PresentationComponentRegistry
     /// whether or not it registers the presentation set (IG) — and the Replay Browser gets it on every repo it rebinds to.
     /// Idempotent. 📄 docs/DESIGN_Uniform_Gizmo_Membership.md §10.
     /// </summary>
+    /// <summary>
+    /// ⭐ CE-1042 E2 — the realism effect entities' components (docs/DESIGN_Visual_Effects.md VE-B), on every map host: reached from
+    /// <see cref="RegisterAll"/> and from <c>MapInteractionPack.Build</c> (idempotent), so no host can schedule the effect systems
+    /// on a world that never heard of them.
+    /// </summary>
+    public static void RegisterEffects(EntityRepository world)
+    {
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        world.RegisterComponent<EffectLifetime>();
+        world.RegisterComponent<EffectAnchor>();
+        world.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();   // an effect is never saved with the scenario (VE-B)
+    }
+
     public static void RegisterDebugViewState(EntityRepository world)
     {
         world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>();
