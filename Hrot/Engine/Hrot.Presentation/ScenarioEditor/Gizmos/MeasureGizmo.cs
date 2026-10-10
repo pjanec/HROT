@@ -119,11 +119,13 @@ public sealed class MeasureGizmo : IEntityStatefulGizmo
             var color = new Rgba32(0, 255, 255, 255);
             var pos   = _currentPoint;
 
-            draw.DrawLine(new Vector3(pos.X - CrosshairHalfSize, pos.Y, 0f), new Vector3(pos.X - CrosshairGapRadius, pos.Y, 0f), color, CrosshairThickness);
-            draw.DrawLine(new Vector3(pos.X + CrosshairGapRadius, pos.Y, 0f), new Vector3(pos.X + CrosshairHalfSize, pos.Y, 0f), color, CrosshairThickness);
-            draw.DrawLine(new Vector3(pos.X, pos.Y - CrosshairHalfSize, 0f), new Vector3(pos.X, pos.Y - CrosshairGapRadius, 0f), color, CrosshairThickness);
-            draw.DrawLine(new Vector3(pos.X, pos.Y + CrosshairGapRadius, 0f), new Vector3(pos.X, pos.Y + CrosshairHalfSize, 0f), color, CrosshairThickness);
-            draw.DrawSphere(new Vector3(pos.X, pos.Y, 0f), CrosshairGapRadius, color);
+            // ⭐ CE-1033 S2 (§3.9 H1) — drawn at the point's own height (the 3-D pick's; 0 in 2-D, as before).
+            float z = pos.Z;
+            draw.DrawLine(new Vector3(pos.X - CrosshairHalfSize, pos.Y, z), new Vector3(pos.X - CrosshairGapRadius, pos.Y, z), color, CrosshairThickness);
+            draw.DrawLine(new Vector3(pos.X + CrosshairGapRadius, pos.Y, z), new Vector3(pos.X + CrosshairHalfSize, pos.Y, z), color, CrosshairThickness);
+            draw.DrawLine(new Vector3(pos.X, pos.Y - CrosshairHalfSize, z), new Vector3(pos.X, pos.Y - CrosshairGapRadius, z), color, CrosshairThickness);
+            draw.DrawLine(new Vector3(pos.X, pos.Y + CrosshairGapRadius, z), new Vector3(pos.X, pos.Y + CrosshairHalfSize, z), color, CrosshairThickness);
+            draw.DrawSphere(new Vector3(pos.X, pos.Y, z), CrosshairGapRadius, color);
             return;
         }
 
@@ -131,21 +133,31 @@ public sealed class MeasureGizmo : IEntityStatefulGizmo
         var start = _startPoint.Value;
         var end   = _currentPoint;
 
+        // ⭐ CE-1033 S2 (§3.9 H1) — the line between the two PICKED points, with their heights; the label adds the slant
+        //   distance when the ends differ in height (2-D: both 0 ⇒ the label is unchanged).
         draw.DrawLine(
-            new Vector3(start.X, start.Y, 0f),
-            new Vector3(end.X,   end.Y,   0f),
+            new Vector3(start.X, start.Y, start.Z),
+            new Vector3(end.X,   end.Y,   end.Z),
             new Rgba32(0, 255, 255, 255),
             MeasureToolConstants.LineThickness);
 
         float  distance = Vector2.Distance(new Vector2(start.X, start.Y), new Vector2(end.X, end.Y));
-        string label    = EffectiveUnits == MeasureDisplayUnits.Kilometers
-            ? $"{distance / 1000f:F3} km"
-            : $"{distance:F1} m";
+        string label    = FormatDistance(distance);
+        float  slant    = Vector3.Distance(start, end);
+        if (MathF.Abs(end.Z - start.Z) >= SlantShownAboveMetres)
+            label += " (slant " + FormatDistance(slant) + ")";
         float  midX = (start.X + end.X) * 0.5f;
         float  midY = (start.Y + end.Y) * 0.5f;
 
         draw.DrawTextLong(midX, midY + MeasureToolConstants.LabelOffsetY, label, Rgba32.White);
     }
+
+    /// <summary>⭐ CE-1033 S2 — the height difference above which the label also shows the slant distance.</summary>
+    public const float SlantShownAboveMetres = 0.5f;
+
+    private string FormatDistance(float metres) => EffectiveUnits == MeasureDisplayUnits.Kilometers
+        ? $"{metres / 1000f:F3} km"
+        : $"{metres:F1} m";
 
     /// <inheritdoc/>
     public void OnDragUpdate(Vector3 worldPos)

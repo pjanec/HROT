@@ -741,7 +741,7 @@ combat / network lanes' code; the map reads the pose through `EntityBodyLayer3D`
 | slice | delivers | proves |
 |---|---|---|
 | **S1** | `MapCamera3D` + the animated switch (Editor); `TerrainLayer3D` from `TerrainWorldMesh` as-is, one colour per kind, lit shader + fog; `EntityBodyLayer3D` with `VisualFamily` + the shape kits for every built-in type (static) and block figures in their three stance poses; free camera; **Xvfb screenshot of the editor in 3-D on `test-town`** | the render path, the shader on the cloud's software GL, M8 |
-| **S2** | `Picker3D` (handles → entity boxes → terrain mesh → ground, `SurfacesAt` level); `ScreenToWorldForDrag`; `MapCanvas.LastPick` feeding the five `z = 0` sites; draping (M18); `SelectionRenderSystem.Draw3D` wire cubes; the placement ghost + roof/floor level (M20); measurement drawn at its picked height; **areas on a level** (M22 step 1); the danger band (H3); ⭐ every rail also runs on a **sloped test terrain** (R-248) | select, context menu, measurement, area authoring, placement and handle drags work in 3-D — the same tools (U21) |
+| **S2** ✅ *(§6d)* | `Picker3D` (handles → entity boxes → terrain mesh → ground, `SurfacesAt` level); `ScreenToWorldForDrag`; `MapCanvas.LastPick` feeding the five `z = 0` sites; draping (M18); `SelectionRenderSystem.Draw3D` wire cubes; the placement ghost + roof/floor level (M20); measurement drawn at its picked height; **areas on a level** (M22 step 1); the danger band (H3); ⭐ every rail also runs on a **sloped test terrain** (R-248) | select, context menu, measurement, area authoring, placement and handle drags work in 3-D — the same tools (U21) |
 | **S3** | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters; **labels**: `GizmoTextDraw` extracted, `LabelOverlay3D` with projection + LOD | gizmos, fire traces, detonations and gizmo text in 3-D (U16) |
 | **S3b** | ⭐ **realism effects** — muzzle fire, explosions, impact decals as temporary TKB-typed entities with two map layers, on every host: [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) slices E1–E4 | U27, U28 |
 | **S3c** | ⭐ **the articulated turret, live** — the turret part + `TurretPose` (M23), the weapon-side slew (M24), the TKB turret descriptor (M25), the sensor-style multi-instance descriptor (M26); the map plugs `poseOf` | §3.11, R-255 |
@@ -829,6 +829,28 @@ tracer, later smoke and flashes) from the effect entity's **TKB type**, exactly 
 ⭐ **Lean (`CE-1042`):** an effect entity carries `TkbIdentity`; a TKB descriptor on the
 effect type says what it looks like (kind, duration, colour, size); the munition / warhead type names the effect type it makes;
 both maps draw from the TKB. ⛔ The S3 3-D effects are not built on the enum.
+
+### 6d. S2 — AS-BUILT `2026-10-11` (picking in 3-D)
+
+| piece | where |
+|---|---|
+| `IPicker3D`, `PickResult` (point WITH height, kind, network id), `PickFilter` (P2), `TerrainPicker` (ray vs the drawn `ITerrainRenderGeometry`: uniform grid + Möller–Trumbore, pure C#, no allocation per pick), `RayBox` | `FDP/Engine/Fdp.Presentation/Vis3D/Picking.cs` |
+| `MapCamera3D.Pickers` / `Pick` / `LastPick` / `ScreenToWorld3D(forDrag)` / `ZoomAt`; one pick per pixel per frame (cached) | `Vis3D/MapCamera3D.cs` |
+| `MapCamera.ScreenToWorld3D` / `ScreenToWorldForDrag` / `ZoomAt` — 2-D: the old answer at Z = 0 (byte-identical) | `Vis2D/Components/MapCamera.cs` |
+| `EntityBoxPicker` — the entity's DRAWN box (P1); answers with the entity's own position, so its 2-D pick box contains it; `EntityBodyLayer3D.TryGetBox` (min half-extent 0.4 m) | `Hrot.Presentation/Map3D/` |
+| drags follow the terrain: `MapCanvas` routes `HandleDrag` through `ScreenToWorldForDrag` (P2) | `Vis2D/MapCanvas.cs` |
+| the gizmo input carries height: the inner `DebugGizmoLayer.HandleInput` takes the live camera's `screenToWorld` / `zoomAt` (pick for presses, terrain for drags, pick boxes sized at the hit's distance); `GizmoInteractionProxyTool` reports the Z in Started / DragUpdate / Commit — ⭐ **the five `z = 0` sites of §3.8 are now fed** (four in those two classes; the fifth, placement, below) | `GizmoMap.Presentation/Layers/DebugGizmoLayer.cs`, `Gizmos/GizmoInteractionProxyTool.cs`, `Vis2D/Layers/DebugGizmoLayer.cs` (`CurrentCamera`) |
+| placement on a roof / upper floor: the clicked height → `Levels.LevelOf` → `SpawnHeight(OnLevel, n)`; a 2-D click (Z = 0) stays on the ground (M20) | `Fdp.Toolkits/World/Levels.cs`, `EntityPlacementGizmo.cs` |
+| measurement drawn between the PICKED points with their heights, label adds the slant distance (§3.9 H1) | `MeasureGizmo.cs` |
+| the danger area draws its height band as a wire prism (§3.9 H3) | `DangerAreaGizmo.cs` |
+| selected entities: a wire box (green primary, yellow others) | `EntityBodyLayer3D` |
+
+⚠ **Left for S3 (they need gizmos DRAWN in 3-D first):** draping of 2-D shapes (M18/P4), areas on a level (M22 step 1 — the
+anchor's height + EQS's same-level test), the placement ghost as a translucent shape kit.
+**Gates:** `Map3DPickingTests` 6/6 (roof vs ground with heights, slanted ray stops at the first surface, entity box hit vs a
+miss 2.5 m beside the hull, the camera picks the entity but a drag follows the terrain, the proxy carries Z);
+`Hrot.Presentation.Tests` **443/444**; `Hrot.Editor.Tests` 474/476; `Hrot.IG.Tests` 461/462; `GizmoMap.Presentation.Tests` 41/41;
+`Fdp.Presentation.Tests` 563/572 (the pre-existing 8, `CE-259aa`); all five hosts build.
 
 ## 7. NOT VERIFIED — say so before it is built on
 

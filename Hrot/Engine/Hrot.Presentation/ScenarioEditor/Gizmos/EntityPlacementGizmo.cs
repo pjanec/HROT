@@ -62,6 +62,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         internal const string MultiPlacementHint = "click: place  ·  right-click/Esc: done";
 
         private Vector3 _cursorWorld;
+        private Fdp.Toolkit.World.IWorldQuery? _world;
 
         /// <summary>
         /// Raised after a <see cref="SpawnEntityCommand"/> has been constructed and passed
@@ -138,6 +139,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </remarks>
         public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
+            _world = Fdp.Toolkit.World.WorldQuery.Of(view);   // ⭐ CE-1033 S2 — for the clicked level (M20)
             var ghostColor = GetAffiliationColor(_affiliationForDisplay);
             ghostColor.A = GhostAlpha;
 
@@ -238,7 +240,12 @@ namespace Hrot.ScenarioEditor.Gizmos
                 },
                 // ⭐ CE-1017 S2 (D6b rev 5): stand on the GROUND (level 0) at this point — the creating node
                 //   resolves the Z from its terrain (NetworkSpawningSystem), ignoring the 0 sent above.
-                SpawnHeight           = Fdp.Toolkit.NetworkSpawning.SpawnHeight.OnGround,
+                // ⭐ CE-1033 S2 (M20) — a 3-D click on a roof or an upper floor carries its height: spawn on THAT level. A 2-D click
+                //   (Z = 0) stays on the ground, as before.
+                SpawnHeight           = worldPos.Z != 0f && _world != null
+                    ? new Fdp.Toolkit.NetworkSpawning.SpawnHeight(Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.OnLevel,
+                                                                 (short)Fdp.Toolkit.World.Levels.LevelOf(_world, worldPos))
+                    : Fdp.Toolkit.NetworkSpawning.SpawnHeight.OnGround,
                 InitialAttributesJson = _initialPropertiesJson,
                 RequestId             = Guid.NewGuid(),
             };

@@ -111,15 +111,27 @@ namespace GizmoMap.Presentation
         /// (see UX_Feature_Selection.md §2.3); without it the two gestures are indistinguishable here.
         /// For DragUpdate/Commit/Cancel actionId=0 and stateFlags=0.
         /// </param>
+        /// <summary>⭐ CE-1033 S2 — the height of the drag point this frame, handed to the active proxy tool.</summary>
+        private float _dragZ;
+
         public void HandleInput(
             ReadOnlySpan<DebugPrimitive> primitives,
             StringInternMap internMap,
             Camera2D camera,
-            Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte>? onInteraction = null)
+            Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte>? onInteraction = null,
+            Func<Vector2, bool, Vector3>? screenToWorld = null,
+            Func<Vector3, float>? zoomAt = null)
         {
             var screenPos = Raylib.GetMousePosition();
-            var worldPos  = Raylib.GetScreenToWorld2D(screenPos, camera);
-            var worldPos3 = new Vector3(worldPos.X, worldPos.Y, 0f);
+            // ⭐ CE-1033 S2 (M19) — a host camera that knows height (the 3-D map) answers screen → world itself: the PICK point for
+            //   presses and hovers, the TERRAIN point for drags (P2). Without one, the 2-D math at Z = 0 — byte-identical to before.
+            var worldPos3 = screenToWorld?.Invoke(screenPos, false)
+                            ?? new Vector3(Raylib.GetScreenToWorld2D(screenPos, camera), 0f);
+            var worldPos  = new Vector2(worldPos3.X, worldPos3.Y);
+            var dragPos3  = screenToWorld?.Invoke(screenPos, true) ?? worldPos3;
+            var dragPos   = new Vector2(dragPos3.X, dragPos3.Y);
+            _dragZ = dragPos3.Z;
+            float pickZoom = zoomAt?.Invoke(worldPos3) ?? camera.Zoom;
             var delta = Raylib.GetMouseDelta();
             
             // FIX: Respect ImGui hardware capture state
@@ -181,14 +193,15 @@ namespace GizmoMap.Presentation
             // Gate activation: ignore if ImGui is capturing the mouse
             if (_activeTool == null && !isMouseCaptured && Raylib.IsMouseButtonPressed(MouseButton.Left))
             {
-                var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId);
+                var best = FindTopmostInteractivePrimitive(primitives, worldPos, pickZoom, exclusiveAnchorId);
                 if (best.HasValue)
                 {
                     var hit = best.Value;
                     
                     var token = MakePickToken(in hit);
                     _activeTool = new GizmoInteractionProxyTool(
-                        token, worldPos, onInteraction, onExit: () => _activeTool = null, hit.Space);
+                        token, worldPos, onInteraction, onExit: () => _activeTool = null, hit.Space,
+                        initialZ: worldPos3.Z, height: () => _dragZ);
                     _activeTool.HandlePress(worldPos, MouseButton.Left);
                 }
                 else if (!exclusiveAnchorId.HasValue)
@@ -196,7 +209,8 @@ namespace GizmoMap.Presentation
                     // Canvas fallback to allow selection-rect interactions.
                     _activeTool = new GizmoInteractionProxyTool(
                         default, worldPos,
-                        onInteraction, onExit: () => _activeTool = null);
+                        onInteraction, onExit: () => _activeTool = null,
+                        initialZ: worldPos3.Z, height: () => _dragZ);
                     _activeTool.HandlePress(worldPos, MouseButton.Left);
                 }
             }
@@ -213,7 +227,7 @@ namespace GizmoMap.Presentation
                 {
                     long hitNetworkId = -1L; // canvas anchor fallback
 
-                    var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId);
+                    var best = FindTopmostInteractivePrimitive(primitives, worldPos, pickZoom, exclusiveAnchorId);
                     if (best.HasValue)
                     {
                         var hit = best.Value;
@@ -276,14 +290,14 @@ namespace GizmoMap.Presentation
                 if (Raylib.IsMouseButtonDown(MouseButton.Left))
                 {
                     if (delta.X != 0f || delta.Y != 0f)
-                        _activeTool.HandleDrag(worldPos, delta);
+                        _activeTool.HandleDrag(dragPos, delta);
                 }
 
                 if (Raylib.IsMouseButtonReleased(MouseButton.Left))
-                    _activeTool.HandleClick(worldPos, MouseButton.Left);
+                    _activeTool.HandleClick(dragPos, MouseButton.Left);
 
                 if (Raylib.IsMouseButtonReleased(MouseButton.Right))
-                    _activeTool.HandleClick(worldPos, MouseButton.Right);
+                    _activeTool.HandleClick(dragPos, MouseButton.Right);
 
                 if (!isKeyboardCaptured && Raylib.IsKeyPressed(KeyboardKey.Escape))
                     _activeTool.HandleKeyPressed(KeyboardKey.Escape);
@@ -291,7 +305,7 @@ namespace GizmoMap.Presentation
 
             if ((exclusiveAnchorId.HasValue || routeRawInput) && (delta.X != 0f || delta.Y != 0f))
             {
-                onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.DragUpdate, worldPos3, 0, 0);
+                onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.DragUpdate, dragPos3, 0, 0);
             }
 
             if (routeRawInput)

@@ -76,6 +76,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         var shader = LitShader.Shared;
         var tkb = _tkb();
 
+        bool hasSelection = world.IsComponentTypeRegistered<Hrot.IG.Components.SelectionState>();
+        SelectionBoxesDrawn = 0;
         foreach (var e in _query!)
         {
             long type = world.GetComponentRO<TkbIdentity>(e).TkbType;
@@ -114,6 +116,15 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 PartsDrawn++;
             }
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader);
+            if (hasSelection && world.HasComponent<Hrot.IG.Components.SelectionState>(e))
+            {
+                ref readonly var sel = ref world.GetComponentRO<Hrot.IG.Components.SelectionState>(e);
+                if (sel.IsSelected && TryGetBox(world, e, tkb, out var c, out var r, out var h))
+                {
+                    DrawWireBox(c, r, h * 1.06f, sel.IsPrimarySelection ? PrimarySelection : OtherSelection);
+                    SelectionBoxesDrawn++;
+                }
+            }
             BodiesDrawn++;
         }
     }
@@ -159,6 +170,26 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         PartsDrawn++;
     }
 
+    /// <summary>⭐ CE-1033 S2 (§3.2: "wire cubes") — a selected entity's box, drawn as wire edges: green for the primary
+    /// selection, yellow for the others (the 2-D map's selection colours).</summary>
+    private static void DrawWireBox(Vector3 centre, Quaternion rotation, Vector3 half, Color colour)
+    {
+        Span<Vector3> c = stackalloc Vector3[8];
+        for (int i = 0; i < 8; i++)
+        {
+            var local = new Vector3((i & 1) == 0 ? -half.X : half.X, (i & 2) == 0 ? -half.Y : half.Y, (i & 4) == 0 ? -half.Z : half.Z);
+            c[i] = HrotToRaylib.Position(centre + Vector3.Transform(local, rotation));
+        }
+        ReadOnlySpan<int> edges = stackalloc int[] { 0, 1, 2, 3, 4, 5, 6, 7, 0, 2, 1, 3, 4, 6, 5, 7, 0, 4, 1, 5, 2, 6, 3, 7 };
+        for (int k = 0; k < edges.Length; k += 2) Raylib.DrawLine3D(c[edges[k]], c[edges[k + 1]], colour);
+    }
+
+    private static readonly Color PrimarySelection = new(60, 230, 90, 255);
+    private static readonly Color OtherSelection = new(240, 220, 60, 255);
+
+    /// <summary>Selection boxes drawn in the last 3-D frame.</summary>
+    public int SelectionBoxesDrawn { get; private set; }
+
     /// <summary>How far above its resting height a body must be before its retractable gear is drawn up.</summary>
     public const float AirborneMargin = 5f;
 
@@ -198,6 +229,30 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         var colour = ParseHex(t.GetDescriptor<VisualDefinitionDto>()?.ColorHex) ?? DefaultColour(family);
         return new TypeLook(family, size, colour, VisualFamilies.IsSoldier(t), geometry);
     }
+
+    /// <summary>
+    /// ⭐ CE-1033 S2 (P1) — the oriented box an entity is drawn in, which is also what a 3-D click hits: its kit's size, placed
+    /// by its reference point (ground centre, or the TKB box offset for a CG-referenced body). False for a unit (no body).
+    /// </summary>
+    public bool TryGetBox(EntityRepository world, Entity e, ITkbDatabase? tkb, out Vector3 centre, out Quaternion rotation, out Vector3 half)
+    {
+        centre = default; rotation = Quaternion.Identity; half = default;
+        if (!world.HasComponent<TkbIdentity>(e) || !world.HasComponent<SimTransform>(e)) return false;
+        var look = LookOf(world.GetComponentRO<TkbIdentity>(e).TkbType, tkb);
+        if (look.Family == VisualFamily.Unit) return false;
+        var size = SizeOf(world, e, look);
+        ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
+        rotation = tf.Rotation;
+        var local = look.Geometry is { } g
+            ? new Vector3(g.BodyCentreX, g.BodyCentreY, g.BodyCentreZ)
+            : new Vector3(0f, 0f, size.Z / 2f);
+        centre = tf.Position + Vector3.Transform(local, rotation);
+        half = Vector3.Max(size / 2f, new Vector3(MinPickHalf));   // a person stays clickable from afar
+        return true;
+    }
+
+    /// <summary>The smallest half-extent a pick box gets (m).</summary>
+    public const float MinPickHalf = 0.4f;
 
     private static Vector3 SizeOf(EntityRepository world, Entity e, in TypeLook look)
     {

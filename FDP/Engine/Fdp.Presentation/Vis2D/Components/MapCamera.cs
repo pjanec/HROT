@@ -336,6 +336,28 @@ namespace Fdp.Toolkit.Vis2D.Components
         /// <summary>⭐ CE-1033 S1 — true for the map's 3-D camera (<c>MapCamera3D</c>): the canvas then runs the layers' 3-D pass.</summary>
         public virtual bool Is3D => false;
 
+        /// <summary>
+        /// ⭐ CE-1033 S2 — the world point under a screen pixel WITH ITS HEIGHT (<c>DESIGN_Map_3D_Mode.md</c> §3.8, M19): in 2-D the
+        /// <see cref="ScreenToWorld"/> point at Z = 0, byte-identical to before; the 3-D camera picks the terrain / an entity.
+        /// <paramref name="forDrag"/> (P2): a drag sees only the terrain and the ground, never entities.
+        /// </summary>
+        public virtual Vector3 ScreenToWorld3D(Vector2 screenPos, bool forDrag = false)
+        {
+            var p = ScreenToWorld(screenPos);
+            return new Vector3(p.X, p.Y, 0f);
+        }
+
+        /// <summary>⭐ CE-1033 S2 (P2) — the point a DRAG follows: terrain and ground only (2-D: <see cref="ScreenToWorld"/>).</summary>
+        public virtual Vector2 ScreenToWorldForDrag(Vector2 screenPos)
+        {
+            var p = ScreenToWorld3D(screenPos, forDrag: true);
+            return new Vector2(p.X, p.Y);
+        }
+
+        /// <summary>⭐ CE-1033 S2 — pixels per metre AT a world point (2-D: the zoom everywhere; 3-D: shrinks with distance), so a
+        /// pick box sized in screen pixels is hit-tested at the right size in a tilted view.</summary>
+        public virtual float ZoomAt(Vector3 worldPoint) => InnerCamera.Zoom;
+
         /// <summary>⭐ CE-1033 S1 — a mouse movement in pixels as a movement on the ground, for drags (2-D: divided by the zoom).</summary>
         public virtual Vector2 ScreenDeltaToWorld(Vector2 screenDelta) => screenDelta / InnerCamera.Zoom;
 

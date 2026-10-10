@@ -196,6 +196,7 @@ namespace Fdp.Toolkit.Vis2D
             Vector2 deltaWorld = Camera.ScreenDeltaToWorld(delta);   // ⭐ CE-1033 S1 — the camera knows its own scale (2-D: /Zoom)
 
             bool consumed = false;
+            Vector2? dragWorld = null;
 
             // Track right-button drags so that pan-then-release does not fire a click.
             if (rightDown && delta.LengthSquared() > RightDragThresholdSq)
@@ -229,7 +230,9 @@ namespace Fdp.Toolkit.Vis2D
                 layer.HandleHover(mouseWorld);
                 if ((leftDown || rightDown) && delta.LengthSquared() > 0f)
                 {
-                    if (layer.HandleDrag(mouseWorld, deltaWorld))
+                    // ⭐ CE-1033 S2 (P2) — a drag follows the terrain under the cursor, never an entity (2-D: the same point).
+                    dragWorld ??= Camera.ScreenToWorldForDrag(mouseScreen);
+                    if (layer.HandleDrag(dragWorld.Value, deltaWorld))
                         consumed = true;
                 }
             }

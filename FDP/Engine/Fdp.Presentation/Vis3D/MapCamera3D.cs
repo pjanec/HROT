@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
@@ -127,6 +128,7 @@ namespace Fdp.Toolkit.Vis3D
 
         public override void Update(float dt)
         {
+            _cachePixel = new Vector2(float.NaN);   // a new frame: entities may have moved
             if (!float.IsFinite(dt) || dt < 0f) dt = 0f;
             _dt = dt;
             if (IsAnimating)
@@ -243,20 +245,72 @@ namespace Fdp.Toolkit.Vis3D
             return (right * screenDelta.X - ahead * screenDelta.Y) * mpp;
         }
 
-        /// <summary>The ground point under a screen pixel — S1: the plane at the look-at height, capped at the horizon.</summary>
+        /// <summary>⭐ CE-1033 S2 — what a pick can hit: the terrain mesh, the entity boxes (added by the shared attach). Nearest wins.</summary>
+        public List<IPicker3D> Pickers { get; } = new();
+
+        /// <summary>The last pick (point with height, kind, entity id) — what the five former <c>z = 0</c> sites read (M19).</summary>
+        public PickResult LastPick { get; private set; } = PickResult.None;
+
+        // One pick per (pixel, filter, camera pose) per frame: the canvas, the gizmo layer and the hover all ask for the same pixel.
+        private Vector2 _cachePixel = new(float.NaN);
+        private bool _cacheForDrag;
+        private CameraPose _cachePose;
+        private PickResult _cacheResult;
+
+        /// <summary>The ground point under a screen pixel: an entity's own position when its box is hit (so its 2-D pick box
+        /// contains it), else the terrain, else the plane at the look-at height, capped at the horizon (§3.8).</summary>
         public override Vector2 ScreenToWorld(Vector2 screenPos)
         {
+            var p = ScreenToWorld3D(screenPos);
+            return new Vector2(p.X, p.Y);
+        }
+
+        public override Vector3 ScreenToWorld3D(Vector2 screenPos, bool forDrag = false)
+        {
+            var pick = Pick(screenPos, forDrag ? PickFilter.Terrain : PickFilter.All);
+            if (!forDrag) LastPick = pick;
+            return pick.Point;
+        }
+
+        /// <summary>The pick under a screen pixel with <paramref name="filter"/> (P2: a drag passes <see cref="PickFilter.Terrain"/>).</summary>
+        public PickResult Pick(Vector2 screenPos, PickFilter filter)
+        {
+            bool forDrag = filter == PickFilter.Terrain;
+            if (screenPos == _cachePixel && forDrag == _cacheForDrag && Pose == _cachePose) return _cacheResult;
+
             var dir = RayDirection(screenPos);
             var eye = Eye;
             float maxRange = MathF.Max(500f, Distance * 30f);
-            if (dir.Z < -1e-4f)
+            var best = PickResult.None;
+            foreach (var picker in Pickers)
             {
-                float t = (LookAt.Z - eye.Z) / dir.Z;
-                if (t > 0f && t < maxRange) { var p = eye + dir * t; return new Vector2(p.X, p.Y); }
+                if ((picker.Kind & filter) == 0) continue;
+                if (picker.TryPick(eye, dir, maxRange, out var hit) && hit.Distance < best.Distance) best = hit;
             }
-            var flat = Flat(dir);
-            if (flat == Vector2.Zero) flat = Flat(Forward);
-            return new Vector2(eye.X, eye.Y) + flat * maxRange;
+            if (best.Kind == PickKind.None)
+            {
+                if (dir.Z < -1e-4f)
+                {
+                    float t = (LookAt.Z - eye.Z) / dir.Z;
+                    if (t > 0f && t < maxRange) best = new PickResult(eye + dir * t, PickKind.Ground, t);
+                }
+                if (best.Kind == PickKind.None)
+                {
+                    var flat = Flat(dir);
+                    if (flat == Vector2.Zero) flat = Flat(Forward);
+                    var far = new Vector2(eye.X, eye.Y) + flat * maxRange;
+                    best = new PickResult(new Vector3(far, LookAt.Z), PickKind.None, maxRange);
+                }
+            }
+            _cachePixel = screenPos; _cacheForDrag = forDrag; _cachePose = Pose; _cacheResult = best;
+            return best;
+        }
+
+        /// <summary>Pixels per metre at a world point: the screen height over the view's height at that point's distance.</summary>
+        public override float ZoomAt(Vector3 worldPoint)
+        {
+            float z = MathF.Max(0.1f, Vector3.Dot(worldPoint - Eye, Forward));
+            return Viewport.Y / (2f * z * TanHalfFov);
         }
 
         /// <summary>The screen pixel of a ground point (at the look-at height); far off screen when behind the camera.</summary>

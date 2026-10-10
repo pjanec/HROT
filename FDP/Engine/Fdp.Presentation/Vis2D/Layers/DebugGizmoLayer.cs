@@ -107,6 +107,10 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         private bool _warnedNoCamera;
 
+        /// <summary>⭐ CE-1033 S2 — the canvas' CURRENT camera (the 3-D one while the map is in 3-D); set by
+        /// <c>MapInteractionPack.AttachMapLayers</c>. Null ⇒ the construction-time camera, as before.</summary>
+        public Func<MapCamera?>? CurrentCamera { get; set; }
+
         public void Update(float dt)
         {
             if (_buffer == null) return;
@@ -131,11 +135,20 @@ namespace Fdp.Toolkit.Vis2D.Layers
                     "this is easy to miss. Pass `camera:` at the construction site.");
             }
 
-            _innerTerminal.HandleInput(
-                _buffer.GetFrame(),
-                _buffer.InternMap,
-                _camera,
-                OnInteraction);
+            // ⭐ CE-1033 S2 — in the map's 3-D mode the canvas' LIVE camera answers screen → world with height (the pick for a
+            //   press, the terrain for a drag) and the pixels-per-metre at the hit; in 2-D nothing is passed (byte-identical).
+            var live = CurrentCamera?.Invoke();
+            if (live != null && live.Is3D)
+                _innerTerminal.HandleInput(
+                    _buffer.GetFrame(), _buffer.InternMap, _camera, OnInteraction,
+                    screenToWorld: (screen, forDrag) => live.ScreenToWorld3D(screen, forDrag),
+                    zoomAt: live.ZoomAt);
+            else
+                _innerTerminal.HandleInput(
+                    _buffer.GetFrame(),
+                    _buffer.InternMap,
+                    _camera,
+                    OnInteraction);
         }
 
         public void Draw(RenderContext ctx)

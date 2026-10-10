@@ -369,6 +369,7 @@ namespace Hrot.ScenarioEditor.Map
         {
             if (canvas is null) throw new ArgumentNullException(nameof(canvas));
             var gizmoLayer = BuildRenderLayer(buffer, bus, canvas.Camera, worldProvider, layerBitIndex);
+            gizmoLayer.CurrentCamera = () => canvas.Camera;   // ⭐ CE-1033 S2 — gizmo input picks in 3-D too
             canvas.AddLayer(gizmoLayer);
             canvas.DrawBuffer = buffer;
 
@@ -380,6 +381,10 @@ namespace Hrot.ScenarioEditor.Map
             var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>
                 worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null);
             var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb);
+            // ⭐ CE-1033 S2 (M17) — what a 3-D click can hit: the drawn terrain, then the entity boxes (nearest wins).
+            viewSwitch.Camera3D.Pickers.Add(new Fdp.Toolkit.Vis3D.TerrainPicker(() =>
+                worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null));
+            viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.EntityBoxPicker(worldProvider, tkb, bodies));
             canvas.AddLayer(terrain);
             canvas.AddLayer(bodies);
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapViewModeLayer(viewSwitch, bus));
