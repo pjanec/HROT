@@ -1,15 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30 (R-155 known-rot + §P link)
+updated: 2026-10-09 (§34 U-0 built, as-built §34.6)
 build-state: ⛔ PER-SECTION — this file spans a whole programme, so there is no single answer, and the
   one that used to be here ("DESIGN, because §32's review demoted it") was stale the moment §32 shipped.
-  ⭐ BUILT: §29 (P3) · §30 (P4) · §31 (O7c) · §32 (E5) · §33 (E6) · §33.12 (the editor path).
+  ⭐ BUILT: §29 (P3) · §30 (P4) · §31 (O7c) · §32 (E5) · §33 (E6) · §33.12 (the editor path) · §34 (U-0).
   ⚠ NOT AUDITED since the programme shipped, so DO NOT trust their headers without measuring:
   §17 (O3a, says READY-TO-BUILD — BlueprintTierTable is in 90 files, so it is probably BUILT) ·
   §19 (O4/C1, says READY-TO-BUILD) · §24 (O7, says BUILDING — O7c-4d deleted BrainHsm128, so it is
   probably BUILT). 📌 Five stale build-state lines have now been found in this file and its
   neighbours (§30, §31 on 2026-09-27; §29, §32 here) — treat a section header as a CLAIM, not a fact.
-current-answer: ⭐⭐⭐ §33 — E6, BTREE-HOSTS-BTREE — IS THE NEWEST SECTION AND IS READY-TO-BUILD
+current-answer: ⭐⭐⭐ §34 — U-0, THE MULTI-BLOCK STORE (R-236, CE-3137) — IS THE NEWEST SECTION AND IS BUILT (2026-10-09, U-0a…U-0e). ⚠ READ §34.6 (AS-BUILT) FIRST — §34.2/§34.3 are the pre-build shape. (§33, E6, is BUILT.)
   (2026-09-27). Start there for the BTree hosting slice; it carries its own INVENTORY, three UML
   diagrams, five build items and its rejected alternatives.
   ⚠⚠ §3.1 IS SUPERSEDED — it says "BTree-hosts-BTree is not a missing feature", which CE-337 made
@@ -115,6 +115,7 @@ known-conflict: none. This document EXTENDS DESIGN_Parameter_Model.md §4 rather
 reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 2026-08-17
   ("keep this open and return to it a bit later"). THIS DOCUMENT IS THAT RETURN. Q37's
   measurements are banked and marked do-not-re-measure; they are cited here, not re-derived.
+  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — it LIVES in this store as a new slot kind, and its room is reserved at assign exactly like hosted demand (O7b-3)
 related-designs:
   - DESIGN_Unified_Behaviour_Run.md — generalises §32's hosted child (any tier, recursive, keys via ComputeNested).
   - Architect_Question_77_Blueprint_As_A_Behaviour.md — the build design for O9 (CE-446); closes §12's gaps ②③④.
@@ -1175,7 +1176,7 @@ name has been wrong since `BehaviorIngressSystem` started allocating from it.
 |---|---|
 | 🔴 **Roslyn only** | never a text rename — the standing rule, and a preview here will reach assemblies a reference list does not name |
 | 🔴 **Rename the FIELD, never the VALUE** | `GlobalComponentIds.BlueprintBlackboard*` field names change; **the numeric ids must not** — `R-44`: ids are globally unique and partitioned for multi-process determinism |
-| ⚠ **union rule** | query from a root-solution project **and** check `HrotStrideApp.Windows` separately — it is the one project outside `IOS-IG-SimHost.sln` |
+| ⚠ **union rule** | query from a root-solution project **and** check `HrotStrideApp.Windows` separately — it is the one project outside `HROT.sln` |
 | ⭐ **do it AFTER `O3`** | `O3` already touches the slot header; renaming first means two passes over the same files |
 
 ---
@@ -3021,7 +3022,7 @@ defect, not a test one.
 |---|---|
 | ⛔ **no thunk looks the pair up yet** | that is `O7` — *"HSM per-region actions key on the occurrence"*. `O6` delivers the identity and nothing reads it in production. ⭐ Stated plainly so nobody reads these rails as proof that per-region HSM storage works |
 | ⛔ **the golden test does not exercise this** | 📐 `hill-attack-close` runs the hand-written BTree node path; **zero** shipped assets use `AiPrimitiveHosting.HsmGuard`. ⇒ the golden shows `O6` **broke nothing**, not that the new path works — the same honest caveat `O4` carried |
-| ⚠ **`Fhsm.Tests` and `Fhsm.Demo.Visual` are updated but CANNOT gate** | they are outside `IOS-IG-SimHost.sln`, so a root-solution build does not build them and a `--no-build` run of them would report a stale bin |
+| ⚠ **`Fhsm.Tests` and `Fhsm.Demo.Visual` are updated but CANNOT gate** | they are outside `HROT.sln`, so a root-solution build does not build them and a `--no-build` run of them would report a stale bin |
 
 
 ## 24. ⏳ `O7` — **HSM PER-REGION ACTIONS KEY ON THE OCCURRENCE** *(started `2026-09-20`; SLICE 1 LANDED)*
@@ -10247,3 +10248,220 @@ rails pass, and `HillAssault2I` is green again.
 
 📋 **The one honest remainder:** a `--mode all` cluster run *(`T3`, async)* is still the only thing that
 would exercise these assets inside the real product rather than a test host. ⛔ Named, not claimed.
+
+---
+
+## 34 ⭐⭐⭐ `U-0` — **THE MULTI-BLOCK STORE: GROWTH APPENDS, NOTHING EVER MOVES** *(`2026-10-09`, `CE-3137`, ruled `R-236`)*
+
+> 🔒 **User, `2026-10-09`:** *"the only thing needing to know where a data is is the one that looks up the byte pointer of the
+> slot, no?"* → *"new lean works"* → *"sounds very good. shall we implement this shared storage first? pls present the plan"* ·
+> on caching offsets: *"who cares when we do not move anything?"*
+
+📄 **Why, measured, and the performance case:** [`Architect_Question_87_Unit_Memory.md`](Architect_Question_87_Unit_Memory.md)
+§3a (why the store moved: a one-block design, not FDP; FDP adds move nothing and are allowed mid-phase) · §3b (per brain-tick
+**1 155–1 350 ns today → 88–112 ns** with the per-tick view, two blocks). `build-state: BUILT` (`2026-10-09`) — ⭐ **§34.6 is the as-built; §34.2–§34.3 below are the pre-build shape.**
+
+### 34.1 INVENTORY — what changes, measured `2026-10-09` (graph `trace_path` + grep)
+
+| group | sites | change |
+|---|---|---|
+| key → pointer lookup (`TryGetSlotOffset`/`TryGetSlotIndex` after `TryGetStore`) | **13** | route through the seam: mechanical |
+| resolve-or-attach | 4 | seam `ResolveOrAttach`: picks a block with room, else **appends** |
+| detach by key | 6 | seam `Detach`: finds the block |
+| walk all slots (2 ingress sweeps, `BlueprintTierSummary.AppendSlots` ×2, `BlueprintStateTranslator` scenario extract) | 5 | seam `ForEachSlot` over blocks |
+| capacity / tier choice (ingress sizing `:1487`, `EnsureAtLeast` ← hot reload + `BlueprintMaterializationSystem` + `BlueprintInstanceService`, `EnsureRootState`/`EnsureRootInstance`, `GetCurrentTier`) | ~8 | "pick the block / append one" instead of "promote" |
+| 🔴 **per-tier entity walkers** (`BrainTickSystem.cs:166-172`, `BlueprintTickSystem.cs:73-75`, `AiHotReloadCoordinator.ReloadHsmInstancesInSlots`) | 3 | ⛔ **a 2-block unit is in TWO tier queries ⇒ would be TICKED TWICE.** The requirement is **once per unit**; tier SIZE is irrelevant (user, `2026-10-09`: *"the goal is to tick entity once, right? how the size of the tier is related?"*). ⭐ **`BrainTickSystem`: walk ONE query over `BehaviorState`** (its tier queries are already constrained `WithOwnedWhen<BehaviorState>`, `:148`), skipping a unit with no block (one mask read) so today's "no store, not ticked" holds. ⭐ **`BlueprintTickSystem` and hot reload** also serve Instance-only units with no `BehaviorState`, and FDP queries have no "any of" (`QueryBuilder.cs`: `With`/`Without` only) ⇒ keep the tier walk and **skip a unit already reached in an earlier query of the same loop** (one mask read; *which* tier owns the visit is arbitrary, it only has to be fixed) |
+| read-only / view readers (`TryGetStoreReadOnly`/`TryGetStoreInView`: replay `PredicateCompiler`, `EntityAiDetailsView`, editor model, scenario translator) | 6 | the RO/view seam loops blocks; ⭐ an old single-tier recording is simply a 1-block store |
+| copy-promotion (`UpgradeTier`, `BlueprintTierTable.Promote`, `CopyToLargerTier`, `BlueprintMaintenanceSystem`) | 4 | **retired**: no copy remains. The maintenance system's "two tiers = promotion" rule would now misfire on every grown unit |
+
+⭐ **No premise left to check about cached offsets** (user: *"who cares when we do not move anything?"*): an offset stays valid
+for the slot's lifetime. Only a slot INDEX shifts, on a detach in the same block, which is today's rule, unchanged.
+
+### 34.2 Classes — grey = exists
+
+```mermaid
+classDiagram
+  class OccurrenceStoreAccess { <<existing, grows>> TryGetSlot(world, e, key) byte*; ResolveOrAttach; Detach; ForEachSlot; RO + InView twins }
+  class StoreView { <<new, unmanaged>> Entity; Count; Block[4] (ptr, totalSize) }
+  class TickViewScope { <<new>> Begin(world, e) / End — the runner's per-tick view, ambient }
+  class BlueprintTierTable { <<existing, grows>> Blocks(world, e) via ONE mask read; Append(world, e, needPayload, needSlots); FirstVisit(world, e, tierIndex) }
+  class BlueprintBlackboardPartitions { <<existing, unchanged>> per-block allocator }
+  class BehaviorRunners { <<existing, grows>> BTree/HSM/Blueprint runner opens a TickViewScope }
+  class BrainTickSystem { <<existing, grows>> one BehaviorState query: each brain once }
+  class BlueprintTickSystem { <<existing, grows>> tier walk, skip a unit already visited; full tier ⇒ append }
+  class BlueprintMaintenanceSystem { <<existing, RETIRED>> no promotion remains }
+  OccurrenceStoreAccess ..> StoreView : uses the ambient view if it is for e
+  OccurrenceStoreAccess ..> BlueprintTierTable
+  OccurrenceStoreAccess ..> BlueprintBlackboardPartitions
+  TickViewScope --> StoreView
+  BehaviorRunners ..> TickViewScope
+  BlueprintTickSystem ..> OccurrenceStoreAccess
+```
+
+*What the picture shows that prose hid: the allocator does not change at all; every change is in WHO finds the block. And the
+generated thunks keep their signatures: they already call `OccurrenceStoreAccess`, which picks up the runner's ambient view.*
+
+### 34.3 Sequence — one brain tick, with a mid-tick growth
+
+```mermaid
+sequenceDiagram
+  participant BT as BrainTickSystem
+  participant R as BTreeRunner
+  participant V as TickViewScope
+  participant OSA as OccurrenceStoreAccess
+  participant TT as BlueprintTierTable
+  BT->>TT: brain from the BehaviorState query, has a block? else skip
+  BT->>R: Run(e)
+  R->>V: Begin(world, e)
+  V->>TT: Blocks(e): one mask read, RW fetch per block
+  R->>OSA: TryGetSlot(e, rootStateKey)
+  OSA-->>R: scan blocks in the view (assign-time block first)
+  R->>OSA: ResolveOrAttach(e, nodeKey) — no block has room
+  OSA->>TT: Append(e): AddComponent of the next absent tier
+  TT-->>OSA: new block, FDP moved nothing
+  OSA->>V: extend the view
+  Note over R: the root-state pointer taken earlier is still valid
+  R->>V: End
+```
+
+*What it shows: growth is an append in the middle of a tick, and the pointer the runner took at the start survives it, which is
+exactly what the old copy-promotion could not offer.*
+
+### 34.4 Modules — who builds the view, who walks entities each frame
+
+```mermaid
+graph TD
+  subgraph CGF["CGF (CgfLogicPack, Synchronous, main thread)"]
+    BTS["BrainTickSystem — Simulation"] -->|"one BehaviorState query"| Runners["BTree / HSM / Blueprint runners"]
+    Runners -->|"Begin/End view"| View["TickViewScope"]
+    Thunks["generated thunks + accessors"] -->|"unchanged call"| OSA["OccurrenceStoreAccess"]
+    OSA -->|"ambient view, else probe"| Blocks[("tier blocks 256 / 1024 / 4096 / 16384")]
+    BPT["BlueprintTickSystem — Simulation"] -->|"tier walk, once per unit; append on full"| OSA
+    Ing["BehaviorIngressSystem — Input"] -->|"size / append"| OSA
+  end
+  Readers["editor, debug API, replay search, scenario extract"] -->|"RO / InView loop"| Blocks
+  Maint["BlueprintMaintenanceSystem — BeforeSync"] -.->|"RETIRED"| Blocks
+  style Maint stroke:#c00,color:#c00
+```
+
+*What it shows: the only per-frame entity walkers are the two tick systems, and each must visit a unit exactly once. The red node
+is the retired promotion, whose "two tiers = promote" rule would otherwise copy and delete every grown unit's blocks.*
+
+### 34.5 Build steps — each green before the next
+
+| step | content | rails |
+|---|---|---|
+| **U-0a** seam, no behaviour change | `BlueprintTierTable.Blocks` (one mask read); `OccurrenceStoreAccess` key API + RO/InView twins + `ForEachSlot`; route the 13 + 4 + 6 sites and the 5 walkers; scan RO, RW only on the hit block | ⭐ **T-1 first**: the store's own suites (`OccurrenceStoreAccessTests`, `PartitionAllocatorTests`, `SlotAttachZeroingTests`) and the behaviour suites that use it (`BehaviorIngressStatefulTests`, `BTreeHostsBTreeTests`, …) stay green; generated goldens unchanged |
+| **U-0b** append instead of promote | `Append`; ingress sizing, `EnsureAtLeast`, `EnsureRoot*` and the blueprint full-tier path append; retire `UpgradeTier`/`Promote`/`CopyToLargerTier` use and `BlueprintMaintenanceSystem`; the brain tick walks one `BehaviorState` query; the blueprint tick and hot reload skip a unit already visited | ① a pointer taken before a mid-tick append is still valid and its writes land (red-proof: under copy-promotion they are lost); ② a blueprint attach on a full tier appends, never drops (`BlueprintTickSystem.cs:207`); ③ a 2-block unit ticks **once** (brain and Instance blueprint alike); ⚠ the brain tick's visit ORDER changes from tier-then-entity to entity order — if a golden or T3 baseline moves, it is that, reported as such; ④ sweeps/detach span blocks; ⑤ a full 4-block store fails LOUD |
+| **U-0c** per-tick view | `TickViewScope` in the three runners; `OccurrenceStoreAccess` uses it when it is for the same entity | ⑥ **benchmark rail**: per-tick-view lookup ≤ today's single-block lookup (Q87 §3b numbers as the bar) |
+| **U-0d** readers | replay `PredicateCompiler`, scenario `BlueprintStateTranslator`, editor + debug-API slot lists loop blocks | ⑦ a recorded 2-block frame is searchable; an OLD 1-tier recording still reads; scenario extract lists slots from both blocks |
+| **U-0e** gates + fold-back | build-state of §34 → BUILT, as-built deviations folded here; Q87 U-0 row closed | the T2 batch gate: unit suites of `Fdp.Toolkits`, `Hrot.Blueprints`, `Hrot.AiEditor.*`, Editor; integration `BlueprintKernelRunTests`; `--no-build` after one build |
+
+⚠ **Lane:** the store is behaviour infrastructure (behaviors lane). `origin/behaviors` has **0 commits** not already in `backend`
+and the lane is on hold; the work is done here and said in every commit (cross-lane edit, lane protocol).
+
+### 34.6 ✅ AS-BUILT — `2026-10-09` (U-0a … U-0e all built; U-0c the same day, second pass)
+
+⚠ **§34.2–§34.3 are the PRE-BUILD shape and are SUPERSEDED by this section** where the names differ: there is no
+`StoreView` type (the view is `OccurrenceStoreAccess.BeginTickView` → `TickViewScope`), no `BlueprintTierTable.Blocks/Append/FirstVisit`
+and no `ForEachSlot`; the whole seam lives in `OccurrenceStoreAccess`. ⚠ §34.4's "Begin/End view" edge runs from **`BrainTickSystem`**
+(per unit, and per SOP tick), not from the three runners: one scope covers every runner, hosted subtree and thunk of that unit's tick.
+
+```mermaid
+classDiagram
+  class OccurrenceStoreAccess {
+    <<existing, grown>>
+    PresentTiers(world, e) int
+    IsFirstVisit(world, e, ascendingIndex) bool
+    GetBlocks / GetBlocksReadOnly / GetBlocksInView(out StoreBlocks) int
+    TryFindSlot / TryFindSlotReadOnly / TryFindSlotInView(key, out block, out offset, out hash)
+    TryFindSlotIndex(key, out block, out index)
+    TryAttachSlot(key, size, hash, kind, out block, out offset) bool
+    TryDetachSlot(key) bool
+    Measure(world, e) StoreMeasure
+    AppendBlockFor(payloadShort, slotsShort) / EnsureRoom(payload, slots) / AddBlock(spec)
+    TierOf(block) BlueprintTierSpec
+    TryGetStore* (largest block, tests and diagnostics ONLY)
+    LargestBlock(world, e) BlueprintTierSpec (display only)
+    BeginTickView(world, e) TickViewScope
+  }
+  class TickViewScope { <<new, IDisposable>> only the outermost scope owns the view }
+  class TickViewState { <<new, ThreadStatic>> world; entity; block pointers + tier; Stamped bits }
+  class BrainTickSystem { <<existing>> opens a view per unit tick and per SOP tick }
+  class StoreBlocks { <<new, unmanaged>> Max = 4; Memory(i); TotalSize(i); Count; TryFind(key) }
+  class StoreMeasure { <<new>> Blocks; PayloadSize; PayloadFree; MaxSlots; SlotCount; FreeSlots }
+  class BlueprintTierSpec { <<existing, grown>> ComponentId (for the one-mask-read probe) }
+  class BlueprintTierTable { <<existing, shrunk>> Descending; Of = largest block. Promote, EnsureAtLeast, AdjacentPairs RETIRED }
+  class BlueprintBlackboardPartitions { <<existing, unchanged>> per-block allocator; CopyToLargerTier dormant }
+  class BlueprintMaintenanceSystem { <<RETIRED, deleted>> }
+  OccurrenceStoreAccess --> StoreBlocks
+  OccurrenceStoreAccess --> TickViewState : ThreadStatic
+  BrainTickSystem ..> TickViewScope : using, per unit
+  OccurrenceStoreAccess --> StoreMeasure
+  OccurrenceStoreAccess ..> BlueprintTierTable
+  OccurrenceStoreAccess ..> BlueprintTierSpec
+  OccurrenceStoreAccess ..> BlueprintBlackboardPartitions
+```
+
+*What the picture shows that prose hid: the allocator did not change by a line — every change is in finding the block — and
+the only new types are two plain value carriers.*
+
+| deviation from §34.2–§34.5 | why |
+|---|---|
+| ⭐ **`BrainTickSystem` keeps its per-tier walk and skips a unit already visited** (`IsFirstVisit`, one mask read), instead of one `BehaviorState` query | a single-block unit (every unit today) is visited **in exactly the old order**, so no golden or T3 baseline can move. The §34.5 ⚠ about visit order no longer applies |
+| ⭐ **`BlueprintTickSystem` needed NO change** | its walk is **slot-level**: each slot lives in exactly one block, so every Instance ticks once per frame even on a 2-block unit. Comment at the loop says so |
+| ⛔ **the `BlueprintTickSystem.cs:207` "silent drop" was misattributed** | it is `EnsureAndTickSingleton`, the **world-singleton** path (one shared block per tier), never a unit's store. ⇒ rail ② as written had no target. The singleton drop remains, outside U-0. Q87 inventory row corrected |
+| ⭐ **U-0c built as an AMBIENT thread-static view, opened by `BrainTickSystem`** (not by the three runners) | one `using` per unit tick (and per SOP tick) covers every runner, hosted subtree, generated thunk and accessor of that unit with **no signature change**. The view holds read-only block pointers; a hit's block is fetched read-write ONCE per scope, so its chunk version is still stamped (§3b ③). `AddBlock` extends an open view; only the OUTERMOST scope owns it (a hosted subtree's nested scope, or a scope for another unit, is a no-op). ⚠ Safe because production never removes a block (measured: no production `RemoveComponent` of a tier) — a raw add behind the view's back is invisible until the scope ends, pinned by `U0_R6` |
+| ⛔ *(first pass, same day — SUPERSEDED by the row above)* U-0c deferred | *the lookup was mask probe → read-only scan → read-write on the hit block; the view looked worth it only for multi-block units. Measured afterwards: the view is ~5× cheaper even on 2 blocks (`U0_R7`), so it was built* |
+| ⭐ **`TryResolveOccurrence` (the generated thunks' call) became multi-block in place** | **no generator change, no golden re-pin** — the emitted call is unchanged |
+| ⭐ **`TryGetStore*` / `BlueprintTierTable.Of` kept, returning the LARGEST block** | tests and diagnostics read one block; ⛔ **rail `U0_R0` fails any production call** outside `OccurrenceStoreAccess.cs`/`BlueprintTierTable.cs` (source scan, skips Tests/Examples) |
+| ⭐ **`CopyToLargerTier` kept, dormant** | an allocator primitive with its own rail (`PartitionAllocatorTests.A3_R2`); no production caller |
+| ⭐ **`LargestBlock(world, e)` added** — the DISPLAY-only tier answer | the editor's tier label/commit plan and an attach-failure report need *a* tier; ⛔ never a slot location. Caught by `U0_R0` on its first run (two sites still read `BlueprintTierTable.Of`) |
+| ⭐ **`TryAttachSlot` initialises a RAW present block** (idempotent `Initialize`), and `Measure` counts a raw block as all capacity | the pre-U-0 attach always called `Initialize` first; a block added by a bare `AddComponent` (scenario/test setup) was otherwise skipped and a SECOND block appended. Caught by `B4_R3` |
+| ⭐ **the missing-store error no longer says "structural change, never in a tick"** | an append moves nothing and is allowed mid-tick; the message now says the FIRST block is ingress's to create (rail `O7_R9`) |
+| ⭐ **the editor's "Upgrade tier" action is display-only** | `EntityBlueprintsPanel.UpgradeTier` (the editor's copy-promotion) removed; the panel's commit plan still reports the tier the store would grow into |
+
+**Rails** (all in the feature's own suites):
+
+| rail | pins |
+|---|---|
+| `OccurrenceStoreAccessTests.U0_R1` | a pointer taken before growth stays valid and its writes land after a block is appended |
+| `U0_R2` | lookup and detach find a slot in any block |
+| `U0_R3` | a full ladder (4 blocks, 47 slots) refuses the attach; capacity = sum of the blocks' slots |
+| `U0_R4` | `IsFirstVisit`: a 2-block unit is visited once, by its first present tier |
+| `U0_R0` | no production code reads "the" store (`TryGetStore*`, `BlueprintTierTable.Of/OfInView`) |
+| `B4_R4` (re-expressed) | an attach that outgrows the block appends one and the first slot does not move |
+| ⭐⭐ `BTreeHostsBTreeTests.U0_R5` | **the cascade the user asked for:** a parent tree hosting **20 subtree sites** grows the unit past one block at assign; a **mid-tick** attach of 3 × 1000-byte working states appends again while the host is running; the host cursor stays put, each child runs once, the brain ticks once per frame across 3 frames |
+| ⭐ `U0_R6` (U-0c) | inside a view, lookups return the probe's pointers; an append mid-scope is visible; a nested same-unit scope does not close it; a raw add behind its back is invisible until it closes; another unit's view does not answer |
+| ⭐ `U0_R7` (rail ⑥, the benchmark) | a view lookup on **2 blocks** (hit in the block searched second) ≤ a probe lookup on **1 block**, best of 7 × 20 000. 📐 Measured in the Debug test build: **~77–122 ns vs ~375–640 ns per lookup (~5×)** |
+| ⭐ `PredicateCompilerTests.U0_R8` (rail ⑦) | the replay search matches a working slot living in a unit's SMALLER, second-searched block (a replay frame is a repository whose tier components were recorded like any other; red by construction for the old single-block read) |
+| `BehaviorIngressStatefulTests.Assign_UpgradesTierSynchronously_BeforeFirstTick` (re-expressed) | a nearly full 1024 gets a block appended at assign; the old slot keeps its block and offset |
+
+**Gates** (`2026-10-09`, `--no-build` after one build of each TEST project):
+
+| suite | result | note |
+|---|---|---|
+| `Fdp.Toolkits.Tests` (full) | 2974 / 1 red → that red (`O4_R7`) fixed, its class re-run green | the 8 reds of the first run were ALL this change: 2 store bugs (raw-block init, raw-block measure), 2 display reads caught by `U0_R0`, 4 single-block test reads |
+| store + behaviour classes (`OccurrenceStoreAccess`, `BTreeHostsBTree` incl. `U0_R5`, `HostedSubtreeCursor`, `HsmOccurrenceKey`, `BehaviorIngress*`) | **162 / 0** | |
+| `Hrot.Blueprints.Tests` (full) | 4200 / 1 red → re-expressed (drain ordering: "no growth" instead of "no promotion"), class **18 / 0** | |
+| `Hrot.SimHost.Tests` (full) | 1151 / 1 red → module count 3 → 2 (maintenance retired), class **18 / 0** | |
+| `Hrot.Editor.Tests` (incl. hot reload `O7_R54`) | **469 / 0** | |
+| `Hrot.Diagnostics.Breakpoints.Tests` | **164 / 0** | |
+| integration `BlueprintKernelRunTests` | **6 / 0** | the real kernel schedule, no maintenance system |
+| `Hrot.AiEditor.Generators.Tests` · `Hrot.AiEditor.Persistence.Tests` | **395 / 0** · **166 / 0** | working tree clean after the run |
+| generated goldens | unchanged — the thunks' call `TryResolveOccurrence` kept its signature | |
+
+**Gates, second pass — with the per-tick view (U-0c)** (`2026-10-09`, `--no-build` after one build of each test project):
+
+| suite | result |
+|---|---|
+| `Fdp.Toolkits.Tests` (full) | **2978 / 0** (+3: `U0_R6`, `U0_R7`, `U0_R8`) |
+| `Hrot.Blueprints.Tests` (full) | **4201 / 0** |
+| `Hrot.SimHost.Tests` (full) | 1151 / 1 — `LiveFromReplayTests.AfterBranch_RecordingModuleIsInstalled` **timed out (20 s)** under load; its class passes **3/3 in isolation, 3 runs**, and it touches no store or brain code (a record/replay kernel loop with real delays). ⇒ the known rotating-red family of `TM-036`, not this change |
+| `Hrot.Editor.Tests` | **469 / 0** |
+| `Hrot.AiEditor.Generators.Tests` | **395 / 0** — goldens unmoved, tree clean |
+| integration `BlueprintKernelRunTests` | **6 / 0** |
+
+**Residual:** the world-singleton silent drop on a full tier (`BlueprintTickSystem.EnsureAndTickSingleton`, outside U-0) · §3b ④ search
+order is LARGEST-first, not assign-time-block-first (the store records no attach order; a one-block unit is unaffected, and inside a view
+the cost difference is one ~14 ns scan).

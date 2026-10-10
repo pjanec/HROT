@@ -40,7 +40,7 @@ Build a `BehaviorTreeAsset` + `BTreeGraphModel` + `BTreeCommandSink`; issue `Gra
 - `AddLink_NormalAttach`: a parentless node attached to a parent → added.
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`.
 - [ ] `Failed: 0` in `Hrot.BTree.Editor.Tests` (incl. new tests).
 - [ ] Re-wiring a node MOVES it (old parent detached); no node ever has two parents; cycles/self-parent are rejected (model unchanged).
 - [ ] Report written. (Visual confirmation that links no longer "disappear" and cycles can't be drawn → REVIEW-BT-2.)

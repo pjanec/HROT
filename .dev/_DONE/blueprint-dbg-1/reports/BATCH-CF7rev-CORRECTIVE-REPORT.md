@@ -86,7 +86,7 @@ Build succeeded — 0 Errors, 9 Warnings (all pre-existing)
 
 | Criterion | Status |
 |-----------|--------|
-| `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors | ✅ |
+| `dotnet build HROT.sln -c Debug` → 0 errors | ✅ |
 | All CF7rev tests pass (8 original + new tests) | ✅ 10/10 |
 | Blueprints full suite: 7 pre-existing, 0 new | ✅ No new failures |
 | EditorSubsystem callback uses `BlueprintJsonServices.Deserialize` | ✅ |

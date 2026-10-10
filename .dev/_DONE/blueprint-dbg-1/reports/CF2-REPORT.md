@@ -63,6 +63,6 @@ for EventEntry, not Branch. This will be addressed in a future per-statement pro
 
 ## Commands
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug     → 0 errors
+dotnet build HROT.sln -c Debug     → 0 errors
 dotnet test ...Blueprints.Tests -c Debug      → 22 failed (1650 pass, 8 skip)
 ```

@@ -10,7 +10,7 @@ MTB-P3-T3/T4: relocated perspective switching out of the menu bar into a top-lev
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings (touched `Fdp.Presentation` has TWAE).
+- `dotnet build HROT.sln` → 0 errors, 0 new warnings (touched `Fdp.Presentation` has TWAE).
 - New tests run by lead: PerspectiveMenuTests(10) + PerspectiveToolbarTests(9) + existing
   WindowManagerTests(29) → **48 passed, 0 failed**.
 - Removal verified: `RenderPerspectiveSwitcher` method + its `BeginMainMenuBar` call are gone

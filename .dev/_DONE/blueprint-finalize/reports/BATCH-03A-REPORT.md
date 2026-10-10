@@ -175,7 +175,7 @@ Hrot.ClusterRunner.Integration.Tests --filter EditorSubsystemBoot:
 
 ### Build
 ```
-dotnet build IOS-IG-SimHost.sln:
+dotnet build HROT.sln:
   Errors:   0
   Warnings: 11 (all pre-existing, none in touched projects)
 ```

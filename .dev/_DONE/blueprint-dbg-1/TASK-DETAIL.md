@@ -277,7 +277,7 @@ DebugMap correctly (in-memory, no file) — but cannot fix an identity-space mis
   exact diff and STOP for lead review.
 - The report must include the **full failing-test set by name** before and after, and the exact `dotnet test`
   command lines run. The lead (Petr) hard-reviews the **diff**, not the report, and commits.
-- Editor must be CLOSED during build (DLL locks). Gate: `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors.
+- Editor must be CLOSED during build (DLL locks). Gate: `dotnet build HROT.sln -c Debug` → 0 errors.
 
 ---
 
@@ -376,7 +376,7 @@ Build 0 errors. Report the full before/after failing-test set; expect probe-coun
    (added during diagnosis; they write `bp-diag.log`). Delete `bp-diag.log`.
 
 **SUCCESS CONDITION (CF-3):**
-- `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors.
+- `dotnet build HROT.sln -c Debug` → 0 errors.
 - `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug` → **0 new failures** vs the documented
   pre-existing baseline; every changed test listed by name with old→new expectation and justification.
 - No `DiagLog`/`bp-diag.log` references remain (`grep -r DiagLog`, `grep -r bp-diag` return nothing in source).

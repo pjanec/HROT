@@ -100,7 +100,7 @@ When called twice with the same visualId, `Promote` returns the existing name wi
 | `Hrot.AiEditor.Persistence.Tests` | 98 | 0 | 13 (`IsAutoManagedRoundTripTests.cs`) |
 | `Hrot.Editor.AiShared.Tests` | 1025 | 0 | 0 (pre-existing; validates no regressions) |
 
-**Build: 0 errors, 0 warnings** (`dotnet build IOS-IG-SimHost.sln -c Debug`).
+**Build: 0 errors, 0 warnings** (`dotnet build HROT.sln -c Debug`).
 
 **Stability filter used:** `--filter "Stability!=Flaky&Stability!=Environment&Stability!=Broken"` on all 4 projects.
 

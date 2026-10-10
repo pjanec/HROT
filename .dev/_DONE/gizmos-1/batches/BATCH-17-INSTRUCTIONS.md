@@ -43,7 +43,7 @@
 ## Build and Test Commands
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental -clp:ErrorsOnly
+dotnet build HROT.sln --no-incremental -clp:ErrorsOnly
 dotnet test FDP/Diagnostics/Fdp.Diagnostics.Contracts.Tests/Fdp.Diagnostics.Contracts.Tests.csproj
 dotnet test Hrot/Network/Hrot.Network.NED.Tests/Hrot.Network.NED.Tests.csproj
 dotnet test FDP/Engine/Fdp.Presentation.Tests/Fdp.Presentation.Tests.csproj
@@ -92,7 +92,7 @@ all tests pass:
 5. **GZ047** → implement → write tests → ALL tests pass
 6. **GZ049** → implement → write tests → ALL tests pass
 
-Run `dotnet build IOS-IG-SimHost.sln` after each task, not just at the end.
+Run `dotnet build HROT.sln` after each task, not just at the end.
 
 **No stopping mid-batch to ask for permission to run tests or fix issues. You run the tests and
 fix the root cause until everything is green, then write the report.**
@@ -291,7 +291,7 @@ This batch is DONE when:
 - [ ] GZ046: Click-away cancel path implemented; 7 SC-GZ046 tests pass
 - [ ] GZ047: `CoordinateSpace` field threaded through events + DDS batch; 5 SC-GZ047 tests pass
 - [ ] GZ049: `SettingScope` enum + scoped API on `GizmoSettingsRegistry`; 8 SC-GZ049 tests pass
-- [ ] Build: `dotnet build IOS-IG-SimHost.sln` → 0 errors
+- [ ] Build: `dotnet build HROT.sln` → 0 errors
 - [ ] All new tests pass; no new pre-existing failures introduced
 - [ ] TASK-TRACKER.md updated (mark GZ043-GZ047 and GZ049 as done)
 - [ ] Report submitted

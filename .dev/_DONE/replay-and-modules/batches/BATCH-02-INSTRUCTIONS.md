@@ -665,7 +665,7 @@ No test file for `GenesisMaterializationSystem` needs updating — if there is o
 
 After all changes:
 
-1. Run: `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet`
+1. Run: `dotnet build HROT.sln --no-restore -v quiet`
    - Expected: **Build succeeded. 0 Error(s).**
 
 2. Run the test suites that are most likely affected:
@@ -678,7 +678,7 @@ After all changes:
 
 3. Run the full solution test if time allows:
    ```
-   dotnet test IOS-IG-SimHost.sln --no-build
+   dotnet test HROT.sln --no-build
    ```
 
 ---

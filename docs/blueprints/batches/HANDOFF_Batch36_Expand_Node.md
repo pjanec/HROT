@@ -172,7 +172,7 @@ future session does not rediscover this.
 
 ## 6. Gates
 
-The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.sln`** (⚠ not `Hrot.sln`).
+The eight, `--logger "console;verbosity=normal"`. Solution is **`HROT.sln`** (⚠ not `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — ⭐ **and this batch edits `NodeEditor.UI`, so they
 are the ones most likely to catch you.**
 ⭐ **Run `python3 scripts/tracker-counts.py --check`** — clean on arrival four batches running.

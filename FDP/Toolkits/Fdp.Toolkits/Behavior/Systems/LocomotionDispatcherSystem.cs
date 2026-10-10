@@ -102,6 +102,15 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (channel.ActiveAction != 0 && channel.Status == NodeStatus.Running)
                 {
                     _executors[channel.ActiveAction]?.Execute(entity, ref channel, repo, deltaTime);
+                    // ⭐ CE-3136 (T1) — the locomotion row of ActionStatus, generic over every locomotion executor: what it is doing
+                    //   now (moving / done / failed). The weapon row's richer reasons come from the fire executors themselves.
+                    Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.Locomotion(repo, entity, channel.ActiveAction,
+                        channel.Status switch
+                        {
+                            NodeStatus.Success => Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Done,
+                            NodeStatus.Failure => Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Failed,
+                            _                  => Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Moving,
+                        });
                 }
             }
         }

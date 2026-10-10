@@ -38,8 +38,10 @@ namespace Hrot.Common.EntityCreation
             Fdp.Toolkit.Replication.Systems.GhostPromotionSystem promotionSystem,
             int nodeId,
             IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> networkSystems,
-            Fdp.Core.EntityRepository world)
+            Fdp.Core.EntityRepository world,
+            Hrot.Map.Common.Services.StaticObstacleBakeSystem obstacleBakeSystem)
         {
+            ObstacleBakeSystem = obstacleBakeSystem;
             Translators        = translators;
             Elm                = elm;
             LocalRequests      = localRequests;
@@ -58,6 +60,14 @@ namespace Hrot.Common.EntityCreation
         /// the selected node instead of a hard-wired one.
         /// </summary>
         public Fdp.Core.EntityRepository World { get; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3136</c> P-7a (R-243) — the terrain lifecycle participant: bakes static obstacles into this node's terrain and acks
+        /// their construction only then. ⛔ Not optional — the pack registered the lifecycle rule that WAITS for it, so a host that does
+        /// not schedule it leaves every obstacle Constructing until the lifecycle timeout destroys it. Schedule it
+        /// (<c>RegisterGlobalSystem</c>); <see cref="Unserviceable"/> names it when missing.
+        /// </summary>
+        public Hrot.Map.Common.Services.StaticObstacleBakeSystem ObstacleBakeSystem { get; }
 
         /// <summary>
         /// ⭐⭐ <b>This node's app-instance id — the value an author passes as <c>owner</c> to say
@@ -180,6 +190,9 @@ namespace Hrot.Common.EntityCreation
         /// is minted. ⭐ Either way the value actually used is RETURNED.</param>
         /// <param name="reliableInitTimeout">The creator's reliable-init abort timeout (<c>CE-292</c>); <c>null</c> ⇒ the
         /// gateway default. Meaningful only with a waiting <paramref name="initType"/>. (<c>CE-515</c> ③)</param>
+        /// <param name="spawnHeight">⭐ <c>CE-1017</c> S2 — the birth height as a terrain LEVEL (0 = ground, +n / −n; on or
+        /// above it), resolved on the creating node by <c>NetworkSpawningSystem</c>. <c>null</c> ⇒ <paramref name="transform"/>'s
+        /// Z stands. 📄 <c>docs/DESIGN_Add_Entity_Picker.md</c> §2e.</param>
         public Guid RequestEntityCreation(
             long                   tkbType,
             Fdp.Core.SimTransform? transform             = null,
@@ -191,7 +204,8 @@ namespace Hrot.Common.EntityCreation
             bool                   isTransient           = false,
             ulong                  disType               = 0,
             Guid                   requestId             = default,
-            TimeSpan?              reliableInitTimeout   = null)
+            TimeSpan?              reliableInitTimeout   = null,
+            Fdp.Toolkit.NetworkSpawning.SpawnHeight? spawnHeight = null)
         {
             // ⭐ Mint only when the caller did not name its own request. An author that must be told the
             //   outcome supplies one; one that does not care ignores the return value.
@@ -215,6 +229,7 @@ namespace Hrot.Common.EntityCreation
                 InitType              = initType,
                 ReliableInitTimeout   = reliableInitTimeout,   // CE-515 ③
                 IsTransient           = isTransient,
+                SpawnHeight           = spawnHeight,           // CE-1017 S2
                 // ⛔ PreAllocatedNetworkId and ChildComponentOverrides are NOT exposed: one producer
                 //   each, and that producer is the scenario extractor — a TRANSLATOR (§3).
             });
@@ -291,6 +306,9 @@ namespace Hrot.Common.EntityCreation
                             "process entity-creation requests, including ones it targets at itself");
             if (!seen.Contains(SpawnSystem))
                 missing.Add($"{nameof(SpawnSystem)} (NetworkSpawningSystem) — orders will never become entities");
+            if (!seen.Contains(ObstacleBakeSystem))
+                missing.Add($"{nameof(ObstacleBakeSystem)} (StaticObstacleBakeSystem) — every static obstacle (a parked car, a sandbag " +
+                            "wall) stays Constructing until the lifecycle timeout DESTROYS it: the pack registered the rule that waits for it");
             if (!seen.Contains(FinalizationSystem))
                 missing.Add($"{nameof(FinalizationSystem)} — phase-2 ACKs will never be dispatched, so a " +
                             "requester waits forever");

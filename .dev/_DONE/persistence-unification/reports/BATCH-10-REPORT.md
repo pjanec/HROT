@@ -82,7 +82,7 @@ The "HSM" display name in the registrar (`EditorSubsystem.cs:1803`) and canvas w
 
 | Gate | Result |
 |------|--------|
-| `dotnet build IOS-IG-SimHost.sln -c Debug --no-incremental` | **0 errors / 26 warnings** (all pre-existing) |
+| `dotnet build HROT.sln -c Debug --no-incremental` | **0 errors / 26 warnings** (all pre-existing) |
 | `Hrot.Editor.AiShared.Tests` | **Passed 832 / 832** (was 820; +12 net: +8 new, -2 old+2 updated) |
 | `Hrot.BTree.Editor.Tests` | **Passed 391 / 391** |
 | `Hrot.Hsm.Editor.Tests` | **Passed 339 / 339** |

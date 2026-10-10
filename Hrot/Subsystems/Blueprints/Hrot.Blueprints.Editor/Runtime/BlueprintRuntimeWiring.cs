@@ -35,12 +35,12 @@ public static class BlueprintRuntimeWiring
     ///     (<see cref="BlueprintBlackboard1024"/>/<see cref="BlueprintBlackboard4096"/>/<see cref="BlueprintBlackboard16384"/>)
     ///     on <paramref name="world"/>. Component tables reserve virtual address space lazily
     ///     (per 64 KB chunk) and cost no physical RAM until populated, so registering the 16 KB
-    ///     tier is cheap. MUST happen before kernel initialization so the tick/maintenance
+    ///     tier is cheap. MUST happen before kernel initialization so the tick
     ///     queries can be built.
     ///   </item>
     ///   <item>
-    ///     Register <see cref="BlueprintMaintenanceSystem"/> as a global system (it is
-    ///     <c>[UpdateInPhase(BeforeSync)]</c>, which the kernel permits as a global system).
+    ///     ⛔ No maintenance system any more — <c>BlueprintMaintenanceSystem</c> (the BeforeSync
+    ///     copy-promotion) is retired by CE-3137 U-0 (R-236).
     ///   </item>
     /// </list>
     /// <para>
@@ -68,8 +68,7 @@ public static class BlueprintRuntimeWiring
 
         RegisterTierComponents(world);
 
-        var maintenance = new BlueprintMaintenanceSystem();
-        kernel.RegisterGlobalSystem(maintenance);
+        // ⛔ CE-3137 U-0 (R-236): no BlueprintMaintenanceSystem any more — the store never moves a slot.
 
         return new BlueprintTickSystem(registry);
     }

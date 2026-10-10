@@ -185,7 +185,7 @@ Test `PU302_KindGuard_Blueprint_UsesFullReplace_NotStitch`: Blueprint doc → `R
 | `Hrot.AiEditor.Generators.Tests` | 37 | 0 | generators gate — unchanged |
 | `Hrot.ClusterRunner.Integration.Tests` (EditorSubsystem) | 13 | 0 | boot 10/10 + BP 3/3 |
 | `Hrot.Blueprints.Tests` | 1357 | 7 | **7 = baseline DEBT-006** — 0 new |
-| `dotnet build IOS-IG-SimHost.sln` | 0 errors | 0 warnings | |
+| `dotnet build HROT.sln` | 0 errors | 0 warnings | |
 
 **Blueprint regression proof:** 7 failures in `Hrot.Blueprints.Tests` are the exact pre-existing DEBT-006 failures (golden snapshots + allocation + `IBlueprintTimeController` obsolete). Zero new Blueprint failures introduced.
 

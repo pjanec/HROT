@@ -183,6 +183,8 @@ related-designs:
     SECOND store on both authoring hosts. Found with the graph 2026-09-20, not by the slice work.
   - docs/designs/replay-browser-2/DESIGN.md — owns EntitySelectionHistory, the replay browser's
     selection history. ReplayBrowser joined this design's protocol at S-3b; the history is its own.
+  - docs/DESIGN_Map_3D_Mode.md — the map's 3-D mode: a 3-D click reaches this store through the UNCHANGED input chain
+    (MapCamera3D.ScreenToWorld returns world XY, the layers request as in 2-D).
 -->
 # Feature design — selection
 

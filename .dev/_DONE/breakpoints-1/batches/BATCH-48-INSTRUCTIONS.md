@@ -39,7 +39,7 @@ This batch wires the `DataBreakpointManager` + `DebugSnapshotProvider` + `DataBr
 - **BP library:** `Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints/`
 - **Adapter:** `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/Debug/MasterSyncTimeControllerAdapter.cs`
 - **Test project:** `Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/`
-- **Build from root:** `dotnet build IOS-IG-SimHost.sln -v quiet`
+- **Build from root:** `dotnet build HROT.sln -v quiet`
 - **Run new tests:** `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/ --filter "FullyQualifiedName~BreakpointSubsystemWiringTests" --verbosity normal`
 - **Run existing BP tests (must stay green):** `dotnet test Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints.Tests/ --verbosity quiet`
 
@@ -95,7 +95,7 @@ Neither project currently references `Hrot.Diagnostics.Breakpoints` or `Hrot.Blu
 <ProjectReference Include="..\Blueprints\Hrot.Blueprints.Editor\Hrot.Blueprints.Editor.csproj" />
 ```
 
-After adding references, run `dotnet build IOS-IG-SimHost.sln -v quiet` and confirm 0 errors before proceeding.
+After adding references, run `dotnet build HROT.sln -v quiet` and confirm 0 errors before proceeding.
 
 ---
 
@@ -396,9 +396,9 @@ Check if `HrotRunnerHarness.PumpFrames(int)` exists; if not, look for equivalent
 
 **CRITICAL: You MUST complete tasks in sequence with ALL tests passing before moving on:**
 
-1. **Add project references** → `dotnet build IOS-IG-SimHost.sln -v quiet` → **0 errors** ✅
-2. **Wire EditorSubsystem** → `dotnet build IOS-IG-SimHost.sln -v quiet` → **0 errors** ✅
-3. **Wire CgfSubsystem** → `dotnet build IOS-IG-SimHost.sln -v quiet` → **0 errors** ✅
+1. **Add project references** → `dotnet build HROT.sln -v quiet` → **0 errors** ✅
+2. **Wire EditorSubsystem** → `dotnet build HROT.sln -v quiet` → **0 errors** ✅
+3. **Wire CgfSubsystem** → `dotnet build HROT.sln -v quiet` → **0 errors** ✅
 4. **Write tests** → all 5 new tests pass + 103 existing BP tests still green ✅
 
 **Do NOT stop and ask for permission before running tests, fixing compilation errors, or building. Do everything until all tests pass, then write the report.**
@@ -409,7 +409,7 @@ Check if `HrotRunnerHarness.PumpFrames(int)` exists; if not, look for equivalent
 
 - **5 new tests** in `BreakpointSubsystemWiringTests.cs`
 - **103 existing tests** in `Hrot.Diagnostics.Breakpoints.Tests` must remain green
-- Run full solution build before submitting: `dotnet build IOS-IG-SimHost.sln -v quiet`
+- Run full solution build before submitting: `dotnet build HROT.sln -v quiet`
 
 ---
 
@@ -457,7 +457,7 @@ This batch is DONE when:
 - [ ] Both subsystems expose `internal IDataBreakpointManager? DataBreakpointManager` test hook
 - [ ] 5 new tests in `BreakpointSubsystemWiringTests.cs` pass
 - [ ] 103 existing BP tests still pass
-- [ ] `dotnet build IOS-IG-SimHost.sln -v quiet` → 0 errors, 0 new warnings
+- [ ] `dotnet build HROT.sln -v quiet` → 0 errors, 0 new warnings
 
 ---
 

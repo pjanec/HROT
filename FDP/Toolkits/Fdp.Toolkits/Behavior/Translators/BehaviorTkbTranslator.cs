@@ -66,6 +66,10 @@ namespace Fdp.Toolkit.Behavior.Translators
             if (dto.CanMove)     caps |= ActorCapabilities.CanMove;
             if (dto.CanShoot)    caps |= ActorCapabilities.CanShoot;
             if (dto.CanInteract) caps |= ActorCapabilities.CanInteract;
+            // ⭐ CE-2121 — a body with more than one stance in its animation definition can change stance; without this flag
+            //   StanceTransitionSystem acks every request and ignores it. 📄 docs/DESIGN_Decision_Layer.md §3.3g.
+            var anim = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CharacterAnimationDefDto>();
+            if (anim != null && anim.SupportedStances.Count > 1) caps |= ActorCapabilities.CanChangeStance;
 
             if (repo.IsComponentTypeRegistered<ActorCapabilityState>() && !repo.HasComponent<ActorCapabilityState>(entity))
                 repo.AddComponent(entity, new ActorCapabilityState { Capabilities = caps });
@@ -139,6 +143,11 @@ namespace Fdp.Toolkit.Behavior.Translators
 
             if (repo.IsComponentTypeRegistered<InteractionChannel>() && !repo.HasComponent<InteractionChannel>(entity))
                 repo.AddComponent(entity, new InteractionChannel());
+
+            // ⭐ CE-3136 (T2) — the channels' status, always present beside them: the executors write it, the map draws it
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>()
+                && !repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(entity))
+                repo.AddComponent(entity, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
 
             // ── Mission and passenger buffers ─────────────────────────────────────
             if (repo.IsComponentTypeRegistered<MissionPlanQueue>() && !repo.HasComponent<MissionPlanQueue>(entity))

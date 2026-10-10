@@ -694,7 +694,7 @@ namespace Hrot.Editor.Tests.Adapters
         /// <summary>The adapter as <c>EditorSubsystem</c> builds it: geodetic transform + the modal area gizmo.</summary>
         private CanvasMapPickAdapter EditorLike(GlobalGizmoManager manager, Func<ToolController?>? tools = null)
             => new(_canvas, globalGizmoManager: manager, tools: tools,
-                   geoTransform: HrotEnvironment.CreateGeoTransform(),
+                   geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
                    areaGizmo: (onPicked, onRemove) => new Hrot.Editor.Gizmos.ModalBoxSelectionGizmo(onPicked, onRemove));
 
         /// <summary>
@@ -706,7 +706,7 @@ namespace Hrot.Editor.Tests.Adapters
         public async Task PickLocationAsync_IsGeodetic_ThroughTheHostTransform()
         {
             var manager = MakeManager();
-            var geo     = HrotEnvironment.CreateGeoTransform();
+            var geo     = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
             var adapter = new CanvasMapPickAdapter(_canvas, globalGizmoManager: manager, geoTransform: geo);
 
             var task = adapter.PickLocationAsync();
@@ -724,7 +724,7 @@ namespace Hrot.Editor.Tests.Adapters
         public async Task PickLocationAsync_FallsBackToTheWorldsTransformSingleton()
         {
             var manager = MakeManager();
-            var geo     = HrotEnvironment.CreateGeoTransform();
+            var geo     = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
             using var world = new EntityRepository();
             world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
             var adapter = new CanvasMapPickAdapter(_canvas, world, globalGizmoManager: manager);

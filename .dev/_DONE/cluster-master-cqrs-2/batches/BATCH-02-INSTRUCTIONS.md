@@ -42,7 +42,7 @@ Do NOT stop and ask permission for any obvious next step. Work through the full 
 
 Build & test commands (run from repo root `d:\Work\IOS-IG-SimHost-FDP-2`):
 ```powershell
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test FDP/Toolkits/FDP.Toolkit.Orchestration.Tests/FDP.Toolkit.Orchestration.Tests.csproj --no-build -v n
 dotnet test Hrot.Orchestrator.Tests/Hrot.Orchestrator.Tests.csproj --no-build -v n
 dotnet test Hrot.Orchestrator.Integration.Tests/Hrot.Orchestrator.Integration.Tests.csproj --no-build -v n

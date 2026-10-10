@@ -290,7 +290,7 @@ For each task in order:
 2. Explore existing code (emitter base, parser, classifier) to understand patterns
 3. Write tests first (failing)
 4. Implement to make tests pass
-5. Run: `dotnet build IOS-IG-SimHost.sln` + specific test project
+5. Run: `dotnet build HROT.sln` + specific test project
 6. Move to next task only when current task's tests pass
 
 ---
@@ -355,6 +355,6 @@ This batch is DONE when:
 - [ ] TASK-BB-1b-04: `BlackboardBinPacker.Pack()` returns correct offsets for all test fixtures; `InlineMemoryExceeded` fires correctly; >100B ceiling enforced
 - [ ] TASK-BB-1b-01: `BlackboardDtoEmitter.Emit()` produces correct 4-line header, StructLayout, fields, usings; tests pass
 - [ ] TASK-BB-1b-06: RT-1 (byte-identical no-edit) and RT-2 (confined-diff single-edit) tests pass
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds
+- [ ] `dotnet build HROT.sln` succeeds
 - [ ] `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj` all pass
 - [ ] Report submitted

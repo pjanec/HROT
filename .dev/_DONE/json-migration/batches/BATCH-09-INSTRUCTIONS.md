@@ -231,9 +231,9 @@ Add `InternalsVisibleTo("Hrot.Common.Tests")` to `Hrot.Common.csproj`.
 
 #### B.4 Add Hrot.Common.Tests to the solution
 
-Add the new test project to `IOS-IG-SimHost.sln`:
+Add the new test project to `HROT.sln`:
 ```
-dotnet sln IOS-IG-SimHost.sln add Hrot/Engine/Hrot.Common.Tests/Hrot.Common.Tests.csproj
+dotnet sln HROT.sln add Hrot/Engine/Hrot.Common.Tests/Hrot.Common.Tests.csproj
 ```
 
 ---
@@ -249,7 +249,7 @@ For each deliverable:
   3. Confirm the tests compile and fail (red) before implementing.
   4. Implement until tests pass (green).
   5. Run the full test suite to confirm no regressions:
-     dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4
+     dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4
      dotnet test "Hrot/Engine/Hrot.Common.Tests/Hrot.Common.Tests.csproj" -c Debug
      dotnet test "FDP/Engine/Fdp.Core.Tests/Fdp.Core.Tests.csproj" -c Debug --no-build
   6. Only mark a task done when all its tests pass and zero build errors remain.
@@ -264,7 +264,7 @@ For each deliverable:
 Before writing the report, run:
 
 ```powershell
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
 dotnet test "Hrot/Engine/Hrot.Common.Tests/Hrot.Common.Tests.csproj" -c Debug 2>&1 | Select-Object -Last 10
 dotnet test "FDP/Engine/Fdp.Core.Tests/Fdp.Core.Tests.csproj" -c Debug --no-build 2>&1 | Select-String "Passed!|Failed!" | Select-Object -Last 3
 ```

@@ -244,9 +244,9 @@ namespace Hrot.Presentation.Tests.Gizmos
         public void NoHost_CallsAGeneratedPerNamespaceGizmoRegistrar()
         {
             var root = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (root != null && !System.IO.File.Exists(System.IO.Path.Combine(root.FullName, "IOS-IG-SimHost.sln")))
+            while (root != null && !System.IO.File.Exists(System.IO.Path.Combine(root.FullName, "HROT.sln")))
                 root = root.Parent;
-            Assert.True(root != null, "Could not locate workspace root (IOS-IG-SimHost.sln not found).");
+            Assert.True(root != null, "Could not locate workspace root (HROT.sln not found).");
 
             string[] hosts =
             {

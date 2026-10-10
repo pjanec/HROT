@@ -15,6 +15,8 @@ namespace Hrot.MuscleCharacter.Animation
     ///   3. LookAtDispatcherSystem                  -- routes LookAtChannel commands
     ///   4. MontageQueueAdvanceSystem               -- advances queue before bridge applies slots
     ///   5. AnimationRuntimeBridgeSystem            -- calls backend with staged intents
+    ///   5a. StanceTransitionSystem                 -- ⭐ CE-2121: StanceIntent → backend.RequestStanceChange; AFTER the
+    ///                                                 bridge so the entity is registered with the backend first
     ///
     /// PostSimulation (early to late):
     ///   6. NotifyEventEmitterSystem                -- drains backend notifies after bridge.Tick
@@ -31,6 +33,7 @@ namespace Hrot.MuscleCharacter.Animation
         private readonly LookAtDispatcherSystem _lookAtDispatcher;
         private readonly MontageQueueAdvanceSystem _montageQueueAdvance;
         private readonly AnimationRuntimeBridgeSystem _bridge;
+        private readonly StanceTransitionSystem _stanceTransition;
         private readonly NotifyEventEmitterSystem _notifyEmitter;
         private readonly AnimationStateReporterSystem _stateReporter;
         private readonly AnimationBackendCleanupSystem _cleanup;
@@ -42,13 +45,14 @@ namespace Hrot.MuscleCharacter.Animation
             _lookAtDispatcher = new LookAtDispatcherSystem(backend);
             _montageQueueAdvance = new MontageQueueAdvanceSystem(backend, cache);
             _bridge = new AnimationRuntimeBridgeSystem(backend, cache);
+            _stanceTransition = new StanceTransitionSystem(backend);
             _notifyEmitter = new NotifyEventEmitterSystem(backend);
             _stateReporter = new AnimationStateReporterSystem(backend);
             _cleanup = new AnimationBackendCleanupSystem(backend);
         }
 
         /// <summary>
-        /// Registers all 8 animation systems in the correct phase order (DD-1 §17).
+        /// Registers all 9 animation systems in the correct phase order (DD-1 §17).
         /// Order within each phase is guaranteed by the registration sequence.
         /// </summary>
         public void RegisterSystems(ISystemRegistry registry)
@@ -59,6 +63,9 @@ namespace Hrot.MuscleCharacter.Animation
             registry.RegisterSystem(_lookAtDispatcher);
             registry.RegisterSystem(_montageQueueAdvance);
             registry.RegisterSystem(_bridge);
+            // ⭐ CE-2121 — no production composition registered it (only the test fixtures built it by hand), so a Brain's
+            //   StanceIntent was never applied. 📄 docs/DESIGN_Decision_Layer.md §3.3g.
+            registry.RegisterSystem(_stanceTransition);
 
             // PostSimulation phase (6–8)
             registry.RegisterSystem(_notifyEmitter);

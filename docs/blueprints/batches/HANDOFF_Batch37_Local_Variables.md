@@ -212,7 +212,7 @@ where every other asset has a string. Nothing to do with this; just noticed whil
 
 ## 7. Gates
 
-The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.sln`** (⚠ not `Hrot.sln`).
+The eight, `--logger "console;verbosity=normal"`. Solution is **`HROT.sln`** (⚠ not `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** (`RESUME_START_HERE.md` §3).
 ⭐ **Run `python3 scripts/tracker-counts.py --check`** — clean on arrival five batches running.
 

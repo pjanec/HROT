@@ -56,7 +56,7 @@ separate cross-cutting Stage3 feature (out of scope; note it in the report, don'
      `Default` returns an editor.
 
 ## Gate
-- `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors / 0 new warnings. (If `Hrot.ClusterRunner` is running and
+- `dotnet build HROT.sln -c Debug` → 0 errors / 0 new warnings. (If `Hrot.ClusterRunner` is running and
   causes MSB3021/MSB3027 copy-lock errors — NOT CS errors — note it; those are the running editor, not a code
   problem. Confirm there are zero `error CS`.)
 - Blueprints suite WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS` set: subset of the known pre-existing failures

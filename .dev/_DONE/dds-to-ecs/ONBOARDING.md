@@ -106,20 +106,20 @@ Additionally, a design review against the `UrbanCombat` golden standard (`FDP/Ex
 .\FDP\ExtDeps\FastCycloneDds\build\native-win.ps1
 
 # 2. Restore packages
-dotnet restore IOS-IG-SimHost.sln
+dotnet restore HROT.sln
 
 # 3. Build
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 ### Day-to-Day
 
 ```powershell
 # Build
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run all tests
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 
 # Run tests for a specific project
 dotnet test .\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj

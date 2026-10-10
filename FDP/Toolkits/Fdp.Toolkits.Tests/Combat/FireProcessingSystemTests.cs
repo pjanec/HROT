@@ -63,6 +63,160 @@ namespace Fdp.Toolkit.Combat.Tests
             return entity;
         }
 
+        private static void AssertNear(Vector3 expected, Vector3 actual, float tolerance = 1e-3f)
+            => Assert.True(Vector3.Distance(expected, actual) < tolerance, $"expected {expected}, got {actual}");
+
+        /// <summary>⭐ Buildings §3d P2 (R-217; AQ85 §D's first half) — the shot flies along the SIGHT line: eye height of the
+        /// shooter's LOGICAL stance to half the target's collider height (a vehicle), else half its eye height (a soldier).</summary>
+        [Fact]
+        public void R217_TheShot_FliesFromTheShootersEye_ToTheMiddleOfTheTargetsSilhouette()
+        {
+            _world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            var shooter = SpawnShooter(new Vector3(0f, 0f, 3f));                                   // on an upper floor
+            _world.AddComponent(shooter, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Prone });
+            var vehicle = SpawnTarget(new Vector3(50f, 0f, 0f));
+            _world.AddComponent(vehicle, new PhysicsCollider { Radius = 2f, Height = 2.4f });
+
+            PublishIntent(shooter, vehicle);
+            _sys.Execute(_world, 0.016f);
+
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build())
+            {
+                var eye = new Vector3(0f, 0f, 3f + Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightProne);
+                var dir = Vector3.Normalize(new Vector3(50f, 0f, 1.2f) - eye);
+                AssertNear(eye + dir * CombatConstants.MuzzleOffsetMeters, _world.GetComponent<SimTransform>(e).Position);
+                AssertNear(dir * 800f, _world.GetComponent<SimVelocity>(e).Linear, 1e-2f);
+                return;
+            }
+            Assert.Fail("No bullet entity found.");
+        }
+
+        /// <summary>⭐ T-4 — the fire chain writes the round's record with the inputs it fired with.</summary>
+        /// <summary>A 0.9 m sill (a wall) across the line at x ∈ [10, 10.5].</summary>
+        private void SillWorld()
+        {
+            _world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();   // idempotent
+            var min = new Vector2(10f, -5f); var max = new Vector2(10.5f, 5f);
+            _world.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+            {
+                BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50),
+                Prisms = new[] { new Fdp.Toolkit.Terrain.TerrainPrism
+                {
+                    Kind = Fdp.Toolkit.Terrain.TerrainPrismKind.Wall,
+                    Footprint = new[] { min, new Vector2(max.X, min.Y), max, new Vector2(min.X, max.Y) },
+                    BaseZ = 0, TopZ = 0.9f, Min = min, Max = max,
+                } },
+            });
+        }
+
+        private Vector3 FlightOfTheRound()
+        {
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build())
+                return Vector3.Normalize(_world.GetComponent<SimVelocity>(e).Linear);
+            Assert.Fail("No bullet entity found.");
+            return default;
+        }
+
+        /// <summary>Where the round aims at <paramref name="x"/>, from a standing eye at the origin: the flight line's height there.</summary>
+        private float AimHeightAt(float x)
+        {
+            var d = FlightOfTheRound();
+            return Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding + d.Z / d.X * x;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3136</c> P-2 (D1, revised by the user) — a crouched man behind a 0.5 m-thick CONCRETE sill 0.9 m high: his middle
+        /// (0.6 m) is hidden and a round cannot go through, so it aims at the middle of what the shooter SEES — halfway between the
+        /// lowest visible height (≈ 0.79 m, where the line clears the sill's far edge) and his top (≈ 1.0 m) ⇒ ≈ 0.89 m.
+        /// 🔴 Red-proofs: the original aim (0.6 m) met the concrete (G1); the first P-2 build aimed at his crown (1.0 m) — 🔒 user:
+        /// <i>"aiming at highest point meant we wont hit"</i>.
+        /// </summary>
+        [Fact]
+        public void P2_ACrouchedManBehindAConcreteSill_IsAimedAtTheMiddleOfWhatTheShooterSees()
+        {
+            _world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            SillWorld();
+            var shooter = SpawnShooter(Vector3.Zero);                                   // standing eye 1.7 m
+            var target  = SpawnTarget(new Vector3(12f, 0f, 0f));
+            _world.AddComponent(target, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Crouched });
+
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+
+            float eye = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding;
+            float lowestSeen = eye - 0.8f * 12f / 10.5f;                                  // the line just clears (10.5, 0.9)
+            float top = 1.0f * Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched;    // BodyProfile's crouched top = the eye (R-246)
+            float expected = 0.5f * (lowestSeen + top);
+            Assert.InRange(AimHeightAt(12f), expected - 0.01f, expected + 0.01f);   // the visible edge is bisected to ≈ 1 cm
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3136</c> P-2 (D1, revised) — the same man behind a thin WOODEN fence (5 cm of fence-wood ⇒ 3 mm RHA against the
+        /// light round's 5 mm): the shooter cannot see his middle, but a round goes through, so it aims at the MIDDLE. 🔒 User:
+        /// <i>"if the body is hidden behind a weak penetrable obstacle, we could aim to body center"</i>.
+        /// </summary>
+        [Fact]
+        public void P2_BehindAWeakFence_TheRoundAimsAtTheMiddle_Through_It()
+        {
+            _world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            _world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            Assert.True(Fdp.Toolkit.Terrain.TerrainMaterialLibrary.Shared.TryGet("fence-wood", out var wood));
+            var min = new Vector2(10f, -5f); var max = new Vector2(10.05f, 5f);
+            _world.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+            {
+                BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50),
+                Prisms = new[] { new Fdp.Toolkit.Terrain.TerrainPrism
+                {
+                    Kind = Fdp.Toolkit.Terrain.TerrainPrismKind.Wall, Material = wood,
+                    Footprint = new[] { min, new Vector2(max.X, min.Y), max, new Vector2(min.X, max.Y) },
+                    BaseZ = 0, TopZ = 0.9f, Min = min, Max = max,
+                } },
+            });
+            var shooter = SpawnShooter(Vector3.Zero);
+            var target  = SpawnTarget(new Vector3(12f, 0f, 0f));
+            _world.AddComponent(target, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Crouched });
+
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+
+            float middle = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.AimHeightFor(_world, target,
+                Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, 0f);
+            Assert.Equal(middle, AimHeightAt(12f), 2);
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> P-2 — with terrain resident but nothing in the way, the round still aims at the MIDDLE (as-built
+        /// refinement of D1: a target in the open keeps today's aim, so existing engagements do not move).</summary>
+        [Fact]
+        public void P2_ATargetInTheOpen_KeepsTheMiddleAim()
+        {
+            SillWorld();
+            var shooter = SpawnShooter(new Vector3(0f, 20f, 0f));                       // beside the sill, nothing between
+            var target  = SpawnTarget(new Vector3(12f, 20f, 0f));
+
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+
+            var eye = new Vector3(0f, 20f, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding);
+            var mid = new Vector3(12f, 20f, 0.5f * Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding);
+            AssertNear(Vector3.Normalize(mid - eye), FlightOfTheRound(), 1e-3f);
+        }
+
+        [Fact]
+        public void T4_EveryRound_IsRecordedInTheShotLog_WithItsInputs()
+        {
+            var shooter = SpawnShooter(Vector3.Zero);
+            var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+            var shot = Assert.Single(ShotLog.Peek(_world)!.Recent(10));
+            Assert.Equal(shooter, shot.Shooter);
+            Assert.Equal(target, shot.Target);
+            Assert.Equal(ShotOutcome.InFlight, shot.Outcome);
+            Assert.Equal(CombatConstants.DefaultBulletDamage, shot.Damage);
+            Assert.Contains("unknown munition", shot.PenetrationSource);
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build()) Assert.Equal(e, shot.Bullet);
+        }
+
         private Entity SpawnTarget(Vector3 position)
         {
             var entity = _world.CreateEntity();
@@ -109,8 +263,11 @@ namespace Fdp.Toolkit.Combat.Tests
 
             Assert.Equal(1, bulletCount);
 
+            // ⭐ R-217 — the shot leaves from the shooter's EYE toward the middle of the target's silhouette (default standing soldier)
+            var eye = shooterPos + new Vector3(0f, 0f, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding);
+            var aim = new Vector3(20f, 20f, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding * 0.5f);
             var tf = _world.GetComponent<SimTransform>(bulletEntity);
-            Assert.Equal(shooterPos + new Vector3(CombatConstants.MuzzleOffsetMeters, 0f, 0f), tf.Position);
+            AssertNear(eye + Vector3.Normalize(aim - eye) * CombatConstants.MuzzleOffsetMeters, tf.Position);
 
             var proj = _world.GetComponent<BallisticProjectile>(bulletEntity);
             Assert.Equal(shooter, proj.Shooter);
@@ -129,7 +286,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _sys.Execute(_world, 0.016f);
 
             foreach (var e in _world.Query().With<BallisticProjectile>().Build())
-                Assert.Equal(new Vector3(0.5f, 0f, 0f), _world.GetComponent<SimTransform>(e).Position);
+                AssertNear(new Vector3(0.5f, 0f, 1.7f * 0.75f), _world.GetComponent<SimTransform>(e).Position);   // half way, eye 1.7 → aim 0.85
         }
 
         /// <summary>
@@ -219,7 +376,7 @@ namespace Fdp.Toolkit.Combat.Tests
             foreach (var e in q)
             {
                 var vel = _world.GetComponent<SimVelocity>(e);
-                Assert.Equal(new Vector3(muzzleVelocity, 0f, 0f), vel.Linear);
+                AssertNear(Vector3.Normalize(new Vector3(10f, 0f, 0.85f - 1.7f)) * muzzleVelocity, vel.Linear);   // ⭐ R-217 eye → aim
                 return;
             }
 

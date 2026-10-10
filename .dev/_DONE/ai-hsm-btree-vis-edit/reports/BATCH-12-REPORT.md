@@ -141,7 +141,7 @@ team wants it sooner.
 ## Build & Test Results
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4
+dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4
   0 Errors
   9 Warnings  (pre-existing in Hrot.Blueprints.Tests — IBlueprintTimeController CS0618)
   Build succeeded.

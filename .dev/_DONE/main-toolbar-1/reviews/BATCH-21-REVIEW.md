@@ -10,7 +10,7 @@ read-only submenu of open docs + loaded scenario).
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings.
+- `dotnet build HROT.sln` → 0 errors, 0 new warnings.
 - New tests run by lead: `ScenarioMenuTests` (14) + `WorkspaceMenuTests` (11) → **25 passed, 0 failed**.
   Suites green: Hrot.Editor.Tests 181, AiShared 1024, Fdp.Toolkits 1856, SimHost 585.
 - `ScenarioMenuCommands`: ids `scenario.new/save/saveAs/load/migrationHistory`, MenuPrefix "Scenario",

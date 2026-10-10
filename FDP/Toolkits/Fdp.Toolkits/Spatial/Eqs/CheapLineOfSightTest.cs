@@ -3,6 +3,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.LineOfSight;
 
 namespace Fdp.Toolkit.Spatial.Eqs
 {
@@ -91,6 +92,21 @@ namespace Fdp.Toolkit.Spatial.Eqs
             var selfMount  = EqsTerrainSight.Mount(view, self);
             short bit      = (short)(1 << ContextSlotIndex);
 
+            // ⭐ CE-3144 (P-8) — "can I shoot him from there" looks at the other's BODY POINTS for its logical stance and is clear when
+            //   ANY is: perception's rule (TerrainWorldLosStrategy.IsVisible, Buildings §3f/§3i). A point (a remembered or heard spot)
+            //   has no stance: a standing man's points. ⛔ SUPERSEDED: one line to half the standing eye (0.85 m) — below a 0.9 m sill,
+            //   so no window ever saw a man at another window.
+            Span<float> aims = stackalloc float[4];
+            int aimCount = 0;
+            if (Viewer == EqsLosViewer.Candidate)
+            {
+                var stance = other.IsNull ? Fdp.Toolkit.Tkb.Domain.StanceId.Standing : Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(view, other);
+                float hull = other.IsNull ? 0f : Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(view, other);
+                float scale = hull > 0f ? hull : otherMount.For(stance);
+                foreach (float f in BodyProfile.Fractions(stance, hull > 0f))
+                    if (aimCount < aims.Length) aims[aimCount++] = f * scale;
+            }
+
             for (int i = 0; i < candidates.Length; i++)
             {
                 ref var c = ref candidates[i];
@@ -100,9 +116,13 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 bool visible;
                 if (Viewer == EqsLosViewer.Candidate)
                 {
-                    visible = los.HasLineOfSight(
-                        cPos + new Vector3(0, 0, selfMount.Standing),
-                        otherPos + new Vector3(0, 0, otherMount.Standing * 0.5f));
+                    // ⭐ CE-3135 (peek-and-fire D5) — the eye at the candidate is the POINT's stance when it has one (a window
+                    //   point is crouched: standing there would see over a sill nobody fires over); none ⇒ standing, as before.
+                    float eye = c.TryGetStance(out var stance) ? selfMount.For(stance) : selfMount.Standing;
+                    var from = cPos + new Vector3(0, 0, eye);
+                    visible = false;
+                    for (int k = 0; k < aimCount && !visible; k++)
+                        visible = los.HasLineOfSight(from, otherPos + new Vector3(0, 0, aims[k]));
                 }
                 else
                 {

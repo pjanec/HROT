@@ -29,6 +29,9 @@ namespace Hrot.Map.Definitions.Tkb
 
         /// <summary>⭐ <c>CE-3071</c> — damage of one penetrating hit.</summary>
         public float DamagePerHit { get; set; }
+
+        /// <summary>⭐ AQ85 C (R-216) — aim dispersion, mils; 0 = exact aim. Copied onto <c>WeaponMountDto.DispersionMils</c>.</summary>
+        public float DispersionMils { get; set; }
     }
     
     /// <summary>

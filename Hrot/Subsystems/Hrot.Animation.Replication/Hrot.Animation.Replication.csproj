@@ -15,6 +15,10 @@
     <ProjectReference Include="..\..\..\FDP\Network\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- ⭐ CE-2121 — the DDS code generator (GetDescriptorOps) for the stance topics, as Hrot.Network.NED uses it. -->
+    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Hrot.Animation.Replication.Tests" />
     <InternalsVisibleTo Include="Hrot.Animation.Network.Integration.Tests" />
   </ItemGroup>

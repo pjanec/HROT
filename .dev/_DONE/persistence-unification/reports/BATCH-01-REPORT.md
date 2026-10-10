@@ -119,7 +119,7 @@ Both `BTreeEditorNode.KernelBlobIndex` and `StateNode.FlatIndex` / `TransitionNo
 ### Baseline test suites (verification gates):
 
 ```
-dotnet build IOS-IG-SimHost.sln   →  0 errors, 0 new warnings in touched projects
+dotnet build HROT.sln   →  0 errors, 0 new warnings in touched projects
 EditorSubsystemBoot filter        →  10/10 PASS
 Hrot.Editor.AiShared.Tests        →  761/761 PASS
 Hrot.Blueprints.Tests             →  1357 pass, 7 fail (ALL pre-existing — see below)

@@ -9,7 +9,7 @@
 | GZ070  | Complete | 5           |
 | **Total** | **All pass** | **13** |
 
-Build result: **0 errors, 90 warnings (pre-existing)** — `dotnet build IOS-IG-SimHost.sln -c Debug --nologo -v q`
+Build result: **0 errors, 90 warnings (pre-existing)** — `dotnet build HROT.sln -c Debug --nologo -v q`
 
 ---
 
@@ -129,7 +129,7 @@ The internal `DrawScheduled(onStructUpdate, Func<string, bool>? isFocusedOverrid
 ## Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug --nologo -v q
+dotnet build HROT.sln -c Debug --nologo -v q
   0 Error(s)
   90 Warning(s) (all pre-existing xUnit analyzer warnings in Hrot.ClusterRunner.Tests)
 Time Elapsed 00:00:38.52

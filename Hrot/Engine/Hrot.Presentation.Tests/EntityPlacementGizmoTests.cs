@@ -110,4 +110,57 @@ public class EntityPlacementGizmoTests
 
         Assert.Equal(json, captured[0].InitialAttributesJson);
     }
+
+    // -- CE-1017 S2 (Add Entity, the UI half of the placement tool) ---------
+
+    [Fact]
+    public void CE1017_APlacedEntity_FacesNorth()
+    {
+        var (captured, gizmo) = CreateGizmo();
+
+        gizmo.OnMouseEvent(MapMouseButton.Left, isPressed: false, new Vector3(ClickX, ClickY, 0f));
+
+        // yaw +90° about Z turns the transform's forward (+X, east) to +Y (north)
+        var forward = Vector3.Transform(Vector3.UnitX, captured[0].InitialTransform!.Value.Rotation);
+        Assert.Equal(0f, forward.X, precision: 4);
+        Assert.Equal(1f, forward.Y, precision: 4);
+    }
+
+    [Fact]
+    public void CE1017_APlacedEntity_AsksForTheGroundLevel()
+    {
+        var (captured, gizmo) = CreateGizmo();
+
+        gizmo.OnMouseEvent(MapMouseButton.Left, isPressed: false, new Vector3(ClickX, ClickY, 0f));
+
+        Assert.Equal(Fdp.Toolkit.NetworkSpawning.SpawnHeight.OnGround, captured[0].SpawnHeight);
+    }
+
+    [Fact]
+    public void CE1017_AShiftClick_PlacesLikeAClick()
+    {
+        var (captured, gizmo) = CreateGizmo();
+
+        gizmo.OnMouseEvent(MapMouseButton.Left | MapMouseButton.ShiftMask, isPressed: false, new Vector3(ClickX, ClickY, 0f));
+
+        Assert.Single(captured);
+    }
+
+    [Fact]
+    public void CE1017_AlwaysMulti_EachClickPlaces_AndOnlyRightClickOrEscEnds()
+    {
+        var captured = new List<SpawnEntityCommand>();
+        int removed = 0;
+        var gizmo = new EntityPlacementGizmo(cmd => captured.Add(cmd), TestTkbType,
+            autoPopOnPlace: false, onRemove: () => removed++);
+
+        gizmo.OnMouseEvent(MapMouseButton.Left, false, new Vector3(1, 1, 0));
+        gizmo.OnMouseEvent(MapMouseButton.Left, false, new Vector3(2, 2, 0));
+        gizmo.OnMouseEvent(MapMouseButton.Left, false, new Vector3(3, 3, 0));
+        Assert.Equal(3, captured.Count);
+        Assert.Equal(0, removed);
+
+        gizmo.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Escape, isPressed: true);
+        Assert.Equal(1, removed);
+    }
 }

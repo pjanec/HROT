@@ -93,14 +93,15 @@ namespace Fdp.Toolkit.Utility
 
         /// <summary>
         /// Returns 1 if CooldownSecondsRemaining &lt;= 0 on ctx.Self's WeaponState, else 0.
-        /// Returns 0 if WeaponState is absent.
+        /// Returns 0 if WeaponState is absent. ⭐ <c>CE-3136</c> P-5 — and 0 while the magazine is reloading or empty
+        /// (<see cref="Fdp.Toolkit.Combat.Magazine.Ready"/>): a weapon mid-reload is not ready.
         /// </summary>
         [UtilityInput("WeaponReadiness")]
         public static float WeaponReadiness(in UtilityInputCtx ctx)
         {
             if (!ctx.Repo.HasComponent<WeaponState>(ctx.Self)) return 0f;
             ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(ctx.Self);
-            float result = ws.CooldownSecondsRemaining <= 0f ? 1f : 0f;
+            float result = ws.CooldownSecondsRemaining <= 0f && Fdp.Toolkit.Combat.Magazine.Ready(ws) ? 1f : 0f;
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
         }
@@ -221,7 +222,10 @@ namespace Fdp.Toolkit.Utility
             ref readonly var mem = ref ctx.Repo.GetComponentRO<TargetMemory>(ctx.Self);
             for (int i = 0; i < mem.Count; i++)
                 // ⭐ CE-3063 ② — identified contacts only: this gates the FIRING postures, and a heard point cannot be shot.
-                if (!TargetMemory.IsAnonymous(in mem, i) && ThreatFreshness.IsLive(ctx.Repo, ctx.Self, in mem, i)) return 1f;
+                // ⭐ CE-2120 (R-214) — a KILLED contact is not a target: the corpse stays remembered and tracked, and made the
+                //   approach flank it.
+                if (!TargetMemory.IsAnonymous(in mem, i) && ThreatFreshness.IsLive(ctx.Repo, ctx.Self, in mem, i)
+                    && !ThreatDanger.IsDead(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))) return 1f;
             return 0f;
         }
 
@@ -241,7 +245,8 @@ namespace Fdp.Toolkit.Utility
             {
                 if ((tracks.Modalities[t] & (byte)SensorModality.Visual) == 0) continue;
                 for (int i = 0; i < mem.Count; i++)
-                    if (mem.EntityIds[i] == tracks.EntityIds[t] && !TargetMemory.IsAnonymous(in mem, i)) return 1f;
+                    if (mem.EntityIds[i] == tracks.EntityIds[t] && !TargetMemory.IsAnonymous(in mem, i)
+                        && !ThreatDanger.IsDead(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))) return 1f;   // ⭐ CE-2120 — a corpse is no threat
             }
             return 0f;
         }
@@ -406,6 +411,21 @@ namespace Fdp.Toolkit.Utility
 
             float maxHealth = repo.HasComponent<Health>(ctx.Context) ? repo.GetComponentRO<Health>(ctx.Context).Max : 0f;
             if (maxHealth <= 0f) maxHealth = Fdp.Toolkit.Combat.CombatTkb.PlatformOf(repo, ctx.Context)?.MaxHealth ?? 0f;
+
+            // ⭐⭐ AQ85 F (R-216) — × the chance the round HITS, from the SAME HitModel the shot uses (σ of this unit firing this
+            //   mount; the target's collider circle; the range). σ = 0 (no DispersionMils) ⇒ 1, so every type that has not opted in
+            //   scores exactly as before. ⚠ On the Brain the shooter carries no UnderFire (Muscle-local), so the estimate omits
+            //   suppression — the moving and stance factors apply.
+            var owner = Fdp.Toolkit.Combat.CombatTkb.OwnerOf(repo, ctx.Self);
+            float sigma = Fdp.Toolkit.Combat.HitModel.Sigma(repo, owner, mount, Fdp.Toolkit.Combat.HitModel.Now(repo));
+            if (sigma > 0f && TryGetWorldPosition(repo, owner, out var from) && TryGetWorldPosition(repo, ctx.Context, out var to))
+            {
+                float radius = repo.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(ctx.Context)
+                    ? repo.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(ctx.Context).Radius
+                    : Fdp.Toolkit.Combat.HitModel.DefaultTargetRadius;
+                damage *= Fdp.Toolkit.Combat.HitModel.HitChance(sigma, Vector3.Distance(from, to), radius);
+            }
+
             float result = maxHealth > 0f ? Math.Clamp(damage / maxHealth, 0f, 1f) : (damage > 0f ? 1f : 0f);
             Debug.Assert(result >= 0f && result <= 1f);
             return result;

@@ -1,0 +1,124 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range"
+ },
+ "entities": {
+  "2a970001-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     110,
+     22,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7401
+   },
+   "TkbIdentity": {
+    "TkbType": 2004
+   },
+   "EntityInfo": {
+    "Name": "Thrower",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "FireAtPoint",
+    "Params": "{\"x\":110,\"y\":35,\"z\":0,\"mount\":1,\"rounds\":1,\"cooldownSeconds\":2}",
+    "Origin": "Superior"
+   }
+  },
+  "2a970002-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     107,
+     43,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7402
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Standing",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": "{\"stance\":\"Standing\"}",
+    "Origin": "Superior"
+   }
+  },
+  "2a970003-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     113,
+     43,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7403
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Prone",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": "{\"stance\":\"Prone\"}",
+    "Origin": "Superior"
+   }
+  }
+ }
+}

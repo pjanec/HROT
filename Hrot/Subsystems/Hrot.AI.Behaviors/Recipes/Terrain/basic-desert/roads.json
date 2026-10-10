@@ -1,0 +1,96 @@
+{
+  "$meta": {
+    "docType": "Fdp.RoadNetwork",
+    "schemaVersion": 1
+  },
+  "nodes": [
+    {
+      "id": 0,
+      "position": {
+        "x": 0,
+        "y": 295
+      }
+    },
+    {
+      "id": 1,
+      "position": {
+        "x": 300,
+        "y": 295
+      }
+    },
+    {
+      "id": 2,
+      "position": {
+        "x": 600,
+        "y": 295
+      }
+    }
+  ],
+  "segments": [
+    {
+      "id": 0,
+      "startNodeId": 0,
+      "endNodeId": 1,
+      "controlPoints": {
+        "p0": {
+          "x": 0,
+          "y": 295
+        },
+        "t0": {
+          "x": 300,
+          "y": 0
+        },
+        "p1": {
+          "x": 300,
+          "y": 295
+        },
+        "t1": {
+          "x": 300,
+          "y": 0
+        }
+      },
+      "speedLimit": 20.0,
+      "laneWidth": 5.0,
+      "laneCount": 2
+    },
+    {
+      "id": 1,
+      "startNodeId": 1,
+      "endNodeId": 2,
+      "controlPoints": {
+        "p0": {
+          "x": 300,
+          "y": 295
+        },
+        "t0": {
+          "x": 300,
+          "y": 0
+        },
+        "p1": {
+          "x": 600,
+          "y": 295
+        },
+        "t1": {
+          "x": 300,
+          "y": 0
+        }
+      },
+      "speedLimit": 20.0,
+      "laneWidth": 5.0,
+      "laneCount": 2
+    }
+  ],
+  "metadata": {
+    "worldBounds": {
+      "min": {
+        "x": 0,
+        "y": 0
+      },
+      "max": {
+        "x": 600,
+        "y": 600
+      }
+    },
+    "gridCellSize": 10.0
+  }
+}

@@ -143,7 +143,7 @@ backward compatible.
 | GZ049 | `Fdp.Toolkits.Tests` SC_GZ049_*                  | 7/7   | PASS   |
 | **Total** |                                              | **35/35** | **PASS** |
 
-Build: `dotnet build IOS-IG-SimHost.sln --no-incremental` — **0 errors**.
+Build: `dotnet build HROT.sln --no-incremental` — **0 errors**.
 
 ---
 

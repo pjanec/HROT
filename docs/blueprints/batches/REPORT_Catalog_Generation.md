@@ -56,7 +56,7 @@ that matters is *"does regenerating reproduce it?"* — and it did **not**, thre
 
 | # | gate | verbatim command | `--no-build`? | result · delta |
 |---|---|---|---|---|
-| 1 | build | `dotnet build IOS-IG-SimHost.sln --no-restore` | must build | ⭐ **0 errors** |
+| 1 | build | `dotnet build HROT.sln --no-restore` | must build | ⭐ **0 errors** |
 | 1 · 8 | ⭐⭐⭐ **the integration gate** | `bash scripts/run-system-tests.sh` | builds | ⭐ **83 / 83, 0 fail, 0 skip** *(unchanged — the manifest gained a `doc` field per endpoint and no rail cared, which is the additive shape intended)* |
 | 8 | ⭐⭐⭐ **the enforcement rail** | `dotnet test Hrot.Editor.Tests --filter FullyQualifiedName~EveryRouteIsDocumentedTests` | `--no-build` | ⭐ **4 / 4** |
 | 8 | the editor suite | `dotnet test Hrot.Editor.Tests --no-build` | `--no-build` | ⚠ **239 / 240, 1 fail** — `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected`. ⭐ **PRE-EXISTING, proven properly:** at a genuinely clean base *(`git stash push -u` — the first attempt left my untracked files and `--no-build` ran MY binary, so that comparison was void)* the base is **235 / 236 with the same single failure**. ⭐ Passes in isolation ⇒ a GC/ALC flake |

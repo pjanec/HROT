@@ -21,8 +21,7 @@ namespace Fdp.Toolkit.Combat.Translators
     /// </summary>
     public sealed class CombatTkbTranslator : ITkbEntityTranslator
     {
-        private const float DefaultColliderRadius  = 2.5f;
-        private const float DefaultMuzzleVelocity  = 800f;
+        // ⭐ Stage 0 — the defaults live in EngineFallbacks; ParameterResolver reports the same rules (no number moved).
         private const byte  CombatCollisionLayer   = 2;
 
         public IEnumerable<Type> GetConsumedDescriptors()
@@ -76,7 +75,7 @@ namespace Fdp.Toolkit.Combat.Translators
                     {
                         repo.AddComponent(entity, new PhysicsCollider
                         {
-                            Radius         = DefaultColliderRadius,
+                            Radius         = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.ColliderRadius,
                             CollisionLayer = CombatCollisionLayer,
                             Height         = template.GetDescriptor<StrideRenderModelDefDto>()?.ShapeHeight ?? 0f,
                         });
@@ -91,14 +90,7 @@ namespace Fdp.Toolkit.Combat.Translators
                 var primary = suite.Mounts[0];
                 // Primary mount: WeaponState stays on the owner entity (back-compat with actuators).
                 if (repo.IsComponentTypeRegistered<WeaponState>() && !repo.HasComponent<WeaponState>(entity))
-                    repo.AddComponent(entity, new WeaponState
-                    {
-                        Ammo           = primary.InitialAmmunition,
-                        MaxAmmo        = primary.InitialAmmunition,
-                        MuzzleVelocity = primary.MuzzleVelocity > 0f
-                            ? primary.MuzzleVelocity
-                            : DefaultMuzzleVelocity
-                    });
+                    repo.AddComponent(entity, Loaded(primary));
 
                 // Additional mounts (index 1+): each gets a child entity.
                 if (repo.IsComponentTypeRegistered<WeaponMountInfo>() && repo.IsComponentTypeRegistered<PartMetadata>())
@@ -116,12 +108,7 @@ namespace Fdp.Toolkit.Combat.Translators
                         if (have) continue;
                         var mount = suite.Mounts[i];
                         var child = repo.CreateEntity();
-                        repo.AddComponent(child, new WeaponState
-                        {
-                            Ammo           = mount.InitialAmmunition,
-                            MaxAmmo        = mount.InitialAmmunition,
-                            MuzzleVelocity = mount.MuzzleVelocity > 0f ? mount.MuzzleVelocity : DefaultMuzzleVelocity
-                        });
+                        repo.AddComponent(child, Loaded(mount));
                         repo.AddComponent(child, new WeaponMountInfo
                         {
                             MountIndex     = i,
@@ -139,5 +126,18 @@ namespace Fdp.Toolkit.Combat.Translators
                 }
             }
         }
-    }
+    
+        /// <summary>A mount's <see cref="WeaponState"/> at spawn: the total load, and — ⭐ <c>CE-3136</c> P-5 — its first magazine full.</summary>
+        private static WeaponState Loaded(WeaponMountDto mount)
+        {
+            var w = new WeaponState
+            {
+                Ammo           = mount.InitialAmmunition,
+                MaxAmmo        = mount.InitialAmmunition,
+                MuzzleVelocity = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocityOrFallback(mount.MuzzleVelocity)
+            };
+            Magazine.Load(ref w, mount.MagazineSize, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.ReloadSecondsOrFallback(mount.ReloadSeconds));
+            return w;
+        }
+}
 }

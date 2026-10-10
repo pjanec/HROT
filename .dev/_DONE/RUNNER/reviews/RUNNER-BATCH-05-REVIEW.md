@@ -21,7 +21,7 @@ The developer successfully completed the remainder of Task R0.2 by verifying and
 **Status: Pass.** Added `TestMetricsCollector` and implemented frame sampling logic. Summaries are automatically recorded via `SaveReport()`.
 
 ## 🧪 Testing Results
-**Overall:** Pass. `dotnet test IOS-IG-SimHost.sln` completes successfully.
+**Overall:** Pass. `dotnet test HROT.sln` completes successfully.
 All regressions from the R0 rollout have been addressed.
 
 *Note:* `ComponentDirtyTracking_ConcurrentScanPerformance` and lightweight memory tests failed occasionally due to resource contention, but these are known, pre-existing flakes and are not indicative of regressions related to the R0 rollout.

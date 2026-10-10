@@ -27,7 +27,7 @@ Swap the two committed hand-authored editor assets to JSON (the generator takes 
 - `git mv .dev/_DONE/persistence-unification/migration-artifacts/Machines/SampleGuard.hsm.json Hrot/Subsystems/Hrot.AI.Behaviors/Machines/SampleGuard.hsm.json`
 - `git rm Hrot/Subsystems/Hrot.AI.Behaviors/Trees/SampleScout.cs Hrot/Subsystems/Hrot.AI.Behaviors/Machines/SampleGuard.cs`
 - (the now-empty `.dev/.../migration-artifacts/` dir + its `Machines/` subdir can be removed)
-- `dotnet build IOS-IG-SimHost.sln` MUST succeed: the generator emits `SampleScout.g.cs`+`SampleScout.Registrar.g.cs` and `SampleGuard.g.cs`+`SampleGuard.Registrar.g.cs` into `obj/GeneratedFiles`; `Hrot.AI.Behaviors.dll` still exposes `Hrot.AI.Behaviors.Trees.SampleScout.Build()` and `...Machines.SampleGuard.Compile()` (generated). Confirm `FbtTreeCatalog.g.cs` no longer has `GetSampleScout` and that this does NOT break the build (zero callers).
+- `dotnet build HROT.sln` MUST succeed: the generator emits `SampleScout.g.cs`+`SampleScout.Registrar.g.cs` and `SampleGuard.g.cs`+`SampleGuard.Registrar.g.cs` into `obj/GeneratedFiles`; `Hrot.AI.Behaviors.dll` still exposes `Hrot.AI.Behaviors.Trees.SampleScout.Build()` and `...Machines.SampleGuard.Compile()` (generated). Confirm `FbtTreeCatalog.g.cs` no longer has `GetSampleScout` and that this does NOT break the build (zero callers).
 
 ### Task 2 — Fix the tests whose premise changed (6 known; handle any others that surface)
 After Task 1, the assembly no longer carries `[BTreeLayout]`/`[HsmLayout]` or `.Layout()`. Disposition (cite each, verify by building the test projects):
@@ -52,7 +52,7 @@ In `EditorSubsystem.cs` (the `RegenerationScheduler` `flushAction`, ~2284-2295):
 - [ ] The PU-203 bridge integration tests (`BlueprintRegistrarBridgeIntegrationTests`, incl. `BTree_SampleScout_Bridge_Register_TreeIsTickable`) still GREEN — the regression anchor proving JSON-owned assets register→tick.
 - [ ] All 6 affected tests handled (2 deleted, 2 migrated to JSON contributor, 2 converted to read live JSON); any other casualties handled + listed.
 - [ ] PU-D11 resolved: flushAction writes JSON (not C#) for BTree/HSM to `SourceFilePath`; collision guard honored; Blueprint flush + Ctrl+S unchanged; never throws. + headless test (flush a dirty JSON-owned doc → JSON written + round-trips; NOT C#).
-- [ ] Global gate: `dotnet build IOS-IG-SimHost.sln` 0/0; `Hrot.AiEditor.Generators.Tests` green; `Hrot.BTree.Editor.Tests` + `Hrot.Hsm.Editor.Tests` green (with migrated tests); `Hrot.Editor.AiShared.Tests` green; `EditorSubsystemBoot` 10/10; `Hrot.Blueprints.Tests` only pre-existing (0 new). Report EXACT counts.
+- [ ] Global gate: `dotnet build HROT.sln` 0/0; `Hrot.AiEditor.Generators.Tests` green; `Hrot.BTree.Editor.Tests` + `Hrot.Hsm.Editor.Tests` green (with migrated tests); `Hrot.Editor.AiShared.Tests` green; `EditorSubsystemBoot` 10/10; `Hrot.Blueprints.Tests` only pre-existing (0 new). Report EXACT counts.
 - [ ] Report → `.dev/_DONE/persistence-unification/reports/BATCH-09-REPORT.md`.
 
 ## Report Requirements

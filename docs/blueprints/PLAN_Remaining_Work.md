@@ -1633,7 +1633,7 @@ moved **and** every bystander is untouched. ⛔ *"Either alone passes a wrong fi
 
 ### ⭐⭐⭐ NEW GATE — **`Fhsm.Tests`, and `--no-build` makes it LIE**
 
-📐 `grep -c "Fhsm.Tests" IOS-IG-SimHost.sln` → **0**. ⇒ ⛔⛔ **`dotnet build <sln> -t:Rebuild` never
+📐 `grep -c "Fhsm.Tests" HROT.sln` → **0**. ⇒ ⛔⛔ **`dotnet build <sln> -t:Rebuild` never
 builds it, so `--no-build` runs whatever was left in `bin` from an earlier session.** ⭐ **Their first
 run reported a false regression against a stale `Fhsm.Kernel.dll`.**
 ⇒ ⭐⭐ **Same category as the two NodeEdit gates, for the same reason: out of solution ⇒ the gate must

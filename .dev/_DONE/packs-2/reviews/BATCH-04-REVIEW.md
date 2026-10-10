@@ -11,7 +11,7 @@
 
 | Check | Result |
 |-------|--------|
-| `dotnet build IOS-IG-SimHost.sln --no-incremental` | ✅ 0 errors, 336 warnings (all pre-existing xUnit1030) |
+| `dotnet build HROT.sln --no-incremental` | ✅ 0 errors, 336 warnings (all pre-existing xUnit1030) |
 
 ---
 

@@ -34,7 +34,7 @@ Add `<AdditionalFiles Include="Trees/**/*.btree.json" />` and `<AdditionalFiles 
 - [ ] PU-203: generator emits a per-asset `[BlueprintRegistrar]`-only bridge with the exact coordinator-injectable signature; registers the JSON-owned definition + BTree thunks (`BehaviorRegistry`) + HSM thunks (`HsmActionDispatcher` static). Integration test: discovered by `ScanForRegistrars`, registered, **tickable** (both BTree + HSM). Negative test on attributes/params.
 - [ ] PU-203: PU-205 topology-core equivalence (BATCH-03) still green (bridge is additive/separate, excluded from the core compare).
 - [ ] PU-204: `Hrot.AI.Behaviors.csproj` has the AdditionalFiles globs + the generator analyzer ref; build unbroken; no `.cs` decommit yet.
-- [ ] Global gate: `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 new warnings (touched); new integration tests green; generators 26+ green; persistence gate 88 green; `EditorSubsystemBoot` 10/10; `Hrot.Editor.AiShared.Tests` green; `Hrot.Blueprints.Tests` only pre-existing (0 new). **Report exact counts/classification.**
+- [ ] Global gate: `dotnet build HROT.sln` 0 errors / 0 new warnings (touched); new integration tests green; generators 26+ green; persistence gate 88 green; `EditorSubsystemBoot` 10/10; `Hrot.Editor.AiShared.Tests` green; `Hrot.Blueprints.Tests` only pre-existing (0 new). **Report exact counts/classification.**
 - [ ] Report → `.dev/_DONE/persistence-unification/reports/BATCH-04-REPORT.md`.
 
 ## Report Requirements

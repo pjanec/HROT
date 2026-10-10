@@ -30,7 +30,7 @@ Use your normal Windows toolchain (Visual Studio / `dotnet` CLI). The engine tar
 net8.0; use the same SDK you normally build with.
 
 ### Build checks (both Debug and Release)
-- `dotnet build IOS-IG-SimHost.sln -c Debug` and `-c Release` must succeed with no NEW
+- `dotnet build HROT.sln -c Debug` and `-c Release` must succeed with no NEW
   errors/warnings vs main. Release matters specifically for WI-1 (see below).
 - `dotnet build Stride/HrotStrideApp.sln` must still build on Windows exactly as before
   (the port excludes Stride from the LINUX build only; Windows is untouched). Confirm

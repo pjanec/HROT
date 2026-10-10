@@ -42,6 +42,9 @@ namespace Hrot.BDC.Factory
         public DdsParticipant? Participant => _participant;
 
         /// <inheritdoc/>
+        public IGeographicTransform? GeoTransform => _geoTransform;   // CE-3126 — the node adopts it as its one transform
+
+        /// <inheritdoc/>
         public Hrot.Common.Abstractions.IReplicationModule CreateReplicationModule()
             => new Hrot.BDC.Replication.BdcReplicationModule(
                 _participant, _role, _entityMap, _geoTransform, _eventBus, _localNodeId);

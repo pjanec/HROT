@@ -255,4 +255,25 @@ public sealed class HrotNodeBuilderTests
             "The kernel holds no ITimeController. The rail must assert the CONSTRUCTED controller — " +
             "fix the reader, do not weaken the assertion.");
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-3126 — ONE geo transform per node: the builder adopts the one the composition root supplied (the network
+    /// factory's, else <c>ExternalGeoTransform</c>), and publishes it as the world singleton — the instance a terrain commit
+    /// sets the origin on. Before, the builder always made its own, so the wire and the world could disagree.
+    /// </summary>
+    [Fact]
+    public void CE3126_Build_UsesTheSuppliedGeoTransform_AndPublishesItOnTheWorld()
+    {
+        var supplied = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+        var config = HeadlessConfig();
+        config.ExternalGeoTransform = supplied;
+        var ctx = new HrotNodeBuilder(config).WithRole("Test", Fdp.Core.NodeRole.MuscleGround).Build();
+
+        Assert.Same(supplied, ctx.GeoTransform);
+        Assert.Same(supplied, ctx.World.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>());
+
+        var plain = new HrotNodeBuilder(HeadlessConfig(98)).WithRole("Test", Fdp.Core.NodeRole.MuscleGround).Build();
+        Assert.Same(plain.GeoTransform, plain.World.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>());
+        Assert.Equal((0.0, 0.0, 0.0), plain.GeoTransform!.Origin);   // ⛔ no Berlin default
+    }
 }

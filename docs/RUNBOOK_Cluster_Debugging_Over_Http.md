@@ -131,6 +131,10 @@ curl -s --noproxy '*' -X POST $B/scenario/load/live \
      -H 'Content-Type: application/json' -d '{"name":"hill-attack","waitForReady":true}'
 ```
 
+⭐ **A load resets the sim clock to 0** (`R-215`, `Q86` §4-G). Whether it then RUNS is a property of the load:
+`"startPaused"` (default **true**) keeps it paused for the `POST /sim/play` step below; `"startPaused": false` runs
+it as soon as the cluster reports `OperatingLive`.
+
 A good load answers:
 
 ```json
@@ -517,3 +521,8 @@ pkill -9 -f 'ClusterRunner[.]dll'; sleep 2; pkill -9 -f '[X]vfb'
 
 ⚠ Leftover nodes hold ports **and** DDS domains; the next run then fails in ways that look like product
 defects.
+
+📌 **Measured `2026-10-08` (backend):** one `--mode all` cluster left running for 41 minutes on domain 0 made
+`DdsIntegrationTests.CanPublishAndSubscribeEntityMaster` read the cluster's own entity (`Expected 12345, Actual 1000`) AND made the
+editor system tests (`DeterminismRails`) time out on `POST /sim/step` — both green the moment it was killed, and the second had
+been written off as an environment hang. ⇒ ⭐ **before trusting a red DDS or system test, `pgrep -af ClusterRunner`.**

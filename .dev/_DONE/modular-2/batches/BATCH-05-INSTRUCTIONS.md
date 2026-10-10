@@ -377,7 +377,7 @@ Also update `Hrot.ScenarioEditor.Tests.csproj` reference in the solution to `Hro
 
 ### A9 — Update solution file
 
-In `IOS-IG-SimHost.sln`:
+In `HROT.sln`:
 - Add `Hrot.Presentation` (new GUID: `{D4E5F6A7-B8C9-0123-DEF0-123456789003}`)
 - Add `Hrot.Presentation.Tests` (new GUID: `{E5F6A7B8-C9D0-1234-EF01-234567890104}`)
 - Remove `Hrot.UI.Common` entry
@@ -515,12 +515,12 @@ public sealed class MapCommandDto
 **After Part A changes (before moving files):**
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln -v q 2>&1 | Select-String "error" | Select-Object -First 20
+dotnet build HROT.sln -v q 2>&1 | Select-String "error" | Select-Object -First 20
 ```
 
 **After complete Batch:**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot.Presentation.Tests/Hrot.Presentation.Tests.csproj
 dotnet test Hrot.ScenarioEditor.Tests/Hrot.ScenarioEditor.Tests.csproj  # should still exist or be removed
 ```

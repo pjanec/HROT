@@ -65,7 +65,7 @@ then `GetBlueprintState(...).TryGetField<int>("Count", out var c)` and `Assert.E
 Count==0 before any tick. This proves the authored increment runs and is observable by name (BATCH-04).
 
 ## Verification (paste real output)
-1. `dotnet build IOS-IG-SimHost.sln` — 0 errors; 0 new warnings in touched projects.
+1. `dotnet build HROT.sln` — 0 errors; 0 new warnings in touched projects.
 2. `BlueprintMathTests` green; the `CountingDemo` proof test green (Count climbs 0→5).
 3. Full `Hrot.Blueprints.Tests`: failures a SUBSET of the pre-existing **7**, 0 new, **no golden/byte-
    stability test newly fails** (the demo must not perturb existing goldens). List + classify. Run any

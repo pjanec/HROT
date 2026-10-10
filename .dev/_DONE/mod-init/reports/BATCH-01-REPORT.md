@@ -23,7 +23,7 @@
 
 ## 2. Validation Outputs
 
-### dotnet build IOS-IG-SimHost.sln (final)
+### dotnet build HROT.sln (final)
 
 ```
     0 Error(s)
@@ -186,7 +186,7 @@ When I removed `using Hrot.SimHost.Network;` from `NavigationTranslatorTests.cs`
 ### Modified files
 | File | Change |
 |---|---|
-| `IOS-IG-SimHost.sln` | Added `Hrot.Network/Hrot.Network.csproj` |
+| `HROT.sln` | Added `Hrot.Network/Hrot.Network.csproj` |
 | `Hrot.SimHost/Hrot.SimHost.csproj` | Added `<ProjectReference>` to `Hrot.Network` |
 | `Hrot.IG/Hrot.IG.csproj` | Added `<ProjectReference>` to `Hrot.Network` |
 | `Hrot.CGF/Hrot.CGF.csproj` | Added `<ProjectReference>` to `Hrot.Network` |

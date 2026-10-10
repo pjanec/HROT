@@ -80,6 +80,15 @@ namespace Hrot.Map.Common.Translators
             //   re-engaged forever. That infinite loop is what CE-267's entity-removal was masking. The
             //   ingress guards on HasAuthority<Health>, so it never clobbers the owner's authoritative value.
             yield return new EntityDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ Buildings Stage 5b — a terrain door's live state, owner → every node (readers build their door table from their own view, R-219).
+            yield return new EntityDoorStateEgressTranslator(participant);
+            yield return new EntityDoorStateIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ CE-3136 P-7a — a static obstacle's box, creator → every node (its ghost waits for it, [PerInstanceValue]).
+            yield return new EntityObstacleShapeEgressTranslator(participant);
+            yield return new EntityObstacleShapeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ R-221 — every interaction kind (doors first) travels to the target's owner on ONE topic; the kind's handler applies it there.
+            yield return new Hrot.Map.Common.Replication.Interactions.InteractionEgressTranslator(participant, entityMap);
+            yield return new Hrot.Map.Common.Replication.Interactions.InteractionIngressTranslator(participant, entityMap);
             yield return new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
             yield return new OwnershipUpdateTranslator(participant, (int)localNodeId);

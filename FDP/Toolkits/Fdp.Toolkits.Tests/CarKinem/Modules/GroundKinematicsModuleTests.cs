@@ -22,15 +22,17 @@ namespace CarKinem.Tests.Modules
             // Arrange
             var module = new GroundKinematicsModule();
 
-            // Assert — 4 simulation + 2 post-simulation systems
-            Assert.Equal(4, module.SimulationSystems.Count);
-            Assert.Equal(2, module.PostSimulationSystems.Count);
+            // Assert — 5 simulation + 3 post-simulation systems (⭐ 5d-3: + DoorPassageSystem; ⭐ CE-3117: + PathTraceSystem)
+            Assert.Equal(5, module.SimulationSystems.Count);
+            Assert.Equal(3, module.PostSimulationSystems.Count);
             Assert.IsType<SpatialHashSystem>(module.SimulationSystems[0]);
             Assert.IsType<FormationTargetSystem>(module.SimulationSystems[1]);
             Assert.IsType<VehicleCommandSystem>(module.SimulationSystems[2]);
             Assert.IsType<NavigationExecutionSystem>(module.SimulationSystems[3]);
+            Assert.IsType<DoorPassageSystem>(module.SimulationSystems[4]);
             Assert.IsType<CarKinematicsSystem>(module.PostSimulationSystems[0]);
             Assert.IsType<LinearKinematicsSystem>(module.PostSimulationSystems[1]);
+            Assert.IsType<PathTraceSystem>(module.PostSimulationSystems[2]);   // after the mover, so it traces this tick's path
         }
 
         [Fact]

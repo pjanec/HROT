@@ -72,7 +72,7 @@ None — all tasks implemented exactly as specified in the instructions, DEC-12 
 | Fdp.Toolkits.Tests | 1856 | 0 | 0 | |
 | Hrot.SimHost.Tests | 585 | 0 | 3 | 3 pre-existing skips (headless subsystem init) |
 
-`dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings.
+`dotnet build HROT.sln` — 0 errors, 0 new warnings.
 
 ## Developer Insights
 

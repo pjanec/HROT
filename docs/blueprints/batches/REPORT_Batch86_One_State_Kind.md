@@ -150,7 +150,7 @@ it into the cheapest possible check on `ReplaceSegment`. Probe A reddens it.
 
 | # | gate | `--no-build`? | result | Δ vs baseline |
 |---|---|---|---|---|
-| 1 | `dotnet build IOS-IG-SimHost.sln` | n/a | ✅ **0 errors** | — |
+| 1 | `dotnet build HROT.sln` | n/a | ✅ **0 errors** | — |
 | 2 | `dotnet test Hrot.Editor.AiShared.Tests` | ✅ yes | ✅ **1397 / 1397 / 0 skipped** | **0** |
 | 3 | `dotnet test Hrot.Blueprints.Tests` | ✅ yes | ✅ **3767 passed / 3777 total / 10 skipped** | ⭐ **−5 tests: −6 `[InlineData]` rows (§5) +1 gate-9 rail.** ⛔ **0 failed, 0 new skips** |
 | 4 | `dotnet test Hrot.BTree.Editor.Tests` | ✅ yes | ✅ **615 / 615** | **0** |

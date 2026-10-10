@@ -40,5 +40,8 @@ namespace Hrot.Map.Definitions.Tkb
         /// Leave null to let the renderer auto-select based on DIS Entity Type.
         /// </summary>
         public string? MapShapeName { get; set; }
+
+        /// <summary>⭐ <c>CE-1017</c> S0 — the entity icon's name (<c>Assets/EntityIcons/&lt;IconName&gt;.png</c>); null ⇒ a generic glyph.</summary>
+        public string? IconName { get; set; }
     }
 }

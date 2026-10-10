@@ -109,7 +109,7 @@ yields the entity; `HasManagedComponent` is true)* **without its managed PAYLOAD
 
 | suite | baseline | ⚠ |
 |---|---|---|
-| `IOS-IG-SimHost.sln` | **0 errors**, ~64 warnings | the warnings are pre-existing `BP3010` orphan-node ones from `Hrot.AI.Behaviors` |
+| `HROT.sln` | **0 errors**, ~64 warnings | the warnings are pre-existing `BP3010` orphan-node ones from `Hrot.AI.Behaviors` |
 | ⭐⭐ **`Hrot.SystemTests`** *(Row 8 — THE integration gate)* | **27 passed · 0 failed · 2 skipped**, ~13 s | ⭐ **both skips are `HN-001`** and what it blocks ⇒ **fixing it should take them to 0** |
 | `Hrot.Editor.Tests` | **209 / 0** | ⭐ improved from an older 207/2 baseline — the coordinator fixed the 2 `ScenarioMenuTests` |
 | `Hrot.Blueprints.Tests` `~Hrot.Blueprints.Tests.Editor` | **1032 / 0**, 9 skipped | ⭐ **THE gate for anything touching `EditorSubsystem`** |

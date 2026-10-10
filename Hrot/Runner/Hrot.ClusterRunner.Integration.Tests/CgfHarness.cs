@@ -62,7 +62,7 @@ public sealed class CgfHarness : IDisposable
         var cgfFactory = new NedNetworkFactory(
             participant:  null,
             entityMap:    new NetworkEntityMap(),
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.Brain);

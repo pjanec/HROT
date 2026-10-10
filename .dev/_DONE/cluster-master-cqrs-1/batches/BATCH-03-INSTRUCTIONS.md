@@ -22,7 +22,7 @@ This batch completes the ClusterSlave decoupling from DDS. After BATCH-03:
 ```powershell
 # From d:\Work\IOS-IG-SimHost-FDP-2
 dotnet build FDP/FDP.sln -v q
-dotnet build IOS-IG-SimHost.sln -v q
+dotnet build HROT.sln -v q
 dotnet test FDP/Toolkits/FDP.Toolkit.Orchestration.Tests/FDP.Toolkit.Orchestration.Tests.csproj
 dotnet test Hrot.Orchestrator.Tests/Hrot.Orchestrator.Tests.csproj
 dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj
@@ -277,7 +277,7 @@ All suites must pass after this batch (except the 3 confirmed pre-existing failu
 - [ ] Transport constructor parameter removed from `ClusterSlave`
 - [ ] 4 composition roots updated (NodeBootstrapper, CgfApplication, IgApplication, ExConSubsystem)
 - [ ] `DdsOrchestrationTransportTests.cs` deleted
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds
+- [ ] `dotnet build HROT.sln` succeeds
 - [ ] All test suites pass (see above)
 - [ ] Report submitted
 

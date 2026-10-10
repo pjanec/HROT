@@ -431,7 +431,7 @@ If any integration tests in `Hrot.ClusterRunner.Integration.Tests` can use `Mock
 
 After all tasks:
 
-1. `dotnet build IOS-IG-SimHost.sln -v quiet` → 0 errors
+1. `dotnet build HROT.sln -v quiet` → 0 errors
 2. `dotnet list Hrot.IG\Hrot.IG.csproj reference` → no `Hrot.Network.NED` entry
 3. `dotnet test Hrot.IG.Tests\Hrot.IG.Tests.csproj` → 0 failures
 4. `dotnet test Hrot.IG.Tests\Hrot.IG.Tests.csproj --filter "ContinuousDragTests"` → 0 failures

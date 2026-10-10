@@ -94,7 +94,7 @@ fix the salvage (do not weaken the test).
 - Do NOT weaken/skip/auto-pass tests; zero new warnings (TreatWarningsAsErrors).
 
 ## Definition of done (all required)
-- `dotnet build IOS-IG-SimHost.sln` green (zero new warnings) — no dangling refs to the deleted types.
+- `dotnet build HROT.sln` green (zero new warnings) — no dangling refs to the deleted types.
 - Run WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS`. Updated tests pass UNFILTERED. With the Stability
   filter: `Hrot.Blueprints.Tests` shows **exactly the 9 PRE-1 failures and no others** (run it and list
   the failing set to prove no new breakage); `Hrot.Editor.AiShared.Tests`, `Hrot.Editor.Tests`,

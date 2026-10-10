@@ -208,7 +208,7 @@ public sealed class ClusterMasterSeekTests
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
         master.RegisterAggregator(new ReplaySeekAggregator());
-        var seekManager  = new ReplaySeekProcessManager(bus, masterSync);
+        var seekManager  = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterBus));
 
         RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
 
@@ -241,6 +241,7 @@ public sealed class ClusterMasterSeekTests
         seekManager.Tick(); // reads ClusterOpCompletedEvent, calls SnapAndPause
 
         // T15a: master clock was snapped to the seek result wall ticks.
+        masterBus.SwapBuffers(); masterSync.Update();   // Q86 §4-C: the snap is a request; the clock applies it on its next Update
         Assert.Equal(9999L, masterSync.GetCurrentState().TotalWallTicks);
         // T15b: master clock is now in Deterministic mode.
         Assert.Equal(TimeMode.Deterministic, masterSync.GetMode());
@@ -260,7 +261,7 @@ public sealed class ClusterMasterSeekTests
 
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
-        var seekManager  = new ReplaySeekProcessManager(bus, masterSync);
+        var seekManager  = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterBus));
 
         RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
 
@@ -290,6 +291,7 @@ public sealed class ClusterMasterSeekTests
         seekManager.Tick();
 
         // Master wall ticks must be unchanged (SnapAndPause not called).
+        masterBus.SwapBuffers(); masterSync.Update();   // Q86 §4-C: the snap is a request; the clock applies it on its next Update
         Assert.Equal(wallTicksBefore, masterSync.GetCurrentState().TotalWallTicks);
     }
 
@@ -338,6 +340,7 @@ public sealed class ClusterMasterSeekTests
         master.Tick();
 
         // Master wall ticks must be unchanged (SnapAndPause not called).
+        masterBus.SwapBuffers(); masterSync.Update();   // Q86 §4-C: the snap is a request; the clock applies it on its next Update
         Assert.Equal(wallTicksBefore, masterSync.GetCurrentState().TotalWallTicks);
     }
 }

@@ -23,7 +23,7 @@ Make `NodeCategory.FlowControl` render in a distinct, readable color (orange-ish
 - If the color is a private constant with no test seam, note that in the report; a build-only change is acceptable for this cosmetic batch (the lead confirms the hue visually at REVIEW-BT-2). Do NOT add a brittle test that just restates the literal.
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings.
 - [ ] `Failed: 0` in any touched test project.
 - [ ] `NodeCategory.FlowControl` resolves to the new distinct color; other categories unchanged.
 - [ ] Report written (which file/seam you changed; whether a test was feasible; note Blueprint/HSM impact if the theme is shared).

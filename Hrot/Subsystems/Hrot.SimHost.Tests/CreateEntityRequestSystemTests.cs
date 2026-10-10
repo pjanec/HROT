@@ -322,6 +322,47 @@ namespace Hrot.SimHost.Tests
                 code, @"ReliableInitTimeout\s*=\s*pending\.Request\.ReliableInitTimeout").Count);
         }
 
+        /// <summary>⭐ <c>CE-1017</c> S2 — the request's birth-height request REACHES the spawn order (resolved by
+        /// <c>NetworkSpawningSystem</c>); absent stays absent. 📄 docs/DESIGN_Add_Entity_Picker.md §2e.</summary>
+        [Fact]
+        public void CE1017_SpawnHeight_WhenTheRequestCarriesOne_ThePublishedCommandCarriesIt()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            var height = new Fdp.Toolkit.NetworkSpawning.SpawnHeight(Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.OnLevel, 2);
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
+                SpawnHeight        = height,
+            });
+            source.Enqueue(MakeValidRequest());
+            var (system, _, _) = BuildSystem(CreateTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Equal(2, commands.Count);
+            Assert.Equal(height, commands[0].SpawnHeight);
+            Assert.Null(commands[1].SpawnHeight);
+        }
+
+        /// <summary><c>CE-1017</c> S2 — both publish sites (the root and each TKB child) carry it, so children resolve the
+        /// same level at their own x,y.</summary>
+        [Fact]
+        public void CE1017_SpawnHeight_IsForwardedAtBothPublishSites()
+        {
+            var code = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(
+                    "Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs"));
+
+            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(
+                code, @"SpawnHeight\s*=\s*pending\.Request\.SpawnHeight").Count);
+        }
+
         [Fact]
         public void ProcessRequest_ValidTkbType_PublishesSpawnEntityCommand()
         {

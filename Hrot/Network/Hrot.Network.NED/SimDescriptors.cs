@@ -61,6 +61,48 @@ namespace Hrot.NED.Descriptors
         public float Max;
     }
 
+    // ⭐ Buildings Stage 5b — a terrain DOOR's live state, published by the door's owner, applied on every other node, and mirrored
+    //   into each node's TerrainWorld (sight, fire, the 5c path filter). 📄 docs/DESIGN_Building_Interiors.md §3a, §3j.
+    //   ⭐ The KEY rides along: it is static, but a replica needs it to know WHICH terrain door the entity stands for (§3b K2 — a
+    //   string, never a number). TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every door's current state.
+    [DdsTopic("EntityDoorState")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsManaged]
+    public partial struct EntityDoorState
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary><c>TerrainDoorState</c>: 0 Open · 1 Closed · 2 Locked · 3 Destroyed.</summary>
+        public byte State;
+
+        /// <summary>The terrain-object key, <c>"&lt;terrain&gt;/&lt;building&gt;/&lt;doorId&gt;"</c>.</summary>
+        public string Key;
+    }
+
+    // ⭐ CE-3136 P-7a (O3, R-242/R-243) — a static obstacle's box (the TKB's size or a scenario's per-instance one), published by the
+    //   obstacle's creator, applied on every other node BEFORE its ghost promotes ([PerInstanceValue] ObstacleShape), so every node bakes
+    //   the same box into its terrain. TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every obstacle.
+    //   📄 docs/DESIGN_Peek_And_Fire.md §9.
+    [DdsTopic("EntityObstacleShape")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityObstacleShape
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>Box length along the heading (m).</summary>
+        public float Length;
+
+        /// <summary>Box width (m).</summary>
+        public float Width;
+
+        /// <summary>Box height (m).</summary>
+        public float Height;
+    }
+
     // ── Navigation CQRS descriptors (MOD1-P1T1) ──────────────────────────────
     // These are the DDS wire representations of the engine-side NavigationIntent and
     // NavigationStatus ECS components.  The engine-side enums (NavigationMode,
@@ -319,6 +361,12 @@ namespace Hrot.NED.Descriptors
         public RelativeVector3 End;
         /// <summary>0=Wheeled, 1=Tracked, 2=Infantry.</summary>
         public byte           MobilityProfile;
+        /// <summary>⭐ CE-3129 — the request's forced backend (<c>NavigationBackend</c>; 0 = Auto).</summary>
+        public byte           BackendForce;
+        /// <summary>⭐ CE-3129 — the request's navmesh layer mask (<c>NavLayerMask</c> bits; 0 = all layers).</summary>
+        public int            NavLayerMask;
+        /// <summary>⭐ CE-3129 — the actor's road use (<c>RoadUse</c>; 0 = Unspecified), R-230.</summary>
+        public byte           RoadUse;
     }
 
     /// <summary>Batched path requests published by a Brain node toward the Navigation Solver.</summary>

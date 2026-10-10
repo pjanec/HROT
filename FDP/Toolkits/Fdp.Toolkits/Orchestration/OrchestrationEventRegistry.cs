@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<NodeHeartbeatEvent>();
             bus.RegisterManaged<NodeCapabilitiesEvent>();   // CE-285 (C-cap): static capability tokens, published once at join.
             bus.RegisterManaged<ClusterStateTransitionedEvent>();
+            bus.RegisterManaged<OrchestratorContextChangedEvent>();
             bus.RegisterManaged<ClusterStateUpdateEvent>();
             bus.RegisterManaged<AssetInventoryUpdateEvent>();
             bus.RegisterManaged<EpisodeStateChangedEvent>();
@@ -40,6 +41,7 @@ namespace Fdp.Toolkit.Orchestration
 
             // Time Control Intents (Domain)
             bus.RegisterManaged<PauseTimeIntent>();
+            bus.RegisterManaged<SnapTimeIntent>();
             bus.RegisterManaged<ResumeTimeIntent>();
             bus.RegisterManaged<StepTimeIntent>();
             bus.RegisterManaged<SetTimeScaleIntent>();

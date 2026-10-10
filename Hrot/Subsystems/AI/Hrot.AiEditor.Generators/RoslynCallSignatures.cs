@@ -33,7 +33,8 @@ internal static class RoslynCallSignatures
         {
             if (BTreeMethodCompatibilityValidator.ResolveMethod(compilation, fqn) is { } m)
                 return m.Parameters
-                        .Select(p => new CallParam(p.Type.ToDisplayString(Fqn), p.RefKind != RefKind.None))
+                        .Select(p => new CallParam(p.Type.ToDisplayString(Fqn), p.RefKind != RefKind.None,
+                                                   p.RefKind == RefKind.Ref && SharedAiMethodResolver.IsUnitMemory(p.Type)))
                         .ToArray();
             // ⭐ The validator's own convention (TryValidateAsGeneratedBlueprintTickCore): a "{Name}_{id:X8}_Bp.TickCore"
             //   in ANY namespace is a generated blueprint's TickCore. The validator then checks it against the catalogue.

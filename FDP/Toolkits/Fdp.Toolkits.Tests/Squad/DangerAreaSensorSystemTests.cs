@@ -47,27 +47,21 @@ namespace Fdp.Toolkit.Tests.Squad
             _repo.RegisterManagedEvent<DangerAreaResultEvent>();
             _repo.RegisterEvent<SensorChangedEvent>();
             _repo.SetSingletonManaged(TestTown());
+            // ⭐ CE-3128 — the nav node's navmesh (open ground here): the planner compares walking direct with the roads.
+            _repo.SetSingletonManaged<INavmeshProvider>(new StraightNavmesh());
         }
 
-        public void Dispose() => _repo.Dispose();
+        // ⭐ CE-3128 — the roads are the road GRAPH (test-town's, as roads.json declares it), read through a holder like production.
+        private readonly global::CarKinem.Road.RoadNetworkHolder _roads = new(TestTownRoads.Build(), takeOwnership: true);
+        private readonly RoutePlanner _planner = new();
 
-        /// <summary>test-town's two roads, plus one building north-east of the Cross Street crossing.</summary>
+        public void Dispose() { _repo.Dispose(); _roads.Dispose(); }
+
+        /// <summary>test-town's ground with one building north-east of the Cross Street crossing (the roads are <see cref="_roads"/>).</summary>
         private static TerrainWorld TestTown() => new()
         {
             Name = "test-town", BoundsMin = Vector2.Zero, BoundsMax = new Vector2(400, 400), GroundZ = 0f,
-            Surfaces = new[]
-            {
-                Road(new Vector2(0, 190), new Vector2(400, 210)),
-                Road(new Vector2(190, 0), new Vector2(210, 400)),
-            },
             Prisms = new[] { Block(new Vector2(240, 320), new Vector2(280, 360), 12f) },
-        };
-
-        private static TerrainSurface Road(Vector2 min, Vector2 max) => new()
-        {
-            Type = TerrainSurfaceType.Road,
-            Polygon = new[] { min, new Vector2(max.X, min.Y), max, new Vector2(min.X, max.Y) },
-            Min = min, Max = max,
         };
 
         private static TerrainPrism Block(Vector2 min, Vector2 max, float height) => new()
@@ -107,7 +101,7 @@ namespace Fdp.Toolkit.Tests.Squad
         {
             var sensor = _repo.GetComponentRO<EqsSensor>(child);
             var areas = new DangerAreaDescriptor[8];
-            int n = DangerAlongRouteSolve.Solve(_repo, child, in sensor, areas);
+            int n = DangerAlongRouteSolve.Solve(_repo, child, in sensor, areas, _planner, _roads);
             _repo.Bus.PublishManaged(new DangerAreaResultEvent
             {
                 ParentNetworkId = 0, LocalChildIndex = child.Index, Epoch = sensor.Epoch, RefreshTick = 7, Areas = areas, Count = n,

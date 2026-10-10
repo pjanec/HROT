@@ -32,7 +32,7 @@
 ### How to Build and Test
 ```powershell
 # From repo root d:\Work\IOS-IG-SimHost-FDP-2\
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 
 # Run relevant tests
 dotnet test Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints.Tests/Hrot.Diagnostics.Breakpoints.Tests.csproj

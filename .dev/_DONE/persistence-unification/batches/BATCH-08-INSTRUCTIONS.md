@@ -53,7 +53,7 @@ For BOTH `SampleScout` (BTree) and `SampleGuard` (HSM):
 - [ ] PU-401: blob/behavioral equivalence PROVEN for SampleScout + SampleGuard (committed blob ≡ JSON-regenerated blob), per the PU-D06 criterion. + the real divergence test (replaces the PU-D05 tautologies; they are DELETED).
 - [ ] Migration JSON generated + validated: round-trips byte-stable, carries layout (X/Y) + (BTree) populated BB/Ctx type names; written to `.dev/_DONE/persistence-unification/migration-artifacts/` (NOT the live tree).
 - [ ] **Nothing in the live build changed:** no `.json` under live `Trees|Machines/`; `SampleScout.cs`/`SampleGuard.cs` untouched; csproj/flushAction untouched. (PU-402 does decommit.)
-- [ ] Global gate: `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 new warnings (touched); new + existing `Hrot.AiEditor.Generators.Tests` green (incl. the real byte-identical gate tests already present); `EditorSubsystemBoot` 10/10; `Hrot.Blueprints.Tests` only pre-existing (0 new). Report exact counts.
+- [ ] Global gate: `dotnet build HROT.sln` 0 errors / 0 new warnings (touched); new + existing `Hrot.AiEditor.Generators.Tests` green (incl. the real byte-identical gate tests already present); `EditorSubsystemBoot` 10/10; `Hrot.Blueprints.Tests` only pre-existing (0 new). Report exact counts.
 - [ ] Report → `.dev/_DONE/persistence-unification/reports/BATCH-08-REPORT.md`.
 
 ## Report Requirements

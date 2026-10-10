@@ -63,11 +63,11 @@ Related design specs (in `docs/blueprints/`) — all already implemented in the 
 
 ## 4. Building & testing
 
-The solution is `IOS-IG-SimHost.sln` at the repo root. Standard .NET:
+The solution is `HROT.sln` at the repo root. Standard .NET:
 
 ```powershell
-dotnet build IOS-IG-SimHost.sln           # full build
-dotnet test  IOS-IG-SimHost.sln           # all tests
+dotnet build HROT.sln           # full build
+dotnet test  HROT.sln           # all tests
 ```
 
 Per-project (faster while iterating) — build/test only what you touch, e.g.:

@@ -823,9 +823,12 @@ public sealed class TheViewportInteractionIsSharedTests
         //   reported "this host composes no spawn adapter" on hosts that compose one.
         // ⚠ A BEHAVIOURAL rail could not see this: it builds its own pack and would pass regardless.
         //   The failure is an OMISSION at a composition root, which only a source scan reaches.
+        // ⭐ CE-1017 — passing EntityAuthoring satisfies it too: the pack then derives the Spawn arm from the SAME
+        //   shared adapter (`() => authoringRef?.Spawn?.ArmPlacement()`), which the pack-source check below pins.
         Assert.True(
-            new System.Text.RegularExpressions.Regex(@"StartPlacementMode\s*=\s*\(\)\s*=>").IsMatch(src),
-            $"{file} builds a MapInteractionContext but never sets StartPlacementMode on it, so the "
+            new System.Text.RegularExpressions.Regex(@"StartPlacementMode\s*=\s*\(\)\s*=>").IsMatch(src)
+         || src.Contains("EntityAuthoring = ", StringComparison.Ordinal),
+            $"{file} builds a MapInteractionContext but never sets StartPlacementMode (or EntityAuthoring) on it, so the "
           + "Spawn tool this host registers will report itself unserviceable even though the host "
           + "composes a spawn adapter (UXI-07 section 4.10). Note the '=' — it belongs on the CONTEXT, "
           + "not as an ':' argument to InteractionDeps, which no longer carries it.");
@@ -847,6 +850,18 @@ public sealed class TheViewportInteractionIsSharedTests
           + "(UXI-07 step 4a, UX_Feature_Tool_Model.md section 4.9).");
     }
 
+    /// <summary>⭐ <c>CE-1017</c> — the pack's DEFAULT Spawn arm (used by every host that passes
+    /// <c>EntityAuthoring</c>) names the arm body, never the public placement API — the same cycle guard as above, moved
+    /// to where the delegate is now written.</summary>
+    [Fact]
+    public void ThePacksDefaultSpawnArmNamesTheArmBody()
+    {
+        var pack = HostSource.ReadRelative("Hrot", "Engine", "Hrot.Presentation", "ScenarioEditor", "Map", "MapInteractionPack.cs");
+
+        Assert.Contains("authoringRef?.Spawn?.ArmPlacement()", pack);
+        Assert.DoesNotMatch(@"authoringRef\?\.Spawn\?\.StartPlacementMode", pack);
+    }
+
     /// <summary>
     /// ⭐⭐⭐ <b><c>UXI-07</c> step 4a — a host that builds a <c>ScenarioSpawnAdapter</c> must HAND IT THE
     /// ARBITER.</b> 📄 <c>UX_Feature_Tool_Model.md</c> §4.9.
@@ -861,12 +876,13 @@ public sealed class TheViewportInteractionIsSharedTests
     /// <para>⚠ A behavioural rail cannot see this: it constructs its own adapter and passes whatever it
     /// likes. The failure is an OMISSION at a root, so only a source scan reaches it.</para>
     /// </summary>
-    [Theory]
-    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
-    [InlineData("Hrot.CGF",    "CgfSubsystem.cs")]
-    public void EveryRootThatBuildsASpawnAdapterHandsItTheArbiter(string project, string file)
+    /// <para>⭐ <c>CE-1017</c> — the hosts no longer construct the adapter: the map pack's <c>EntityAuthoring</c> is the
+    /// ONE construction site for every host, so the scan moved there (and a behavioural twin,
+    /// <c>EntityAuthoringPackTests.CE1017_TheSharedAdapter_IsHandedTheMapsArbiter</c>, checks the constructed object).</para>
+    [Fact]
+    public void TheOneSpawnAdapterConstructionHandsItTheArbiter()
     {
-        var src = ReadHostSource(project, file);
+        var src = HostSource.ReadRelative("Hrot", "Engine", "Hrot.Presentation", "AddEntity", "EntityAuthoring.cs");
 
         // ⚠⚠ Tolerant of ANY qualification. 🔴 The D' rail was blind for a whole issue because it matched
         //    a bare "new EntityRotatorGizmo" while a host wrote the fully-qualified form — and CGF writes
@@ -876,12 +892,12 @@ public sealed class TheViewportInteractionIsSharedTests
             System.Text.RegularExpressions.RegexOptions.Singleline);
 
         var m = ctor.Match(src);
-        Assert.True(m.Success, $"{file} no longer constructs a ScenarioSpawnAdapter — if that is deliberate, "
+        Assert.True(m.Success, "EntityAuthoring.cs no longer constructs a ScenarioSpawnAdapter — if that is deliberate, "
                              + "retire this rail rather than weakening it.");
 
         Assert.True(
-            m.Groups["args"].Value.Contains("ToolController", StringComparison.Ordinal),
-            $"{file} constructs a ScenarioSpawnAdapter without passing its ToolController. Entity "
+            m.Groups["args"].Value.TrimEnd().EndsWith("_tools", StringComparison.Ordinal),
+            $"EntityAuthoring.cs constructs a ScenarioSpawnAdapter without passing its ToolController. Entity "
           + "placement, area authoring and route authoring will then arm directly on GlobalGizmoManager, "
           + "bypassing the arbiter — the very bypass UXI-07 step 4a removes (section 4.9).");
     }
@@ -944,7 +960,11 @@ public sealed class TheViewportInteractionIsSharedTests
 
         Assert.True(map.Tools.Activate(ScenarioToolIds.Spawn));
         Assert.True(placed);                       // 🔴 the delegate actually ran …
-        Assert.Empty(reports);                     // 🔴 … and nothing cried "no spawn adapter"
+        // 🔴 … and nothing cried "no spawn adapter". ⭐ CE-3123 — the same channel now also names reflected gizmo projectors
+        //   whose constructor service this context lacks (no geo transform here ⇒ the mission gizmo); those are expected,
+        //   so the rail asserts every report IS one of them and none is about spawning.
+        Assert.All(reports, r => Assert.StartsWith("gizmo '", r));
+        Assert.DoesNotContain(reports, r => r.Contains("spawn", System.StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

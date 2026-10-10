@@ -4,14 +4,18 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Toolkit.Spatial.Eqs
 {
     /// <summary>
     /// ⭐ How exposed each candidate is to the threats the self KNOWS of (docs/designs/eqs-2/EQS_Design_v1.3_final.md §5.4,
-    /// §19.5). Known threats = the self's <see cref="SensorContactList"/> entries in state <see cref="SensorContactState.Acquired"/>
-    /// whose force is in <see cref="EqsSensor.FactionFilter"/> (0 = every contact) — perception's tracks, which live on the
-    /// Muscle where this runs.
+    /// §19.5). Known threats = the <see cref="SensorContactList"/> entries in state <see cref="SensorContactState.Acquired"/> whose
+    /// force is in <see cref="EqsSensor.FactionFilter"/> (0 = every contact), from the self's PERCEPTION SENSOR CHILDREN — ⭐
+    /// <c>CE-3136</c> P-4 (peek-and-fire D6): <c>CE-3038</c> moved the lists there (one per sensor, written by the memory stage),
+    /// so the unit-level list this read was never filled and the test was inert. The children's lists live only on the node that
+    /// SOLVES them; the Brain keeps a unit's sensors on one solver (R-239), so they are here. A legacy unit-level list still
+    /// counts. One threat seen by two sensors counts once.
     /// <list type="bullet">
     ///   <item>Score += <see cref="Weight"/> × (1 − exposed / threats): a point no threat can see scores the full weight.</item>
     ///   <item>Flag bit 4 <c>IsInCover</c> = hidden from every known threat; bit 5 <c>IsExposedFromKnownThreat</c> = seen by at
@@ -41,24 +45,19 @@ namespace Fdp.Toolkit.Spatial.Eqs
             var los = EqsTerrainSight.Sight(view, _los);
             if (los == null) return;
             var self = EqsContext.Self(view, observer, sensor);
-            if (self.IsNull || !view.HasComponent<SensorContactList>(self)) return;
+            if (self.IsNull) return;
 
             Span<Vector3> eyes = stackalloc Vector3[PerceptionConstants.MaxTrackedTargets];
+            Span<long> ids = stackalloc long[PerceptionConstants.MaxTrackedTargets];
             int threats = 0;
-            ref readonly var contacts = ref view.GetComponentRO<SensorContactList>(self);
-            for (int i = 0; i < contacts.Count && threats < eyes.Length; i++)
-            {
-                if (contacts.State[i] != (byte)SensorContactState.Acquired) continue;
-                var t = new Entity((ulong)contacts.EntityIds[i]);
-                if (!view.IsAlive(t) || !view.HasComponent<SimTransform>(t)) continue;
-                if (sensor.FactionFilter != 0)
-                {
-                    if (!view.HasComponent<EntityInfo>(t)) continue;
-                    if ((sensor.FactionFilter & (1u << (int)view.GetComponentRO<EntityInfo>(t).ForceId)) == 0) continue;
-                }
-                eyes[threats++] = view.GetComponentRO<SimTransform>(t).Position
-                                + new Vector3(0, 0, EqsTerrainSight.Mount(view, t).Standing);
-            }
+            if (view.HasComponent<SensorContactList>(self))
+                Collect(view, in view.GetComponentRO<SensorContactList>(self), sensor.FactionFilter, eyes, ids, ref threats);
+            bool parts = view is not EntityRepository repo
+                         || (repo.IsComponentTypeRegistered<PartMetadata>() && repo.IsComponentTypeRegistered<SensorContactList>());
+            if (parts)
+                foreach (var child in view.Query().With<PartMetadata>().With<SensorContactList>().Build())
+                    if (view.GetComponentRO<PartMetadata>(child).ParentEntity.Equals(self))
+                        Collect(view, in view.GetComponentRO<SensorContactList>(child), sensor.FactionFilter, eyes, ids, ref threats);
             if (threats == 0) return;
 
             float crouched = EqsTerrainSight.Mount(view, self).Crouched;
@@ -75,6 +74,28 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 cand.FlagsMeaningful |= (short)((1 << 4) | (1 << 5));
                 if (exposed == 0) cand.Flags |= (short)(1 << 4);
                 else              cand.Flags |= (short)(1 << 5);
+            }
+        }
+
+        /// <summary>Adds the acquired, live, faction-matching contacts of one list that are not yet counted.</summary>
+        private static unsafe void Collect(ISimulationView view, in SensorContactList contacts, uint factionFilter,
+            Span<Vector3> eyes, Span<long> ids, ref int threats)
+        {
+            for (int i = 0; i < contacts.Count && threats < eyes.Length; i++)
+            {
+                if (contacts.State[i] != (byte)SensorContactState.Acquired) continue;
+                long id = contacts.EntityIds[i];
+                if (ids.Slice(0, threats).Contains(id)) continue;
+                var t = new Entity((ulong)id);
+                if (!view.IsAlive(t) || !view.HasComponent<SimTransform>(t)) continue;
+                if (factionFilter != 0)
+                {
+                    if (!view.HasComponent<EntityInfo>(t)) continue;
+                    if ((factionFilter & (1u << (int)view.GetComponentRO<EntityInfo>(t).ForceId)) == 0) continue;
+                }
+                ids[threats] = id;
+                eyes[threats++] = view.GetComponentRO<SimTransform>(t).Position
+                                + new Vector3(0, 0, EqsTerrainSight.Mount(view, t).Standing);
             }
         }
     }

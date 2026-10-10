@@ -22,7 +22,7 @@ public class CgfSubsystemTests : IDisposable
     private readonly CgfSubsystem _sut = new(new NedNetworkFactory(
         participant:  null,
         entityMap:    new NetworkEntityMap(),
-        geoTransform: HrotEnvironment.CreateGeoTransform(),
+        geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
         eventBus:     new FdpEventBus(),
         localNodeId:  0,
         role:         NodeRole.None));  // Role gets overridden by ConfigureForNode(_context, Brain)

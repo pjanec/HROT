@@ -8,6 +8,10 @@ known-rot: none.
 known-conflict:
   - docs/DESIGN_Decision_Layer.md §3 INVENTORY says five decisions are registered at CGF start — four are (ManeuverSelect has no [UtilityDecision]); its STATUS line still calls §3.3 "not started" while its body records CE-2067…2073 BUILT. Noted there, 2026-10-05.
 related-designs:
+  - docs/DESIGN_Terrain_Height.md — TH-G proposes basic-desert's ridge and wadi as a real height grid instead of ramps
+    (the ramp workaround existed only because no heightfield did); the call stays with this programme's lane.
+  - docs/designs/navig-2/Navigation_Design_v2_0.md §5.2a — CE-3128 (R-231): the danger classifier moves onto the road GRAPH (D7) and the watched route onto the shared RoutePlanner (D2), so it watches the route the unit drives
+  - DESIGN_Terrain_Combat_Tuning.md — premise tables + the same two-forms rule for building/combat demos
   - docs/blueprints/Architect_Question_85_Hit_Chance.md — OWNS hit chance (does the round hit at all), the term BEFORE §9's armour model; proposes the same one-function-for-shot-and-AI shape (R-212 A1).
   - docs/DESIGN_Decision_Layer.md — OWNS the utility step (ChooseOption / IsOption / RankCandidates, §3.3) and CombatPosture (§3.3b); this document only DEMONSTRATES them and lists what is missing to do so.
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — OWNS the scoring engine, inputs, the starter decisions (§11.4), the trace (§9) and group fire coordination (§10).
@@ -863,6 +867,10 @@ H1/H2 need nothing at all and can start at once; the backend merges `behaviors` 
 
 ### 10.7 B3 + B4 — the `DangerAlongRoute` solve, its transport, and the Brain-side rating *(`2026-10-06`; `build-state: BUILT`, §10.7a)*
 
+> ⚠ **`2026-10-08` — CE-3128 (R-231) will change two things here** ([Nav v2 §5.2a](designs/navig-2/Navigation_Design_v2_0.md) D2/D7):
+> the classifier reads the road GRAPH (segment bands, junction nodes) instead of `surface: road` polygons, and the route comes from the
+> shared `RoutePlanner` with the unit's `RoadUse` instead of a navmesh-only re-plan. The transport and the Brain-side rating are unchanged.
+
 📐 **Measured** (a read-only sweep, every row `file:line` in the batch notes): ① a SimHost in BOTH cluster forms carries
 `MuscleGround | Perception | NavigationSolver` (`SimHostApp.cs:186`) — so "the node holding the navmesh" IS a Perception
 node; ⚠ a Stride node is `MuscleGround | Perception` only (`StrideCapabilities.cs:64`) ⇒ the picker must ask for BOTH
@@ -1224,7 +1232,7 @@ T-72 loses health (only a TOW penetrates its 500 front armour), the insurgent is
 | D1–D5 | ✅ as drawn: `SquadPerceptionMergeSystem.Run` returns whether it merged; `ThreatMatrixAssignmentSystem.Run` reads pool ∪ leader memory (stack, ≤ 16, heard skipped); `SquadCoordinationSystem(gate, fire)` runs it after a merge; `CgfLogicPack` passes it; `GET /entities/{id}/squad` |
 | acceptance ①–⑤ | rails `StarterPackIntegrationTests.CE3088_*` (3), `SquadCoordinationSystemTests.CE3088_*_DoesNotAllocate`, `CgfLogicPackTests` (`FireAssignment` not null) |
 | ⑥ U6 `ua-fire-distribution` live | ✅ **PASS ×3** for the distribution: four members assigned, spread over 2 of 3 targets (East ×2, West ×2), no target over 2, every member fires. ⚠ **the hurt-member step is REPORTED, not asserted** — finding below |
-| ⚠ **finding `CE-3090`** *(the behaviors lane's topic)* | on OPEN GROUND a hurt member has NO defensive posture: TakeCover / Flee score through `EqsTopScore(FindCoverFromTarget / FindSafeRetreatPoint)`, which read 0 on `basic-desert` ⇒ at 10 HP: `AdvanceAndAttack 0.386, Hold 0.18, Suppress 0.08, TakeCover 0, Flee 0`. The §10.3 veto is railed at unit level and unreachable where there is no cover |
+| ⚠ **finding `CE-3090`** *(the behaviors lane's topic)* | on OPEN GROUND a hurt member has NO defensive posture: TakeCover / Flee score through `EqsTopScore(FindCoverFromTarget / FindSafeRetreatPoint)`, which read 0 on `basic-desert` ⇒ at 10 HP: `AdvanceAndAttack 0.386, Hold 0.18, Suppress 0.08, TakeCover 0, Flee 0`. The §10.3 veto is railed at unit level and unreachable where there is no cover · ✅ **FIXED `2026-10-07` (behaviors):** a wounded member with no cover now picks `HoldProne` (stop + return fire) and only a unit at ≥ half health flees — [Decision Layer §3.3f](DESIGN_Decision_Layer.md) |
 | scenario tuning | the riflemen advance at 0.5 m/s on the hostile line (an objective 5 m ahead ended the posture at once); the hostiles have 600 HP (with 100 the squad killed them in seconds and a hurt member rightly kept advancing — nobody left to flee) |
 
 ### 12.1 ✅ AS-BUILT — G7 (`CE-3089`), `2026-10-06`

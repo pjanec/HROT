@@ -48,6 +48,7 @@ known-rot: R1's original argument ("a translator cannot express its case through
   in R1 as the weaker guarantee it now is.
 known-conflict: none.
 related-designs:
+  - DESIGN_Add_Entity_Picker.md — the map "Add Entity" picker; its first UI caller of RequestEntityCreation
   - DESIGN_Entity_Creation_Unification.md — owns the PIPELINE and the owner TABLE this affordance calls
     into (the pack, the routing, D1's forwarder). THIS doc owns only the CALLER-side surface, and
     supersedes that one's §3.4 two-method API shape.

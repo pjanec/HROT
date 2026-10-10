@@ -266,7 +266,7 @@ public class ScenarioEditorModule : IEcsModule
 
 Run from the workspace root:
 ```
-dotnet sln IOS-IG-SimHost.sln add Hrot.ScenarioEditor/Hrot.ScenarioEditor.csproj
+dotnet sln HROT.sln add Hrot.ScenarioEditor/Hrot.ScenarioEditor.csproj
 ```
 
 ### 2.4 — Success Criteria (PACK2-E001)
@@ -380,7 +380,7 @@ internal DestroyEntityCommandEgressTranslator(
 Before writing the batch report, confirm all of the following:
 
 ### Build
-- [ ] `dotnet build IOS-IG-SimHost.sln --no-incremental` → **0 errors**
+- [ ] `dotnet build HROT.sln --no-incremental` → **0 errors**
 
 ### Tests
 - [ ] `dotnet test Hrot.Map.Common.Tests --no-build` → all pass (≥ 97 tests including 3 new)
@@ -407,7 +407,7 @@ Before writing the batch report, confirm all of the following:
 | `Hrot.ScenarioEditor/ScenarioEditorModule.cs` | New |
 | `Hrot.ScenarioEditor.Tests/Hrot.ScenarioEditor.Tests.csproj` | New |
 | `Hrot.ScenarioEditor.Tests/ScenarioEditorModuleTests.cs` | New |
-| `IOS-IG-SimHost.sln` | Add Hrot.ScenarioEditor + Tests projects |
+| `HROT.sln` | Add Hrot.ScenarioEditor + Tests projects |
 
 > The `.dev/packs-2/` batch-tracking files are created/updated by the dev lead, not by you.
 

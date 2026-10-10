@@ -705,5 +705,30 @@ namespace Fdp.Toolkit.Tests.Utility
 
             Assert.Equal(StandardInputIds.ThreatInSight, (ushort)(Fnv1a32("ThreatInSight") & 0xFFFF));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2120</c> (R-214) — a KILLED contact (entity kept, Health 0), remembered fresh and held by sight, is neither a
+        /// live target nor a threat in sight ⇒ the attack approach does not flank a corpse. Alive again ⇒ both read 1.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2120_AKilledContact_IsNoLiveTarget_AndNoThreatInSight()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<ActiveSensorTracks>()) repo.RegisterComponent<ActiveSensorTracks>();
+            var self    = _world.SpawnAgent(1f, 1f);
+            var contact = repo.CreateEntity();
+            _world.SeedContact(self, contact, 50f, 1f, 0f, true);                          // fresh, Health 0 — killed
+            var tracks = new ActiveSensorTracks { Count = 1 };
+            tracks.EntityIds[0] = (long)contact.PackedValue;
+            tracks.Modalities[0] = (byte)SensorModality.Visual;
+            repo.AddComponent(self, tracks);
+
+            Assert.Equal(0f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+            Assert.Equal(0f, StandardInputs.ThreatInSight(MakeCtx(self)));
+
+            repo.GetComponentRW<Health>(contact).Current = 10f;                            // alive
+            Assert.Equal(1f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+            Assert.Equal(1f, StandardInputs.ThreatInSight(MakeCtx(self)));
+        }
     }
 }

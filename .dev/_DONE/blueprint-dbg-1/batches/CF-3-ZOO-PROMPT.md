@@ -115,7 +115,7 @@ Run `grep -r _diagLogPath` — must return nothing.
 
 ## SUCCESS CONDITIONS (must all hold)
 
-1. `dotnet build IOS-IG-SimHost.sln -c Debug` → **0 errors** (close editor first; it locks DLLs)
+1. `dotnet build HROT.sln -c Debug` → **0 errors** (close editor first; it locks DLLs)
 2. `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug` → **CF-3 fixes the 2 ProbeFormatIntegrationTests**
    (they now PASS). **0 new failures** vs the documented pre-existing baseline (22 failures).
 3. Every changed test listed by name with old→new expectation in the report.

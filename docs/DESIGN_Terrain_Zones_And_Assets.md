@@ -21,6 +21,8 @@ known-rot: FOUR things the BUILD measured false — three folded into §10 plus 
 known-conflict: none. This document REPLACES the zone half of docs/designs/packs-3/DESIGN.md
   (§2.B/§2.C/§2.E), which is already marked superseded there.
 related-designs:
+  - DESIGN_Geo_Origin.md — CE-3126: the terrain file carries the geo origin; TerrainResidency.Commit sets it on every node.
+  - DESIGN_Building_Interiors.md — enterable buildings as terrain content (parse-time macro)
   - docs/DESIGN_Terrain_World.md — ⭐ owns what a terrain CONTAINS (the GeoJSON world file, the TerrainWorld model, and the navmesh/height/LOS/map derived from it); fills this doc's §7 POSTPONED content for SimHost.
   - docs/blueprints/PLAN_Terrain_Zones_Build.md — the BUILD BREAKDOWN of this design (stages A-G,
     success conditions, and the UNDER-SPECIFIED register). It references these chapters; it restates none.

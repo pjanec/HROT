@@ -509,13 +509,14 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
             //   ⭐ Ordering carries itself: [UpdateAfter(GhostCreationSystem)] on the system.
             context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
+            context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
 
             // ⭐⭐ The S2b habit: make an omission loud. Every one of the five defects behind this design
             //   was silent.
             var unserviceable = creation.Unserviceable(new object[]
             {
                 creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-                creation.PromotionSystem,
+                creation.PromotionSystem, creation.ObstacleBakeSystem,
             }.Concat(creation.NetworkSystems));
             if (unserviceable.Length > 0)
                 FdpLog<StrideNodeBootstrapper>.Warn(unserviceable);

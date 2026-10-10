@@ -1,0 +1,81 @@
+{
+  "$comment": "Tuning T-2 (docs/DESIGN_Terrain_Combat_Tuning.md §3 layer 2) — every bt-range demo's PREMISES, as data beside the terrain they run on. DemoPremisesTests (Hrot.Core.Tests) evaluates each row against the shipped TKB, the generated reference library, the material library and THIS terrain's geometry, and requires a MARGIN from every threshold: a fire crossing's penetration / resistance must be ≤ 0.7 (stops) or ≥ 1.3 (passes) — never inside the 0.8–1.2 ramp ± 0.1; sight must be ≥ 0.6 or ≤ 0.4 (threshold 0.5 ± 0.1). A tuning change that breaks a demo fails HERE, naming the demo, the row and the numbers. Rounds: { tkbType, mount } = what that catalog unit fires (ParameterResolver) · { ammo, weapon } = the reference library's pair · { penetrationMm } = a literal. Rows: kind fire|sight, with from/to (a trace through this terrain) or material (+ thicknessM / count).",
+  "demos": {
+    "bt-wall-vs-fence": {
+      "summary": "a rifleman's rounds at a target behind the brick panel do nothing; behind the chain-link panel they hit",
+      "rounds": { "rifle": { "tkbType": 2002, "mount": 0 } },
+      "premises": [
+        { "id": "the rifle round is stopped by the brick panel", "kind": "fire", "round": "rifle", "from": [29, 30, 1.6], "to": [29, 50, 1.6], "expect": "stops" },
+        { "id": "the rifle round passes the chain-link panel", "kind": "fire", "round": "rifle", "from": [59, 30, 1.6], "to": [59, 50, 1.6], "expect": "passes" },
+        { "id": "the target is seen through the chain-link", "kind": "sight", "from": [59, 30, 1.6], "to": [59, 50, 1.6], "expect": "seesThrough" },
+        { "id": "the target is not seen through the brick", "kind": "sight", "from": [29, 30, 1.6], "to": [29, 50, 1.6], "expect": "blocks" }
+      ]
+    },
+    "bt-weapon-pair": {
+      "summary": "the steel plate stops the rifle and is defeated by the heavy machine gun's AP round (two LAUNCHER × AMMO pairs against one plate)",
+      "rounds": {
+        "rifle": { "ammo": "5.56x45 ball", "weapon": "M4_Carbine" },
+        "hmg-ap": { "ammo": "12.7x99 AP", "weapon": "M2HB" }
+      },
+      "premises": [
+        { "id": "the steel plate stops the 5.56 ball", "kind": "fire", "round": "rifle", "from": [134, 30, 1.6], "to": [134, 50, 1.6], "expect": "stops" },
+        { "id": "the 12.7 AP defeats the steel plate", "kind": "fire", "round": "hmg-ap", "from": [134, 30, 1.6], "to": [134, 50, 1.6], "expect": "passes" }
+      ]
+    },
+    "bt-window": {
+      "summary": "an observer outside House A sees the target through the window, not through the wall beside it, and the round goes through the window",
+      "rounds": { "rifle": { "tkbType": 2002, "mount": 0 } },
+      "premises": [
+        { "id": "the window is clear for sight", "kind": "sight", "from": [102.1, 90, 1.6], "to": [102.1, 104, 1.6], "expect": "seesThrough" },
+        { "id": "the wall beside the window blocks sight", "kind": "sight", "from": [103.5, 90, 1.6], "to": [103.5, 104, 1.6], "expect": "blocks" },
+        { "id": "the round goes through the window", "kind": "fire", "round": "rifle", "from": [102.1, 90, 1.6], "to": [102.1, 104, 1.6], "expect": "passes" },
+        { "id": "the brick wall beside it stops the round", "kind": "fire", "round": "rifle", "from": [103.5, 90, 1.6], "to": [103.5, 104, 1.6], "expect": "stops" }
+      ]
+    },
+    "bt-cover": {
+      "summary": "the sandbag wall stops rifle fire; the hedge hides but does not protect against an HMG",
+      "rounds": {
+        "rifle": { "tkbType": 2002, "mount": 0 },
+        "hmg-ap": { "ammo": "12.7x99 AP", "weapon": "M2HB" }
+      },
+      "premises": [
+        { "id": "sandbags stop the rifle", "kind": "fire", "round": "rifle", "from": [149, 30, 0.8], "to": [149, 50, 0.8], "expect": "stops" },
+        { "id": "the hedge hides", "kind": "sight", "from": [89, 30, 1.6], "to": [89, 50, 1.6], "expect": "blocks" },
+        { "id": "the 12.7 AP goes through the hedge", "kind": "fire", "round": "hmg-ap", "from": [89, 30, 1.6], "to": [89, 50, 1.6], "expect": "passes" }
+      ]
+    },
+    "bt-grenade-posture": {
+      "summary": "CE-1032 — an M67 bursts 5 m in front of the 0.5 m Low Wall: the STANDING man 3 m behind it takes fragments over the wall (chest and head clear it), the PRONE man beside him takes none",
+      "rounds": {
+        "m67": { "fragmentsOf": { "tkbType": 2004, "mount": 1 } }
+      },
+      "premises": [
+        { "id": "a fragment to the prone man's hip is stopped by the Low Wall", "kind": "fire", "round": "m67", "from": [113, 35, 0.1], "to": [113, 43, 0.15], "expect": "stops" },
+        { "id": "a fragment to the prone man's back is stopped by the Low Wall", "kind": "fire", "round": "m67", "from": [110, 35, 0.1], "to": [113, 43, 0.3], "expect": "stops" },
+        { "id": "the standing man's chest clears the Low Wall from the burst", "kind": "sight", "from": [110, 35, 0.1], "to": [107, 43, 0.9], "expect": "seesThrough" },
+        { "id": "the standing man's head clears the Low Wall from the burst", "kind": "sight", "from": [110, 35, 0.1], "to": [107, 43, 1.6], "expect": "seesThrough" }
+      ]
+    },
+    "bt-mortar-roof": {
+      "summary": "CE-1032 — an 81 mm bomb bursts on House A's roof: the man downstairs is spared (the slabs stop fragments and most of the blast), the man in the open courtyard where the second bomb lands is not",
+      "rounds": {
+        "81mm": { "fragmentsOf": { "tkbType": 2005, "mount": 0 } }
+      },
+      "premises": [
+        { "id": "a fragment from the roof burst is stopped by the roof slab", "kind": "fire", "round": "81mm", "from": [105, 104, 6.1], "to": [103, 104, 0.9], "expect": "stops" },
+        { "id": "a fragment from the courtyard burst reaches the man in the open", "kind": "fire", "round": "81mm", "from": [95, 92, 0.1], "to": [95, 95, 0.9], "expect": "passes" }
+      ]
+    },
+    "bt-window-duel": {
+      "summary": "CE-3136 P-8 — A upstairs in House A at the two south windows (firing points 0.9 m inside, crouched eye 4.1 m), B in the street south of it behind a van: both windows see B's step-out point and are seen from it, a rifle round goes through the window, and the brick between the windows hides. The vans are ENTITIES (static obstacles, R-243), so their cover is railed by StaticObstacleTests, not here",
+      "rounds": { "rifle": { "tkbType": 2002, "mount": 0 } },
+      "premises": [
+        { "id": "the west upstairs window sees B's step-out point", "kind": "sight", "from": [102.1, 100.9, 4.1], "to": [107.5, 81.0, 1.6], "expect": "seesThrough" },
+        { "id": "the east upstairs window sees B's step-out point", "kind": "sight", "from": [107.1, 100.9, 4.1], "to": [107.5, 81.0, 1.6], "expect": "seesThrough" },
+        { "id": "B at the step-out point sees A at the east window", "kind": "sight", "from": [107.5, 81.0, 1.7], "to": [107.1, 100.9, 4.1], "expect": "seesThrough" },
+        { "id": "a rifle round from B goes through the east window", "kind": "fire", "round": "rifle", "from": [107.5, 81.0, 1.7], "to": [107.1, 100.9, 4.1], "expect": "passes" },
+        { "id": "the brick between the upstairs windows hides", "kind": "sight", "from": [104.6, 81.0, 1.7], "to": [104.6, 100.9, 4.1], "expect": "blocks" }
+      ]
+    }
+  }
+}

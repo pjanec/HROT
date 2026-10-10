@@ -59,5 +59,29 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// Defaults to <c>0</c> for legacy recordings that pre-date federation support.
         /// </summary>
         public int NodeId { get; set; } = 0;
+
+        /// <summary>
+        /// ⭐ <c>CE-3126</c> (R-229) — the terrain resident while recording (the name the scenario resolved it by), so a
+        /// replay can load it again. Empty when no terrain was loaded, and for recordings that pre-date this field.
+        /// 📄 docs/DESIGN_Geo_Origin.md §2 E.
+        /// </summary>
+        public string TerrainName { get; set; } = "";
+
+        /// <summary>
+        /// ⭐ <c>CE-3126</c> (R-229) — the geodetic origin the recording node converted with. 🔒 User: <i>"Origin can be saved in
+        /// recording metadata in case terrain with remembered name no longer exists"</i> — so a replay places the recording
+        /// where it was recorded even when the terrain is gone or its origin was edited since. <c>null</c> for recordings that
+        /// pre-date this field. 📄 docs/DESIGN_Geo_Origin.md §2 E/F.
+        /// </summary>
+        public GeoOriginRecord? GeoOrigin { get; set; }
+    }
+
+    /// <summary>A geodetic point — latitude and longitude in degrees, altitude in metres — as written into a recording.</summary>
+    [Serializable]
+    public sealed class GeoOriginRecord
+    {
+        public double Lat { get; set; }
+        public double Lon { get; set; }
+        public double Alt { get; set; }
     }
 }

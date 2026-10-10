@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using CarKinem.Road;
 using Fdp.Core;
@@ -220,19 +221,29 @@ public sealed class EditorZoneAuthoringSystemTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐ RE-HOMED from <c>SpawnObstacle_PublishCommand_EntityWithZoneMembershipCreated</c> (F1/F3).
+    /// ⭐ RE-HOMED from <c>SpawnObstacle_PublishCommand_EntityWithZoneMembershipCreated</c> (F1/F3), and again by
+    /// <c>CE-3141</c> (P-7a, R-242): the click no longer creates a bare collider entity locally (which the scenario
+    /// extractor could not save, and which nothing else respected) — it REQUESTS a typed <c>Concrete block</c>
+    /// (<see cref="Hrot.Map.Common.TkbEntityTypes.Obstacle_ConcreteBlock"/>) through the entity-creation pack, sized
+    /// 2r × 2r × 1 m by a per-instance <see cref="Fdp.Toolkit.Terrain.ObstacleShape"/>. The obstacle translator, the
+    /// lifecycle and the terrain bake do the rest (rails: <c>StaticObstacleTests</c>, <c>StaticObstacleBakeTests</c>).
     ///
-    /// <para>The old test asserted two things at once: that the command creates an ENTITY, and that the
-    /// entity carries a <c>ZoneMembership</c> naming its zone. The second half is retired — zones and
-    /// obstacles are both entities now, so membership is geometry rather than a stored name that can
-    /// drift from the shapes. ⭐ The FIRST half is the live authoring affordance and is kept, restated on
-    /// what the entity actually carries.</para>
-    ///
-    /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1c, §5.1, §6.
+    /// 📄 docs/DESIGN_Peek_And_Fire.md §9 (O4); docs/DESIGN_Terrain_Zones_And_Assets.md §2.1c, §5.1, §6.
     /// </summary>
     [Fact]
-    public void SpawnObstacle_PublishCommand_CreatesAPlacedCollidableEntity()
+    public void SpawnObstacle_PublishCommand_RequestsATypedConcreteBlock_SizedByTheRadius()
     {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        var creation = Hrot.Common.EntityCreation.EntityCreationPack.Build(new Hrot.Common.EntityCreation.EntityCreationContext
+        {
+            World       = _world,
+            EntityMap   = new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
+            TkbDb       = tkb,
+            IdAllocator = new Hrot.Core.Network.SequentialIdAllocator(),
+            Elm         = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(tkb, Array.Empty<int>()),
+            NodeId      = 7,
+        });
+
         _world.Bus.PublishManaged(new SpawnZoneObstacleCommand
         {
             ZoneName = "TestZone",
@@ -240,20 +251,32 @@ public sealed class EditorZoneAuthoringSystemTests : IDisposable
             Radius   = 5f,
         });
 
-        var sys = new EditorZoneAuthoringSystem();
+        var sys = new EditorZoneAuthoringSystem(() => creation);
         _world.Bus.SwapBuffers();
         sys.Execute(_world, 0f);
 
-        var query = _world.Query().With<SimTransform>().With<PhysicsCollider>().Build();
-        int count = 0;
-        foreach (var e in query)
-        {
-            count++;
-            Assert.Equal(50f, _world.GetComponent<SimTransform>(e).Position.X);
-            Assert.Equal(5f,  _world.GetComponent<PhysicsCollider>(e).Radius);
-        }
+        var requests = new System.Collections.Generic.List<Hrot.Core.Network.EntityCreationRequest>();
+        creation.LocalRequests.ProcessRequests(requests.Add);
+        var request = Assert.Single(requests);
+        Assert.Equal(Hrot.Map.Common.TkbEntityTypes.Obstacle_ConcreteBlock, request.TkbType);
+        Assert.NotNull(tkb.TryGetByType(request.TkbType, out var template) ? template : null);
+        Assert.Equal(50f, Assert.Single(request.InitialComponents!.OfType<SimTransform>()).Position.X);
+        var shape = Assert.Single(request.InitialComponents!.OfType<Fdp.Toolkit.Terrain.ObstacleShape>());
+        Assert.Equal(10f, shape.Length);
+        Assert.Equal(10f, shape.Width);
+    }
 
-        Assert.Equal(1, count);
+    /// <summary>⭐ <c>CE-3141</c> — a host with no creation pack drops the click LOUDLY (a warning), and creates nothing.</summary>
+    [Fact]
+    public void SpawnObstacle_WithNoCreationPack_CreatesNothing()
+    {
+        _world.Bus.PublishManaged(new SpawnZoneObstacleCommand { ZoneName = "TestZone", Position = new Vector2(50f, 50f), Radius = 5f });
+        var sys = new EditorZoneAuthoringSystem();
+        _world.Bus.SwapBuffers();
+        sys.Execute(_world, 0f);
+        int count = 0;
+        foreach (var _ in _world.Query().With<SimTransform>().Build()) count++;
+        Assert.Equal(0, count);
     }
 
     // ⛔ DELETED (F1/F3): `UpdateZoneConfig_WithValidJsonPath_SetsSingletonTrue`.

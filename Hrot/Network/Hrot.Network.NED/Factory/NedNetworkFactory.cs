@@ -87,6 +87,9 @@ public sealed class NedNetworkFactory : INetworkFactory
     public DdsParticipant? Participant => _participant;
 
     /// <inheritdoc/>
+    public IGeographicTransform? GeoTransform => _geoTransform;   // CE-3126 — the node adopts it as its one transform
+
+    /// <inheritdoc/>
     public IReplicationModule CreateReplicationModule()
         => new NedReplicationModule(
                participant:       _participant,

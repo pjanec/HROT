@@ -15,8 +15,8 @@ Read these files FIRST before writing any code:
 - Task details: `.dev/commander-subordinates/TASK-DETAIL.md` — sections CT-0, CS007, CS016, CS012, CS022
 - Existing code baseline: BATCH-01 is fully committed. The code on `main` is the starting point.
 
-**Build:** `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet`  
-**Tests:** `dotnet test IOS-IG-SimHost.sln --no-build --nologo`  
+**Build:** `dotnet build HROT.sln --no-restore -v quiet`  
+**Tests:** `dotnet test HROT.sln --no-build --nologo`  
 **Pre-existing failures:** 2 in `Hrot.SimHost.Tests/MissionPlanTranslatorTests`, 22 in `Fdp.Toolkits.Tests`. Ignore these; do not introduce new ones.
 
 ---

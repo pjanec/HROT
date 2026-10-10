@@ -36,7 +36,7 @@ Use the real model API to build assets (see `Host/BTreeDynamicCatalogTests.cs` f
 (Do NOT duplicate the existing `SupportedKind`/wrong-kind tests.)
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings in touched projects.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings in touched projects.
 - [ ] `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **Failed: 0** (incl. the new validator tests).
 - [ ] `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests` — **Failed: 0** (DiagnosticsWindow tests still green).
 - [ ] BTree registrar now constructed with a non-empty `validators:` list (BTreeAssetValidator).

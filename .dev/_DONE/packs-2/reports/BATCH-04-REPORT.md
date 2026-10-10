@@ -24,7 +24,7 @@
 | PACK2-E003: Update `using Hrot.IG.Adapters` in `SelectionRenderSystem.cs` | ✅ Complete | |
 | PACK2-E003: Update consumers in `Hrot.IG` and `Hrot.IG.Tests` | ✅ Complete | IgApplication.cs + 6 test files |
 | PACK2-E003: Write `RenderLayerPresenceTests.cs` | ✅ Complete | 3 new tests |
-| Build `IOS-IG-SimHost.sln --no-incremental` → 0 errors | ✅ Pass | |
+| Build `HROT.sln --no-incremental` → 0 errors | ✅ Pass | |
 
 ---
 

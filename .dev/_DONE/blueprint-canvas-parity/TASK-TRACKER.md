@@ -21,4 +21,4 @@ Phases (impact order; deps: C → B → A → D → E → F → G → H → I). 
 ## Guardrails (every batch)
 - [ ] Byte-stability test over all `.bp.json` fixtures (load→serialize identical)
 - [ ] Compiler golden/snapshot suite unchanged (no drift)
-- [ ] `dotnet build IOS-IG-SimHost.sln` 0/0; GizmoMap.Contracts stays 0.2.2; Hrot.IG/DDS untouched
+- [ ] `dotnet build HROT.sln` 0/0; GizmoMap.Contracts stays 0.2.2; Hrot.IG/DDS untouched

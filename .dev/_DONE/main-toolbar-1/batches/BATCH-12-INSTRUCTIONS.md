@@ -75,7 +75,7 @@ Extend the panel (logic separated from ImGui draw; keep everything testable):
   warnings (TreatWarningsAsErrors).
 
 ## Definition of done (all required)
-- `dotnet build IOS-IG-SimHost.sln` green (zero new warnings).
+- `dotnet build HROT.sln` green (zero new warnings).
 - Run WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS`. New tests pass UNFILTERED; existing
   `AssetBrowserPanelTests` (BATCH-11) still pass. 0-failed with the Stability filter for
   `Hrot.Editor.AiShared.Tests` + the hot suites `Fdp.Toolkits.Tests` + `Hrot.SimHost.Tests`

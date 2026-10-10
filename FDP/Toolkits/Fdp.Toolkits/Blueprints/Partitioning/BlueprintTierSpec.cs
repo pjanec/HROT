@@ -53,6 +53,8 @@ public sealed unsafe class BlueprintTierSpec
     private readonly Func<EntityRepository, IntPtr>         _ensureSingleton;
     private readonly Func<ISimulationView, Entity, bool>    _viewHas;
     private readonly ViewMemoryResolver                     _viewMemoryReadOnly;
+    private readonly Func<int>                              _componentId;
+    private int                                             _componentIdCache = -1;
 
     /// <summary>The enum spelling, for the call sites that still speak <see cref="BlackboardTier"/>.</summary>
     public BlackboardTier Tier { get; }
@@ -77,7 +79,8 @@ public sealed unsafe class BlueprintTierSpec
         Action<EntityRepository> register, Func<EntityRepository, bool> isRegistered,
         Func<QueryBuilder, QueryBuilder> constrain,
         Func<EntityRepository, IntPtr> ensureSingleton,
-        Func<ISimulationView, Entity, bool> viewHas, ViewMemoryResolver viewMemoryReadOnly)
+        Func<ISimulationView, Entity, bool> viewHas, ViewMemoryResolver viewMemoryReadOnly,
+        Func<int> componentId)
     {
         Tier = tier; ComponentType = componentType;
         TotalSize = totalSize; MaxSlots = maxSlots; PayloadSize = payloadSize;
@@ -86,6 +89,7 @@ public sealed unsafe class BlueprintTierSpec
         _isRegistered = isRegistered;
         _ensureSingleton = ensureSingleton;
         _viewHas = viewHas; _viewMemoryReadOnly = viewMemoryReadOnly;
+        _componentId = componentId;
     }
 
     /// <summary>
@@ -97,8 +101,7 @@ public sealed unsafe class BlueprintTierSpec
     /// a generic method cannot see <c>TTier.Memory</c>, and it does not need to — every tier struct is
     /// <c>[StructLayout(Sequential)]</c> with the fixed buffer as its only field, so the struct's first
     /// byte IS the buffer's first byte. ⭐ This is not a new trick:
-    /// <c>BlueprintTickSystem</c> and <c>BlueprintMaintenanceSystem</c> already resolve their memory
-    /// exactly this way. ⚠ <c>fixed</c> was never pinning here — the storage is native (see
+    /// <c>BlueprintTickSystem</c> already resolves its memory exactly this way. ⚠ <c>fixed</c> was never pinning here — the storage is native (see
     /// <see cref="OccurrenceStoreAccess"/>).</para>
     /// </summary>
     public static BlueprintTierSpec For<TTier>(
@@ -157,8 +160,18 @@ public sealed unsafe class BlueprintTierSpec
                 ref readonly var bb = ref view.GetComponentRO<TTier>(e);
                 return (byte*)Unsafe.AsPointer(
                     ref Unsafe.As<TTier, byte>(ref Unsafe.AsRef(in bb)));
-            });
+            },
+            componentId:    static () => Fdp.Core.ComponentType<TTier>.ID);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-3137</c> U-0 (§34) — the tier component's global type id, so a unit's blocks are found with
+    /// ONE component-mask read (<c>EntityRepository.GetComponentMask</c>) instead of a delegate
+    /// <c>HasComponent</c> per tier. 📐 Measured: 10–18 ns against 116–135 ns for the three-call probe
+    /// (<c>Architect_Question_87</c> §3b). ⭐ Process-wide and stable — every tier carries <c>[ComponentId]</c>.
+    /// </summary>
+    public int ComponentId
+        => _componentIdCache >= 0 ? _componentIdCache : (_componentIdCache = _componentId());
 
     /// <summary><see langword="true"/> when <paramref name="entity"/> carries THIS tier.</summary>
     public bool Has(EntityRepository repo, Entity entity) => _has(repo, entity);
@@ -209,8 +222,9 @@ public sealed unsafe class BlueprintTierSpec
 
     /// <summary>
     /// ⭐ Adds <c>.With&lt;TTier&gt;()</c> to a query under construction — the composable form, so a
-    /// PAIR query (<c>BlueprintMaintenanceSystem</c>'s "holds both tiers" promotion signal) can be
-    /// built from two specs without either of them knowing about the other.
+    /// multi-tier query can be built from several specs without either of them knowing about the other.
+    /// ⛔ Its first user, <c>BlueprintMaintenanceSystem</c>'s "holds both tiers" promotion signal, is retired
+    /// (CE-3137 U-0 (R-236): a unit now legitimately carries several blocks).
     /// </summary>
     public QueryBuilder Constrain(QueryBuilder builder) => _constrain(builder);
 

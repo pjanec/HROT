@@ -176,6 +176,15 @@ namespace CarKinem.Systems
                 }
 
                 // ── Frustration guard ─────────────────────────────────────────────────────────
+                // ⭐ Buildings 5d-3 — a DELIBERATE hold (NavState.IsBlocked: waiting at a door it is opening) is not being
+                //   stuck: it neither counts toward a replan nor raises MoveBlockedEvent. The count restarts when it ends.
+                if (repo.HasComponent<NavState>(entity) && repo.GetComponent<NavState>(entity).IsBlocked != 0)
+                {
+                    if (frustration.Ticks != 0) { frustration.Ticks = 0; repo.SetComponent(entity, frustration); }
+                    repo.SetComponent(entity, status);   // ProgressS persisted, as on the steady-state path
+                    continue;
+                }
+
                 float speed = vel.Linear.Length();
 
                 if (speed < FrustrationSpeedThreshold)
@@ -186,49 +195,11 @@ namespace CarKinem.Systems
 
                     if (frustration.Ticks > FrustrationTickLimit)
                     {
-                        byte effectiveMax = intent.MaxReplans != 0
-                            ? intent.MaxReplans
-                            : NavigationConstants.DefaultMaxReplans;
-
-                        bool allowReplan = (intent.Flags & (1 << NavigationConstants.FlagBitAllowReplan)) != 0;
-
-                        // Time-budget guard (§3.4): stop replanning when elapsed >= ReplanTimeBudget.
-                        bool timeBudgetExceeded = intent.ReplanTimeBudget > 0f
-                            && frustration.ElapsedSinceFirstReplan >= intent.ReplanTimeBudget;
-
-                        if (allowReplan && status.ReplanCount < effectiveMax && !timeBudgetExceeded)
+                        // §3.4 — allowed by the intent, within the replan and time budgets (one test, shared with the door passage system)
+                        if (CanReplan(in intent, in status, frustration.ElapsedSinceFirstReplan))
                         {
                             // ── Internal Muscle replan ─────────────────────────────────────────
-                            status.ReplanCount++;
-                            repo.SetComponent(entity, status);
-
-                            repo.Bus.Publish(new PathfindingRequestEvent
-                            {
-                                RequestId   = (long)entity.Index << 32 | (uint)status.ReplanCount,
-                                Start       = tf.Position,
-                                End         = intent.FinalDestination, // real destination Z (Sim Z-up, P3D-302)
-                                RouteHandle = intent.RouteHandle,
-                                // ⭐ CE-3025 follow-up — the replan planned on "all layers" too, i.e. the infantry mesh.
-                                NavLayerMask = (int)Fdp.Toolkit.Navigation.NavLayerSelection.For(repo, entity, 0),
-                            });
-
-                            repo.Bus.Publish(new PathReplannedEvent
-                            {
-                                Target      = entity,
-                                RouteHandle = intent.RouteHandle,
-                                ReplanCount = (byte)status.ReplanCount,
-                            });
-
-                            if ((intent.Flags & (1 << NavigationConstants.FlagBitAutoSendPathOnReplan)) != 0)
-                            {
-                                repo.Bus.Publish(new NavigationPathDetailsResponseEvent
-                                {
-                                    Target        = entity,
-                                    RouteHandle   = intent.RouteHandle,
-                                    ReplanCount   = (byte)status.ReplanCount,
-                                    IsAutoRefresh = 1,
-                                });
-                            }
+                            RequestReplan(repo, entity, in intent, ref status, tf.Position);
 
                             // Throttle MoveBlockedEvent to once per frustration episode.
                             if (frustration.BlockedEventFired == 0)
@@ -242,23 +213,12 @@ namespace CarKinem.Systems
 
                             frustration.Ticks = 0;
                             repo.SetComponent(entity, frustration);
-
-                            status.Result = NavResult.InProgress;
-                            repo.SetComponent(entity, status);
                             continue;
                         }
                         else
                         {
                             // ── Hard failure: replan budget exhausted or not allowed ────────────
-                            status.Result = NavResult.FailedBlocked;
-                            repo.SetComponent(entity, status);
-
-                            repo.Bus.Publish(new MoveCompletedEvent
-                            {
-                                Target      = entity,
-                                Reason      = NavResult.FailedBlocked,
-                                RouteHandle = intent.RouteHandle,
-                            });
+                            FailBlocked(repo, entity, in intent, ref status);
 
                             frustration.Ticks = 0;
                             repo.SetComponent(entity, frustration);
@@ -283,6 +243,66 @@ namespace CarKinem.Systems
                     status.Result = NavResult.InProgress;
                 repo.SetComponent(entity, status);
             }
+        }
+        /// <summary>
+        /// ⭐ May <paramref name="entity"/>'s move be replanned now? Its intent allows replans, the replan budget is not spent and
+        /// the time budget not exceeded (§3.4). The frustration watchdog and the door passage system (5d-4) ask the same question.
+        /// </summary>
+        public static bool CanReplan(in NavigationIntent intent, in NavigationStatus status, float elapsedSinceFirstReplan)
+        {
+            byte effectiveMax = intent.MaxReplans != 0 ? intent.MaxReplans : NavigationConstants.DefaultMaxReplans;
+            bool allowReplan = (intent.Flags & (1 << NavigationConstants.FlagBitAllowReplan)) != 0;
+            bool timeBudgetExceeded = intent.ReplanTimeBudget > 0f && elapsedSinceFirstReplan >= intent.ReplanTimeBudget;
+            return allowReplan && status.ReplanCount < effectiveMax && !timeBudgetExceeded;
+        }
+
+        /// <summary>
+        /// ⭐ THE Muscle-side replan: a new path request from <paramref name="from"/> to the intent's destination, the
+        /// <see cref="PathReplannedEvent"/> (and the auto path-details refresh when the intent asks for it). One implementation for the
+        /// frustration watchdog and the door passage system (5d-4: a door ahead was locked).
+        /// </summary>
+        public static void RequestReplan(EntityRepository repo, Entity entity, in NavigationIntent intent, ref NavigationStatus status, Vector3 from)
+        {
+            status.ReplanCount++;
+            status.Result = NavResult.InProgress;
+            repo.SetComponent(entity, status);
+
+            // ⭐ CE-3128 — the same request the first plan made (PathRequests.FromIntent): the order's backend, layer and road
+            //   use. ⛔ Before, this was built by hand and dropped BackendForce and the intent's layer mask (it passed 0 — the
+            //   entity's own layer, CE-3025 — which FromIntent still yields when the intent asks for none).
+            repo.Bus.Publish(Fdp.Toolkit.Navigation.PathRequests.FromIntent(repo, entity, in intent, from,
+                (long)entity.Index << 32 | (uint)status.ReplanCount));
+
+            repo.Bus.Publish(new PathReplannedEvent
+            {
+                Target      = entity,
+                RouteHandle = intent.RouteHandle,
+                ReplanCount = (byte)status.ReplanCount,
+            });
+
+            if ((intent.Flags & (1 << NavigationConstants.FlagBitAutoSendPathOnReplan)) != 0)
+            {
+                repo.Bus.Publish(new NavigationPathDetailsResponseEvent
+                {
+                    Target        = entity,
+                    RouteHandle   = intent.RouteHandle,
+                    ReplanCount   = (byte)status.ReplanCount,
+                    IsAutoRefresh = 1,
+                });
+            }
+        }
+
+        /// <summary>⭐ The move cannot go on: <see cref="NavResult.FailedBlocked"/> and its <see cref="MoveCompletedEvent"/>.</summary>
+        public static void FailBlocked(EntityRepository repo, Entity entity, in NavigationIntent intent, ref NavigationStatus status)
+        {
+            status.Result = NavResult.FailedBlocked;
+            repo.SetComponent(entity, status);
+            repo.Bus.Publish(new MoveCompletedEvent
+            {
+                Target      = entity,
+                Reason      = NavResult.FailedBlocked,
+                RouteHandle = intent.RouteHandle,
+            });
         }
     }
 }

@@ -8,6 +8,7 @@ known-rot: none.
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:
+  - REVIEW_Behaviour_Library_Genericity.md — L2 (TakeCover child = generalised PeekAndFire) and L6 (host parity: library vs three-host demo).
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the utility demo scenarios (U1–U7) that exercise §3.3 live over HTTP, and the measured findings F1–F9 (F1: ThreatRanking scores every contact 0 — DistanceToContext reads an unregistered component).
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS the CE-3031 children (TakeCoverBp, FallBackBp) that CombatPosture picks between and that replace the SOP stand-ins.
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the SOP slot (its text still says "doctrine" — renamed by R-198), the origin gate (R-188, R-189, R-193) and the sensor side; this document owns what decides inside the slot (missions, threat, intent, utility).
@@ -895,11 +896,203 @@ approach adds no order input); the decision is `AttackApproachDecision` (asset `
 | F1 `ThreatInSight` instead of `FindThreatsInView` / `HasLineOfSight` | the table above |
 | F3 the approach scored in the OUTER parallel | Fbt refuses a nested Parallel |
 | ⭐ **CE-2117 (kernel)** — a switch beneath a running Parallel never ran the abandoned leaf's deactivator | found by rail ⑥, then measured on the SHIPPED tree: the advance kept firing after TakeCover took over (§3.3b's claimed parity with the HSM was only true for the HSM). Fixed in `Fbt.Interpreter`: `NodeIndexStack` is now the tick's running set ([deactivator design](designs/ai-btree-deactivator-1/DESIGN.md) addendum) |
+| ⭐ **CE-2120** — a KILLED contact counts as neither a live target (`HaveLiveTarget`) nor a threat in sight (`ThreatInSight`) | 🔒 user `2026-10-07` *"corpse flank approved"*: on U4 the hostile died in 5 s and the approach chose Flank against the corpse (Flank 1.08, Health 0). The memory keeps the corpse (fresh, tracked), so both inputs now skip `ThreatDanger.IsDead` (R-214 — one predicate for every threat reader) |
 | ⚠ after a flank / firing-position ARRIVAL with the target still out of sight, the approach re-picks the manoeuvre and it moves again | the position queries filter on sight of the target, so arrival normally brings it into view and Direct wins; perception lag can cost a re-flank — accepted, watch U4 |
 
 Rails: `StandardInputReaderTests.CE3084_*` (the input) · `TacticsTreesTests.CE3084_*` (4: registered with option names · ⭐ out of sight
 ⇒ flanks, firing, and on arrival goes straight on without ending the run · in sight ⇒ Direct · the outer posture still switches to
 TakeCover and the flank goes) · `TacticsTreesTests.CE2117_*` and `HybridLifecycleTests.CE2117_*` (both red before the kernel fix).
+
+### 3.3f `CE-3090` — the wounded unit on open ground: HoldProne, and Flee only when able *(behaviors, `2026-10-07`; build-state: BUILT)*
+
+> 🔒 **User, `2026-10-07`:** *"flee is only realistic if the unit is healthy and capable of fleeing without becoming easy target; for
+> wounded one the hold-prone seems a better option."* · on the plan: *"otherwise approved"* · on prone: *"the effect is that the entity
+> should change its stance to 'prone' — the stance could be shown on the map as just another text indicator on the entity. we need the
+> stance support"* (§3.3g — approved, building).
+
+*Found live by the backend lane (U6, [`DESIGN_Utility_AI_Demo_Scenarios.md`](DESIGN_Utility_AI_Demo_Scenarios.md) §11.1): at 10 HP on
+`basic-desert` TakeCover and Flee both read 0 (no cover, no hidden retreat) ⇒ the unit kept advancing.*
+
+```mermaid
+graph TD
+  W{"health"} -->|"healthy"| A["AdvanceAndAttack / Suppress<br/>(unchanged)"]
+  W -->|"≥ ½, outmatched,<br/>a HIDDEN retreat"| F["Flee (FallBack)"]
+  W -->|"wounded, cover"| C["TakeCover"]
+  W -->|"wounded, NO cover,<br/>a live threat"| P["HoldProne — NEW option 6<br/>stop · lie down (§3.3g) · return fire"]
+```
+
+*What the picture shows that prose hid:* the two wounded rows are ONE score with the cover term flipped — HoldProne is TakeCover's mirror
+(hurt × a live threat × **(1 − cover)** × outmatched), so the switch between them sits at a cover score of ½ and nothing in between is
+left without a defence. Flee is no longer a wounded option at all.
+
+| decision | why | rejected |
+|---|---|---|
+| a NEW option `Posture.HoldProne = 6` scored hurt^0.8 × `HaveLiveTarget` × (1 − cover) × outmatched^0.6 | mirrors TakeCover, so cover decides between them | folding it into `Hold` — Hold is a weighted SUM (the floor) and cannot require "hurt AND threatened AND no cover"; a hurt unit would stop with no enemy (against R-208 "advance without enemy") |
+| `Flee` gains `HealthFraction` Threshold (≥ 0.5) beside its InverseQuadratic | the user's rule: only a unit able to run flees; it still needs a HIDDEN retreat (`FindSafeRetreatPoint` — hidden AND away) ⇒ never across open ground | a retreat that needs no cover (my first lean) — ruled out by the user: an easy target |
+| `PostureNodes.HoldProne(EngageParams, EngageState)` = stop the move + fire at the top threat; deactivator stops the fire | a defence that returns fire; one node owns both channels (G9) | `Hold` + `Engage` in a Parallel (two writers of one run's channels, §3.3b) |
+| all three hosts get the branch: BTree `CombatPosture` (Sequence[IsOption(6) → HoldProne] before the Hold floor), HSM `CombatPostureHsm` (state + 10 transitions), blueprint `CombatPostureBp` (task `PostureHoldProne`, a one-leaf wrapper BTree like `PostureSuppress`) | one decision, three hosts kept in parity (§3.3c/§3.3d) | — |
+
+📐 **Scores at 10 HP, no cover, one armed enemy** (own strength 0.1 ⇒ ratio 0.91): HoldProne ≈ 0.89 · Advance 0.386 (measured) · Flee 0
+(below half health) · TakeCover 0. Superseded rails, re-homed: `NearDeath_With_Escape_Flees` → `CE3090_NearDeath_With_Escape_HoldsProne_InsteadOfFleeing`;
+`NearDeath_With_No_Escape_And_No_Cover_*` now expects HoldProne (was the plain Hold floor); `Wounded_Member_Vetoes_*` (§10.3) breaks
+off by HoldProne; NEW `CE3090_HalfHealth_Outmatched_With_HiddenEscape_Flees`.
+
+### 3.3g `CE-2121` — body stance: the brain asks for prone, the body performs it, the map shows it *(behaviors, `2026-10-07`; build-state: BUILT (slices ① ② — IG ingress open); approved)*
+
+> 🔒 **User, `2026-10-07`:** *"the effect is that the entity should change its stance to 'prone' — the stance could be shown on the
+> map as just another text indicator on the entity. we need the stance support, and we could add some fake implementation of the
+> animation system to SimHost (standing in place of real 3d renderer)"* · on the leans: *"leans approved"*.
+
+**INVENTORY** *(codebase-memory `search_graph` via the CLI + grep, `2026-10-07`; `check_index_coverage` is not reachable from the CLI)*:
+`search_graph .*FakeAnim.* label=Class` = 6 (`FakeAnimationBackend`, `FakeAnimBackendState`, its snapshot JSON and inspector window) — ⭐ the
+fake backend EXISTS and simulates stance as a timer (`FakeAnimationBackend.cs:249-261, 392-410`), referenced by test projects only.
+`StanceIntent` / `StanceStatus` (`ReplicatedComponents.cs:143-179`, ids 222/223, owners Brain / Muscle `HrotOwnershipGroups.cs:56,75`),
+`StanceTransitionSystem` (not in `AnimationMuscleModule`), `AnimationStateReporterSystem` (completion), `AnimationTkbTranslator` (adds them
+only when the types are registered), `AnimationReplicationModule` (the wire, test-only). ⛔ searched: no production host composes any of it
+(`CE-3010`); no AI node writes `StanceIntent`; the soldier TKB (2002/2003, `UrbanCombatTkbCatalog.cs:232`) lists Standing + Crouched only;
+`BehaviorTkbTranslator.cs:65-68` never grants `CanChangeStance` (so a request would be acked and ignored).
+
+```mermaid
+classDiagram
+  class PostureNodes {
+    <<existing, grows>>
+    +HoldProne() requests Prone
+    +Deactivate_HoldProne() requests Standing
+  }
+  class StanceRequest {
+    <<NEW>>
+    +Set(world, self, stance, blend) bumps Version on change only
+  }
+  class StanceIntent {
+    <<existing, Brain-owned>>
+    TargetStance
+    BlendTime
+    Version
+  }
+  class StanceStatus {
+    <<existing, Muscle-owned>>
+    CurrentStance
+    Phase
+    AckVersion
+  }
+  class StanceComponentRegistry {
+    <<NEW>>
+    +RegisterAll(world) called by SimHost and CGF registries
+  }
+  class AnimationTkbTranslator {
+    <<existing>>
+    adds both from CharacterAnimationDefDto
+  }
+  class AnimationMuscleCapability {
+    <<NEW INodeCapability MuscleGround>>
+    registers AnimationMuscleModule over FakeAnimationBackend
+  }
+  class AnimationMuscleModule {
+    <<existing, grows>>
+    +StanceTransitionSystem after the bridge
+  }
+  class FakeAnimationBackend {
+    <<existing>>
+    stance timer = BlendTime
+  }
+  class StanceGizmo {
+    <<NEW GizmoProjector of StanceStatus>>
+    Prone, or arrow Prone while moving; nothing when Standing
+  }
+  PostureNodes ..> StanceRequest
+  StanceRequest ..> StanceIntent : writes
+  AnimationTkbTranslator ..> StanceIntent
+  AnimationTkbTranslator ..> StanceStatus
+  AnimationMuscleCapability --> AnimationMuscleModule
+  AnimationMuscleModule --> FakeAnimationBackend
+  AnimationMuscleModule ..> StanceStatus : StanceTransitionSystem + AnimationStateReporterSystem
+  StanceGizmo ..> StanceStatus : reads
+```
+
+*What the picture shows that prose hid:* the brain writes ONE component and never reads the body's; the map reads ONLY the body's. Every
+other box already existed — the new code is a request helper, a registry, a capability, a gizmo and one line in the module.
+
+```mermaid
+graph TD
+  subgraph "editor (one world, offline)"
+    EB["Brain: CgfLogicPack → PostureNodes.HoldProne"] -->|"StanceIntent (local)"| EM["MuscleGround: AnimationMuscleModule + FakeAnimationBackend"]
+  end
+  subgraph "cluster"
+    CB["CGF (Brain)"] -->|"StanceIntent → hrot/anim/StanceIntent (slice ②)"| SM["SimHost (MuscleGround): AnimationMuscleModule + Fake"]
+    SM -->|"StanceStatus → hrot/anim/StanceStatus (slice ②)"| CB
+  end
+  REG["SimHostNodeBootstrapper plan · EditorCapabilities.BuildDefault"] -->|"registers AnimationMuscleCapability"| EM
+  REG --> SM
+  G["StanceGizmo (auto-discovered, every map host)"] -.->|reads StanceStatus| EM
+```
+
+*What the picture shows that prose hid:* until slice ② the cluster's SimHost never SEES the CGF's request — slice ① works in the editor
+(one world) and in SimHost only for a request written locally. The Stride editor's injected arm is left on its own capabilities.
+
+```mermaid
+sequenceDiagram
+  participant B as Brain (HoldProne)
+  participant I as StanceIntent
+  participant T as StanceTransitionSystem
+  participant F as FakeAnimationBackend
+  participant R as AnimationStateReporterSystem
+  participant S as StanceStatus
+  B->>I: Prone, blend 1.0 s, Version+1 (only if not already Prone)
+  T->>I: Version ≠ AckVersion?
+  T->>F: RequestStanceChange(Prone, 1.0)
+  T->>S: AckVersion, Phase = Transitioning
+  F-->>F: timer
+  R->>F: GetCurrentStance == Prone?
+  R->>S: CurrentStance = Prone, Phase = Idle (+ StanceChangedEvent)
+  Note over B: leaving HoldProne ⇒ deactivator writes Standing
+```
+
+| decision | why | rejected |
+|---|---|---|
+| the brain does NOT wait for the transition | lying down and returning fire are one decision; the AI's view of itself is its last request | waiting on `StanceStatus` — latency for nothing |
+| the map reads `StanceStatus` (the body), never the request | it must not show prone before the body is down or when the body refused | the request — it lies during the transition |
+| the Muscle is the WHOLE `AnimationMuscleModule` + `StanceTransitionSystem`, backed by the existing fake | the module is the designed unit (DD-1 §17); its other systems match nothing until a montage is requested | a stance-only system set — a second composition of the same module |
+| one `INodeCapability` (`AnimationMuscle`, MuscleGround) declared in SimHost's plan and the editor's default plan | the composition pattern every optional role piece uses (`NodeCapability.cs:110`); module-only ⇒ the editor's system-list rail is unchanged | wiring by hand in each host |
+| the soldier TKB gains `Prone`; `BehaviorTkbTranslator` grants `CanChangeStance` when the animation def lists more than one stance | otherwise the transition system acks and ignores (`StanceTransitionSystem.cs:51-56`) | a flag set per scenario |
+| Fake's unused `Hrot.SimHost` project reference is removed | it would make SimHost → Fake a cycle; only a doc comment used it | — |
+
+⭐ **AS-BUILT slice ① (`2026-10-07`)** — built as drawn, plus one fix the rail found:
+
+| as built | why |
+|---|---|
+| `AnimationStateReporterSystem` reports stance completion in its OWN pass (`CharacterAnimationDefRuntime` + `StanceStatus` + `StanceIntent`) | it sat inside the montage pass, whose query demands an `AnimationChannel` — a stance-only body stayed `Transitioning` for ever (measured by `BodyStanceTests`) |
+| `StanceComponentRegistry` also registers the six events the module publishes | production enforces explicit event registration |
+| the editor sets `ExtraTranslators` only when it has no `TranslatorPlacements` | the pack takes one or the other; Stride's injected arm keeps its own list |
+| the gizmo line sits 14 px BELOW the entity | the editor label stacks above it (`EntityEditorLabelGizmo`) |
+
+Rails: `BodyStanceTests` (3: the soldier may change stance and starts standing; prone over the blend time with the map line `→ Prone` then
+`Prone`, and up again; no stance ⇒ the request is refused) · `TacticsTreesTests.CE3090_*` ×3 hosts now also assert the prone request ·
+`Phase3SystemTests` module order (9 systems). ⚠ `AnimationIntegrationScenarios.Locomotion_DrivesFootstepEventsAtCorrectCadence` is red
+on the base too (pre-existing, unrelated).
+
+📐 **LIVE, `--mode all`, `2026-10-07`:** `ua-fire-distribution` (U6) PASS — Rifleman 4 at 10 HP: `HoldProne` 0.975 (Hold 0.18, Suppress
+0.13, Advance 0.02), CGF's `StanceIntent` = Prone. ⛔ SimHost's copy stays Standing (`Version 0`) — **the expected gap slice ② closes**:
+nothing carries `StanceIntent` across nodes yet. Both nodes carry the components (`CanChangeStance` granted). Once the hostiles die the
+member rightly stands up again (`Version 2`, Standing).
+
+⭐ **AS-BUILT slice ② (`2026-10-07`, 🔒 user: "Yes do it")** — stance crosses nodes by GROUP ownership:
+
+| as built | why |
+|---|---|
+| `NedOwnershipGroupBinding` maps `dtStanceIntent` (104) → `StanceIntent` (Brain group) and `dtStanceStatus` (105) → `StanceStatus` (MuscleGround) | the groups already listed both as "dormant"; the grant strategy now hands 104 to the Brain node and 105 to the Muscle node |
+| the two stance EGRESS translators gate on `HasAuthority(entity, PackKey(ordinal, 0))` | ⛔ SUPERSEDED: `HasAuthority(entity)` — the primary owner (the CGF), so the body's report never left SimHost |
+| only the stance pair is wired: `AnimationReplicationModule.StanceTranslators` / `RegisterStanceOn`, on CGF (Brain) and SimHost (MuscleGround) | montage / look-at stay `CE-3010`; their components are registered nowhere |
+| `DdsStanceIntent` / `DdsStanceStatus` became real DDS topics (`[DdsTopic]`, `[DdsKey] EntityId`, Reliable + TransientLocal, KeepLast 1; the CycloneDDS generator) | ⛔ found live: they had NO generated serialiser — only the loopback tests' fake writers used them — and the first real `DdsWriter` aborted the cluster at boot |
+
+📐 **LIVE, `--mode all`:** U6 PASS; Rifleman 4's `StanceIntent` Prone v1 reached SimHost, SimHost's `StanceStatus` (AckVersion 1, Transitioning)
+came back to CGF; when the hostiles died the stand-up v2 made the same round trip and both nodes agree (Standing / Idle, AckVersion 2).
+0 exceptions in that run. Rails: `StanceWireTests` (role halves; ordinals = NED's), the two pinned group-descriptor sets
+(`RoleGroupOwnershipStrategyTests`, `TheDescriptorMapIsWiredTests`). ⚠ `Networked_Locomotion_BrainSeesFootstepEvents` is red on the base too.
+⏳ Not done: IG (the 3D map) does not take in `StanceStatus` yet.
+
+**Slices:** ① single world — registry, capability, module line, TKB + capability flag, the brain's request, the gizmo, rails (editor-shaped
+world). ② the wire — `AnimationReplicationModule` on CGF (Brain) and SimHost (Muscle), live on `--mode all`. Owned by `CE-3010` for the
+rest of the animation pipeline (montages, look-at), which stays out of scope here.
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 

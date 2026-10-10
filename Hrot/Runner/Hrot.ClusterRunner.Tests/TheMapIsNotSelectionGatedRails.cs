@@ -56,15 +56,15 @@ public sealed class TheMapIsNotSelectionGatedRails
         "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",
     };
 
-    // Walks up from the test binary directory until IOS-IG-SimHost.sln is found — the idiom already used
+    // Walks up from the test binary directory until HROT.sln is found — the idiom already used
     // by ExConSubsystemClusterTests and CrossHostPanelKindRails.
     private static DirectoryInfo RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "IOS-IG-SimHost.sln")))
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
             dir = dir.Parent;
 
-        Assert.True(dir != null, "Could not locate workspace root (IOS-IG-SimHost.sln not found).");
+        Assert.True(dir != null, "Could not locate workspace root (HROT.sln not found).");
         return dir!;
     }
 

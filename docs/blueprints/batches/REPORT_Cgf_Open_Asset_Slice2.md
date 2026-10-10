@@ -61,7 +61,7 @@ document is open."* — the new assertion is strictly stronger than anything tha
 
 | # | gate | command | result | `--no-build`? | delta vs `2603adad9` |
 |---|---|---|---|---|---|
-| 1 | solution build | `dotnet build IOS-IG-SimHost.sln --no-restore` | ✅ **0 errors** | n/a | unchanged |
+| 1 | solution build | `dotnet build HROT.sln --no-restore` | ✅ **0 errors** | n/a | unchanged |
 | 2 | ⭐ **T0 baseline, BEFORE any edit** | `run-system-tests.sh ClusterConformanceRails` | ✅ **10 / 0** | no *(built)* | — |
 | 3 | ⭐⭐⭐ **conformance (acceptance vehicle)** | `run-system-tests.sh --no-build ClusterConformanceRails` | ✅ **13 / 0** | yes | **10 → 13**: +3 slice-2 rails, all green |
 | 4 | ⭐⭐ **full system suite** | `run-system-tests.sh --no-build` | ✅ **93 / 0**, 5 m 44 s | yes | **90 → 93** *(slice 1's run)*; ⛔ no red, no new skip |

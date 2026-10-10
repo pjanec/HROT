@@ -33,6 +33,10 @@ namespace Fdp.Toolkit.Perception.Sensors
         private readonly List<long> _ordered = new();
         // ⭐ CE-3062 — this tick's anonymous sound contacts (an acoustic sensor's answers), published at Flush.
         private readonly List<SoundContactEvent> _heard = new();
+        // ⭐ CE-3117 — the listeners' HeardTraces being built this flush (R-226: the map draws recorded state).
+        private readonly Dictionary<Entity, HeardTraces> _traces = new();
+        private bool _tracing;
+        private double _now;
 
         /// <summary>Transitions published by the last <see cref="Flush"/> (test hook / diagnostics).</summary>
         public int LastFlushTransitions { get; private set; }
@@ -49,6 +53,8 @@ namespace Fdp.Toolkit.Perception.Sensors
             _observedIndex.Clear();
             _heard.Clear();
             _enabled = repo.IsComponentTypeRegistered<SensorContactList>() && repo.IsComponentTypeRegistered<SensorTag>();
+            _tracing = repo.IsComponentTypeRegistered<HeardTraces>();
+            _now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
         }
 
         /// <summary>True when <paramref name="sensor"/> is a perception sensor whose answers are sightings.</summary>
@@ -95,6 +101,28 @@ namespace Fdp.Toolkit.Perception.Sensors
             }
         }
 
+        /// <summary>⭐ <c>CE-3117</c> — appends this flush's heard estimates to each listener's <see cref="HeardTraces"/>.</summary>
+        private void TraceHeard(ISimulationView view, IEntityCommandBuffer cmd)
+        {
+            _traces.Clear();
+            foreach (var h in _heard)
+            {
+                if (!_traces.TryGetValue(h.Observer, out var t))
+                    t = view.HasComponent<HeardTraces>(h.Observer) ? view.GetComponentRO<HeardTraces>(h.Observer) : default;
+                t.Add(new HeardTrace
+                {
+                    Time = _now, At = new System.Numerics.Vector3(h.X, h.Y, h.Z), Radius = h.Radius, Kind = h.Kind,
+                    SourceClass = h.SourceClass,
+                });
+                _traces[h.Observer] = t;
+            }
+            foreach (var (unit, t) in _traces)
+            {
+                if (view.HasComponent<HeardTraces>(unit)) cmd.SetComponent(unit, in t);
+                else cmd.AddComponent(unit, in t);
+            }
+        }
+
         /// <summary>A sensor that stopped (suspended): it holds nothing any more.</summary>
         public void Clear(ISimulationView view, Entity sensor)
         {
@@ -120,6 +148,7 @@ namespace Fdp.Toolkit.Perception.Sensors
             LastFlushTransitions = 0;
             foreach (var h in _heard) cmd.PublishEvent(h);
             LastFlushHeard = _heard.Count;
+            if (_tracing && _heard.Count > 0) TraceHeard(view, cmd);
             _heard.Clear();
             if (_observed.Count == 0) return;
 

@@ -58,7 +58,7 @@ port is parked at `claude/stride-port`.
 |---|---|---|---|---|
 | ⭐⭐ **the harness, headless** *(Row 8: this IS the integration invariant)* | `dotnet test Hrot/Runner/Hrot.SystemTests/Hrot.SystemTests.csproj --nologo` | ⭐ **18 passed · 0 failed · 2 skipped**, ~17 s | ⭐ **builds** | **new suite** |
 | same, via the shipped lane | `bash scripts/run-system-tests.sh` *(filter `Category=SystemSmoke`)* | ⭐ **18 / 0 / 2** — identical | builds | new |
-| solution | `dotnet build IOS-IG-SimHost.sln` | ⭐ **0 errors**, 64 warnings *(pre-existing `BP3010` orphan-node warnings from `Hrot.AI.Behaviors`)* | builds | unchanged |
+| solution | `dotnet build HROT.sln` | ⭐ **0 errors**, 64 warnings *(pre-existing `BP3010` orphan-node warnings from `Hrot.AI.Behaviors`)* | builds | unchanged |
 | tracker | `python3 scripts/tracker-counts.py --check` | **OK — open 90 / done 264** | — | unchanged ⚠ *(counts only `BP-` rows; `HN-` rows are invisible to it — stated, not discovered)* |
 | ledger | `python3 scripts/rulings-check.py` | **22/22 verified** · ⚠ **1 staleness WARN on `.claude/CLAUDE.md`** | — | ⭐ **pre-existing** — arrived with a coordinator merge, not this batch |
 | designs | `python3 scripts/design-digest.py --check` | **all 57 pass** — STATUS, INVENTORY, UML present | — | unchanged |
@@ -134,7 +134,7 @@ the design *wanted* and a UI registry could never have given.
 | ⭐ **`Hrot.Editor.Tests`** *(production code changed here)* | `dotnet test …/Hrot.Editor.Tests.csproj --no-build` | ⭐ **209 passed · 0 failed** | ⭐⭐ **IMPROVED — baseline was 207/2.** The 2 `ScenarioMenuTests` reds were fixed by the **coordinator's** merge, not by this batch |
 | ⭐⭐ **`Hrot.Blueprints.Tests` `~Editor`** *(THE `EditorSubsystem` gate)* | `--filter "FullyQualifiedName~Hrot.Blueprints.Tests.Editor" --no-build` | **1032 passed · 0 failed · 9 skipped** | **unchanged** |
 | ⭐ **`ClusterRunner.Integration` `~TimeControlIntegrationTests`** *(cross-node invariant)* | `--filter "FullyQualifiedName~TimeControlIntegrationTests" --no-build` | **9 passed · 0 failed** | **unchanged** |
-| solution | `dotnet build IOS-IG-SimHost.sln` | **0 errors** | unchanged |
+| solution | `dotnet build HROT.sln` | **0 errors** | unchanged |
 | Node server | `node src/index.mjs` | ⭐ **starts clean, 51 tools** *(was 49)* | **+2** |
 | Node `SKILL.md` | `node generate-skill.mjs` | **written, 337 lines** | regenerated |
 | ⚠ Node `verify.mjs` | `node verify.mjs` | ⛔ **FAILS — `MCP error -32000: Connection closed`** | ⭐⭐ **PRE-EXISTING, proved by stash:** it fails identically at clean HEAD *(reporting 49 tools)*. ⚠ It also needed `npm install` — `node_modules` had never been installed in this tree *(and stays gitignored)* |

@@ -89,9 +89,39 @@ namespace Fdp.Toolkit.Navigation
         public const byte FlagBitAutoSendPathOnReplan = 4;
 
         /// <summary>
+        /// ⭐ CE-1035 Q0b (<c>docs/DESIGN_World_Query_Seam.md</c> WQ-H, R-252) — bit index in <see cref="NavigationIntent.Flags"/> /
+        /// <see cref="MoveToParams.Flags"/>: the destination's HEIGHT IS NOT GIVEN (a 2-D intent — "go to (x, y)"). The motion side puts
+        /// it on the surface nearest the mover's level (<see cref="NavigationDestination.Of"/>). Clear (the default) = the Z is real.
+        /// ⛔ Never encode "on the ground" as Z = 0: on a hill, a bridge or an upper floor it names the wrong place.
+        /// </summary>
+        public const byte FlagBitDestinationOnSurface = 1;
+
+        /// <summary>The <see cref="FlagBitDestinationOnSurface"/> bit as a <see cref="MoveToParams.Flags"/> value. ⚠ A flag bit, not a property
+        /// on <see cref="MoveToParams"/>: a property would add a pin to every blueprint MoveTo node (the pin schema reflects properties).</summary>
+        public const byte FlagDestinationOnSurface = 1 << FlagBitDestinationOnSurface;
+
+        /// <summary>
         /// Bit index in <see cref="NavigationIntent.Flags"/>: stream the 8-waypoint
         /// corridor preview to Brain via <see cref="NavigationCorridorPreview"/>.
         /// </summary>
         public const byte FlagBitStreamCorridorPreview = 3;
+
+        /// <summary>
+        /// ⭐ <c>CE-3128</c> (R-230) — bits 5–7 of <see cref="NavigationIntent.Flags"/> / <see cref="MoveToParams.Flags"/> hold the
+        /// order's <see cref="RoadUse"/>. ⚠ Packed here because <see cref="MoveToParams"/> is at the 32-byte channel limit; the
+        /// flags byte already rides from the params through the intent onto the wire, so the field needs no struct or IDL change.
+        /// 📄 docs/designs/navig-2/Navigation_Design_v2_0.md §5.2a D1.
+        /// </summary>
+        public const int FlagShiftRoadUse = 5;
+
+        /// <summary>The mask of <see cref="FlagShiftRoadUse"/>'s three bits.</summary>
+        public const byte FlagMaskRoadUse = 0b1110_0000;
+
+        /// <summary>The <see cref="RoadUse"/> packed in <paramref name="flags"/>.</summary>
+        public static RoadUse RoadUseOf(byte flags) => (RoadUse)((flags & FlagMaskRoadUse) >> FlagShiftRoadUse);
+
+        /// <summary><paramref name="flags"/> with its <see cref="RoadUse"/> bits set to <paramref name="roadUse"/>.</summary>
+        public static byte WithRoadUse(byte flags, RoadUse roadUse)
+            => (byte)((flags & ~FlagMaskRoadUse) | (((byte)roadUse << FlagShiftRoadUse) & FlagMaskRoadUse));
     }
 }

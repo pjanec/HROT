@@ -63,6 +63,70 @@ namespace CarKinem.Tests.Systems
             Assert.True(repo.GetComponent<SimVelocity>(entity).Linear.Z > 0f, "climbing ⇒ positive vertical velocity");
         }
 
+        // ── ⭐ CE-1034 H1 — the ground has height (R-248); the clamping flag decides who is held to it (R-249) ──
+
+        private static (EntityRepository Repo, Entity E) OnTheSlope(Vector3 start, Vector3 velocity, bool registerClamp = false)
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<VehicleState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+            repo.RegisterComponent<VehicleParams>();
+            repo.RegisterComponent<NavState>();
+            repo.RegisterComponent<SpatialGridData>();
+            if (registerClamp) repo.RegisterComponent<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
+            repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.Tests.SlopeFixture.World());
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new VehicleState { Speed = velocity.Length() });
+            repo.AddComponent(e, new SimTransform { Position = start, Rotation = SimMath.FacingNorth });
+            repo.SetAuthority<SimTransform>(e, true);
+            repo.AddComponent(e, new SimVelocity { Linear = velocity });
+            repo.AddComponent(e, new VehicleParams
+            {
+                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = 0.6f,
+                LookaheadTimeMin = 2f, LookaheadTimeMax = 10f, AccelGain = 2.0f, AvoidanceRadius = 2.5f,
+            });
+            repo.AddComponent(e, new NavState { Mode = KinematicsMode.None });
+            return (repo, e);
+        }
+
+        private static void Drive(EntityRepository repo, int frames)
+        {
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            for (int i = 0; i < frames; i++) { spatial.Execute(repo, 0.016f); kin.Execute(repo, 0.016f); }
+        }
+
+        [Fact]
+        public void H1_AVehicleDrivingUpAHill_TakesItsZFromTheHeightGrid()
+        {
+            var (repo, e) = OnTheSlope(new Vector3(100, 20, Fdp.Toolkit.Terrain.Tests.SlopeFixture.Rise * 20), new Vector3(0, 10, 0));
+            Drive(repo, 60);
+            var pos = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(pos.Y > 24f, $"the vehicle must have moved uphill, Y={pos.Y}");
+            Assert.Equal(Fdp.Toolkit.Terrain.Tests.SlopeFixture.Rise * pos.Y, pos.Z, 2);   // on the hillside, not on a flat bed
+            repo.Dispose();
+        }
+
+        [Fact]
+        public void H1_ClampingOff_KeepsTheAltitude_ClampingOnOrAbsent_Grounds_R249()
+        {
+            var (repo, e) = OnTheSlope(new Vector3(100, 50, 80f), new Vector3(0, 10, 0), registerClamp: true);
+            repo.AddComponent(e, new Fdp.Modules.Geographic.Components.GroundClampingConfig { Mode = Fdp.Modules.Geographic.EClampingMode.ForceOff });
+            Drive(repo, 30);
+            Assert.Equal(80f, repo.GetComponent<SimTransform>(e).Position.Z, 3);   // an aircraft keeps its altitude
+            repo.Dispose();
+
+            var (repo2, e2) = OnTheSlope(new Vector3(100, 50, Fdp.Toolkit.Terrain.Tests.SlopeFixture.Rise * 50 + 0.1f), new Vector3(0, 10, 0), registerClamp: true);
+            repo2.AddComponent(e2, new Fdp.Modules.Geographic.Components.GroundClampingConfig { Mode = Fdp.Modules.Geographic.EClampingMode.ForceOn });
+            Drive(repo2, 30);
+            var p2 = repo2.GetComponent<SimTransform>(e2).Position;
+            Assert.Equal(Fdp.Toolkit.Terrain.Tests.SlopeFixture.Rise * p2.Y, p2.Z, 2);
+            repo2.Dispose();
+        }
+
         [Fact]
         public void System_UpdatesVehiclePosition()
         {
@@ -384,7 +448,8 @@ namespace CarKinem.Tests.Systems
     
         // ── CE-2059 / CE-2060: a planned path is driven at the requested speed and stops at its end ──────────────
 
-        private static (EntityRepository repo, Entity e, TrajectoryPoolManager pool) TrajectoryWorld(float targetSpeed, float startSpeed, Quaternion? facing = null)
+        private static (EntityRepository repo, Entity e, TrajectoryPoolManager pool) TrajectoryWorld(float targetSpeed, float startSpeed, Quaternion? facing = null,
+            float startY = 0f, VehicleParams? vehicle = null)
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<VehicleState>();
@@ -401,10 +466,10 @@ namespace CarKinem.Tests.Systems
 
             var e = repo.CreateEntity();
             repo.AddComponent(e, new VehicleState { Speed = startSpeed });
-            repo.AddComponent(e, new SimTransform { Position = Vector3.Zero, Rotation = facing ?? SimMath.FacingEast });
+            repo.AddComponent(e, new SimTransform { Position = new Vector3(0f, startY, 0f), Rotation = facing ?? SimMath.FacingEast });
             repo.SetAuthority<SimTransform>(e, true);
             repo.AddComponent(e, new SimVelocity { Linear = new Vector3(startSpeed, 0, 0) });
-            repo.AddComponent(e, new VehicleParams
+            repo.AddComponent(e, vehicle ?? new VehicleParams
             {
                 WheelBase = 4.758f, MaxSpeedFwd = 20f, MaxAccel = 2.5f, MaxDecel = 4f, MaxSteerAngle = 0.8f,
                 MaxLatAccel = 6f, LookaheadTimeMin = 0.8f, LookaheadTimeMax = 2.5f, AccelGain = 1.8f, AvoidanceRadius = 2.5f,
@@ -468,6 +533,35 @@ namespace CarKinem.Tests.Systems
         }
     
         /// <summary>
+        /// ⭐ <c>CE-3128</c> — a path of two COINCIDENT points (a move to where the unit already stands) arrives, and the unit's
+        /// position stays finite. 🔴 Measured in the ua-danger-crossing-bp twin: the end-of-path heading normalised the zero last
+        /// segment and the rifleman's position became NaN.
+        /// </summary>
+        [Fact]
+        public void CE3128_APathOfTwoCoincidentPoints_Arrives_AndThePositionStaysFinite()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f);
+            pool.RegisterTrajectoryWithKey(new[] { new Vector3(0f, 0f, 0f), new Vector3(0f, 0f, 0f) }, 7);
+            var nav0 = repo.GetComponent<NavState>(e);
+            nav0.FinalDestination = Vector3.Zero;
+            repo.SetComponent(e, nav0);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var p = repo.GetComponent<SimTransform>(e).Position;
+                Assert.True(float.IsFinite(p.X) && float.IsFinite(p.Y), $"position became {p} at tick {i}");
+            }
+            Assert.Equal(1, repo.GetComponent<NavState>(e).HasArrived);
+            var (pos, tangent, _) = pool.SampleTrajectory(7, 1f);
+            Assert.True(float.IsFinite(tangent.X) && float.IsFinite(tangent.Y) && float.IsFinite(pos.X));
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2059</c> — a vehicle that must TURN AROUND to start its path still ends at the path's end. 🔴 Measured live
         /// (`--mode all`, the Return leg): progress is integrated from speed, so the U-turn counted as progress along the path
         /// and the vehicle "arrived" 23 m short of home. Arrival is now confirmed by POSITION: a vehicle whose progress says
@@ -488,6 +582,182 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(1, repo.GetComponent<NavState>(e).HasArrived);
             float d = Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(100f, 0f));
             Assert.True(d <= 5f, $"came to rest {d:F1} m from the path's end (100, 0) at ({p.X:F1}, {p.Y:F1}); arrival radius 5 m");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3145</c> (R-247) — A PERSON TURNS ON THE SPOT, then walks: a walker facing WEST, his path going EAST, turns where
+        /// he stands (never more than 5 cm from it) in about half a second, then walks the path. 📐 The car model it replaces walked a
+        /// half-circle forward first — on <c>bt-window-duel</c> that carried A 0.5 m east into House A's open stairwell. 🔴 Red-proof:
+        /// route the walker through <c>BicycleModel</c> again and he swings ≈ 0.3 m west before coming round.
+        /// </summary>
+        [Fact]
+        public void CE3145_APerson_TurnsOnTheSpot_ThenWalks()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, facing: SimMath.FromYaw(MathF.PI),
+                vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float wander = 0f, turnedAt = -1f;
+            for (int i = 0; i < 20 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var tf = repo.GetComponent<SimTransform>(e);
+                var fwd = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+                if (turnedAt < 0f)
+                {
+                    wander = MathF.Max(wander, new Vector2(tf.Position.X, tf.Position.Y).Length());
+                    if (fwd.X > MathF.Cos(MathF.PI / 6f)) turnedAt = (i + 1) / 60f;
+                }
+            }
+            Assert.True(turnedAt > 0f && turnedAt <= 0.7f, $"turned round in {turnedAt:F2} s");
+            Assert.True(wander <= 0.05f, $"moved {wander:F2} m while turning — a person turns where he stands");
+            Assert.True(repo.GetComponent<SimTransform>(e).Position.X > 15f, "then walked the path");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3145</c> — A PERSON ON THE REAL HOUSE: from House A's upstairs window (107.1, 100.9, 3) along the route the navmesh
+        /// plans to the ground-floor east window (109.1, 103.6, 0) — east past the stairwell's edge (5 cm away), north, down the stairs —
+        /// he arrives downstairs and never drops more than a step (`HumanGait.MaxStepDown`) in one frame; and sent STRAIGHT across the stairwell he never falls
+        /// (the ledge rule). 📐 Measured in-process before: the car-sized 1 m lookahead cut the corner over the hole and A fell 3 m.
+        /// 🔴 Red-proof: restore the vehicle lookahead and drop the ledge rule — the route run falls at the corner (≈ 108.1, 101.0).
+        /// </summary>
+        [Theory]
+        [InlineData("route")]
+        [InlineData("across")]
+        public void CE3145_APerson_DownTheStairs_NeverFallsThroughTheStairwell(string run)
+        {
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var world = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Directory.GetFiles(folder, "*.world.geojson")[0]),
+                "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+
+            // the navmesh's own route (measured: RecastNavmeshFactory over bt-range, Infantry), or a straight line over the hole
+            var route = run == "route"
+                ? new[] { new Vector3(107.10f, 100.90f, 3.00f), new Vector3(107.40f, 100.80f, 3.20f), new Vector3(108.75f, 100.95f, 3.20f),
+                          new Vector3(108.75f, 105.45f, 3.20f), new Vector3(108.15f, 105.45f, 2.80f), new Vector3(108.15f, 104.10f, 2.00f),
+                          new Vector3(108.30f, 101.85f, 0.60f), new Vector3(108.90f, 101.85f, 0.20f), new Vector3(109.10f, 103.60f, 0.00f) }
+                : new[] { new Vector3(107.10f, 100.90f, 3.00f), new Vector3(108.00f, 103.50f, 3.00f) };
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 2f, startSpeed: 0f, facing: SimMath.FacingEast,
+                vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            pool.RegisterTrajectoryWithKey(route, 8);
+            ref var tf0 = ref repo.GetComponentRW<SimTransform>(e);
+            tf0.Position = route[0];
+            ref var nav0 = ref repo.GetComponentRW<NavState>(e);
+            nav0.TrajectoryId = 8;
+            nav0.FinalDestination = route[^1];
+            nav0.ArrivalRadius = 0.5f;
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(world);
+
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float worstDrop = 0f, lowest = float.MaxValue, lastZ = route[0].Z;
+            string trace = "";
+            for (int i = 0; i < 30 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                float z = repo.GetComponent<SimTransform>(e).Position.Z;
+                worstDrop = MathF.Max(worstDrop, lastZ - z);
+                lowest = MathF.Min(lowest, z);
+                lastZ = z;
+                if (i % 60 == 0)
+                {
+                    var n = repo.GetComponent<NavState>(e);
+                    var st = repo.GetComponent<VehicleState>(e);
+                    trace += $" t{i / 60}:({repo.GetComponent<SimTransform>(e).Position.X:F2},{repo.GetComponent<SimTransform>(e).Position.Y:F2},{z:F2}) v{st.Speed:F2} s{n.ProgressS:F1} arr{n.HasArrived}";
+                }
+            }
+            var end = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(worstDrop <= CarKinem.Controllers.HumanGait.MaxStepDown, $"{run}: dropped {worstDrop:F2} m in one frame (ended at {end})");   // a step off the stair's side (0.5 m) is fine; a storey is not
+            if (run == "route")
+                Assert.True(Vector2.Distance(new Vector2(end.X, end.Y), new Vector2(109.1f, 103.6f)) <= 0.8f && end.Z < 0.5f,
+                    $"walked down the stairs to the east window; ended at {end};{trace}");
+            else
+                Assert.True(lowest > 2.5f, $"stayed on the upper floor at the stairwell's edge; lowest z {lowest:F2}, ended at {end}");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-3145</c> — a NEGATIVE or zero step (📐 the cluster hands one: the in-process duel crashed the mover with
+        /// <c>Math.Clamp(min &gt; max)</c>) turns nothing and never throws.</summary>
+        [Theory]
+        [InlineData(-1f / 60f)]
+        [InlineData(0f)]
+        public void CE3145_HumanGait_ANonPositiveStep_TurnsNothing(float dt)
+        {
+            var pos = Vector2.Zero;
+            var fwd = Vector2.UnitX;
+            var state = new VehicleState();
+            float yaw = CarKinem.Controllers.HumanGait.Integrate(ref pos, ref fwd, ref state, -Vector2.UnitX, moving: true, accel: 0f, dt);
+            Assert.Equal(Vector2.UnitX, fwd);
+            Assert.Equal(0f, yaw);
+        }
+
+        /// <summary>
+        /// ⭐ Buildings 5d-3 — <see cref="NavState.IsBlocked"/> ("obstacle ahead", designed in FDP.Toolkit.CarKinem.md and never read before):
+        /// the mover brakes to a stop where it is, KEEPS its path and progress, and drives on along the same path when it clears.
+        /// </summary>
+        [Fact]
+        public void Stage5d_IsBlocked_StopsOnThePath_KeepsIt_AndDrivesOnWhenCleared()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 2f, startSpeed: 0f);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            void Run(float seconds) { for (int i = 0; i < (int)(seconds * 60); i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); } }
+
+            Run(3f);
+            float before = repo.GetComponent<NavState>(e).ProgressS;
+            Assert.True(before > 2f, $"should have started along the path ({before:F2} m)");
+
+            var nav = repo.GetComponent<NavState>(e); nav.IsBlocked = 1; repo.SetComponent(e, nav);
+            Run(2f);
+            float braked = repo.GetComponent<NavState>(e).ProgressS;
+            Run(3f);
+            var held = repo.GetComponent<NavState>(e);
+            Assert.True(repo.GetComponent<VehicleState>(e).Speed < 0.05f, "a held agent stands still");
+            Assert.Equal(braked, held.ProgressS, 2);                                    // no progress while held
+            Assert.Equal(7, held.TrajectoryId);                                          // the path is kept
+            Assert.Equal(KinematicsMode.CustomTrajectory, held.Mode);
+
+            held.IsBlocked = 0; repo.SetComponent(e, held);
+            Run(3f);
+            Assert.True(repo.GetComponent<NavState>(e).ProgressS > braked + 2f, "drives on along the same path");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3115</c> — a mover OFF its path closes onto it (pure pursuit on the PATH, 📄 FDP.Toolkit.CarKinem.md). 🔴 Red
+        /// before: it steered along the path's tangent, so it drove the whole path parallel to it at the starting offset — live on
+        /// bt-doors a walker ran 1.4 m off, through House A's wall, and passed a closed door out of reach.
+        /// </summary>
+        [Theory]
+        [InlineData("car", 3.0f)]
+        [InlineData("walker", 1.5f)]
+        public void CE3115_AMoverOffItsPath_ClosesOntoIt(string who, float offset)
+        {
+            var walker = who == "walker";
+            var p = walker ? VehiclePresets.GetPreset(VehicleClass.Pedestrian) : (VehicleParams?)null;
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: walker ? 1.5f : 5f, startSpeed: 0f, startY: offset, vehicle: p);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float worstLate = 0f;
+            for (int i = 0; i < 40 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var pos = repo.GetComponent<SimTransform>(e).Position;
+                if (pos.X > (walker ? 10f : 40f) && pos.X < 90f) worstLate = MathF.Max(worstLate, MathF.Abs(pos.Y));
+            }
+            Assert.True(repo.GetComponent<SimTransform>(e).Position.X > (walker ? 30f : 60f), "it travelled along the path");
+            Assert.True(worstLate < 0.3f, $"{who} still {worstLate:F2} m off its path after closing (started {offset} m off)");
             pool.Dispose();
             repo.Dispose();
         }

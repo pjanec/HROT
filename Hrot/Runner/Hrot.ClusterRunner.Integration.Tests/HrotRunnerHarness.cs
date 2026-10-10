@@ -76,7 +76,7 @@ public sealed class HrotRunnerHarness : IDisposable
         var factory = new NedNetworkFactory(
             participant:  _participant,
             entityMap:    new NetworkEntityMap(),
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.MuscleGround | NodeRole.Perception);
@@ -118,7 +118,7 @@ public sealed class HrotRunnerHarness : IDisposable
         var factory = new NedNetworkFactory(
             participant:  _participant,
             entityMap:    new NetworkEntityMap(),
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.MuscleGround | NodeRole.Perception);

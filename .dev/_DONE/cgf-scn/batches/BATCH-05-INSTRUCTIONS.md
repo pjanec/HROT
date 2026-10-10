@@ -64,7 +64,7 @@ Four tasks plus one debt fix:
 ```powershell
 # From repo root d:\Work\IOS-IG-SimHost-FDP-2
 
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj
 dotnet test Hrot\Engine\Hrot.Presentation.Tests\Hrot.Presentation.Tests.csproj  # if exists
@@ -227,7 +227,7 @@ already accept an optional `remapper` parameter — just pass the non-null insta
 3. **Task 3 (C010):** Modify `MissionPanel` → Write 3 tests → ALL pass ✅
 4. **Task 4 (C011):** Modify `CgfBehaviorSetup` → Write 3 tests → ALL pass ✅
 5. **Task 5 (D005):** Wire remapper in `CgfApplication` → `dotnet build` passes ✅
-6. **Final:** `dotnet build IOS-IG-SimHost.sln` → 0 errors; all test projects green ✅
+6. **Final:** `dotnet build HROT.sln` → 0 errors; all test projects green ✅
 
 **Do NOT stop to ask for permission. Fix all failures before writing the report.**
 
@@ -268,7 +268,7 @@ This batch is DONE when:
   and `MissionPanel.cs` exists in exactly one project
 - [ ] `CgfBehaviorSetup` registers remapper and UI registry; 3 tests pass
 - [ ] `CgfApplication` passes `ScenarioBehaviorRemapper` to both load handlers (DEBT-D005)
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors
+- [ ] `dotnet build HROT.sln` — 0 errors
 - [ ] All test projects green (or pre-existing failures only)
 - [ ] TASK-TRACKER.md updated with all Phase 5 tasks done
 - [ ] Report submitted

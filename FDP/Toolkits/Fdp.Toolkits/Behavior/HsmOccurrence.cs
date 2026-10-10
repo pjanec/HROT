@@ -242,8 +242,8 @@ public static unsafe class HsmOccurrence
     /// <summary>
     /// ⭐⭐ The occurrence's working state, as a <c>ref</c> into the entity's occurrence store.
     ///
-    /// <para>⛔ <b>Valid for the CALLING FRAME ONLY</b> — the seam's lifetime rule. Native ECS storage
-    /// means a structural change can move the chunk, so it is resolved per dispatch and never cached.</para>
+    /// <para>⭐ <c>CE-3137</c> U-0: the store never moves a slot, so the ref stays valid until this slot is
+    /// detached. It is still resolved per dispatch, because a re-assign may detach it.</para>
     ///
     /// <para>⛔⛔ <b>A missing slot is a HARD failure, not a silent one</b> (§19.6 ⑤). The alternative —
     /// returning a zeroed scratch — reads as <i>"the action just does nothing"</i>, which is precisely
@@ -253,15 +253,13 @@ public static unsafe class HsmOccurrence
         EntityRepository world, Entity self, int slotKey)
         where TWorkingState : unmanaged
     {
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-
-        if (store == null)
+        if (!OccurrenceStoreAccess.HasStore(world, self))
             throw new InvalidOperationException(
                 $"Entity {self} carries no occurrence store, so HSM-hosted slot {slotKey} cannot be " +
                 "resolved. The hosting site's slot must be declared in the behaviour's stateful " +
                 "manifest so BehaviorIngressSystem provisions it.");
 
-        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, slotKey, out int payloadOffset))
+        if (!OccurrenceStoreAccess.TryFindSlot(world, self, slotKey, out byte* store, out int payloadOffset, out _))
             throw new InvalidOperationException(
                 $"Entity {self} has an occurrence store but no slot {slotKey} for this HSM-hosted " +
                 "occurrence. Either the manifest does not declare it, or the hosting site computed a " +

@@ -297,5 +297,64 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             Assert.Empty(mandatory);
         }
-    }
+    
+        // ── CE-3137 U-0 rail ⑦: a working slot in a unit's SECOND block is searchable ───────────
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct U0SearchRoot { public float Speed; }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct U0SearchState { public int Hits; }
+
+        /// <summary>
+        /// ⭐⭐ <c>U0_R8</c> (§34 rail ⑦) — the replay search reads a behaviour's working slot in WHICHEVER block of the
+        /// unit's store holds it. A replay frame is an <see cref="EntityRepository"/> whose tier components were
+        /// recorded like any other component, so a two-block unit replays as two blocks; this pins the matcher on one.
+        /// 🔴 Red-proof by construction: the slot lives in the 256 block, and the single-block read (<c>TryGetStoreReadOnly</c>,
+        /// what the matcher used before U-0) returns the 4096 — which does not hold it.
+        /// </summary>
+        [Fact]
+        public unsafe void U0_R8_AWorkingSlotInTheSecondBlock_IsFoundByTheSearch()
+        {
+            const int behaviourId = 0x0C3137;
+            const int slotKey     = 0x5EA2C4;
+            var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+            registry.Register(behaviourId, "U0Search", new Fdp.Toolkit.Behavior.BehaviorDefinition
+            {
+                Name                 = "U0Search",
+                BrainTier            = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree,
+                BlackboardLayoutType = typeof(U0SearchRoot),
+                StatefulWorkingSlots = new[]
+                {
+                    new Fdp.Toolkit.Behavior.StatefulSlotInfo(slotKey, 4, 0, typeof(U0SearchState), "Action", Role: 0, Scope: 0),
+                },
+            });
+
+            using var repo = new EntityRepository();
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(repo);
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+
+            var unit = repo.CreateEntity();
+            repo.AddComponent(unit, new Fdp.Toolkit.Behavior.Components.BehaviorState { ActiveBehaviorHash = behaviourId });
+            var asc = Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.Ascending;
+            Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.AddBlock(repo, unit, asc[0]);
+            Assert.True(Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryAttachSlot(
+                repo, unit, slotKey, sizeof(U0SearchState), 0, Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.BTree,
+                out byte* block, out int offset));
+            ((U0SearchState*)(block + offset))->Hits = 7;
+            Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.AddBlock(repo, unit, asc[2]);   // larger ⇒ "the" store
+            Assert.Equal(2, Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.Measure(repo, unit).Blocks);
+
+            var compiler = new PredicateCompiler(new ComponentEditServiceBuilder().Build(), registry);
+            Func<SearchOperator, double, double, Func<EntityRepository, Entity, bool>> compile = (op, min, max) =>
+                compiler.CompileComponentPredicate(new BehaviorParamPredicateDto
+                {
+                    BehaviorId = behaviourId, WorkingSlotKey = slotKey, PropertyPath = "Hits", Operator = op,
+                    Predicate  = new NumericPredicateDto { MinValue = min, MaxValue = max },
+                });
+
+            Assert.True(compile(SearchOperator.Equals, 7, 7)(repo, unit), "the slot in the smaller (second-searched) block matches");
+            Assert.False(compile(SearchOperator.Equals, 8, 8)(repo, unit), "anti-vacuity: a different value does not");
+        }
+}
 }

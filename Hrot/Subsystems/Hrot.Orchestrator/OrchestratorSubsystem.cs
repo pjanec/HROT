@@ -31,22 +31,10 @@ namespace Hrot.Orchestrator;
 /// </summary>
 public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 {
-    private ClusterMaster? _clusterMaster;
-    private LiveBranchProcessManager?   _liveBranchProcessManager;
-    private ReplaySeekProcessManager?   _seekProcessManager;
-    private ReplayProcessManager? _replayProcessManager;
-    private StorageProcessManager? _storageProcessManager;
-    private EpisodeProcessManager? _episodeProcessManager;
-    private GlobalContextProcessManager? _globalContextProcessManager;
-    private AssetPrefetchProcessManager? _assetPrefetchProcessManager;
-    private AssetInventoryProcessManager? _assetInventoryProcessManager;
-    private DiagnosticsDumpProcessManager? _diagnosticsDumpProcessManager;
-    private DiagnosticLogMergeWorker?      _mergeWorker;
-    private ClusterDiagnosticsPanel?       _diagnosticsPanel;
+    // ⭐ Q86 (R-215) — the master and every process manager live in the ONE core the editor builds too.
+    private OrchestratorCore? _core;
     private Fdp.Presentation.Abstractions.IFileDialogService? _fileDialogService;
     private ClusterConfiguration _config = ClusterConfiguration.Default;
-    private ClusterUiCache?        _uiCache;
-    private ClusterScenarioPanel?  _scenarioPanel;
     private ClusterSlave? _clusterSlave;
 
     // ── Unified event bus (HEXAG2-S001) ─────────────────────────────────────
@@ -59,20 +47,20 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     // ── Time controller (CGF1-A.1, BATCH-09) ─────────────────────────────
     // MasterSyncController unifies wall-clock advancement, barrier protocol, and stepping.
     private MasterSyncController?          _masterSync;
-    private string?                        _lastProcessedTimeMode;
+    private Fdp.Toolkit.Time.ITimeCommands? _timeCommands;   // Q86 §4-C: the core commands the clock through this
 
     /// <summary>Internal event bus exposed for test assertions on SwitchTimeModeEvent.</summary>
     internal FdpEventBus? TimeBusForTest => _bus;
 
     /// <summary>Internal test hook: exposes the <see cref="ClusterUiCache"/> for bus-unification assertions.</summary>
-    internal ClusterUiCache? UiCacheForTest => _uiCache;
+    internal ClusterUiCache? UiCacheForTest => _core?.UiCache;
 
     /// <summary>
     /// Internal test hook: exposes the <see cref="ClusterMaster"/> hosted by this subsystem so
     /// E2E test fixtures can inject <see cref="ClusterOpRequest"/> values via
     /// <see cref="ClusterMaster.HandleClusterOpRequest"/> and read cluster state.
     /// </summary>
-    internal ClusterMaster? TestHook_ClusterMaster => _clusterMaster;
+    internal ClusterMaster? TestHook_ClusterMaster => _core?.Master;
 
     /// <summary>Internal test hook: current master sim time in seconds.</summary>
     internal double TestHook_CurrentSimTime => _masterSync?.GetCurrentState().TotalTime ?? 0.0;
@@ -116,8 +104,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 
     public void Initialize(SubsystemConfig config)
     {
-        _config = ClusterConfiguration.LoadFrom(
-            System.IO.Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
+        _config = ClusterConfiguration.LoadFromWorkingDirectory();
 
         // HEXAG2-S008: Use INetworkFactory to create the participant.
         // Parameterless constructor (headless/test mode) leaves _networkFactory null;
@@ -131,8 +118,38 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _bus          = new FdpEventBus();
         Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_bus);
         OrchestratorEventRegistry.RegisterInternalEvents(_bus);
-        _clusterMaster = new ClusterMaster(_bus, _config);
         int orchestratorNodeId = config.NodeId != 0 ? config.NodeId : 300;
+
+        _translator    = _networkFactory?.CreateOrchestratorTranslators(_bus, config.NodeId)
+                         ?? new NullOrchestrationTranslator();
+        _idAllocatorServerHandle = _networkFactory?.CreateIdAllocatorServer()
+                                   ?? new NullDisposable();
+
+        // ── Time controller setup (CGF1-A.1, BATCH-09) ─────────────────────
+        // Must be created before _timeTranslators so the initial SwitchTimeModeEvent is published to _bus
+        // PENDING. Swap it immediately so the first ScanAndPublish can forward it to DDS before slaves start.
+        // ⭐⭐⭐ CE-101 — BOOT PAUSED. 🔒 User, `2026-08-28`: *"simulation time is running from the beginning.
+        //    Undesired, should start paused."* 📄 §5c.16.
+        // ⭐ Q86: THIS host owns the clock — it creates, advances (Update) and disposes it. The core only asks.
+        _masterSync       = new MasterSyncController(
+            _bus, new HashSet<int>(), TimeConfig.Default, startPaused: true);
+        _timeCommands     = new Fdp.Toolkit.Time.IntentTimeCommands(_bus);   // Q86 §4-C
+
+        // ⭐⭐ Q86 — the ONE orchestrator core (the editor builds the same one).
+        _fileDialogService = Fdp.Presentation.Panels.FileDialogServiceFactory.Create();
+        _core = new OrchestratorCore(new OrchestratorCoreOptions
+        {
+            Bus               = _bus,
+            Config            = _config,
+            TimeCommands      = _timeCommands,
+            TimeReads         = _masterSync,
+            StagingNodeId     = orchestratorNodeId,
+            // ⭐⭐⭐ HN-037 — type-tested: only the NED factory hosts a real authority (docs/DESIGN_Deterministic_Network_Ids.md §11).
+            IdAuthority       = _idAllocatorServerHandle as Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority,
+            FileDialogService = _fileDialogService,
+        });
+
+        // The orchestrator is also a cluster NODE (diagnostics dump) — host-only, not part of the core.
         _clusterSlave = new ClusterSlave(orchestratorNodeId, "Orchestrator", _bus);
         string isolatedTempRoot = OrchestrationConstants.GetNodeStagingRoot(orchestratorNodeId);
         string resolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
@@ -152,152 +169,14 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
                 LocalTempRoot = isolatedTempRoot,
                 LogDirectory = resolvedLogDir,
             }));
-        // FIX: Wire the storage gateway so the cluster master can scan local/NAS scenarios
-        // and publish AssetInventoryUpdateEvent to populate the UI combo box.
-        var storageGateway = new StorageGatewayModule();
-        _translator    = _networkFactory?.CreateOrchestratorTranslators(_bus, config.NodeId)
-                         ?? new NullOrchestrationTranslator();
-        _idAllocatorServerHandle = _networkFactory?.CreateIdAllocatorServer()
-                                   ?? new NullDisposable();
 
-        // ⭐⭐⭐ HN-037 — hand the master the world's ONE id authority, so a scenario load resets it to 1000.
-        // 📄 docs/DESIGN_Deterministic_Network_Ids.md §11. ⭐ Type-tested rather than widening
-        //    INetworkFactory.CreateIdAllocatorServer's return type: only the NED factory hosts a real
-        //    authority, and a failed type-test already says "this host has none" (the IRestorableIdAllocator
-        //    idiom). ⚠ The 2026-08-16 rule — a production caller that HAS the dependency must PASS it — is
-        //    why this is wired here and not left for a later batch: the handle is in hand, two lines up.
-        _clusterMaster.IdAuthority =
-            _idAllocatorServerHandle as Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority;
-
-        // ── Time controller setup (CGF1-A.1, BATCH-09) ─────────────────────
-        // Must be created before _timeTranslators so the initial SwitchTimeModeEvent{Continuous}
-        // is published to _bus PENDING. Swap it immediately so the first ScanAndPublish can
-        // read it and forward it to DDS before slaves start their kernels.
-        // ⭐⭐⭐ CE-101 — BOOT PAUSED. 🔒 User, `2026-08-28`: *"simulation time is running from the beginning.
-        //    Undesired, should start paused."* 📐 Measured: the clock started ~2 s after boot and ran at ~1×
-        //    with NO scenario and zero entities, because the anchor event below announced Continuous and
-        //    `PauseRequested` is derived from that mode. ⛔ It also silently refused every /sim/step (CE-105).
-        //    ⚠ The anchor is still broadcast — only the MODE it announces changed. 📄 §5c.16.
-        _masterSync       = new MasterSyncController(
-            _bus, new HashSet<int>(), TimeConfig.Default, startPaused: true);
-        
-        
         _bus.SwapBuffers();
         _timeTranslators  = _networkFactory?.CreateMasterTimeTranslators(_bus, config.NodeId)
                             ?? new NullMasterTimeTranslators();
 
-        _uiCache       = new ClusterUiCache(_bus, _masterSync);
-        _scenarioPanel = new ClusterScenarioPanel(_bus!, _uiCache);
-
-        // TASK-T002: Register ReplaySeekAggregator with ClusterMaster.
-        _clusterMaster.RegisterAggregator(new ReplaySeekAggregator());
-
-        // Wire the replay process manager and register its aggregator with the cluster master.
-        _replayProcessManager = new ReplayProcessManager(_bus, _masterSync);
-        _clusterMaster.RegisterAggregator(_replayProcessManager.CreateAggregator());
-
-        // TASK-S001: Register the storage consensus aggregator.
-        _clusterMaster.RegisterAggregator(new StorageConsensusAggregator());
-
-        // TASK-S003: Register episode consensus aggregators for StartEpisode and StopEpisode.
-        _clusterMaster.RegisterAggregator(new EpisodeConsensusAggregator(Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode));
-        _clusterMaster.RegisterAggregator(new EpisodeConsensusAggregator(Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode));
-
-        // Register DiagnosticsConsensusAggregator for DumpDiagnostics cluster ops.
-        var diagnosticsAggregator = new DiagnosticsConsensusAggregator();
-        _clusterMaster.RegisterAggregator(diagnosticsAggregator);
-
-        // CGF1-S0307: Create the global-context handler, subscribe to OnContextLoaded so the
-        // MasterSyncController is seeded with the scenario's saved timeline on every load.
-        // In headless mode (_networkFactory?.Participant == null) no DDS writer is available;
-        // skip creation and leave _globalContextProcessManager null.
-        var participant = _networkFactory?.Participant;
-        GlobalContextClusterOpHandler? contextHandler = null;
-        if (participant != null)
-        {
-            contextHandler = new GlobalContextClusterOpHandler(participant, string.Empty);
-            contextHandler.LocalTempRoot = isolatedTempRoot;
-            contextHandler.OnContextLoaded += (startTicks, simTimeSeconds) =>
-            {
-                if (_masterSync != null)
-                {
-                    _masterSync.SeedState(new GlobalTime
-                    {
-                        TotalWallTicks    = startTicks,
-                        TotalTime         = simTimeSeconds,
-                        UnscaledTotalTime = simTimeSeconds,
-                        TimeScale         = _masterSync.GetTimeScale(),
-                    });
-                    FdpLog<OrchestratorSubsystem>.Info(
-                        "[Orchestrator] Seeded MasterSyncController: WallTicks={0}, SimTime={1:F1}s",
-                        startTicks, simTimeSeconds);
-                }
-            };
-            _globalContextProcessManager = new GlobalContextProcessManager(_bus!, contextHandler);
-        }
-
-        // TASK-S002: Wire the storage process manager (TASK-P001: shim removed).
-        _storageProcessManager = new StorageProcessManager(
-            _bus!,
-            storageGateway,
-            _config.NasBasePath);
-
-        // CGF1-S0506: Wire the asset inventory process manager.
-        // Polls the storage gateway every 5 seconds and publishes AssetInventoryUpdateEvent.
-        _assetInventoryProcessManager = new AssetInventoryProcessManager(
-            _bus!,
-            storageGateway,
-            _config.NasBasePath,
-            OrchestrationConstants.ResolveStagingRoot(),
-            orchestratorNodeId);
-
-        // TASK-S003: Wire the episode process manager.
-        _episodeProcessManager = new EpisodeProcessManager(_bus);
-
-        // TASK-T001: Wire the live-branch process manager (CGF1-S0305).
-        // Must tick BEFORE ClusterMaster.Tick() so FreezeTime runs before the PrepareLive fan-out.
-        var replayMasterModule = new ReplayMasterModule(
-            scale => _masterSync!.SetTimeScale(scale),
-            () => _masterSync!.GetTimeScale());
-        _liveBranchProcessManager = new LiveBranchProcessManager(_bus, replayMasterModule, _masterSync);
-
-        // TASK-T002: Wire the seek process manager (SnapAndPause + precondition events).
-        // Must tick BEFORE ClusterMaster.Tick() so precondition events arrive before the seek fan-out.
-        _seekProcessManager = new ReplaySeekProcessManager(_bus, _masterSync!);
-
-        // TASK-P002: Wire the asset prefetch process manager.
-        // Must tick BEFORE ClusterMaster.Tick() so ExecutePrefetchIntent is consumed and
-        // PrefetchStagingCompletedEvent is published before ProcessPrefetchStagingCompleted runs.
-        _assetPrefetchProcessManager = new AssetPrefetchProcessManager(
-            _bus!,
-            storageGateway,
-            _config.NasBasePath);
-
-        // ⭐ CE-3021 — the explicit publish / refresh, over the SAME gateway and NAS (silent-default rule).
-        var master = _clusterMaster!;
-        master.AssetSync = new AssetSyncService(storageGateway, _config.NasBasePath, master.ActiveNodeCapabilitySnapshot);
-
-        // Wire the diagnostics dump process manager for DumpDiagnostics cluster ops.
-        _diagnosticsDumpProcessManager = new DiagnosticsDumpProcessManager(
-            _bus!,
-            storageGateway,
-            _config.NasBasePath,
-            diagnosticsAggregator);
-
-        // Wire the diagnostic log merge worker (K-way merge on MergeLogsIntent).
-        _mergeWorker = new DiagnosticLogMergeWorker(_bus!);
-
-        // Wire the diagnostics panel (reads from _uiCache, publishes via _bus).
-        _fileDialogService = Fdp.Presentation.Panels.FileDialogServiceFactory.Create();
-        _diagnosticsPanel = new ClusterDiagnosticsPanel(
-            _uiCache!,
-            _bus!,
-            _fileDialogService,
-            _config.NasBasePath);
-
         // Drain the read buffer locally so the cache captures the bootstrapped state
         // before the first frame's Phase 2 SwapBuffers wipes it out.
-        _uiCache.Update();
+        _core.UiCache.Update();
     }
 
     public void Update(float deltaTime)
@@ -318,42 +197,12 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // Then ReplayProcessManager auto-pauses the clock when replay ends.
         // Then StorageProcessManager handles NAS pulls for completed SerializeLocal ops.
         // Then EpisodeProcessManager updates active episode state and publishes EpisodeStateChangedEvent.
-        _masterSync?.Update();
-        _liveBranchProcessManager?.Tick();
-        _seekProcessManager?.Tick();
-        _globalContextProcessManager?.Tick();
-        _assetPrefetchProcessManager?.Tick();
-        _clusterMaster?.Tick();
-        _replayProcessManager?.Tick();
-        _storageProcessManager?.Tick();
-        _assetInventoryProcessManager?.Tick();
-        _episodeProcessManager?.Tick();
-        _diagnosticsDumpProcessManager?.Tick();
-        _mergeWorker?.Tick();
+        _masterSync?.Update();          // ⭐ Q86: the host advances its own clock — the core never does
+        _core?.Tick();
         _clusterSlave?.Tick();
 
-        // CGF1-A.1: Consume PendingTimeMode and drive MasterSyncController.
-        var pendingMode = _clusterMaster?.PendingTimeMode;
-        if (pendingMode != _lastProcessedTimeMode)
-        {
-            if (pendingMode == "Deterministic" && _masterSync != null && _clusterMaster != null)
-            {
-                // Exclude ExCon: it has no simulation kernel and never sends FrameAck.
-                var slaveIds = _clusterMaster.NodeRoster.ActiveNodes
-                    .Where(kv => kv.Value.SubsystemName is "SimHost" or "IG" or "CGF")
-                    .Select(kv => kv.Key)
-                    .ToHashSet();
-                _masterSync.SwitchToDeterministic(slaveIds);
-            }
-            _lastProcessedTimeMode = pendingMode;
-        }
-
-        // Phase 4: Local observation.
-        // CGF1-S0506: Update cache after ClusterMaster tick so it reflects latest state.
-        _uiCache?.Update();
-
-        // S0503: Advance seek debounce.
-        _scenarioPanel?.Update(deltaTime);
+        // Phase 4: Local observation — the UI cache after the master tick, then the seek debounce.
+        _core?.TickUi(deltaTime);
 
         // Phase 5: Time-sync NTP ingress (NTP responses from slaves).
         _timeTranslators?.PollNtpIngress();
@@ -366,12 +215,11 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     /// <inheritdoc/>
     public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
     {
-        if (_scenarioPanel == null) return;
-        windowManager.RegisterWindow(new OrchestratorWindow(_scenarioPanel));
+        if (_core == null) return;
+        windowManager.RegisterWindow(new OrchestratorWindow(_core.ScenarioPanel));
 
         // Register diagnostics window.
-        if (_diagnosticsPanel != null)
-            windowManager.RegisterWindow(new DiagnosticsWindow(_diagnosticsPanel));
+        windowManager.RegisterWindow(new DiagnosticsWindow(_core.DiagnosticsPanel));
 
         // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
         // Harmless no-op for the Win32 backend: WindowManager only draws the service
@@ -382,33 +230,23 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 
     public void Shutdown()
     {
-        _scenarioPanel = null;
-        _uiCache?.Dispose();
-        _uiCache = null;
         // Dispose ID allocator server first — joins its polling thread before any DDS teardown.
         _idAllocatorServerHandle?.Dispose();
         _idAllocatorServerHandle = null;
         // Dispose the orchestration translator — tears down DDS readers/writers.
         _translator?.Dispose();
         _translator = null;
-        // Dispose time translators.
         _timeTranslators?.Dispose();
         _timeTranslators = null;
+        _core?.Dispose();
+        _core = null;
         _bus = null;
-        _replayProcessManager = null;
-        _clusterMaster?.Dispose();
-        _clusterMaster = null;
         _clusterSlave?.Dispose();
         _clusterSlave = null;
-        _assetInventoryProcessManager = null;
-        _diagnosticsDumpProcessManager = null;
-        _mergeWorker?.Dispose();
-        _mergeWorker = null;
-        _diagnosticsPanel = null;
         _fileDialogService = null;
         _masterSync?.Dispose();
         _masterSync = null;
-        _lastProcessedTimeMode = null;
+        _timeCommands = null;
         _networkFactory = null;
     }
 

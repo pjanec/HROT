@@ -245,7 +245,7 @@ the row or edit other rows.
 
 Run from repo root (PowerShell). Build first, then the targeted suites:
 
-1. `dotnet build IOS-IG-SimHost.sln` — 0 errors; **0 new warnings** in touched projects
+1. `dotnet build HROT.sln` — 0 errors; **0 new warnings** in touched projects
    (`Fdp.Toolkits`, `Hrot.Blueprints.Tests`). A full `--no-incremental` rebuild surfaces ~26
    pre-existing warnings in unrelated test projects (DEBT-BCP-004) — leave them.
 2. `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests` filtered to:

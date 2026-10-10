@@ -612,11 +612,9 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
             //    so geo routes would answer against the wrong planet.
             // ⭐ CE-257 — the NODE'S transform, not a third fresh one. 🔒 CE-236's ruling is "one
             //   GeographicTransform, shared by the debug API, the scenario loader and the JSON
-            //   parameter interpreter alike". ⚠ Honestly: CreateGeoTransform() is deterministic (a
-            //   WGS84Transform on a fixed Berlin origin, no mutable state), so the instances were
-            //   value-equivalent and this is tidiness, NOT a bug — ⛔ unlike CE-180's trajectory pools,
-            //   where identity genuinely mattered. Sharing anyway, because "one transform" is easier to
-            //   keep true than "three that happen to agree".
+            //   parameter interpreter alike". ⭐ CE-3126 — identity now MATTERS: a terrain commit sets the
+            //   origin on the node's one transform (docs/DESIGN_Geo_Origin.md §2 C/D), so a fresh instance here
+            //   would answer at 0,0,0 after the cluster moved to the terrain's origin.
             geoTransform: Context.GeoTransform ?? HrotEnvironment.CreateGeoTransform()));
         _debugApiHost.Start();
 

@@ -112,7 +112,7 @@ key layout files and `PanelSnapshot`, so a tidier rename would have silently res
 |---|---|---|---|---|
 | 1 | unit suite, touched project | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests --no-build` | ⚠ **331 passed / 1 failed / 1 skipped** *(333)* — see row 4 | ✅ |
 | 2 | affected projects build | `Hrot.Presentation` · `Hrot.Editor` · `Hrot.CGF` · `Hrot.SimHost.Tests` · `Hrot.ClusterRunner.Integration.Tests`, each `--no-restore` | ✅ **0 errors** each | ⛔ builds |
-| 3 | full solution, **ONCE, at the end** | `dotnet build IOS-IG-SimHost.sln --no-restore` | ⚠ **2 errors — BOTH PRE-EXISTING**, row 4 | ⛔ builds |
+| 3 | full solution, **ONCE, at the end** | `dotnet build HROT.sln --no-restore` | ⚠ **2 errors — BOTH PRE-EXISTING**, row 4 | ⛔ builds |
 | 4 | ⭐⭐ every RED confirmed pre-existing against the base | worktree at **`ae4d4b1e7`**, per-project build | ✅ **proved** — see the table below | ⛔ restore |
 | 5 | working tree clean after every suite | `git status --short` | ✅ clean; no golden moved | — |
 | 6 | quarantine counts | unchanged; ⛔ **no new skip** *(the 1 skip is pre-existing)* | ✅ | — |

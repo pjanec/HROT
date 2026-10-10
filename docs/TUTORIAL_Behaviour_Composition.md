@@ -5,6 +5,7 @@ current-answer: the whole file — a TUTORIAL: what each building block is for, 
 stale-below: none
 known-rot: none known; built/not-built facts are a 2026-10-06 snapshot — §9 lists the gaps, re-check them against the tracker
 related-designs:
+  - REVIEW_Behaviour_Library_Genericity.md — OWNS which blocks are library vs demo-local.
   - docs/OVERVIEW_Behaviour_Building_Blocks.md — the MAP of every block (this file is the GUIDE to choosing among them)
   - docs/TUTORIAL_Universal_Soldier.md — the worked example of §8, step by step with scenario JSON
   - docs/AI_DEV_GUIDE.md — owns the paradigm tiers (FastBTree / FastHSM / hardcoded) and their "choose X when" rules

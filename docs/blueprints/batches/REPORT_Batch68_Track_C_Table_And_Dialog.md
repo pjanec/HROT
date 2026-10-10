@@ -17,7 +17,7 @@ regenerated. ⚠ **But this batch DID try to move stored bytes once, and the gat
 
 | gate | command | result |
 |---|---|---|
-| solution build | `dotnet build IOS-IG-SimHost.sln -t:Rebuild -v q --nologo` | ✅ **0 errors / 69 warnings** *(full rebuild — baseline exactly)* |
+| solution build | `dotnet build HROT.sln -t:Rebuild -v q --nologo` | ✅ **0 errors / 69 warnings** *(full rebuild — baseline exactly)* |
 | Blueprints | `dotnet test …/Hrot.Blueprints.Tests.csproj --no-build -v q --nologo` | ✅ **3649 / 3639 / 0 / 10** *(unchanged)* |
 | AiShared | `dotnet test …/Hrot.Editor.AiShared.Tests.csproj --no-build -v q --nologo` | ✅ **1261 / 1261 / 0 / 0** *(was 1216 ⇒ **+45**)* |
 | BTree.Editor | `dotnet test …/Hrot.BTree.Editor.Tests.csproj -v q --nologo` | ✅ **615 / 615 / 0 / 0** *(**+3**)* |

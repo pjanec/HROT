@@ -143,7 +143,7 @@ the 43 gate 8 compared.
 
 | gate | `--no-build`? | result |
 |---|---|---|
-| `dotnet build IOS-IG-SimHost.sln` | — | ✅ **0 errors / 35 warnings** *(with the full collapse applied)* |
+| `dotnet build HROT.sln` | — | ✅ **0 errors / 35 warnings** *(with the full collapse applied)* |
 | ⭐⭐ **8 · `StructureHash` before/after, computed** | ✅ | ✅ **43/43 BYTE-IDENTICAL** |
 | `Hrot.Editor.AiShared.Tests` | ✅ | ✅ **1397** — unchanged |
 | `Hrot.AiEditor.Generators.Tests` | ✅ | ✅ **270** — unchanged |

@@ -104,7 +104,7 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant(domain);
             using var drReader    = new DdsReader<WorldPos>(participant, "WorldPos");
 
-            var geoTransform = HrotEnvironment.CreateGeoTransform();
+            var geoTransform = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
             var entityMap    = new NetworkEntityMap();
             var translator   = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId: 0);
 
@@ -141,7 +141,7 @@ namespace Hrot.SimHost.Tests
             using var participant  = new DdsParticipant(domain);
             using var geoReader    = new DdsReader<WorldPos>(participant, "WorldPos");
 
-            var geoTransform = HrotEnvironment.CreateGeoTransform();
+            var geoTransform = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
             var entityMap    = new NetworkEntityMap();
             var translator   = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId: 0);
 

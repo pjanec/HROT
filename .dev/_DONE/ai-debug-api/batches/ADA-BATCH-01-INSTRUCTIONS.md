@@ -52,7 +52,7 @@ minimal `/status` and `/shutdown`.
 
 ### Build & test
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests
 ```
 

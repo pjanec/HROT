@@ -86,7 +86,7 @@ Model the project file on an existing Hrot subsystem (e.g. Hrot.SimHost). Add re
 - `Fdp.Presentation` (for `MapCanvas`, `DebugGizmoLayer`, `GridMapLayer`, `WindowManager`, `IWindowRegistrar`, `EntityInspectorPanel`, `EventBrowserPanel`)
 
 Add this project to:
-1. `IOS-IG-SimHost.sln` (parent solution) if the Hrot subsystems are referenced from there
+1. `HROT.sln` (parent solution) if the Hrot subsystems are referenced from there
 2. The FDP solution or Hrot.ClusterRunner references as appropriate — check how other subsystems are discovered
 
 **Class**: `Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs`

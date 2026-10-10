@@ -32,8 +32,8 @@
 ### Build / test
 
 ```powershell
-dotnet build IOS-IG-SimHost.sln
-dotnet test IOS-IG-SimHost.sln
+dotnet build HROT.sln
+dotnet test HROT.sln
 ```
 
 ---
@@ -48,7 +48,7 @@ Complete **Part A** in order; all tests green; then **Part B** (S0105) with test
 
 ### A.1 — Remove standalone projects (DEBT: Product / P2)
 
-- Remove **`Hrot.Orchestrator.Standalone`** and **`Hrot.CGF.Standalone`** from **`IOS-IG-SimHost.sln`** and delete the project directories (or leave a one-line README pointing to Runner if deletion is blocked — **prefer deletion**).  
+- Remove **`Hrot.Orchestrator.Standalone`** and **`Hrot.CGF.Standalone`** from **`HROT.sln`** and delete the project directories (or leave a one-line README pointing to Runner if deletion is blocked — **prefer deletion**).  
 - No other Hrot subsystem ships a separate `.Standalone` exe; **orchestrator and CGF run only through `Hrot.ClusterRunner`** (`--mode orchestrator`, `--mode cgf`, combined flags as today).  
 - Keep **`CgfApplication`** for integration tests and **`CgfSubsystem`** for Runner.  
 - Update [.dev/cgf-1/CGF-1-ONBOARDING.md](../CGF-1-ONBOARDING.md) and any README references that mention `dotnet run --project …Standalone`.

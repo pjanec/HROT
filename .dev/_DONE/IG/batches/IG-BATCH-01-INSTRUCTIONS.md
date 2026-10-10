@@ -24,7 +24,7 @@ Welcome to the first batch of the IG Mock implementation! This batch focuses on 
 ### Source Code Location
 - **Primary Work Area:** `Hrot.IG/`
 - **Test Project:** `Hrot.IG.Tests/`
-- **Solution File:** `IOS-IG-SimHost.sln`
+- **Solution File:** `HROT.sln`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -80,7 +80,7 @@ This batch initializes the IG mock component, introducing the Raylib frontend wi
 - Create `Hrot.IG` as a `net8.0` console application.
 - Follow precisely the package list (`Raylib-cs`, `rlImGui`, `CycloneDDS.NET`, `NLog`) and internal project references outlined in the task definition.
 - Set up the folder structure as defined (`Components/`, `Systems/`, `Tools/`, `Translators/`, `UI/`, `Adapters/`).
-- Add the project to the central `IOS-IG-SimHost.sln`.
+- Add the project to the central `HROT.sln`.
 
 **Tests Required:**
 - ✅ Verify the project compiles without warnings. 
@@ -96,7 +96,7 @@ This batch initializes the IG mock component, introducing the Raylib frontend wi
 **Requirements:**
 - Create `Hrot.IG.Tests` matching `net8.0` test project template.
 - Reference `Hrot.IG` project.
-- Add to `IOS-IG-SimHost.sln`.
+- Add to `HROT.sln`.
 
 **Tests Required:**
 - ✅ Ensure a default `[TestMethod]` passes.

@@ -61,6 +61,56 @@ namespace Fdp.Toolkit.Navigation.Tests
         /// version, so with the default Active-only filter the intent was skipped while
         /// Constructing and then never seen again once Active — the unit never moved.
         /// </summary>
+        // ── ⭐ CE-1035 Q0b (DESIGN_World_Query_Seam.md WQ-H) — a 2-D destination is put on the surface by the motion side ──
+
+        /// <summary>A world with a 3 m deck over (100..140, 0..40).</summary>
+        private static Fdp.Toolkit.Terrain.TerrainWorld Deck() => Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""
+        {
+          "type": "FeatureCollection",
+          "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 0 },
+          "features": [
+            { "type": "Feature", "properties": { "kind": "slab", "label": "Deck" },
+              "geometry": { "type": "Polygon", "coordinates": [[[100,0,3],[140,0,3],[140,40,3],[100,40,3],[100,0,3]]] } }
+          ]
+        }
+        """);
+
+        private static Vector3 Applied(Vector3 moverAt, Vector3 destination, byte flags, bool withWorld = true)
+        {
+            var repo = CreateWorld();
+            repo.RegisterComponent<SimTransform>();
+            if (withWorld) repo.SetSingletonManaged(Deck());
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new SimTransform { Position = moverAt });
+            repo.AddComponent(entity, new NavigationIntent
+            {
+                Mode = NavigationMode.DirectPoint, FinalDestination = destination, TargetSpeed = 5f, IntentId = 1u, Flags = flags,
+            });
+            repo.AddComponent(entity, new NavState());
+            repo.Bus.SwapBuffers();
+            new NavigationIntentBridgeSystem().Execute(repo, 0.016f);
+            var applied = repo.GetComponent<NavState>(entity).FinalDestination;
+            repo.Dispose();
+            return applied;
+        }
+
+        [Fact]
+        public void Q0b_A2DDestination_LandsOnTheSurfaceAtTheMoversLevel()
+        {
+            const byte onSurface = NavigationConstants.FlagDestinationOnSurface;
+            // a mover on the deck, sent to a 2-D point over the deck: the deck, not the ground under it
+            Assert.Equal(3f, Applied(new Vector3(110, 10, 3), new Vector3(120, 20, 0), onSurface).Z);
+            // the same point from a mover on the ground: the ground under the deck
+            Assert.Equal(0f, Applied(new Vector3(60, 10, 0), new Vector3(120, 20, 0), onSurface).Z);
+            // the flag clear: the brain's Z is real and is kept exactly
+            Assert.Equal(7f, Applied(new Vector3(110, 10, 3), new Vector3(120, 20, 7), 0).Z);
+            // no world at all: the point as sent
+            Assert.Equal(0f, Applied(new Vector3(110, 10, 3), new Vector3(120, 20, 0), onSurface, withWorld: false).Z);
+            // the X and Y are never touched
+            var p = Applied(new Vector3(110, 10, 3), new Vector3(120, 20, 0), onSurface);
+            Assert.Equal(120f, p.X); Assert.Equal(20f, p.Y);
+        }
+
         [Fact]
         public void Intent_WrittenWhileConstructing_IsAppliedAndNotLostOnActivation()
         {

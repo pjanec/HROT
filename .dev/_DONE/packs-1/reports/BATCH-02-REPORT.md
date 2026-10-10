@@ -23,7 +23,7 @@ FDP.Toolkit.CarKinem.Tests:   Failed: 0, Passed: 127, Skipped: 0
 FDP.Toolkit.Navigation.Tests: Failed: 0, Passed:  41, Skipped: 0
 ```
 
-dotnet build IOS-IG-SimHost.sln: **Build succeeded. 0 Error(s)**
+dotnet build HROT.sln: **Build succeeded. 0 Error(s)**
 
 ## Developer Insights
 

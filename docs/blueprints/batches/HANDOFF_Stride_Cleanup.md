@@ -39,7 +39,7 @@ perspective doc.
 | # | task | measured surface | gate |
 |---|---|---|---|
 | 🔴🔴 **S1** | ⭐⭐⭐ **RELOCATE `StrideNodeBootstrapper`** to a home the Stride app may reference — ⭐ **lean: `Hrot.Common/Infrastructure/`, beside `SharedApplicationBootstrapper`**, whose own comment already says *"eliminating duplication across SimHost, IG, and StrideMock"*. ⛔ **Move, do not copy** | `Hrot/Subsystems/Hrot.StrideMock/StrideNodeBootstrapper.cs` → `Hrot/Engine/Hrot.Common/Infrastructure/` | ⭐ **`StrideGameReferenceTests` must be UPDATED to the new home and still pass** — ⛔ do not delete the assertion |
-| ⭐⭐ **S2** | **Delete the mock subsystem and the fake app** — `Hrot.StrideMock` *(`StrideMockSubsystem` · `FakeStrideEntity` · `FakeStrideEffect` · `FakeStrideScript` · `SyncFdpToStrideScript`)*, `Hrot.StrideMock.Tests`, and **`Hrot.FakeStrideApp`** *(+ its `.Tests`)* | the project folders; **`Hrot.ClusterRunner.csproj:48`**'s `ProjectReference`; **4** entries in `IOS-IG-SimHost.sln` | the solution builds with **0 errors** and the project count drops by the number you removed — **state both numbers** |
+| ⭐⭐ **S2** | **Delete the mock subsystem and the fake app** — `Hrot.StrideMock` *(`StrideMockSubsystem` · `FakeStrideEntity` · `FakeStrideEffect` · `FakeStrideScript` · `SyncFdpToStrideScript`)*, `Hrot.StrideMock.Tests`, and **`Hrot.FakeStrideApp`** *(+ its `.Tests`)* | the project folders; **`Hrot.ClusterRunner.csproj:48`**'s `ProjectReference`; **4** entries in `HROT.sln` | the solution builds with **0 errors** and the project count drops by the number you removed — **state both numbers** |
 | ⭐ **S3** | **Remove the `stridemock` mode token** | `HrotRunnerConfiguration.cs` — **4 sites**: the `[Option]` `HelpText` *(`:18`)*, the `validNames` set *(`:115`)*, and **two error-message strings** *(`:118`, `:123`)*. ⚠ **The messages list the valid modes — a stale list is a lie the user reads** | `--mode stridemock` now **throws** with a message that does **not** offer `stridemock` |
 | ⭐ **S4** | **Drop the two `InternalsVisibleTo Hrot.StrideMock.Tests` grants** | `Hrot.Common.csproj:27` · `Hrot.Presentation.csproj:27` | both projects still build |
 | **S5** | ⚠ **Check the reference guard still says something true** | `Hrot.Stride.Core.Tests/ReferenceGuardTests` asserts `Hrot.Stride.Core` references **no** Raylib/rlImGui/**StrideMock**. ⭐ After removal the StrideMock clause is vacuous | ⭐ **Keep the test; say in the report whether the StrideMock clause is now vacuous or still meaningful.** ⛔ Do not silently drop a clause |
@@ -62,7 +62,7 @@ perspective doc.
 | `Stride/*` is **`net8.0-windows`** | compiles here **only** with `-p:EnableWindowsTargeting=true` |
 | the suites **cannot RUN** | the test host needs the `Microsoft.WindowsDesktop.App` **runtime**, which has **no linux-x64 build** |
 | **`HrotStrideApp.Windows` cannot build at all** | the Stride asset compiler exits **150** — ⭐ **confirmed PRE-EXISTING** |
-| ⚠ the nine `Stride/*` projects are **not in `IOS-IG-SimHost.sln`** | ⇒ a green main-solution build says **nothing** about them |
+| ⚠ the nine `Stride/*` projects are **not in `HROT.sln`** | ⇒ a green main-solution build says **nothing** about them |
 
 ⇒ ⭐⭐ **`S1` is the item this bites.** You are moving a type the Stride app consumes, and **you cannot compile
 its consumer here.** ⇒ ⛔ **Do NOT report S1 as verified on a main-solution build.** Instead:

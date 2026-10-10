@@ -10,7 +10,7 @@
 
 Convert all remaining `ComponentSystem` callers (`Create`/`Run`/`Dispose`) to use
 the `IEcsModuleSystem` API (`Execute(view, dt)`). Fix all callers of
-`RegisterSystems(SystemGroup)`. Ensure `dotnet build IOS-IG-SimHost.sln` passes
+`RegisterSystems(SystemGroup)`. Ensure `dotnet build HROT.sln` passes
 with 0 errors.
 
 ---
@@ -94,7 +94,7 @@ Provides:
 
 **0 errors. Build succeeded.**
 
-Command: `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet`
+Command: `dotnet build HROT.sln --no-restore -v quiet`
 
 ---
 

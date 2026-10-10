@@ -1,0 +1,24 @@
+{
+  "Name": "FindWindowFiringPosition",
+  "BlueprintId": 3801752452,
+  "Count": 2,
+  "Rows": [
+    {
+      "EntityId": 0,
+      "PositionX": -27,
+      "PositionY": -8,
+      "Score": 1.0613248,
+      "Flags": 2,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 28,
+      "PositionY": -5,
+      "Score": 1.0519025,
+      "Flags": 2,
+      "FlagsMeaningful": 2
+    }
+  ],
+  "MaxAbsPositionZ": 0
+}

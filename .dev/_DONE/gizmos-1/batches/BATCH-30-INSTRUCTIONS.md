@@ -7,8 +7,8 @@ gizmo composite-identity work.  All three tasks touch the same file
 (`ImGuiPropertyTreeAdapter.cs`) plus the composition root (`GizmoMap.Viewer/Program.cs`).
 
 **Workspace root:** `d:\Work\IOS-IG-SimHost-FDP-2`
-**Solution file:** `IOS-IG-SimHost.sln`
-**Build command:** `dotnet build IOS-IG-SimHost.sln -c Debug --nologo -v q`
+**Solution file:** `HROT.sln`
+**Build command:** `dotnet build HROT.sln -c Debug --nologo -v q`
 **Test framework:** xUnit
 
 ---
@@ -360,7 +360,7 @@ Before writing the report, verify:
 - [ ] GZ070: `ReceiveUiState` calls `Deserialize` once when all matching items are Viewing.
 - [ ] GZ070: `Program.cs` has `DdsReader<GizmoUiState>` and calls `ReceiveUiState` per frame.
 - [ ] GZ070: SC-GZ070-1..5 all pass.
-- [ ] Build: `dotnet build IOS-IG-SimHost.sln -c Debug --nologo -v q` exits 0.
+- [ ] Build: `dotnet build HROT.sln -c Debug --nologo -v q` exits 0.
 
 ---
 

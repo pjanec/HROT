@@ -48,7 +48,7 @@
 ### Build & test commands
 
 ```powershell
-dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4
+dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4
 dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj --no-build --logger "console;verbosity=minimal"
 dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Hrot.BTree.Editor.Tests.csproj --no-build --logger "console;verbosity=minimal"
 dotnet test Hrot/Subsystems/AI/Hrot.Hsm.Editor.Tests/Hrot.Hsm.Editor.Tests.csproj --no-build --logger "console;verbosity=minimal"

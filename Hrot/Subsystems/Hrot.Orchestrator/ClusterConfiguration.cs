@@ -36,6 +36,26 @@ public sealed class ClusterConfiguration
     /// <summary>Default configuration: empty mandatory list, 5 s timeout, 50-entry history.</summary>
     public static ClusterConfiguration Default { get; } = new();
 
+    /// <summary>
+    /// ⭐ Q86 §4-E (R-215) — the ONE place every host reads its cluster configuration from:
+    /// <c>orchestrator-config.json</c> in the working directory, else <see cref="Default"/>.
+    /// </summary>
+    public static ClusterConfiguration LoadFromWorkingDirectory()
+        => LoadFrom(Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
+
+    /// <summary>
+    /// ⭐ Q86 §4-E — the same configuration for a ONE-NODE cluster (the editor): nothing is mandatory, because the
+    /// host is the only node. Every other value — the NAS root above all — is kept, so both hosts store in one place.
+    /// </summary>
+    public ClusterConfiguration ForOneNodeCluster() => new()
+    {
+        Mandatory                  = Array.Empty<string>(),
+        Optional                   = Optional,
+        HeartbeatTimeoutSeconds    = HeartbeatTimeoutSeconds,
+        TransactionHistoryCapacity = TransactionHistoryCapacity,
+        NasBasePath                = NasBasePath,
+    };
+
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,

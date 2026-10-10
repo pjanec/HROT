@@ -120,8 +120,8 @@ Before touching any code, read these:
 .\FDP\ExtDeps\FastCycloneDds\build\native-win.ps1
 
 # Restore packages and build:
-dotnet restore IOS-IG-SimHost.sln
-dotnet build IOS-IG-SimHost.sln
+dotnet restore HROT.sln
+dotnet build HROT.sln
 ```
 
 ### Running Affected Test Projects

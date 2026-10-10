@@ -64,15 +64,36 @@ namespace Hrot.Map.Common.Tests
                 string.Join(" · ", missing) + " (docs/designs/tkb-1/DESIGN.md §6.6a).");
         }
 
+        /// <summary>⭐ <c>CE-1032</c> (W-1) — every host's catalogue carries the munition types, each resolves a warhead from the
+        /// reference library BY NAME (so its name must match <c>ammo.json</c>), and none appears in the Add Entity palette.</summary>
         [Fact]
-        public void CreateGeoTransform_UsesBerlinOrigin()
+        public void CreateTkb_TheMunitionTypes_ResolveTheirWarheadsByName_AndAreHiddenFromThePalette()
         {
+            var tkb = HrotEnvironment.CreateTkb();
+            foreach (var type in new long[] { Hrot.Core.Tkb.MunitionTkbCatalog.TkbM67Grenade, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb81mmMortarHe })
+            {
+                Assert.True(tkb.TryGetByType(type, out var t), $"munition type {type} is missing");
+                Assert.Equal(2, t.DisType.Kind);
+                Assert.True(t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.TkbMasterDto>()!.HideFromPalette);
+                var (w, source, provenance) = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(tkb, type);
+                Assert.True(w != null && w.HasAreaEffect, $"{t.Name}: {source}");
+                Assert.Equal(Fdp.Toolkit.Tkb.Parameters.ParameterProvenance.ReferenceByName, provenance);
+            }
+        }
+
+        [Fact]
+        public void CreateGeoTransform_HasNoDefaultOrigin_ZeroUntilATerrainSetsIt()
+        {
+            // ⭐ CE-3126 (R-229) — "No default berlin. Missing geo = zeros."
             var transform = HrotEnvironment.CreateGeoTransform();
 
             var (lat, lon, _) = transform.ToGeodetic(Vector3.Zero);
 
-            Assert.InRange(lat, 52.52 - CoordinateToleranceDeg, 52.52 + CoordinateToleranceDeg);
-            Assert.InRange(lon, 13.405 - CoordinateToleranceDeg, 13.405 + CoordinateToleranceDeg);
+            Assert.InRange(lat, -CoordinateToleranceDeg, CoordinateToleranceDeg);
+            Assert.InRange(lon, -CoordinateToleranceDeg, CoordinateToleranceDeg);
+            // and a local offset maps to a real point (the matrices are valid at construction, not all zeros)
+            var (lat2, lon2, _) = transform.ToGeodetic(new Vector3(1000f, 1000f, 0f));
+            Assert.True(lat2 > 0.005 && lon2 > 0.005, $"({lat2}, {lon2})");
         }
 
         [Fact]

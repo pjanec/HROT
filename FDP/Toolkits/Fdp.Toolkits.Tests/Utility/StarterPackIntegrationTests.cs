@@ -93,30 +93,29 @@ namespace Fdp.Toolkit.Tests
         }
 
         // SC-SP-04: Hysteresis prevents a small health drop from flipping posture.
-        // ⭐ CE-2105 — re-pinned: AdvanceAndAttack lost its HaveLiveTarget consideration (R-208), so the compensation factor
-        //   (1 − 1/n) changed and the AdvanceAndAttack / Suppress boundary moved to ~0.235: health 0.25 → AA 0.309 vs Suppress
-        //   0.305; health 0.22 → Suppress 0.273 vs AA 0.270 (measured 2026-10-05).
-        //   ⛔ SUPERSEDED (CE-3054): boundary ~0.19 (0.20 → AA 0.254 / S 0.251; 0.18 → S 0.229 / AA 0.226).
+        // ⭐ CE-3090 — re-pinned to the AdvanceAndAttack / HoldProne boundary (~0.51 against this unarmed contact): health 0.54 →
+        //   AA 0.622 vs HoldProne 0.569; health 0.48 → HoldProne 0.618 vs AA 0.566 (computed from the curves, 2026-10-07).
+        //   ⛔ SUPERSEDED (CE-2105): the AA / Suppress boundary ~0.235 — it now lies inside HoldProne's band (a wounded unit).
         [Fact]
         public void CombatPosture_Hysteresis_SmallHealthDrop_DoesNotFlipPosture()
         {
             var enemy = _world.Repo.CreateEntity();
-            var agent = _world.SpawnAgent(0.25f, 1.0f);
+            var agent = _world.SpawnAgent(0.54f, 1.0f);
             _world.SeedContact(agent, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
 
-            // Prime buffer: at health=0.25, AdvanceAndAttack wins.
+            // Prime buffer: at health=0.54, AdvanceAndAttack wins.
             _world.Scorer.Evaluate(_world.Repo, agent, CombatPostureDecision.Id);
             byte primePosture = _world.Repo.GetComponentRO<UtilityResultBuffer>(agent).GetSpanRO()[0].WinningPostureId;
             Assert.Equal((byte)Posture.AdvanceAndAttack, primePosture);
 
-            // The counterfactual: a unit with NO previous winner at health 0.22 suppresses.
-            var fresh = _world.SpawnAgent(0.22f, 1.0f);
+            // The counterfactual: a unit with NO previous winner at health 0.48 holds prone.
+            var fresh = _world.SpawnAgent(0.48f, 1.0f);
             _world.SeedContact(fresh, _world.Repo.CreateEntity(), 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
-            Assert.Equal((byte)Posture.Suppress, _world.Scorer.SelectPosture(_world.Repo, fresh, CombatPostureDecision.Id));
+            Assert.Equal((byte)Posture.HoldProne, _world.Scorer.SelectPosture(_world.Repo, fresh, CombatPostureDecision.Id));
 
-            // Drop health by 3 % — the hysteresis bonus (+0.08) on the previous winner keeps AdvanceAndAttack.
+            // Drop health by 6 % — the hysteresis bonus (+0.08) on the previous winner keeps AdvanceAndAttack.
             ref var h = ref _world.Repo.GetComponentRW<Health>(agent);
-            h.Current = 22f;
+            h.Current = 48f;
             byte posture = _world.Scorer.SelectPosture(_world.Repo, agent, CombatPostureDecision.Id);
 
             Assert.Equal((byte)Posture.AdvanceAndAttack, posture);
@@ -160,9 +159,11 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((byte)Posture.TakeCover, posture);
         }
 
-        // SC-P1-07-3 / SC-P1-08-4: Near death with escape flees
+        // ⭐ CE-3090 (🔒 user 2026-10-07: "flee is only realistic if the unit is healthy and capable of fleeing without becoming easy
+        //   target; for wounded one the hold-prone seems a better option") — SUPERSEDES SC-P1-07-3 "near death with escape flees":
+        //   a near-dead unit no longer runs; with poor cover it lies down and returns fire.
         [Fact]
-        public void NearDeath_With_Escape_Flees()
+        public void CE3090_NearDeath_With_Escape_HoldsProne_InsteadOfFleeing()
         {
             var enemy = _world.Repo.CreateEntity();
             var self = _world.SpawnAgent(health01: 0.12f, ammo01: 0.3f);
@@ -173,10 +174,27 @@ namespace Fdp.Toolkit.Tests
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, self, CombatPostureDecision.Id);
 
+            Assert.Equal((byte)Posture.HoldProne, posture);
+        }
+
+        // ⭐ CE-3090 — a unit still able to run (≥ half health), outmatched, with a HIDDEN retreat and no cover, flees.
+        [Fact]
+        public void CE3090_HalfHealth_Outmatched_With_HiddenEscape_Flees()
+        {
+            var enemy = _world.Repo.CreateEntity();
+            var self = _world.SpawnAgent(health01: 0.55f, ammo01: 0.3f);
+            _world.SeedContact(self, enemy, 70f, 0.9f, 1f, hasLos: true);
+            _world.SetEnemyStrengthRatio(self, 2.5f);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.05f, count: 0, instanceId: 0);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.90f, count: 2, instanceId: 1);
+
+            byte posture = _world.Scorer.SelectPosture(_world.Repo, self, CombatPostureDecision.Id);
+
             Assert.Equal((byte)Posture.Flee, posture);
         }
 
-        // SC-P1-07-3 / SC-P1-08-4: Near death with no escape and no cover does not flee into nothing
+        // SC-P1-07-3 / SC-P1-08-4: Near death with no escape and no cover does not flee into nothing.
+        // ⭐ CE-3090 — the open-ground case itself: it HOLDS PRONE (was the plain Hold floor, which did not fire back).
         [Fact]
         public void NearDeath_With_No_Escape_And_No_Cover_Does_Not_Flee_Into_Nothing()
         {
@@ -189,7 +207,7 @@ namespace Fdp.Toolkit.Tests
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, self, CombatPostureDecision.Id);
 
-            Assert.Equal((byte)Posture.Hold, posture);
+            Assert.Equal((byte)Posture.HoldProne, posture);
         }
 
         // ── ThreatRankingDecision ────────────────────────────────────────────────
@@ -488,12 +506,13 @@ namespace Fdp.Toolkit.Tests
             sys.Run(_world.Repo, leader);
             Assert.Equal((long)t1.PackedValue, _world.AssignmentFor(leader, m1));
 
-            // Add retreat EQS sensor so Flee is not gated.
+            // A hidden retreat exists — but at 8 % health the member no longer flees (CE-3090): it breaks off by lying down and
+            // returning fire (no cover sensor ⇒ no cover). Either way the veto holds: it does not advance on its assignment.
             _world.SpawnEqsSensor(m1, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.7f, count: 1, instanceId: 1);
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, m1, CombatPostureDecision.Id);
 
-            Assert.Equal((byte)Posture.Flee, posture);
+            Assert.Equal((byte)Posture.HoldProne, posture);
         }
 
         // ── CE-3089 (G7) — the unit fires the weapon its target calls for, on the PRODUCTION layout ──────────────────────────
@@ -568,11 +587,18 @@ namespace Fdp.Toolkit.Tests
                 *(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref ch.Params[0]) =
                     new global::Fdp.Toolkit.Combat.Executors.AimAndFireParams { Target = tank, CooldownSeconds = 0f, Mount = mount };
                 exec.OnEnter(bradley, ref ch, repo);
-                exec.Execute(bradley, ref ch, repo, 0.016f);
-                repo.Bus.SwapBuffers();
-                var intents = repo.Bus.Read<global::Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
-                Assert.Equal(1, intents.Length);
-                return intents[0].WeaponIndex;
+                // ⭐ CE-3136 P-3 (D3) — an aimed round leaves after the aim time (0.8 s fallback): step until it does.
+                for (int step = 0; step < 20; step++)
+                {
+                    exec.Execute(bradley, ref ch, repo, 0.1f);
+                    repo.Bus.SwapBuffers();
+                    var intents = repo.Bus.Read<global::Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
+                    if (intents.Length == 0) continue;
+                    Assert.Equal(1, intents.Length);
+                    return intents[0].WeaponIndex;
+                }
+                Assert.Fail("no round within 2 s");
+                return -1;
             }
 
             Assert.Equal(1, Fire(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams.MountAuto));

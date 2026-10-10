@@ -94,4 +94,28 @@ public class SpawnEntityCommandEgressTranslatorTests
         Assert.NotNull(overlayDesc.MapVisualOverlay.Points);
         Assert.Equal(1, overlayDesc.MapVisualOverlay.Points!.Count);
     }
+
+    /// <summary>⭐ <c>CE-1017</c> S2 — a forwarded order carries its birth-height request onto the wire.</summary>
+    [Fact]
+    public void CE1017_SpawnEntityCommand_CarriesItsSpawnHeight_OntoTheWire()
+    {
+        var bus        = new FdpEventBus();
+        var writer     = new CapturingWriter<CreateEntityRequest>();
+        var translator = new SpawnEntityCommandEgressTranslator(writer, bus, geoTransform: null);
+
+        bus.PublishManaged(new SpawnEntityCommand
+        {
+            TkbType = 1L, RequestId = Guid.NewGuid(),
+            SpawnHeight = new Fdp.Toolkit.NetworkSpawning.SpawnHeight(Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.OnLevel, 3),
+        });
+        bus.PublishManaged(new SpawnEntityCommand { TkbType = 1L, RequestId = Guid.NewGuid() });
+        bus.SwapBuffers();
+
+        translator.PollIngress(null!, null!);
+
+        Assert.Equal(2, writer.Publishes.Count);
+        Assert.Equal((byte)1, writer.Publishes[0].SpawnHeightMode);
+        Assert.Equal((short)3, writer.Publishes[0].SpawnLevel);
+        Assert.Equal((byte)0, writer.Publishes[1].SpawnHeightMode);   // absent ⇒ Absolute, as before
+    }
 }

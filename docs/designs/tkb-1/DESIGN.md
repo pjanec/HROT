@@ -17,6 +17,11 @@ stale-below: §6.6's "NOT derivable at all" verdict on MandatoryComponents, and 
   TkbComponentConventions (deleted 2026-09-13). §6.6a's "filled at ITkbDatabase.Register" prescription —
   neither half was built that way; see §6.6b's DEVIATION and §6.6a's own AS-BUILT block.
 related-designs:
+  - ../../DESIGN_Body_Geometry_And_Ground_Contact.md — adds the engine-neutral `Body.Geometry` descriptor (reference point,
+    size, box offset, ground-contact points) and the first built-in aircraft (CE-1041).
+  - ../../DESIGN_Map_3D_Mode.md — the 3-D map's entity colour (§3.7, EntityAppearance) copies §6.6a's
+    [PerInstanceValue] pattern from EntityInfo.ForceId: a TKB default the per-spawn value beats.
+  - ../../DESIGN_Add_Entity_Picker.md — adds VisualDefinitionDto.IconName and TkbMasterDto.HideFromPalette; builds the entity-type picker from the TKB
   - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
     (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
     routes back to its owner, including this one. Read it FIRST if you do not already know where in

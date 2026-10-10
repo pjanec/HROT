@@ -113,26 +113,36 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                     }
                 }
 
-                // Detect stance transition completion.
-                // StanceTransitionSystem starts transitions; we detect completion here after the backend tick.
-                if (repo.HasComponent<StanceStatus>(entity) && repo.HasComponent<StanceIntent>(entity))
+            }
+
+            // ⭐ CE-2121 — stance completion in its OWN pass. It used to sit inside the montage loop above, whose query demands an
+            //   AnimationChannel: a body carrying stance but no montage channel (the stance-only composition, docs/DESIGN_Decision_Layer.md
+            //   §3.3g) was never reported — measured: StanceStatus stayed Transitioning for ever. Stance needs only the registered handle.
+            var stances = repo.Query()
+                .With<CharacterAnimationDefRuntime>()
+                .With<StanceStatus>()
+                .With<StanceIntent>()
+                .Build();
+            foreach (var entity in stances)
+            {
+                var def = repo.GetComponent<CharacterAnimationDefRuntime>(entity);
+                if ((def.BackendHandle >> 32) == 0) continue;   // not yet registered with the backend
+                var handle = new AnimationBackendHandle
                 {
-                    ref var stanceStatus = ref repo.GetComponentRW<StanceStatus>(entity);
-                    var stanceIntent = repo.GetComponent<StanceIntent>(entity);
-
-                    if (stanceStatus.Phase == StanceTransitionPhase.Transitioning)
-                    {
-                        if (_backend.GetCurrentStance(handle, out byte currentStance) &&
-                            currentStance == (byte)stanceIntent.TargetStance)
-                        {
-                            StanceId oldStance = stanceStatus.CurrentStance;
-                            stanceStatus.CurrentStance = (StanceId)currentStance;
-                            stanceStatus.Phase = StanceTransitionPhase.Idle;
-                            repo.Bus.Publish(new StanceChangedEvent(entity, oldStance, (StanceId)currentStance));
-                        }
-                    }
+                    Index = (uint)(def.BackendHandle & 0xFFFFFFFF),
+                    Generation = (uint)((def.BackendHandle >> 32) & 0xFFFFFFFF),
+                };
+                ref var stanceStatus = ref repo.GetComponentRW<StanceStatus>(entity);
+                var stanceIntent = repo.GetComponent<StanceIntent>(entity);
+                if (stanceStatus.Phase == StanceTransitionPhase.Transitioning
+                    && _backend.GetCurrentStance(handle, out byte currentStance)
+                    && currentStance == (byte)stanceIntent.TargetStance)
+                {
+                    StanceId oldStance = stanceStatus.CurrentStance;
+                    stanceStatus.CurrentStance = (StanceId)currentStance;
+                    stanceStatus.Phase = StanceTransitionPhase.Idle;
+                    repo.Bus.Publish(new StanceChangedEvent(entity, oldStance, (StanceId)currentStance));
                 }
-
             }
         }
     }

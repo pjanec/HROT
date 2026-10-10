@@ -205,7 +205,8 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-454 (2026-10-02) — 1 MORE: SquadCoordinationSystem, the squad layer's frame driver.
             //    📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3 W2.
             // ⭐ CE-3064 (2026-10-05) — 1 MORE: NearMissSensingSystem (a near miss → SensorChange.NearMiss, R-206).
-            Assert.Equal(18, pack.SimulationSystems.Count);
+            // ⭐ CE-3104 5d-1 (2026-10-08) — 1 MORE: DoorCommandSystem (the door's owner applies door commands).
+            Assert.Equal(19, pack.SimulationSystems.Count);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
             // ⭐ CE-3088 — the silent-default rail: the driver's fire assignment is an optional dependency, and the pack (every
             //   Brain host) must PASS it. ✅ Red-proof: drop the argument in CgfLogicPack ⇒ null ⇒ red.
@@ -416,7 +417,8 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-454 (2026-10-02) — 1 MORE: SquadCoordinationSystem, the squad layer's frame driver.
             //    📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3 W2.
             // ⭐ CE-3064 (2026-10-05) — 1 MORE: NearMissSensingSystem (a near miss → SensorChange.NearMiss, R-206).
-            Assert.Equal(18, pack.SimulationSystems.Count);
+            // ⭐ CE-3104 5d-1 (2026-10-08) — 1 MORE: DoorCommandSystem (the door's owner applies door commands).
+            Assert.Equal(19, pack.SimulationSystems.Count);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.NearMissSensingSystem);
         }
@@ -450,7 +452,7 @@ namespace Hrot.SimHost.Tests
             // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
             // ⛔ O7c-④b (2026-09-23): 19 → 18 — the two brain ticks merged (§31.14 / §31.16).
             // ⭐ CE-454 (2026-10-02): 18 → 19 — SquadCoordinationSystem (DESIGN_Squad_Wiring.md §3 W2).
-            Assert.Equal(22, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem)
+            Assert.Equal(23, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · 5d-1: +1 (DoorCommandSystem)
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────
@@ -481,11 +483,10 @@ namespace Hrot.SimHost.Tests
                 modules.AddRange(capability.ProvideModules());
 
             // Verbatim from the block this replaced: diagnostics first, then the pack.
-            // ⭐⭐ A4/O0 (2026-09-20) — a THIRD module now follows: the BeforeSync blueprint
-            //    maintenance system, carried by a SingleSystemModule. ⛔ It cannot ride the pack's
-            //    SimulationSystems the way the tick does, and registering it per composition root is
-            //    the per-host chance to forget that CE-161 was made of.
-            Assert.Equal(3, modules.Count);
+            // ⛔ HISTORY — A4/O0 (2026-09-20) added a THIRD module, the BeforeSync blueprint maintenance
+            //    system (a SingleSystemModule); CE-3137 U-0 (R-236) RETIRED it — the store never moves a
+            //    slot, so there is no promotion to run. Rail A4_R3 pins that it stays gone.
+            Assert.Equal(2, modules.Count);
             Assert.IsType<BehaviorDiagnosticsModule>(modules[0]);
             Assert.Same(pack, modules[1]);
         }
@@ -595,28 +596,19 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ A4-R3 — the Brain capability carries the BeforeSync maintenance system into the kernel,
-        /// and it is the SAME instance the pack built.
-        ///
-        /// <para>🔴 Without it a host can tick Instances but never PROMOTE a tier — and since A3 the
-        /// promotion path is also what carries the <c>OccurrenceKind</c> nibble array across a tier
-        /// upgrade (<c>H1</c>).</para>
+        /// ⭐ A4-R3 — re-expressed by <c>CE-3137</c> U-0 (<c>R-236</c>): the Brain capability provides NO tier-maintenance
+        /// module any more. ⛔ HISTORY: it used to carry the BeforeSync <c>BlueprintMaintenanceSystem</c> (copy-promotion);
+        /// the store never moves a slot now, and a resurrected promotion would copy away every grown unit's blocks.
         /// </summary>
         [Fact]
-        public void A4_R3_TheBrainCapability_CarriesTheMaintenanceSystem()
+        public void A4_R3_TheBrainCapability_ProvidesNoTierMaintenance()
         {
             var pack = NewPack();
             var modules = new System.Collections.Generic.List<IEcsModule>();
             foreach (var capability in ResolveBrain(pack))
                 modules.AddRange(capability.ProvideModules());
 
-            var carrier = Assert.Single(
-                modules.OfType<Fdp.ModuleHost.Scheduling.SingleSystemModule>());
-
-            var registry = new CapturingSystemRegistry();
-            carrier.RegisterSystems(registry);
-
-            Assert.Same(pack.MaintenanceSystem, Assert.Single(registry.Systems));
+            Assert.Empty(modules.OfType<Fdp.ModuleHost.Scheduling.SingleSystemModule>());
         }
 
         /// <summary>Minimal <see cref="ISystemRegistry"/> that records what a module registers.</summary>

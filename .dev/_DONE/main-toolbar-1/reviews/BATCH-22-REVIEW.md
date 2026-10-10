@@ -10,7 +10,7 @@ activation callback.
 No issues found.
 
 ## Verification (done by lead)
-- **Full `dotnet build IOS-IG-SimHost.sln` → 0 errors** (20 pre-existing warnings; touched AiShared
+- **Full `dotnet build HROT.sln` → 0 errors** (20 pre-existing warnings; touched AiShared
   project rebuilds `--no-incremental` with **0 warnings** → no new warnings).
 - **Authorized-deletion audit (critical):** exactly 4 files deleted — AiShared `AssetBrowserWindow.cs`
   + `AssetBrowserWindowTests.cs`, `ScenarioBrowserPanel.cs` + `ScenarioBrowserPanelTests.cs`. The

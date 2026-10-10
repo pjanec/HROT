@@ -42,6 +42,13 @@ namespace Hrot.ScenarioEditor.Map
     /// it was protecting is untouched: <b>the pack constructs, the host schedules.</b>
     /// 📄 <c>docs/UX/UX_Feature_Selection.md</c> §2.7.10.</para>
     /// </summary>
+    /// <summary>⭐ CE-1033 — what <see cref="MapInteractionPack.AttachMapLayers"/> attached to a host's canvas.</summary>
+    public sealed record MapLayers(
+        Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer GizmoLayer,
+        Fdp.Toolkit.Vis3D.MapViewSwitch ViewSwitch,
+        Fdp.Toolkit.Vis3D.TerrainLayer3D Terrain,
+        Hrot.UI.Common.Map3D.EntityBodyLayer3D Bodies);
+
     public static class MapInteractionPack
     {
         /// <summary>
@@ -51,9 +58,19 @@ namespace Hrot.ScenarioEditor.Map
         private static Func<Type, IGizmoVisibilityPolicy?> DefaultVisibilityPolicy(GizmoSettingsRegistry settings)
         {
             var culling = new CullingStateVisibilityPolicy(settings);
-            return type => type == typeof(Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo)
-                ? culling
-                : null;
+            // ⭐ CE-3120 (R-227) — one GizmoFamilyVisibilityPolicy per family, attached to every projector that names one, so the
+            //   family's scope (all / selected or pinned) and the per-unit pins decide. 📄 DESIGN_Terrain_Combat_Tuning.md §5b.
+            var families = new System.Collections.Generic.Dictionary<Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags, GizmoFamilyVisibilityPolicy>();
+            return type =>
+            {
+                if (type == typeof(Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo)) return culling;
+                var family = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<GizmoProjectorAttribute>(type)?.Family
+                             ?? Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.None;
+                if (family == Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.None) return null;
+                if (!families.TryGetValue(family, out var policy))
+                    families[family] = policy = new GizmoFamilyVisibilityPolicy(settings, family);
+                return policy;
+            };
         }
 
         /// <summary>
@@ -77,6 +94,9 @@ namespace Hrot.ScenarioEditor.Map
                 Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
             }
 
+            // ⭐ CE-3123 (R-228) — the debug view state the pin and AI-trace actions patch, on every map host.
+            Hrot.Map.Common.PresentationComponentRegistry.RegisterDebugViewState(ctx.World);
+
             var settings          = ctx.Settings ?? new GizmoSettingsRegistry();
             var gizmoRegistry     = new GizmoRegistry();
             var statelessRegistry = new StatelessGizmoRegistry();
@@ -86,10 +106,20 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐⭐ S4: the resolver is how a reflection-discovered projector gets a visibility policy.
             // The DEFAULT attaches CullingStateVisibilityPolicy to the entity projector — the policy itself
             // is off unless the host sets map.entity.cullOffscreen, so this changes no behaviour until
-            // asked. A host may override the whole resolver to attach any policy to any projector.
+            // asked. A host resolver attaches its own policy to any projector it names (layered below).
             // 📄 UX_Feature_Map_Parity.md §3.2f · UX_Feature_Entity_Symbology.md §3.4.
-            var resolve = ctx.VisibilityPolicyResolver ?? DefaultVisibilityPolicy(settings);
-            GizmoReflectionRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settings, resolve);
+            // ⭐ CE-3120 — the host's resolver is LAYERED over the default (it wins for the types it answers), so a host override
+            //   does not silently drop the family policies.
+            var defaults = DefaultVisibilityPolicy(settings);
+            var hostResolve = ctx.VisibilityPolicyResolver;
+            Func<Type, IGizmoVisibilityPolicy?> resolve = hostResolve == null ? defaults : type => hostResolve(type) ?? defaults(type);
+            // ⭐ CE-3123 (R-228) — a projector's constructor services come from the host's Services; one the host lacks is reported.
+            GizmoReflectionRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settings, resolve,
+                services: ctx.Services,
+                // ⚠ The "this host cannot serve it" channel, as for tools — NOT ReportMapDiagnostic, the self-check's "the map
+                //   draws nothing" channel (MapInteractionContext.ReportUnserviceableTool says why the two stay apart).
+                reportUnserviceable: ctx.ReportUnserviceableTool
+                    ?? (m => Fdp.Core.Logging.FdpLog<MapInteraction>.Info("[Map] " + m)));
 
             // ⚠⚠ ORDERING IS LOAD-BEARING (§3.2d ③). The host's own gizmos go in AFTER reflection and
             // BEFORE the systems are constructed, because StatelessGizmoSystem sizes its visibility cache
@@ -176,6 +206,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ Registering the tool set here too is what makes the user's 2026-08-10 ruling true by
             //    construction: "all map subsystems share the FULL tool set … never set membership."
             //    A host that cannot service one still has it, and it REPORTS why (ruling 49).
+            Hrot.UI.Common.AddEntity.EntityAuthoring? authoringRef = null;
             var tools = new Hrot.ScenarioEditor.Tools.ToolController(
                 () => globalManager, () => dataDriven, ctx.ReportUnserviceableTool);
 
@@ -184,7 +215,10 @@ namespace Hrot.ScenarioEditor.Map
                 world:               () => ctx.World,
                 gizmos:              () => dataDriven,
                 globalGizmos:        () => globalManager,
-                startPlacementMode:  ctx.StartPlacementMode,
+                // ⭐ CE-1017 — a host that passes EntityAuthoring gets the Spawn tool from the SAME shared adapter;
+                //   resolved at call time (the authoring surface is built below, its adapter on first use).
+                startPlacementMode:  ctx.StartPlacementMode
+                                     ?? (ctx.EntityAuthoring is null ? null : () => authoringRef?.Spawn?.ArmPlacement()),
                 reportUnserviceable: ctx.ReportUnserviceableTool,
                 measureUnits:        ctx.MeasureUnits);
 
@@ -245,11 +279,121 @@ namespace Hrot.ScenarioEditor.Map
             var selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(
                 ctx.Inspector ?? (static () => null), tools, selection, ctx.AiEntitySelection);
 
+            // ⭐⭐ MAP ACTIONS + THE LAYER CONTROL, built here so ALL map hosts get them (user, 2026-10-07:
+            //    "the layer on/off control is built today only on Editor, SimHost and the replay browser —
+            //    pls unify and share, as usual"). 📐 Measured: Editor, SimHost and ReplayBrowser each built a
+            //    GlobalActionRegistry + GlobalActionDispatchSystem + LayerControlGizmo by hand (three copies);
+            //    CGF and IG built none, so a map-menu action did nothing on them. ⛔ Construct only — the
+            //    host schedules ActionDispatch, as it schedules the selection systems.
+            var actions        = new Hrot.Common.Interactions.GlobalActionRegistry();
+            var actionDispatch = new Hrot.Common.Systems.GlobalActionDispatchSystem(actions, bus);
+            long layerControlId = GlobalGizmoManager.NewId();
+            var layerControl = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
+                layerControlId, bus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(),
+                ctx.GizmoUiPublisher, settings);   // ⭐ CE-3120 — the panel edits the family scopes in the shared settings
+            globalManager.Register(layerControlId, layerControl);
+            actions.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
+                bus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent()));
+            // ⭐ CE-1033 — View › 2-D / 3-D Map, on every map host; AttachMapLayers' view switch drains the event.
+            actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleMap3D, (_, _) =>
+                bus.Publish(new Hrot.Common.Diagnostics.Gizmos.ToggleMap3DEvent()));
+            // ⭐ CE-3120 (R-227) — the Pin gizmos submenu's actions, on every map host (one registration, not one per host).
+            Hrot.Common.Diagnostics.Gizmos.GizmoPins.RegisterActions(actions);
+            // ⭐ CE-3123 (R-228) — the AI-trace toggles, once for every map host (SimHost and the Editor each had a copy; the rest none).
+            Hrot.Common.Diagnostics.Gizmos.AiTraceActions.RegisterActions(actions);
+
+            // ⭐ CE-1017 — ONE entity-authoring surface per map, built here for every host that can author (Editor,
+            //   CGF, SimHost, IG): spawn adapter, picker, Add Entity action and the canvas menu. The host only
+            //   schedules mi.CanvasMenu and draws mi.EntityAuthoring.DrawFrame().
+            Hrot.UI.Common.AddEntity.EntityAuthoring? authoring = null;
+            if (ctx.EntityAuthoring is { } inputs)
+            {
+                authoring = new Hrot.UI.Common.AddEntity.EntityAuthoring(inputs, ctx.World.Bus, globalManager, tools);
+                authoring.AddEntity.RegisterOn(actions);
+                authoringRef = authoring;
+            }
+            var canvasMenu = authoring?.CanvasMenu ?? new Hrot.Presentation.Systems.CanvasMenuUpdateSystem();
+
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
                 selection, selectionInteraction, selectionRequests, selectionNotifications,
-                rubberBand);
+                rubberBand, actions, actionDispatch, layerControl, authoring, canvasMenu);
+        }
+
+        /// <summary>
+        /// ⭐ Registers the schemas of the panels the pack's gizmos open (today: the layer control) with a
+        /// host renderer's schema registry — one call instead of a hand-written block per host.
+        /// </summary>
+        /// <summary>
+        /// ⭐⭐ THE map renderer layer, built the same way on every host (user, 2026-10-07: "unify and share, as
+        /// usual"). 📐 Five hosts built it by hand with different arguments: SimHost and CGF passed no panel
+        /// schemas (the layer-control panel could not draw there), and CGF passed no shape library and no
+        /// world (so a picked anchor could not resolve to an entity). 🔒 Silent-default rule: every input the
+        /// renderer can use is passed here.
+        /// </summary>
+        public static Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer BuildRenderLayer(
+            DebugPrimitiveBuffer buffer,
+            FdpEventBus bus,
+            Fdp.Toolkit.Vis2D.Components.MapCamera? camera,
+            Func<EntityRepository?> worldProvider,
+            int layerBitIndex = 31)
+        {
+            var schemas = new GizmoMap.Presentation.GizmoSchemaRegistry();
+            RegisterGizmoSchemas(schemas);
+            return new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(
+                layerBitIndex, buffer, bus,
+                camera: camera,
+                shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+                schemaRegistry: schemas,
+                worldProvider: worldProvider);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ CE-1033 — THE map's layers, attached the same way on EVERY host: the gizmo render layer (as
+        /// <see cref="BuildRenderLayer"/>), the canvas' draw buffer, and the 3-D mode — the terrain and entity layers and the
+        /// animated 2-D ↔ 3-D switch, driven by View › 2-D / 3-D Map (<see cref="Hrot.Common.Constants.GlobalActionIds.ToggleMap3D"/>).
+        /// 🔒 User, 2026-10-10: <i>"we should be unifying and sharing from the day zero so something like 'not on all host' can not
+        /// happen by construction."</i> ⇒ a host that has a map calls THIS, and gets 3-D; there is no per-host 3-D wiring to forget
+        /// (the rail <c>EveryMapHostAttachesTheSharedLayers</c> pins it). 📄 docs/DESIGN_Map_3D_Mode.md §3.1, §6b.
+        /// </summary>
+        /// <param name="tkbProvider">The TKB the entity bodies are sized and classified from; default: the world's
+        /// <see cref="Fdp.Interfaces.ITkbDatabase"/> singleton (every host that spawns sets one).</param>
+        public static MapLayers AttachMapLayers(
+            Fdp.Toolkit.Vis2D.MapCanvas canvas,
+            DebugPrimitiveBuffer buffer,
+            FdpEventBus bus,
+            Func<EntityRepository?> worldProvider,
+            Func<Fdp.Interfaces.ITkbDatabase?>? tkbProvider = null,
+            int layerBitIndex = 31)
+        {
+            if (canvas is null) throw new ArgumentNullException(nameof(canvas));
+            var gizmoLayer = BuildRenderLayer(buffer, bus, canvas.Camera, worldProvider, layerBitIndex);
+            canvas.AddLayer(gizmoLayer);
+            canvas.DrawBuffer = buffer;
+
+            var tkb = tkbProvider ?? (() => worldProvider() is { } w && w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                                          ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null);
+            var viewSwitch = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, canvas.Camera);
+            viewSwitch.Camera3D.GroundHeight = (x, y) =>
+                worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.Of(w)?.GroundHeightAt(x, y) ?? 0f : 0f;
+            var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>
+                worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null);
+            var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb);
+            canvas.AddLayer(terrain);
+            canvas.AddLayer(bodies);
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.MapViewModeLayer(viewSwitch, bus));
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies);
+        }
+
+        public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)
+        {
+            if (registry is null) throw new ArgumentNullException(nameof(registry));
+            var editService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
+            using var session = editService.Open(
+                new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Entities = true, Perception = true, AiHelpers = true },
+                typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
+            registry.Register(Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash, session.Document);
         }
     }
 }

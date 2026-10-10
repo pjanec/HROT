@@ -1,3 +1,11 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-07 (STATUS block added; body unchanged)
+current-answer: the body
+related-designs:
+  - ../../DESIGN_Add_Entity_Picker.md — reuses this picker (Tree layout, IconKey, OpenPicker) for entity types; adds a
+    Tree preview pane and single-child folder folding as generic PickerWindow options
+-->
 # Asset Picker UX via NodeEdit's Picker (Tree layout) — Design (Phase 8)
 
 > **Pivot (after exploring the NodeEdit unification you suggested):** NodeEdit's picker framework is

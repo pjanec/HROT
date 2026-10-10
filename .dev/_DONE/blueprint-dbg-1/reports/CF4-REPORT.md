@@ -28,7 +28,7 @@
 
 ### Build
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 Result: Build succeeded. 0 Warning(s) 0 Error(s)
 ```
 

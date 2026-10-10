@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- CE-1035 Q0 (docs/DESIGN_World_Query_Seam.md WQ-D): the terrain stand-in's spatial index on BepuPhysics v2.
+       Kept OUT of Fdp.Toolkits (the W1 precedent, DESIGN_Terrain_World §7.2) so Bepu does not ride into every project that
+       references the toolkits. Pure managed: no native binaries. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>12.0</LangVersion>
+    <RootNamespace>Fdp.Toolkit.Spatial.Bepu</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepuPhysics" Version="2.5.0-beta.29" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+  </ItemGroup>
+</Project>

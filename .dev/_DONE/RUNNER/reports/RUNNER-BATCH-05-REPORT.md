@@ -88,7 +88,7 @@ Script-facing `entity_id` values are the `Entity.Index` (int). Handlers use `_wo
 ## Test Results
 
 ```
-dotnet test IOS-IG-SimHost.sln --no-build -c Debug
+dotnet test HROT.sln --no-build -c Debug
 ```
 
 | Assembly | Passed | Failed | Notes |
@@ -117,7 +117,7 @@ All failures were present before this batch and are not caused by any changes in
 ## Deliverables Checklist
 
 - ✅ All ECS components attributed with `[ComponentId]` across the entire codebase
-- ✅ `dotnet test IOS-IG-SimHost.sln` passes (failures are pre-existing flaky/performance tests)
+- ✅ `dotnet test HROT.sln` passes (failures are pre-existing flaky/performance tests)
 - ✅ `HeadlessTestExecutor` supports `spawn`, `move`, `tick`, `assert_position` actions
 - ✅ `TestMetricsCollector.SampleWorld()` records entity count and frame duration
 - ✅ `SaveReport()` writes `TestRunSummary.json` alongside the per-test JSON report

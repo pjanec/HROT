@@ -555,6 +555,12 @@ it is **purely a filter**.
 📐 **Production writers: ZERO.** *(grep + `search_graph`: one unit test — `ScenarioSerializerTests.ScenarioIgnoreTag_EntitySkipped` — and no production `AddComponent`/`SetComponent` anywhere.)*
 ⇒ 📌 **the `UNREFERENCED IS NOT UNINTENTIONAL` pattern**: it was built for precisely this and never wired.
 
+⛔ **AS-BUILT CORRECTION, `2026-10-08`:** the stamp was wired (`NetworkSpawningSystem.ProcessSpawn`, `IsTransient`), but **no host
+ever REGISTERED the tag** — every rail registered it for itself. ⇒ the first transient spawn in a real cluster (a door entity,
+`bt-doors`) threw *"ScenarioIgnoreTag is not registered"* in CGF's kernel and killed the process. ✅ Now registered for every host
+in `HrotSharedComponentRegistry.RegisterAll` (rail `RegisterAll_TheTransientSpawnTag_IsRegistered`); 📄
+`DESIGN_Building_Interiors.md` §3j 5b.
+
 #### ⭐ How the tag gets onto the receiver's copy — **three options, with a lean**
 
 | | option | verdict |

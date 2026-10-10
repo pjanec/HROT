@@ -5,7 +5,7 @@
 ## Verification (independent — soundness-focused)
 - **Validator (`BTreeMethodCompatibilityValidator`) is SOUND — no false-pass.** Read in full: every "can't confirm compatible" path returns a non-null reason → asset invalid → skip + BTREE0002: unresolvable blackboard/context/`NodeStatus`/`BehaviorTreeState` symbol; unresolved method; non-static/non-public; wrong return; wrong arity; wrong ref-kinds; param types via `SymbolEqualityComparer`; param3 ≠ `System.Int32`; `ThreeParamReusable` (safe-skip, `// TODO VE-DEBT-002`). Reachable-leaf walk mirrors the emitter's entry selection + visited-set (cycle-safe). Matches the real `NodeLogicDelegate<TBB,TCtx>` (cited `FDP/ExtDeps/FastBTree/src/Fbt.Kernel/NodeLogicDelegate.cs`).
 - **Generator wiring:** `rawFiles.Combine(context.CompilationProvider)` → `RegisterSourceOutput` → `Validate(dto, compilation)` before emit; incompatible → `BTREE0002` Warning + skip (same path as BT-12/14).
-- **No false-reject of real assets:** full `dotnet build IOS-IG-SimHost.sln` → **0 errors, NO BTREE0002** (CombatShowcase's `Action_Wander` + SampleScout still emit).
+- **No false-reject of real assets:** full `dotnet build HROT.sln` → **0 errors, NO BTREE0002** (CombatShowcase's `Action_Wander` + SampleScout still emit).
 - **6 new tests** (incompatible DTO-param action + condition, unresolved method, compatible-emits, sibling-isolation, wrong-arity/return). Independent re-run: `Generators.Tests` **52 passed / 2 failed** (the 2 = pre-existing MigrationEquivalence, verified pre-existing in BATCH-09), `Persistence.Tests` **123/0**, `BTree.Editor.Tests` **505/0**.
 
 ## Issues

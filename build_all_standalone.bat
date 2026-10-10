@@ -1,1 +1,1 @@
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln

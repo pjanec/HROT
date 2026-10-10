@@ -7,7 +7,7 @@
 - **Variable value-pin:** `NodePinSchema.GetCanonicalPins` now takes the asset and types Get/Set Value pins from the declared variable type (`ResolveVariableTypeId`, handles raw-Guid and `var:<guid>` ids).
 
 ## Verification (ran myself)
-- **`dotnet build IOS-IG-SimHost.sln` → 0 Warnings / 0 Errors.** (Coder claimed "26 pre-existing warnings" — false; clean build. Third coder warning-miscount this project — always re-checked.)
+- **`dotnet build HROT.sln` → 0 Warnings / 0 Errors.** (Coder claimed "26 pre-existing warnings" — false; clean build. Third coder warning-miscount this project — always re-checked.)
 - `Hrot.Blueprints.Tests` **1084 / 10 / 8** — 10 = DEBT-006; the 11th in the combined run was the flaky sub-80ns `WhenNodePerfTests.ReadEqsResultNode_Under80ns` which **passes 8/8 isolated** (load flake, not a regression — BATCH-02 touches no runtime path). Golden suite unchanged; byte-stability green.
 - `Hrot.Editor.AiShared.Tests` **750 / 0**. `Hrot.BTree.Editor.Tests` **382 / 0**. `Hrot.Hsm.Editor.Tests` **333 / 0**. `EditorSubsystemBoot` **10 / 0**.
 

@@ -23,7 +23,7 @@ Read these files BEFORE writing any code:
 - Core: `FDP/ExtDeps/NodeEdit/src/NodeEditor.Core/`
 - Core Tests: `FDP/ExtDeps/NodeEdit/tests/NodeEditor.Core.Tests/`
 - Solution: `FDP/ExtDeps/NodeEdit/NodeEditor.sln`
-- Full solution (verify at end): `IOS-IG-SimHost.sln`
+- Full solution (verify at end): `HROT.sln`
 
 ---
 
@@ -459,7 +459,7 @@ Minimum 4 tests:
 ```
 dotnet build FDP/ExtDeps/NodeEdit/NodeEditor.sln
 dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.Core.Tests/NodeEditor.Core.Tests.csproj
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 All must produce 0 errors, 0 warnings.

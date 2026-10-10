@@ -254,6 +254,10 @@ namespace Fdp.Toolkit.Scenario
                     headerNode["TerrainName"] = JsonValue.Create(header.TerrainName);
                 root["Header"] = headerNode;
             }
+            // ⭐ Buildings 5e — the terrain objects' state (its doors), keyed by terrain-object key; absent when nothing differs from
+            //   what the terrain authored. Door ENTITIES are ScenarioIgnoreTag'd above; this is where their state lives (§3b K5).
+            if (Fdp.Toolkit.Terrain.TerrainObjectsSection.Write(repo) is { } terrainObjects)
+                root[Fdp.Toolkit.Terrain.TerrainObjectsSection.Name] = terrainObjects;
             JsonEnvelope.Write(root, new DocumentMeta(header.SubsystemType, CurrentSchemaVersion));
             return root;
         }

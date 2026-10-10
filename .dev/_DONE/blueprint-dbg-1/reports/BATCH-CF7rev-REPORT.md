@@ -8,7 +8,7 @@
 
 ## Build Status
 
-- `dotnet build IOS-IG-SimHost.sln -c Debug` → **0 errors**
+- `dotnet build HROT.sln -c Debug` → **0 errors**
 - Production/Release build path unchanged → Verified: `DebugProbeInsertion.cs` still hardcodes `CompilerMode.Release` skip
 
 ## Test Results

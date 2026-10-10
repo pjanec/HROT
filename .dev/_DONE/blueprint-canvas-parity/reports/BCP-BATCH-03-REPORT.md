@@ -118,7 +118,7 @@ Required suites:
 | `Hrot.Hsm.Editor.Tests` | 333 / 0 |
 | `EditorSubsystemBoot` (ClusterRunner.Integration) | 10 / 0 |
 
-Build: `dotnet build IOS-IG-SimHost.sln` → **0 compile errors**. The two touched projects
+Build: `dotnet build HROT.sln` → **0 compile errors**. The two touched projects
 (`Hrot.Blueprints.Editor`, `Hrot.Editor`) build with **0 warnings**. (A transient
 `apphost.exe`-locked `UnauthorizedAccessException` on the unrelated `Fdp.Core.Benchmarks` project
 appeared once under parallel build IO contention and built cleanly on retry — not a code issue.)

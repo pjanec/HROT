@@ -52,7 +52,7 @@ Each row: builds a `BehaviorTreeAsset` containing a single `BTreeEditorNode` of 
 ## Build & Test Results
 
 ```
-dotnet build IOS-IG-SimHost.sln → Build succeeded. 0 Error(s)
+dotnet build HROT.sln → Build succeeded. 0 Error(s)
 
 dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests →
   Passed! - Failed: 0, Passed: 458, Skipped: 0, Total: 458, Duration: 218 ms
@@ -62,7 +62,7 @@ All 9 new category tests passed (contributing to the 458 total). No regressions.
 
 ## Success criteria
 
-- [x] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`
+- [x] `dotnet build HROT.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`
 - [x] `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — Failed: 0
 - [x] `BTreeNodeModel.Category` reflects `KernelType` per the EB-B table
 - [x] No other member of `BTreeNodeModel` changed

@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30
+updated: 2026-10-07
 current-answer: whole document; §4.1/§4.2 carry the CE-459 end-of-attack return to baseline.
 stale-below: nothing.
 known-rot: ⚠ CE-466 (2026-09-30) replaced every combat-death IsAlive with CombatLife.IsAlive — see the note in the
   destruction paragraph; any older text saying "IsAlive detects destruction" is superseded. ⚠ §2.3 / §4.4 baseline-slot selection ("closest unreserved") cannot give distinct slots when the baseline has
   fewer slots than the platoon has tanks, and the staging reservation fills the mask — every attacker then retreats to the
-  same slot mid-run (CE-460 — WON'T FIX by user ruling 2026-09-30: keep the old behaviour).
+  same slot mid-run (CE-460 — WON'T FIX 2026-09-30; SUPERSEDED 2026-10-07: the user reopened it and CE-2118 fixed the
+  C# commander — staging reserves nothing, see §2.3. The blueprint twin keeps the old behaviour by user ruling).
 known-conflict: none.
 related-designs:
   - ../brain-split/BS-1-DESIGN.md — §5.1a: the generic AimAndFireExecutor's no-fire guards (CE-321), which reuse CombatLife.
@@ -249,6 +250,13 @@ from `~(BurnedSlotsMask | WaveUsedSlotsMask)` (constrained to `TotalSlots`).
 Baseline slot assignment per attacker: the commander iterates all baseline indices and
 picks the one closest (by Euclidean distance-squared) to the assigned firing slot, from
 those not already reserved in `BaselineReservedMask`.
+
+⭐ **As built (`CE-2118`, `2026-10-07`, C# commander):** `BaselineReservedMask` is in the FIRING-LINE slot
+space (`TotalSlots` bits). The staging dispatch (`DispatchAllToBaseline`) spaces tanks by ROSTER count and
+therefore **reserves nothing** — only a returning attacker reserves the slot it was given. ⛔ HISTORY: staging
+used to set one bit per roster index, which filled the mask whenever the platoon outnumbered the slots and made
+every attacker of a wave return to the same slot (`CE-460`). ⚠ The blueprint twin
+(`PlatoonHillAttackBpAuthoring.BuildOrderAll`) still does that, by user ruling.
 
 ---
 

@@ -277,7 +277,7 @@ Add these 4 tests. Keep ALL existing tests unchanged.
 
 ## SUCCESS CONDITION (all must hold)
 
-- `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors (editor closed).
+- `dotnet build HROT.sln -c Debug` → 0 errors (editor closed).
 - `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug` → **0 net-new failures**. The 7 pre-existing failures must still be exactly the same 7.
 - The step-control logic is in ONE place (`DebugStepControls.Draw`) called from both `DebugPanelWindow` and the Blueprint Tools section.
 - `DebugPanelWindow` still renders its breakpoint table and still exposes `LastStepActionInvoked` / `LastRenderedPausedState` / `LastRenderedBreakpoints` for tests.

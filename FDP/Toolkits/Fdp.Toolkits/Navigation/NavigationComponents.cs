@@ -141,6 +141,26 @@ namespace Fdp.Toolkit.Navigation
     }
 
     /// <summary>
+    /// ⭐ <c>CE-3128</c> (R-230) — how much an actor WANTS the road network for one order. The navmesh covers the roads too, so
+    /// this is a choice, not a capability: a sneaking unit never uses the roads, a convoy over distance strongly prefers them.
+    /// The planner compares walking direct with navmesh → road → navmesh, the road metres weighted by the factor below, and
+    /// takes the cheaper. 📄 docs/designs/navig-2/Navigation_Design_v2_0.md §5.2a D1/D3.
+    /// </summary>
+    public enum RoadUse : byte
+    {
+        /// <summary>Not set by the order: a vehicle ⇒ <see cref="Prefer"/>, anything else ⇒ <see cref="Neutral"/> (<c>PathRequests.ResolveRoadUse</c>). ⚠ Not "Default" (an IDL keyword) nor "Auto" (IDL enum members share one scope with NavigationBackend.Auto) — this enum is generated into IDL.</summary>
+        Unspecified = 0,
+        /// <summary>Never use the road network (sneaking, staying off the obvious lines).</summary>
+        Never = 1,
+        /// <summary>Road metres cost the same as any other: the road wins only when it is genuinely shorter.</summary>
+        Neutral = 2,
+        /// <summary>Road metres count half.</summary>
+        Prefer = 3,
+        /// <summary>Road metres count a quarter (a convoy over distance).</summary>
+        StronglyPrefer = 4,
+    }
+
+    /// <summary>
     /// Pathfinding backend used to compute a route.
     /// </summary>
     public enum NavigationBackend : byte
@@ -295,6 +315,17 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>⭐ CE-3026 — force a backend (0 Auto, 1 NavMesh, 2 RoadGraph, 3 Volumetric), from <c>MoveToParams.BackendForce</c>.</summary>
         public byte BackendForce;
+
+        /// <summary>⭐ CE-3128 — the order's road use, packed in <see cref="Flags"/> bits 5–7 (<see cref="NavigationConstants.FlagShiftRoadUse"/>).</summary>
+        public RoadUse RoadUse
+        {
+            readonly get => NavigationConstants.RoadUseOf(Flags);
+            set => Flags = NavigationConstants.WithRoadUse(Flags, value);
+        }
+
+        /// <summary>⭐ CE-1035 Q0b — true when <see cref="FinalDestination"/>'s Z is NOT given; read it through
+        /// <see cref="NavigationDestination.Of"/>, never directly.</summary>
+        public readonly bool OnSurface => (Flags & (1 << NavigationConstants.FlagBitDestinationOnSurface)) != 0;
     }
 
     /// <summary>

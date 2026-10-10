@@ -53,6 +53,8 @@ known-rot: the line citations in the body are pre-CE-051 and mostly MOVED. 0b ca
   "EditorSubsystem.cs:1122-1134" (the two-arbiter construction) is now MapInteractionPack.cs:92-100 and
   therefore structural on FIVE hosts, not one; EditorSpawnAdapter no longer exists (it is the SHARED
   ScenarioSpawnAdapter); and the D-prime duplicate has a SECOND instance on IG that this document never named.
+related-designs:
+  - ../DESIGN_Add_Entity_Picker.md — Shift-pick in the Add Entity picker arms this doc's placement tool
 -->
 # Feature design — making a tool a thing
 

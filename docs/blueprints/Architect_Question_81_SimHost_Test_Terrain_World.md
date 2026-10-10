@@ -7,6 +7,8 @@ stale-below: nothing — new document.
 known-rot: nothing yet.
 known-conflict: docs/DESIGN_Node_Roles_And_Policies.md §3.2 and docs/DESIGN_Cluster_Load_Phase.md §4.1a give terrain to MuscleGround + NavigationSolver only; T4 adds Perception (the reopen trigger §3.2 itself names). Both must be updated when the design lands.
 related-designs:
+  - designs/navig-2/Navigation_Design_v2_0.md §14 — runtime navmesh change (R-218): T6's "affected tiles rebuilt" is its P2 (tiled bake + snapshot swap); measured: the mesh is ONE tile today
+  - ../DESIGN_Building_Interiors.md — enterable buildings built on T1 primitives (slabs, ramps) + one new wall-panel primitive; T8 Stride in scope (B9)
   - docs/DESIGN_Terrain_World.md — ⭐ THE WHAT for this question (file format, classes, sequences, module diagram, open calls W1–W10).
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT terrain is (a named asset with a JSON definition, §2.1e) and the asset build for static obstacles (§2.1c); this question fills in the content it postponed (§7) and extends the definition.
   - docs/blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md — the WHY of zones and the asset build; ruled the heavy asset semantics POSTPONED (§5), which is what this answers.

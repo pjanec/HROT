@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.Terrain;
 using Xunit;
@@ -241,5 +242,473 @@ namespace Fdp.Toolkit.Terrain.Tests
                 if (Directory.Exists(b)) Directory.Delete(b, true);
             }
         }
-    }
+
+        // ── ⭐ CE-1017 S2 — terrain LEVELS (docs/DESIGN_Add_Entity_Picker.md §2b–§2c) ─────────────────────
+
+        [Fact]
+        public void CE1017_SurfacesAt_GroundIsLevel0_EvenInsideABuilding_RoofAndDeckAbove_RampFootMerges()
+        {
+            var w = Parse();
+            Assert.Equal(new[] { 0f }, w.SurfacesAt(10, 10, out int g0));            // open ground
+            Assert.Equal(0, g0);
+            Assert.Equal(new[] { 0f, 12f }, w.SurfacesAt(60, 60, out int g1));       // 🔒 rev 5: ground stays level 0 inside
+            Assert.Equal(0, g1);
+            Assert.Equal(new[] { 0f, 3f }, w.SurfacesAt(120, 20));                   // under/on the garage deck
+            Assert.Equal(new[] { 0f }, w.SurfacesAt(90.5f, 5));                      // ramp foot (z 0.15) merges into the ground
+
+            Assert.Equal(0f,  w.ResolveLevel(60, 60, 0));
+            Assert.Equal(12f, w.ResolveLevel(60, 60, 1));
+            Assert.Equal(12f, w.ResolveLevel(60, 60, 99));                           // past the top ⇒ the highest
+            Assert.Equal(0f,  w.ResolveLevel(60, 60, -3));                           // past the bottom ⇒ the lowest
+        }
+
+        [Fact]
+        public void CE1017_SurfacesAt_BasementIsMinus1_CloseSurfacesMergeToTheHigher()
+        {
+            // three slabs over one square: a basement at -3, a deck at 3 and a second skin at 3.2 (within 0.3 m ⇒ one level)
+            var w = TerrainWorldParser.Parse("""
+            {
+              "type": "FeatureCollection",
+              "hrot": { "schemaVersion": 1, "bounds": [0, 0, 20, 20], "groundZ": 0 },
+              "features": [
+                { "type": "Feature", "properties": { "kind": "slab" },
+                  "geometry": { "type": "Polygon", "coordinates": [[[0,0,-3],[10,0,-3],[10,10,-3],[0,10,-3],[0,0,-3]]] } },
+                { "type": "Feature", "properties": { "kind": "slab" },
+                  "geometry": { "type": "Polygon", "coordinates": [[[0,0,3],[10,0,3],[10,10,3],[0,10,3],[0,0,3]]] } },
+                { "type": "Feature", "properties": { "kind": "slab" },
+                  "geometry": { "type": "Polygon", "coordinates": [[[0,0,3.2],[10,0,3.2],[10,10,3.2],[0,10,3.2],[0,0,3.2]]] } }
+              ]
+            }
+            """);
+            var levels = w.SurfacesAt(5, 5, out int ground);
+            Assert.Equal(1, ground);
+            Assert.Equal(3, levels.Length);
+            Assert.Equal(-3f, levels[0]);
+            Assert.Equal(0f, levels[1]);
+            Assert.Equal(3.2f, levels[2], 3);
+            Assert.Equal(-3f, w.ResolveLevel(5, 5, -1));
+            Assert.Equal(-3f, w.ResolveLevel(5, 5, -7));
+            Assert.Equal(3.2f, w.ResolveLevel(5, 5, 1), 3);
+        }
+
+        // ── ⭐ Buildings programme Stage 1 — templates, panels, openings, materials (docs/DESIGN_Building_Interiors.md §3a, §3c) ──
+
+        // A 10 x 8 m two-storey template: front wall with a door (closed) and a window, an inner wall with a door, stairs.
+        private const string House = """
+        { "name": "house", "material": "brick", "footprint": [[0,0],[10,0],[10,8],[0,8]],
+          "storeys": [
+            { "height": 3.0,
+              "walls": [
+                { "from": [0,0], "to": [10,0], "thickness": 0.3,
+                  "openings": [ { "kind": "door", "at": 4.5, "width": 1.0, "doorId": "front", "initial": "closed" },
+                                { "kind": "window", "at": 1.5, "width": 1.2 } ] },
+                { "from": [10,0], "to": [10,8] }, { "from": [10,8], "to": [0,8] }, { "from": [0,8], "to": [0,0] },
+                { "from": [5,0], "to": [5,8], "thickness": 0.15, "material": "concrete",
+                  "openings": [ { "kind": "door", "at": 6.0, "width": 0.9, "doorId": "hall" } ] } ],
+              "stairs": [ { "from": [8,1], "to": [8,6], "width": 1.0 } ] },
+            { "height": 3.0, "walls": [ { "from": [0,0], "to": [10,0] } ] } ] }
+        """;
+
+        private static TerrainWorld HouseWorld(string instanceProps = "\"template\": \"house\", \"label\": \"H\", \"doors\": { \"front\": \"locked\" }", float x = 100, float y = 100)
+            => TerrainWorldParser.Parse($$"""
+            { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 0 },
+              "features": [ { "type": "Feature", "properties": { "kind": "building", {{instanceProps}} },
+                              "geometry": { "type": "Point", "coordinates": [{{x}}, {{y}}] } } ] }
+            """, "range", new TerrainAssets { Templates = n => n == "house" ? House : null });
+
+        [Fact]
+        public void Stage1_Template_ExpandsIntoPanelsWithOpenings_DoorKeys_AndInstanceOverrides()
+        {
+            var w = HouseWorld();
+            var b = Assert.Single(w.Buildings);
+            Assert.Equal(new[] { 0f, 3f, 6f }, b.StoreyZ);
+            Assert.Equal(6, w.Panels.Count);                              // 5 ground-storey walls + 1 upper
+            var front = w.Panels[0];
+            Assert.Equal("brick", front.Material.Name);
+            Assert.Equal(new[] { 1.5f, 4.5f }, front.Openings.Select(o => o.At));   // sorted along the wall
+            var window = front.Openings[0];
+            Assert.Equal((0.9f, 2.1f), (window.SillZ, window.HeadZ));
+            Assert.Equal("concrete", w.Panels[4].Material.Name);          // per-wall material overrides the template's
+
+            Assert.Equal(new[] { "range/H/front", "range/H/hall" }, w.Doors.Select(d => d.Key).OrderBy(k => k));
+            Assert.Equal(TerrainDoorState.Locked, w.Doors.Single(d => d.Key == "range/H/front").Initial);   // instance override
+            Assert.Equal(TerrainDoorState.Open, w.Doors.Single(d => d.Key == "range/H/hall").Initial);      // default
+            Assert.All(w.Prisms, p => Assert.True(p.Panel >= 0));         // every prism is a panel piece
+        }
+
+        [Fact]
+        public void Stage1_InsideAnEnterableBuilding_TheGroundIsAFloor_StoreysAreLevels_StairsClimb()
+        {
+            var w = HouseWorld();
+            // inside the west room: ground, the upper floor, the roof (CE-1031 — the ground is no longer skipped)
+            Assert.Equal(new[] { 0f, 3f, 6f }, w.SurfacesAt(102, 104));
+            Assert.Equal(0f, w.SurfaceZ(102, 104, zHint: 0f));
+            Assert.Equal(3f, w.SurfaceZ(102, 104, zHint: 3f));
+            // on the stairs, halfway up the 5 m run (8,1)→(8,6) from 0 to 3
+            Assert.Equal(1.5f, w.SurfaceZ(108, 103.5f, zHint: 1.2f), 2);
+        }
+
+        /// <summary>
+        /// ⭐ 5d-2 (live, bt-doors) — a doorway's LINTEL (a piece from 2.1 to 3 m) is overhead: an agent walking through the
+        /// doorway stays on the ground. 🔴 It used to count as solid, took the ground away, and the agent came out on the upper
+        /// floor at 3 m. The upper floor is still where an agent already up there stands.
+        /// </summary>
+        [Fact]
+        public void Stage5d2_UnderADoorwaysLintel_TheGroundStays_TheUpperFloorIsStillReachableFromAbove()
+        {
+            var w = HouseWorld();
+            Assert.Equal(0f, w.SurfaceZ(104.8f, 100f, zHint: 0f));     // in the front doorway (104.5..105.5), under its lintel
+            Assert.Equal(0f, w.SurfaceZ(105f, 106.4f, zHint: 0f));     // in the hall doorway in the inner wall
+            Assert.Equal(3f, w.SurfaceZ(102f, 104f, zHint: 3f));       // already on the upper floor: stays there
+            // ⛔ SUPERSEDED (CE-3111 live, 2026-10-08): "inside a FULL-HEIGHT wall piece the ground is still taken away" — see below.
+            Assert.Equal(0f, w.SurfaceZ(103.5f, 100f, zHint: 0f));
+        }
+
+        /// <summary>
+        /// ⭐ CE-3111 (live, bt-doors with real 0.9 m doors) — a WALL PANEL never takes the ground away: an agent whose centre clips a
+        /// door's jamb by a few centimetres (a mover turning through a narrow doorway) stays on the ground. 🔴 It took the ground away,
+        /// the wall's top (3 m) became the only surface, and from then on the agent's Z hint kept it on the UPPER FLOOR's slab across
+        /// the whole storey (probe: z 3.0 at (106.4, 107.5), the east room, right after the back door) — some runs never reached the
+        /// back door's reach. The same rule as the ground mesh (<c>TerrainWorldMesh</c>: a panel is thin and keeps its ground). A SOLID
+        /// building still takes it (the roof rail above).
+        /// </summary>
+        [Fact]
+        public void CE3111_InsideAWallPanel_TheGroundStays_TheAgentNeverJumpsOntoTheUpperFloor()
+        {
+            var w = HouseWorld();
+            Assert.Equal(0f, w.SurfaceZ(103.5f, 100f, zHint: 0f));          // in the front wall beside the doorway
+            Assert.Equal(0f, w.SurfaceZ(104.45f, 100.02f, zHint: 0f));      // clipping the doorway's west jamb by 5 cm
+            Assert.Equal(0f, w.SurfaceZ(105.02f, 104f, zHint: 0f));         // in the inner wall (x 105)
+            Assert.Equal(3f, w.SurfaceZ(102f, 104f, zHint: 3f));            // an agent already upstairs stays upstairs
+        }
+
+        [Fact]
+        public void Stage1_SightPassesAWindowAndADoorway_ButNotTheWallBesideThem()
+        {
+            var w = HouseWorld();
+            // the front wall runs y = 100 (x 100..110); look from outside (y = 90) to inside (y = 104) at eye height 1.6
+            Assert.False(w.SegmentBlocked(new Vector3(102.1f, 90, 1.6f), new Vector3(102.1f, 104, 1.6f)));   // window 101.5..102.7
+            Assert.True(w.SegmentBlocked(new Vector3(102.1f, 90, 0.5f), new Vector3(102.1f, 104, 0.5f)));    // under the sill
+            // the doorway 104.5..105.5 — ⭐ Stage 5: a gap only while its door is OPEN (this instance's front is locked)
+            Assert.True(w.SegmentBlocked(new Vector3(104.8f, 90, 1.6f), new Vector3(104.8f, 104, 1.6f)));
+            var open = Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(w, (w.Doors[0].Key, TerrainDoorState.Open));   // R-219: the view's doors
+            Assert.False(w.SegmentBlocked(new Vector3(104.8f, 90, 1.6f), new Vector3(104.8f, 104, 1.6f), open));
+            Assert.True(w.SegmentBlocked(new Vector3(103.5f, 90, 1.6f), new Vector3(103.5f, 104, 1.6f)));    // solid wall
+        }
+
+        [Fact]
+        public void Stage1_RotationTurnsTheTemplateCounterClockwise()
+        {
+            var w = HouseWorld("\"template\": \"house\", \"label\": \"R\", \"rotation\": 90");
+            var front = w.Panels[0];                                      // local (0,0)→(10,0) turned 90° ⇒ (100,100)→(100,110)
+            Assert.Equal(100f, front.A.X, 3); Assert.Equal(100f, front.A.Y, 3);
+            Assert.Equal(100f, front.B.X, 3); Assert.Equal(110f, front.B.Y, 3);
+        }
+
+        [Theory]
+        [InlineData("\"template\": \"nope\"", "building template 'nope' was not found")]
+        [InlineData("\"building\": { \"material\": \"cheese\", \"storeys\": [ { \"height\": 3, \"walls\": [ { \"from\": [0,0], \"to\": [5,0] } ] } ] }", "unknown material 'cheese'")]
+        [InlineData("\"building\": { \"storeys\": [ { \"height\": 3, \"walls\": [ { \"from\": [0,0], \"to\": [5,0], \"openings\": [ { \"kind\": \"door\", \"at\": 4.5, \"width\": 1 } ] } ] } ] }", "does not fit")]
+        [InlineData("\"building\": { \"storeys\": [ { \"height\": 3, \"walls\": [ { \"from\": [0,0], \"to\": [5,0], \"openings\": [ { \"kind\": \"door\", \"at\": 1, \"width\": 1 }, { \"kind\": \"window\", \"at\": 1.5, \"width\": 1 } ] } ] } ] }", "overlap")]
+        public void Stage1_BadBuildings_FailLoudly(string props, string expected)
+        {
+            var ex = Assert.Throws<ArgumentException>(() => HouseWorld(props));
+            Assert.Contains(expected, ex.Message);
+        }
+
+        [Fact]
+        public void Stage1_FenceIsAWallOfFenceWood_AndAMaterialIsNamedOnAnyWall()
+        {
+            var w = TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "fence", "height": 1.2 }, "geometry": { "type": "LineString", "coordinates": [[0,0],[10,0],[20,0]] } },
+              { "type": "Feature", "properties": { "kind": "wall", "height": 2, "material": "fence-chainlink" }, "geometry": { "type": "LineString", "coordinates": [[0,5],[10,5]] } } ] }
+            """);
+            Assert.Equal(3, w.Panels.Count);
+            Assert.Equal(new[] { "fence-wood", "fence-wood", "fence-chainlink" }, w.Panels.Select(p => p.Material.Name));
+            Assert.Equal(0.85f, w.Panels[2].Material.SightTransmittance);
+        }
+
+        [Fact]
+        public void Stage1_QuerySight_MultipliesMaterialTransmittance_AndNamesEachCrossing()
+        {
+            var w = TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink", "label": "Mesh 1" }, "geometry": { "type": "LineString", "coordinates": [[0,10],[20,10]] } },
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink", "label": "Mesh 2" }, "geometry": { "type": "LineString", "coordinates": [[0,20],[20,20]] } },
+              { "type": "Feature", "properties": { "kind": "wall", "height": 2, "material": "hedge", "thickness": 0.8, "label": "Hedge" }, "geometry": { "type": "LineString", "coordinates": [[30,10],[50,10]] } } ] }
+            """);
+            var two = w.QuerySight(new Vector3(10, 0, 1.5f), new Vector3(10, 30, 1.5f));
+            Assert.Equal(0.85f * 0.85f, two.Transmittance, 4);
+            Assert.Equal(new[] { "Mesh 1", "Mesh 2" }, two.Crossed.Select(c => c.Label));
+            Assert.True(two.Transmittance >= TerrainWorld.SightThreshold);
+
+            var hedge = w.QuerySight(new Vector3(40, 0, 1.5f), new Vector3(40, 30, 1.5f));
+            Assert.Equal(0.3f, hedge.Transmittance, 4);
+            Assert.Equal("hedge", Assert.Single(hedge.Crossed).Material);
+
+            var over = w.QuerySight(new Vector3(10, 0, 2.5f), new Vector3(10, 30, 2.5f));   // above the 2 m fences
+            Assert.Empty(over.Crossed);
+            Assert.Equal(1f, over.Transmittance);
+        }
+
+        [Fact]
+        public void Stage1_QuerySight_ThroughAHouseWindow_IsClear_ThroughItsFloor_IsOpaque()
+        {
+            var w = HouseWorld();
+            Assert.Equal(1f, w.QuerySight(new Vector3(102.1f, 90, 1.6f), new Vector3(102.1f, 104, 1.6f)).Transmittance);
+            var down = w.QuerySight(new Vector3(102, 104, 4.5f), new Vector3(102, 104, 1.0f));   // from storey 2 down through its floor
+            Assert.Equal(0f, down.Transmittance);
+            Assert.Equal("slab", Assert.Single(down.Crossed).Kind);
+            Assert.Equal(1.5f, down.Crossed[0].Along, 3);
+        }
+
+        [Fact]
+        public void Stage3_SegmentBlocked_IsSightTransmittanceBelowHalf_ChainLinkSeesThrough_FiveDoNot_AHedgeDoesNot()
+        {
+            var w = TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink" }, "geometry": { "type": "LineString", "coordinates": [[0,10],[20,10]] } },
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink" }, "geometry": { "type": "LineString", "coordinates": [[0,20],[20,20]] } },
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink" }, "geometry": { "type": "LineString", "coordinates": [[0,30],[20,30]] } },
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink" }, "geometry": { "type": "LineString", "coordinates": [[0,40],[20,40]] } },
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink" }, "geometry": { "type": "LineString", "coordinates": [[0,50],[20,50]] } },
+              { "type": "Feature", "properties": { "kind": "wall", "height": 2, "material": "hedge", "thickness": 0.8 }, "geometry": { "type": "LineString", "coordinates": [[30,10],[50,10]] } } ] }
+            """);
+            var eye = new Vector3(10, 0, 1.6f);
+            Assert.False(w.SegmentBlocked(eye, new Vector3(10, 15, 1.6f)));        // one chain-link: 0.85
+            Assert.False(w.SegmentBlocked(eye, new Vector3(10, 35, 1.6f)));        // three: 0.61
+            Assert.False(w.SegmentBlocked(eye, new Vector3(10, 45, 1.6f)));        // four: 0.85⁴ = 0.522 ≥ 0.5
+            Assert.True(w.SegmentBlocked(eye, new Vector3(10, 55, 1.6f)));         // five: 0.44
+            Assert.True(w.SegmentBlocked(new Vector3(40, 0, 1.6f), new Vector3(40, 15, 1.6f)));   // hedge 0.3
+            // ⭐ the route and perception agree, by construction
+            foreach (var to in new[] { new Vector3(10, 15, 1.6f), new Vector3(10, 35, 1.6f), new Vector3(10, 45, 1.6f), new Vector3(10, 55, 1.6f) })
+                Assert.Equal(w.QuerySight(eye, to).Transmittance < TerrainWorld.SightThreshold, w.SegmentBlocked(eye, to));
+        }
+
+        // ── ⭐ Stage 3, FIRE half (§3d P2, R-217) ───────────────────────────────────────────────────────────────
+
+        [Fact]
+        public void Stage3Fire_QueryFire_ResistanceIsMaterialTimesThePathInside_ObliqueResistsMore_OverTheTopNothing_ASlabCounts()
+        {
+            var w = TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "wall", "height": 2, "thickness": 0.2, "material": "concrete" }, "geometry": { "type": "LineString", "coordinates": [[0,10],[40,10]] } },
+              { "type": "Feature", "properties": { "kind": "slab" }, "geometry": { "type": "Polygon", "coordinates": [[[0,20,3],[10,20,3],[10,30,3],[0,30,3],[0,20,3]]] } } ] }
+            """);
+            var straight = Assert.Single(w.QueryFire(new Vector3(5, 0, 1.6f), new Vector3(5, 15, 1.6f)));
+            Assert.Equal("concrete", straight.Material);
+            Assert.Equal(0.2f, straight.PathMetres, 3);
+            Assert.Equal(300f, straight.ResistanceMmRha, 1);                              // 1500 mm/m × 0.2 m
+            Assert.Equal(9.9f / 15f, straight.T, 3);                                     // enters at y = 9.9
+
+            var oblique = Assert.Single(w.QueryFire(new Vector3(0, 0, 1.6f), new Vector3(20, 20, 1.6f)));
+            Assert.Equal(0.2f * MathF.Sqrt(2f), oblique.PathMetres, 3);                  // 45° — the path, not the thickness
+
+            Assert.Empty(w.QueryFire(new Vector3(5, 0, 2.5f), new Vector3(5, 15, 2.5f))); // over the 2 m wall
+
+            var slab = Assert.Single(w.QueryFire(new Vector3(5, 25, 5f), new Vector3(5, 25, 1f)));
+            Assert.Equal("slab", slab.Kind);
+            Assert.Equal(1500f * TerrainWorld.SlabThicknessMetres, slab.ResistanceMmRha, 1);
+            Assert.Equal(0.5f, slab.T, 3);
+        }
+
+        // ── ⭐ Stage 5 — a closed door is a panel for sight and fire; the navmesh never sees it ─────────────────
+
+        private const string OneDoorHouse = """
+        { "type": "FeatureCollection", "features": [ { "type": "Feature",
+            "properties": { "kind": "building", "label": "H", "doors": { "front": "closed" },
+              "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                "storeys": [ { "height": 3, "walls": [ { "from": [0,0], "to": [10,0], "thickness": 0.3,
+                  "openings": [ { "kind": "door", "at": 4.5, "width": 1, "doorId": "front" } ] } ] } ] } },
+            "geometry": { "type": "Point", "coordinates": [20, 20] } } ] }
+        """;
+
+        [Fact]
+        public void Stage5_AClosedDoorBlocksSight_AndIsADoorForFire_OpenOrDestroyedIsAGap_TheNavmeshNeverSeesIt()
+        {
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            int door = w.DoorIndexOf("range/H/front");
+            Assert.Equal(0, door);
+            var from = new Vector3(25f, 10f, 1.5f); var to = new Vector3(25f, 24f, 1.5f);   // straight through the doorway (24.5–25.5)
+
+            Assert.Equal(TerrainDoorState.Closed, DoorStates.Authored(w)[door]);
+            Assert.True(w.SegmentBlocked(from, to));
+            var leaf = Assert.Single(w.QuerySight(from, to).Crossed);
+            Assert.Equal("door", leaf.Kind);
+            Assert.Equal("range/H/front", leaf.Label);
+            var fire = Assert.Single(w.QueryFire(from, to));
+            Assert.Equal(TerrainWorld.DoorMaterial, fire.Material);
+            Assert.Equal(60f * TerrainWorld.DoorLeafThickness, fire.ResistanceMmRha, 2);   // a wooden door — a rifle goes through
+
+            DoorStates As(TerrainDoorState st) => Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(w, ("range/H/front", st));
+            Assert.False(w.SegmentBlocked(from, to, As(TerrainDoorState.Open)));
+            Assert.Empty(w.QueryFire(from, to, As(TerrainDoorState.Open)));
+            Assert.True(w.SegmentBlocked(from, to, As(TerrainDoorState.Locked)));
+            Assert.False(w.SegmentBlocked(from, to, As(TerrainDoorState.Destroyed)));
+            Assert.True(w.SegmentBlocked(from, to));                         // no table: as the terrain authored it (closed)
+
+            Assert.DoesNotContain(w.Prisms, p => p.Label == "range/H/front");   // the navmesh (and SurfaceZ) read Prisms only
+        }
+
+        /// <summary>
+        /// ⭐ R-219 — a view's door table comes from the door ENTITIES in that view: authored where there is none, the entity's state
+        /// where there is one, keyed by <see cref="TerrainObjectKey"/>; a key the terrain does not define is ignored.
+        /// </summary>
+        [Fact]
+        public void R219_AViewsDoorTable_IsBuiltFromItsDoorEntities()
+        {
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            int door = w.DoorIndexOf("range/H/front");
+            using var repo = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w);
+            Assert.Equal(TerrainDoorState.Closed, DoorStates.Of(repo, w)[door]);                       // no entity: authored
+
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new DoorState { State = TerrainDoorState.Open });
+            repo.SetManagedComponent(e, new TerrainObjectKey { Key = "range/H/front" });
+            var stray = repo.CreateEntity();
+            repo.AddComponent(stray, new DoorState { State = TerrainDoorState.Locked });
+            repo.SetManagedComponent(stray, new TerrainObjectKey { Key = "elsewhere/X/y" });           // not this terrain's door
+            Assert.Equal(TerrainDoorState.Open, DoorStates.Of(repo, w)[door]);
+            Assert.Equal(TerrainDoorState.Open, DoorStates.Of(repo)![door]);                           // the resident terrain's
+            Assert.False(w.SegmentBlocked(new Vector3(25f, 10f, 1.5f), new Vector3(25f, 24f, 1.5f), DoorStates.Of(repo)));
+
+            Assert.Equal(e, TerrainObjects.Find(repo, "range/H/front"));
+            Assert.Contains("range/H/front", TerrainObjects.ExistingKeys(repo));
+        }
+
+        /// <summary>
+        /// ⭐⭐ R-219 — THE reason for the rule. A background module runs on a SNAPSHOT of the world (<c>SyncFrom</c>, as the GDB/SoD
+        /// providers do). A door flipped on the live world AFTER the sync must not be visible to a query on the snapshot — and before
+        /// R-219 it was: the state lived on the <see cref="TerrainWorld"/>, which a snapshot shares by reference.
+        /// </summary>
+        [Fact]
+        public void R219_AQueryOnASnapshot_SeesTheDoorsOfThatSnapshot_NotALaterFlipOnTheLiveWorld()
+        {
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            using var live = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w, ("range/H/front", TerrainDoorState.Open));
+            using var snapshot = new Fdp.Core.EntityRepository();
+            snapshot.RegisterComponent<DoorState>();
+            snapshot.RegisterManagedComponent<TerrainObjectKey>();
+            snapshot.SyncFrom(live);
+            var from = new Vector3(25f, 10f, 1.5f); var to = new Vector3(25f, 24f, 1.5f);
+
+            var door = TerrainObjects.Find(live, "range/H/front");
+            live.SetComponent(door, new DoorState { State = TerrainDoorState.Locked });   // the main thread locks it after the sync
+
+            Assert.True(w.SegmentBlocked(from, to, DoorStates.Of(live, w)));             // the live world sees it locked
+            Assert.False(w.SegmentBlocked(from, to, DoorStates.Of(snapshot, w)));        // the snapshot still sees it open
+        }
+
+        /// <summary>
+        /// ⭐⭐ R-220 — the per-tick queries a background batch runs allocate NOTHING once warm (GC stutters): the sight test, the fire
+        /// trace into a reused list, and the view's door table while its doors are unchanged. Over a house with walls, door leaves,
+        /// a window and floors/stairs, so every loop runs. ⚠ <see cref="TerrainWorld.QuerySight"/> is a diagnostic and allocates its answer.
+        /// </summary>
+        [Fact]
+        public void R220_SightFireAndTheDoorTable_AllocateNothingPerCall()
+        {
+            var w = HouseWorld();
+            using var repo = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w, ("range/H/front", TerrainDoorState.Closed));
+            var crossings = new System.Collections.Generic.List<TerrainWorld.FireCrossing>(16);
+            var lines = new[]
+            {
+                (new Vector3(104.8f, 90, 1.6f), new Vector3(104.8f, 104, 1.6f)),   // through the front door
+                (new Vector3(102.1f, 90, 1.6f), new Vector3(102.1f, 104, 1.6f)),   // through the window
+                (new Vector3(102, 104, 4.5f), new Vector3(102, 104, 1.0f)),        // down through a floor
+                (new Vector3(90, 104, 1.6f), new Vector3(120, 104, 1.6f)),         // across every wall
+            };
+            DoorStates doors = DoorStates.Of(repo, w);
+            bool blockedAny = false;
+            void Run()
+            {
+                doors = DoorStates.Of(repo, w);
+                foreach (var (a, b) in lines)
+                {
+                    blockedAny |= w.SegmentBlocked(a, b, doors) | w.SegmentBlocked(a, b);
+                    w.QueryFire(a, b, crossings, doors);
+                }
+            }
+            Run(); Run();   // warm-up: the lazy door leaves, the thread's scratch
+
+            var first = doors;
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 20; i++) Run();
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.True(blockedAny);
+            Assert.Equal(0L, allocated);
+            Assert.Same(first, doors);                                    // unchanged doors ⇒ the same table
+        }
+
+        /// <summary>
+        /// ⭐ R-220 — the door table's no-allocation path never serves a stale table: it re-reads the door entities on EVERY call, so a
+        /// door written within the same tick (no version moved) is seen at once; a table already handed out never changes.
+        /// </summary>
+        [Fact]
+        public void R220_TheDoorTable_IsReusedOnlyWhileTheDoorsAreUnchanged_AndAHandedOutTableNeverChanges()
+        {
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            using var repo = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w, ("range/H/front", TerrainDoorState.Open));
+            var door = TerrainObjects.Find(repo, "range/H/front");
+
+            var open = DoorStates.Of(repo, w);
+            Assert.Same(open, DoorStates.Of(repo, w));
+            repo.SetComponent(door, new DoorState { State = TerrainDoorState.Locked });   // same tick — no GlobalVersion change
+            var locked = DoorStates.Of(repo, w);
+            Assert.NotSame(open, locked);
+            Assert.Equal(TerrainDoorState.Locked, locked[0]);
+            Assert.Equal(TerrainDoorState.Open, open[0]);                                    // the old table is untouched
+        }
+
+        private static string ShippedTerrain(string name)
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors")))
+                dir = dir.Parent;
+            Assert.NotNull(dir);
+            return Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", name);
+        }
+
+        [Fact]
+        public void Stage1_TestTown_IsUnchanged_EveryWallConcrete_NoBuildingsOrDoors()
+        {
+            var folder = ShippedTerrain("test-town");
+            var w = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, "test-town.world.geojson")), "test-town",
+                TerrainAssets.ForFolder(folder));
+            Assert.Empty(w.Buildings);
+            Assert.Empty(w.Doors);
+            Assert.All(w.Prisms, p => Assert.Equal("concrete", p.Material!.Name));
+            Assert.All(w.Prisms.Where(p => p.Kind == TerrainPrismKind.Building), p => Assert.Equal(-1, p.Panel));
+        }
+
+        [Fact]
+        public void Stage1_BtRange_Loads_TwoHouses_EachMaterial_AFenceRow_AndTheLockedFrontDoor()
+        {
+            var folder = ShippedTerrain("bt-range");
+            var w = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, "bt-range.world.geojson")), "bt-range",
+                TerrainAssets.ForFolder(folder));
+            Assert.Equal(new[] { "House A", "House B" }, w.Buildings.Select(b => b.Label));   // the polygon block stays a plain prism
+            Assert.Contains(w.Prisms, p => p.Label == "Solid Block" && p.Kind == TerrainPrismKind.Building && p.Panel == -1);
+            foreach (var m in new[] { "concrete", "brick", "fence-wood", "fence-chainlink", "fence-metal-sheet", "hedge" })
+                Assert.Contains(w.Panels, p => p.Material.Name == m);
+            Assert.Equal(TerrainDoorState.Locked, w.Doors.Single(d => d.Key == "bt-range/House A/front").Initial);
+            Assert.Equal(TerrainDoorState.Open, w.Doors.Single(d => d.Key == "bt-range/House A/hall").Initial);
+            Assert.Equal(TerrainDoorState.Closed, w.Doors.Single(d => d.Key == "bt-range/House B/front").Initial);   // template default
+            Assert.Equal(new[] { 0f, 3f, 6f }, w.SurfacesAt(102, 104));   // inside House A's west room
+        }
+    
+        /// <summary>⭐ CE-3128 (R-231) — a road POLYGON is refused, naming where roads live now: the terrain's road network.</summary>
+        [Fact]
+        public void CE3128_SurfaceRoad_IsRetired_AndTheErrorNamesTheRoadNetwork()
+        {
+            var json = """
+                {"type":"FeatureCollection","features":[
+                  {"type":"Feature","properties":{"kind":"surface","surface":"road"},
+                   "geometry":{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]]]}}]}
+                """;
+            var ex = Assert.Throws<ArgumentException>(() => TerrainWorldParser.Parse(json));
+            Assert.Contains("roadNetworks", ex.Message);
+        }
+}
 }

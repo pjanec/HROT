@@ -111,7 +111,7 @@ of the Windows-specific concerns.
   That is the baseline this effort removes. DDS itself now works on Linux via
   the 0.3.2 package (WI-2), so the DDS load failure that existed at 0.2.3 is
   already gone once references are bumped.
-- Build `IOS-IG-SimHost.sln` on Linux (119 projects, none Windows-locked). Do
+- Build `HROT.sln` on Linux (119 projects, none Windows-locked). Do
   NOT build `Stride/HrotStrideApp.sln` - that is the Stride exclusion (WI-9).
 - Headless test runs: test projects that touch Raylib/ImGui (e.g.
   `Fdp.Presentation.Tests`) need an X display - run them under `xvfb-run -a`
@@ -327,9 +327,9 @@ already portable `net8.0`; Raylib is cross-platform), or make it
 `Stride/HrotStrideApp.Game/*.csproj`, `Stride/BepuSample/*`.
 **Decision (final): exclude Stride from Linux; do not port it.** Confirmed facts:
 - The real Stride apps live ONLY in `Stride/HrotStrideApp.sln`. They are NOT in
-  the master `IOS-IG-SimHost.sln`, nothing outside `Stride/` references them, and
+  the master `HROT.sln`, nothing outside `Stride/` references them, and
   no `run_*.bat` launches them.
-- The master `IOS-IG-SimHost.sln` has 119 projects and **zero** are Windows-locked
+- The master `HROT.sln` has 119 projects and **zero** are Windows-locked
   (`net8.0-windows`). The only "Stride"-named project it contains is
   `Hrot.MuscleCharacter.Animation.Stride`, a portable `net8.0` adapter with no
   Stride NuGet dependency.
@@ -338,11 +338,11 @@ already portable `net8.0`; Raylib is cross-platform), or make it
   be a separate, much larger effort. The engine's actual runtime visualization
   uses Raylib + ImGui (already cross-platform), so Stride is not required.
 
-**Action:** on Linux, build the master solution (`IOS-IG-SimHost.sln`) and never
+**Action:** on Linux, build the master solution (`HROT.sln`) and never
 `Stride/HrotStrideApp.sln`. No project edits are needed - the exclusion is a
 matter of which solution the Linux build targets. Record the decision in
 `PORT_STATUS.md`.
-**Acceptance:** Linux build builds `IOS-IG-SimHost.sln` (Stride absent); Windows
+**Acceptance:** Linux build builds `HROT.sln` (Stride absent); Windows
 continues to build both the master and Stride solutions as today.
 
 ---

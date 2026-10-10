@@ -57,7 +57,7 @@ duplicate entity creation (split-brain).  Both changes are in this batch.
 ```powershell
 # From repo root d:\Work\IOS-IG-SimHost-FDP-2
 
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 dotnet test Hrot\Subsystems\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj
 ```
@@ -234,7 +234,7 @@ This batch is DONE when:
 - [ ] `CgfApplication.cs` updated: both handlers registered replacing the reference handlers
 - [ ] SimHost composition root: `ReferenceEpisodeLoadHandler` called with `world: null`
 - [ ] No second `ReferenceEpisodeLoadHandler` registration on SimHost with a non-null world
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors
+- [ ] `dotnet build HROT.sln` — 0 errors
 - [ ] `dotnet test Hrot\Subsystems\Hrot.SimHost.Tests\...` — all pass
 - [ ] Report submitted
 

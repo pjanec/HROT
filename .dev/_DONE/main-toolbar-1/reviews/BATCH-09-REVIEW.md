@@ -10,7 +10,7 @@ for any `IAiDebugSession`, plus blueprint-only StepBack + node-position. Complet
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings.
+- `dotnet build HROT.sln` → 0 errors, 0 new warnings.
 - New tests run by lead: `AiDebugCommandsTests` → **16 passed, 0 failed** (unfiltered).
 - **"10 pre-existing failures" claim corrected:** my clean `Hrot.Blueprints.Tests` run shows exactly
   the **9** established PRE-1 failures (AiPrimitive×2, Stage8×2, AllocFree, MoveToAndFire snapshot,

@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-06
-current-answer: §3 — sub-questions A–F, each with a RECOMMENDED answer, awaiting the user's approval. Nothing is built.
+updated: 2026-10-07 (APPROVED by the user; building)
+current-answer: §3 — sub-questions A–F, ✅ ALL APPROVED as recommended (user, 2026-10-07: "AQ85 approved, go ahead"). Ledger R-216.
 stale-below: nothing yet
 known-rot: none
 known-conflict: R-212 A2 ("expected damage, no random roll", docs/DESIGN_Utility_AI_Demo_Scenarios.md §9) — §3 A keeps its
   reason (no dice, rails stay exact) and applies it to HITS; it does not reopen damage.
 related-designs:
+  - ../DESIGN_Terrain_Combat_Tuning.md — reference library, premise tests and shot diagnostics for hit chance demos
+  - ../DESIGN_Building_Interiors.md — the shared terrain Trace that §D bullets use (B4)
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md §9 — OWNS ammunition vs armour (R-212: ArmorModel drives the real damage AND the
     AI estimate; no dice). This question adds the term BEFORE it: does the round hit at all.
   - docs/designs/brain-split/BS-1-DESIGN.md §2.1 — OWNS where combat runs: the Brain orders, the Muscle spawns the bullet and
@@ -116,6 +118,11 @@ and the suppression effect needs no new sensor — the near-miss and hit produce
 f7025) and trade hit for hit; at ~120 m every round fired on a visible target lands. ⇒ with exact aim and symmetric sight,
 **the side with more rifles wins, always**: cover, movement, range and suppression change nothing about a shot.
 
+> ✅ **APPROVED `2026-10-07`.** 🔒 **User, verbatim:** *"AQ85 approved, go ahead"* — §3 A–F as recommended. Ledger `R-216`.
+> ⚠ One reading made while building, stated so it can be checked: §C's stance factor reads the **logical** stance (the brain's
+> `StanceIntent.TargetStance`, applied in the tick it is ordered) — the rule `DESIGN_Building_Interiors.md` §3f approved for every
+> stance consumer after this question was written — not `StanceStatus`, which waits on the body's transition.
+
 ## 3. The sub-questions — each with a recommended answer
 
 ### A. The mechanism — ⭐ RECOMMENDED: a DETERMINISTIC AIM DEFLECTION at spawn
@@ -185,6 +192,20 @@ exist).
 | `BallisticsSystem`, `HitResolutionSystem` | stamp `UnderFire` |
 | AI `WeaponEffectivenessVsTarget` | × `HitChance` |
 | rails | unchanged until a TKB opts in; then the universal-soldier, posture and hill-attack baselines are re-pinned in the same change |
+
+## 5. ✅ As built *(backend, `2026-10-07`)*
+
+| item | as built — and what differs from §3, argued |
+|---|---|
+| A | `HitModel` (`FDP/Toolkits/Fdp.Toolkits/Combat/HitModel.cs`): `Sigma`, `Sequence`, `Deflection`, `Rotate` (about the vertical — hits are 2-D circles), `HitChance`. ⚠ the shot count starts at **k = 1**: d(0) = −1, the very edge of the spread, would have been every unit's first round |
+| B | `FireProcessingSystem` turns the FLIGHT direction by θ; the muzzle offset (`CE-3059`) stays on the aim line |
+| C | `WeaponMountDto.DispersionMils` (default 0); × 2 moving (> 0.5 m/s), × 2 under fire (5 s), prone × 0.5, crouched × 0.75. ⚠ **stance = the LOGICAL stance, `StanceIntent.TargetStance`** (the brain's order, §3f of the buildings design), not `StanceStatus` — so posture changes the shot in the tick it is ordered. To make that readable from the toolkit, `StanceIntent`/`StanceStatus`/`StanceTransitionPhase` **moved** to `Fdp.Toolkits/Tkb/Domain/StanceComponents.cs` (same namespace, ids and layout; precedent `StanceId`, `CE-145`) |
+| D *(first half, with R-217)* | ✅ the shot now flies from the shooter's eye to the middle of the target's silhouette (the sight rule, logical stance) and meets terrain walls by the armour rule — 📄 [`DESIGN_Building_Interiors.md`](../DESIGN_Building_Interiors.md) §3h. ⏭ the target's body profile (hits vs height) stays with Stage 4 |
+| E | `ShotOrdinal` (335) and `UnderFire` (336), Muscle-local, `NoScenario`, registered by `CombatComponentRegistry`; stamped by `HitModel.StampUnderFire` from `BallisticsSystem` (near miss) and `HitResolutionSystem` (hit) |
+| F | `WeaponEffectivenessVsTarget` × `HitChance(σ, range, target collider radius or 0.3 m)`. ⚠ on the Brain the shooter carries no `UnderFire` (Muscle-local), so the AI's estimate omits suppression; moving and stance apply |
+| opt-ins | UrbanCombat `InfantrySoldier` (2002) and NED `Infantry_Rifleman`: 6 mils (`RifleDispersionMils`) — ~50 % at 100 m standing still |
+| diagnostics | `GET /tkb/resolve` reports `Weapon[i].DispersionMils` with its provenance |
+| rails | `HitModelTests` (6: zero σ = exact aim; the factors; the calibration 50 % / ~1 / 42 %; the sequence's share inside the target ≈ `HitChance`; ordinals; the stamp) |
 
 ## ⛔ HISTORY
 

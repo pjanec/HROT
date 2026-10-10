@@ -80,6 +80,7 @@ namespace Hrot.SimHost.Systems
                         Score           = evt.Results[i].Score,
                         Flags           = (short)evt.Results[i].Flags,
                         FlagsMeaningful = (short)evt.Results[i].FlagsMeaningful,
+                        Stance          = evt.Results[i].Stance,   // ⭐ CE-3135
                     };
                 }
                 NotifyTopChanged(repo, evt.Observer, topBefore, in buffer);

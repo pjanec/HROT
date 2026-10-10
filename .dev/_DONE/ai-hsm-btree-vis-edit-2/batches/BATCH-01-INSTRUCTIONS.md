@@ -65,7 +65,7 @@ Add to `Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` (new file `Host/BTreeDynamic
 
 ## ✅ Success criteria (DONE when ALL hold)
 
-- [ ] Build `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings in touched projects.
+- [ ] Build `dotnet build HROT.sln` — 0 errors, 0 new warnings in touched projects.
 - [ ] `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **Failed: 0** (incl. T2–T8).
 - [ ] `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests` — **Failed: 0** (T1 + existing ActionSchemaExporter/BB1 picker tests; 0 NEW failures vs baseline).
 - [ ] Specific actions AND conditions appear in `BTreeNodeCatalog.Query`; placing one bakes `MethodFqn`; generic fallback unchanged.

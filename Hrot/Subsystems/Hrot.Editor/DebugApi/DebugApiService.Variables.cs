@@ -46,10 +46,10 @@ namespace Hrot.Editor.DebugApi
                 // A2: the three-tier ladder, once, in OccurrenceStoreAccess.
                 // ⚠ RW form deliberately — the old code used GetComponentRW here, and switching to
                 //    the read-only form would change which chunks are marked dirty.
-                byte* mem = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
-                                .TryGetStore(_world, entity, out _);
-                if (mem != null)
-                    BlueprintTierSummary.AppendSlots(mem, _blueprintRegistry, slots);
+                // ⭐ CE-3137 U-0: every block the unit carries.
+                Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.GetBlocks(_world, entity, out var blocks);
+                for (int b = 0; b < blocks.Count; b++)
+                    BlueprintTierSummary.AppendSlots(blocks.Memory(b), _blueprintRegistry, slots);
             }
             return slots;
         }

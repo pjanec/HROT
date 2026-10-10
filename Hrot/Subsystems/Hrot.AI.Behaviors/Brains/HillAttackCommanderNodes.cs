@@ -166,7 +166,10 @@ namespace Hrot.AI.Behaviors.Brains
                     Origin     = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,   // ⭐ CE-3034 — a commander (R-193)
                 });
 
-                if (i < 16) s.BaselineReservedMask |= (ushort)(1 << i);
+                // ⭐ CE-2118 — staging reserves NOTHING. It spaces the tanks by ROSTER count, while BaselineReservedMask is in
+                //   FIRING-LINE slot space (TotalSlots, DESIGN §2.3); setting roster bits there reserved every slot of a short
+                //   line, so each wave attacker fell to "closest regardless" and two were sent back to the SAME point
+                //   (measured live, hill-attack-close). Only an attacker heading back reserves a slot (DispatchWaveWithTargets).
             }
             if (BehaviorLog.IsDebugEnabled)
                 BehaviorLog.Debug(self, world, "Baseline dispatch complete. ReservedMask=" + s.BaselineReservedMask + ".");

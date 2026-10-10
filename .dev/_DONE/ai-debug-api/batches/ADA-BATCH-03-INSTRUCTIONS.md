@@ -65,7 +65,7 @@ gets its `_clusterState`), `Hrot/Subsystems/Hrot.Editor/EditorApplication.cs`
   (it has no `ClusterMaster`) — do NOT fake this with a spawn.
 - Re-run the lead's headless reproduce command and confirm: load returns `200 {loaded, awaited:true}` and
   `entityCount > 0`.
-- `dotnet build IOS-IG-SimHost.sln`; `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --filter "FullyQualifiedName~DebugApi"`.
+- `dotnet build HROT.sln`; `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --filter "FullyQualifiedName~DebugApi"`.
 
 > **If the root cause is a deep editor-orchestration limitation you cannot resolve cleanly, STOP and
 > write a blocker report with your findings** — do not paper over it (e.g. don't just bump the poll count

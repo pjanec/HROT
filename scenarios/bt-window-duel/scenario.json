@@ -1,0 +1,165 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range"
+ },
+ "entities": {
+  "2a970101-0000-4000-8000-000000000101": {
+   "SimTransform": {
+    "Position": [
+     107.1,
+     100.9,
+     3
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7421
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Window Rifleman",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": [
+     {
+      "Entity": "2a970102-0000-4000-8000-000000000102",
+      "PosX": 108.5,
+      "PosY": 80.0,
+      "PosZ": 0,
+      "Score": 500,
+      "Tick": 0,
+      "Modality": 1
+     }
+    ]
+   },
+   "Behavior": {
+    "Name": "WindowDuel",
+    "Params": "{\"shape\":0}",
+    "Origin": "Superior"
+   }
+  },
+  "2a970102-0000-4000-8000-000000000102": {
+   "SimTransform": {
+    "Position": [
+     108.5,
+     80,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7422
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Street Rifleman",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": [
+     {
+      "Entity": "2a970101-0000-4000-8000-000000000101",
+      "PosX": 107.1,
+      "PosY": 100.9,
+      "PosZ": 3,
+      "Score": 500,
+      "Tick": 0,
+      "Modality": 1
+     }
+    ]
+   },
+   "Behavior": {
+    "Name": "WindowDuel",
+    "Params": "{\"shape\":1}",
+    "Origin": "Superior"
+   }
+  },
+  "2a970103-0000-4000-8000-000000000103": {
+   "SimTransform": {
+    "Position": [
+     104,
+     82,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 7423
+   },
+   "TkbIdentity": {
+    "TkbType": 8806
+   },
+   "EntityInfo": {
+    "Name": "Van 1"
+   },
+   "ObstacleShape": {
+    "Length": 4.5,
+    "Width": 1.9,
+    "Height": 1.8
+   }
+  },
+  "2a970104-0000-4000-8000-000000000104": {
+   "SimTransform": {
+    "Position": [
+     113,
+     76,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 7424
+   },
+   "TkbIdentity": {
+    "TkbType": 8806
+   },
+   "EntityInfo": {
+    "Name": "Van 2"
+   },
+   "ObstacleShape": {
+    "Length": 4.5,
+    "Width": 1.9,
+    "Height": 1.8
+   }
+  }
+ }
+}

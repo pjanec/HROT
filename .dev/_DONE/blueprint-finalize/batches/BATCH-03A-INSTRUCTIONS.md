@@ -145,7 +145,7 @@ test (as other compiler tests do). Cite the harness you used.
 
 ## Verification (paste real output)
 
-1. `dotnet build IOS-IG-SimHost.sln` — 0 errors; 0 new warnings in touched projects.
+1. `dotnet build HROT.sln` — 0 errors; 0 new warnings in touched projects.
 2. New tests green.
 3. Full `Hrot.Blueprints.Tests`: failures must be a SUBSET of the known pre-existing set
    (after BATCH-04 the baseline is **7**: AiPrimitiveEmitGolden x2, LibraryEmitGolden, LibraryMath snapshot,

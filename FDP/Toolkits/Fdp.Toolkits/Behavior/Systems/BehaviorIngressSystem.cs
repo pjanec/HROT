@@ -306,13 +306,17 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <summary>⭐ <c>CE-2081</c> — every slot key in <paramref name="entity"/>'s store, except the SOP slot's.</summary>
         private static unsafe int[] HeldKeysNow(EntityRepository repo, Entity entity, BehaviorRegistry registry)
         {
-            byte* store = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
-            if (store == null) return Array.Empty<int>();
+            // ⭐ CE-3137 U-0: every block.
+            if (OccurrenceStoreAccess.GetBlocksReadOnly(repo, entity, out var blocks) == 0) return Array.Empty<int>();
             var keys = new List<int>();
-            for (int i = 0; i < BlueprintBlackboardPartitions.GetSlotCount(store); i++)
+            for (int b = 0; b < blocks.Count; b++)
             {
-                int key = BlueprintBlackboardPartitions.GetSlot(store, i).BlueprintId;
-                if (!IsHeldBySop(repo, entity, registry, key)) keys.Add(key);
+                byte* store = blocks.Memory(b);
+                for (int i = 0; i < BlueprintBlackboardPartitions.GetSlotCount(store); i++)
+                {
+                    int key = BlueprintBlackboardPartitions.GetSlot(store, i).BlueprintId;
+                    if (!IsHeldBySop(repo, entity, registry, key)) keys.Add(key);
+                }
             }
             return keys.ToArray();
         }
@@ -420,10 +424,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 int running = repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash;
                 if (running != BehaviorIds.None && registry.TryGetDefinition(running, out var def)) inUse = KeysOf(running, def);
             }
-            byte* store = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
-            if (store != null)
-                foreach (int key in paused.HeldKeys)
-                    if (inUse == null || !inUse.Contains(key)) BlueprintBlackboardPartitions.TryDetach(store, key);
+            foreach (int key in paused.HeldKeys)   // ⭐ CE-3137 U-0: whichever block holds it
+                if (inUse == null || !inUse.Contains(key)) OccurrenceStoreAccess.TryDetachSlot(repo, entity, key);
             uint runningToken = repo.HasComponent<BehaviorState>(entity) ? repo.GetComponentRO<BehaviorState>(entity).InstanceId : 0;
             if (paused.InstanceId != runningToken) BehaviorOwnedParts.Release(repo, entity, paused.InstanceId);
         }
@@ -1005,9 +1007,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (repo.HasManagedComponent<SopStartRecord>(entity)
                 && ((ISimulationView)repo).GetManagedComponentRO<SopStartRecord>(entity) is { HostedKeys.Count: > 0 } held)
             {
-                byte* store = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
-                if (store != null)
-                    foreach (int key in held.HostedKeys) BlueprintBlackboardPartitions.TryDetach(store, key);
+                foreach (int key in held.HostedKeys) OccurrenceStoreAccess.TryDetachSlot(repo, entity, key);   // ⭐ CE-3137 U-0
             }
 
             repo.GetComponentRW<SopState>(entity) = default;
@@ -1139,16 +1139,13 @@ namespace Fdp.Toolkit.Behavior.Systems
                 //   promotes only an entity whose tier could never hold the demand, and leaves every
                 //   entity that fits exactly where it is. 📌 That is what keeps this off CE-318's
                 //   ground: no BTree entity's tier moves, so the golden cannot shift under it.
-                ref readonly var header =
-                    ref Unsafe.AsRef<BlueprintBlackboardHeader>(StoreOf(repo, entity));
+                // ⭐⭐ CE-3137 U-0: capacity is the SUM over the unit's blocks, and the answer to "does not fit"
+                //   is to APPEND a block for the shortfall — never to copy into a bigger tier (R-236).
+                var capacity = OccurrenceStoreAccess.Measure(repo, entity);
+                if (demandPayload <= capacity.PayloadSize && demandSlots <= capacity.MaxSlots) return;
 
-                if (demandPayload <= header.PayloadSize && demandSlots <= header.MaxSlots) return;
-
-                int grownTier = SelectTierForPayload(demandPayload, demandSlots);
-                if (grownTier <= currentTier) return;   // the ladder has nothing bigger to offer
-                if (!BlueprintTierTable.ByTotalSize(grownTier).IsRegistered(repo)) return;
-
-                UpgradeTier(repo, entity, currentTier, grownTier);
+                OccurrenceStoreAccess.AppendBlockFor(
+                    repo, entity, demandPayload - capacity.PayloadSize, demandSlots - capacity.MaxSlots);
                 return;
             }
 
@@ -1210,20 +1207,23 @@ namespace Fdp.Toolkit.Behavior.Systems
             EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo>? manifest, BehaviorRegistry? registry,
             PausedTask? pausing = null)
         {
-            byte* store = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
-            if (store == null) return;
-
-            for (int i = BlueprintBlackboardPartitions.GetSlotCount(store) - 1; i >= 0; i--)
+            // ⭐ CE-3137 U-0: every block — a lazily attached occurrence may sit in an appended one.
+            OccurrenceStoreAccess.GetBlocks(repo, entity, out var blocks);
+            for (int b = 0; b < blocks.Count; b++)
             {
-                var kind = BlueprintBlackboardPartitions.GetSlotKind(store, i);
-                if (kind != OccurrenceKind.Hsm && kind != OccurrenceKind.Blueprint) continue;
+                byte* store = blocks.Memory(b);
+                for (int i = BlueprintBlackboardPartitions.GetSlotCount(store) - 1; i >= 0; i--)
+                {
+                    var kind = BlueprintBlackboardPartitions.GetSlotKind(store, i);
+                    if (kind != OccurrenceKind.Hsm && kind != OccurrenceKind.Blueprint) continue;
 
-                int key = BlueprintBlackboardPartitions.GetSlot(store, i).BlueprintId;
-                if (IsNamedByManifest(manifest, key)) continue;   // provisioned, not lazily attached
-                if (IsHeldBySop(repo, entity, registry, key)) continue;   // ⭐ CE-3035 — the SOP slot's storage is not the task's to sweep
-                if (IsHeldByPausedTask(repo, entity, key, pausing)) continue;   // ⭐ CE-2081 — nor the paused task's
+                    int key = BlueprintBlackboardPartitions.GetSlot(store, i).BlueprintId;
+                    if (IsNamedByManifest(manifest, key)) continue;   // provisioned, not lazily attached
+                    if (IsHeldBySop(repo, entity, registry, key)) continue;   // ⭐ CE-3035 — the SOP slot's storage is not the task's to sweep
+                    if (IsHeldByPausedTask(repo, entity, key, pausing)) continue;   // ⭐ CE-2081 — nor the paused task's
 
-                BlueprintBlackboardPartitions.TryDetach(store, key);
+                    BlueprintBlackboardPartitions.TryDetach(store, key);
+                }
             }
         }
 
@@ -1445,20 +1445,13 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 if (!tierFits)
                 {
-                    // Current tier cannot accommodate manifest: compute total needed
-                    // (existing used - freed-by-detach + new manifest) and select the smallest tier.
-                    int usedPayload  = GetTierUsedPayload(repo, entity) - toBeFreedPayload;
-                    int usedSlots    = GetTierUsedSlotCount(repo, entity) - toBeReusedSlots;
-                    int totalPayload = usedPayload + requiredPayload;
-                    int totalSlots   = usedSlots   + requiredSlots;
-                    int targetTier   = SelectTierForPayload(totalPayload, totalSlots);
-
-                    if (targetTier > currentTier)
-                        UpgradeTier(repo, entity, currentTier, targetTier);
-                    // If targetTier == currentTier (shouldn't happen since tierFits was false),
-                    // we proceed; TryAttach will fail silently (not enough space).
+                    // ⭐⭐ CE-3137 U-0 (R-236): the store cannot take the manifest ⇒ APPEND a block for the
+                    //   shortfall. ⛔ No copy into a bigger tier: every slot already allocated stays where it is.
+                    //   ⚠ An estimate (a slot cannot span blocks) — the attach below appends again on a miss.
+                    OccurrenceStoreAccess.AppendBlockFor(
+                        repo, entity, requiredPayload - freePayload, requiredSlots - freeSlots);
                 }
-                // If tierFits: leave existing tier in place.
+                // If tierFits: leave the store as it is.
             }
 
             // Eager-allocate every manifest slot (idempotent for same-size+hash; detach+reattach for mismatch).
@@ -1482,29 +1475,15 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// The entity's store pointer. ⛔ Valid for the CALLING expression only — see the
         /// <c>OccurrenceStoreAccess</c> LIFETIME RULE.
         /// </summary>
-        private static unsafe byte* StoreOf(EntityRepository repo, Entity entity)
-            => Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
-                   .TryGetStore(repo, entity, out _);
+        // ⭐ CE-3137 U-0: the store is every block the unit carries — these sum over them (§34).
 
-        /// <summary>Returns the current free payload bytes in the entity's tier.</summary>
-        private static unsafe int GetTierFreePayload(EntityRepository repo, Entity entity)
-            => Unsafe.AsRef<BlueprintBlackboardHeader>(StoreOf(repo, entity)).PayloadFree;
+        /// <summary>Returns the current free payload bytes across the entity's blocks.</summary>
+        private static int GetTierFreePayload(EntityRepository repo, Entity entity)
+            => OccurrenceStoreAccess.Measure(repo, entity).PayloadFree;
 
-        /// <summary>Returns the number of free slot entries (MaxSlots - SlotCount) in the entity's tier.</summary>
-        private static unsafe int GetTierFreeSlotCount(EntityRepository repo, Entity entity)
-        {
-            ref var h = ref Unsafe.AsRef<BlueprintBlackboardHeader>(StoreOf(repo, entity));
-            return h.MaxSlots - h.SlotCount;
-        }
-
-        /// <summary>Returns the used payload bytes = (PayloadSize - PayloadFree) in the entity's tier.</summary>
-        private static unsafe int GetTierUsedPayload(EntityRepository repo, Entity entity)
-        {
-            // ⭐ O3a: was a three-constant ternary over BlueprintBlackboard*.PayloadSize. The header
-            //   records PayloadSize per tier, so the store answers for itself.
-            ref var h = ref Unsafe.AsRef<BlueprintBlackboardHeader>(StoreOf(repo, entity));
-            return h.PayloadSize - h.PayloadFree;
-        }
+        /// <summary>Returns the number of free slot entries across the entity's blocks.</summary>
+        private static int GetTierFreeSlotCount(EntityRepository repo, Entity entity)
+            => OccurrenceStoreAccess.Measure(repo, entity).FreeSlots;
 
         /// <summary>
         /// S2-3: Sums the aligned PayloadSize of manifest slots that are already attached
@@ -1514,7 +1493,12 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private static unsafe int GetManifestSlotsToBeFreedPayload(
             EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo> slots)
-            => ComputeToBeFreedPayload(StoreOf(repo, entity), slots);
+        {
+            OccurrenceStoreAccess.GetBlocksReadOnly(repo, entity, out var blocks);
+            int freed = 0;
+            for (int b = 0; b < blocks.Count; b++) freed += ComputeToBeFreedPayload(blocks.Memory(b), slots);
+            return freed;
+        }
 
         private static unsafe int ComputeToBeFreedPayload(byte* mem, IReadOnlyList<StatefulSlotInfo> slots)
         {
@@ -1551,7 +1535,12 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private static unsafe int GetManifestSlotsAlreadyAttachedCount(
             EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo> slots)
-            => ComputeAlreadyAttachedCount(StoreOf(repo, entity), slots);
+        {
+            OccurrenceStoreAccess.GetBlocksReadOnly(repo, entity, out var blocks);
+            int count = 0;
+            for (int b = 0; b < blocks.Count; b++) count += ComputeAlreadyAttachedCount(blocks.Memory(b), slots);
+            return count;
+        }
 
         private static unsafe int ComputeAlreadyAttachedCount(byte* mem, IReadOnlyList<StatefulSlotInfo> slots)
         {
@@ -1574,9 +1563,6 @@ namespace Fdp.Toolkit.Behavior.Systems
             return count;
         }
 
-        /// <summary>Returns the used slot count (SlotCount) in the entity's tier.</summary>
-        private static unsafe int GetTierUsedSlotCount(EntityRepository repo, Entity entity)
-            => Unsafe.AsRef<BlueprintBlackboardHeader>(StoreOf(repo, entity)).SlotCount;
 
         /// <summary>
         /// ⭐⭐⭐ <b>THE one clear</b> — brain-death for one entity: detach the outgoing behaviour's stateful, hosted and root
@@ -1664,12 +1650,9 @@ namespace Fdp.Toolkit.Behavior.Systems
         {
             // A2: the three-tier ladder, once, in OccurrenceStoreAccess.
             // ⛔ The pointer is valid for THIS CALL only — see the seam's LIFETIME RULE.
-            byte* mem = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
-                            .TryGetStore(repo, entity, out _);
-            if (mem == null) return;
-
+            // ⭐ CE-3137 U-0: whichever block holds each.
             foreach (var s in slots)
-                BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
+                OccurrenceStoreAccess.TryDetachSlot(repo, entity, s.SlotKey);
         }
 
         /// <summary>Returns the TotalSize constant of the entity's active tier, or 0 if none.</summary>
@@ -1694,32 +1677,11 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <summary>Adds a fresh tier component of the given size and initializes its allocator.</summary>
         private static unsafe void AddAndInitializeTier(EntityRepository repo, Entity entity, int tierSize)
         {
-            var spec = BlueprintTierTable.ByTotalSize(tierSize);
-            spec.Add(repo, entity);
-            BlueprintBlackboardPartitions.Initialize(
-                spec.Memory(repo, entity), spec.TotalSize, (byte)spec.MaxSlots);
+            OccurrenceStoreAccess.AddBlock(repo, entity, BlueprintTierTable.ByTotalSize(tierSize));
         }
 
-        /// <summary>
-        /// Upgrades from a smaller tier to a larger one synchronously:
-        /// AddComponent(larger), CopyToLargerTier, RemoveComponent(smaller).
-        /// Preserves existing slots and their payloads.
-        ///
-        /// <para>⛔⛔ <c>CopyToLargerTier</c> is where <c>H1</c> lives — it copies the header's
-        /// <c>Reserved</c>, which since <c>A3</c> carries the per-slot <c>Kind</c> nibble array. Rail
-        /// <c>A3_R2</c> pins it. ⚠ This method must keep going THROUGH that helper; a hand-rolled
-        /// copy here would zero every slot's kind and the tick walker would then skip the entity.</para>
-        /// </summary>
-        private static unsafe void UpgradeTier(EntityRepository repo, Entity entity, int srcTierSize, int dstTierSize)
-        {
-            // No downgrade path (current >= target means no-op, handled by caller).
-            if (dstTierSize <= srcTierSize) return;
-
-            BlueprintTierTable.Promote(
-                repo, entity,
-                BlueprintTierTable.ByTotalSize(srcTierSize),
-                BlueprintTierTable.ByTotalSize(dstTierSize));
-        }
+        // ⛔ CE-3137 U-0 (R-236): UpgradeTier (add the larger tier, CopyToLargerTier, remove the smaller) is RETIRED —
+        //   the store never moves a slot; growth appends a block (OccurrenceStoreAccess.AppendBlockFor).
 
         /// <summary>
         /// Attaches each manifest slot to the entity's active tier.
@@ -1731,10 +1693,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         {
             // A2: the three-tier ladder, once, in OccurrenceStoreAccess.
             // ⛔ The pointer is valid for THIS CALL only — see the seam's LIFETIME RULE.
-            byte* mem = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
-                            .TryGetStore(repo, entity, out _);
-            if (mem != null)
-                AttachSlotsToMemory(mem, slots, kind);
+            if (OccurrenceStoreAccess.HasStore(repo, entity))
+                AttachSlotsToStore(repo, entity, slots, kind);
         }
 
         /// <summary>
@@ -1753,55 +1713,33 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// Caller (ProvisionStatefulSlots) must have already ensured the tier has enough total
         /// space to satisfy the manifest (accounting for slots that will be freed before reattach).
         /// </summary>
-        private static unsafe void AttachSlotsToMemory(
-            byte* mem, IReadOnlyList<StatefulSlotInfo> slots, OccurrenceKind kind)
+        private static unsafe void AttachSlotsToStore(
+            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo> slots, OccurrenceKind kind)
         {
             foreach (var s in slots)
             {
-                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, s.SlotKey, out int existingOffset))
+                // ⭐ CE-3137 U-0: whichever block holds it; a fresh or resized slot goes to any block with room,
+                //   else an appended one — no slot already allocated moves.
+                if (!OccurrenceStoreAccess.TryFindSlotIndex(repo, entity, s.SlotKey, out byte* mem, out int index))
                 {
                     // Not attached — attach fresh.
-                    BlueprintBlackboardPartitions.TryAttach(mem, s.SlotKey, s.PayloadSize, s.StructureHash, kind, out _);
+                    OccurrenceStoreAccess.TryAttachSlot(repo, entity, s.SlotKey, s.PayloadSize, s.StructureHash, kind, out _, out _);
                     continue;
                 }
 
-                // Already attached — locate the slot entry to compare size and hash.
-                ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                int slotCount = header.SlotCount;
-                byte* slotTable = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
-
-                bool mismatch = false;
-                for (int i = 0; i < slotCount; i++)
-                {
-                    ref var entry = ref Unsafe.AsRef<BlueprintSlotEntry>(
-                        slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
-                    if (entry.BlueprintId == s.SlotKey)
-                    {
-                        // Compare manifest PayloadSize (may be unaligned) against the aligned
-                        // allocated size stored in the entry, and the hash.
-                        int alignedManifestSize = AlignUp(s.PayloadSize, BlueprintBlackboardPartitions.Alignment);
-                        if (entry.PayloadSize == alignedManifestSize &&
-                            entry.StructureHash == (uint)s.StructureHash)
-                        {
-                            // Same size AND same hash → idempotent; preserve working state.
-                            mismatch = false;
-                        }
-                        else
-                        {
-                            mismatch = true;
-                        }
-                        break;
-                    }
-                }
+                // Already attached — compare manifest PayloadSize (may be unaligned) against the aligned
+                // allocated size stored in the entry, and the hash.
+                ref var entry = ref BlueprintBlackboardPartitions.GetSlot(mem, index);
+                int alignedManifestSize = AlignUp(s.PayloadSize, BlueprintBlackboardPartitions.Alignment);
+                bool mismatch = entry.PayloadSize != alignedManifestSize || entry.StructureHash != (uint)s.StructureHash;
 
                 if (mismatch)
                 {
-                    // S2-3 ghost-slot fix: detach the old (possibly wrong-sized) slot and
-                    // re-attach at the manifest-specified size. This correctly re-provisions
-                    // a slot that grew (or otherwise changed layout) on a hard reload.
-                    // TryDetach dense-compacts the slot table — adjacent slots remain intact.
+                    // S2-3 ghost-slot fix: detach the old (possibly wrong-sized) slot and re-attach at the
+                    // manifest-specified size. TryDetach dense-compacts its block's slot table — adjacent slots
+                    // stay intact, and no other block is touched.
                     BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
-                    BlueprintBlackboardPartitions.TryAttach(mem, s.SlotKey, s.PayloadSize, s.StructureHash, kind, out _);
+                    OccurrenceStoreAccess.TryAttachSlot(repo, entity, s.SlotKey, s.PayloadSize, s.StructureHash, kind, out _, out _);
                 }
                 // else: same size + hash → idempotent leave-it path (no churn, working state preserved).
             }

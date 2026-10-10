@@ -221,7 +221,7 @@ All existing CF7rev tests must still pass. The corrected end-to-end test must st
 ## 🎯 Success Criteria
 
 This batch is DONE when:
-- [ ] `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors
+- [ ] `dotnet build HROT.sln -c Debug` → 0 errors
 - [ ] All CF7rev tests pass (8 original + new tests)
 - [ ] Blueprints full suite: 7 pre-existing, 0 new
 - [ ] EditorSubsystem callback uses `BlueprintJsonServices.Deserialize`

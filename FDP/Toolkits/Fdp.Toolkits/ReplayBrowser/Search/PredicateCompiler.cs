@@ -402,14 +402,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
                 if (state.ActiveBehaviorHash != behaviorHash) return false;
 
-                var spec = Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.Of(repo, entity);
-                if (spec == null) return false;
-
-                byte* mem = spec.MemoryReadOnly(repo, entity);
-                if (mem == null) return false;
-
-                if (!Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions
-                        .TryGetSlotOffset(mem, slotKey, out int payloadOffset))
+                // ⭐ CE-3137 U-0: every block of the recorded frame (an old single-tier recording is a one-block store).
+                if (!Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryFindSlotReadOnly(
+                        repo, entity, slotKey, out byte* mem, out int payloadOffset, out _))
                     return false;
                 if (payloadOffset <= 0) return false;
 

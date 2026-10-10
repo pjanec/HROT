@@ -1218,7 +1218,7 @@ namespace Hrot.Editor.DebugApi
         /// <para>⭐ A fresh <c>ExerciseId</c> per load, mirroring the orchestrator panel's "Load into Live"
         /// button: a live load IS a new exercise run, and the id is what recording/replay keys off.</para>
         /// </summary>
-        public JsonNode LoadScenarioLive(string name)
+        public JsonNode LoadScenarioLive(string name, bool startPaused = true)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
@@ -1229,8 +1229,12 @@ namespace Hrot.Editor.DebugApi
                 TargetState   = ClusterState.OperatingLive,
                 ScenarioId    = name,
                 ExerciseId    = Guid.NewGuid(),
+                // ⭐ Q86 §4-G — the clock is reset to 0 either way; startPaused (default true) decides whether it runs
+                //   once the load is done. The default keeps the documented load → POST /sim/play flow.
+                TimeMode      = startPaused ? "Deterministic" : null,
             });
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent",
+                                    ["startPaused"] = startPaused,
                                     ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle };
         }
 
@@ -2079,6 +2083,39 @@ namespace Hrot.Editor.DebugApi
             return arr;
         }
 
+        /// <summary>
+        /// GET /tkb/resolve?type= — ⭐ buildings programme Stage 0: every combat/perception parameter of the type with its
+        /// value and PROVENANCE (Explicit · Generated(formula) · EngineFallback · NotApplicable), from the same
+        /// <see cref="Fdp.Toolkit.Tkb.Parameters.ParameterResolver"/> rules the translators and the fire chain use.
+        /// 📄 docs/DESIGN_Terrain_Combat_Tuning.md §2, §4.
+        /// </summary>
+        public JsonNode? ResolveTkbParameters(long tkbType)
+        {
+            if (!_tkbDb.TryGetByType(tkbType, out var t))
+                return null;
+            var arr = new JsonArray();
+            int fallbacks = 0;
+            foreach (var p in Fdp.Toolkit.Tkb.Parameters.ParameterResolver.ResolveAll(t, _tkbDb))
+            {
+                if (p.Provenance == Fdp.Toolkit.Tkb.Parameters.ParameterProvenance.EngineFallback) fallbacks++;
+                arr.Add(new JsonObject
+                {
+                    ["name"]       = p.Name,
+                    ["value"]      = p.Value is float v ? JsonValue.Create(v) : null,
+                    ["provenance"] = p.Provenance.ToString(),
+                    ["source"]     = p.Source,
+                });
+            }
+            return new JsonObject
+            {
+                ["tkbType"]         = t.TkbType,
+                ["name"]            = t.Name,
+                ["disType"]         = t.DisType.ToString(),
+                ["engineFallbacks"] = fallbacks,
+                ["parameters"]      = arr,
+            };
+        }
+
         /// <summary>GET /tkb/types/{tkbType} — full descriptor for one TKB type.</summary>
         public JsonNode? GetTkbType(long tkbType)
         {
@@ -2165,6 +2202,31 @@ namespace Hrot.Editor.DebugApi
         /// <c>spatialGrid</c> reported composition constants that CE-3018's terrain rebase had made wrong.
         /// </summary>
         public JsonNode GetWorldInfo() => WorldInfoReport.Build(_world, GeoTransform.Origin);
+
+        /// <summary>GET /terrain/levels — ⭐ buildings Stage 1: the terrain levels at a point (ground = 0).</summary>
+        public JsonNode GetTerrainLevels(float x, float y) => TerrainReport.Levels(_world, x, y);
+
+        /// <summary>GET /terrain/query — ⭐ buildings Stage 1: a sight trace with every crossed occluder (dry run).</summary>
+        public JsonNode QueryTerrain(System.Numerics.Vector3 from, System.Numerics.Vector3 to) => TerrainReport.Query(_world, from, to);
+
+        /// <summary>GET /terrain/query?purpose=fire — ⭐ R-217: a round of the given penetration/damage carried through the terrain.</summary>
+        public JsonNode QueryTerrainFire(System.Numerics.Vector3 from, System.Numerics.Vector3 to, float penetration, float damage)
+            => TerrainReport.QueryFire(_world, from, to, penetration, damage);
+
+        /// <summary>GET /combat/shots — ⭐ tuning T-4: the last rounds fired on this node, as the combat systems recorded them.</summary>
+        public JsonNode GetShots(int last, long? shooter, long? target)
+            => CombatReport.Shots(_world, _editorEntityMap ?? _dispatcher?.EntityMap, last, shooter, target);
+
+        /// <summary>GET /combat/detonations — ⭐ CE-1032 (W-10): the last warhead bursts on this node, as the area effect decided them.</summary>
+        public JsonNode GetDetonations(int last)
+            => CombatReport.Detonations(_world, _editorEntityMap ?? _dispatcher?.EntityMap, last);
+
+        /// <summary>GET /perception/los — ⭐ tuning T-4: why one unit does (not) see another, as this node's perception decides it.</summary>
+        public JsonNode ExplainLos(long observer, long target)
+            => CombatReport.Los(_world, _editorEntityMap ?? _dispatcher?.EntityMap, observer, target);
+
+        /// <summary>GET /doors — ⭐ buildings Stage 1: the doors the terrain defines.</summary>
+        public JsonNode GetDoors() => TerrainReport.Doors(_world);
 
         /// <summary>POST /world/geo-to-local — convert geodetic to local ENU coordinates.</summary>
         public JsonNode GeoToLocal(double lat, double lon, double alt, float? headingDeg)

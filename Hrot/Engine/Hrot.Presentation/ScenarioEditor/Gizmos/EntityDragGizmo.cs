@@ -30,9 +30,14 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// </summary>
 public sealed class EntityDragGizmo : IEntityStatefulGizmo
 {
-    // Sphere pick radius in world metres. Must be large enough to be
-    // easily clickable but not so large it overlaps adjacent entities.
-    private const float PickRadius = 8f;
+    // ⭐⭐⭐ CE-3147 — THE DRAG AREA IS THE SELECT AREA, and both are sized from the ENTITY'S OWN FOOTPRINT.
+    //   🔒 User, 2026-10-09: "click-to-drag sensitive area is enormous now (no change) - should be identical to
+    //   click-to-select area" · then: "the sensitive interaction area around the entity must scale as well."
+    //   🔴 It used to be its own `PickRadius = 8f` — the right UNIT (world metres) but a size unrelated to the
+    //   symbol, and written onto a default(DebugPrimitive) so nothing else could correct it.
+    //   ⭐ There is no constant here any more ON PURPOSE: the size is a QUERY on the entity
+    //   (EntityFootprint.InteractionRadiusMetres), which is the only way select and drag stay identical for
+    //   entities of DIFFERENT sizes — a shared constant would have made a truck and a man equally clickable.
 
     private static readonly Rgba32 PickSphereColor  = new Rgba32(0, 0, 0, 0);   // transparent
     private static readonly Rgba32 DragLineColor    = new Rgba32(255, 255, 0, 200);
@@ -102,8 +107,13 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         pickBox.TargetView       = PipelineTarget.Map2D;
         pickBox.BoxCenterX       = tf.Position.X;
         pickBox.BoxCenterY       = tf.Position.Y;
-        pickBox.BoxExtentX       = PickRadius;
-        pickBox.BoxExtentY       = PickRadius;
+        // ⭐⭐⭐ CE-3147 — the SAME query the select box uses, so the two areas are identical per entity and both
+        //   scale with zoom exactly as the drawn symbol does.
+        float pickExtentMetres   = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, _entity);
+        pickBox.BoxExtentX       = pickExtentMetres;
+        pickBox.BoxExtentY       = pickExtentMetres;
+        // ⭐ WorldMeters is default(DebugPrimitive)'s value (0) and is what we want here — stated, not relied on.
+        pickBox.SizeMode         = SizeMode.WorldMeters;
         pickBox.Color            = PickSphereColor;
         // 🔴 §6.7 — `pickBox.AnchorIndex = _entity.Index; pickBox.AnchorGeneration = ...` DELETED.
         //   The handle was a pick payload nothing reads; identity is BoxAnchorId (set above).
@@ -115,7 +125,20 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         if (_isDragging)
         {
             draw.DrawLine(_originalPos, _currentDragPos, DragLineColor, thickness: 2f);
-            draw.DrawSphere(_currentDragPos, 5f, DragSphereColor);
+
+            // ⭐⭐ CE-3154 — a 1 px OUTLINE at the entity's own footprint, at every zoom.
+            //   🔒 User, 2026-10-10: "The drag and drop yellow marker circle is thick - should be 1 pixel
+            //   regardless of zoom."
+            //   🔴 It was `DrawSphere(pos, 5f, color)` with NO thickness, which this pipeline reads as TWO things:
+            //   a FILLED disc (the "legacy fill" of a thickness-0 sphere) plus a default 1-unit rim — and with
+            //   DrawSphere's WorldMeters default that rim was 1 METRE wide, drawn in the same translucent colour
+            //   over the fill. ⇒ a 5 m disc with a dark 1 m band: the "thick circle".
+            //   ⭐ An explicit thickness makes it an outline only (no legacy fill), and the renderer now strokes
+            //   every closed outline in screen pixels (DebugPrimitiveRenderer2D.OutlineStroke).
+            //   ⭐ Radius = the same EntityFootprint query the select/drag areas and the selection ring use, so the
+            //   marker shows where the entity will sit at its real size instead of an arbitrary 5 m.
+            float markerRadius = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, _entity);
+            draw.DrawSphere(_currentDragPos, markerRadius, DragSphereColor, thickness: 1f);
         }
     }
 

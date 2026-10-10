@@ -992,7 +992,7 @@ For the `UtilityDecisionCatalog.RegisterAll` call inside the test fixture, note 
 Run the full test suite before submitting the report:
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj
 dotnet test Hrot\Subsystems\Blueprints\Hrot.Blueprints.Tests\Hrot.Blueprints.Tests.csproj
 ```

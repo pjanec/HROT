@@ -23,7 +23,7 @@
 ## Build
 
 ```
-dotnet build IOS-IG-SimHost.sln  ->  Build succeeded, 0 errors
+dotnet build HROT.sln  ->  Build succeeded, 0 errors
 ```
 
 ## Test counts
@@ -51,7 +51,7 @@ New tests added: **18** (10 + 4 + 4)
 - [x] `DrawClientArea` renders aliased-by badge below variable rows
 - [x] `DrawClientArea` provides "Remove alias" context menu on badge rows
 - [x] 18 new tests; all prior tests still pass
-- [x] `dotnet build IOS-IG-SimHost.sln` = 0 errors
+- [x] `dotnet build HROT.sln` = 0 errors
 
 ## Developer insights
 

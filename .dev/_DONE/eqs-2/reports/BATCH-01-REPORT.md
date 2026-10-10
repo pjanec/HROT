@@ -110,7 +110,7 @@ The single failure (`EX_T08_SimTimeSec_MatchesGlobalTimeTotalTime`) is a pre-exi
 `[InlineArray]` serialization issue in `RecordingExportServiceTests` unrelated to EQS changes
 (component `EntityInlineComp`, `FdpAutoSerializer` limitation). No new failures introduced.
 
-**Build result:** `dotnet build IOS-IG-SimHost.sln` → **Build succeeded. 0 Error(s).**
+**Build result:** `dotnet build HROT.sln` → **Build succeeded. 0 Error(s).**
 
 ---
 
@@ -237,5 +237,5 @@ Tests (7 passing):
 - EqsResultPool_WrapWriteAt16382_WrapsCorrectly
 - EqsResultPool_WrapWriteExactlyAtEnd_NoWrap
 
-Build: dotnet build IOS-IG-SimHost.sln -> succeeded, 0 errors
+Build: dotnet build HROT.sln -> succeeded, 0 errors
 ```

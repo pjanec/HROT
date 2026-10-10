@@ -82,7 +82,7 @@ only on `FdpEventBus`, `INetworkFactory`, and domain-level interfaces.
 From the workspace root (`d:\WORK\IOS-IG-SimHost-FDP`):
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 Build a single project:

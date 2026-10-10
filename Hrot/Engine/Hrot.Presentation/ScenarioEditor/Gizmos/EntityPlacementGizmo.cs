@@ -49,6 +49,17 @@ namespace Hrot.ScenarioEditor.Gizmos
         private readonly bool                       _autoPopOnPlace;
         private readonly Func<string>?              _nameResolver;
         private readonly Action                     _onRemove;
+        private readonly string?                    _displayName;
+
+        /// <summary>
+        /// ⭐ CE-1017 S2 (D6b) — the entity faces NORTH: yaw +90° about Z. 📐 The transform's yaw 0 is EAST
+        /// (<c>SimTransform</c>: "yaw: 0=X axis direction (east), +90=Y axis direction (north)"), so the
+        /// <c>Quaternion.Identity</c> used before faced every placed entity east.
+        /// </summary>
+        internal static readonly Quaternion FacingNorth = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
+
+        /// <summary>The hint shown under the ghost while the tool stays armed (always-multi, D5 rev 3).</summary>
+        internal const string MultiPlacementHint = "click: place  ·  right-click/Esc: done";
 
         private Vector3 _cursorWorld;
 
@@ -105,8 +116,10 @@ namespace Hrot.ScenarioEditor.Gizmos
             string?                    initialPropertiesJson = null,
             bool                       autoPopOnPlace        = true,
             Func<string>?              nameResolver          = null,
-            Action?                    onRemove              = null)
+            Action?                    onRemove              = null,
+            string?                    displayName           = null)
         {
+            _displayName           = displayName;
             _onEntityCreated       = onEntityCreated ?? throw new ArgumentNullException(nameof(onEntityCreated));
             _tkbType               = tkbType == 0 ? DefaultTkbType : tkbType;
             _affiliationForDisplay = ParseAffiliationFromJson(initialPropertiesJson);
@@ -129,11 +142,15 @@ namespace Hrot.ScenarioEditor.Gizmos
             ghostColor.A = GhostAlpha;
 
             draw.DrawSphere(_cursorWorld, GhostRadiusPx, ghostColor);
+            // ⭐ CE-1017 S2: the type's NAME (it used to be the bare TKB number), and while the tool stays armed
+            //   the hint that says how to finish.
             draw.DrawTextLong(
                 _cursorWorld.X,
                 _cursorWorld.Y + GhostLabelOffsetY,
-                _tkbType.ToString(),
+                string.IsNullOrWhiteSpace(_displayName) ? _tkbType.ToString() : _displayName!,
                 Rgba32.White);
+            if (!_autoPopOnPlace)
+                draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y + 2 * GhostLabelOffsetY, MultiPlacementHint, Rgba32.White);
         }
 
         // IEntityStatefulGizmo — interaction
@@ -151,6 +168,9 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </remarks>
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
+            // ⭐ CE-1017 S2: modifiers ride in the high bits (MapMouseButton.ShiftMask …); a Shift+click IS a
+            //   left click. 📐 The exact compare used before made a modified click do nothing at all.
+            button &= ~(MapMouseButton.ShiftMask | MapMouseButton.CtrlMask | MapMouseButton.AltMask);
             if (button == MapMouseButton.Left && !isPressed)
             {
                 BuildAndPublishSpawnCommand(worldPos);
@@ -214,8 +234,11 @@ namespace Hrot.ScenarioEditor.Gizmos
                 InitialTransform  = new SimTransform
                 {
                     Position = new Vector3(worldPos.X, worldPos.Y, 0f),
-                    Rotation = Quaternion.Identity,
+                    Rotation = FacingNorth,
                 },
+                // ⭐ CE-1017 S2 (D6b rev 5): stand on the GROUND (level 0) at this point — the creating node
+                //   resolves the Z from its terrain (NetworkSpawningSystem), ignoring the 0 sent above.
+                SpawnHeight           = Fdp.Toolkit.NetworkSpawning.SpawnHeight.OnGround,
                 InitialAttributesJson = _initialPropertiesJson,
                 RequestId             = Guid.NewGuid(),
             };

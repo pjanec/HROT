@@ -23,6 +23,9 @@ namespace CarKinem.Systems
     // [UpdateAfter(typeof(FormationTargetSystem))] -- ordering maintained by array position in GroundKinematicsModule.
     public class CarKinematicsSystem : IEcsModuleSystem
     {
+        /// <summary>⭐ 5d-3 — below this speed (m/s) a held entity (<see cref="NavState.IsBlocked"/>) is standing.</summary>
+        public const float HeldStopSpeed = 0.05f;
+
         private readonly TrajectoryPoolManager _trajectoryPool;
         
         public CarKinematicsSystem(TrajectoryPoolManager trajectoryPool)
@@ -62,9 +65,10 @@ namespace CarKinem.Systems
             
             // ⭐ W8 (docs/DESIGN_Terrain_World.md §7.1) — the terrain world the movement model stands on. Read
             //   once per tick; SurfaceZ is read-only, so the parallel update may share it. Null = flat world.
-            _terrain = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
-                ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
-                : null;
+            _terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q2 — the movement model asks the world query
+            // ⭐ CE-1034 H1 (R-249) — an entity's runtime ground-clamping flag decides whether the movement model holds it to the
+            //   surface; no flag = clamped, as before. Read once per tick: the parallel update only reads it.
+            _clampFlags = repo.IsComponentTypeRegistered<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
 
             // Read spatial grid from singleton (Data-Oriented dependency)
             if (!repo.HasSingleton<SpatialGridData>()) return;
@@ -121,7 +125,13 @@ namespace CarKinem.Systems
         
         // THREAD-SAFE: Method operates on unique entity and uses read-only shared data
         /// <summary>The terrain world for this tick (W8), or null on a flat / terrain-less world.</summary>
-        private Fdp.Toolkit.Terrain.TerrainWorld? _terrain;
+        private Fdp.Toolkit.World.IWorldQuery? _terrain;
+        private bool _clampFlags;
+
+        /// <summary>⭐ R-249 — whether the movement model puts <paramref name="entity"/> on the surface: its ground-clamping flag, else yes.</summary>
+        private bool Clamped(EntityRepository repo, Entity entity)
+            => !_clampFlags || !repo.HasComponent<Fdp.Modules.Geographic.Components.GroundClampingConfig>(entity)
+               || repo.GetComponentRO<Fdp.Modules.Geographic.Components.GroundClampingConfig>(entity).IsClampingActive;
 
         private void UpdateVehicle(EntityRepository repo, Entity entity, float dt, SpatialHashGrid spatialGrid,
             RoadNetworkBlob roadNetwork)
@@ -144,6 +154,9 @@ namespace CarKinem.Systems
             Vector2 targetPos;
             Vector2 targetHeading;
             float targetSpeed;
+            // The direction along which motion counts as PROGRESS (CE-2059): the path tangent on a trajectory, which since
+            // CE-3115 is no longer the steering heading.
+            Vector2? progressTangent = null;
             
             switch (nav.Mode)
             {
@@ -155,6 +168,37 @@ namespace CarKinem.Systems
                     
                 case KinematicsMode.CustomTrajectory:
                     (targetPos, targetHeading, targetSpeed) = SampleCustomTrajectory(ref nav, in @params, pos2D);
+                    progressTangent = targetHeading;
+                    // ⭐ CE-3115 — PURE PURSUIT ON THE PATH (📄 FDP.Toolkit.CarKinem.md "Pure Pursuit — geometric path-following
+                    //   using lookahead points"): steer at the path point a lookahead ahead of the progress, so a sideways error —
+                    //   a cut corner, an avoidance swerve — closes. ⛔ It steered along the path's TANGENT there, so any drift
+                    //   stayed for good: live on bt-doors a walker ran 1.4 m off its path, through House A's wall, and passed a
+                    //   closed door out of reach. The same "parallel driving" the Formation branch below already fixes.
+                    //   ⚠ Not on the end-of-path homing leg (already aimed at the end point) or when standing.
+                    if (targetSpeed > 0f && nav.HasArrived == 0
+                        && _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var pursued)
+                        && (pursued.IsLooped != 0 || nav.ProgressS < pursued.TotalLength - 0.1f))
+                    {
+                        // ⭐ CE-3145 (R-247) — a PERSON closes onto his path but never looks past the next corner (HumanGait.Aim)
+                        if (@params.Class == VehicleClass.Pedestrian && HumanGait.Aim(in pursued, ref nav.ProgressS, pos2D, out var corner))
+                        {
+                            var toCorner = corner - pos2D;
+                            if (toCorner.LengthSquared() > 1e-4f)
+                            {
+                                targetHeading = Vector2.Normalize(toCorner);
+                                targetPos = corner;
+                            }
+                            break;
+                        }
+                        float ld = PathLookahead(in @params, state.Speed);
+                        var (ahead, _, _) = _trajectoryPool.SampleTrajectory(nav.TrajectoryId, nav.ProgressS + ld);
+                        var toAhead = new Vector2(ahead.X, ahead.Y) - pos2D;
+                        if (toAhead.LengthSquared() > 1e-4f)
+                        {
+                            targetHeading = Vector2.Normalize(toAhead);
+                            targetPos = new Vector2(ahead.X, ahead.Y);
+                        }
+                    }
                     break;
                     
                 case KinematicsMode.Formation:
@@ -222,6 +266,11 @@ namespace CarKinem.Systems
                     break;
             }
             
+            // ⭐ Buildings 5d-3 — NavState.IsBlocked, "obstacle ahead" (📄 FDP.Toolkit.CarKinem.md, designed and until now never
+            //   read): the entity brakes to a stop where it is and KEEPS its path and progress; it drives on when the flag clears.
+            //   Set today only by the door passage system while a door ahead is being opened.
+            if (nav.IsBlocked != 0) targetSpeed = 0f;
+
             // Calculate desired velocity
             Vector2 desiredVelocity = targetHeading * targetSpeed;
             
@@ -242,8 +291,11 @@ namespace CarKinem.Systems
                 }
             }
 
+            // ⭐ CE-3145 (R-247) — a PERSON turns on the spot and walks where he faces (HumanGait); a vehicle steers.
+            bool person = @params.Class == VehicleClass.Pedestrian;
+
             // Pure Pursuit steering
-            float steerAngle = PurePursuitController.CalculateSteering(
+            float steerAngle = person ? 0f : PurePursuitController.CalculateSteering(
                 pos2D,
                 fwd2D,
                 avoidanceVelocity,
@@ -265,6 +317,8 @@ namespace CarKinem.Systems
             }
 
             float finalTargetSpeed = MathF.Min(targetSpeedAfterAvoidance, maxCorneringSpeed) * speedSign;
+            if (person)
+                finalTargetSpeed = HumanGait.SpeedTarget(fwd2D, avoidanceVelocity, targetSpeedAfterAvoidance);   // far off ⇒ turn first
 
             if (finalTargetSpeed < 0f)
                 finalTargetSpeed = MathF.Max(finalTargetSpeed, -@params.MaxSpeedRev);
@@ -276,23 +330,43 @@ namespace CarKinem.Systems
                 finalTargetSpeed,
                 @params.AccelGain,
                 @params.MaxAccel,
-                @params.MaxDecel);
+                person ? MathF.Max(@params.MaxDecel, HumanGait.StopDecel) : @params.MaxDecel);
             
-            // Integrate bicycle model
-            BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase);
+            // Integrate: a person's gait, else the bicycle model
+            float yawRate;
+            if (person)
+            {
+                yawRate = HumanGait.Integrate(ref pos2D, ref fwd2D, ref state, avoidanceVelocity, targetSpeedAfterAvoidance > 0.01f, accel, dt);
+            }
+            else
+            {
+                BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase);
+                yawRate = (state.Speed / @params.WheelBase) * MathF.Tan(steerAngle);
+            }
 
             if (nav.ReverseAllowed == 0 && state.Speed < 0f)
             {
                 state.Speed = 0f;
             }
-            
+
+            // ⭐ 5d-3 — the speed controller is proportional, so a held entity's speed only DECAYS towards 0 and it creeps on;
+            //   held means standing, so the last crawl is cut.
+            if (nav.IsBlocked != 0 && MathF.Abs(state.Speed) < HeldStopSpeed)
+            {
+                state.Speed = 0f;
+            }
+
             // Update progress (for trajectory/road modes)
             if (nav.Mode == KinematicsMode.CustomTrajectory)
             {
                 // ⭐ CE-2059 — only the motion ALONG the path is progress (targetHeading is the path tangent here); a turn
                 //   or a sideways drift no longer counts. ⚠ Not for the homing leg's direct heading, which is not a tangent —
                 //   progress is already at the end there.
-                nav.ProgressS += state.Speed * dt * MathF.Max(0f, Vector2.Dot(fwd2D, targetHeading));
+                // ⭐ CE-3145 — a person's progress is his position projected on the segment he walks (HumanGait.Progress)
+                if (person && _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var walked) && walked.IsLooped == 0)
+                    nav.ProgressS = HumanGait.Progress(in walked, nav.ProgressS, pos2D);
+                else
+                    nav.ProgressS += state.Speed * dt * MathF.Max(0f, Vector2.Dot(fwd2D, progressTangent ?? targetHeading));
             }
             else if (nav.Mode == KinematicsMode.RoadGraph)
             {
@@ -303,9 +377,22 @@ namespace CarKinem.Systems
             // ⭐⭐ W8 (R-182) — the movement model itself puts the vehicle on the surface under it: the
             //   ground, a roof, or the floor nearest its current Z (a garage deck). There is NO separate
             //   ground-clamp step. Without a terrain world the Z is kept, as before.
-            float z = _terrain != null
+            float z = _terrain != null && Clamped(repo, entity)
                 ? _terrain.SurfaceZ(pos2D.X, pos2D.Y, tf.Position.Z)
                 : tf.Position.Z;
+            // ⭐ CE-3145 (R-247) — A PERSON NEVER STEPS OFF A LEDGE: standing on a floor, a step whose floor is more than
+            //   HumanGait.MaxStepDown lower is not taken (he stays, stopped). Stairs and ramps descend in small steps, so they pass.
+            //   📐 bt-window-duel: the path skirts House A's stairwell by 5 cm and a cut corner dropped A 3 m to the ground floor.
+            if (person && _terrain != null && z < tf.Position.Z - HumanGait.MaxStepDown)
+            {
+                var here = new Vector2(tf.Position.X, tf.Position.Y);
+                if (MathF.Abs(_terrain.SurfaceZ(here.X, here.Y, tf.Position.Z) - tf.Position.Z) <= HumanGait.OnFloorTolerance)
+                {
+                    pos2D = here;
+                    z = tf.Position.Z;
+                    state.Speed = 0f;
+                }
+            }
             float dz = z - tf.Position.Z;
             tf.Position = new Vector3(pos2D.X, pos2D.Y, z);
             float yaw = MathF.Atan2(fwd2D.Y, fwd2D.X);
@@ -316,7 +403,7 @@ namespace CarKinem.Systems
             tf.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw);
 
             vel.Linear = new Vector3(fwd2D.X * state.Speed, fwd2D.Y * state.Speed, dt > 0f ? dz / dt : 0f);
-            vel.Angular = new Vector3(0, 0, (state.Speed / @params.WheelBase) * MathF.Tan(steerAngle)); // Yaw rate around Z
+            vel.Angular = new Vector3(0, 0, yawRate); // Yaw rate around Z
 
             // Write back state
             repo.SetComponent(entity, state);
@@ -356,11 +443,7 @@ namespace CarKinem.Systems
                          // Keep current heading (via last tangent) to avoid spinning
                          // Steering is 2D-projected (§0.2); the carried trajectory Z is not fed here.
                          Vector2 lastXY = new Vector2(last.Position.X, last.Position.Y);
-                         Vector2 prevXY = traj.Waypoints.Length > 1
-                            ? new Vector2(traj.Waypoints[traj.Waypoints.Length-2].Position.X, traj.Waypoints[traj.Waypoints.Length-2].Position.Y)
-                            : lastXY;
-                         Vector2 t = traj.Waypoints.Length > 1 ? Vector2.Normalize(lastXY - prevXY) : new Vector2(1,0);
-                         return (lastXY, t, 0f);
+                         return (lastXY, TrajectoryPoolManager.EndTangent(traj.Waypoints), 0f);
                     }
                 }
             }
@@ -390,6 +473,19 @@ namespace CarKinem.Systems
             }
             return (new Vector2(pos.X, pos.Y), tangent, speed);
         }
+
+        /// <summary>The nearest a path lookahead point may be (m) — a walker turns within it.</summary>
+        public const float MinPathLookaheadMetres = 1.0f;
+
+        /// <summary>
+        /// ⭐ CE-3115 — how far ahead on its path a mover aims (m): at least <see cref="MinPathLookaheadMetres"/> and two wheelbases
+        /// (a vehicle cannot close a nearer point), growing with speed by <see cref="VehicleParams.LookaheadTimeMin"/> seconds.
+        /// A walker at 1.5 m/s aims 1 m ahead; a car at 15 m/s 7.5 m.
+        /// </summary>
+        public static float PathLookahead(in VehicleParams p, float speed)
+            => p.Class == VehicleClass.Pedestrian
+                ? MathF.Max(HumanGait.MinPathLookahead, MathF.Abs(speed) * HumanGait.PathLookaheadSeconds)   // ⭐ CE-3145 — a person tracks his path
+                : MathF.Max(MathF.Max(MinPathLookaheadMetres, 2f * p.WheelBase), MathF.Abs(speed) * p.LookaheadTimeMin);
 
         /// <summary>⭐ CE-2059 — the slowest a vehicle approaches a trajectory's end, so the braking envelope (which tends to
         /// 0 at the end) still lets it get there.</summary>

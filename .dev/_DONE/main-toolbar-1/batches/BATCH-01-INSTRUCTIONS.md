@@ -86,7 +86,7 @@ string presence in code.
 ## Definition of done (all required)
 - `AssetRoots` added per the API + placement decisions above; XML-doc the public members.
 - The four named tests added and passing, asserting real path values.
-- `dotnet build IOS-IG-SimHost.sln` is green (TreatWarningsAsErrors is on — zero warnings).
+- `dotnet build HROT.sln` is green (TreatWarningsAsErrors is on — zero warnings).
 - Test suite green **without** `BLUEPRINT_REGENERATE_SNAPSHOTS`:
   - `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests --filter "Stability!=Flaky&Stability!=Environment&Stability!=Broken"` → 0 failed.
   - Sanity-run the catalogued hot suites with the same filter:

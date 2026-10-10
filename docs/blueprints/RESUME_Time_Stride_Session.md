@@ -65,7 +65,7 @@ nobody re-reads.
 
 | suite | baseline | ⚠ |
 |---|---|---|
-| main solution `IOS-IG-SimHost.sln` | **0 errors** | builds |
+| main solution `HROT.sln` | **0 errors** | builds |
 | `Fdp.Toolkits.Tests` `~Navigation` | **295 / 0** | |
 | `Fdp.Toolkits.Tests` `~Physics` | **31 / 0** | |
 | `Fdp.Toolkits.Tests` time filter *(`~ClusterTimeObservation\|~HaltReason\|~MasterSyncController`)* | **64 / 0** | |

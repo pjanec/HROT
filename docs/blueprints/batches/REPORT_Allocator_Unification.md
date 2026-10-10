@@ -76,7 +76,7 @@ was not loosened to pass the wrong one.**
 
 | # | gate — verbatim command | `--no-build`? | result | delta vs `ea02fe25f` |
 |---|---|---|---|---|
-| 1 | `dotnet build IOS-IG-SimHost.sln` | builds | ✅ **0 errors** | none |
+| 1 | `dotnet build HROT.sln` | builds | ✅ **0 errors** | none |
 | 2 | `dotnet test Hrot/Subsystems/Hrot.Orchestrator.Tests --filter TheWorldBoundary…\|TheResetContract…` | `--no-build` | ✅ **14 / 0** | **+14 new** |
 | 3 | `bash scripts/run-system-tests.sh DeterminismRails` | builds | ✅ **5 / 0** | none — ⚠ 2 were RED mid-batch; §2 |
 | 4 | `bash scripts/run-system-tests.sh The_two_hosts` | builds | ✅ **2 / 0** | none |

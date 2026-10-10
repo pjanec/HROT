@@ -31,7 +31,7 @@ In NodeEditor's test project (find where `CanvasLayout`/`CanvasLayoutBuilder` is
 - Host test (`Hrot.BTree.Editor.Tests`): `BTreeGraphModel.Kind.Orientation == Vertical` (or whichever flag) — BTree opts in; (optionally) a Blueprint/HSM graph kind stays Horizontal.
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings.
 - [ ] `Failed: 0` in the NodeEditor test project + `Hrot.BTree.Editor.Tests`; **Blueprint + HSM canvases unchanged** (their graph kinds stay Horizontal — verify no Blueprint/HSM test regresses).
 - [ ] BTree graph declares Vertical; layout puts output-pin top / input-pin bottom; wires follow (position-agnostic).
 - [ ] Report written. (Pixel/wire-look confirmation → REVIEW-BT-2.)

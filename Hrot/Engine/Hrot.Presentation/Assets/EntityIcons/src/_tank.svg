@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EEF2F6"/><stop offset="1" stop-color="#A3AEBB"/></linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#55606C"/><stop offset="1" stop-color="#2A3139"/></linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9D0F2"/><stop offset="1" stop-color="#4A79A8"/></linearGradient>
+  <radialGradient id="wheel" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#C9D1DA"/><stop offset="1" stop-color="#6E7A87"/></radialGradient>
+</defs>
+<g stroke="#1B2027" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<g transform="translate(0,-5)">
+<rect x="14" y="81" width="98" height="22" rx="11.0" fill="url(#dark)"/>
+<circle cx="26.0" cy="92" r="7" fill="url(#wheel)"/>
+<circle cx="26.0" cy="92" r="2.2" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="40.0" cy="92" r="7" fill="url(#wheel)"/>
+<circle cx="40.0" cy="92" r="2.2" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="54.0" cy="92" r="7" fill="url(#wheel)"/>
+<circle cx="54.0" cy="92" r="2.2" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="68.0" cy="92" r="7" fill="url(#wheel)"/>
+<circle cx="68.0" cy="92" r="2.2" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="82.0" cy="92" r="7" fill="url(#wheel)"/>
+<circle cx="82.0" cy="92" r="2.2" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="96.0" cy="92" r="7" fill="url(#wheel)"/>
+<circle cx="96.0" cy="92" r="2.2" fill="#3A434E" stroke-width="1.2"/>
+<path d="M10,74 L16,66 L102,66 L116,74 L114,82 L12,82 Z" fill="url(#body)"/>
+<path d="M34,66 L38,50 L86,50 L96,66 Z" fill="url(#body)"/>
+<path d="M94,55 L124,55 L124,58.4 L94,58.4 Z" fill="url(#dark)" stroke-width="1.6"/>
+</g>
+</g>
+</svg>

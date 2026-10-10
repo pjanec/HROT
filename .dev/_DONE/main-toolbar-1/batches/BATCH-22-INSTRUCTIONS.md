@@ -62,7 +62,7 @@ prior id/scope; build + suite green.
 - Do NOT weaken/skip/auto-pass tests; zero new warnings (TreatWarningsAsErrors).
 
 ## Definition of done (all required)
-- `dotnet build IOS-IG-SimHost.sln` green (zero new warnings) — all references to the deleted types gone.
+- `dotnet build HROT.sln` green (zero new warnings) — all references to the deleted types gone.
 - Run WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS`. Updated/new tests pass UNFILTERED. 0-failed with the
   Stability filter for `Hrot.Editor.AiShared.Tests`, `Hrot.Editor.Tests`, + the hot suites
   `Fdp.Toolkits.Tests` + `Hrot.SimHost.Tests` (PRE-3 EQS flake → re-run if it appears).

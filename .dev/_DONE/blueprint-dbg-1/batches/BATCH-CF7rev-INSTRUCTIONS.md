@@ -35,7 +35,7 @@ Implement auto-instrumentation: when the first breakpoint or watch is set on an 
 - **Do NOT** set `BLUEPRINT_REGENERATE_SNAPSHOTS` or regenerate golden snapshots.
 - The report must include the **full failing-test set by name** before and after.
 - Editor must be CLOSED during build (DLL locks).
-- Gate: `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors.
+- Gate: `dotnet build HROT.sln -c Debug` → 0 errors.
 - `Hrot.Blueprints.Tests` → **7 pre-existing failures, 0 new**.
 - `Hrot.Editor.AiShared.Tests`; `EditorSubsystemBoot` 10/10.
 
@@ -374,7 +374,7 @@ These tests verify the full flow with the compiler (use existing test infrastruc
 ## 🎯 Success Criteria
 
 This batch is DONE when:
-- [ ] `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors
+- [ ] `dotnet build HROT.sln -c Debug` → 0 errors
 - [ ] `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug` → **7 pre-existing failures, 0 new**
 - [ ] All 8 tests pass
 - [ ] Callback is invoked from `SetBreakpoint`/`AddWatch` when no DebugMap exists

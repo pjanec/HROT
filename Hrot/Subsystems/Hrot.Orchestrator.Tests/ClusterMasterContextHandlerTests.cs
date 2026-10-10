@@ -99,7 +99,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         var bus = new FdpEventBus();
         using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        var handler = new GlobalContextClusterOpHandler(participant, string.Empty);
+        var handler = new GlobalContextClusterOpHandler(bus, string.Empty);
         handler.LocalTempRoot = _tempDir;
 
         bool eventFired    = false;
@@ -137,7 +137,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         var bus = new FdpEventBus();
         using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        var handler = new GlobalContextClusterOpHandler(participant, string.Empty);
+        var handler = new GlobalContextClusterOpHandler(bus, string.Empty);
         handler.LocalTempRoot = _tempDir;
 
         bool eventFired = false;
@@ -159,6 +159,78 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
             "GlobalContextProcessManager must invoke the local handler when OperatingLive " +
             "implies a LoadingLive step.");
     }
+
+    // ── ⭐ Q86 §4-G (R-215): a load resets the clock to 0; paused-or-running is a property of the load ──
+
+    /// <summary>Drives one live load through the process manager, then reports <paramref name="reached"/>; returns
+    /// how many <see cref="Fdp.Toolkit.Time.Domain.ResumeTimeIntent"/> the manager published.</summary>
+    private int ResumesAfterLiveLoad(string scenarioId, string? timeMode, Fdp.Toolkit.Orchestration.ClusterState reached)
+    {
+        SetupScenarioFiles(scenarioId);
+        using var participant = new DdsParticipant(15);
+        var bus = new FdpEventBus();
+        var handler = new GlobalContextClusterOpHandler(bus, string.Empty) { LocalTempRoot = _tempDir };
+        var gcpm = new GlobalContextProcessManager(bus, handler);
+
+        bus.PublishManaged(new TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
+            ScenarioId    = scenarioId,
+            TimeMode      = timeMode,
+        });
+        bus.SwapBuffers();
+        gcpm.Tick();
+
+        foreach (var state in new[] { Fdp.Toolkit.Orchestration.ClusterState.LoadingLive, reached })
+        {
+            bus.PublishManaged(new ClusterStateTransitionedEvent { NewStateId = state, SubsystemName = "Cluster" });
+            bus.SwapBuffers();
+            gcpm.Tick();
+        }
+        bus.SwapBuffers();
+        return bus.ReadManaged<Fdp.Toolkit.Time.Domain.ResumeTimeIntent>().Count;
+    }
+
+    /// <summary>
+    /// ⭐ Q86 §4-B — the handler publishes the restored context on the BUS (the translator writes the DDS topic), and
+    /// the scenario id is the SCENARIO's. ⛔ It used to write the topic directly, with the scene id in ScenarioId.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void Q86B_ALoad_PublishesTheContextOnTheBus_WithTheScenarioId()
+    {
+        const string scenarioId = "q86b_ctx";
+        SetupScenarioFiles(scenarioId);
+        var bus = new FdpEventBus();
+        var gcpm = new GlobalContextProcessManager(bus, new GlobalContextClusterOpHandler(bus, string.Empty) { LocalTempRoot = _tempDir });
+
+        bus.PublishManaged(new TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
+            ScenarioId    = scenarioId,
+        });
+        bus.SwapBuffers();
+        gcpm.Tick();
+        bus.SwapBuffers();
+
+        var ctx = Assert.Single(bus.ReadManaged<OrchestratorContextChangedEvent>());
+        Assert.Equal(scenarioId, ctx.ScenarioId);
+        Assert.Equal("scene_" + scenarioId, ctx.SceneId);
+    }
+
+    [Fact(Timeout = 10_000)]
+    public void Q86G_ALiveLoad_ThatDidNotAskToStartPaused_RunsOnceTheClusterIsLive()
+        => Assert.Equal(1, ResumesAfterLiveLoad("q86g_run", null, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive));
+
+    [Fact(Timeout = 10_000)]
+    public void Q86G_ALiveLoad_ThatAskedToStartPaused_StaysPaused()
+        => Assert.Equal(0, ResumesAfterLiveLoad("q86g_paused", GlobalContextProcessManager.StartPausedTimeMode,
+                                                Fdp.Toolkit.Orchestration.ClusterState.OperatingLive));
+
+    [Fact(Timeout = 10_000)]
+    public void Q86G_ALiveLoad_ThatEndsAnywhereButLive_DoesNotResume()
+        => Assert.Equal(0, ResumesAfterLiveLoad("q86g_abort", null, Fdp.Toolkit.Orchestration.ClusterState.Idle));
 
     /// <summary>
     /// When no GlobalContextClusterOpHandler is registered, a TransitionState(LoadingLive)
@@ -201,7 +273,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         var bus = new FdpEventBus();
         using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        var handler = new GlobalContextClusterOpHandler(participant, string.Empty);
+        var handler = new GlobalContextClusterOpHandler(bus, string.Empty);
         handler.LocalTempRoot = _tempDir;
 
         bool eventFired = false;

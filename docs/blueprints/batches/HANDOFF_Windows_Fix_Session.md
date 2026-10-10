@@ -161,7 +161,7 @@ the "why does my Return node have no pin" confusion in item 4 of §2.
 
 ```bash
 # build
-dotnet build IOS-IG-SimHost.sln -v q --nologo
+dotnet build HROT.sln -v q --nologo
 
 # the eight gates (all headless) — run at least the first three for these fixes
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj -v q --nologo

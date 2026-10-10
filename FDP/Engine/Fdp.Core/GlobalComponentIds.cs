@@ -664,5 +664,56 @@
         /// (<c>CE-3092</c>). Stamped from the TKB only on types that opt in; absent = only death stops the unit. 334 is free by a
         /// census of every <c>*Ids*.cs</c> and literal <c>[ComponentId(334)]</c> on backend, behaviors and ui, <c>2026-10-06</c>.</summary>
         public const int MobilityKill = 334;
+
+        /// <summary><c>ShotOrdinal</c> — how many rounds a unit has fired, the index of the fixed deflection sequence (<c>AQ85</c> A,
+        /// R-216). Muscle-local. 335/336 free by a census of backend, behaviors and ui, <c>2026-10-07</c>.</summary>
+        public const int ShotOrdinal = 335;
+
+        /// <summary><c>UnderFire</c> — when a unit was last hit or nearly missed (<c>AQ85</c> E, R-216): suppression spoils its aim.
+        /// Muscle-local.</summary>
+        public const int UnderFire = 336;
+
+        /// <summary><c>DoorState</c> — a door entity's live state, replicated (buildings Stage 5b, 📄 docs/DESIGN_Building_Interiors.md
+        /// §3j). 337/338 free by a census of backend, behaviors and ui, <c>2026-10-07</c> — <c>R-44</c>.</summary>
+        public const int DoorState = 337;
+
+        /// <summary><c>TerrainObjectKey</c> — the terrain-provided string key of the object an entity stands for (§3b K2).</summary>
+        public const int TerrainObjectKey = 338;
+
+        /// <summary><c>ShotTraces</c> — the last shots as the map draws them, recorded so a replay seek restores them (<c>CE-3117</c>,
+        /// R-226, 📄 docs/DESIGN_Terrain_Combat_Tuning.md §5a). 339–342 free by a census of backend, behaviors and ui, <c>2026-10-08</c>
+        /// — <c>R-44</c>.</summary>
+        public const int ShotTraces = 339;
+
+        /// <summary><c>DetonationTraces</c> — the last bursts with their fragment rays (<c>CE-3117</c>).</summary>
+        public const int DetonationTraces = 340;
+
+        /// <summary><c>HeardTraces</c> — a listener's last heard estimates (<c>CE-3117</c>).</summary>
+        public const int HeardTraces = 341;
+
+        /// <summary><c>PathTrace</c> — a mover's planned path as a polyline (<c>CE-3117</c>).</summary>
+        public const int PathTrace = 342;
+
+        /// <summary><c>RoadNetworkHolder</c> — the node's road graph carrier as a managed world singleton, so a background
+        /// reader can LEASE the graph (<c>CE-3128</c>: the danger sensor's route and classifier).</summary>
+        public const int RoadNetworkHolder = 343;
+
+        /// <summary><c>ActionStatus</c> — why each of a brain unit's action channels is (not) acting, as its executor last saw it
+        /// (<c>CE-3136</c>, 📄 docs/DESIGN_Ai_Action_Status_Gizmo.md). 344 is free by a census of backend, behaviors and ui,
+        /// <c>2026-10-09</c> — <c>R-44</c>.</summary>
+        public const int ActionStatus = 344;
+
+        /// <summary><c>StaticObstacle</c> — marks an entity of a static-obstacle TKB type (a parked car, a sandbag wall …) and names its
+        /// wall-library material: it is TERRAIN, baked into each node's world (<c>CE-3136</c> P-7a, R-243). 345/346 free by a census of
+        /// backend, behaviors and ui, <c>2026-10-09</c> (the other lanes end at 334) — <c>R-44</c>.</summary>
+        public const int StaticObstacle = 345;
+
+        /// <summary><c>ObstacleShape</c> — a static obstacle's box (length × width × height), the TKB's or a per-instance override
+        /// (<c>CE-3136</c> P-7a O3).</summary>
+        public const int ObstacleShape = 346;
+
+        /// <summary><c>StaticObstacleBakery</c> — a node's terrain-residency handle for the obstacle bake, as a managed world singleton
+        /// (<c>CE-3136</c> P-7a, R-243). Absent ⇒ this node holds no terrain, and an obstacle is acked at once.</summary>
+        public const int StaticObstacleBakery = 347;
     }
 }

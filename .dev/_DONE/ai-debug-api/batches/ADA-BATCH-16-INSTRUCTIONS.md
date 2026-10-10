@@ -71,7 +71,7 @@ or just inline the strings — keep it simple and greppable.
   - `POST /entities/999999/attribute {"patchJson":{"Name":"x"}}` → entity-not-found names `GET /entities`.
   - `POST /entities/1000/component {"componentType":"Nope","patch":{}}` → names `GET /components`.
   - a `send_entity_command {wait:true}` while not in preview → `reason` mentions preview/step.
-- `dotnet build IOS-IG-SimHost.sln` (0 errors); `dotnet test … --filter "FullyQualifiedName~DebugApi"` green.
+- `dotnet build HROT.sln` (0 errors); `dotnet test … --filter "FullyQualifiedName~DebugApi"` green.
   (No need to run `npm run verify` here — no JS changes — but don't break it.)
 
 ## Deliverables

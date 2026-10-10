@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -96,6 +97,60 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(2, c[0].Flags & 2);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3135</c> P-1 (peek-and-fire D5) — a candidate that CARRIES a stance looks from that stance's eye: crouched behind a
+        /// waist-high wall it does NOT see the target the unstanced (standing-eye) candidate above sees. And a result with no stance
+        /// — every non-cover generator, every recording made before the field — reads "none".
+        /// </summary>
+        [Fact]
+        public void P1_ACandidateWithAStance_LooksFromThatStancesEye_AndNoStanceReadsNone()
+        {
+            _repo.SetSingletonManaged(WallWorld(height: 1.2f));
+            var sensor = new EqsSensor { ContextSlot0 = At(0, 0), ContextSlot1 = At(10, 30) };
+            var c = new[] { Point(10, 9) };
+            c[0].Stance = EqsResult.EncodeStance(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched);
+
+            new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible }
+                .ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+
+            Assert.Equal(-1L, c[0].EntityId);   // rejected: a crouched eye (1.1 m) is under the 1.2 m wall
+            Assert.Equal(0, c[0].Flags & 2);
+            Assert.False(default(EqsResult).TryGetStance(out _));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3144</c> (peek-and-fire D15) — "can I shoot him from there" looks at the target's BODY POINTS and is clear when
+        /// ANY is: a standing man 1 m behind a 1.2 m wall shows his head (1.6 m) though his middle (0.85 m — the old single aim) is
+        /// hidden; crouched (top ≈ 1.0 m) he is hidden; a remembered POINT is a standing man's points.
+        /// </summary>
+        [Fact]
+        public void CE3144_D15_TheCandidateSeesAnyBodyPoint_ByTheTargetsStance_AndAPointIsAStandingMan()
+        {
+            _repo.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            _repo.SetSingletonManaged(WallWorld(height: 1.2f));
+            var target = At(10, 11.5f);   // 1 m behind the wall (y 10 … 10.5)
+            var self = At(0, 0);
+            var test = new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible };
+
+            var sensor = new EqsSensor { ContextSlot0 = self, ContextSlot1 = target };
+            var c = new[] { Point(10, 0) };
+            test.ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(0L, c[0].EntityId);   // kept: the head clears the wall
+
+            _repo.AddComponent(target, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Crouched });
+            c = new[] { Point(10, 0) };
+            test.ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(-1L, c[0].EntityId);  // crouched: every body point is under the wall
+
+            var atPoint = new EqsSensor
+            {
+                ContextSlot0 = self, ContextPoint1 = new Vector3(10, 11.5f, 0), ContextPointMask = EqsSensor.Point1Bit,
+            };
+            c = new[] { Point(10, 0) };
+            test.ExecuteBatch(Entity.Null, ref atPoint, _repo, c);
+            Assert.Equal(0L, c[0].EntityId);   // a remembered spot: a standing man there would be seen
+        }
+
         /// <summary>No terrain resident ⇒ sight is unknown ⇒ nothing judged, nothing rejected (never the old "always blocked").</summary>
         [Fact]
         public void Los_WithNoTerrain_JudgesNothing()
@@ -174,6 +229,225 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
                 p => Assert.True(Vector2.Distance(new(0, 9), new(p.PositionX, p.PositionY)) >= farthestKept - 1e-4f));
         }
 
+        // ── Stage 7a: cover inside buildings (docs/DESIGN_Building_Interiors.md §3l, CE-3134) ──────────────────
+
+        /// <summary>A recipe terrain with its building templates (bt-range's House A is a two-storey template).</summary>
+        private static TerrainWorld Recipe(string name)
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+            Assert.NotNull(dir);
+            var folder = Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", name);
+            var file = Directory.GetFiles(folder, "*.world.geojson").Single();
+            return TerrainWorldParser.Parse(File.ReadAllText(file), name, TerrainAssets.ForFolder(folder));
+        }
+
+        /// <summary>House A on bt-range: footprint (100,100)–(110,108), storeys at Z 0 and 3, roof at 6; an inner wall at x = 105
+        /// on the ground storey; a stair ramp in (107.5..108.5, 101..106).</summary>
+        private static (TerrainWorld World, List<CoverPoint> Points) HouseA()
+        {
+            var w = Recipe("bt-range");
+            var pts = TerrainCoverProvider.Build(w).Points
+                .Where(p => p.PositionX > 97 && p.PositionX < 113 && p.PositionY > 97 && p.PositionY < 111).ToList();
+            Assert.NotEmpty(pts);
+            return (w, pts);
+        }
+
+        private static bool InHouseA(CoverPoint p) => p.PositionX > 100 && p.PositionX < 110 && p.PositionY > 100 && p.PositionY < 108;
+
+        /// <summary>📌 Measured before Stage 7a: 26 coincident pairs on House A — a storey's wall was read once per expanded piece AND
+        /// once per storey prism stacked on it. One point per spot and kind (a window has a Cover and a WindowFiring point).</summary>
+        [Fact]
+        public void CE3134_HouseA_NoTwoPointsOfOneKindStandOnOneSpot()
+        {
+            var (_, pts) = HouseA();
+            for (int i = 0; i < pts.Count; i++)
+                for (int j = i + 1; j < pts.Count; j++)
+                    Assert.False(pts[i].Kind == pts[j].Kind
+                                 && MathF.Abs(pts[i].PositionX - pts[j].PositionX) < 0.1f
+                                 && MathF.Abs(pts[i].PositionY - pts[j].PositionY) < 0.1f
+                                 && MathF.Abs(pts[i].PositionZ - pts[j].PositionZ) < 0.1f,
+                        $"two {pts[i].Kind} points at ({pts[i].PositionX:F2},{pts[i].PositionY:F2},{pts[i].PositionZ:F2})");
+        }
+
+        /// <summary>📌 Measured before Stage 7a: crouch cover IN the front doorway — the lintel above it read as a 0.9 m wall. A door
+        /// span gives no point on its storey.</summary>
+        [Fact]
+        public void CE3134_NoPointStandsInADoorway()
+        {
+            var (w, pts) = HouseA();
+            int doors = 0;
+            foreach (var panel in w.Panels.Where(q => q.Building == 0))
+            {
+                var dir = (panel.B - panel.A) / panel.Length;
+                foreach (var o in panel.Openings.Where(o => o.Kind != TerrainOpeningKind.Window))
+                {
+                    doors++;
+                    foreach (var p in pts.Where(p => MathF.Abs(p.PositionZ - panel.BaseZ) <= 0.3f))
+                    {
+                        var d = new Vector2(p.PositionX, p.PositionY) - panel.A;
+                        float t = Vector2.Dot(d, dir), off = MathF.Abs(dir.X * d.Y - dir.Y * d.X);
+                        Assert.False(t > o.At && t < o.At + o.Width && off < panel.Thickness * 0.5f + TerrainCoverProvider.StandOff + 0.1f,
+                            $"a point in the {o.Kind} of panel ({panel.A})→({panel.B}) at ({p.PositionX:F2},{p.PositionY:F2},{p.PositionZ:F2})");
+                    }
+                }
+            }
+            Assert.Equal(3, doors);   // front, back, the inner wall's
+        }
+
+        /// <summary>📌 Measured before Stage 7a: points OUTSIDE the house at Z 3 — the upper storey's outer face, standing in the
+        /// air. A point stands on its storey's floor (or the ground), never above nothing; none on the stair ramp's opening.</summary>
+        [Fact]
+        public void CE3134_EveryPointStandsOnItsStoreyFloor_AndAnUpperOneIsInside()
+        {
+            var (_, pts) = HouseA();
+            Assert.All(pts, p => Assert.True(MathF.Abs(p.PositionZ) < 0.05f || MathF.Abs(p.PositionZ - 3f) < 0.05f,
+                $"({p.PositionX:F2},{p.PositionY:F2}) at Z {p.PositionZ:F2} is on neither the ground nor the upper floor"));
+            var upper = pts.Where(p => p.PositionZ > 0.5f).ToList();
+            Assert.True(upper.Count >= 10, $"the upper storey has only {upper.Count} points");
+            Assert.All(upper, p => Assert.True(InHouseA(p), $"({p.PositionX:F2},{p.PositionY:F2}) on the upper storey is outside the house"));
+            Assert.DoesNotContain(upper, p => p.PositionX > 107.5f && p.PositionX < 108.5f && p.PositionY > 101f && p.PositionY < 106f);
+        }
+
+        /// <summary>The inner wall at x = 105 is cover from both rooms: a point on each face, facing it, on the ground floor.</summary>
+        [Fact]
+        public void CE3134_TheInnerWall_IsCoverOnBothFaces()
+        {
+            var (_, pts) = HouseA();
+            var west = pts.Where(p => MathF.Abs(p.PositionZ) < 0.05f && p.PositionX > 103.5f && p.PositionX < 105f && p.DirectionX > 0.9f).ToList();
+            var east = pts.Where(p => MathF.Abs(p.PositionZ) < 0.05f && p.PositionX > 105f && p.PositionX < 106.5f && p.DirectionX < -0.9f).ToList();
+            Assert.Equal(3, west.Count);
+            Assert.Equal(3, east.Count);
+            Assert.All(west.Concat(east), p => Assert.Equal(2, p.StanceHeight));
+        }
+
+        /// <summary>A window (sill 0.9 m) is crouch cover on both faces, and on the INSIDE face a crouch firing position facing out.</summary>
+        [Fact]
+        public void CE3134_AWindow_IsSillCoverOnBothFaces_AndAFiringPositionInside()
+        {
+            var (_, pts) = HouseA();
+            var at = pts.Where(p => MathF.Abs(p.PositionY - 103.6f) < 0.05f && MathF.Abs(p.PositionZ) < 0.05f).ToList();   // the east window
+            Assert.Contains(at, p => p.Kind == CoverKind.Cover && p.PositionX < 110 && p.StanceHeight == 1);
+            Assert.Contains(at, p => p.Kind == CoverKind.Cover && p.PositionX > 110 && p.StanceHeight == 1);
+            var fire = Assert.Single(at, p => p.Kind == CoverKind.WindowFiring);
+            Assert.True(InHouseA(fire));
+            Assert.Equal(1, fire.StanceHeight);
+            Assert.True(fire.DirectionX > 0.9f, "a firing position faces out through the window");
+            Assert.All(pts.Where(p => p.Kind == CoverKind.WindowFiring), p => Assert.True(InHouseA(p)));
+        }
+
+        /// <summary>A radius query returns one kind: the 3-argument form is cover only; the kind form is that kind only.</summary>
+        [Fact]
+        public void CE3134_ARadiusQuery_ReturnsOneKind()
+        {
+            var cover = TerrainCoverProvider.Build(Recipe("bt-range"));
+            var buf = new CoverPoint[256];
+            int n = cover.GetCoverPointsInRadius(new Vector2(105, 104), 8f, buf);
+            Assert.True(n > 0);
+            Assert.All(buf.Take(n), p => Assert.Equal(CoverKind.Cover, p.Kind));
+            n = cover.GetCoverPointsInRadius(new Vector2(105, 104), 8f, buf, CoverKind.WindowFiring);
+            Assert.True(n >= 5, $"House A has 5 windows with firing positions, found {n}");
+            Assert.All(buf.Take(n), p => Assert.Equal(CoverKind.WindowFiring, p.Kind));
+        }
+
+        /// <summary>A provider that knows only cover answers a window query with nothing (the interface default).</summary>
+        [Fact]
+        public void CE3134_AProviderThatKnowsOnlyCover_HasNoWindowPositions()
+        {
+            ICoverProvider manual = new OnlyCover();
+            Assert.Equal(1, manual.GetCoverPointsInRadius(Vector2.Zero, 5f, new CoverPoint[4], CoverKind.Cover));
+            Assert.Equal(0, manual.GetCoverPointsInRadius(Vector2.Zero, 5f, new CoverPoint[4], CoverKind.WindowFiring));
+        }
+
+        private sealed class OnlyCover : ICoverProvider
+        {
+            public int GetCoverPointsInRadius(Vector2 center, float radius, Span<CoverPoint> results) { results[0] = default; return 1; }
+        }
+
+        /// <summary>The lowest stance whose eye clears the sill by 0.1 m and stays under the head (eyes 0.35 / 1.1 / 1.7).</summary>
+        [Theory]
+        [InlineData(0.9f, 2.1f, 1)]     // a 0.9 m sill: crouch
+        [InlineData(0.2f, 2.1f, 0)]     // a floor-level slit: prone
+        [InlineData(1.3f, 2.1f, 2)]     // a high sill: standing
+        [InlineData(1.65f, 2.1f, 255)]  // above a standing eye: no firing position
+        [InlineData(0.9f, 1.1f, 255)]   // a crouch eye clears the sill but not the head
+        public void CE3134_FiringStance_IsTheLowestEyeThatFits(float sill, float head, int stance)
+            => Assert.Equal((byte)stance, TerrainCoverProvider.FiringStance(sill, head));
+
+        /// <summary>⭐ The plan's acceptance (§3l 7a-2): a rifleman upstairs in House A, the target south of the house —
+        /// <c>FindWindowFiringPosition</c> answers a SOUTH window on HIS storey (Z 3), inside the house, and the database point
+        /// there is a crouch position. ⭐ CE-3135 (P-1): the ANSWER carries that crouch, and every answer sees the target from
+        /// the eye of ITS stance (was: a standing eye — over a sill nobody fires over).</summary>
+        [Fact]
+        public void CE3134_FindWindowFiringPosition_UpstairsInHouseA_AnswersASouthWindowOnHisStorey()
+        {
+            var w = Recipe("bt-range");
+            var cover = TerrainCoverProvider.Build(w);
+            _repo.SetSingletonManaged(w);
+            _repo.SetSingletonManaged<ICoverProvider>(cover);
+            var target = new Vector3(104, 80, 0);
+            var sensor = new EqsSensor { SearchRadius = 15f, ContextSlot0 = At(104, 104, 3), ContextSlot1 = At(target.X, target.Y) };
+
+            var top = Run(FindWindowFiringPosition.Build(new EqsTemplateBuilder()), sensor);
+
+            Assert.NotEmpty(top);
+            var best = top[0];
+            Assert.Equal(100.9f, best.PositionY, 2);       // the south wall's inside face
+            Assert.Equal(3f, best.PositionZ, 2);           // his storey
+            Assert.True(best.PositionX > 100 && best.PositionX < 110);
+            var point = Assert.Single(cover.Points, p => p.Kind == CoverKind.WindowFiring
+                && MathF.Abs(p.PositionX - best.PositionX) < 0.01f && MathF.Abs(p.PositionY - best.PositionY) < 0.01f
+                && MathF.Abs(p.PositionZ - best.PositionZ) < 0.01f);
+            Assert.Equal(1, point.StanceHeight);           // a 0.9 m sill: crouch
+            Assert.True(best.TryGetStance(out var stance));   // ⭐ P-1: the answer carries it
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, stance);
+            var mount = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.DefaultMount;
+            Assert.All(top, r => Assert.False(
+                w.SegmentBlocked(new Vector3(r.PositionX, r.PositionY, r.PositionZ + (r.TryGetStance(out var s) ? mount.For(s) : mount.Standing)),
+                    target + new Vector3(0, 0, 0.85f)),
+                $"({r.PositionX:F2},{r.PositionY:F2},{r.PositionZ:F2}) does not see the target"));
+            Assert.DoesNotContain(top, r => r.PositionY > 104);   // the north window looks away from the target
+        }
+
+        /// <summary>The generator asks for ITS kind: the default is cover (FindCoverFromTarget unchanged), and a window generator
+        /// never yields a cover point.</summary>
+        [Fact]
+        public void CE3134_CoverPointsGenerator_GeneratesItsKindOnly()
+        {
+            _repo.SetSingletonManaged<ICoverProvider>(new ManualCoverProvider(new[]
+            {
+                new CoverPoint { PositionX = 1, PositionY = 0, Quality = 1f, Kind = CoverKind.Cover },
+                new CoverPoint { PositionX = 2, PositionY = 0, Quality = 1f, Kind = CoverKind.WindowFiring },
+            }));
+            var sensor = new EqsSensor { SearchRadius = 10f, ContextSlot0 = At(0, 0) };
+            var c = new EqsResult[8];
+
+            Assert.Equal(1, new CoverPointsGenerator().Generate(Entity.Null, ref sensor, _repo, c));
+            Assert.Equal(1f, c[0].PositionX);
+            Assert.True(c[0].TryGetStance(out var st));   // ⭐ P-1: StanceHeight 0 (prone) travels as StanceId.Prone
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, st);
+            Assert.Equal(1, new CoverPointsGenerator { Kind = CoverKind.WindowFiring }.Generate(Entity.Null, ref sensor, _repo, c));
+            Assert.Equal(2f, c[0].PositionX);
+        }
+
+        /// <summary>Solid prisms and free walls are read exactly as before Stage 7a: test-town and basic-desert (no building
+        /// templates) produce the same database, point for point (count + checksum measured on the pre-7a code).
+        /// ⭐ RE-PINNED `2026-10-09` by <c>CE-3143</c> (deliberate): a side now gets a point per STARTED 2.5 m (rounded up) — basic-desert
+        /// 303 → 313 (ten sides gained a second point); test-town unchanged (measured, count and checksum).</summary>
+        [Theory]
+        [InlineData("test-town", 612, -1979792939338976871L)]
+        [InlineData("basic-desert", 313, -1036683430095822395L)]
+        public void CE3134_TerrainsWithoutBuildings_KeepTheirCoverDatabase(string terrain, int count, long checksum)
+        {
+            var pts = TerrainCoverProvider.Build(Recipe(terrain)).Points;
+            long h = 17;
+            foreach (var p in pts)
+                h = h * 31 + (long)MathF.Round(p.PositionX * 100) * 7 + (long)MathF.Round(p.PositionY * 100) * 13
+                    + (long)MathF.Round(p.PositionZ * 100) + p.StanceHeight;
+            Assert.Equal(count, pts.Count);
+            Assert.Equal(checksum, h);
+        }
+
         // ── threat exposure ──────────────────────────────────────────────────────────────────
 
         [Fact]
@@ -198,6 +472,42 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(0, c[0].Flags & (1 << 4));
             Assert.NotEqual(0, c[0].Flags & (1 << 5));
             Assert.Equal(0f, c[1].Score, 3);                    // both see it
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3136</c> P-4 (peek-and-fire D6) — the known threats come from the unit's PERCEPTION SENSOR CHILDREN (where
+        /// <c>CE-3038</c> moved the lists): the unit carries no list of its own, one child sensor holds the north threat, another the
+        /// east one — and both hold the east one, which counts once. Same geometry as the unit-level test ⇒ the same 0.5.
+        /// 🔴 Red-proof: before P-4 the test read only the unit's own list ⇒ no threats ⇒ 0 (inert in production).
+        /// </summary>
+        [Fact]
+        public unsafe void P4_ThreatExposure_ReadsTheUnitsSensorChildren()
+        {
+            if (!_repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>())
+                _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            _repo.SetSingletonManaged(WallWorld());
+            var self = At(10, 0);
+            var north = At(10, 30);
+            var east = At(40, 5);
+            Entity Child(int part, params Entity[] held)
+            {
+                var c = _repo.CreateEntity();
+                _repo.AddComponent(c, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = self, InstanceId = part });
+                var list = new SensorContactList();
+                foreach (var h in held) SensorContactList.UpdateSighting(ref list, (long)h.PackedValue, 1);
+                for (int i = 0; i < list.Count; i++) list.State[i] = (byte)SensorContactState.Acquired;
+                _repo.AddComponent(c, list);
+                return c;
+            }
+            Child(1000, north, east);
+            Child(1001, east);
+            var sensor = new EqsSensor { ContextSlot0 = self };
+            var c = new[] { Point(10, 8), Point(10, 40) };
+
+            new ThreatExposureTest().ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+
+            Assert.Equal(0.5f, c[0].Score, 3);
+            Assert.Equal(0f, c[1].Score, 3);
         }
 
         [Fact]
@@ -398,6 +708,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         [InlineData(typeof(FindFlankingPosition))]
         [InlineData(typeof(FindSafeRetreatPoint))]
         [InlineData(typeof(FindThreatsInView))]
+        [InlineData(typeof(FindWindowFiringPosition))]
         public void StarterTemplate_BlueprintIdIsTheHashOfItsAssetId(Type template)
         {
             string assetId = (string)template.GetField("AssetId")!.GetValue(null)!;

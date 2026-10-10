@@ -13,12 +13,20 @@ namespace Hrot.AiEditor.Persistence.Emit;
 public sealed class SharedAiMethodInfo
 {
     public SharedAiMethodInfo(string paramTypeFqn, string paramTypeId, bool isCondition, bool returnsBool,
-        IReadOnlyList<int>? writesChannels = null, string? workingStateTypeFqn = null)
+        IReadOnlyList<int>? writesChannels = null, string? workingStateTypeFqn = null,
+        IReadOnlyList<string>? unitMemoryTypeFqns = null)
     {
         ParamTypeFqn = paramTypeFqn; ParamTypeId = paramTypeId; IsCondition = isCondition; ReturnsBool = returnsBool;
         WritesChannels = writesChannels ?? Array.Empty<int>();
         WorkingStateTypeFqn = workingStateTypeFqn;
+        UnitMemoryTypeFqns = unitMemoryTypeFqns ?? Array.Empty<string>();
     }
+
+    /// <summary>⭐ <c>CE-3137</c> U-2 — the trailing <c>ref</c> unit-memory parameters' types, <c>global::</c>-qualified, in order.</summary>
+    public IReadOnlyList<string> UnitMemoryTypeFqns { get; }
+
+    /// <summary>The argument suffix that passes the unit's memory for <see cref="UnitMemoryTypeFqns"/> (empty when none).</summary>
+    public string UnitMemoryArgs(string selfExpr, string worldExpr) => UnitMemoryParams.Args(UnitMemoryTypeFqns, selfExpr, worldExpr);
 
     /// <summary>⭐ <c>CE-504</c> C-2 — the stateful form <c>(ref P, ref WS, Entity, EntityRepository)</c>: WS's <c>global::</c> type.</summary>
     public string? WorkingStateTypeFqn { get; }
@@ -242,11 +250,12 @@ public static class SharedAiBindings
     /// <summary>The C# for one thunk method (an action or a guard), with the offset and type baked.</summary>
     public static void EmitThunk(System.Text.StringBuilder sb, Entry e, string thunkName, string pad)
     {
+        string um = e.Method.UnitMemoryArgs("__bridge->Self", "__repo");   // ⭐ CE-3137 U-2
         string call = e.Form switch
         {
-            Form.NoParams => $"global::{e.MethodFqn}(__bridge->Self, __repo)",
-            Form.Stateful => $"global::{e.MethodFqn}(ref *({e.Method.ParamTypeFqn}*)(__root + {e.Offset}), ref __ws, __bridge->Self, __repo)",
-            _             => $"global::{e.MethodFqn}(ref *({e.Method.ParamTypeFqn}*)(__root + {e.Offset}), __bridge->Self, __repo)",
+            Form.NoParams => $"global::{e.MethodFqn}(__bridge->Self, __repo{um})",
+            Form.Stateful => $"global::{e.MethodFqn}(ref *({e.Method.ParamTypeFqn}*)(__root + {e.Offset}), ref __ws, __bridge->Self, __repo{um})",
+            _             => $"global::{e.MethodFqn}(ref *({e.Method.ParamTypeFqn}*)(__root + {e.Offset}), __bridge->Self, __repo{um})",
         };
         string what = e.Form switch
         {

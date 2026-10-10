@@ -70,7 +70,7 @@ Rows for A.1 and A.2 closed `✅`.
 | `FDP.Toolkit.Scenario` | `FDP/Toolkits/FDP.Toolkit.Scenario/` |
 | `FDP.Toolkit.Scenario.Tests` | `FDP/Toolkits/FDP.Toolkit.Scenario.Tests/` |
 
-Both added to `IOS-IG-SimHost.sln`.
+Both added to `HROT.sln`.
 
 ---
 
@@ -210,7 +210,7 @@ invocation.
 |------|--------|
 | `Hrot.Orchestrator.Tests/StorageGatewayTests.cs` | +2 `PushToNodes` tests (A.1) |
 | `Hrot.Orchestrator/ClusterMaster.cs` | XML hygiene fix (A.2) |
-| `IOS-IG-SimHost.sln` | Added 2 new projects |
+| `HROT.sln` | Added 2 new projects |
 
 ### New files (`FDP.Toolkit.Scenario`)
 

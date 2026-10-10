@@ -126,7 +126,7 @@ Files changed for tests: `BlueprintNodeCatalogTests.cs` (Task 1), `BcpBatch02Blu
 - `Hrot.ClusterRunner.Integration.Tests --filter ~EditorSubsystemBoot` — **10 passed, 0 failed**.
 - Byte-stability / round-trip (`~Stability|~RoundTrip`) — **79 passed, 0 failed**.
 
-**Build:** `dotnet build IOS-IG-SimHost.sln` → **0 errors**. The 6 files I changed produce **0
+**Build:** `dotnet build HROT.sln` → **0 errors**. The 6 files I changed produce **0
 warnings** (verified by grepping the warning output for each filename). The 26 solution warnings are
 pre-existing debt in untouched files (`SpawnEqsSensorRuntimeTests`, `CoverAwarePatrolEndToEndTest`,
 `IBlueprintTimeController` obsolete usages, `BlueprintTestFixture`, `ProbeOverheadBenchmarks`) — none

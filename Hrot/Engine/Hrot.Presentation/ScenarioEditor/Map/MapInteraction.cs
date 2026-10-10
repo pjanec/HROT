@@ -41,8 +41,18 @@ namespace Hrot.ScenarioEditor.Map
             Hrot.ScenarioEditor.Systems.SelectionInteractionSystem selectionInteraction,
             Hrot.ScenarioEditor.Systems.SelectionRequestSystem selectionRequests,
             Hrot.ScenarioEditor.Systems.SelectionNotificationSystem selectionNotifications,
-            Hrot.ScenarioEditor.Gizmos.RubberBandState rubberBand)
+            Hrot.ScenarioEditor.Gizmos.RubberBandState rubberBand,
+            Hrot.Common.Interactions.GlobalActionRegistry actions,
+            Hrot.Common.Systems.GlobalActionDispatchSystem actionDispatch,
+            Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo layerControl,
+            Hrot.UI.Common.AddEntity.EntityAuthoring? entityAuthoring,
+            Hrot.Presentation.Systems.CanvasMenuUpdateSystem canvasMenu)
         {
+            EntityAuthoring        = entityAuthoring;
+            CanvasMenu             = canvasMenu;
+            Actions                = actions;
+            ActionDispatch         = actionDispatch;
+            LayerControl           = layerControl;
             RubberBand             = rubberBand;
             Selection              = selection;
             SelectionInteraction   = selectionInteraction;
@@ -61,6 +71,43 @@ namespace Hrot.ScenarioEditor.Map
             Gate              = gate;
             SelfCheck         = selfCheck;
         }
+
+        // ══ Map actions and the layer control — built here so ALL map hosts have them ══════════
+
+        /// <summary>
+        /// ⭐⭐ <b>The map's action registry</b> — what a menu item's action id runs. The pack registers
+        /// the shared actions (<c>OpenLayerControl</c>); the host adds its own. 📐 Before this, Editor,
+        /// SimHost and ReplayBrowser each built one by hand and CGF and IG had none, so a map-menu action
+        /// did nothing there.
+        /// </summary>
+        public Hrot.Common.Interactions.GlobalActionRegistry Actions { get; }
+
+        /// <summary>The system that runs <see cref="Actions"/>; ⚠ the HOST schedules it (the pack only constructs).</summary>
+        public Hrot.Common.Systems.GlobalActionDispatchSystem ActionDispatch { get; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3123</c> (R-228) — applies <see cref="Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand"/>s, the path the
+        /// map's pin and AI-trace actions publish on. Part of <see cref="InteractionSystems"/>, so every host that runs the map runs
+        /// it. ⚠ CGF and the Editor ALSO run one from <c>BehaviorDiagnosticsModule</c> (a headless Editor schedules no interaction
+        /// systems, and its HTTP tracer patches too); a patch sets absolute values, so applying it twice yields the same state.
+        /// 📄 docs/DESIGN_Uniform_Gizmo_Membership.md §10.
+        /// </summary>
+        public Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem DebugStatePatch { get; } = new();
+
+        /// <summary>
+        /// The "View ▸ Tactical Map Layers…" control, registered with <see cref="GlobalManager"/>. Its panel
+        /// needs the schema — a host's renderer registers it via <see cref="MapInteractionPack.RegisterGizmoSchemas"/>.
+        /// </summary>
+        public Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo LayerControl { get; }
+
+        /// <summary>⭐ <c>CE-1017</c> — the map's entity-authoring surface (spawn adapter, picker, Add Entity action);
+        /// null when the host passed no <c>MapInteractionContext.EntityAuthoring</c>. Draw its
+        /// <see cref="Hrot.UI.Common.AddEntity.EntityAuthoring.DrawFrame"/> once per ImGui frame.</summary>
+        public Hrot.UI.Common.AddEntity.EntityAuthoring? EntityAuthoring { get; }
+
+        /// <summary>⭐ <c>CE-1017</c> — the canvas (empty-map) menu system, built here for every host (with the Add Entity
+        /// submenu when <see cref="EntityAuthoring"/> exists). The host SCHEDULES it.</summary>
+        public Hrot.Presentation.Systems.CanvasMenuUpdateSystem CanvasMenu { get; }
 
         // ══ UXI-11 — the SELECTION. 📄 UX_Feature_Selection.md §2.7 / §2.7.10 ═══════════════
 
@@ -188,7 +235,17 @@ namespace Hrot.ScenarioEditor.Map
             typeof(GlobalGizmoManager),
             typeof(DataDrivenGizmoSystem),
             typeof(StatelessGizmoSystem),
+            typeof(Hrot.Common.Systems.GlobalActionDispatchSystem),
+            typeof(Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem),   // ⭐ CE-3123 — pins and AI-trace toggles
         };
+
+        /// <summary>
+        /// ⭐ What a host schedules for map INTERACTION, in order: the action dispatcher, the debug-state patch (⭐ CE-3123 — so a
+        /// pin set by a menu action draws in the group that follows), then the gizmo group (the order every host used). Pass it to the interaction module AND to
+        /// <see cref="Unserviceable"/>, so the two cannot disagree.
+        /// </summary>
+        public Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] InteractionSystems
+            => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] { ActionDispatch, DebugStatePatch, GizmoGroup };
 
         /// <summary>
         /// ⭐⭐ Returns one message per required system the host did not schedule — empty when the host
@@ -252,6 +309,10 @@ namespace Hrot.ScenarioEditor.Map
                 ? "no drag handles or vertex editing appear on any entity"
              : system == typeof(GlobalGizmoManager)
                 ? "screen-space gizmos (placement, picker, layer control) never draw"
+             : system == typeof(Hrot.Common.Systems.GlobalActionDispatchSystem)
+                ? "map menu actions (layer control, centre on entity, rotate…) do nothing"
+             : system == typeof(Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem)
+                ? "gizmo pins and AI-trace toggles from the map menu are published and never applied"
              : "part of the map will be silently absent";
     }
 }

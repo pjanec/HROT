@@ -158,7 +158,7 @@ and our machinery exists (`Stage2_5`), so it is worth its own batch, not a rushe
 
 ## 5. Gates
 
-The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.sln`** (⚠ not `Hrot.sln`).
+The eight, `--logger "console;verbosity=normal"`. Solution is **`HROT.sln`** (⚠ not `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** (`RESUME_START_HERE.md` §3) — and this batch may
 touch `NodeEditor.UI`, so they are load-bearing.
 ⭐ **Run `python3 scripts/tracker-counts.py --check`** — clean on arrival for three batches running.

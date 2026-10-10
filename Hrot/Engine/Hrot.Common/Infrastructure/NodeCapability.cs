@@ -36,6 +36,9 @@ public static class CapabilityKeys
     /// <summary>Presentation-only node; no simulation logic.</summary>
     public const string ImageGenerator = "cap:image-generator";
 
+    /// <summary>⭐ <c>CE-2121</c> — the character body's animation Muscle (stance first), over a backend the host chooses.</summary>
+    public const string AnimationMuscle = "cap:animation-muscle";
+
     /// <summary>
     /// Commander/subordinate hierarchy maintenance — <c>CE-221</c>.
     ///

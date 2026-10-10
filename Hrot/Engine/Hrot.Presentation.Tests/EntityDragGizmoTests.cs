@@ -32,6 +32,47 @@ public class EntityDragGizmoTests
     }
 
     // EDG-001: UpdateAndDraw emits a Box2D primitive with valid entity pick token.
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-3147</c> — <b>the DRAG area must be the SELECT area: same extent, same unit.</b>
+    /// 🔒 User, <c>2026-10-09</c>: <i>"click-to-drag sensitive area is enormous now (no change) - should be
+    /// identical to click-to-select area."</i>
+    /// <para>📐 It was enormous because this gizmo carried its own <c>PickRadius = 8f</c> in WORLD METRES on a
+    /// <c>default(DebugPrimitive)</c> (⇒ <c>SizeMode.WorldMeters</c>) — 8 m, about 800 screen px at the zoom
+    /// ceiling of 100 — and being world-sized, the <c>SizeMode</c> hit-test fix could not shrink it.</para>
+    /// <para>⭐⭐ <b>CORRECTED <c>2026-10-09</c> after a second user report:</b> <i>"the sensitive interaction area
+    /// around the entity must scale as well"</i> — my first pass made both areas <c>40f</c> in
+    /// <c>ScreenPixels</c>, which is right at exactly ONE zoom. The size is now a QUERY on the entity
+    /// (<c>EntityFootprint.InteractionRadiusMetres</c>) in <b>world metres</b>, which is also the only way the two
+    /// areas stay identical for entities of DIFFERENT sizes — a shared constant made a truck and a man equally
+    /// clickable.</para>
+    /// <para>⚠ <b>Both halves are asserted, because either alone is insufficient:</b> the right number in the
+    /// wrong unit is a 3 px box, and the right unit with a stale number disagrees with the select area.</para>
+    /// </summary>
+    [Fact]
+    public void CE3147_TheDragPickArea_MatchesTheSelectPickArea_InExtentAndUnit()
+    {
+        var gizmo  = new EntityDragGizmo(_repo, _entity);
+        var buffer = new DebugPrimitiveBuffer(capacity: 16);
+        gizmo.UpdateAndDraw(_repo, 0f, buffer);
+
+        float expected = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint
+            .InteractionRadiusMetres(_repo, _entity);
+
+        bool found = false;
+        foreach (var prim in buffer.GetFrame())
+        {
+            if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
+
+            Assert.Equal(expected, prim.BoxExtentX);
+            Assert.Equal(expected, prim.BoxExtentY);
+            // ⭐ WORLD metres, so the area scales with zoom exactly as the drawn symbol does.
+            Assert.Equal(SizeMode.WorldMeters, prim.SizeMode);
+            found = true;
+        }
+
+        Assert.True(found, "the drag gizmo emitted no Box2D pick area at all");
+    }
+
     [Fact]
     public void UpdateAndDraw_EmitsSphereWithValidPickToken()
     {
@@ -77,6 +118,43 @@ public class EntityDragGizmoTests
     /// how every drag gizmo behaves. The old expectation measured <c>(60, 80)</c> and called it a bug.
     /// <see cref="OnDragUpdate_PreservesTheGrabOffset"/> now rails that behaviour explicitly.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐ <c>CE-3154</c> — <b>the drag marker is a 1 px OUTLINE at the entity's own footprint.</b>
+    /// 🔒 User, <c>2026-10-10</c>: <i>"The drag and drop yellow marker circle is thick - should be 1 pixel
+    /// regardless of zoom."</i>
+    /// <para>📐 It was <c>DrawSphere(pos, 5f, color)</c> with no thickness — which this pipeline reads as a FILLED
+    /// disc plus a default 1-unit rim, and with <c>DrawSphere</c>'s <c>WorldMeters</c> default that rim was a
+    /// metre wide. ⇒ the two things pinned here are exactly what made it "thick": an explicit stroke of
+    /// <c>1</c> (<c>ThicknessU16 == 10</c>, which also switches the legacy fill off) and no fill colour.
+    /// ⚠ That the stroke is PIXELS is the renderer's rule and is railed there
+    /// (<c>DebugPrimitiveRenderer2DTests.CE3154_*</c>).</para>
+    /// </summary>
+    [Fact]
+    public void CE3154_WhileDragging_TheMarkerIsAOnePixelOutline_AtTheEntitysFootprint()
+    {
+        var gizmo  = new EntityDragGizmo(_repo, _entity);
+        var buffer = new DebugPrimitiveBuffer(capacity: 16);
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));
+        gizmo.OnDragUpdate(new Vector3(50f, 60f, 0f));
+        gizmo.UpdateAndDraw(_repo, 0f, buffer);
+
+        float expected = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint
+            .InteractionRadiusMetres(_repo, _entity);
+
+        bool found = false;
+        foreach (var prim in buffer.GetFrame())
+        {
+            if (prim.Shape != DebugPrimitiveShape.Sphere) continue;
+
+            Assert.Equal(expected, prim.SphereRadius);
+            Assert.Equal(10, prim.ThicknessU16);        // 1.0 px, stored ×10
+            Assert.Equal(0, prim.FillColor.A);          // an outline — no fill
+            found = true;
+        }
+
+        Assert.True(found, "no marker sphere was drawn while dragging");
+    }
+
     [Fact]
     public void OnDragUpdate_WritesToSimTransformPosition()
     {

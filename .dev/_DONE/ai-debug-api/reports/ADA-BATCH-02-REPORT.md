@@ -140,7 +140,7 @@ preview enter/exit; step advances `totalTime`; scenario list; save→reload roun
 
 ## Full `dotnet test` summary (honest)
 
-**`dotnet build IOS-IG-SimHost.sln`** → **0 errors**, 27 warnings (all pre-existing: xUnit2013
+**`dotnet build HROT.sln`** → **0 errors**, 27 warnings (all pre-existing: xUnit2013
 collection-size analyzer + `IBlueprintTimeController` obsolete + nullable in unrelated test projects).
 
 **`dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests`** — the **full** suite **cannot

@@ -79,12 +79,12 @@ fan-out → readiness gate. **Six deviations:**
 
 | # | gate | verbatim command | `--no-build`? | result · delta vs `396337d74` |
 |---|---|---|---|---|
-| 1 | build | `dotnet build IOS-IG-SimHost.sln --no-restore` | must build | ⭐ **0 errors** *(rebuilt before every conclusion — the stale-binary trap)* |
+| 1 | build | `dotnet build HROT.sln --no-restore` | must build | ⭐ **0 errors** *(rebuilt before every conclusion — the stale-binary trap)* |
 | 1 · 8 | ⭐⭐⭐ **the integration gate** | `bash scripts/run-system-tests.sh` | builds | ⭐⭐ **83 / 83 pass, 0 fail, 0 skip** *(baseline `81/81` after HN-028 ⇒ **+2**, the two new content rails)*. ⚠ One earlier full run failed `DeterminismRails.Two_fresh_processes_agree_on_the_entity_mapping` — see row 4 |
 | 8 | ⭐⭐ **`--mode all` loads live, end to end** | `HROT_DEBUG_API_PORT=… xvfb-run dotnet Hrot.ClusterRunner.dll --mode all` + `curl -X POST /scenario/load/live` | n/a | ⭐ `{"loaded":"hill-attack","awaited":true,"target":"OperatingLive","entityCount":8,"sawWorldChange":true,"hadWorldAnchor":true}`; `clusterState: OperatingLive`. ⭐ Works from the **Scenario**, **SimHost** and **ExCon** perspectives |
 | 8 | the editor forwarding rail | `dotnet test Hrot.Editor.Tests --filter FullyQualifiedName~DebugApiCompositionTests` | `--no-build` | ⭐ **5 / 5** *(baseline 4 ⇒ +1: `requestTransition:` is now asserted by name)* |
 | 8 | ⭐ **the MCP catalog + skill** | `npm run test:catalog` · `npm run gen:skill:check` | n/a | ⭐ **521 / 521 passed** · **`gen:skill:check` PASSED** *(SKILL.md regenerated from `tool-catalog.mjs`, ⛔ never hand-edited)* |
-| 2 | out-of-solution / stale bin | — | — | ⭐ every gated project is in `IOS-IG-SimHost.sln`; every `--no-build` run followed a full build of the same tree |
+| 2 | out-of-solution / stale bin | — | — | ⭐ every gated project is in `HROT.sln`; every `--no-build` run followed a full build of the same tree |
 | 3 | golden movement | `git status --short` | — | ⭐ **ZERO goldens moved** *(0 created, 0 modified, 0 deleted)*. ⭐ `git status --short scenarios/` also clean — mutation M3 perturbed only the process's **staged copy**, never the committed curated file |
 | 4 | every RED pre-existing, by name | — | — | ⭐ **no reds on the final tree** *(83/83)*. ⚠ `DeterminismRails.Two_fresh_processes_agree_on_the_entity_mapping` failed on ONE earlier full run and then passed **4/4 in isolation** and **83/83 on a full re-run** ⇒ **`HN-023`'s known 1-in-4 flake, recurred once.** ⛔ Still open; this batch neither caused nor fixed it |
 | 5 | working tree clean after every suite | `git status --short` | — | ⭐ clean; mutation M3 reverted by **inverse edit** and verified *(`grep -c "MUTATION PROBE"` ⇒ **0**)* |

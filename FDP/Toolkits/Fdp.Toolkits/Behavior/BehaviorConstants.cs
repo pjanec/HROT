@@ -110,8 +110,26 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public const ushort ActionIdEjectPassengers = 3;
 
-        /// <summary>Action ID for OpenDoor (Slice 1 Demo).</summary>
+        /// <summary>⭐ Buildings 5d — the door actions on the interaction channel (<see cref="Executors.DoorActionExecutor"/>, one per verb).</summary>
         public const ushort ActionIdOpenDoor = 4;
+        /// <inheritdoc cref="ActionIdOpenDoor"/>
+        public const ushort ActionIdCloseDoor = 5;
+        /// <inheritdoc cref="ActionIdOpenDoor"/>
+        public const ushort ActionIdLockDoor = 6;
+        /// <inheritdoc cref="ActionIdOpenDoor"/>
+        public const ushort ActionIdUnlockDoor = 7;
+        /// <inheritdoc cref="ActionIdOpenDoor"/>
+        public const ushort ActionIdBreachDoor = 8;
+
+        /// <summary>⭐ 5d — every door action id with its executor, for a host's interaction dispatcher (one list, so no host forgets one).</summary>
+        public static (ushort Id, Executors.DoorActionExecutor Executor)[] DoorActionExecutors() => new[]
+        {
+            (ActionIdOpenDoor,   new Executors.DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Open)),
+            (ActionIdCloseDoor,  new Executors.DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Close)),
+            (ActionIdLockDoor,   new Executors.DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Lock)),
+            (ActionIdUnlockDoor, new Executors.DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Unlock)),
+            (ActionIdBreachDoor, new Executors.DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Breach)),
+        };
 
         // ── Unmanaged event IDs (Behavior behavior range: 3100–3199) ─────────────
         /// <summary>EventId for <c>ClearBehaviorEvent</c>.</summary>

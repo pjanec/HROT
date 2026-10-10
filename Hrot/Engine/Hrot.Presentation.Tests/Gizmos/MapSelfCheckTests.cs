@@ -196,7 +196,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         {
             var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
 
-            var missing = mi.Unserviceable(mi.GizmoGroup.GetSystems());
+            var missing = mi.Unserviceable(mi.InteractionSystems);
 
             Assert.Empty(missing);
         }
@@ -217,6 +217,8 @@ namespace Hrot.Presentation.Tests.Gizmos
                                        && m.Contains("no entity shapes", StringComparison.Ordinal));
             Assert.Contains(missing, m => m.Contains("DataDrivenGizmoSystem", StringComparison.Ordinal));
             Assert.Contains(missing, m => m.Contains("GlobalGizmoManager", StringComparison.Ordinal));
+            Assert.Contains(missing, m => m.Contains("GlobalActionDispatchSystem", StringComparison.Ordinal)
+                                       && m.Contains("map menu actions", StringComparison.Ordinal));
         }
 
         /// <summary>
@@ -238,8 +240,8 @@ namespace Hrot.Presentation.Tests.Gizmos
                 StartEnabled = true,
             });
 
-            // Exactly SimHost's situation: the group scheduled, all three systems in it.
-            var missing = mi.Unserviceable(mi.GizmoGroup.GetSystems());
+            // Exactly SimHost's situation: everything it schedules, all systems present.
+            var missing = mi.Unserviceable(mi.InteractionSystems);
 
             Assert.Empty(missing);
         }
@@ -250,10 +252,55 @@ namespace Hrot.Presentation.Tests.Gizmos
         {
             var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
 
-            var inGroup = mi.GizmoGroup.GetSystems().Select(s => s.GetType()).ToHashSet();
+            var scheduled = mi.GizmoGroup.GetSystems().Select(s => s.GetType()).ToHashSet();
+            scheduled.Add(mi.ActionDispatch.GetType());
+            scheduled.Add(mi.DebugStatePatch.GetType());   // ⭐ CE-3123 — the third member of InteractionSystems
 
             foreach (Type required in mi.RequiredSystems)
-                Assert.Contains(required, inGroup);
+                Assert.Contains(required, scheduled);
+        }
+
+        // ── the map's actions and layer control — built by the pack for EVERY host ───────────────
+
+        /// <summary>
+        /// ⭐ A host that schedules the gizmo group but forgets the action dispatcher is TOLD — before this,
+        /// CGF and IG had no dispatcher and a map-menu action did nothing, silently.
+        /// </summary>
+        [Fact]
+        public void ForgettingTheActionDispatcher_IsReported()
+        {
+            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+
+            var missing = mi.Unserviceable(mi.GizmoGroup.GetSystems());
+
+            // ⭐ CE-3123 — the debug-state patch is the other non-group member of InteractionSystems, so it is named too.
+            Assert.Equal(2, missing.Count);
+            Assert.Contains(missing, m => m.Contains("GlobalActionDispatchSystem", StringComparison.Ordinal));
+            Assert.Contains(missing, m => m.Contains("DebugStatePatchSystem", StringComparison.Ordinal));
+        }
+
+        /// <summary>⭐ The pack builds the layer control and wires its menu action, so every host has it.</summary>
+        [Fact]
+        public void ThePack_BuildsTheLayerControl_AndRegistersItsMenuAction()
+        {
+            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+
+            Assert.NotNull(mi.LayerControl);
+            Assert.True(mi.Actions.TryGetHandler(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, out _));
+            Assert.Same(mi.ActionDispatch, mi.InteractionSystems[0]);
+            Assert.Same(mi.DebugStatePatch, mi.InteractionSystems[1]);   // ⭐ CE-3123
+            Assert.Same(mi.GizmoGroup, mi.InteractionSystems[2]);
+        }
+
+        /// <summary>⭐ The shared renderer factory registers the layer-control panel schema on every host.</summary>
+        [Fact]
+        public void RegisterGizmoSchemas_RegistersTheLayerControlSchema()
+        {
+            var registry = new GizmoMap.Presentation.GizmoSchemaRegistry();
+
+            MapInteractionPack.RegisterGizmoSchemas(registry);
+
+            Assert.True(registry.TryGet(Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash, out _));
         }
 
         /// <summary>⭐ And the self-check ships inside the group, so a host cannot forget to wire it.</summary>

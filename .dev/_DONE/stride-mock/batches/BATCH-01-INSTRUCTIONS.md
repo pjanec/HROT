@@ -40,7 +40,7 @@ Do NOT move to the next task until the current one compiles and all its tests pa
 - **SimHostApp (reference pattern):** `Hrot\Subsystems\Hrot.SimHost\SimHostApp.cs`
 - **NodeBootstrapper (reference):** `Hrot\Subsystems\Hrot.SimHost\NodeBootstrapper.cs`
 - **SimHostApp tests (reference for patterns):** `Hrot\Subsystems\Hrot.SimHost.Tests\`
-- **Solution file:** `IOS-IG-SimHost.sln` (root of repo)
+- **Solution file:** `HROT.sln` (root of repo)
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -155,7 +155,7 @@ Add to the `<ItemGroup>` with other subsystem references:
 
 ### 1.4 Wire into Solution File
 
-**File:** `IOS-IG-SimHost.sln`
+**File:** `HROT.sln`
 
 Add both projects to the solution using the same format as existing entries. Use fresh GUIDs. Place `Hrot.StrideMock` in the same `Hrot\Subsystems` solution folder as `Hrot.SimHost`, and `Hrot.FakeStrideApp` in the same `Hrot\Runner` solution folder as `Hrot.ClusterRunner`.
 
@@ -376,4 +376,4 @@ This batch is DONE when:
 - **Pattern Reference:** `Hrot\Engine\Hrot.Common\Infrastructure\HrotNodeBuilder.cs`
 - **Pattern Reference:** `Hrot\Subsystems\Hrot.SimHost\SimHostApp.cs` (existing OnLoad phase sequence)
 - **Pattern Reference:** `Hrot\Subsystems\Hrot.SimHost\NodeBootstrapper.cs`
-- **Solution format reference:** `IOS-IG-SimHost.sln`
+- **Solution format reference:** `HROT.sln`

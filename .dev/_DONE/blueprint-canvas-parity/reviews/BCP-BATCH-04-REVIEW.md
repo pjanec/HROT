@@ -2,7 +2,7 @@
 **Status:** ✅ APPROVED   **Date:** 2026-06-03
 
 ## Verification (ran myself)
-- `dotnet build IOS-IG-SimHost.sln` **0 errors**; no warnings in touched projects (the ~26 full-rebuild warnings are pre-existing unrelated test projects — DEBT-BCP-004).
+- `dotnet build HROT.sln` **0 errors**; no warnings in touched projects (the ~26 full-rebuild warnings are pre-existing unrelated test projects — DEBT-BCP-004).
 - `Hrot.Blueprints.Tests` **1120 / 10 / 8** (10 = DEBT-006; +new wire-drop tests). `Hrot.Editor.AiShared.Tests` **761/0**, `Hrot.BTree.Editor.Tests` **382/0**, `Hrot.Hsm.Editor.Tests` **333/0**, `EditorSubsystemBoot` **10/0**. Byte-stability green (the PinIds change affects only newly-created in-memory nodes; loaded assets still project).
 
 ## Code read

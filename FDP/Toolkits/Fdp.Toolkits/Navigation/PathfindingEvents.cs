@@ -24,8 +24,9 @@ namespace Fdp.Toolkit.Navigation
         public byte MobilityProfile;
         /// <summary>Force a specific backend (0 = Auto); see <see cref="NavigationBackend"/>.</summary>
         public NavigationBackend BackendForce;
+        /// <summary>⭐ CE-3128 — how much this actor wants the road network (resolved by <c>PathRequests</c>; <see cref="RoadUse.Unspecified"/> ⇒ neutral). In the former padding byte.</summary>
+        public RoadUse RoadUse;
         /// <summary>Padding to maintain natural alignment.</summary>
-        public byte _pad1;
         public byte _pad2;
         /// <summary>Originating Brain node ID for routing responses back.</summary>
         public int SourceNodeId;

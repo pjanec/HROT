@@ -3,7 +3,7 @@
 **Batch:** BATCH-18  
 **Tasks:** GZ050, GZ051, GZ052  
 **Status:** COMPLETE  
-**Build:** 0 errors (IOS-IG-SimHost.sln)  
+**Build:** 0 errors (HROT.sln)  
 **Tests introduced:** 22 new (17 in Fdp.Diagnostics.Contracts.Tests, 5 in Hrot.Network.NED.Tests) — all pass
 
 ---
@@ -141,4 +141,4 @@ None of these failures are caused by BATCH-18 changes.
 - `Marshal.SizeOf<DebugPrimitive>() == 64` — confirmed by 4 independent tests (SC_GZ050_2, SC_GZ050_6, SC_GZ051_4, SC_GZ051_6 offset checks)
 - All 12 new GZ050/GZ051 tests pass in Fdp.Diagnostics.Contracts.Tests
 - All 5 new GZ052 tests pass in Hrot.Network.NED.Tests
-- Full solution builds with 0 errors: `dotnet build IOS-IG-SimHost.sln -clp:ErrorsOnly` → `0 Error(s)`
+- Full solution builds with 0 errors: `dotnet build HROT.sln -clp:ErrorsOnly` → `0 Error(s)`

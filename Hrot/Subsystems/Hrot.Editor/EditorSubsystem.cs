@@ -339,19 +339,9 @@ namespace Hrot.Editor
         // ?? Offline orchestrator (single-node scenario listing) ???????????????????
 
         private FdpEventBus?           _orchestrationBus;
-        private ClusterMaster?                _clusterMaster;
-        private ReplaySeekProcessManager?     _seekProcessManager;
-        private ReplayProcessManager?         _replayProcessManager;
-        private AssetInventoryProcessManager?  _assetInventoryProcessManager;
-        private AssetPrefetchProcessManager?   _assetPrefetchProcessManager;
-        private StorageGatewayModule?          _storageGateway;
-        private StorageProcessManager?         _storageProcessManager;   // CE-277(c2): unified save merge in the editor too
-        private ClusterUiCache?                _uiCache;
-        private ClusterScenarioPanel?          _clusterPanel;
-        private ClusterDiagnosticsPanel?       _clusterDiagnosticsPanel;
+        private OrchestratorCore?             _orchestratorCore;   // ⭐ Q86 — the ONE core, shared with the cluster
+        private ClusterMaster?                _clusterMaster;      //   = _orchestratorCore.Master (kept for its readers)
         private IFileDialogService?            _fileDialogService;
-        private DiagnosticsDumpProcessManager? _diagnosticsDumpProcessManager;
-        private DiagnosticLogMergeWorker?      _logMergeWorker;
 
         // ?? Selection state ???????????????????????????????????????????????????????
 
@@ -489,6 +479,12 @@ namespace Hrot.Editor
         /// <summary>⭐ The docked Asset Browser production built — 📌 <c>R-67</c>: a rail asks the
         /// CONSTRUCTED window which row commands this root opted into, ⛔ never the call site.</summary>
         internal AssetBrowserDockedWindow? AssetBrowserForTest => _aiAssetBrowser;
+
+        /// <summary>Q86 test hook: this node's clock (the editor's own master — Q86 keeps it here).</summary>
+        internal MasterSyncController? TimeControllerForTest => _timeController;
+
+        /// <summary>Q86 test hook: the orchestration bus the shared orchestrator core runs on.</summary>
+        internal FdpEventBus? OrchestrationBusForTest => _orchestrationBus;
         // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
         private Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? _blueprintMyBlueprintWindow;
         // BATCH-03D2: Graph Signature window (edits Function graph Inputs/Outputs).
@@ -645,7 +641,28 @@ namespace Hrot.Editor
         {
             private readonly PreviewClusterOpHandler _handler;
             private readonly MasterSyncController    _timeController;
+            private readonly Fdp.Toolkit.Time.ITimeCommands _timeCommands;
             private bool _inPreview;
+
+            /// <summary>
+            /// ⭐⭐⭐ <c>CE-3156</c> — <b>where the clock stood when the preview began</b>, so Stop can put it back.
+            /// <para>🔒 User, <c>2026-10-10</c>: <i>"Stop Preview does NOT reset time to zero (although the entity
+            /// state resets to initial state)."</i></para>
+            /// <para>📐 Measured: Stop did two things — <c>TriggerUnloadingPreview()</c> (the world rewind,
+            /// <c>_liveRepo.SyncFrom(_snap)</c>) and <c>SwitchToDeterministic</c> (a PAUSE). Neither repositions the
+            /// clock. <c>SyncFrom</c> restores entities and eight named singletons, <b>not</b> <c>GlobalTime</c>
+            /// (<c>EntityRepository.Sync.cs:112-123</c>) — and restoring that singleton would not help anyway: the
+            /// kernel rewrites it every frame from <c>MasterSyncController._totalTime</c>
+            /// (<c>ModuleHostKernel.cs:496-500</c>), which nothing on the Stop path touched. ⇒ the world went back
+            /// to its snapshot while the clock kept the time of the moment Stop was pressed.</para>
+            /// <para>⭐ The clock's accumulator is exactly what <c>DESIGN_Deterministic_Network_Ids.md</c> §2b calls
+            /// <i>"state outside the EntityRepository [that] survives the preview rewind"</i> — the same class as the
+            /// id allocator, the entity map and the ELM queues, which already have participants. ⚠ It is captured
+            /// HERE rather than as an <c>IPreviewRewindable</c> because the one legal way to move the clock is
+            /// <c>ITimeCommands.SnapTo</c> (<c>DESIGN_Time_Architecture.md</c> §12a), and on the cluster path only
+            /// the master owns the clock — a shared participant is a larger question, filed with the row.</para>
+            /// </summary>
+            private GlobalTime _enteredAt;
 
             /// <param name="rewindables">
             /// ⭐⭐ <b><c>HN-017</c> — the non-ECS state the preview must also put back.</b>
@@ -655,19 +672,31 @@ namespace Hrot.Editor
             /// controller is constructed in the same method, a few lines later, which is why the list is a
             /// constructor argument and not something attached afterwards.</para>
             /// </param>
+            /// <param name="timeCommands">
+            /// ⭐ <c>CE-3156</c> — the seam through which Stop asks the clock to go back
+            /// (<c>DESIGN_Time_Architecture.md</c> §12a: <i>"callers outside the clock no longer call it — they
+            /// ask: ITimeCommands.SnapTo"</i>). ⛔ Not optional and not defaulted: the caller HOLDS it
+            /// (<c>_timeCommands</c>, built at <c>Initialize</c>) — the same silent-default rule as
+            /// <paramref name="rewindables"/>.
+            /// </param>
             internal EditorPreviewController(
                 EntityRepository world,
                 MasterSyncController timeController,
+                Fdp.Toolkit.Time.ITimeCommands timeCommands,
                 System.Collections.Generic.IEnumerable<Fdp.Toolkit.Orchestration.Preview.IPreviewRewindable> rewindables)
             {
                 _handler        = new PreviewClusterOpHandler(world, rewindables);
                 _timeController = timeController;
+                _timeCommands   = timeCommands ?? throw new System.ArgumentNullException(nameof(timeCommands));
             }
 
             public bool IsInPreviewMode => _inPreview;
 
             public void EnterPreviewMode(bool startPaused = false)
             {
+                // ⭐ CE-3156 — BEFORE the clock starts running: this is the position the world snapshot belongs to.
+                _enteredAt = _timeController.GetCurrentState();
+
                 _handler.TriggerLoadingPreview();
                 if (!startPaused)
                     _timeController.SwitchToContinuous();
@@ -678,6 +707,14 @@ namespace Hrot.Editor
             {
                 _handler.TriggerUnloadingPreview();
                 _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
+
+                // ⭐⭐⭐ CE-3156 — and the CLOCK goes back with the world. The pause above stays (it takes effect at
+                //   once; CE-3068); the snap is applied by the clock FIRST on its next Update, before any
+                //   pause/resume intent (MasterSyncController.cs:162-163), and leaves the clock paused at the
+                //   position the preview started from — the whole position: frame number, sim time, unscaled time
+                //   and wall ticks, so nothing is left from the abandoned timeline.
+                _timeCommands.SnapTo(_enteredAt);
+
                 _inPreview = false;
             }
         }
@@ -1411,7 +1448,7 @@ namespace Hrot.Editor
             //    world with no cluster peer to arbitrate against, so it must service its own unowned
             //    requests. ⚠ This preserves the previous `isDefaultProcessor: true` exactly.
             //
-            // ⛔ ExtraTranslators is empty: this host's list was plain Base(), and add-only means an
+            // ⛔ SUPERSEDED (CE-2121): ExtraTranslators was empty — it now adds the animation translator. Was: this host's list was plain Base(), and add-only means an
             //    empty extra set reproduces it exactly. Per-component narrowing stays gate 2
             //    (IsComponentTypeRegistered), never the list — tkb-1/DESIGN.md §6.5b.
             //
@@ -1427,6 +1464,13 @@ namespace Hrot.Editor
 
                 // ⭐ CE-237 — a host's order-sensitive translator additions; null/empty keeps Base().
                 TranslatorPlacements = TranslatorPlacements is { Count: > 0 } ? TranslatorPlacements : null,
+
+                // ⭐ CE-2121 — the body stance, as on SimHost and CGF (Brain and Muscle share this one world). ⚠ The pack takes
+                //   extras OR placements, never both: an injected arm (Stride) that names placements keeps its own list.
+                ExtraTranslators = TranslatorPlacements is { Count: > 0 } ? null : new Fdp.Interfaces.ITkbEntityTranslator[]
+                {
+                    new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                },
 
                 IsBroadcastArbiter = true,
             });
@@ -1635,9 +1679,9 @@ namespace Hrot.Editor
             // ── Blueprint runtime ─────────────────────────────────────────────────────
             // ⭐⭐⭐ A4 / O0 (2026-09-20) — THE EDITOR NO LONGER WIRES THIS AT ITS ROOT.
             //   The tick system is spliced by CgfLogicPack (constructed above with
-            //   _blueprintRegistry), and BlueprintMaintenanceSystem is provided by
-            //   CgfCapabilities.Brain as a SingleSystemModule. Both reach this composition through
-            //   the plan, exactly as they now reach CGF's.
+            //   _blueprintRegistry) and reaches this composition through the plan, exactly as it
+            //   reaches CGF's. ⛔ BlueprintMaintenanceSystem (once a CgfCapabilities.Brain
+            //   SingleSystemModule) is retired by CE-3137 U-0 (R-236) — the store never moves a slot.
             //   ⛔ THE ROOT SPLICE HAD TO GO, not merely become redundant: the pack's tick is inside
             //     planSimSystems, so splicing a SECOND instance here would put two BlueprintTickSystems
             //     in one group (DistinctByType runs BEFORE the splice and cannot see it).
@@ -1720,7 +1764,7 @@ namespace Hrot.Editor
                 storageDirectory: isolatedTempRoot));
 
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
-            _kernel.RegisterModule(new EditorSystemsModule());
+            _kernel.RegisterModule(new EditorSystemsModule(() => EntityCreation));   // ⭐ CE-3141 — the obstacle tool creates through the pack
 
             // ?? 4c. ELM + offline spawning module + scenario genesis pipeline ??????????????????
             // CreateEntityRequestSystem drains scenarioLoadSource each Input tick and emits
@@ -1742,13 +1786,14 @@ namespace Hrot.Editor
             //   anyway because Q65 §0 forbids removing a capability by composition — and because a host
             //   that skipped it would warn forever through Unserviceable().
             _kernel.RegisterGlobalSystem(creation.PromotionSystem);
+            _kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
 
             // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this
             //   design was silent.
             var unserviceable = creation.Unserviceable(new object[]
             {
                 creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-                creation.PromotionSystem,
+                creation.PromotionSystem, creation.ObstacleBakeSystem,
             });
             if (unserviceable.Length > 0)
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Warn(unserviceable);
@@ -1923,12 +1968,14 @@ namespace Hrot.Editor
             // ⚠ The three manual registrations go through ContributeExtras, which the pack invokes AFTER
             // the reflection pass and BEFORE building StatelessGizmoSystem — the system sizes its
             // visibility cache from registry.Rules.Count, so a rule added later would silently ignore its
-            // visibility policy. MissionPresentationGizmo needs an IGeographicTransform and
-            // EntityEditorLabelGizmo a BehaviorRegistry; reflection cannot supply either.
+            // visibility policy. ⭐ CE-3123: the mission and label gizmos get their services through Services now.
             _editorMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _world,
+                    // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
+                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry),
+                    GizmoUiPublisher = _gizmoUiHub,
                     Inspector = () => _fdpInspectorState,
                     // ⭐⭐⭐ CE-300 — the AI editors' entity cell follows the ANNOUNCEMENT, not a map
                     //   gesture. 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1.
@@ -1940,28 +1987,26 @@ namespace Hrot.Editor
                         view.HasComponent<SelectionState>(entity) &&
                         view.GetComponentRO<SelectionState>(entity).IsSelected,
                     BreakpointManager = _bpManager,
-                    // ⭐⭐⭐ UXI-07 — the Spawn tool's behaviour goes to the PACK, which registers the tool
-                    //   set. 🔴 It used to be handed to ScenarioEditorModule.InteractionDeps, and step 3b
-                    //   moved the registrations out of the drain WITHOUT moving this — so Spawn reported
-                    //   "this host composes no spawn adapter" on a host that has one. See §4.10.
-                    // ⚠ Resolved at CALL TIME: _spawnAdapter is built later, in the non-headless block.
-                    // ⭐⭐⭐ UXI-07 step 4a — this points at the ARM BODY, ⛔ never at the public
-                    //   StartPlacementMode*/WithLastType API. 📐 That API now calls Activate(Spawn), and
-                    //   Activate(Spawn) invokes THIS delegate — so naming the API here would close the
-                    //   cycle §4.9 measured. See ScenarioSpawnAdapter.ArmPlacement's remarks.
-                    StartPlacementMode = () => _spawnAdapter?.ArmPlacement(),
+                    // ⭐⭐⭐ CE-1017 — the map's ENTITY-AUTHORING surface comes from the PACK, the same for Editor, CGF,
+                    //   SimHost and IG: the shared spawn adapter (it also backs the Spawn tool — UXI-07's "the Spawn
+                    //   tool's behaviour goes to the pack"), the Add Entity picker and submenu, the canvas menu. The
+                    //   shell picker registry is the editor's own (built later, its asset pickers live there too).
+                    //   Windowed only: a headless editor reports Spawn unserviceable, as before.
+                    EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
+                        Tkb:          () => _tkbDatabase,
+                        Requests:     () => _scenarioLoadSource,
+                        GeoTransform: () => geoTransform)
+                    {
+                        SuspendedReason = () => _previewController?.IsInPreviewMode == true ? "suspended in Preview" : null,
+                        HostPickers     = () => _shellPickers,
+                    },
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
                     // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
                     // for it — starting disabled would shut its gate permanently (§3.2d ①).
                     StartEnabled = true,
                     ContributeExtras = regs =>
                     {
-                        regs.Stateless.Register(
-                            new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),
-                            new[] { typeof(SimTransform), typeof(SelectionState) });
-                        regs.Stateless.Register(
-                            new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
-                            new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+                        // ⭐ CE-3123 — the mission and label gizmos are reflected now (Services above).
                         regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
                             writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));   // ⭐ AX-007
                     },
@@ -1977,14 +2022,8 @@ namespace Hrot.Editor
             _editorDataDrivenGizmoSystem = _editorMapInteraction.DataDrivenSystem;
             _globalGizmoManager          = _editorMapInteraction.GlobalManager;
             _editorToolController        = _editorMapInteraction.Tools;
-            var actionRegistry = new GlobalActionRegistry();
-            long layerControlId = GlobalGizmoManager.NewId();
-            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(), _gizmoUiHub);
-            _globalGizmoManager.Register(layerControlId, layerControlGizmo);
-            actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
-            {
-                interactionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
-            });
+            // ⭐ The registry, its dispatcher and the layer control come from the shared map pack.
+            var actionRegistry = _editorMapInteraction.Actions;
             // ⭐⭐⭐ UXI-07 step 3 — the D′ DUPLICATE IS GONE. Rotate / EditOverlay / EditRoute carried a
             //    VERBATIM copy of ToolActivationDrainSystem's three arms (guards, netId lookup, toggle,
             //    EntityWriteRouter and all). ⇒ they now do exactly what Measure and PlaceEntity below
@@ -2069,56 +2108,8 @@ namespace Hrot.Editor
                 //   consumer; until then the handler still points the inspector at its own choice.
                 _fdpInspectorState.SelectedEntity = target;
             });
-            actionRegistry.Register(GlobalActionIds.ToggleAiTrace, (view, target) =>
-            {
-                if (target == Entity.Null) return;
-                if (view is not EntityRepository repo) return;
-                if (!repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(target)) return;
-
-                const Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EnableTraceBuffer;
-                bool current = repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target)
-                    && (repo.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target).Behavior & flag) != 0;
-                bool next = !current;
-                string nextStr = next ? "true" : "false";
-                string patchJson = $$"""
-                {
-                    "{{nameof(Fdp.Toolkit.Behavior.Diagnostics.DebugState.Behavior)}}": {
-                        "{{flag}}": {{nextStr}}
-                    }
-                }
-                """;
-
-                repo.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand
-                {
-                    Target = target,
-                    PatchJson = patchJson,
-                });
-            });
-            actionRegistry.Register(GlobalActionIds.ToggleAiTraceLog, (view, target) =>
-            {
-                if (target == Entity.Null) return;
-                if (view is not EntityRepository repo) return;
-                if (!repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(target)) return;
-
-                const Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EmitToLog;
-                bool current = repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target)
-                    && (repo.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target).Behavior & flag) != 0;
-                bool next = !current;
-                string nextStr = next ? "true" : "false";
-                string patchJson = $$"""
-                {
-                    "{{nameof(Fdp.Toolkit.Behavior.Diagnostics.DebugState.Behavior)}}": {
-                        "{{flag}}": {{nextStr}}
-                    }
-                }
-                """;
-
-                repo.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand
-                {
-                    Target = target,
-                    PatchJson = patchJson,
-                });
-            });
+            // ⭐ CE-3123 — ToggleAiTrace / ToggleAiTraceLog are registered by MapInteractionPack (AiTraceActions) on every map
+            //   host; the inspector menu below still publishes the same action ids.
 
             var contextIngress = new ContextActionIngressSystem(entityMap, interactionBus);
             // ⛔ The RubberBandGizmo registration MOVED into MapInteractionPack (2026-09-20, §2.7.16) —
@@ -2153,24 +2144,19 @@ namespace Hrot.Editor
             // 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1; the third instance of the shape S-3
             //    fixed inbound and S-6 outbound.
             // UXI-23 S2b: the group, its three members and the gate come from the pack.
-            var gizmoGroup   = _editorMapInteraction.GizmoGroup;
             _gizmoController = _editorMapInteraction.Gate;
             // ⭐⭐ UXI-23 S3: report anything constructed but not scheduled (§3.2e).
-            foreach (string problem in _editorMapInteraction.Unserviceable(new object[] { gizmoGroup }))
+            foreach (string problem in _editorMapInteraction.Unserviceable(_editorMapInteraction.InteractionSystems))
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info("[Map] {0}", problem);
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
                 contextIngress: contextIngress,
-                interactionSystems: new IEcsModuleSystem[]
-                {
-                    new GlobalActionDispatchSystem(actionRegistry, interactionBus),
-                    gizmoGroup,
-                },
+                interactionSystems: _editorMapInteraction.InteractionSystems,
                 gizmoIngress: null,
                 gizmoEgress:  null));
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, interactionBus));
             // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-            _kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+            _kernel.RegisterGlobalSystem(_editorMapInteraction.CanvasMenu);   // ⭐ CE-1017 — built by the pack
 
             // ── 5. Kernel initialization ─────────────────────────────────────────────
             _kernel.Initialize();
@@ -2187,66 +2173,26 @@ namespace Hrot.Editor
             _editorLogic = app;
             _editorApp   = app;
 
-            // ?? 6b. Offline orchestrator ? scenario listing via ClusterMaster + UICache ??
-            var offlineConfig = new ClusterConfiguration { Mandatory = Array.Empty<string>() };
-            _clusterMaster  = new ClusterMaster(_orchestrationBus!, offlineConfig);
-
-            // ⭐⭐⭐ HN-037 — the editor's ONE allocator IS its world's authority, and this master resets it at
-            //    a scenario load exactly as the orchestrator's resets the DDS server.
-            //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11. 🔒 User: "Editor is no exception".
-            // ⭐ Same allocator instance the load handlers and NetworkSpawningSystem were given at :1123, so
-            //   authored and runtime ids come from one monotonic sequence that starts at 1000 after a load.
-            _clusterMaster.IdAuthority =
-                Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.FromAllocator(_idAllocator!);
-
-            // Register the seek aggregator and process manager so the clock snaps on seek
-            _seekProcessManager = new ReplaySeekProcessManager(_orchestrationBus!, _timeController);
-            _clusterMaster.RegisterAggregator(new ReplaySeekAggregator());
-
-            // Register replay manager and aggregator so duration payload flows through 2PC
-            _replayProcessManager = new ReplayProcessManager(_orchestrationBus!, _timeController);
-            _clusterMaster.RegisterAggregator(_replayProcessManager.CreateAggregator());
-
-            _storageGateway = new StorageGatewayModule();
-            // ⭐ CE-277(c2) — the editor runs the SAME save-completion pipeline as the cluster (no exception):
-            //   after its single-node SerializeLocal fan-out, StorageProcessManager pulls the node-staging
-            //   slice and ScenarioMergeCore writes the canonical scenario.json (merge of one slice = identity).
-            _storageProcessManager = new StorageProcessManager(
-                _orchestrationBus!, _storageGateway, ClusterConfiguration.Default.NasBasePath);
-            // The storage aggregator turns each node's FileManifestResult[] into the FileManifestEntry
-            // manifest StorageProcessManager consumes — orchestrator-registered on a cluster, needed here too.
-            _clusterMaster.RegisterAggregator(new StorageConsensusAggregator());
-            _assetInventoryProcessManager = new AssetInventoryProcessManager(
-                _orchestrationBus!,
-                _storageGateway,
-                ClusterConfiguration.Default.NasBasePath,
-                OrchestrationConstants.ResolveStagingRoot(),
-                EditorNodeId);
-            _assetPrefetchProcessManager = new AssetPrefetchProcessManager(
-                _orchestrationBus!,
-                _storageGateway,
-                ClusterConfiguration.Default.NasBasePath,
-                OrchestrationConstants.ResolveStagingRoot());
-            // ⭐ CE-3021 — the editor's offline master answers publish / refresh too (silent-default rule).
-            var offlineMaster = _clusterMaster!;
-            offlineMaster.AssetSync = new Hrot.Orchestrator.AssetSyncService(
-                _storageGateway!, ClusterConfiguration.Default.NasBasePath, offlineMaster.ActiveNodeCapabilitySnapshot);
-            _uiCache = new ClusterUiCache(_orchestrationBus!, _timeController);
-            _clusterPanel = new ClusterScenarioPanel(_orchestrationBus!, _uiCache);
+            // ⭐⭐ Q86 (R-215) — the editor runs the ONE orchestrator core, the same one the cluster's
+            //    OrchestratorSubsystem hosts; it replaced a hand-built copy that had drifted (no scenario-load
+            //    handler — the clock never reset on load —, no episodes, no live branch, diagnostics dumped into the
+            //    scenarios folder). 📄 docs/blueprints/Architect_Question_86_Editor_Runs_The_Orchestrator_Core.md
+            //    ⭐ The CLOCK stays here: this node's kernel creates and advances it (pause/step stay immediate —
+            //    the editor has no followers); the core only asks, through _timeCommands.
             _fileDialogService = FileDialogServiceFactory.Create();
-            _clusterDiagnosticsPanel = new ClusterDiagnosticsPanel(
-                _uiCache,
-                _orchestrationBus!,
-                _fileDialogService,
-                EditorBootstrap.ScenariosRoot);
-            var diagnosticsAggregator = new DiagnosticsConsensusAggregator();
-            _clusterMaster.RegisterAggregator(diagnosticsAggregator);
-            _diagnosticsDumpProcessManager = new DiagnosticsDumpProcessManager(
-                _orchestrationBus!,
-                _storageGateway,
-                EditorBootstrap.ScenariosRoot,
-                diagnosticsAggregator);
-            _logMergeWorker = new DiagnosticLogMergeWorker(_orchestrationBus!);
+            _orchestratorCore = new OrchestratorCore(new OrchestratorCoreOptions
+            {
+                Bus               = _orchestrationBus!,
+                Config            = ClusterConfiguration.LoadFromWorkingDirectory().ForOneNodeCluster(),
+                TimeCommands      = _timeCommands!,
+                TimeReads         = _timeController!,
+                StagingNodeId     = EditorNodeId,
+                // ⭐⭐⭐ HN-037 — the editor's ONE allocator IS its world's authority; a load resets it to 1000.
+                //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11. 🔒 User: "Editor is no exception".
+                IdAuthority       = Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.FromAllocator(_idAllocator!),
+                FileDialogService = _fileDialogService,
+            });
+            _clusterMaster = _orchestratorCore.Master;
             // Curated test scenarios: copy the git-committed set into the working NAS folder on start,
             // overwriting ONLY those names (non-curated scenarios are never touched, nothing is deleted).
             // No-op in a deployed build — there is no source tree to copy from. See
@@ -2292,7 +2238,9 @@ namespace Hrot.Editor
                 Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMap(_entityMap!),
                 Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(elm),
             };
-            _previewController = new EditorPreviewController(_world, _timeController!, previewRewindables);
+            // ⭐ CE-3156 — _timeCommands is handed over because this method HOLDS it (built above, at the
+            //   orchestration-bus wiring): Stop Preview needs it to put the clock back with the world.
+            _previewController = new EditorPreviewController(_world, _timeController!, _timeCommands!, previewRewindables);
 
             // ── 8b. AI-debug API (MCP) host — ported from feat/ai-debug-api. Works headless. Enabled only
             //    when HROT_DEBUG_API_PORT names a port, so it costs nothing in normal runs; the MCP server
@@ -2439,14 +2387,10 @@ namespace Hrot.Editor
                     geoTransform:       geoTransform,
                     areaGizmo:          (onPicked, onRemove) => new Hrot.Editor.Gizmos.ModalBoxSelectionGizmo(onPicked, onRemove: onRemove));
 
-                // Build the JSON?ECS attribute compiler with the geo-transform so that
-                // geodetic spawn coordinates are projected correctly on entity placement.
-                var jsonCompiler  = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geoTransform);
-                // 🔒 UXI-07 step 4a — the arbiter is PASSED, so ORBAT "create unit" and the Spawner
-                //    panel's Place button arm THROUGH the controller instead of beside it (§4.8).
-                _spawnAdapter     = new ScenarioSpawnAdapter(
-                    _world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!,
-                    _editorToolController);
+                // ⭐ CE-1017 — THE shared spawn adapter, built by the map pack (EntityAuthoring) over this host's
+                //   request queue, TKB and geo transform, with the tool arbiter PASSED (UXI-07 step 4a).
+                _spawnAdapter     = _editorMapInteraction.EntityAuthoring?.Spawn
+                    ?? throw new InvalidOperationException("The map's entity-authoring surface has no spawn adapter (no creation request queue).");
                 // 🔒 UXI-07 step 4a — the arbiter is PASSED, so obstacle placement displaces the
                 //    active tool instead of quietly taking focus beside it (§4.8's inventory).
                 _zoneAdapter      = new EditorZoneAdapter(
@@ -2605,36 +2549,19 @@ namespace Hrot.Editor
                     .Build();
 
                 // Gizmo layer ? renders entity presentation primitives produced locally by StatelessGizmoSystem.
-                var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
-                var layerControlEditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
-                using var layerControlSchemaSession = layerControlEditService.Open(
-                    new Hrot.Common.Diagnostics.Gizmos.LayerControlDto
-                    {
-                        Entities = true,
-                        Perception = true,
-                        AiHelpers = true
-                    },
-                    typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
-                schemaRegistry.Register(
-                    Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
-                    layerControlSchemaSession.Document);
+
                 // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked
                 //   anchor's network id to an Entity. ⚠ NOT a revival of R3's deleted `view` parameter,
                 //   which was stored nowhere. See DebugGizmoLayer._world.
-                _gizmoLayer = new DebugGizmoLayer(
-                    31,
-                    _gizmoBuffer!,
-                    interactionBus,
-                    camera: _canvas!.Camera,
-                    shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                    schemaRegistry: schemaRegistry,
-                    worldProvider: () => _world);
-                _canvas!.AddLayer(_gizmoLayer);
-                if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
+                // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode (View › 2-D / 3-D Map), the same on
+                //   every host. The TKB is passed because this host HOLDS it (silent-default rule), not left to the singleton.
+                _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                    _canvas!, _gizmoBuffer!, interactionBus, () => _world, () => _tkbDatabase).GizmoLayer;
 
                 // Grid map layer ? reads MapViewConfig.ShowGrid each frame.
                 var gridLayer = new GridMapLayer(() => _mapViewConfig!.ShowGrid);
                 _canvas!.AddLayer(gridLayer);
+
 
                 // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
             }
@@ -2645,12 +2572,15 @@ namespace Hrot.Editor
 
             if (!_headless)
             {
-                // ⭐⭐ CE-061 — the 15-entry literal that stood here is now the ONE shared list
-                //   (`ScenarioSpawnerCatalog.Default`, Hrot.Presentation), so CGF offers the same
-                //   spawner contents. ⚠ ExConSubsystem keeps a NEAR-duplicate 9-entry list with two
-                //   differently-spelled labels — recorded as a finding, ⛔ not silently harmonised:
-                //   that file is the backend lane's and the difference may be intent.
-                _spawnerPanel     = new SpawnerPanel(ScenarioSpawnerCatalog.Default);
+                // ⭐⭐ CE-1017 S4 — the type list is BUILT FROM THE TKB (EntityTypeCatalog, D7), replacing the
+                //   hand-written ScenarioSpawnerCatalog (CE-061's one list). With the shell picker the panel's
+                //   "Entity Type" opens the grouped Add Entity picker and a pick arms the tool; the list is the
+                //   fallback combo. Both resolve at call time: the pickers are built later.
+                _spawnerPanel     = new SpawnerPanel(Hrot.UI.Common.AddEntity.EntityTypeCatalog.SpawnerEntries(_tkbDatabase))
+                {
+                    Tkb        = () => _tkbDatabase,
+                    OpenPicker = () => _shellPickers is { } pickers ? pickers.OpenPicker : null,
+                };
                 _missionPanel     = new MissionPanel(0, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry());
                 _configPanel      = new ConfigPanel();
                 _sharedOrbatPanel = new SharedOrbatPanel();
@@ -2768,17 +2698,10 @@ namespace Hrot.Editor
             // Swap the Control Plane bus so intents published by the UI this frame
             // are readable by ClusterMaster/ClusterUiCache on the orchestration bus.
             _orchestrationBus?.SwapBuffers();
-            _clusterMaster?.Tick();
-            _storageProcessManager?.Tick();   // CE-277(c2): pull + merge the scenario slice after the fan-out
-            _seekProcessManager?.Tick(); // Pump the seek Saga
-            _replayProcessManager?.Tick(); // Pump the replay manager for duration extraction
-            _assetInventoryProcessManager?.Tick();
-            _assetPrefetchProcessManager?.Tick();
-            _diagnosticsDumpProcessManager?.Tick();
-            _logMergeWorker?.Tick();
-            _uiCache?.Update();
+            _orchestratorCore?.Tick();                 // ⭐ Q86 — the cluster orchestrator's own order
+            _orchestratorCore?.UiCache.Update();
             _editorLogic?.Update();
-            _clusterPanel?.Update(deltaTime);
+            _orchestratorCore?.ScenarioPanel.Update(deltaTime);
 
             // ⭐⭐⭐ CE-051 — the drain MOVED to the shared ToolActivationDrainSystem /
             //    SelectEntitySystem / CenterOnEntitySystem, registered by ScenarioEditorModule (:1273).
@@ -3148,6 +3071,7 @@ namespace Hrot.Editor
             windowManager.MenuIcons = Hrot.Editor.AiShared.Adapters.SilkMenuIconResolver.Create(windowManager.Atlas);
             if (_gizmoLayer != null)
                 _gizmoLayer.ContextMenuIconResolver = windowManager.MenuIcons; // gizmo right-click menus
+
 
             // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
             // Harmless no-op for the Win32 backend: WindowManager only draws the service
@@ -4228,8 +4152,8 @@ namespace Hrot.Editor
             // Replaces the AssetPickerModal production path with the Tree-layout entry-driven
             // picker (PickerRegistry.OpenPicker). Separate from adapterBundle.PickerRegistry
             // (which canvas windows already DrawFrame) to avoid double-DrawFrame.
-            _shellPickers = new NodeEditor.UI.Picker.PickerRegistry();
-            _shellPickers.SetServices(adapterBundle.IconProvider, adapterBundle.EditorTheme);
+            // ⭐ CE-1017 S5 — the ONE picker factory: entity icons + the silk atlas for every other key.
+            _shellPickers = Hrot.UI.Common.AddEntity.EntityAuthoring.CreatePickers(adapterBundle.IconProvider, adapterBundle.EditorTheme);
 
             // BATCH-42 (MTB2-T8b): capture icon provider + init Save-As browser dialog.
             _iconProvider = adapterBundle.IconProvider;
@@ -5038,10 +4962,12 @@ namespace Hrot.Editor
 
             // ?? Legacy editor-specific windows ????????????????????????????????
             windowManager.RegisterWindow(new EditorToolbarWindow(_toolbarPanel!, _editorLogic));
-            if (_clusterPanel != null && _uiCache != null)
-                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.ClusterControlWindow(_clusterPanel, _uiCache));
-            if (_clusterDiagnosticsPanel != null)
-                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.DiagnosticsWindow(_clusterDiagnosticsPanel));
+            if (_orchestratorCore != null)
+            {
+                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.ClusterControlWindow(
+                    _orchestratorCore.ScenarioPanel, _orchestratorCore.UiCache));
+                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.DiagnosticsWindow(_orchestratorCore.DiagnosticsPanel));
+            }
 
             // ?? Data Breakpoint Manager window (UBP-P10T3) ??? registered unconditionally ???????????
             // Registered before the headless guard so the window is available in headless mode (tests).
@@ -5283,19 +5209,10 @@ namespace Hrot.Editor
             _fdpRepoAdapter   = null;
             _selectionState   = null;
             // (Phase 5: _interactionTool was here; removed)
-            _clusterMaster?.Dispose();
-            _clusterMaster  = null;
-            _assetInventoryProcessManager = null;
-            _assetPrefetchProcessManager = null;
-            _diagnosticsDumpProcessManager = null;
-            _logMergeWorker?.Dispose();
-            _logMergeWorker = null;
-            _uiCache?.Dispose();
-            _uiCache        = null;
-            _clusterPanel = null;
-            _clusterDiagnosticsPanel = null;
+            _orchestratorCore?.Dispose();
+            _orchestratorCore = null;
+            _clusterMaster    = null;
             _fileDialogService = null;
-            _storageGateway = null;
         }
 
         // ?? Private helpers ???????????????????????????????????????????????????

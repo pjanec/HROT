@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EEF2F6"/><stop offset="1" stop-color="#A3AEBB"/></linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#55606C"/><stop offset="1" stop-color="#2A3139"/></linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9D0F2"/><stop offset="1" stop-color="#4A79A8"/></linearGradient>
+  <radialGradient id="wheel" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#C9D1DA"/><stop offset="1" stop-color="#6E7A87"/></radialGradient>
+</defs>
+<g stroke="#1B2027" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<rect x="8" y="24" width="112" height="88" rx="8" fill="#DCE3EA" fill-opacity="0.35"/>
+<circle cx="53.0" cy="14" r="3.6" fill="#1B2027"/>
+<circle cx="64.0" cy="14" r="3.6" fill="#1B2027"/>
+<circle cx="75.0" cy="14" r="3.6" fill="#1B2027"/>
+<g transform="translate(6,30) scale(0.52)" stroke-width="4.62">
+<rect x="10" y="81" width="104" height="22" rx="11.0" fill="url(#dark)"/>
+<circle cx="22.0" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="22.0" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="35.3" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="35.3" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="48.6" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="48.6" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="61.9" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="61.9" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="75.2" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="75.2" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="88.5" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="88.5" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="101.8" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="101.8" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<path d="M8,72 L112,72 L120,80 L118,86 L12,86 L6,79 Z" fill="url(#body)"/>
+<path d="M38,72 L38,86 M64,72 L64,86 M90,72 L90,86" fill="none" stroke-width="1.2"/>
+<path d="M10,72 L16,64 L102,64 L118,72 Z" fill="url(#body)"/>
+<path d="M24,52 L32,52 L32,63 L24,63 Z" fill="url(#dark)" stroke-width="1.6"/>
+<path d="M30,64 L33,50 L44,45 L90,45 L104,53 L106,64 Z" fill="url(#body)"/>
+<path d="M44,39 L57,39 L57,45 L44,45 Z" fill="url(#body)" stroke-width="1.8"/>
+<path d="M50,39 L50,33 L62,33" fill="none" stroke-width="1.8"/>
+<path d="M101,52 L108,52 L108,60 L101,60 Z" fill="url(#dark)" stroke-width="1.8"/>
+<path d="M108,54.6 L126,54.6 L126,57.6 L108,57.6 Z" fill="url(#dark)" stroke-width="1.6"/>
+<path d="M114,53.4 L119,53.4 L119,58.8 L114,58.8 Z" fill="url(#dark)" stroke-width="1.4"/>
+</g>
+<g transform="translate(56,30) scale(0.52)" stroke-width="4.62">
+<rect x="10" y="81" width="104" height="22" rx="11.0" fill="url(#dark)"/>
+<circle cx="22.0" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="22.0" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="35.3" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="35.3" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="48.6" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="48.6" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="61.9" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="61.9" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="75.2" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="75.2" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="88.5" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="88.5" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="101.8" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="101.8" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<path d="M8,72 L112,72 L120,80 L118,86 L12,86 L6,79 Z" fill="url(#body)"/>
+<path d="M38,72 L38,86 M64,72 L64,86 M90,72 L90,86" fill="none" stroke-width="1.2"/>
+<path d="M10,72 L16,64 L102,64 L118,72 Z" fill="url(#body)"/>
+<path d="M24,52 L32,52 L32,63 L24,63 Z" fill="url(#dark)" stroke-width="1.6"/>
+<path d="M30,64 L33,50 L44,45 L90,45 L104,53 L106,64 Z" fill="url(#body)"/>
+<path d="M44,39 L57,39 L57,45 L44,45 Z" fill="url(#body)" stroke-width="1.8"/>
+<path d="M50,39 L50,33 L62,33" fill="none" stroke-width="1.8"/>
+<path d="M101,52 L108,52 L108,60 L101,60 Z" fill="url(#dark)" stroke-width="1.8"/>
+<path d="M108,54.6 L126,54.6 L126,57.6 L108,57.6 Z" fill="url(#dark)" stroke-width="1.6"/>
+<path d="M114,53.4 L119,53.4 L119,58.8 L114,58.8 Z" fill="url(#dark)" stroke-width="1.4"/>
+</g>
+<g transform="translate(31,62) scale(0.52)" stroke-width="4.62">
+<rect x="10" y="81" width="104" height="22" rx="11.0" fill="url(#dark)"/>
+<circle cx="22.0" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="22.0" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="35.3" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="35.3" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="48.6" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="48.6" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="61.9" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="61.9" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="75.2" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="75.2" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="88.5" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="88.5" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="101.8" cy="93" r="6.2" fill="url(#wheel)"/>
+<circle cx="101.8" cy="93" r="2.0" fill="#3A434E" stroke-width="1.2"/>
+<path d="M8,72 L112,72 L120,80 L118,86 L12,86 L6,79 Z" fill="url(#body)"/>
+<path d="M38,72 L38,86 M64,72 L64,86 M90,72 L90,86" fill="none" stroke-width="1.2"/>
+<path d="M10,72 L16,64 L102,64 L118,72 Z" fill="url(#body)"/>
+<path d="M24,52 L32,52 L32,63 L24,63 Z" fill="url(#dark)" stroke-width="1.6"/>
+<path d="M30,64 L33,50 L44,45 L90,45 L104,53 L106,64 Z" fill="url(#body)"/>
+<path d="M44,39 L57,39 L57,45 L44,45 Z" fill="url(#body)" stroke-width="1.8"/>
+<path d="M50,39 L50,33 L62,33" fill="none" stroke-width="1.8"/>
+<path d="M101,52 L108,52 L108,60 L101,60 Z" fill="url(#dark)" stroke-width="1.8"/>
+<path d="M108,54.6 L126,54.6 L126,57.6 L108,57.6 Z" fill="url(#dark)" stroke-width="1.6"/>
+<path d="M114,53.4 L119,53.4 L119,58.8 L114,58.8 Z" fill="url(#dark)" stroke-width="1.4"/>
+</g>
+</g>
+</svg>

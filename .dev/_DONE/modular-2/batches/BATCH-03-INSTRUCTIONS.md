@@ -37,7 +37,7 @@ These two tasks are independent and can be done in parallel (or sequentially).
   - `FDP/Framework/Fdp.Presentation/Fdp.Presentation.csproj`
   - `FDP/ModuleHost/Fdp.Network.Cyclone/Fdp.Network.Cyclone.csproj`
 - **FDP solution file:** `FDP/FDP.sln`
-- **Top-level solution file:** `IOS-IG-SimHost.sln`
+- **Top-level solution file:** `HROT.sln`
 
 ### Report Submission
 
@@ -170,20 +170,20 @@ Add `Fdp.Network.Cyclone` and `Fdp.Network.Cyclone.Tests`.
 
 **Before starting:**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 **After each task section (A and B):**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 **Final verification:**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test FDP/Framework/Fdp.Presentation.Tests/Fdp.Presentation.Tests.csproj
 dotnet test FDP/ModuleHost/Fdp.Network.Cyclone.Tests/Fdp.Network.Cyclone.Tests.csproj
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 
 ---

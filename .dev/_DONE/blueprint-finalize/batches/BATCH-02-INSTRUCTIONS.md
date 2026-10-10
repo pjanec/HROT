@@ -114,7 +114,7 @@ Build a `BlueprintAsset` with `CustomEvents` inline for the CallCustomEvent test
 
 ## Verification (reach green before reporting — paste real output)
 
-1. `dotnet build IOS-IG-SimHost.sln` — 0 errors; 0 new warnings in touched projects
+1. `dotnet build HROT.sln` — 0 errors; 0 new warnings in touched projects
    (`Hrot.Blueprints.Editor`, `Hrot.Blueprints.Tests`).
 2. New NodePinSchema tests → green.
 3. Full `Hrot.Blueprints.Tests` → only the **10 pre-existing DEBT-006** golden/snapshot failures (0 new).

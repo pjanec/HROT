@@ -39,6 +39,7 @@ namespace Hrot.SimHost.Modules
             PostSimulationSystems = new IEcsModuleSystem[]
             {
                 new BallisticsSystem(),
+                new CombatTraceSystem(),   // ⭐ CE-3117 — the recorded traces the map draws, after the systems that end a shot
             };
         }
     }

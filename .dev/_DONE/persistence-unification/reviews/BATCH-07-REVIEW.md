@@ -26,7 +26,7 @@ PU-502 (base-name collision guard, design §3 D5). Pure netstandard2.0 `AssetBas
   (`Execute_BTree_CollisionWithSiblingCs_Blocked_DocStaysDirty` — asserted nothing, `_ = …` discards; same
   vacuous-test smell as PU-D05). Removed the now-unused `MakeBTreeAsset`/`MakeHsmAsset`/dir-const helpers it used.
   Re-ran: AiShared 818/818 (was 819 with the stub), build 0 warnings.
-- **Ran myself:** full `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 warnings; AiShared 818/818;
+- **Ran myself:** full `dotnet build HROT.sln` 0 errors / 0 warnings; AiShared 818/818;
   Blueprints 7 pre-existing (DEBT-006) / 0 new; EditorSubsystemBoot 10/10.
 
 ## Issues / Debt

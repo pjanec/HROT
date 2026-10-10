@@ -4,7 +4,7 @@
 > **Tracker:** [`TASK-TRACKER.md`](./TASK-TRACKER.md) · **Debt:** [`DEBT-TRACKER.md`](./DEBT-TRACKER.md) · **Dev contract:** [`../.guides/DEV-GUIDE_claude.md`](../.guides/DEV-GUIDE_claude.md)
 > **Conventions:** branch `blueprint-integ-1`; rebase on Thread 2 first; GizmoMap.Contracts stays 0.2.2; no `Hrot.IG`/DDS/`Stride/`. Codebase Memory MCP first (`search_graph`/`get_code_snippet`, **never** `search_code`). Delegate implementation/test-fix loops to sonnet; lead reviews/commits per phase.
 > **Baseline (NOT regressions):** DEBT-006 (10 Blueprints golden), DEBT-008, SpatialHashSystem AV in EditorPreview, ClusterOpE2e DDS crash, flaky sub-80 ns perf (DEBT-014), ~26 pre-existing warnings (DEBT-BCP-004).
-> **Global success gate (every task):** `dotnet build IOS-IG-SimHost.sln` 0 errors; touched projects 0 *new* warnings; no regression in the baseline failures above; new/affected tests green.
+> **Global success gate (every task):** `dotnet build HROT.sln` 0 errors; touched projects 0 *new* warnings; no regression in the baseline failures above; new/affected tests green.
 
 ---
 

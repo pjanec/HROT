@@ -58,7 +58,7 @@ rehydrated logs a diagnostic + exec-only fallback (no silent pinless nodes).
       `ConditionSummaryAttachmentTests.Synthesize_EqsResult_ScoreCrossed_IncludesThreshold`). Confirm these are
       UNCHANGED (do not newly break them; do not silently regenerate goldens). Target: **≤7 failures, all
       pre-existing DEBT-006**. List the exact final failure set in the report and justify each as pre-existing.
-- [ ] `dotnet build IOS-IG-SimHost.sln -c Debug` 0 errors / 0 new warnings (Count2.bp.json now under Blueprints/
+- [ ] `dotnet build HROT.sln -c Debug` 0 errors / 0 new warnings (Count2.bp.json now under Blueprints/
       compiles AND — bonus — its generated blueprint is now connected). Report exact counts.
 - [ ] Report → `.dev/blueprint-compile-fix/BP-2-REWORK-REPORT.md`.
 

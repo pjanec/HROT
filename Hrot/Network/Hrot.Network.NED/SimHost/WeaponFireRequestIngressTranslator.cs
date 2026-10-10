@@ -81,7 +81,9 @@ namespace Hrot.Network.NED.SimHost
         {
             // Both shooter and target must be known on this node for FireProcessingSystem to use.
             if (!_entityMap.TryGetEntity(request.ShooterEntityId, out var shooter)) return;
-            if (!_entityMap.TryGetEntity(request.TargetEntityId,  out var target))  return;
+            bool atPoint = request.TargetEntityId == 0;   // ⭐ CE-1032 W-8 — fire at a point
+            var target = Entity.Null;
+            if (!atPoint && !_entityMap.TryGetEntity(request.TargetEntityId, out target)) return;
 
             cmd.PublishEvent(new WeaponFireIntent
             {
@@ -89,6 +91,8 @@ namespace Hrot.Network.NED.SimHost
                 Target      = target,
                 WeaponIndex = request.WeaponIndex,
                 IsRemote    = true,
+                AtPoint     = atPoint,
+                TargetPoint = new System.Numerics.Vector3(request.PointX, request.PointY, request.PointZ),
             });
         }
 

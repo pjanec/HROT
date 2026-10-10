@@ -21,7 +21,7 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
 
     /// <summary>Round-trip payload component for integration tests.</summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(222)]
+    [ComponentId(245)]   // was 222 — now GlobalComponentIds.StanceIntent (the static registry collided by test order); ids index a 256-bit mask
     private struct TestVector3
     {
         public float X;
@@ -31,7 +31,7 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
 
     /// <summary>Secondary payload to verify multi-component round-trips.</summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(223)]
+    [ComponentId(246)]   // was 223 — now GlobalComponentIds.StanceStatus
     private struct TestTag
     {
         public int Value;

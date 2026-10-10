@@ -215,7 +215,7 @@ pattern exactly.
 
 ## SUCCESS CONDITIONS (must all hold)
 
-1. `dotnet build IOS-IG-SimHost.sln -c Debug` → **0 errors** (close editor first; it locks DLLs)
+1. `dotnet build HROT.sln -c Debug` → **0 errors** (close editor first; it locks DLLs)
 2. All 6 CF2 tests pass
 3. `DebugMap.Entries` contains `NodeId == 0b561966-b00b-4c84-a1a0-87042220ba9f` (Delay authored id)
 4. `DebugMap.Entries` contains `NodeId == da9a9c0b-25f8-4a81-9a52-75c715456f18` (Sequence authored id)

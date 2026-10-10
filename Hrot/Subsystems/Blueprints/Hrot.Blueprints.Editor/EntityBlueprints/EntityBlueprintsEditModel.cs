@@ -111,10 +111,10 @@ public sealed class EntityBlueprintsEditModel
         //    GetComponentRW here even though it only reads, and GetComponentRW bumps the chunk
         //    version. Moving this to TryGetStoreReadOnly would be an improvement AND a behaviour
         //    change, so it is not A2's to make.
-        byte* mem = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
-                        .TryGetStore(_repo, _entity, out _);
-        if (mem != null)
-            BlueprintTierSummary.AppendSlots(mem, _registry, Reality);
+        // ⭐ CE-3137 U-0: every block the unit carries (RW, as before — see the note above).
+        Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.GetBlocks(_repo, _entity, out var blocks);
+        for (int b = 0; b < blocks.Count; b++)
+            BlueprintTierSummary.AppendSlots(blocks.Memory(b), _registry, Reality);
     }
 
     // ── Projection ───────────────────────────────────────────────────────────
@@ -202,12 +202,10 @@ public sealed class EntityBlueprintsEditModel
 
     public BlackboardTier GetCurrentTier()
     {
-        // ⚠ NOT OccurrenceStoreAccess: this maps to the editor's BlackboardTier enum and
-        //    deliberately answers B1024 for an entity with NO store at all (the default the panel
-        //    opens on). The seam's GetStoreSize returns 0 there, which is a different answer.
-        // ⭐ O3a / B3: the probe order is BlueprintTierTable.Descending; the "no store ⇒ smallest"
-        //   default this method is documented for is spelled explicitly below.
-        return BlueprintTierTable.Of(_repo, _entity)?.Tier
+        // ⭐ The tier of the LARGEST block (CE-3137 U-0: a unit may carry several; this is the panel's
+        //   label and its "will the store grow?" comparison, never a slot location). It deliberately
+        //   answers the smallest tier for an entity with NO store at all (the default the panel opens on).
+        return OccurrenceStoreAccess.LargestBlock(_repo, _entity)?.Tier
             ?? BlueprintTierTable.Ascending[0].Tier;
     }
 

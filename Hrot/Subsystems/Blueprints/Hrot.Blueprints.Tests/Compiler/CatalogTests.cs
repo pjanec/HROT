@@ -200,8 +200,8 @@ public sealed class CatalogTests
         Assert.Contains(pins, p => p.Name == "Out" && p.Direction == "Out" && p.IsExec);
 
         // MoveToParams public instance fields: Destination, ArrivalRadius, Speed,
-        // RouteHandle, LayerMask, ReverseAllowed, Flags, MaxReplans, BackendForce.
-        // We assert all expected field names appear as data-IN pins.
+        // RouteHandle, LayerMask, ReverseAllowed, Flags, MaxReplans, BackendForce — then the read/write property RoadUse
+        // (CE-3130, over Flags bits 5–7). We assert all expected names appear as data-IN pins.
         var dataPins = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
         var dataNames = dataPins.Select(p => p.Name).ToHashSet();
 
@@ -214,12 +214,13 @@ public sealed class CatalogTests
         Assert.Contains("Flags",          dataNames);
         Assert.Contains("MaxReplans",     dataNames);
         Assert.Contains("BackendForce",   dataNames);
+        Assert.Contains("RoadUse",        dataNames);   // ⭐ CE-3130 — the actor's road use, an enum pin
 
         // Must NOT be the Int32 placeholder (would produce a single "Int32" pin).
         Assert.DoesNotContain("Int32", dataNames);
 
-        // Total data-IN pins == 9 (one per MoveToParams field, no extras).
-        Assert.Equal(9, dataPins.Count);
+        // Total data-IN pins == 10 (nine fields and the RoadUse property, no extras).
+        Assert.Equal(10, dataPins.Count);
     }
 
     [Fact]

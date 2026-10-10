@@ -76,7 +76,7 @@ The 3 skipped tests are pre-existing (`SimHostSubsystem_InitializeHeadless_DoesN
 ### Full solution build — 0 errors, 0 new warnings
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 20 Warning(s) — all pre-existing in other projects (xUnit2013, CS0618 obsolete, CS8601/CS8602 nullable)
 0 Error(s)
 ```

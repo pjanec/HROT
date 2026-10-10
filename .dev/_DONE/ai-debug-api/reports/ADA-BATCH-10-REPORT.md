@@ -93,7 +93,7 @@ Passed!  - Failed: 0, Passed: 79, Skipped: 0, Total: 79, Duration: 13 s
 - `IsolatedReplay_LoadAndSeek_LiveWorldUnaffected` — 441 ms
 - `ReplayStatus_ReflectsCurrentFrame` — 302 ms
 
-### dotnet build `IOS-IG-SimHost.sln`
+### dotnet build `HROT.sln`
 
 ```
 0 Error(s), 11 Warning(s) (pre-existing warnings only)

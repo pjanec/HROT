@@ -47,7 +47,10 @@ namespace Fdp.Toolkit.Scenario.Tests
     /// Primary TASK-S302 use case (alongside MissionPlanQueue).
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(222)]
+    // ⚠ CE-3107 — was 222, which is the production StanceIntent (GlobalComponentIds.StanceIntent): in one test process the two
+    //   collided and whichever registered second threw "Component ID collision", failing a rotating set of combat/stance tests.
+    //   Test-only ids live high (480–511), clear of every production block — R-44.
+    [ComponentId(505)]
     public struct InlineFloatComp
     {
         public Float3Buffer Values;

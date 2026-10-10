@@ -1,38 +1,22 @@
 using System;
 using System.Numerics;
 using Fdp.Toolkit.Squad.DangerArea;
-using Fdp.Toolkit.Terrain;
 using Xunit;
 
 namespace Fdp.Toolkit.Tests.Squad
 {
     /// <summary>
     /// ⭐ <c>CE-3072</c> B3 — the danger areas along a route (docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7), over test-town's
-    /// two roads: Main Street y 190–210 and Cross Street x 190–210, crossing at the centre.
+    /// two roads: Main Street y 190–210 and Cross Street x 190–210, crossing at the centre. ⭐ <c>CE-3128</c> (R-231) — the roads
+    /// are now the road GRAPH (<see cref="TestTownRoads"/>: the same footprint as bands of 4 × 5 m lanes), not polygons.
     /// </summary>
     public sealed class DangerAlongRouteClassifierTests
     {
-        private static TerrainWorld TestTown() => new()
-        {
-            Name = "test-town", BoundsMin = Vector2.Zero, BoundsMax = new Vector2(400, 400), GroundZ = 0f,
-            Surfaces = new[]
-            {
-                Road(new Vector2(0, 190), new Vector2(400, 210)),   // Main Street
-                Road(new Vector2(190, 0), new Vector2(210, 400)),   // Cross Street
-            },
-        };
-
-        private static TerrainSurface Road(Vector2 min, Vector2 max) => new()
-        {
-            Type = TerrainSurfaceType.Road,
-            Polygon = new[] { min, new Vector2(max.X, min.Y), max, new Vector2(min.X, max.Y) },
-            Min = min, Max = max,
-        };
-
         private static DangerAreaDescriptor[] Run(params Vector3[] route)
         {
             var areas = new DangerAreaDescriptor[8];
-            int n = DangerAlongRouteClassifier.Classify(route, TestTown(), 10f, areas);
+            using var roads = TestTownRoads.Build();
+            int n = DangerAlongRouteClassifier.Classify(route, in roads, null, 10f, areas);
             return areas.AsSpan(0, n).ToArray();
         }
 
@@ -82,13 +66,30 @@ namespace Fdp.Toolkit.Tests.Squad
             Assert.Equal(DangerAreaKind.Intersection, a.Kind);
         }
 
+        /// <summary>⭐ CE-3128 — a road graph whose node joins only two segments (a bend, not a junction) is never an intersection.</summary>
+        [Fact]
+        public void CE3128_ANodeOfDegreeTwo_IsNotAJunction()
+        {
+            var b = new global::CarKinem.Road.RoadNetworkBuilder();
+            b.AddNode(new Vector2(0, 100)); b.AddNode(new Vector2(200, 100)); b.AddNode(new Vector2(400, 100));
+            b.AddSegment(new Vector2(0, 100), new Vector2(200, 0), new Vector2(200, 100), new Vector2(200, 0), laneWidth: 5f, laneCount: 2, startNodeIdx: 0, endNodeIdx: 1);
+            b.AddSegment(new Vector2(200, 100), new Vector2(200, 0), new Vector2(400, 100), new Vector2(200, 0), laneWidth: 5f, laneCount: 2, startNodeIdx: 1, endNodeIdx: 2);
+            using var track = b.Build(10f, 40, 40);
+            var areas = new DangerAreaDescriptor[8];
+            int n = DangerAlongRouteClassifier.Classify(new[] { new Vector3(200, 50, 0), new Vector3(200, 150, 0) }, in track, null, 10f, areas);
+            Assert.Equal(1, n);
+            Assert.Equal(DangerAreaKind.StreetCrossing, areas[0].Kind);
+            Assert.InRange(areas[0].ExtentsXY.X * 2f, 9f, 11f);   // a 10 m wide track (2 × 5 m lanes)
+        }
+
         [Fact]
         public void CE3072_B3_NoRoad_NoAreas_AndCapacityIsRespected()
         {
             Assert.Empty(Run(new Vector3(20, 20, 0), new Vector3(150, 150, 0)));
             var one = new DangerAreaDescriptor[1];
+            using var roads = TestTownRoads.Build();
             int n = DangerAlongRouteClassifier.Classify(
-                new[] { new Vector3(100, 100, 0), new Vector3(100, 300, 0), new Vector3(300, 300, 0) }, TestTown(), 10f, one);
+                new[] { new Vector3(100, 100, 0), new Vector3(100, 300, 0), new Vector3(300, 300, 0) }, in roads, null, 10f, one);
             Assert.Equal(1, n);
         }
     }

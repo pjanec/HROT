@@ -19,7 +19,7 @@
 
 ## Build Status
 
-`dotnet build IOS-IG-SimHost.sln --no-restore`: **Build succeeded. 0 errors.**
+`dotnet build HROT.sln --no-restore`: **Build succeeded. 0 errors.**
 
 `dotnet build FDP/FDP.sln`: **FAILED** - pre-existing failures unrelated to this batch:
 - MSB3202: `Fdp.ModuleHost.Core.csproj` not found (missing on disk before batch began)
@@ -70,9 +70,9 @@ The one unspecified change was updating `Hrot.IG.Tests.csproj` and two test file
 
 **Q4: Were there any surprises in the SLN file editing (unexpected project references, extra GUIDs)?**
 
-- `IOS-IG-SimHost.sln` uses CRLF line endings throughout. The PowerShell `-replace` regex required `\r?\n` patterns to match both CRLF and LF safely.
-- `IOS-IG-SimHost.sln` contained entries for `Hrot.Examples.NetworkDemo` (a separate, unrelated project with a similar name) which should NOT be deleted. The GUIDs were different (`{CADB0001-...}`), so the targeted GUID-based removal approach avoided any accidental deletion.
-- `FDP/FDP.sln` used different GUIDs for the NetworkDemo projects (`{DEDC3340-...}` and `{4F15AD80-...}`) than `IOS-IG-SimHost.sln` (`{BB51FB75-...}` and `{AA238910-...}`), as expected since they were added to each solution independently.
+- `HROT.sln` uses CRLF line endings throughout. The PowerShell `-replace` regex required `\r?\n` patterns to match both CRLF and LF safely.
+- `HROT.sln` contained entries for `Hrot.Examples.NetworkDemo` (a separate, unrelated project with a similar name) which should NOT be deleted. The GUIDs were different (`{CADB0001-...}`), so the targeted GUID-based removal approach avoided any accidental deletion.
+- `FDP/FDP.sln` used different GUIDs for the NetworkDemo projects (`{DEDC3340-...}` and `{4F15AD80-...}`) than `HROT.sln` (`{BB51FB75-...}` and `{AA238910-...}`), as expected since they were added to each solution independently.
 
 **Q5: Are there any remaining references to the deleted artifacts that weren't covered by the task spec?**
 
@@ -115,11 +115,11 @@ MPM-P1-T03: Delete AutoCycloneTranslators, ReplicationBootstrap, NetworkDemo
 - Delete ReplicationBootstrap.cs, FdpDescriptorAttribute.cs
 - Delete AutoCycloneTranslatorTests.cs
 - Delete Fdp.Examples.NetworkDemo/ and Fdp.Examples.NetworkDemo.Tests/
-- Remove deleted projects from FDP/FDP.sln and IOS-IG-SimHost.sln
+- Remove deleted projects from FDP/FDP.sln and HROT.sln
 
 Fix-up: Redirect Hrot.IG.Tests from deleted NetworkDemo to Fdp.Examples.Common
 Fix-up: Update stale system-count comment in SimHostCoreLogicPackTests
 
-Build: IOS-IG-SimHost.sln succeeds with 0 errors
+Build: HROT.sln succeeds with 0 errors
 Tests: Fdp.Network.Cyclone.Tests 40/40 passed
 ```

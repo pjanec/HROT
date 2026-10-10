@@ -64,8 +64,8 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static float HitDamage(float penetration, float damagePerHit, float armour)
         {
-            if (penetration <= 0f) return damagePerHit > 0f ? damagePerHit : CombatConstants.DefaultBulletDamage;
-            return ExpectedDamage(penetration, damagePerHit > 0f ? damagePerHit : CombatConstants.DefaultBulletDamage, armour);
+            if (penetration <= 0f) return Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(damagePerHit);
+            return ExpectedDamage(penetration, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(damagePerHit), armour);
         }
     }
 
@@ -99,6 +99,21 @@ namespace Fdp.Toolkit.Combat
             if (!TryGetTemplate(world, owner, out var t)) return null;
             var suite = t.GetDescriptor<WeaponSuiteDto>();
             return suite != null && mountIndex >= 0 && mountIndex < suite.Mounts.Count ? suite.Mounts[mountIndex] : null;
+        }
+
+        /// <summary>
+        /// ⭐ Buildings §3d P1 (R-217) — the penetration (mm RHA) of the round <paramref name="mount"/> fires: its loaded ammo × this
+        /// weapon, else the ammo's generic profile, else the mount's own value (<c>ParameterResolver.MountPenetration</c> — the rule
+        /// <c>GET /tkb/resolve</c> reports). A world without a TKB database reads the mount's own value.
+        /// </summary>
+        public static float PenetrationOf(EntityRepository world, WeaponMountDto mount) => PenetrationWithSourceOf(world, mount).Value;
+
+        /// <inheritdoc cref="PenetrationOf"/> With where the value came from (the shot log records it).
+        public static (float Value, string Source) PenetrationWithSourceOf(EntityRepository world, WeaponMountDto mount)
+        {
+            var db = world != null && world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
+            var (v, source, provenance) = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.MountPenetration(db, mount);
+            return (v, $"{provenance}: {source}");
         }
 
         /// <summary>The unit a mount belongs to: the parent of a mount child (<see cref="PartMetadata"/>), else itself.</summary>

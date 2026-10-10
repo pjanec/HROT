@@ -2,7 +2,7 @@
 
 **Covers:** Phase 9 (Tasks GZ025–GZ028) + Phase 10 (Tasks GZ029–GZ030)
 **Target branch:** main
-**Build command:** `dotnet build IOS-IG-SimHost.sln`
+**Build command:** `dotnet build HROT.sln`
 **Test command:** `dotnet test FDP\Engine\Fdp.Presentation.Tests\Fdp.Presentation.Tests.csproj` and `dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj`
 **Pre-existing failures:** 26 in Fdp.Toolkits.Tests (Combat, Behavior, Geographic, Navigation, Scenario — do not touch these); 4 in Hrot.IG.Tests (EntityInfoTranslator CS011_*).
 **You must not introduce any new failures.**
@@ -660,7 +660,7 @@ Required tests:
 
 Before submitting the report:
 
-1. `dotnet build IOS-IG-SimHost.sln` → 0 errors.
+1. `dotnet build HROT.sln` → 0 errors.
 2. `dotnet test FDP\Engine\Fdp.Presentation.Tests\Fdp.Presentation.Tests.csproj --no-build` → all new tests pass; no pre-existing regressions.
 3. `dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj --no-build` → all new tests pass; same 26 pre-existing failures; no new failures.
 4. All 6 success-condition sets listed above are covered by the new tests.

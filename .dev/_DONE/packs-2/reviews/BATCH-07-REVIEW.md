@@ -11,7 +11,7 @@
 
 | Check | Result |
 |-------|--------|
-| `dotnet build IOS-IG-SimHost.sln --no-incremental` | ✅ 0 errors, 336 warnings (all pre-existing) |
+| `dotnet build HROT.sln --no-incremental` | ✅ 0 errors, 336 warnings (all pre-existing) |
 
 ---
 
@@ -36,7 +36,7 @@
 - `ActivateEditorToolEvent.cs` in `Hrot.Editor/Events/`
 - 4 panels: ScenarioBrowserPanel, EditorToolbarPanel, EntityPropertyInspector, EditorOrbatPanel
 - `Hrot.Editor.Tests/` project with 8 tests covering all panel handlers + bootstrap + dependency check
-- Both projects added to `IOS-IG-SimHost.sln`
+- Both projects added to `HROT.sln`
 
 ### PACK2-F001 — Serializer Bootstrap ✅
 - `EditorBootstrap.CreateFileService()` — builds `ScenarioSerializer("Hrot.Scenario")` with no custom translators

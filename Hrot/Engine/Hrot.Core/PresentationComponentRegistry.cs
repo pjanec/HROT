@@ -47,6 +47,7 @@ public static class PresentationComponentRegistry
     /// </remarks>
     public static void RegisterAll(EntityRepository world)
     {
+        RegisterDebugViewState(world);
         world.RegisterComponent<EntityInfo>();
         world.RegisterComponent<SelectionState>();
         world.RegisterManagedComponent<EditablePolyline>();
@@ -95,5 +96,18 @@ public static class PresentationComponentRegistry
         //   adopter publishing into a bus that never heard of the event THROWS under strict mode.
         world.RegisterManagedEvent<Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest>();
         world.RegisterManagedEvent<Fdp.Toolkit.Vis2D.Abstractions.SelectionChangedNotification>();
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3123</c> (R-228) — the per-unit debug VIEW state every map host can toggle: <c>DebugState</c> (gizmo pins, AI-trace
+    /// flags; <c>Transient</c> — never recorded, saved or replicated) and the command that patches it. Called by
+    /// <see cref="RegisterAll"/> AND by <c>MapInteractionPack.Build</c> on the map's world, so a host that runs the map can pin
+    /// whether or not it registers the presentation set (IG) — and the Replay Browser gets it on every repo it rebinds to.
+    /// Idempotent. 📄 docs/DESIGN_Uniform_Gizmo_Membership.md §10.
+    /// </summary>
+    public static void RegisterDebugViewState(EntityRepository world)
+    {
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>();
+        world.RegisterManagedEvent<Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand>();
     }
 }

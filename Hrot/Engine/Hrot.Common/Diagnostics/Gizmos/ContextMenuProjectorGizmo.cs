@@ -39,35 +39,38 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
             };
 
-        /// <summary>Menu for a combat-effective (healthy) unit.</summary>
-        private static readonly string MenuJsonHealthy = JsonSerializer.Serialize(
-            new ContextMenuItemDto[]
-            {
-                new ContextMenuItemDto { Id = GlobalActionIds.MoveHere,       Label = "Move Here",    Shortcut = "M" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Engage,          Label = "Engage",       Shortcut = "E" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Stop,            Label = "Stop",         Shortcut = "S" },
-                new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity,  Label = "Center View",  Shortcut = "C" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Select,          Label = "Select",       Shortcut = "Space" },
-                new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = GlobalActionIds.Rotate,          Label = "Rotate",       Shortcut = "R" },
-            }, SerializerOptions);
+        /// <summary>Menu for a combat-effective (healthy) unit; ⭐ <c>CE-3123</c> — the <c>…Brain</c> variant adds the AI trace submenu.</summary>
+        private static readonly string MenuJsonHealthy      = UnitMenu(degraded: false, brain: false);
+        private static readonly string MenuJsonHealthyBrain = UnitMenu(degraded: false, brain: true);
 
         /// <summary>Menu for a significantly damaged unit (health &lt; 50 %).</summary>
-        private static readonly string MenuJsonDegraded = JsonSerializer.Serialize(
-            new ContextMenuItemDto[]
+        private static readonly string MenuJsonDegraded      = UnitMenu(degraded: true, brain: false);
+        private static readonly string MenuJsonDegradedBrain = UnitMenu(degraded: true, brain: true);
+
+        private static string UnitMenu(bool degraded, bool brain)
+        {
+            var items = new System.Collections.Generic.List<ContextMenuItemDto>
             {
-                new ContextMenuItemDto { Id = GlobalActionIds.MoveHere, Label = "Move Here",  Enabled = false,
-                    Tooltip = "Cannot move: Unit is heavily damaged" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Engage,   Label = "Engage",     Enabled = false,
-                    Tooltip = "Cannot engage: Unit is heavily damaged" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Stop,           Label = "Stop",       Shortcut = "S" },
+                degraded
+                    ? new ContextMenuItemDto { Id = GlobalActionIds.MoveHere, Label = "Move Here", Enabled = false,
+                        Tooltip = "Cannot move: Unit is heavily damaged" }
+                    : new ContextMenuItemDto { Id = GlobalActionIds.MoveHere, Label = "Move Here", Shortcut = "M" },
+                degraded
+                    ? new ContextMenuItemDto { Id = GlobalActionIds.Engage,   Label = "Engage",    Enabled = false,
+                        Tooltip = "Cannot engage: Unit is heavily damaged" }
+                    : new ContextMenuItemDto { Id = GlobalActionIds.Engage,   Label = "Engage",    Shortcut = "E" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Stop,           Label = "Stop",        Shortcut = "S" },
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View", Shortcut = "C" },
                 new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",      Shortcut = "Space" },
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = GlobalActionIds.Rotate,         Label = "Rotate",      Shortcut = "R" },
-            }, SerializerOptions);
+                new ContextMenuItemDto { IsSeparator = true },
+                GizmoPins.Submenu(),   // ⭐ CE-3120 — pin gizmo families on this unit
+            };
+            if (brain) items.Add(AiTraceActions.Submenu());   // ⭐ CE-3123 — the AI trace toggles, on every map host
+            return JsonSerializer.Serialize(items.ToArray(), SerializerOptions);
+        }
 
         /// <summary>Menu for a tactical graphics area overlay.</summary>
         private static readonly string MenuJsonArea = JsonSerializer.Serialize(
@@ -146,13 +149,16 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 // ⭐ CE-196 — derived from Health.Current/Max, not from a precomputed damage percentage.
                 //   The threshold is unchanged: "degraded" is 50% or more damage, i.e. at or below half
                 //   health. ⚠ Max <= 0 leaves the menu HEALTHY rather than dividing by zero.
-                menuJson = MenuJsonHealthy;
+                bool degraded = false;
                 if (view.HasComponent<Health>(entity))
                 {
                     ref readonly var health = ref view.GetComponentRO<Health>(entity);
-                    if (health.Max > 0f && health.Current / health.Max <= 0.5f)
-                        menuJson = MenuJsonDegraded;
+                    degraded = health.Max > 0f && health.Current / health.Max <= 0.5f;
                 }
+                bool brain = AiTraceActions.HasBrain(view, entity);   // ⭐ CE-3123 — has a brain = can be traced
+                menuJson = degraded
+                    ? (brain ? MenuJsonDegradedBrain : MenuJsonDegraded)
+                    : (brain ? MenuJsonHealthyBrain  : MenuJsonHealthy);
             }
 
             return menuJson;

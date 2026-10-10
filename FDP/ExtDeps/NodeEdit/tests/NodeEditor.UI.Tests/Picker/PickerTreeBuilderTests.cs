@@ -322,4 +322,44 @@ public sealed class PickerTreeBuilderTests
             rows[0].FolderPath.Should().Be("A");
         }
     }
+    // ── CE-1017: single-child folding (Add Entity picker, DESIGN_Add_Entity_Picker.md D2) ──
+
+    [Fact]
+    public void CE1017_Fold_MergesAChainOfOnlyChildren_IntoOneRow_KeepingTheDeepestPath()
+    {
+        var items = new List<(int, string?, string)>
+        {
+            (0, "Platform/Land/Russia/Tank",        "T-72"),
+            (1, "Platform/Land/United States/Tank", "M1 Abrams"),
+            (2, "Map Graphics",                     "Area"),
+        };
+
+        var root = PickerTreeBuilder.Build(items, foldSingleChildFolders: true);
+
+        // "Platform" holds only "Land" ⇒ one row "Platform › Land", path of the deeper folder.
+        var land = root.Folders.Single(f => f.Name.StartsWith("Platform"));
+        land.Name.Should().Be("Platform" + PickerTreeBuilder.FoldSeparator + "Land");
+        land.FullPath.Should().Be("Platform/Land");
+
+        // "Land" branches into two countries ⇒ the fold stops there; each country folds onto its only category.
+        land.Folders.Select(f => f.Name).Should().Equal(
+            "Russia" + PickerTreeBuilder.FoldSeparator + "Tank",
+            "United States" + PickerTreeBuilder.FoldSeparator + "Tank");
+        land.Folders[0].FullPath.Should().Be("Platform/Land/Russia/Tank");
+        land.Folders[0].Leaves.Single().FilteredIndex.Should().Be(0);
+
+        // A folder that holds a leaf is never folded.
+        root.Folders.Single(f => f.Name == "Map Graphics").Leaves.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public void CE1017_Fold_IsOffByDefault_SoExistingPickersAreUnchanged()
+    {
+        var items = new List<(int, string?, string)> { (0, "A/B/C", "Leaf") };
+
+        var root = PickerTreeBuilder.Build(items);
+
+        root.Folders.Single().Name.Should().Be("A");
+        root.Folders.Single().Folders.Single().Name.Should().Be("B");
+    }
 }

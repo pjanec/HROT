@@ -146,7 +146,7 @@ namespace Fdp.Toolkit.Navigation.Systems
 
                     case NavigationMode.DirectPoint:
                         nav.Mode             = KinematicsMode.Direct;
-                        nav.FinalDestination = intent.FinalDestination;
+                        nav.FinalDestination = NavigationDestination.Of(repo, entity, intent);   // ⭐ CE-1035 Q0b
                         nav.TargetSpeed      = intent.TargetSpeed;
                         nav.ArrivalRadius    = intent.ArrivalRadius;
                         nav.ReverseAllowed   = intent.ReverseAllowed;
@@ -157,7 +157,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                         // ⭐ CE-3026 — wait (no straight-line start) until the path arrives; the request is published
                         //   below once the NavState is stored. Speed/arrival are kept for the trajectory follower.
                         nav.Mode             = KinematicsMode.None;
-                        nav.FinalDestination = intent.FinalDestination;
+                        nav.FinalDestination = NavigationDestination.Of(repo, entity, intent);   // ⭐ CE-1035 Q0b
                         nav.TargetSpeed      = intent.TargetSpeed;
                         nav.ArrivalRadius    = intent.ArrivalRadius;
                         nav.ReverseAllowed   = intent.ReverseAllowed;
@@ -183,7 +183,7 @@ namespace Fdp.Toolkit.Navigation.Systems
 
                     default:
                         nav.Mode             = KinematicsMode.Direct;
-                        nav.FinalDestination = intent.FinalDestination;
+                        nav.FinalDestination = NavigationDestination.Of(repo, entity, intent);   // ⭐ CE-1035 Q0b
                         nav.TargetSpeed      = intent.TargetSpeed;
                         nav.ArrivalRadius    = intent.ArrivalRadius;
                         nav.HasArrived       = 0;
@@ -279,6 +279,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                             End             = p.Destination, // real destination Z (Sim Z-up, P3D-302)
                             MobilityProfile = agentProfile.MobilityProfile,
                             BackendForce    = (NavigationBackend)p.BackendForce,
+                            RoadUse         = PathRequests.ResolveRoadUse(repo, entity, p.RoadUse),   // CE-3128
                             RouteHandle     = routeHandle,
                             NavLayerMask    = (int)NavLayerSelection.For(repo, entity, (uint)p.LayerMask),
                             MaxCost         = p.MaxCost,
@@ -361,19 +362,8 @@ namespace Fdp.Toolkit.Navigation.Systems
             var from = repo.HasComponent<SimTransform>(entity)
                 ? repo.GetComponent<SimTransform>(entity).Position
                 : Vector3.Zero;
-            var agentProfile = repo.HasComponent<NavAgentProfile>(entity)
-                ? repo.GetComponent<NavAgentProfile>(entity)
-                : default;
-            repo.Bus.Publish(new PathfindingRequestEvent
-            {
-                RequestId       = ((long)entity.Index << 32) | (uint)repo.GlobalVersion,
-                Start           = from,
-                End             = intent.FinalDestination,   // real destination Z (Sim Z-up, P3D-302)
-                MobilityProfile = agentProfile.MobilityProfile,
-                BackendForce    = (NavigationBackend)intent.BackendForce,
-                RouteHandle     = intent.RouteHandle,
-                NavLayerMask    = (int)NavLayerSelection.For(repo, entity, intent.LayerMask),
-            });
+            // ⭐ CE-3128 — built in ONE place with the replan (PathRequests), so the road use reaches the solver on both paths.
+            repo.Bus.Publish(PathRequests.FromIntent(repo, entity, in intent, from, ((long)entity.Index << 32) | (uint)repo.GlobalVersion));
         }
 
         /// <summary>Infantry (no <see cref="VehicleState"/>) on a crowd host joins the crowd, targeted at the intent's
@@ -408,7 +398,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             }
 
             // Registered now, or already registered: (re)target it and tag it crowd-managed.
-            _dtCrowd.SetAgentTarget(entity, intent.FinalDestination);   // carries real Z (P3D-302)
+            _dtCrowd.SetAgentTarget(entity, NavigationDestination.Of(repo, entity, intent));   // carries real Z (P3D-302); ⭐ CE-1035 Q0b
             if (!repo.HasComponent<CrowdAgent>(entity))
                 repo.AddComponent(entity, default(CrowdAgent));
             Log.Info("[BridgeReg] entity #{0} crowd target: radius={1:F2} maxSpd={2:F1} dest=({3:F1},{4:F1}) intent={5}",

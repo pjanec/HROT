@@ -26,6 +26,6 @@ namespace Fdp.Toolkit.Combat.Modules
     {
         /// <summary>Systems that run in the Simulation phase.</summary>
         public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; } =
-            new IEcsModuleSystem[] { new DamageCalculationSystem() };
+            new IEcsModuleSystem[] { new DamageCalculationSystem(), new AreaEffectSystem() };   // ⭐ CE-1032 W-5 — the area effect beside the direct hit
     }
 }

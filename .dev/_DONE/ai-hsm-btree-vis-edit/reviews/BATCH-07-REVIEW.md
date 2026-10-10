@@ -6,7 +6,7 @@
 
 ## Build
 
-`dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 warnings (all prior warnings gone too).
+`dotnet build HROT.sln` — 0 errors, 0 warnings (all prior warnings gone too).
 
 ## Test counts
 

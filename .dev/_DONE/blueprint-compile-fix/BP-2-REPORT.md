@@ -148,7 +148,7 @@ reassigned to the rehydrated pins, so Stage4 type-resolves and Stage5 schedules 
 - **Total test results:** 1387 total — 1352 passed, 27 failed (pre-existing), 8 skipped
 - **No regressions:** identical failure count to pre-BP-2 baseline (verified by stash comparison)
 
-### Full solution (`IOS-IG-SimHost.sln`)
+### Full solution (`HROT.sln`)
 - **Build:** FAILED — 1 pre-existing error (BP0002 in `Hrot.AI.Behaviors`: `Fdp.Toolkits` not
   loadable in MSBuild generator host when processing `Count2.bp.json`). This error is tracked
   as BP-3 and was present before BP-2.

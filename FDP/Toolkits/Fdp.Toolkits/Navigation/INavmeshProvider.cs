@@ -7,8 +7,9 @@ namespace Fdp.Toolkit.Navigation
     /// <summary>
     /// Navmesh query interface consumed by EQS tests, generators, and navigation systems.
     /// ⭐ All coordinates are in the engine's <b>Z-up</b> 3-D world space — X east, Y north, Z up (R-182,
-    /// DESIGN_Terrain_World W7). For flat-earth queries use <c>new Vector3(x, y_north, 0f)</c> and read the ground-plane
-    /// position back as <c>(v.X, v.Y)</c>. An implementation whose solver is Y-up (DotRecast) converts INSIDE itself,
+    /// DESIGN_Terrain_World W7). ⛔ Never pass Z = 0 meaning "on the ground" (R-248, CE-1034 H3): the search box around a query
+    /// point is only a few metres tall, so on a hill a point at 0 finds nothing — pass the ground height there
+    /// (<c>IWorldQuery.GroundHeightAt</c>) or a real Z. An implementation whose solver is Y-up (DotRecast) converts INSIDE itself,
     /// for every input and every output; callers never swizzle.
     /// </summary>
     [ComponentId(GlobalComponentIds.INavmeshProvider)]
@@ -50,5 +51,21 @@ namespace Fdp.Toolkit.Navigation
         /// Returns the number of waypoints written, or 0 if no path was found.
         /// </summary>
         int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF);
+
+        // ── ⭐ R-219 — the same queries judged by the door states of the CALLER's view ──────────────────────────────────────
+        //   A background solver passes the table built from its snapshot (Fdp.Toolkit.Terrain.DoorStates.Of(view, terrain)), so a
+        //   path or reachability answer sees the doors of the tick it runs on. Defaults ignore doors (implementations without them).
+
+        /// <inheritdoc cref="PlanPath(Vector3, Vector3, Span{NavWaypoint}, uint)"/>
+        int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => PlanPath(from, to, waypoints, layerMask);
+
+        /// <inheritdoc cref="PathExists(Vector3, Vector3, uint)"/>
+        bool PathExists(Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => PathExists(from, to, layerMask);
+
+        /// <inheritdoc cref="PathCost(Vector3, Vector3, uint)"/>
+        float PathCost(Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => PathCost(from, to, layerMask);
     }
 }

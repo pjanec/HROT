@@ -166,7 +166,11 @@ public class EditorCapabilitiesTests : IDisposable
             .Concat(new[] { typeof(Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem),
                             typeof(Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem) })
             .Concat(new[] { typeof(Hrot.Common.Systems.UnitHierarchySystem),
-                            typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem) })
+                            typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem),
+                            // ⭐ CE-3072 B3/B4 — the danger-area sensor's Brain half rides the EQS result capability
+                            //   (EqsInfrastructureCapability.cs), right after EqsResultUpdateSystem. Added deliberately in
+                            //   12021d5f5; this block was not updated then (a red found in the buildings Stage 0 gates).
+                            typeof(Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem) })
             .ToArray();
         Assert.Equal(expectedSim, planSim);
 
@@ -246,7 +250,8 @@ public class EditorCapabilitiesTests : IDisposable
         Assert.Equal(
             cgf.SimulationSystems.Select(s => s.GetType())
                .Concat(new[] { typeof(Hrot.Common.Systems.UnitHierarchySystem),
-                               typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem) }),
+                               typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem),
+                               typeof(Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem) }),   // CE-3072 — same capability
             sim.Select(s => s.GetType()));
         // CgfLogicPack contributes no post-simulation systems, and on this arm nothing else does
         // either — the supplying host owns that tier.

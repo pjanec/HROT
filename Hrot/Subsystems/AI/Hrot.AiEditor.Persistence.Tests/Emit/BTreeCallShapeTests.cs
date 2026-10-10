@@ -127,6 +127,8 @@ public sealed class BTreeCallShapeTests
         ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000009", BTreeDelegateShapeDto.Plain),     // IsOption(isFiringPos)
         ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Stateful),
         ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000012", BTreeDelegateShapeDto.Stateful),
+        ("CombatPosture.btree.json", "c3090000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Plain),       // CE-3090 is hold prone
+        ("CombatPosture.btree.json", "c3090000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Stateful),    // CE-3090 HoldProne
         ("Flank.btree.json", "c2108000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Stateful),            // CE-2108
         ("Flank.btree.json", "c2108000-0000-0000-0000-000000000004", BTreeDelegateShapeDto.Stateful),
         ("FiringPosition.btree.json", "c2108000-0000-0000-0000-000000000103", BTreeDelegateShapeDto.Stateful),
@@ -142,6 +144,7 @@ public sealed class BTreeCallShapeTests
         ("PostureSuppress.btree.json", "c3083200-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),
         ("PostureHold.btree.json", "c3083300-0000-0000-0000-000000000002", BTreeDelegateShapeDto.NoParams),
         ("PostureSense.btree.json", "c3083400-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),
+        ("PostureHoldProne.btree.json", "c3090200-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful), // CE-3090
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000022", BTreeDelegateShapeDto.Plain),

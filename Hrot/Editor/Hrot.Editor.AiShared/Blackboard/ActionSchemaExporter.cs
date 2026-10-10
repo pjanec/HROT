@@ -225,7 +225,8 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
     /// parameter when the method is <c>(ref P, ref WS, Entity, EntityRepository)</c>; otherwise null.</summary>
     private static Type? ExtractSecondRefParamType(MethodInfo method)
     {
-        var ps = method.GetParameters();
+        // ⭐ CE-3137 U-2 — the trailing unit-memory group is not part of the shape.
+        var ps = Hrot.AiEditor.Persistence.Emit.UnitMemoryParams.Core(method);
         return ps.Length == 4 && ps[0].ParameterType.IsByRef && ps[1].ParameterType.IsByRef
             ? ps[1].ParameterType.GetElementType()
             : null;
@@ -236,7 +237,8 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
     /// </summary>
     private static Type? ExtractFirstRefParamType(MethodInfo method)
     {
-        foreach (var param in method.GetParameters())
+        // ⭐ CE-3137 U-2 — a unit-memory `ref` binds to the unit's memory, never to a variable: it is never the DtoType.
+        foreach (var param in Hrot.AiEditor.Persistence.Emit.UnitMemoryParams.Core(method))
         {
             var pt = param.ParameterType;
             if (pt.IsByRef)

@@ -17,7 +17,7 @@ acceptance bar is met.
 The worker rambled and never wrote BATCH-16-REPORT.md; I compiled it from the reviewed code.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 new warnings.
+- `dotnet build HROT.sln` → 0 errors, 0 new warnings.
 - New tests run by lead: `ScenarioNestedNameTests` + `AssetPickActionRouterTests` → **21 passed, 0 failed**.
 - `ScenarioEnumeration.EnumerateRelPaths` read: recursive `scenario.json`-marker walk, root excluded,
   `/`-normalized, ordinal-sorted, empty for missing root. Wired into `AvailableScenarios` via

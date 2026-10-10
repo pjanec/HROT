@@ -34,7 +34,7 @@
 
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln -c Debug --nologo -v q
+dotnet build HROT.sln -c Debug --nologo -v q
 dotnet test Hrot/Engine/Hrot.Presentation.Tests/ --no-build -v q
 dotnet test Hrot/Subsystems/Hrot.IG.Tests/ --no-build -v q
 dotnet test Hrot/Subsystems/Hrot.Editor.Tests/ --no-build -v q
@@ -451,7 +451,7 @@ Verify actual values (position X/Y as floats with precision:2, exact TkbType, Re
 
 ### Task 12: Build and Verify
 
-1. `dotnet build IOS-IG-SimHost.sln -c Debug --nologo -v q` — must be **0 errors**.
+1. `dotnet build HROT.sln -c Debug --nologo -v q` — must be **0 errors**.
 2. `dotnet test Hrot/Engine/Hrot.Presentation.Tests/ --no-build -v q` — all pass.
 3. `dotnet test Hrot/Subsystems/Hrot.IG.Tests/ --no-build -v q` — **0 new failures** vs the pre-existing 68 baseline.
 4. `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/ --no-build -v q` — all pass.

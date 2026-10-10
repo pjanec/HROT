@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Explicit, Size = 208)]
+[StructLayout(LayoutKind.Explicit, Size = 216)]
 public struct CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard
 {
     [FieldOffset(0)]
@@ -19,26 +19,28 @@ public struct CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard
     [FieldOffset(7)]
     public global::Fdp.Toolkit.Utility.IsOptionParams isFallBack;
     [FieldOffset(8)]
+    public global::Fdp.Toolkit.Utility.IsOptionParams isHoldProne;
+    [FieldOffset(16)]
     public global::Hrot.AI.Behaviors.Brains.PostureSensorsParams sensors;
-    [FieldOffset(24)]
+    [FieldOffset(32)]
     public global::Hrot.AI.Behaviors.Brains.AdvanceParams advance;
-    [FieldOffset(48)]
+    [FieldOffset(56)]
     public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams cover;
-    [FieldOffset(80)]
-    public global::Hrot.AI.Behaviors.Brains.EngageParams engage;
     [FieldOffset(88)]
+    public global::Hrot.AI.Behaviors.Brains.EngageParams engage;
+    [FieldOffset(96)]
     public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams fallback;
-    [FieldOffset(120)]
-    public global::Fdp.Toolkit.Utility.ChooseOptionParams approach;
-    [FieldOffset(124)]
-    public global::Fdp.Toolkit.Utility.IsOptionParams isFlank;
-    [FieldOffset(125)]
-    public global::Fdp.Toolkit.Utility.IsOptionParams isFiringPos;
     [FieldOffset(128)]
+    public global::Fdp.Toolkit.Utility.ChooseOptionParams approach;
+    [FieldOffset(132)]
+    public global::Fdp.Toolkit.Utility.IsOptionParams isFlank;
+    [FieldOffset(133)]
+    public global::Fdp.Toolkit.Utility.IsOptionParams isFiringPos;
+    [FieldOffset(136)]
     public global::Hrot.AI.Behaviors.Brains.PostureSensorsParams approachSensors;
-    [FieldOffset(144)]
+    [FieldOffset(152)]
     public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams flank;
-    [FieldOffset(176)]
+    [FieldOffset(184)]
     public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams firing;
 }
 
@@ -56,6 +58,6 @@ public struct CombatPosture_Block
 {
     [FieldOffset(0)]
     public CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard In;
-    [FieldOffset(208)]
+    [FieldOffset(216)]
     public CombatPosture_BlockState St;
 }

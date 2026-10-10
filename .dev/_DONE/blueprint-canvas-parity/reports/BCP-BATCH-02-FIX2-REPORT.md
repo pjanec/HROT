@@ -140,7 +140,7 @@ Tests:
   made, so byte-stability + compiler golden are unaffected by this batch.
 
 ## Build
-`dotnet build IOS-IG-SimHost.sln` → **0 errors**. The 18 reported warnings are all in
+`dotnet build HROT.sln` → **0 errors**. The 18 reported warnings are all in
 pre-existing test files I did not touch (`Hrot.Common.Tests` migration tests,
 `Hrot.Utility.Editor.Tests`, `Fdp.Core.Tests` migration tests,
 `Hrot.Diagnostics.Breakpoints.Tests`) — none in any file created/modified by this batch.

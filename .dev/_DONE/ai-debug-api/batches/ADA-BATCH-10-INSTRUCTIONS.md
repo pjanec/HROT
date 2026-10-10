@@ -28,7 +28,7 @@ together so the live arbiter is a real **record → load → seek → inspect** 
 > No codebase-memory MCP (hangs — Grep/Glob/Read). No git commit. Report HONESTLY — the lead re-runs
 > `dotnet test --filter DebugApi`, a REAL headless record→replay reproduce, AND `npm run verify`, and reads
 > the full diff. Green unit tests are NOT enough — the `.fdp` must actually be produced AND replayed, and the
-> live world must be proven UNAFFECTED during replay seeking. Run the FULL `dotnet build IOS-IG-SimHost.sln`.
+> live world must be proven UNAFFECTED during replay seeking. Run the FULL `dotnet build HROT.sln`.
 
 ### Existing infra to reuse (do NOT reinvent — confirmed APIs)
 - **`EcsRecordReplayController`** (`Hrot.SimHost/Modules/Orchestration/`) — the editor builds it as a LOCAL
@@ -83,7 +83,7 @@ Add 1:1 tools (`start_recording`, `stop_recording`, `load_replay`, `seek_replay`
 - **Tier-2 (live headless / MCP `verify.mjs`):** load test-move → `start_recording{preview}` → `step` a few →
   `stop_recording` (capture `fdpPath`) → `load_replay{fdpPath}` → `seek_replay{frame}` → replay-scoped
   `list_entities` non-empty → `get_status` shows live world intact → `unload_replay`. Re-runnable; NO orphans.
-- `dotnet build IOS-IG-SimHost.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
+- `dotnet build HROT.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
 
 ## Constraints (hard)
 - Preview recording: finalize BEFORE rewind; never rewind mid-recording. Mutually exclusive with checkpoint.

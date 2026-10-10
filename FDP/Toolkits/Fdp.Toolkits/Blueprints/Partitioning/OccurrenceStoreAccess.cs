@@ -1,3 +1,5 @@
+using System;
+using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints.Components;
@@ -24,22 +26,22 @@ namespace Fdp.Toolkit.Blueprints.Partitioning;
 /// <c>fixed</c> at those 20 sites is the language formality for converting a fixed-size buffer to a
 /// pointer, NOT a safety measure. A pointer may therefore cross this call boundary.</para>
 ///
-/// <para>⛔⛔ <b>THE LIFETIME RULE — the real one, stated once here instead of assumed 20 times.</b>
-/// The danger was never the GC. It is:
-/// <list type="number">
-///   <item><b>Chunk decommit</b> — <c>NativeChunkTable</c> decommits chunks (<c>:272</c>, <c>:310</c>).</item>
-///   <item><b>Tier swap</b> — a promotion adds the larger component and removes the smaller
-///   (<c>BehaviorIngressSystem.UpgradeTier</c>, <c>BlueprintMaintenanceSystem</c>,
-///   <c>EntityBlueprintsPanel</c>), so the old pointer is stale the moment it returns.</item>
-/// </list>
-/// ⇒ ⭐ <b>Use the pointer within the call that obtained it. ⛔ Never store it across a frame, and
-/// ⛔ never hold it across anything that can add or remove a component on this entity.</b> That is
-/// the same rule today's <c>fixed</c> pointers already live under — <c>BlueprintSharedState</c>'s
-/// by-value accessors exist precisely because of it.</para>
+/// <para>⭐⭐⭐ <b><c>CE-3137</c> U-0 (§34, <c>R-236</c>) — THE STORE IS MULTI-BLOCK AND NEVER MOVES A SLOT.</b> A
+/// unit's store is every tier component it carries (at most one of each: 256 / 1024 / 4096 / 16384 ⇒ up to
+/// 4 blocks, 47 slots). Growth APPENDS the next absent tier as another block; an allocated slot stays where
+/// it is for its whole life. ⇒ a slot's payload pointer is valid until THAT slot is detached (or the entity
+/// destroyed), even across an attach that grows the store mid-tick — FDP's add writes only the new type's
+/// table and a mask bit (<c>EntityRepository.cs:958-975</c>) and is allowed mid-phase (<c>:1189</c>).</para>
 ///
-/// <para>⚠ <b>This is a MECHANICAL seam, not a behaviour change.</b> The probe order (16384 → 4096 →
-/// 1024) is preserved exactly, including the rule that an entity carries at most one tier so the
-/// first match is authoritative.</para>
+/// <para>⛔ <b>What still shifts:</b> a slot INDEX, on a <c>TryDetach</c> in the same block (the slot table is
+/// dense-compacted). ⛔ <b>What is no longer true:</b> "one tier per entity" and the copy-promotion — both
+/// retired by U-0. <c>Chunk decommit</c> (<c>NativeChunkTable</c> <c>:272</c>, <c>:310</c>) still frees a whole
+/// chunk's memory, so a pointer must not outlive its entity.</para>
+///
+/// <para>⭐ <b>The key-based API is the production surface</b>: <see cref="TryFindSlot"/> /
+/// <see cref="TryAttachSlot"/> / <see cref="TryDetachSlot"/> / <see cref="GetBlocks"/> (and their read-only /
+/// view twins). ⚠ <see cref="TryGetStore"/> and its twins return ONE block — the largest — and are kept for
+/// tests and diagnostics only; rail <c>U0_R0</c> fails if a production file calls them.</para>
 /// </summary>
 public static unsafe class OccurrenceStoreAccess
 {
@@ -129,7 +131,7 @@ public static unsafe class OccurrenceStoreAccess
     /// genuinely only ask the question (e.g. a translator's "should I serialise this entity?").
     /// </summary>
     public static bool HasStore(EntityRepository world, Entity entity)
-        => BlueprintTierTable.Of(world, entity) is not null;
+        => ViewFor(world, entity) is { } v ? v.Count != 0 : PresentTiers(world, entity) != 0;
 
     /// <summary>
     /// The entity's tier <c>TotalSize</c>, or <c>0</c> when it has no store — the size-only half of
@@ -137,6 +139,18 @@ public static unsafe class OccurrenceStoreAccess
     /// </summary>
     public static int GetStoreSize(EntityRepository world, Entity entity)
         => BlueprintTierTable.Of(world, entity)?.TotalSize ?? 0;
+
+    /// <summary>
+    /// ⭐ <c>CE-3137</c> U-0 — the tier of the unit's LARGEST block, or <see langword="null"/> with no store. ⛔ A
+    /// DISPLAY / STATUS answer only (the editor's tier label, an attach-failure report): it says nothing about
+    /// where a slot lives — use the key API for that.
+    /// </summary>
+    public static BlueprintTierSpec? LargestBlock(EntityRepository world, Entity entity)
+    {
+        int bits = PresentTiers(world, entity);
+        if (bits == 0) return null;
+        return BlueprintTierTable.Descending[System.Numerics.BitOperations.TrailingZeroCount(bits)];
+    }
 
     /// <summary>
     /// Resolves a single occurrence's payload within the entity's store — the seam
@@ -156,20 +170,474 @@ public static unsafe class OccurrenceStoreAccess
     public static bool TryResolveOccurrence(
         EntityRepository world, Entity entity, int slotKey, out byte* payload)
     {
-        byte* mem = TryGetStore(world, entity, out _);
-        if (mem == null)
+        // ⭐ CE-3137 U-0: any block — the generated thunks call this, so they are multi-block with no re-emit.
+        if (!TryFindSlot(world, entity, slotKey, out byte* block, out int payloadOffset, out _))
         {
             payload = null;
             return false;
         }
 
-        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int payloadOffset))
-        {
-            payload = null;
-            return false;
-        }
-
-        payload = mem + payloadOffset;
+        payload = block + payloadOffset;
         return true;
+    }
+
+    // ═══ CE-3137 U-0 — THE MULTI-BLOCK SURFACE (§34) ══════════════════════════════════════════════════
+
+    /// <summary>
+    /// Bit <c>i</c> set ⇔ the unit carries <c>BlueprintTierTable.Descending[i]</c>. ⭐ ONE <c>IsAlive</c> + ONE
+    /// component-mask read for all four tiers (Q87 §3b: 10–18 ns, against ~130 ns for the delegate probe).
+    /// </summary>
+    public static int PresentTiers(EntityRepository world, Entity entity)
+    {
+        if (!world.IsAlive(entity)) return 0;
+        ref var mask = ref world.GetComponentMask(entity.Index);
+        var d = BlueprintTierTable.Descending;
+        int bits = 0;
+        for (int i = 0; i < d.Count; i++)
+            if (mask.IsSet(d[i].ComponentId)) bits |= 1 << i;
+        return bits;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3137</c> U-0 — for a walker that visits units through the per-tier queries smallest-first
+    /// (<c>BlueprintTierTable.BuildTierQueries</c>): <see langword="true"/> when <paramref name="ascendingIndex"/> is
+    /// the FIRST tier this unit carries, so the walker runs the unit ONCE although a multi-block unit sits in
+    /// several queries. ⭐ A unit-level walker (the brain tick) needs this; a slot-level walker (the blueprint
+    /// tick, which only reads its own block) does not.
+    /// </summary>
+    public static bool IsFirstVisit(EntityRepository world, Entity entity, int ascendingIndex)
+    {
+        int bits = PresentTiers(world, entity);
+        int n = BlueprintTierTable.Descending.Count;
+        for (int j = 0; j < ascendingIndex; j++)
+            if ((bits & (1 << (n - 1 - j))) != 0) return false;
+        return true;
+    }
+
+    // ═══ CE-3137 U-0c — THE PER-TICK VIEW (Q87 §3b ①, §34) ═══════════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐ Opens the per-tick view of <paramref name="entity"/>'s store: its blocks are resolved ONCE (one mask read +
+    /// one read-only fetch per block), and every <see cref="TryFindSlot"/> / <see cref="TryFindSlotIndex"/> /
+    /// <see cref="TryFindSlotReadOnly"/> / <see cref="HasStore"/> for that entity on this thread is then a pure scan until
+    /// the scope is disposed. A hit's block is fetched READ-WRITE once per scope, so its chunk version is still stamped
+    /// (Q87 §3b ③). <see cref="AddBlock"/> extends an open view.
+    ///
+    /// <para>⭐ <b>Safe only because the store never moves</b> (U-0, <c>R-236</c>): an append extends the view and
+    /// production never REMOVES a block (measured <c>2026-10-09</c>: no production <c>RemoveComponent</c> of a tier).
+    /// ⛔ Under the old copy-promotion this cache would have been §3a's stale-pointer bug.</para>
+    ///
+    /// <para>⭐ Only the OUTERMOST scope owns the view: re-entering for the same entity (a hosted subtree) is a no-op,
+    /// and a scope for a DIFFERENT entity while one is open is a no-op too — lookups for it fall back to the probe.</para>
+    /// </summary>
+    public static TickViewScope BeginTickView(EntityRepository world, Entity entity)
+    {
+        var v = t_view ??= new TickViewState();
+        if (v.Active) return default;
+
+        int bits = PresentTiers(world, entity);
+        v.World = world; v.Entity = entity; v.Count = 0; v.Stamped = 0; v.Active = true;
+        var d = BlueprintTierTable.Descending;
+        for (int i = 0; bits != 0; i++, bits >>= 1)
+            if ((bits & 1) != 0) v.Append(i, d[i].MemoryReadOnly(world, entity), stamped: false);
+        return new TickViewScope(owns: true);
+    }
+
+    /// <summary>Closes the view <see cref="BeginTickView"/> opened (a no-op for a scope that did not open one).</summary>
+    public readonly struct TickViewScope : IDisposable
+    {
+        private readonly bool _owns;
+        internal TickViewScope(bool owns) => _owns = owns;
+        public void Dispose()
+        {
+            if (_owns && t_view is { } v) { v.Active = false; v.World = null; }
+        }
+    }
+
+    [ThreadStatic] private static TickViewState? t_view;
+
+    private sealed class TickViewState
+    {
+        public bool Active;
+        public EntityRepository? World;
+        public Entity Entity;
+        public int Count;
+        public int Stamped;                                   // bit k: block k already fetched RW in this scope
+        public readonly long[] Memory = new long[StoreBlocks.Max];
+        public readonly int[] Tier = new int[StoreBlocks.Max]; // BlueprintTierTable.Descending index
+
+        public void Append(int tier, byte* memory, bool stamped)
+        {
+            Memory[Count] = (long)memory; Tier[Count] = tier;
+            if (stamped) Stamped |= 1 << Count;
+            Count++;
+        }
+    }
+
+    private static int DescendingIndexOf(BlueprintTierSpec spec)
+    {
+        var d = BlueprintTierTable.Descending;
+        for (int i = 0; i < d.Count; i++) if (ReferenceEquals(d[i], spec)) return i;
+        throw new ArgumentException($"tier {spec.Tier} is not on the ladder", nameof(spec));
+    }
+
+    /// <summary>The open view, when it is for exactly this world and entity.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static TickViewState? ViewFor(EntityRepository world, Entity entity)
+    {
+        var v = t_view;
+        return v is { Active: true } && ReferenceEquals(v.World, world) && v.Entity.Equals(entity) ? v : null;
+    }
+
+    /// <summary>Block <paramref name="k"/> of an open view, READ-WRITE: the first RW use in the scope stamps the chunk version.</summary>
+    private static byte* ViewBlockRW(TickViewState v, int k)
+    {
+        if ((v.Stamped & (1 << k)) == 0)
+        {
+            BlueprintTierTable.Descending[v.Tier[k]].Memory(v.World!, v.Entity);
+            v.Stamped |= 1 << k;
+        }
+        return (byte*)v.Memory[k];
+    }
+
+    /// <summary>Every block the unit carries, largest first, resolved READ-WRITE. ⛔ Marks each block's chunk
+    /// version — a caller that only reads uses <see cref="GetBlocksReadOnly"/>.</summary>
+    public static int GetBlocks(EntityRepository world, Entity entity, out StoreBlocks blocks)
+    {
+        blocks = default;
+        int bits = PresentTiers(world, entity);
+        var d = BlueprintTierTable.Descending;
+        for (int i = 0; bits != 0; i++, bits >>= 1)
+            if ((bits & 1) != 0) blocks.Add(d[i].Memory(world, entity), d[i].TotalSize);
+        return blocks.Count;
+    }
+
+    /// <summary>Every block, largest first, READ-ONLY (does not stamp chunk versions).</summary>
+    public static int GetBlocksReadOnly(EntityRepository world, Entity entity, out StoreBlocks blocks)
+    {
+        blocks = default;
+        int bits = PresentTiers(world, entity);
+        var d = BlueprintTierTable.Descending;
+        for (int i = 0; bits != 0; i++, bits >>= 1)
+            if ((bits & 1) != 0) blocks.Add(d[i].MemoryReadOnly(world, entity), d[i].TotalSize);
+        return blocks.Count;
+    }
+
+    /// <summary>Every block, largest first, through a VIEW (a snapshot or replay frame). ⭐ An old single-tier
+    /// recording is simply a one-block store.</summary>
+    public static int GetBlocksInView(ISimulationView view, Entity entity, out StoreBlocks blocks)
+    {
+        blocks = default;
+        var d = BlueprintTierTable.Descending;
+        for (int i = 0; i < d.Count; i++)
+            if (d[i].HasInView(view, entity)) blocks.Add(d[i].MemoryReadOnlyInView(view, entity), d[i].TotalSize);
+        return blocks.Count;
+    }
+
+    /// <summary>
+    /// ⭐⭐ THE lookup: the block holding <paramref name="slotKey"/>, its payload offset and stored hash, with the
+    /// block resolved READ-WRITE. ⭐ Scans read-only and takes RW only on the hit block (§34, Q87 §3b ③), so a
+    /// lookup does not stamp every block's chunk version; a one-block store resolves RW directly, as before.
+    /// </summary>
+    public static bool TryFindSlot(
+        EntityRepository world, Entity entity, int slotKey,
+        out byte* block, out int payloadOffset, out uint structureHash)
+    {
+        if (ViewFor(world, entity) is { } v)
+        {
+            for (int k = 0; k < v.Count; k++)
+                if (BlueprintBlackboardPartitions.TryGetSlotOffset((byte*)v.Memory[k], slotKey, out payloadOffset, out structureHash))
+                { block = ViewBlockRW(v, k); return true; }
+            block = null; payloadOffset = 0; structureHash = 0;
+            return false;
+        }
+
+        int bits = PresentTiers(world, entity);
+        var d = BlueprintTierTable.Descending;
+        bool single = bits != 0 && (bits & (bits - 1)) == 0;
+        for (int i = 0; bits != 0; i++, bits >>= 1)
+        {
+            if ((bits & 1) == 0) continue;
+            if (single)
+            {
+                byte* rw = d[i].Memory(world, entity);
+                if (BlueprintBlackboardPartitions.TryGetSlotOffset(rw, slotKey, out payloadOffset, out structureHash))
+                { block = rw; return true; }
+                break;
+            }
+            byte* ro = d[i].MemoryReadOnly(world, entity);
+            if (BlueprintBlackboardPartitions.TryGetSlotOffset(ro, slotKey, out payloadOffset, out structureHash))
+            { block = d[i].Memory(world, entity); return true; }
+        }
+        block = null; payloadOffset = 0; structureHash = 0;
+        return false;
+    }
+
+    /// <summary>
+    /// The lookup that also yields the slot's INDEX in its block — for callers that read the entry itself
+    /// (its <c>PayloadSize</c>). ⛔ The index shifts on a detach in the same block; use it within the call.
+    /// </summary>
+    public static bool TryFindSlotIndex(
+        EntityRepository world, Entity entity, int slotKey, out byte* block, out int slotIndex)
+    {
+        if (ViewFor(world, entity) is { } v)
+        {
+            for (int k = 0; k < v.Count; k++)
+                if (BlueprintBlackboardPartitions.TryGetSlotIndex((byte*)v.Memory[k], slotKey, out slotIndex))
+                { block = ViewBlockRW(v, k); return true; }
+            block = null; slotIndex = -1;
+            return false;
+        }
+
+        int bits = PresentTiers(world, entity);
+        var d = BlueprintTierTable.Descending;
+        bool single = bits != 0 && (bits & (bits - 1)) == 0;
+        for (int i = 0; bits != 0; i++, bits >>= 1)
+        {
+            if ((bits & 1) == 0) continue;
+            byte* mem = single ? d[i].Memory(world, entity) : d[i].MemoryReadOnly(world, entity);
+            if (BlueprintBlackboardPartitions.TryGetSlotIndex(mem, slotKey, out slotIndex))
+            { block = single ? mem : d[i].Memory(world, entity); return true; }
+            if (single) break;
+        }
+        block = null; slotIndex = -1;
+        return false;
+    }
+
+    /// <summary>The read-only lookup (no chunk-version stamp).</summary>
+    public static bool TryFindSlotReadOnly(
+        EntityRepository world, Entity entity, int slotKey,
+        out byte* block, out int payloadOffset, out uint structureHash)
+    {
+        if (ViewFor(world, entity) is { } v)
+        {
+            for (int k = 0; k < v.Count; k++)
+                if (BlueprintBlackboardPartitions.TryGetSlotOffset((byte*)v.Memory[k], slotKey, out payloadOffset, out structureHash))
+                { block = (byte*)v.Memory[k]; return true; }
+            block = null; payloadOffset = 0; structureHash = 0;
+            return false;
+        }
+
+        GetBlocksReadOnly(world, entity, out var blocks);
+        return blocks.TryFind(slotKey, out block, out payloadOffset, out structureHash);
+    }
+
+    /// <summary>The lookup through a view.</summary>
+    public static bool TryFindSlotInView(
+        ISimulationView view, Entity entity, int slotKey,
+        out byte* block, out int payloadOffset, out uint structureHash)
+    {
+        GetBlocksInView(view, entity, out var blocks);
+        return blocks.TryFind(slotKey, out block, out payloadOffset, out structureHash);
+    }
+
+    /// <summary>Detaches <paramref name="slotKey"/> from whichever block holds it.
+    /// <returns><see langword="false"/> when no block holds it.</returns></summary>
+    public static bool TryDetachSlot(EntityRepository world, Entity entity, int slotKey)
+        => TryFindSlot(world, entity, slotKey, out byte* block, out _, out _)
+           && BlueprintBlackboardPartitions.TryDetach(block, slotKey);
+
+    /// <summary>
+    /// ⭐⭐⭐ THE attach: into the first block (largest first) with room, else into a newly APPENDED block — the
+    /// smallest absent registered tier that holds it (§34, <c>R-236</c>). Nothing already allocated moves, so
+    /// a pointer the caller (or anyone up its stack) holds stays valid; that is what makes a mid-tick attach
+    /// safe. ⛔ The caller must already know <paramref name="slotKey"/> is not attached (every caller looks it
+    /// up first); a duplicate key would shadow.
+    /// </summary>
+    /// <returns><see langword="false"/> only when every block is full AND no absent tier can take it — the
+    /// whole ladder (47 slots) is in use. ⛔ Callers must surface that, never swallow it.</returns>
+    public static bool TryAttachSlot(
+        EntityRepository world, Entity entity, int slotKey, int requestedSize, ulong structureHash,
+        OccurrenceKind kind, out byte* block, out int payloadOffset)
+    {
+        int bits = PresentTiers(world, entity);
+        var d = BlueprintTierTable.Descending;
+        for (int i = 0, b = bits; b != 0; i++, b >>= 1)
+        {
+            if ((b & 1) == 0) continue;
+            byte* mem = d[i].Memory(world, entity);
+            // ⭐ A block added RAW (a bare AddComponent, as scenario/test setup does) is initialised here, as the
+            //   pre-U-0 attach always did — Initialize is idempotent (one magic compare when already done).
+            BlueprintBlackboardPartitions.Initialize(mem, d[i].TotalSize, (byte)d[i].MaxSlots);
+            if (BlueprintBlackboardPartitions.TryAttach(mem, slotKey, requestedSize, structureHash, kind, out payloadOffset))
+            { block = mem; return true; }
+        }
+
+        var spec = SmallestAbsentFitting(world, bits, BlueprintBlackboardPartitions.PayloadCost(requestedSize), 1);
+        if (spec != null)
+        {
+            byte* mem = AddBlock(world, entity, spec);
+            if (BlueprintBlackboardPartitions.TryAttach(mem, slotKey, requestedSize, structureHash, kind, out payloadOffset))
+            { block = mem; return true; }
+        }
+
+        block = null; payloadOffset = 0;
+        return false;
+    }
+
+    /// <summary>
+    /// The store's totals across every block (read-only): capacity (<c>PayloadSize</c>, <c>MaxSlots</c>) and use
+    /// (<c>PayloadFree</c>, <c>SlotCount</c>), summed. ⚠ A slot cannot span blocks, so a sum is an ESTIMATE of
+    /// what fits; <see cref="TryAttachSlot"/> still appends on a miss.
+    /// </summary>
+    public static StoreMeasure Measure(EntityRepository world, Entity entity)
+    {
+        int bits = PresentTiers(world, entity);
+        var d = BlueprintTierTable.Descending;
+        var m = new StoreMeasure();
+        for (int i = 0; bits != 0; i++, bits >>= 1)
+        {
+            if ((bits & 1) == 0) continue;
+            m.Blocks++;
+            ref var h = ref Unsafe.AsRef<BlueprintBlackboardHeader>(d[i].MemoryReadOnly(world, entity));
+            if (h.MagicAndVersion != BlueprintBlackboardHeader.MagicValue)
+            {
+                // ⭐ a RAW block (added, not yet initialised) is all capacity — TryAttachSlot initialises it on use.
+                m.PayloadSize += d[i].PayloadSize;
+                m.PayloadFree += d[i].PayloadSize;
+                m.MaxSlots    += d[i].MaxSlots;
+                continue;
+            }
+            m.PayloadSize += h.PayloadSize;
+            m.PayloadFree += h.PayloadFree;
+            m.MaxSlots    += h.MaxSlots;
+            m.SlotCount   += h.SlotCount;
+        }
+        return m;
+    }
+
+    /// <summary>
+    /// ⭐ THE replacement for the copy-promotion: append ONE block for a shortfall of
+    /// <paramref name="payloadShort"/> bytes and <paramref name="slotsShort"/> slot entries — the smallest absent
+    /// registered tier that covers it, else the largest absent one.
+    /// </summary>
+    /// <returns>Whether a block was appended (<see langword="false"/> when every tier is already carried or
+    /// unregistered).</returns>
+    public static bool AppendBlockFor(EntityRepository world, Entity entity, int payloadShort, int slotsShort)
+    {
+        int bits = PresentTiers(world, entity);
+        var spec = SmallestAbsentFitting(world, bits, Math.Max(0, payloadShort), Math.Max(1, slotsShort))
+                   ?? LargestAbsent(world, bits);
+        if (spec == null) return false;
+        AddBlock(world, entity, spec);
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐ Pre-sizing for a known demand: when the blocks' combined FREE room cannot take <paramref name="payload"/>
+    /// bytes and <paramref name="slots"/> slot entries, append one block for the shortfall.
+    /// </summary>
+    /// <returns>Whether a block was appended.</returns>
+    public static bool EnsureRoom(EntityRepository world, Entity entity, int payload, int slots)
+    {
+        var m = Measure(world, entity);
+        if (payload <= m.PayloadFree && slots <= m.FreeSlots) return false;
+        return AppendBlockFor(world, entity, payload - m.PayloadFree, slots - m.FreeSlots);
+    }
+
+    /// <summary>The tier whose block starts at <paramref name="block"/>, or <see langword="null"/>.</summary>
+    public static BlueprintTierSpec? TierOf(EntityRepository world, Entity entity, byte* block)
+    {
+        int bits = PresentTiers(world, entity);
+        var d = BlueprintTierTable.Descending;
+        for (int i = 0; bits != 0; i++, bits >>= 1)
+            if ((bits & 1) != 0 && d[i].MemoryReadOnly(world, entity) == block) return d[i];
+        return null;
+    }
+
+    /// <summary>Adds <paramref name="spec"/>'s component and initialises its allocator. ⛔ Never for a tier the
+    /// unit already carries.</summary>
+    public static byte* AddBlock(EntityRepository world, Entity entity, BlueprintTierSpec spec)
+    {
+        spec.Add(world, entity);
+        byte* mem = spec.Memory(world, entity);
+        BlueprintBlackboardPartitions.Initialize(mem, spec.TotalSize, (byte)spec.MaxSlots);
+        // ⭐ U-0c: an open view for this unit gains the block (appended last — searched after the existing ones).
+        if (ViewFor(world, entity) is { } v)
+            v.Append(DescendingIndexOf(spec), mem, stamped: true);
+        return mem;
+    }
+
+    private static BlueprintTierSpec? SmallestAbsentFitting(EntityRepository world, int presentBits, int payload, int slots)
+    {
+        var d = BlueprintTierTable.Descending;
+        for (int i = d.Count - 1; i >= 0; i--)   // Descending reversed = smallest first
+        {
+            if ((presentBits & (1 << i)) != 0) continue;
+            var spec = d[i];
+            if (!spec.IsRegistered(world)) continue;
+            if (payload <= spec.PayloadSize && slots <= spec.MaxSlots) return spec;
+        }
+        return null;
+    }
+
+    private static BlueprintTierSpec? LargestAbsent(EntityRepository world, int presentBits)
+    {
+        var d = BlueprintTierTable.Descending;
+        for (int i = 0; i < d.Count; i++)
+            if ((presentBits & (1 << i)) == 0 && d[i].IsRegistered(world)) return d[i];
+        return null;
+    }
+}
+
+/// <summary>⭐ <c>CE-3137</c> U-0 — a store's totals across its blocks (<see cref="OccurrenceStoreAccess.Measure"/>).</summary>
+public struct StoreMeasure
+{
+    /// <summary>How many blocks.</summary>
+    public int Blocks;
+    /// <summary>Summed payload capacity.</summary>
+    public int PayloadSize;
+    /// <summary>Summed free payload.</summary>
+    public int PayloadFree;
+    /// <summary>Summed slot-table capacity.</summary>
+    public int MaxSlots;
+    /// <summary>Summed slots in use.</summary>
+    public int SlotCount;
+    /// <summary>Free slot entries.</summary>
+    public readonly int FreeSlots => MaxSlots - SlotCount;
+    /// <summary>Payload in use.</summary>
+    public readonly int PayloadUsed => PayloadSize - PayloadFree;
+}
+
+/// <summary>
+/// ⭐ <c>CE-3137</c> U-0 — a unit's blocks (≤ 4), largest first, as resolved by
+/// <see cref="OccurrenceStoreAccess.GetBlocks"/>. Unmanaged, so it lives on the stack. ⛔ Same lifetime as the
+/// pointers inside: valid until the entity is destroyed; a block is never removed while the unit lives.
+/// </summary>
+public unsafe struct StoreBlocks
+{
+    /// <summary>The ladder's size: one block per tier.</summary>
+    public const int Max = 4;
+
+    private fixed long _memory[Max];
+    private fixed int _totalSize[Max];
+
+    /// <summary>How many blocks the unit carries.</summary>
+    public int Count;
+
+    /// <summary>Block <paramref name="i"/>'s memory (header first).</summary>
+    public readonly byte* Memory(int i) => (byte*)_memory[i];
+
+    /// <summary>Block <paramref name="i"/>'s whole size, header included.</summary>
+    public readonly int TotalSize(int i) => _totalSize[i];
+
+    internal void Add(byte* memory, int totalSize)
+    {
+        _memory[Count] = (long)memory;
+        _totalSize[Count] = totalSize;
+        Count++;
+    }
+
+    /// <summary>The block holding <paramref name="slotKey"/>, in block order.</summary>
+    public readonly bool TryFind(int slotKey, out byte* block, out int payloadOffset, out uint structureHash)
+    {
+        for (int i = 0; i < Count; i++)
+        {
+            byte* mem = Memory(i);
+            if (BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out payloadOffset, out structureHash))
+            { block = mem; return true; }
+        }
+        block = null; payloadOffset = 0; structureHash = 0;
+        return false;
     }
 }

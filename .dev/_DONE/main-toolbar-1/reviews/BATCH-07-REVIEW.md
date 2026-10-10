@@ -10,7 +10,7 @@ added `MainToolbarTimeControlSection` (64px transport group + time + rate select
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors. Touched project `Hrot.Presentation` rebuilds
+- `dotnet build HROT.sln` → 0 errors. Touched project `Hrot.Presentation` rebuilds
   `--no-incremental` with **0 warnings** (TWAE clean); the 10 solution-wide warnings are pre-existing
   in other projects (not BATCH-07).
 - New tests run by lead: TransportIcons(6) + MainToolbarTimeControl(10) + ClusterTimeControl smoke(2)

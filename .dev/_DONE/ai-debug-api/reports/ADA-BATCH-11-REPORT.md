@@ -98,7 +98,7 @@ Also added `get_logs` to the required tools list in Step 1.
 ## Build Output
 
 ```
-dotnet build IOS-IG-SimHost.sln --nologo
+dotnet build HROT.sln --nologo
 Build succeeded.
     0 Warning(s)
     0 Error(s)

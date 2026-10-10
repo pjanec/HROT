@@ -102,7 +102,8 @@ namespace Hrot.Map.Common.Replication.Egress
         /// so the new request-level egress can reuse it verbatim (R-137).
         /// </summary>
         private CreateEntityRequest BuildCreateEntityRequest(SpawnEntityCommand cmd)
-            => CreateEntityRequestDescriptorBuilder.Build(
+        {
+            var sample = CreateEntityRequestDescriptorBuilder.Build(
                 requestId:             cmd.RequestId,
                 tkbType:               cmd.TkbType,
                 initialAttributesJson: cmd.InitialAttributesJson,
@@ -110,5 +111,10 @@ namespace Hrot.Map.Common.Replication.Egress
                                            cmd.InitialTransform, cmd.InitialComponents),
                 initialComponents:     cmd.InitialComponents,
                 geoTransform:          _geoTransform);
+            // ⭐ CE-1017 S2 — the birth-height request travels with the order (the receiver resolves it).
+            sample.SpawnHeightMode = (byte)(cmd.SpawnHeight?.Mode ?? Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.Absolute);
+            sample.SpawnLevel      = cmd.SpawnHeight?.Level ?? 0;
+            return sample;
+        }
     }
 }

@@ -11,6 +11,8 @@ using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fbt.Kernel;
+using Fdp.Toolkit.Tkb.Domain;
+using Hrot.MuscleCharacter.Animation.Stance;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -190,6 +192,20 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3090</c> — a WOUNDED unit with no cover: stays where it is, lies down (<c>CE-2121</c> — the body performs it, the
+        /// node does not wait) and returns fire at its top threat (re-aims when it changes). Running; a unit with no weapon channel
+        /// or no stance still holds. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3f, §3.3g.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus HoldProne(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+        {
+            StopMoving(world, self);
+            StanceRequest.Set(world, self, StanceId.Prone, GoProneSeconds);
+            Fire(world, self, ref ws, p.CooldownSeconds);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3082</c> D1 — true when THIS advance arrived: its move was issued and the channel reports Success. The HSM
         /// host's finish (an HSM activity's status is discarded, so the posture HSM leaves Advance for its Final state on this
         /// guard). Reads the SAME working state <see cref="AdvanceAndAttack"/> writes. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3c.
@@ -222,6 +238,17 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Deactivate_Engage(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
             => StopFiring(world, self, ref ws);
 
+        /// <summary>⭐ <c>CE-3090</c> — leaving the prone hold: the weapon stops and the unit gets up (<c>CE-2121</c>).</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne")]
+        public static void Deactivate_HoldProne(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+        {
+            StopFiring(world, self, ref ws);
+            StanceRequest.Set(world, self, StanceId.Standing, GetUpSeconds);
+        }
+
+        /// <summary>⭐ <c>CE-2121</c> — first-cut body timings (the fake backend uses them as the transition time).</summary>
+        public const float GoProneSeconds = 1.0f, GetUpSeconds = 0.8f;
+
         /// <summary>Leaving the advance: the move and the weapon stop.</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack")]
         public static void Deactivate_AdvanceAndAttack(ref AdvanceParams p, ref AdvanceState ws, Entity self, EntityRepository world)
@@ -233,7 +260,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         // ── the shared steps ─────────────────────────────────────────────────────────────────────────
 
-        private static EqsSensorHandle Keep(EqsSensorHandle handle, EntityRepository world, Entity self, int site, uint template,
+        // ⭐ CE-3136 P-6 — internal: PeekAndFire keeps its two sensors through it.
+        internal static EqsSensorHandle Keep(EqsSensorHandle handle, EntityRepository world, Entity self, int site, uint template,
                                             in PostureSensorsParams p, in ThreatAim threat, bool retarget)
         {
             var config = new EqsSensor
@@ -259,7 +287,7 @@ namespace Hrot.AI.Behaviors.Brains
             return handle;
         }
 
-        private static void Drop(EntityRepository world, EqsSensorHandle handle)
+        internal static void Drop(EntityRepository world, EqsSensorHandle handle)
         {
             if (handle.IsValid && world.IsAlive(handle.ChildId)) EqsChildSensor.Destroy(world, handle.ChildId);
         }
@@ -267,7 +295,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Aims the weapon at the top threat (a new command only when the target changed or the last one failed).
         /// False when the unit has no weapon channel. ⭐ <c>CE-2108</c>: the ONE fire step — <see cref="EqsTacticsNodes"/>
         /// fires on the move through it too.</summary>
-        internal static unsafe bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown)
+        internal static unsafe bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown, int rounds = 0)
         {
             if (!world.HasComponent<WeaponChannel>(self)) return false;
             if (!EqsTacticsNodes.TopThreat(world, self, ws.Threat, out var threat) || !world.IsAlive(threat))
@@ -284,7 +312,7 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-3089 (G7, backend — a cross-lane line, said in the P2 handoff's SYNC) — the posture / tactics fire step lets the
             //   executor choose the weapon per shot (25 mm at infantry, TOW at a tank). 📄 Utility demo design §12 W3.
             Unsafe.As<byte, AimAndFireParams>(ref channel.Params[0]) = new AimAndFireParams
-                { Target = threat, CooldownSeconds = cooldown, Mount = AimAndFireParams.MountAuto };
+                { Target = threat, CooldownSeconds = cooldown, Mount = AimAndFireParams.MountAuto, Rounds = rounds };   // ⭐ CE-3136 P-6 — B7's count
             unchecked { channel.ActionInstanceId++; }
             channel.ActiveAction = CombatConstants.ActionIdAimAndFire;
             channel.Status = NodeStatus.Running;

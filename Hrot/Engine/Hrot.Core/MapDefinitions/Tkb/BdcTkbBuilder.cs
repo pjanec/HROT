@@ -12,6 +12,7 @@ using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Tkb.Domain;
+using Fdp.Toolkit.Tkb.Parameters;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common;
 
@@ -62,6 +63,10 @@ namespace Hrot.Map.Definitions.Tkb
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
             template.DisType = disType;
+            // ⭐ CE-1017 S0 — the master descriptor carries the same type as text (what a TKB JSON file authors), so the
+            //   template field and the descriptor can never disagree.
+            var master = template.GetDescriptor<TkbMasterDto>();
+            if (master != null) template.AddDescriptor(master with { DisType = disType.ToString() });
             return this;
         }
 
@@ -106,6 +111,7 @@ namespace Hrot.Map.Definitions.Tkb
                 Scale        = visualDef.Scale,
                 ShowLabel    = visualDef.ShowLabel,
                 MapShapeName = visualDef.MapShapeName,
+                IconName     = visualDef.IconName,   // CE-1017 S0
             });
             // IgVisualDef.LayerName is deliberately NOT carried across: layer membership is
             // COMPUTED by MapLayerAssignmentSystem from the entity's DIS type and components,
@@ -164,9 +170,15 @@ namespace Hrot.Map.Definitions.Tkb
             // Typed DTO consumed by CombatTkbTranslator.
             // Derive max health from armor: ArmorFront * 5 gives roughly 500 HP for a 100 mm armour.
             // Entities without armour default to 100 HP.
+            // ⭐ Stage 0 — the formulas live in EngineFallbacks and every derived number is RECORDED, so /tkb/resolve
+            //   reports it as Generated(formula, inputs) rather than as if an author had stated it.
+            var generated = new TkbGeneratedValuesDto();
+            generated.Formulas[ParameterNames.MaxHealth] = combatDef.ArmorFront > 0f
+                ? $"armourFront × {EngineFallbacks.HealthPerArmourMm} (armourFront = {combatDef.ArmorFront})"
+                : $"no armour ⇒ {EngineFallbacks.HealthWithoutArmour}";
             template.AddDescriptor(new CombatPlatformDefDto
             {
-                MaxHealth  = combatDef.ArmorFront > 0f ? combatDef.ArmorFront * 5f : 100f,
+                MaxHealth  = EngineFallbacks.HealthFromArmour(combatDef.ArmorFront),
                 ArmorFront = combatDef.ArmorFront,
                 ArmorSide  = combatDef.ArmorSide,
                 ArmorRear  = combatDef.ArmorRear,
@@ -187,14 +199,18 @@ namespace Hrot.Map.Definitions.Tkb
                 var suite = new WeaponSuiteDto();
                 foreach (var wm in combatDef.Weapons)
                 {
+                    generated.Formulas[ParameterNames.Mount(suite.Mounts.Count, ParameterNames.MuzzleVelocity)] = wm.Range > 0f
+                        ? $"range × {EngineFallbacks.MuzzleVelocityPerRangeMetre} (range = {wm.Range})"
+                        : $"no range ⇒ {EngineFallbacks.MuzzleVelocity}";
                     suite.Mounts.Add(new WeaponMountDto
                     {
                         InitialAmmunition = wm.Ammunition,
-                        MuzzleVelocity    = wm.Range > 0f ? wm.Range * 0.5f : 800f,
+                        MuzzleVelocity    = EngineFallbacks.MuzzleVelocityFromRange(wm.Range),
                         // ⭐ CE-3071 (A4) — each mount keeps its OWN range and munition (the TOW is not the 25 mm).
                         Range             = wm.Range,
                         Penetration       = wm.Penetration,
                         DamagePerHit      = wm.DamagePerHit,
+                        DispersionMils    = wm.DispersionMils,   // ⭐ AQ85 C
                     });
                 }
                 template.AddDescriptor(suite);
@@ -211,6 +227,8 @@ namespace Hrot.Map.Definitions.Tkb
                 });
             }
 
+            template.AddDescriptor(generated);   // ⭐ Stage 0 — provenance of the derived numbers above
+
             // ECS components (PerceptionReceptor, WeaponState, Health, PhysicsCollider)
             // will be stamped by translators in Phase 6.
 
@@ -220,6 +238,17 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>
         /// Add force affiliation for perception/combat systems.
         /// </summary>
+        /// <summary>⭐ CE-1041 — the body's geometry relative to its reference point (size, box offset, ground contacts).
+        /// 📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md.</summary>
+        public NedTkbBuilder WithBodyGeometry(long tkbId, BodyGeometryDto geometry)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(geometry ?? throw new ArgumentNullException(nameof(geometry)));
+            return this;
+        }
+
         public NedTkbBuilder WithFaction(long tkbId, byte factionId)
         {
             var template = _db.GetByType(tkbId);

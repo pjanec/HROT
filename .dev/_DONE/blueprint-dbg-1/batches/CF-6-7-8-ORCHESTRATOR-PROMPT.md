@@ -13,7 +13,7 @@
 - **Never weaken, skip, or delete an existing test to make it pass.** If behavior legitimately changed, change only
   the expected value and list every such test by name (old→new) in the report. **Never** regenerate golden
   snapshots — if a golden changes, STOP and report.
-- Gates: `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors (editor CLOSED — DLL locks);
+- Gates: `dotnet build HROT.sln -c Debug` → 0 errors (editor CLOSED — DLL locks);
   `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug` → **0 net-new failures** (report the full
   failing set by name, before/after, with exact command lines). Lead reviews the **diff**, not the report, and
   commits. If blocked, STOP and report — do not guess.

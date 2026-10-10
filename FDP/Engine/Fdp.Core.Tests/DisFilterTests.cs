@@ -19,6 +19,32 @@ namespace Fdp.Tests
             _repo.Dispose();
         }
 
+        // ⭐ CE-1017 S0 — the SISO dotted text form (what TkbMasterDto.DisType carries) round-trips.
+        [Theory]
+        [InlineData("1.1.225.1.1.0.0", 1, 1, 225, 1, 1)]
+        [InlineData("3.1", 3, 1, 0, 0, 0)]
+        [InlineData("1.1.65535.255", 1, 1, 65535, 255, 0)]
+        public void CE1017_DisText_Parses_AndFormatsBack(string text, int kind, int domain, int country, int category, int sub)
+        {
+            Assert.True(DISEntityType.TryParse(text, out var t));
+            Assert.Equal((byte)kind, t.Kind);
+            Assert.Equal((byte)domain, t.Domain);
+            Assert.Equal((ushort)country, t.Country);
+            Assert.Equal((byte)category, t.Category);
+            Assert.Equal((byte)sub, t.Subcategory);
+            Assert.True(DISEntityType.TryParse(t.ToString(), out var again));
+            Assert.Equal(t.Value, again.Value);
+        }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData("1.1.x")]
+        [InlineData("1.256")]
+        [InlineData("1.1.65536")]
+        [InlineData("1.1.1.1.1.1.1.1")]
+        [InlineData("-1.1")]
+        public void CE1017_DisText_Rejects_Malformed(string text) => Assert.False(DISEntityType.TryParse(text, out _));
+
         [Fact]
         public void SetGetDisType_StoredCorrectlyInHeader()
         {

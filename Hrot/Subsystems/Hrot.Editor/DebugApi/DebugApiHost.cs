@@ -59,6 +59,19 @@ namespace Hrot.Editor.DebugApi
         /// call, not a serialisation tweak — 📌 <c>DebugApiSafeFloatConverters.cs</c> still has ZERO
         /// application sites, and that remains a real finding.</para>
         /// </summary>
+        /// <summary>Parses <c>"x,y,z"</c> (invariant culture) into a vector.</summary>
+        private static bool TryVec3(string? text, out System.Numerics.Vector3 v)
+        {
+            v = default;
+            var parts = text?.Split(',');
+            if (parts is not { Length: 3 }) return false;
+            var f = new float[3];
+            for (int i = 0; i < 3; i++)
+                if (!float.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f[i])) return false;
+            v = new System.Numerics.Vector3(f[0], f[1], f[2]);
+            return true;
+        }
+
         private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -667,6 +680,75 @@ namespace Hrot.Editor.DebugApi
                     : Ok(node));
             }));
 
+            // ⭐ Buildings programme Stage 0 — every parameter of a type with its value and provenance.
+            _routes.Add(new("GET", "/tkb/resolve", ctx =>
+            {
+                // ⭐ tuning T-1 — no type: the generated reference library (a pair with ammo=&weapon=, or the whole library)
+                if (ctx.Query("type") is null && (ctx.Query("ammo") is not null || ctx.Query("library") is not null))
+                    return Task.FromResult(Ok(ReferenceReport.Resolve(ctx.Query("ammo"), ctx.Query("weapon"))));
+                if (!long.TryParse(ctx.Query("type"), out var tkbType))
+                    return Task.FromResult(Fail(400, "Query 'type' (TKB type id) is required — or 'ammo' (and 'weapon') for the reference library, or 'library=1' to list it.", DebugApiHints.TkbType));
+                var node = Service().ResolveTkbParameters(tkbType);
+                return Task.FromResult(node is null
+                    ? Fail(404, $"TKB type {tkbType} not found.", DebugApiHints.TkbType)
+                    : Ok(node));
+            }));
+
+            // ⭐ Buildings programme Stage 1 — terrain diagnostics (docs/DESIGN_Terrain_Combat_Tuning.md §4).
+            _routes.Add(new("GET", "/terrain/levels", ctx =>
+            {
+                if (!float.TryParse(ctx.Query("x"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x)
+                 || !float.TryParse(ctx.Query("y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y))
+                    return Task.FromResult(Fail(400, "Query 'x' and 'y' (local metres) are required."));
+                return Task.FromResult(Ok(Service().GetTerrainLevels(x, y)));
+            }));
+
+            _routes.Add(new("GET", "/terrain/query", ctx =>
+            {
+                var purpose = ctx.Query("purpose") ?? "sight";
+                if (purpose != "sight" && purpose != "fire")
+                    return Task.FromResult(Fail(400, $"purpose '{purpose}' is not available yet — 'sight' and 'fire' are served (sound, fragment, blast come with their solvers)."));
+                if (!TryVec3(ctx.Query("from"), out var from) || !TryVec3(ctx.Query("to"), out var to))
+                    return Task.FromResult(Fail(400, "Query 'from' and 'to' are required as 'x,y,z' (local metres)."));
+                if (purpose == "fire")
+                {
+                    float pen = 0f, dmg = 0f;
+                    if (ctx.Query("penetration") is string ps && !float.TryParse(ps, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out pen))
+                        return Task.FromResult(Fail(400, $"penetration '{ps}' is not a number (mm RHA)."));
+                    if (ctx.Query("damage") is string ds && !float.TryParse(ds, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dmg))
+                        return Task.FromResult(Fail(400, $"damage '{ds}' is not a number."));
+                    return Task.FromResult(Ok(Service().QueryTerrainFire(from, to, pen, dmg)));
+                }
+                return Task.FromResult(Ok(Service().QueryTerrain(from, to)));
+            }));
+
+            _routes.Add(new("GET", "/doors", _ => Task.FromResult(Ok(Service().GetDoors()))));
+
+            // ⭐ Tuning T-4 — line of sight with its evidence (docs/DESIGN_Terrain_Combat_Tuning.md §4).
+            _routes.Add(new("GET", "/perception/los", ctx =>
+            {
+                if (!long.TryParse(ctx.Query("observer"), out var obs) || !long.TryParse(ctx.Query("target"), out var tgt))
+                    return Task.FromResult(Fail(400, "Query 'observer' and 'target' (network ids) are required."));
+                var node = Service().ExplainLos(obs, tgt);
+                return Task.FromResult(node["error"] is JsonNode err ? Fail(404, (string)err!) : Ok(node));
+            }));
+
+            // ⭐ Tuning T-4 — the shot records the fire chain writes (docs/DESIGN_Terrain_Combat_Tuning.md §4).
+            _routes.Add(new("GET", "/combat/shots", ctx =>
+            {
+                int last = int.TryParse(ctx.Query("last"), out var l) && l > 0 ? l : 20;
+                long? shooter = long.TryParse(ctx.Query("shooter"), out var sh) ? sh : null;
+                long? target = long.TryParse(ctx.Query("target"), out var tg) ? tg : null;
+                return Task.FromResult(Ok(Service().GetShots(last, shooter, target)));
+            }));
+
+            // ⭐ CE-1032 (W-10) — the warhead bursts the area effect assessed (docs/DESIGN_Building_Interiors.md §3k).
+            _routes.Add(new("GET", "/combat/detonations", ctx =>
+            {
+                int last = int.TryParse(ctx.Query("last"), out var l) && l > 0 ? l : 10;
+                return Task.FromResult(Ok(Service().GetDetonations(last)));
+            }));
+
             // Group N — world/coordinate info
             _routes.Add(new("GET", "/world/info", _ =>
                 Task.FromResult(Ok(Service().GetWorldInfo()))));
@@ -968,6 +1050,15 @@ namespace Hrot.Editor.DebugApi
                 if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntitySensors(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            // ⭐ CE-3144 — a unit's RAW TargetMemory (heard + unmappable slots too; GET /entities/{id} drops them).
+            _routes.Add(new("GET", "/entities/{networkId}/memory", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityMemory(id)).ConfigureAwait(false);
                 return Ok(node);
             }));
 
@@ -1496,6 +1587,7 @@ namespace Hrot.Editor.DebugApi
                 return Fail(400, "name is required.");
 
             bool waitForReady = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
+            bool startPaused  = ctx.Body?["startPaused"]?.GetValue<bool>() ?? true;   // Q86 §4-G: a property of the load
 
             // ⭐ The count BEFORE the request: with CE-295's unload-first the world empties during the unload, which is
             //   the edge the readiness check needs to see.
@@ -1504,7 +1596,7 @@ namespace Hrot.Editor.DebugApi
 
             var requested = await _jobQueue.RunOnMainThread(() =>
                 target == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive
-                    ? Service().LoadScenarioLive(name!)
+                    ? Service().LoadScenarioLive(name!, startPaused)
                     : Service().LoadScenarioEdit(name!)).ConfigureAwait(false);
 
             // ⭐⭐ CE-295 — from Live or Edit the shared sequence asked for Idle first; the load itself goes out once the

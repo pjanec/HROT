@@ -40,7 +40,7 @@ Make the My-Blueprint variable-drag create-path produce a Get/Set node whose **t
 - [ ] TAB opens add-node picker; wire-drop-to-empty opens the by-pin picker; data-type/variable/asset pickers work; Ctrl+F opens find — in the Blueprint perspective (and find/commands in BTree/HSM too).
 - [ ] Variable Get/Set nodes show their typed value pin.
 - [ ] Byte-stability test green; compiler golden suite unchanged (projection-only; any `NodeMetadata` use is ignore-null).
-- [ ] `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 warnings; GizmoMap.Contracts 0.2.2.
+- [ ] `dotnet build HROT.sln` 0 errors / 0 warnings; GizmoMap.Contracts 0.2.2.
 - [ ] Green: `Hrot.Blueprints.Tests` (no new failures beyond the 10 DEBT-006; the sub-80ns `WhenNodePerfTests` is flaky under load — re-run isolated), `Hrot.Editor.AiShared.Tests`, `Hrot.BTree.Editor.Tests`, `Hrot.Hsm.Editor.Tests`, `EditorSubsystemBoot` filter.
 - [ ] Report at `.dev/_DONE/blueprint-canvas-parity/reports/BCP-BATCH-02-REPORT.md`.
 

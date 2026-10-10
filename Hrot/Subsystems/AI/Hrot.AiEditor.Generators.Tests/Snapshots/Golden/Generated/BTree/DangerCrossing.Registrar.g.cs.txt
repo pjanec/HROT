@@ -318,7 +318,7 @@ public static class DangerCrossingRegistrar
             Name         = "DangerCrossing",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
-            BlueprintStructureHash = 5937811637367745637UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 5411267613390732858UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("sensor", typeof(global::Hrot.AI.Behaviors.Brains.DangerSensorParams), 0),

@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Navigation
     /// <para>⚠ <see cref="QueryVersion"/> advances on every publish, so a path planned against the old mesh is
     /// recognisably stale.</para>
     /// </summary>
-    public sealed class SwitchableNavmeshProvider : INavmeshProvider
+    public sealed class SwitchableNavmeshProvider : INavmeshProvider, INavmeshDebugGeometry
     {
         private static readonly INavmeshProvider Fallback = new EngineBackedNavmeshProvider();
 
@@ -55,6 +55,17 @@ namespace Fdp.Toolkit.Navigation
 
         public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF)
             => Current.PlanPath(from, to, waypoints, layerMask);
+
+        /// <summary>⭐ <c>CE-3133</c> — the published provider's polygons (null before a bake, or when it cannot export).</summary>
+        public NavmeshDebugMesh? DebugMesh(NavLayerMask layer) => (Current as INavmeshDebugGeometry)?.DebugMesh(layer);
+
+        // ⭐ R-219 — forward the caller's door table (the default interface methods would DROP it)
+        public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => Current.PlanPath(from, to, waypoints, layerMask, doors);
+        public bool PathExists(Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => Current.PathExists(from, to, layerMask, doors);
+        public float PathCost(Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => Current.PathCost(from, to, layerMask, doors);
     }
 
     /// <summary>

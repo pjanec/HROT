@@ -27,7 +27,7 @@ The project contains **two pure diagnostic analyzers** and **six source generato
 | `BTreeActionGenerator`       | IIncrementalGenerator  | Emit `FbtActionRegistrar.g.cs` for BTree action dispatch |
 | `BTreeDefinitionGenerator`   | IIncrementalGenerator  | Emit `FbtTreeCatalog.g.cs` for named tree catalog        |
 | `HsmActionGenerator`         | IIncrementalGenerator  | Emit `HsmActionDispatcher/Registrar.g.cs` for HSM        |
-| `GizmoRegistrarGenerator`    | ISourceGenerator       | Emit per-namespace `GizmoRegistrar.g.cs` files           |
+| ~~`GizmoRegistrarGenerator`~~ | ISourceGenerator      | ⛔ RETIRED `2026-10-08` (`CE-3123`) — no caller since ST-031; every host registers gizmos with `GizmoReflectionRegistrar` (`DESIGN_Uniform_Gizmo_Membership.md` §8–§10) |
 | `UtilityInputGenerator`      | IIncrementalGenerator  | Emit `UtilityInputRegistrar.g.cs` for Utility AI input reader dispatch |
 | `UtilityDecisionGenerator`   | IIncrementalGenerator  | Emit `UtilityDecisionCatalog.g.cs` for Utility AI decision catalog |
 | `UtilityAuthoringAnalyzer`   | DiagnosticAnalyzer     | Enforce `UT####` authoring rules on `[UtilityInput]` and `[UtilityDecision]` types |
@@ -221,7 +221,7 @@ Dispatcher     - thunks per [SharedAiAction]
 - ClearAll
 ```
 
-### Diagram 5: GizmoRegistrarGenerator flow
+### Diagram 5: GizmoRegistrarGenerator flow — ⛔ RETIRED `2026-10-08` (`CE-3123`) — no caller since ST-031; every host registers gizmos with `GizmoReflectionRegistrar` (`DESIGN_Uniform_Gizmo_Membership.md` §8–§10)
 
 ```
   ISyntaxReceiver.OnVisitSyntaxNode
@@ -441,7 +441,7 @@ deleted (`CE-2050`, `2026-10-03`).
 
 ---
 
-### `GizmoRegistrarGenerator.cs`
+### `GizmoRegistrarGenerator.cs` — ⛔ RETIRED `2026-10-08` (`CE-3123`) — no caller since ST-031; every host registers gizmos with `GizmoReflectionRegistrar` (`DESIGN_Uniform_Gizmo_Membership.md` §8–§10)
 
 **Namespace**: `Fdp.Toolkit.Diagnostics.Analyzers`
 **Kind**: `ISourceGenerator` (classic, non-incremental)

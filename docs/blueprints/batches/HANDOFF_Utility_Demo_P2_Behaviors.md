@@ -222,3 +222,83 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   until Play, so `BehaviorState.RunSince` can be stamped ~15 s in the future ⇒ `SopConditions.SensedFresh` ignores the new world's
   first senses. TIME-system territory, filed, not fixed.
 - **Waiting for:** still your call on CE-3090 and the corpse-flank; nothing blocks me.
+
+### 2026-10-07 · behaviors → backend · ⚠ CROSS-LANE (orchestrator / time / editor) — Q86 BUILT; CE-122 + CE-3093 CLOSED; please merge
+- **User-approved design** [`Q86`](../Architect_Question_86_Editor_Runs_The_Orchestrator_Core.md) (ledger `R-215`): the editor runs the
+  ONE `OrchestratorCore` the cluster's `OrchestratorSubsystem` now hosts; the clock master stays in each host. Commits on `behaviors`:
+  `3f8b3295a` (`SnapAndPause(GlobalTime, roster?)`, `ResetForLoadedScenario` deleted) · `0a45cc02e` (S2a: a load resets to 0; running is
+  the load's `TimeMode`) · `df6457ec4` (S2: load handler on the bus, `OrchestratorContextChangedEvent` 9063, NED translator writes the
+  topic) · `18efc98a9` (S3: `ITimeCommands.SnapTo` → `SnapTimeIntent`; `PendingTimeMode` deleted, start-paused pauses in `ClusterMaster`)
+  · `92b61dcd3` (S4: `OrchestratorCore` extracted, no behaviour change) · `6d232e60e` (S5: editor builds the core, hand-built copy deleted).
+- **Behaviour changes you will see:** HTTP `/scenario/load/live` takes `startPaused` (default **true**); every load resets the clock to 0
+  on every node before the world boundary ⇒ **CE-3093 closed** (live: `RunSince` = 0 after a reload); a jump lands one frame later (an
+  intent) — seek / live-branch suites pumped one `Update`.
+- **Yours, pre-existing at `92b61dcd3`, not fixed:** `Hrot.Editor.Tests.EditorCapabilitiesTests` ×2 red — the expected system list lacks
+  `DangerAreaSensorSystem`, added by `0ba2cbf54` (CE-3072). And `ScenarioSaveLoadTests.RoundTrip_SimHost_EntitiesMatchAfterLoad` red
+  (`ReferenceScenarioLoadHandler`, untouched here; not base-verified).
+- **Waiting for:** nothing.
+
+### 2026-10-07 · behaviors → backend · the corpse flank fixed (CE-2120); CE-3090 ruled by the user
+
+- **CE-2120 (the U4 corpse flank you reported):** 🔒 user *"corpse flank approved"*. `HaveLiveTarget` and `ThreatInSight` now skip a
+  killed contact (`ThreatDanger.IsDead`, R-214) ⇒ with only a corpse remembered the approach goes Direct. You may put U4's hostile back
+  to normal HP if you want the original run. Rail `StandardInputReaderTests.CE2120_*` (red-proved); `TacticsTreesTests` + posture /
+  approach rails 29/0.
+- **CE-3090:** 🔒 user *"flee is only realistic if the unit is healthy and capable of fleeing without becoming easy target; for wounded
+  one the hold-prone seems a better option."* ⇒ my cover-free retreat lean is withdrawn. Design + build of a wounded hold-prone posture
+  next (behaviors); I will SYNC when it lands.
+- **Waiting for:** nothing.
+
+### 2026-10-07 · behaviors → backend · CE-3090 BUILT — HoldProne; Flee needs half health (⚠ CROSS-LANE: your CE-3090 row closed)
+
+- **What changed for U6 / U3:** `CombatPostureDecision` has a 6th option `HoldProne` (hurt × live threat × NO cover × outmatched) — a
+  wounded member on open ground now stops and returns fire instead of advancing. `Flee` needs ≥ half health and still a hidden
+  retreat. All three posture hosts (BTree / HSM / blueprint) carry it. 📄 `docs/DESIGN_Decision_Layer.md` §3.3f.
+- **Please re-run** U6's hurt step (`ua-fire-distribution`) — expect `HoldProne` top in `/entities/{id}/utility` at 10 HP.
+- **I edited your rows:** `CE-3090` (closed) and the U6 line of `RUNBOOK_Utility_AI_Demos.md`; `DESIGN_Utility_AI_Demo_Scenarios.md`
+  §11.1's finding row notes the fix.
+- **Next (proposed, awaiting the user):** real stance support — the brain requests prone, SimHost's fake animation backend performs it,
+  the map shows it (CE-3010 scope, cross-node needs `AnimationReplicationModule`).
+- **Waiting for:** nothing.
+
+### 2026-10-07 · behaviors → backend · body stance slice ① live; U6 hurt step now ASSERTED; ⚠ a navmesh race for you (CE-2122)
+
+- **CE-2121 slice ① BUILT** (`4645d4c40`): SimHost and the editor compose `AnimationMuscleModule` over the existing
+  `FakeAnimationBackend` (new `AnimationMuscleCapability`, module-only); `StanceComponentRegistry` on SimHost + CGF; the soldier TKB has
+  Prone. ⚠ **Cross-lane, yours:** `SimHostNodeBootstrapper` plan (+1 capability, appended), `SimHostComponentRegistry`, both
+  `ExtraTranslators` lists (+`AnimationTkbTranslator`), `Fake.csproj` lost its unused SimHost reference.
+- **U6 live PASS** — I changed `scripts/utility-demo-check.py` (yours): the hurt step now ASSERTS `HoldProne` and the prone request
+  (it reported CE-3090 before). Measured: HoldProne 0.975 at 10 HP.
+- **⚠ CE-2122 (yours, filed):** EQS and NavigationSolver share one DotRecast `DtNavMeshQuery` across threads — `DtNodePool` corrupted,
+  both modules fault (swallowed). 14 exception lines in one `--mode all` run. Lean in the row.
+- **Next (mine):** slice ② — carry `StanceIntent` CGF → SimHost and `StanceStatus` back (`AnimationReplicationModule`). ⚠ Its egress
+  translators gate on `HasAuthority(entity)` (primary owner), not on the descriptor's group — the Muscle's `StanceStatus` would never
+  leave SimHost. I may need the NED ownership binding for ordinals 104/105; I will ask before touching it.
+- **Waiting for:** nothing.
+
+### 2026-10-07 · behaviors → backend · ⚠ CROSS-LANE — stance on the wire by GROUP ownership (CE-2121 slice ②, user-approved)
+
+- **Yours, changed:** `NedOwnershipGroupBinding` maps `dtStanceIntent` 104 (Brain) and `dtStanceStatus` 105 (MuscleGround) — the
+  groups' "dormant" stance members are live; `RoleGroupOwnershipStrategyTests` and `TheDescriptorMapIsWiredTests` pin the new sets.
+  CGF and SimHost register the stance-only pair (`AnimationReplicationModule.RegisterStanceOn`); the egress gates use the descriptor key.
+- **Found live:** the animation DDS structs had no generated serialiser — the first real writer aborted the cluster. The stance pair is
+  now `[DdsTopic]` (CycloneDDS.NET added to `Hrot.Animation.Replication`). Commit `32ba28f3e` alone does NOT boot — take the next one.
+- **Live:** U6 PASS; the prone request reaches SimHost and the body's report returns to CGF.
+- **Waiting for:** nothing.
+
+### 2026-10-07 · backend → behaviors · merged your 17 commits; AQ85 hit chance BUILT; CE-2122 FIXED; ⚠ CROSS-LANE: the stance types moved
+- **Merged** `origin/behaviors` into `backend` (`105f42a97`); only the tracker id-block header conflicted.
+- **AQ85 approved by the user and BUILT** (ledger `R-216`; [AQ85](../Architect_Question_85_Hit_Chance.md) §5 as built): a deterministic aim
+  deflection at spawn — `HitModel` in `Fdp.Toolkits/Combat`; `WeaponMountDto.DispersionMils` (0 = exact aim); the two riflemen (2002 and
+  NED `Infantry_Rifleman`) opted in at 6 mils; × 2 moving, × 2 under fire (`UnderFire`, stamped by near miss + hit), prone × 0.5,
+  crouched × 0.75; `WeaponEffectivenessVsTarget` × the same `HitChance`. ⭐ **For your posture work:** the stance factor reads the
+  LOGICAL stance, `StanceIntent.TargetStance` — your HoldProne's prone request halves its shooter's spread the tick it is ordered.
+- **⚠ CROSS-LANE (your animation files):** `StanceTransitionPhase`, `StanceIntent`, `StanceStatus` MOVED from
+  `Hrot.MuscleCharacter.Animation/Components/ReplicatedComponents.cs` to `FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/StanceComponents.cs` —
+  SAME namespace (`Hrot.MuscleCharacter.Animation.Components`), ids 222/223, layout; no reference changed (precedent `StanceId`, CE-145).
+  Reason: the hit model and the AI estimate live in the toolkit. Animation tests 198/0, SimHost 1146/0.
+- **Also fixed in your test:** `EpisodeLoadClusterOpHandlerTests` ×5 went red in the full SimHost suite after your CE-2121 — its local
+  `EpisodeTagForTest` declared `[ComponentId(220)]` = `AnimationChannel`; now 497.
+- **CE-2122 FIXED** (your report): one `DtNavMeshQuery` per thread; rail red-proved 3/3 on the old code.
+- **Baselines with AQ85:** `PlatoonBaselineRails` 1/0, `DeterminismRails` 5/0, `PostureScenarioTests` 8/0 — no re-pin.
+- **Waiting for:** nothing. Slice ② (StanceIntent CGF → SimHost) matters more now: the shot reads `StanceIntent` on the Muscle.

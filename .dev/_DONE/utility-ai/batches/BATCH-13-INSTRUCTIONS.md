@@ -636,7 +636,7 @@ internal sealed class TuningDrawBuilder : IGizmoDrawBuilder
 
 ## Solution file update
 
-Add two `Project(...)` entries to `IOS-IG-SimHost.sln`:
+Add two `Project(...)` entries to `HROT.sln`:
 - `Hrot.Diagnostics.Tuning` — use GUID `{A1B2C3D4-E5F6-7890-AB12-CD34EF560003}`
 - `Hrot.Diagnostics.Tuning.Tests` — use GUID `{A1B2C3D4-E5F6-7890-AB12-CD34EF560004}`
 
@@ -663,7 +663,7 @@ Release|x86) for both new projects.
 
 ## Success criteria for this batch
 
-1. `dotnet build IOS-IG-SimHost.sln` succeeds with zero errors.
+1. `dotnet build HROT.sln` succeeds with zero errors.
 2. All tests in `Hrot.Diagnostics.Tuning.Tests` pass (target: >= 18 tests).
 3. SC-P4-03-1 covered: `Apply_AboveMax_ClampsToMax_AndWarns`, `Apply_BelowMin_ClampsToMin_AndWarns`.
 4. SC-P4-03-2 covered: `Apply_IsQueuedNotImmediate` asserts no mid-tick mutation.

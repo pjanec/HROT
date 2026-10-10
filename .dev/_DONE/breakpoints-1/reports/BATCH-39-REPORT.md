@@ -85,7 +85,7 @@ New test class for UBP-P3T3.
 ## Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 Build succeeded.
   5 Warning(s)   -- all pre-existing CS0618 warnings in Hrot.Blueprints.Tests
                     (IBlueprintTimeController obsolete), not introduced by this batch

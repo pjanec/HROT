@@ -47,7 +47,7 @@ do **not** change.
 
 ## Build & test
 
-- Build: `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors (close the editor first — it locks DLLs).
+- Build: `dotnet build HROT.sln -c Debug` → 0 errors (close the editor first — it locks DLLs).
 - Test the touched projects, e.g. `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug`,
   `Hrot/Subsystems/Hrot.SimHost.Tests`, `FDP/Toolkits/Fdp.Toolkits.Tests` — **0 net-new failures**; report the full
   failing set by name.

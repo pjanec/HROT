@@ -17,7 +17,7 @@ BATCH-01 has been merged. All Phase 1 types are available in `Fdp.Toolkit.Diagno
 
 1. Read [TASK-DETAIL.md](../TASK-DETAIL.md) sections for GZ004, GZ005, GZ006 in full before writing any code.
 2. Implement all three tasks in order (GZ004 first — others depend on it).
-3. Build: `dotnet build IOS-IG-SimHost.sln --nologo` — zero errors required.
+3. Build: `dotnet build HROT.sln --nologo` — zero errors required.
 4. Test: `dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj --nologo` — all pass.
 5. Write a BATCH-02-REPORT.md in `.dev/gizmos-1/reports/`.
 

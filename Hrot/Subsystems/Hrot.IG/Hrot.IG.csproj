@@ -22,6 +22,8 @@
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <!-- CE-1017: the Add Entity picker (PickerRegistry). -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />
     <ProjectReference Include="..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
     <!-- NED protocol references required for DebugPrimitivesIngressTranslator and related types. -->
     <!-- NOTE: GZ045 gizmo interaction translators are now routed through INetworkFactory. -->

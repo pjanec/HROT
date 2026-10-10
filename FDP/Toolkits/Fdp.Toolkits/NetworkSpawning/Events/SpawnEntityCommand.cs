@@ -112,5 +112,15 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         /// binary records; otherwise it is forwarded to SimHost verbatim.
         /// </summary>
         public string? InitialAttributesJson;
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S2 — the birth-height request; <c>null</c> ⇒ <see cref="InitialTransform"/>'s Z stands (today).
+        /// When set, <c>NetworkSpawningSystem</c> replaces that Z with <c>TerrainWorld.ResolveLevel(x, y, Level)</c>
+        /// (+ the sent Z for <see cref="SpawnHeightMode.AboveLevel"/>); with no terrain resident the sent Z stands.
+        /// <para>⛔ Set only by the CREATOR (the request path or a direct publisher such as the placement tool). Replica /
+        /// ghost ingress never sets it — replicas take the owner's replicated Z.</para>
+        /// 📄 docs/DESIGN_Add_Entity_Picker.md §2e.
+        /// </summary>
+        public SpawnHeight? SpawnHeight;
     }
 }

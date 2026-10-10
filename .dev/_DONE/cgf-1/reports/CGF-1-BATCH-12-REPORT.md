@@ -180,7 +180,7 @@ New project added to solution (`{41C65952-6A34-47D7-85CA-94DC3CDD1314}`).
 - `FDP/Toolkits/FDP.Toolkit.Scenario/StoryTag.cs` — cleared (redirect comment)
 - `FDP/Toolkits/FDP.Toolkit.Scenario.Tests/ScenarioSerializerTests.cs` — updated + 5 new fail-fast tests
 - `FDP/Toolkits/FDP.Toolkit.Scenario.Tests/TestComponents.cs` — `GetOutputDomKeys()` on `MissileOrdnanceTranslator`
-- `IOS-IG-SimHost.sln` — added `Hrot.Orchestrator.Integration.Tests`
+- `HROT.sln` — added `Hrot.Orchestrator.Integration.Tests`
 - `.dev/DEBT-TRACKER.md` — rows A.1–A.5, A.7 closed
 - `.dev/cgf-1/CGF-1-TASK-TRACKER.md` — S0307 marked `[x]`; Phase 3 progress updated to 3/8
 

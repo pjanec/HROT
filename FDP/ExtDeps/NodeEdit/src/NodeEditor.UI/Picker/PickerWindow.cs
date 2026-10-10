@@ -29,6 +29,8 @@ public sealed class PickerWindow
     private PickerSelectionMode _selectionMode;
     private Vector2? _screenPos;
     private CategoryNode? _categoryRoot;
+    private bool _foldSingleChildFolders;
+    private bool _showPreview;
 
     // Entry-driven path (OpenFromRequest).
     private PickerEntry[]? _requestEntries;
@@ -69,6 +71,8 @@ public sealed class PickerWindow
         _selectionMode  = request.SelectionMode;
         _screenPos      = request.AnchorScreen;
         _categoryRoot   = request.CategoryRoot;
+        _foldSingleChildFolders = request.FoldSingleChildFolders;
+        _showPreview    = request.ShowPreview;
         _requestEntries = request.ItemsProvider().ToArray();
         _adapter        = null;
         _adapterContext = null;
@@ -104,6 +108,8 @@ public sealed class PickerWindow
         _selectionMode  = adapter.SelectionMode;
         _screenPos      = screenPos;
         _categoryRoot   = null;
+        _foldSingleChildFolders = false;
+        _showPreview    = false;
         _requestEntries = null;
         _onPickRaw      = onPick;
         _onPickResult   = null;
@@ -220,7 +226,7 @@ public sealed class PickerWindow
                 break;
 
             case PickerLayout.Tree:
-                TreeLayout.Draw(_state, ctx, _categoryRoot);
+                TreeLayout.Draw(_state, ctx, _categoryRoot, _foldSingleChildFolders, _showPreview);
                 break;
 
             default: // Standard

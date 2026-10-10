@@ -88,7 +88,7 @@ confirming pin output is correct for all tested kinds.
 ## Build Results
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 Build succeeded.
 0 errors / 0 new warnings (all warnings are pre-existing).
 ```

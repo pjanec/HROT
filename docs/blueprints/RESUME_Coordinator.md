@@ -119,7 +119,7 @@ way, and it is a live wrong-link in a document the user reads.
 
 | Suite | Result |
 |---|---|
-| **Solution build** `IOS-IG-SimHost.sln` | ✅ **0 errors** |
+| **Solution build** `HROT.sln` | ✅ **0 errors** |
 | Blueprints | ✅ **2907 passed / 0 failed / 10 skipped** (2917 total) |
 | AiShared | ✅ **1213 / 0** |
 | BTree editor | ✅ **612 / 0** |
@@ -138,7 +138,7 @@ test's *name* — that is why Batch 22 had to register BP-111.
 <details><summary>The gate command list</summary>
 
 ```bash
-dotnet build IOS-IG-SimHost.sln -v q --nologo
+dotnet build HROT.sln -v q --nologo
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj -v q --nologo
 dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj -v q --nologo
 dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Hrot.BTree.Editor.Tests.csproj -v q --nologo

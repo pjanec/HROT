@@ -92,7 +92,7 @@ namespace Fdp.Toolkit.Squad.Systems
         // ── ② the rating and ③ the edges ──
         private void Rate(EntityRepository repo, ISimulationView view)
         {
-            var terrain = repo.HasSingletonManaged<TerrainWorld>() ? repo.GetSingletonManaged<TerrainWorld>() : null;
+            var terrain = Fdp.Toolkit.World.WorldQuery.Of(view);   // ⭐ CE-1035 Q2 — bound to this view's doors (R-219)
             bool memory = repo.IsComponentTypeRegistered<TargetMemory>();
             bool tags = repo.IsComponentTypeRegistered<SensorTag>();
             _next.Clear();
@@ -132,7 +132,7 @@ namespace Fdp.Toolkit.Squad.Systems
         /// last-known position sees the area — <c>danger × sight</c>, sight 1 when nothing blocks it (or the node has no
         /// terrain), else 0.
         /// </summary>
-        public static unsafe float ThreatOn(EntityRepository repo, Entity unit, TerrainWorld? terrain, in DangerAreaDescriptor area)
+        public static unsafe float ThreatOn(EntityRepository repo, Entity unit, Fdp.Toolkit.World.IWorldQuery? terrain, in DangerAreaDescriptor area)
         {
             ref readonly var mem = ref repo.GetComponentRO<TargetMemory>(unit);
             var target = area.Center + new Vector3(0f, 0f, AreaHeight);
@@ -142,7 +142,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 float danger = ThreatDanger.OfSlot(repo, unit, in mem, i);
                 if (danger <= best) continue;
                 var eye = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i] + EyeHeight);
-                if (terrain != null && terrain.SegmentBlocked(eye, target)) continue;
+                if (terrain != null && terrain.SightBlocked(eye, target)) continue;
                 best = danger;
             }
             return Math.Clamp(best, 0f, 1f);

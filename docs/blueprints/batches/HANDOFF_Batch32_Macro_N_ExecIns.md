@@ -150,7 +150,7 @@ Stage 5, *after* expansion, where the diagnostic would name synthesized nodes no
 
 ## 5. Gates
 
-The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.sln`** (⚠ not `Hrot.sln`).
+The eight, `--logger "console;verbosity=normal"`. Solution is **`HROT.sln`** (⚠ not `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** (see `RESUME_START_HERE.md` §3).
 ⭐ **Also run `python3 scripts/tracker-counts.py --check`** before your final commit — the done column
 has been wrong in three consecutive batches.

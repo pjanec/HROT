@@ -53,6 +53,9 @@ namespace Fdp.Modules.Geographic.Components
     /// of the backing native memory after <c>SetSingleton</c> is called.
     /// </para>
     /// </summary>
+    // ⭐ CE-3132 — NoScenario | NoReplay: the NativeArray is this process's memory; recorded, it carried raw pointers into a replay
+    //   (the class ZoneEnvironmentData showed, CE-3118). docs/DESIGN_Geo_Origin.md §5.6.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
     [ComponentId(GeographicComponentIds.TerrainQueryBatchData)]
     public struct TerrainQueryBatchData
     {

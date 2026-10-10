@@ -50,7 +50,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     private readonly string _localTempRoot;
     private readonly IDiagnosticEventHistoryService? _eventHistoryService;
     private readonly HrotNodeConfig _hrotConfig;
-    private readonly string? _roadNetworkBlobPath;
     private readonly float _simulationRateHz;
 
     private NodeBootstrapper? _nodeBootstrapper;
@@ -209,7 +208,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// <param name="localTempRoot">Root directory for checkpoints and temporary files.</param>
     /// <param name="eventHistoryService">Optional diagnostic event history service.</param>
     /// <param name="hrotConfig">Hrot node configuration.</param>
-    /// <param name="roadNetworkBlobPath">Optional path to road network blob file.</param>
     /// <param name="simulationRateHz">Simulation rate in Hz for GlobalTime singleton.</param>
     public SimHostNodeBootstrapper(
         INetworkFactory? networkFactory,
@@ -217,7 +215,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         string localTempRoot,
         IDiagnosticEventHistoryService? eventHistoryService,
         HrotNodeConfig hrotConfig,
-        string? roadNetworkBlobPath = null,
         float simulationRateHz = 20.0f)
     {
         _networkFactory = networkFactory;
@@ -225,7 +222,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         _localTempRoot = localTempRoot;
         _eventHistoryService = eventHistoryService;
         _hrotConfig = hrotConfig;
-        _roadNetworkBlobPath = roadNetworkBlobPath;
         _simulationRateHz = simulationRateHz;
     }
 
@@ -292,8 +288,11 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         List<IEcsModuleSystem> sim,
         List<IEcsModuleSystem> postSim)
     {
-        // Load road network
-        var roadNetwork = SimHostApp.LoadRoadNetwork(_roadNetworkBlobPath, localNodeId: context.NodeId);
+        // ⭐ CE-3127 (R-230) — no boot-time road file: the road graph is part of the TERRAIN (terrain.json `roadNetworks`),
+        //   published by TerrainResidency.Commit as ZoneEnvironmentData + the RoadNetworkHolder, which every consumer below
+        //   already prefers. The packs get an empty blob as their "no terrain loaded" value, as they did whenever the old
+        //   NodeConfiguration.RoadNetworkBlobPath was empty — which no config ever set.
+        var roadNetwork = default(CarKinem.Road.RoadNetworkBlob);
         RoadNetwork = roadNetwork;
 
         // B4b: the pool comes from the node's provider, not from whichever module defaults one.
@@ -329,7 +328,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             //    position. Declared once per plan; Resolve de-duplicates by Key, which is what makes
             //    a Brain+Muscle node register it ONCE instead of twice.
             .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
-            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.EqsResultUpdateCapability());
+            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.EqsResultUpdateCapability())
+            // ⭐ CE-2121 — the character body (stance) over the fake animation backend; module-only, appended last.
+            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.AnimationMuscleCapability());
 
         // ⭐⭐⭐ B4b step 3 — THE NODE COMPOSES BY ITS DECLARED ROLE, not by a hard-coded constant.
         //
@@ -507,6 +508,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             ExtraTranslators = new ITkbEntityTranslator[]
             {
                 new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
+                // ⭐ CE-2121 — stance (and the animation runtime pair) from the TKB's CharacterAnimationDefDto; it adds only the
+                //   types this node registered (StanceComponentRegistry). No production ITkbHotReloadEvents exists yet ⇒ null.
+                new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
             },
 
             // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.
@@ -552,13 +556,14 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //   consumer was NedReplicationModule's GhostPromotionSystem construction (see the note at :231);
         //   the pack now supplies that list directly, which is what that removal was waiting for.
         context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);       // BeforeSync
+        context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);    // ⭐ CE-3136 P-7a — static obstacles become terrain
 
         // ⭐⭐ Make an omission LOUD. Every one of the five defects behind this design was silent, so the
         //   pack reports any piece the host built and then forgot to schedule.
         var unserviceable = creation.Unserviceable(new object[]
         {
             creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-            creation.PromotionSystem,
+            creation.PromotionSystem, creation.ObstacleBakeSystem,
         }.Concat(creation.NetworkSystems));
         if (unserviceable.Length > 0)
             Fdp.Core.Logging.FdpLog<SimHostNodeBootstrapper>.Warn(unserviceable);
@@ -603,5 +608,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         configuredFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(context.Kernel);
         configuredFactory.CreateSimHostPerceptionTranslators(context.GhostCreationSystem).RegisterOn(context.Kernel);
         configuredFactory.CreateSimHostPathfindingTranslators(CoreLogicPack!.TrajectoryPool).RegisterOn(context.Kernel);
+        // ⭐ CE-2121 slice ② — the body's half of the stance wire: the Brain's request in, the body's report out (gated on the
+        //   MuscleGround group's descriptor, not on the entity's owner). 📄 docs/DESIGN_Decision_Layer.md §3.3g.
+        Hrot.Animation.Replication.AnimationReplicationModule.RegisterStanceOn(
+            context.Kernel, context.Participant, context.EntityMap, NodeRole.MuscleGround);
     }
 }

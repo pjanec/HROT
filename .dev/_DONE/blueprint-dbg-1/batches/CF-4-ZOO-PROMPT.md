@@ -68,7 +68,7 @@ at basic-block granularity** ("pause when execution reaches this exec region"). 
 
 ## SUCCESS CONDITION (all must hold)
 
-- `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors (editor closed).
+- `dotnet build HROT.sln -c Debug` → 0 errors (editor closed).
 - `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug` → **0 net-new failures**. Report the full
   failing set by name; reconcile the prior "8 vs 7 baseline" claim — confirm every failure is genuinely
   pre-existing (list them).

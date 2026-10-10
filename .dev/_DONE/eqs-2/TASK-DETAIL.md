@@ -110,7 +110,7 @@ logic is written.
 1. All four translator stubs compile without error against `IDescriptorTranslator` interface.
 2. `EqsSensorConfigTopic` and `EqsResultTopic` compile with their `[DdsTopic]`/`[DdsKey]`/
    `[DdsManaged]` attributes without errors.
-3. `dotnet build IOS-IG-SimHost.sln` succeeds.
+3. `dotnet build HROT.sln` succeeds.
 
 ---
 

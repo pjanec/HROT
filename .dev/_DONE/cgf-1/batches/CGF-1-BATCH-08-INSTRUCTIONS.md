@@ -23,7 +23,7 @@
 
 ## Mandatory workflow
 
-Complete **Part A.1** (DDS path for **`SwitchTimeModeEvent`**) **before** **S0205** work that assumes slaves receive the master’s barrier over the network. Full **`dotnet test IOS-IG-SimHost.sln`** green before report.
+Complete **Part A.1** (DDS path for **`SwitchTimeModeEvent`**) **before** **S0205** work that assumes slaves receive the master’s barrier over the network. Full **`dotnet test HROT.sln`** green before report.
 
 ---
 

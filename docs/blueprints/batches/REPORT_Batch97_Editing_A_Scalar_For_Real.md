@@ -150,7 +150,7 @@ its own case**.
 
 | gate | `--no-build`? | command | result | Δ baseline |
 |---|---|---|---|---|
-| solution build | — | `dotnet build IOS-IG-SimHost.sln` | **0 errors**, 69 warnings · `EXIT=0` | — |
+| solution build | — | `dotnet build HROT.sln` | **0 errors**, 69 warnings · `EXIT=0` | — |
 | **AiShared** | ✅ yes | `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests --no-build` | **1705 / 0 / 0** · `EXIT=0` | **+145** *(1560)* |
 | **BTree.Editor** | ✅ yes | `… Hrot.BTree.Editor.Tests --no-build` | **622 / 0 / 0** · `EXIT=0` | **0** |
 | **Hsm.Editor** | ✅ yes | `… Hrot.Hsm.Editor.Tests --no-build` | **554 / 0 / 0** · `EXIT=0` | **0** |

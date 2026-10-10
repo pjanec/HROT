@@ -180,4 +180,35 @@ public class NedEntityCreationRequestEgressRails
         var master = sample.InitialDescriptors.Single(d => d._d == EDescriptorType.dtEntityMaster);
         Assert.Equal(4242L, master.EntityMaster.TkbType);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-1017</c> S2 — the birth-height request survives the wire round trip: the egress writes the explicit
+    /// <c>SpawnHeightMode</c>/<c>SpawnLevel</c> fields and the NED ingress rebuilds it with <c>SpawnHeight.FromWire</c>;
+    /// absent ⇒ 0/0 ⇒ null (every sender before the fields). 📄 docs/DESIGN_Add_Entity_Picker.md §2e.
+    /// </summary>
+    [Theory]
+    [InlineData((byte)1, (short)2)]
+    [InlineData((byte)2, (short)-1)]
+    [InlineData((byte)0, (short)0)]
+    public void CE1017_TheSpawnHeight_SurvivesTheWireRoundTrip(byte mode, short level)
+    {
+        var (egress, writer) = NewEgress();
+        Fdp.Toolkit.NetworkSpawning.SpawnHeight? height = mode == 0
+            ? null
+            : new Fdp.Toolkit.NetworkSpawning.SpawnHeight((Fdp.Toolkit.NetworkSpawning.SpawnHeightMode)mode, level);
+
+        egress.Send(new EntityCreationRequest
+        {
+            RequestId          = Guid.NewGuid(),
+            OwnerAppInstanceId = 9,
+            TkbType            = 42L,
+            SpawnHeight        = height,
+        });
+
+        var sample = Assert.Single(writer.Publishes);
+        Assert.Equal(mode, sample.SpawnHeightMode);
+        Assert.Equal(level, sample.SpawnLevel);
+        // The decode the NED ingress performs (NedCgfEntityLifecycleAdapters).
+        Assert.Equal(height, Fdp.Toolkit.NetworkSpawning.SpawnHeight.FromWire(sample.SpawnHeightMode, sample.SpawnLevel));
+    }
 }

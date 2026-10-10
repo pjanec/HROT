@@ -70,5 +70,5 @@ See `.dev/json-migration/reports/PHASE-2-GATE-REPORT.md`.
 - `Phase2ConventionTests` uses the same exclusion logic as `FixtureStamper.ShouldSkipPath` (duplicated inline — no cross-project reference needed).
 - `T_Conv_04` uses `services.ReadOnly.LoadAndMigrateAsync(path)` (async overload), which is the correct API on `ReadOnlyMigrationAdapter`.
 - `ReadOnlyLoadOutcome.AsJsonObject()` handles both fast-path (`RawContent`) and slow-path (`MigratedDom`) cases.
-- Workspace root discovery via `IOS-IG-SimHost.sln` marker file is safe for CI.
+- Workspace root discovery via `HROT.sln` marker file is safe for CI.
 - `TreatWarningsAsErrors` is not set on this test project (consistent with existing tests); no new warnings introduced.

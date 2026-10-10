@@ -21,7 +21,7 @@ In `Hrot/Subsystems/Hrot.AI.Behaviors/Assets/BTrees/CombatShowcase.btree.json`, 
    - The Action leaf's `MethodFqn` **contains `"Action"`** (case-insensitive).
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings.
 - [ ] `dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests` — **Failed: 0** (incl. the strengthened assertions).
 - [ ] Showcase Condition binds `Condition_TargetAliveAndVisible`; Action still binds `Action_Wander`; file round-trips byte-stable.
 - [ ] Report appended/updated at `.dev/_DONE/ai-hsm-btree-vis-edit-2/reports/BATCH-06-REPORT.md` (note the corrective).

@@ -127,7 +127,7 @@ Also update `ClusterSlave` dispatch logic to call `handler.CanHandle(intent.Oper
 **Success Conditions:**
 
 1. No implicit `(int)` cast to `NodeOpType` inside handler `CanHandle` implementations — each explicitly matches enum values.
-2. `dotnet build IOS-IG-SimHost.sln` succeeds with no new errors.
+2. `dotnet build HROT.sln` succeeds with no new errors.
 3. All handler `CanHandle` methods use `switch` on `NodeOpType` enum values or explicit enum comparisons (no magic integer literals).
 
 ---
@@ -181,7 +181,7 @@ Change all `PrepareAsync` return values from `string?` (error message) to `objec
 3. `IClusterStateHandler.PrepareAsync` signature is `Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)`.
 4. No handler implementation contains `cmd.PayloadJson`, `JsonDocument`, or `System.Text.Json` — all payload access is via `intent.DomainPayload` type-casting.
 5. Unit test: construct a handler, call `PrepareAsync(new ExecuteNodeOpIntent { Operation = NodeOpType.PrepareLive, DomainPayload = new TransitionNodePayload { TargetState = ClusterState.OperatingLive } }, ct)` — assert it executes without exception and returns `null` or a typed result.
-6. `dotnet build IOS-IG-SimHost.sln` succeeds with 0 errors.
+6. `dotnet build HROT.sln` succeeds with 0 errors.
 
 ---
 
@@ -230,7 +230,7 @@ After CMC-S006 is complete and no code path uses `IOrchestrationTransport` as th
 
 1. `IOrchestrationTransport` is referenced nowhere in the solution.
 2. `DdsOrchestrationTransport` class does not exist.
-3. `dotnet build IOS-IG-SimHost.sln` succeeds with 0 errors.
+3. `dotnet build HROT.sln` succeeds with 0 errors.
 4. All existing orchestration integration tests pass.
 
 ---
@@ -256,7 +256,7 @@ Refactor `Hrot.Orchestrator/ClusterMaster.cs`:
 1. `ClusterMaster` constructor no longer accepts any `DdsReader<T>` parameters.
 2. No `using CycloneDDS` or `using Hrot.NED` in `ClusterMaster.cs` (all DDS types removed from this file).
 3. Unit test: construct `ClusterMaster` with only `FdpEventBus`. Publish `TransitionStateIntent` to the bus. Assert that a `DistributedTransaction` is created (inspect via accessible state or next published intent).
-4. `dotnet build IOS-IG-SimHost.sln` succeeds.
+4. `dotnet build HROT.sln` succeeds.
 
 ---
 
@@ -278,7 +278,7 @@ Continue `ClusterMaster.cs` refactoring (egress side):
 1. `ClusterMaster.cs` has zero references to `DdsWriter<T>`.
 2. Unit test: after `ClusterMaster` processes a `TransitionStateIntent`, an `ExecuteNodeOpIntent` appears on the bus.
 3. Unit test: after all `NodeOpCompletedEvent`s are received, a `ClusterOpCompletedEvent` appears on the bus.
-4. `dotnet build IOS-IG-SimHost.sln` succeeds.
+4. `dotnet build HROT.sln` succeeds.
 
 ---
 
@@ -314,7 +314,7 @@ Result objects returned by handlers are placed into `NodeOpCompletedEvent.Result
 3. `grep -r "JsonDocument\|PayloadJson\|TryGetProperty" Hrot.Orchestrator/TransitionPlanner.cs` returns zero results.
 4. All `IClusterStateHandler` implementations pass `DomainPayload` by type-casting — no `string` field access for payload data.
 5. All existing cluster integration tests pass (test setup updated to push typed intents with `DomainPayload` objects instead of raw `ClusterOpRequest` with JSON payloads).
-6. `dotnet build IOS-IG-SimHost.sln` succeeds.
+6. `dotnet build HROT.sln` succeeds.
 
 ---
 
@@ -445,7 +445,7 @@ This class:
 2. Unit test: when export completes, `StorageOpCompletedEvent { RequestId, StatusCode = Success }` is published to bus.
 3. Unit test: publish `CancelOperationIntent { TargetRequestId = Y }` while export is in-flight. Assert that the `CancellationToken` for Y was cancelled.
 4. Unit test: `ClusterMaster` has no `CancellationTokenSource` fields — ownership is fully in `EventDrivenStorageGateway`.
-5. `dotnet build IOS-IG-SimHost.sln` succeeds.
+5. `dotnet build HROT.sln` succeeds.
 
 ---
 
@@ -478,7 +478,7 @@ Update the application startup / composition roots for all process topologies:
 
 **Success Conditions:**
 
-1. `build_all_standalone.bat` (or `dotnet build IOS-IG-SimHost.sln`) succeeds with 0 errors.
+1. `build_all_standalone.bat` (or `dotnet build HROT.sln`) succeeds with 0 errors.
 2. Manual smoke test: start AllInOne mode, trigger a `TransitionState` to `OperatingLive` — system transitions correctly without DDS.
 3. Existing integration tests in `Hrot.ClusterRunner.Integration.Tests` and `Hrot.Orchestrator.Integration.Tests` pass.
 

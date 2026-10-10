@@ -182,7 +182,7 @@ PASS. ⚠ **In both directions, a red is a claim about the RAIL until the rail h
 
 | gate | env | result | Δ vs `L1` |
 |---|---|---|---|
-| **solution build** *(`IOS-IG-SimHost.sln`)* | — | ⭐ **0 errors, 0 warnings** | — |
+| **solution build** *(`HROT.sln`)* | — | ⭐ **0 errors, 0 warnings** | — |
 | `Hrot.Editor.AiShared.Tests` | **Xvfb** | **1788 / 0 / 0** | ⭐ **+36 — all mine** |
 | `Hrot.Blueprints.Tests` | **Xvfb** | **3882 / 0 / 10** | **0** |
 | `Hrot.BTree.Editor.Tests` | **Xvfb** | **622 / 0 / 0** | **0** |

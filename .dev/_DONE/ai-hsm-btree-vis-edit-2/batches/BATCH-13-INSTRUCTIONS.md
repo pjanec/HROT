@@ -28,7 +28,7 @@ Filter the dynamic Action/Condition palette entries to those whose `DtoType.Full
 (Use ordinary test DTO types defined in the test assembly for `DtoType`, and assert against their `typeof(...).FullName`.)
 
 ## ✅ Success criteria
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`.
+- [ ] `dotnet build HROT.sln` — 0 errors, 0 new warnings in `Hrot.BTree.Editor`.
 - [ ] `Failed: 0` in `Hrot.BTree.Editor.Tests` (incl. new tests; existing BT-01 dynamic-catalog tests still pass — they may need `blackboardTypeName: null` to keep showing entries, OR update them to pass a matching type).
 - [ ] Palette dynamic entries filtered to DtoType == blackboard; static + generic entries unchanged.
 - [ ] Report written.

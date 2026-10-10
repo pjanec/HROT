@@ -61,6 +61,6 @@ All remaining failures are pre-existing (golden/snapshot/perf/PDB):
 
 ## Commands
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug     → 0 errors
+dotnet build HROT.sln -c Debug     → 0 errors
 dotnet test ...Blueprints.Tests -c Debug      → 8 failed (1664 pass, 8 skip)
 ```

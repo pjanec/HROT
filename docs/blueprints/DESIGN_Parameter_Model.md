@@ -25,6 +25,8 @@ known-rot: (2026-09-30, §P) §1's Scope row: Entity is REMOVED (CE-441) and Sco
   §0 row 2 "a blueprint has params only when Dispatch == AiPrimitive" predates §3.3's Instance params.
 known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. RESOLVED 2026-09-30 by
   CE-441 (Entity removed) — two remain, neither authorable.
+  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — a NEW variable owner for behaviour-only unit data, overriding ":386"'s "no new variable owner" (user 2026-10-09); engine-read data stays a component
+known-rot-87: ⚠ 2026-10-09 — ":386" "No new variable owner is needed" is overridden for BEHAVIOUR-ONLY unit data: the user requires unit-scoped shared blackboard structs (Architect_Question_87_Unit_Memory.md). "Entity-wide data an engine system reads is an ECS component" still holds.
 related-designs:
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
     ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the

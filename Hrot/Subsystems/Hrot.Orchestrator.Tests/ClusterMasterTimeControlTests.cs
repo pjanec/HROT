@@ -45,4 +45,33 @@ public sealed class ClusterMasterTimeControlTests
 
         Assert.Equal(0, exercise.TransactionHistory.Count);
     }
+
+    /// <summary>Requests a simulation start (Idle → LoadingLive) and returns how many pauses the master published.</summary>
+    private static int PausesForAStart(string? timeMode)
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        bus.PublishManaged(new TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.LoadingLive,
+            TimeMode      = timeMode,
+        });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+        return bus.ReadManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>().Count;
+    }
+
+    /// <summary>
+    /// ⭐ Q86 §4-F (R-215) — a start that asks to start paused pauses the cluster through the master's own pause path
+    /// (the same one Stop uses), not through a host reading <c>PendingTimeMode</c> and calling the clock directly.
+    /// </summary>
+    [Fact]
+    public void Q86F_AStartThatAsksToStartPaused_PublishesTheClusterPause()
+        => Assert.Equal(1, PausesForAStart("Deterministic"));
+
+    [Fact]
+    public void Q86F_AStartThatDoesNotAsk_PublishesNoPause()
+        => Assert.Equal(0, PausesForAStart(null));
 }

@@ -194,7 +194,7 @@ All 28 should pass (plus the 1 that was already passing = 29 total).
 Write a short markdown checklist (≤60 lines) that documents how to regenerate T5 migration baselines when a migrator changes a default field value. The checklist should cover:
 
 1. When to regenerate: "when adding a new migrator that changes a default value, when a T5 corpus test fails unexpectedly after a schema version bump"
-2. Prerequisites: `dotnet build IOS-IG-SimHost.sln -c Debug`
+2. Prerequisites: `dotnet build HROT.sln -c Debug`
 3. Steps:
    - Identify which corpus file needs updating (T5 test output shows the diff)
    - Run `dotnet test ... --filter "T5"` to see current baseline

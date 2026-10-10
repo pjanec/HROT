@@ -78,7 +78,8 @@ public sealed class TheScenarioWindowsAreSharedTests
         var text = HostSource.Read(project, file);
         if (!text.Contains("SpawnerPanelWindow(", StringComparison.Ordinal)) return;
 
-        Assert.Contains("ScenarioSpawnAdapter(",     text);
+        // ⭐ CE-1017 — the spawn adapter comes from the map pack's EntityAuthoring (one construction site).
+        Assert.Contains("EntityAuthoring?.Spawn",    text);
         Assert.Contains("ScenarioMissionService(",   text);
         Assert.Contains("ScenarioMapConfigAdapter(", text);
         Assert.Contains("ScenarioOrbatAdapter(",     text);
@@ -172,18 +173,45 @@ public sealed class TheScenarioWindowsAreSharedTests
     // ══ ④ ONE SPAWNER CATALOG ════════════════════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐ <b>The spawner catalog is the shared list, not an inline literal.</b> 📐 It was declared twice —
-    /// 15 entries in <c>EditorSubsystem</c>, a near-duplicate 9 in <c>ExConSubsystem</c> — so a third copy
-    /// on CGF would have made three. ⚠ Scoped to the editor: ExCon's shorter list and two differently
-    /// spelled labels are a recorded FINDING, ⛔ not silently harmonised from another lane.
+    /// ⭐⭐ <b>The spawner catalog is built from the TKB, not a literal.</b> 📐 It was declared twice — 15 entries in
+    /// <c>EditorSubsystem</c>, a near-duplicate 9 in <c>ExConSubsystem</c> — and CE-061 made it one shared list.
+    /// ⭐ <c>CE-1017</c> S4 retires that list too: both hosts take <c>EntityTypeCatalog.SpawnerEntries(tkb)</c> and open
+    /// the grouped picker (docs/DESIGN_Add_Entity_Picker.md D7, S4).
     /// </summary>
     [Fact]
-    public void TheEditorTakesItsSpawnerCatalogFromTheSharedList()
+    public void TheEditorAndCgfTakeTheirSpawnerCatalogFromTheTkb()
     {
-        var text = HostSource.Read("Hrot.Editor", "EditorSubsystem.cs");
+        foreach (var (project, file) in new[] { ("Hrot.Editor", "EditorSubsystem.cs"), ("Hrot.CGF", "CgfSubsystem.cs") })
+        {
+            var text = HostSource.Read(project, file);
+            Assert.Contains("EntityTypeCatalog.SpawnerEntries(", text);
+            Assert.Contains("OpenPicker = () => _shellPickers", text);
+            Assert.DoesNotContain("new TkbCatalogEntry[]", text);
+            Assert.DoesNotContain("ScenarioSpawnerCatalog.Default", text);
+        }
+    }
 
-        Assert.Contains("ScenarioSpawnerCatalog.Default", text);
-        Assert.DoesNotContain("new TkbCatalogEntry[]", text);
-        Assert.NotEmpty(ScenarioSpawnerCatalog.Default);
+    /// <summary>
+    /// ⭐ <c>CE-1017</c> — ONE entity-authoring wiring on every windowed map host (🔒 user: "Do we share unified code
+    /// across simhost and cgf and ig and editor? We should."): each passes <c>MapInteractionContext.EntityAuthoring</c>,
+    /// schedules the PACK's canvas menu and draws a picker — and none hand-builds a spawn adapter, a canvas menu system
+    /// or an entity-icon picker of its own. ⛔ A host that forgets a half gets no submenu and no error — this rail is
+    /// the error.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.Editor",  "EditorSubsystem.cs")]
+    [InlineData("Hrot.CGF",     "CgfSubsystem.cs")]
+    [InlineData("Hrot.SimHost", "SimHostApp.cs")]
+    [InlineData("Hrot.IG",      "IgApplication.cs")]
+    public void EveryWindowedMapHostUsesTheOneEntityAuthoringWiring(string project, string file)
+    {
+        var text = HostSource.Read(project, file);
+
+        Assert.Contains("EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(", text);
+        Assert.Matches(@"RegisterGlobalSystem\(\w+\.CanvasMenu\)", text);
+        Assert.Contains(".DrawFrame()", text);   // the picker is drawn, or OpenPicker only queues
+        Assert.DoesNotContain("new Hrot.Presentation.Systems.CanvasMenuUpdateSystem(", text);
+        Assert.DoesNotContain("ScenarioSpawnAdapter(", text);
+        Assert.DoesNotContain("new Hrot.UI.Common.AddEntity.EntityIconLibrary(", text);
     }
 }

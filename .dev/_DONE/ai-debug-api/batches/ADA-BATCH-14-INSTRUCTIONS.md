@@ -67,7 +67,7 @@ Two loose ends: (1) make `/commands` ALSO list managed events (currently unmanag
 - **Manual-verify only (document, do not fake):** the actual camera centering (P9 SC#1) and the marker being
   visible on the map (P9 SC#2) require a windowed session — note them as manual-verify in the report; the
   headless gate covers the publish/buffer-write path only.
-- `dotnet build IOS-IG-SimHost.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
+- `dotnet build HROT.sln`; `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
 
 ## Constraints (hard)
 - `/commands` managed-event enumeration must not break the existing unmanaged output or the existing tests.

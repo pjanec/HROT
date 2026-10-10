@@ -80,7 +80,7 @@ history, sim/preview/time control, and scenario load/list/save. It also closes t
   includes a published event with readable payload; `Step(3)` advances 3 ticks; `LoadScenario(waitForReady)`
   only returns at `OperatingEdit`; `SaveScenario` round-trips.
 - **Tier-2 (process smoke, extended):** add `GET /entities` and `GET /sim/state` to the smoke test.
-- Commands: `dotnet build IOS-IG-SimHost.sln`; `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests`.
+- Commands: `dotnet build HROT.sln`; `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests`.
 
 ## Constraints (hard)
 - Frozen `TestAssets` fixtures + direct deserialize — never the production scan path or scratch `.bp.json`;

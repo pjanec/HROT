@@ -37,7 +37,7 @@ like FunctionCallNodeDrawer's test hooks); after setting MoveTo, `NodePinSchema.
 projects MoveToParams' data-IN pins.
 
 ## Gate (both)
-- `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 new warnings; Full Rebuild 0 errors.
+- `dotnet build HROT.sln` 0 errors / 0 new warnings; Full Rebuild 0 errors.
 - Blueprints failures a SUBSET of the 7 pre-existing (0 new) — list the final set; do NOT claim 0 regressions
   without the before/after comparison. `Hrot.Editor.AiShared.Tests` green; `EditorSubsystemBoot` 10/10.
 - Report → `.dev/_DONE/blueprint-finalize/reports/BF-BATCH-0607-FIX-REPORT.md`. NOTE the visual behavior (editors

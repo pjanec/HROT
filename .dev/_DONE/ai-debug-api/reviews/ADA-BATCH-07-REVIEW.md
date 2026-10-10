@@ -4,7 +4,7 @@
 reproduce + independent `npm run verify` + orphan check).
 
 ## Verified independently (lead)
-- **Full-solution build** (`dotnet build IOS-IG-SimHost.sln`) → 0 errors (the `DebugApiService` ctor gained a
+- **Full-solution build** (`dotnet build HROT.sln`) → 0 errors (the `DebugApiService` ctor gained a
   trailing optional `bpManager` param; harness ripples — full build is the gate for that).
 - `dotnet test … --filter DebugApi` → **59/59** (51 prior + 8 new). The 8 cover predicate JSON round-trip
   (incl. `CompoundPredicateDto`), registration, list/remove, and hit-observation plumbing.

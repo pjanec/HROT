@@ -36,7 +36,7 @@ public sealed record ScenarioMergeResult(JsonObject? CanonicalDom, IReadOnlyList
 ///     ⚠ I4 also covered a brain-only <c>Zones</c> SECTION; that section is retired (F2) — a zone is an
 ///     ordinary authored entity and merges through the <c>Entities</c> union like any other.</item>
 /// </list>
-/// ⇒ the merge is <c>{ $meta, Header, ⋃ Entities }</c>. It NEVER remaps ids or fixes references, and it
+/// ⇒ the merge is <c>{ $meta, Header, ⋃ Entities, ⋃ TerrainObjects }</c> (5e: a door's state is saved by its owner only). It NEVER remaps ids or fixes references, and it
 /// <b>fails loud</b> rather than silently corrupt — a schema/TkbName/TerrainName mismatch and a key collision
 /// (I2 impossible) each throw.</para>
 ///
@@ -92,6 +92,8 @@ public static class ScenarioMergeCore
 
         // ── Entities (I1+I2): disjoint union ─────────────────────────────────────────────
         var mergedEntities = new JsonObject();
+        // ── ⭐ Buildings 5e — TerrainObjects: disjoint union too (a door's state is written only by its owner, I1) ──
+        var mergedTerrainObjects = new JsonObject();
 
         foreach (var s in compatible)
         {
@@ -151,6 +153,17 @@ public static class ScenarioMergeCore
                     mergedEntities[kv.Key] = kv.Value?.DeepClone();
                 }
             }
+
+            if (Fdp.Toolkit.Terrain.TerrainObjectsSection.Of(dom) is { } objects)
+            {
+                foreach (var kv in objects)
+                {
+                    if (mergedTerrainObjects.ContainsKey(kv.Key))
+                        throw new InvalidOperationException(
+                            $"Terrain object '{kv.Key}' appears in two slices (node {s.OriginNodeId}) — a door's state is saved only by its owner; refusing to pick one.");
+                    mergedTerrainObjects[kv.Key] = kv.Value?.DeepClone();
+                }
+            }
         }
 
         // ── Assemble: same shape/order as a single-node save (ScenarioSerializer + ScenarioSaveCore) ──
@@ -164,6 +177,7 @@ public static class ScenarioMergeCore
             if (terrainName is not null) headerNode["TerrainName"] = JsonValue.Create(terrainName);
             canonical["Header"] = headerNode;
         }
+        if (mergedTerrainObjects.Count > 0) canonical[Fdp.Toolkit.Terrain.TerrainObjectsSection.Name] = mergedTerrainObjects;
         JsonEnvelope.Write(canonical, new DocumentMeta(canonicalDocType, schemaVersion!.Value));
 
         return new ScenarioMergeResult(canonical, foreign);

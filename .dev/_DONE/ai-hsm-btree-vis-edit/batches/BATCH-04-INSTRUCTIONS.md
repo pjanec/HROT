@@ -250,7 +250,7 @@ For each task in order:
 2. Explore all referenced existing code before writing anything new
 3. Write tests first (failing)
 4. Implement to make tests pass
-5. Run: `dotnet build IOS-IG-SimHost.sln -v minimal` + `dotnet test` on the affected test project
+5. Run: `dotnet build HROT.sln -v minimal` + `dotnet test` on the affected test project
 6. Move to next task only when current task's tests pass
 
 ---
@@ -313,6 +313,6 @@ Submit `.dev/_DONE/ai-hsm-btree-vis-edit/reports/BATCH-04-REPORT.md`:
 - [ ] `BlackboardAuthoringWindow` registered in `SharedAiWindowRegistrar`, window renders variable list with correct glyphs and memory budget header
 - [ ] `BlackboardFieldPickerAttribute.GetCompatibleVariables` filters by action DtoType
 - [ ] `VariableBindingBadgeRenderer` draws bound/unbound badges on Action/Condition nodes only
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds
+- [ ] `dotnet build HROT.sln` succeeds
 - [ ] All tests pass
 - [ ] Report submitted

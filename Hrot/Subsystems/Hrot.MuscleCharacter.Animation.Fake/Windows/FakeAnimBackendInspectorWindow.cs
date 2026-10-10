@@ -26,8 +26,8 @@ public sealed record FakeAnimBackendInspectorPanelViewModel(
 
 /// <summary>
 /// ANC-P1-09: ImGui diagnostic window for FakeAnimationBackend inspection.
-/// Registered via SimHostSubsystem.RegisterWindows in non-headless mode (DD-Fake §7.3,
-/// retargeted from the non-existent MuscleCharacterHostSubsystem to SimHostSubsystem).
+/// ⚠ Not registered by any host yet (the SimHost reference was removed `2026-10-07`, CE-2121 — SimHost now references THIS
+/// project for the backend, so the reverse edge would be a cycle). (DD-Fake §7.3.)
 /// Renders FakeAnimBackendState (DD-Fake §2/§7) per humanoid entity: slots, aim, stance,
 /// locomotion inputs, and pending notify ring. JSON snapshot button per DD-Fake §8.
 /// </summary>

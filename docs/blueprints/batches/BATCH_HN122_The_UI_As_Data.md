@@ -127,7 +127,7 @@ STATUS now says so.
 
 | # | gate — verbatim command | result | `--no-build`? | delta vs base |
 |---|---|---|---|---|
-| 1 | `dotnet build IOS-IG-SimHost.sln --no-restore` | ⭐ **0 errors** | builds | unchanged |
+| 1 | `dotnet build HROT.sln --no-restore` | ⭐ **0 errors** | builds | unchanged |
 | 2 | ⭐⭐ **`bash scripts/run-system-tests.sh`** *(Row 8 — real editor headless under Xvfb, `Category=SystemSmoke`)* | ⭐ **40 passed · 0 failed · 0 skipped** | builds first | **+6 cases** *(Group T ×4, Group R, Group Q)*; 34 → 40 |
 | 3 | `dotnet test …Hrot.Editor.Tests --no-build` | **229 / 0** | ✅ | +11 — ⚠ **the UI lane's**, arriving with the coordinator merge; mine are the 4 `DebugApiCompositionTests` from last batch |
 | 4 | `dotnet test …Hrot.Blueprints.Tests --filter "…Tests.Editor"` ⭐ *(the `EditorSubsystem` gate)* | **1090 / 0**, 9 skipped | ✅ | +45, all the UI lane's |

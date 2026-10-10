@@ -139,7 +139,7 @@ Passed!  - Failed: 0, Passed: 10, Total: 10, Duration: 3.9 s
 ### Full solution build
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental
+dotnet build HROT.sln --no-incremental
 
 Build succeeded.  26 Warning(s)  0 Error(s)
 ```

@@ -9,7 +9,6 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Common.Orchestration;
 using Hrot.Common.Scenario;
 using Hrot.Network.Orchestration;
-using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.Core.Serialization.Migrations;
@@ -34,7 +33,8 @@ namespace Hrot.Orchestrator;
 /// Parses the pre-fetched <c>Orchestrator.json</c> and populates
 /// <see cref="LoadedStartWallTicks"/> / <see cref="LoadedSceneId"/> for
 /// the hosting application to consume (e.g. <c>MasterTimeController.SeedState</c>).
-/// Also publishes an updated <c>OrchestratorContextTopic</c> over DDS.
+/// Also publishes <see cref="Fdp.Toolkit.Orchestration.OrchestratorContextChangedEvent"/> on the bus; the network adapter writes the DDS
+/// <c>OrchestratorContextTopic</c> from it (Q86 §4-B).
 /// The hosting application is responsible for calling
 /// <c>MasterTimeController.SeedState(LoadedStartWallTicks)</c> after this handler
 /// completes.
@@ -49,7 +49,7 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
     /// </summary>
     public string LocalTempRoot { get; set; } = Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot();
 
-    private readonly DdsWriter<OrchestratorContextTopic> _contextWriter;
+    private readonly FdpEventBus _bus;
     // CE-278: _scenarioId (the save-side scene id) retired with the SerializeLocal save arm; the load path
     // reads the scenario id from the command payload (ParseScenarioId), not from ctor state.
     private readonly ReadOnlyMigrationAdapter? _readOnlyAdapter;
@@ -94,22 +94,16 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
     // AssetInventoryProcessManager (§5).
 
     /// <summary>
-    /// Creates a <see cref="GlobalContextClusterOpHandler"/> for the given DDS participant
-    /// and scenario identifier.
+    /// Creates a <see cref="GlobalContextClusterOpHandler"/> that publishes the restored context on
+    /// <paramref name="bus"/> (<see cref="Fdp.Toolkit.Orchestration.OrchestratorContextChangedEvent"/>). ⭐ Q86 §4-B: no DDS here — the host's
+    /// translator, if it has one, carries the event to the wire.
     /// </summary>
-    /// <param name="participant">Participant used to publish <see cref="OrchestratorContextTopic"/>.</param>
+    /// <param name="bus">The orchestrator's bus.</param>
     /// <param name="scenarioId">Scenario identifier stored in the global context file.</param>
     /// <param name="readOnlyAdapter">Optional migration adapter for reading Phase 2 enveloped JSON files.</param>
-    public GlobalContextClusterOpHandler(DdsParticipant participant, string scenarioId, ReadOnlyMigrationAdapter? readOnlyAdapter = null)
+    public GlobalContextClusterOpHandler(FdpEventBus bus, string scenarioId, ReadOnlyMigrationAdapter? readOnlyAdapter = null)
     {
-        _contextWriter  = new DdsWriter<OrchestratorContextTopic>(participant);
-        _readOnlyAdapter = readOnlyAdapter;
-    }
-
-    /// <summary>Test-only constructor that accepts a pre-built writer.</summary>
-    internal GlobalContextClusterOpHandler(DdsWriter<OrchestratorContextTopic> contextWriter, string scenarioId, ReadOnlyMigrationAdapter? readOnlyAdapter = null)
-    {
-        _contextWriter  = contextWriter;
+        _bus             = bus ?? throw new ArgumentNullException(nameof(bus));
         _readOnlyAdapter = readOnlyAdapter;
     }
 
@@ -127,7 +121,7 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
     /// <remarks>
     /// For <see cref="NodeOpType.CommitState"/> heading to <see cref="ClusterState.LoadingLive"/> or
     /// <see cref="ClusterState.LoadingEdit"/>: loads the pre-fetched <c>Orchestrator.json</c> and
-    /// publishes <see cref="OrchestratorContextTopic"/>. (CE-278: the SerializeLocal save arm is retired.)
+    /// publishes <see cref="Fdp.Toolkit.Orchestration.OrchestratorContextChangedEvent"/>. (CE-278: the SerializeLocal save arm is retired.)
     /// </remarks>
     public void Commit(NodeOpCommand cmd, EntityRepository? repo)
     {
@@ -214,10 +208,12 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
             LoadedScenarioTimeSeconds   = dto.ScenarioTimeSeconds;
             LoadedScenarioId            = dto.ScenarioId;
 
-            // Publish restored context over DDS so all nodes receive the scene information.
-            _contextWriter.Write(new OrchestratorContextTopic
+            // Publish the restored context on the bus; the network adapter writes the DDS Context Plane topic.
+            // ⛔ It used to put the SCENE id into the topic's ScenarioId field.
+            _bus.PublishManaged(new Fdp.Toolkit.Orchestration.OrchestratorContextChangedEvent
             {
-                ScenarioId = dto.SceneId,
+                ScenarioId = dto.ScenarioId,
+                SceneId    = dto.SceneId,
             });
 
             // Notify the hosting application so it can seed the time controller.

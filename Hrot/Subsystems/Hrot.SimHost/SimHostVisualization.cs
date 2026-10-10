@@ -35,7 +35,6 @@ using Fdp.Toolkit.Behavior.Components;
 using Hrot.Map.Common.Events;
 using Fdp.Toolkit.NetworkSpawning;
 using Hrot.SimHost.UI;
-using Hrot.SimHost.Visualization;
 using Hrot.ScenarioEditor.Systems;
 
 namespace Hrot.SimHost
@@ -296,9 +295,12 @@ namespace Hrot.SimHost
             _map.Camera.Offset = new Vector2(1280 / 2f, 720 / 2f);
             _map.AddResource(trajectoryPool);
 
-            _map.AddLayer(new SimHostRoadLayer(road));
+            // ⭐ CE-3124 — the road network is RoadNetworkGizmo now (a reflected gizmo, every host whose world holds the terrain's
+            //   ZoneEnvironmentData). ⚠ The old layer drew THIS boot-time blob (NodeConfiguration.RoadNetworkBlobPath), which no
+            //   config in the repo sets — it never drew terrain roads at all.
 
-            _map.AddLayer(new SimHostTrajectoryLayer(trajectoryPool, repo, _fdpInspectorState));
+            // ⭐ CE-3123 — the authored-route half of the old SimHostTrajectoryLayer is AuthoredRouteGizmo now (a reflected
+            //   gizmo on every host); its followed-trajectory half became PlannedPathGizmo (CE-3117).
 
             // Gizmo debug overlay (GZ032).
             _gizmoBuffer = gizmoBuffer ?? new DebugPrimitiveBuffer();
@@ -340,15 +342,9 @@ namespace Hrot.SimHost
             // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked anchor's
             //   network id to an Entity. ⚠ NOT a revival of R3's deleted `view` parameter, which was
             //   stored nowhere. See DebugGizmoLayer._world.
-            _gizmoLayer = new DebugGizmoLayer(
-                31,
-                _gizmoBuffer,
-                interactionBus ?? repo.Bus,
-                camera: _map.Camera,
-                shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                worldProvider: () => _repo);
-            _map.AddLayer(_gizmoLayer);
-            _map.DrawBuffer = _gizmoBuffer;
+            // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
+            _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                _map, _gizmoBuffer, interactionBus ?? repo.Bus, () => _repo).GizmoLayer;
             _interactionBus = interactionBus;
 
             // ── Interaction ───────────────────────────────────────────────────

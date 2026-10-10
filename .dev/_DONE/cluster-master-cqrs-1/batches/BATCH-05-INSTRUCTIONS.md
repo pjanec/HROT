@@ -41,7 +41,7 @@ Nowhere else.
 
 ```powershell
 # From d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln -v q
+dotnet build HROT.sln -v q
 dotnet test Hrot.Orchestrator.Tests/Hrot.Orchestrator.Tests.csproj
 dotnet test Hrot.Orchestrator.Integration.Tests/Hrot.Orchestrator.Integration.Tests.csproj
 dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj
@@ -495,7 +495,7 @@ Minimum new tests: 4 + 4 + 3 + 4 + 3 = **18 tests**
 - [ ] CMC-S013: `NodeOpMasterTranslator` with 3 tests  
 - [ ] CMC-S014: `ClusterOpMasterTranslator` with 4 tests (including end-to-end)
 - [ ] CMC-S015: `EventDrivenStorageGateway` with 3 tests
-- [ ] `dotnet build IOS-IG-SimHost.sln` → 0 errors
+- [ ] `dotnet build HROT.sln` → 0 errors
 - [ ] All prior test suites still pass
 - [ ] Report submitted
 

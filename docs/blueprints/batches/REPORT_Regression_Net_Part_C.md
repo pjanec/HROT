@@ -54,7 +54,7 @@ after a proof would be a rail that cannot fail.
 | # | gate | verbatim command | `--no-build`? | result · delta vs `07fad323e` |
 |---|---|---|---|---|
 | 1 · 8 | ⭐⭐⭐ **THE INTEGRATION GATE — this batch IS it** | `bash scripts/run-system-tests.sh` | builds | ⭐ **76 / 76 pass, 0 fail, 0 skip** *(baseline `58/58` ⇒ **+18**, all new: 6 golden theories + 6 pairing cases + 3 controls + `N5` + 2 `N6`)*. ⭐ Run **five** times this batch *(2 mutated, 3 clean)* |
-| 1 | build | `dotnet build IOS-IG-SimHost.sln --no-restore` | must build | ⭐ **succeeded, 0 errors** *(4 times — every mutation and every restore)* |
+| 1 | build | `dotnet build HROT.sln --no-restore` | must build | ⭐ **succeeded, 0 errors** *(4 times — every mutation and every restore)* |
 | 2 | out-of-solution / stale bin | — | — | ⭐ `Hrot.SystemTests` is **in** the solution by design; every `--no-build` run followed a build of the same tree. ⚠⚠ **The mutation runs were verified against the BINARY timestamp, not the source** — 📌 `ST-019`'s stale-binary near-miss is why |
 | 3 | ⭐⭐ **golden movement as a DIFF SHAPE** | `git status` · `wc -c Goldens/hill-attack/*` | — | ⭐ **6 goldens CREATED, 0 modified, 0 deleted.** Shape of the first capture: **434 B – 1 450 B each, 5 895 B total**; ⛔ **no wall-clock field, no absolute path, no frame counter** *(asserted by a rail, not by eye)*; keys sorted, LF endings, one trailing newline |
 | 4 | every RED pre-existing, by name | — | — | ⭐ **no reds on the clean tree.** ⚠ One flake, filed as **`HN-023`**: `DeterminismRails.Two_fresh_processes_agree_on_the_entity_mapping` failed in **1 of 4** full-suite runs and passed in isolation twice — ⛔ **not filtered, not skipped** *(`R-131`)* |

@@ -3,7 +3,7 @@
 #
 #   bash scripts/stride-check.sh
 #
-# ⭐⭐⭐ WHY THIS EXISTS, and it is not a nicety. Stride is out of IOS-IG-SimHost.sln, so nothing in
+# ⭐⭐⭐ WHY THIS EXISTS, and it is not a nicety. Stride is out of HROT.sln, so nothing in
 # the ordinary gate table compiles it — a change to Hrot.Editor / Hrot.Core / Hrot.Common can break
 # the Stride host and every green gate stays green. 📐 Measured 2026-09-05: CE-203 widened
 # EditorSubsystem.TkbDatabase to ITkbDatabase, the whole solution built, ~4700 tests ran, and

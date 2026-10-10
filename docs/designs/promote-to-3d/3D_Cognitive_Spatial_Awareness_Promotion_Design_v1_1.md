@@ -1,3 +1,11 @@
+<!--STATUS
+state: UNASSESSED
+updated: 2026-10-10 (STATUS block added by the ui lane for the related-designs link only; content not re-assessed)
+current-answer: not assessed — read the changelog and §3 tiers
+related-designs:
+  - ../../DESIGN_Map_3D_Mode.md — the 3-D map's "area on a level" (§3.9, M22 step 1) relies on this file's Tier 2
+    (EntitiesInArea stops flattening SimTransform's Z); it owns drawing and authoring, this file owns the generators.
+-->
 # 3D Cognitive Spatial Awareness Promotion — Design v1.1
 
 > **Changelog v1.0 → v1.1** (open items resolved by architect review):

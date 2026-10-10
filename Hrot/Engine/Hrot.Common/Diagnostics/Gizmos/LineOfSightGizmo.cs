@@ -6,7 +6,7 @@ using Fdp.Toolkit.Perception.Components;
 
 namespace Hrot.Common.Diagnostics.Gizmos
 {
-    [GizmoProjector(typeof(TargetMemory), typeof(SimTransform))]
+    [GizmoProjector(typeof(TargetMemory), typeof(SimTransform), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory)]
     public sealed class LineOfSightGizmo : IStatelessGizmo
     {
         public unsafe void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
@@ -28,7 +28,10 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 float ageFade = 1.0f - System.Math.Clamp(ageTicks / 60.0f, 0f, 1f);
                 byte startAlpha = (byte)(255 * ageFade);
                 byte endAlpha = (byte)(64 * ageFade);
-                var targetPos = new Vector3(mem.PositionsX[i], mem.PositionsY[i], 0f);
+                // ⭐ CE-3117 — at the stored height (a unit on a roof is not on the ground), and a HEARD (anonymous) slot drawn as what
+                //   it is: an estimate — dashed, with its uncertainty circle. A sighted slot stays a solid line.
+                var targetPos = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
+                bool heard = TargetMemory.IsAnonymous(in mem, i);
 
                 draw.DrawLineGradient(
                     perceiverPos,
@@ -39,7 +42,10 @@ namespace Hrot.Common.Diagnostics.Gizmos
                     sizeMode: SizeMode.ScreenPixels,
                     target: PipelineTarget.Map2D,
                     layer: 1,
-                    style: LineStyle.Dashed);
+                    style: heard ? LineStyle.Dashed : LineStyle.Solid);
+                if (heard && mem.Radius[i] > 0f)
+                    draw.DrawSphere(targetPos, mem.Radius[i], new Rgba32(255, 60, 60, startAlpha), thickness: 1f,
+                        target: PipelineTarget.Map2D, layer: 1, style: LineStyle.Dashed);
             }
         }
     }

@@ -31,6 +31,7 @@ namespace Hrot.SimHost
             world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorMount>();   // posture eye heights (DESIGN_Terrain_World §7.1 W5)
             world.RegisterComponent<TargetMemory>();
             world.RegisterComponent<SensorContactList>();
+            world.RegisterComponent<HeardTraces>();   // ⭐ CE-3117 — a listener's heard estimates, for the map (R-226)
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<EntityInfo>();
             // ⭐⭐ MOVED HERE 2026-09-12 from CognitiveComponentRegistry (CE-259bf slice 2, §3.9a).
@@ -40,6 +41,8 @@ namespace Hrot.SimHost
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
             // Health is registered in HrotSharedComponentRegistry (shared across all nodes).
             world.RegisterComponent<BallisticProjectile>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.ShotOrdinal>();   // ⭐ AQ85 A — the deflection sequence index
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.UnderFire>();     // ⭐ AQ85 E — suppression
             world.RegisterComponent<PhysicsCollider>();
 
             // ── Perception pipeline events ────────────────────────────────────

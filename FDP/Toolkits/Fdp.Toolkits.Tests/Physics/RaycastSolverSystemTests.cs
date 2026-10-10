@@ -117,6 +117,54 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(entity, hit.HitEntity);
         }
 
+        /// <summary>A PERSON (a pedestrian-class unit) in <paramref name="stance"/>, standing on the ground at (10, 0).</summary>
+        private Entity SpawnPerson(Hrot.MuscleCharacter.Animation.Components.StanceIntent? stance)
+        {
+            if (!_world.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>()) _world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            if (!_world.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceIntent>())
+                _world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            var e = SpawnCollider(new Vector2(10f, 0f), radius: 0.4f, layer: 1);
+            _world.AddComponent(e, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.Pedestrian });
+            if (stance is { } s) _world.AddComponent(e, s);
+            return e;
+        }
+
+        private RaycastHit Shoot(float atHeight, bool bullet = true) => RunSolver(new RaycastRequestEvent
+        {
+            Start     = new Vector3(0f, 0f, atHeight),
+            End       = new Vector3(20f, 0f, atHeight),
+            RayId     = bullet ? PhysicsConstants.PackBulletRayId(77) : PhysicsConstants.PackLosRayId(1, 2),
+            LayerMask = 1,
+        });
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3136</c> P-2 (peek-and-fire D2) — a ROUND hits a person only inside the body band of its LOGICAL stance (feet …
+        /// highest body point): a standing man is hit at 0.9 m and missed at 2.5 m; a PRONE man (top ≈ 0.3 m) is missed at 0.9 m —
+        /// the round through a window passes over a man lying below the sill — and hit at 0.2 m. 🔴 Red-proof: the circle alone
+        /// hit at every height. ⭐ A sight/query ray keeps the circle (any height), and so does a vehicle.
+        /// </summary>
+        [Fact]
+        public void P2_ARoundHitsAPersonOnlyInsideTheBodyBandOfItsStance()
+        {
+            var standing = SpawnPerson(null);
+            Assert.Equal(standing, Shoot(0.9f).HitEntity);
+            Assert.Equal(0, Shoot(2.5f).HasHit);
+            Assert.Equal(1, Shoot(2.5f, bullet: false).HasHit);   // a sight ray: unchanged
+
+            _world.AddComponent(standing, new Hrot.MuscleCharacter.Animation.Components.StanceIntent
+                { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Prone });
+            Assert.Equal(0, Shoot(0.9f).HasHit);                   // over a prone man
+            Assert.Equal(standing, Shoot(0.2f).HitEntity);
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> P-2 — a vehicle is hit anywhere in its circle, as before (no band).</summary>
+        [Fact]
+        public void P2_AVehicleKeepsTheCircle()
+        {
+            var car = SpawnCollider(new Vector2(10f, 0f), radius: 2f, layer: 1);
+            Assert.Equal(car, Shoot(5f).HitEntity);
+        }
+
         // ── Test 2 ────────────────────────────────────────────────────────────────
 
         /// <summary>

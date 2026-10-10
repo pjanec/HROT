@@ -60,7 +60,7 @@ Find the correct namespace and location by reading these files first:
 # From repo root d:\Work\IOS-IG-SimHost-FDP-2
 
 # Build full solution
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run CGF / SimHost tests
 dotnet test Hrot\Subsystems\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj
@@ -196,7 +196,7 @@ Build and run tests after every 2-3 tests. Do not batch all 12 tests for the
 final run — fix failures as you go.
 
 ```
-dotnet build IOS-IG-SimHost.sln  (after every logical checkpoint)
+dotnet build HROT.sln  (after every logical checkpoint)
 dotnet test <test-project>        (verify after each group of tests)
 ```
 
@@ -248,7 +248,7 @@ This batch is DONE when:
 - [ ] `EpisodeTag` appended when `episodeId` is provided
 - [ ] Staging `EntityRepository` disposed after extraction
 - [ ] All 12 unit tests pass
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors
+- [ ] `dotnet build HROT.sln` — 0 errors
 - [ ] Report submitted to `.dev/cgf-scn/reports/BATCH-03-REPORT.md`
 
 ---

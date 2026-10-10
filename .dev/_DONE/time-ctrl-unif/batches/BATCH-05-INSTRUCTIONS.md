@@ -15,7 +15,7 @@
 
 This batch wires the new controllers and translators into the four application hosts, deletes the obsolete classes, and adds the end-to-end integration test. This is the final implementation batch. After it completes, the Time Controller Unification is done.
 
-**Build verification is crucial in this batch:** the top-level solution `IOS-IG-SimHost.sln` must build cleanly. The FDP sub-solution must also build cleanly.
+**Build verification is crucial in this batch:** the top-level solution `HROT.sln` must build cleanly. The FDP sub-solution must also build cleanly.
 
 ### Required Reading (IN ORDER)
 
@@ -53,7 +53,7 @@ Also **remove** `TimeNetworkModule.CreateLockstepTranslator` method (was marked 
 #### Build solutions:
 
 - `FDP/FDP.sln`
-- `IOS-IG-SimHost.sln` (root)
+- `HROT.sln` (root)
 
 ### Report Submission
 
@@ -118,7 +118,7 @@ _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(...)
 **Note on DT-003:** Since `SwitchToDeterministic` ignores its parameter (uses construction-time slaves), the comment in the handler needs updating to reflect this. The slave set passed at construction is empty because nodes join dynamically — for now this means MasterSyncController has no ACK targets. This is acceptable for initial wiring; ACK tracking correctness depends on how `_clusterMaster.NodeRoster` is populated.
 
 **Success Conditions (TCU-W001):**
-1. Orchestrator builds without errors (`dotnet build IOS-IG-SimHost.sln`)
+1. Orchestrator builds without errors (`dotnet build HROT.sln`)
 2. Integration test: `OrchestratorSubsystem_PausePublishesSwitchTimeModeEvent` — init subsystem; trigger `PauseTime` op; assert `SwitchTimeModeEvent(Deterministic)` on bus
 3. Integration test: `OrchestratorSubsystem_ResumePublishesContinuousEvent`
 
@@ -222,7 +222,7 @@ Also **remove** the `CreateLockstepTranslator` method from `TimeNetworkModule.cs
 - `SteppingTimeController.cs` — still in use
 - Any tests that test `SwitchTimeModeDescriptorTranslator`, `TimePulseEgressTranslator`, `MasterSyncController`, `SlaveSyncController`
 
-After deletion: verify `dotnet build FDP/FDP.sln` and `dotnet build IOS-IG-SimHost.sln` succeed.
+After deletion: verify `dotnet build FDP/FDP.sln` and `dotnet build HROT.sln` succeed.
 
 ---
 
@@ -258,8 +258,8 @@ After deletion: verify `dotnet build FDP/FDP.sln` and `dotnet build IOS-IG-SimHo
 
 **Complete in this exact sequence:**
 
-1. **Tasks 1–4 (Wiring):** Update all application files → `dotnet build IOS-IG-SimHost.sln` — zero errors ✅
-2. **Task 5 (Deletion):** Delete files → `dotnet build FDP/FDP.sln` AND `dotnet build IOS-IG-SimHost.sln` — both zero errors ✅
+1. **Tasks 1–4 (Wiring):** Update all application files → `dotnet build HROT.sln` — zero errors ✅
+2. **Task 5 (Deletion):** Delete files → `dotnet build FDP/FDP.sln` AND `dotnet build HROT.sln` — both zero errors ✅
 3. **Task 6 (E2E Test):** Write the integration test → `dotnet test FDP/Toolkits/FDP.Toolkit.Time.Tests/FDP.Toolkit.Time.Tests.csproj` — all pass ✅
 4. **Final check:** Also run `dotnet test Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj` — all existing tests pass ✅
 
@@ -285,7 +285,7 @@ This batch is DONE when:
 - [ ] All 8 obsolete class files deleted from FDP toolkit
 - [ ] `grep -r "SlaveTimeController\|SteppedMasterController\|DistributedTimeCoordinator\|SlaveTimeModeListener\|FrameLockstepDescriptorTranslator" --include="*.cs"` returns no matches outside deleted/test files
 - [ ] `dotnet build FDP/FDP.sln` — zero errors
-- [ ] `dotnet build IOS-IG-SimHost.sln` — zero errors
+- [ ] `dotnet build HROT.sln` — zero errors
 - [ ] `dotnet test FDP/Toolkits/FDP.Toolkit.Time.Tests/FDP.Toolkit.Time.Tests.csproj` — all pass (≥124 tests + new E2E)
 - [ ] `dotnet test Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj` — all pass
 - [ ] `BATCH-05-REPORT.md` submitted

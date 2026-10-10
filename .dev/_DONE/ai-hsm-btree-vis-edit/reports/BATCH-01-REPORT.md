@@ -84,7 +84,7 @@ Fhsm.Tests (2 pre-existing failures, unrelated to attributes):
   FailSafeTests.InfiniteLoop_Detected_And_Stops
 ```
 
-Build: `dotnet build IOS-IG-SimHost.sln` -- succeeded, 0 errors, 9 pre-existing warnings (all in
+Build: `dotnet build HROT.sln` -- succeeded, 0 errors, 9 pre-existing warnings (all in
 Hrot.Blueprints.Tests, unrelated to this batch).
 
 ---

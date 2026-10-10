@@ -41,7 +41,7 @@ In `EditorSubsystem` the `doc.Asset.Changed` handler (~line 2204) calls `schedul
 - [ ] #1: JSON contributors loaded (`Refresh`); catalog deduped by AssetId (JSON wins) → migrated SampleScout/SampleGuard open with their saved layout, listed once. + AssetCatalog dedup test.
 - [ ] #2: `doc.MarkDirty()` wired in the Changed handler → Save-All persists moved positions (all kinds). + test/where-headless.
 - [ ] #3: canonical Kind→perspective map used both directions → opening an HSM switches to the HSM perspective; display still "HSM". + mapping test.
-- [ ] Global gate: `dotnet build IOS-IG-SimHost.sln` 0/0; `Hrot.Editor.AiShared.Tests` green (+ new AssetCatalog/mapping tests); `Hrot.BTree.Editor.Tests`/`Hrot.Hsm.Editor.Tests` green; `EditorSubsystemBoot` 10/10; `Hrot.Blueprints.Tests` only pre-existing (0 new). Report exact counts.
+- [ ] Global gate: `dotnet build HROT.sln` 0/0; `Hrot.Editor.AiShared.Tests` green (+ new AssetCatalog/mapping tests); `Hrot.BTree.Editor.Tests`/`Hrot.Hsm.Editor.Tests` green; `EditorSubsystemBoot` 10/10; `Hrot.Blueprints.Tests` only pre-existing (0 new). Report exact counts.
 - [ ] Report → `.dev/_DONE/persistence-unification/reports/BATCH-10-REPORT.md`.
 
 ## Report Requirements

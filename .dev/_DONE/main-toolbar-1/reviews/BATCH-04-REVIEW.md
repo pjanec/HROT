@@ -10,7 +10,7 @@ MTB-P1-T3: `WindowManager.MainToolbar` property + `Render` wiring (mirrors `Stat
 No issues found.
 
 ## Verification (done by lead)
-- `dotnet build IOS-IG-SimHost.sln` → **0 errors, 0 new warnings**.
+- `dotnet build HROT.sln` → **0 errors, 0 new warnings**.
 - New tests run by lead (class-filtered to avoid the known Vis2D suite deadlock): **96 passed, 0 failed**
   (11 new + 85 pre-existing in scope).
 - Diff read: `DockspaceLayout.CentralSize` = `(workWidth, workH-toolbarH-statusBarH)` clamped ≥0;

@@ -7,7 +7,9 @@ stale-below: nothing yet.
 known-rot: none.
 known-conflict: docs/DESIGN_Role_Affinity_Ownership.md §3.9/§3.9a role tables (brainOnly) — §1 measures that brainOnly misses most brain-written components (tiers, BrainInterrupts, WeaponState, TargetMemory, ActiveMissionPlan, EqsSensor, …). Push-only (Q79 §0.7) retires the role tables as the source of ownership; this doc's §2 replaces them.
 related-designs:
+  - docs/DESIGN_Entity_Interactions.md — an actor's ACTION on an entity it does not own (open a door, board a vehicle) travels to the owner as a typed command; each handler gates on this design's descriptor ownership
   - docs/DESIGN_Sensors_And_Doctrine.md — §7.7 OWNS dtBrainIntent (CE-3048): the Brain group's AI-intent descriptor (SopState, Roe) and the hand-over that starts it on the gaining node — the declarative projection that keeps R-165's 'never sent' intact.
+  - docs/DESIGN_Map_3D_Mode.md — §3.11 asks for a TURRET PART (PartMetadata child + a turret pose descriptor per instance, M23–M26) so the 3-D map can draw an articulated turret; its ownership follows this design
   - docs/blueprints/Architect_Question_79_One_Ownership_Truth.md — owns the DECISIONS (push-only, the grant, parts, crash, external nodes, build scope §0.13); this doc is the build design they asked for (R-170).
   - docs/DESIGN_Role_Affinity_Ownership.md — owned WHO claims WHICH component by role; superseded in part by push-only. Its §2.3 shape (ownership as component masks, network-agnostic) is kept here.
   - docs/DESIGN_Entity_Creation_Unification.md — owns the EntityCreationPack every host builds; S2b made its NetworkAdapters the one network input and its NetworkSystems the poll + delete systems.

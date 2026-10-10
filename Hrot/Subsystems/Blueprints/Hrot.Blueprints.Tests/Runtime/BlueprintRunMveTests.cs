@@ -13,7 +13,7 @@ namespace Hrot.Blueprints.Tests.Runtime;
 ///
 /// <para>
 /// SUBSTRATE: <see cref="BlueprintTestFixture"/> — the proven minimal world + registry +
-/// <c>BlueprintTickSystem</c>/<c>BlueprintMaintenanceSystem</c> harness. The ClusterRunner
+/// <c>BlueprintTickSystem</c> harness. The ClusterRunner
 /// kernel built by <c>Hrot.ClusterRunner.Integration.Tests/EditorHarness</c> does NOT
 /// schedule the blueprint systems or register the blackboard tier components / a
 /// <c>BlueprintRegistry</c> (verified: EditorHarness.cs ctor, lines 118–221, registers only

@@ -64,8 +64,27 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
+            // ⭐ CE-3126 — the optional geodetic origin. Malformed is an error (a wrong origin moves every entity on the wire);
+            //   absent is legal and means 0,0,0. 📄 docs/DESIGN_Geo_Origin.md §2 A/B.
+            TerrainGeoOrigin? origin = null;
+            if (obj["origin"] is JsonNode originNode)
+            {
+                if (originNode is not JsonObject o || o["lat"] is not JsonNode latNode || o["lon"] is not JsonNode lonNode)
+                    throw new ArgumentException(
+                        "Terrain definition 'origin' must be an object with 'lat' and 'lon' (degrees) and an optional 'alt' (metres).",
+                        nameof(json));
+                double lat = latNode.GetValue<double>();
+                double lon = lonNode.GetValue<double>();
+                double alt = o["alt"]?.GetValue<double>() ?? 0.0;
+                if (lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0)
+                    throw new ArgumentException(
+                        $"Terrain definition 'origin' ({lat}, {lon}) is outside -90..90 / -180..180 degrees.", nameof(json));
+                origin = new TerrainGeoOrigin(lat, lon, alt);
+            }
+
             return new TerrainDefinition
             {
+                Origin        = origin,
                 SchemaVersion = version,
                 Name          = obj["name"]?.GetValue<string>() ?? string.Empty,
                 RoadNetworks  = roads,

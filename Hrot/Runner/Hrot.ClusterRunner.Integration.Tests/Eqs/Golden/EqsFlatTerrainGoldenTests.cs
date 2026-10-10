@@ -65,6 +65,16 @@ public sealed class EqsFlatTerrainGoldenTests
                 () => CaptureOnFlatGround(nameof(FindFlankingPosition), FindFlankingPosition.BlueprintId, 20f)),
             [FindSafeRetreatPoint.BlueprintId] = (nameof(FindSafeRetreatPoint),
                 () => CaptureOnFlatGround(nameof(FindSafeRetreatPoint), FindSafeRetreatPoint.BlueprintId, 25f)),
+            // ⭐ Stage 7a (CE-3134) — window positions from a manual database: two see the target past the wall's ends, one
+            //   is behind the wall (rejected), and a Cover point at the same range must never appear (one kind per query).
+            [FindWindowFiringPosition.BlueprintId] = (nameof(FindWindowFiringPosition),
+                () => CaptureOnFlatGround(nameof(FindWindowFiringPosition), FindWindowFiringPosition.BlueprintId, 30f, cover: new ManualCoverProvider(new[]
+                {
+                    new CoverPoint { PositionX = 0f,   PositionY = -5f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
+                    new CoverPoint { PositionX = 28f,  PositionY = -5f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
+                    new CoverPoint { PositionX = -27f, PositionY = -8f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
+                    new CoverPoint { PositionX = 26f,  PositionY = -6f, DirectionY = -1f, Quality = 1f, StanceHeight = 2, Kind = CoverKind.Cover },
+                }))),
             [FindThreatsInView.BlueprintId] = (nameof(FindThreatsInView),
                 () => CaptureOnFlatGround(nameof(FindThreatsInView), FindThreatsInView.BlueprintId, 60f, ForceId.Hostile)),
         };
@@ -105,6 +115,7 @@ public sealed class EqsFlatTerrainGoldenTests
     [InlineData(nameof(FindFlankingPosition))]
     [InlineData(nameof(FindSafeRetreatPoint))]
     [InlineData(nameof(FindThreatsInView))]
+    [InlineData(nameof(FindWindowFiringPosition))]
     public void TerrainStarterTemplate_FlatTerrain_MatchesGolden(string template) => RunGoldenForTemplate(template);
 
     [Fact]
@@ -319,7 +330,8 @@ public sealed class EqsFlatTerrainGoldenTests
     /// wall at (0, −40), a friendly at (5, 5). Runs the real solver with the PRODUCTION registry (as
     /// <see cref="CaptureEntitiesOfForceInArea"/>), so the templates are the ones a blueprint gets.
     /// </summary>
-    private static EqsGoldenTemplate CaptureOnFlatGround(string name, uint blueprintId, float radius, ForceId? threats = null)
+    private static EqsGoldenTemplate CaptureOnFlatGround(string name, uint blueprintId, float radius, ForceId? threats = null,
+        ICoverProvider? cover = null)
     {
         using var repo = new EntityRepository();
         Hrot.SimHost.SimHostComponentRegistry.RegisterAll(repo);
@@ -338,6 +350,7 @@ public sealed class EqsFlatTerrainGoldenTests
                 },
             },
         });
+        if (cover != null) repo.SetSingletonManaged(cover);
         using var grid = new GridOwner(SpatialHashGrid.Create(100, 100, 5f, 64, Fdp.Core.Collections.Allocator.Persistent));
         grid.Grid.Clear();
         repo.SetSingleton(new SpatialGridData { Grid = grid.Grid });

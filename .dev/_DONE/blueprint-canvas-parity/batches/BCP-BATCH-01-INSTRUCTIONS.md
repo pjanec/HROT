@@ -34,7 +34,7 @@ Loaded asset nodes have `Pins: []`; links carry real pin GUIDs. Hydrate pins in 
 ## Success Criteria
 - [ ] BCP-C/B/A done; Blueprint canvas shows pins+wires, nodes drag smoothly, demo color scheme on all 3 perspectives.
 - [ ] **Byte-stability test green** (no `.bp.json` changes) and the **compiler golden/snapshot suite unchanged** (run it; any drift = stop and fix the approach).
-- [ ] `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 warnings; GizmoMap.Contracts 0.2.2.
+- [ ] `dotnet build HROT.sln` 0 errors / 0 warnings; GizmoMap.Contracts 0.2.2.
 - [ ] Green: `Hrot.Blueprints.Tests` (no new failures beyond the 10 DEBT-006), `Hrot.Editor.AiShared.Tests`, `Hrot.BTree.Editor.Tests`, `Hrot.Hsm.Editor.Tests`, `EditorSubsystemBoot` filter.
 - [ ] Report at `.dev/_DONE/blueprint-canvas-parity/reports/BCP-BATCH-01-REPORT.md`.
 

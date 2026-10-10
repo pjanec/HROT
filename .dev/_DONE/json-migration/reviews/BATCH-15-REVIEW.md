@@ -13,7 +13,7 @@
 |------|--------|-------|
 | `Fdp.Tools.EnvelopeStamper` project created | ✅ | `FDP/Tools/Fdp.Tools.EnvelopeStamper/` |
 | `Fdp.Tools.EnvelopeStamper.Tests` project created | ✅ | `FDP/Tools/Fdp.Tools.EnvelopeStamper.Tests/` |
-| Both projects added to `IOS-IG-SimHost.sln` | ✅ | `dotnet sln add` used |
+| Both projects added to `HROT.sln` | ✅ | `dotnet sln add` used |
 | Stamper tool runs against committed fixtures | ✅ | `Stamped=43, Errors=0` |
 | Idempotency on second run | ✅ | `AlreadyStamped=43` |
 | All 10 tests pass | ✅ | T01–T10 all pass |
@@ -67,7 +67,7 @@ DocType string constants are inlined in `FixtureStamper.cs` (no `Hrot.Common` re
 `Hrot.Blueprints.Tests` single failure (`AllocationFreeTests.TickFrame_1000Frames_AllocatesZeroBytes`)
 confirmed pre-existing via `git stash` baseline test — present on `323441aa` before any BATCH-15 changes.
 
-Full solution build (`IOS-IG-SimHost.sln`) errors are all pre-existing Stride editor dependency issues
+Full solution build (`HROT.sln`) errors are all pre-existing Stride editor dependency issues
 in `Hrot.Blueprints.Tests` — acceptable per project convention.
 
 ---

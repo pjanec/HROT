@@ -78,7 +78,7 @@ I/J/K/L still pending). Extend `verify.mjs` with a checkpoint+diff flow (see bel
 - **Tier-2 (MCP `verify.mjs`, ENV-gated headless smoke as needed):** after load + play(paused), `checkpoint`
   → move (e.g. spawn an entity or send a command) → `restore` → assert revert; and a `capture → change →
   diff` asserting a non-empty change tree. Re-runnable via `npm run verify`. NO orphan processes.
-- `dotnet build IOS-IG-SimHost.sln` (full build — `DebugApiService` ctor may change; harness ripples);
+- `dotnet build HROT.sln` (full build — `DebugApiService` ctor may change; harness ripples);
   `dotnet test … --filter "FullyQualifiedName~DebugApi"`.
 
 ## Constraints (hard)

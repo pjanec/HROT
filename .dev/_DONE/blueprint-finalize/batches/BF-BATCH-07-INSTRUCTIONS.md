@@ -32,7 +32,7 @@ with a REAL `IPinDefaultValueEditorRegistry` populated with `IPinDefaultValueEdi
 - [ ] The Blueprint canvas uses a real pin-default-value-editor registry; common-typed unconnected value pins
       have inline editors that write the value back to the model (dirties the doc). + a headless test where
       feasible (registry returns the right editor per TypeKey; editor get/set round-trips a value).
-- [ ] `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 new warnings; Full Rebuild still 0 errors.
+- [ ] `dotnet build HROT.sln` 0 errors / 0 new warnings; Full Rebuild still 0 errors.
 - [ ] Blueprints suite failures stay a SUBSET of the 7 pre-existing (0 new) — list the final set; do NOT claim
       0 regressions without the before/after comparison. EditorSubsystemBoot 10/10; Hrot.Editor.AiShared.Tests green.
 - [ ] Report → `.dev/_DONE/blueprint-finalize/reports/BF-BATCH-07-REPORT.md`. NOTE in the report that the visual/ImGui

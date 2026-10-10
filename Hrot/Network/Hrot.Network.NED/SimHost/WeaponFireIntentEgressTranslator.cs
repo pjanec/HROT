@@ -97,7 +97,8 @@ namespace Hrot.Network.NED.SimHost
                 }
 
                 // Resolve target entity → network ID for the DDS wire message.
-                if (!_entityMap.TryGetNetworkId(evt.Target, out long targetNetId))
+                long targetNetId = 0;   // ⭐ CE-1032 W-8 — 0 = fire at the point
+                if (!evt.AtPoint && !_entityMap.TryGetNetworkId(evt.Target, out targetNetId))
                 {
                     FdpLog<WeaponFireIntentEgressTranslator>.Warn(
                         "[WeaponFireIntentEgress] Target entity #{0} not in NetworkEntityMap — skipping intent.",
@@ -110,6 +111,9 @@ namespace Hrot.Network.NED.SimHost
                     ShooterEntityId = shooterNetId,
                     TargetEntityId  = targetNetId,
                     WeaponIndex     = evt.WeaponIndex,
+                    PointX          = evt.TargetPoint.X,
+                    PointY          = evt.TargetPoint.Y,
+                    PointZ          = evt.TargetPoint.Z,
                 });
                 SentSampleCount++;
             }

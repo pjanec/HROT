@@ -8,13 +8,13 @@
 
 ## Build Status
 
-`dotnet build IOS-IG-SimHost.sln` → **Build succeeded. 0 Error(s)**
+`dotnet build HROT.sln` → **Build succeeded. 0 Error(s)**
 
 ## Test Status
 
 **Fdp.Toolkits.Tests (after Task 3):** Pre-existing failures in Physics, Combat, and Navigation test suites (unrelated to Time changes). No time-related test failures introduced.
 
-**Final full sweep (`dotnet test IOS-IG-SimHost.sln --no-build`):**
+**Final full sweep (`dotnet test HROT.sln --no-build`):**
 - `Hrot.ClusterRunner.Integration.Tests.dll`: Failed: 10, Passed: 130, Skipped: 4, Total: 144 — all 10 failures are pre-existing integration test failures (cluster spawn/mission/ghost position tests requiring live subsystems). None are related to descriptor ordinal changes.
 
 **Verification sweeps:**
@@ -103,5 +103,5 @@ MPM-P2-T04: Create BdcDescriptorType enum + update 2 BDC translators
 - New: Hrot/Network/Hrot.Network.BDC/BdcDescriptorType.cs (Hrot.BDC)
 - EntityMaster=1000, WorldPos=1002
 
-Build: IOS-IG-SimHost.sln succeeds with 0 errors
+Build: HROT.sln succeeds with 0 errors
 ```

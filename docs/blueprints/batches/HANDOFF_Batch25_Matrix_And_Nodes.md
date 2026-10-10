@@ -181,7 +181,7 @@ palette, drawers, detail-panel UI, test bodies.
 ## 8. Gates
 
 ```bash
-dotnet build IOS-IG-SimHost.sln -v q --nologo
+dotnet build HROT.sln -v q --nologo
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj -v q --nologo --logger "console;verbosity=normal"
 dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj -v q --nologo --logger "console;verbosity=normal"
 dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Hrot.BTree.Editor.Tests.csproj -v q --nologo --logger "console;verbosity=normal"
