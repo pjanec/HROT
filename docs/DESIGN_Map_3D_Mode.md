@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — approach chosen by the user (U13: alternative B, a 2-D/3-D switch on the existing map); the
   leans in §5 await approval before S1. Nothing built.
-updated: 2026-10-10 (rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
+updated: 2026-10-10 (rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §7 what is NOT verified.
@@ -35,7 +35,7 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 | in 3-D | |
 |---|---|
 | terrain | lit, colour-shaded polygons from `TerrainWorld` (ground, surfaces, water, roads, buildings by material); textures later |
-| entities | vehicles as boxes from TKB dimensions (tank = hull + turret box); humans as **Minecraft-style block figures** — head, torso, arms, legs — posed by stance, limbs swinging with speed |
+| entities | **shape kits** — each kind of entity is a few boxes, cylinders and wedges scaled to its TKB size: tank, APC/IFV, car, truck, helicopter, jet; humans as **Minecraft-style block figures** posed by stance |
 | interaction | click-select, right-click menu, tools — through the **unchanged** input chain |
 | gizmos | the 3-D subset of the gizmo stream (lines, arrows, spheres, semantic shapes) — fire traces and detonations included |
 | camera | Unity-style free camera; an **animated** 2-D ↔ 3-D transition (M12); the camera entity (V-12..V-15, M10) |
@@ -50,6 +50,7 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 | **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) … with imgui on top for menus?"* | measured in `DESIGN_Godot_3D_Viewer.md` §8 — lean B |
 | **U13** | *"The internal 3d solution could be switchable 2d/3d instead of current 2d only map so no new 3d window would be required. I think we should focus on B … Lets put godot aside (but keep its design as deferred). We need the simple renderer to handle the terrain geometry, use lighting color shaded polygons to give it some usable feeling of a real world, if not some freely available texture pack."* | ⭐ this file: a **mode of the map**, not a window; **lit, colour-shaded terrain**; textures as a later slice |
 | **U15** | *"Every host having the 2d map will get simple 3d, correct? Not just IG. … The current 2d map can be switched to 3d view and back (some camera animation between 2d camera and 3d camera or something)."* | ✅ yes, all five map hosts (S6). ⭐ M12: the switch is an animated camera move, not a cut |
+| **U18** | *"Vehicles and aircraft should be also composed of multiple pieces to resemble what they are in real world, still cheap."* | ⭐ M7 rewritten: **shape kits** (§3.5), chosen by one visual-family classifier the icons already use |
 | **U16** | *"The 3d entities will need some label system so that we can show various texts provided by gizmos. So far gizmos were using 2d text, how to adapt to text for entities in 3d?"* | ⭐ §3.4 + M13: the same text primitives, projected; one overlay pass |
 | **U17** | *"ok one camera entity."* | ✅ M10 approved |
 | **U14** | *"Human characters as simple as in minecraft would be a bit nicer and still feasible i guess."* | ⭐ M7 rewritten: a **six-box figure**, stance poses blended by the transition, limb swing from speed |
@@ -141,7 +142,9 @@ classDiagram
   class GridMapLayer { <<exists>> +Draw3D ground grid }
   class TerrainLayer3D { <<new>> lit terrain mesh }
   class EntityBodyLayer3D { <<new>> vehicle boxes, human figures }
-  class BlockFigure { <<new>> six-box pose by stance, limb swing }
+  class ShapeKit { <<new>> parts as fractions of L W H }
+  class VisualFamily { <<extracted>> from EntityTypeCatalog.FallbackIconName }
+  class BlockFigure { <<new>> the person kit, posed by stance }
   class LogicalStance { <<exists>> the shared stance rule }
   class LocomotionBlend { <<extracted>> speed to idle/walk/run }
   class Gizmo3DTriage { <<extracted>> from DebugPrimitiveRenderer3D }
@@ -167,7 +170,9 @@ classDiagram
   TerrainLayer3D ..> TerrainWorldMesh
   TerrainLayer3D ..> LitShader
   EntityBodyLayer3D ..> LitShader
-  EntityBodyLayer3D ..> BlockFigure
+  EntityBodyLayer3D ..> VisualFamily
+  EntityBodyLayer3D ..> ShapeKit
+  ShapeKit <|-- BlockFigure
   DebugGizmoLayer ..> LabelOverlay3D : text, badges
   LabelOverlay3D ..> GizmoTextDraw
   LabelOverlay3D ..> MapCamera3D : WorldToScreen
@@ -272,6 +277,32 @@ sequenceDiagram
 overlay pass after the 3-D pass; the drawing code is the 2-D renderer's screen-space branch, extracted so both modes call it.
 
 
+### 3.5 Shape kits — what each kind of entity looks like *(U18)*
+
+📐 Measured `2026-10-10`: ⭐ the question *"what kind of thing is this type"* is **already answered once**, for the
+icons — `EntityTypeCatalog.FallbackIconName` (`EntityTypeCatalog.cs:128-143`) maps DIS kind / domain / category (or
+being a composite unit) to a family: person, tank, AFV, wheeled, unit. ⇒ that logic is **extracted** into one
+`VisualFamily.Of(TkbTemplate)`; the icon fallback and the 3-D kit choice both call it.
+
+| family *(DIS)* | built-in types today | kit — parts, as fractions of the type's L × W × H |
+|---|---|---|
+| **person** *(kind 3)* | Rifleman, InfantrySoldier, Grenadier, MortarTeam, Insurgent, CivilianPedestrian | the six-box block figure; **rifle** part for soldiers (category 1), none for civilians |
+| **tank** *(1.1, cat 1)* | M1 Abrams, T-72 | lower hull · two track blocks (dark) · turret box set back · barrel cylinder forward |
+| **AFV / APC** *(1.1, cat 2)* | Bradley, MilitaryAPC | hull with a sloped front wedge · tracks or wheels (dark) · small turret · thin barrel |
+| **wheeled — car** *(1.1, cat 81)* | CivilianCar | lower body · cabin (glass) · four wheels (roll with speed) |
+| **wheeled — utility** *(1.1, cat 3/6/7)* | HMMWV | wide low body · cab (glass) · rear bed · four wheels |
+| **helicopter** *(air)* | ⛔ none in the built-in TKB | fuselage · tail boom · tail fin · main rotor blades (spin) · tail rotor · skids |
+| **fixed wing** *(air)* | ⛔ none in the built-in TKB | fuselage cylinder + nose cone · swept wing slab · two fins · canopy (glass) |
+| **unit** *(composite)* | tank platoon, infantry squad | **no body** — its members are entities and draw themselves; its symbol shows as a label |
+| unknown | — | one box, the TKB size |
+
+⭐ **Cost:** 6–12 parts per vehicle, each one draw of a shared unit mesh through the lit shader — hundreds of vehicles
+stay cheap; instancing per part shape is the later lever. ⭐ **Size:** length / width / height from
+`VehicleParametersDto` / `SimVehicleDef`; a per-family default where the TKB has none. ⭐ **Motion is presentation
+only** — rotor spin from time, wheel roll from speed; the turret follows the hull (no aim component is read).
+⛔ **Air:** the kits are built and railed, but **no built-in type is in the air domain**, and the DIS air category numbers
+for helicopter vs fixed wing are **not yet confirmed** against SISO-REF-010 — settled when the first air type is added.
+
 ---
 
 ## 4. THE REUSE LEDGER
@@ -291,7 +322,8 @@ overlay pass after the 3-D pass; the drawing code is the 2-D renderer's screen-s
 | stance | ✅ `LogicalStance.Of` for the pose; `StanceStatus.Phase` / `TransitionProgress` to blend into it | `Tkb/Domain/StanceComponents.cs:58,82` |
 | `LocomotionBlend` (speed → idle/walk/run weights, pure `System`) | 🔁 **extract** beside the gizmo triage — drives the limb swing | `Stride/Hrot.Stride.Animation/LocomotionBlend.cs:99-145` |
 | 2-D renderer's screen-space text + badge drawing | 🔁 **extract** to `GizmoTextDraw` — the 2-D screen-space branch and the 3-D overlay both call it | `DebugPrimitiveRenderer2D.cs:388-447` |
-| `MapCamera3D`, `TerrainLayer3D`, `EntityBodyLayer3D`, `LabelOverlay3D`, `BlockFigure` (the six-box pose math, unit-tested), `RaylibDrawSink3D`, the lit shader, the switch | 🆕 new | — |
+| icon fallback's "what kind of thing is this type" | 🔁 **extract** to `VisualFamily.Of` — the icons and the 3-D kits both call it | `EntityTypeCatalog.cs:128-143` |
+| `MapCamera3D`, `TerrainLayer3D`, `EntityBodyLayer3D`, `LabelOverlay3D`, `ShapeKit` + the kit table, `BlockFigure` (the six-box pose math, unit-tested), `RaylibDrawSink3D`, the lit shader, the switch | 🆕 new | — |
 
 ---
 
@@ -305,7 +337,7 @@ overlay pass after the 3-D pass; the drawing code is the 2-D renderer's screen-s
 | **M4** | terrain mesh | ⭐ extend `TerrainWorldMesh` with optional tags; the renderer adds what navigation does not need (water surface, surface colours, road ribbons) beside it | a second mesher for rendering — duplicates prisms/walls/slabs |
 | **M5** | lighting | ⭐ **one small GLSL shader** (330): vertex colour × (ambient + sun·N), distance fog to a sky colour; flat normals by un-indexing triangles | CPU-baked vertex lighting — entities rotate, so it would need re-baking every frame |
 | **M6** | textures | ⭐ a later slice: **CC0** packs only, mapped in the shader from **world position** (triplanar) so the mesh needs no UVs | UV-unwrapping terrain — work the triplanar trick avoids |
-| **M7** | entities | ⭐ box per vehicle from TKB size (tank: hull + turret box). **Human = a six-box block figure (U14)**: head, torso, two arms, two legs, ~1.8 m, torso in the side's colour. **Pose** = the shared stance rule `LogicalStance.Of` (`StanceComponents.cs:82`: *"a unit's LOGICAL stance is what its brain ordered … an animation only shows it and never gates it"*) — standing; crouched (hips lowered, knees bent); prone (the whole figure laid along its heading). While `StanceStatus.Phase` is transitioning, the pose blends by `TransitionProgress`. **Limb swing** (arms and legs counter-swinging, Minecraft-style) from planar speed through the extracted `LocomotionBlend.FromSpeed` (`LocomotionBlend.cs:114`) — walk and run weights set amplitude and rate; a per-entity phase advances with distance walked. Optional rifle = a thin box in the hands | cylinders (rev 1) — U14 · real models — U12 · showing `StanceStatus.CurrentStance` alone — it would disagree with the hit model, fire chain and perception, which all read `LogicalStance` |
+| **M7** | entities | ⭐ **shape kits** (§3.5): a kit is a short list of parts (box / cylinder / cone / wedge) placed as fractions of the type's length, width and height, each with a colour role (body = side colour, dark, glass, metal) and an optional cheap motion (rotor spin, wheel roll, limb swing). The kit is chosen by **one visual-family classifier** extracted from the icon fallback. **Humans are the person kit** — the six-box block figure (U14), posed by the shared stance rule `LogicalStance.Of` (`StanceComponents.cs:82`), blended by `StanceStatus.TransitionProgress`, limbs swinging via `LocomotionBlend.FromSpeed`; a rifle part when the entity is a soldier (DIS life form, category 1), none for civilians | one box per vehicle (rev 1) — U18 · real models — U12 · a second classifier for 3-D — the icon fallback already answers "what is this type" · showing `StanceStatus.CurrentStance` alone — would disagree with `LogicalStance` readers |
 | **M8** | free camera | ⭐ Unity scene view: **RMB-drag** look, **WASD/QE only while RMB is held** (so tools keep their keys), wheel dolly, MMB pan, **F** frames the selection; right-**click** stays the context menu (the canvas already tells drag from click) | always-on WASD — collides with tool keyboard input |
 | **M9** | coordinates | ⭐ one transform: HROT `(x, y, z)` → Raylib `(x, z, −y)`, quaternion `(x, y, z, w)` → `(x, z, −y, w)` (det +1, no flip) | — |
 | **M10** | the camera entity (V-12..V-15) — **what it stores** | ✅ **APPROVED (U17): one camera entity for the map, in both modes**: look-at point, distance, yaw, pitch and the mode. The 2-D map is simply that camera at pitch −90°, north up. An ordinary spatial entity (U7), owned by the host, saved with the scenario, created on the first camera move — so a saved scenario reopens the map where it was looking, in the mode it was in | 3-D pose only (rev 2's lean) — two camera states for one map · no entity at all — simpler, but drops V-12's "saveable to scenario" |
@@ -319,10 +351,10 @@ overlay pass after the 3-D pass; the drawing code is the 2-D renderer's screen-s
 
 | slice | delivers | proves |
 |---|---|---|
-| **S1** | `MapCamera3D` + the animated switch (Editor); `TerrainLayer3D` from `TerrainWorldMesh` as-is, one colour per kind, lit shader + fog; `EntityBodyLayer3D` vehicle boxes + block figures in their three stance poses (static); free camera; **Xvfb screenshot of the editor in 3-D on `test-town`** | the render path, the shader on the cloud's software GL, M8 |
+| **S1** | `MapCamera3D` + the animated switch (Editor); `TerrainLayer3D` from `TerrainWorldMesh` as-is, one colour per kind, lit shader + fog; `EntityBodyLayer3D` with `VisualFamily` + the shape kits for every built-in type (static) and block figures in their three stance poses; free camera; **Xvfb screenshot of the editor in 3-D on `test-town`** | the render path, the shader on the cloud's software GL, M8 |
 | **S2** | `ScreenToWorld` ray picking; `deltaWorld` through the camera; `SelectionRenderSystem.Draw3D` wire cubes | select, context menu and tools work in 3-D unchanged |
 | **S3** | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters; **labels**: `GizmoTextDraw` extracted, `LabelOverlay3D` with projection + LOD | gizmos, fire traces, detonations and gizmo text in 3-D (U16) |
-| **S4** | mesh tags; colours by surface and material; water; road ribbons from the road network; **figures come alive**: stance blending + limb swing (`LocomotionBlend` extracted), optional rifle | "a usable feeling of a real world" (U13), U14 |
+| **S4** | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
 | **S5** | camera entity — create, follow, scenario save | V-12..V-15 |
 | **S6** | all five hosts through `MapInteractionPack` | V-01, V-18 (IG) |
 | **S7** | CC0 textures, triplanar | U13's texture wish |
@@ -341,5 +373,7 @@ overlay pass after the 3-D pass; the drawing code is the 2-D renderer's screen-s
 | ⚠ which CC0 texture pack — ambientCG / Poly Haven are CC0 by their own terms; specific textures and repo size not chosen | S7, with a licence table |
 | ⚠ the 3-D pass must accept primitives that target `PipelineTarget.Map2D` (the 2-D renderer filters on it, `DebugPrimitiveRenderer2D.cs:93`; `Viewport3D` is declared and read by nobody) — otherwise every label is filtered out | S3 rail |
 | ⚠ the overhead perspective camera at matched height looks close enough to the 2-D map at the swap (tall buildings lean slightly at the edges) | S1 screenshot pair |
+| ⚠ every built-in TKB type maps to a non-`unknown` family (units excepted) — and the icon fallback's output is unchanged by the extraction | S1 rail over the whole catalog |
+| ⚠ DIS air categories for helicopter / fixed wing | when the first air type is added |
 | ⚠ IG humans stand upright until IG ingests stance (`CE-2121` "IG ingress open") | S6 |
 | ⚠ `LogicalStance.Of` and `StanceStatus` are present on every host's entities (they are `NoScenario` runtime components; the Editor may not run the stance systems) — no stance ⇒ standing, as the rule itself says | S1 rail |
