@@ -561,6 +561,7 @@ public sealed class PostureScenarioTests : IDisposable
             }
         }
         int maxLeg = -1, firstHitFrame = -1; Vector3 posAtFirstHit = default; float movedAfterHit = 0f; bool defensiveAfterHit = false;
+        int firedFromCover = 0;   // ⭐ CE-3158 G-6 / CE-3157 — rounds he fires while his posture is TakeCover, after the first hit
         int lastAmmo = cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).Ammo : -1;   // ⭐ CE-3136 P-5: the spawned load, not a literal 30
         for (int f = 0; f < 24000; f++)
         {
@@ -569,6 +570,7 @@ public sealed class PostureScenarioTests : IDisposable
             int ammoNow = cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).Ammo : -1;
             if (ammoNow != lastAmmo)
             {
+                if (firstHitFrame >= 0 && ammoNow < lastAmmo && Winner() is Posture.TakeCover) firedFromCover += lastAmmo - ammoNow;
                 var t = FireTarget(cgf, rifleman);
                 string tn = ShooterName(cgf, t);
                 string tm = harness.Cgf!.GhostEntityMap is { } m && m.TryGetNetworkId(t, out long tid) ? $"net{tid}" : "UNMAPPED";
@@ -593,6 +595,7 @@ public sealed class PostureScenarioTests : IDisposable
             if (Leg() >= 1 && Vector3.Distance(Pos(rifleman), final) <= 3.5f) { _out.WriteLine($"f{f}: FINAL OBJECTIVE — {State()}"); break; }
         }
         _out.WriteLine($"postures: {string.Join(" → ", postures)}");
+        _out.WriteLine($"CE-3157: rounds fired from cover after the first hit = {firedFromCover}");
         _out.WriteLine($"approaches: {string.Join(" → ", approaches)}");
         _out.WriteLine($"end: {State()} hostiles up={HostilesUp()}");
         var cgfMap = harness.Cgf!.GhostEntityMap;

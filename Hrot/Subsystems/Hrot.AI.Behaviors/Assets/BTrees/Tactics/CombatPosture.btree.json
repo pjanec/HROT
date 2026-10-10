@@ -352,13 +352,13 @@
     {
       "kind": "Action",
       "Action": {
-        "MethodFqn": "Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover",
-        "ExpressionTargetField": "cover",
-        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState"
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PeekAndFireNodes.PeekAndFire",
+        "ExpressionTargetField": "peek",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.PeekAndFireState"
       },
       "VisualId": "c2073000-0000-0000-0000-000000000011",
       "ChildVisualIds": [],
-      "DisplayLabel": "Take cover",
+      "DisplayLabel": "Take cover, fight from it",
       "EditorMetadata": {
         "X": 820,
         "Y": 520,
@@ -698,14 +698,14 @@
         "Comment": "The objective (the mission task's goal), speed, arrival radius, fire cooldown."
       },
       {
-        "Name": "cover",
+        "Name": "peek",
         "Type": {
-          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsParams",
+          "TypeId": "Hrot.AI.Behaviors.Brains.PeekAndFireParams",
           "IsArray": false,
           "FixedLength": null
         },
-        "DefaultValueJson": "{\"SearchRadius\":60,\"MinRepositionMetres\":5,\"Speed\":2.5,\"ArrivalRadius\":1,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
-        "Comment": "Take-cover tunables (as the TakeCover tree)."
+        "DefaultValueJson": null,
+        "Comment": "CE-3158 G-6 - the fight-from-cover node (PeekAndFire); zero = the generic rifleman defaults (G8): cover template, peek from the point."
       },
       {
         "Name": "engage",

@@ -23,9 +23,9 @@ public static class CombatPosture
                     visualId: new Guid("c2073000-0000-0000-0000-000000000003"));
                 par.Action("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors@16@1701996138",
                     visualId: new Guid("c2073000-0000-0000-0000-000000000004"));
-                par.Action("Fdp.Toolkit.Utility.UtilityNodes.ChooseOption@128@333075940",
+                par.Action("Fdp.Toolkit.Utility.UtilityNodes.ChooseOption@208@333075940",
                     visualId: new Guid("c3084000-0000-0000-0000-000000000002"));
-                par.Action("Hrot.AI.Behaviors.Brains.PostureNodes.ApproachSensors@136@727345567",
+                par.Action("Hrot.AI.Behaviors.Brains.PostureNodes.ApproachSensors@216@727345567",
                     visualId: new Guid("c3084000-0000-0000-0000-000000000003"));
                 par.ObserverSelector(obs =>
                 {
@@ -37,20 +37,20 @@ public static class CombatPosture
                         {
                             obs.Sequence(seq =>
                             {
-                                seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@132@333075940",
+                                seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@212@333075940",
                                     visualId: new Guid("c3084000-0000-0000-0000-000000000006"));
                                 seq.ForceFailure(d8 => d8
-                                    .Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank@152@1029342709",
+                                    .Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank@232@1029342709",
                                         visualId: new Guid("c3084000-0000-0000-0000-000000000011")),
                                     visualId: new Guid("c3084000-0000-0000-0000-000000000107"));
                             },
                                 visualId: new Guid("c3084000-0000-0000-0000-000000000005"));
                             obs.Sequence(seq =>
                             {
-                                seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@133@333075940",
+                                seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@213@333075940",
                                     visualId: new Guid("c3084000-0000-0000-0000-000000000009"));
                                 seq.ForceFailure(d8 => d8
-                                    .Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition@184@979009852",
+                                    .Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition@264@979009852",
                                         visualId: new Guid("c3084000-0000-0000-0000-000000000012")),
                                     visualId: new Guid("c3084000-0000-0000-0000-000000000110"));
                             },
@@ -66,7 +66,7 @@ public static class CombatPosture
                         seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@5@1507658132",
                             visualId: new Guid("c2073000-0000-0000-0000-000000000010"));
                         seq.ForceFailure(d6 => d6
-                            .Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover@56@1920105185",
+                            .Action("Hrot.AI.Behaviors.Brains.PeekAndFireNodes.PeekAndFire@56@1920105185",
                                 visualId: new Guid("c2073000-0000-0000-0000-000000000011")),
                             visualId: new Guid("c2073000-0000-0000-0000-000000000109"));
                     },
@@ -76,7 +76,7 @@ public static class CombatPosture
                         seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@6@1507658132",
                             visualId: new Guid("c2073000-0000-0000-0000-000000000013"));
                         seq.ForceFailure(d6 => d6
-                            .Action("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@88@1970438042",
+                            .Action("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@172@1970438042",
                                 visualId: new Guid("c2073000-0000-0000-0000-000000000014")),
                             visualId: new Guid("c2073000-0000-0000-0000-000000000112"));
                     },
@@ -86,7 +86,7 @@ public static class CombatPosture
                         seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@7@1507658132",
                             visualId: new Guid("c2073000-0000-0000-0000-000000000016"));
                         seq.ForceFailure(d6 => d6
-                            .Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack@96@1953660423",
+                            .Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack@176@1953660423",
                                 visualId: new Guid("c2073000-0000-0000-0000-000000000017")),
                             visualId: new Guid("c2073000-0000-0000-0000-000000000115"));
                     },
@@ -95,7 +95,7 @@ public static class CombatPosture
                     {
                         seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@8@1507658132",
                             visualId: new Guid("c3090000-0000-0000-0000-000000000002"));
-                        seq.Action("Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne@88@1583428134",
+                        seq.Action("Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne@172@1583428134",
                             visualId: new Guid("c3090000-0000-0000-0000-000000000003"));
                     },
                         visualId: new Guid("c3090000-0000-0000-0000-000000000001"));
