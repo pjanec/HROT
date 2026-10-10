@@ -165,3 +165,21 @@ not in ①. Peek-and-fire is a ① node used only by a ③ tree.*
 ⇒ ✅ **Approved (R-259):** ONE retreat = `FallBack`. `FleeExecutor` leaves the library (legacy per L3); ⚠ revisit only if `FallBack` needs a
 no-cover escape (what it does when the EQS finds no point is ⛔ not measured).
 
+
+## 7. R-258 per item — measured `2026-10-10` *(corpus + reference sweep)*
+
+⭐ **Outcome: nothing is retired.** Under the refined rule (*"only where there is redundancy and where HSM not the most suitable"*,
+*"ok as long as the demo showing the feature stays"*) every candidate is either the three-host DEMO or unique:
+
+| item | references (measured) | verdict |
+|---|---|---|
+| `CombatPostureBp` + `Posture{Advance,Suppress,Hold,Sense,HoldProne}` wrappers | `ua-three-hosts`; `TacticsTreesTests` CE3083/CE3090; rail `CE3082_U3`; the wrappers are used ONLY by the blueprint (`CombatPosture.btree.json` calls the nodes directly) | **demo-only** — the blueprint host of the three-host demo; already calls the shared C# nodes (R-174) |
+| `CombatPostureHsm` | `ua-three-hosts`; `TacticsTreesTests` CE3082 (incl. *"the HSM and the BTree make the same decisions"*) | **demo-only** — the HSM host; already calls the shared C# nodes |
+| `DangerCrossingBp` | `ua-danger-crossing-bp`; rail `CE3079` (theory, same five checks for both forms); `ReadSensorResultTests.CE3078` needs its sensor decls | **unique** — the only shipped asset exercising the per-kind sensor nodes (`DESIGN_Utility_AI_Demo_Scenarios.md:975`); NOT a plain copy (rushes, no hold hysteresis, `:692`) |
+| `Demo_TakeCover.bp` | `mission-demo-bp`; CE3042/CE3043 rails | **demo stand-in** (a delay stub), not a library copy — `DESIGN_Decision_Layer.md:1513` keeps it |
+
+⚠ **Drift to know (not a defect of the demo's rail):** since `CE-3158` G-6 the BTree's TakeCover option runs **PeekAndFire** (fights
+from cover) while the HSM and blueprint hosts still run `EqsTacticsNodes.TakeCover` (hide only). `CE3082_U3` asserts the same
+CHOICES, so it stays green while the three hosts now ACT differently under TakeCover. ⭐ **Lean:** leave the demo as the decision
+proof it is (the ruling keeps it "showing the feature"); if the demo should also show the same ACTIONS, re-point its TakeCover option
+at PeekAndFire in both hosts — one node swap each, ⚠ behaviors-lane assets.
