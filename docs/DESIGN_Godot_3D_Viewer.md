@@ -2,9 +2,9 @@
 state: LIVE
 build-state: DESIGN — requirements (§1) and user rulings (§1a) recorded; transport shaped by the user (full NED, D3);
   open: Q6 first host, Q8 ReplayBrowser, and two measurements D3 names (authority bits on offline hosts). Nothing built.
-updated: 2026-10-10 (rev 3 — U7-U9: the camera is an ordinary spatial entity; the gateway is a hot-installable module in
+updated: 2026-10-10 (rev 4 — U10: §3.4 the reuse ledger, D12 the viewer role. Rev 3 — U7-U9: the camera is an ordinary spatial entity; the gateway is a hot-installable module in
   Editor/ReplayBrowser instantiating the same NED translators; no dedicated DDS partition. Rev 2: full NED.)
-current-answer: §1 requirements · §1a the user's rulings · §5 D1a why not in-process (asked by the user) · §3 what exists, incl. what NED already carries (§3.3) ·
+current-answer: §1 requirements · §1a the user's rulings · §3.4 THE REUSE LEDGER · §5 D1a why not in-process · §3 what exists, incl. what NED already carries (§3.3) ·
   §4 the architecture (module / class / sequence diagrams) · §5 decisions · §6 open questions · §7 stages.
 stale-below: the HISTORY heading at the end — rev 1's loopback socket + host-side producer, rev 2's ViewCamera descriptor
   and Editor-wide NED mode.
@@ -87,6 +87,7 @@ stream enters the **same gateway** (stage 3). The host menu toggle starts and st
 | **U7** | *"Camera can use usual world position component as any other spatial entity."* | D7: **no new component, no new descriptor** — the camera is an ordinary spatial entity of a camera TKB type; its pose replicates through `WorldPos` like any other entity |
 | **U8** | *"What is the issue with in process solution?"* | answered in §5 **D1a** |
 | **U9** | *"the gateway sitting as a pluggable dynamically enablable module in the editor and replaybrowser will need to instantiate the same translators as the networked hosts. Already networked host will need no special care … No dedicated dds partition required"* | D3 / Q8: the offline hosts get a **hot-installed viewer gateway module** (kernel `InstallModuleAsync`) instantiating the **same NED translators**; networked hosts change nothing; the normal domain |
+| **U10** | *"We need to use code as much as possible, unification over duplication. What can be reused as is, including the bootstrap code? What needs to be new?"* | ⭐ §3.4 — the reuse ledger, measured; D12 — the role |
 
 ---
 
@@ -152,6 +153,62 @@ D3 leans to full NED rather than a viewer-private protocol.
 
 ---
 
+### 3.4 ⭐⭐⭐ THE REUSE LEDGER — what is reused as-is, what moves, what is new *(U10, measured `2026-10-10`)*
+
+**Host side**
+
+| piece | verdict | evidence |
+|---|---|---|
+| CGF, SimHost — their whole NED stack | ✅ **as-is, nothing added** (U9) | built by `ClusterRunner/Program.cs:210-228` |
+| `ModuleHostKernel.InstallModuleAsync` / `UninstallModuleAsync` | ✅ as-is — the toggle installs/removes the gateway module | `ModuleHostKernel.cs:1372,1461`; production use `EcsRecordReplayController.cs:132-220` |
+| `NedNetworkFactory` + `CreateReplicationModule()` (entity master, geospatial, damage, fire egress live inside it) | ✅ as-is — the gateway module calls exactly what CGF calls | `CgfSubsystem.cs:832`; `INetworkFactory.cs:27` |
+| `CreateGizmoTranslators` + `CreateGizmoPublisherSystem` | ✅ as-is — same calls as CGF | `CgfSubsystem.cs:1424-1436`; `INetworkFactory.cs:208,214` |
+| `AnimationReplicationModule` (`StanceStatus` egress/ingress) | ✅ as-is | `Hrot.Animation.Replication/Translators/Descriptors/` |
+| `SelectionEgressSystem` | ✅ as-is — wire it (today IG only) | `Hrot.Presentation/.../SelectionEgressSystem.cs:60`; `IgApplication.cs:929` |
+| `DdsStringInternPublisher` | ✅ as-is — wire it (no production host does) | `GizmoMap.Network/Transport/DdsStringInternPublisher.cs` |
+| the per-node DDS setup (participant + entity map + geo transform + factory) | 🔁 **extract** — it is inline in `Program.cs:210-228`; the gateway module and the viewer process both need it ⇒ one helper, three callers | `ClusterRunner/Program.cs:210-228` |
+| `GlobalMenuRegistry.RegisterCheckableItem` | ✅ as-is — `View ▸ 3D Viewer` | `WindowManager.cs:394` |
+| `ViewerGatewayModule` | 🆕 **new, composition only** — opens the participant via the extracted helper, installs the pieces above | — |
+| the process launcher (spawn/kill Godot, pass domain + node id + the node it mirrors) | 🆕 new — no host launches a child viewer today | agent sweep: only `dotnet build` and shell-open are spawned |
+
+**Viewer process — the passive node**
+
+| piece | verdict | evidence |
+|---|---|---|
+| `SharedApplicationBootstrapper` (7-phase order; registers `NedReplicationModule` in 6a+ and time-sync in 6c itself) | ✅ **as-is** | `Hrot.Common/Infrastructure/SharedApplicationBootstrapper.cs:48-589` |
+| `HrotNodeBuilder` `.WithRole/.WithNetworkFactory/.WithReplication` | ✅ as-is (IG's `BuildContext` is these four calls) | `IgNodeBootstrapper.cs:150-158` |
+| `NedReplicationModule`'s **receive-only arm** — ghost creation, entity-state ingress, `DeadReckoningSyncSystem`, `driveFromNetwork` | ✅ as-is **for a `Map2D` node**; ⚠ a new role must be admitted (`NedReplicationModule.cs:243-254` throws for a role with none of Muscle/Map2D/Brain) — D12 | `NedReplicationModule.cs:46-47,243-254` |
+| `NodeBootstrapper.BuildOrchestration(role, …)` — the role-driven `ClusterSlave` builder SimHost and Stride share | ✅ reuse — ⚠ its path for a receive-only role is **not yet measured** (it branches on Brain/Muscle) | `Hrot.SimHost/NodeBootstrapper.cs`; callers `SimHostNodeBootstrapper.cs:439`, `StrideNodeBootstrapper.cs:389` |
+| `LoadPhaseChain` + `KnowledgeBaseLoadStep` + `TerrainLoadStep` + `TerrainResidency` (TKB, terrain, geo origin) | ✅ as-is | `IgNodeBootstrapper.cs` BuildOrchestration; R-182 (terrain is universal) |
+| `HrotEnvironment.CreateTkb` + `HrotSharedComponentRegistry.RegisterAll` | ✅ as-is | `IgNodeBootstrapper.cs:198-205` |
+| `EntityCreationPack` (to request the camera entity, owner = the host) | ✅ as-is | `IgNodeBootstrapper.cs:500-540`; `DESIGN_Entity_Authoring_Surface.md` §4 |
+| `NodeCompositionPlan` + `CoreInfrastructureCapabilities.UnitHierarchy` | ✅ as-is | `IgNodeBootstrapper.cs:259-300` |
+| `CreateGizmoTranslators` (gizmo ingress into the viewer node) | ✅ as-is | `INetworkFactory.cs:208` |
+| `ViewerNodeBootstrapper : SharedApplicationBootstrapper` | 🆕 **new but thin** — the base requires one subclass per node type (3 exist); every hook body is a call into a row above | `SharedApplicationBootstrapper` phase list |
+| a viewer role | ⚠ **decision D12** | `NodeRole.cs` (None, Brain, MuscleGround, Map2D, Perception, NavigationSolver) |
+
+**Viewer process — rendering**
+
+| piece | verdict | evidence |
+|---|---|---|
+| `DebugPrimitiveRenderer3D` 3-D triage | 🔁 **move** to a shared net8 assembly (Stride keeps using it) — 14 Stride math types → `System.Numerics` | `Stride/Hrot.Stride.Core/DebugPrimitiveRenderer3D.cs` |
+| `LocomotionBlend` | 🔁 **move** to the same assembly — it is pure `System` | `Stride/Hrot.Stride.Animation/LocomotionBlend.cs` |
+| `TerrainWorldMesh.Build` (ground grid + prisms + slabs, Z-up soup) | ✅ as-is for **S0**; per-kind meshes with materials are new in S2 | `Fdp.Toolkits/Terrain/TerrainWorldMesh.cs:31` |
+| `RenderProjection` + `RenderModel`, the HROT→Godot transform | 🆕 new (Core, unit-tested) | — |
+| Godot glue — scene, free camera, picking, popup, selection cube, box models, particles, terrain cache | 🆕 new | — |
+| `Godot.RenderModelDef` TKB descriptor + a camera TKB type | 🆕 new **data**, following `Stride.RenderModelDef`'s own instruction | `StrideRenderModelDefDto.cs:39-43` |
+
+⭐ **Findings this ledger surfaced** *(recorded here, not fixed by this design)*:
+- **IG hand-rolls its `ClusterSlave` handler list** (`IgNodeBootstrapper.cs:324-480`) while SimHost and Stride share
+  `NodeBootstrapper.BuildOrchestration` — the drift class `Architect_Question_62` names. The viewer uses the shared one;
+  migrating IG is a separate item.
+- **U9 deliberately revises "the editor is networkless"** (`Architect_Question_26_Entity_Action_Model.md` constraint 2;
+  `CE-516`, `Program.cs:199-204`) — only while the viewer is open, and the Editor stays the only owner of its entities.
+- **Per-host translator sets stay per host** (`Architect_Question_63` §9, canon): the gateway module adds no "network
+  bundle"; it composes factory methods the way each host's bootstrapper already does.
+
+---
+
 ## 4. THE ARCHITECTURE (lean: full NED)
 
 ### 4.1 Modules — who runs what, and the dead edges
@@ -210,6 +267,9 @@ classDiagram
   class LocomotionBlend { <<extracted>> from Hrot.Stride.Animation }
   class ViewerGatewayModule { <<new>> IEcsModule, offline hosts }
   class ViewerNodeBootstrapper { <<new>> passive, IG-shaped }
+  class SharedApplicationBootstrapper { <<exists>> 7-phase base }
+  class NodeBootstrapper { <<exists>> BuildOrchestration(role) }
+  class HrotNodeBuilder { <<exists>> WithRole WithReplication }
   class RenderProjection {
     <<new>> Hrot.Viewer.Core
     RenderModel Project(world)
@@ -228,6 +288,9 @@ classDiagram
   ViewerGatewayModule --> EgressTranslators : instantiates
   ViewerGatewayModule --> SelectionEgressSystem
   ViewerGatewayModule --> DdsStringInternPublisher
+  SharedApplicationBootstrapper <|-- ViewerNodeBootstrapper
+  ViewerNodeBootstrapper ..> NodeBootstrapper : orchestration
+  ViewerNodeBootstrapper ..> HrotNodeBuilder : context
   ViewerNodeBootstrapper --> NedReplicationModule
   ViewerNodeBootstrapper --> DeadReckoningSyncSystem
   ViewerNodeBootstrapper --> TerrainResidency
@@ -401,6 +464,17 @@ is the simulation's animation contract.
 
 ### D11 · Effects (V-08) — ⭐ **NED `WeaponFire` / `MunitionDetonation` → `EffectEvent` → Godot one-shot particles**
 
+### D12 · The viewer node's role — ⭐ **lean: a new `View3D` flag, admitted to NED's receive-only arm beside `Map2D`**
+
+NED composes a node by role (`NedReplicationModule.cs:243-254`): `Map2D` gets exactly what a viewer needs — ghost creation,
+entity-state ingress, dead reckoning, `driveFromNetwork` — and a role with none of Muscle/Map2D/Brain **throws**. The
+change is to read `Map2D | View3D` where the code means *"receive-only presentation"*, plus the role→load-part and
+asset-capability tables. ⭐ No new arm, no copied code.
+**Rejected:** declaring `Map2D` — zero code, but a 3-D viewer would carry the 2-D map's name into every role-derived
+decision (the user's R-S3: *"the ability to support 2d map should be named as such"*) · `NodeRole.None` — skips
+replication entirely (`HrotNodeBuilder.cs:113`).
+⚠ S0 may start on `Map2D` to prove the node before the flag lands — named as temporary if it does.
+
 ---
 
 ## 6. OPEN QUESTIONS
@@ -422,7 +496,7 @@ is the simulation's animation contract.
 
 | slice | delivers | proves |
 |---|---|---|
-| **S0** spike | fetch Godot in the cloud; a passive viewer node boots inside the Godot process and joins a `--mode all` cluster; box entities move; Xvfb screenshot | D1, D3's viewer half, V-20 — **the FDP-in-Godot weight is measured here** |
+| **S0** spike | fetch Godot in the cloud; the extracted DDS-setup helper; `ViewerNodeBootstrapper` boots inside the Godot process and joins a `--mode all` cluster; box entities move; Xvfb screenshot | D1, D3's viewer half, V-20 — and the three §3.4 unknowns: **the assembly weight in Godot**, **`NodeBootstrapper.BuildOrchestration` on a receive-only role**, **a late-joining slave accepted by the master** |
 | **S1** Editor host | `ViewerGatewayModule` hot-installed by `View ▸ 3D Viewer` (measure the Editor's authority bits first); the toggle spawns/kills the process; free camera; default camera | V-01 (Editor), V-05, V-09, V-16, V-17 |
 | **S2** scene | terrain meshes + cache; `Godot.RenderModelDef` with box models; stance/locomotion | V-02, V-03, V-04 (boxes), V-06 |
 | **S3** interaction | extracted gizmo triage; `StringInternEntry` publisher wired; selection egress wired; picking; menu popup | V-07, V-10, V-11 |
