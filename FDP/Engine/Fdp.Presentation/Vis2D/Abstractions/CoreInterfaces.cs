@@ -99,6 +99,12 @@ public interface IMapLayer
 
     /// <summary>True when the layer draws something in 3-D (overrides <see cref="Draw3D"/>).</summary>
     bool Has3D => false;
+
+    /// <summary>
+    /// ⭐ CE-1033 S3 (M13) — draws screen-space content AFTER the 3-D pass (the camera mode ended): labels projected from the
+    /// scene, at a constant pixel size, on top. Called for every visible layer with <see cref="Has3D"/>. Default: nothing.
+    /// </summary>
+    void DrawOverlay3D(RenderContext ctx) { }
 }
 
 

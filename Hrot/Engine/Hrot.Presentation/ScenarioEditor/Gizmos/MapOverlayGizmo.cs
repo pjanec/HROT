@@ -23,6 +23,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             // Absolute positions: relative Points + SimTransform origin (X=East, Y=North).
             var origin = new Vector2(simTr.Position.X, simTr.Position.Y);
+            float level = EntityPresentationGizmoShared.LevelHeightOf(view, simTr.Position);   // ⭐ CE-1033 M22
             var borderColor = new Rgba32(style.BorderR, style.BorderG, style.BorderB, style.BorderA);
 
             int n = polyline.Points.Count;
@@ -46,8 +47,8 @@ namespace Hrot.ScenarioEditor.Gizmos
                 var a = origin + polyline.Points[i];
                 var b = origin + polyline.Points[(i + 1) % n];
                 draw.DrawLine(
-                    new Vector3(a.X, a.Y, 0f),
-                    new Vector3(b.X, b.Y, 0f),
+                    new Vector3(a.X, a.Y, level),   // on its level (0 = the ground, draped in 3-D)
+                    new Vector3(b.X, b.Y, level),
                     borderColor,
                     style.LineThickness,
                     SizeMode.WorldMeters);

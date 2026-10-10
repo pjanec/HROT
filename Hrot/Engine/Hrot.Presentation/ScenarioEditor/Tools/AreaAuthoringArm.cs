@@ -110,7 +110,8 @@ namespace Hrot.ScenarioEditor.Tools
             var onDisarmed = request.OnDisarmed;
             var id         = GlobalGizmoManager.NewId();
 
-            var gizmo = new PointSequenceGizmo(
+            PointSequenceGizmo? gizmo = null;
+            gizmo = new PointSequenceGizmo(
                 onFinish: points =>
                 {
                     if (points == null || points.Length < minPoints)
@@ -123,6 +124,9 @@ namespace Hrot.ScenarioEditor.Tools
                     }
 
                     var anchor   = ComputeAnchor(points, out var relative);
+                    // ⭐ CE-1033 M22 step 1 — an area drawn on a roof is ON the roof: the anchor keeps the level's height
+                    //   (0 on the ground, which drapes). 📄 docs/DESIGN_Map_3D_Mode.md §3.9.
+                    anchor.Z = gizmo!.AreaHeight;
                     var polyline = new EditablePolyline { Points = relative };
                     var style    = MapOverlayStyle.FromJson(styleJson);
 

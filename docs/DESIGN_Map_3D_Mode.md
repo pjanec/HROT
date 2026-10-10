@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 next. ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e). ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -8,7 +8,7 @@ updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assume
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
-  with leans · §6 slices · §6a S1 as-built · §7 what is NOT verified.
+  with leans · §6 slices · §6a S1, §6d S2, §6e S3 as-built · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: §3.3's switch sequence and M10 say the 2-D map is "north up" — measured S1: it draws north DOWN (§6a).
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
@@ -742,7 +742,7 @@ combat / network lanes' code; the map reads the pose through `EntityBodyLayer3D`
 |---|---|---|
 | **S1** | `MapCamera3D` + the animated switch (Editor); `TerrainLayer3D` from `TerrainWorldMesh` as-is, one colour per kind, lit shader + fog; `EntityBodyLayer3D` with `VisualFamily` + the shape kits for every built-in type (static) and block figures in their three stance poses; free camera; **Xvfb screenshot of the editor in 3-D on `test-town`** | the render path, the shader on the cloud's software GL, M8 |
 | **S2** ✅ *(§6d)* | `Picker3D` (handles → entity boxes → terrain mesh → ground, `SurfacesAt` level); `ScreenToWorldForDrag`; `MapCanvas.LastPick` feeding the five `z = 0` sites; draping (M18); `SelectionRenderSystem.Draw3D` wire cubes; the placement ghost + roof/floor level (M20); measurement drawn at its picked height; **areas on a level** (M22 step 1); the danger band (H3); ⭐ every rail also runs on a **sloped test terrain** (R-248) | select, context menu, measurement, area authoring, placement and handle drags work in 3-D — the same tools (U21) |
-| **S3** | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters; **labels**: `GizmoTextDraw` extracted, `LabelOverlay3D` with projection + LOD | gizmos, fire traces, detonations and gizmo text in 3-D (U16) |
+| **S3** ✅ *(§6e)* | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters; **labels**: `GizmoTextDraw` extracted, `LabelOverlay3D` with projection + LOD | gizmos, fire traces, detonations and gizmo text in 3-D (U16) |
 | **S3b** | ⭐ **realism effects** — muzzle fire, explosions, impact decals as temporary TKB-typed entities with two map layers, on every host: [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) slices E1–E4 | U27, U28 |
 | **S3c** | ⭐ **the articulated turret, live** — the turret part + `TurretPose` (M23), the weapon-side slew (M24), the TKB turret descriptor (M25), the sensor-style multi-instance descriptor (M26); the map plugs `poseOf` | §3.11, R-255 |
 | **S4** | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
@@ -852,6 +852,84 @@ miss 2.5 m beside the hull, the camera picks the entity but a drag follows the t
 `Hrot.Presentation.Tests` **443/444**; `Hrot.Editor.Tests` 474/476; `Hrot.IG.Tests` 461/462; `GizmoMap.Presentation.Tests` 41/41;
 `Fdp.Presentation.Tests` 563/572 (the pre-existing 8, `CE-259aa`); all five hosts build.
 
+### 6e. S3 — AS-BUILT `2026-10-11` (gizmos and labels in 3-D)
+
+```mermaid
+classDiagram
+  class DebugPrimitiveTriage3D {
+    <<new, GizmoMap.Contracts, BCL only>>
+    AcceptedTargets, HonourLayerMask, ZoomAt
+    Triage(span, into) int
+    CulledByTarget / Layer / Lod, DanglingAnchors
+  }
+  class TriagedPrimitive3D { <<new>> Primitive (world), Anchored, AnchorId, AnchorZ }
+  class ShapeCounters { <<new>> per-shape skip count }
+  class StrideDebugPrimitiveRenderer3D["Stride DebugPrimitiveRenderer3D"] { <<exists, re-pointed>> Skipped }
+  class GizmoRenderer3D { <<new, Vis3D>> GroundHeight; Draw(triaged, zoomAt, sink); Labels; Panels; Skipped }
+  class IGizmoSink3D { <<new>> Line, Triangle, Sphere }
+  class RaylibGizmoSink3D { <<new>> }
+  class LabelOverlay3D { <<new>> ScreenOf, Draw }
+  class GizmoTextDraw { <<new, extracted from DebugPrimitiveRenderer2D>> Font, PixelSize, DrawScreen }
+  class DebugGizmoLayer { <<exists>> + Has3D, Draw3D, DrawOverlay3D, LabelLift }
+  class EntityBodyLayer3D { <<exists>> + TopAbove(netId) }
+  class IMapLayer { <<exists>> + DrawOverlay3D default }
+  DebugPrimitiveTriage3D ..> TriagedPrimitive3D
+  StrideDebugPrimitiveRenderer3D --> DebugPrimitiveTriage3D
+  StrideDebugPrimitiveRenderer3D --> ShapeCounters
+  DebugGizmoLayer --> DebugPrimitiveTriage3D
+  DebugGizmoLayer --> GizmoRenderer3D
+  GizmoRenderer3D --> ShapeCounters
+  GizmoRenderer3D ..> IGizmoSink3D
+  RaylibGizmoSink3D ..|> IGizmoSink3D
+  DebugGizmoLayer ..> LabelOverlay3D
+  LabelOverlay3D ..> GizmoTextDraw
+  DebugGizmoLayer ..> EntityBodyLayer3D : LabelLift = TopAbove
+  DebugGizmoLayer ..|> IMapLayer
+```
+
+*What the picture shows that prose hid:* ONE triage serves both 3-D consumers (the Stride shell and the map) — Stride keeps
+its own drawing and its filters stay off, so it draws exactly what it drew before; the map turns the filters on. And the
+label path crosses two layers: the gizmo layer knows the label, only the body layer knows how tall the body is.
+
+```mermaid
+sequenceDiagram
+  participant C as MapCanvas.Draw3D
+  participant G as DebugGizmoLayer
+  participant T as DebugPrimitiveTriage3D
+  participant R as GizmoRenderer3D
+  participant B as EntityBodyLayer3D
+  participant O as LabelOverlay3D
+  C->>G: Draw3D (inside the 3-D camera)
+  G->>T: Triage (Map2D or Viewport3D, layer mask, LOD at ZoomAt)
+  G->>R: Draw: drape z = 0 shapes, real heights as given
+  R-->>G: Labels, Panels (StructInspector scheduled as in 2-D)
+  C->>B: Draw3D (records each body's top by network id)
+  C->>C: EndMode (the 3-D pass ends)
+  C->>G: DrawOverlay3D
+  G->>O: Draw labels, lifted by B.TopAbove, projected
+```
+
+*What it shows:* the body layer draws AFTER the gizmo layer, so a label's lift is read in the overlay pass, not while the
+gizmos are triaged.
+
+| built | where |
+|---|---|
+| the shared triage (anchors, `LayerControlMask`, target / layer / LOD filters, `EntityLocal` resolved in 3-D — the 2-D `ApplyAnchor2D` plus the anchor's Z), `TriagedPrimitive3D`, `ShapeCounters` | `FDP/ExtDeps/GizmoMap/GizmoMap.Contracts/Primitives/DebugPrimitiveTriage3D.cs` |
+| Stride re-pointed — its private anchor cache deleted, `Skipped` counters added (DESIGN_Stride_Node_Modes.md §8 Q5) | `Stride/Hrot.Stride.Core/DebugPrimitiveRenderer3D.cs` |
+| the drawer: draping per vertex, subdivided every 3 m (M18, R-248); un-anchored sphere with height = a sphere, ground / anchored = a ring; pixel sizes become metres at the shape's distance; dashes in pixels; gradients along the line; `SemanticShape` and `MilStd2525` counted, not drawn | `FDP/Engine/Fdp.Presentation/Vis3D/GizmoRenderer3D.cs` |
+| the Raylib sink and the label overlay (M13: projected, constant pixel size, lifted to the body top, on top; behind the camera ⇒ not drawn) | `Vis3D/RaylibGizmoSink3D.cs` |
+| `GizmoTextDraw` extracted — the 2-D renderer's screen text goes through it, so both maps draw text one way | `GizmoMap.Presentation/Rendering/GizmoTextDraw.cs` |
+| `IMapLayer.DrawOverlay3D` + `MapCanvas.Draw3D`'s screen pass; `DebugGizmoLayer` 3-D path; `EntityBodyLayer3D.TopAbove`; the pack wires the ground and the lift on every host | `Vis2D/`, `Map3D/`, `MapInteractionPack.AttachMapLayers` |
+| ⭐ M22 step 1 — an area drawn on a roof keeps the roof's height (`PointSequenceGizmo.AreaHeight` → the anchor); a ground area keeps 0 and drapes; `TacticalAreaGizmo` / `MapOverlayGizmo` draw on the level through `LevelHeightOf` (the raw Z only when it is level ≥ 1, so a ground area on a slope never floats flat) | `PointSequenceGizmo.cs`, `AreaAuthoringArm.cs`, `EntityPresentationGizmoShared.cs` |
+| M20 — the placement ghost: a wire box of the type's drawn size standing on the picked surface (in 2-D: its footprint) | `EntityPlacementGizmo.DrawGhostBox` |
+
+⚠ **Deviations, argued:** the ghost is a **wire box**, not the translucent shape kit — a gizmo emits primitives and a kit
+mesh is not one; a kit ghost would need a seam into the body layer for one tool. · Lines are **1 px** in 3-D (a road's metre
+width is not honoured yet). · An area's FILL under a roof still drapes to the ground: `FilledTriangle` has no Z and its bytes
+48–51 are **not free** (§7). · EQS's **same-level inside test** (M22 step 1's second half) is the behaviours lane's code and
+is not built — named in the tracker.
+**Gates:** `Map3DGizmoTests` 10/10 · `AreaAuthoringArmTests` (+ the M22 rail) · frame rail shot ⑦ `map3d-7-gizmos.png`.
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |
@@ -864,12 +942,12 @@ miss 2.5 m beside the hull, the camera picks the entity but a drag follows the t
 | ⚠ door leaves move (open/closed) but the terrain mesh is built once — picking through a door that opened after load | S2: doors as separate dynamic boxes, or accepted |
 | ⚠ hover picking every frame: entity boxes + one mesh ray per frame | S2, measured |
 | ⚠ which CC0 texture pack — ambientCG / Poly Haven are CC0 by their own terms; specific textures and repo size not chosen | S7, with a licence table |
-| ⚠ the 3-D pass must accept primitives that target `PipelineTarget.Map2D` (the 2-D renderer filters on it, `DebugPrimitiveRenderer2D.cs:93`; `Viewport3D` is declared and read by nobody) — otherwise every label is filtered out | S3 rail |
+| ✅ **VERIFIED `2026-10-11`**: the 3-D pass accepts `Map2D \| Viewport3D` (`Map3DGizmoTests`) — every gizmo today targets `Map2D` only | — |
 | ⚠ the overhead perspective camera at matched height looks close enough to the 2-D map at the swap (tall buildings lean slightly at the edges — seen in S1's overhead shot) — ⚠ and north flips at the swap (§6a) | the user, in the editor |
 | ✅ **VERIFIED `2026-10-10`**: every placeable built-in type has a family, and the icon fallback is unchanged for every built-in type (`Map3DTests`) | — |
 | ⚠ DIS air categories for helicopter / fixed wing | when the first air type is added |
 | ⚠ a terminal that does not know `CoordinateSpace.EntityCard` (an old build on the wire) must skip card primitives, not draw them as world text — the 2-D renderer treats every non-`EntityLocal` space as world today | S5b rail on the 2-D renderer |
-| ⚠ `FilledTriangle` bytes 48-51 are free (no reader treats `BoxAnchorId` or anything else there as set for a triangle) | before H2's flat fill height |
+| ⛔ **MEASURED `2026-10-11`: `FilledTriangle` bytes 48-51 are NOT free** — `BoxAnchorId` is a `long` at 44 (44-51), and the hit-test treats ANY primitive with `BoxAnchorId != 0` as pickable (`DebugGizmoLayer.LogCanvasFallback` counts it; the terminal's pick skip keys on it). A fill height there would make every raised fill a phantom pick target ⇒ H2's flat fill height needs another route (an anchored fill, `EntityLocal`) | open |
 | ⚠ route waypoint axes: `RouteWaypoint.Position` is documented as ENU (`RoutePlan.cs:11-20`), yet every route gizmo reads **Z as north** (`RouteWaypointGizmo.cs:18-21,111-128`, `AuthoredRouteGizmo.cs:70`) — one of the two is wrong, and a route in 3-D needs to know which is up | before routes get height (H1) |
 | ⚠ until `TerrainWorld` gets terrain height (`:319`), S1's screenshot shows flat ground — 🔒 `R-248`: the 3-D map is built for relief regardless (§3.10), and a test fixture with relief proves it | S1–S2, a sloped test terrain |
 | ⚠ IG humans stand upright until IG ingests stance (`CE-2121` "IG ingress open") | the IG ingress work (`CE-2121`) |

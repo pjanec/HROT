@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-10
+updated: 2026-10-11
 current-answer: §2 the ordered roadmap (phases A–E) and §3 its dependency graph. §1 is what is built; §4 the rulings in force;
   §5 open questions; §6 how to resume after a compaction.
 stale-below: nothing.
@@ -30,14 +30,16 @@ related-designs:
 | 3-D mode on **every host by construction** (`MapInteractionPack.AttachMapLayers`, View › 2-D / 3-D Map, rail); air kits (helicopter, jet, cargo) with the DIS air mapping; articulated turret/gun parts (pose seam only) | CE-1033 | `a2032fa02` | §6b, §3.5, §3.11 |
 | aircraft know their gear: TKB `Body.Geometry`, `BodyGeometry.RestingPose`; built-in UH-60A (400), F-16C (401), C-130H (402) | CE-1041 | `116bcd936` | `DESIGN_Body_Geometry_And_Ground_Contact.md` |
 | designed + approved: realism effects (VE-A..VE-M), the live turret (M23–M26, R-255) | CE-1042, CE-1033 | `ea6d67e92` … `bb69c7633` | `DESIGN_Visual_Effects.md`; `DESIGN_Map_3D_Mode.md` §3.11 |
+| **3-D map S2**: picking with height (terrain mesh, entity boxes), drags on the terrain, height into gizmo events, placement on a level, measurement / danger band in 3-D, selection wire boxes | CE-1033 | `d5a2f99da` | `DESIGN_Map_3D_Mode.md` §6d |
+| **3-D map S3**: ONE shared 3-D gizmo triage (Stride re-pointed); gizmos drawn in 3-D with draping on the relief; labels projected onto the bodies; areas on a roof level; the placement ghost box | CE-1033, CE-1045 (left) | *(this commit)* | §6e |
 | filed, pre-existing reds (proved at base commits) | CE-1036, CE-1037, CE-1038, CE-1039 | — | tracker rows |
 
 ## 2. The roadmap — ordered, with why
 
 | # | item | state | owner lane | design / tracker | why here |
 |---|---|---|---|---|---|
-| **A1** | **3-D map S2** — `Picker3D` (handles → entity boxes → terrain mesh → ground), drags on terrain, draping on the relief, wire-cube selection, placement ghost + roof/floor level, measurement and areas on a level | READY (M17–M22 approved) | ui | Map_3D §6 S2, §3.8–§3.10 | the 3-D map is only LOOKED at until it can be clicked; every later feature is used through it |
-| **A2** | **3-D map S3** — gizmo triage shared with Stride, gizmos and labels in 3-D (the firing line `FireTraceGizmo` and `DetonationGizmo` at their true heights) | READY | ui | Map_3D §6 S3, §3.4 | the analysis overlays the user relies on; also the base the effects' layers sit beside |
+| **A1** | **3-D map S2** — `Picker3D` (handles → entity boxes → terrain mesh → ground), drags on terrain, draping on the relief, wire-cube selection, placement ghost + roof/floor level, measurement and areas on a level | ✅ BUILT `d5a2f99da` | ui | Map_3D §6d | the 3-D map is only LOOKED at until it can be clicked; every later feature is used through it |
+| **A2** | **3-D map S3** — gizmo triage shared with Stride, gizmos and labels in 3-D (the firing line `FireTraceGizmo` and `DetonationGizmo` at their true heights) | ✅ BUILT (§6e); EQS same-level test left (CE-1045, behaviours lane) | ui | Map_3D §6 S3, §3.4 | the analysis overlays the user relies on; also the base the effects' layers sit beside |
 | **A3** | **north-up 2-D map** — flip at the camera's world→screen seam; then the switch keeps north fixed | lean, not built | ui | [CE-1040](blueprints/Blueprint_Issues_Tracker.md) | removes the north–south flip at every switch; cheaper before more 2-D gizmos land |
 | **B1** | **live turret (S3c)** — turret part child + `TurretPose` (M23); the WEAPON logic slews toward the target within TKB limits (M24); TKB turret descriptor incl. per-mount muzzle offset (M25, VE-K); the sensor-style multi-instance descriptor (M26); the map plugs `poseOf` | READY (R-255) | combat + network (cross-lane) | Map_3D §3.11; Visual_Effects §4b | the muzzle (B5) and the drawn turret both need the pose |
 | **B2** | **effects E1** — TKB `Effect.Visual` + `Effect.Set`; nine effect types (flash / explosion / decal × small / medium / large) + tracer; `Effect.Set` on the built-in ammo | READY (VE-A..VE-I) | ui | Visual_Effects §6 E1 | data first; E2–E3 read it |

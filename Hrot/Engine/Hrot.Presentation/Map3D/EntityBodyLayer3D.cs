@@ -77,7 +77,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         var tkb = _tkb();
 
         bool hasSelection = world.IsComponentTypeRegistered<Hrot.IG.Components.SelectionState>();
+        bool hasNet = world.IsComponentTypeRegistered<NetworkIdentity>();
         SelectionBoxesDrawn = 0;
+        _tops.Clear();
         foreach (var e in _query!)
         {
             long type = world.GetComponentRO<TkbIdentity>(e).TkbType;
@@ -116,6 +118,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 PartsDrawn++;
             }
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader);
+            // ⭐ CE-1033 S3 — where this body's labels sit: the top of the drawn box above the reference point.
+            if (hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0)
+                _tops[net] = geometry != null ? geometry.BodyCentreZ + size.Z / 2f : size.Z;
             if (hasSelection && world.HasComponent<Hrot.IG.Components.SelectionState>(e))
             {
                 ref readonly var sel = ref world.GetComponentRO<Hrot.IG.Components.SelectionState>(e);
@@ -186,6 +191,12 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     private static readonly Color PrimarySelection = new(60, 230, 90, 255);
     private static readonly Color OtherSelection = new(240, 220, 60, 255);
+
+    private readonly Dictionary<long, float> _tops = new();
+
+    /// <summary>⭐ CE-1033 S3 (M13) — the height of the top of an entity's DRAWN body above its position, by network id, from
+    /// the last 3-D frame; null when the body was not drawn. The gizmo label overlay lifts the entity's labels to it.</summary>
+    public float? TopAbove(long networkId) => _tops.TryGetValue(networkId, out float top) ? top : null;
 
     /// <summary>Selection boxes drawn in the last 3-D frame.</summary>
     public int SelectionBoxesDrawn { get; private set; }

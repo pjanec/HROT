@@ -174,6 +174,44 @@ public sealed class Map3DFrameRail
             frame.Screenshot(Path.Combine(shots, "map3d-6-parked-c130.png"));
         }
 
+        // ⑦ CE-1033 S3 — gizmos in 3-D, through the production gizmo layer: a measurement line and a pick ring DRAPED on the
+        //   ground (z = 0, M18), a fire trace from the M1's muzzle height, a fragment radius with height, and a ground label.
+        {
+            var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+            var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus())
+            {
+                CurrentCamera = () => canvas.Camera,
+            };
+            gizmos.Renderer3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+            canvas.AddLayer(gizmos);
+            var yellow = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 220, 40);
+            var red = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 60, 40);
+            var tank = new Vector2(spot.X - 12f, spot.Y);
+            float gz = query.GroundHeightAt(tank.X, tank.Y);
+            buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeLine(
+                new Vector3(spot.X - 25f, spot.Y - 6f, 0f), new Vector3(spot.X + 15f, spot.Y - 6f, 0f), yellow, 2f,
+                target: Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Map2D));
+            buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeSphere(
+                new Vector3(tank, 0f), 5f, yellow, 1.5f, target: Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Map2D));
+            buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeLine(
+                new Vector3(tank, gz + 2.4f), new Vector3(spot.X + 30f, spot.Y + 40f, gz + 1f), red, 1.5f,
+                target: Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Map2D));
+            buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeSphere(
+                new Vector3(spot.X + 30f, spot.Y + 40f, gz + 1f), 6f, red, 1.5f, target: Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Map2D));
+            var label = Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeText(spot.X - 25f, spot.Y - 6f,
+                new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("40 m"), yellow, fontSizePx: 16f);
+            label.TargetView = Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Map2D;
+            buffer.AppendRaw(label);
+
+            sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y + 10f, gz), 70f, MathF.PI * 0.75f, -0.45f);
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            frame.Screenshot(Path.Combine(shots, "map3d-7-gizmos.png"));
+            Assert.True(gizmos.Renderer3D.LinesDrawn > 20, $"gizmo lines: {gizmos.Renderer3D.LinesDrawn}");
+            Assert.Equal(0, gizmos.Renderer3D.Skipped.Total);
+            Assert.Equal(1, gizmos.LabelsDrawn3D);
+        }
+
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-2-tilted.png"));
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-3-close.png"));
     }

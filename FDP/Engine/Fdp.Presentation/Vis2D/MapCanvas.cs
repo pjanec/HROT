@@ -165,6 +165,9 @@ namespace Fdp.Toolkit.Vis2D
             }
             LayersWithout3D = without;
             Camera.EndMode();
+            // ⭐ CE-1033 S3 (M13) — the screen-space pass: labels over the finished scene.
+            foreach (var layer in _layers)
+                if (layer.Has3D && IsLayerVisible(layer)) layer.DrawOverlay3D(ctx);
         }
 
         private bool IsLayerVisible(IMapLayer layer)

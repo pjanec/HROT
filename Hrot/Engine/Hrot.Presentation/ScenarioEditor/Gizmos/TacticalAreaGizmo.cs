@@ -40,16 +40,18 @@ namespace Hrot.ScenarioEditor.Gizmos
             //   drew such an entity TWICE — once here and once at origin+Points from MapOverlayGizmo —
             //   with picking off by the same distance. 📄 DESIGN_Terrain_Zones_And_Assets.md §2.2.
             var origin = Vector2.Zero;
+            float level = 0f;   // ⭐ CE-1033 M22 — the area's level height (0 = the ground, draped in 3-D)
             if (view.HasComponent<SimTransform>(entity))
             {
                 ref readonly var simTr = ref view.GetComponentRO<SimTransform>(entity);
                 origin = new Vector2(simTr.Position.X, simTr.Position.Y);
+                level = EntityPresentationGizmoShared.LevelHeightOf(view, simTr.Position);
             }
 
             // ⭐ E1 — through the SHARED outline helper, so this loop exists once. BP-517 lived in a copy
             //   of it, and TerrainZoneGizmo draws the same geometry with a state-driven stroke.
             EntityPresentationGizmoShared.DrawClosedPolylineOutline(
-                draw, polyline.Points, origin, AreaColor);
+                draw, polyline.Points, origin, AreaColor, z: level);
 
             // ⭐⭐⭐ CE-259ae — make the boundary CLICKABLE (select on left-click, context menu on
             //   right-click). ⚠ The SAME origin the drawing used, or a click on the drawn outline

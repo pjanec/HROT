@@ -99,6 +99,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             _mapCamera = camera;
             _worldProvider = worldProvider;
             var imGuiAdapter = new GizmoMap.Presentation.ImGuiPropertyTreeAdapter(schemaRegistry);
+            _imGuiAdapter = imGuiAdapter;
             _renderer = renderer ?? new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(shapeLibrary, imGuiAdapter);
             var innerRenderer = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(null, imGuiAdapter);
             _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
@@ -106,6 +107,62 @@ namespace Fdp.Toolkit.Vis2D.Layers
         }
 
         private bool _warnedNoCamera;
+
+        // ⭐ CE-1033 S3 — the 3-D path: the shared triage (the map's filters ON — target view, layer mask, LOD) and the drawer.
+        //   📄 docs/DESIGN_Map_3D_Mode.md §6e.
+        private readonly GizmoMap.Presentation.ImGuiPropertyTreeAdapter? _imGuiAdapter;
+        private readonly DebugPrimitiveTriage3D _triage3D = new()
+        {
+            AcceptedTargets = PipelineTarget.Map2D | PipelineTarget.Viewport3D,   // every gizmo today targets Map2D (§7)
+            HonourLayerMask = true,
+        };
+        private readonly System.Collections.Generic.List<TriagedPrimitive3D> _triaged3D = new();
+
+        /// <summary>⭐ CE-1033 S3 — draws the gizmos in the map's 3-D mode (draping, real heights, labels — see the class).</summary>
+        public Fdp.Toolkit.Vis3D.GizmoRenderer3D Renderer3D { get; } = new();
+
+        /// <summary>⭐ CE-1033 S3 — the height above an entity's anchor its labels are lifted to (the top of its drawn body), by
+        /// network id; null for an unknown body. Set by <c>MapInteractionPack.AttachMapLayers</c> from the entity body layer.</summary>
+        public Func<long, float?>? LabelLift { get; set; }
+
+        /// <summary>What the last 3-D frame's triage dropped (target / layer / LOD / missing anchor) — read by rails.</summary>
+        public DebugPrimitiveTriage3D Triage3D => _triage3D;
+
+        /// <summary>Labels drawn by the last 3-D overlay pass.</summary>
+        public int LabelsDrawn3D { get; private set; }
+
+        public bool Has3D => true;
+
+        public void Draw3D(RenderContext ctx)
+        {
+            if (_buffer == null) return;
+            if (LayerBitIndex >= 0 && LayerBitIndex < 32 && (ctx.VisibleLayersMask & (1u << LayerBitIndex)) == 0) return;
+            if (CurrentCamera?.Invoke() is not Fdp.Toolkit.Vis3D.MapCamera3D camera) return;
+            var primitives = _buffer.GetFrame();
+            // The menus and capture bindings the 2-D draw extracts — the same frame, whatever the view.
+            _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);
+            Draw3D(primitives, camera.ZoomAt, Fdp.Toolkit.Vis3D.RaylibGizmoSink3D.Shared);
+        }
+
+        /// <summary>The drawing half of <see cref="Draw3D(RenderContext)"/>, with the camera's zoom and the sink injected — the
+        /// rail's entry (no GL context needed with a capturing sink).</summary>
+        public void Draw3D(ReadOnlySpan<DebugPrimitive> primitives, Func<Vector3, float> zoomAt, Fdp.Toolkit.Vis3D.IGizmoSink3D sink)
+        {
+            _triage3D.ZoomAt = zoomAt;
+            _triage3D.Triage(primitives, _triaged3D);
+            Renderer3D.Draw(_triaged3D, zoomAt, sink);
+            // A StructInspector is a SCREEN panel: scheduled exactly as the 2-D renderer schedules it, so it shows in 3-D too.
+            foreach (var p in Renderer3D.Panels)
+                _imGuiAdapter?.Schedule(p.StructNetworkId, p.StructSchemaHash, p.GizmoTypeId, p.StructAnchor,
+                                        p.StructOffsetX, p.StructOffsetY, p.SizeMode, p.StructIsReadOnly != 0);
+        }
+
+        public void DrawOverlay3D(RenderContext ctx)
+        {
+            LabelsDrawn3D = 0;
+            if (CurrentCamera?.Invoke() is not Fdp.Toolkit.Vis3D.MapCamera3D camera) return;
+            LabelsDrawn3D = Fdp.Toolkit.Vis3D.LabelOverlay3D.Draw(Renderer3D.Labels, camera, LabelLift);
+        }
 
         /// <summary>⭐ CE-1033 S2 — the canvas' CURRENT camera (the 3-D one while the map is in 3-D); set by
         /// <c>MapInteractionPack.AttachMapLayers</c>. Null ⇒ the construction-time camera, as before.</summary>

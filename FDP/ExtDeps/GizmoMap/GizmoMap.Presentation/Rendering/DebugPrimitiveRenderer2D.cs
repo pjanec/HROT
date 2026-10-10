@@ -393,16 +393,10 @@ namespace GizmoMap.Presentation
                     // ThicknessU16 is repurposed for Text: carries the desired font size in pixels
                     // (stored as-is, NOT multiplied by 10 like line/sphere thickness).
                     // 0 means "use the renderer default of 13 px".
-                    float px = prim.ThicknessU16 > 0 ? prim.ThicknessU16 : 13f;
-
+                    // ⭐ CE-1033 S3 — size and font come from GizmoTextDraw, shared with the 3-D map's label overlay.
+                    float px = GizmoTextDraw.PixelSize(in prim);
                     string str = prim.TextContent.ToString();
-
-                    // Use the embedded TTF only if it actually loaded (valid GPU texture).
-                    // Drawing with an invalid font texture corrupts the active render batch
-                    // (symptom: missing lines AND no text), so fall back to the built-in font.
-                    Font font = (TextFont.HasValue && TextFont.Value.Texture.Id != 0)
-                        ? TextFont.Value
-                        : Raylib.GetFontDefault();
+                    Font font = GizmoTextDraw.Font;
 
                     // AnchorGeneration carries a screen-pixel vertical line offset for Text
                     // (set via DrawText/DrawTextLong lineOffsetPx). Lets a gizmo stack multiple
@@ -411,8 +405,7 @@ namespace GizmoMap.Presentation
                     {
                         // Already outside camera space (outer guard called EndMode2D):
                         // TextX/TextY are screen pixels — draw at the requested pixel size.
-                        float offsetY = prim.LineOffsetPx;   // S6 -- the alias, no cast
-                        Raylib.DrawTextEx(font, str, new Vector2(prim.TextX, prim.TextY + offsetY), px, 1f, color);
+                        GizmoTextDraw.DrawScreen(in prim, new Vector2(prim.TextX, prim.TextY), color);
                     }
                     else
                     {

@@ -381,6 +381,9 @@ namespace Hrot.ScenarioEditor.Map
             var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>
                 worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null);
             var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb);
+            // ⭐ CE-1033 S3 — gizmos in 3-D: z = 0 shapes drape on the ground (M18); labels sit on top of the bodies (M13).
+            gizmoLayer.Renderer3D.GroundHeight = viewSwitch.Camera3D.GroundHeight;
+            gizmoLayer.LabelLift = bodies.TopAbove;
             // ⭐ CE-1033 S2 (M17) — what a 3-D click can hit: the drawn terrain, then the entity boxes (nearest wins).
             viewSwitch.Camera3D.Pickers.Add(new Fdp.Toolkit.Vis3D.TerrainPicker(() =>
                 worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null));
