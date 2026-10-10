@@ -1,11 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — requirements recorded (§1), user rulings recorded (§1a), approach proposed with a lean per decision
-  (§5). ONE decision still open and load-bearing: D3, the transport (lean: full NED). Nothing built.
-updated: 2026-10-10 (rev 2 — the user's rulings on rev 1; transport lean changed from a loopback socket to full NED)
-current-answer: §1 requirements · §1a the user's rulings · §3 what exists, incl. what NED already carries (§3.3) ·
+build-state: DESIGN — requirements (§1) and user rulings (§1a) recorded; transport shaped by the user (full NED, D3);
+  open: Q6 first host, Q8 ReplayBrowser, and two measurements D3 names (authority bits on offline hosts). Nothing built.
+updated: 2026-10-10 (rev 3 — U7-U9: the camera is an ordinary spatial entity; the gateway is a hot-installable module in
+  Editor/ReplayBrowser instantiating the same NED translators; no dedicated DDS partition. Rev 2: full NED.)
+current-answer: §1 requirements · §1a the user's rulings · §5 D1a why not in-process (asked by the user) · §3 what exists, incl. what NED already carries (§3.3) ·
   §4 the architecture (module / class / sequence diagrams) · §5 decisions · §6 open questions · §7 stages.
-stale-below: "## ⛔ HISTORY" — rev 1's loopback-socket transport, its host-side ViewerProducerSystem, and "Editor first".
+stale-below: the HISTORY heading at the end — rev 1's loopback socket + host-side producer, rev 2's ViewCamera descriptor
+  and Editor-wide NED mode.
   Do NOT quote them.
 known-rot: none.
 known-conflict: none. ⚠ This is NOT a Stride replacement — §3.1 (Stride is a simulating node). The user ruled Stride
@@ -43,7 +45,7 @@ stream enters the **same gateway** (stage 3). The host menu toggle starts and st
 | what it renders | terrain (built from `TerrainWorld`), entities (models + mannequin animation; boxes first), 3-D gizmos, fire/detonation effects, selection cubes, context menus |
 | what it never does | physics, simulation, scenario load/save, deciding what a menu action means (the host does) |
 | what it reuses | NED replication + ingress translators + DR, the gizmo DDS topics, the selection egress, the owner-routed update request, `TerrainWorld`, SumoSharp City3D's split and cloud tests |
-| what is new | the gateway's projection, the camera entity (+ its NED descriptor), the Godot app, a NED mode for the Editor |
+| what is new | the gateway's projection, a hot-installable viewer gateway module for the two offline hosts (Editor, ReplayBrowser), the Godot app |
 
 ---
 
@@ -82,6 +84,9 @@ stream enters the **same gateway** (stage 3). The host menu toggle starts and st
 | **U4** | *"the gateway should be the only input to godot, the network stream from sumosharp should go through it"* | ⭐ the gateway is the single input; SumoSharp is a gateway input, never a second path into Godot (§4.1) |
 | **U5** | *"3d models could be authored from simple boxes as the first iteration (tank and its turret each one box etc) if easy and nothing better — usable for slice 0"* | D10: **box models first**, articulated where it matters (hull + turret), used from S0 |
 | **U6** | *"Menu actions irrelevant — controlled by host, sent back to host, not 3d viewer's business so much."* | D8: the viewer shows the menu and returns the chosen id — nothing more. Rev 1's notes on handler/id defects are dropped from this design |
+| **U7** | *"Camera can use usual world position component as any other spatial entity."* | D7: **no new component, no new descriptor** — the camera is an ordinary spatial entity of a camera TKB type; its pose replicates through `WorldPos` like any other entity |
+| **U8** | *"What is the issue with in process solution?"* | answered in §5 **D1a** |
+| **U9** | *"the gateway sitting as a pluggable dynamically enablable module in the editor and replaybrowser will need to instantiate the same translators as the networked hosts. Already networked host will need no special care … No dedicated dds partition required"* | D3 / Q8: the offline hosts get a **hot-installed viewer gateway module** (kernel `InstallModuleAsync`) instantiating the **same NED translators**; networked hosts change nothing; the normal domain |
 
 ---
 
@@ -139,11 +144,11 @@ not a new node type. It is a SHELL — a 3-D window and a physics/animation back
 | pick / menu action / ground point back | `GizmoInteractionBatch` (Started, MenuAction + ActionId, WorldPos) | gizmos-1 §5, §10.7 | — |
 | the host's selection set | NED `SelectionChangedEvent{MapId, ids}` from the shared `SelectionEgressSystem` | `MapMessages.cs:106`; `Hrot.Presentation/.../SelectionEgressSystem.cs:60` | wired on IG only (`IgApplication.cs:929`) |
 | camera moved in Godot → owner | NED `UpdateEntityAttributeRequest` (owner-routed) | `GenericMessages.cs:261-264` | — |
-| camera entity state | — | — | ⛔ **new**: a `ViewCamera` component + NED descriptor |
+| camera entity state | NED `WorldPos` — an ordinary spatial entity (U7) | `SimDescriptors.cs:14` | — (a camera TKB type only) |
 | terrain name | cluster load phase (`NodeTransitionPayloadDto.TerrainName` on `NodeOpCommand`) | `OrchestrationPayloadDtos.cs:146` | the viewer node joins the load phase, as IG does |
 
-⇒ ⭐ **Of eleven needs, eight already cross the wire, two need wiring that exists in code, one is new.** That is why D3
-leans to full NED rather than a viewer-private protocol.
+⇒ ⭐ **Of eleven needs, nine already cross the wire and two need wiring that exists in code — nothing new.** That is why
+D3 leans to full NED rather than a viewer-private protocol.
 
 ---
 
@@ -153,20 +158,21 @@ leans to full NED rather than a viewer-private protocol.
 
 ```mermaid
 graph TD
-  subgraph HOST["HROT host (CGF / SimHost / Editor in NED mode)"]
-    W[(ECS world)]
-    E["NED egress translators<br/>(existing)"]
-    GZ["DebugPrimitivesBatch +<br/>StringIntern publishers"]
-    SE["SelectionEgressSystem<br/>(existing, wire it)"]
-    M["menu: View > 3D Viewer"]
-    W --> E
-    W --> GZ
-    W --> SE
+  subgraph NETH["networked host (CGF / SimHost) - nothing new"]
+    W1[(ECS world)]
+    E1["NED translators<br/>(existing, ingress + egress)"]
+    W1 <--> E1
   end
-  DDS[(NED DDS domain)]
-  E --> DDS
-  GZ --> DDS
-  SE --> DDS
+  subgraph OFFH["offline host (Editor / ReplayBrowser)"]
+    W2[(ECS world)]
+    GM["ViewerGatewayModule<br/>hot-installed on toggle<br/>= the same NED translators"]
+    M["menu: View > 3D Viewer"]
+    W2 <--> GM
+    M -- "InstallModuleAsync /<br/>UninstallModuleAsync" --> GM
+  end
+  DDS[(NED DDS - normal domain)]
+  E1 <--> DDS
+  GM <--> DDS
   M -- "spawns / kills" --> GP
   subgraph GP["Godot process"]
     subgraph GW["GATEWAY = the only input"]
@@ -182,25 +188,27 @@ graph TD
   end
   DDS <--> VN
   SUMO[(SumoSharp DDS)] -.-> SU
-  RB["ReplayBrowser"] -. "no NED today" .-> DDS
 ```
 
-*What the picture shows that prose hid:* on the host side **nothing is new except wiring** — the egress translators,
-gizmo topics and selection egress already exist; the **ReplayBrowser edge is dead** today (it discards its network
-factory), and the **Editor needs a NED mode** before it can be a host at all. Godot code touches only the projection.
+*What the picture shows that prose hid:* the **networked hosts change nothing** (U9) — they already speak NED; the two
+**offline hosts get one module**, installed only while the viewer is open, that instantiates the **same translators**;
+Godot code touches only the projection. Dotted = stage 3.
 
 ### 4.2 Classes — existing vs proposed
 
 ```mermaid
 classDiagram
   class NedReplicationModule { <<exists>> ingress + egress }
-  class DeadReckoningSyncSystem { <<exists>> every node }
-  class TerrainResidency { <<exists>> load by name }
+  class EgressTranslators { <<exists>> EntityMaster GeoSpatial Damage Fire }
   class SelectionEgressSystem { <<exists>> Hrot.Presentation }
   class DdsStringInternPublisher { <<exists>> unwired in production }
   class UpdateEntityAttributeRequest { <<exists>> owner-routed }
+  class DeadReckoningSyncSystem { <<exists>> every node }
+  class TerrainResidency { <<exists>> load by name }
+  class ModuleHostKernel { <<exists>> InstallModuleAsync }
   class Gizmo3DTriage { <<extracted>> from DebugPrimitiveRenderer3D }
   class LocomotionBlend { <<extracted>> from Hrot.Stride.Animation }
+  class ViewerGatewayModule { <<new>> IEcsModule, offline hosts }
   class ViewerNodeBootstrapper { <<new>> passive, IG-shaped }
   class RenderProjection {
     <<new>> Hrot.Viewer.Core
@@ -213,10 +221,13 @@ classDiagram
     Gizmo3D[] Gizmos
     MenuBinding[] Menus
     EffectEvent[] Effects
-    CameraView? Camera
+    EntityView? Camera
   }
-  class ViewCamera { <<new>> ECS component + NED descriptor }
   class GodotGlue { <<new>> Hrot.Viewer.Godot }
+  ModuleHostKernel ..> ViewerGatewayModule : installs on toggle
+  ViewerGatewayModule --> EgressTranslators : instantiates
+  ViewerGatewayModule --> SelectionEgressSystem
+  ViewerGatewayModule --> DdsStringInternPublisher
   ViewerNodeBootstrapper --> NedReplicationModule
   ViewerNodeBootstrapper --> DeadReckoningSyncSystem
   ViewerNodeBootstrapper --> TerrainResidency
@@ -227,8 +238,9 @@ classDiagram
   GodotGlue ..> UpdateEntityAttributeRequest : camera moves
 ```
 
-*What it shows:* the only new **runtime** pieces are a bootstrapper (a copy of a known shape), a projection, a component
-and the Godot glue; everything the node does on the wire is existing code.
+*What it shows:* the new runtime pieces are **one module that composes existing translators**, one bootstrapper (a copy
+of IG's shape), a projection and the Godot glue. ⛔ No new component, descriptor or topic — the camera is an ordinary
+spatial entity (U7).
 
 ### 4.3 Sequences
 
@@ -236,7 +248,7 @@ and the Godot glue; everything the node does on the wire is existing code.
 
 ```mermaid
 sequenceDiagram
-  participant H as Host (NED egress)
+  participant H as Host (NED translators)
   participant D as DDS
   participant V as Viewer node (gateway)
   participant P as RenderProjection
@@ -253,24 +265,24 @@ sequenceDiagram
   D->>H: host handles it (not the viewer's business)
 ```
 
-**The camera entity, both ways (V-12..V-15)**
+**The camera entity, both ways (V-12..V-15) — an ordinary spatial entity**
 
 ```mermaid
 sequenceDiagram
   participant H as Host world (owner)
   participant D as DDS
   participant G as Godot camera
-  alt no ViewCamera replicated
+  alt no camera entity in the world
     G->>G: frame terrain bounds at -30 deg, facing north
-    G->>D: CreateEntityRequest ViewCamera, owner = host (first move)
+    G->>D: CreateEntityRequest (camera TKB type, owner = host) on first move
     D->>H: host creates and owns it (V-13)
-  else ViewCamera replicated
-    D->>G: ViewCamera pose
-    G->>G: adopt unless it is its own echo (seq)
+  else camera entity replicated
+    D->>G: WorldPos of the camera entity
+    G->>G: adopt unless it is its own echo
   end
-  G->>D: UpdateEntityAttributeRequest (pose, seq) while flying
-  D->>H: owner applies
-  H->>D: host moves it (panel, script) -> new pose
+  G->>D: UpdateEntityAttributeRequest (pose) while flying
+  D->>H: owner applies to its spatial component
+  H->>D: host moves it (panel, script) -> WorldPos
   D->>G: follow
 ```
 
@@ -278,40 +290,65 @@ sequenceDiagram
 
 ## 5. DECISIONS
 
-### D1 · Process model — ⭐ **a separate Godot process** (accepted implicitly by U2)
+### D1 · Process model — ⭐ **a separate Godot process** (accepted implicitly by U2; questioned by U8 — D1a)
 
-In-process .NET hosting of Godot is not official (LibGodot lists .NET as a goal; the only package doing it, `2dog`, targets
-.NET 10 — HROT is .NET 8); the host already owns a window and GL context on its loop (`RaylibPresentationShell.cs:34`).
 A process keeps what V-09 protects — the host never blocks, Godot owns its window, closing it leaves the host running.
+
+### D1a · Why not in-process — the answer to U8
+
+⭐ **No architectural blocker — a tooling blocker today, and two real weaknesses.** `RenderProjection` takes a world, so
+an in-process variant would reuse it unchanged; nothing here designs in-process out.
+
+| issue | measured / sourced | weight |
+|---|---|---|
+| **No supported way to start Godot inside an existing .NET 8 process.** Godot's C# normally starts its **own** .NET runtime; inside the host a runtime already runs, so Godot must be driven *as a library* from it. Official LibGodot (4.6) ships C/C++ embedding; **.NET hosting is a stated goal**, not shipped | GodotCon Amsterdam 2026 LibGodot talk; `libgodot_project` README | ⛔ **blocker today** |
+| the one package that does it (`2dog.engine`) **targets .NET 10**; HROT is .NET 8 | NuGet `2dog.engine` (4.7.2.x) | ⛔ blocker unless HROT moves to .NET 10 or the package is rebuilt — unverified whether it can be |
+| **toggling off and on** (V-01) needs engine restart in one process — upstream "restart support" patches were still being merged | GodotCon 2026 talk | ⚠ risk for the menu toggle |
+| **crash isolation** — a Godot or GPU-driver crash in-process takes the editor down with unsaved work | — | ⚠ real, permanent |
+| **two engines' windows and GL contexts in one process** (Raylib/GLFW on the host loop + Godot on its own thread) — feasible on Windows/Linux in principle, untried | host: `RaylibPresentationShell.cs:34`; Stride ran its two windows on ONE thread | ⚠ risk, not a blocker |
+| what in-process would GAIN | the offline hosts would need no translators and no DDS | ⭐ real — but U9's module removes most of that cost |
+
+⇒ **Revisit when an official .NET 8 LibGodot path exists.** Until then the process model is the only one that builds.
 
 ### D2 · The gateway — ⭐ **the only input to Godot** (U4)
 
 Godot code depends on `RenderModel` alone. Inputs to the gateway: the viewer node's world (stage 1–2), SumoSharp's
 replication (stage 3). ⇒ no Godot type crosses into a host, and no second data path ever reaches Godot.
 
-### D3 · The transport — ⭐ **lean: full NED; the gateway hosts a passive HROT node** — ⚠ **OPEN, awaiting the user**
+### D3 · The transport — ⭐ **full NED; the gateway hosts a passive HROT node; offline hosts hot-install a gateway module** (U9)
 
 | the lean rests on | how it IS | how it was MEANT |
 |---|---|---|
-| almost everything already crosses NED/DDS | ✅ §3.3 — 8 of 11 needs on the wire, 2 need existing code wired, 1 new | ✅ gizmos-1 §6 (gizmo topics are DDS by design); UXI-11 §2.7.17 (selection egress) |
-| an external viewer of one node is an already-ruled concept | ✅ CE-463 built it for gizmo picks (`PickStreamId = targetNodeId`) | ✅ Q73 §8: *"the external gizmo viewer is just external view on the node"* |
+| everything the viewer needs already crosses NED/DDS | ✅ §3.3 — 9 of 11 on the wire, 2 need existing code wired, 0 new | ✅ gizmos-1 §6 (gizmo topics are DDS by design); UXI-11 §2.7.17 (selection egress) |
+| a module can be switched on at runtime | ✅ `ModuleHostKernel.InstallModuleAsync` / `UninstallModuleAsync` (`ModuleHostKernel.cs:1372,1461`), used in production for the recording/replay modules (`EcsRecordReplayController.cs:132-220`) | ✅ `designs/replay-and-modules/DESIGN.md` (hot-plugged modules) |
+| an external viewer of one node is an already-ruled concept | ✅ CE-463 (`PickStreamId = targetNodeId`) | ✅ Q73 §8 |
 | a passive node is a known shape | ✅ IG (`IgNodeBootstrapper`) | ✅ R-140 |
-| decoding + smoothing must not be written twice | ✅ NED ingress translators + `DeadReckoningSyncSystem` exist | ✅ `DESIGN_Dead_Reckoning.md`: DR is for every node (R-S2) |
+| decoding + smoothing must not be written twice | ✅ NED ingress translators + `DeadReckoningSyncSystem` | ✅ `DESIGN_Dead_Reckoning.md` (DR on every node) |
 | stage 2 (V-18) becomes free | the stage-1 path IS the network path | ✅ V-18 |
 
-**Costs, stated:** ① the **Editor needs a NED mode** — today it is hard-wired offline (`EditorSubsystem.cs:219`). Under
-Q86 the editor already is a one-node cluster with an orchestrator core; the viewer becomes its second node on a private
-DDS domain. ⚠ Sized as backend-lane work, not measured yet. ② **ReplayBrowser has no network path** — a replay would
-have to re-broadcast its sandbox worlds onto DDS; deferred (§6 Q8). ③ the Godot process carries FDP + NED + toolkits —
-S0 measures it. ④ a cluster running **BDC** instead of NED (`ClusterRunner/Program.cs:227`) gives the viewer nothing —
-NED only, as V-18 asks.
+**The module (offline hosts only):** `ViewerGatewayModule : IEcsModule`, installed when `View ▸ 3D Viewer` is checked and
+uninstalled when unchecked or when the viewer process exits. It opens a DDS participant on the **normal domain** (U9: no
+dedicated partition) and instantiates the **same** egress translators the networked hosts register (entity master,
+geospatial, damage, fire, stance, gizmo batch + string intern, selection egress) plus the ingress for what comes back
+(`GizmoInteractionBatch`, `UpdateEntityAttributeRequest`, `CreateEntityRequest`). ⭐ It **composes**; it implements no
+translator.
+
+**What still has to be measured, before it is built:**
+- ⚠ **authority on the offline hosts.** Egress publishes only entities the node has authority over
+  (`GeoSpatialEgressTranslator.cs:135-136`). The Editor owns everything as a one-node cluster (Q86) — ⛔ *whether its
+  entities actually carry authority bits under `NullReplicationModule`* is unverified. ReplayBrowser's replay worlds are
+  reconstructed — ⛔ their authority bits are unverified too. If either is empty, egress publishes nothing.
+- ⚠ **sharing the normal domain with a live cluster.** An Editor or ReplayBrowser publishing on the same domain as a
+  running cluster would put two copies of the same network ids on the wire. Fine while they are not run side by side;
+  ⛔ not designed for here.
+- the FDP + NED weight inside the Godot process — S0.
 
 **Rejected:**
-- **Viewer-private DDS topics** — uniform across the four hosts, but a **second egress of the entity state NED already
-  publishes** (ruling 9), and stage 2 still needs the NED path ⇒ two paths forever.
-- **A loopback socket** (rev 1's lean) — the same duplication, plus no `ddsmonitor` sniffing, no second viewer, no remote machine.
-- **A plain DDS subscriber gateway without an FDP world** — lighter, but re-implements the ingress translators,
-  lat/lon conversion and DR that the node gets for free.
+- **Viewer-private DDS topics** — a second egress of the state NED already publishes (ruling 9); stage 2 still needs NED.
+- **A loopback socket** (rev 1) — the same duplication, plus no `ddsmonitor`, no second viewer, no remote machine.
+- **Switching the Editor's whole replication module to NED at boot** (rev 2's Q9 lean) — heavier, and always-on;
+  the hot-installed module is on only while the viewer is.
+- **A plain DDS subscriber gateway without an FDP world** — re-implements translators, lat/lon conversion and DR.
 
 ### D4 · Godot app structure — ⭐ **City3D's split**
 
@@ -338,10 +375,12 @@ converted to local metres by the node's `WGS84Transform` (origin from the terrai
 Cache: `<LocalAppData>/Hrot/viewer-terrain/<name>-<hash>.res` (folder rule precedent: `NavTileCache`).
 **Rejected:** streaming terrain geometry — a second representation and a new topic.
 
-### D7 · Camera entity (V-12..V-15) — ⭐ **`ViewCamera` component + NED descriptor; one per launching host; created on first camera move; none in ReplayBrowser** (U3)
+### D7 · Camera entity (V-12..V-15) — ⭐ **an ordinary spatial entity of a camera TKB type** (U7); one per launching host; created on first camera move; none in ReplayBrowser (U3)
 
-Godot → owner: `UpdateEntityAttributeRequest`; owner → Godot: the replicated descriptor; echo ignored by a sequence
-number (precedent: selection's `"Remote."` echo suppression).
+Pose lives in the usual spatial component and replicates through `WorldPos` like any entity; it is saved with the
+scenario like any entity, and — as a side effect of being ordinary — the 2-D map can draw it. Godot → owner:
+`UpdateEntityAttributeRequest`; owner → Godot: `WorldPos`. ⚠ Echo: while the user flies, Godot ignores incoming poses
+older than its last sent one (precedent: selection's `"Remote."` echo suppression). Field of view stays a viewer setting.
 
 ### D8 · Selection, picking, context menu (V-10, V-11) — ⭐ **reuse the gizmo interaction path** (U6)
 
@@ -369,29 +408,27 @@ is the simulation's animation contract.
 | # | question | ⭐ lean | state |
 |---|---|---|---|
 | Q1 | Stride | untouched | ✅ **ruled** (U1) |
-| Q2 | separate process | yes | ✅ accepted (U2 assumes it) |
-| Q3 | camera entity shape | one per launching host · on first move · none in ReplayBrowser | ✅ **ruled** (U3) |
+| Q2 | separate process | yes — D1a says why not in-process | ✅ accepted (U2); U8 answered in D1a |
+| Q3 | camera entity shape | ordinary spatial entity · one per launching host · on first move · none in ReplayBrowser | ✅ **ruled** (U3, U7) |
 | Q4 | code layout | `Viewer3D/`; Godot project outside `HROT.sln` | ✅ **ruled** (U3) |
 | Q5 | Godot version | 4.7.1 .NET | ✅ **ruled** (U3) |
-| **Q6** | first host | ⚠ **re-asked.** U3 approved "Editor", but under full NED the Editor is the one host that cannot speak NED yet. ⭐ **Lean: SimHost or CGF first** (both already on NED; runnable in the cloud with `--mode all`), Editor as soon as its NED mode lands | **open** |
-| **Q7** | transport | ⭐ **full NED** (D3) | **open — the one load-bearing decision** |
-| **Q8** | ReplayBrowser | ⭐ defer: it has no network path; decide between "re-broadcast the replay onto DDS" and dropping it from V-01, after stage 1 | open |
-| **Q9** | Editor NED mode | ⭐ a private DDS domain per editor instance, NED switched on at boot by a flag (the composition is fixed at boot) — a backend-lane item | open |
+| **Q6** | first host | U3 approved "Editor". Under U9 the Editor needs only the gateway module, so it is reachable early. ⭐ **Lean: S0 against a `--mode all` cluster (zero host work, proves the viewer node), then the Editor through the module in S1** | **open** |
+| Q7 | transport | full NED + hot-installed module on offline hosts, normal domain | ✅ **shaped by the user** (U2, U9) |
+| **Q8** | ReplayBrowser | ⭐ the same module as the Editor — ⚠ conditional on its replay worlds carrying authority bits (D3, to measure) | **open** |
 
 ---
 
-## 7. STAGES (lean: full NED, SimHost/CGF first)
+## 7. STAGES
 
 | slice | delivers | proves |
 |---|---|---|
-| **S0** spike | fetch Godot in the cloud; a passive viewer node boots inside the Godot process and joins a `--mode all` cluster; box entities move; Xvfb screenshot | D3's feasibility, D1, V-20 — **the FDP-in-Godot weight is measured here** |
-| **S1** host toggle | `View ▸ 3D Viewer` on SimHost/CGF spawns/kills the process; free camera; default camera | V-01 (two hosts), V-05, V-09, V-16, V-17 |
+| **S0** spike | fetch Godot in the cloud; a passive viewer node boots inside the Godot process and joins a `--mode all` cluster; box entities move; Xvfb screenshot | D1, D3's viewer half, V-20 — **the FDP-in-Godot weight is measured here** |
+| **S1** Editor host | `ViewerGatewayModule` hot-installed by `View ▸ 3D Viewer` (measure the Editor's authority bits first); the toggle spawns/kills the process; free camera; default camera | V-01 (Editor), V-05, V-09, V-16, V-17 |
 | **S2** scene | terrain meshes + cache; `Godot.RenderModelDef` with box models; stance/locomotion | V-02, V-03, V-04 (boxes), V-06 |
-| **S3** interaction | extracted gizmo triage; `StringInternEntry` publisher wired; selection egress wired on SimHost/CGF; picking; menu popup | V-07, V-10, V-11 |
-| **S4** camera entity | `ViewCamera` + descriptor, both-way sync, scenario save | V-12..V-15 |
+| **S3** interaction | extracted gizmo triage; `StringInternEntry` publisher wired; selection egress wired; picking; menu popup | V-07, V-10, V-11 |
+| **S4** camera entity | camera TKB type; create on first move; both-way pose; scenario save | V-12..V-15 |
 | **S5** effects | fire / detonation particles | V-08 |
-| **S6** Editor | the Editor's NED mode (Q9) — then the Editor is a host like the others | V-01 (Editor) |
-| **S7** ReplayBrowser | per Q8 | V-01 complete |
+| **S6** other hosts | CGF + SimHost: the toggle only (they already speak NED); ReplayBrowser: the module, per Q8 | V-01 complete |
 | **stage 2** | standalone viewer on any NED cluster — the same app, no host launching it | V-18 |
 | **stage 3** | SumoSharp ingest in the gateway; road-net mesh; a shared origin with the HROT terrain | V-19 |
 | *assets* | real models replacing boxes, licence table | V-03, V-04 |
@@ -402,7 +439,7 @@ is the simulation's animation contract.
 
 ---
 
-## ⛔ HISTORY — rev 1 (2026-10-10), superseded by rev 2 the same day. Do NOT quote.
+## ⛔ HISTORY — rev 1 and rev 2 (2026-10-10), superseded the same day. Do NOT quote.
 
 - **Transport:** rev 1 leaned to a **loopback TCP socket** carrying a viewer-private `ViewerFrame` contract, produced by a
   host-side `ViewerProducerSystem` + `ViewerRequestSystem`. Superseded by D3 after U2 and the §3.3 measurement: that
@@ -410,3 +447,6 @@ is the simulation's animation contract.
 - **First host:** rev 1 leaned "Editor first"; under full NED the Editor is offline-only, so Q6 is re-asked.
 - **Menu actions:** rev 1 listed two pre-existing defects on the menu-action return path; dropped per U6 — the action's
   meaning is the host's business, not this design's.
+- **Camera (rev 2):** a new `ViewCamera` component + NED descriptor. Superseded by U7 — an ordinary spatial entity.
+- **Editor NED mode (rev 2 Q9):** switch the Editor's whole replication module to NED at boot on a private domain.
+  Superseded by U9 — a hot-installed gateway module on the normal domain, on only while the viewer is.
