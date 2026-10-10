@@ -1,15 +1,17 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — leans TH-A..TH-H APPROVED (2026-10-10, R-249); UML present; not yet marked READY-TO-BUILD while
-  the library question (§7: a collision library behind the query seams, lean Jolt, spike first) is open. Nothing built.
-updated: 2026-10-10 (rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
+  the library question is open (§7 → DESIGN_World_Query_Seam.md: IWorldQuery, Bepu inside the stand-in, spike Q0). Nothing built.
+updated: 2026-10-10 (rev 3 — §7 corrected by R-250/R-251: a real interface, Bepu not Jolt. Rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
   (R-249, §4a); §7 the library question. Rev 1 — R-248: the flat ground is a temporary simplification; this file plans its removal)
 current-answer: §1 why · §2 INVENTORY · §3 the diagrams · §4 decisions with leans · §5 slices · §6 not verified.
 stale-below: nothing.
-known-rot: none.
+known-rot: §7's rev-1 lean (Jolt; TerrainWorld's methods as the seam; Bepu rejected) — corrected by R-250/R-251, see its banner.
 known-conflict: none. CE-3086 (backend) plans a ramp ridge + wadi on basic-desert because "a heightfield (not built)"
   (DESIGN_Utility_AI_Demo_Scenarios.md:104); TH-G proposes a real height grid there instead — the backend lane decides.
 related-designs:
+  - DESIGN_World_Query_Seam.md — owns the engine-neutral interface (IWorldQuery) GroundHeightAt is exposed through, and the
+    library choice (Bepu inside the stand-in).
   - DESIGN_Terrain_World.md — OWNS TerrainWorld, the world file, the parser, TerrainWorldMesh and the queries; this file
     adds the ground height to them (one function, one grid) and changes nothing else about the model.
   - docs/blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — T1/T2 (APPROVED, R-181): "ground (flat or
@@ -193,7 +195,15 @@ not by a second system.
 ⭐ Gates: the terrain feature suites first (`TerrainWorldTests`, the Recast and SimHost terrain tests — about 35 asserts assume
 ground 0 and stay green on flat terrains), then new rails on the sloped fixture.
 
-## 7. Build or use a library? — the user's question, `2026-10-10` *(OPEN — lean below, a spike before any commitment)*
+## 7. Build or use a library? — the user's question, `2026-10-10` *(⚠ rev 1 below is CORRECTED by `R-250`/`R-251` — read the banner first)*
+
+> ⭐ **CURRENT ANSWER (rev 3, `2026-10-10`) — see [`DESIGN_World_Query_Seam.md`](DESIGN_World_Query_Seam.md):**
+> ① the seam is a real interface, **`IWorldQuery`** — not `TerrainWorld`'s own methods (`R-250`: all engine capabilities
+> behind interfaces, production uses a mature engine); ② the library is **BepuPhysics v2, inside the stand-in** — the
+> user's *"too young"* was about **Stride's Bepu integration, not the library** (`R-251`), and Jolt's current C# binding
+> targets net9/net10 while HROT is net8; ③ sound around corners is Building Interiors' B-6 behind `Trace(Sound)`.
+> ⛔ The lean below (Jolt; "behind TerrainWorld's queries"; "Bepu rejected") is HISTORY — do not quote it.
+
 
 🔒 **User:** *"we iterated quite far into a small 3d engine … Does it still make sense to do it all by ourselves? isnt most
 of that already solved by … existing highly optimized and reliable libraries? Could we benefit for introducing physics

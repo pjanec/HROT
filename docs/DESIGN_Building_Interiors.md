@@ -9,6 +9,8 @@ known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid pri
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
   buildings.
 related-designs:
+  - DESIGN_World_Query_Seam.md — owns the engine-neutral query (IWorldQuery.Trace with a purpose) that generalises §3a's
+    "one query for all, different solver"; sound B-6 is its Trace(Sound) (WQ-E).
   - DESIGN_Map_3D_Mode.md — the map's 3-D mode colours wall panels, slabs and roofs by this file's materials.
   - DESIGN_Peek_And_Fire.md — the window duel: refines §3d P2's aim point (highest SEEN body point) and adds a body-height band to the person hit test; consumes §3l's window positions
   - DESIGN_Entity_Interactions.md — OWNS how any interaction (doors first) crosses to the target's owner: typed FDP event per kind, one topic with a DDS union; slice I-1 replaces 5d-1's door-only topic

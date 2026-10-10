@@ -14,6 +14,8 @@ known-rot: none.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - DESIGN_World_Query_Seam.md — the 3-D map's picking and terrain geometry go through IWorldQuery.Pick and
+    ITerrainRenderGeometry (WQ-G), so the editor is not bound to the stand-in.
   - DESIGN_Map_Rendering_And_Interaction.md — owns MapCanvas, IMapLayer, the render frame (§2.3) and the input chain
     (§3) this design extends with a camera subclass and a 3-D draw path; its "dumb terminal" rule holds in 3-D.
   - DESIGN_Godot_3D_Viewer.md — DEFERRED: the Godot-process alternative, the twenty requirements V-01..V-20 this file
@@ -606,6 +608,10 @@ graph TD
   G -.->|soon| HF["terrain height (owned by DESIGN_Terrain_World)"]
   ME -.->|soon| HF
 ```
+
+⭐ **`R-250` (`2026-10-10`):** the two seams are **interfaces**, not the stand-in's classes — `IWorldQuery` (pick, level 0) and
+`ITerrainRenderGeometry` (the mesh), [`DESIGN_World_Query_Seam.md`](DESIGN_World_Query_Seam.md) WQ-G — so a production
+engine can stand behind the editor's 3-D view too.
 
 *What the picture shows:* the 3-D map touches the ground through two seams only — the mesh and level 0. Replacing the
 flat bed changes what is behind the dashed edges; nothing on the map side changes. ⭐ **Proven before the flat bed goes**:
