@@ -149,6 +149,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Arrival radius of the node's moves (m) · a stance change's blend time (s).</summary>
         public const float ArrivalRadius = 0.5f, StanceBlendSeconds = 0.6f;
 
+        /// <summary>⭐ <c>CE-3158</c> G5 — a candidate this close (3-D, m) to a friend's live <see cref="CoverClaim"/> is his · a claim
+        /// lapses this long (s) after the node last refreshed it.</summary>
+        public const float ClaimRadius = 1.5f, ClaimTtlSeconds = 2f;
+
         /// <summary>The §8.4 default column.</summary>
         public static readonly PeekAndFireParams Defaults = new()
         {
@@ -245,6 +249,7 @@ namespace Hrot.AI.Behaviors.Brains
                 case PeekPhase.Recover:    RecoverMove(ref ws, in p, self, world, now); break;
             }
 
+            Claim(ref ws, self, world, now);   // ⭐ CE-3158 G5 — keep my claim live while I hold a point
             mem.Phase = (byte)ws.Phase;
             mem.PhaseAt = now;
             mem.PhaseUntil = ws.PhaseUntil;
@@ -268,7 +273,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static bool ChooseOrWait(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
                                          EntityRepository world, double now, in ThreatAim threat)
         {
-            if (PickHide(ref ws, in p, ref mem, world, now, relocating: false, out var point, out var stance, out byte kind))
+            if (PickHide(ref ws, in p, ref mem, world, now, relocating: false, out var point, out var stance, out byte kind, self))
             {
                 if (ws.Waiting == 2) PostureNodes.StopFiring(world, self, ref ws.Fire);
                 ws.Waiting = 0;
@@ -301,7 +306,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Choose(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
                                    EntityRepository world, double now, bool relocating)
         {
-            if (!PickHide(ref ws, in p, ref mem, world, now, relocating, out var point, out var stance, out byte kind)) return;   // no answer yet
+            if (!PickHide(ref ws, in p, ref mem, world, now, relocating, out var point, out var stance, out byte kind, self)) return;   // no answer yet
             GoToHide(ref ws, in p, self, world, point, stance, kind);
         }
 
@@ -399,7 +404,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     // ⭐ P-7 D12 — SUPPRESS AND BOUND: pick the next cover now, but first come up and fire a suppressive burst at the
                     //   freshest evidence (below, through the exposure); the run to the new cover starts when the burst ends (Recover).
-                    if (PickHide(ref ws, in p, ref mem, world, now, relocating: true, out var next, out var nextStance, out byte nextKind))
+                    if (PickHide(ref ws, in p, ref mem, world, now, relocating: true, out var next, out var nextStance, out byte nextKind, self))
                     {
                         ws.Bounding = 1;
                         ws.NextHide = next;
@@ -433,7 +438,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
 
-            if (!PickPeek(ref ws, in p, ref mem, world, now, out var peek, out var peekStance))
+            if (!PickPeek(ref ws, in p, ref mem, world, now, out var peek, out var peekStance, self))
             {
                 // ⭐ CE-3158 G2 — no step-out point for NoCoverSeconds: this cover cannot be fought from — to the next one
                 if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = now; }
@@ -636,7 +641,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// and when relocating none closer than <c>MinRelocateMetres</c> to the current one.</summary>
         private static unsafe bool PickHide(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem,
                                             EntityRepository world, double now, bool relocating, out Vector3 point, out StanceId? stance,
-                                            out byte kind)
+                                            out byte kind, Entity self = default)
         {
             point = default; stance = null; kind = 0;
             if (!ws.CoverSensor.IsValid || !world.IsAlive(ws.CoverSensor.ChildId)
@@ -651,6 +656,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var r = span[i];
                 var at = new Vector3(r.PositionX, r.PositionY, r.PositionZ);
                 if (relocating && Vector3.Distance(at, ws.HidePoint) < p.MinRelocateMetres) continue;
+                if (ClaimedByAFriend(world, self, at, now)) continue;   // ⭐ CE-3158 G5 — first claim wins
                 float score = r.Score - PositionHeat.Penalty(ref mem, at, now, Rules(in p));
                 if (score <= best) continue;   // ties keep the first: the sensor's order, deterministic
                 best = score;
@@ -663,7 +669,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>The step-out point: the peek sensor's best answer within <c>PeekSearchRadius</c> of the hide point.</summary>
         private static bool PickPeek(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem,
-                                     EntityRepository world, double now, out Vector3 point, out StanceId? stance)
+                                     EntityRepository world, double now, out Vector3 point, out StanceId? stance, Entity self = default)
         {
             point = default; stance = null;
             if (!ws.PeekSensor.IsValid || !world.IsAlive(ws.PeekSensor.ChildId)
@@ -676,6 +682,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var r = span[i];
                 var at = new Vector3(r.PositionX, r.PositionY, r.PositionZ);
                 if (Vector3.Distance(at, ws.HidePoint) > p.PeekSearchRadius + ArrivalRadius) continue;
+                if (ClaimedByAFriend(world, self, at, now)) continue;   // ⭐ CE-3158 G5
                 point = at;
                 stance = r.TryGetStance(out var s) ? s : null;
                 return true;   // the sensor's order is its ranking
@@ -714,6 +721,35 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         internal static ThreatAim SensorAim(EntityRepository world, Entity self, in ThreatAim threat)
             => FreshestEvidence(world, self, in threat, out var at, out long id) && id != 0 ? new ThreatAim(Entity.Null, id, at) : threat;
+
+        /// <summary>⭐ <c>CE-3158</c> G5 — publishes (and refreshes) the unit's claim on the point it holds or is going to: written when
+        /// it COMMITS (the move is issued), so nobody races it there.</summary>
+        private static void Claim(ref PeekAndFireState ws, Entity self, EntityRepository world, double now)
+        {
+            if (ws.Phase == PeekPhase.Choose || !world.IsComponentTypeRegistered<CoverClaim>()) return;
+            var claim = new CoverClaim { Hide = ws.HidePoint, Peek = ws.PeekPoint, Until = now + ClaimTtlSeconds };
+            if (world.HasComponent<CoverClaim>(self)) world.GetComponentRW<CoverClaim>(self) = claim;
+            else world.AddComponent(self, claim);
+        }
+
+        /// <summary>⭐ <c>CE-3158</c> G5 — whether <paramref name="at"/> is within <see cref="ClaimRadius"/> (3-D) of another unit's live
+        /// claim (hide or peek) of the same force.</summary>
+        internal static bool ClaimedByAFriend(EntityRepository world, Entity self, Vector3 at, double now)
+        {
+            if (self.IsNull || !world.IsComponentTypeRegistered<CoverClaim>()) return false;
+            bool forces = world.IsComponentTypeRegistered<EntityInfo>();
+            var mine = forces && world.HasComponent<EntityInfo>(self) ? world.GetComponentRO<EntityInfo>(self).ForceId : default;
+            foreach (var other in world.Query().With<CoverClaim>().Build())
+            {
+                if (other == self) continue;
+                ref readonly var c = ref world.GetComponentRO<CoverClaim>(other);
+                if (c.Until <= now) continue;
+                var theirs = forces && world.HasComponent<EntityInfo>(other) ? world.GetComponentRO<EntityInfo>(other).ForceId : default;
+                if (!theirs.Equals(mine)) continue;
+                if (Vector3.Distance(c.Hide, at) <= ClaimRadius || Vector3.Distance(c.Peek, at) <= ClaimRadius) return true;
+            }
+            return false;
+        }
 
         /// <summary>B8 — the unit's weapon is reloading, or its magazine is empty (then the reload starts here).</summary>
         private static bool ReloadingOrEmpty(EntityRepository world, Entity self)
@@ -759,6 +795,8 @@ namespace Hrot.AI.Behaviors.Brains
             PostureNodes.Drop(world, ws.CoverSensor);
             PostureNodes.Drop(world, ws.PeekSensor);
             if (ws.Moving == 1) LocomotionMoveTo.Stop(world, self);
+            if (world.IsComponentTypeRegistered<CoverClaim>() && world.HasComponent<CoverClaim>(self))
+                world.GetComponentRW<CoverClaim>(self).Until = 0d;   // ⭐ CE-3158 G5 — the point is free at once
             ws = default;
         }
 

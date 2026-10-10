@@ -715,5 +715,10 @@
         /// <summary><c>StaticObstacleBakery</c> — a node's terrain-residency handle for the obstacle bake, as a managed world singleton
         /// (<c>CE-3136</c> P-7a, R-243). Absent ⇒ this node holds no terrain, and an obstacle is acked at once.</summary>
         public const int StaticObstacleBakery = 347;
+
+        /// <summary><c>CoverClaim</c> — the cover point a unit fighting from cover is going to / holds, so squad-mates pick other ones
+        /// (<c>CE-3158</c> G5, 📄 docs/DESIGN_Peek_And_Fire.md §10.7). 348 free by a census of backend, behaviors and ui,
+        /// <c>2026-10-10</c> (ui and backend end at 347, behaviors at 334).</summary>
+        public const int CoverClaim = 348;
     }
 }

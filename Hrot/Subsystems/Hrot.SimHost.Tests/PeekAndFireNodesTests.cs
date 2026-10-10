@@ -888,5 +888,86 @@ namespace Hrot.SimHost.Tests
             Assert.True(PeekAndFireNodes.FreshestEvidence(d.Repo, d.Self, in t, out var near, out _, 15f));
             Assert.Equal(new Vector3(20f, 6f, 0f), near);
         }
+            // ── CE-3158 G5 — squad-mates keep off each other's cover (📄 docs/DESIGN_Peek_And_Fire.md §10.7) ──────────────────────
+
+        /// <summary>A friend (same force as the unit — both default) holding a claim on <paramref name="hide"/> until <paramref name="until"/>.</summary>
+        private static Entity FriendClaims(Duel d, Vector3 hide, double until, ForceId? force = null)
+        {
+            var f = d.Repo.CreateEntity();
+            d.Repo.AddComponent(f, new Fdp.Toolkit.Combat.Components.CoverClaim { Hide = hide, Peek = hide, Until = until });
+            if (force is { } fid) d.Repo.AddComponent(f, new EntityInfo { ForceId = fid });
+            return f;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>G5_R1</c> — TWO RIFLEMEN, ONE GOOD POINT: a squad-mate already claims the best point, so this one takes the next — and
+        /// publishes its OWN claim the moment it commits (the move), refreshed while it holds it. 🔴 Red-proof: before G5 both took
+        /// the best point and stacked on one spot.
+        /// </summary>
+        [Fact]
+        public void G5_R1_AFriendsClaimedPoint_IsSkipped_AndMyOwnClaimIsPublished()
+        {
+            var d = new Duel(Rifleman());
+            FriendClaims(d, new Vector3(4f, 1f, 0f), until: 1e9);
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched), (9f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.MoveToHide, d.RunUntil(PeekPhase.MoveToHide));
+            Assert.Equal(new Vector3(9f, 1f, 0f), d.Moves[^1]);
+
+            var mine = d.Repo.GetComponentRO<Fdp.Toolkit.Combat.Components.CoverClaim>(d.Self);
+            Assert.Equal(new Vector3(9f, 1f, 0f), mine.Hide);
+            Assert.InRange(mine.Until - d.Time, 1.5, 2.1);   // live, refreshed every tick (TTL 2 s)
+            d.Run(5);
+            Assert.InRange(d.Repo.GetComponentRO<Fdp.Toolkit.Combat.Components.CoverClaim>(d.Self).Until - d.Time, 1.5, 2.1);
+        }
+
+        /// <summary>⭐⭐ <c>G5_R2</c> — a claim that LAPSED (its brain stopped refreshing it) frees the point: no cleanup system needed.</summary>
+        [Fact]
+        public void G5_R2_AnExpiredClaim_FreesThePoint()
+        {
+            var d = new Duel(Rifleman());
+            FriendClaims(d, new Vector3(4f, 1f, 0f), until: -1);
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched), (9f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.MoveToHide, d.RunUntil(PeekPhase.MoveToHide));
+            Assert.Equal(new Vector3(4f, 1f, 0f), d.Moves[^1]);
+        }
+
+        /// <summary>⭐ <c>G5_R3</c> — an ENEMY's claim is not mine to respect (claims are per force).</summary>
+        [Fact]
+        public void G5_R3_AnotherForcesClaim_IsIgnored()
+        {
+            var d = new Duel(Rifleman());
+            d.Repo.AddComponent(d.Self, new EntityInfo { ForceId = ForceId.Friend });
+            FriendClaims(d, new Vector3(4f, 1f, 0f), until: 1e9, force: ForceId.Hostile);
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched), (9f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.MoveToHide, d.RunUntil(PeekPhase.MoveToHide));
+            Assert.Equal(new Vector3(4f, 1f, 0f), d.Moves[^1]);
+        }
+
+        /// <summary>⭐ <c>G5_R4</c> — R-252: surfaces stack — a claim on the FLOOR ABOVE the same spot is another cover (3-D radius).</summary>
+        [Fact]
+        public void G5_R4_AClaimOnTheFloorAbove_IsAnotherPoint()
+        {
+            var d = new Duel(Rifleman());
+            FriendClaims(d, new Vector3(4f, 1f, 3f), until: 1e9);
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched), (9f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.MoveToHide, d.RunUntil(PeekPhase.MoveToHide));
+            Assert.Equal(new Vector3(4f, 1f, 0f), d.Moves[^1]);
+        }
+
+        /// <summary>⭐ <c>G5_R5</c> — leaving the node frees the point AT ONCE (the deactivator), not after the TTL.</summary>
+        [Fact]
+        public void G5_R5_LeavingTheNode_ReleasesTheClaim()
+        {
+            var d = new Duel(Rifleman());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            PeekAndFireNodes.Deactivate_PeekAndFire(ref d.P, ref d.Ws, d.Self, d.Repo);
+            Assert.Equal(0d, d.Repo.GetComponentRO<Fdp.Toolkit.Combat.Components.CoverClaim>(d.Self).Until);
+        }
     }
 }

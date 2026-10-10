@@ -108,6 +108,7 @@ public static class HrotSharedComponentRegistry
         // unmanaged struct layout when applying a TKB template.
         world.RegisterComponent<Health>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.MobilityKill>(); // CE-3092 — the TKB mobility-kill opt-in
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.CoverClaim>();   // CE-3158 G5 — squad-mates keep off each other's cover
 
         // ── Application-layer events ──────────────────────────────────────────
         world.RegisterEvent<FireInteractionEvent>();

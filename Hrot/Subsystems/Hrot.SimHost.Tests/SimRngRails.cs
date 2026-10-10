@@ -132,5 +132,17 @@ namespace Hrot.SimHost.Tests
             //    remembers to switch on delivers nothing.
             Assert.True(SimRng.Deterministic);
         }
+            /// <summary>
+        /// ⭐⭐ <c>CE-3158</c> G7 — the seed is ASYMMETRIC: (unit 5, t 6) and (unit 6, t 5) differ, and a unit's whole seconds do not
+        /// repeat its neighbour's. 🔴 Red-proof: the XOR seed (<c>entityIndex ^ salt ^ (int)simTime</c>) made both pairs identical —
+        /// two riflemen behind one wall came up together.
+        /// </summary>
+        [Fact]
+        public void CE3158_G7_TheSeedIsAsymmetric()
+        {
+            Assert.NotEqual(SimRng.FromSim(5, 7, 6f).NextUInt(), SimRng.FromSim(6, 7, 5f).NextUInt());
+            Assert.NotEqual(SimRng.FromSim(5, 0, 0f).NextUInt(), SimRng.FromSim(0, 5, 0f).NextUInt());
+            Assert.NotEqual(SimRng.FromSim(2, 1, 3f).NextUInt(), SimRng.FromSim(3, 1, 2f).NextUInt());
+        }
     }
 }
