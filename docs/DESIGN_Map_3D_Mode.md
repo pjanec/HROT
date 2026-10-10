@@ -64,6 +64,7 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 | **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) … with imgui on top for menus?"* | measured in `DESIGN_Godot_3D_Viewer.md` §8 — lean B |
 | **U13** | *"The internal 3d solution could be switchable 2d/3d instead of current 2d only map so no new 3d window would be required. I think we should focus on B … Lets put godot aside (but keep its design as deferred). We need the simple renderer to handle the terrain geometry, use lighting color shaded polygons to give it some usable feeling of a real world, if not some freely available texture pack."* | ⭐ this file: a **mode of the map**, not a window; **lit, colour-shaded terrain**; textures as a later slice |
 | **U15** | *"Every host having the 2d map will get simple 3d, correct? Not just IG. … The current 2d map can be switched to 3d view and back (some camera animation between 2d camera and 3d camera or something)."* | ✅ yes, all five map hosts — by construction since U25 (§6b). ⭐ M12: the switch is an animated camera move, not a cut |
+| **U27** | *"each effect entity has its TKB type of course defining the effect"* | ⚠ recorded as a constraint on S3's effects (§6c) — 📐 today's effect entities carry NO TKB type (`CE-1042`) |
 | **U26** | *"It would be great if you built the heli and jet and cargo plane models including their mapping so we do not need to think about that later."* | ✅ built: three air kits + the SISO-REF-010 platform/air category mapping (§3.5) |
 | **U25** | *"ad 'the 3-D mode on the other four hosts' - this sounds alarming, we should be unifying and sharing from the day zero so something like 'not on all host' can not happen by construction"* | ✅ §6b: one shared attach + one shared menu item + a rail; S6 withdrawn |
 | **U24** | *"the tank models need the turret to be movable left/right as well as the barrel (up/down) as articulated part - tank entity needs a way describing the orientation of its turret+barrel (maybe a sub-entity with component containing turret hull relative azimuth and turret-relative barrel elevation - there used to be a multi-entity tank demo)"* | ✅ articulated kit parts built; ⭐ where the pose lives: §3.11 M23–M26, leans awaiting the user |
@@ -806,6 +807,21 @@ boxes until a replay carries or loads its TKB — a finding, not fixed here.
 `Hrot.Editor.Tests` **474/476**; `Hrot.IG.Tests` **461/462**; `Hrot.ReplayBrowser.Tests` **34/34**; `Hrot.SimHost.Tests`
 **1177/1180** (3 skips); all five hosts build. 📌 The existing pack suites caught one real defect on the way — the new
 `ToggleMap3DEvent` lacked its `[EventId]`, which would have thrown at every host's start-up.
+
+### 6c. Effects come from their TKB type *(U27)* — constraint on S3, measured `2026-10-10`
+
+🔒 **User:** *"each effect entity has its TKB type of course defining the effect."* ⇒ the 3-D map draws an effect (explosion,
+tracer, later smoke and flashes) from the effect entity's **TKB type**, exactly as a vehicle's kit comes from its TKB type.
+
+| 📐 today | where |
+|---|---|
+| effect entities are made by IG's `EventToEffectSystem` with a hard-coded `EffectType` enum (Explosion, Tracer) and constants — **no `TkbIdentity`** | `Hrot.IG/Systems/EventToEffectSystem.cs:72-111`, `VisualEffectState.cs` |
+| the 2-D map draws them from that enum | `EffectPresentationGizmo` |
+| the munition TKB names no effect | `MunitionTkbCatalog.cs` (no match for "effect") |
+
+⭐ **Lean (`CE-1042`, not built — the effects' owner decides):** an effect entity carries `TkbIdentity`; a TKB descriptor on the
+effect type says what it looks like (kind, duration, colour, size); the munition / warhead type names the effect type it makes;
+both maps draw from the TKB. ⛔ The S3 3-D effects are not built on the enum.
 
 ## 7. NOT VERIFIED — say so before it is built on
 
