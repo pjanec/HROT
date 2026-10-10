@@ -52,6 +52,7 @@ namespace Fdp.Toolkit.Vis3D
         private float _dt;
         private Vector2 _lastMouse;
         private bool _looking, _panning;
+        private Vector2 _followedXY = new(float.NaN, float.NaN);   // the look-at XY the ground height was last matched at
 
         // animation
         private CameraPose _from, _to;
@@ -147,7 +148,19 @@ namespace Fdp.Toolkit.Vis3D
             }
             else if (GroundHeight != null)
             {
-                LookAt = LookAt with { Z = GroundHeight(LookAt.X, LookAt.Y) };
+                // ⭐⭐⭐ CE-1044 — FOLLOW THE RELIEF ONLY WHEN THE LOOK-AT POINT MOVED SIDEWAYS (a pan, an animation), never to
+                //    re-pin its height every frame. 🔒 User, 2026-10-10: "in unity the forward key (w) always flies to where the
+                //    camera is currently looking … when i press right button and move mouse up/down the camera is not just
+                //    changing the pitch but travel up/down." 🔴 It re-pinned LookAt.Z to the ground EVERY frame, and the eye is
+                //    LookAt − Forward·Distance: a pitch change moved the look-at point's height, the pin undid it by moving the
+                //    EYE; W's vertical component was cancelled the same way. ⇒ free-look and fly-through were impossible.
+                var xy = new Vector2(LookAt.X, LookAt.Y);
+                if (_looking) _followedXY = xy;                                   // flying: the eye is the anchor, never the ground
+                else if (xy != _followedXY)
+                {
+                    LookAt = LookAt with { Z = GroundHeight(LookAt.X, LookAt.Y) };
+                    _followedXY = xy;
+                }
             }
             Sanitise();
             SyncEquivalents();
@@ -182,7 +195,13 @@ namespace Fdp.Toolkit.Vis3D
                     Pitch = Math.Clamp(Pitch - delta.Y * LookSpeed, MinPitch, MaxPitch);
                     LookAt = eye + Forward * Distance;
 
-                    float speed = MathF.Max(5f, Distance) * (input.IsKeyDown(MapKeyboardKey.LeftShift) ? 3f : 1f) * _dt;
+                    // ⭐ CE-1044 — Unity-like speeds. 🔒 User, 2026-10-10: plain WASD "around 10 times slower allowing for finer flight";
+                    //    Shift / Ctrl faster. Base = a tenth of the distance per second (min 0.5 m/s); Shift or Ctrl = 10× that (the
+                    //    old speed); both = 30×.
+                    bool shift = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
+                    bool ctrl  = input.IsKeyDown(MapKeyboardKey.LeftControl) || input.IsKeyDown(MapKeyboardKey.RightControl);
+                    float boost = shift && ctrl ? 30f : (shift || ctrl) ? 10f : 1f;
+                    float speed = MathF.Max(0.5f, Distance * 0.1f) * boost * _dt;
                     var move = Vector3.Zero;
                     if (input.IsKeyDown((MapKeyboardKey)KeyboardKey.W)) move += Forward;
                     if (input.IsKeyDown((MapKeyboardKey)KeyboardKey.S)) move -= Forward;

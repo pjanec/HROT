@@ -41,6 +41,116 @@ public sealed class Map3DTests
         return null;
     }
 
+    // ── CE-1044 — the free camera behaves like Unity's scene view ───────────────────────────────────────────────────────────
+
+    private sealed class FakeInput : Fdp.Toolkit.Vis2D.Abstractions.IInputProvider
+    {
+        public Vector2 MousePosition { get; set; }
+        public Vector2 MouseDelta => Vector2.Zero;
+        public float MouseWheelMove { get; set; }
+        public bool RightDown { get; set; }
+        public HashSet<int> Keys { get; } = new();
+        public bool IsMouseButtonPressed(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsMouseButtonDown(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => b == Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton.Right && RightDown;
+        public bool IsMouseButtonReleased(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsKeyPressed(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public bool IsKeyDown(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => Keys.Contains((int)k);
+        public bool IsKeyReleased(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public int GetKeyPressed() => 0;
+        public bool IsMouseCaptured => false;
+        public bool IsKeyboardCaptured => false;
+    }
+
+    private static MapCamera3D FlyCamera() => new()
+    {
+        ViewportOverride = new Vector2(1280, 720),
+        GroundHeight = (_, _) => 0f,                       // the relief follow is ON — that is what used to fight the free camera
+        Pose = new CameraPose(new Vector3(0, 0, 0), 100f, MapCamera3D.NorthUpYaw, -0.5f),
+    };
+
+    private static void Frame(MapCamera3D cam, FakeInput input, float dt = 0.016f)
+    {
+        cam.Update(dt);
+        cam.HandleInput(input);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ CE-1044 — right-drag LOOKS around the eye; it does not move the eye. 🔒 User, 2026-10-10: "when i press right button and
+    /// move mouse up/down the camera is not just changing the pitch but travel up/down". 🔴 The per-frame ground pin on the look-at
+    /// height moved the EYE every time a pitch change moved the look-at.
+    /// </summary>
+    [Fact]
+    public void CE1044_RightDragUpDown_ChangesThePitch_AndTheEyeStaysWhereItIs()
+    {
+        var cam = FlyCamera();
+        var input = new FakeInput { RightDown = true, MousePosition = new Vector2(600, 400) };
+        Frame(cam, input);                                  // the press frame: arms the look
+        var eye = cam.Eye;
+        float pitch = cam.Pitch;
+
+        for (int i = 1; i <= 20; i++)
+        {
+            input.MousePosition = new Vector2(600, 400 - i * 6);   // mouse UP
+            Frame(cam, input);
+        }
+
+        Assert.NotEqual(pitch, cam.Pitch, 3);               // it looked
+        Assert.True(Vector3.Distance(eye, cam.Eye) < 0.05f, $"the eye travelled {Vector3.Distance(eye, cam.Eye):F2} m while only looking");
+    }
+
+    /// <summary>⭐⭐⭐ CE-1044 — W flies along the view direction, vertical part included (Unity). Used to fly level: the ground pin ate the vertical part.</summary>
+    [Fact]
+    public void CE1044_W_FliesToWhereTheCameraIsLooking()
+    {
+        var cam = FlyCamera();
+        var input = new FakeInput { RightDown = true, MousePosition = new Vector2(600, 400) };
+        input.Keys.Add((int)Raylib_cs.KeyboardKey.W);
+        Frame(cam, input);
+        var eye = cam.Eye;
+        var forward = cam.Forward;
+
+        for (int i = 0; i < 30; i++) Frame(cam, input);
+
+        var travelled = cam.Eye - eye;
+        Assert.True(travelled.Length() > 2f, "W did not move the camera");
+        Assert.True(Vector3.Dot(Vector3.Normalize(travelled), forward) > 0.999f,
+            $"W flew {Vector3.Normalize(travelled)} but the camera looks along {forward}");
+        Assert.True(travelled.Z < -1f, "looking down, forward must descend");
+    }
+
+    /// <summary>⭐ CE-1044 — the relief follow still works for what it was for: a middle-drag pan keeps the look-at point on the ground.</summary>
+    [Fact]
+    public void CE1044_ThePan_StillKeepsTheLookAtOnTheRelief()
+    {
+        var cam = FlyCamera();
+        cam.GroundHeight = (x, _) => x * 0.1f;              // a slope
+        cam.Update(0.016f);
+        cam.LookAt += new Vector3(100, 0, 0);               // what a pan does: sideways only
+        cam.Update(0.016f);
+        Assert.Equal(10f, cam.LookAt.Z, 3);
+    }
+
+    /// <summary>⭐ CE-1044 — plain WASD is fine-grained (a tenth of the distance per second); Shift or Ctrl is 10× that; both 30×.</summary>
+    [Theory]
+    [InlineData(false, false, 10f)]
+    [InlineData(true,  false, 100f)]
+    [InlineData(false, true,  100f)]
+    [InlineData(true,  true,  300f)]
+    public void CE1044_FlySpeed_IsATenthOfTheDistancePerSecond_BoostedByShiftAndCtrl(bool shift, bool ctrl, float metresPerSecond)
+    {
+        var cam = FlyCamera();                              // distance 100 ⇒ 10 m/s plain
+        var input = new FakeInput { RightDown = true, MousePosition = new Vector2(600, 400) };
+        input.Keys.Add((int)Raylib_cs.KeyboardKey.W);
+        if (shift) input.Keys.Add((int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.LeftShift);
+        if (ctrl)  input.Keys.Add((int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.LeftControl);
+        Frame(cam, input, 0.1f);                            // the press frame
+        var eye = cam.Eye;
+
+        Frame(cam, input, 0.1f);
+
+        Assert.Equal(metresPerSecond * 0.1f, Vector3.Distance(eye, cam.Eye), 1);
+    }
+
     [Fact]
     public void S1_TheIconFallback_IsUnchangedByTheExtraction_ForEveryBuiltInType()
     {
