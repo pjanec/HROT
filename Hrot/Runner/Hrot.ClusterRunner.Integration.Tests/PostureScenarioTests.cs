@@ -586,6 +586,18 @@ public sealed class PostureScenarioTests : IDisposable
             string vel = shw.HasComponent<SimVelocity>(se) ? $"{shw.GetComponent<SimVelocity>(se).Linear.Length():F2}" : "-";
             _out.WriteLine($"   motion {name}: simT={t:F2} dt={dt:F4} real={real} asked={asked} | {veh} | {nav} | {crowd} | |vel|={vel}");
         }
+        // ⭐ CE-3159 probe — the fight-from-cover node's phase, points and stance, logged on every phase change (its unit memory mirror).
+        byte lastPhase = 255;
+        void PeekProbe(int f)
+        {
+            if (!cgf.IsAlive(rifleman)) return;
+            var m = Fdp.Toolkit.Behavior.UnitMemory.Get<Fdp.Toolkit.Combat.FiringPositionMemory>(cgf, rifleman);
+            if (m.Phase == lastPhase) return;
+            lastPhase = m.Phase;
+            string stance = cgf.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceIntent>() && cgf.HasComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(rifleman)
+                ? cgf.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(rifleman).TargetStance.ToString() : "-";
+            _out.WriteLine($"   peek f{f}: phase={(Fdp.Toolkit.Combat.PeekPhase)m.Phase} hide={m.HidePoint.X:F1},{m.HidePoint.Y:F1},{m.HidePoint.Z:F1} peek={m.PeekPoint.X:F1},{m.PeekPoint.Y:F1} until={m.PhaseUntil:F1} stance={stance} pos={Pos(rifleman).X:F1},{Pos(rifleman).Y:F1} posture={Winner()}");
+        }
         int maxLeg = -1, firstHitFrame = -1; Vector3 posAtFirstHit = default; float movedAfterHit = 0f; bool defensiveAfterHit = false;
         int firedFromCover = 0;   // ⭐ CE-3158 G-6 / CE-3157 — rounds he fires while his posture is TakeCover, after the first hit
         int lastAmmo = cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).Ammo : -1;   // ⭐ CE-3136 P-5: the spawned load, not a literal 30
@@ -617,6 +629,7 @@ public sealed class PostureScenarioTests : IDisposable
                 if (Winner() is Posture.TakeCover or Posture.Flee or Posture.HoldProne) defensiveAfterHit = true;
             }
             if (f % 150 == 0) { _out.WriteLine($"f{f}: {State()}"); Motion(f, "Rifleman"); Motion(f, "Hostile 1"); }
+            PeekProbe(f);
             if (Hp(rifleman) <= 0f) { _out.WriteLine($"f{f}: RIFLEMAN DOWN — {State()}"); break; }
             if (Leg() >= 1 && Vector3.Distance(Pos(rifleman), final) <= 3.5f) { _out.WriteLine($"f{f}: FINAL OBJECTIVE — {State()}"); break; }
         }
