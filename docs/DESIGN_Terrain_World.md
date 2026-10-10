@@ -4,9 +4,12 @@ build-state: BUILT (slice 1, 2026-10-03; open: CE-3010, CE-3027 hull clearance; 
 updated: 2026-10-08
 current-answer: §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §6a the allocation contract (R-220), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
 stale-below: nothing quotable — §7's HISTORY row block records the first-draft leans the user overturned.
-known-rot: nothing yet. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (rebase, not resize — §4.4, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
+known-rot: the single GroundZ (§2 `hrot.groundZ`, §3 `TerrainWorld.GroundZ`) is a TEMPORARY simplification (R-248, 2026-10-10) — see DESIGN_Terrain_Height.md. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (rebase, not resize — §4.4, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
 known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. RESOLVED 2026-10-03: Cluster_Load_Phase §4.1a and Node_Roles §3.2 updated for the universal world part; INavmeshProvider is Z-up in code (CE-3011) and Navigation_Design_v2_0.md carries a Z-up supersession note.
 related-designs:
+  - DESIGN_Terrain_Height.md — plans the removal of the flat ground (R-248): an optional ESRI ASCII height grid
+    (Q81 T2), GroundHeightAt(x, y) behind this file's 9 GroundZ reads, the mesher sampling it, one ground trace for
+    sight and fire. It extends this model; it owns nothing else here.
   - designs/navig-2/Navigation_Design_v2_0.md §5.2a — CE-3128 (R-231): the road GRAPH (`roadNetworks`) is the road; D8 retires this file's `surface: road` polygons
   - designs/navig-2/Navigation_Design_v2_0.md §14 — OWNS runtime navmesh change (R-218): the W6 bake becomes one immutable snapshot (P1), tiled with CE-1029 (P2, built 2026-10-08: 24 m tiles, 0.15 m infantry cells over buildings, a per-node tile cache — "P2 as built"); §15 points to §6a here for the path queries' allocation contract (R-220)
   - DESIGN_Building_Interiors.md — the enterable-building v2 that §6 L459 deferred (wall panels with openings, storeys as slabs, doors as entities, transmittance trace); CE-1031

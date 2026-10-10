@@ -25,6 +25,7 @@ related-designs:
   - UX/UX_Feature_Selection.md — owns UXI-11; picks in 3-D reach the one store through the unchanged input chain.
   - designs/gizmos-1/DESIGN.md — owns the primitive stream and §10 context menus; both are reused unchanged in 3-D.
   - DESIGN_Building_Interiors.md — owns wall panels, openings, materials; the 3-D terrain colours by its materials.
+  - DESIGN_Terrain_Height.md — supplies the ground height behind §3.10's two seams (the mesh, level 0).
   - designs/tkb-1/DESIGN.md — owns §6.6a, the [PerInstanceValue] rule (a TKB default that the per-spawn value beats)
     that affiliation follows and the entity colour copies (§3.7).
   - designs/promote-to-3d/3D_Cognitive_Spatial_Awareness_Promotion_Design_v1_1.md — owns Tier 2, the generators that
@@ -610,8 +611,8 @@ graph TD
 flat bed changes what is behind the dashed edges; nothing on the map side changes. ⭐ **Proven before the flat bed goes**:
 S1/S2 run on a small sloped test terrain, so the map is never built against the simplification.
 
-⚠ Supplying terrain height (file format, mesher, navmesh, sensors, ballistics) belongs to `DESIGN_Terrain_World.md`, not
-to this file.
+⚠ Supplying terrain height (file format, mesher, navmesh, sensors, ballistics) is planned in
+[`DESIGN_Terrain_Height.md`](DESIGN_Terrain_Height.md), extending `DESIGN_Terrain_World.md` — not in this file.
 
 ---
 
