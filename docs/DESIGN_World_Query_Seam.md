@@ -273,6 +273,32 @@ dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj -c Release
 ```
 The `[Q0_…]` lines carry every number above. ⚠ Debug numbers understate both paths; the ratios are the point.
 
+## 5b. Q1 — as built `2026-10-10`
+
+**Moved onto `IWorldQuery`** (all SimHost-side — the stand-in engine's physics and its sensors; ⭐ the brain touches no terrain:
+`search_code` over `Hrot.CGF` + `Hrot.AI.Behaviors` for the terrain class, the seam and the trace calls = 0 files):
+
+| consumer | what it asks now |
+|---|---|
+| `AimPoint` (aiming at the seen part of a body) | `SightBlocked`, and `TerrainPenetration` for shoot-through |
+| `TerrainPenetration` (a round through walls) | `Trace(Fire)`; the doors parameter is gone — the query is bound to the view's doors |
+| `AreaEffect` + `AreaEffectSystem` exposure (fragments, blast barriers, diffraction shadow) | `Trace(Fire)`; "closed barrier" read from `TraceCrossing.ClosedBarrier` (R-252) |
+| `BallisticsSystem`, `ShotLog`, `HitResolutionSystem`, `FireProcessingSystem` | `WorldQuery.Of(view)`; the ground burst asks `GroundHeightAt` at the round's end |
+| EQS `TerrainLosService` (now the sight **policy**), `EqsTerrainSight.TryPlace`, `PointPatternGenerators` | `SightBlocked`, `TryStandAt` |
+
+**Still on the stand-in, named:** `AreaEffectSystem.BreachDoors` (it walks the terrain's door list — doors become entities on the
+seam later); the vehicle boxes' material table in `EqsTerrainSight.Sight` (WQ-F, Q5); `TerrainCoverProvider` (it IS the stand-in's
+`ICoverProvider`, built from the terrain's geometry); the eye/aim height helpers on `TerrainWorldLosStrategy` (perception, Q2).
+
+**Gates** (T-1: the features' own suites):
+
+| suite | result |
+|---|---|
+| `Fdp.Toolkits.Tests` — terrain, combat, EQS, ballistics, area effect, hit resolution, fire processing (+ 3 new `TerrainWorldQueryTests`: identity on 4 000 lines with doors, standing/heights, no allocation) | **411 / 411** |
+| `Hrot.SimHost.Tests` — combat, EQS, terrain, HillAttack, translators | **125 / 125** |
+| `Hrot.ClusterRunner.Integration.Tests` — EQS (single process) | **91 / 91** |
+| `Hrot.ClusterRunner.Integration.Tests` — `EqsDistributedTests` (multi-node) | 24 / 25 — ⚠ `DangerAlongRoute_AcrossHosts` fails (`Expected 1, Actual 0` danger areas). **Pre-existing**: fails identically at `949ce4bae` (before Q1) and `93cbad143` (before Q0, no code of this programme). It exercises the squad danger-area code, which Q1 does not touch. Filed as `CE-1036` |
+
 ## 6. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |
