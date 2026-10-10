@@ -8,6 +8,7 @@ known-rot: none
 known-conflict: DESIGN_Decision_Layer.md §3.3c/§3.3d (HSM and blueprint posture parity) — ⛔ OVERTURNED for the library by R-255
   (§5): the three posture hosts were a proof; that doc's parity requirement still has to be marked superseded there.
 related-designs:
+  - DESIGN_Peek_And_Fire.md §10 — OWNS the generalisation design that answers §3 (G1–G8)
   - OVERVIEW_Behaviour_Building_Blocks.md — OWNS the map of what exists; this review OWNS the verdict on which of it is generic.
   - TUTORIAL_Behaviour_Composition.md — OWNS the five roles and the composition patterns (P1–P6) the library is built from.
   - DESIGN_Peek_And_Fire.md — OWNS PeekAndFire (R-234, R-238); §3 here audits its genericity.

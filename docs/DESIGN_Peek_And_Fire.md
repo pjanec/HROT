@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-09
+updated: 2026-10-10 (§10 generalisation design — G1–G8 awaiting the user)
 build-state: P-1–P-7 and P-7a (O1–O5) BUILT 2026-10-09 (§7, §9.7); P-8 (the duel scenario) next; READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
-current-answer: §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles (O1–O5 APPROVED and BUILT; §7 P-7a row + §9.7 are the as-built) · §9.8 cover and the AI's verdict on the map (CE-3143) · §3 classes · §4 sequences · §5 modules · §7 slices
+current-answer: ⭐ §10 GENERALISATION (R-254 L2: the library's fight-from-cover node, squad-aware) — DESIGN, G1–G8 awaiting the user · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles
 stale-below: nothing
 known-rot: none yet
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
 related-designs:
+  - REVIEW_Behaviour_Library_Genericity.md — OWNS the genericity verdict; its §3 audit is what §10 answers (R-254 L2, R-255)
+  - designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — OWNS the squad (roster, roles, PhaseSequencer, fire allocation); §10 READS its assignment and leaves turn-taking to it (G6)
   - REVIEW_Behaviour_Library_Genericity.md — §3 audits PeekAndFire's genericity (duel-tuned core; five changes before it joins the library).
   - DESIGN_Eqs_Consuming_Behaviours.md — OWNS the tactics nodes (TakeCover, FiringPosition, Flank — EqsTacticsNodes.Run) PeekAndFire sits beside; its §9 F1/G3 "move, then fire / cover stops firing" is what this adds to
   - DESIGN_Building_Interiors.md — OWNS the window firing positions (§3l, CE-3134), the shot line (§3d P2) and the body profiles (§3f) D1/D2 change
@@ -550,3 +552,186 @@ Rails: `EqsVisualizersTests` (IG) — `EqsSensorGizmo_DrawsTheFiltersVerdict_For
 and its threat: 2 green behind it, 4 red), T-VIS1 re-pinned (keyed on the sensor alone); `CoverPointsGizmoTests.CE3143_TheCoverLayer_ShowsTheLivePointsBesideAStandingVehicle`
 (6 dots for a car, none when it drives); `DebugTraceGizmoTests.CE3143_APartFollowsItsUnit_UnderSelectedOrPinned_AndEqsDefaultsToIt`;
 `StaticObstacleTests.P7a_R11` (6 points round a car).
+
+## 10. Generalisation — the library's "fight from cover" node *(R-254 L2 · DESIGN, `2026-10-10`, G1–G8 awaiting the user)*
+
+> 🔒 **User, `2026-10-10`:** *"the peek-and-fire was written as part of the duel scenario … might not be generic enough"* ·
+> *"we aim to having behaviors that are largely generic, usable in any military combat scenario"* · *"that squad-aware
+> perspective is extremely important because we will need to model the squad and its behavior soon (single soldier is not
+> realistic). For sure write the design please."*
+
+⭐ **What this section does:** keeps the §8 machine (hide → expose → fire → recover, heat, stay down under fire) and fixes
+the five places it is the duel's, so it can become CombatPosture's TakeCover child (`CE-3157`) and the per-member action of a
+squad. ⛔ **No new node** — R-254: one implementation per concept. Audit: [`REVIEW_Behaviour_Library_Genericity.md`](REVIEW_Behaviour_Library_Genericity.md) §3.
+
+### 10.1 INVENTORY *(`2026-10-10`, graph re-indexed after the merge + three read-only sweeps)*
+
+| query | total | what it settles |
+|---|---|---|
+| `search_graph label=Class file_pattern=*Hrot.AI.Behaviors/Brains/*` | 88 | PeekAndFire is one of four cover paths; bound only by `WindowDuelBehavior.cs:59` (JSON bindings are invisible to the graph — confirmed by grep) |
+| `search_graph name_pattern=.*(Squad\|SlotRotation\|FiringPositionMemory\|LineOfFire\|Reserv\|Claim\|ThreatMatrix\|LeaderAssign).* label=Class` | 49 | the squad layer EXISTS: `SquadCognitiveState` (commander, 1024 B: roles, slots, `Assignment[16]`, contacts), `SquadCoordinationSystem` → `ThreatMatrixAssignmentSystem` (built, U6 ×3), `SlotRotation` (index masks), `UnitRoster`/`UnitSubordinate` membership. ⛔ **no claim/reservation of world points among units** |
+
+| fact the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the peek mode keys on the template id | ✅ `PeekAndFireNodes.cs:245-246` | §6 D7 "a window point ⇒ stance, any other ⇒ step" — the intent was the POINT, the code keyed the query |
+| cover points already know what they are | ✅ `CoverPoint.Kind` (`CoverKind.Cover` / `WindowFiring`), `StanceHeight` = the stance it hides | `DESIGN_Building_Interiors.md` §3l C4 |
+| the result has room to carry the kind | ✅ `EqsResult` = 29 B used of 32 (`EqsComponents.cs:18`) | §6 D5 precedent: stance in a padding byte, *"extending wire is no issue"* |
+| no cover ⇒ silent forever | ✅ `:237` Running, no fire, no Failure | ⛔ searched, no design says what should happen |
+| bursts obey ROE, not the friendly line | ✅ `FireAtPointExecutor.cs:61` ROE; no friendly check | `BS-1-DESIGN.md` §5.1a: the friendly guard was written for aimed fire only |
+| the friendly check is entity-to-entity, 2-D, whole force | ✅ `LineOfFire.cs:18-44` | `CE-321` |
+| indirect fire is known per warhead | ✅ `WarheadDto.Indirect` (`Tkb/Domain/WarheadDto.cs:77`) | R-217 |
+| the fire step re-ranks its own target | ✅ `PostureNodes.cs:301` `TopThreat(.., ws.Threat ..)` with `ws.Fire = default` (`PeekAndFireNodes.cs:350`) | R-174: ONE aimed step |
+| target distribution exists, reaches the node as a bias only | ✅ `ThreatRankingDecision` considers `IsAssignedTarget` (0.9, threshold); `StandardInputs.cs:317` | Utility demo §11 (U6), Squad design §1 "fire allocation — Done" |
+| a unit memory cannot be read by a squad-mate | ✅ `FiringPositionMemory` mirror `HidePoint` is per unit | 🔒 AQ87 G (R-237): *"Self only"*; §4 routes data other readers need to an **ECS component** |
+| the seed is symmetric | ✅ `SimRng.cs:57` `entityIndex ^ salt ^ (int)simTime` | AQ8 Q-C / AQ78 C3: one sim-derived generator |
+| the squad's turn-taking is built, not driven | ✅ `PhaseSequencer`, `RoleSlotAssignmentPrimitive` exist; no member-tier caller | `DESIGN_Squad_Wiring.md` §5 D2/D3, `CE-507` |
+
+### 10.2 Classes
+
+```mermaid
+classDiagram
+  class PeekAndFireNodes {
+    <<existing, grows>>
+    PeekAndFire(params, state)
+    +Failure when no cover / no exposure
+  }
+  class PeekAndFireParams {
+    <<existing, grows>>
+    +PeekStanceOverride
+    +NoCoverSeconds
+    +Disable flags
+  }
+  class CoverClaim {
+    <<NEW ECS component, per unit>>
+    Vector3 Point
+    double Until
+  }
+  class EqsResult {
+    <<existing, grows>>
+    +Kind (padding byte, kind+1)
+  }
+  class CoverPointsGenerator { <<existing, grows>> writes Kind }
+  class PostureNodes {
+    <<existing, grows>>
+    Fire(world, self, ws, cooldown, rounds)
+    +Fire(..., Entity target)
+  }
+  class LineOfFire {
+    <<existing, grows>>
+    BlockedByFriendly(shooter, Entity)
+    +BlockedByFriendly(shooter, Vector3 point)
+  }
+  class FireAtPointExecutor { <<existing, grows>> friendly line unless Indirect }
+  class SquadCognitiveState { <<existing>> Assignment[16] target per member }
+  class UnitSubordinate { <<existing>> Commander }
+  class FiringPositionMemory { <<existing, unit memory>> heat · HidePoint mirror }
+  class SimRng { <<existing, fixed>> FromSim mixes, not XOR }
+  class CgfNodes { <<existing>> FireAtTarget routed onto Fire(target) - L5 }
+  PeekAndFireNodes ..> CoverClaim : writes own · reads others
+  PeekAndFireNodes ..> EqsResult : Kind + Stance pick the peek
+  PeekAndFireNodes ..> PostureNodes : Fire(target)
+  PeekAndFireNodes ..> SquadCognitiveState : assigned target via UnitSubordinate
+  PeekAndFireNodes ..> FiringPositionMemory
+  PeekAndFireNodes ..> SimRng
+  FireAtPointExecutor ..> LineOfFire
+  CgfNodes ..> PostureNodes
+  CoverPointsGenerator ..> EqsResult
+```
+
+*What the picture shows that prose hid: ONE new type (`CoverClaim`, an ECS component, because AQ87 forbids reading a
+squad-mate's unit memory); everything else is an existing box growing a member. The squad layer is READ (assignment), never
+written — the node works for a lone soldier and for a squad member alike.*
+
+### 10.3 Sequences
+
+**(a) Two squad-mates under fire pick cover — no double-booking, one target each**
+
+```mermaid
+sequenceDiagram
+  participant A as Rifleman A — PeekAndFire
+  participant B as Rifleman B — PeekAndFire
+  participant C as CoverClaim (ECS)
+  participant S as SquadCognitiveState.Assignment
+  participant Q as cover sensor (EQS answer span)
+  A->>Q: best points (score - heat)
+  A->>C: candidates within ClaimRadius of another unit's claim are skipped
+  A->>C: write own claim (Point P1, Until)
+  B->>Q: same answer span (same query, same threat)
+  B->>C: P1 claimed by A - skipped
+  B->>C: write own claim (P2)
+  A->>S: my assigned target? (T1)
+  B->>S: my assigned target? (T2)
+  Note over A,B: each locks ITS target for the exposure, a lone soldier (no commander) uses TopThreat
+  A->>A: expose at the point's stance+1, Fire(T1)
+  B->>B: expose a moment later (seed no longer symmetric)
+```
+
+**(b) Nothing works — the node says so, the posture decides**
+
+```mermaid
+sequenceDiagram
+  participant P as CombatPosture (option TakeCover)
+  participant N as PeekAndFire
+  participant M as FiringPositionMemory
+  N->>N: no answer for NoCoverSeconds
+  N-->>P: Failure (no cover)
+  P->>P: re-score - e.g. HoldProne (fires) or FallBack
+  N->>M: a point the move could not reach is BURNED (never re-picked)
+  N->>N: every point burned - fire from where it stands (aimed), never silent
+```
+
+*What the pictures show that prose hid: the de-confliction is a READ of other units' claims at pick time — no lock, no
+negotiation, no commander needed — and the node's only new outcome towards its caller is an honest `Failure`.*
+
+### 10.4 Modules — who runs what each frame
+
+```mermaid
+graph TD
+  subgraph CGF[CGF brain node]
+    BT["BrainTick: CombatPosture BTree (C#, R-255)"] --> PF[PeekAndFire node]
+    PF -->|write own / read all| CC[CoverClaim components]
+    SCS[SquadCoordinationSystem ~10 Hz] --> TMA[ThreatMatrixAssignmentSystem] --> AS[SquadCognitiveState.Assignment]
+    AS -->|read: my target| PF
+    PF --> WC[WeaponChannel]
+    WC --> AF[AimAndFireExecutor: sight · aim · friendly line]
+    WC --> FAP[FireAtPointExecutor: ROE · friendly line unless Indirect]
+    SEQ[PhaseSequencer / RoleSlotAssignment]:::dead -.->|not driven: CE-507| PF
+  end
+  subgraph SH[SimHost]
+    EQ[EqsModule: CoverPoints + LOS + ThreatExposure] --> RES["EqsResult (Stance, Kind)"]
+  end
+  RES -- DDS --> PF
+  classDef dead stroke:#c00,stroke-dasharray: 5 5,color:#c00
+```
+
+*Caption: the claims are BRAIN-local (all members of one squad are on the same CGF node, as the squad state already assumes —
+Squad design §2 "All Brain-resident"); the red dashed edge is the squad's turn-taking, built but driven by nothing until
+`CE-507` — §10.5 G6 defines the seam it will use, nothing here depends on it.*
+
+### 10.5 Decisions — G1–G8, each with a recommended answer
+
+| # | decision | ⭐ recommended | rejected (one line each) |
+|---|---|---|---|
+| **G1** | how the unit exposes | ⭐ from the POINT: `EqsResult.Kind` (new padding byte) — `WindowFiring` ⇒ stance peek at the point's stance; `Cover` ⇒ hide at its `StanceHeight`, peek **one stance taller**; already standing, or no stance system (`StanceRequest.Set` false) ⇒ **step peek**; no peek point ⇒ the next hide point. `PeekStanceOverride` for "crouch behind a low wall, stand to fire" | keying on the template id (today) — a window found by another query peeks wrong · a lookup of the cover point by position — a second source of truth for what the result already carries |
+| **G2** | when it cannot work | ⭐ **`Failure` after `NoCoverSeconds` (default 3 s) with no usable point**, so the posture re-scores; an unreachable point is **burned** in `FiringPositionMemory`; all points burned ⇒ **aimed fire from where it stands**, never silent | Running forever (today) — the posture cannot pick anything else · blind fire when stuck — fire without sight from a known-bad spot |
+| **G3** | fire safety of bursts | ⭐ `FireAtPointExecutor` checks the friendly line for **direct** fire (new `LineOfFire.BlockedByFriendly(shooter, Vector3 point)`, the SAME helper); **indirect warheads exempt** (`WarheadDto.Indirect`); bursts use `MountAuto` like aimed fire. ROE in the node: **HoldFire ⇒ never expose** (hide-only, = today's TakeCover); **ReturnFire ⇒ expose only inside the return-fire window**, skipping the random hide wait after being fired upon | a check in the node only — every other `FireAtPoint` caller stays unsafe · a 3-D line test — the aimed check is 2-D; one shape for both (a 3-D test is a later, shared change) |
+| **G4** | several enemies | ⭐ **one target LOCKED per exposure**: the squad's assigned target (`UnitSubordinate.Commander` → `SquadCognitiveState.Assignment`) when the unit has one, else `TopThreat`; passed to the new **`PostureNodes.Fire(..., target)`** (the same overload L5 needs); a heard shot re-aims only if within `HeardMatchRadius` of that target; cover still scored against ALL threats (`ThreatExposureTest`) and a shot from a new bearing heats the spot (B2) ⇒ relocation | re-ranking inside the fire step (today) — sight checked on one enemy, shot fired at another · heat per bearing — grows a recorded struct for what B2 already achieves |
+| **G5** | squad-mates on one point | ⭐ **`CoverClaim` — a per-unit ECS component** `{ Point, Until }` written by the node when it commits to a hide or peek point; the pick skips candidates within `ClaimRadius` (1.5 m) of **another unit's live claim of the same force**; ties broken by the lower network id (the other re-picks next tick). Works with or without a squad | penalise a friend's `HidePoint` in its unit memory — 🔒 AQ87 G forbids reading another unit's memory · a claim table in `SquadCognitiveState` — only squads would be safe, and members would write the commander's state · an EQS test — claims live on the brain, the query on SimHost |
+| **G6** | squad turn-taking (who exposes when) | ⭐ **a seam, not built now**: an optional `MayExpose` gate the node reads (default open); the squad's `PhaseSequencer` / role (BaseOfFire exposes, Assault moves) closes it when `CE-507` drives the squad. Until then **de-sync only** (G7's seed) | building turn-taking in the node — duplicates primitive 4 (Squad design §2) · waiting for CE-507 before anything — the single-unit fixes do not need it |
+| **G7** | randomness | ⭐ fix **`SimRng.FromSim`** itself: mix (splitmix) instead of XOR, so (unit 5, t 6) and (unit 6, t 5) differ and whole seconds stop repeating; ⚠ re-pins `PlatoonBaselineRails` / `DeterminismRails` | a private seed in the node — a second generator (AQ78 C3: one) |
+| **G8** | scope, defaults, "off" | ⭐ scope **infantry** (needs `StanceIntent`, else step-only; a unit with neither stance nor a step point ⇒ `Failure`); the §8.4 numbers become the **generic rifleman** defaults (search 15 m stays, town-scale; `ExposeSeconds` ≥ 2 × the weapon's aim time); a **`Disable` flags byte** (no blind fire, no heat penalty, no suppress-and-bound) so "off" is expressible — numbers keep `0 = default` | vehicles in this node — hull-down is its own manoeuvre (`HillCrestHullDownManeuver`) · `NaN` as "unset" — unreadable in the editor |
+
+### 10.6 Slices *(each red-proved, each green before the next)*
+
+| slice | builds | rails (in `PeekAndFireNodesTests` — the feature's suite, T-1) |
+|---|---|---|
+| G-1 | G1 + G8 scope: `EqsResult.Kind` + generator; mode from the point; peek one stance taller; step fallback | cover point ⇒ crouch-hide / stand-peek · window ⇒ unchanged duel (R1) · no stance ⇒ step peek |
+| G-2 | G2 failure contract + unreachable burn + fire-from-here | no cover ⇒ `Failure` within 3 s · unreachable twice ⇒ never re-picked · all burned ⇒ aimed fire, not silent |
+| G-3 | G3: `LineOfFire` point overload; `FireAtPointExecutor` direct-fire check, indirect exempt; `MountAuto`; ROE in the node | a friend on the burst line ⇒ no round · mortar over a friend ⇒ fires · HoldFire ⇒ never exposes · ReturnFire ⇒ exposes inside the window |
+| G-4 | G4 + L5: `PostureNodes.Fire(..., target)`; target lock; heard-match radius; `FireAtTarget` routed | two enemies ⇒ sight check and shot on the same one · assigned target honoured |
+| G-5 | G5 `CoverClaim` + G7 seed | two riflemen, one good point ⇒ two different points · claims expire · `SimRng` asymmetric (+ baselines re-pinned, diff-shape reported) |
+| G-6 | bind to CombatPosture's TakeCover (`CE-3157`) in the C# library tree (R-255) | `ua-universal-soldier`: fires again from cover; dies later or wins — measured, then asserted |
+
+⚠ **Blast radius:** `EqsResult` + its wire entry (one byte, D5 precedent) · `FireAtPointExecutor` (also `bt-grenade-posture`,
+`bt-mortar-roof` — indirect, exempt by G3) · `PostureNodes.Fire` callers (`Engage`, `FireOnTheMove`) · `SimRng` users (wander,
+slot picks — baselines re-pinned) · the duel scenario keeps its behaviour through its parameters (rail P8 stays the regression).
