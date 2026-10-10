@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — approach chosen by the user (U13: alternative B, a 2-D/3-D switch on the existing map); the
-  leans in §5 await approval before S1. Nothing built.
-updated: 2026-10-10 (rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
+build-state: READY-TO-BUILD for S1 — the user APPROVED the leans M1–M16 (U21, 2026-10-10); §3.8's picking rules (M17–M20)
+  are new and await a nod. Nothing built.
+updated: 2026-10-10 (rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
@@ -52,6 +52,7 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 | **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) … with imgui on top for menus?"* | measured in `DESIGN_Godot_3D_Viewer.md` §8 — lean B |
 | **U13** | *"The internal 3d solution could be switchable 2d/3d instead of current 2d only map so no new 3d window would be required. I think we should focus on B … Lets put godot aside (but keep its design as deferred). We need the simple renderer to handle the terrain geometry, use lighting color shaded polygons to give it some usable feeling of a real world, if not some freely available texture pack."* | ⭐ this file: a **mode of the map**, not a window; **lit, colour-shaded terrain**; textures as a later slice |
 | **U15** | *"Every host having the 2d map will get simple 3d, correct? Not just IG. … The current 2d map can be switched to 3d view and back (some camera animation between 2d camera and 3d camera or something)."* | ✅ yes, all five map hosts (S6). ⭐ M12: the switch is an animated camera move, not a cut |
+| **U21** | *"Approved. The 3d entities need to support hit tests so clicking entity (some invisible simple oriented box collider on it) can select it - the same raycast machinery as for simulation can be reused maybe … 3d stays mostly rendering only. I think card should remain unclickable. The map tools like measurement and placement tool and area authoring tool should be made 3d aware so same tool can be used in both environments. So gizmo based handle points and hit testing them etc should still be supported just in 3d, rendered in a way clickable and draggable in 3d (draggable to new location using raycast from camera to the terrain...)"* | ✅ M1–M16 approved; ⭐ §3.8 + M17–M20 |
 | **U20** | *"unify the 2d text gizmos and the card gizmos so we use same mechanism for both 2d and 3d. The card concept might work well in 2d as well as 3d, being a small canvas for gizmos. The card would not need any special header, if a gizmo uses card anchor, card will be created if not existing yet … what to allow to be anchored, how to achieve the desired health bar, entity name and card frame colored by affiliation … Still supporting the loose text gizmos for special purposes"* | ⭐ §3.6 rewritten: card = canvas, implicit creation, rows by `ZIndex`, row 0 card-wide, `%` of the card; frame / bar / name are ordinary gizmos; no new shapes (M14) |
 | **U19** | *"The entity 3d mode color needs to be somehow settable (from scenario - special component) with tkb default color. Entity needs to support some label rectangle on top of it, with thin line down to entity model, showing health bar on top of entity name and lines for extra colored text info, all together framed in a rectangle with line colored according entity side … switchable on/off (layer for labels) … maybe the label area is just another mode of anchoring the 2d gizmo graphics?"* | ⭐ §3.6 card = a new anchoring mode (M14); §3.7 colour = a published descriptor under R-136 (M15) |
 | **U18** | *"Vehicles and aircraft should be also composed of multiple pieces to resemble what they are in real world, still cheap."* | ⭐ M7 rewritten: **shape kits** (§3.5), chosen by one visual-family classifier the icons already use |
@@ -158,12 +159,17 @@ classDiagram
   class TerrainWorldMesh { <<exists>> +optional per-triangle tag }
   class LitShader { <<new>> GLSL directional light + fog }
   class LabelOverlay3D { <<new>> project, LOD, cull }
+  class Picker3D { <<new>> handles, entity boxes, terrain mesh, ground }
+  class PickResult { <<new>> point XYZ, kind, netId, level }
   class EntityCardFrameGizmo { <<new>> row 0 frame, side colour }
   class CardBuilder { <<new>> draw.Card(e).Row(n) sugar }
   class EntityCardRenderer { <<new>> one card, 2-D and 3-D }
   class EntityAppearance { <<new>> published colour, R-136 4.1 }
   class GizmoTextDraw { <<extracted>> from DebugPrimitiveRenderer2D }
   MapCamera <|-- MapCamera3D
+  MapCamera3D --> Picker3D
+  Picker3D ..> TerrainWorldMesh : the drawn mesh
+  Picker3D ..> PickResult
   MapCanvas --> MapCamera
   MapCanvas --> IMapLayer
   IMapLayer <|.. DebugGizmoLayer
@@ -410,7 +416,6 @@ per call — card when it describes *the entity*, loose when it marks *a place* 
 
 #### Later, cheap options
 
-- **click the card** = click the entity (its screen rect is a pick region for its network id) — select / context menu.
 - **declutter** overlapping cards; hide cards below a zoom (2-D) or beyond a distance (3-D) — card-level LOD on top of each row's own.
 
 ### 3.7 Entity colour — a scenario-settable value with a TKB default *(U19)*
@@ -435,6 +440,68 @@ an error (§3 ②). ⇒ ⭐ **the user's "special component" is exactly what the
 
 ⚠ **This would be the FIRST implementation of §4.1's override shape** — a precedent, and NED work in the backend lane's
 area. ⛔ Not decided silently: §5 M15 asks.
+
+### 3.8 Picking, handles and tools in 3-D — the same tools, the same handles *(U21)*
+
+⭐ **Goal (U21):** click an entity to select it (an invisible oriented box, no new raycast engine); measurement, placement
+and area-authoring tools work in both modes; gizmo handles are clickable and draggable in 3-D, dragged along the
+terrain; **cards are not clickable**; the 3-D map stays mostly rendering.
+
+📐 **What was measured `2026-10-10`, and what it decided**
+
+| question | measured | ⇒ |
+|---|---|---|
+| reuse the simulation's raycasts for picking? | ⛔ `RaycastSolverSystem` is **asynchronous** — a `RaycastRequestEvent` now, its `RaycastResultEvent` on a later tick (`RaycastSolverSystem.cs:13-21`) — and runs in the sim schedule, which is often **paused** while authoring; its entity collider is a **2-D circle + height** (`PhysicsCollider`, `PhysicsComponents.cs`) | ⛔ not for clicks: a click needs its answer in the same frame, paused or not |
+| …the terrain's own segment query? | `TerrainWorld.QuerySight` is synchronous and knows walls, panels, doors, slabs, ramps — ⚠ but for a prism it reports where the ray's **footprint** enters it (`t0 * length`, `TerrainWorld.cs:400-405`), not where it meets a roof from above, and its own doc calls it a **diagnostic** that allocates (R-220) | ⛔ not for the hit POINT; ✅ the sim's `SurfacesAt` / `ResolveLevel` (`:241,283`) say **which floor** a point is on |
+| what geometry to hit? | the terrain we draw **is** `TerrainWorldMesh` — the same soup the navmesh is baked from (`TerrainWorldMesh.cs:31`) | ⭐ ray vs **that mesh** (Raylib `GetRayCollisionMesh`) — exact, allocation-free, the simulation's own geometry |
+| where does height get lost today? | five sites build the 3-D event position with `z = 0`: `DebugGizmoLayer.cs:122`, `GizmoInteractionProxyTool.cs:42,61,75`, `EntityPlacementGizmo.cs:236` — while the interaction API is **already 3-D** (`IGizmoInteractionHandler.OnDragUpdate(Vector3)`, `GizmoDragUpdateEvent.WorldPos`) | ⭐ feed those five from the pick, and every handle and tool gets real height for free |
+
+#### The pick — one function in `MapCamera3D`, nearest hit wins
+
+```mermaid
+sequenceDiagram
+  participant C as MapCanvas
+  participant K as MapCamera3D
+  participant P as Picker3D
+  participant TW as TerrainWorld (sim)
+  C->>K: ScreenToWorld(mouse)
+  K->>P: ray from the camera
+  P->>P: 1 handles with real height - small spheres (GetRayCollisionSphere)
+  P->>P: 2 entities - an oriented box per entity, from its shape kit's bounds
+  P->>P: 3 terrain - the drawn TerrainWorldMesh (GetRayCollisionMesh)
+  P->>P: 4 else the ground plane
+  P->>TW: SurfacesAt(hit x, y) - which floor or roof, for placement
+  P-->>K: PickResult(point XYZ, kind, netId?, level?)
+  K-->>C: world XY - the layers hit-test exactly as in 2-D
+  C->>C: LastPick = the PickResult - the five z = 0 sites read its Z
+```
+
+*What it shows:* the layers still receive world X/Y and run their **2-D hit tests unchanged**. ⭐ An entity hit returns the
+entity's own ground position, so its existing 2-D pick box contains it; ⭐ a handle or pick box lying on the ground is found
+because the ray lands on the ground exactly under it. Only height is new, and it reaches the gizmos through one value.
+
+#### The rules
+
+| # | rule | why |
+|---|---|---|
+| **P1** | ⭐ **entity hit volume = an invisible oriented box from the entity's shape-kit bounds** (TKB length / width / height, the entity's heading) — not the sim's collider | the box is **what the user sees**; the sim collider is a bounding circle (a 10 m tank gets a ~5 m radius, so clicking empty ground beside it would select it) and not every entity has one |
+| **P2** | ⭐ **while dragging, the ray hits terrain and ground only** — not entities, not the handle being dragged | a handle follows the terrain under the cursor; `MapCanvas` asks `Camera.ScreenToWorldForDrag` when it routes a drag (2-D: same as `ScreenToWorld`) |
+| **P3** | ⭐ **the dragged point takes the terrain's height** at the cursor; on a building, the roof or floor the ray hit | real `Z` in `GizmoDragUpdateEvent.WorldPos` |
+| **P4** | ⭐ **2-D-authored shapes are draped**: a world-space shape whose points all have `z = 0` (a pick box, an area, a measurement line, a route) is drawn at `SurfaceZ(x, y, zHint = 0)` + a few cm; a shape with real height is drawn as given | handles, areas and lines show on the ground in 3-D without touching their gizmos; `zHint = 0` keeps a ground-floor shape on the ground floor, not on the roof above |
+| **P5** | ⭐ **cards are not pickable** — renderer only | U21 |
+| **P6** | ⭐ hover runs the same pick every frame; clicks reuse it | one code path |
+
+#### The three tools — what changes
+
+| tool | in 3-D | code change |
+|---|---|---|
+| **measurement** | endpoints are pick points with real height; the line drawn in 3-D between them; distance as today (a slant distance can be shown too) | none beyond the five `z = 0` sites |
+| **area authoring** | points picked on the terrain; the polygon draped (P4) | none |
+| **placement** | a translucent **shape-kit ghost** at the pick point instead of the 2-D ghost; ⭐ clicking a **roof or upper floor** chooses that level, through the sim's `SurfacesAt` / `ResolveLevel` and the existing `SpawnHeight` request (CE-1017 S2) | the ghost's 3-D draw; the level from `PickResult.Level` |
+
+⭐ **Gizmo handles generally** — any `IStatefulGizmo` with pick boxes keeps working: its pick boxes and handles drape onto
+the ground (P4), clicking lands under them (the pick), dragging follows the terrain (P2/P3), and `OnDragUpdate` now
+receives real height. ⛔ No gizmo is rewritten.
 
 ---
 
@@ -480,6 +547,10 @@ area. ⛔ Not decided silently: §5 M15 asks.
 | **M14** | the entity card (U19, U20) | ⭐ **a small canvas per entity**: a 4th anchoring mode `CoordinateSpace.EntityCard`; the card **exists iff a visible primitive targets it**; rows by `ZIndex`, row 0 card-wide; card-local pixels, `ScreenPercent` = % of the card; frame, health bar and name are **ordinary gizmos** (`EntityCardFrameGizmo`, re-targeted `HealthBarGizmo`, `EntityNameGizmo`); one `EntityCardRenderer` for 2-D and 3-D asking the camera for the screen point; **no new primitive kind**; loose text unchanged (§3.6) | dedicated `CardHeader` / `CardBar` shapes (rev 6) — U20: a header is not needed and shapes would be card-only · absolute card pixels per gizmo — independent gizmos would collide · a card drawn by the terminal from ECS — not network-capable, not extensible |
 | **M15** | entity colour (U19) | ⭐ `EntityAppearance { ColorRgba }` as **published state by `R-136` §4.1** (descriptor arm + `Reliable`/`TransientLocal` topic + translators), authored and saved in the scenario; default `VisualData.ColorHex` from the TKB. ⚠ the first §4.1 override ever built, in NED (backend lane's area) — **asks the user** | writing the override into `VisualData` — illegal under R-136 (TKB-derived, §3 ②) · a command to set it — §5: unreconstructible by a late joiner |
 | **M16** | side colours | ⭐ **one palette**: friend / opposing / neutral colours defined once, looked up by `ForceId` (the card frame, placement ghost) and by the 2525 affiliation letter (the symbol renderer) | ⚠ today there are **two** mappings: `MilStd2525Renderer.GetAffiliationColor` (`:84`, by symbol code) and `EntityPlacementGizmo.GetAffiliationColor` (`:278`, by `ForceId`) — a third consumer would make three |
+| **M17** | picking (U21) | ⭐ one `Picker3D` in `MapCamera3D`: handles (spheres with height) → entities (an **oriented box from the shape-kit bounds**) → terrain (Raylib ray vs the drawn `TerrainWorldMesh`, the sim's own geometry) → ground; the floor from the sim's `SurfacesAt`/`ResolveLevel`; the layers keep their 2-D hit tests | the sim's `RaycastSolverSystem` — asynchronous and tick-driven (`:13-21`), no answer while paused · its `PhysicsCollider` — a bounding circle, too wide for long vehicles, absent on some types · `TerrainWorld.QuerySight` for the hit point — reports the footprint entry for prisms (`:400-405`), allocates (R-220) |
+| **M18** | draping (U21) | ⭐ a world-space shape whose points are all `z = 0` is drawn on the surface `SurfaceZ(x, y, zHint 0)`; a shape with height is drawn as given | skipping 2-D shapes in 3-D (Stride's triage) — handles, areas and measurement lines would vanish |
+| **M19** | height into gizmos (U21) | ⭐ `MapCanvas.LastPick` carries the 3-D hit; the five `z = 0` sites read its Z (2-D: 0, byte-identical); dragging hits terrain only (`ScreenToWorldForDrag`) | widening `IMapLayer.HandleInput` to `Vector3` — six implementers changed for one number |
+| **M20** | 3-D-aware tools (U21) | ⭐ measurement and area authoring need no code beyond M19; placement shows a **shape-kit ghost** and takes the clicked roof/floor as the spawn level via the existing `SpawnHeight` | per-tool 3-D variants — two tools per concept |
 
 ---
 
@@ -488,7 +559,7 @@ area. ⛔ Not decided silently: §5 M15 asks.
 | slice | delivers | proves |
 |---|---|---|
 | **S1** | `MapCamera3D` + the animated switch (Editor); `TerrainLayer3D` from `TerrainWorldMesh` as-is, one colour per kind, lit shader + fog; `EntityBodyLayer3D` with `VisualFamily` + the shape kits for every built-in type (static) and block figures in their three stance poses; free camera; **Xvfb screenshot of the editor in 3-D on `test-town`** | the render path, the shader on the cloud's software GL, M8 |
-| **S2** | `ScreenToWorld` ray picking; `deltaWorld` through the camera; `SelectionRenderSystem.Draw3D` wire cubes | select, context menu and tools work in 3-D unchanged |
+| **S2** | `Picker3D` (handles → entity boxes → terrain mesh → ground, `SurfacesAt` level); `ScreenToWorldForDrag`; `MapCanvas.LastPick` feeding the five `z = 0` sites; draping (M18); `SelectionRenderSystem.Draw3D` wire cubes; the placement ghost + roof/floor level (M20) | select, context menu, measurement, area authoring, placement and handle drags work in 3-D — the same tools (U21) |
 | **S3** | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters; **labels**: `GizmoTextDraw` extracted, `LabelOverlay3D` with projection + LOD | gizmos, fire traces, detonations and gizmo text in 3-D (U16) |
 | **S4** | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
 | **S5** | camera entity — create, follow, scenario save | V-12..V-15 |
@@ -508,6 +579,9 @@ area. ⛔ Not decided silently: §5 M15 asks.
 | ⚠ the lit shader compiles and runs on the hosts' GL and on the cloud's software GL (Mesa llvmpipe) | S1's screenshot |
 | ⚠ 3-D frame cost inside the host frame (terrain mesh + a few hundred entities) | S1, measured on Windows and in the cloud |
 | ⚠ an entity box hit returning that entity's ground XY lands inside its 2-D pick box for every entity kind | S2 rail per kind |
+| ⚠ M18's `z = 0` test: a gizmo that means a real point at height 0 under a roof is still drawn on the ground floor (`zHint 0`) — correct; one that means "on the roof" must give the roof's height | S2 rail |
+| ⚠ door leaves move (open/closed) but the terrain mesh is built once — picking through a door that opened after load | S2: doors as separate dynamic boxes, or accepted |
+| ⚠ hover picking every frame: entity boxes + one mesh ray per frame | S2, measured |
 | ⚠ which CC0 texture pack — ambientCG / Poly Haven are CC0 by their own terms; specific textures and repo size not chosen | S7, with a licence table |
 | ⚠ the 3-D pass must accept primitives that target `PipelineTarget.Map2D` (the 2-D renderer filters on it, `DebugPrimitiveRenderer2D.cs:93`; `Viewport3D` is declared and read by nobody) — otherwise every label is filtered out | S3 rail |
 | ⚠ the overhead perspective camera at matched height looks close enough to the 2-D map at the swap (tall buildings lean slightly at the edges) | S1 screenshot pair |
