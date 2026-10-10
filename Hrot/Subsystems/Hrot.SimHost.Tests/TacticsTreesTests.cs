@@ -251,7 +251,8 @@ namespace Hrot.SimHost.Tests
             w.Answer(cover, 5, 30f, 40f);                              // good cover nearby ⇒ TakeCover wins
             for (int i = 0; i < 4; i++) w.Tick();
             Assert.Equal("CombatPosture", w.TaskName);
-            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull,
+            // ⭐ CE-3158 G-6 — the TakeCover option runs the library's fight-from-cover node (PeekAndFire) and its sensor
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PeekAndFireNodes.CoverSite).IsNull,
                 "the TakeCover child runs, with its own sensor");
         }
 
@@ -371,7 +372,7 @@ namespace Hrot.SimHost.Tests
             w.Tick();
             w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite), 6, 30f, 40f);
             for (int i = 0; i < 4; i++) w.Tick();
-            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull, "TakeCover runs");
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PeekAndFireNodes.CoverSite).IsNull, "TakeCover runs");   // ⭐ CE-3158 G-6 — PeekAndFire's sensor
             Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FlankSite).IsNull, "the flank manoeuvre (and its sensor) went with the branch");
             Assert.NotEqual(new Vector3(60f, 80f, 0f), w.Destination());
         }
