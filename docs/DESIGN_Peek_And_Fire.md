@@ -793,3 +793,12 @@ the files §10.6 edits were touched (`LineOfFire`, `FireAtPointExecutor`, `Cover
 | G5 | `R-254` — shared from day zero | `CoverClaim` is registered once in `HrotSharedComponentRegistry`, never per host |
 | G4 | `R-255` — the brain names the target, the weapon side aims | `PostureNodes.Fire(..., target)` only names the target; aiming stays in the executors |
 
+
+### 10.9 As built *(`CE-3158`, `2026-10-10`)* — what matches §10.5 and where it deviates
+
+| G | built | matches / ⚠ deviates |
+|---|---|---|
+| G1 | `EqsResult.Kind` (former padding byte, `CoverKind + 1`) end to end — `CoverPointsGenerator` → egress → `EqsResultEntry` → ingress → `EqsResultUpdateSystem`; `PeekAndFireNodes.ChoosePeek` reads it in `Auto`; `PeekStanceOverride`; `StanceRequest.CanCarry` | ✅ as designed. ⚠ A point with NO kind (another generator) is a **step** peek — the template rule is gone, not kept as a fallback |
+| G2 | `ChooseOrWait`: no cover answer for `NoCoverSeconds` ⇒ `Failure`; answered but all burned/claimed ⇒ aimed fire from where it stands (`Waiting = 2`); a failed move adds `UnreachableHeat` (0.6) × `BurnHeat`; a step peek with no step-out point for `NoCoverSeconds` burns that cover and moves on | ⚠ "unreachable ⇒ burned" is **two** failures, not one — one failure may be a path not ready yet; the first already makes the next point score higher (rail `G2_R2`) |
+| G3 | `LineOfFire.BlockedByFriendly(shooter, Vector3)` (one private sweep for both forms); `FireAtPointExecutor` holds a direct burst on a friend; `CombatTkb.WarheadOf` is the one warhead lookup (`FireProcessingSystem` reads it too); ROE gate in `Hidden` | ⚠ **bursts keep mount 0** — `WeaponChoice` ranks mounts against a target ENTITY and a burst has a point; G8's infantry scope has one weapon. Revisit with a point-aware weapon choice |
+| G4 | `SquadAssignment.TargetOf` (the one reader; `IsAssignedTarget` uses it); `PostureNodes.Fire(..., target)`; `LockTarget` (assigned if alive and seen, else the top threat); `HeardMatchRadius` (15 m) filters the burst's heard evidence; L5: `CgfNodes.Action_FireAtTarget` routed through the named-target fire | ⚠ L5 **routes** the node, it does not delete it — `FireAtTarget` is a bound tree name (`CgfNodes.cs:628`); removing the name is the L4 registry item |
