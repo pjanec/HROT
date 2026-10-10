@@ -203,6 +203,12 @@ public sealed class Map3DFrameRail
                 new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("40 m"), yellow, fontSizePx: 16f);
             label.TargetView = Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Map2D;
             buffer.AppendRaw(label);
+            // ⭐ S5b — the tank's CARD (§3.6): frame in the side colour, health bar, name — drawn above its body, leader down to it.
+            buffer.DrawSpatialAnchor(4242, tank.X, tank.Y, gz, 0f, 0f, 0f);
+            var card = Fdp.Toolkit.Diagnostics.Gizmos.EntityCards.Card(buffer, 4242, Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Labels);
+            card.Row(0).Frame(new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(235, 72, 60));
+            card.Row(10).Bar(0.6f, new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 255, 0), new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(40, 40, 40, 220));
+            card.Row(20).Text("T-72 #4242", new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(240, 240, 240));
 
             sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y + 10f, gz), 70f, MathF.PI * 0.75f, -0.45f);
             frame.Step(canvas.Draw);
@@ -211,6 +217,7 @@ public sealed class Map3DFrameRail
             Assert.True(gizmos.Renderer3D.LinesDrawn > 20, $"gizmo lines: {gizmos.Renderer3D.LinesDrawn}");
             Assert.Equal(0, gizmos.Renderer3D.Skipped.Total);
             Assert.Equal(1, gizmos.LabelsDrawn3D);
+            Assert.Equal(1, gizmos.Cards.CardsDrawn);
         }
 
         // ⑧ CE-1042 E3 — realism effects from their TKB type: a large explosion mid-bloom, a crater decal draped on the ground,
@@ -283,9 +290,16 @@ public sealed class Map3DFrameRail
         // a big "T" east of the centre: upright, its crossbar is its TOP (N3 — world text is un-flipped at its point)
         buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeText(60f, 30f, new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("T"),
             new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 255, 255), fontSizePx: 60f));
+        // ⭐ CE-1033 S5b — an entity CARD in 2-D (§3.6), south-west of the centre: the same renderer as in 3-D, over the symbol
+        buffer.DrawSpatialAnchor(77, -100f, -30f, 0f, 0f, 0f, 0f);
+        var card = Fdp.Toolkit.Diagnostics.Gizmos.EntityCards.Card(buffer, 77, Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Labels);
+        card.Row(0).Frame(new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(90, 150, 255));
+        card.Row(10).Bar(0.8f, new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(0, 230, 0), new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(40, 40, 40, 220));
+        card.Row(20).Text("M1A2 #77", new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(240, 240, 240));
         gizmos.Update(0.016f);
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);
+        Assert.Equal(1, gizmos.Cards.CardsDrawn);
         string png = Path.Combine(shots, "map2d-north-up.png");
         frame.Screenshot(png);
 

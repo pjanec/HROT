@@ -60,6 +60,9 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>Labels collected by the last <see cref="Draw"/>, for the overlay pass.</summary>
         public List<GizmoLabel3D> Labels { get; } = new();
 
+        /// <summary>⭐ CE-1033 S5b — entity-card primitives seen by the last <see cref="Draw"/>, for the card pass after the 3-D pass.</summary>
+        public List<DebugPrimitive> Cards { get; } = new();
+
         /// <summary>Panels (<c>StructInspector</c>) seen by the last <see cref="Draw"/> — screen panels, scheduled by the caller.</summary>
         public List<DebugPrimitive> Panels { get; } = new();
 
@@ -82,12 +85,14 @@ namespace Fdp.Toolkit.Vis3D
             Skipped.Reset();
             Labels.Clear();
             Panels.Clear();
+            Cards.Clear();
             LinesDrawn = TrianglesDrawn = 0;
 
             for (int i = 0; i < primitives.Count; i++)
             {
                 var t = primitives[i];
                 ref readonly var p = ref t.Primitive;
+                if (p.Space == CoordinateSpace.EntityCard) { Cards.Add(p); continue; }   // ⭐ S5b — drawn by the card pass
                 switch (p.Shape)
                 {
                     case DebugPrimitiveShape.Line: DrawLine(in t); break;

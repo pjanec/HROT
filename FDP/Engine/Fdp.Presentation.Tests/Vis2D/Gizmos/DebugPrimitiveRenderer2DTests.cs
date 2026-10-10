@@ -138,6 +138,30 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             Assert.Contains(renderer.Dispatched, p => p.Shape == DebugPrimitiveShape.StructInspector);
             Assert.DoesNotContain(renderer.Dispatched, p => p.Shape == DebugPrimitiveShape.Line);   // the layer still hides what it owns
         }
+
+        // ⭐ CE-1033 S5b (docs/DESIGN_Map_3D_Mode.md §3.6) — an ENTITY-CARD primitive is never drawn as a world shape: the renderer
+        //   sets it aside for the card pass, AFTER the layer mask (the "Labels" layer switches every card row off).
+        // ⛔ RED-PROOF SHAPE: drop the EntityCard branch in Render and the box is dispatched at world (0.5, 2) — a speck at the origin.
+        [Fact]
+        public void CE1033_S5b_ACardPrimitive_IsSetAsideForTheCardPass_NotDrawnInTheWorld_AndTheLabelsLayerHidesIt()
+        {
+            var buffer = new DebugPrimitiveBuffer();
+            buffer.Card(1043, DebugTraceLayers.Labels).Row(10).Bar(0.5f, Rgba32.Green, Rgba32.Black);
+            var card = buffer.GetFrame().ToArray();
+
+            var renderer = new CapturingRenderer2D();
+            renderer.Render(card, RenderTestHelpers.MakeCtx());
+            Assert.Empty(renderer.Dispatched);
+            Assert.Equal(2, renderer.CardPrimitives.Count);
+
+            var labelsOff = new LayerMask256();
+            for (int i = 0; i < 256; i++) if (i != DebugTraceLayers.Labels) labelsOff.SetBit(i);
+            var hidden = new List<DebugPrimitive> { DebugPrimitive.MakeLayerControlMask(labelsOff) };
+            hidden.AddRange(card);
+            renderer.Render(hidden.ToArray(), RenderTestHelpers.MakeCtx());
+            Assert.Empty(renderer.Dispatched);
+            Assert.Empty(renderer.CardPrimitives);
+        }
         // SC-GZ011-2: layer-5 primitive, bit 5 SET in the frame's LayerControlMask => dispatched.
         [Fact]
         public void SC_GZ011_2_Layer5_MaskBitSet_Dispatched()

@@ -241,6 +241,150 @@ public sealed class Map3DGizmoTests
         Assert.Contains("gizmoLayer.LabelLift = bodies.TopAbove;", pack);
     }
 
+    // ── S5b — the entity CARD (§3.6, M14): one canvas per entity, the same in 2-D and 3-D ──
+
+    private static DebugPrimitive[] CardFrame(long net, Action<IDebugDrawBuilder> draw)
+    {
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        draw(buffer);
+        return buffer.GetFrame().ToArray();
+    }
+
+    /// <summary>A text measure without a font: 7 px per character at any size.</summary>
+    private static float Measure(string s, float px) => 7f * s.Length;
+
+    [Fact]
+    public void S5b_TheCardSugar_EmitsOrdinaryPrimitives_KeyedByTheNetworkId_RowInZIndex()
+    {
+        var prims = CardFrame(1043, d =>
+        {
+            var card = d.Card(1043, DebugTraceLayers.Labels);
+            card.Row(0).Frame(Red);
+            card.Row(10).Bar(0.25f, Blue, Red);
+            card.Row(20).Text("T-72 #1043", Blue);
+        });
+
+        Assert.Equal(5, prims.Length);   // frame: back + outline · bar: back + fill · text
+        Assert.All(prims, p =>
+        {
+            Assert.Equal(CoordinateSpace.EntityCard, p.Space);
+            Assert.Equal(1043, p.AnchorIndex);
+            Assert.Equal(DebugTraceLayers.Labels, p.DebugLayer);
+        });
+        Assert.Equal(new byte[] { 0, 0, 10, 10, 20 }, prims.Select(p => p.ZIndex).ToArray());
+        Assert.Equal(0.25f, 2f * prims[3].BoxExtentX, 3);
+        Assert.Equal(SizeMode.ScreenPercent, prims[3].SizeMode);
+    }
+
+    [Fact]
+    public void S5b_Layout_StacksRowsByOrder_SizesToTheWidestRow_SitsAboveTheEntity_LeaderInTheFrameColour()
+    {
+        var prims = CardFrame(7, d =>
+        {
+            var card = d.Card(7);
+            card.Row(20).Text("a name that is long", Blue);   // emitted first, still the LOWER row
+            card.Row(10).Bar(1f, Blue, Red, heightPx: 4f);
+            card.Row(0).Frame(Red);
+        }).Concat(CardFrame(8, d => d.Card(8).Row(20).Text("off screen", Blue))).ToArray();
+        var at = new Vector2(400f, 300f);
+
+        var cards = new GizmoMap.Presentation.EntityCardRenderer().Layout(prims, id => id == 7 ? at : null, Measure);
+
+        var c = Assert.Single(cards);   // entity 8 has no screen point ⇒ no card
+        Assert.Equal(7, c.NetworkId);
+        float textW = Measure("a name that is long", 13f);
+        Assert.Equal(textW + 2f * GizmoMap.Presentation.EntityCardRenderer.Padding, c.Rect.Width, 3);
+        Assert.Equal(at.X - c.Rect.Width / 2f, c.Rect.X, 3);                                            // centred over the entity
+        Assert.Equal(at.Y - GizmoMap.Presentation.EntityCardRenderer.Leader, c.Rect.Y + c.Rect.Height, 3);   // a leader's length above it
+        var bar = c.Items.First(i => i.Primitive.ZIndex == 10);
+        var name = c.Items.First(i => i.Primitive.ZIndex == 20);
+        Assert.True(bar.RowOrigin.Y < name.RowOrigin.Y, "row 10 is above row 20 whatever the emit order");
+        Assert.Equal(bar.RowOrigin.Y + 4f + GizmoMap.Presentation.EntityCardRenderer.RowGap, name.RowOrigin.Y, 3);
+        Assert.All(c.Items.Where(i => i.Primitive.ZIndex == 0), i => Assert.True(i.CardWide));
+        Assert.Equal((byte)255, c.LeaderColour.R);   // the outline's colour (red), not the default grey
+        Assert.Equal((byte)0, c.LeaderColour.G);
+    }
+
+    [Fact]
+    public void S5b_Layout_AWorldShapeInACard_IsCounted_NotDrawn_AndAnEmptyCardIsAtLeastTheMinimumWidth()
+    {
+        var sphere = DebugPrimitive.MakeSphere(Vector3.Zero, 1f, Red);
+        sphere.Space = CoordinateSpace.EntityCard;
+        sphere.AnchorIndex = 3;
+        var r = new GizmoMap.Presentation.EntityCardRenderer();
+        var frameOnly = CardFrame(4, d => d.Card(4).Row(0).Frame(Blue));
+
+        var cards = r.Layout(frameOnly.Append(sphere), _ => Vector2.Zero, Measure);
+
+        Assert.Equal(1, r.Skipped[DebugPrimitiveShape.Sphere]);
+        var c = Assert.Single(cards);
+        Assert.Equal(4, c.NetworkId);
+        Assert.Equal(GizmoMap.Presentation.EntityCardRenderer.MinWidth, c.Rect.Width, 3);
+    }
+
+    [Fact]
+    public void S5b_In3D_CardPrimitives_AreHandedToTheCardPass_NotDrawnAsShapes_AndTheTriageAnswersTheEntitysAnchor()
+    {
+        var triage = new DebugPrimitiveTriage3D();
+        var anchor = DebugPrimitive.MakeSpatialAnchor(1043, 100f, 50f, 12f, 0f);
+        var card = CardFrame(1043, d => d.Card(1043).Row(10).Bar(0.5f, Blue, Red));
+        var r = new GizmoRenderer3D();
+        var sink = new CaptureSink();
+
+        r.Draw(Triage(triage, card.Prepend(anchor).ToArray()), _ => 1f, sink);
+
+        Assert.Equal(2, r.Cards.Count);
+        Assert.Empty(sink.Triangles);
+        Assert.Empty(sink.Lines);
+        Assert.True(triage.TryGetAnchor(1043, out var at));
+        AssertNear(new Vector3(100f, 50f, 12f), at);
+        Assert.False(triage.TryGetAnchor(99, out _));
+    }
+
+    [Fact]
+    public void S5b_In2D_TheCardSitsOverTheEntitysSymbol_ThroughTheNorthUpCamera()
+    {
+        var cam = new Fdp.Toolkit.Vis2D.Components.MapCamera();
+        var target = new Vector2(0f, 100f);
+        cam.ApplyCameraView(new Fdp.Toolkit.Vis2D.Components.MapCameraView { Target = target, Zoom = 2f, SmoothTarget = target, SmoothZoom = 2f });
+        var frame = new[] { DebugPrimitive.MakeSpatialAnchor(5, 30f, 40f, 0f, 0f) };
+
+        var anchorOf = Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.CardAnchor2D(cam, frame);
+
+        Assert.Null(anchorOf(6));
+        var s = anchorOf(5)!.Value;
+        var symbol = cam.WorldToScreen(new Vector2(30f, 40f));
+        Assert.Equal(symbol.X, s.X, 3);
+        Assert.Equal(symbol.Y - 6f, s.Y, 3);   // just above the symbol's centre
+        Assert.True(cam.WorldToScreen(new Vector2(30f, 50f)).Y < symbol.Y, "north-up: a point further north is HIGHER on screen");
+    }
+
+    [Fact]
+    public void S5b_TheCardGizmos_FrameInTheSideColour_NameWithTheId_HitPointsAndBehaviourRows()
+    {
+        using var w = new Fdp.Core.EntityRepository();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        w.RegisterComponent<Fdp.Core.EntityInfo>();
+        var e = w.CreateEntity();
+        w.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(1043));
+        w.AddComponent(e, new Fdp.Core.EntityInfo { Name = new Fdp.Core.FixedString64("T-72"), ForceId = Fdp.Core.ForceId.Hostile });
+        var unnamed = w.CreateEntity();
+        w.AddComponent(unnamed, new Fdp.Toolkit.Replication.Components.NetworkIdentity(9));
+        w.AddComponent(unnamed, new Fdp.Core.EntityInfo());
+        var d = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+
+        new Hrot.Common.Diagnostics.Gizmos.EntityCardFrameGizmo().Draw(w, e, d);
+        new Hrot.Common.Diagnostics.Gizmos.EntityNameGizmo().Draw(w, e, d);
+        new Hrot.Common.Diagnostics.Gizmos.EntityNameGizmo().Draw(w, unnamed, d);
+        var prims = d.GetFrame().ToArray();
+
+        var outline = prims.Single(p => p.ZIndex == 0 && p.ThicknessU16 > 0);
+        Assert.Equal(Hrot.Common.Diagnostics.Gizmos.SidePalette.Hostile, outline.Color);
+        var names = prims.Where(p => p.Shape == DebugPrimitiveShape.Text).Select(p => p.TextContent.ToString()).ToArray();
+        Assert.Equal(new[] { "T-72 #1043", "#9" }, names);
+        Assert.All(prims, p => Assert.Equal(DebugTraceLayers.Labels, p.DebugLayer));
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

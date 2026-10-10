@@ -143,7 +143,7 @@ public sealed class HostOnlyWiringTests : IDisposable
     }
 
     [Fact]
-    public void CE3123_TheLabel_WithoutABehaviourRegistry_DrawsTheIdAndHitPoints_NotTheBehaviour()
+    public void CE3123_TheLabel_WithoutABehaviourRegistry_DrawsTheHitPoints_NotTheBehaviour()
     {
         _w.RegisterComponent<BehaviorState>();
         _w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
@@ -154,8 +154,12 @@ public sealed class HostOnlyWiringTests : IDisposable
 
         new EntityEditorLabelGizmo().Draw(_w, unit, draw);
 
-        Assert.Equal(2, draw.GetFrame().ToArray().Count(p =>
-            p.Shape == DebugPrimitiveShape.Text));
+        // ⭐ CE-1033 S5b — the lines are card rows now; the id moved to the card's name row (EntityNameGizmo).
+        var texts = draw.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Text).ToArray();
+        var hp = Assert.Single(texts);
+        Assert.Equal(CoordinateSpace.EntityCard, hp.Space);
+        Assert.Equal(EntityEditorLabelGizmo.HitPointsRow, hp.ZIndex);
+        Assert.Equal("HP 50/100", hp.TextContent.ToString());
     }
 
     private sealed class NoPublicCtor { private NoPublicCtor() { } }

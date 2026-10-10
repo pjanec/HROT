@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f). ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g). ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -748,7 +748,7 @@ combat / network lanes' code; the map reads the pose through `EntityBodyLayer3D`
 | **S3c** | ⭐ **the articulated turret, live** — the turret part + `TurretPose` (M23), the weapon-side slew (M24), the TKB turret descriptor (M25), the sensor-style multi-instance descriptor (M26); the map plugs `poseOf` | §3.11, R-255 |
 | **S4** ✅ *(§6f)* | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
 | **S5** | camera entity — create, follow, scenario save | V-12..V-15 |
-| **S5b** | **the card**: `CoordinateSpace.EntityCard`; `EntityCardRenderer` (rows by `ZIndex`, row 0 card-wide, `%` of the card, leader line) in 2-D and 3-D; `CardBuilder` sugar; `EntityCardFrameGizmo` + one side palette (M16); `HealthBarGizmo` re-targeted to a bar row; `EntityNameGizmo`; `EntityEditorLabelGizmo` rows moved in; a "Labels" layer default | U19, U20 |
+| **S5b** ✅ *(§6g)* | **the card**: `CoordinateSpace.EntityCard`; `EntityCardRenderer` (rows by `ZIndex`, row 0 card-wide, `%` of the card, leader line) in 2-D and 3-D; `CardBuilder` sugar; `EntityCardFrameGizmo` + one side palette (M16); `HealthBarGizmo` re-targeted to a bar row; `EntityNameGizmo`; `EntityEditorLabelGizmo` rows moved in; a "Labels" layer default | U19, U20 |
 | **S5c** | **entity colour**: `EntityAppearance` per M15 — only after the user's answer | U19 colour |
 | ~~**S6**~~ | ⛔ **withdrawn `2026-10-10` (U25)** — every host gets 3-D from the shared attach; see §6b | V-01, V-18 (IG) — met by §6b |
 | **S7** | CC0 textures, triplanar | U13's texture wish |
@@ -974,6 +974,81 @@ a one-pixel line · water and forest come only from the terrain's surfaces; mate
 names none — every wall there is concrete).
 **Gates:** `Map3DTests.S4_*` (wheel roll, gait swing, rotor on sim time, stance blend, terrain tags + forest + water) ·
 `Map3DGizmoTests.S4_*` (ribbon width on a slope) · the terrain / navmesh suites in `Fdp.Toolkits.Tests` (336/336) · Stride builds.
+
+### 6g. S5b — AS-BUILT `2026-10-11` (the entity card, 2-D and 3-D)
+
+```mermaid
+classDiagram
+  class CoordinateSpace { <<exists>> + EntityCard = 3 }
+  class EntityCards { <<new, Fdp.Diagnostics.Contracts>> Card(draw, netId, layer) EntityCard }
+  class EntityCardRow { <<new>> Text, Bar, Frame : EmitRaw }
+  class IDebugDrawBuilder { <<exists>> EmitRaw }
+  class EntityCardRenderer { <<new, GizmoMap.Presentation>> Layout(prims, anchorScreen, measure) List~Card~; Draw; CardsDrawn; Skipped }
+  class DebugPrimitiveRenderer2D { <<exists, GizmoMap>> + CardPrimitives (after mask and LOD) }
+  class GizmoRenderer3D { <<exists>> + Cards }
+  class DebugPrimitiveTriage3D { <<exists>> + TryGetAnchor(netId) }
+  class DebugGizmoLayer { <<exists>> + Cards; DrawOverlay; CardAnchor2D; CardAnchor3D }
+  class IMapLayer { <<exists>> DrawOverlay3D renamed DrawOverlay, both modes }
+  class EntityCardFrameGizmo { <<new, Hrot.Common>> row 0 }
+  class HealthBarGizmo { <<exists, re-targeted>> row 10 }
+  class EntityNameGizmo { <<new>> row 20 }
+  class EntityEditorLabelGizmo { <<exists, moved in>> rows 30, 40 }
+  class SidePalette { <<new>> Of(ForceId) }
+  EntityCards ..> EntityCardRow
+  EntityCardRow ..> IDebugDrawBuilder
+  EntityCardFrameGizmo ..> EntityCards
+  HealthBarGizmo ..> EntityCards
+  EntityNameGizmo ..> EntityCards
+  EntityEditorLabelGizmo ..> EntityCards
+  EntityCardFrameGizmo ..> SidePalette
+  DebugGizmoLayer --> EntityCardRenderer
+  DebugGizmoLayer --> DebugPrimitiveRenderer2D
+  DebugGizmoLayer --> GizmoRenderer3D
+  DebugGizmoLayer --> DebugPrimitiveTriage3D
+  DebugGizmoLayer ..|> IMapLayer
+```
+
+*What the picture shows that prose hid:* the four card gizmos never meet each other — they meet only in the renderer, by
+network id and row number, so a fifth line on the card is one more gizmo and touches nothing here. Neither map renderer draws
+a card: each only SETS CARD PRIMITIVES ASIDE after its own layer mask and LOD, and the one card renderer draws them.
+
+```mermaid
+sequenceDiagram
+  participant GZ as card gizmos (any host)
+  participant C as MapCanvas
+  participant G as DebugGizmoLayer
+  participant R as 2-D renderer or 3-D triage+drawer
+  participant CR as EntityCardRenderer
+  GZ->>G: primitives, Space = EntityCard, AnchorIndex = netId, ZIndex = row
+  C->>G: Draw (2-D) or Draw3D (3-D), inside the camera
+  G->>R: mask + LOD, card primitives set aside, not drawn
+  C->>C: EndMode
+  C->>G: DrawOverlay (both modes)
+  G->>CR: Draw(card primitives, anchor of netId)
+  Note over G,CR: 2-D anchor = the SpatialAnchor ground point via the north-up camera, minus 6 px. 3-D anchor = the triage's anchor lifted by the body top, projected.
+  CR->>CR: group by netId, rows by ZIndex, measure, place above, leader line
+```
+
+*What it shows:* the only mode-specific thing is the anchor function the layer hands the renderer; layout and drawing are
+one code path, which is why `Layout` is a pure function railed without a window.
+
+| built | where |
+|---|---|
+| `CoordinateSpace.EntityCard = 3`; the author sugar `draw.Card(netId, layer).Row(n).Text / Bar / Frame` — ordinary primitives through `EmitRaw` | `GizmoMap.Contracts/Primitives/CoordinateSpace.cs`, `Fdp.Diagnostics.Contracts/EntityCards.cs` |
+| `EntityCardRenderer` — rows by `ZIndex`, row 0 card-wide (backgrounds under, outlines over), `ScreenPercent` = fraction of the card (row 0: both axes; a row: the inner width), width = the widest row ≥ 72 px, a 20 px leader in the outline's colour; disallowed shapes counted | `GizmoMap.Presentation/Rendering/EntityCardRenderer.cs` |
+| the 2-D renderer and the 3-D drawer set card primitives aside (`CardPrimitives`, `Cards`); `TryGetAnchor`; `IMapLayer.DrawOverlay` (renamed from `DrawOverlay3D`) called after `EndMode` in BOTH modes; the gizmo layer's card pass | `DebugPrimitiveRenderer2D` (GizmoMap + Fdp wrapper), `GizmoRenderer3D`, `DebugPrimitiveTriage3D`, `MapCanvas`, `DebugGizmoLayer` |
+| the gizmos — frame in the side colour (one `SidePalette`, M16), name `"T-72 #1043"`, the health bar re-targeted from a text badge to row 10, the editor label's hit points (row 30) and behaviour (row 40) moved in; all on the new **Labels** layer (`DebugTraceLayers.Labels = 11`, `LayerControlDto.Labels`, default on) | `Hrot.Common/Diagnostics/Gizmos/EntityCardGizmos.cs`, `HealthBarGizmo.cs`, `ScenarioEditor/Gizmos/EntityEditorLabelGizmo.cs`, `LayerControlGizmo.cs` |
+
+⚠ **Deviations, argued:** the sugar takes the **network id**, not the entity (§3.6 sketched `draw.Card(entity)`) — the draw
+builder is a primitive buffer with no world to resolve an id from, and every card gizmo already reads `NetworkIdentity`.
+· A `MilStd2525` in a card is **counted, not drawn** (§3.6 allows it) — the 2525 renderer draws in world space and has no
+screen-space entry yet; `Icon` draws as a dot. · The editor label's separate **id line is gone** — the id is in the name row.
+· In 2-D the card sits over the symbol's centre (there is no body height in 2-D). · `HealthBarGizmoSettings.BarWidth` is
+now dormant (the card's width governs); kept registered so saved settings stay readable. · `AnchorIndex` is an `int`, as for
+`EntityLocal` — a network id above 2³¹ would wrap there too. · Declutter (§3.6 "later") is not built.
+**Gates:** `Map3DGizmoTests.S5b_*` (6: sugar, layout, skipped shapes + min width, the 3-D hand-off + anchor, the 2-D north-up
+anchor, the gizmos) · `DebugPrimitiveRenderer2DTests.CE1033_S5b_*` (set aside after the mask) · IG `HealthBarGizmoTests` (bar
+row) · `HostOnlyWiringTests.CE3123_*` (hit points row) · frame rails: shot ⑦ and `map2d-north-up.png` each draw one card.
 
 ## 7. NOT VERIFIED — say so before it is built on
 

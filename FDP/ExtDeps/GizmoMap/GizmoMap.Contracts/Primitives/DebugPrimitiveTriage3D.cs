@@ -158,6 +158,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             return into.Count;
         }
 
+        /// <summary>⭐ CE-1033 S5b — the position of the entity whose anchor is <paramref name="networkId"/> in the last triaged frame.</summary>
+        public bool TryGetAnchor(long networkId, out Vector3 position)
+        {
+            if (_anchors.TryGetValue(networkId, out var a))
+            {
+                position = new Vector3(a.Primitive.AnchorWorldX, a.Primitive.AnchorWorldY, a.Primitive.AnchorWorldZ);
+                return true;
+            }
+            position = default;
+            return false;
+        }
+
         /// <summary>The world point a triaged primitive stands for — its LOD point, and where a label is anchored.</summary>
         public static Vector3 PositionOf(in TriagedPrimitive3D t)
         {

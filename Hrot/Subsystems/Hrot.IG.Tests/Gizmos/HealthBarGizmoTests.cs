@@ -23,6 +23,10 @@ namespace Hrot.IG.Tests.Gizmos
     internal sealed class CapturingDrawBuilder : IDebugDrawBuilder
     {
         public readonly List<(Entity Target, FixedString32 Text)> BadgeCalls = new();
+        public readonly List<DebugPrimitive> Raw = new();
+
+        // ⭐ CE-1033 S5b — the card sugar (EntityCards) emits ordinary primitives through EmitRaw.
+        public void EmitRaw(in DebugPrimitive prim) => Raw.Add(prim);
 
         public void DrawEntityBadge(Entity target, FixedString32 richText,
             PipelineTarget targetPipeline = PipelineTarget.All)
@@ -66,6 +70,15 @@ namespace Hrot.IG.Tests.Gizmos
 
             _repo = new EntityRepository();
             _repo.RegisterComponent<Health>();
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        }
+
+        private Entity Unit(float current, float max, long net = 1043)
+        {
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new Health { Current = current, Max = max });
+            _repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = net });
+            return entity;
         }
 
         public void Dispose() => _repo.Dispose();
@@ -91,19 +104,38 @@ namespace Hrot.IG.Tests.Gizmos
             Assert.Same(AlwaysVisiblePolicy.Instance, statelessRegistry.Rules[0].VisibilityPolicy);
         }
 
+        // ⭐ CE-1033 S5b (docs/DESIGN_Map_3D_Mode.md §3.6) — the bar is ROW 10 of the entity's CARD now, not a text badge: a dark
+        //   back the card's width and a fill Current/Max of it, both fractions of the card, on the Labels layer.
         [Fact]
-        public void SC_GZ021_HB_3_Draw_FullHealth_CallsDrawEntityBadge()
+        public void SC_GZ021_HB_3_Draw_EmitsABarRowIntoTheEntitysCard()
         {
             var gizmo = new HealthBarGizmo(_settings);
             var draw  = new CapturingDrawBuilder();
 
-            var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new Health { Current = 100f, Max = 100f });
+            gizmo.Draw(_repo, Unit(25f, 100f), draw);
 
-            gizmo.Draw(_repo, entity, draw);
+            Assert.Empty(draw.BadgeCalls);
+            Assert.Equal(2, draw.Raw.Count);
+            Assert.All(draw.Raw, p =>
+            {
+                Assert.Equal(CoordinateSpace.EntityCard, p.Space);
+                Assert.Equal(1043, p.AnchorIndex);
+                Assert.Equal(HealthBarGizmo.Row, p.ZIndex);
+                Assert.Equal(DebugTraceLayers.Labels, p.DebugLayer);
+                Assert.Equal(DebugPrimitiveShape.Box2D, p.Shape);
+                Assert.Equal(SizeMode.ScreenPercent, p.SizeMode);
+            });
+            Assert.Equal(1f, draw.Raw[0].BoxExtentX * 2f, 3);       // the back: the whole card
+            Assert.Equal(0.25f, draw.Raw[1].BoxExtentX * 2f, 3);    // the fill: a quarter of it
+            Assert.Equal(Rgba32.Red, draw.Raw[1].FillColor);        // < 33 % is critical
+        }
 
-            Assert.NotEmpty(draw.BadgeCalls);
-            Assert.Equal(entity, draw.BadgeCalls[0].Target);
+        [Fact]
+        public void SC_GZ021_HB_3b_Draw_NoNetworkId_NoCard()
+        {
+            var draw = new CapturingDrawBuilder();
+            new HealthBarGizmo(_settings).Draw(_repo, Unit(50f, 100f, net: 0), draw);
+            Assert.Empty(draw.Raw);
         }
 
         [Fact]
@@ -112,10 +144,7 @@ namespace Hrot.IG.Tests.Gizmos
             var gizmo = new HealthBarGizmo(_settings);
             var draw  = new CapturingDrawBuilder();
 
-            var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new Health { Current = 50f, Max = 100f });
-
-            var ex = Record.Exception(() => gizmo.Draw(_repo, entity, draw));
+            var ex = Record.Exception(() => gizmo.Draw(_repo, Unit(50f, 100f), draw));
 
             Assert.Null(ex);
         }

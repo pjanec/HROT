@@ -157,11 +157,42 @@ namespace Fdp.Toolkit.Vis2D.Layers
                                         p.StructOffsetX, p.StructOffsetY, p.SizeMode, p.StructIsReadOnly != 0);
         }
 
-        public void DrawOverlay3D(RenderContext ctx)
+        /// <summary>⭐ CE-1033 S5b — draws the entity cards (one renderer for both modes, §3.6).</summary>
+        public GizmoMap.Presentation.EntityCardRenderer Cards { get; } = new();
+
+        public void DrawOverlay(RenderContext ctx)
         {
             LabelsDrawn3D = 0;
-            if (CurrentCamera?.Invoke() is not Fdp.Toolkit.Vis3D.MapCamera3D camera) return;
-            LabelsDrawn3D = Fdp.Toolkit.Vis3D.LabelOverlay3D.Draw(Renderer3D.Labels, camera, LabelLift);
+            if (_buffer == null) return;
+            if (LayerBitIndex >= 0 && LayerBitIndex < 32 && (ctx.VisibleLayersMask & (1u << LayerBitIndex)) == 0) return;
+            var live = CurrentCamera?.Invoke() ?? _mapCamera;
+            if (live is Fdp.Toolkit.Vis3D.MapCamera3D camera)
+            {
+                LabelsDrawn3D = Fdp.Toolkit.Vis3D.LabelOverlay3D.Draw(Renderer3D.Labels, camera, LabelLift);
+                Cards.Draw(Renderer3D.Cards, CardAnchor3D(camera));
+            }
+            else if (live != null)
+            {
+                Cards.Draw(_renderer.CardPrimitives, CardAnchor2D(live, _buffer.GetFrame()));
+            }
+        }
+
+        /// <summary>⭐ S5b — an entity's card anchor in 3-D: its anchor, lifted to the top of its drawn body, projected.</summary>
+        public Func<long, Vector2?> CardAnchor3D(Fdp.Toolkit.Vis3D.MapCamera3D camera) => id =>
+        {
+            if (!_triage3D.TryGetAnchor(id, out var at)) return null;
+            at.Z += LabelLift?.Invoke(id) ?? Fdp.Toolkit.Vis3D.LabelOverlay3D.DefaultLift;
+            var s = camera.WorldToScreen(at);
+            return s.X < -1e5f ? null : s;
+        };
+
+        /// <summary>⭐ S5b — an entity's card anchor in 2-D: its SpatialAnchor's ground point, through the (north-up) camera.</summary>
+        public static Func<long, Vector2?> CardAnchor2D(MapCamera camera, ReadOnlySpan<DebugPrimitive> frame)
+        {
+            var anchors = new System.Collections.Generic.Dictionary<long, Vector2>();
+            foreach (ref readonly var p in frame)
+                if (p.Shape == DebugPrimitiveShape.SpatialAnchor) anchors[p.NetworkId] = new Vector2(p.AnchorWorldX, p.AnchorWorldY);
+            return id => anchors.TryGetValue(id, out var w) ? camera.WorldToScreen(w) - new Vector2(0f, 6f) : null;
         }
 
         /// <summary>⭐ CE-1033 S2 — the canvas' CURRENT camera (the 3-D one while the map is in 3-D); set by

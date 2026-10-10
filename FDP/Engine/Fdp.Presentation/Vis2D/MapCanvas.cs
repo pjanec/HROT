@@ -142,6 +142,9 @@ namespace Fdp.Toolkit.Vis2D
             }
 
             Camera.EndMode();
+            // ⭐ CE-1033 S5b — the screen-space pass: entity cards over the finished map.
+            foreach (var layer in _layers)
+                if (IsLayerVisible(layer)) layer.DrawOverlay(ctx);
         }
 
         /// <summary>⭐ CE-1033 S1 (M1/M3) — the same layers, through their 3-D path, inside the 3-D camera.</summary>
@@ -167,7 +170,7 @@ namespace Fdp.Toolkit.Vis2D
             Camera.EndMode();
             // ⭐ CE-1033 S3 (M13) — the screen-space pass: labels over the finished scene.
             foreach (var layer in _layers)
-                if (layer.Has3D && IsLayerVisible(layer)) layer.DrawOverlay3D(ctx);
+                if (layer.Has3D && IsLayerVisible(layer)) layer.DrawOverlay(ctx);
         }
 
         private bool IsLayerVisible(IMapLayer layer)

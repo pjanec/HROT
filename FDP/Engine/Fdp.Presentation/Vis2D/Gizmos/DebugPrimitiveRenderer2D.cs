@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
@@ -70,6 +71,9 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
         /// <see cref="MapCamera"/> as a canvas resource, so <c>ctx.Resources.Get&lt;MapCamera&gt;()</c> is null in production —
         /// the layer, which owns its camera, hands it over instead.</summary>
         public MapCamera? Camera { get; set; }
+
+        /// <summary>⭐ CE-1033 S5b — the card primitives the last <see cref="Render"/> set aside (layer mask and LOD applied).</summary>
+        public IReadOnlyList<DebugPrimitive> CardPrimitives => _inner.CardPrimitives;
 
         public void Render(ReadOnlySpan<DebugPrimitive> primitives, RenderContext ctx)
         {

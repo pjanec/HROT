@@ -17,6 +17,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public const byte Cover      = 9;
         /// <summary>⭐ <c>CE-3133</c> — the baked navmesh's polygons (<c>NavmeshGizmo</c>).</summary>
         public const byte Navmesh    = 10;
+        /// <summary>⭐ CE-1033 S5b — the entity CARDS: frame in the side colour, name, health bar (docs/DESIGN_Map_3D_Mode.md §3.6).</summary>
+        public const byte Labels     = 11;
     }
 }
 
