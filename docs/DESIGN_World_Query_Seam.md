@@ -331,6 +331,12 @@ chosen by the mover's level; the flag clear keeps Z; no world keeps the point).
 | `TerrainCoverProvider`, `CoverPointsGizmo` | the stand-in's own `ICoverProvider`, built from its geometry |
 | `TerrainWorldGizmo`, `WorldInfoReport` | they draw / report the stand-in's terrain itself — the map's terrain drawing moves with **`ITerrainRenderGeometry`** |
 
+**Gates (Q0b + Q2):** `Fdp.Toolkits.Tests` 1251/1251 on the touched features, later **3038/3038** in full; `Hrot.SimHost.Tests`
+**1177/1177** (+3 skips); `Hrot.Editor.Tests` 86/86 on the debug API; `Hrot.ClusterRunner.Integration.Tests` EQS + perception +
+danger + spawn **147/149** — both reds **pre-existing at `93cbad143`**: `DangerAlongRoute_AcrossHosts` (`CE-1036`) and
+`ZoneAuthoring_ObstaclePlacement_SpawnsPhysicsCollider` (`CE-1037`). ⚠ The SimHost suite reports a varying executed count
+(`CE-1038`) — the missing tests pass alone.
+
 ⚠ **Deviation — `Pick` and `ITerrainRenderGeometry` are NOT in Q2.** Their first users are the 3-D map (picking, the terrain
 mesh) and the 2-D map's terrain layer; building them before a consumer exists would be speculative. ⇒ they are built with the
 3-D map's slices S1/S2 (`DESIGN_Map_3D_Mode.md` §3.10, WQ-G), which is where they are exercised.

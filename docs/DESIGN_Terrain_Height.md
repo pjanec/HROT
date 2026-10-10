@@ -215,8 +215,9 @@ triangulations of one surface disagree between samples, and the navmesh, the dra
 translator adds it (graph + grep: only tests and the dormant IG pipeline). ⇒ today every entity is clamped exactly as before; an
 aircraft keeps its altitude only once something gives it the flag. Filed with the TKB/air-domain work, not built here.
 
-**Gates:** the 7 new rails (`TerrainHeightTests` ×5 on `SlopeFixture`, `CarKinematicsSystemTests.H1_…` ×2) pass; the regression
-runs are reported in the commit and the tracker.
+**Gates:** the 7 new rails (`TerrainHeightTests` ×5 on `SlopeFixture`, `CarKinematicsSystemTests.H1_…` ×2) pass; regressions on
+H1: `Fdp.Toolkits.Tests` **3038/3038** (+1 skip), `Hrot.SimHost.Tests` all executed pass (count varies per run, `CE-1038`),
+`Hrot.Editor.Tests` **474/474** (+2 skips).
 
 ## 7. Build or use a library? — the user's question, `2026-10-10` *(⚠ rev 1 below is CORRECTED by `R-250`/`R-251` — read the banner first)*
 
