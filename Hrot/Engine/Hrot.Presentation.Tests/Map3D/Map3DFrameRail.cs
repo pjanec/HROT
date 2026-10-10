@@ -84,7 +84,8 @@ public sealed class Map3DFrameRail
         var canvas = new MapCanvas(input: null);
         var two = new MapCamera();
         var zoom = 4f;
-        var target = spot - new Vector2(1280, 800) / 2f / zoom;
+        // ⭐ CE-1040 — north-up: the Target (the screen's top-left) is the view's WEST and NORTH edge.
+        var target = new Vector2(spot.X - 1280f / 2f / zoom, spot.Y + 800f / 2f / zoom);
         two.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
         canvas.Camera = two;
         var terrainLayer = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));

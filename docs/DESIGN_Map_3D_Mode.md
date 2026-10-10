@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e). ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f). ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -8,7 +8,7 @@ updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assume
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
-  with leans · §6 slices · §6a S1, §6d S2, §6e S3 as-built · §7 what is NOT verified.
+  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: none open — ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
@@ -746,7 +746,7 @@ combat / network lanes' code; the map reads the pose through `EntityBodyLayer3D`
 | **S3** ✅ *(§6e)* | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters; **labels**: `GizmoTextDraw` extracted, `LabelOverlay3D` with projection + LOD | gizmos, fire traces, detonations and gizmo text in 3-D (U16) |
 | **S3b** | ⭐ **realism effects** — muzzle fire, explosions, impact decals as temporary TKB-typed entities with two map layers, on every host: [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) slices E1–E4 | U27, U28 |
 | **S3c** | ⭐ **the articulated turret, live** — the turret part + `TurretPose` (M23), the weapon-side slew (M24), the TKB turret descriptor (M25), the sensor-style multi-instance descriptor (M26); the map plugs `poseOf` | §3.11, R-255 |
-| **S4** | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
+| **S4** ✅ *(§6f)* | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
 | **S5** | camera entity — create, follow, scenario save | V-12..V-15 |
 | **S5b** | **the card**: `CoordinateSpace.EntityCard`; `EntityCardRenderer` (rows by `ZIndex`, row 0 card-wide, `%` of the card, leader line) in 2-D and 3-D; `CardBuilder` sugar; `EntityCardFrameGizmo` + one side palette (M16); `HealthBarGizmo` re-targeted to a bar row; `EntityNameGizmo`; `EntityEditorLabelGizmo` rows moved in; a "Labels" layer default | U19, U20 |
 | **S5c** | **entity colour**: `EntityAppearance` per M15 — only after the user's answer | U19 colour |
@@ -930,6 +930,50 @@ width is not honoured yet). · An area's FILL under a roof still drapes to the g
 48–51 are **not free** (§7). · EQS's **same-level inside test** (M22 step 1's second half) is the behaviours lane's code and
 is not built — named in the tracker.
 **Gates:** `Map3DGizmoTests` 10/10 · `AreaAuthoringArmTests` (+ the M22 rail) · frame rail shot ⑦ `map3d-7-gizmos.png`.
+
+### 6f. S4 — AS-BUILT `2026-10-11` (the world by surface and material, things come alive)
+
+```mermaid
+graph TD
+  TWM["TerrainWorldMesh.Build<br/>+ per-triangle tags (kind, material)"]
+  NAV["navmesh bake<br/>(the untagged overload)"]
+  TWQ["TerrainWorldQuery.BuildTagged<br/>+ water triangles"]
+  TL["TerrainLayer3D<br/>ColourOf(kind, material)"]
+  RG["RoadNetworkGizmo<br/>(metre-wide lines)"]
+  GR["GizmoRenderer3D<br/>ribbon at the true width"]
+  MT["MotionTracker<br/>(per entity, between frames)"]
+  LB["LocomotionBlend<br/>(extracted from Stride to Fdp.Toolkits)"]
+  EB["EntityBodyLayer3D<br/>MotionPose + stance blend"]
+  ST["Stride blend tree"]
+  TWM --> NAV
+  TWM --> TWQ
+  TWQ --> TL
+  RG --> GR
+  MT --> EB
+  LB --> MT
+  LB --> ST
+```
+
+*What the picture shows that prose hid:* the navmesh and the 3-D map still read ONE mesh builder — the tags ride alongside and
+the bake takes the untagged overload, so the walkable soup cannot drift from what is drawn; the road ribbons are not a road
+layer but the road GIZMO's own metre-wide lines, drawn at their width; and the gait rule is shared with Stride, not copied.
+
+| built | where |
+|---|---|
+| `TerrainWorldMesh.Build(…, out TerrainTriangleTag[] tags)` — kind (ground, wall, roof, slab) and material (a prism's material, `"forest"` ground) per triangle; the untagged overload returns the same soup (rail: identical verts and indices) | `Fdp.Toolkits/Terrain/TerrainWorldMesh.cs` |
+| `ITerrainRenderGeometry.BuildTagged` (default: no materials, no water) and `TerrainWorldQuery`'s: materials + water surfaces as flat triangles a little below their lowest bank, filling the hole the soup leaves; `TerrainSurfaceKind.Water` | `Fdp.Toolkits/World/ITerrainRenderGeometry.cs`, `Terrain/TerrainWorldQuery.cs` |
+| `TerrainLayer3D.ColourOf(kind, material)` — forest, water, brick, glass, steel, wood, chain-link, hedge, sandbags, berm, car body; concrete and brick roofs keep the roof colour | `Vis3D/TerrainLayer3D.cs` |
+| road ribbons: `GizmoRenderer3D` draws a `WorldMeters` line ≥ 0.5 m wide as a draped strip at that width | `Vis3D/GizmoRenderer3D.cs` |
+| things come alive: `PartRole.Rotor / WheelSpoke / LegLeft / LegRight / ArmLeft / ArmRight` and `MotionPose`; `MotionTracker` — wheels roll by the distance driven along the body (back in reverse; a teleport does not spin them), limbs swing by `LocomotionBlend`'s walk/run weights, one cycle per 1.6 m, a main rotor turns at 4.3 rev/s of SIM time while airborne; all read from the entity's own position, so every host shows the same and a pause freezes it | `Map3D/ShapeKit.cs`, `Map3D/MotionTracker.cs`, `EntityBodyLayer3D` |
+| stance blend: while `StanceStatus` reports a transition, the figure interpolates from the stance it leaves to the logical one by `TransitionProgress` | `BlockFigure.Blend`, `EntityBodyLayer3D.FigurePose` |
+| `LocomotionBlend` extracted from `Stride/Hrot.Stride.Animation` to `Fdp.Toolkits/Animation` (namespace `Fdp.Toolkit.Animation`); Stride re-pointed by a `using` (its two projects build) | — |
+
+⚠ **Left, named:** the tail rotor is a disc — its spin cannot be seen, so it is not animated · gear up / down still follows the
+airborne guess (no gear-state component exists — PLAN D1) · a road ribbon lies under the 2-D road's centre line, which stays
+a one-pixel line · water and forest come only from the terrain's surfaces; materials only where a prism names one (test-town
+names none — every wall there is concrete).
+**Gates:** `Map3DTests.S4_*` (wheel roll, gait swing, rotor on sim time, stance blend, terrain tags + forest + water) ·
+`Map3DGizmoTests.S4_*` (ribbon width on a slope) · the terrain / navmesh suites in `Fdp.Toolkits.Tests` (336/336) · Stride builds.
 
 ## 7. NOT VERIFIED — say so before it is built on
 

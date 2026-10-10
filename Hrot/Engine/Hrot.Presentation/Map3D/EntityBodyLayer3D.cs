@@ -76,6 +76,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         var shader = LitShader.Shared;
         var tkb = _tkb();
 
+        // ⭐ CE-1033 S4 — the moving parts run on SIMULATION time (R-143); a host with no sim clock falls back to the frame time.
+        _wallFallback += ctx.DeltaTime > 0f && float.IsFinite(ctx.DeltaTime) ? ctx.DeltaTime : 0f;
+        double simTime = world.HasSingletonUnmanaged<GlobalTime>() ? world.GetSingletonUnmanaged<GlobalTime>().TotalTime : _wallFallback;
+        _drawn.Clear();
         bool hasSelection = world.IsComponentTypeRegistered<Hrot.IG.Components.SelectionState>();
         bool hasNet = world.IsComponentTypeRegistered<NetworkIdentity>();
         SelectionBoxesDrawn = 0;
@@ -92,7 +96,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             KitPivots pivots = default;
             var pose = ArticulationPose.Neutral;
             if (look.Family == VisualFamily.Person)
-                parts = BlockFigure.Parts(LogicalStance.Of(world, e), look.Soldier);
+                parts = FigurePose(world, e, look.Soldier);
             else
             {
                 var kit = ShapeKits.For(look.Family);
@@ -103,6 +107,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
             ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
             var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
+            // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
+            bool rotorTurning = look.Family == VisualFamily.Helicopter && IsAirborne(world, tf.Position, look.Geometry);
+            var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning);
+            _drawn.Add(e);
             // ⭐ CE-1041 — a type with Body.Geometry: the kit's box sits where the TKB puts it relative to the reference point
             //   (an aircraft's CG), and the gear is drawn AT the TKB's contact points instead of the kit's generic gear.
             var geometry = look.Geometry;
@@ -112,7 +120,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             foreach (var part in parts)
             {
                 if (geometry != null && part.Role == PartRole.Gear) continue;
-                var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size, pivots, pose) * kitToBody * body);
+                var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size, pivots, pose, motion) * kitToBody * body);
                 var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
                 Raylib.DrawMesh(mesh, shader.Tinted(Shade(part.Colour, colour)), model);
                 PartsDrawn++;
@@ -132,15 +140,43 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             }
             BodiesDrawn++;
         }
+        _motion.EndFrame(_drawn);
+    }
+
+    /// <summary>⭐ CE-1033 S4 — the figure's parts: the logical stance (the shared rule), BLENDED from the stance it is leaving while
+    /// the muscle reports a transition in progress (<see cref="StanceStatus"/> — replicated, so every host shows the same blend).</summary>
+    private static KitPart[] FigurePose(EntityRepository world, Entity e, bool soldier)
+    {
+        var target = LogicalStance.Of(world, e);
+        if (world.IsComponentTypeRegistered<StanceStatus>() && world.HasComponent<StanceStatus>(e))
+        {
+            ref readonly var status = ref world.GetComponentRO<StanceStatus>(e);
+            if (status.Phase == StanceTransitionPhase.Transitioning && status.CurrentStance != target)
+                return BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier);
+        }
+        return BlockFigure.Parts(target, soldier);
+    }
+
+    private readonly MotionTracker _motion = new();
+    private readonly HashSet<Entity> _drawn = new();
+    private float _wallFallback;
+
+    /// <summary>The moving-parts tracker (S4) — read by rails.</summary>
+    public MotionTracker Motion => _motion;
+
+    /// <summary>Clearly off the ground: above its resting height by <see cref="AirborneMargin"/> (the gear heuristic).</summary>
+    private static bool IsAirborne(EntityRepository world, Vector3 position, BodyGeometryDto? geometry)
+    {
+        float rest = geometry != null ? BodyGeometry.RestingHeight(geometry) : 0f;
+        float ground = Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(position.X, position.Y) ?? 0f;
+        return position.Z - ground > rest + AirborneMargin;
     }
 
     /// <summary>Gear legs and wheels / skids drawn at the TKB's contact points. ⚠ Retractable gear is hidden when the body is
     /// clearly airborne — a PRESENTATION guess until a gear-state component exists (docs/DESIGN_Body_Geometry_And_Ground_Contact.md §5).</summary>
     private void DrawGear(EntityRepository world, BodyGeometryDto geometry, Vector3 position, Matrix4x4 body, LitShader shader)
     {
-        float rest = BodyGeometry.RestingHeight(geometry);
-        float ground = Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(position.X, position.Y) ?? 0f;
-        bool airborne = position.Z - ground > rest + AirborneMargin;
+        bool airborne = IsAirborne(world, position, geometry);
         float skidLeftMin = float.MaxValue, skidLeftMax = float.MinValue, skidRightMin = float.MaxValue, skidRightMax = float.MinValue;
         float skidZ = 0f, skidLeftY = 0f, skidRightY = 0f;
         foreach (var c in geometry.GroundContacts)

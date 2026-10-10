@@ -202,6 +202,26 @@ public sealed class Map3DGizmoTests
     }
 
     [Fact]
+    public void S4_AMetreWideLine_IsADrapedRibbonAtItsTrueWidth_ARoad()
+    {
+        var r = new GizmoRenderer3D { GroundHeight = Slope };
+        var sink = new CaptureSink();
+        var road = DebugPrimitive.MakeLine(new Vector3(0f, 10f, 0f), new Vector3(30f, 10f, 0f), Red, thickness: 7f, sizeMode: SizeMode.WorldMeters);
+        r.Draw(Triage(new DebugPrimitiveTriage3D(), road), _ => 10f, sink);
+
+        Assert.Empty(sink.Lines);
+        Assert.True(sink.Triangles.Count >= 20, $"30 m in 3 m pieces, two triangles each — got {sink.Triangles.Count}");
+        float minY = sink.Triangles.Min(t => MathF.Min(t.A.Y, MathF.Min(t.B.Y, t.C.Y)));
+        float maxY = sink.Triangles.Max(t => MathF.Max(t.A.Y, MathF.Max(t.B.Y, t.C.Y)));
+        Assert.Equal(7f, maxY - minY, 2);                                                    // the road's width
+        Assert.All(sink.Triangles, t => Assert.InRange(t.A.Z - Slope(t.A.X, t.A.Y), 0.05f, 0.2f));   // on the slope
+        // a pixel-wide line stays a line
+        sink.Triangles.Clear();
+        r.Draw(Triage(new DebugPrimitiveTriage3D(), DebugPrimitive.MakeLine(Vector3.Zero, new Vector3(9f, 0f, 0f), Red, thickness: 7f)), _ => 10f, sink);
+        Assert.Empty(sink.Triangles);
+    }
+
+    [Fact]
     public void S3_TheGizmoLayer_DrawsIn3D_WithTheMapsFilters_AndAttachMapLayersWiresGroundAndLabels()
     {
         var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();

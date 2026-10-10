@@ -36,7 +36,8 @@ namespace Fdp.Toolkit.Vis3D
     ///   <item><b>Sizes in pixels</b> (<see cref="SizeMode.ScreenPixels"/>) become metres at the shape's own distance (the
     ///   camera's <c>ZoomAt</c>), so a 6 px handle stays 6 px near and far.</item>
     /// </list>
-    /// ⚠ Lines are one pixel wide — a width in metres (a road at its true width) is not honoured in 3-D yet.
+    /// ⭐ S4: a line with a width in METRES of at least <see cref="RibbonFromMetres"/> (a road) is a draped ribbon at that width;
+    /// other lines are one pixel wide.
     /// ⭐ What it cannot draw is COUNTED in <see cref="Skipped"/>, never silently dropped (DESIGN_Stride_Node_Modes.md §8):
     /// <c>SemanticShape</c> (the entity body layer draws bodies), <c>MilStd2525</c> (2-D symbology).
     /// </summary>
@@ -117,7 +118,36 @@ namespace Fdp.Toolkit.Vis3D
             bool drape = !t.Anchored && p.LineStart.Z == 0f && p.LineEnd.Z == 0f;
             _path.Clear();
             AppendEdge(_path, p.LineStart, p.LineEnd, drape, includeFirst: true);
+            float width = p.SizeMode == SizeMode.WorldMeters ? p.ThicknessU16 / 10f : 0f;
+            if (width >= RibbonFromMetres && p.LineStyle == LineStyle.Solid)
+            {
+                EmitRibbon(_path, width, p.Color, drape);   // ⭐ CE-1033 S4 — a road at its true width, draped over the relief
+                return;
+            }
             EmitPath(_path, p.Color, p.EndColor, p.LineStyle);
+        }
+
+        /// <summary>A line whose width is in METRES (<see cref="SizeMode.WorldMeters"/>) and at least this wide is drawn as a ribbon
+        /// of that width — a road, a corridor — not a one-pixel line (⭐ CE-1033 S4: the road ribbons come from the road gizmo).</summary>
+        public const float RibbonFromMetres = 0.5f;
+
+        /// <summary>A strip <paramref name="width"/> wide along <paramref name="path"/>; its corners draped one by one when the line
+        /// lies on the ground, so it bends over a hill like the line does.</summary>
+        private void EmitRibbon(List<Vector3> path, float width, Rgba32 colour, bool drape)
+        {
+            for (int i = 1; i < path.Count; i++)
+            {
+                var a = path[i - 1];
+                var b = path[i];
+                var d = new Vector2(b.X - a.X, b.Y - a.Y);
+                if (d.LengthSquared() < 1e-8f) continue;
+                d = Vector2.Normalize(d);
+                var side = new Vector3(-d.Y, d.X, 0f) * (width / 2f);
+                Vector3 al = a + side, ar = a - side, bl = b + side, br = b - side;
+                if (drape) { al = Drape(al with { Z = 0f }); ar = Drape(ar with { Z = 0f }); bl = Drape(bl with { Z = 0f }); br = Drape(br with { Z = 0f }); }
+                Tri(al, ar, br, colour);
+                Tri(al, br, bl, colour);
+            }
         }
 
         private void DrawArrow(in TriagedPrimitive3D t)

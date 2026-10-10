@@ -110,6 +110,42 @@ namespace Fdp.Toolkit.Terrain
             }
         }
 
+        /// <summary>⭐ CE-1033 S4 — <see cref="Build"/>, with each triangle's material from the mesh's tags (a prism's material,
+        /// <c>"forest"</c> ground) and the water surfaces appended as flat <see cref="TerrainSurfaceKind.Water"/> triangles at the
+        /// lowest ground height round their edge (the soup leaves a hole there — water is not walkable).</summary>
+        public void BuildTagged(out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds, out string?[] materials)
+        {
+            Build(out var soupVerts, out var soupIndices, out var soupKinds);
+            TerrainWorldMesh.Build(World, out _, out _, out var tags);
+            var v = new List<Vector3>(soupVerts);
+            var idx = new List<int>(soupIndices);
+            var k = new List<TerrainSurfaceKind>(soupKinds);
+            var m = new List<string?>(soupKinds.Length);
+            for (int t = 0; t < soupKinds.Length; t++) m.Add(t < tags.Length ? tags[t].Material : null);
+
+            foreach (var s in World.Surfaces)
+            {
+                if (s.Type != TerrainSurfaceType.Water || s.Polygon.Length < 3) continue;
+                float level = float.MaxValue;
+                foreach (var p in s.Polygon) level = MathF.Min(level, World.GroundHeightAt(p.X, p.Y));
+                level -= 0.15f;   // a little below the bank
+                int b = v.Count;
+                foreach (var p in s.Polygon) v.Add(new Vector3(p, level));
+                for (int i = 0; i + 2 < s.Triangles.Length; i += 3)
+                {
+                    int i0 = b + s.Triangles[i], i1 = b + s.Triangles[i + 1], i2 = b + s.Triangles[i + 2];
+                    bool up = Vector3.Cross(v[i1] - v[i0], v[i2] - v[i0]).Z >= 0f;
+                    idx.Add(i0); idx.Add(up ? i1 : i2); idx.Add(up ? i2 : i1);
+                    k.Add(TerrainSurfaceKind.Water);
+                    m.Add("water");
+                }
+            }
+            vertices = v.ToArray();
+            indices = idx.ToArray();
+            kinds = k.ToArray();
+            materials = m.ToArray();
+        }
+
         /// <summary>
         /// The stand-in's meaning of a closed barrier: a floor or stair (slab, ramp), a door leaf, or a wall panel of a building — the
         /// pieces that ENCLOSE a space, so a blast does not diffract round them (<c>DESIGN_Building_Interiors.md</c> W-7′). A free-standing

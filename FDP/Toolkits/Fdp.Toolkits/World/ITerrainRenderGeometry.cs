@@ -8,6 +8,8 @@ namespace Fdp.Toolkit.World
         Ground = 0,
         Wall = 1,
         Roof = 2,
+        /// <summary>⭐ CE-1033 S4 — a water surface (drawn only; not part of the walkable soup).</summary>
+        Water = 3,
     }
 
     /// <summary>
@@ -22,5 +24,16 @@ namespace Fdp.Toolkit.World
 
         /// <summary>The triangles (Z-up, local metres): <paramref name="indices"/> in threes, one <paramref name="kinds"/> entry per triangle.</summary>
         void Build(out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds);
+
+        /// <summary>
+        /// ⭐ CE-1033 S4 (docs/DESIGN_Map_3D_Mode.md §6 S4 — "colours by surface and material; water") — <see cref="Build"/> plus a
+        /// material name per triangle (null = plain) and the water surfaces as extra <see cref="TerrainSurfaceKind.Water"/> triangles.
+        /// Default: <see cref="Build"/> with no materials and no water, so an implementation that knows neither still draws.
+        /// </summary>
+        void BuildTagged(out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds, out string?[] materials)
+        {
+            Build(out vertices, out indices, out kinds);
+            materials = new string?[kinds.Length];
+        }
     }
 }

@@ -431,6 +431,107 @@ public sealed class Map3DTests
         Assert.InRange(Vector2.Distance(centre, new Vector2(-120, 300)), 0f, 0.05f);
     }
 
+    // ── CE-1033 S4 — the terrain by surface and material, water ──
+
+    [Fact]
+    public void S4_TheTerrainTags_LeaveTheNavmeshSoupUnchanged_AndColourForestAndWater()
+    {
+        var town = TestTown();
+        Fdp.Toolkit.Terrain.TerrainWorldMesh.Build(town, out var soupV, out var soupI);
+        Fdp.Toolkit.Terrain.TerrainWorldMesh.Build(town, out var tagV, out var tagI, out var tags);
+        Assert.Equal(soupV, tagV);                                       // the navmesh is baked from exactly the same triangles
+        Assert.Equal(soupI, tagI);
+        Assert.Equal(tagI.Length / 3, tags.Length);
+        Assert.Contains(tags, t => t.Kind == Fdp.Toolkit.Terrain.TerrainTriangleKind.Wall && t.Material == "concrete");
+        Assert.Contains(tags, t => t.Material == Fdp.Toolkit.Terrain.TerrainWorldMesh.ForestMaterial);   // test-town has a forest
+
+        var geometry = WorldQuery.RenderGeometryOf(WorldWith(town))!;
+        geometry.BuildTagged(out var verts, out var indices, out var kinds, out var materials);
+        Assert.Contains(TerrainSurfaceKind.Water, kinds);                                     // and a pond, drawn into its hole
+        Assert.Equal(kinds.Length, materials.Length);
+        TerrainLayer3D.BuildVertexData(verts, indices, kinds, materials, out _, out var normals, out var colours);
+        int water = Array.IndexOf(kinds, TerrainSurfaceKind.Water);
+        Assert.Equal(TerrainLayer3D.WaterColor, colours[3 * water]);
+        Assert.True(normals[3 * water].Y > 0.9f, "the water faces up");
+        int forest = Array.IndexOf(materials, "forest");
+        Assert.Equal(TerrainLayer3D.ForestColor, colours[3 * forest]);
+        Assert.Equal(new Raylib_cs.Color(172, 96, 72, 255), TerrainLayer3D.ColourOf(TerrainSurfaceKind.Wall, "brick"));
+        Assert.Equal(TerrainLayer3D.RoofColor, TerrainLayer3D.ColourOf(TerrainSurfaceKind.Roof, "concrete"));
+    }
+
+    // ── CE-1033 S4 — things come alive (§6 S4): wheels roll, limbs swing, a rotor turns ──
+
+    [Fact]
+    public void S4_WheelsRollByTheDistanceDriven_BackwardsInReverse_AndATeleportDoesNotSpinThem()
+    {
+        var t = new MotionTracker();
+        var car = new Entity(1, 1);
+        var size = new Vector3(4.5f, 1.8f, 1.5f);
+        float radius = ShapeKits.WheelRadiusOfHeight * size.Z;
+        t.Advance(car, Vector3.Zero, Quaternion.Identity, VisualFamily.WheeledCar, size, 0, false);
+        var p = t.Advance(car, new Vector3(1f, 0, 0), Quaternion.Identity, VisualFamily.WheeledCar, size, 0.1, false);
+        Assert.Equal(1f / radius % (MathF.PI * 2f), p.WheelRoll, 3);
+        p = t.Advance(car, new Vector3(0.5f, 0, 0), Quaternion.Identity, VisualFamily.WheeledCar, size, 0.2, false);
+        Assert.Equal(0.5f / radius % (MathF.PI * 2f), p.WheelRoll, 3);                        // reversing rolls back
+        var before = p.WheelRoll;
+        p = t.Advance(car, new Vector3(500f, 0, 0), Quaternion.Identity, VisualFamily.WheeledCar, size, 0.3, false);
+        Assert.Equal(before, p.WheelRoll, 4);                                                  // a teleport is not driving
+    }
+
+    [Fact]
+    public void S4_AWalkingFigureSwingsItsLimbs_AStandingOneDoesNot_ByTheSharedGaitRule()
+    {
+        var t = new MotionTracker();
+        var man = new Entity(2, 1);
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        float maxSwing = 0f, minSwing = 0f;
+        for (int i = 0; i <= 60; i++)   // 1.5 m/s for 2 s at 30 Hz — a full walk
+        {
+            var pose = t.Advance(man, new Vector3(i * 0.05f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, i / 30.0, false);
+            maxSwing = MathF.Max(maxSwing, pose.Swing); minSwing = MathF.Min(minSwing, pose.Swing);
+        }
+        Assert.True(maxSwing > 0.3f && minSwing < -0.3f, $"the legs swing both ways at a walk ({minSwing}..{maxSwing})");
+        var still = t.Advance(man, new Vector3(3f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, 2.1, false);
+        Assert.Equal(0f, still.Swing);
+
+        // the left leg's foot goes FORWARD (+x) on a positive swing
+        var leg = BlockFigure.Parts(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, false)
+                             .Single(k => k.Role == PartRole.LegLeft);
+        var foot = Vector3.Transform(new Vector3(0, 0, -0.5f), leg.BodyTransform(size, default, ArticulationPose.Neutral, new MotionPose(0, 0, 0.4f)));
+        var footStill = Vector3.Transform(new Vector3(0, 0, -0.5f), leg.BodyTransform(size));
+        Assert.True(foot.X > footStill.X + 0.1f, $"left foot forward: {foot} vs {footStill}");
+    }
+
+    [Fact]
+    public void S4_AStanceChange_Blends_HalfWayIsBetweenTheTwoPoses()
+    {
+        var stand = BlockFigure.Parts(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, true);
+        var prone = BlockFigure.Parts(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, true);
+        var half = BlockFigure.Blend(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Fdp.Toolkit.Tkb.Domain.StanceId.Prone, 0.5f, true);
+        Assert.Equal(stand.Length, half.Length);
+        for (int i = 0; i < half.Length; i++)
+            Assert.InRange(Vector3.Distance(half[i].Centre, (stand[i].Centre + prone[i].Centre) / 2f), 0f, 1e-4f);
+        Assert.Same(prone, BlockFigure.Blend(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Fdp.Toolkit.Tkb.Domain.StanceId.Prone, 1f, true));
+    }
+
+    [Fact]
+    public void S4_ARotorTurnsOnSimulationTimeWhileFlying_AndStandsWhenParked()
+    {
+        var t = new MotionTracker();
+        var heli = new Entity(3, 1);
+        var size = ShapeKits.DefaultSize(VisualFamily.Helicopter);
+        var a = t.Advance(heli, new Vector3(0, 0, 30), Quaternion.Identity, VisualFamily.Helicopter, size, 10.00, rotorTurning: true);
+        var b = t.Advance(heli, new Vector3(0, 0, 30), Quaternion.Identity, VisualFamily.Helicopter, size, 10.05, rotorTurning: true);
+        Assert.NotEqual(a.Rotor, b.Rotor);
+        var c = t.Advance(heli, new Vector3(0, 0, 30), Quaternion.Identity, VisualFamily.Helicopter, size, 10.05, rotorTurning: true);
+        Assert.Equal(b.Rotor, c.Rotor);                                              // a paused sim clock freezes it
+        Assert.Equal(0f, t.Advance(heli, Vector3.Zero, Quaternion.Identity, VisualFamily.Helicopter, size, 11.0, rotorTurning: false).Rotor);
+        // the blades turn about their mast, the spokes about their wheel: the part's centre stays put
+        var blade = ShapeKits.Helicopter.Parts.First(k => k.Role == PartRole.Rotor);
+        var centre = Vector3.Transform(Vector3.Zero, blade.BodyTransform(size, default, ArticulationPose.Neutral, new MotionPose(1.2f, 0, 0)));
+        Assert.InRange(Vector3.Distance(centre, Vector3.Transform(Vector3.Zero, blade.BodyTransform(size))), 0f, 1e-3f);
+    }
+
     // ── CE-1040 — the 2-D map is north-up (docs/DESIGN_Map_North_Up.md) ──
 
     [Fact]

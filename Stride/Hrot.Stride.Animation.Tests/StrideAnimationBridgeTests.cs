@@ -5,6 +5,7 @@ using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
 using Xunit;
+using Fdp.Toolkit.Animation;   // CE-1033 S4 — LocomotionBlend moved here (Fdp.Toolkits)
 
 namespace Hrot.Stride.Animation.Tests;
 

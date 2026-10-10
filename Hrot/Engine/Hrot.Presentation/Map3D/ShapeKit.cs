@@ -19,7 +19,27 @@ public enum ColourRole : byte { Body, Dark, Glass, Metal }
 /// A <see cref="Gear"/> part is the kit's GENERIC landing gear — replaced by the gear at the TKB's contact points when the type has
 /// a <c>Body.Geometry</c> (CE-1041).
 /// </summary>
-public enum PartRole : byte { Hull, Turret, Gun, Gear }
+public enum PartRole : byte
+{
+    Hull, Turret, Gun, Gear,
+    /// <summary>⭐ CE-1033 S4 — a main-rotor blade: spins about its centre's vertical axis (<see cref="MotionPose.Rotor"/>).</summary>
+    Rotor,
+    /// <summary>⭐ CE-1033 S4 — a wheel's spoke: rolls about its centre's sideways axis (<see cref="MotionPose.WheelRoll"/>), so a
+    /// wheel — a round disc that looks the same at any angle — shows that it turns.</summary>
+    WheelSpoke,
+    /// <summary>⭐ CE-1033 S4 — a block figure's limbs: swing about their TOP (hip, shoulder); left and right in opposite phase,
+    /// each arm against its leg (<see cref="MotionPose.Swing"/>).</summary>
+    LegLeft, LegRight, ArmLeft, ArmRight,
+}
+
+/// <summary>
+/// ⭐ CE-1033 S4 (docs/DESIGN_Map_3D_Mode.md §6, "things come alive") — the moving parts' pose for one frame: the main-rotor
+/// angle, the wheels' roll angle (radians) and the limb swing (radians, + = the left leg forward). Default: all still.
+/// </summary>
+public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swing)
+{
+    public static readonly MotionPose Still = default;
+}
 
 /// <summary>
 /// ⭐ CE-1033 — the pose of a kit's articulated parts: turret azimuth RELATIVE TO THE HULL (radians, counter-clockwise seen from
@@ -49,7 +69,10 @@ public readonly record struct KitPart(
     public Matrix4x4 BodyTransform(Vector3 size) => BodyTransform(size, default, ArticulationPose.Neutral);
 
     /// <summary>The part's transform in BODY space, with the turret and gun posed by <paramref name="pose"/> about <paramref name="pivots"/>.</summary>
-    public Matrix4x4 BodyTransform(Vector3 size, KitPivots pivots, ArticulationPose pose)
+    public Matrix4x4 BodyTransform(Vector3 size, KitPivots pivots, ArticulationPose pose) => BodyTransform(size, pivots, pose, MotionPose.Still);
+
+    /// <summary>The part's transform in BODY space, articulated by <paramref name="pose"/> and moving by <paramref name="motion"/>.</summary>
+    public Matrix4x4 BodyTransform(Vector3 size, KitPivots pivots, ArticulationPose pose, MotionPose motion)
     {
         var centre = Centre * size;
         Matrix4x4 local;
@@ -73,6 +96,29 @@ public readonly record struct KitPart(
         if (PitchDegrees != 0f) local *= Matrix4x4.CreateRotationY(PitchDegrees * MathF.PI / 180f);
         if (YawDegrees != 0f) local *= Matrix4x4.CreateRotationZ(YawDegrees * MathF.PI / 180f);
         var m = local * Matrix4x4.CreateTranslation(centre);
+
+        // ⭐ CE-1033 S4 — the moving parts, each about its own pivot.
+        switch (Role)
+        {
+            case PartRole.Rotor when motion.Rotor != 0f:
+            {
+                var axis = new Vector3(centre.X, centre.Y, 0f);
+                m *= Matrix4x4.CreateTranslation(-axis) * Matrix4x4.CreateRotationZ(motion.Rotor) * Matrix4x4.CreateTranslation(axis);
+                break;
+            }
+            case PartRole.WheelSpoke when motion.WheelRoll != 0f:
+                // rolling forward turns the wheel's top forward: about +y, the top (+z) toward +x
+                m *= Matrix4x4.CreateTranslation(-centre) * Matrix4x4.CreateRotationY(motion.WheelRoll) * Matrix4x4.CreateTranslation(centre);
+                break;
+            case PartRole.LegLeft or PartRole.LegRight or PartRole.ArmLeft or PartRole.ArmRight when motion.Swing != 0f:
+            {
+                // + swing = the left leg forward (its foot toward +x), so the right leg and the left arm go back
+                float sign = Role is PartRole.LegLeft or PartRole.ArmRight ? 1f : -1f;
+                var pivot = centre + new Vector3(0f, 0f, Extent.Z * size.Z / 2f);
+                m *= Matrix4x4.CreateTranslation(-pivot) * Matrix4x4.CreateRotationY(-sign * motion.Swing) * Matrix4x4.CreateTranslation(pivot);
+                break;
+            }
+        }
 
         if (Role == PartRole.Gun && pose.GunElevation != 0f)
         {
@@ -99,7 +145,7 @@ public sealed record ShapeKit(KitPart[] Parts, KitPivots Pivots)
 /// <summary>
 /// ⭐ CE-1033 — what each kind of entity looks like in 3-D (<c>docs/DESIGN_Map_3D_Mode.md</c> §3.5, M7): a short list of parts as
 /// fractions of the type's size, chosen by <see cref="VisualFamily"/>. The tank and AFV turret and gun are ARTICULATED parts
-/// (§3.11); rotor spin, wheel roll and limb swing are S4. For aircraft the y extent is the SPAN (wings, main rotor), so parts may
+/// (§3.11); the rotor spins, the wheels roll and the limbs swing (S4, <see cref="MotionPose"/>). For aircraft the y extent is the SPAN (wings, main rotor), so parts may
 /// reach the span's edge.
 /// </summary>
 public static class ShapeKits
@@ -111,6 +157,14 @@ public static class ShapeKits
     private static KitPart Cyl(PartAxis axis, float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c,
                                PartRole role = PartRole.Hull)
         => new(PartShape.Cylinder, new Vector3(cx, cy, cz), new Vector3(ex, ey, ez), c, axis, Role: role);
+
+    /// <summary>A wheel's spoke: a thin bar across the wheel at (cx, cy, cz), a little wider than the wheel (<paramref name="width"/>)
+    /// so it shows on its face. Its length is 0.13 of the length — about the wheel's diameter on the wheeled kits' proportions.</summary>
+    private static KitPart Spoke(float cx, float cy, float cz, float width)
+        => new(PartShape.Box, new Vector3(cx, cy, cz), new Vector3(0.13f, width * 1.06f, 0.03f), ColourRole.Metal, Role: PartRole.WheelSpoke);
+
+    /// <summary>The wheels' radius on a wheeled kit, as a fraction of the type's height (the wheel cylinders' diameter is 0.42).</summary>
+    public const float WheelRadiusOfHeight = 0.21f;
 
     private static KitPart Cone(PartAxis axis, float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c)
         => new(PartShape.Cone, new Vector3(cx, cy, cz), new Vector3(ex, ey, ez), c, axis);
@@ -142,6 +196,8 @@ public static class ShapeKits
         Cyl(PartAxis.Y, 0.32f, -0.45f, 0.21f, 0f, 0.12f, 0.42f, ColourRole.Dark),
         Cyl(PartAxis.Y, -0.32f, 0.45f, 0.21f, 0f, 0.12f, 0.42f, ColourRole.Dark),
         Cyl(PartAxis.Y, -0.32f, -0.45f, 0.21f, 0f, 0.12f, 0.42f, ColourRole.Dark),
+        Spoke(0.32f, 0.45f, 0.21f, 0.12f), Spoke(0.32f, -0.45f, 0.21f, 0.12f),     // ⭐ S4 — spokes, so the wheels show they roll
+        Spoke(-0.32f, 0.45f, 0.21f, 0.12f), Spoke(-0.32f, -0.45f, 0.21f, 0.12f),
     }, default);
 
     public static readonly ShapeKit WheeledUtility = new(new[]
@@ -153,6 +209,8 @@ public static class ShapeKits
         Cyl(PartAxis.Y, 0.33f, -0.43f, 0.21f, 0f, 0.16f, 0.42f, ColourRole.Dark),
         Cyl(PartAxis.Y, -0.33f, 0.43f, 0.21f, 0f, 0.16f, 0.42f, ColourRole.Dark),
         Cyl(PartAxis.Y, -0.33f, -0.43f, 0.21f, 0f, 0.16f, 0.42f, ColourRole.Dark),
+        Spoke(0.33f, 0.43f, 0.21f, 0.16f), Spoke(0.33f, -0.43f, 0.21f, 0.16f),
+        Spoke(-0.33f, 0.43f, 0.21f, 0.16f), Spoke(-0.33f, -0.43f, 0.21f, 0.16f),
     }, default);
 
     /// <summary>A helicopter (UH-60-like proportions; y = main-rotor diameter): fuselage, cockpit glass, tail boom and fin,
@@ -165,8 +223,8 @@ public static class ShapeKits
         Box(-0.47f, 0f, 0.64f, 0.06f, 0.015f, 0.34f, ColourRole.Body, -25f),                 // tail fin
         Cyl(PartAxis.Y, -0.48f, 0.02f, 0.70f, 0f, 0.006f, 0.30f, ColourRole.Dark),           // tail rotor disc
         Cyl(PartAxis.Z, 0.06f, 0f, 0.66f, 0.015f, 0f, 0.10f, ColourRole.Metal),              // mast
-        Box(0.06f, 0f, 0.72f, 0.83f, 0.03f, 0.012f, ColourRole.Dark),                        // main blade, fore–aft
-        Box(0.06f, 0f, 0.72f, 0.025f, 1.0f, 0.012f, ColourRole.Dark),                        // main blade, across
+        Box(0.06f, 0f, 0.72f, 0.83f, 0.03f, 0.012f, ColourRole.Dark, role: PartRole.Rotor),  // main blade, fore–aft
+        Box(0.06f, 0f, 0.72f, 0.025f, 1.0f, 0.012f, ColourRole.Dark, role: PartRole.Rotor),  // main blade, across
         Box(0.04f, 0.11f, 0.0125f, 0.40f, 0.015f, 0.025f, ColourRole.Dark, role: PartRole.Gear),                  // skids, on the ground
         Box(0.04f, -0.11f, 0.0125f, 0.40f, 0.015f, 0.025f, ColourRole.Dark, role: PartRole.Gear),
         Box(0.04f, 0.09f, 0.10f, 0.02f, 0.012f, 0.16f, ColourRole.Dark, role: PartRole.Gear),                     // skid struts
@@ -246,25 +304,25 @@ public static class ShapeKits
 /// <summary>
 /// ⭐ CE-1033 S1 — the person kit: a six-box block figure (U14) posed by the shared stance rule (<see cref="LogicalStance"/>,
 /// M7), with a rifle for a soldier. Parts are fractions of a 1.8 m standing figure's size (<see cref="ShapeKits.DefaultSize"/>),
-/// so a taller or shorter TKB person scales. Static poses in S1; blending and limb swing are S4.
+/// so a taller or shorter TKB person scales. ⭐ S4: the standing figure's limbs swing with the walking speed (<see cref="MotionPose"/>).
 /// </summary>
 public static class BlockFigure
 {
     // Metres for a 1.8 m figure, converted to fractions of (0.35, 0.55, 1.8) below.
-    private static KitPart P(float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c)
+    private static KitPart P(float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c, PartRole role = PartRole.Hull)
     {
         var s = new Vector3(0.35f, 0.55f, 1.8f);
-        return new KitPart(PartShape.Box, new Vector3(cx, cy, cz) / s, new Vector3(ex, ey, ez) / s, c);
+        return new KitPart(PartShape.Box, new Vector3(cx, cy, cz) / s, new Vector3(ex, ey, ez) / s, c, Role: role);
     }
 
     private static readonly KitPart[] Standing =
     {
-        P(0f, 0.11f, 0.45f, 0.15f, 0.13f, 0.90f, ColourRole.Dark),      // legs
-        P(0f, -0.11f, 0.45f, 0.15f, 0.13f, 0.90f, ColourRole.Dark),
-        P(0f, 0f, 1.18f, 0.24f, 0.40f, 0.56f, ColourRole.Body),         // torso
-        P(0f, 0f, 1.60f, 0.21f, 0.20f, 0.24f, ColourRole.Body),         // head
-        P(0f, 0.27f, 1.13f, 0.11f, 0.11f, 0.60f, ColourRole.Body),      // arms
-        P(0f, -0.27f, 1.13f, 0.11f, 0.11f, 0.60f, ColourRole.Body),
+        P(0f, 0.11f, 0.45f, 0.15f, 0.13f, 0.90f, ColourRole.Dark, PartRole.LegLeft),     // legs (S4: they swing when walking)
+        P(0f, -0.11f, 0.45f, 0.15f, 0.13f, 0.90f, ColourRole.Dark, PartRole.LegRight),
+        P(0f, 0f, 1.18f, 0.24f, 0.40f, 0.56f, ColourRole.Body),                          // torso
+        P(0f, 0f, 1.60f, 0.21f, 0.20f, 0.24f, ColourRole.Body),                          // head
+        P(0f, 0.27f, 1.13f, 0.11f, 0.11f, 0.60f, ColourRole.Body, PartRole.ArmLeft),     // arms
+        P(0f, -0.27f, 1.13f, 0.11f, 0.11f, 0.60f, ColourRole.Body, PartRole.ArmRight),
     };
 
     private static readonly KitPart[] Crouched =
@@ -294,6 +352,29 @@ public static class BlockFigure
     private static readonly KitPart[] StandingArmed = [.. Standing, RifleStanding];
     private static readonly KitPart[] CrouchedArmed = [.. Crouched, RifleCrouched];
     private static readonly KitPart[] ProneArmed = [.. Prone, RifleProne];
+
+    /// <summary>
+    /// ⭐ CE-1033 S4 — the figure part-way from <paramref name="from"/> to <paramref name="to"/> (<paramref name="t"/> 0..1, the
+    /// replicated <c>StanceStatus.TransitionProgress</c>): every stance has the same parts in the same order, so each part's centre
+    /// and size are interpolated. A standing figure's limbs keep their roles (they swing); a blend's do not.
+    /// </summary>
+    public static KitPart[] Blend(StanceId from, StanceId to, float t, bool soldier)
+    {
+        var a = Parts(from, soldier);
+        var b = Parts(to, soldier);
+        t = Math.Clamp(t, 0f, 1f);
+        if (t <= 0f) return a;
+        if (t >= 1f || a.Length != b.Length) return b;
+        var blended = new KitPart[a.Length];
+        for (int i = 0; i < a.Length; i++)
+            blended[i] = b[i] with
+            {
+                Centre = Vector3.Lerp(a[i].Centre, b[i].Centre, t),
+                Extent = Vector3.Lerp(a[i].Extent, b[i].Extent, t),
+                Role = PartRole.Hull,
+            };
+        return blended;
+    }
 
     /// <summary>The posed parts for <paramref name="stance"/> (anything but crouched or prone stands — the rule's own default).</summary>
     public static KitPart[] Parts(StanceId stance, bool soldier) => stance switch

@@ -10,6 +10,7 @@ using Stride.Core.Serialization.Contents;
 using Stride.Engine;
 using Entity = Fdp.Core.Entity;
 using StrideEntity = Stride.Engine.Entity;
+using Fdp.Toolkit.Animation;   // CE-1033 S4 — LocomotionBlend moved here (Fdp.Toolkits)
 
 namespace HrotStrideApp;
 
