@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — H1 BUILT 2026-10-10 (§5a as-built); H2–H4 to come. Leans TH-A..TH-H APPROVED (R-249); the library
+build-state: BUILDING — H1, H2, H3 BUILT 2026-10-10 (§5a, §5b as-built); H4 (basic-desert's ridge as a grid, with the backend lane) to come. Leans TH-A..TH-H APPROVED (R-249); the library
   question settled by the Q0 spike (DESIGN_World_Query_Seam.md §5a: Bepu for objects, the height stays a grid).
-updated: 2026-10-10 (rev 4 — §5a H1 as built, with its deviations argued. Rev 3 — §7 corrected by R-250/R-251: a real interface, Bepu not Jolt. Rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
+updated: 2026-10-10 (rev 5 — §5b H2 + H3 as built. Rev 4 — §5a H1 as built, with its deviations argued. Rev 3 — §7 corrected by R-250/R-251: a real interface, Bepu not Jolt. Rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
   (R-249, §4a); §7 the library question. Rev 1 — R-248: the flat ground is a temporary simplification; this file plans its removal)
 current-answer: §1 why · §2 INVENTORY · §3 the diagrams · §4 decisions with leans · §5 slices · §6 not verified.
 stale-below: nothing.
@@ -188,8 +188,8 @@ not by a second system.
 | slice | delivers | proves |
 |---|---|---|
 | **H1** ✅ | `TerrainHeightGrid` (+ its ASCII-grid reader), `GroundHeightAt`; the reads routed; the mesher on the grid's cells; TH-C defaults; the clamping flag in the movement model; the sloped fixture — §5a | an entity drives up a hill (kinematics, unchanged), spawns on the slope, the navmesh follows it — and every existing flat terrain is byte-identical |
-| **H2** | `GroundTrace` in the three queries; ballistics ground burst | a hill blocks sight and fragments |
-| **H3** | the `Z = 0` entry points grounded; the navmesh search box on the grounded hint | 2-D orders and route legs work on a hill |
+| **H2** ✅ | the ground trace (`TerrainHeightGrid.Crosses`) in the three queries; rounds and fragments stop at a hill — §5b | a hill blocks sight and fragments |
+| **H3** ✅ | road legs, road access points and the 2-D spawn command on the real ground; the navmesh search centred on it; 2-D move orders already resolved by Q0b — §5b | 2-D orders and route legs work on a hill |
 | **H4** | basic-desert's ridge and wadi as a grid (with the backend lane) | the utility demos on real relief |
 
 ⭐ Gates: the terrain feature suites first (`TerrainWorldTests`, the Recast and SimHost terrain tests — about 35 asserts assume
@@ -218,6 +218,39 @@ aircraft keeps its altitude only once something gives it the flag. Filed with th
 **Gates:** the 7 new rails (`TerrainHeightTests` ×5 on `SlopeFixture`, `CarKinematicsSystemTests.H1_…` ×2) pass; regressions on
 H1: `Fdp.Toolkits.Tests` **3038/3038** (+1 skip), `Hrot.SimHost.Tests` all executed pass (count varies per run, `CE-1038`),
 `Hrot.Editor.Tests` **474/474** (+2 skips).
+
+## 5b. H2 + H3 — as built `2026-10-10`
+
+**H2 (TH-D) — a hill blocks sight and fire.** `TerrainHeightGrid.Crosses(a, b)` walks only the cells under the segment
+(Amanatides–Woo, the segment first clipped to the grid) and tests their two triangles (Möller–Trumbore) — allocation-free, no
+memory beyond the grid; a hit within 5 cm of either end is that end touching the ground, and an end UNDER the ground is a
+malformed query, not an occluder. It is ONE helper the three queries share:
+
+| query | a hill in the way |
+|---|---|
+| `SegmentBlocked` (perception, EQS, aiming, danger areas) | blocked — the yes/no form stops at the first cell |
+| `QuerySight` (diagnostic) | a `"ground"` crossing, transmittance 0 |
+| `QueryFire` (rounds, fragments, blast) | a `"ground"` crossing of `GroundResistanceMmRha` (stops anything); its `TopZ` is the **crest** along the whole line, so `AreaEffect.TerrainShadow` diffracts a blast over the hill like over a wall; not a closed barrier |
+
+⇒ every consumer moved onto `IWorldQuery` (Q1/Q2) gets hills with no edit. Without a grid nothing changes (no line between two
+points above a flat ground can dip under it).
+
+**H3 (TH-E/TH-F) — points that arrive 2-D stand on the real ground.**
+
+| entry point | as built |
+|---|---|
+| 2-D move orders | ✅ already Q0b: the brain flags them, `NavigationDestination.Of` resolves them |
+| road legs (`RoutePlanner`) | `RoutePlanner.World` (set by both production callers — `PathfindingSolverSystem`, `DangerAlongRouteSolve`); a road node's height = the navmesh snapped **from the ground there** (the ±4 m search box now centred on the real ground, not on 0), else the ground; the road's entry/exit points stand on the surface at the level of the end they serve |
+| the 2-D spawn command (`VehicleCommandSystem`) | the vehicle is born on level 0 at (x, y), and so is its idle destination |
+| `INavmeshProvider`'s contract note | *"for flat-earth queries use Z 0"* replaced by *"never pass Z = 0 meaning on the ground — pass the ground height"* |
+
+**Left, named:** `TrajectoryPoolManager.Lift` still lifts 2-D trajectories to Z = 0 — harmless while the movement model takes Z
+from the surface each step, but a reader of trajectory Z would be wrong; the SimHost UI's built-in scenarios spawn at Z = 0
+(their entities are grounded by the movement model once they move, R-249; a static one is not); the route-waypoint up-axis
+question (§6) is still open.
+
+**Gates:** 10 rails on the slope and the ridge (`TerrainHeightTests` H1 ×5 + H2 ×3 + H3 ×1, `FormationCreationTests.H3_…`) pass;
+regressions in the commit and the tracker.
 
 ## 7. Build or use a library? — the user's question, `2026-10-10` *(⚠ rev 1 below is CORRECTED by `R-250`/`R-251` — read the banner first)*
 

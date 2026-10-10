@@ -77,6 +77,86 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(1.5f, flat.GroundHeightAt(10f, 10f));
         }
 
+        // ── ⭐ CE-1034 H2 (TH-D) — a hill blocks sight and fire ──────────────────────────────────────────────
+
+        [Fact]
+        public void H2_AHill_BlocksSight_AndALineOverItOrAlongTheCrestIsClear()
+        {
+            var w = SlopeFixture.Ridge();
+            float G(float y) => w.GroundHeightAt(100f, y);
+            var southEye = new Vector3(100f, 20f, G(20f) + 1.8f);
+            var northEye = new Vector3(100f, 180f, G(180f) + 1.8f);
+            Assert.True(w.SegmentBlocked(southEye, northEye), "two men on either side of a 10 m ridge cannot see each other");
+            Assert.False(w.SegmentBlocked(southEye with { Z = 40f }, northEye with { Z = 40f }), "a line well above the crest is clear");
+            Assert.False(w.SegmentBlocked(new Vector3(20f, 100f, 11.8f), new Vector3(180f, 100f, 11.8f)), "along the crest is clear");
+            Assert.False(w.SegmentBlocked(new Vector3(100f, 30f, G(30f)), new Vector3(100f, 40f, G(40f) + 1.8f)), "feet on the slope are not a hill in the way");
+            Assert.False(w.SegmentBlocked(new Vector3(100f, 50f, -5f), northEye), "an end under the ground is malformed, not an occluder");
+
+            var sight = w.QuerySight(southEye, northEye);
+            Assert.Contains(sight.Crossed, c => c.Kind == TerrainWorld.GroundKind && c.Transmittance == 0f);
+            Assert.Equal(0f, sight.Transmittance);
+            Assert.True(new TerrainWorldQuery(w).SightBlocked(southEye, northEye));
+        }
+
+        [Fact]
+        public void H2_AHill_StopsARound_AndItsCrestIsTheBlastShadowsTop()
+        {
+            var w = SlopeFixture.Ridge();
+            var a = new Vector3(100f, 20f, w.GroundHeightAt(100f, 20f) + 1.5f);
+            var b = new Vector3(100f, 180f, w.GroundHeightAt(100f, 180f) + 1.5f);
+            var fire = w.QueryFire(a, b);
+            var ground = Assert.Single(fire, c => c.Kind == TerrainWorld.GroundKind);
+            Assert.Equal(TerrainWorld.GroundResistanceMmRha, ground.ResistanceMmRha);
+            Assert.InRange(ground.TopZ, SlopeFixture.RidgeTop - 0.01f, SlopeFixture.RidgeTop + 0.01f);
+            // a level line 1.5 m over the ground at y = 20 (z 3.5) meets the slope where the ground reaches 3.5 — y = 35, t = 15/160
+            Assert.InRange(ground.T, 0.093f, 0.095f);
+
+            float damage = 1f, pen = 2000f;
+            Assert.True(Fdp.Toolkit.Combat.TerrainPenetration.Carry(new TerrainWorldQuery(w), a, b, ref damage, ref pen, out float stopT));
+            Assert.InRange(stopT, 0.093f, 0.095f);
+            var traced = new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
+            new TerrainWorldQuery(w).Trace(a, b, Fdp.Toolkit.World.TracePurpose.Fire, traced);
+            Assert.False(traced.Single(c => c.Kind == TerrainWorld.GroundKind).ClosedBarrier);   // a hill diffracts a blast, like a wall
+        }
+
+        [Fact]
+        public void H2_TheGroundTrace_AllocatesNothing_AndAFlatTerrainHasNone()
+        {
+            var w = SlopeFixture.Ridge();
+            var a = new Vector3(100f, 20f, 3.8f); var b = new Vector3(100f, 180f, 3.8f);
+            w.SegmentBlocked(a, b);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 200; i++) w.SegmentBlocked(a, b);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+
+            var flat = TerrainWorldParser.Parse("""{ "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 0 }, "features": [] }""");
+            Assert.False(flat.SegmentBlocked(new Vector3(0, 0, 0.1f), new Vector3(200, 200, 0.1f)));
+            Assert.DoesNotContain(flat.QueryFire(new Vector3(0, 0, 0.1f), new Vector3(200, 200, 0.1f)), c => c.Kind == TerrainWorld.GroundKind);
+        }
+
+        // ── ⭐ CE-1034 H3 (TH-F) — points that arrive 2-D stand on the real ground ────────────────────────────
+
+        [Fact]
+        public void H3_ARoadRoute_OverASlope_PutsItsRoadPointsOnTheGround()
+        {
+            var w = SlopeFixture.World();
+            using var roads = new RoadsHolder(Fdp.Toolkit.Tests.Squad.TestTownRoads.Build());
+            var planner = new Fdp.Toolkit.Navigation.RoutePlanner { World = new TerrainWorldQuery(w) };
+            var q = new Fdp.Toolkit.Navigation.RouteQuery(new Vector3(20f, 200f, w.GroundHeightAt(20f, 200f)),
+                new Vector3(200f, 20f, w.GroundHeightAt(200f, 20f)), Fdp.Toolkit.Navigation.RoadUse.StronglyPrefer,
+                Fdp.Toolkit.Navigation.NavigationBackend.NavRoadGraph);
+            Assert.NotNull(planner.Plan(in q, in roads.Blob, navmesh: null, doors: null, out _));
+            Assert.True(planner.Points.Count >= 3);
+            foreach (var p in planner.Points) Assert.Equal(w.GroundHeightAt(p.X, p.Y), p.Z, 2);   // never at 0 on a hill
+        }
+
+        private sealed class RoadsHolder : IDisposable
+        {
+            public global::CarKinem.Road.RoadNetworkBlob Blob;
+            public RoadsHolder(global::CarKinem.Road.RoadNetworkBlob blob) => Blob = blob;
+            public void Dispose() => Blob.Dispose();
+        }
+
         [Fact]
         public void H1_TheNavmesh_BakesOverTheSlope_AndAPathClimbsIt()
         {

@@ -57,11 +57,12 @@ namespace CarKinem.Systems
                 });
                 
                 // Add SimTransform and SimVelocity
-                // Note: Z=0 by default for 2D->3D bridge
+                // ⭐ CE-1034 H3 (TH-F) — the command is 2-D: the vehicle is born on the ground THERE, never at Z = 0 (R-248)
+                float groundZ = Fdp.Toolkit.World.WorldQuery.Of(repo)?.ResolveLevel(cmd.Position.X, cmd.Position.Y, 0) ?? 0f;
                 float yaw = MathF.Atan2(cmd.Heading.Y, cmd.Heading.X);
                 repo.AddComponent(entity, new SimTransform
                 {
-                    Position = new Vector3(cmd.Position.X, cmd.Position.Y, 0),
+                    Position = new Vector3(cmd.Position.X, cmd.Position.Y, groundZ),
                     Rotation = SimMath.FromYaw(yaw)
                 });
                 repo.AddComponent(entity, new SimVelocity
@@ -83,7 +84,7 @@ namespace CarKinem.Systems
                     CurrentSegmentId = -1,
                     ProgressS = 0f,
                     TargetSpeed = 0f,
-                    FinalDestination = new Vector3(cmd.Position.X, cmd.Position.Y, 0f),
+                    FinalDestination = new Vector3(cmd.Position.X, cmd.Position.Y, groundZ),
                     ArrivalRadius = 2.0f,
                     SpeedErrorInt = 0f,
                     LastSteerCmd = 0f,

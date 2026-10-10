@@ -31,6 +31,13 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     public sealed class RoutePlanner
     {
+        /// <summary>
+        /// ⭐ CE-1034 H3 (<c>DESIGN_Terrain_Height.md</c> TH-E/TH-F, R-248) — the world the plan is over, for the HEIGHT of points that
+        /// arrive 2-D: road nodes, road entry/exit. ⚠ A production caller that has a world MUST set it before <see cref="Plan"/>
+        /// (CLAUDE.md "the silent-default pattern"); null = no world (the point's own Z / the navmesh search at 0, as before).
+        /// </summary>
+        public Fdp.Toolkit.World.IWorldQuery? World { get; set; }
+
         /// <summary>The farthest a route leaves or joins the road network (m).</summary>
         public const float MaxAccessMeters = 500f;
 
@@ -132,8 +139,9 @@ namespace Fdp.Toolkit.Navigation
             Fdp.Toolkit.Terrain.DoorStates? doors, RoadAccess entry, RoadAccess exit, out float distance, NavigationBackend backend)
         {
             distance = 0f;
-            var entry3 = new Vector3(entry.Point, q.Start.Z);
-            var exit3 = new Vector3(exit.Point, q.End.Z);
+            // ⭐ H3 — the road's access points stand on the surface there, at the level of the end they serve (not at that end's Z)
+            var entry3 = new Vector3(entry.Point, World?.SurfaceZ(entry.Point.X, entry.Point.Y, q.Start.Z) ?? q.Start.Z);
+            var exit3 = new Vector3(exit.Point, World?.SurfaceZ(exit.Point.X, exit.Point.Y, q.End.Z) ?? q.End.Z);
             // access leg
             if (navmesh != null) { if (!AppendNavmesh(navmesh, q.Start, entry3, q.LayerMask, doors)) Straight(q.Start, entry3); }
             else Straight(q.Start, entry3);
@@ -186,8 +194,13 @@ namespace Fdp.Toolkit.Navigation
         private static float LegCost(INavmeshProvider navmesh, Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
             => Vector2.Distance(Xy(from), Xy(to)) < ShortMoveMeters ? 0f : navmesh.PathCost(from, to, layerMask, doors);
 
-        private static float HeightAt(INavmeshProvider? navmesh, Vector2 p, uint layer)
-            => navmesh != null && navmesh.ProjectToNavmesh(new Vector3(p, 0f), out var snapped, layer) ? snapped.Z : 0f;
+        /// <summary>A road node's height: the navmesh snapped from the GROUND there (⭐ H3 — the search box is centred on the real ground,
+        /// not on 0, so it still finds the mesh on a hill), else the ground itself.</summary>
+        private float HeightAt(INavmeshProvider? navmesh, Vector2 p, uint layer)
+        {
+            float ground = World?.GroundHeightAt(p.X, p.Y) ?? 0f;
+            return navmesh != null && navmesh.ProjectToNavmesh(new Vector3(p, ground), out var snapped, layer) ? snapped.Z : ground;
+        }
 
         private static Vector2 Xy(Vector3 v) => new(v.X, v.Y);
     }

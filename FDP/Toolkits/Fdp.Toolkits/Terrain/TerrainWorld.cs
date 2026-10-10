@@ -364,9 +364,9 @@ namespace Fdp.Toolkit.Terrain
         public bool SegmentBlocked(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
             float transmittance = 1f;
-            // Under the ground at either end means a malformed query, not an occluder — ignore; a line that
-            // dips below the flat ground between two points above it is impossible, so no ground test needed
-            // until a heightfield exists.
+            // ⭐ CE-1034 H2 (TH-D) — a HILL blocks sight: the ground trace over the height grid (opaque). Without a grid the ground is
+            //   flat and no line between two points above it can dip under it. Under the ground at either end = malformed, ignored.
+            if (Height != null && Height.Crosses(from, to)) return true;
             var a = new Vector2(from.X, from.Y);
             var b = new Vector2(to.X, to.Y);
             var segMin = Vector2.Min(a, b);
@@ -414,6 +414,12 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ Stage 1 — a line SEES THROUGH when its sight transmittance is at least this (§3c M3, v1).</summary>
         public const float SightThreshold = 0.5f;
 
+        /// <summary>⭐ CE-1034 H2 — the crossing kind and material name a hill in the way reports (descriptive).</summary>
+        public const string GroundKind = "ground", GroundMaterial = "earth";
+
+        /// <summary>⭐ CE-1034 H2 — the resistance a hill presents to a round or a fragment: it stops anything.</summary>
+        public const float GroundResistanceMmRha = 1_000_000f;
+
         /// <summary>One occluder a trace crossed.</summary>
         public readonly record struct Crossing(float Along, string Kind, string? Label, string? Material, float Transmittance,
             string? Building, int Storey);
@@ -439,6 +445,9 @@ namespace Fdp.Toolkit.Terrain
             var segMin = Vector2.Min(a, b);
             var segMax = Vector2.Max(a, b);
             float length = Vector3.Distance(from, to);
+            // ⭐ CE-1034 H2 — a hill in the way is an opaque crossing where the line enters the ground
+            if (Height != null && Height.Crosses(from, to, out float groundT, out _))
+                crossed.Add(new Crossing(groundT * length, GroundKind, null, GroundMaterial, 0f, null, -1));
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
@@ -534,6 +543,10 @@ namespace Fdp.Toolkit.Terrain
             float dz = to.Z - from.Z;
             Materials.TryGet(TerrainMaterialLibrary.DefaultMaterial, out var fallback);
             float fallbackPerMetre = fallback?.ResistanceMmRhaPerMetre ?? 1500f;
+            // ⭐ CE-1034 H2 — a hill in the way stops any round: one crossing where the line enters the ground, its TopZ the crest
+            //   (a blast diffracts over the hill like over a wall — AreaEffect.TerrainShadow)
+            if (Height != null && Height.Crosses(from, to, out float groundT, out float crest))
+                into.Add(new FireCrossing(groundT, (1f - groundT) * length, GroundResistanceMmRha, GroundKind, null, GroundMaterial, null, -1) { TopZ = crest });
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();

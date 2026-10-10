@@ -35,6 +35,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
             if (!EqsContext.SelfPosition(repo, carrier, sensor, out var start)) return 0;
             if (!TryRouteEnd(repo, carrier, in sensor, out var end, out var roadUse)) return 0;
             var terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q2
+            planner.World = terrain;                                // ⭐ CE-1034 H3 — the route's road legs on the real ground
 
             // ⭐ C6 — lease the graph for the whole plan + classify: a terrain commit may publish a new one meanwhile.
             using var lease = roads.Borrow();
