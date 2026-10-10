@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — leans WQ-A..WQ-H APPROVED (2026-10-10, R-253); spike Q0 decides the library. Nothing built.
-updated: 2026-10-10 (rev 3 — all leans approved; §4a Bepu vs Jolt compared on the user's criteria (simplicity, pure
+build-state: DESIGN — leans WQ-A..WQ-H APPROVED (2026-10-10, R-253). Q0 SPIKE DONE (§5a): Bepu for objects, a plain grid for
+  terrain height. The Windows performance run is the user's (§5a recipe). Nothing else built.
+updated: 2026-10-10 (rev 4 — §5a the Q0 results. Rev 3 — all leans approved; §4a Bepu vs Jolt compared on the user's criteria (simplicity, pure
   C#, interop cost, Jolt's extra features). Rev 2 — R-252: the interface and the brain may not assume the stand-in terrain's simplifications;
   §3.3 what the interface must not expose, §2a the brain's own assumptions found; Trace loses its DoorStates parameter.
   Rev 1 — R-250: every engine capability the editor, map and brain use sits behind an interface)
@@ -231,13 +232,45 @@ ragdolls) **in the stand-in**. Either way the switch stays inside `TerrainWorldQ
 | **Q4** | sound v2 — rooms from walls, the room/portal path (shared with blast confinement, Building Interiors W-7v2) | sound comes round a corner and through an open door; a closed door muffles it |
 | **Q5** | `StrideWorldQuery`; entity boxes in the index (WQ-F) | a second implementation passes the same rails |
 
+## 5a. Q0 — the spike, as built and measured `2026-10-10` *(cloud VM, Debug build — indicative only)*
+
+**What was built** (commit on `ui`, `FDP/Toolkits/Fdp.Toolkits.Spatial.Bepu/`, BepuPhysics `2.5.0-beta.29`, pure managed):
+
+| piece | what it is |
+|---|---|
+| `ITerrainSpatialIndex` + `TerrainWorld.SpatialIndex` | an optional hook: the three segment queries visit only the index's candidates. Null (the default) = every piece, as before. It only narrows; the per-piece maths is unchanged ⇒ identical answers **by construction** |
+| `BepuTerrainIndex` | a Bepu `Tree` (a bounding-volume tree) over every piece's and walkable's 3-D box, built once; a ray through it collects candidates; one buffer pool per thread (Bepu's pool is not thread-safe) |
+| `BepuHeightGridProbe` | spike-only: a height grid as a Bepu mesh vs plain arithmetic, a box scan and a grid march |
+| `BepuTerrainIndexTests` | in the terrain feature suite (`Fdp.Toolkits.Tests/Terrain`) |
+
+**Results** (`dotnet test … --filter BepuTerrainIndexTests`, 5/5 passed; the terrain feature suite 190/190 unchanged):
+
+| question | measured | verdict |
+|---|---|---|
+| ① identical answers | 18 000 random segments on `test-town`, `bt-range` (doors, panels, slabs) and `basic-desert`, with and without doors, plus 1 500 on a 12 800-prism town: `SegmentBlocked`, `QuerySight` (every crossing) and `QueryFire` (every crossing) **equal in every case** | ✅ R-216 holds |
+| ② faster on a large town | 12 800 prisms + 40 slabs, index built in **25 ms**: a 100 m sight line **234 → 1.2 µs** (×190), fire **362 → 1.9 µs**; a 400 m line **251 → 2.1 µs** (×120), fire **428 → 4.6 µs**; **0 bytes** allocated by warm indexed queries (R-220) | ✅ two orders of magnitude |
+| ③ a height grid as a Bepu mesh (2 km at 2 m, 2 M triangles) | ground trace 300 m: **2.6 µs** — but **+477 MB** of memory and a **10 s** build. The same trace by a plain **grid march: 11.9 µs, no extra memory** (the 4 MB grid), 0 disagreements. Height at a point: arithmetic **37 ns** vs a Bepu ray down 2 µs | ⛔ **not a Bepu mesh** — memory grows with the area (a 10 km terrain would need gigabytes) |
+
+**Decision folded in:** ⭐ **Bepu indexes the OBJECTS** (buildings, walls, door leaves, slabs; later entity boxes, WQ-F) — the
+×100–190 win. ⭐ **Terrain height stays a grid**: `GroundHeightAt` by arithmetic and the ground trace by a grid march, exactly
+`DESIGN_Terrain_Height.md` TH-B / TH-D. ⇒ §4a's flip condition ① (Jolt's height field) is **not needed**: the march is cheap
+enough and costs no memory. Bepu's simplicity, as found: the API used is small (a tree, a leaf tester, a mesh); two traps —
+**triangles are one-sided** (the winding must face the ray) and **the buffer pool is not thread-safe**.
+
+**The Windows performance run (the user's)** — Release, on the dedicated machine:
+```
+dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj -c Release --filter "FullyQualifiedName~BepuTerrainIndexTests" --logger "console;verbosity=detailed"
+```
+The `[Q0_…]` lines carry every number above. ⚠ Debug numbers understate both paths; the ratios are the point.
+
 ## 6. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |
 |---|---|
-| ⚠ BepuPhysics v2's net8 line is the 2.5 **beta** series (Stride itself depends on ≥ 2.5.0-beta.19); the stable 2.4's targets not checked | Q0 — pin a version |
-| ⚠ Bepu static meshes and ray handlers as described (from library documentation and its forum, not run here) | Q0 |
-| ⚠ identical trace answers vs today's scan (R-216 "rails stay exact") — float edge cases may flip | Q0 rails |
+| ⚠ BepuPhysics v2's net8 line is the 2.5 **beta** series — pinned `2.5.0-beta.29` (`lib/net8.0`); the last stable, 2.4.0, targets net6.0 | before production use: stay on the beta or move to a stable when one ships |
+| ✅ Bepu tree ray casts and mesh ray tests work as described — measured in Q0 (one-sided triangles noted) | done |
+| ✅ identical trace answers vs today's scan — 19 500 segments, every crossing equal (§5a) | done |
+| ⚠ performance on the dedicated Windows machine, Release | the user's run (§5a recipe) |
 | ⚠ Steam Audio's custom ray-tracer callback (would let it trace through Bepu) — only an informal developer remark found | only if Steam Audio is ever chosen |
 | ⚠ room detection from walls at load (Building Interiors §3a) — not built anywhere | Q4 |
 | ⚠ the ~38 / ~20 file counts are grep results | each slice re-measures its module |

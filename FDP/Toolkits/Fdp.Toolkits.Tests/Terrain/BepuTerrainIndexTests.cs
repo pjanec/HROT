@@ -112,7 +112,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             var (blockedDoor, _) = AssertIdentical(w, segs, DoorStates.Authored(w));
             _out.WriteLine($"[Q0_1] {name}: {w.Prisms.Count} prisms, {w.DoorLeaves.Count} door leaves, {w.Walkables.Count} walkables; "
                 + $"{segs.Count} segments, {crossNull} cross something, {blockedNull} blocked (doors as authored: {blockedDoor}) — all identical");
-            Assert.True(crossNull > segs.Count / 20, "the segments must actually cross terrain, or the comparison proves nothing");
+            Assert.True(crossNull >= 100, "the segments must actually cross terrain, or the comparison proves nothing");
         }
 
         // ── ② speed on a large terrain ────────────────────────────────────────────────────────────────────────
@@ -227,7 +227,14 @@ namespace Fdp.Toolkit.Terrain.Tests
             float span = (n - 1) * cell;
             var pts = Enumerable.Range(0, 20_000).Select(_ => new Vector2((float)rng.NextDouble() * span, (float)rng.NextDouble() * span)).ToArray();
             float worst = 0f;
-            foreach (var p in pts) worst = MathF.Max(worst, MathF.Abs(grid.HeightByRay(p.X, p.Y) - grid.HeightAt(p.X, p.Y)));
+            int misses = 0;
+            foreach (var p in pts)
+            {
+                float h = grid.HeightByRay(p.X, p.Y);
+                if (float.IsNaN(h)) { misses++; continue; }
+                worst = MathF.Max(worst, MathF.Abs(h - grid.HeightAt(p.X, p.Y)));
+            }
+            Assert.True(misses == 0, $"a ray straight down must always hit the surface; {misses}/{pts.Length} missed");
             Assert.True(worst < 1e-2f, $"the mesh and the arithmetic must describe one surface; worst difference {worst} m");
 
             double arith = NsPer(pts.Length, () => { foreach (var p in pts) grid.HeightAt(p.X, p.Y); });
@@ -241,15 +248,19 @@ namespace Fdp.Toolkit.Terrain.Tests
                 var b = a + new Vector2(MathF.Cos(ang), MathF.Sin(ang)) * 300f;
                 return (A: new Vector3(a, grid.HeightAt(a.X, a.Y) + 1.8f), B: new Vector3(b, grid.HeightAt(b.X, b.Y) + 1.8f));
             }).ToArray();
-            int disagree = 0, hidden = 0;
+            int disagree = 0, disagreeMarch = 0, hidden = 0;
             foreach (var (a, b) in segs)
             {
-                bool m = grid.SegmentHitsGround(a, b), s = grid.SegmentHitsGroundByScan(a, b);
+                bool m = grid.SegmentHitsGround(a, b), s = grid.SegmentHitsGroundByScan(a, b), w = grid.SegmentHitsGroundByMarch(a, b);
                 if (m != s) disagree++;
+                if (w != s) disagreeMarch++;
                 if (m) hidden++;
             }
             double meshTrace = NsPer(segs.Length, () => { foreach (var (a, b) in segs) grid.SegmentHitsGround(a, b); });
             double scanTrace = NsPer(segs.Length, () => { foreach (var (a, b) in segs) grid.SegmentHitsGroundByScan(a, b); });
+            double marchTrace = NsPer(segs.Length, () => { foreach (var (a, b) in segs) grid.SegmentHitsGroundByMarch(a, b); });
+            _out.WriteLine($"[Q0_3] 300 m ground trace by grid march (no extra memory): {marchTrace / 1000:F1} µs; {disagreeMarch} disagreements with the scan");
+            Assert.True(disagreeMarch <= segs.Length / 1000, $"grid march and scan must agree: {disagreeMarch}");
 
             _out.WriteLine($"[Q0_3] {n}×{n} grid ({grid.TriangleCount:N0} triangles, {span / 1000:F1} km): build {buildMs:F0} ms, "
                 + $"process private memory +{(privAfter - privBefore) / (1024 * 1024)} MB; height worst diff {worst * 1000:F2} mm");

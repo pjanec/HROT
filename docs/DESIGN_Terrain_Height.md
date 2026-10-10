@@ -247,5 +247,5 @@ library and its optimized raycasts and similar capabilities?"*
 | ⚠ `HumanGait.MaxStepDown`'s "never step off a ledge" rule (`CarKinematicsSystem.cs:377-386`) does not fire on a steep slope | H1 rail |
 | ⚠ `filterLedgeSpans: false` (`RecastNavmeshBaker.cs:431`, *"flat terrain edges are valid"*) is still right over relief | H1 bake on the fixture |
 | ⚠ grid cell size vs the mesher's 2 m ground cells — sample per corner, or match the grid | H1 |
-| ⚠ `GroundTrace` cost inside the per-frame perception budget (`R-220` allocation contract) | H2, measured |
+| ✅ `GroundTrace` as a grid march: 11.9 µs for a 300 m line on a 2 km grid at 2 m, no extra memory, exact vs a full triangle scan (Debug, cloud) — and a Bepu mesh is NOT the way (+477 MB for that grid) — `DESIGN_World_Query_Seam.md` §5a | measured in Q0 |
 | ✅ scenarios that saved Z = 0: no special case — the clamping flag and the motion model decide (`R-249`, §4a) | ruled |

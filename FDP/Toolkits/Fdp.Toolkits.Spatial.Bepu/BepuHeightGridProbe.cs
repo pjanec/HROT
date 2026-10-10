@@ -35,8 +35,10 @@ namespace Fdp.Toolkit.Spatial.Bepu
                 for (int c = 0; c + 1 < cols; c++)
                 {
                     var p00 = V(c, r); var p10 = V(c + 1, r); var p01 = V(c, r + 1); var p11 = V(c + 1, r + 1);
-                    tris[t++] = new Triangle(p00, p10, p11);
-                    tris[t++] = new Triangle(p00, p11, p01);
+                    // ⚠ Bepu triangles are ONE-SIDED: measured, the counter-clockwise order (seen from above) is never hit by a
+                    //   ray from above, so the vertices go clockwise seen from above — the face looks up.
+                    tris[t++] = new Triangle(p00, p11, p10);
+                    tris[t++] = new Triangle(p00, p01, p11);
                 }
             _mesh = Mesh.CreateWithSweepBuild(tris, Vector3.One, _pool);
         }
@@ -90,6 +92,36 @@ namespace Fdp.Toolkit.Spatial.Bepu
                     if (Triangle.RayTest(p00, p10, p11, a, d, out float t1, out _) && t1 <= 1f) return true;
                     if (Triangle.RayTest(p00, p11, p01, a, d, out float t2, out _) && t2 <= 1f) return true;
                 }
+            return false;
+        }
+
+        /// <summary>
+        /// The same question by walking only the cells the segment's shadow crosses (a grid march, Amanatides–Woo) and testing
+        /// their two triangles — no extra memory beyond the height grid itself (<c>DESIGN_Terrain_Height.md</c> TH-D).
+        /// </summary>
+        public bool SegmentHitsGroundByMarch(Vector3 a, Vector3 b)
+        {
+            var d = b - a;
+            float gx = (a.X - _origin.X) / _cell, gy = (a.Y - _origin.Y) / _cell;
+            float ex = (b.X - _origin.X) / _cell, ey = (b.Y - _origin.Y) / _cell;
+            int c = Math.Clamp((int)MathF.Floor(gx), 0, _cols - 2), r = Math.Clamp((int)MathF.Floor(gy), 0, _rows - 2);
+            int cEnd = Math.Clamp((int)MathF.Floor(ex), 0, _cols - 2), rEnd = Math.Clamp((int)MathF.Floor(ey), 0, _rows - 2);
+            float dx = ex - gx, dy = ey - gy;
+            int stepC = dx > 0 ? 1 : -1, stepR = dy > 0 ? 1 : -1;
+            float tDeltaX = dx != 0 ? MathF.Abs(1f / dx) : float.PositiveInfinity;
+            float tDeltaY = dy != 0 ? MathF.Abs(1f / dy) : float.PositiveInfinity;
+            float tMaxX = dx != 0 ? ((stepC > 0 ? (c + 1 - gx) : (gx - c)) * tDeltaX) : float.PositiveInfinity;
+            float tMaxY = dy != 0 ? ((stepR > 0 ? (r + 1 - gy) : (gy - r)) * tDeltaY) : float.PositiveInfinity;
+            int guard = (_cols + _rows) * 2;
+            while (guard-- > 0)
+            {
+                var p00 = V(c, r); var p10 = V(c + 1, r); var p01 = V(c, r + 1); var p11 = V(c + 1, r + 1);
+                if (Triangle.RayTest(p00, p10, p11, a, d, out float t1, out _) && t1 <= 1f) return true;
+                if (Triangle.RayTest(p00, p11, p01, a, d, out float t2, out _) && t2 <= 1f) return true;
+                if (c == cEnd && r == rEnd) return false;
+                if (tMaxX < tMaxY) { tMaxX += tDeltaX; c += stepC; if (c < 0 || c > _cols - 2) return false; }
+                else { tMaxY += tDeltaY; r += stepR; if (r < 0 || r > _rows - 2) return false; }
+            }
             return false;
         }
 
