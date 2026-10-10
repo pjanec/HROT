@@ -1,11 +1,12 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-10
-current-answer: §1 the verdict · §4 the leans L1–L7, each awaiting the user. Nothing here is built or ruled yet.
+current-answer: §5 DECISIONS (user, 2026-10-10: L1–L4 accepted = R-254; L6 replaced by the user's own ruling = R-255) · §6 the retreat
+  concepts (L7) · §4 keeps the leans as proposed. Nothing built yet.
 stale-below: nothing
 known-rot: none
-known-conflict: DESIGN_Decision_Layer.md §3.3c/§3.3d (HSM and blueprint posture parity) — L6 asks whether that parity is a
-  library requirement or the three-host demo's; it does not overturn it.
+known-conflict: DESIGN_Decision_Layer.md §3.3c/§3.3d (HSM and blueprint posture parity) — ⛔ OVERTURNED for the library by R-255
+  (§5): the three posture hosts were a proof; that doc's parity requirement still has to be marked superseded there.
 related-designs:
   - OVERVIEW_Behaviour_Building_Blocks.md — OWNS the map of what exists; this review OWNS the verdict on which of it is generic.
   - TUTORIAL_Behaviour_Composition.md — OWNS the five roles and the composition patterns (P1–P6) the library is built from.
@@ -118,3 +119,37 @@ not in ①. Peek-and-fire is a ① node used only by a ③ tree.*
 | **L7** | **Built-but-never-composed** generic blocks (Flank/FiringPosition trees, squad manoeuvres, Flee/PlanRoute/Embark executors, RankCandidates) stay; ⚠ `FleeExecutor` vs `FallBack` is a second retreat concept — decide one | they are designed (EQS §9, squad design); not clutter, just unused |
 
 ⇒ ⭐ **Order if approved:** L1 (written line) → L2 (generalise peek-and-fire, then CE-3157) → L4 (registry finding) → L5/L3 (tidy) → L6/L7 (decisions only).
+
+## 5. DECISIONS — user, `2026-10-10`
+
+> 🔒 **User, verbatim:** *"L1 accepted · L2 accepted · L3 accepted · L4 accepted"* · on L6: *"that was likely just a proof that it
+> can be implemented using all platforms. we do not need to keep all, we can drop btrees and HSMs, and we can even rewrite all the
+> libray stuff into c# form for better maintainability."*
+
+| # | decision | ledger |
+|---|---|---|
+| L1–L4 | ✅ accepted as proposed in §4 | **R-254** |
+| L6 | ✅ **REPLACED by the user's ruling:** the three posture hosts were a PROOF, not a library requirement. The library keeps ONE form; BTree and HSM copies may be dropped; library behaviours may be rewritten as C# for maintainability | **R-255** |
+| L5 | ⏳ explained in chat; awaiting a nod | — |
+| L7 | ⏳ the retreat question — §6 | — |
+
+⚠ **Open interpretation of R-255 (asked):** *"C# form"* read as — library behaviours become **C#-built trees** registered by
+name (as `MoveToLocation`, `FireAtPoint`, `WindowDuel` already are, R-223), their JSON BTree/HSM/blueprint copies (and the
+`ua-three-hosts` demo) retired; **blueprints stay the authoring surface for scenario doctrine** (R-156: *"a GENERIC engine
+library … counts as built-in; doctrine logic in C# does not"*); the HSM ENGINE stays, only library HSM assets go.
+
+## 6. Retreat concepts (L7)
+
+| concept | what it does | used by | verdict |
+|---|---|---|---|
+| ⭐ `EqsTacticsNodes.FallBack` (+ `Tactics/FallBack.btree.json`) | EQS `FindSafeRetreatPoint` (hidden from the threat, far from it) → one pathed move → Success on arrival | posture **Flee** option (all three hosts); `BasicInfantrySop` (withdraw on contact under HoldFire, `CE-2080`) | ✅ **the library retreat** |
+| posture option **Flee** | not a mechanism — the decision option that RUNS FallBack; needs ≥ half health and a hidden escape (`CE-3090`) | `CombatPostureDecision` | ✅ library (decision) |
+| `FleeExecutor` (`ActionIdFlee`, `Navigation/Executors/FleeExecutor.cs`) | locomotion action: move AWAY from a threat entity along a flee vector, re-planned every N ticks; no cover, no terrain scoring | ⛔ registered on no CGF; tests + the old FDP cognitive example only | ⛔ second retreat concept → **legacy, out of the library** (L3 rule) |
+| `HillAttackTankNodes.Action_ReverseToBaseline` | tank reverses off the crest to its baseline slot | hill attack | demo-local (vehicle hull-down) |
+| PeekAndFire relocate / suppress-and-bound (D8/D12) | moves to the NEXT cover while still fighting | window duel | not a retreat — relocation |
+| `HoldProne` | the alternative when too hurt to flee (`CE-3090`) | posture | not a retreat |
+| `Demo_Retreat.bp` | delay stub | `Demo_MissionPlan` | demo |
+
+⇒ **Lean:** ONE retreat = `FallBack`. `FleeExecutor` leaves the library (legacy per L3); ⚠ revisit only if `FallBack` needs a
+no-cover escape (what it does when the EQS finds no point is ⛔ not measured).
+
