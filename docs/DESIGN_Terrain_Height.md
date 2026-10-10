@@ -1,0 +1,312 @@
+<!--STATUS
+state: LIVE
+build-state: BUILDING — H1, H2, H3 BUILT 2026-10-10 (§5a, §5b as-built); H4 (basic-desert's ridge as a grid, with the backend lane) to come. Leans TH-A..TH-H APPROVED (R-249); the library
+  question settled by the Q0 spike (DESIGN_World_Query_Seam.md §5a: Bepu for objects, the height stays a grid).
+updated: 2026-10-10 (rev 5 — §5b H2 + H3 as built. Rev 4 — §5a H1 as built, with its deviations argued. Rev 3 — §7 corrected by R-250/R-251: a real interface, Bepu not Jolt. Rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
+  (R-249, §4a); §7 the library question. Rev 1 — R-248: the flat ground is a temporary simplification; this file plans its removal)
+current-answer: §1 why · §2 INVENTORY · §3 the diagrams · §4 decisions with leans · §5 slices · §6 not verified.
+stale-below: nothing.
+known-rot: §7's rev-1 lean (Jolt; TerrainWorld's methods as the seam; Bepu rejected) — corrected by R-250/R-251, see its banner.
+known-conflict: none. CE-3086 (backend) plans a ramp ridge + wadi on basic-desert because "a heightfield (not built)"
+  (DESIGN_Utility_AI_Demo_Scenarios.md:104); TH-G proposes a real height grid there instead — the backend lane decides.
+related-designs:
+  - DESIGN_Body_Geometry_And_Ground_Contact.md — the gear height and resting pose (pitch/roll on a slope) of a CG-referenced
+    body; the motion model that grounds an aircraft (§4a, R-249) uses it.
+  - DESIGN_World_Query_Seam.md — owns the engine-neutral interface (IWorldQuery) GroundHeightAt is exposed through, and the
+    library choice (Bepu inside the stand-in).
+  - DESIGN_Terrain_World.md — OWNS TerrainWorld, the world file, the parser, TerrainWorldMesh and the queries; this file
+    adds the ground height to them (one function, one grid) and changes nothing else about the model.
+  - docs/blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — T1/T2 (APPROVED, R-181): "ground (flat or
+    heightfield)", "Optional heightmap as ESRI ASCII grid. Referenced from the existing terrain definition JSON".
+  - DESIGN_Terrain_Zones_And_Assets.md — owns the terrain asset (§2.1e: "later its terrain DB / heightmap / navmesh");
+    the grid file is one more file in the terrain folder.
+  - designs/navig-2/Navigation_Design_v2_0.md §14 — owns the tiled navmesh bake; a tile's key already hashes its OWN
+    triangles, so relief changes only the tiles it touches.
+  - designs/eqs-2/EQS_Design_v1.3_final.md §19 — EQS terrain sight and ground placement; inherits TH-D unchanged.
+  - DESIGN_Building_Interiors.md — storeys, slabs, wall panels; TH-C sets where a building stands on a slope.
+  - DESIGN_Map_3D_Mode.md §3.10 — the 3-D map reaches the ground only through the mesh and level 0, so it gets relief
+    for free; it asked for this file.
+  - DESIGN_Utility_AI_Demo_Scenarios.md — basic-desert's ridge and wadi (TH-G).
+  - designs/promote-to-3d/3D_Cognitive_Spatial_Awareness_Promotion_Design_v1_1.md — "SimTransform.Position.Z is
+    authoritative"; relief is what makes that true outdoors.
+-->
+
+# DESIGN — terrain height (removing the flat ground)
+
+## 1. Why
+
+🔒 **User, `2026-10-10` (`R-248`):** *"Terrain needs height. Current flat terrain bed is unbearable. never count with
+terrain being flat, this is just current simplification that should be removed soon."*
+
+📐 Today `TerrainWorld` has one number for the ground, `GroundZ` (`TerrainWorld.cs:93`), and every terrain file sets it to
+0. The approved plan already allows height (Q81 T1/T2, `R-181`) — but no design, file slot, parser, tracker row or raster
+asset exists for it.
+
+## 2. INVENTORY — measured `2026-10-10` (graph CLI `search_code`/`search_graph` + grep; two sweeps)
+
+⚠ `check_index_coverage` is not available through the CLI, so "every reader" below is graph + grep agreeing, not a
+coverage proof.
+
+| what | count | where |
+|---|---|---|
+| production reads of `GroundZ` | **9 in 6 places** | `TerrainWorld.cs:224,227` (`SurfaceZ`), `:248,249,270` (`SurfacesAt`, level 0); `TerrainWorldMesh.cs:57` (ground grid — the navmesh input); `BallisticsSystem.cs:175` (area-round burst plane); `StaticObstacles.cs:110` (copy); `WorldInfoReport.cs:47` (report) |
+| the one writer | 1 | `TerrainWorldParser.cs:231`, from `hrot.groundZ` (`:71`) |
+| queries that never test the ground | 3 | `SegmentBlocked` (`:314-360`, *"until a heightfield exists"* `:317-319`), `QuerySight` (`:382-435`), `QueryFire` (*"the ground is not an occluder"*) ⇒ a hill blocks neither sight nor fragments |
+| flat defaults in the loader | 5 | building/wall/fence `baseZ` default to `groundZ` (`TerrainWorldParser.cs:117,127,149`); ground-floor slab test (`TerrainBuildingExpander.cs:36,100`) |
+| callers already on the right seam | many | kinematics (`CarKinematicsSystem.cs:374,382`), spawn (`NetworkSpawningSystem.cs:221`, `ResolveLevel`), EQS (`EqsTerrainSight.cs:64`), cover (`TerrainCoverProvider.cs:98,210`), danger areas, LOS callers via `SegmentBlocked` ⇒ **follow with no edit** |
+| `Z = 0` entering from outside | ~16 sites | 2-D destinations and waypoints (`CgfNodes.cs:281,422`, `HillAttackTankNodes.cs:300,490`, `VehicleCommandSystem.cs:64,86`, `ScenarioSpawnAdapter.cs:414`, SimHost UI); `RoutePlanner.cs:189-190` snaps at Z 0 with a ±4 m search (`DotRecastNavmeshProvider.cs:43`); `INavmeshProvider.cs:10` documents *"for flat-earth queries use Z 0"*; `TrajectoryPoolManager.cs:120-128` |
+| an older height seam | 1 | `ITerrainProvider` + `TerrainQueryResolutionSystem` (an IG ground-clamp pipeline), installed only at `IgApplication.cs:2176`, no production caller found — and a clamp is what `R-182` ruled out |
+| Stride | flat slab | `StrideHrotGame.cs:1006` *"DELIBERATELY not a heightfield"* — out of scope (U1: Stride untouched) |
+| raster files in the repo | **0** | four terrains, all `"groundZ": 0` |
+
+## 3. The design
+
+### 3.1 Where height enters — module view
+
+```mermaid
+graph TD
+  F["terrain folder: terrain.json + world.geojson + height.asc"] --> P[TerrainWorldParser]
+  P --> R["AsciiGridReader (new)"]
+  R --> G["TerrainHeightGrid (new)"]
+  P --> W[TerrainWorld]
+  G --> W
+  W -->|GroundHeightAt| SZ[SurfaceZ / SurfacesAt / ResolveLevel]
+  W -->|GroundHeightAt| MESH["TerrainWorldMesh.AddGround"]
+  W -->|ground crossing| TR["GroundTrace (new, shared)"]
+  SZ --> K[kinematics, spawn, EQS, cover, 3-D map draping]
+  MESH --> NAV[navmesh bake, per tile]
+  MESH --> M3[3-D map terrain]
+  TR --> LOS[SegmentBlocked / QuerySight / QueryFire]
+  LOS --> PER[perception, aim, fragments, area effects]
+  W -->|GroundHeightAt| BAL[BallisticsSystem ground burst]
+  IN["Z = 0 inputs: 2-D destinations, route legs"] -->|grounded at entry, TH-F| SZ
+```
+
+*What the picture shows that prose hid:* height reaches every consumer through **three** seams — `GroundHeightAt`, the
+ground grid in the mesh, and one shared ground trace. Everything to the right of them (kinematics, spawn, EQS, cover, the
+3-D map, the navmesh tiles) needs no edit. The only outside work is the `Z = 0` inputs at the bottom.
+
+### 3.2 Classes — existing vs new
+
+```mermaid
+classDiagram
+  class TerrainWorld {
+    existing, TerrainWorld.cs
+    +float GroundZ  (kept: the height where no grid covers)
+    +TerrainHeightGrid? Height  (new)
+    +float GroundHeightAt(x, y)  (new)
+    +float SurfaceZ(x, y, zHint)
+    +IReadOnlyList~float~ SurfacesAt(x, y)
+    +float ResolveLevel(x, y, n)
+    +bool SegmentBlocked(a, b)
+  }
+  class TerrainHeightGrid {
+    new
+    +Vector2 Origin
+    +float CellSize
+    +int Cols
+    +int Rows
+    +float[] Z
+    +float Sample(x, y)  bilinear
+    +bool Crosses(a, b, out float t)
+  }
+  class AsciiGridReader {
+    new
+    +TerrainHeightGrid Read(path)
+  }
+  class TerrainWorldParser {
+    existing
+    +TerrainWorld Parse(...)
+  }
+  class TerrainWorldMesh {
+    existing
+    -AddGround()  corners sampled
+  }
+  class GroundTrace {
+    new, static
+    +bool FirstCrossing(grid, a, b, out t)
+  }
+  TerrainWorld "1" o-- "0..1" TerrainHeightGrid
+  TerrainWorldParser ..> AsciiGridReader
+  AsciiGridReader ..> TerrainHeightGrid
+  TerrainWorldMesh ..> TerrainWorld : GroundHeightAt
+  TerrainWorld ..> GroundTrace : SegmentBlocked, QuerySight, QueryFire
+  GroundTrace ..> TerrainHeightGrid
+```
+
+*What it shows:* one new data class and one reader; the grid is optional (`0..1`), so a terrain without one is today's
+flat world, byte for byte.
+
+### 3.3 Load and query — sequence
+
+```mermaid
+sequenceDiagram
+  participant TL as TerrainLoadService
+  participant P as TerrainWorldParser
+  participant R as AsciiGridReader
+  participant W as TerrainWorld
+  participant K as CarKinematicsSystem
+  TL->>P: Parse(terrain folder)
+  P->>R: Read(height.asc) if terrain.json names one
+  R-->>P: TerrainHeightGrid
+  P->>P: building and wall baseZ = lowest ground under the footprint (TH-C)
+  P-->>TL: TerrainWorld with Height
+  K->>W: SurfaceZ(x, y, zHint)
+  W->>W: ground candidate = GroundHeightAt(x, y)
+  W-->>K: z on the hill, the roof or the slab
+```
+
+## 4. DECISIONS
+
+| # | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **TH-A** | the source file | ⭐ **ESRI ASCII grid** (`ncols`, `nrows`, `xllcorner`, `yllcorner`, `cellsize`, `NODATA_value`, then rows of heights), **local metres**, one file in the terrain folder, named from `terrain.json` — exactly Q81 T2 (approved) | GeoTIFF — needs an imaging library · a TIN in the GeoJSON — hand-authoring thousands of points · SRTM/DTED — geodetic, `R-181` says local metres |
+| **TH-B** | the model | ⭐ `TerrainHeightGrid` (a float array, bilinear `Sample`) held by `TerrainWorld`; **`GroundHeightAt(x, y)`** = grid sample, else `GroundZ`; the 9 reads go through it | adopting the IG's `ITerrainProvider` — batched, asynchronous, unwired, and built for the clamp `R-182` ruled out · a second height service — `R-181` says one world model feeds every query |
+| **TH-C** | buildings on a slope | ⭐ a building, wall or fence with no explicit `baseZ` stands on the **lowest ground under its footprint** (no gap under the downhill side; the uphill side sits in the slope, which the ground cells inside the footprint already skip) | the ground at the centre — leaves the downhill side floating |
+| **TH-D** | sight and fire over hills | ⭐ one shared, allocation-free **`GroundTrace`** (march the segment cell by cell against the grid) called by `SegmentBlocked`, `QuerySight`, `QueryFire`; ballistics bursts at `GroundHeightAt` instead of a plane | per-caller ground tests — three copies · leaving LOS flat — a hill would not hide anyone, which is the point of relief |
+| **TH-E** | navmesh | ⭐ the mesher samples each ground cell's corners — the only bake change; per-layer slope limits already exist (infantry 60°, vehicle 20°); the vertical search box (±4 m) is centred on the **grounded** hint, not on 0 | a separate terrain navmesh source — the tiled bake already takes one triangle soup |
+| **TH-F** | `Z = 0` inputs | ⭐ ground them **where they enter** (2-D destination, route leg, UI drag, `VehicleCommandSystem`): `ResolveLevel(x, y, 0)`; `INavmeshProvider`'s *"use Z 0"* note becomes *"pass the ground height"* | grounding inside every consumer — the same fix many times |
+| **TH-G** | test terrains | ⭐ a small **sloped fixture** for rails, and `basic-desert`'s ridge and wadi as a real height grid (proposal to the backend lane's CE-3086, which plans them as ramps only because no heightfield existed) | ramps as fake hills — the workaround this file removes |
+| **TH-H** | what is NOT in this design | ⭐ Stride stays flat (U1); a 2-D hillshade or contour layer and terrain streaming/tiles come later; the dormant IG clamp pipeline is retired in a follow-up, not reused | — |
+
+## 4a. Who puts an entity on the ground — 🔒 `R-249`
+
+🔒 **User, `2026-10-10`:** *"Whether entity should be ground clamped needs to be controlled by its 'ground clamping enabled'
+realtime flag and its motion model, not by adding exception for zero coordinate. Motion model usually lifts such entity on
+the ground anyway."*
+
+| | |
+|---|---|
+| ⛔ | no special case for a saved `Z = 0` — a loaded entity keeps the Z it was saved with |
+| ⭐ the motion model | grounds as it moves: `CarKinematicsSystem` already sets Z from `SurfaceZ` every step (`CarKinematicsSystem.cs:370-375`, W8/`R-182`) |
+| ⭐ the flag | the per-entity, runtime **ground-clamping flag** decides whether an entity is held to the surface at all. 📐 One already exists: `GroundClampingConfig { Mode: Auto/ForceOn/…, BaseRequiresClamping }` — TKB default (1 = ground vehicle, 0 = aircraft), overridable at runtime over DDS (`GroundClampingOverrideTranslator`) (`GroundClampingConfig.cs:12-35`) |
+| ⚠ the gap | today that flag drives only the dormant IG clamp pipeline (`TerrainQuerySubmitSystem.cs:45`), and the motion model grounds regardless of it ⇒ the motion model must read the flag (an aircraft keeps its altitude) — H1 |
+
+⚠ `R-182` ("no ground clamp") ruled out a SEPARATE clamp step; `R-249` keeps that — the flag is read BY the motion model,
+not by a second system.
+
+## 5. SLICES
+
+| slice | delivers | proves |
+|---|---|---|
+| **H1** ✅ | `TerrainHeightGrid` (+ its ASCII-grid reader), `GroundHeightAt`; the reads routed; the mesher on the grid's cells; TH-C defaults; the clamping flag in the movement model; the sloped fixture — §5a | an entity drives up a hill (kinematics, unchanged), spawns on the slope, the navmesh follows it — and every existing flat terrain is byte-identical |
+| **H2** ✅ | the ground trace (`TerrainHeightGrid.Crosses`) in the three queries; rounds and fragments stop at a hill — §5b | a hill blocks sight and fragments |
+| **H3** ✅ | road legs, road access points and the 2-D spawn command on the real ground; the navmesh search centred on it; 2-D move orders already resolved by Q0b — §5b | 2-D orders and route legs work on a hill |
+| **H4** | basic-desert's ridge and wadi as a grid (with the backend lane) | the utility demos on real relief |
+
+⭐ Gates: the terrain feature suites first (`TerrainWorldTests`, the Recast and SimHost terrain tests — about 35 asserts assume
+ground 0 and stay green on flat terrains), then new rails on the sloped fixture.
+
+## 5a. H1 — as built `2026-10-10`
+
+| piece | as built |
+|---|---|
+| the file (TH-A) | an ESRI ASCII grid beside the world file, named by **`hrot.heightGrid`** in the world file; read through the new `TerrainAssets.ReadFile` (bare names only); a corner origin becomes the first cell's centre, the north row first, NODATA takes `groundZ` |
+| the model (TH-B) | `TerrainHeightGrid` (samples, two triangles per cell split south-west → north-east, the edge holds outside); `TerrainWorld.Height` + **`GroundHeightAt(x, y)`**; `SurfaceZ` and `SurfacesAt` take the ground HERE (level 0 = the ground at (x, y)); `StaticObstacles.With` carries the grid; `TerrainWorldQuery.GroundHeightAt` answers from it |
+| the mesher (TH-E) | with a grid, the ground cells ARE the grid's cells (origin and size) and every corner sits on it — so the navmesh, the future 3-D terrain and `GroundHeightAt` are one surface; without a grid, unchanged |
+| buildings and walls (TH-C) | no explicit `baseZ` ⇒ the lowest ground under the footprint (corners + every sample inside) / along the wall; a template building resolves it on its rotated footprint inside the expander, and its ground storey gets no slab when it stands on that ground |
+| bounds | a file with no `bounds` includes the grid's extent |
+| the clamping flag (R-249, §4a) | `CarKinematicsSystem` holds an entity to the surface only when its `GroundClampingConfig` says so; no flag = clamped, as before |
+
+**Deviations, argued:** ① the grid is named in the **world file**, not in `terrain.json` (TH-A said the latter): it REPLACES the
+world file's `groundZ`, so the world file describes its whole ground and the parser — which sees only the world file and the
+terrain folder — needs no second input. ② the mesher **adopts the grid's cells** instead of sampling its own 2 m cells: two
+triangulations of one surface disagree between samples, and the navmesh, the drawn terrain and the movement model must agree.
+
+**Finding:** ⚠ `GroundClampingConfig` has **no production producer** — its comment says *"seeded from the TKB blueprint"*, but no
+translator adds it (graph + grep: only tests and the dormant IG pipeline). ⇒ today every entity is clamped exactly as before; an
+aircraft keeps its altitude only once something gives it the flag. Filed with the TKB/air-domain work, not built here.
+
+**Gates:** the 7 new rails (`TerrainHeightTests` ×5 on `SlopeFixture`, `CarKinematicsSystemTests.H1_…` ×2) pass; regressions on
+H1: `Fdp.Toolkits.Tests` **3038/3038** (+1 skip), `Hrot.SimHost.Tests` all executed pass (count varies per run, `CE-1038`),
+`Hrot.Editor.Tests` **474/474** (+2 skips).
+
+## 5b. H2 + H3 — as built `2026-10-10`
+
+**H2 (TH-D) — a hill blocks sight and fire.** `TerrainHeightGrid.Crosses(a, b)` walks only the cells under the segment
+(Amanatides–Woo, the segment first clipped to the grid) and tests their two triangles (Möller–Trumbore) — allocation-free, no
+memory beyond the grid; a hit within 5 cm of either end is that end touching the ground, and an end UNDER the ground is a
+malformed query, not an occluder. It is ONE helper the three queries share:
+
+| query | a hill in the way |
+|---|---|
+| `SegmentBlocked` (perception, EQS, aiming, danger areas) | blocked — the yes/no form stops at the first cell |
+| `QuerySight` (diagnostic) | a `"ground"` crossing, transmittance 0 |
+| `QueryFire` (rounds, fragments, blast) | a `"ground"` crossing of `GroundResistanceMmRha` (stops anything); its `TopZ` is the **crest** along the whole line, so `AreaEffect.TerrainShadow` diffracts a blast over the hill like over a wall; not a closed barrier |
+
+⇒ every consumer moved onto `IWorldQuery` (Q1/Q2) gets hills with no edit. Without a grid nothing changes (no line between two
+points above a flat ground can dip under it).
+
+**H3 (TH-E/TH-F) — points that arrive 2-D stand on the real ground.**
+
+| entry point | as built |
+|---|---|
+| 2-D move orders | ✅ already Q0b: the brain flags them, `NavigationDestination.Of` resolves them |
+| road legs (`RoutePlanner`) | `RoutePlanner.World` (set by both production callers — `PathfindingSolverSystem`, `DangerAlongRouteSolve`); a road node's height = the navmesh snapped **from the ground there** (the ±4 m search box now centred on the real ground, not on 0), else the ground; the road's entry/exit points stand on the surface at the level of the end they serve |
+| the 2-D spawn command (`VehicleCommandSystem`) | the vehicle is born on level 0 at (x, y), and so is its idle destination |
+| `INavmeshProvider`'s contract note | *"for flat-earth queries use Z 0"* replaced by *"never pass Z = 0 meaning on the ground — pass the ground height"* |
+
+**Left, named:** `TrajectoryPoolManager.Lift` still lifts 2-D trajectories to Z = 0 — harmless while the movement model takes Z
+from the surface each step, but a reader of trajectory Z would be wrong; the SimHost UI's built-in scenarios spawn at Z = 0
+(their entities are grounded by the movement model once they move, R-249; a static one is not); the route-waypoint up-axis
+question (§6) is still open.
+
+**Gates:** 10 rails on the slope and the ridge (`TerrainHeightTests` H1 ×5 + H2 ×3 + H3 ×1, `FormationCreationTests.H3_…`) pass;
+regressions: `Fdp.Toolkits.Tests` **3043/3044** (+1 skip), `Hrot.SimHost.Tests` **1177/1180** (3 skips), `Hrot.Editor.Tests`
+**474/476** (2 skips) — all green. ⚠ The cluster integration suite was NOT re-run for H2/H3 (its last run, 148/150 with the
+pre-existing `CE-1036`/`CE-1037`, was H1's).
+
+## 7. Build or use a library? — the user's question, `2026-10-10` *(⚠ rev 1 below is CORRECTED by `R-250`/`R-251` — read the banner first)*
+
+> ⭐ **CURRENT ANSWER (rev 3, `2026-10-10`) — see [`DESIGN_World_Query_Seam.md`](DESIGN_World_Query_Seam.md):**
+> ① the seam is a real interface, **`IWorldQuery`** — not `TerrainWorld`'s own methods (`R-250`: all engine capabilities
+> behind interfaces, production uses a mature engine); ② the library is **BepuPhysics v2, inside the stand-in** — the
+> user's *"too young"* was about **Stride's Bepu integration, not the library** (`R-251`), and Jolt's current C# binding
+> targets net9/net10 while HROT is net8; ③ sound around corners is Building Interiors' B-6 behind `Trace(Sound)`.
+> ⛔ The lean below (Jolt; "behind TerrainWorld's queries"; "Bepu rejected") is HISTORY — do not quote it.
+
+
+🔒 **User:** *"we iterated quite far into a small 3d engine … Does it still make sense to do it all by ourselves? isnt most
+of that already solved by … existing highly optimized and reliable libraries? Could we benefit for introducing physics
+library and its optimized raycasts and similar capabilities?"*
+
+| claim | code — how it IS | design basis — how it was MEANT |
+|---|---|---|
+| the terrain's ray queries scan **every** prism per ray (an AABB reject each), no spatial index | ✅ `TerrainWorld.cs:330-360` (`SegmentBlocked`); same shape in `QueryFire` | ⛔ searched `docs/`+`.dev/`: no timing, no BVH ever considered; the recorded work is allocation only (`DESIGN_Terrain_World.md` §6a, R-220) |
+| the sim's own physics is a deliberate cheap stand-in | ✅ `RaycastSolverSystem` (async, 2-D circle colliders) | ✅ `.dev/_DONE/stride-1/Stride-Integration_v0_3.md:105-107` *"SimHost's kinematics, perception, and ground queries are themselves the fakes"* |
+| a swap seam for rays already exists | ✅ `IRaycastBackend` (`Physics/IRaycastBackend.cs:31`), `ILosService` (`Eqs/ILosService.cs:15`), a Stride implementation `StrideRaycastLosService` (unadopted) | ✅ `DESIGN_Stride_Port.md:160-163` |
+| the user ruled against Bepu | ✅ Stride uses Bullet (`Stride.Physics`) | ✅ `STRANDED_FEATURES_AUDIT.md:12-18` *"bepu is too young and not the most proven solution; the bullet was intentional"* — written for Stride |
+| a library must run headless on Linux and stay out of `Fdp.Toolkits` | ✅ SimHost/Toolkits are `net8.0`; Stride is `net8.0-windows` | ✅ `DESIGN_Terrain_World.md` W1 (DotRecast kept in its own project) · `DESIGN_Stride_Node_Modes.md:797` *"Bullet cannot be stepped headless"* (Bullet inside Stride) |
+
+**Decision (lean):**
+- ⭐ **The 3-D map stays on Raylib.** It is not an engine: the mesh, the picking maths and the GPU work already come from
+  libraries (`TerrainWorldMesh`, Raylib). Ours is the glue: a small shader, shape kits, draping, the card.
+- ⭐ **The simulation's spatial queries move onto a proven collision library, used for QUERIES ONLY** (rays with all hits,
+  shape sweeps, overlaps, a native height-field) — no rigid-body dynamics, which the motion models own. It sits **behind
+  the existing seams** (`TerrainWorld`'s queries, `IRaycastBackend`, `ILosService`) in its own project (the W1 precedent);
+  `TerrainWorld` stays the one model (`R-181`) and the library holds an index built from it. Materials, transmittance,
+  levels and doors stay ours, in the hit callbacks. The 3-D map's terrain pick uses the same backend — the user's U21
+  wish, *"the same raycast machinery as for simulation"*.
+- ⭐ **Candidate: Jolt** (via its C# binding) — proven in shipped games, native Linux and Windows builds, a height-field
+  shape, batched ray and shape casts. ⚠ From the library's own documentation, **not verified here**; the C# binding is
+  the young part.
+- ⭐ **A spike first:** `SegmentBlocked` + `QueryFire` + `GroundHeightAt` on the library behind one seam; the existing terrain
+  rails must give **identical** answers (R-216 "rails stay exact"); timed against the scan on a terrain scaled to
+  thousands of prisms; run headless in the cloud. Commit only if all three pass.
+
+**Rejected — one line each:**
+- a full engine (Godot, Stride) for the map — Godot §8 (no supported .NET 8 in-process path); Stride is `net8.0-windows` and not headless.
+- Bepu standalone — the user called it *"too young and not the most proven"*.
+- Bullet standalone — its C# bindings are old and thinly maintained; inside Stride it cannot run headless.
+- writing our own BVH — fixes the scan but not sweeps, overlaps or the height-field; a second implementation of what a library does.
+- doing nothing — the per-ray scan grows with every building, and relief adds a ground trace to every ray.
+
+## 6. NOT VERIFIED — say so before it is built on
+
+| claim | how it is settled |
+|---|---|
+| ⚠ `HumanGait.MaxStepDown`'s "never step off a ledge" rule (`CarKinematicsSystem.cs:377-386`) does not fire on a steep slope | H1 rail |
+| ✅ the bake over relief works on a 10 % slope and a path climbs it (`TerrainHeightTests.H1_TheNavmesh_BakesOverTheSlope_AndAPathClimbsIt`); ⚠ `filterLedgeSpans: false` over steep relief (near the 20° vehicle limit) still unmeasured | H1 / H4 |
+| ✅ grid cell size vs the mesher's cells — resolved: with a grid the mesher uses the grid's cells (§5a) | H1 |
+| ✅ `GroundTrace` as a grid march: 11.9 µs for a 300 m line on a 2 km grid at 2 m, no extra memory, exact vs a full triangle scan (Debug, cloud) — and a Bepu mesh is NOT the way (+477 MB for that grid) — `DESIGN_World_Query_Seam.md` §5a | measured in Q0 |
+| ✅ scenarios that saved Z = 0: no special case — the clamping flag and the motion model decide (`R-249`, §4a) | ruled |

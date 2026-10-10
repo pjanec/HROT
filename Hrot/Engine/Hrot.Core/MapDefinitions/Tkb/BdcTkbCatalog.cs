@@ -252,6 +252,54 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .WithDisType(TkbEntityTypes.Unit_TankPlatoon_Auto, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates });
 
+            // ⭐⭐ CE-1041 — AIRCRAFT. CG-referenced bodies resting on their gear: the gear positions are what landing and parking
+            //   use (BodyGeometry.RestingPose). ⛔ No WithPhysics — that adds VehicleParametersDto, i.e. CAR kinematics; an aircraft
+            //   carries its size in Body.Geometry. ⛔ No WithBehavior — there is no flight model for a brain to drive yet.
+            //   Public figures, rounded; the gear's X is from the CG. DIS subcategory left 0 (generic) — not verified.
+            //   📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md G4.
+            DefineAircraft(builder, TkbEntityTypes.Heli_UH60, "UH-60A Black Hawk", "SFAPMHU-------", "#56604F",
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 21 },
+                new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+                {
+                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+                    Length = 19.76f, Width = 16.36f, Height = 5.13f,   // rotors turning; width = main-rotor diameter
+                    BodyCentreX = -1.70f, BodyCentreZ = 0.815f,        // box bottom = the tyres (−1.75)
+                    GroundContacts =
+                    {
+                        Wheel("main left",  2.6f,  1.35f, -1.75f, 0.38f, 0.9f, retractable: false),
+                        Wheel("main right", 2.6f, -1.35f, -1.75f, 0.38f, 0.9f, retractable: false),
+                        Wheel("tail",      -6.2f,  0f,    -1.75f, 0.20f, 0.7f, retractable: false),
+                    },
+                });
+            DefineAircraft(builder, TkbEntityTypes.Jet_F16, "F-16C Fighting Falcon", "SFAPMFF-------", "#8A929C",
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 1 },
+                new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+                {
+                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+                    Length = 15.06f, Width = 9.96f, Height = 4.88f,
+                    BodyCentreX = 0.50f, BodyCentreZ = 0.54f,          // box bottom = the tyres (−1.90)
+                    GroundContacts =
+                    {
+                        Wheel("nose",        3.4f,  0f,    -1.90f, 0.24f, 1.2f, retractable: true),
+                        Wheel("main left",  -0.6f,  1.18f, -1.90f, 0.36f, 1.0f, retractable: true),
+                        Wheel("main right", -0.6f, -1.18f, -1.90f, 0.36f, 1.0f, retractable: true),
+                    },
+                });
+            DefineAircraft(builder, TkbEntityTypes.Cargo_C130, "C-130H Hercules", "SFAPMFC-------", "#7A8076",
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 4 },
+                new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+                {
+                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+                    Length = 29.79f, Width = 40.41f, Height = 11.66f,
+                    BodyCentreX = 1.50f, BodyCentreZ = 2.83f,          // box bottom = the tyres (−3.00)
+                    GroundContacts =
+                    {
+                        Wheel("nose",        9.4f,  0f,    -3.00f, 0.50f, 1.6f, retractable: true),
+                        Wheel("main left",  -0.3f,  2.18f, -3.00f, 0.60f, 1.2f, retractable: true),
+                        Wheel("main right", -0.3f, -2.18f, -3.00f, 0.60f, 1.2f, retractable: true),
+                    },
+                });
+
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);
             // TKB-014 (Phase 6): ECS components will be injected by translators.
@@ -283,5 +331,20 @@ namespace Hrot.Map.Definitions.Tkb
             t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.StaticObstacleDto { Length = length, Width = width, Height = height, Material = material });
             tkbDb.Register(t);
         }
+
+        /// <summary>⭐ CE-1041 — an aircraft: master, visual, DIS, faction and its body geometry — no car kinematics, no brain.</summary>
+        private static void DefineAircraft(NedTkbBuilder builder, long type, string name, string symbol, string colour,
+                                           DISEntityType dis, Fdp.Toolkit.Tkb.Domain.BodyGeometryDto geometry)
+            => builder
+                .DefineVehicle(type, name)
+                .WithVisual(type, v => { v.SymbolCode = symbol; v.ColorHex = colour; v.ShowLabel = true; })
+                .WithFaction(type, 1)
+                .WithBodyGeometry(type, geometry)
+                .WithDisType(type, dis);
+
+        private static Fdp.Toolkit.Tkb.Domain.GroundContactPoint Wheel(string name, float x, float y, float z, float radius,
+                                                                       float strut, bool retractable)
+            => new() { Name = name, X = x, Y = y, Z = z, WheelRadius = radius, StrutLength = strut, Retractable = retractable,
+                       Kind = Fdp.Toolkit.Tkb.Domain.GroundContactKind.Wheel };
     }
 }

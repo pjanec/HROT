@@ -154,6 +154,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             // ⭐ R-219 — the doors as THIS view sees them (on a background module: its snapshot), once per solver tick, so every
             //   path in the batch is planned against the same door states — never a live value written mid-batch.
             _doors = Fdp.Toolkit.Terrain.DoorStates.Of(view);
+            _planner.World = Fdp.Toolkit.World.WorldQuery.Of(view);   // ⭐ CE-1034 H3 — road legs and access points on the real ground
 
             // Budget cap: process at most DefaultCapacity requests per tick (oldest-evict).
             int limit = Math.Min(requests.Length, PathfindingBatchData.DefaultCapacity);

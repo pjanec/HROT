@@ -7,6 +7,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <!-- CE-1017 S5: the Add Entity picker's entity icons - 128 px PNGs rasterized by scripts/render-entity-icons.py from the
+         hand-drawn SVG sources in Assets/EntityIcons/src; served by EntityIconLibrary under the key entity/<name>. -->
+    <EmbeddedResource Include="Assets\EntityIcons\*.png" LogicalName="EntityIcons/%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.IG.Tests</_Parameter1>
     </AssemblyAttribute>
@@ -33,6 +38,8 @@
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
+    <!-- CE-1017 S1: the Add Entity picker (PickerRegistry / PickerEntry) — docs/DESIGN_Add_Entity_Picker.md D3 -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />
     <!-- GZ057/GZ058: source generator for [GizmoProjector] attribute -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

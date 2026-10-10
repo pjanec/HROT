@@ -859,7 +859,19 @@ public class IgApplication : IDisposable
                     MeasureUnits = () =>
                         _measureToolGizmoAdapter?.ReadUnits()
                             ?? Hrot.ScenarioEditor.Gizmos.MeasureDisplayUnits.Meters,
+                    // ⭐⭐⭐ CE-1017 — the ENTITY-AUTHORING surface from the PACK, the same as Editor, CGF and SimHost:
+                    //   the shared spawn adapter (also the toolbar's Spawn tool, which IG never serviced), the Add Entity
+                    //   picker + submenu, the canvas menu. 📐 Equivalent to IG's own path: the shared adapter enqueues
+                    //   onto the SAME LocalRequests queue with OwnerAppInstanceId 0 — untargeted, exactly what
+                    //   IgEntityCreationRequests.FromSpawnCommand writes. MapCommandController stays for what is IG's
+                    //   alone: servicing ExCon's remote CMD_PLACE_ENTITY / CMD_START_AUTHORING and acking them.
+                    EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
+                        Tkb:          () => ctx.World.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                                            ? ctx.World.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null,
+                        Requests:     () => LocalEntityCreationRequests,
+                        GeoTransform: () => ctx.GeoTransform),
                 });
+            _igMapInteraction = igMapInteraction;
 
             _gizmoBuffer            = igMapInteraction.Buffer;
             _gizmoRegistry          = igMapInteraction.GizmoRegistry;
@@ -960,11 +972,10 @@ public class IgApplication : IDisposable
             //   `view` parameter was stored nowhere; EntityLocal resolves through SpatialAnchor
             //   primitives instead (.dev/_DONE/gizmos-1/feedback2.md:798). Named arguments because the
             //   two constructors collapsed into one.
-            var gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
-                _gizmoBuffer!, _interactionBus, _canvas.Camera, () => _world);
+            // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode, the same on every host.
+            var gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                _canvas, _gizmoBuffer!, _interactionBus, () => _world).GizmoLayer;
             _gizmoLayer = gizmoLayer;
-            _canvas.AddLayer(gizmoLayer);
-            _canvas.DrawBuffer = _gizmoBuffer;
             // Route gizmo interaction translators and publisher through the network factory
             // so that IgApplication has no direct dependency on Hrot.Network.NED.
             CycloneNetworkIngressSystem? gizmoIngress = null;
@@ -1002,7 +1013,8 @@ public class IgApplication : IDisposable
             ctx.Kernel.RegisterGlobalSystem(
                 new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _interactionBus!));
             // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-            ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+            // ⭐ CE-1017 — the pack's canvas menu (with Add Entity on a windowed IG).
+            ctx.Kernel.RegisterGlobalSystem(igMapInteraction.CanvasMenu);
         };
 
         _context = _igBootstrapper.BootstrapNode(igConfig, NodeRole.Map2D, _networkFactory);
@@ -1023,6 +1035,11 @@ public class IgApplication : IDisposable
         _slaveTranslator     = _context.SlaveTranslator;
 
         _miniIosPanel = new MiniExConPanel(_miniIosState, _world.Bus);
+        // ⭐ CE-1017 S4 — the Mini ExCon's type picker opens in the map pack's picker (one registry per map).
+        _miniIosPanel.SetPicker(
+            () => _world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                  ? _world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null,
+            () => _igMapInteraction?.EntityAuthoring?.Pickers is { } pickers ? pickers.OpenPicker : null);
         if (_networkEnabled)
             _miniIosPanel.SetGateway(_commandGateway);
 
@@ -1329,9 +1346,13 @@ public class IgApplication : IDisposable
 
     /// </summary>
 
+    /// <summary>⭐ CE-1017 — the shared map pack's result, kept for its entity-authoring surface (picker, spawn adapter).</summary>
+    private Hrot.ScenarioEditor.Map.MapInteraction? _igMapInteraction;
+
     public void DrawUI()
 
     {
+        _igMapInteraction?.EntityAuthoring?.DrawFrame();   // ⛔ OpenPicker only queues (CE-1017)
 
         _fdpRepoAdapter ??= new FdpRepositoryAdapter(_world);
 

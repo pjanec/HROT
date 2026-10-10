@@ -44,8 +44,12 @@ namespace Hrot.ScenarioEditor.Map
             Hrot.ScenarioEditor.Gizmos.RubberBandState rubberBand,
             Hrot.Common.Interactions.GlobalActionRegistry actions,
             Hrot.Common.Systems.GlobalActionDispatchSystem actionDispatch,
-            Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo layerControl)
+            Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo layerControl,
+            Hrot.UI.Common.AddEntity.EntityAuthoring? entityAuthoring,
+            Hrot.Presentation.Systems.CanvasMenuUpdateSystem canvasMenu)
         {
+            EntityAuthoring        = entityAuthoring;
+            CanvasMenu             = canvasMenu;
             Actions                = actions;
             ActionDispatch         = actionDispatch;
             LayerControl           = layerControl;
@@ -95,6 +99,15 @@ namespace Hrot.ScenarioEditor.Map
         /// needs the schema — a host's renderer registers it via <see cref="MapInteractionPack.RegisterGizmoSchemas"/>.
         /// </summary>
         public Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo LayerControl { get; }
+
+        /// <summary>⭐ <c>CE-1017</c> — the map's entity-authoring surface (spawn adapter, picker, Add Entity action);
+        /// null when the host passed no <c>MapInteractionContext.EntityAuthoring</c>. Draw its
+        /// <see cref="Hrot.UI.Common.AddEntity.EntityAuthoring.DrawFrame"/> once per ImGui frame.</summary>
+        public Hrot.UI.Common.AddEntity.EntityAuthoring? EntityAuthoring { get; }
+
+        /// <summary>⭐ <c>CE-1017</c> — the canvas (empty-map) menu system, built here for every host (with the Add Entity
+        /// submenu when <see cref="EntityAuthoring"/> exists). The host SCHEDULES it.</summary>
+        public Hrot.Presentation.Systems.CanvasMenuUpdateSystem CanvasMenu { get; }
 
         // ══ UXI-11 — the SELECTION. 📄 UX_Feature_Selection.md §2.7 / §2.7.10 ═══════════════
 

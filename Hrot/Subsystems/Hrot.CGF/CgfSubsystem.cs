@@ -1393,12 +1393,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 AiEntitySelection = e => _sharedEntitySelection.Selected = e,
                 // GZH-003: CGF is headless-first; enable only when a terminal connects.
                 StartEnabled = false,
-                // ⭐⭐⭐ UXI-07 — the Spawn tool's behaviour goes to the PACK (see §4.10; the editor carries
-                //   the same comment). ⚠ Resolved at CALL TIME: _spawnAdapter is built later, and a
-                //   headless node has none — then Spawn reports, which is the honest state (ruling 49).
-                // ⭐⭐⭐ UXI-07 step 4a — the ARM BODY, ⛔ never the public API (that now calls
-                //   Activate(Spawn), which invokes this delegate — naming the API closes the cycle).
-                StartPlacementMode = () => _spawnAdapter?.ArmPlacement(),
+                // ⭐⭐⭐ CE-1017 — the ENTITY-AUTHORING surface comes from the PACK, the same for Editor, CGF, SimHost
+                //   and IG: the shared spawn adapter (it also backs the Spawn tool), the Add Entity picker and submenu,
+                //   the canvas menu. Windowed only: a headless node reports Spawn unserviceable (ruling 49) and offers
+                //   no submenu. No SuspendedReason: CGF has no Preview state (its world ticks from boot).
+                EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
+                    Tkb:          () => _context?.TkbDb,
+                    Requests:     () => _scenarioSource,
+                    GeoTransform: () => _context?.GeoTransform)
+                {
+                    HostPickers = () => _shellPickers,
+                },
             });
 
         _cgfGizmoBuffer           = _cgfMapInteraction.Buffer;
@@ -1461,7 +1466,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Info("[Map] {0}", problem);
         _context.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _cgfInteractionBus));
         // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-        _context.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+        _context.Kernel.RegisterGlobalSystem(_cgfMapInteraction.CanvasMenu);   // ⭐ CE-1017 — built by the pack
         // ⭐⭐⭐ UXI-23 S1 — CGF showed entities only because the SCENARIO FILE authors
         //    MapDisplayComponent; nothing on this host ever recomputed the layer mask, so an
         //    entity spawned at runtime (or one whose layer membership changed) kept a stale or
@@ -1699,7 +1704,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⛔ NOTHING here is a CGF-private implementation: same panels, same adapters, same window
             //    types the editor now registers through.
             _mapViewConfig     = new Hrot.Map.Common.Config.MapViewConfig();
-            _spawnerPanel      = new SpawnerPanel(Hrot.UI.Common.Panels.ScenarioSpawnerCatalog.Default);
+            // ⭐ CE-1017 S4 — TKB-built list + the grouped type picker (same as the editor's site).
+            _spawnerPanel      = new SpawnerPanel(Hrot.UI.Common.AddEntity.EntityTypeCatalog.SpawnerEntries(_context.TkbDb))
+            {
+                Tkb        = () => _context?.TkbDb,
+                OpenPicker = () => _shellPickers is { } pickers ? pickers.OpenPicker : null,
+            };
             // ⚠ MissionPanel's first argument is the node id the editor passes as a literal 0; this host
             //   has a REAL one, and passing it is the point of "the editor is a one-node cluster".
             _missionPanel      = new MissionPanel(
@@ -1707,12 +1717,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _configPanel       = new ConfigPanel();
             _sharedOrbatPanel  = new SharedOrbatPanel();
 
-            var cgfJsonCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(
-                _context.GeoTransform!);
-            _spawnAdapter      = new Hrot.UI.Common.Adapters.ScenarioSpawnAdapter(
-                // 🔒 UXI-07 step 4a — the arbiter is PASSED (same reason as the editor's site).
-                _context.World.Bus, cgfJsonCompiler, _context.TkbDb, _scenarioSource, _cgfGizmoManager,
-                _cgfToolController);
+            // ⭐ CE-1017 — THE shared spawn adapter, built by the map pack (EntityAuthoring), arbiter passed.
+            _spawnAdapter      = _cgfMapInteraction.EntityAuthoring?.Spawn
+                ?? throw new InvalidOperationException("The map's entity-authoring surface has no spawn adapter (no creation request queue).");
             _missionService    = new Hrot.UI.Common.Adapters.ScenarioMissionService(
                 _context.World.Bus, _context.World, _behaviorRegistry!);
             _mapConfigAdapter  = new Hrot.UI.Common.Adapters.ScenarioMapConfigAdapter(_mapViewConfig, _canvas);
@@ -1733,10 +1740,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐ The camera was RIGHT THERE — built at :1550 and given its offset at :1551, two lines up.
             //   🔒 This is the silent-default rule exactly: a production caller that HAS a dependency
             //      must PASS it. Every other host does.
-            _cgfGizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
-                _cgfGizmoBuffer, _cgfInteractionBus!, _canvas.Camera, () => _context.World);
-            _canvas.AddLayer(_cgfGizmoLayer);
-            _canvas.DrawBuffer = _cgfGizmoBuffer;
+            // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
+            _cgfGizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                _canvas, _cgfGizmoBuffer, _cgfInteractionBus!, () => _context.World).GizmoLayer;
 
             // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
 
@@ -2615,8 +2621,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     {
         _shellIconProvider = adapters.IconProvider;
 
-        _shellPickers = new NodeEditor.UI.Picker.PickerRegistry();
-        _shellPickers.SetServices(adapters.IconProvider, adapters.EditorTheme);
+        // ⭐ CE-1017 S5 — the ONE picker factory: entity icons + the silk atlas for every other key.
+        _shellPickers = Hrot.UI.Common.AddEntity.EntityAuthoring.CreatePickers(adapters.IconProvider, adapters.EditorTheme);
 
         _saveAsBrowser = new NodeEditor.UI.Dialogs.SaveAsBrowserDialog();
 

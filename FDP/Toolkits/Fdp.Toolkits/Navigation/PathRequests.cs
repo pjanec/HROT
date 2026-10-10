@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Navigation
             {
                 RequestId       = requestId,
                 Start           = from,
-                End             = intent.FinalDestination,   // real destination Z (Sim Z-up, P3D-302)
+                End             = NavigationDestination.Of(repo, entity, intent),   // real destination Z (Sim Z-up, P3D-302); ⭐ CE-1035 Q0b
                 MobilityProfile = profile.MobilityProfile,
                 BackendForce    = (NavigationBackend)intent.BackendForce,
                 RoadUse         = ResolveRoadUse(repo, entity, intent.RoadUse),

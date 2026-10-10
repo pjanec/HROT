@@ -92,15 +92,15 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             Prone    = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightProne,
         };
 
-        private readonly Func<TerrainWorld?> _worldSource;
+        private readonly Func<ISimulationView, Fdp.Toolkit.World.IWorldQuery?> _worldSource;   // ⭐ CE-1035 Q2 — the world query, per batch view
         private readonly Func<ISimulationView, Entity, float>? _radius;
         private readonly Func<ISimulationView, Entity, float>? _height;
         private readonly Func<ISimulationView, Entity, float>? _hull;
         private readonly Func<ISimulationView, Entity, StanceId>? _stance;
         private readonly ColliderOcclusion _occlusion = new();   // ⭐ CE-1032 — the 3-D collider test, shared with fragments (W-6′)
-        private TerrainWorld? _world;
-        // ⭐ R-219 — the doors as the BATCH's view sees them (BeginBatch); a background perception batch runs on its snapshot
-        private DoorStates? _doors;
+        // ⭐ R-219 — bound to the BATCH's view (its doors; a background perception batch runs on its snapshot)
+        private Fdp.Toolkit.World.IWorldQuery? _world;
+        private readonly List<Fdp.Toolkit.World.TraceCrossing> _explainScratch = new();
 
         /// <param name="worldSource">The terrain world now resident; null result = no terrain (colliders only).</param>
         /// <param name="colliderRadiusReader">Collider radius (as the planar strategy).</param>
@@ -110,7 +110,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         /// <param name="hullHeightReader">⭐ <c>CE-3116</c> — the height a TARGET's body profile scales by (0 = by posture); null = the
         /// collider height. <see cref="PhysicsColliderReaders.HullHeight"/> on every live host: a person's collider is not a hull.</param>
         public TerrainWorldLosStrategy(
-            Func<TerrainWorld?> worldSource,
+            Func<ISimulationView, Fdp.Toolkit.World.IWorldQuery?> worldSource,
             Func<ISimulationView, Entity, float>? colliderRadiusReader = null,
             Func<ISimulationView, Entity, float>? colliderHeightReader = null,
             Func<ISimulationView, Entity, StanceId>? stanceReader = null,
@@ -127,10 +127,23 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         /// ⭐ The composition every ECS host uses: the terrain world read from <paramref name="world"/>'s
         /// singleton, colliders read from <see cref="PhysicsCollider"/>.
         /// </summary>
+        /// <summary>The policy over a bare terrain (tests, tools): the batch view's doors bound through <see cref="TerrainWorldQuery"/>.</summary>
+        public TerrainWorldLosStrategy(
+            Func<TerrainWorld?> terrainSource,
+            Func<ISimulationView, Entity, float>? colliderRadiusReader = null,
+            Func<ISimulationView, Entity, float>? colliderHeightReader = null,
+            Func<ISimulationView, Entity, StanceId>? stanceReader = null,
+            Func<ISimulationView, Entity, float>? hullHeightReader = null)
+            : this(OverTerrain(terrainSource ?? throw new ArgumentNullException(nameof(terrainSource))),
+                colliderRadiusReader, colliderHeightReader, stanceReader, hullHeightReader) { }
+
+        private static Func<ISimulationView, Fdp.Toolkit.World.IWorldQuery?> OverTerrain(Func<TerrainWorld?> source)
+            => view => source() is { } w ? TerrainWorldQuery.For(w, w.Doors.Count > 0 ? DoorStates.Of(view, w) : null) : null;
+
         public static TerrainWorldLosStrategy ForLiveWorld(
             EntityRepository world, Func<ISimulationView, Entity, StanceId>? stanceReader = null)
             => new(
-                TerrainWorldSource.Live(world),   // CE-3018 — the one live source, shared with the perception grid
+                OverTerrain(TerrainWorldSource.Live(world)),   // CE-3018 — the one live source, shared with the perception grid; ⭐ Q2 — asked through IWorldQuery
                 PhysicsColliderReaders.Radius,
                 PhysicsColliderReaders.Height,
                 stanceReader ?? Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of,    // ⭐ Stage 4 — the logical stance (§3f)
@@ -138,8 +151,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
 
         public void BeginBatch(ISimulationView view)
         {
-            _world = _worldSource();
-            _doors = _world is { Doors.Count: > 0 } ? DoorStates.Of(view, _world) : null;
+            _world = _worldSource(view);
 
             _occlusion.Build(view, _radius, _height);
         }
@@ -173,7 +185,10 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             => colliderHeight > 0f ? colliderHeight * 0.5f : EyeHeightFor(view, e, stance) * 0.5f;
 
         /// <summary>One body point the sight line was tested against, and its verdict.</summary>
-        public readonly record struct LosPoint(float Height, Vector3 Aim, bool Clear, TerrainWorld.TraceResult? Terrain, Entity? BlockingEntity, string Verdict);
+        /// <param name="TerrainTransmittance">⭐ CE-1035 Q2 — the product of the crossings' sight transmittance, null when no world is resident.</param>
+        /// <param name="Crossed">What the line passes through (the world query's crossings, descriptive), null when no world is resident.</param>
+        public readonly record struct LosPoint(float Height, Vector3 Aim, bool Clear, float? TerrainTransmittance,
+            IReadOnlyList<Fdp.Toolkit.World.TraceCrossing>? Crossed, Entity? BlockingEntity, string Verdict);
 
         /// <summary>⭐ Tuning T-4 / Stage 4 — why a line of sight is (not) clear: the eye, the stances, and every body point's own verdict.</summary>
         public sealed record LosExplanation(bool Visible, Vector3 Eye, StanceId ObserverStance, StanceId TargetStance, float EyeHeight,
@@ -181,7 +196,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         {
             /// <summary>The first clear point, else the first point (what a single-line reader expects).</summary>
             public Vector3 Aim => (Points.FirstOrDefault(p => p.Clear) is { Height: > 0f } c ? c : Points[0]).Aim;
-            public TerrainWorld.TraceResult? Terrain => (Points.FirstOrDefault(p => p.Clear) is { Height: > 0f } c ? c : Points[0]).Terrain;
+            public float? TerrainTransmittance => (Points.FirstOrDefault(p => p.Clear) is { Height: > 0f } c ? c : Points[0]).TerrainTransmittance;
             public Entity? BlockingEntity => Visible ? null : Points[0].BlockingEntity;
         }
 
@@ -200,17 +215,30 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             var points = new List<LosPoint>();
             foreach (var aim in BodyPoints(view, target, st))
             {
-                TerrainWorld.TraceResult? trace = _world?.QuerySight(eye, aim, _world.Doors.Count > 0 ? DoorStates.Of(view, _world) : null);   // ⭐ R-219: this view's doors
-                float height = aim.Z - view.GetComponentRO<SimTransform>(target).Position.Z;
-                if (trace is { } t && t.Transmittance < TerrainWorld.SightThreshold)
+                // ⭐ CE-1035 Q2 — the world query (bound to the batch view's doors, R-219): the verdict is SightBlocked, the SAME question
+                //   IsVisible asks; the crossings and their product are the explanation.
+                float? transmittance = null;
+                IReadOnlyList<Fdp.Toolkit.World.TraceCrossing>? crossed = null;
+                bool terrainBlocks = false;
+                if (_world != null)
                 {
-                    points.Add(new(height, aim, false, trace, null, $"blocked by terrain: transmittance {t.Transmittance:0.###} < {TerrainWorld.SightThreshold}"));
+                    _world.Trace(eye, aim, Fdp.Toolkit.World.TracePurpose.Sight, _explainScratch);
+                    float product = 1f;
+                    foreach (var c in _explainScratch) product *= c.Loss;
+                    transmittance = product;
+                    crossed = _explainScratch.ToArray();
+                    terrainBlocks = _world.SightBlocked(eye, aim);
+                }
+                float height = aim.Z - view.GetComponentRO<SimTransform>(target).Position.Z;
+                if (terrainBlocks)
+                {
+                    points.Add(new(height, aim, false, transmittance, crossed, null, $"blocked by terrain: transmittance {transmittance:0.###} < {TerrainWorld.SightThreshold}"));
                     continue;
                 }
                 var blocker = _occlusion.Blocking(eye, aim, observer, target, out bool unknownHeight);
                 points.Add(blocker is { } b
-                    ? new(height, aim, false, trace, b, unknownHeight ? "blocked by an entity of unknown height" : "blocked by an entity within its height")
-                    : new(height, aim, true, trace, null, trace == null ? "clear (no terrain resident)" : $"clear: transmittance {trace.Value.Transmittance:0.###} ≥ {TerrainWorld.SightThreshold}"));
+                    ? new(height, aim, false, transmittance, crossed, b, unknownHeight ? "blocked by an entity of unknown height" : "blocked by an entity within its height")
+                    : new(height, aim, true, transmittance, crossed, null, transmittance == null ? "clear (no terrain resident)" : $"clear: transmittance {transmittance:0.###} ≥ {TerrainWorld.SightThreshold}"));
             }
             bool visible = points.Any(p => p.Clear);
             return new(visible, eye, so, st, eh, points,
@@ -241,7 +269,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             foreach (float f in BodyProfile.Fractions(stance, collider > 0f))
             {
                 var aim = basePos with { Z = basePos.Z + f * scale };
-                if (_world != null && _world.SegmentBlocked(eye, aim, _doors)) continue;
+                if (_world != null && _world.SightBlocked(eye, aim)) continue;
                 if (_occlusion.Blocking(eye, aim, observer, target, out _) == null) return true;
             }
             return false;

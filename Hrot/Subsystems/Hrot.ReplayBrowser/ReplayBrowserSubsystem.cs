@@ -265,11 +265,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             //   network id to an Entity, against the NetworkEntityMap this module now maintains
             //   (EnsureNetworkEntityMap). ⚠ NOT a revival of R3's deleted `view` parameter, which was
             //   stored nowhere. See DebugGizmoLayer._world.
-            _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
-                _gizmoBuffer, _interactionBus, _canvas.Camera, () => _activeRepo);
-
-            _canvas.AddLayer(_gizmoLayer);
-            _canvas.DrawBuffer = _gizmoBuffer;
+            // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
+            _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                _canvas, _gizmoBuffer, _interactionBus, () => _activeRepo).GizmoLayer;
 
             _diffService = new ComponentDiffService();
             _exportService = new RecordingExportService(_scenarioSerializer, _diffService);

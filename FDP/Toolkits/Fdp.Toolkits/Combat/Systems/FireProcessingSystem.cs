@@ -120,14 +120,12 @@ namespace Fdp.Toolkit.Combat.Systems
                     targetPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.AimHeightFor(repo, target, targetStance, hull);   // ⭐ CE-3116 — a person by posture
                     // ⭐ CE-3136 P-2 (D1, revised) — the middle when seen or shot through a weak cover, else the middle of the SEEN
                     //   part of the body (AimPoint). The round's own penetration decides "weak" — the fired mount's, as below.
-                    var terrain = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
+                    var terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q1 — bound to this view's doors (R-219)
                     if (terrain != null)
                     {
                         var aimMount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
                         float aimPen = aimMount != null && aimMount.DamagePerHit > 0f ? CombatTkb.PenetrationOf(repo, aimMount) : 0f;
-                        targetPos = AimPoint.For(repo, terrain,
-                            terrain.Doors.Count > 0 ? Fdp.Toolkit.Terrain.DoorStates.Of(repo, terrain) : null,
-                            shooterPos, targetPos, target, targetStance, hull, aimPen, _bodyPoints);
+                        targetPos = AimPoint.For(repo, terrain, shooterPos, targetPos, target, targetStance, hull, aimPen, _bodyPoints);
                     }
                 }
 

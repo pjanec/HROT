@@ -7,7 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
 related-designs:
-  - REVIEW_Behaviour_Library_Genericity.md — OWNS the genericity verdict; its §3 audit is what §10 answers (R-256 L2, R-255)
+  - REVIEW_Behaviour_Library_Genericity.md — OWNS the genericity verdict; its §3 audit is what §10 answers (R-256 L2, R-258)
   - designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — OWNS the squad (roster, roles, PhaseSequencer, fire allocation); §10 READS its assignment and leaves turn-taking to it (G6)
   - REVIEW_Behaviour_Library_Genericity.md — §3 audits PeekAndFire's genericity (duel-tuned core; five changes before it joins the library).
   - DESIGN_Eqs_Consuming_Behaviours.md — OWNS the tactics nodes (TakeCover, FiringPosition, Flank — EqsTacticsNodes.Run) PeekAndFire sits beside; its §9 F1/G3 "move, then fire / cover stops firing" is what this adds to
@@ -688,7 +688,7 @@ negotiation, no commander needed — and the node's only new outcome towards its
 ```mermaid
 graph TD
   subgraph CGF[CGF brain node]
-    BT["BrainTick: CombatPosture BTree (C#, R-255)"] --> PF[PeekAndFire node]
+    BT["BrainTick: CombatPosture BTree (C#, R-258)"] --> PF[PeekAndFire node]
     PF -->|write own / read all| CC[CoverClaim components]
     SCS[SquadCoordinationSystem ~10 Hz] --> TMA[ThreatMatrixAssignmentSystem] --> AS[SquadCognitiveState.Assignment]
     AS -->|read: my target| PF
@@ -730,7 +730,7 @@ Squad design §2 "All Brain-resident"); the red dashed edge is the squad's turn-
 | G-3 | G3: `LineOfFire` point overload; `FireAtPointExecutor` direct-fire check, indirect exempt; `MountAuto`; ROE in the node | a friend on the burst line ⇒ no round · mortar over a friend ⇒ fires · HoldFire ⇒ never exposes · ReturnFire ⇒ exposes inside the window |
 | G-4 | G4 + L5: `PostureNodes.Fire(..., target)`; target lock; heard-match radius; `FireAtTarget` routed | two enemies ⇒ sight check and shot on the same one · assigned target honoured |
 | G-5 | G5 `CoverClaim` + G7 seed | two riflemen, one good point ⇒ two different points · claims expire · `SimRng` asymmetric (+ baselines re-pinned, diff-shape reported) |
-| G-6 | bind to CombatPosture's TakeCover (`CE-3157`) in the C# library tree (R-255) | `ua-universal-soldier`: fires again from cover; dies later or wins — measured, then asserted |
+| G-6 | bind to CombatPosture's TakeCover (`CE-3157`) in the C# library tree (R-258) | `ua-universal-soldier`: fires again from cover; dies later or wins — measured, then asserted |
 
 ⚠ **Blast radius:** `EqsResult` + its wire entry (one byte, D5 precedent) · `FireAtPointExecutor` (also `bt-grenade-posture`,
 `bt-mortar-roof` — indirect, exempt by G3) · `PostureNodes.Fire` callers (`Engage`, `FireOnTheMove`) · `SimRng` users (wander,

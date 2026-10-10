@@ -1,11 +1,11 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e; S0 as built, §5)
-build-state: READY-TO-BUILD — approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
+updated: 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e; S0–S5 as built, §5 — ONE entity-authoring wiring on Editor, CGF, SimHost, IG)
+build-state: BUILT — all slices on Editor, CGF, SimHost and IG; Stride mode 2 deferred (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
 current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5) AND §2d (rev 6) AND §2e (rev 7); the later section wins where they differ · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
   submenu, spawn panels retired). Do NOT quote them.
-known-rot: none yet
+known-rot: the §3 sequence diagram and the §5 S3 acceptance said Shift+click — rev 4 (always-multi) replaced that; both now say click / right-click. Fixed in place.
 known-conflict: none — rev 1's conflict with canvas-context-menu-design.md §5.6 (no clicked point) is gone: rev 2 always
   arms a placement tool, so the menu action needs no position.
 related-designs:
@@ -20,7 +20,7 @@ related-designs:
   - designs/tkb-1/DESIGN.md — owns the TKB schema; this doc adds VisualDefinitionDto.IconName and
     TkbMasterDto.HideFromPalette.
   - UX/UX_Feature_Tool_Model.md — owns the placement tools (EntityPlacementGizmo; area/route/zone PointSequenceGizmo).
-    This doc makes every pick arm one of them and adds Shift multi-placement, terrain snap and north heading.
+    This doc makes every pick arm one of them and adds always-multi placement (right-click/Esc ends), the ground level and north heading.
   - UX/UX_Issues.md#uxi-12 — "Spawn UI ×4"; the spawn panels STAY and call this picker (slice S4).
   - DESIGN_Terrain_World.md §7 W8 — owns "no ground clamp; the movement model sets Z = SurfaceZ(x, y, zHint = current Z)"
     (user ruling). §2a here only chooses an entity's BIRTH Z / level; it adds no clamp step.
@@ -311,7 +311,7 @@ classDiagram
     class PickerTreeBuilder { <<existing>> + fold single-child chains NEW }
     class TreeLayout { <<existing>> + preview pane NEW }
     class ISpawnController { <<existing>> StartPlacementMode / Area / Route / Zone }
-    class EntityPlacementGizmo { <<existing>> + Shift keeps armed, terrain Z, north, icon ghost NEW }
+    class EntityPlacementGizmo { <<existing>> + always-multi, OnGround, north, named ghost NEW }
     class PointSequenceGizmo { <<existing>> area/route/zone tools }
     class EntityCreation { <<Hrot.Common, existing>> RequestEntityCreation }
     class ITkbDatabase { <<existing>> }
@@ -359,11 +359,12 @@ sequenceDiagram
     R-->>A: Point
     A->>S: StartPlacementMode(T-72, side Hostile)
     S->>T: arm (ghost: icon + name)
-    U->>T: Shift+click
-    T->>C: RequestEntityCreation(T-72, ground Z, facing north)
-    Note over T: stays armed
+    U->>T: click
+    T->>C: RequestEntityCreation(T-72, OnGround, facing north)
+    Note over T: stays armed (always-multi)
     U->>T: click
     T->>C: RequestEntityCreation(...)
+    U->>T: right-click or Esc
     Note over T: ends
 ```
 *What it shows:* the clicked point plays no part; the tool owns placement. A `Map Graphics…` pick of *Area* takes the
@@ -397,7 +398,7 @@ graph TD
     classDef dead fill:#eee,stroke:#999,color:#777
 ```
 *What it shows:* which host runs which piece each frame. ExCon and IG have no `PickerRegistry` today — S4 adds one;
-ExCon's placement still happens on IG through its existing command. Grey boxes never get the picker.
+ExCon's placement still happens on IG through its existing command. Grey boxes are panels that stay as they are: SimHost's VehicleClass roamer panel (SimHost itself now gets the picker through the map menu — §5 S3 as built); the ReplayBrowser is read-only.
 
 #### S2 engine half — the birth-height path *(as built, backend `2026-10-07`)*
 
@@ -498,8 +499,152 @@ ghost/replica ingress sets `SpawnEntityCommand.SpawnHeight`.
 | rails | `TerrainWorldTests.CE1017_*` (2) · `SpawnSystemTests.CE1017_*` (3) · `CreateEntityRequestSystemTests.CE1017_*` (2) · `NedEntityCreationRequestEgressRails.CE1017_*` (wire round trip) · `SpawnEntityCommandEgressTranslatorTests.CE1017_*` · ⭐ integration: `Hrot.SimHost.Integration.Tests` `EntityCreationFlowTests.CE1017_*` (the real SimHost pipeline over a deck; 📌 its first version, inside a SOLID building, showed §2c live — level 0 resolved to the ground and the tank's motion model lifted it to the roof within five ticks) |
 | ⚠ until `CE-1031` | inside a solid building footprint, level 0 places on the ground and a ground vehicle's motion model then lifts it to the roof (§2c) — unchanged here |
 
-**Acceptance (S3):** right-click empty map → *Add Entity ▸ Hostile…* → type `t7` → Enter → Shift+click twice, click
-once ⇒ three hostile T-72s on the ground, facing north, the tool ended; the picker showed `Platform › Land › Tank ›
+### ✅ S2 UI half as built *(ui, `2026-10-07`)*
+
+| item | as built |
+|---|---|
+| always-multi | `ScenarioSpawnAdapter.ArmPlacement` arms `EntityPlacementGizmo` with `autoPopOnPlace: false` — every click places, right-click/Esc ends; the ghost shows *"click: place · right-click/Esc: done"* |
+| modifiers | Shift/Ctrl/Alt are masked off a click, so a modified click places like a plain one (rev 4: no Shift mode) |
+| heading | `EntityPlacementGizmo.FacingNorth` = yaw +90° (Identity faces east) on every command |
+| level | every command carries `SpawnHeight.OnGround`; the adapter copies it into `EntityCreationRequest` |
+| ghost label | the TKB template's name (`displayName`), not the type number |
+| ⚠ deviation | the ghost does NOT call `ResolveLevel` — the 2D map draws no Z, so it would change nothing visible. The 3D ghost belongs to Stride mode 2 (`CE-1030`). IG's own `MapCommandController` still arms with `autoPopOnPlace: true` until IG moves onto the shared adapter (S3, below) |
+| rails | `EntityPlacementGizmoTests.CE1017_*` (4) |
+
+### ✅ S1 as built *(ui, `2026-10-07`)*
+
+| item | as built |
+|---|---|
+| picker | `PickerRequest.FoldSingleChildFolders` (a folder whose only content is one sub-folder merges into one row `A › B`, keeping the deepest `FullPath`) and `PickerRequest.ShowPreview` (pane under the Tree: 64 px icon by `IconKey`, name, category, description). Both default off; `TreeLayout` now keys folders by the builder's `FullPath` |
+| catalog | `Hrot.UI.Common.AddEntity.EntityTypeCatalog.Build(ITkbDatabase)` — D7 + D2 exactly; composites under `Units/<country>` (decided while building: the DIS path of a unit stops at the country, so `Units` alone would mix nations). Description = `DIS <text>` or the disabled reason |
+| tools | `PlacementToolRegistry` — Area / Route / Terrain Zone; Fire Line listed DISABLED (*"No placement tool yet."*); `Arm(spawn, type, side)` is the one mapping onto `ISpawnController`, side as `{"Affiliation":"FORCE_…"}` (the shape `SpawnerPanel` and the ghost already read) |
+| icons | key `entity/<IconName>`, else `entity/_point` / `_area` / `_route` / `_zone` — S5 serves them |
+| reference | `Hrot.Presentation` → `NodeEditor.UI` (same ImGui.NET 1.91.6.1 as every host) |
+| rails | `EntityTypeCatalogTests` (10) · `PickerTreeBuilderTests.CE1017_Fold_*` (2) |
+
+### ✅ S3 as built — Editor and CGF *(ui, `2026-10-07`)*
+
+```mermaid
+graph TD
+    subgraph hosts["Editor, CGF and SimHost"]
+      CTX[MapInteractionContext.AddEntity<br/>Tkb, OpenPicker, Spawn, SuspendedReason<br/>Editor, CGF, SimHost]
+      PACK[MapInteractionPack.Build]
+      AEA[AddEntityAction<br/>registered on mi.Actions 203-206]
+      CMU[CanvasMenuUpdateSystem mi.AddEntity<br/>PostSimulation, each frame]
+      DSP[GlobalActionDispatchSystem<br/>each frame]
+      PK[shell PickerRegistry.DrawFrame<br/>each ImGui frame]
+      SSA[ScenarioSpawnAdapter]
+    end
+    IG[IG: MapCommandController, no shared adapter]:::dead
+    RB[ReplayBrowser: read-only]:::dead
+    CTX --> PACK --> AEA
+    PACK --> CMU
+    DSP -->|action 203-206| AEA
+    AEA -->|OpenPicker| PK
+    PK -->|pick| AEA
+    AEA -->|PlacementToolRegistry.Arm| SSA
+    classDef dead fill:#eee,stroke:#999,color:#777
+```
+*What it shows:* the submenu exists only where all three dependencies resolve, and they resolve at CALL time (both hosts
+build the pickers and the adapter after the map). Grey hosts pass no `AddEntity`, so their menu has no item rather than a
+dead one (D9).
+
+| item | as built |
+|---|---|
+| ids | `GlobalActionIds.AddEntityFriendly/Hostile/Neutral = 203/204/205`, `AddMapGraphic = 206` |
+| menu | `CanvasMenuUpdateSystem(AddEntityAction?)` puts `Add Entity ▸ Friendly… · Hostile… · Neutral… · ─ · Map Graphics…` before *Measurement Tool* while the action is available; greyed with *"suspended in Preview"* in its label (Editor, `IPreviewController.IsInPreviewMode`). CGF has no Preview state, so it never greys |
+| ⚠ deviation | the picker opens CENTRED, not at the mouse: the action handler runs in a system, outside the ImGui frame, and the menu event carries no screen position |
+| ✅ IG | ⛔ SUPERSEDED the same day — IG is on the shared surface; see "One wiring" below |
+| ✅ SimHost *(added the same day, 🔒 user: "both cgf and simhost and editor of course should")* | 📐 it had neither a spawn adapter nor a picker. Now a windowed SimHost builds the SAME `ScenarioSpawnAdapter` (lazily, over its creation pack's `LocalRequests`, its map's `GlobalManager`/`Tools`, its JSON compiler and TKB singleton) and a `PickerRegistry` drawn in `OnDrawUI`; it passes both through `MapInteractionContext.AddEntity` and `StartPlacementMode`, so it also gained the Spawn tool. A headless SimHost builds neither ⇒ no submenu |
+| rails | `AddEntityActionTests` (8): hostile item → Tree picker → T-72 pick arms a hostile point tool; map graphics → area tool; cancel arms nothing; suspended opens nothing; menu shows / greys / omits / follows late availability |
+
+### ✅ One wiring — `EntityAuthoring`, built by the map pack for every host *(ui, `2026-10-07`)*
+
+> 🔒 **User:** *"Do we share unified code across simhost and cgf and ig and editor? We should."*
+> 📐 **Measured before:** the LOGIC was shared (catalog, tool registry, action, icons, adapter type) but the WIRING was
+> copied per host — **3** hand-built `ScenarioSpawnAdapter`s, **5** picker registries with two different icon setups,
+> **4** `CanvasMenuUpdateSystem` registrations, **3** Add Entity service blocks — and **IG on none of them**.
+
+```mermaid
+classDiagram
+    direction LR
+    class MapInteractionContext { <<existing>> + EntityAuthoring : EntityAuthoringInputs? }
+    class EntityAuthoringInputs { <<NEW>> Tkb, Requests, GeoTransform; SuspendedReason, HostPickers }
+    class MapInteractionPack { <<existing>> Build() }
+    class MapInteraction { <<existing>> + EntityAuthoring?, + CanvasMenu }
+    class EntityAuthoring { <<NEW, Hrot.Presentation>> Spawn (lazy), Pickers, AddEntity, CanvasMenu, DrawFrame(), CreatePickers() }
+    class ScenarioSpawnAdapter { <<existing>> }
+    class AddEntityAction { <<existing>> }
+    class CanvasMenuUpdateSystem { <<existing>> }
+    class PickerRegistry { <<NodeEditor.UI>> }
+    class EntityIconLibrary { <<existing>> }
+    MapInteractionContext --> EntityAuthoringInputs
+    MapInteractionPack --> MapInteraction : builds
+    MapInteractionPack --> EntityAuthoring : builds when inputs given
+    MapInteraction --> EntityAuthoring
+    EntityAuthoring --> ScenarioSpawnAdapter : one per map
+    EntityAuthoring --> AddEntityAction
+    EntityAuthoring --> CanvasMenuUpdateSystem
+    EntityAuthoring --> PickerRegistry : own, or the host shell
+    PickerRegistry ..> EntityIconLibrary : CreatePickers
+```
+*What it shows:* everything entity authoring needs is constructed in ONE place from three host inputs; a host's whole
+share is the inputs, scheduling `mi.CanvasMenu`, and drawing `mi.EntityAuthoring.DrawFrame()` (or its own shell registry).
+
+```mermaid
+graph TD
+    subgraph every["Editor, CGF, SimHost, IG (windowed)"]
+      IN[EntityAuthoringInputs<br/>Tkb, Requests = creation pack LocalRequests, GeoTransform]
+      PACK[MapInteractionPack.Build]
+      EA[EntityAuthoring]
+      MENU[mi.CanvasMenu<br/>host schedules, PostSimulation]
+      DRAW[picker DrawFrame<br/>host's ImGui frame]
+      SPAWN[Spawn tool + Add Entity + spawner panels]
+    end
+    HL[headless node: EntityAuthoring null<br/>Measure-only menu, Spawn reports unserviceable]:::dead
+    RB[ReplayBrowser: read-only, no inputs]:::dead
+    IGR[IG MapCommandController: ExCon remote CMD_PLACE_ENTITY + acks only]
+    IN --> PACK --> EA
+    EA --> MENU
+    EA --> DRAW
+    EA --> SPAWN
+    classDef dead fill:#eee,stroke:#999,color:#777
+```
+*What it shows:* the four map hosts run the same objects; what stays host-specific is only IG's remote-command service
+(acking ExCon's requests), which is protocol, not authoring.
+
+| item | as built |
+|---|---|
+| IG | joins through the shared adapter. 📐 Equivalent requests: the adapter enqueues onto the SAME `LocalRequests` with `OwnerAppInstanceId = 0` (untargeted) — exactly what `IgEntityCreationRequests.FromSpawnCommand` writes. IG's toolbar Spawn tool, never serviced on IG, now arms too. IG's Mini ExCon opens its picker in the map's registry |
+| Editor, CGF | `_spawnAdapter = mi.EntityAuthoring.Spawn`; their shell registry (asset pickers live there) is adopted through `HostPickers` and built with `EntityAuthoring.CreatePickers(silk, theme)` |
+| SimHost | the hand wiring added earlier the same day is gone; the pack's own registry, drawn in `OnDrawUI` |
+| pickers | `EntityAuthoring.CreatePickers(hostIcons?, theme?)` is the one factory (ExCon too) |
+| headless | every host passes `null` when headless — no submenu, Spawn reports unserviceable, as before |
+| rails | `EntityAuthoringPackTests` (5) · `TheScenarioWindowsAreSharedTests.EveryWindowedMapHostUsesTheOneEntityAuthoringWiring` (Editor, CGF, SimHost, IG — and none hand-builds an adapter, canvas menu or icon picker) |
+
+### ✅ S4 as built — the spawn panels call the picker *(ui, `2026-10-07`)*
+
+| host / panel | as built |
+|---|---|
+| `SpawnerPanel` (Editor, CGF, ExCon) | optional `Tkb` + `OpenPicker`: with them the "Entity Type" control is a button that opens the grouped picker for the panel's side, and a pick selects the type AND arms the tool (D4). Without them the flat combo stays. **Neutral** radio added (D6); the side radios now come first because the picker opens per side |
+| lists | `ScenarioSpawnerCatalog` (hand-written, 14) is **deleted**; Editor and CGF take `EntityTypeCatalog.SpawnerEntries(tkb)`; ExCon's own 9-entry literal (cross-lane edit, backend's file) is replaced the same way, and its ORBAT unit list is the catalog's `Units` folder |
+| ExCon TKB | ⚠ ExCon holds no cluster TKB, so it lists `HrotEnvironment.CreateTkb()` — the built-in default a node boots with. A TKB file loaded into the cluster later is NOT reflected in ExCon's picker |
+| IG Mini ExCon | `SetPicker(tkb, openPicker)` + a *Choose…* button beside the raw type number; the pick SETS the type (this panel spawns at coordinates — it arms no tool). ⚠ Bug fixed on the way: its Affiliation combo listed *Unknown/Friend/Hostile/Neutral* over `ForceId` (Neutral=0, Friend=1, Hostile=2), so "Unknown" was Neutral and "Neutral" wrote 3 |
+| ⏳ ExCon ORBAT *New Unit* | keeps its combo (now TKB-built); the picker there is not wired |
+| rails | `SpawnerPanelPickerTests` (3) · `MiniExConPanelPickerTests` (2) · `TheScenarioWindowsAreSharedTests.TheEditorAndCgfTakeTheirSpawnerCatalogFromTheTkb` |
+
+### ✅ S5 as built — entity icons *(ui, `2026-10-07`)*
+
+| item | as built |
+|---|---|
+| art | 17 **hand-drawn SVG icons** (`Hrot/Engine/Hrot.Presentation/Assets/EntityIcons/src/*.svg`, 128×128, side profile facing right, light body gradient + dark outline so they read on the dark theme, every type drawn as itself: M1 wedge turret + skirts, T-72 dome turret + fuel drums + IR light, Bradley box hull + TOW launcher, HMMWV, rifleman, platoon/squad in a unit frame with NATO echelon dots), rasterized to 128 px PNGs by `scripts/render-entity-icons.py` (cairosvg) and embedded in `Hrot.Presentation`. ⛔ SUPERSEDED: the first version was Pillow-drawn placeholders from `scripts/gen-entity-icons.py` (deleted — the SVGs are the one source). Edit an SVG, re-run the script |
+| names | the 7 built-in `IconName`s + fallbacks by tool (`_point`, `_area`, `_route`, `_zone`, `_fireline`) and by what a type IS when its TKB names no icon (`_person` = DIS Life Form, `_tank`/`_afv`/`_wheeled` = land categories 1/2/3·6·7·81, `_unit` = composite) — so the 5 urban types show pictures with no data change. Map graphics name their glyph in `PlacementToolRegistry` |
+| `EntityIconLibrary : IIconProvider` | serves `entity/<name>`: `<app>/Assets/EntityIcons/<name>.png` first (TKB authors add art without a rebuild), then the embedded PNG, then `_point`; uploads lazily through raylib, cached; texture id 0 (headless GL) ⇒ no icon, no crash; every other key goes to the host's provider (silk atlas) |
+| hosts | Editor and CGF: `EntityIconLibrary(silk)` on the shell pickers; SimHost, ExCon, IG: `PickerRegistry.SetIcons(EntityIconLibrary())` (new overload — those hosts have no editor theme or silk provider, so folders draw without icons) |
+| rails | `EntityIconLibraryTests` (6) — including *every icon key the built-in catalog asks for has embedded art*, which caught Fire Line asking for `_none` |
+
+**Acceptance (S3):** right-click empty map → *Add Entity ▸ Hostile…* → type `t7` → Enter → click three times, right-click
+⇒ three hostile T-72s on the ground, facing north, the tool ended; the picker showed `Platform › Land › Russia › Tank ›
 T-72` with an icon. *Map Graphics… → Area* ⇒ the area tool is armed, no side asked.
 
 ## ⛔ HISTORY — rev 1 leans, SUPERSEDED `2026-10-07` by the user's rulings

@@ -65,9 +65,10 @@ namespace CarKinem.Systems
             
             // ⭐ W8 (docs/DESIGN_Terrain_World.md §7.1) — the terrain world the movement model stands on. Read
             //   once per tick; SurfaceZ is read-only, so the parallel update may share it. Null = flat world.
-            _terrain = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
-                ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
-                : null;
+            _terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q2 — the movement model asks the world query
+            // ⭐ CE-1034 H1 (R-249) — an entity's runtime ground-clamping flag decides whether the movement model holds it to the
+            //   surface; no flag = clamped, as before. Read once per tick: the parallel update only reads it.
+            _clampFlags = repo.IsComponentTypeRegistered<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
 
             // Read spatial grid from singleton (Data-Oriented dependency)
             if (!repo.HasSingleton<SpatialGridData>()) return;
@@ -124,7 +125,13 @@ namespace CarKinem.Systems
         
         // THREAD-SAFE: Method operates on unique entity and uses read-only shared data
         /// <summary>The terrain world for this tick (W8), or null on a flat / terrain-less world.</summary>
-        private Fdp.Toolkit.Terrain.TerrainWorld? _terrain;
+        private Fdp.Toolkit.World.IWorldQuery? _terrain;
+        private bool _clampFlags;
+
+        /// <summary>⭐ R-249 — whether the movement model puts <paramref name="entity"/> on the surface: its ground-clamping flag, else yes.</summary>
+        private bool Clamped(EntityRepository repo, Entity entity)
+            => !_clampFlags || !repo.HasComponent<Fdp.Modules.Geographic.Components.GroundClampingConfig>(entity)
+               || repo.GetComponentRO<Fdp.Modules.Geographic.Components.GroundClampingConfig>(entity).IsClampingActive;
 
         private void UpdateVehicle(EntityRepository repo, Entity entity, float dt, SpatialHashGrid spatialGrid,
             RoadNetworkBlob roadNetwork)
@@ -370,7 +377,7 @@ namespace CarKinem.Systems
             // ⭐⭐ W8 (R-182) — the movement model itself puts the vehicle on the surface under it: the
             //   ground, a roof, or the floor nearest its current Z (a garage deck). There is NO separate
             //   ground-clamp step. Without a terrain world the Z is kept, as before.
-            float z = _terrain != null
+            float z = _terrain != null && Clamped(repo, entity)
                 ? _terrain.SurfaceZ(pos2D.X, pos2D.Y, tf.Position.Z)
                 : tf.Position.Z;
             // ⭐ CE-3145 (R-247) — A PERSON NEVER STEPS OFF A LEDGE: standing on a floor, a step whose floor is more than

@@ -4,6 +4,10 @@ using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Core.Network;
 using Fdp.Core;
 using ImGuiNET;
+using Fdp.Interfaces;
+using Hrot.Core.Mission;
+using Hrot.UI.Common.AddEntity;
+using NodeEditor.UI.Picker;
 
 namespace Hrot.IG.UI;
 
@@ -56,6 +60,39 @@ public class MiniExConPanel
     /// </summary>
     public void SetGateway(ICommandGateway? gateway) => _gateway = gateway;
 
+    private Func<ITkbDatabase?>? _tkb;
+    private Func<Action<PickerRequest, Action<PickerResult>>?>? _openPicker;
+
+    /// <summary>⭐ <c>CE-1017</c> S4 — gives the panel the grouped Add Entity type picker (the host's TKB and its
+    /// <c>PickerRegistry.OpenPicker</c>, both resolved at call time). Without it the panel keeps the raw type-number
+    /// field only. 📄 docs/DESIGN_Add_Entity_Picker.md S4.</summary>
+    public void SetPicker(Func<ITkbDatabase?> tkb, Func<Action<PickerRequest, Action<PickerResult>>?> openPicker)
+    {
+        _tkb = tkb;
+        _openPicker = openPicker;
+    }
+
+    /// <summary>Opens the type picker for the panel's affiliation; the pick becomes the TKB type the Spawn buttons
+    /// use (this panel spawns at coordinates, so a pick SELECTS rather than arms a tool). False ⇒ no picker.</summary>
+    public bool HandleChooseType()
+    {
+        var tkb = _tkb?.Invoke();
+        var open = _openPicker?.Invoke();
+        if (tkb is null || open is null) return false;
+
+        eForceIdentifier side = _state.Affiliation switch
+        {
+            ForceId.Friend  => eForceIdentifier.FORCE_FRIENDLY,
+            ForceId.Hostile => eForceIdentifier.FORCE_OPPOSING,
+            _               => eForceIdentifier.FORCE_NEUTRAL,
+        };
+        open(AddEntityAction.BuildRequest(tkb, side), result =>
+        {
+            if (result.First?.Tag is EntityTypeEntry e) _state.TkbType = e.TkbType;
+        });
+        return true;
+    }
+
     /// <summary>
     /// Emits the Mini ExCon ImGui window.
     /// Must be called within a <c>rlImGui.Begin() / rlImGui.End()</c> block.
@@ -88,10 +125,20 @@ public class MiniExConPanel
             if (long.TryParse(tkbTypeStr, out long parsed))
                 _state.TkbType = parsed;
         }
+        if (_tkb?.Invoke() is { } tkb && _openPicker?.Invoke() is not null)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Choose..."))   // CE-1017 S4
+                HandleChooseType();
+            if (tkb.TryGetByType(_state.TkbType, out var t))
+                ImGui.TextDisabled(t.Name);
+        }
 
         // ── Affiliation ───────────────────────────────────────────────────────
         int affil = (int)_state.Affiliation;
-        if (ImGui.Combo("Affiliation", ref affil, "Unknown\0Friend\0Hostile\0Neutral\0"))
+        // ⚠ CE-1017 — the labels follow ForceId's values (Neutral=0, Friend=1, Hostile=2). They used to read
+        //   "Unknown, Friend, Hostile, Neutral": "Unknown" was really Neutral and "Neutral" wrote the undefined 3.
+        if (ImGui.Combo("Affiliation", ref affil, "Neutral\0Friend\0Hostile\0"))
             _state.Affiliation = (ForceId)affil;
 
         ImGui.Separator();

@@ -14,12 +14,17 @@ internal static class TreeLayout
 {
     private const float RowHeight = 22f;
     private static readonly Vector2 IconSize = new(16f, 16f);
+    private const float PreviewH = 84f;
+    private static readonly Vector2 PreviewIconSize = new(64f, 64f);
 
     /// <summary>Render the tree view.</summary>
     public static void Draw(PickerState state, IPickerRenderContext ctx,
-                            CategoryNode? explicitRoot = null)
+                            CategoryNode? explicitRoot = null,
+                            bool foldSingleChildFolders = false, bool showPreview = false)
     {
         float height = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing();
+        if (showPreview)
+            height -= PreviewH + ImGui.GetStyle().ItemSpacing.Y;
         if (ImGui.BeginChild("##picker_tree", new Vector2(0f, height), ImGuiChildFlags.None))
         {
             try
@@ -34,7 +39,7 @@ internal static class TreeLayout
                 }
                 else
                 {
-                    DrawImplicitTree(state, ctx);
+                    DrawImplicitTree(state, ctx, foldSingleChildFolders);
                 }
 
                 // The initial-selection reveal is one-shot: this draw has opened its folders.
@@ -55,11 +60,66 @@ internal static class TreeLayout
         {
             ImGui.EndChild();
         }
+
+        if (showPreview)
+            DrawPreview(state, ctx);
+    }
+
+    // ── preview pane (CE-1017) ────────────────────────────────────────────────
+
+    /// <summary>The focused leaf: the focused tree row when it is a leaf, else the keyboard-focused entry.</summary>
+    internal static int FocusedLeafIndex(PickerState state)
+    {
+        int row = state.TreeFocusRow;
+        if (row >= 0 && row < state.VisualRows.Count && !state.VisualRows[row].IsFolder)
+            return state.VisualRows[row].FilteredIndex;
+        int k = state.KeyboardFocusIndex;
+        return k >= 0 && k < state.Filtered.Count ? k : -1;
+    }
+
+    private static void DrawPreview(PickerState state, IPickerRenderContext ctx)
+    {
+        int idx = FocusedLeafIndex(state);
+        PickerEntry? entry = idx >= 0 && idx < state.Filtered.Count ? state.Filtered[idx].Entry : null;
+
+        if (ImGui.BeginChild("##picker_tree_preview", new Vector2(0f, PreviewH), ImGuiChildFlags.Borders))
+        {
+            try
+            {
+                if (entry is null)
+                {
+                    ImGui.TextColored(ctx.Theme.TextMuted, "(no selection)");
+                    return;
+                }
+
+                if (entry.IconKey is { Length: > 0 } key && ctx.Icons.TryGet(key, out var icon))
+                {
+                    ImGui.Image(icon.TextureId, PreviewIconSize, icon.Uv0, icon.Uv1);
+                    ImGui.SameLine();
+                }
+
+                ImGui.BeginGroup();
+                ImGui.TextColored(ctx.Theme.TextDefault, entry.Name);
+                if (entry.Category is { Length: > 0 } cat)
+                    ImGui.TextColored(ctx.Theme.TextMuted, cat.Replace("/", PickerTreeBuilder.FoldSeparator));
+                if (entry.Description is { Length: > 0 } desc)
+                    ImGui.TextWrapped(desc);
+                ImGui.EndGroup();
+            }
+            finally
+            {
+                ImGui.EndChild();
+            }
+        }
+        else
+        {
+            ImGui.EndChild();
+        }
     }
 
     // ── implicit tree (built from Category strings) ───────────────────────────
 
-    private static void DrawImplicitTree(PickerState state, IPickerRenderContext ctx)
+    private static void DrawImplicitTree(PickerState state, IPickerRenderContext ctx, bool foldSingleChildFolders)
     {
         // Build the pure tree model from the filtered list.
         var items = new List<(int FilteredIndex, string? Category, string Name)>(state.Filtered.Count);
@@ -69,7 +129,7 @@ internal static class TreeLayout
             items.Add((i, re.Entry.Category, re.Entry.Name));
         }
 
-        var root = PickerTreeBuilder.Build(items);
+        var root = PickerTreeBuilder.Build(items, foldSingleChildFolders);
 
         bool isSearching = !string.IsNullOrEmpty(state.SearchText);
 
@@ -90,10 +150,9 @@ internal static class TreeLayout
         PickerTreeBuilder.Node folder, string parentPath, int depth,
         ImGuiTreeNodeFlags baseFlags, bool isSearching)
     {
-        // Compute stable full-path for collapse state + IDs.
-        string fullPath = string.IsNullOrEmpty(parentPath)
-            ? folder.Name
-            : parentPath + "/" + folder.Name;
+        // Stable full-path for collapse state + IDs: the builder's category path, which a folded row
+        // ("A › B") keeps as its deepest real folder ("A/B") — so reveal and toggles still match.
+        string fullPath = folder.FullPath;
 
         int visualRowIndex = state.VisualRows.Count;
         bool isFocused = state.TreeFocusRow == visualRowIndex;

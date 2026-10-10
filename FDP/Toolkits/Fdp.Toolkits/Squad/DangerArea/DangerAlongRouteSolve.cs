@@ -34,7 +34,8 @@ namespace Fdp.Toolkit.Squad.DangerArea
             if (roads == null || planner == null) return 0;
             if (!EqsContext.SelfPosition(repo, carrier, sensor, out var start)) return 0;
             if (!TryRouteEnd(repo, carrier, in sensor, out var end, out var roadUse)) return 0;
-            var terrain = repo.HasSingletonManaged<TerrainWorld>() ? repo.GetSingletonManaged<TerrainWorld>() : null;
+            var terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q2
+            planner.World = terrain;                                // ⭐ CE-1034 H3 — the route's road legs on the real ground
 
             // ⭐ C6 — lease the graph for the whole plan + classify: a terrain commit may publish a new one meanwhile.
             using var lease = roads.Borrow();
@@ -73,7 +74,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 return false;
             ref readonly var intent = ref repo.GetComponentRO<NavigationIntent>(unit);
             if (intent.Mode == NavigationMode.None) return false;
-            end = intent.FinalDestination;
+            end = Fdp.Toolkit.Navigation.NavigationDestination.Of(repo, unit, intent);   // ⭐ CE-1035 Q0b
             roadUse = PathRequests.ResolveRoadUse(repo, unit, intent.RoadUse);
             return true;
         }

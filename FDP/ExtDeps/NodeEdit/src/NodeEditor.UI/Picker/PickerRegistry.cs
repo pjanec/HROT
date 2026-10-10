@@ -32,6 +32,15 @@ public sealed class PickerRegistry : IPickerRegistry
         _window.Theme = theme;
     }
 
+    /// <summary>
+    /// Provide only an icon provider, keeping the default theme — for a host that has icons but no editor theme.
+    /// </summary>
+    public void SetIcons(IIconProvider icons)
+    {
+        _icons = icons;
+        _window.Icons = icons;
+    }
+
     // ── IPickerRegistry ───────────────────────────────────────────────────────
 
     /// <inheritdoc/>

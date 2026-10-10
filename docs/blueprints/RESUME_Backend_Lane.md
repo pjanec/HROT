@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-10
-current-answer: ⭐ §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-255/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
+current-answer: ⭐ §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/REVIEW_Behaviour_Library_Genericity.md — the CURRENT programme's verdict + decisions (§5) and retreat concepts (§6).
@@ -17,7 +17,7 @@ related-designs:
 
 | what | where | state |
 |---|---|---|
-| **the review** — is the behaviour library generic? inventory (88 node classes), overlap clusters, PeekAndFire audit | [`REVIEW_Behaviour_Library_Genericity.md`](../REVIEW_Behaviour_Library_Genericity.md) §1–§6 | ✅ decided: **R-256** (L1–L4 + L5 accepted) · **R-255** (the library is BTREES — C#-built allowed; blueprint/HSM copies go *only where redundant and not the best host*; the three-host DEMO stays, on the library implementation) |
+| **the review** — is the behaviour library generic? inventory (88 node classes), overlap clusters, PeekAndFire audit | [`REVIEW_Behaviour_Library_Genericity.md`](../REVIEW_Behaviour_Library_Genericity.md) §1–§6 | ✅ decided: **R-256** (L1–L4 + L5 accepted) · **R-258** (the library is BTREES — C#-built allowed; blueprint/HSM copies go *only where redundant and not the best host*; the three-host DEMO stays, on the library implementation) |
 | **PeekAndFire generalised, squad-aware** — G1 peek from the point · G2 honest Failure · G3 friendly line + ROE on bursts · G4 locked target · G5 `CoverClaim` · G6 `MayExpose` seam · G7 `SimRng` fix · G8 infantry scope | [`DESIGN_Peek_And_Fire.md`](../DESIGN_Peek_And_Fire.md) §10 (+ §10.7 CoverClaim) | ✅ **APPROVED R-257** · **`CE-3158` READY-TO-BUILD** (slices G-1…G-6, each red-proved) · ⛔ **user said "not implementing yet"** before approving — build only when told |
 | the universal-soldier demo | `scenarios/ua-universal-soldier` · rail `PostureScenarioTests.CE3094_*` · [`TUTORIAL_Universal_Soldier.md`](../TUTORIAL_Universal_Soldier.md) | rail LOCKED (hidden >4000 f, leg 2, his rounds reach SimHost, a hostile hurt, defensive once wounded, ≥2 m moved); he still dies in cover ⇒ `CE-3157` (closed by CE-3158 slice G-6) |
 | done this run | `CE-3092` (mobility kill = TKB opt-in) · `CE-3095` (fire events Reliable/KeepAll) · AQ85 hit chance (built by the other session, R-216) | ✅ |

@@ -4,6 +4,9 @@ using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Fdp.Interfaces;
+using Hrot.UI.Common.AddEntity;
+using NodeEditor.UI.Picker;
 
 namespace Hrot.UI.Common.Panels;
 
@@ -81,6 +84,50 @@ public sealed class SpawnerPanel
 
     /// <summary>Creates a panel with an empty catalog (useful in unit tests).</summary>
     public SpawnerPanel() : this(Array.Empty<TkbCatalogEntry>()) { }
+
+    // ── Add Entity picker (CE-1017 S4) ────────────────────────────────────────
+
+    /// <summary>⭐ <c>CE-1017</c> S4 — the host's TKB, for the type picker. With <see cref="OpenPicker"/> set, the
+    /// "Entity Type" control opens the grouped Add Entity picker instead of the flat combo, and a pick arms the
+    /// placement tool straight away (D4). 📄 docs/DESIGN_Add_Entity_Picker.md S4.</summary>
+    public Func<ITkbDatabase?>? Tkb { get; init; }
+
+    /// <summary>The host's <c>PickerRegistry.OpenPicker</c>, resolved at call time; null ⇒ the flat combo.</summary>
+    public Func<Action<PickerRequest, Action<PickerResult>>?>? OpenPicker { get; init; }
+
+    /// <summary>True when the type picker can open now.</summary>
+    public bool HasPicker => Tkb?.Invoke() is not null && OpenPicker?.Invoke() is not null;
+
+    /// <summary>
+    /// Handles the "Entity Type" button: opens the Add Entity picker for the selected side; the pick becomes the
+    /// selected type AND arms the placement tool (the same arm as <see cref="HandleActivatePlacementTool"/>).
+    /// Returns false when no picker is available.
+    /// </summary>
+    public bool HandleChooseType(ISpawnController spawn)
+    {
+        ArgumentNullException.ThrowIfNull(spawn);
+        var tkb = Tkb?.Invoke();
+        var open = OpenPicker?.Invoke();
+        if (tkb is null || open is null) return false;
+
+        var request = AddEntityAction.BuildRequest(tkb, _affiliation);
+        open(new PickerRequest
+        {
+            ContextKey             = request.ContextKey,
+            Title                  = request.Title,
+            Layout                 = request.Layout,
+            ItemsProvider          = request.ItemsProvider,
+            FoldSingleChildFolders = true,
+            ShowPreview            = true,
+            InitialSelectionId     = _selectedType == 0 ? null : _selectedType.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        }, result =>
+        {
+            if (result.First?.Tag is not EntityTypeEntry e) return;
+            HandleTypeSelected(e.TkbType);
+            HandleActivatePlacementTool(spawn);
+        });
+        return true;
+    }
 
     // ── Public state accessors ────────────────────────────────────────────────
 
@@ -212,33 +259,45 @@ public sealed class SpawnerPanel
     /// </summary>
     public void DrawContent(ISpawnController spawn)
     {
-        string filterBuf = _searchFilter;
-        if (ImGui.InputText("Search", ref filterBuf, PanelConstants.FilterTextMaxLength))
-            SearchFilter = filterBuf;
-
-        string previewText = GetSelectedPreviewText();
-        if (ImGui.BeginCombo("Entity Type", previewText))
-        {
-            for (int i = 0; i < _filteredEntries.Count; i++)
-            {
-                var entry       = _filteredEntries[i];
-                bool isSelected = entry.TkbId == _selectedType;
-                if (ImGui.Selectable($"{entry.Name} (Type:{entry.TkbId})", isSelected))
-                    HandleTypeSelected(entry.TkbId);
-                if (isSelected)
-                    ImGui.SetItemDefaultFocus();
-            }
-            ImGui.EndCombo();
-        }
-
-        ImGui.Separator();
-
         int aff = (int)_affiliation;
         if (ImGui.RadioButton("Friend",  ref aff, (int)eForceIdentifier.FORCE_FRIENDLY))
             HandleAffiliationChange((eForceIdentifier)aff);
         ImGui.SameLine();
         if (ImGui.RadioButton("Hostile", ref aff, (int)eForceIdentifier.FORCE_OPPOSING))
             HandleAffiliationChange((eForceIdentifier)aff);
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Neutral", ref aff, (int)eForceIdentifier.FORCE_NEUTRAL))   // CE-1017 S4 (D6)
+            HandleAffiliationChange((eForceIdentifier)aff);
+
+        string previewText = GetSelectedPreviewText();
+        if (HasPicker)
+        {
+            // ⭐ CE-1017 S4 — the grouped, searchable type picker; a pick arms the tool at once.
+            if (ImGui.Button($"{previewText}##choose_type", new System.Numerics.Vector2(-1f, 0f)))
+                HandleChooseType(spawn);
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Choose an entity type, then click on the map to place it (right-click/Esc: done)");
+        }
+        else
+        {
+            string filterBuf = _searchFilter;
+            if (ImGui.InputText("Search", ref filterBuf, PanelConstants.FilterTextMaxLength))
+                SearchFilter = filterBuf;
+
+            if (ImGui.BeginCombo("Entity Type", previewText))
+            {
+                for (int i = 0; i < _filteredEntries.Count; i++)
+                {
+                    var entry       = _filteredEntries[i];
+                    bool isSelected = entry.TkbId == _selectedType;
+                    if (ImGui.Selectable($"{entry.Name} (Type:{entry.TkbId})", isSelected))
+                        HandleTypeSelected(entry.TkbId);
+                    if (isSelected)
+                        ImGui.SetItemDefaultFocus();
+                }
+                ImGui.EndCombo();
+            }
+        }
 
         if (ImGui.Button("ACTIVATE PLACEMENT TOOL"))
             HandleActivatePlacementTool(spawn);
@@ -267,7 +326,9 @@ public sealed class SpawnerPanel
 
     private string GetSelectedPreviewText()
     {
-        if (_selectedType == 0) return "(none)";
+        if (_selectedType == 0) return HasPicker ? "Choose entity type..." : "(none)";
+        if (HasPicker && Tkb?.Invoke() is { } tkb && tkb.TryGetByType(_selectedType, out var t))
+            return t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.TkbMasterDto>()?.CustomName is { Length: > 0 } n ? n : t.Name;
         for (int i = 0; i < _catalog.Count; i++)
         {
             if (_catalog[i].TkbId == _selectedType)

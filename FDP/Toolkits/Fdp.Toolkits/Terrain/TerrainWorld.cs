@@ -91,6 +91,13 @@ namespace Fdp.Toolkit.Terrain
         public Vector2 BoundsMin { get; init; }
         public Vector2 BoundsMax { get; init; }
         public float GroundZ { get; init; }
+
+        /// <summary>⭐ CE-1034 H1 (TH-B) — the ground's relief, or null for the temporary flat ground at <see cref="GroundZ"/> (R-248).</summary>
+        public TerrainHeightGrid? Height { get; init; }
+
+        /// <summary>⭐ CE-1034 H1 — the ground's height at (x, y): the height grid where there is one, else <see cref="GroundZ"/>. Every
+        /// question about "the ground" goes through this — never read <see cref="GroundZ"/> as the ground (R-248).</summary>
+        public float GroundHeightAt(float x, float y) => Height?.Sample(x, y) ?? GroundZ;
         public IReadOnlyList<TerrainPrism> Prisms { get; init; } = Array.Empty<TerrainPrism>();
         public IReadOnlyList<TerrainWalkable> Walkables { get; init; } = Array.Empty<TerrainWalkable>();
         public IReadOnlyList<TerrainSurface> Surfaces { get; init; } = Array.Empty<TerrainSurface>();
@@ -221,10 +228,11 @@ namespace Fdp.Toolkit.Terrain
 
             // The ground is a candidate unless the point is inside a solid prism (you cannot stand under a
             // building's footprint at ground level — it is solid in v1).
-            if (!insideSolid) Consider(GroundZ, reach, ref best, ref lowest);
+            float ground = GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — the ground HERE, not one flat height
+            if (!insideSolid) Consider(ground, reach, ref best, ref lowest);
 
             if (!float.IsNegativeInfinity(best)) return best;
-            return float.IsPositiveInfinity(lowest) ? GroundZ : lowest;
+            return float.IsPositiveInfinity(lowest) ? ground : lowest;
         }
 
         /// <summary>Surfaces closer than this merge into one LEVEL (a ramp foot meeting the ground is not a second level).</summary>
@@ -240,13 +248,14 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public float[] SurfacesAt(float x, float y, out int groundIndex)
         {
+            float ground = GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — level 0 is the ground at (x, y)
             var p = new Vector2(x, y);
             var below = new List<float>();
             var above = new List<float>();
             void Add(float z)
             {
-                if (z < GroundZ - LevelMergeDistance) below.Add(z);
-                else if (z > GroundZ + LevelMergeDistance) above.Add(z);
+                if (z < ground - LevelMergeDistance) below.Add(z);
+                else if (z > ground + LevelMergeDistance) above.Add(z);
                 // else: merges into the ground level
             }
 
@@ -267,7 +276,7 @@ namespace Fdp.Toolkit.Terrain
             var levels = new List<float>(below.Count + above.Count + 1);
             MergeAscending(below, levels);
             groundIndex = levels.Count;
-            levels.Add(GroundZ);
+            levels.Add(ground);
             MergeAscending(above, levels);
             return levels.ToArray();
         }
@@ -302,6 +311,47 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>
+        /// ⭐ CE-1035 Q0 (<c>docs/DESIGN_World_Query_Seam.md</c> WQ-D) — an optional spatial index that narrows the pieces and
+        /// walkables a segment query examines. Null (the default) = every piece, exactly as before. It only ever NARROWS: the
+        /// per-piece maths below is unchanged, so an index that returns a superset of the true crossings, in ascending order,
+        /// gives identical answers. Set once after the world is built; a derived world (<see cref="StaticObstacles"/>) has none.
+        /// </summary>
+        public ITerrainSpatialIndex? SpatialIndex { get; set; }
+
+        /// <summary>The pieces (prisms, then door leaves when doors exist) and walkables one segment query visits.</summary>
+        private ref struct CandidateSet
+        {
+            private readonly int[]? _pieces;
+            private readonly int[]? _walkables;
+            public readonly int PieceCount;
+            public readonly int WalkableCount;
+
+            public CandidateSet(TerrainWorld world, Vector3 from, Vector3 to, int pieceTotal)
+            {
+                var index = world.SpatialIndex;
+                if (index == null)
+                {
+                    _pieces = null; _walkables = null;
+                    PieceCount = pieceTotal; WalkableCount = world.Walkables.Count;
+                    return;
+                }
+                _pieces = System.Buffers.ArrayPool<int>.Shared.Rent(Math.Max(1, pieceTotal));   // ⭐ R-220 — pooled, no allocation once warm
+                _walkables = System.Buffers.ArrayPool<int>.Shared.Rent(Math.Max(1, world.Walkables.Count));
+                index.Candidates(from, to, pieceTotal, _pieces, out int pc, _walkables, out int wc);
+                PieceCount = pc; WalkableCount = wc;
+            }
+
+            public readonly int Piece(int k) => _pieces == null ? k : _pieces[k];
+            public readonly int Walkable(int k) => _walkables == null ? k : _walkables[k];
+
+            public readonly void Dispose()
+            {
+                if (_pieces != null) System.Buffers.ArrayPool<int>.Shared.Return(_pieces);
+                if (_walkables != null) System.Buffers.ArrayPool<int>.Shared.Return(_walkables);
+            }
+        }
+
+        /// <summary>
         /// ⭐ True when the straight sight line <paramref name="from"/>→<paramref name="to"/> is blocked by the
         /// terrain: its SIGHT TRANSMITTANCE is below <see cref="SightThreshold"/> — the product of the materials of the
         /// solid pieces it passes within their height (concrete/brick 0, chain-link 0.85, hedge 0.3, §3c M3), with any
@@ -314,9 +364,9 @@ namespace Fdp.Toolkit.Terrain
         public bool SegmentBlocked(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
             float transmittance = 1f;
-            // Under the ground at either end means a malformed query, not an occluder — ignore; a line that
-            // dips below the flat ground between two points above it is impossible, so no ground test needed
-            // until a heightfield exists.
+            // ⭐ CE-1034 H2 (TH-D) — a HILL blocks sight: the ground trace over the height grid (opaque). Without a grid the ground is
+            //   flat and no line between two points above it can dip under it. Under the ground at either end = malformed, ignored.
+            if (Height != null && Height.Crosses(from, to)) return true;
             var a = new Vector2(from.X, from.Y);
             var b = new Vector2(to.X, to.Y);
             var segMin = Vector2.Min(a, b);
@@ -327,8 +377,10 @@ namespace Fdp.Toolkit.Terrain
             int maxV = MaxFootprintVertices;
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
-            for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
+            using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
+            for (int k = 0; k < cand.PieceCount; k++)
             {
+                int pi = cand.Piece(k);
                 if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                 var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
@@ -345,9 +397,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
-            for (int wi = 0; wi < Walkables.Count; wi++)   // ⭐ R-220 — an index loop: no interface enumerator
+            for (int kw = 0; kw < cand.WalkableCount; kw++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
-                var w = Walkables[wi];
+                var w = Walkables[cand.Walkable(kw)];
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -361,6 +413,12 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>⭐ Stage 1 — a line SEES THROUGH when its sight transmittance is at least this (§3c M3, v1).</summary>
         public const float SightThreshold = 0.5f;
+
+        /// <summary>⭐ CE-1034 H2 — the crossing kind and material name a hill in the way reports (descriptive).</summary>
+        public const string GroundKind = "ground", GroundMaterial = "earth";
+
+        /// <summary>⭐ CE-1034 H2 — the resistance a hill presents to a round or a fragment: it stops anything.</summary>
+        public const float GroundResistanceMmRha = 1_000_000f;
 
         /// <summary>One occluder a trace crossed.</summary>
         public readonly record struct Crossing(float Along, string Kind, string? Label, string? Material, float Transmittance,
@@ -387,14 +445,19 @@ namespace Fdp.Toolkit.Terrain
             var segMin = Vector2.Min(a, b);
             var segMax = Vector2.Max(a, b);
             float length = Vector3.Distance(from, to);
+            // ⭐ CE-1034 H2 — a hill in the way is an opaque crossing where the line enters the ground
+            if (Height != null && Height.Crosses(from, to, out float groundT, out _))
+                crossed.Add(new Crossing(groundT * length, GroundKind, null, GroundMaterial, 0f, null, -1));
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
             int maxV = MaxFootprintVertices;
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
-            for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
+            using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
+            for (int k = 0; k < cand.PieceCount; k++)
             {
+                int pi = cand.Piece(k);
                 if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                 var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
@@ -412,9 +475,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
-            for (int wi = 0; wi < Walkables.Count; wi++)   // ⭐ R-220 — an index loop: no interface enumerator
+            for (int kw = 0; kw < cand.WalkableCount; kw++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
-                var w = Walkables[wi];
+                var w = Walkables[cand.Walkable(kw)];
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -480,14 +543,20 @@ namespace Fdp.Toolkit.Terrain
             float dz = to.Z - from.Z;
             Materials.TryGet(TerrainMaterialLibrary.DefaultMaterial, out var fallback);
             float fallbackPerMetre = fallback?.ResistanceMmRhaPerMetre ?? 1500f;
+            // ⭐ CE-1034 H2 — a hill in the way stops any round: one crossing where the line enters the ground, its TopZ the crest
+            //   (a blast diffracts over the hill like over a wall — AreaEffect.TerrainShadow)
+            if (Height != null && Height.Crosses(from, to, out float groundT, out float crest))
+                into.Add(new FireCrossing(groundT, (1f - groundT) * length, GroundResistanceMmRha, GroundKind, null, GroundMaterial, null, -1) { TopZ = crest });
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
             int maxV = MaxFootprintVertices;
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
-            for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
+            using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
+            for (int k = 0; k < cand.PieceCount; k++)
             {
+                int pi = cand.Piece(k);
                 if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                 var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
@@ -515,9 +584,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
-            for (int wi = 0; wi < Walkables.Count; wi++)   // ⭐ R-220 — an index loop: no interface enumerator
+            for (int kw = 0; kw < cand.WalkableCount; kw++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
-                var w = Walkables[wi];
+                var w = Walkables[cand.Walkable(kw)];
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {

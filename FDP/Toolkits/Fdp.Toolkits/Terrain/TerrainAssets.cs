@@ -29,6 +29,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>Template name → its JSON text, or null when not found.</summary>
         public Func<string, string?>? Templates { get; init; }
 
+        /// <summary>⭐ CE-1034 H1 — reads a side file of the terrain folder by bare name (the height grid), or null when it is not there.</summary>
+        public Func<string, string?>? ReadFile { get; init; }
+
         /// <summary>The assets of the terrain folder <paramref name="terrainFolder"/>.</summary>
         public static TerrainAssets ForFolder(string terrainFolder, string? sharedBuildingsRoot = null)
         {
@@ -40,6 +43,13 @@ namespace Fdp.Toolkit.Terrain
                 Materials = File.Exists(materialsPath)
                     ? TerrainMaterialLibrary.Shared.WithOverrides(File.ReadAllText(materialsPath), materialsPath)
                     : TerrainMaterialLibrary.Shared,
+                ReadFile = name =>
+                {
+                    if (name.IndexOfAny(new[] { '/', '\\' }) >= 0 || name.Contains(".."))
+                        throw new ArgumentException($"Terrain side file name '{name}' may not contain a path.");
+                    var path = Path.Combine(terrainFolder, name);
+                    return File.Exists(path) ? File.ReadAllText(path) : null;
+                },
                 Templates = name =>
                 {
                     if (name.IndexOfAny(new[] { '/', '\\' }) >= 0 || name.Contains(".."))

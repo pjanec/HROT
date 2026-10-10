@@ -73,8 +73,9 @@ public sealed class UiFrameSession : IDisposable
 
     /// <summary>
     /// ⭐ <b>EVIDENCE, not a gate</b> — 📌 <c>R-124</c>: prefer measuring inside the frame; goldens drift
-    /// with fonts and drivers. ⚠ Raylib writes relative to the process CWD, so an absolute path is
-    /// resolved here and the directory created, ⛔ rather than silently writing nowhere.
+    /// with fonts and drivers. ⚠ <c>TakeScreenshot</c> writes beside Raylib's START-UP working directory, NOT
+    /// the current one (📌 measured, CE-1033 S1: changing the CWD first left every shot in the test's bin
+    /// folder, silently) — so the screen is read and exported to the resolved absolute path directly.
     /// </summary>
     public void Screenshot(string path)
     {
@@ -83,13 +84,9 @@ public sealed class UiFrameSession : IDisposable
         var full = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
 
-        var cwd = Directory.GetCurrentDirectory();
-        try
-        {
-            Directory.SetCurrentDirectory(Path.GetDirectoryName(full)!);
-            Raylib.TakeScreenshot(Path.GetFileName(full));
-        }
-        finally { Directory.SetCurrentDirectory(cwd); }
+        var image = Raylib.LoadImageFromScreen();
+        try     { Raylib.ExportImage(image, full); }
+        finally { Raylib.UnloadImage(image); }
     }
 
     private void ThrowIfDisposed()

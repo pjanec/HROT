@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Toolkit.Terrain;
+using Fdp.Toolkit.World;
 
 namespace Fdp.Toolkit.Combat
 {
@@ -67,24 +67,23 @@ namespace Fdp.Toolkit.Combat
         /// slab or stair, a shut door, a wall panel of a building. A free-standing wall, a fence and a solid block are open
         /// obstacles (the wave diffracts over them).
         /// </summary>
-        public static bool IsClosedBarrier(in TerrainWorld.FireCrossing c)
-            => c.Kind is "slab" or "ramp" or "door" || (c.Kind == "panel" && c.Building != null);
+        public static bool IsClosedBarrier(in TraceCrossing c) => c.ClosedBarrier;   // ⭐ CE-1035 Q1 — the world query says it (R-252)
 
         /// <summary>Fragments through the terrain pieces on one line: the product of each piece's penetration chance.</summary>
-        public static float FragmentTransmission(List<TerrainWorld.FireCrossing> crossings, float fragmentPenetrationMm)
+        public static float FragmentTransmission(List<TraceCrossing> crossings, float fragmentPenetrationMm)
         {
             float t = 1f;
             for (int i = 0; i < crossings.Count && t > 0f; i++)
-                t *= ArmorModel.PenetrationChance(fragmentPenetrationMm, crossings[i].ResistanceMmRha);
+                t *= ArmorModel.PenetrationChance(fragmentPenetrationMm, crossings[i].Loss);
             return t;
         }
 
         /// <summary>The blast through the closed barriers on one line (open obstacles do not attenuate — they shadow).</summary>
-        public static float ClosedBarrierTransmission(List<TerrainWorld.FireCrossing> crossings)
+        public static float ClosedBarrierTransmission(List<TraceCrossing> crossings)
         {
             float t = 1f;
             for (int i = 0; i < crossings.Count; i++)
-                if (IsClosedBarrier(crossings[i])) t *= BarrierTransmission(crossings[i].ResistanceMmRha);
+                if (IsClosedBarrier(crossings[i])) t *= BarrierTransmission(crossings[i].Loss);
             return t;
         }
 
@@ -92,7 +91,7 @@ namespace Fdp.Toolkit.Combat
         /// The deepest terrain shadow on the line to the target's HIGHEST body point (<paramref name="horizontalLength"/> m long): an
         /// open obstacle crossed on that line stands above the whole body. 1 = none.
         /// </summary>
-        public static float TerrainShadow(List<TerrainWorld.FireCrossing> crossingsToTop, float targetBaseZ, float horizontalLength)
+        public static float TerrainShadow(List<TraceCrossing> crossingsToTop, float targetBaseZ, float horizontalLength)
         {
             float best = 1f;
             for (int i = 0; i < crossingsToTop.Count; i++)

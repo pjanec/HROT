@@ -89,6 +89,16 @@ public interface IMapLayer
     /// Default: not consumed.
     /// </summary>
     bool HandleKeyInput(MapKeyboardKey key) => false;
+
+    /// <summary>
+    /// ⭐ CE-1033 S1 (<c>docs/DESIGN_Map_3D_Mode.md</c> M3) — draws the layer in the map's 3-D mode, inside the camera's 3-D pass
+    /// (coordinates already converted by <c>Vis3D.HrotToRaylib</c>). Default: nothing — a layer with no 3-D path is simply absent
+    /// in 3-D (<see cref="MapCanvas.LayersWithout3D"/> counts them, so the absence is visible, not silent).
+    /// </summary>
+    void Draw3D(RenderContext ctx) { }
+
+    /// <summary>True when the layer draws something in 3-D (overrides <see cref="Draw3D"/>).</summary>
+    bool Has3D => false;
 }
 
 

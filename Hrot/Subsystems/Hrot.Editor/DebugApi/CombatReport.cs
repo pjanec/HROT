@@ -116,17 +116,17 @@ namespace Hrot.Editor.DebugApi
             foreach (var pt in x.Points)
             {
                 var crossed = new JsonArray();
-                if (pt.Terrain is { } tr)
-                    foreach (var c in tr.Crossed)
+                if (pt.Crossed is { } list)   // ⭐ CE-1035 Q2 — the world query's crossings (along = metres, as before)
+                    foreach (var c in list)
                         crossed.Add(new JsonObject
                         {
-                            ["along"] = c.Along, ["kind"] = c.Kind, ["label"] = c.Label, ["material"] = c.Material,
-                            ["transmittance"] = c.Transmittance, ["building"] = c.Building, ["storey"] = c.Storey,
+                            ["along"] = c.T * Vector3.Distance(x.Eye, pt.Aim), ["kind"] = c.Kind, ["label"] = c.Label, ["material"] = c.Material,
+                            ["transmittance"] = c.Loss, ["building"] = c.Building, ["storey"] = c.Storey,
                         });
                 points.Add(new JsonObject
                 {
                     ["height"] = pt.Height, ["aim"] = V(pt.Aim), ["clear"] = pt.Clear, ["verdict"] = pt.Verdict,
-                    ["terrainTransmittance"] = pt.Terrain?.Transmittance, ["crossed"] = crossed,
+                    ["terrainTransmittance"] = pt.TerrainTransmittance, ["crossed"] = crossed,
                     ["blockingEntity"] = pt.BlockingEntity is { } b ? (map.TryGetNetworkId(b, out var bid) ? bid : (long?)null) : null,
                 });
             }

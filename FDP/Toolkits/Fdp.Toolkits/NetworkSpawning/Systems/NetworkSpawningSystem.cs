@@ -214,8 +214,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             //   direct publishers bypass that system).
             if (cmd.SpawnHeight is { Mode: not SpawnHeightMode.Absolute } height
                 && world.HasComponent<SimTransform>(entity)
-                && world.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
-                && world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is { } terrain)
+                && Fdp.Toolkit.World.WorldQuery.Of(world) is { } terrain)   // ⭐ CE-1035 Q2
             {
                 var xf = world.GetComponent<SimTransform>(entity);
                 float levelZ = terrain.ResolveLevel(xf.Position.X, xf.Position.Y, height.Level);

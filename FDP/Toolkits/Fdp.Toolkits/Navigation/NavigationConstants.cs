@@ -89,6 +89,18 @@ namespace Fdp.Toolkit.Navigation
         public const byte FlagBitAutoSendPathOnReplan = 4;
 
         /// <summary>
+        /// ⭐ CE-1035 Q0b (<c>docs/DESIGN_World_Query_Seam.md</c> WQ-H, R-252) — bit index in <see cref="NavigationIntent.Flags"/> /
+        /// <see cref="MoveToParams.Flags"/>: the destination's HEIGHT IS NOT GIVEN (a 2-D intent — "go to (x, y)"). The motion side puts
+        /// it on the surface nearest the mover's level (<see cref="NavigationDestination.Of"/>). Clear (the default) = the Z is real.
+        /// ⛔ Never encode "on the ground" as Z = 0: on a hill, a bridge or an upper floor it names the wrong place.
+        /// </summary>
+        public const byte FlagBitDestinationOnSurface = 1;
+
+        /// <summary>The <see cref="FlagBitDestinationOnSurface"/> bit as a <see cref="MoveToParams.Flags"/> value. ⚠ A flag bit, not a property
+        /// on <see cref="MoveToParams"/>: a property would add a pin to every blueprint MoveTo node (the pin schema reflects properties).</summary>
+        public const byte FlagDestinationOnSurface = 1 << FlagBitDestinationOnSurface;
+
+        /// <summary>
         /// Bit index in <see cref="NavigationIntent.Flags"/>: stream the 8-waypoint
         /// corridor preview to Brain via <see cref="NavigationCorridorPreview"/>.
         /// </summary>

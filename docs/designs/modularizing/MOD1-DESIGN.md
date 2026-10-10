@@ -1,3 +1,17 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-10 (STATUS block added; content unchanged)
+current-answer: the whole document (its own Status line: "Design (not yet implemented)").
+stale-below: not assessed.
+known-rot: not assessed.
+known-conflict: docs/DESIGN_Body_Geometry_And_Ground_Contact.md — §3.7.4's IG clamp sets Z to the terrain hit, which buries a
+  CG-referenced aircraft by its gear height; the clamp target should be hit + BodyGeometry.RestingHeight for such a type.
+related-designs:
+  - ../../DESIGN_Body_Geometry_And_Ground_Contact.md — an aircraft's gear relative to its CG and the resting pose; the
+    flight model that flips GroundClampingOverride (§3.7.7) uses it.
+  - ../../DESIGN_Terrain_Height.md — §4a / R-249: the motion model reads the clamping flag (no separate clamp step, R-182).
+-->
+
 # MOD1 — Modularising SimHost: Brain/Muscle Split & Node Composition
 
 **Status:** Design (not yet implemented)  

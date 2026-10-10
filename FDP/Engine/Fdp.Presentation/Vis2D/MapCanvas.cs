@@ -112,8 +112,13 @@ namespace Fdp.Toolkit.Vis2D
             }
         }
 
+        /// <summary>⭐ CE-1033 S1 — in 3-D, the visible layers that have no 3-D path (drawn as a dead edge in the design's module
+        /// diagram; reported so their absence is visible). Updated each 3-D frame.</summary>
+        public int LayersWithout3D { get; private set; }
+
         public void Draw()
         {
+            if (Camera.Is3D) { Draw3D(); return; }
             Camera.BeginMode();
 
             var ctx = new RenderContext
@@ -136,6 +141,29 @@ namespace Fdp.Toolkit.Vis2D
                 }
             }
 
+            Camera.EndMode();
+        }
+
+        /// <summary>⭐ CE-1033 S1 (M1/M3) — the same layers, through their 3-D path, inside the 3-D camera.</summary>
+        private void Draw3D()
+        {
+            Camera.BeginMode();
+            var ctx = new RenderContext
+            {
+                Zoom              = Camera.Zoom,
+                MouseWorldPos     = Camera.ScreenToWorld(GetMousePosition()),
+                DeltaTime         = GetFrameTime(),
+                VisibleLayersMask = ActiveLayerMask,
+                Resources         = this,
+                DrawBuilder       = DrawBuffer
+            };
+            int without = 0;
+            foreach (var layer in _layers)
+            {
+                if (!IsLayerVisible(layer)) continue;
+                if (layer.Has3D) layer.Draw3D(ctx); else without++;
+            }
+            LayersWithout3D = without;
             Camera.EndMode();
         }
 
@@ -165,7 +193,7 @@ namespace Fdp.Toolkit.Vis2D
             bool rightReleased = _input.IsMouseButtonReleased(MapMouseButton.Right);
 
             Vector2 delta = _input.MouseDelta;
-            Vector2 deltaWorld = delta * (1.0f / Camera.Zoom);
+            Vector2 deltaWorld = Camera.ScreenDeltaToWorld(delta);   // ⭐ CE-1033 S1 — the camera knows its own scale (2-D: /Zoom)
 
             bool consumed = false;
 

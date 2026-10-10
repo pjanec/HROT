@@ -13,6 +13,8 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+    <!-- ⭐ CE-1033 S1 — the 3-D map's frame rail skips (not fails) where there is no display -->
+    <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
@@ -23,5 +25,7 @@
 
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- ⭐ CE-1033 S1 — a real window under Xvfb for the 3-D map's render rail (test support only, R-124) -->
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.UiFrameRail\Hrot.Editor.UiFrameRail.csproj" />
   </ItemGroup>
 </Project>

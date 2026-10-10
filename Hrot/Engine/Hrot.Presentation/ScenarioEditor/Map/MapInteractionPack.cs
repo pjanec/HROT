@@ -42,6 +42,13 @@ namespace Hrot.ScenarioEditor.Map
     /// it was protecting is untouched: <b>the pack constructs, the host schedules.</b>
     /// 📄 <c>docs/UX/UX_Feature_Selection.md</c> §2.7.10.</para>
     /// </summary>
+    /// <summary>⭐ CE-1033 — what <see cref="MapInteractionPack.AttachMapLayers"/> attached to a host's canvas.</summary>
+    public sealed record MapLayers(
+        Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer GizmoLayer,
+        Fdp.Toolkit.Vis3D.MapViewSwitch ViewSwitch,
+        Fdp.Toolkit.Vis3D.TerrainLayer3D Terrain,
+        Hrot.UI.Common.Map3D.EntityBodyLayer3D Bodies);
+
     public static class MapInteractionPack
     {
         /// <summary>
@@ -199,6 +206,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ Registering the tool set here too is what makes the user's 2026-08-10 ruling true by
             //    construction: "all map subsystems share the FULL tool set … never set membership."
             //    A host that cannot service one still has it, and it REPORTS why (ruling 49).
+            Hrot.UI.Common.AddEntity.EntityAuthoring? authoringRef = null;
             var tools = new Hrot.ScenarioEditor.Tools.ToolController(
                 () => globalManager, () => dataDriven, ctx.ReportUnserviceableTool);
 
@@ -207,7 +215,10 @@ namespace Hrot.ScenarioEditor.Map
                 world:               () => ctx.World,
                 gizmos:              () => dataDriven,
                 globalGizmos:        () => globalManager,
-                startPlacementMode:  ctx.StartPlacementMode,
+                // ⭐ CE-1017 — a host that passes EntityAuthoring gets the Spawn tool from the SAME shared adapter;
+                //   resolved at call time (the authoring surface is built below, its adapter on first use).
+                startPlacementMode:  ctx.StartPlacementMode
+                                     ?? (ctx.EntityAuthoring is null ? null : () => authoringRef?.Spawn?.ArmPlacement()),
                 reportUnserviceable: ctx.ReportUnserviceableTool,
                 measureUnits:        ctx.MeasureUnits);
 
@@ -283,16 +294,31 @@ namespace Hrot.ScenarioEditor.Map
             globalManager.Register(layerControlId, layerControl);
             actions.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent()));
+            // ⭐ CE-1033 — View › 2-D / 3-D Map, on every map host; AttachMapLayers' view switch drains the event.
+            actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleMap3D, (_, _) =>
+                bus.Publish(new Hrot.Common.Diagnostics.Gizmos.ToggleMap3DEvent()));
             // ⭐ CE-3120 (R-227) — the Pin gizmos submenu's actions, on every map host (one registration, not one per host).
             Hrot.Common.Diagnostics.Gizmos.GizmoPins.RegisterActions(actions);
             // ⭐ CE-3123 (R-228) — the AI-trace toggles, once for every map host (SimHost and the Editor each had a copy; the rest none).
             Hrot.Common.Diagnostics.Gizmos.AiTraceActions.RegisterActions(actions);
 
+            // ⭐ CE-1017 — ONE entity-authoring surface per map, built here for every host that can author (Editor,
+            //   CGF, SimHost, IG): spawn adapter, picker, Add Entity action and the canvas menu. The host only
+            //   schedules mi.CanvasMenu and draws mi.EntityAuthoring.DrawFrame().
+            Hrot.UI.Common.AddEntity.EntityAuthoring? authoring = null;
+            if (ctx.EntityAuthoring is { } inputs)
+            {
+                authoring = new Hrot.UI.Common.AddEntity.EntityAuthoring(inputs, ctx.World.Bus, globalManager, tools);
+                authoring.AddEntity.RegisterOn(actions);
+                authoringRef = authoring;
+            }
+            var canvasMenu = authoring?.CanvasMenu ?? new Hrot.Presentation.Systems.CanvasMenuUpdateSystem();
+
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
                 selection, selectionInteraction, selectionRequests, selectionNotifications,
-                rubberBand, actions, actionDispatch, layerControl);
+                rubberBand, actions, actionDispatch, layerControl, authoring, canvasMenu);
         }
 
         /// <summary>
@@ -321,6 +347,43 @@ namespace Hrot.ScenarioEditor.Map
                 shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
                 schemaRegistry: schemas,
                 worldProvider: worldProvider);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ CE-1033 — THE map's layers, attached the same way on EVERY host: the gizmo render layer (as
+        /// <see cref="BuildRenderLayer"/>), the canvas' draw buffer, and the 3-D mode — the terrain and entity layers and the
+        /// animated 2-D ↔ 3-D switch, driven by View › 2-D / 3-D Map (<see cref="Hrot.Common.Constants.GlobalActionIds.ToggleMap3D"/>).
+        /// 🔒 User, 2026-10-10: <i>"we should be unifying and sharing from the day zero so something like 'not on all host' can not
+        /// happen by construction."</i> ⇒ a host that has a map calls THIS, and gets 3-D; there is no per-host 3-D wiring to forget
+        /// (the rail <c>EveryMapHostAttachesTheSharedLayers</c> pins it). 📄 docs/DESIGN_Map_3D_Mode.md §3.1, §6b.
+        /// </summary>
+        /// <param name="tkbProvider">The TKB the entity bodies are sized and classified from; default: the world's
+        /// <see cref="Fdp.Interfaces.ITkbDatabase"/> singleton (every host that spawns sets one).</param>
+        public static MapLayers AttachMapLayers(
+            Fdp.Toolkit.Vis2D.MapCanvas canvas,
+            DebugPrimitiveBuffer buffer,
+            FdpEventBus bus,
+            Func<EntityRepository?> worldProvider,
+            Func<Fdp.Interfaces.ITkbDatabase?>? tkbProvider = null,
+            int layerBitIndex = 31)
+        {
+            if (canvas is null) throw new ArgumentNullException(nameof(canvas));
+            var gizmoLayer = BuildRenderLayer(buffer, bus, canvas.Camera, worldProvider, layerBitIndex);
+            canvas.AddLayer(gizmoLayer);
+            canvas.DrawBuffer = buffer;
+
+            var tkb = tkbProvider ?? (() => worldProvider() is { } w && w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                                          ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null);
+            var viewSwitch = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, canvas.Camera);
+            viewSwitch.Camera3D.GroundHeight = (x, y) =>
+                worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.Of(w)?.GroundHeightAt(x, y) ?? 0f : 0f;
+            var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>
+                worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null);
+            var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb);
+            canvas.AddLayer(terrain);
+            canvas.AddLayer(bodies);
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.MapViewModeLayer(viewSwitch, bus));
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)

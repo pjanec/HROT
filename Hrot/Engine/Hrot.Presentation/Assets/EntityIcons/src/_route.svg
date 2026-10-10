@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EEF2F6"/><stop offset="1" stop-color="#A3AEBB"/></linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#55606C"/><stop offset="1" stop-color="#2A3139"/></linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9D0F2"/><stop offset="1" stop-color="#4A79A8"/></linearGradient>
+  <radialGradient id="wheel" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#C9D1DA"/><stop offset="1" stop-color="#6E7A87"/></radialGradient>
+</defs>
+<g stroke="#1B2027" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<path d="M14,110 C34,90 40,70 62,76 C84,82 86,52 110,24" fill="none" stroke-width="9"/>
+<path d="M14,110 C34,90 40,70 62,76 C84,82 86,52 110,24" fill="none" stroke="#5B9BD5" stroke-width="4.5"/>
+<path d="M118,12 L100,22 L114,34 Z" fill="#1B2027"/>
+<circle cx="14" cy="110" r="6" fill="#EEF2F6"/>
+<circle cx="62" cy="76" r="6" fill="#EEF2F6"/>
+</g>
+</svg>

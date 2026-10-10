@@ -20,6 +20,7 @@ namespace Hrot.Common.Interactions
             bus.Register<GizmoComponentActivatedEvent>();
             bus.Register<GlobalActionRequestedEvent>();
             bus.Register<OpenLayerEditorEvent>();
+            bus.Register<ToggleMap3DEvent>();   // ⭐ CE-1033
 
             // Managed UI Events
             bus.RegisterManaged<GizmoStructUpdateEvent>();

@@ -278,7 +278,8 @@ namespace Hrot.AI.Behaviors.Brains
 
             WriteToLocomotionParams(ref channel, new MoveToParams
             {
-                Destination  = new Vector3(p.X, p.Y, 0f), // blueprint-authored 2D destination (§0.2)
+                Destination  = new Vector3(p.X, p.Y, 0f), // blueprint-authored 2-D destination: its height is not given —
+                Flags        = NavigationConstants.FlagDestinationOnSurface,   //   ⭐ CE-1035 Q0b (R-252): the motion side puts it on the surface
                 ArrivalRadius = p.ArrivalRadius,
                 Speed        = p.Speed,
                 RoadUse      = p.RoadUse,   // ⭐ CE-3130 — packed into Flags bits 5–7
@@ -419,7 +420,8 @@ namespace Hrot.AI.Behaviors.Brains
 
                 WriteToLocomotionParams(ref channel, new MoveToParams
                 {
-                    Destination   = new Vector3(x, y, 0f), // wander target, 2D-authored (§0.2)
+                    Destination   = new Vector3(x, y, 0f), // wander target, 2-D: its height is not given —
+                    Flags         = NavigationConstants.FlagDestinationOnSurface,   //   ⭐ CE-1035 Q0b (R-252): the motion side puts it on the surface
                     ArrivalRadius = WanderArrivalRadius,
                     Speed         = WanderSpeed,
                 });

@@ -273,6 +273,15 @@ namespace Hrot.ScenarioEditor.Map
         /// 🔒 Silent-default rule — a host that HOLDS a hub passes it.
         /// </summary>
         public Fdp.Toolkit.Diagnostics.Gizmos.IGizmoUiStatePublisher? GizmoUiPublisher { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> — what the map's ENTITY-AUTHORING surface needs (TKB, creation request queue, geo transform).
+        /// A host that can author entities passes it and the pack builds the shared spawn adapter, the picker, the
+        /// Add Entity action and the canvas menu (<see cref="MapInteraction.EntityAuthoring"/>); null ⇒ the host offers
+        /// no Add Entity (capability-gated, docs/DESIGN_Add_Entity_Picker.md D9) and its canvas menu has Measure only.
+        /// 🔒 Silent-default rule — a host that HOLDS these passes them.
+        /// </summary>
+        public Hrot.UI.Common.AddEntity.EntityAuthoringInputs? EntityAuthoring { get; init; }
     }
 
     /// <summary>

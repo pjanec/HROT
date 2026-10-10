@@ -36,6 +36,10 @@ known-conflict: docs/DESIGN_Subsystem_Composition_Unification.md §4.1aa carried
   version of the mode plan. §4.1aa is SUPERSEDED BY THIS FILE for anything about the Stride modes; it
   keeps only the capability-seam half. Its "ImageGenerator: drop from both modes" resolution is
   WITHDRAWN — see §5.
+related-designs:
+  - DESIGN_Map_3D_Mode.md — the map's 3-D mode; it EXTRACTS this file's §8 3-D gizmo triage (DebugPrimitiveRenderer3D +
+    IDebugDrawSink3D) into shared code — Stride keeps its sink, the map adds a Raylib one. Stride stays untouched otherwise
+    (user, 2026-10-10). DESIGN_Godot_3D_Viewer.md is the DEFERRED Godot alternative.
 -->
 
 # DESIGN — the Stride story: two modes, one composition

@@ -12,7 +12,9 @@
 
   <ItemGroup>
     <!-- Shared UI panel library -->
-    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <!-- CE-1017: the Add Entity picker (PickerRegistry). -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <!-- Hrot data model and map types -->

@@ -1987,16 +1987,19 @@ namespace Hrot.Editor
                         view.HasComponent<SelectionState>(entity) &&
                         view.GetComponentRO<SelectionState>(entity).IsSelected,
                     BreakpointManager = _bpManager,
-                    // ⭐⭐⭐ UXI-07 — the Spawn tool's behaviour goes to the PACK, which registers the tool
-                    //   set. 🔴 It used to be handed to ScenarioEditorModule.InteractionDeps, and step 3b
-                    //   moved the registrations out of the drain WITHOUT moving this — so Spawn reported
-                    //   "this host composes no spawn adapter" on a host that has one. See §4.10.
-                    // ⚠ Resolved at CALL TIME: _spawnAdapter is built later, in the non-headless block.
-                    // ⭐⭐⭐ UXI-07 step 4a — this points at the ARM BODY, ⛔ never at the public
-                    //   StartPlacementMode*/WithLastType API. 📐 That API now calls Activate(Spawn), and
-                    //   Activate(Spawn) invokes THIS delegate — so naming the API here would close the
-                    //   cycle §4.9 measured. See ScenarioSpawnAdapter.ArmPlacement's remarks.
-                    StartPlacementMode = () => _spawnAdapter?.ArmPlacement(),
+                    // ⭐⭐⭐ CE-1017 — the map's ENTITY-AUTHORING surface comes from the PACK, the same for Editor, CGF,
+                    //   SimHost and IG: the shared spawn adapter (it also backs the Spawn tool — UXI-07's "the Spawn
+                    //   tool's behaviour goes to the pack"), the Add Entity picker and submenu, the canvas menu. The
+                    //   shell picker registry is the editor's own (built later, its asset pickers live there too).
+                    //   Windowed only: a headless editor reports Spawn unserviceable, as before.
+                    EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
+                        Tkb:          () => _tkbDatabase,
+                        Requests:     () => _scenarioLoadSource,
+                        GeoTransform: () => geoTransform)
+                    {
+                        SuspendedReason = () => _previewController?.IsInPreviewMode == true ? "suspended in Preview" : null,
+                        HostPickers     = () => _shellPickers,
+                    },
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
                     // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
                     // for it — starting disabled would shut its gate permanently (§3.2d ①).
@@ -2153,7 +2156,7 @@ namespace Hrot.Editor
                 gizmoEgress:  null));
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, interactionBus));
             // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-            _kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+            _kernel.RegisterGlobalSystem(_editorMapInteraction.CanvasMenu);   // ⭐ CE-1017 — built by the pack
 
             // ── 5. Kernel initialization ─────────────────────────────────────────────
             _kernel.Initialize();
@@ -2384,14 +2387,10 @@ namespace Hrot.Editor
                     geoTransform:       geoTransform,
                     areaGizmo:          (onPicked, onRemove) => new Hrot.Editor.Gizmos.ModalBoxSelectionGizmo(onPicked, onRemove: onRemove));
 
-                // Build the JSON?ECS attribute compiler with the geo-transform so that
-                // geodetic spawn coordinates are projected correctly on entity placement.
-                var jsonCompiler  = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geoTransform);
-                // 🔒 UXI-07 step 4a — the arbiter is PASSED, so ORBAT "create unit" and the Spawner
-                //    panel's Place button arm THROUGH the controller instead of beside it (§4.8).
-                _spawnAdapter     = new ScenarioSpawnAdapter(
-                    _world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!,
-                    _editorToolController);
+                // ⭐ CE-1017 — THE shared spawn adapter, built by the map pack (EntityAuthoring) over this host's
+                //   request queue, TKB and geo transform, with the tool arbiter PASSED (UXI-07 step 4a).
+                _spawnAdapter     = _editorMapInteraction.EntityAuthoring?.Spawn
+                    ?? throw new InvalidOperationException("The map's entity-authoring surface has no spawn adapter (no creation request queue).");
                 // 🔒 UXI-07 step 4a — the arbiter is PASSED, so obstacle placement displaces the
                 //    active tool instead of quietly taking focus beside it (§4.8's inventory).
                 _zoneAdapter      = new EditorZoneAdapter(
@@ -2554,14 +2553,15 @@ namespace Hrot.Editor
                 // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked
                 //   anchor's network id to an Entity. ⚠ NOT a revival of R3's deleted `view` parameter,
                 //   which was stored nowhere. See DebugGizmoLayer._world.
-                _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
-                    _gizmoBuffer!, interactionBus, _canvas!.Camera, () => _world);
-                _canvas!.AddLayer(_gizmoLayer);
-                if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
+                // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode (View › 2-D / 3-D Map), the same on
+                //   every host. The TKB is passed because this host HOLDS it (silent-default rule), not left to the singleton.
+                _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                    _canvas!, _gizmoBuffer!, interactionBus, () => _world, () => _tkbDatabase).GizmoLayer;
 
                 // Grid map layer ? reads MapViewConfig.ShowGrid each frame.
                 var gridLayer = new GridMapLayer(() => _mapViewConfig!.ShowGrid);
                 _canvas!.AddLayer(gridLayer);
+
 
                 // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
             }
@@ -2572,12 +2572,15 @@ namespace Hrot.Editor
 
             if (!_headless)
             {
-                // ⭐⭐ CE-061 — the 15-entry literal that stood here is now the ONE shared list
-                //   (`ScenarioSpawnerCatalog.Default`, Hrot.Presentation), so CGF offers the same
-                //   spawner contents. ⚠ ExConSubsystem keeps a NEAR-duplicate 9-entry list with two
-                //   differently-spelled labels — recorded as a finding, ⛔ not silently harmonised:
-                //   that file is the backend lane's and the difference may be intent.
-                _spawnerPanel     = new SpawnerPanel(ScenarioSpawnerCatalog.Default);
+                // ⭐⭐ CE-1017 S4 — the type list is BUILT FROM THE TKB (EntityTypeCatalog, D7), replacing the
+                //   hand-written ScenarioSpawnerCatalog (CE-061's one list). With the shell picker the panel's
+                //   "Entity Type" opens the grouped Add Entity picker and a pick arms the tool; the list is the
+                //   fallback combo. Both resolve at call time: the pickers are built later.
+                _spawnerPanel     = new SpawnerPanel(Hrot.UI.Common.AddEntity.EntityTypeCatalog.SpawnerEntries(_tkbDatabase))
+                {
+                    Tkb        = () => _tkbDatabase,
+                    OpenPicker = () => _shellPickers is { } pickers ? pickers.OpenPicker : null,
+                };
                 _missionPanel     = new MissionPanel(0, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry());
                 _configPanel      = new ConfigPanel();
                 _sharedOrbatPanel = new SharedOrbatPanel();
@@ -3068,6 +3071,7 @@ namespace Hrot.Editor
             windowManager.MenuIcons = Hrot.Editor.AiShared.Adapters.SilkMenuIconResolver.Create(windowManager.Atlas);
             if (_gizmoLayer != null)
                 _gizmoLayer.ContextMenuIconResolver = windowManager.MenuIcons; // gizmo right-click menus
+
 
             // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
             // Harmless no-op for the Win32 backend: WindowManager only draws the service
@@ -4148,8 +4152,8 @@ namespace Hrot.Editor
             // Replaces the AssetPickerModal production path with the Tree-layout entry-driven
             // picker (PickerRegistry.OpenPicker). Separate from adapterBundle.PickerRegistry
             // (which canvas windows already DrawFrame) to avoid double-DrawFrame.
-            _shellPickers = new NodeEditor.UI.Picker.PickerRegistry();
-            _shellPickers.SetServices(adapterBundle.IconProvider, adapterBundle.EditorTheme);
+            // ⭐ CE-1017 S5 — the ONE picker factory: entity icons + the silk atlas for every other key.
+            _shellPickers = Hrot.UI.Common.AddEntity.EntityAuthoring.CreatePickers(adapterBundle.IconProvider, adapterBundle.EditorTheme);
 
             // BATCH-42 (MTB2-T8b): capture icon provider + init Save-As browser dialog.
             _iconProvider = adapterBundle.IconProvider;

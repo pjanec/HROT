@@ -17,6 +17,13 @@
       "5": "Towed Artillery", "6": "Small Wheeled Utility Vehicle", "7": "Large Wheeled Utility Vehicle",
       "8": "Small Tracked Utility Vehicle", "9": "Large Tracked Utility Vehicle", "10": "Mortar", "81": "Car"
     },
+    "1.2": {
+      "1": "Fighter/Air Defense", "2": "Attack/Strike", "3": "Bomber", "4": "Cargo/Tanker",
+      "5": "ASW/Patrol/Observation", "6": "Electronic Warfare", "7": "Reconnaissance", "8": "Surveillance/C2 (AEW)",
+      "20": "Attack Helicopter", "21": "Utility Helicopter", "22": "ASW/Patrol Helicopter", "23": "Cargo Helicopter",
+      "24": "Observation Helicopter", "25": "Special Operations Helicopter",
+      "40": "Trainer", "47": "Light/Patrol Craft", "50": "Unmanned Air Vehicle", "57": "Non-Combatant Commercial Aircraft"
+    },
     "3.1": { "1": "Infantry (HROT)" }
   }
 }

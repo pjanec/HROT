@@ -1,11 +1,11 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-10
-current-answer: §5 DECISIONS (user, 2026-10-10: L1–L4 accepted = R-256; L6 replaced by the user's own ruling = R-255) · §6 the retreat
+current-answer: §5 DECISIONS (user, 2026-10-10: L1–L4 accepted = R-256; L6 replaced by the user's own ruling = R-258) · §6 the retreat
   concepts (L7) · §4 keeps the leans as proposed. Nothing built yet.
 stale-below: nothing
 known-rot: none
-known-conflict: DESIGN_Decision_Layer.md §3.3c/§3.3d (HSM and blueprint posture parity) — ⛔ OVERTURNED for the library by R-255
+known-conflict: DESIGN_Decision_Layer.md §3.3c/§3.3d (HSM and blueprint posture parity) — ⛔ OVERTURNED for the library by R-258
   (§5): the three posture hosts were a proof; that doc's parity requirement still has to be marked superseded there.
 related-designs:
   - DESIGN_Peek_And_Fire.md §10 — OWNS the generalisation design that answers §3 (G1–G8)
@@ -130,18 +130,18 @@ not in ①. Peek-and-fire is a ① node used only by a ③ tree.*
 | # | decision | ledger |
 |---|---|---|
 | L1–L4 | ✅ accepted as proposed in §4 | **R-256** |
-| L6 | ✅ **REPLACED by the user's ruling:** the three posture hosts were a PROOF. The library keeps the **BTree** form; its **blueprint and HSM copies are dropped**; library BTrees may be C#-built | **R-255** |
+| L6 | ✅ **REPLACED by the user's ruling:** the three posture hosts were a PROOF. The library keeps the **BTree** form; its **blueprint and HSM copies are dropped**; library BTrees may be C#-built | **R-258** |
 | L5 | ✅ approved | **R-256** (extended) |
 | L7 | ⏳ the retreat question — §6 | — |
 
 > 🔒 **User, `2026-10-10`, correcting my reading:** *"..we can drop blueprint and HSM, not btrees"*
 
-⭐ **R-255 as ruled:** the library's form is the **BTREE**. The **blueprint and HSM copies** of library behaviours (`CombatPostureBp` + its `Posture*` wrapper trees, `CombatPostureHsm`, `DangerCrossingBp`, the `ua-three-hosts` demo) are dropped. Library BTrees may be **C#-built** (as `MoveToLocation`, `FireAtPoint`, `WindowDuel` already are, R-223) for maintainability. ⚠ The blueprint and HSM ENGINES stay — this is about the library's copies, not the hosts.
+⭐ **R-258 as ruled:** the library's form is the **BTREE**. The **blueprint and HSM copies** of library behaviours (`CombatPostureBp` + its `Posture*` wrapper trees, `CombatPostureHsm`, `DangerCrossingBp`, the `ua-three-hosts` demo) are dropped. Library BTrees may be **C#-built** (as `MoveToLocation`, `FireAtPoint`, `WindowDuel` already are, R-223) for maintainability. ⚠ The blueprint and HSM ENGINES stay — this is about the library's copies, not the hosts.
 
 ~~Open interpretation (asked): blueprints stay the doctrine surface, HSM engine stays~~ — ⛔ SUPERSEDED by the correction above.
 
 
-> 🔒 **User, `2026-10-10`, refining R-255:** *"yes but only where there is redundancy and where HSM not the most suitable option from the three possibilities (HSM, btree, blueprints)"* · *"ok as long as the demo showing the feature stays, just using the library c# implementation"* · *"L5 approved"*.
+> 🔒 **User, `2026-10-10`, refining R-258:** *"yes but only where there is redundancy and where HSM not the most suitable option from the three possibilities (HSM, btree, blueprints)"* · *"ok as long as the demo showing the feature stays, just using the library c# implementation"* · *"L5 approved"*.
 
 | refinement | meaning |
 |---|---|

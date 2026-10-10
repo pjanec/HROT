@@ -238,6 +238,17 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>
         /// Add force affiliation for perception/combat systems.
         /// </summary>
+        /// <summary>⭐ CE-1041 — the body's geometry relative to its reference point (size, box offset, ground contacts).
+        /// 📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md.</summary>
+        public NedTkbBuilder WithBodyGeometry(long tkbId, BodyGeometryDto geometry)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(geometry ?? throw new ArgumentNullException(nameof(geometry)));
+            return this;
+        }
+
         public NedTkbBuilder WithFaction(long tkbId, byte factionId)
         {
             var template = _db.GetByType(tkbId);

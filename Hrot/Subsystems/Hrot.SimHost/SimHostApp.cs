@@ -419,6 +419,14 @@ namespace Hrot.SimHost
                         Inspector = () => _vis?.FdpInspectorState,
                         // GZH-003: headless-first — enable only when a terminal connects.
                         StartEnabled = false,
+                        // ⭐ CE-1017 — the ENTITY-AUTHORING surface from the PACK, the same for Editor, CGF, SimHost and
+                        //   IG: the shared spawn adapter (also the Spawn tool), the Add Entity picker + submenu, the
+                        //   canvas menu. Windowed only: a headless node offers no submenu.
+                        EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
+                            Tkb:          () => _world is { } w && w.HasSingletonManaged<ITkbDatabase>()
+                                                ? w.GetSingletonManaged<ITkbDatabase>() : null,
+                            Requests:     () => EntityCreation?.LocalRequests,
+                            GeoTransform: () => _geoTransform),
                         ContributeExtras = static regs =>
                             // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
                             regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
@@ -517,7 +525,7 @@ namespace Hrot.SimHost
                     ctx.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Orchestration", _eventHistoryService, ctx.EventBus));
                 ctx.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _eventHistoryService, _interactionBus));
                 // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-                ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+                ctx.Kernel.RegisterGlobalSystem(mapInteraction.CanvasMenu);   // ⭐ CE-1017 — built by the pack
                 // ⭐⭐⭐ UXI-23 S1 — stamps MapDisplayComponent.LayerMask so the shared entity gizmos
                 //    can layer-cull. 🔒 Ruling ③: the PACK owns construction, the HOST decides
                 //    scheduling — this is the host's half. The same shared system IG schedules via
@@ -646,6 +654,8 @@ namespace Hrot.SimHost
         protected override void OnDrawUI()
         {
             _vis?.DrawUI();
+            // ⛔ OpenPicker only queues — the map pack's Add Entity picker draws here (CE-1017).
+            _mapInteraction?.EntityAuthoring?.DrawFrame();
         }
 
         protected override void OnUnload()

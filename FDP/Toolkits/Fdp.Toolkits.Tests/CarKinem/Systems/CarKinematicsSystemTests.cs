@@ -63,6 +63,70 @@ namespace CarKinem.Tests.Systems
             Assert.True(repo.GetComponent<SimVelocity>(entity).Linear.Z > 0f, "climbing ⇒ positive vertical velocity");
         }
 
+        // ── ⭐ CE-1034 H1 — the ground has height (R-248); the clamping flag decides who is held to it (R-249) ──
+
+        private static (EntityRepository Repo, Entity E) OnTheSlope(Vector3 start, Vector3 velocity, bool registerClamp = false)
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<VehicleState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+            repo.RegisterComponent<VehicleParams>();
+            repo.RegisterComponent<NavState>();
+            repo.RegisterComponent<SpatialGridData>();
+            if (registerClamp) repo.RegisterComponent<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
+            repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.Tests.SlopeFixture.World());
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new VehicleState { Speed = velocity.Length() });
+            repo.AddComponent(e, new SimTransform { Position = start, Rotation = SimMath.FacingNorth });
+            repo.SetAuthority<SimTransform>(e, true);
+            repo.AddComponent(e, new SimVelocity { Linear = velocity });
+            repo.AddComponent(e, new VehicleParams
+            {
+                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = 0.6f,
+                LookaheadTimeMin = 2f, LookaheadTimeMax = 10f, AccelGain = 2.0f, AvoidanceRadius = 2.5f,
+            });
+            repo.AddComponent(e, new NavState { Mode = KinematicsMode.None });
+            return (repo, e);
+        }
+
+        private static void Drive(EntityRepository repo, int frames)
+        {
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            for (int i = 0; i < frames; i++) { spatial.Execute(repo, 0.016f); kin.Execute(repo, 0.016f); }
+        }
+
+        [Fact]
+        public void H1_AVehicleDrivingUpAHill_TakesItsZFromTheHeightGrid()
+        {
+            var (repo, e) = OnTheSlope(new Vector3(100, 20, Fdp.Toolkit.Terrain.Tests.SlopeFixture.Rise * 20), new Vector3(0, 10, 0));
+            Drive(repo, 60);
+            var pos = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(pos.Y > 24f, $"the vehicle must have moved uphill, Y={pos.Y}");
+            Assert.Equal(Fdp.Toolkit.Terrain.Tests.SlopeFixture.Rise * pos.Y, pos.Z, 2);   // on the hillside, not on a flat bed
+            repo.Dispose();
+        }
+
+        [Fact]
+        public void H1_ClampingOff_KeepsTheAltitude_ClampingOnOrAbsent_Grounds_R249()
+        {
+            var (repo, e) = OnTheSlope(new Vector3(100, 50, 80f), new Vector3(0, 10, 0), registerClamp: true);
+            repo.AddComponent(e, new Fdp.Modules.Geographic.Components.GroundClampingConfig { Mode = Fdp.Modules.Geographic.EClampingMode.ForceOff });
+            Drive(repo, 30);
+            Assert.Equal(80f, repo.GetComponent<SimTransform>(e).Position.Z, 3);   // an aircraft keeps its altitude
+            repo.Dispose();
+
+            var (repo2, e2) = OnTheSlope(new Vector3(100, 50, Fdp.Toolkit.Terrain.Tests.SlopeFixture.Rise * 50 + 0.1f), new Vector3(0, 10, 0), registerClamp: true);
+            repo2.AddComponent(e2, new Fdp.Modules.Geographic.Components.GroundClampingConfig { Mode = Fdp.Modules.Geographic.EClampingMode.ForceOn });
+            Drive(repo2, 30);
+            var p2 = repo2.GetComponent<SimTransform>(e2).Position;
+            Assert.Equal(Fdp.Toolkit.Terrain.Tests.SlopeFixture.Rise * p2.Y, p2.Z, 2);
+            repo2.Dispose();
+        }
+
         [Fact]
         public void System_UpdatesVehiclePosition()
         {

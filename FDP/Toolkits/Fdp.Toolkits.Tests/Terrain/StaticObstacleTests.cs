@@ -67,20 +67,20 @@ public sealed class StaticObstacleTests
         // Across the 1 m width of a concrete block: 1 500 mm RHA — a rifle round stops.
         var concrete = WithBox("concrete", length: 2f, width: 1f, height: 1f);
         float damage = 1f, pen = 100f;
-        Assert.True(TerrainPenetration.Carry(concrete, new Vector3(30, 20, 0.5f), new Vector3(30, 40, 0.5f), ref damage, ref pen, out float stopT));
+        Assert.True(TerrainPenetration.Carry(new TerrainWorldQuery(concrete), new Vector3(30, 20, 0.5f), new Vector3(30, 40, 0.5f), ref damage, ref pen, out float stopT));
         Assert.InRange(stopT, 0.45f, 0.5f);
 
         // A crate (fence-wood, 1 m): 60 mm — 100 mm goes through with its damage, 40 mm left.
         var crate = WithBox("fence-wood", length: 1.2f, width: 1f, height: 1f);
         damage = 1f; pen = 100f;
         var log = new List<ShotCrossing>();
-        Assert.False(TerrainPenetration.Carry(crate, new Vector3(30, 20, 0.5f), new Vector3(30, 40, 0.5f), ref damage, ref pen, out _, log));
+        Assert.False(TerrainPenetration.Carry(new TerrainWorldQuery(crate), new Vector3(30, 20, 0.5f), new Vector3(30, 40, 0.5f), ref damage, ref pen, out _, log));
         Assert.Equal(1f, damage, 3);
         Assert.InRange(pen, 39f, 41f);
 
         // Over the top of the block: nothing crossed.
         damage = 1f; pen = 100f;
-        Assert.False(TerrainPenetration.Carry(concrete, new Vector3(30, 20, 1.6f), new Vector3(30, 40, 1.6f), ref damage, ref pen, out _));
+        Assert.False(TerrainPenetration.Carry(new TerrainWorldQuery(concrete), new Vector3(30, 20, 1.6f), new Vector3(30, 40, 1.6f), ref damage, ref pen, out _));
         Assert.Equal(1f, damage, 3);
     }
 
