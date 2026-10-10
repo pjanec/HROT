@@ -48,7 +48,8 @@ namespace GizmoMap.Presentation
             float worldX,
             float worldY,
             Camera2D camera,
-            float zoom)
+            float zoom,
+            bool worldYUp = false)
         {
             var affiliationColor = GetAffiliationColor(sidcCode);
             var center = new Vector2(worldX, worldY);
@@ -59,6 +60,16 @@ namespace GizmoMap.Presentation
             // Label: first 4 characters of SIDC.
             string label = sidcCode.Length >= 4 ? sidcCode[..4] : sidcCode;
             int tx = (int)(worldX - 10f);
+            if (worldYUp)
+            {
+                // ⭐ CE-1040 — north-up map: the label stays BELOW the symbol (world −Y) and upright (a local un-flip).
+                Rlgl.PushMatrix();
+                Rlgl.Translatef(tx, worldY - SymbolRadius / zoom - 2f, 0f);
+                Rlgl.Scalef(1f, -1f, 1f);
+                Raylib.DrawText(label, 0, 0, LabelFontSize, Color.Black);
+                Rlgl.PopMatrix();
+                return;
+            }
             int ty = (int)(worldY + SymbolRadius / zoom + 2f);
             Raylib.DrawText(label, tx, ty, LabelFontSize, Color.Black);
         }

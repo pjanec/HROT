@@ -33,6 +33,17 @@ namespace GizmoMap.Presentation
         /// </summary>
         public static Font? TextFont { get; set; }
 
+        /// <summary>
+        /// ⭐ CE-1040 (docs/DESIGN_Map_North_Up.md N3) — the map's camera draws world Y UP (north-up), a mirror of a plain
+        /// <c>Camera2D</c>. Set per frame by the host's camera; when true, world text is drawn upright (a local un-flip at its
+        /// point) and the badge's screen point is computed with the flip. False ⇒ exactly the old drawing (the standalone viewer).
+        /// </summary>
+        public bool WorldYUp { get; set; }
+
+        /// <summary>⭐ CE-1040 — re-enters the host camera's world mode after a screen-space primitive (a raw
+        /// <c>BeginMode2D(camera)</c> would drop the flip for every primitive after it). Null ⇒ <c>Raylib.BeginMode2D</c>.</summary>
+        public Action? BeginWorldMode { get; set; }
+
         public DebugPrimitiveRenderer2D(
             IEntityShapeLibrary? shapeLibrary = null,
             ImGuiPropertyTreeAdapter? imGuiAdapter = null)
@@ -420,9 +431,23 @@ namespace GizmoMap.Presentation
                         float invZoom = 1f / camZoom;
                         // Screen-pixel line offset (signed) converted to world units so it stays constant on screen.
                         float offsetY = prim.LineOffsetPx * invZoom;   // S6 -- the alias, no cast
-                        Raylib.DrawTextEx(
-                            font, str, new Vector2(prim.TextX, prim.TextY + offsetY),
-                            px * invZoom, 1f * invZoom, color);
+                        if (WorldYUp)
+                        {
+                            // ⭐ CE-1040 (N3) — under the north-up mirror text would read upside down: un-flip locally at the
+                            //   text's point (rlgl transforms each vertex, no batch toggle). Local +Y is screen-DOWN again, so
+                            //   the pixel line offset keeps its meaning.
+                            Rlgl.PushMatrix();
+                            Rlgl.Translatef(prim.TextX, prim.TextY, 0f);
+                            Rlgl.Scalef(1f, -1f, 1f);
+                            Raylib.DrawTextEx(font, str, new Vector2(0f, offsetY), px * invZoom, 1f * invZoom, color);
+                            Rlgl.PopMatrix();
+                        }
+                        else
+                        {
+                            Raylib.DrawTextEx(
+                                font, str, new Vector2(prim.TextX, prim.TextY + offsetY),
+                                px * invZoom, 1f * invZoom, color);
+                        }
                     }
                     break;
                 }
@@ -433,7 +458,9 @@ namespace GizmoMap.Presentation
                     // BadgeTargetIndex holds the anchor network ID in the decoupled scenario.
                     float worldX = prim.BoxCenterX; // world position stored in BoxCenterX/Y for badge
                     float worldY = prim.BoxCenterY;
-                    var screenPos = Raylib.GetWorldToScreen2D(new Vector2(worldX, worldY), camera);
+                    var screenPos = WorldYUp   // ⭐ CE-1040 — the host camera's mirror, not Raylib's unflipped conversion
+                        ? camera.Offset + new Vector2(worldX - camera.Target.X, camera.Target.Y - worldY) * camera.Zoom
+                        : Raylib.GetWorldToScreen2D(new Vector2(worldX, worldY), camera);
                     var richText = prim.BadgeRichText;
                     RichTextRenderer.DrawRichTextBadge(ref richText, (int)screenPos.X, (int)screenPos.Y, 12);
                     break;
@@ -508,7 +535,8 @@ namespace GizmoMap.Presentation
                         prim.MilWorldPosX,
                         prim.MilWorldPosY,
                         camera,
-                        zoom);
+                        zoom,
+                        WorldYUp);
                     break;
                 }
 
@@ -530,7 +558,11 @@ namespace GizmoMap.Presentation
                     break;
             }
 
-            if (screenSpace) Raylib.BeginMode2D(camera);
+            if (screenSpace)
+            {
+                if (BeginWorldMode != null) BeginWorldMode();   // ⭐ CE-1040 — the host camera's own (north-up) world mode
+                else Raylib.BeginMode2D(camera);
+            }
         }
 
         // ---- Protected static helpers used by production DispatchShape ----------

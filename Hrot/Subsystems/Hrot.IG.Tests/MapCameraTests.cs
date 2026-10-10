@@ -262,7 +262,10 @@ public class MapCameraPanTests
         cam.ProcessInput(0f, new Vector2(100, 150), isPanDown: false, isInputCaptured: false);
         Simulate(cam);
 
-        float expectedY = -(50f / zoomSnapshot); // _targetTarget.Y -= +50 → target.Y = −50
+        // ⭐ CE-1040 — the 2-D map is north-up (docs/DESIGN_Map_North_Up.md): dragging the ground DOWN brings more of the NORTH
+        //   into view, so the target moves north and its Y INCREASES — what this rail's name always said. Under the old mirror
+        //   it expected −50, contradicting its own name.
+        float expectedY = +(50f / zoomSnapshot);
         Assert.Equal(expectedY, cam.Target.Y, precision: 2);
     }
 

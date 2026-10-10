@@ -22,10 +22,8 @@ namespace Fdp.Toolkit.Vis3D
     /// button is held</b> (so tools keep their keys; Shift is faster), the <b>middle button pans</b>, the <b>wheel dollies</b>.
     /// A right CLICK stays the context menu — the canvas tells drag from click.</para>
     ///
-    /// <para>⚠ <b>North is UP in 3-D, and the 2-D map draws it DOWN</b> (measured: world Y goes screen-down in
-    /// <see cref="MapCamera"/>, and the 2-D renderer draws world XY straight, <c>DebugPrimitiveRenderer2D.cs:273</c>) — the 2-D map
-    /// is a mirror of the view from above. A camera above the ground cannot show a mirror, so the switch keeps east on the right and
-    /// flips north–south (see <see cref="MapViewSwitch"/>).</para>
+    /// <para>⭐ <b>North is UP in 3-D, and in 2-D too</b> since CE-1040 (docs/DESIGN_Map_North_Up.md) — the swap keeps the
+    /// orientation. ⛔ HISTORY: the 2-D map used to draw north DOWN, a mirror of the view from above.</para>
     /// </summary>
     public sealed class MapCamera3D : MapCamera
     {

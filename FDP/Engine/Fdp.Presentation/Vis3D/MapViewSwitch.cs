@@ -11,8 +11,8 @@ namespace Fdp.Toolkit.Vis3D
     /// 2-D view's centre at the 2-D metres-per-pixel, swap, tilt. Back: return overhead, then hand the 2-D camera the same centre
     /// and scale, swap.
     ///
-    /// <para>⚠ One thing does flip at the swap: the 2-D map draws north DOWN (a mirror of the view from above — see
-    /// <see cref="MapCamera3D"/>), the 3-D view draws it UP. Scale, centre and east-is-right are kept.</para>
+    /// <para>⭐ CE-1040 — both views are north-up now (docs/DESIGN_Map_North_Up.md), so scale, centre AND orientation are kept.
+    /// ⛔ HISTORY: until 2026-10-11 the 2-D map drew north DOWN (a mirror) and the swap flipped north and south.</para>
     /// </summary>
     public sealed class MapViewSwitch
     {
@@ -76,7 +76,8 @@ namespace Fdp.Toolkit.Vis3D
             float zoom = Math.Clamp(1f / Camera3D.MetresPerPixel, _camera2D.MinZoom, _camera2D.MaxZoom);
             var centre = new Vector2(Camera3D.LookAt.X, Camera3D.LookAt.Y);
             var offset = _camera2D.Offset;
-            var target = centre - (vp / 2f - offset) / zoom;
+            var d = (vp / 2f - offset) / zoom;
+            var target = centre - (MapCamera.NorthUp ? new Vector2(d.X, -d.Y) : d);   // ⭐ CE-1040 — screen-down is world-south
             _camera2D.ApplyCameraView(new MapCameraView
             {
                 Target = target, Offset = offset, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom,

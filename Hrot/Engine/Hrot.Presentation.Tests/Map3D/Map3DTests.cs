@@ -357,7 +357,8 @@ public sealed class Map3DTests
     {
         var c = new MapCamera();
         var vp = Viewport;
-        var target = centre - vp / 2f / zoom;
+        // ⭐ CE-1040 — the Target is the world point at the screen's top-left; north-up, the screen's top is the view's NORTH edge.
+        var target = new Vector2(centre.X - vp.X / 2f / zoom, centre.Y + vp.Y / 2f / zoom);
         c.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
         return c;
     }
@@ -428,6 +429,61 @@ public sealed class Map3DTests
         Assert.InRange(two.Zoom, 1.7f * 0.999f, 1.7f * 1.001f);
         var centre = two.ScreenToWorld(new Vector2(640, 360));
         Assert.InRange(Vector2.Distance(centre, new Vector2(-120, 300)), 0f, 0.05f);
+    }
+
+    // ── CE-1040 — the 2-D map is north-up (docs/DESIGN_Map_North_Up.md) ──
+
+    [Fact]
+    public void CE1040_In2D_NorthIsUp_EastIsRight_AndTheConversionsAreInverses()
+    {
+        var two = Camera2D(new Vector2(40, -60), 3f);
+        var centre = two.WorldToScreen(new Vector2(40, -60));
+        var north = two.WorldToScreen(new Vector2(40, -40));
+        var east = two.WorldToScreen(new Vector2(60, -60));
+        Assert.True(north.Y < centre.Y - 10f, $"north {north} should be ABOVE the centre {centre}");
+        Assert.True(east.X > centre.X + 10f, $"east {east} should be right of the centre {centre}");
+        Assert.InRange(Vector2.Distance(centre, Viewport / 2f), 0f, 0.01f);
+        foreach (var px in new[] { new Vector2(0, 0), new Vector2(200, 650), new Vector2(1279, 3) })
+            Assert.InRange(Vector2.Distance(px, two.WorldToScreen(two.ScreenToWorld(px))), 0f, 0.01f);
+        Assert.Equal(-1f / 3f, two.ScreenDeltaToWorld(new Vector2(0, 1)).Y, 4);   // a pixel DOWN is south
+    }
+
+    [Fact]
+    public void CE1040_DraggingTheMapDown_MovesTheViewNorth_AndTheWheelZoomsAboutTheCursor()
+    {
+        var two = Camera2D(new Vector2(0, 0), 2f);
+        two.EnableSmoothing = false;
+        var under = two.ScreenToWorld(new Vector2(100, 100));
+        two.ProcessInput(0f, new Vector2(100, 100), isPanDown: true, isInputCaptured: false);
+        two.ProcessInput(0f, new Vector2(100, 160), isPanDown: true, isInputCaptured: false);   // drag 60 px down
+        two.Update(0.016f);
+        // the ground point that was under the cursor followed it down
+        Assert.InRange(Vector2.Distance(two.WorldToScreen(under), new Vector2(100, 160)), 0f, 0.01f);
+
+        two.ProcessInput(0f, new Vector2(100, 160), isPanDown: false, isInputCaptured: false);
+        var atCursor = two.ScreenToWorld(new Vector2(300, 500));
+        two.ProcessInput(2f, new Vector2(300, 500), isPanDown: false, isInputCaptured: false);
+        two.Update(0.016f);
+        Assert.InRange(Vector2.Distance(two.ScreenToWorld(new Vector2(300, 500)), atCursor), 0f, 0.01f);
+    }
+
+    [Fact]
+    public void CE1040_TheSwitchKeepsNorthUp_ThePointNorthOfTheCentreIsAboveItInBothViews()
+    {
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var two = Camera2D(new Vector2(500, 200), 1.2f);
+        canvas.Camera = two;
+        var sw = new MapViewSwitch(canvas, two, new MapCamera3D { ViewportOverride = Viewport });
+        var northOf = new Vector2(500, 260);
+
+        float twoDy = two.WorldToScreen(northOf).Y;
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = sw.Camera3D.OverheadMatching(two);
+        float threeDy = sw.Camera3D.WorldToScreen(northOf).Y;
+        Assert.True(twoDy < 360f && threeDy < 360f, $"north is above the centre in 2-D ({twoDy}) and in 3-D ({threeDy})");
+        Assert.InRange(MathF.Abs(twoDy - threeDy), 0f, 2f);   // the same pixel: the swap does not jump
+        sw.Set(false, animate: false);
+        Assert.True(two.WorldToScreen(northOf).Y < 360f);
     }
 
     [Fact]

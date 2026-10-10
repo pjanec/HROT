@@ -149,11 +149,11 @@ namespace Hrot.ScenarioEditor.Gizmos
             //   the hint that says how to finish.
             draw.DrawTextLong(
                 _cursorWorld.X,
-                _cursorWorld.Y + GhostLabelOffsetY,
+                _cursorWorld.Y - GhostLabelOffsetY,   // ⭐ CE-1040 (N5) — north-up: below the cursor is world −Y
                 string.IsNullOrWhiteSpace(_displayName) ? _tkbType.ToString() : _displayName!,
                 Rgba32.White);
             if (!_autoPopOnPlace)
-                draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y + 2 * GhostLabelOffsetY, MultiPlacementHint, Rgba32.White);
+                draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y - 2 * GhostLabelOffsetY, MultiPlacementHint, Rgba32.White);
         }
 
         /// <summary>

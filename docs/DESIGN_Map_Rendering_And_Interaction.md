@@ -26,6 +26,7 @@ see-also: docs/SNAPSHOT_Map_Interaction_Architecture.md — a 2026-09-10 SNAPSHO
   nothing and does not redraw this file's diagrams; it records what this file's layer view does not:
   who BUILDS what per host, and the four-store selection reality.
 related-designs:
+  - DESIGN_Map_North_Up.md — CE-1040: the 2-D camera draws world Y UP (north-up); the gizmo terminal's input goes through the camera.
   - DESIGN_Visual_Effects.md — two more map layers (2-D and 3-D effects) attached by MapInteractionPack.AttachMapLayers; replaces EffectPresentationGizmo.
   - docs/DESIGN_Map_3D_Mode.md — a 2-D/3-D switch on this canvas: a MapCamera3D subclass, IMapLayer.Draw3D
     (default no-op), MapCanvas.Draw branching on the camera, deltaWorld taken from the camera. The input chain is unchanged.

@@ -193,9 +193,11 @@ namespace Fdp.Toolkit.Vis2D.Layers
             }
 
             // ⭐ CE-1033 S2 — in the map's 3-D mode the canvas' LIVE camera answers screen → world with height (the pick for a
-            //   press, the terrain for a drag) and the pixels-per-metre at the hit; in 2-D nothing is passed (byte-identical).
-            var live = CurrentCamera?.Invoke();
-            if (live != null && live.Is3D)
+            //   press, the terrain for a drag) and the pixels-per-metre at the hit.
+            // ⭐ CE-1040 (N2) — and in 2-D too: the terminal's own fallback is Raylib.GetScreenToWorld2D, which knows nothing of
+            //   the north-up flip, so EVERY gizmo press / hover / drag / right-click goes through the camera's conversion.
+            var live = CurrentCamera?.Invoke() ?? _mapCamera;
+            if (live != null)
                 _innerTerminal.HandleInput(
                     _buffer.GetFrame(), _buffer.InternMap, _camera, OnInteraction,
                     screenToWorld: (screen, forDrag) => live.ScreenToWorld3D(screen, forDrag),
@@ -231,6 +233,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 _camera = mapCamera.InnerCamera;
 
             _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);
+            _renderer.Camera = CurrentCamera?.Invoke() ?? _mapCamera;   // ⭐ CE-1040 — the renderer must know the camera is north-up
             _renderer.Render(primitives, ctx);
         }
 

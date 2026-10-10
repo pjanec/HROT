@@ -251,7 +251,7 @@ namespace Fdp.Toolkit.Vis2D.Components
                 // mouseWorldBefore = (mousePos - Offset) / TargetZoom + TargetTarget
                 // TargetTarget = mouseWorldBefore - (mousePos - Offset) / TargetZoom
                 
-                _targetTarget = mouseWorldBefore - (mousePos - InnerCamera.Offset) / _targetZoom;
+                _targetTarget = mouseWorldBefore - FlipY((mousePos - InnerCamera.Offset) / _targetZoom);   // ⭐ CE-1040 north-up
             }
 
             // Pan
@@ -277,7 +277,7 @@ namespace Fdp.Toolkit.Vis2D.Components
                     // deltaWorld = deltaScreen / CurrentZoom? Or TargetZoom?
                     // To interact 1:1 with cursor, we must use CurrentZoom.
                     
-                    Vector2 deltaWorld = deltaWrapper / InnerCamera.Zoom;
+                    Vector2 deltaWorld = FlipY(deltaWrapper / InnerCamera.Zoom);   // ⭐ CE-1040 — screen-down is world-SOUTH
                     
                     // We modify the TargetTarget directly to "pull" it.
                     // If Damping is high, InnerCamera.Target follows closely.
@@ -359,31 +359,52 @@ namespace Fdp.Toolkit.Vis2D.Components
         public virtual float ZoomAt(Vector3 worldPoint) => InnerCamera.Zoom;
 
         /// <summary>⭐ CE-1033 S1 — a mouse movement in pixels as a movement on the ground, for drags (2-D: divided by the zoom).</summary>
-        public virtual Vector2 ScreenDeltaToWorld(Vector2 screenDelta) => screenDelta / InnerCamera.Zoom;
+        public virtual Vector2 ScreenDeltaToWorld(Vector2 screenDelta) => FlipY(screenDelta / InnerCamera.Zoom);
+
+        /// <summary>
+        /// ⭐⭐ CE-1040 — THE 2-D MAP IS NORTH-UP: world Y (north) goes screen-UP. 📄 docs/DESIGN_Map_North_Up.md.
+        /// <para>🔴 Before, the camera was a plain Raylib <c>Camera2D</c> (world Y screen-DOWN) and HROT's axes are ENU, so the map
+        /// showed north at the BOTTOM — the view from below the ground — and every 2-D ↔ 3-D swap flipped north and south.</para>
+        /// <para>⭐ The flip lives HERE ONLY (N1): <see cref="BeginMode"/>'s matrix and the conversions below. Every producer keeps
+        /// drawing world coordinates. ⚠ <see cref="InnerCamera"/> keeps its fields (Target = the world point at Offset, Zoom), but
+        /// ⛔ never hand it to <c>Raylib.BeginMode2D</c> / <c>GetScreenToWorld2D</c> — those know no flip; use this class.</para>
+        /// </summary>
+        public static bool NorthUp => true;
+
+        /// <summary>Negates Y when the map is north-up — the one place a screen vector becomes a world vector's sign.</summary>
+        protected static Vector2 FlipY(Vector2 v) => NorthUp ? new Vector2(v.X, -v.Y) : v;
 
         public virtual void BeginMode()
         {
-            Raylib.BeginMode2D(InnerCamera);
+            // ⭐ CE-1040 (N1) — Raylib's BeginMode2D with the Y axis mirrored, which a Camera2D cannot express (one scalar zoom):
+            //   vertex' = Offset + Zoom · (x, −y) · (vertex − Target). rlgl applies the LAST call first.
+            Rlgl.DrawRenderBatchActive();
+            Rlgl.LoadIdentity();
+            Rlgl.Translatef(InnerCamera.Offset.X, InnerCamera.Offset.Y, 0f);
+            Rlgl.Scalef(InnerCamera.Zoom, NorthUp ? -InnerCamera.Zoom : InnerCamera.Zoom, 1f);
+            Rlgl.Translatef(-InnerCamera.Target.X, -InnerCamera.Target.Y, 0f);
+            // ⭐ N4 — a one-axis mirror reverses every triangle's winding; with culling on, filled shapes and text would vanish.
+            Rlgl.DisableBackfaceCulling();
         }
 
         public virtual void EndMode()
         {
-            Raylib.EndMode2D();
+            Rlgl.DrawRenderBatchActive();
+            Rlgl.LoadIdentity();
+            Rlgl.EnableBackfaceCulling();
         }
 
         public virtual Vector2 ScreenToWorld(Vector2 screenPos)
         {
-            // Calculate manually to support unit testing (Raylib context might not be available) and ensure consistency
-            // Formula matches Raylib's GetScreenToWorld2D for Rotation=0
-            // World = (Screen - Offset) / Zoom + Target
-            return (screenPos - InnerCamera.Offset) / InnerCamera.Zoom + InnerCamera.Target;
+            // Calculate manually to support unit testing (Raylib context might not be available) and ensure consistency.
+            // ⭐ CE-1040: World = Target + flipY((Screen - Offset) / Zoom) — screen-down is world-south.
+            return InnerCamera.Target + FlipY((screenPos - InnerCamera.Offset) / InnerCamera.Zoom);
         }
 
         public virtual Vector2 WorldToScreen(Vector2 worldPos)
         {
-            // Calculate manually to support unit testing
-            // Screen = (World - Target) * Zoom + Offset
-            return (worldPos - InnerCamera.Target) * InnerCamera.Zoom + InnerCamera.Offset;
+            // ⭐ CE-1040: Screen = Offset + flipY(World - Target) * Zoom.
+            return InnerCamera.Offset + FlipY(worldPos - InnerCamera.Target) * InnerCamera.Zoom;
         }
 
         // ── IMapCameraProvider implementation ─────────────────────────────────

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — N1–N6 below; the as-built lands in §5.
+build-state: BUILT 2026-10-11 (§5).
 updated: 2026-10-11
 current-answer: §2 inventory · §3 the camera seam (diagrams) · §4 decisions · §5 as-built.
 stale-below: nothing.
@@ -83,6 +83,23 @@ sequenceDiagram
 | **N5** | world-unit "below" label offsets | ⭐ left as they are: they now sit ABOVE the point (EQS's comment already says "above"); the placement ghost's two stacked lines get `−` so the name stays above the hint | changing all eight — cosmetic, and above reads as well |
 | **N6** | the standalone `GizmoViewerFrontend` | ⭐ not flipped (its own tool and camera); named here | flipping it too — not a map host, no swap to 3-D |
 
-## 5. AS-BUILT
+## 5. AS-BUILT `2026-10-11`
 
-*(filled by the build)*
+| built | where |
+|---|---|
+| N1 — `MapCamera.NorthUp`; `BeginMode` builds the mirrored matrix with `Rlgl` (translate offset · scale (z, −z) · translate −target) and turns culling off (N4); `EndMode` restores; `ScreenToWorld`, `WorldToScreen`, `ScreenDeltaToWorld`, pan and zoom-to-cursor flip Y through one `FlipY` | `FDP/Engine/Fdp.Presentation/Vis2D/Components/MapCamera.cs` |
+| N2 — the gizmo terminal always gets the live camera's `ScreenToWorld3D` / `ZoomAt`, in 2-D too | `Vis2D/Layers/DebugGizmoLayer.cs` |
+| N3 — `DebugPrimitiveRenderer2D.WorldYUp` (set per frame by the FDP adapter from the camera): world text drawn upright by a local un-flip; the badge's screen point computed with the flip; `BeginWorldMode` re-enters the host camera after a screen-space primitive; the MIL-STD label stays below its symbol and upright | `GizmoMap.Presentation/Rendering/DebugPrimitiveRenderer2D.cs`, `MilStd2525Renderer.cs`, `Vis2D/Gizmos/DebugPrimitiveRenderer2D.cs` |
+| `MapViewSwitch.MatchTwoD` — the Y term flipped; the swap now keeps orientation | `Vis3D/MapViewSwitch.cs` |
+| IG's arrow keys: Up = north | `IgApplication.HandleCameraInput` |
+| N5 — the placement ghost's two lines stay BELOW the cursor (`−` offsets) | `EntityPlacementGizmo.cs` |
+
+**Gates:** `Map3DTests.CE1040_*` (north above the centre, east right, conversions inverse, a pixel down is south; dragging
+moves the ground under the cursor with it; the wheel zooms about the cursor; the switch keeps north and does not jump) ·
+`Map3DFrameRail.CE1040_The2DMap_DrawsNorthUp_AndFilledShapesAndTextSurviveTheMirror` (Xvfb: a red triangle north of the
+centre in the top half, a blue box south in the bottom half, text drawn) · `MapCameraTests.MapCamera_Pan_MovesTarget` updated.
+
+⚠ **Left, named:** the seven other world-unit "below" offsets now sit ABOVE their point (N5 — measure, rotator, detonation,
+EQS, bounding-box picker label, and the two `DebugPrimitiveRenderer2D` badge/text paths keep their pixel meaning) · the badge
+was already drawn at screen coordinates inside the camera mode before this change (a pre-existing defect, not fixed here) ·
+the standalone `GizmoViewerFrontend` stays mirrored (N6) · ⚠ the user's Windows run is the visual check.
