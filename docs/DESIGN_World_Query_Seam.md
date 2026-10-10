@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — leans WQ-A..WQ-G await the user. Nothing built.
-updated: 2026-10-10 (rev 1 — R-250: every engine capability the editor, map and brain use sits behind an interface)
+updated: 2026-10-10 (rev 2 — R-252: the interface and the brain may not assume the stand-in terrain's simplifications;
+  §3.3 what the interface must not expose, §2a the brain's own assumptions found; Trace loses its DoorStates parameter.
+  Rev 1 — R-250: every engine capability the editor, map and brain use sits behind an interface)
 current-answer: §1 why · §2 INVENTORY · §3 diagrams · §4 decisions · §5 slices · §6 not verified.
 stale-below: nothing.
 known-rot: none.
@@ -32,6 +34,10 @@ alternatives to stay lightweight yet usable. All the 3d engine stuff the editor 
 for sure abstracted behind interfaces to allow replacing later with another implementation using mature 3d engine.
 Stride was just a preparation for something like that."*
 
+🔒 **User, `2026-10-10` (`R-252`):** *"Our terrain is also just an approximation of a more advanced one coming with the final
+3d engine, so brain should not assume some simplification resulting from the fact the current terrain is simple; it will
+not be later."*
+
 Also: *"we would like to simulate also sound spreading around corners and in buildings"* and *"My bepu statement was
 about bepu support in stride, not the bepu library itself. it is definitely a valid contender here."* (`R-251`)
 
@@ -57,6 +63,22 @@ kinematics (`CarKinematicsSystem`, `DoorPassageSystem`), spawn (`NetworkSpawning
 debug API and three gizmos. ⭐ **The brain itself (CGF, AI behaviours) never touches it** — it reaches terrain only through
 EQS, navigation and the raycast batch, so the brain is already engine-neutral; the gaps are in the SimHost stand-in's
 consumers and in the editor.
+
+## 2a. Where the brain assumes the simple terrain — measured `2026-10-10` (graph `search_code` over `Hrot.AI.Behaviors`, `Hrot.CGF`; then read)
+
+⭐ The brain uses **no terrain type at all** (`search_code` for `TerrainPrism|TerrainBuilding|TerrainWalkable|Storey|GroundZ|TerrainWorld`
+over the brain projects: **0 hits**). Its assumptions are about **space**, not about terrain classes:
+
+| assumption | where | why it breaks on a real terrain |
+|---|---|---|
+| move destinations are 2-D with `Z = 0` | `CgfNodes.cs:281` (MoveTo), `:422` (Wander), `HillAttackTankNodes.cs:300,490`; the blueprint helper `VectorOps.Vec2` (`:14-15`) makes `Z = 0` vectors | on a bridge, a multi-storey building or an overhang a 2-D point names **several** places; "Z = 0" picks none of them |
+| slot / segment geometry in the plane | `HillAttackCommanderNodes.cs:96-100`, `HillAttackTankNodes.cs:193-202` (`Vector2` distance, overshoot along the attack direction) | horizontal distance is a fair metric for a slot, but it is chosen by accident, not as a rule |
+| the comment cites "§0.2" for 2-D authoring | `CgfNodes.cs:281,422`, `HillAttackTankNodes.cs:300` | ⛔ searched `docs/` and `.dev/` for that section: **not found** — the rule it cites has no home |
+
+⭐ Already promoted to 3-D (`promote-to-3d` design): EQS results carry Z (`EqsComponentLayoutTests.EqsCognitiveBuffer_GetSpanRW_PositionZPersists`);
+the motion model grounds (`R-182`, `R-249`). ⇒ the fix is small and has a rule: **a brain destination is a 3-D point taken
+from where it came from** (an EQS sample, an entity, a route waypoint, a clicked map point — all carry Z); a genuinely
+2-D intent ("somewhere around here") is sent as such and the motion model resolves the surface — never `Z = 0`.
 
 ## 3. The design
 
@@ -96,7 +118,7 @@ classDiagram
     +float SurfaceZ(x, y, zHint)
     +int SurfacesAt(x, y, Span~float~ levels)
     +float ResolveLevel(x, y, n)
-    +TraceResult Trace(from, to, TracePurpose, DoorStates, Span~TraceCrossing~ into)
+    +TraceResult Trace(from, to, TracePurpose, Span~TraceCrossing~ into)
     +bool Pick(ray, out PickHit)
   }
   class TracePurpose {
@@ -146,6 +168,17 @@ classDiagram
 *What it shows:* `ILosService` and `ILosStrategy` stay as **policies** (eye heights, thresholds, what counts as cover) but stop
 being engine seams — they call `IWorldQuery`. Three ray seams collapse to one an engine has to implement.
 
+### 3.3 What the interface must NOT expose — 🔒 `R-252`
+
+| ⛔ stand-in shape | ⭐ what the interface says instead |
+|---|---|
+| prisms, footprints, storeys, wall panels, walkable slabs | nothing — callers ask for heights, surfaces and traces, never for geometry types |
+| one flat ground, 2.5-D extrusions | `GroundHeightAt` / `SurfacesAt` answer for any shape (overhangs, bridges, caves, tunnels) |
+| a fixed list of named materials | a trace reports **per-purpose** loss (`Transmittance` for sight, `AttenuationDb` for sound, penetration for fire) |
+| the caller passing door states | ⛔ removed from `Trace` — doors are the implementation's business (the stand-in reads its `DoorStates`; an engine its own doors) |
+| levels merged within 0.3 m | `SurfacesAt` = the walkable surfaces stacked at (x, y), lowest first; the merge distance is the stand-in's detail |
+| rooms derived from walls | inside the stand-in's sound solver only; never in the interface |
+
 ## 4. DECISIONS
 
 | # | decision | ⭐ lean | rejected — one line each |
@@ -156,12 +189,14 @@ being engine seams — they call `IWorldQuery`. Three ray seams collapse to one 
 | **WQ-D** | the library inside the stand-in | ⭐ **BepuPhysics v2** as the spatial index under `TerrainWorldQuery`: pure C#, no native binaries (headless Linux and the cloud just work, debuggable), net8.0, allocation-free buffer pools, a ray handler that reports **every** hit with its distance (needed for materials and dB), static meshes for terrain and height. Queries only — no dynamics. A spike first (the existing terrain rails give identical answers; faster on a large terrain) | Jolt — its current C# binding targets net9/net10 (HROT is net8) and needs a separate native package · our own BVH — fixes the scan, not sweeps or overlaps |
 | **WQ-E** | sound around corners and in buildings | ⭐ **build Building Interiors' B-6 as designed, behind `Trace(Sound)`**: (1) a **loudness model** — keep the TKB ranges but read them as "the distance where the sound falls to the hearing threshold", so wall losses in dB subtract naturally; (2) v1 straight trace summing each crossed wall's `SoundAttenuationDb` (already in `materials.json`, read by nothing today); (3) v2 the louder of the straight path and the **shortest open path** room-to-room through openings (a corner costs a diffraction loss, a closed door its dB). The heard direction is the last opening, not the source | Steam Audio (open source, Apache-2.0, a C# binding with native libraries; occlusion, transmission, pathing around corners) — built to render audio for one listener with baked probes, heavy and native for many AI listeners in a stand-in; it stays a candidate for a production implementation of the same seam · a physics library — none of them models sound; they help only with the straight trace, equally |
 | **WQ-F** | entity collision shapes | ⭐ phase 2: entities join the same index as oriented boxes (from the TKB size) so `Trace` and `Pick` hit them; `PhysicsCollider`'s ~20 readers move behind the seam later | doing it now — doubles the first slice |
+| **WQ-H** | the brain's 2-D assumptions (§2a) | ⭐ a destination is a **3-D point from its source** (EQS sample, entity, waypoint, map pick); a 2-D intent is sent as 2-D and resolved by the motion model; `VectorOps.Vec2` stops inventing `Z = 0`; slot geometry states "horizontal distance" as a deliberate choice. A rail runs a brain scenario on a terrain with a bridge or a multi-storey building | leaving `Z = 0` because "the motion model lifts it" — on a stacked terrain it lifts to the wrong level |
 | **WQ-G** | the 3-D map | ⭐ picks with `IWorldQuery.Pick` and draws `ITerrainRenderGeometry` — the 3-D map design's §3.10 seams become these interfaces | the map reading `TerrainWorldMesh` directly — binds the editor to the stand-in |
 
 ## 5. SLICES
 
 | slice | delivers | proves |
 |---|---|---|
+| **Q0b** | WQ-H: the brain's destinations from their sources; a stacked-terrain brain rail | the brain is terrain-agnostic |
 | **Q0** | the Bepu spike: `Trace(Sight/Fire)` + `GroundHeightAt` over Bepu inside `TerrainWorld`; timing on a scaled terrain; headless cloud run | identical answers, faster, Linux — or WQ-D falls back to a hand BVH |
 | **Q1** | `IWorldQuery` + `TerrainWorldQuery`; combat and EQS moved; `ILosService` as a policy | the busiest consumers on the seam, feature suites green |
 | **Q2** | perception (`ILosStrategy`), squad, kinematics, spawn, editor debug API, gizmos moved; `ITerrainRenderGeometry` | no production `TerrainWorld` use outside the stand-in |
