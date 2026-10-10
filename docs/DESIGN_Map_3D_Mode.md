@@ -2,7 +2,8 @@
 state: LIVE
 build-state: DESIGN — approach chosen by the user (U13: alternative B, a 2-D/3-D switch on the existing map); the
   leans in §5 await approval before S1. Nothing built.
-updated: 2026-10-10 (rev 2 — U14: humans as Minecraft-style block figures, M7 rewritten)
+updated: 2026-10-10 (rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
+  camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §7 what is NOT verified.
 stale-below: nothing.
@@ -37,7 +38,8 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 | entities | vehicles as boxes from TKB dimensions (tank = hull + turret box); humans as **Minecraft-style block figures** — head, torso, arms, legs — posed by stance, limbs swinging with speed |
 | interaction | click-select, right-click menu, tools — through the **unchanged** input chain |
 | gizmos | the 3-D subset of the gizmo stream (lines, arrows, spheres, semantic shapes) — fire traces and detonations included |
-| camera | Unity-style free camera; the camera entity (V-12..V-15) |
+| camera | Unity-style free camera; an **animated** 2-D ↔ 3-D transition (M12); the camera entity (V-12..V-15, M10) |
+| hosts | ⭐ **every host that has the 2-D map**: Editor, CGF, SimHost, ReplayBrowser, IG — one wiring site, `MapInteractionPack` |
 
 ---
 
@@ -47,6 +49,7 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 |---|---|---|
 | **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) … with imgui on top for menus?"* | measured in `DESIGN_Godot_3D_Viewer.md` §8 — lean B |
 | **U13** | *"The internal 3d solution could be switchable 2d/3d instead of current 2d only map so no new 3d window would be required. I think we should focus on B … Lets put godot aside (but keep its design as deferred). We need the simple renderer to handle the terrain geometry, use lighting color shaded polygons to give it some usable feeling of a real world, if not some freely available texture pack."* | ⭐ this file: a **mode of the map**, not a window; **lit, colour-shaded terrain**; textures as a later slice |
+| **U15** | *"Every host having the 2d map will get simple 3d, correct? Not just IG. … The current 2d map can be switched to 3d view and back (some camera animation between 2d camera and 3d camera or something)."* | ✅ yes, all five map hosts (S6). ⭐ M12: the switch is an animated camera move, not a cut |
 | **U14** | *"Human characters as simple as in minecraft would be a bit nicer and still feasible i guess."* | ⭐ M7 rewritten: a **six-box figure**, stance poses blended by the transition, limb swing from speed |
 
 The requirements V-01..V-20 live in `DESIGN_Godot_3D_Viewer.md` §1. ⭐ What changes under U13: **V-09** (own window) →
@@ -209,20 +212,27 @@ sequenceDiagram
   L->>SEL: SelectionChangeRequest / menu / tool
 ```
 
-**Switching 2-D ↔ 3-D keeps the place**
+**Switching 2-D ↔ 3-D — an animated camera move, not a cut (M12)**
 
 ```mermaid
 sequenceDiagram
   participant U as User
   participant P as MapInteractionPack switch
   participant C as MapCanvas
+  participant K as MapCamera3D
   U->>P: View > 3D map
-  P->>P: 3-D look-at = 2-D Target, distance from 2-D Zoom, pitch -30 deg
-  P->>C: Camera = MapCamera3D
+  P->>K: start OVERHEAD - look straight down, north up, height so the visible ground = the 2-D view
+  P->>C: Camera = MapCamera3D (the first 3-D frame matches the last 2-D frame)
+  K->>K: animate ~0.6 s eased - tilt to -30 deg and pull back around the same look-at point
   U->>P: View > 3D map (off)
-  P->>P: 2-D Target = 3-D ground look-at, Zoom from distance
-  P->>C: Camera = MapCamera
+  K->>K: animate ~0.6 s eased - back to OVERHEAD, north up, same look-at
+  P->>P: 2-D Target = look-at, Zoom = from height
+  P->>C: Camera = MapCamera (the 2-D frame matches the last 3-D frame)
 ```
+
+*What it shows:* the 2-D map **is** a 3-D camera looking straight down. Both swaps happen at that overhead pose, so
+neither one jumps; the tilt in between is ordinary camera animation. The only thing that changes at the swap is what
+is drawn (2-D symbols ↔ 3-D bodies), and the motion masks it.
 
 ---
 
@@ -259,8 +269,9 @@ sequenceDiagram
 | **M7** | entities | ⭐ box per vehicle from TKB size (tank: hull + turret box). **Human = a six-box block figure (U14)**: head, torso, two arms, two legs, ~1.8 m, torso in the side's colour. **Pose** = the shared stance rule `LogicalStance.Of` (`StanceComponents.cs:82`: *"a unit's LOGICAL stance is what its brain ordered … an animation only shows it and never gates it"*) — standing; crouched (hips lowered, knees bent); prone (the whole figure laid along its heading). While `StanceStatus.Phase` is transitioning, the pose blends by `TransitionProgress`. **Limb swing** (arms and legs counter-swinging, Minecraft-style) from planar speed through the extracted `LocomotionBlend.FromSpeed` (`LocomotionBlend.cs:114`) — walk and run weights set amplitude and rate; a per-entity phase advances with distance walked. Optional rifle = a thin box in the hands | cylinders (rev 1) — U14 · real models — U12 · showing `StanceStatus.CurrentStance` alone — it would disagree with the hit model, fire chain and perception, which all read `LogicalStance` |
 | **M8** | free camera | ⭐ Unity scene view: **RMB-drag** look, **WASD/QE only while RMB is held** (so tools keep their keys), wheel dolly, MMB pan, **F** frames the selection; right-**click** stays the context menu (the canvas already tells drag from click) | always-on WASD — collides with tool keyboard input |
 | **M9** | coordinates | ⭐ one transform: HROT `(x, y, z)` → Raylib `(x, z, −y)`, quaternion `(x, y, z, w)` → `(x, z, −y, w)` (det +1, no flip) | — |
-| **M10** | the camera entity (V-12..V-15) | ⭐ an ordinary spatial entity (U7) holding the **3-D** pose, created on first 3-D move, owned by the host, saved with the scenario; the 2-D mode derives its target from it on switch | ⚠ open: should the 2-D view also persist through it? (§7) |
+| **M10** | the camera entity (V-12..V-15) — **what it stores** | ⭐ **one camera entity for the map, in both modes**: look-at point, distance, yaw, pitch and the mode. The 2-D map is simply that camera at pitch −90°, north up. An ordinary spatial entity (U7), owned by the host, saved with the scenario, created on the first camera move — so a saved scenario reopens the map where it was looking, in the mode it was in | 3-D pose only (rev 2's lean) — two camera states for one map · no entity at all — simpler, but drops V-12's "saveable to scenario" |
 | **M11** | network viewer (V-18) | ⭐ an IG node with the map in 3-D — nothing extra | a dedicated viewer node — IG already is one |
+| **M12** | the 2-D ↔ 3-D switch (U15) | ⭐ an **animated camera move** pivoting at the overhead pose (§3.3): both swaps happen where 2-D and 3-D look the same | a hard cut — the user asked for animation · morphing orthographic into perspective — needless; overhead perspective at matched height is close enough |
 
 ---
 
@@ -268,7 +279,7 @@ sequenceDiagram
 
 | slice | delivers | proves |
 |---|---|---|
-| **S1** | `MapCamera3D` + the switch (Editor); `TerrainLayer3D` from `TerrainWorldMesh` as-is, one colour per kind, lit shader + fog; `EntityBodyLayer3D` vehicle boxes + block figures in their three stance poses (static); free camera; **Xvfb screenshot of the editor in 3-D on `test-town`** | the render path, the shader on the cloud's software GL, M8 |
+| **S1** | `MapCamera3D` + the animated switch (Editor); `TerrainLayer3D` from `TerrainWorldMesh` as-is, one colour per kind, lit shader + fog; `EntityBodyLayer3D` vehicle boxes + block figures in their three stance poses (static); free camera; **Xvfb screenshot of the editor in 3-D on `test-town`** | the render path, the shader on the cloud's software GL, M8 |
 | **S2** | `ScreenToWorld` ray picking; `deltaWorld` through the camera; `SelectionRenderSystem.Draw3D` wire cubes | select, context menu and tools work in 3-D unchanged |
 | **S3** | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters | gizmos, fire traces, detonations in 3-D |
 | **S4** | mesh tags; colours by surface and material; water; road ribbons from the road network; **figures come alive**: stance blending + limb swing (`LocomotionBlend` extracted), optional rifle | "a usable feeling of a real world" (U13), U14 |
@@ -288,6 +299,7 @@ sequenceDiagram
 | ⚠ 3-D frame cost inside the host frame (terrain mesh + a few hundred entities) | S1, measured on Windows and in the cloud |
 | ⚠ an entity box hit returning that entity's ground XY lands inside its 2-D pick box for every entity kind | S2 rail per kind |
 | ⚠ which CC0 texture pack — ambientCG / Poly Haven are CC0 by their own terms; specific textures and repo size not chosen | S7, with a licence table |
-| ⚠ M10's open part: one camera entity for both modes, or 3-D only | ask the user |
+| ⚠ M10: one camera entity for both modes — the lean, explained to the user `2026-10-10`; awaiting a yes | the user |
+| ⚠ the overhead perspective camera at matched height looks close enough to the 2-D map at the swap (tall buildings lean slightly at the edges) | S1 screenshot pair |
 | ⚠ IG humans stand upright until IG ingests stance (`CE-2121` "IG ingress open") | S6 |
 | ⚠ `LogicalStance.Of` and `StanceStatus` are present on every host's entities (they are `NoScenario` runtime components; the Editor may not run the stance systems) — no stance ⇒ standing, as the rule itself says | S1 rail |
