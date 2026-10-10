@@ -1,0 +1,165 @@
+<!--STATUS
+state: LIVE
+build-state: DESIGN — leans VE-A..VE-I await the user; slices E1–E4 (§6). Nothing built.
+updated: 2026-10-10
+current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices.
+stale-below: nothing.
+known-rot: none.
+known-conflict: none.
+related-designs:
+  - DESIGN_Map_3D_Mode.md — the 3-D renderer of these effects (its S3 effects wait for this design; §6c U27); the muzzle point
+    comes from its §3.11 articulated turret (M23–M26).
+  - DESIGN_Map_Rendering_And_Interaction.md — owns MapCanvas and its layers; the effect layers are two more layers attached by
+    MapInteractionPack.AttachMapLayers.
+  - DESIGN_Building_Interiors.md — owns warheads (§3k, CE-1032): the detonation that an explosion and a decal visualise.
+  - DESIGN_Body_Geometry_And_Ground_Contact.md — the same "the TKB type defines it" pattern for bodies; decals drape on the ground.
+-->
+
+# DESIGN — visual effects: muzzle fire, explosions, impact decals
+
+## 1. What the user asked — `2026-10-10`
+
+| # | verbatim |
+|---|---|
+| **U1** | *"each effect entity has its TKB type of course defining the effect"* |
+| **U2** | *"some kind of simple fire effect (from the barrel, multiple size based on ammo type) and explosion effect (at hit position, multiple sizes based on ammo type), decal effect (at hit position, multiple sizes to be mapped to ammo type) - this adds a lot to the realism and should be cheap with todays possibilities. all those effect could be special types of temporary entities (counting their lifetime so the render can show them in proper phase) that are rendered in their special way and removed once their lifetime expired; so no gizmos as such - pls add those to the plan, many might require design steps."* |
+
+## 2. INVENTORY — measured `2026-10-10` (graph `search_graph` `.*(Effect|Detonation|Muzzle|Decal|Impact|Explosion|FireTrace).*`, Class — 32 hits; grep)
+
+| what exists | where | note |
+|---|---|---|
+| effect entities: `VisualEffectState { EffectType Type (Explosion, Tracer), Duration, ElapsedTime, RGBA, Scale }` + `TracerTarget` | `Hrot.Core/Components/Map/VisualEffectState.cs:34` | ⭐ the lifetime model the user describes already exists — ⚠ but the LOOK is a hard-coded enum + constants, **no TKB type** |
+| spawner `EventToEffectSystem` (from `DetonationNotification`, `WeaponFireNotification`) + `VisualEffectCleanupSystem` | `Hrot.IG/Systems/EventToEffectSystem.cs:35,135` | one constant explosion size; the tracer starts at the shooter's ORIGIN, not the muzzle |
+| who runs them | `EventEffectModule` on IG (`IgCapabilities.cs:86`) and the Editor (`EditorSubsystem.cs:1831`); `StrideNodeBootstrapper.cs:342` | 🔴 **not CGF, SimHost or ReplayBrowser** — "not on all hosts" (R-254) |
+| the 2-D drawing: `EffectPresentationGizmo` (a stateless gizmo projector) | `Hrot.Presentation/Gizmos/EffectPresentationGizmo.cs:13` | ⚠ U2: "no gizmos as such" |
+| `DetonationNotification { Shooter, Target, HitX/Y/Z, Penetration, Damage, Ammo }` | `Fdp.Toolkits/Combat/DetonationNotification.cs:24` | ⭐ already carries the AMMO type ⇒ the size can follow the ammo |
+| `WeaponFireNotification { Shooter, Target, WeaponIndex, IsRemote }` | `Fdp.Toolkits/Combat/…` | ⭐ the weapon index ⇒ the mount ⇒ its ammo (`CombatTkb.MountOf`) |
+| replicated: `MunitionDetonation { ShooterEntityId, HitEntityId, HitX/Y/Z, MunitionType }` | `Hrot.Network.NED/FireInteractionMessages.cs:93` | every node gets the events, so every node can make its own effects |
+| debug gizmos `FireTraceGizmo`, `DetonationGizmo` | `Hrot.Presentation/ScenarioEditor/Gizmos/` | analysis overlays (rays, fragments) — NOT the realism effects; unchanged |
+| the host-scheduling check `MapInteraction.RequiredSystems` + `Unserviceable` | `MapInteraction.cs:233` | ⭐ the mechanism that makes "every host runs the effect systems" checkable |
+
+## 3. THE ARCHITECTURE
+
+### 3.1 Modules — every map host, by construction
+
+```mermaid
+graph TD
+  NET["fire / detonation events<br/>(local or replicated)"]
+  PACK["MapInteractionPack<br/>builds the effect systems"]
+  SPAWN["EffectSpawnSystem (reworked)<br/>event + ammo TKB -> effect type"]
+  LIFE["EffectLifetimeSystem<br/>age, expire, decal cap"]
+  W[("effect entities<br/>TkbIdentity + EffectLifetime")]
+  L2["EffectLayer2D (new)"]
+  L3["EffectLayer3D (new)"]
+  HOST["every map host<br/>schedules RequiredSystems"]
+  NET --> SPAWN
+  PACK --> SPAWN
+  PACK --> LIFE
+  PACK -- AttachMapLayers --> L2
+  PACK -- AttachMapLayers --> L3
+  HOST --> SPAWN
+  HOST --> LIFE
+  SPAWN --> W
+  LIFE --> W
+  L2 --> W
+  L3 --> W
+  G["EffectPresentationGizmo"]
+  G -. "retired (VE-F)" .-> W
+  style G stroke-dasharray: 5 5
+```
+
+*What the picture shows that prose hid:* the effects stop being an IG/Editor module and become part of the shared map
+construction — the pack builds the two systems and the two layers, every host schedules the systems it declares, and the
+existing `Unserviceable` check reports a host that does not. The gizmo projector is the dead edge.
+
+### 3.2 Classes
+
+```mermaid
+classDiagram
+  class EffectVisualDto {
+    <<new, TKB "Effect.Visual">>
+    EffectKind Kind
+    float Duration, Size
+    string ColorHex
+    float FadeSeconds
+  }
+  class EffectKind { <<enum>> MuzzleFlash, Explosion, Decal, Tracer }
+  class MunitionEffectsDto {
+    <<new, TKB "Effect.Set">> on an ammo type
+    long MuzzleFlash, Explosion, Decal
+  }
+  class EffectLifetime { <<new component>> float Age, Duration }
+  class EffectAnchor { <<new component>> Entity Shooter, int WeaponIndex }
+  class TkbIdentity { <<exists>> }
+  class SimTransform { <<exists>> }
+  class EffectSpawnSystem { <<reworked from EventToEffectSystem>> }
+  class EffectLifetimeSystem { <<reworked from VisualEffectCleanupSystem>> }
+  class EffectLayer2D { <<new IMapLayer>> }
+  class EffectLayer3D { <<new IMapLayer>> billboards, fireball, ground decal }
+  class VisualEffectState { <<exists, retired by E2>> }
+  EffectSpawnSystem ..> MunitionEffectsDto : ammo -> effect types
+  EffectSpawnSystem ..> EffectVisualDto : duration
+  EffectSpawnSystem ..> TkbIdentity
+  EffectSpawnSystem ..> EffectLifetime
+  EffectSpawnSystem ..> EffectAnchor : muzzle flash
+  EffectLifetimeSystem ..> EffectLifetime
+  EffectLayer2D ..> EffectVisualDto
+  EffectLayer3D ..> EffectVisualDto
+  EffectLayer3D ..> EffectAnchor : muzzle from the posed kit
+```
+
+*What it shows:* the look lives in the TKB (one descriptor per EFFECT type, one mapping per AMMO type); the entity carries only
+its type, its age and — for a muzzle flash — what it is attached to.
+
+### 3.3 Sequence — one shot, from fire to decal
+
+```mermaid
+sequenceDiagram
+  participant F as fire / hit resolution
+  participant S as EffectSpawnSystem
+  participant T as TKB
+  participant L as EffectLifetimeSystem
+  participant R as EffectLayer2D / 3D
+  F->>S: WeaponFireNotification(shooter, weapon)
+  S->>T: the weapon's ammo -> Effect.Set.MuzzleFlash
+  S->>S: spawn effect: TkbIdentity, EffectLifetime, EffectAnchor(shooter, weapon)
+  F->>S: DetonationNotification(hit XYZ, ammo)
+  S->>T: Effect.Set.Explosion, Effect.Set.Decal
+  S->>S: spawn explosion and decal at the hit
+  loop every frame
+    L->>L: Age += sim dt, expired -> destroy, decals over the cap -> oldest destroyed
+    R->>T: Effect.Visual of each effect type
+    R->>R: draw at phase Age / Duration
+  end
+```
+
+## 4. DECISIONS — leans, awaiting the user
+
+| # | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **VE-A** | where effects are made | ⭐ **on every map host, locally, from the fire / detonation events** (which already reach every node); the pack BUILDS the two systems, every host schedules them, `RequiredSystems` declares them so `Unserviceable` reports a host that does not (R-254) | replicating effect entities — the events already cross the wire; an effect is presentation · keeping it an IG/Editor module — the measured "not on all hosts" |
+| **VE-B** | what an effect entity is (U1) | ⭐ `TkbIdentity` (the effect type) + `SimTransform` + `EffectLifetime { Age, Duration }`; not saved, not recorded | the current `VisualEffectState` enum + colours on the entity — the look would live in code, not the TKB |
+| **VE-C** | what an effect looks like | ⭐ TKB `Effect.Visual { Kind, Duration, Size, ColorHex, FadeSeconds }` on built-in effect types: muzzle flash, explosion and decal in **small / medium / large** (nine), plus the tracer | one effect type with a scale parameter — the decal art and durations differ by size, not just scale |
+| **VE-D** | which effect an ammo makes (U2: "multiple sizes based on ammo type") | ⭐ TKB `Effect.Set { MuzzleFlash, Explosion, Decal }` on the AMMO type (references to effect types); an ammo with none uses a default by its calibre class | sizing from damage or penetration — a HEAT round and an APFSDS of the same gun look different |
+| **VE-E** | where a muzzle flash is | ⭐ `EffectAnchor { Shooter, WeaponIndex }`: the RENDERER finds the muzzle each frame from the shooter's posed kit (§3.11 turret pose, M23–M26) — the flash follows the barrel; until the pose exists, the kit's neutral barrel | a fixed spawn position — wrong as soon as the vehicle or turret moves during the flash |
+| **VE-F** | how they are drawn (U2: "no gizmos as such") | ⭐ two map layers attached by `AttachMapLayers`: **2-D** a star (flash), an expanding disc (explosion), a dark blot (decal); **3-D** additive camera-facing quads for flash and fireball, a fading ground quad draped on the terrain for the decal; `EffectPresentationGizmo` retired when the 2-D layer lands (route, not a second surface) | effects as gizmo primitives — the user ruled it out, and a 64-byte primitive per effect per frame is waste |
+| **VE-G** | whose clock | ⭐ **simulation time**: a paused sim freezes an explosion mid-phase; a replay replays them from the replayed events | wall time — a paused fireball would finish, and a replay would not match |
+| **VE-H** | decals live long | ⭐ minutes, fading at the end, and a **cap** (oldest removed first, e.g. 256) so a firefight cannot grow without bound | until the scenario resets — unbounded |
+| **VE-I** | decal surface | ⭐ step 1: on the GROUND under the hit (draped, R-248); step 2: on the hit surface — a wall or a roof — once `IWorldQuery.Trace` reports the hit's surface normal | a decal floating at the hit point — visible as a card in 3-D |
+
+## 5. NOT VERIFIED
+
+| claim | how it is settled |
+|---|---|
+| ⚠ every host's kernel has a slot the pack's effect systems can be scheduled in (CGF, SimHost, ReplayBrowser run no effects today) | E2 — `Unserviceable` must come back empty on all five |
+| ⚠ the munition TKB has an ammo template per round the weapons fire (`AmmoWeaponBallisticsDto` per launcher) to hang `Effect.Set` on | E1 — enumerate `MunitionTkbCatalog` and the weapon suites |
+| ⚠ software GL cost of additive blending with a few hundred live effects | E3 frame rail, then the Windows run |
+
+## 6. SLICES
+
+| slice | delivers | depends on |
+|---|---|---|
+| **E1** | TKB `Effect.Visual` + `Effect.Set`; nine built-in effect types + the tracer; `Effect.Set` on the built-in ammo | VE-B..VE-D approved |
+| **E2** | `EffectSpawnSystem` / `EffectLifetimeSystem` reworked onto TKB types and sim time, built by the pack, declared in `RequiredSystems`, scheduled on all five hosts (rail) | E1 |
+| **E3** | `EffectLayer2D` + `EffectLayer3D`; `EffectPresentationGizmo` retired; screenshot rail | E2 |
+| **E4** | the muzzle flash at the posed barrel | the turret build (3-D map §3.11, M23–M26) |

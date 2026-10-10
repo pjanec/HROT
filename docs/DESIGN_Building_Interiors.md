@@ -9,6 +9,7 @@ known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid pri
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
   buildings.
 related-designs:
+  - DESIGN_Visual_Effects.md — draws the detonations §3k's warheads make (explosion and decal sized by the ammo's TKB type).
   - DESIGN_World_Query_Seam.md — owns the engine-neutral query (IWorldQuery.Trace with a purpose) that generalises §3a's
     "one query for all, different solver"; sound B-6 is its Trace(Sound) (WQ-E).
   - DESIGN_Map_3D_Mode.md — the map's 3-D mode colours wall panels, slabs and roofs by this file's materials.

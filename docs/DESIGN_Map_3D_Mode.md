@@ -14,6 +14,8 @@ known-rot: §3.3's switch sequence and M10 say the 2-D map is "north up" — mea
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - DESIGN_Visual_Effects.md — muzzle fire, explosions and impact decals as TKB-typed temporary entities; the 3-D map draws them
+    (S3b) and places a muzzle flash on the posed barrel (§3.11).
   - DESIGN_Body_Geometry_And_Ground_Contact.md — owns Body.Geometry: an aircraft's size, box offset and landing-gear points
     relative to its CG; the kits are placed by it and the gear is drawn at its points (CE-1041).
   - DESIGN_World_Query_Seam.md — the 3-D map's picking and terrain geometry go through IWorldQuery.Pick and
@@ -64,6 +66,7 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 | **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) … with imgui on top for menus?"* | measured in `DESIGN_Godot_3D_Viewer.md` §8 — lean B |
 | **U13** | *"The internal 3d solution could be switchable 2d/3d instead of current 2d only map so no new 3d window would be required. I think we should focus on B … Lets put godot aside (but keep its design as deferred). We need the simple renderer to handle the terrain geometry, use lighting color shaded polygons to give it some usable feeling of a real world, if not some freely available texture pack."* | ⭐ this file: a **mode of the map**, not a window; **lit, colour-shaded terrain**; textures as a later slice |
 | **U15** | *"Every host having the 2d map will get simple 3d, correct? Not just IG. … The current 2d map can be switched to 3d view and back (some camera animation between 2d camera and 3d camera or something)."* | ✅ yes, all five map hosts — by construction since U25 (§6b). ⭐ M12: the switch is an animated camera move, not a cut |
+| **U28** | *"M23 - approved · M24 - yes the weapon side (the weapon logic) moves the turret - knows how to aim, brain just specifies the target · M25 - approved · M26 - solved already by multi-instance descriptors in NED/BDC (similar stuff as already used for sensor sub-entities)"* — and the effects: *"fire effect (from the barrel…), explosion effect (at hit position…), decal effect … temporary entities (counting their lifetime…) … so no gizmos as such - pls add those to the plan"* | ✅ §3.11 ruled (R-255); effects planned in [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) |
 | **U27** | *"each effect entity has its TKB type of course defining the effect"* | ⚠ recorded as a constraint on S3's effects (§6c) — 📐 today's effect entities carry NO TKB type (`CE-1042`) |
 | **U26** | *"It would be great if you built the heli and jet and cargo plane models including their mapping so we do not need to think about that later."* | ✅ built: three air kits + the SISO-REF-010 platform/air category mapping (§3.5) |
 | **U25** | *"ad 'the 3-D mode on the other four hosts' - this sounds alarming, we should be unifying and sharing from the day zero so something like 'not on all host' can not happen by construction"* | ✅ §6b: one shared attach + one shared menu item + a rail; S6 withdrawn |
@@ -671,13 +674,13 @@ forward; the frame rail poses two to prove the drawing.
 
 | # | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
-| **M23** | where the pose lives | ⭐ **a part child per turret**: `PartMetadata { Parent = hull, InstanceId = turret index }` + a new `TurretPose { float Azimuth; float Elevation; }` (radians; azimuth counter-clockwise from the hull's forward, elevation up from the turret plane) — the turret and its gun are ONE assembly | a component on the hull — one turret only, and no separate owner for a gunner node (`R-168`) · one entity per joint (turret + gun) — elevation only ever means "relative to its turret" |
-| **M24** | who writes it | ⭐ the **motion side**: a turret slew system turns the turret and gun toward the active `WeaponChannel` target at the TKB rates, within its limits; the brain names the TARGET, never an angle | the brain writing angles — kinematics in the brain (`R-252`) · fire writing its shot direction back — per shot and dispersed |
-| **M25** | the TKB | ⭐ a turret descriptor per turret part: pivot offset, traverse and elevation limits, slew rates; weapon mounts name the turret they sit on | angles with no limits — a turret could aim through its own hull |
-| **M26** | the wire | ⭐ a multi-instance descriptor keyed `(EntityId, InstanceId)` per the descriptor rules, through the existing multi-instance translator pattern; a DIS gateway maps it to the articulated parts 4107 (turret 1 azimuth = 4096 + 11) and 4429 (gun 1 elevation = 4416 + 13) | putting the angles into the hull's geo descriptor — breaks the one-descriptor-per-concept rule and multi-turret vehicles |
+| **M23** ✅ *(U28)* | where the pose lives | ⭐ **a part child per turret**: `PartMetadata { Parent = hull, InstanceId = turret index }` + a new `TurretPose { float Azimuth; float Elevation; }` (radians; azimuth counter-clockwise from the hull's forward, elevation up from the turret plane) — the turret and its gun are ONE assembly | a component on the hull — one turret only, and no separate owner for a gunner node (`R-168`) · one entity per joint (turret + gun) — elevation only ever means "relative to its turret" |
+| **M24** ✅ *(U28, reworded)* | who writes it | ⭐ the **weapon side — the weapon logic** turns the turret and gun: it knows how to aim (TKB rates and limits); the brain only names the TARGET, never an angle | the brain writing angles — kinematics in the brain (`R-252`) · fire writing its shot direction back — per shot and dispersed |
+| **M25** ✅ *(U28)* | the TKB | ⭐ a turret descriptor per turret part: pivot offset, traverse and elevation limits, slew rates; weapon mounts name the turret they sit on | angles with no limits — a turret could aim through its own hull |
+| **M26** ✅ *(U28: "solved already")* | the wire | ⭐ the NED/BDC multi-instance descriptor pattern the sensor sub-entities already use in production — 📐 `EqsSensorConfigTopic { ParentNetworkId, LocalChildIndex }` with the child identified by `PartMetadata` (`EqsSensorConfigEgressTranslator.cs:99,237`); a DIS gateway maps it to the articulated parts 4107 (turret 1 azimuth = 4096 + 11) and 4429 (gun 1 elevation = 4416 + 13) | putting the angles into the hull's geo descriptor — breaks the one-descriptor-per-concept rule and multi-turret vehicles |
 
-⚠ **Cross-lane:** M24–M26 are the combat / motion / network lanes' code — this section is the map's ask, with leans; the user
-rules, and the owning lane builds.
+✅ **Ruled `2026-10-10` (U28, R-255) ⇒ READY-TO-BUILD.** ⚠ The turret part, the weapon-side slew and the descriptor are the
+combat / network lanes' code; the map reads the pose through `EntityBodyLayer3D`'s one `poseOf` seam once the component exists.
 
 ---
 
@@ -739,6 +742,8 @@ rules, and the owning lane builds.
 | **S1** | `MapCamera3D` + the animated switch (Editor); `TerrainLayer3D` from `TerrainWorldMesh` as-is, one colour per kind, lit shader + fog; `EntityBodyLayer3D` with `VisualFamily` + the shape kits for every built-in type (static) and block figures in their three stance poses; free camera; **Xvfb screenshot of the editor in 3-D on `test-town`** | the render path, the shader on the cloud's software GL, M8 |
 | **S2** | `Picker3D` (handles → entity boxes → terrain mesh → ground, `SurfacesAt` level); `ScreenToWorldForDrag`; `MapCanvas.LastPick` feeding the five `z = 0` sites; draping (M18); `SelectionRenderSystem.Draw3D` wire cubes; the placement ghost + roof/floor level (M20); measurement drawn at its picked height; **areas on a level** (M22 step 1); the danger band (H3); ⭐ every rail also runs on a **sloped test terrain** (R-248) | select, context menu, measurement, area authoring, placement and handle drags work in 3-D — the same tools (U21) |
 | **S3** | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters; **labels**: `GizmoTextDraw` extracted, `LabelOverlay3D` with projection + LOD | gizmos, fire traces, detonations and gizmo text in 3-D (U16) |
+| **S3b** | ⭐ **realism effects** — muzzle fire, explosions, impact decals as temporary TKB-typed entities with two map layers, on every host: [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) slices E1–E4 | U27, U28 |
+| **S3c** | ⭐ **the articulated turret, live** — the turret part + `TurretPose` (M23), the weapon-side slew (M24), the TKB turret descriptor (M25), the sensor-style multi-instance descriptor (M26); the map plugs `poseOf` | §3.11, R-255 |
 | **S4** | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
 | **S5** | camera entity — create, follow, scenario save | V-12..V-15 |
 | **S5b** | **the card**: `CoordinateSpace.EntityCard`; `EntityCardRenderer` (rows by `ZIndex`, row 0 card-wide, `%` of the card, leader line) in 2-D and 3-D; `CardBuilder` sugar; `EntityCardFrameGizmo` + one side palette (M16); `HealthBarGizmo` re-targeted to a bar row; `EntityNameGizmo`; `EntityEditorLabelGizmo` rows moved in; a "Labels" layer default | U19, U20 |
@@ -819,7 +824,8 @@ tracer, later smoke and flashes) from the effect entity's **TKB type**, exactly 
 | the 2-D map draws them from that enum | `EffectPresentationGizmo` |
 | the munition TKB names no effect | `MunitionTkbCatalog.cs` (no match for "effect") |
 
-⭐ **Lean (`CE-1042`, not built — the effects' owner decides):** an effect entity carries `TkbIdentity`; a TKB descriptor on the
+➡️ **Planned in [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) (U28: muzzle fire, explosions, decals — temporary TKB-typed entities, no gizmos).** The original lean, kept for the record —
+⭐ **Lean (`CE-1042`):** an effect entity carries `TkbIdentity`; a TKB descriptor on the
 effect type says what it looks like (kind, duration, colour, size); the munition / warhead type names the effect type it makes;
 both maps draw from the TKB. ⛔ The S3 3-D effects are not built on the enum.
 

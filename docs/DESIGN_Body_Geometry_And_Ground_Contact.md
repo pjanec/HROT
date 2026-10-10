@@ -8,6 +8,7 @@ known-rot: none.
 known-conflict: docs/designs/modularizing/MOD1-DESIGN.md §3.7.4 — its IG clamp sets an entity's Z to the terrain hit, which
   is right for a ground-referenced vehicle and BURIES a CG-referenced aircraft by its gear height; not reconciled (§5, finding).
 related-designs:
+  - DESIGN_Visual_Effects.md — the same "the TKB type defines it" pattern for effects; decals drape on the ground under a hit.
   - DESIGN_Map_3D_Mode.md — draws the aircraft kits; places the body by this descriptor's box offset and draws the gear at its
     contact points (§3.5).
   - DESIGN_Terrain_Height.md — §4a / R-249: the motion model, reading the clamping flag, puts an entity on the ground; this

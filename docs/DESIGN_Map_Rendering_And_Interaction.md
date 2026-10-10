@@ -26,6 +26,7 @@ see-also: docs/SNAPSHOT_Map_Interaction_Architecture.md — a 2026-09-10 SNAPSHO
   nothing and does not redraw this file's diagrams; it records what this file's layer view does not:
   who BUILDS what per host, and the four-store selection reality.
 related-designs:
+  - DESIGN_Visual_Effects.md — two more map layers (2-D and 3-D effects) attached by MapInteractionPack.AttachMapLayers; replaces EffectPresentationGizmo.
   - docs/DESIGN_Map_3D_Mode.md — a 2-D/3-D switch on this canvas: a MapCamera3D subclass, IMapLayer.Draw3D
     (default no-op), MapCanvas.Draw branching on the camera, deltaWorld taken from the camera. The input chain is unchanged.
   - docs/UX/UX_Feature_Selection.md — owns UXI-11: what a pick BECOMES once this file's chain has
