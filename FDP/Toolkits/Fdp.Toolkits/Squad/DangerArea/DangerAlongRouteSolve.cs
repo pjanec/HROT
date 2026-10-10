@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
             if (roads == null || planner == null) return 0;
             if (!EqsContext.SelfPosition(repo, carrier, sensor, out var start)) return 0;
             if (!TryRouteEnd(repo, carrier, in sensor, out var end, out var roadUse)) return 0;
-            var terrain = repo.HasSingletonManaged<TerrainWorld>() ? repo.GetSingletonManaged<TerrainWorld>() : null;
+            var terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q2
 
             // ⭐ C6 — lease the graph for the whole plan + classify: a terrain commit may publish a new one meanwhile.
             using var lease = roads.Borrow();

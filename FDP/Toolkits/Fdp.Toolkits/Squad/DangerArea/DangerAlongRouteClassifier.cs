@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// Classifies <paramref name="route"/> (a polyline from the unit) over <paramref name="terrain"/>; writes up to
         /// <c>areas.Length</c> descriptors in route order and returns how many.
         /// </summary>
-        public static int Classify(ReadOnlySpan<Vector3> route, in global::CarKinem.Road.RoadNetworkBlob roads, TerrainWorld? terrain,
+        public static int Classify(ReadOnlySpan<Vector3> route, in global::CarKinem.Road.RoadNetworkBlob roads, Fdp.Toolkit.World.IWorldQuery? terrain,
             float corridorHalfWidth, Span<DangerAreaDescriptor> areas)
         {
             if (route.Length < 2 || areas.Length == 0 || !Fdp.Toolkit.Navigation.RoadGraphRouter.HasRoads(roads)) return 0;
@@ -77,7 +77,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
         }
 
         private static DangerAreaDescriptor Describe(ReadOnlySpan<Vector3> route, ReadOnlySpan<float> cumulative, float total,
-            TerrainWorld? terrain, float start, float end, ulong mask, float corridor)
+            Fdp.Toolkit.World.IWorldQuery? terrain, float start, float end, ulong mask, float corridor)
         {
             float mid = (start + end) * 0.5f;
             var center = PointAt(route, cumulative, mid);
@@ -188,7 +188,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
             return route[^1];
         }
 
-        private static Vector3 Grounded(TerrainWorld? terrain, Vector3 p) => terrain == null ? p : new(p.X, p.Y, terrain.SurfaceZ(p.X, p.Y, p.Z));
+        private static Vector3 Grounded(Fdp.Toolkit.World.IWorldQuery? terrain, Vector3 p) => terrain == null ? p : new(p.X, p.Y, terrain.SurfaceZ(p.X, p.Y, p.Z));
 
         private static Vector2 Xy(Vector3 v) => new(v.X, v.Y);
     }

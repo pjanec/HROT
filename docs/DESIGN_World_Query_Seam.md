@@ -234,10 +234,10 @@ ragdolls) **in the stand-in**. Either way the switch stays inside `TerrainWorldQ
 
 | slice | delivers | proves |
 |---|---|---|
-| **Q0b** | WQ-H: the brain's destinations from their sources; a stacked-terrain brain rail | the brain is terrain-agnostic |
+| **Q0b** ✅ | WQ-H: a 2-D destination flagged, resolved by the motion side — §5c | the brain is terrain-agnostic |
 | **Q0** | the Bepu spike: `Trace(Sight/Fire)` + `GroundHeightAt` over Bepu inside `TerrainWorld`; timing and memory on a scaled terrain **with a large height grid**; headless cloud run | identical answers, faster, Linux, acceptable memory — otherwise §4a's flip condition ① (Jolt's height field) |
 | **Q1** ✅ | `IWorldQuery` + `TerrainWorldQuery` + `WorldQuery.Of`; combat and EQS moved; `ILosService` as a policy — §5b | the busiest consumers on the seam, feature suites green |
-| **Q2** | perception (`ILosStrategy`), squad, kinematics, spawn, editor debug API, gizmos moved; `ITerrainRenderGeometry` | no production `TerrainWorld` use outside the stand-in |
+| **Q2** ✅ | perception (`ILosStrategy`), squad, kinematics, spawn, editor debug API moved — §5c; `Pick` / `ITerrainRenderGeometry` move to the 3-D map's S1/S2 | no production `TerrainWorld` QUESTION outside the stand-in (§5c lists what stays and why) |
 | **Q3** | sound v1 — the loudness model + `Trace(Sound)` straight with per-wall dB; the hearing gizmo shows the loss | a shot behind a concrete wall is heard less far |
 | **Q4** | sound v2 — rooms from walls, the room/portal path (shared with blast confinement, Building Interiors W-7v2) | sound comes round a corner and through an open door; a closed door muffles it |
 | **Q5** | `StrideWorldQuery`; entity boxes in the index (WQ-F) | a second implementation passes the same rails |
@@ -298,6 +298,42 @@ seam later); the vehicle boxes' material table in `EqsTerrainSight.Sight` (WQ-F,
 | `Hrot.SimHost.Tests` — combat, EQS, terrain, HillAttack, translators | **125 / 125** |
 | `Hrot.ClusterRunner.Integration.Tests` — EQS (single process) | **91 / 91** |
 | `Hrot.ClusterRunner.Integration.Tests` — `EqsDistributedTests` (multi-node) | 24 / 25 — ⚠ `DangerAlongRoute_AcrossHosts` fails (`Expected 1, Actual 0` danger areas). **Pre-existing**: fails identically at `949ce4bae` (before Q1) and `93cbad143` (before Q0, no code of this programme). It exercises the squad danger-area code, which Q1 does not touch. Filed as `CE-1036` |
+
+## 5c. Q0b + Q2 — as built `2026-10-10`
+
+**Q0b (WQ-H) — a 2-D destination says "height not given".** `NavigationConstants.FlagDestinationOnSurface` (bit 1 of the
+MoveTo / intent `Flags` — a flag, not a property, because a property would add a pin to every blueprint MoveTo node: the pin
+schema reflects properties and `CatalogTests` pins it at 10). **One resolver**, `NavigationDestination.Of(view, mover, intent)`,
+puts such a destination on the surface at (x, y) nearest the **mover's own level** through `IWorldQuery.SurfaceZ`; the muscle
+reads every destination through it (`NavigationIntentBridgeSystem` — three modes and the crowd target —, `PathRequests`,
+`DangerAlongRouteSolve`). The brain's four 2-D sources set the flag (`CgfNodes` MoveTo + Wander, `HillAttackTankNodes` slot +
+baseline); everything else the brain sends (EQS points, entity positions) already carries a real Z. The hill-attack slot's
+horizontal distance is commented as deliberate. Rail: `NavigationIntentBridgeSystemTests.Q0b` (a deck vs the ground under it,
+chosen by the mover's level; the flag clear keeps Z; no world keeps the point).
+
+**Q2 — moved onto `IWorldQuery`:**
+
+| consumer | asks |
+|---|---|
+| perception `TerrainWorldLosStrategy` (now a POLICY: eye/aim heights, body points, colliders) | `SightBlocked`; `Explain` reports `Trace(Sight)` crossings and their product (`LosPoint.TerrainTransmittance` / `Crossed` replace the terrain's own `TraceResult`) |
+| squad `DangerAreaSensorSystem.ThreatOn`, `DangerAlongRouteClassifier`, `DangerAlongRouteSolve` | `SightBlocked`, `SurfaceZ` |
+| `CarKinematicsSystem` (the stand-in movement model's ground) | `SurfaceZ` |
+| `NetworkSpawningSystem` (birth level, every node) | `ResolveLevel` |
+| editor debug API `TerrainReport` (`/terrain/levels`, `/terrain/query`, fire) and `CombatReport.Los` | `SurfacesAt`, `Trace(Sight/Fire)`, `SightBlocked` |
+
+**Stays on the stand-in — it IS the stand-in, or a later slice owns it:**
+
+| file | why |
+|---|---|
+| `TerrainResidency`, `ScenarioLoadStep`, `TerrainObjectRequests`, `StaticObstacleBake`, `RecastNavmeshFactory` | they LOAD or BUILD the stand-in (a production engine loads its own world) |
+| `SpatialHashSystem`, `LocalGridBuilderSystem`, `EqsModule`'s terrain source | they size the stand-in's grids to the terrain's bounds (W9) and refit on the terrain's identity — the seam has no bounds question yet |
+| `DoorPassageSystem`, `AreaEffectSystem.BreachDoors`, `DoorLeafGizmo` | they walk the terrain's door list — doors become entities on the seam later |
+| `TerrainCoverProvider`, `CoverPointsGizmo` | the stand-in's own `ICoverProvider`, built from its geometry |
+| `TerrainWorldGizmo`, `WorldInfoReport` | they draw / report the stand-in's terrain itself — the map's terrain drawing moves with **`ITerrainRenderGeometry`** |
+
+⚠ **Deviation — `Pick` and `ITerrainRenderGeometry` are NOT in Q2.** Their first users are the 3-D map (picking, the terrain
+mesh) and the 2-D map's terrain layer; building them before a consumer exists would be speculative. ⇒ they are built with the
+3-D map's slices S1/S2 (`DESIGN_Map_3D_Mode.md` §3.10, WQ-G), which is where they are exercised.
 
 ## 6. NOT VERIFIED — say so before it is built on
 

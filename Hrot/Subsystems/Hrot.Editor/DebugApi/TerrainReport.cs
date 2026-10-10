@@ -24,10 +24,10 @@ namespace Hrot.Editor.DebugApi
         public static JsonNode Levels(EntityRepository? world, float x, float y)
         {
             var t = Resident(world);
-            if (t == null) return NoTerrain();
-            var z = t.SurfacesAt(x, y, out int ground);
+            if (t == null || Fdp.Toolkit.World.WorldQuery.Of(world!) is not { } q) return NoTerrain();
+            var z = q.SurfacesAt(x, y, out int ground);   // ⭐ CE-1035 Q2 — the world query's answer, the one perception and spawning use
             var arr = new JsonArray();
-            for (int i = 0; i < z.Length; i++)
+            for (int i = 0; i < z.Count; i++)
                 arr.Add(new JsonObject { ["level"] = i - ground, ["z"] = z[i], ["kind"] = i == ground ? "ground" : i < ground ? "below" : "above" });
             return new JsonObject { ["terrain"] = t.Name, ["x"] = x, ["y"] = y, ["levels"] = arr };
         }
@@ -36,19 +36,24 @@ namespace Hrot.Editor.DebugApi
         public static JsonNode Query(EntityRepository? world, Vector3 from, Vector3 to)
         {
             var t = Resident(world);
-            if (t == null) return NoTerrain();
-            var q = t.QuerySight(from, to, DoorStates.Of(world!, t));   // ⭐ R-219 — the doors as this world sees them
+            if (t == null || Fdp.Toolkit.World.WorldQuery.Of(world!) is not { } wq) return NoTerrain();   // ⭐ CE-1035 Q2 — bound to this world's doors (R-219)
+            var traced = new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
+            wq.Trace(from, to, Fdp.Toolkit.World.TracePurpose.Sight, traced);
+            float length = Vector3.Distance(from, to), transmittance = 1f;
             var crossed = new JsonArray();
-            foreach (var c in q.Crossed)
+            foreach (var c in traced)
+            {
+                transmittance *= c.Loss;
                 crossed.Add(new JsonObject
                 {
-                    ["along"] = c.Along, ["kind"] = c.Kind, ["label"] = c.Label, ["material"] = c.Material,
-                    ["transmittance"] = c.Transmittance, ["building"] = c.Building, ["storey"] = c.Storey,
+                    ["along"] = c.T * length, ["kind"] = c.Kind, ["label"] = c.Label, ["material"] = c.Material,
+                    ["transmittance"] = c.Loss, ["building"] = c.Building, ["storey"] = c.Storey,
                 });
+            }
             return new JsonObject
             {
-                ["terrain"] = t.Name, ["purpose"] = "sight", ["transmittance"] = q.Transmittance,
-                ["seesThrough"] = q.Transmittance >= TerrainWorld.SightThreshold, ["threshold"] = TerrainWorld.SightThreshold,
+                ["terrain"] = t.Name, ["purpose"] = "sight", ["transmittance"] = transmittance,
+                ["seesThrough"] = !wq.SightBlocked(from, to), ["threshold"] = TerrainWorld.SightThreshold,
                 ["length"] = Vector3.Distance(from, to), ["crossed"] = crossed,
                 ["note"] = "A dry run of the rule perception uses: SegmentBlocked = transmittance < threshold (buildings Stage 3, sight).",
             };
@@ -63,20 +68,22 @@ namespace Hrot.Editor.DebugApi
         public static JsonNode QueryFire(EntityRepository? world, Vector3 from, Vector3 to, float penetration, float damage)
         {
             var t = Resident(world);
-            if (t == null) return NoTerrain();
+            if (t == null || Fdp.Toolkit.World.WorldQuery.Of(world!) is not { } wq) return NoTerrain();   // ⭐ CE-1035 Q2
+            var fire = new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
             float pen = penetration, dmg = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(damage);
             float length = Vector3.Distance(from, to);
             var crossed = new JsonArray();
             bool stopped = false; float? stopAlong = null;
-            foreach (var c in t.QueryFire(from, to, DoorStates.Of(world!, t)))   // ⭐ R-219
+            wq.Trace(from, to, Fdp.Toolkit.World.TracePurpose.Fire, fire);
+            foreach (var c in fire)
             {
                 float effective = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.TerrainPenetrationOrFallback(pen);
-                float chance = Fdp.Toolkit.Combat.ArmorModel.PenetrationChance(effective, c.ResistanceMmRha);
-                bool passes = Fdp.Toolkit.Combat.TerrainPenetration.Cross(c.ResistanceMmRha, ref dmg, ref pen);
+                float chance = Fdp.Toolkit.Combat.ArmorModel.PenetrationChance(effective, c.Loss);
+                bool passes = Fdp.Toolkit.Combat.TerrainPenetration.Cross(c.Loss, ref dmg, ref pen);
                 crossed.Add(new JsonObject
                 {
                     ["along"] = c.T * length, ["kind"] = c.Kind, ["label"] = c.Label, ["material"] = c.Material,
-                    ["pathMetres"] = c.PathMetres, ["resistanceMmRha"] = c.ResistanceMmRha, ["roundPenetrationMm"] = effective,
+                    ["pathMetres"] = c.PathMetres, ["resistanceMmRha"] = c.Loss, ["roundPenetrationMm"] = effective,
                     ["chance"] = chance, ["passes"] = passes, ["building"] = c.Building, ["storey"] = c.Storey,
                 });
                 if (!passes) { stopped = true; stopAlong = c.T * length; break; }

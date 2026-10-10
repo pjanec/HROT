@@ -65,9 +65,7 @@ namespace CarKinem.Systems
             
             // ⭐ W8 (docs/DESIGN_Terrain_World.md §7.1) — the terrain world the movement model stands on. Read
             //   once per tick; SurfaceZ is read-only, so the parallel update may share it. Null = flat world.
-            _terrain = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
-                ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
-                : null;
+            _terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q2 — the movement model asks the world query
 
             // Read spatial grid from singleton (Data-Oriented dependency)
             if (!repo.HasSingleton<SpatialGridData>()) return;
@@ -124,7 +122,7 @@ namespace CarKinem.Systems
         
         // THREAD-SAFE: Method operates on unique entity and uses read-only shared data
         /// <summary>The terrain world for this tick (W8), or null on a flat / terrain-less world.</summary>
-        private Fdp.Toolkit.Terrain.TerrainWorld? _terrain;
+        private Fdp.Toolkit.World.IWorldQuery? _terrain;
 
         private void UpdateVehicle(EntityRepository repo, Entity entity, float dt, SpatialHashGrid spatialGrid,
             RoadNetworkBlob roadNetwork)
