@@ -35,6 +35,19 @@ namespace Hrot.AI.Behaviors.Brains
         Step = 2,
     }
 
+    /// <summary>⭐ <c>CE-3158</c> G8 — what a designer can switch OFF (a zero parameter means "the default", so "off" needs its own bit).</summary>
+    [Flags]
+    public enum PeekDisable : byte
+    {
+        None = 0,
+        /// <summary>Never fire a blind burst: not seen within the grace time ⇒ back down.</summary>
+        BlindFire = 1,
+        /// <summary>Warm positions are not scored down (burned ones are still left).</summary>
+        HeatPenalty = 2,
+        /// <summary>Never suppress before a bound, whatever <c>SuppressBeforeRelocate</c> says.</summary>
+        SuppressAndBound = 4,
+    }
+
     /// <summary>
     /// ⭐ <c>CE-3136</c> P-6 — the designer-edited parameters of <see cref="PeekAndFireNodes.PeekAndFire"/> (📄 §8.4). ⭐ A zero means
     /// "the default" (<see cref="PeekAndFireNodes.Effective"/>), so a blackboard nobody filled flies the duel's defaults.
@@ -88,6 +101,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-3158</c> G4 — a heard shot moves a burst only when it is within this of the locked target's remembered spot
         /// (m); a shot heard elsewhere is another enemy, not this one moving.</summary>
         public float HeardMatchRadius;
+        /// <summary>⭐ <c>CE-3158</c> G8 — see <see cref="PeekDisable"/>.</summary>
+        public PeekDisable Disable;
     }
 
     /// <summary>
@@ -208,8 +223,14 @@ namespace Hrot.AI.Behaviors.Brains
         public static HeatRules Rules(in PeekAndFireParams p) => new()
         {
             CoolHalfLifeSeconds = p.CoolHalfLifeSeconds, BurnHeat = p.BurnHeat, ReuseHeat = p.ReuseHeat,
-            HeatPenalty = p.HeatPenalty, MatchRadius = p.MatchRadius,
+            HeatPenalty = (p.Disable & PeekDisable.HeatPenalty) != 0 ? 0f : p.HeatPenalty,   // ⭐ CE-3158 G8
+            MatchRadius = p.MatchRadius,
         };
+
+        /// <summary>⭐ <c>CE-3158</c> G8 — an aimed exposure lasts at least twice the weapon's aim time (else it ends before a round
+        /// can leave); <c>ExposeSeconds</c> otherwise.</summary>
+        internal static float ExposeFor(in PeekAndFireParams p, EntityRepository world, Entity self)
+            => MathF.Max(p.ExposeSeconds, 2f * AimAndFireExecutor.AimSecondsFor(world, self, 0));
 
         /// <summary>
         /// Runs the cycle (§8.2) against the unit's top threat. Running while it has one; Success when nothing is remembered;
@@ -400,7 +421,7 @@ namespace Hrot.AI.Behaviors.Brains
             bool burned = PositionHeat.IsBurnedAt(ref mem, ws.HidePoint, now, Rules(in p));
             if (ws.Bounding == 0 && (burned || ws.ExposuresHere >= p.ExposuresPerPosition))
             {
-                if (p.SuppressBeforeRelocate != 0)
+                if (p.SuppressBeforeRelocate != 0 && (p.Disable & PeekDisable.SuppressAndBound) == 0)
                 {
                     // ⭐ P-7 D12 — SUPPRESS AND BOUND: pick the next cover now, but first come up and fire a suppressive burst at the
                     //   freshest evidence (below, through the exposure); the run to the new cover starts when the burst ends (Recover).
@@ -492,8 +513,10 @@ namespace Hrot.AI.Behaviors.Brains
             }
             if (now - ws.ExposedAt < p.GraceSeconds) return;
 
-            // 4.2 — not seen in time: a blind burst at the FRESHEST evidence (D13), raised to the body's middle (no aim time)
-            if (!StartBurst(ref ws, in p, self, world, in threat)) Recover(ref ws, in p, ref mem, self, world, now, false);
+            // 4.2 — not seen in time: a blind burst at the FRESHEST evidence (D13), raised to the body's middle (no aim time);
+            //   ⭐ CE-3158 G8 — or, with blind fire switched off, straight back down
+            if ((p.Disable & PeekDisable.BlindFire) != 0 || !StartBurst(ref ws, in p, self, world, in threat))
+                Recover(ref ws, in p, ref mem, self, world, now, false);
         }
 
         /// <summary>
@@ -569,7 +592,7 @@ namespace Hrot.AI.Behaviors.Brains
             ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);
             bool done = channel.ActiveAction == CombatConstants.ActionIdAimAndFire && channel.Status != NodeStatus.Running;
             bool firedUpon = FiredUponSince(world, self, ws.ExposedAt);
-            if (done || firedUpon || now - ws.ExposedAt >= p.ExposeSeconds || now - ws.LastSeenAt > p.GraceSeconds)
+            if (done || firedUpon || now - ws.ExposedAt >= ExposeFor(in p, world, self) || now - ws.LastSeenAt > p.GraceSeconds)
                 Recover(ref ws, in p, ref mem, self, world, now, firedUpon);
         }
 

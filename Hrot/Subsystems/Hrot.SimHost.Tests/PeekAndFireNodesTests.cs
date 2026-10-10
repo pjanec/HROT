@@ -969,5 +969,70 @@ namespace Hrot.SimHost.Tests
             PeekAndFireNodes.Deactivate_PeekAndFire(ref d.P, ref d.Ws, d.Self, d.Repo);
             Assert.Equal(0d, d.Repo.GetComponentRO<Fdp.Toolkit.Combat.Components.CoverClaim>(d.Self).Until);
         }
+            // ── CE-3158 G8 — "off" is expressible; an exposure outlasts the aim ───────────────────────────────────────────────────
+
+        /// <summary>⭐⭐ <c>G8_R1</c> — <see cref="PeekDisable.BlindFire"/>: an unseen enemy gets NO blind burst — the unit comes up, waits
+        /// the grace time and goes back down. 🔴 Red-proof: without the bit (a zero <c>BlindRounds</c> means the default 3) a burst flies.</summary>
+        [Fact]
+        public void G8_R1_BlindFireOff_NoBurstAtAnUnseenEnemy()
+        {
+            var d = new Duel(Rifleman() with { Disable = PeekDisable.BlindFire }, seen: false);
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched));
+            d.Run(12);
+            Assert.True(d.Ws.Exposures >= 1, "it still comes up to look");
+            Assert.DoesNotContain(d.Fires, f => f.Action == CombatConstants.ActionIdFireAtPoint);
+        }
+
+        /// <summary>⭐ <c>G8_R2</c> — <see cref="PeekDisable.HeatPenalty"/>: a WARM (not burned) best point keeps its rank. 🔴 Red-proof:
+        /// with the penalty, heat 2 × 0.3 drops it below the second point.</summary>
+        [Fact]
+        public void G8_R2_HeatPenaltyOff_AWarmBestPointKeepsItsRank()
+        {
+            foreach (var off in new[] { false, true })
+            {
+                var d = new Duel(Rifleman() with { Disable = off ? PeekDisable.HeatPenalty : PeekDisable.None });
+                var mem = new FiringPositionMemory();
+                PositionHeat.Add(ref mem, new Vector3(4f, 1f, 0f), 2.0f, 0d, HeatRules.Default, exposure: true);
+                UnitMemory.Set(d.Repo, d.Self, mem);
+                d.Step();
+                d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched), (8f, 1f, StanceId.Crouched));
+                Assert.Equal(PeekPhase.MoveToHide, d.RunUntil(PeekPhase.MoveToHide));
+                Assert.Equal(off ? new Vector3(4f, 1f, 0f) : new Vector3(8f, 1f, 0f), d.Moves[^1]);
+            }
+        }
+
+        /// <summary>⭐ <c>G8_R3</c> — <see cref="PeekDisable.SuppressAndBound"/> overrides <c>SuppressBeforeRelocate</c>: a used-up position
+        /// is left WITHOUT a suppressive burst.</summary>
+        [Fact]
+        public void G8_R3_SuppressAndBoundOff_RelocatesWithoutABurst()
+        {
+            var d = new Duel(Street() with { SuppressBeforeRelocate = 1, ExposuresPerPosition = 1, BurnHeat = 99f, ReuseHeat = 98f,
+                                             Disable = PeekDisable.SuppressAndBound });
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (10f, 10f, StanceId.Crouched), (20f, 10f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            d.Step();
+            d.Answer(PeekAndFireNodes.PeekSite, 7, (10f, 12f, null));
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            Assert.Equal(PeekPhase.MoveToHide, d.RunUntil(PeekPhase.MoveToHide));
+            Assert.Equal(0, d.Ws.Bounding);
+            Assert.DoesNotContain(d.Fires, f => f.Action == CombatConstants.ActionIdFireAtPoint);
+        }
+
+        /// <summary>⭐⭐ <c>G8_R4</c> — an aimed exposure lasts at least 2 × the weapon's aim time (fallback 0.8 s ⇒ 1.6 s) even when
+        /// <c>ExposeSeconds</c> is shorter — else it ends before the first round leaves. 🔴 Red-proof: with <c>ExposeSeconds</c> alone it
+        /// ends at 0.5 s.</summary>
+        [Fact]
+        public void G8_R4_AnAimedExposure_OutlastsTwiceTheAimTime()
+        {
+            var d = new Duel(Rifleman() with { ExposeSeconds = 0.5f, RoundsPerExposure = 1000, GraceSeconds = 5f });
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            double up = d.Time;
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.InRange(d.Time - up, 1.5, 1.9);
+        }
     }
 }
