@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — approach chosen by the user (U13: alternative B, a 2-D/3-D switch on the existing map); the
   leans in §5 await approval before S1. Nothing built.
-updated: 2026-10-10
+updated: 2026-10-10 (rev 2 — U14: humans as Minecraft-style block figures, M7 rewritten)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §7 what is NOT verified.
 stale-below: nothing.
@@ -34,7 +34,7 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 | in 3-D | |
 |---|---|
 | terrain | lit, colour-shaded polygons from `TerrainWorld` (ground, surfaces, water, roads, buildings by material); textures later |
-| entities | vehicles as boxes from TKB dimensions (tank = hull + turret box); humans as cylinders — upright, shorter when crouched, lying when prone |
+| entities | vehicles as boxes from TKB dimensions (tank = hull + turret box); humans as **Minecraft-style block figures** — head, torso, arms, legs — posed by stance, limbs swinging with speed |
 | interaction | click-select, right-click menu, tools — through the **unchanged** input chain |
 | gizmos | the 3-D subset of the gizmo stream (lines, arrows, spheres, semantic shapes) — fire traces and detonations included |
 | camera | Unity-style free camera; the camera entity (V-12..V-15) |
@@ -47,6 +47,7 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 |---|---|---|
 | **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) … with imgui on top for menus?"* | measured in `DESIGN_Godot_3D_Viewer.md` §8 — lean B |
 | **U13** | *"The internal 3d solution could be switchable 2d/3d instead of current 2d only map so no new 3d window would be required. I think we should focus on B … Lets put godot aside (but keep its design as deferred). We need the simple renderer to handle the terrain geometry, use lighting color shaded polygons to give it some usable feeling of a real world, if not some freely available texture pack."* | ⭐ this file: a **mode of the map**, not a window; **lit, colour-shaded terrain**; textures as a later slice |
+| **U14** | *"Human characters as simple as in minecraft would be a bit nicer and still feasible i guess."* | ⭐ M7 rewritten: a **six-box figure**, stance poses blended by the transition, limb swing from speed |
 
 The requirements V-01..V-20 live in `DESIGN_Godot_3D_Viewer.md` §1. ⭐ What changes under U13: **V-09** (own window) →
 the map's own area, switched; **V-17** holds (render only); **V-18** (network) → an IG node with the map in 3-D;
@@ -99,7 +100,7 @@ graph TD
     MC --> T3
     MC --> E3
     T3 -- TerrainWorld --> W
-    E3 -- SimTransform, StanceStatus --> W
+    E3 -- SimTransform, stance, velocity --> W
   end
   L4 -. "no 3-D path: skipped, counted" .-> MC
 ```
@@ -134,7 +135,10 @@ classDiagram
   class SelectionRenderSystem { <<exists>> +Draw3D wire cubes }
   class GridMapLayer { <<exists>> +Draw3D ground grid }
   class TerrainLayer3D { <<new>> lit terrain mesh }
-  class EntityBodyLayer3D { <<new>> boxes, cylinders }
+  class EntityBodyLayer3D { <<new>> vehicle boxes, human figures }
+  class BlockFigure { <<new>> six-box pose by stance, limb swing }
+  class LogicalStance { <<exists>> the shared stance rule }
+  class LocomotionBlend { <<extracted>> speed to idle/walk/run }
   class Gizmo3DTriage { <<extracted>> from DebugPrimitiveRenderer3D }
   class IDebugDrawSink3D { <<extracted>> }
   class RaylibDrawSink3D { <<new>> }
@@ -156,6 +160,9 @@ classDiagram
   TerrainLayer3D ..> TerrainWorldMesh
   TerrainLayer3D ..> LitShader
   EntityBodyLayer3D ..> LitShader
+  EntityBodyLayer3D ..> BlockFigure
+  BlockFigure ..> LogicalStance
+  BlockFigure ..> LocomotionBlend
 ```
 
 *What it shows:* the 3-D mode is **one camera subclass, two layers, one shader and one sink**; everything else is an
@@ -180,7 +187,7 @@ sequenceDiagram
   H->>C: Draw()
   C->>K: BeginMode() = BeginMode3D
   C->>T: Draw3D (static mesh, lit shader, fog)
-  C->>E: Draw3D (boxes / cylinders from the world)
+  C->>E: Draw3D (vehicle boxes, human block figures)
   C->>G: Draw3D (gizmo frame -> triage -> Raylib sink)
   C->>S: Draw3D (wire cube per selected)
   C->>K: EndMode()
@@ -233,8 +240,9 @@ sequenceDiagram
 | `TerrainWorldMesh.Build` | ✅ + an **optional** per-triangle tag output (ground / surface / roof / wall / slab + material) — verts and indices unchanged, so the navmesh is unaffected | `TerrainWorldMesh.cs:31` |
 | fire / detonation visuals | ✅ **free in S3** — `FireTraceGizmo` / `DetonationGizmo` already emit 3-D lines and spheres | gizmo sweep 2026-10-10 |
 | vehicle sizes | ✅ `VehicleParametersDto` / `SimVehicleDef` | TKB |
-| stance | ✅ `StanceStatus.CurrentStance` | `Tkb/Domain/StanceComponents.cs:58` |
-| `MapCamera3D`, `TerrainLayer3D`, `EntityBodyLayer3D`, `RaylibDrawSink3D`, the lit shader, the switch | 🆕 new | — |
+| stance | ✅ `LogicalStance.Of` for the pose; `StanceStatus.Phase` / `TransitionProgress` to blend into it | `Tkb/Domain/StanceComponents.cs:58,82` |
+| `LocomotionBlend` (speed → idle/walk/run weights, pure `System`) | 🔁 **extract** beside the gizmo triage — drives the limb swing | `Stride/Hrot.Stride.Animation/LocomotionBlend.cs:99-145` |
+| `MapCamera3D`, `TerrainLayer3D`, `EntityBodyLayer3D`, `BlockFigure` (the six-box pose math, unit-tested), `RaylibDrawSink3D`, the lit shader, the switch | 🆕 new | — |
 
 ---
 
@@ -248,7 +256,7 @@ sequenceDiagram
 | **M4** | terrain mesh | ⭐ extend `TerrainWorldMesh` with optional tags; the renderer adds what navigation does not need (water surface, surface colours, road ribbons) beside it | a second mesher for rendering — duplicates prisms/walls/slabs |
 | **M5** | lighting | ⭐ **one small GLSL shader** (330): vertex colour × (ambient + sun·N), distance fog to a sky colour; flat normals by un-indexing triangles | CPU-baked vertex lighting — entities rotate, so it would need re-baking every frame |
 | **M6** | textures | ⭐ a later slice: **CC0** packs only, mapped in the shader from **world position** (triplanar) so the mesh needs no UVs | UV-unwrapping terrain — work the triplanar trick avoids |
-| **M7** | entities | ⭐ box per vehicle from TKB size (tank: hull + turret box); human = cylinder 1.8 m upright / ~1.1 m crouched / lying along heading when prone; colour by side | models now — U12 rules primitives |
+| **M7** | entities | ⭐ box per vehicle from TKB size (tank: hull + turret box). **Human = a six-box block figure (U14)**: head, torso, two arms, two legs, ~1.8 m, torso in the side's colour. **Pose** = the shared stance rule `LogicalStance.Of` (`StanceComponents.cs:82`: *"a unit's LOGICAL stance is what its brain ordered … an animation only shows it and never gates it"*) — standing; crouched (hips lowered, knees bent); prone (the whole figure laid along its heading). While `StanceStatus.Phase` is transitioning, the pose blends by `TransitionProgress`. **Limb swing** (arms and legs counter-swinging, Minecraft-style) from planar speed through the extracted `LocomotionBlend.FromSpeed` (`LocomotionBlend.cs:114`) — walk and run weights set amplitude and rate; a per-entity phase advances with distance walked. Optional rifle = a thin box in the hands | cylinders (rev 1) — U14 · real models — U12 · showing `StanceStatus.CurrentStance` alone — it would disagree with the hit model, fire chain and perception, which all read `LogicalStance` |
 | **M8** | free camera | ⭐ Unity scene view: **RMB-drag** look, **WASD/QE only while RMB is held** (so tools keep their keys), wheel dolly, MMB pan, **F** frames the selection; right-**click** stays the context menu (the canvas already tells drag from click) | always-on WASD — collides with tool keyboard input |
 | **M9** | coordinates | ⭐ one transform: HROT `(x, y, z)` → Raylib `(x, z, −y)`, quaternion `(x, y, z, w)` → `(x, z, −y, w)` (det +1, no flip) | — |
 | **M10** | the camera entity (V-12..V-15) | ⭐ an ordinary spatial entity (U7) holding the **3-D** pose, created on first 3-D move, owned by the host, saved with the scenario; the 2-D mode derives its target from it on switch | ⚠ open: should the 2-D view also persist through it? (§7) |
@@ -260,10 +268,10 @@ sequenceDiagram
 
 | slice | delivers | proves |
 |---|---|---|
-| **S1** | `MapCamera3D` + the switch (Editor); `TerrainLayer3D` from `TerrainWorldMesh` as-is, one colour per kind, lit shader + fog; `EntityBodyLayer3D` boxes/cylinders; free camera; **Xvfb screenshot of the editor in 3-D on `test-town`** | the render path, the shader on the cloud's software GL, M8 |
+| **S1** | `MapCamera3D` + the switch (Editor); `TerrainLayer3D` from `TerrainWorldMesh` as-is, one colour per kind, lit shader + fog; `EntityBodyLayer3D` vehicle boxes + block figures in their three stance poses (static); free camera; **Xvfb screenshot of the editor in 3-D on `test-town`** | the render path, the shader on the cloud's software GL, M8 |
 | **S2** | `ScreenToWorld` ray picking; `deltaWorld` through the camera; `SelectionRenderSystem.Draw3D` wire cubes | select, context menu and tools work in 3-D unchanged |
 | **S3** | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters | gizmos, fire traces, detonations in 3-D |
-| **S4** | mesh tags; colours by surface and material; water; road ribbons from the road network | "a usable feeling of a real world" (U13) |
+| **S4** | mesh tags; colours by surface and material; water; road ribbons from the road network; **figures come alive**: stance blending + limb swing (`LocomotionBlend` extracted), optional rifle | "a usable feeling of a real world" (U13), U14 |
 | **S5** | camera entity — create, follow, scenario save | V-12..V-15 |
 | **S6** | all five hosts through `MapInteractionPack` | V-01, V-18 (IG) |
 | **S7** | CC0 textures, triplanar | U13's texture wish |
@@ -282,3 +290,4 @@ sequenceDiagram
 | ⚠ which CC0 texture pack — ambientCG / Poly Haven are CC0 by their own terms; specific textures and repo size not chosen | S7, with a licence table |
 | ⚠ M10's open part: one camera entity for both modes, or 3-D only | ask the user |
 | ⚠ IG humans stand upright until IG ingests stance (`CE-2121` "IG ingress open") | S6 |
+| ⚠ `LogicalStance.Of` and `StanceStatus` are present on every host's entities (they are `NoScenario` runtime components; the Editor may not run the stance systems) — no stance ⇒ standing, as the rule itself says | S1 rail |
