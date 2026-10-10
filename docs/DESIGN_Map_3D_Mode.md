@@ -2,12 +2,13 @@
 state: LIVE
 build-state: DESIGN — approach chosen by the user (U13: alternative B, a 2-D/3-D switch on the existing map); the
   leans in §5 await approval before S1. Nothing built.
-updated: 2026-10-10 (rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
+updated: 2026-10-10 (rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
+  §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §7 what is NOT verified.
-stale-below: nothing.
+stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: none.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
@@ -51,6 +52,7 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 | **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) … with imgui on top for menus?"* | measured in `DESIGN_Godot_3D_Viewer.md` §8 — lean B |
 | **U13** | *"The internal 3d solution could be switchable 2d/3d instead of current 2d only map so no new 3d window would be required. I think we should focus on B … Lets put godot aside (but keep its design as deferred). We need the simple renderer to handle the terrain geometry, use lighting color shaded polygons to give it some usable feeling of a real world, if not some freely available texture pack."* | ⭐ this file: a **mode of the map**, not a window; **lit, colour-shaded terrain**; textures as a later slice |
 | **U15** | *"Every host having the 2d map will get simple 3d, correct? Not just IG. … The current 2d map can be switched to 3d view and back (some camera animation between 2d camera and 3d camera or something)."* | ✅ yes, all five map hosts (S6). ⭐ M12: the switch is an animated camera move, not a cut |
+| **U20** | *"unify the 2d text gizmos and the card gizmos so we use same mechanism for both 2d and 3d. The card concept might work well in 2d as well as 3d, being a small canvas for gizmos. The card would not need any special header, if a gizmo uses card anchor, card will be created if not existing yet … what to allow to be anchored, how to achieve the desired health bar, entity name and card frame colored by affiliation … Still supporting the loose text gizmos for special purposes"* | ⭐ §3.6 rewritten: card = canvas, implicit creation, rows by `ZIndex`, row 0 card-wide, `%` of the card; frame / bar / name are ordinary gizmos; no new shapes (M14) |
 | **U19** | *"The entity 3d mode color needs to be somehow settable (from scenario - special component) with tkb default color. Entity needs to support some label rectangle on top of it, with thin line down to entity model, showing health bar on top of entity name and lines for extra colored text info, all together framed in a rectangle with line colored according entity side … switchable on/off (layer for labels) … maybe the label area is just another mode of anchoring the 2d gizmo graphics?"* | ⭐ §3.6 card = a new anchoring mode (M14); §3.7 colour = a published descriptor under R-136 (M15) |
 | **U18** | *"Vehicles and aircraft should be also composed of multiple pieces to resemble what they are in real world, still cheap."* | ⭐ M7 rewritten: **shape kits** (§3.5), chosen by one visual-family classifier the icons already use |
 | **U16** | *"The 3d entities will need some label system so that we can show various texts provided by gizmos. So far gizmos were using 2d text, how to adapt to text for entities in 3d?"* | ⭐ §3.4 + M13: the same text primitives, projected; one overlay pass |
@@ -156,7 +158,8 @@ classDiagram
   class TerrainWorldMesh { <<exists>> +optional per-triangle tag }
   class LitShader { <<new>> GLSL directional light + fog }
   class LabelOverlay3D { <<new>> project, LOD, cull }
-  class EntityCardGizmo { <<new>> header + health bar }
+  class EntityCardFrameGizmo { <<new>> row 0 frame, side colour }
+  class CardBuilder { <<new>> draw.Card(e).Row(n) sugar }
   class EntityCardRenderer { <<new>> one card, 2-D and 3-D }
   class EntityAppearance { <<new>> published colour, R-136 4.1 }
   class GizmoTextDraw { <<extracted>> from DebugPrimitiveRenderer2D }
@@ -182,6 +185,8 @@ classDiagram
   LabelOverlay3D ..> GizmoTextDraw
   LabelOverlay3D ..> MapCamera3D : WorldToScreen
   DebugGizmoLayer ..> EntityCardRenderer : card-space primitives
+  EntityCardRenderer ..> MapCamera : WorldToScreen, either mode
+  EntityCardFrameGizmo ..> CardBuilder
   EntityBodyLayer3D ..> EntityAppearance : colour, else TKB
   BlockFigure ..> LogicalStance
   BlockFigure ..> LocomotionBlend
@@ -310,62 +315,103 @@ only** — rotor spin from time, wheel roll from speed; the turret follows the h
 ⛔ **Air:** the kits are built and railed, but **no built-in type is in the air domain**, and the DIS air category numbers
 for helicopter vs fixed wing are **not yet confirmed** against SISO-REF-010 — settled when the first air type is added.
 
-### 3.6 The entity CARD — a new way of ANCHORING gizmo graphics *(U19)*
+### 3.6 The entity CARD — a small canvas for gizmos, the SAME in 2-D and 3-D *(U19, reshaped by U20)*
 
-📐 Measured `2026-10-10`: ⭐ the card's content **already exists as gizmos, drawn as loose lines** —
-`EntityEditorLabelGizmo` stacks the id, the active behaviour and `HP:x/y` as separate `DrawText` lines at the entity's
-world point (`EntityEditorLabelGizmo.cs:61-100`); `HealthBarGizmo` draws health as a text badge (`HealthBarGizmo.cs:54`).
-⇒ The user's instinct is right: ⭐⭐ **the card is a new anchoring mode, not a new label system.** A gizmo says
-*"put this in entity N's card"* instead of *"put this at entity N's world point"*; the terminal lays the card out.
+📐 Measured `2026-10-10`: the card's content **already exists as gizmos drawn as loose text** — `EntityEditorLabelGizmo`
+stacks id / behaviour / `HP:x/y` lines at the entity point (`EntityEditorLabelGizmo.cs:61-100`), `HealthBarGizmo` draws a
+text badge (`HealthBarGizmo.cs:54`). ⭐ **U20: the card is a small canvas any gizmo can draw into; it exists because a
+gizmo drew into it — no header, no special shape.** Loose text keeps working for special purposes.
+
+#### What a card is
 
 ```text
-                ┌──────────────────────┐   ← frame in the SIDE colour (friend / opposing / neutral)
-                │ ████████████░░░░░░░░ │   ← health bar          (CardBar, from the standard card gizmo)
-                │ T-72 #1043           │   ← title = entity name (CardHeader)
-                │ Attack (moving)      │   ← rows, coloured, in ZIndex order — from ANY gizmo
-                │ ammo 34/40           │
-                └──────────┬───────────┘
-                           │               ← thin leader line down to the body top (3-D) / the symbol (2-D)
-                         [body]
+    card for entity #1043 — created this frame because ≥ 1 visible primitive targets it
+    ┌──────────────────────────┐   row 0  (card-wide)  frame + background  ← EntityCardFrameGizmo, side colour
+    │ ███████████████░░░░░░░░░ │   row 10             health bar           ← HealthBarGizmo: two Box2D, widths in % of the card
+    │ T-72 #1043               │   row 20             name                 ← EntityNameGizmo: Text
+    │ Attack (moving)          │   row 40             behaviour            ← EntityEditorLabelGizmo: Text, own layer
+    │ ammo 34/40   [icon]      │   row 50             any other gizmo      ← Text + Icon in one row
+    └────────────┬─────────────┘
+                 │                 leader line, drawn by the card renderer
+               [entity]            2-D: its symbol · 3-D: the top of its body
 ```
 
-| piece | what it is | fits the existing 64-byte primitive? |
+| rule | carried by | ⭐ why it needs no new field |
 |---|---|---|
-| **card space** | ⭐ a 4th `CoordinateSpace`: `EntityCard` (today `World`=0, `Screen`=1, `EntityLocal`=2) | ✅ the `Space` byte at offset 1; `AnchorIndex` already carries the entity's network id (`DebugPrimitive.cs:24,63`) |
-| **rows** | the existing `Text` primitive in card space — colour = its `Color`, size = `ThicknessU16`, order = `ZIndex` | ✅ `ZIndex` byte at offset 15 is already "intra-layer sort" |
-| **bar** | a new shape `CardBar` — fraction 0..1, fill colour, back colour (health; later fuel, ammo) | ✅ payload union |
-| **header** | a new shape `CardHeader` — title text + frame colour | ✅ payload union |
-| **on / off** | ⭐ the card's primitives sit on a **"Labels" layer** — the **existing** 256-bit layer mask and layer panel switch it | ✅ the `DebugLayer` byte; ⛔ no new UI |
+| ⭐ **a card exists iff a visible primitive targets it** — anchor = the entity's network id | `Space = EntityCard` (a 4th value) · `AnchorIndex` = network id | `Space` byte at offset 1 uses values 0–2 today; `AnchorIndex` already is the network id (`DebugPrimitive.cs:24,63`) |
+| ⭐ **rows**: primitives sharing an order key form one row; rows stack top-down by key; ties broken by gizmo type | `ZIndex` | `ZIndex` byte at offset 15 is already *"intra-layer sort"* — in a card the sort is the row order |
+| ⭐ **row 0 is card-WIDE** — not in the flow; drawn over the whole card after layout (frame, background, a badge in a corner) | `ZIndex = 0` | `ZIndex` already says *"0 = background"* |
+| ⭐ **coordinates are card-local pixels**, origin at the row's top-left | the shape's own x/y fields (`TextX/Y`, `BoxCenter/Extent`, `LineStart/End`, `IconWorldPos`) | the same fields the screen space uses |
+| ⭐ **"% of the card"** for widths/heights that should fill (a bar, the frame) | `SizeMode = ScreenPercent` | it already means *"fraction of the container"* (the viewport for screen panels, `ImGuiPropertyTreeAdapter.cs:92`) — the container is now the card |
+| ⭐ **on / off per row** | `DebugLayer` | each gizmo keeps its own layer; a card with no visible rows disappears |
+| card width | the widest row, measured; a minimum width | — |
 
-**Who emits what**
-- ⭐ one standard **`EntityCardGizmo`** (projector on `NetworkIdentity` + `EntityInfo`): the header (name from
-  `EntityInfo`, frame colour from the side) and the health `CardBar` from `Health` — it **replaces** `HealthBarGizmo`'s
-  text badge.
-- ⭐ **any other gizmo adds rows** by drawing its text in card space — `EntityEditorLabelGizmo`'s id / behaviour lines
-  become card rows. ⭐ A row whose entity has no header still renders, in a plain grey card — gizmos stay independent.
-- ⭐ each row keeps **its own layer**, so turning off "AI" hides the behaviour row while the card stays.
+#### What may be drawn into a card
 
-**Who draws it** — the terminal, one `EntityCardRenderer` **for both modes**: collects card primitives per entity,
-measures the rows, draws the frame, bar, title, rows and the leader line. Positioned above the body top (3-D, projected
-like M13's labels) or beside the symbol (2-D). Far cards hide by LOD; overlap decluttering later.
+| ✅ allowed | use |
+|---|---|
+| `Text` | names, values, coloured info lines |
+| `Box2D` (filled / outline) | bars (health, fuel, ammo), swatches, the frame |
+| `Line` | separators, small indicators |
+| `Icon` | status icons |
+| `EntityBadge` (rich text) | coloured runs inside one line |
+| `MilStd2525` | the unit's symbol inside the card |
+| `FilledTriangle` | arrows / markers |
+| ⛔ ignored, counted | `Sphere`, `Arrow`, `SemanticShape`, `SpatialAnchor`, bindings, `StructInspector` — they are world or panel things |
+
+#### How the three things you asked for emerge — all as ordinary gizmos
+
+| wanted | gizmo *(host side, reads ECS)* | emits into the card |
+|---|---|---|
+| **frame coloured by side** | `EntityCardFrameGizmo` *(new; `NetworkIdentity` + `EntityInfo`)* | row 0: an outline `Box2D` 100 % × 100 % in the side colour (one palette, M16) + a translucent filled one behind it |
+| **health bar** | `HealthBarGizmo` *(existing, re-targeted)* | row 10: a dark `Box2D` 100 % wide + a coloured one `Current / Max` wide, both `ScreenPercent` |
+| **entity name** | `EntityNameGizmo` *(new, or split from `EntityEditorLabelGizmo`)* | row 20: `Text` from `EntityInfo.Name` |
+| extra lines | any gizmo | rows 30+ on their own layers |
+
+⭐ The leader line is the **card renderer's**, because only the terminal knows where it placed the card; ⭐ it takes the
+colour of the card's row-0 outline when there is one (so it matches the frame), else grey.
+
+#### One renderer, both modes — only "where is the entity on screen" differs
 
 ```mermaid
 sequenceDiagram
-  participant EG as EntityCardGizmo (host)
-  participant LG as other gizmos (host)
-  participant BUF as primitive buffer / DDS
+  participant GZ as gizmos (host)
+  participant BUF as primitive frame (in-process or DDS)
   participant CR as EntityCardRenderer (terminal)
-  participant K as camera (2-D or 3-D)
-  EG->>BUF: CardHeader(netId, name, side colour) + CardBar(netId, health) on "Labels"
-  LG->>BUF: Text in EntityCard space (netId, colour, ZIndex) on their own layers
-  BUF->>CR: one frame - layer mask applied first
-  CR->>CR: group by netId, sort rows by ZIndex, measure
-  CR->>K: WorldToScreen(body top or symbol)
-  CR->>CR: draw frame, bar, title, rows, leader line
+  participant K as MapCamera or MapCamera3D
+  GZ->>BUF: primitives with Space = EntityCard, AnchorIndex = netId
+  BUF->>CR: frame - layer mask and LOD applied first
+  CR->>CR: group by netId, rows by ZIndex, row 0 card-wide
+  CR->>CR: measure rows - card width, row heights
+  CR->>K: WorldToScreen(entity point) - 2-D anchor / 3-D body top
+  CR->>CR: place card above it, leader line
+  CR->>CR: draw rows in card pixels, then row 0 over the card rect
 ```
 
-*What it shows:* the card travels as ordinary primitives — so it works **in-process and over DDS (IG)** with no new
-topic — and the layout decision lives in one place, the terminal, as the gizmo design intends.
+*What it shows:* the renderer never asks which mode it is in — it asks the camera for a screen point, and the camera
+classes already answer that in both modes (`MapCamera.WorldToScreen` is virtual, `MapCamera.cs:354`). ⭐ So a card gizmo is
+written **once** and appears identically in 2-D and 3-D, in-process and on a remote IG.
+
+#### Gizmo-author API — sugar over existing primitives
+
+```csharp
+var card = draw.Card(entity);                    // sets Space = EntityCard, AnchorIndex = netId on everything below
+card.Row(10).Bar(fraction: hp, fill: Green, back: DarkGrey, heightPx: 4);   // two Box2D, ScreenPercent widths
+card.Row(20).Text("T-72 #1043", White);
+card.Row(0).Frame(sideColour);                   // outline + translucent fill, 100 % x 100 %
+```
+
+⭐ No new primitive kind travels on the wire — only a new `Space` value, so DDS and the IG need nothing extra.
+
+#### Loose text stays
+
+`World` / `EntityLocal` text is untouched: in 2-D it draws as today; in 3-D it is projected (§3.4, M13). ⭐ A gizmo chooses
+per call — card when it describes *the entity*, loose when it marks *a place* (a measurement, a waypoint label).
+
+#### Later, cheap options
+
+- **click the card** = click the entity (its screen rect is a pick region for its network id) — select / context menu.
+- **declutter** overlapping cards; hide cards below a zoom (2-D) or beyond a distance (3-D) — card-level LOD on top of each row's own.
 
 ### 3.7 Entity colour — a scenario-settable value with a TKB default *(U19)*
 
@@ -431,7 +477,7 @@ area. ⛔ Not decided silently: §5 M15 asks.
 | **M11** | network viewer (V-18) | ⭐ an IG node with the map in 3-D — nothing extra | a dedicated viewer node — IG already is one |
 | **M12** | the 2-D ↔ 3-D switch (U15) | ⭐ an **animated camera move** pivoting at the overhead pose (§3.3): both swaps happen where 2-D and 3-D look the same | a hard cut — the user asked for animation · morphing orthographic into perspective — needless; overhead perspective at matched height is close enough |
 | **M13** | labels in 3-D (U16) | ⭐ a screen-space `LabelOverlay3D` pass after the 3-D pass: the existing `Text` / `EntityBadge` primitives, anchors resolved with Z, lifted to the top of the entity's 3-D body, projected by `MapCamera3D.WorldToScreen`, drawn by the 2-D renderer's screen-space text code (extracted, one implementation). Far labels hide by the primitives' own `MinZoomLod` / `MaxZoomLod`, using an equivalent zoom = pixels per metre at the label's distance. Drawn always on top first (name-tag style); hiding labels behind buildings by a ray test is a later option; decluttering overlaps later | 3-D text meshes (billboarded geometry in the scene) — a second text renderer, unreadable at distance · a new label primitive — every gizmo would have to change |
-| **M14** | the entity card (U19) | ⭐ **a 4th anchoring mode, `CoordinateSpace.EntityCard`** + two shapes (`CardHeader`, `CardBar`); rows are ordinary `Text` in card space ordered by `ZIndex`; one standard `EntityCardGizmo` emits header + health bar on a "Labels" layer; any gizmo adds rows on its own layer; one `EntityCardRenderer` draws it in **both** 2-D and 3-D (§3.6) | a card drawn by the terminal from ECS — not network-capable and not extensible by gizmos · keeping loose stacked text — the user's own objection: it does not read in 3-D · a card only in 3-D — the 2-D renderer would still have to skip or misplace card-space primitives |
+| **M14** | the entity card (U19, U20) | ⭐ **a small canvas per entity**: a 4th anchoring mode `CoordinateSpace.EntityCard`; the card **exists iff a visible primitive targets it**; rows by `ZIndex`, row 0 card-wide; card-local pixels, `ScreenPercent` = % of the card; frame, health bar and name are **ordinary gizmos** (`EntityCardFrameGizmo`, re-targeted `HealthBarGizmo`, `EntityNameGizmo`); one `EntityCardRenderer` for 2-D and 3-D asking the camera for the screen point; **no new primitive kind**; loose text unchanged (§3.6) | dedicated `CardHeader` / `CardBar` shapes (rev 6) — U20: a header is not needed and shapes would be card-only · absolute card pixels per gizmo — independent gizmos would collide · a card drawn by the terminal from ECS — not network-capable, not extensible |
 | **M15** | entity colour (U19) | ⭐ `EntityAppearance { ColorRgba }` as **published state by `R-136` §4.1** (descriptor arm + `Reliable`/`TransientLocal` topic + translators), authored and saved in the scenario; default `VisualData.ColorHex` from the TKB. ⚠ the first §4.1 override ever built, in NED (backend lane's area) — **asks the user** | writing the override into `VisualData` — illegal under R-136 (TKB-derived, §3 ②) · a command to set it — §5: unreconstructible by a late joiner |
 | **M16** | side colours | ⭐ **one palette**: friend / opposing / neutral colours defined once, looked up by `ForceId` (the card frame, placement ghost) and by the 2525 affiliation letter (the symbol renderer) | ⚠ today there are **two** mappings: `MilStd2525Renderer.GetAffiliationColor` (`:84`, by symbol code) and `EntityPlacementGizmo.GetAffiliationColor` (`:278`, by `ForceId`) — a third consumer would make three |
 
@@ -446,7 +492,7 @@ area. ⛔ Not decided silently: §5 M15 asks.
 | **S3** | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters; **labels**: `GizmoTextDraw` extracted, `LabelOverlay3D` with projection + LOD | gizmos, fire traces, detonations and gizmo text in 3-D (U16) |
 | **S4** | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
 | **S5** | camera entity — create, follow, scenario save | V-12..V-15 |
-| **S5b** | **the card**: `CoordinateSpace.EntityCard`, `CardHeader`, `CardBar`, `EntityCardGizmo` on a "Labels" layer, `EntityCardRenderer` in 2-D and 3-D; `EntityEditorLabelGizmo` rows moved into the card; one side palette (M16) | U19 card |
+| **S5b** | **the card**: `CoordinateSpace.EntityCard`; `EntityCardRenderer` (rows by `ZIndex`, row 0 card-wide, `%` of the card, leader line) in 2-D and 3-D; `CardBuilder` sugar; `EntityCardFrameGizmo` + one side palette (M16); `HealthBarGizmo` re-targeted to a bar row; `EntityNameGizmo`; `EntityEditorLabelGizmo` rows moved in; a "Labels" layer default | U19, U20 |
 | **S5c** | **entity colour**: `EntityAppearance` per M15 — only after the user's answer | U19 colour |
 | **S6** | all five hosts through `MapInteractionPack` | V-01, V-18 (IG) |
 | **S7** | CC0 textures, triplanar | U13's texture wish |
@@ -471,3 +517,7 @@ area. ⛔ Not decided silently: §5 M15 asks.
 | ⚠ M15 is a precedent under R-136 and lands in NED | the user |
 | ⚠ IG humans stand upright until IG ingests stance (`CE-2121` "IG ingress open") | S6 |
 | ⚠ `LogicalStance.Of` and `StanceStatus` are present on every host's entities (they are `NoScenario` runtime components; the Editor may not run the stance systems) — no stance ⇒ standing, as the rule itself says | S1 rail |
+
+## ⛔ HISTORY — superseded the same day, do NOT quote
+
+- **rev 6 card:** dedicated `CardHeader` and `CardBar` primitive shapes and a mandatory `EntityCardGizmo` header. Superseded by U20 — the card is created by any primitive that targets it; frame, bar and name are ordinary gizmos; no new shapes.
