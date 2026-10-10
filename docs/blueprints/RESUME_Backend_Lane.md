@@ -1,15 +1,32 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-06
-current-answer: §0 — the UTILITY AI DEMO programme (CE-3069; design docs/DESIGN_Utility_AI_Demo_Scenarios.md, approved R-209). §1 below is the 2026-10-03 state (terrain world, asset management) and is HISTORY for this lane's current work.
-stale-below: §1 and below — the 2026-10-03 terrain / asset-management state (history for this lane)
+updated: 2026-10-10
+current-answer: ⭐ §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-255/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
+stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
+  - docs/REVIEW_Behaviour_Library_Genericity.md — the CURRENT programme's verdict + decisions (§5) and retreat concepts (§6).
+  - docs/DESIGN_Peek_And_Fire.md §10 — the approved generalisation (G1–G8, R-257) and §10.7 CoverClaim; CE-3158 builds it.
   - docs/DESIGN_Ownership_Groups_And_Grants.md — the programme's owning design (push-only ownership, S1–S8, §5.7.1 live matrix, §5.9/§5.10 deferred designs).
   - docs/DESIGN_Subsystem_Composition_Unification.md — B5 (not started) gates CE-3006 / CE-524 / CE-513.
 -->
 # RESUME — backend lane
 
 ⚠ A STATE doc: verify every line against git before acting on it.
+
+## 00. NOW (`2026-10-10`) — the behaviour LIBRARY: generic, squad-aware *(this session is the ACTIVE backend session; 🔒 user: "the other one is on hold")*
+
+| what | where | state |
+|---|---|---|
+| **the review** — is the behaviour library generic? inventory (88 node classes), overlap clusters, PeekAndFire audit | [`REVIEW_Behaviour_Library_Genericity.md`](../REVIEW_Behaviour_Library_Genericity.md) §1–§6 | ✅ decided: **R-256** (L1–L4 + L5 accepted) · **R-255** (the library is BTREES — C#-built allowed; blueprint/HSM copies go *only where redundant and not the best host*; the three-host DEMO stays, on the library implementation) |
+| **PeekAndFire generalised, squad-aware** — G1 peek from the point · G2 honest Failure · G3 friendly line + ROE on bursts · G4 locked target · G5 `CoverClaim` · G6 `MayExpose` seam · G7 `SimRng` fix · G8 infantry scope | [`DESIGN_Peek_And_Fire.md`](../DESIGN_Peek_And_Fire.md) §10 (+ §10.7 CoverClaim) | ✅ **APPROVED R-257** · **`CE-3158` READY-TO-BUILD** (slices G-1…G-6, each red-proved) · ⛔ **user said "not implementing yet"** before approving — build only when told |
+| the universal-soldier demo | `scenarios/ua-universal-soldier` · rail `PostureScenarioTests.CE3094_*` · [`TUTORIAL_Universal_Soldier.md`](../TUTORIAL_Universal_Soldier.md) | rail LOCKED (hidden >4000 f, leg 2, his rounds reach SimHost, a hostile hurt, defensive once wounded, ≥2 m moved); he still dies in cover ⇒ `CE-3157` (closed by CE-3158 slice G-6) |
+| done this run | `CE-3092` (mobility kill = TKB opt-in) · `CE-3095` (fire events Reliable/KeepAll) · AQ85 hit chance (built by the other session, R-216) | ✅ |
+| open findings | `CE-3097` units move at ~⅓ of `Speed` (unexplained) · the `DefendAreaMapper` routes to tree-less `InfantryCombat`/`ConvoyEscort` (L4 — file + measure first) · `Hrot.NED.Tests` does not compile (pre-existing, unrelated) | ⏳ |
+
+**Waiting on the user:** L7 lean — ONE retreat = `FallBack`, `FleeExecutor` → legacy (review §6).
+**Work order when told to build:** L1 (library list + promotion rule in the Overview) → retire redundant blueprint/HSM library copies (corpus check per item) → **CE-3158** G-1…G-6 → L4 registry / L5 `FireAtTarget` routing.
+
+**Traps met this run:** the graph goes stale after a big merge — re-index with the CLI (`codebase-memory-mcp cli index_repository --repo_path <root> --mode moderate`; the MCP call times out at 60 s) · two cluster test processes started together share a DDS domain and corrupt each other (a rifleman "dead at f0") · a `;` inside a Mermaid sequence `Note` breaks the parse · ruling ids collide across lanes — fetch `ui`/`behaviors` RULINGS before allocating (`ui` took R-254 while this lane held it; ours became R-256).
 
 ## 0. NOW (`2026-10-06`) — the utility AI demo programme
 
