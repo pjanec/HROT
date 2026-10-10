@@ -156,12 +156,14 @@ classDiagram
     existing, now the EQS sight POLICY
   }
   class ITerrainRenderGeometry {
-    planned Q2
+    built with 3-D map S1
+    Identity, Build(verts, indices, kinds)
   }
   class StrideWorldQuery {
     planned Q5
   }
   IWorldQuery <|.. TerrainWorldQuery
+  ITerrainRenderGeometry <|.. TerrainWorldQuery
   IWorldQuery <|.. StrideWorldQuery
   WorldQuery ..> TerrainWorldQuery : today
   TerrainWorldQuery --> TerrainWorld
@@ -340,6 +342,9 @@ danger + spawn **147/149** — both reds **pre-existing at `93cbad143`**: `Dange
 ⚠ **Deviation — `Pick` and `ITerrainRenderGeometry` are NOT in Q2.** Their first users are the 3-D map (picking, the terrain
 mesh) and the 2-D map's terrain layer; building them before a consumer exists would be speculative. ⇒ they are built with the
 3-D map's slices S1/S2 (`DESIGN_Map_3D_Mode.md` §3.10, WQ-G), which is where they are exercised.
+✅ **`ITerrainRenderGeometry` BUILT with the 3-D map's S1 (`2026-10-10`, `DESIGN_Map_3D_Mode.md` §6a):** triangles + a kind per
+triangle (ground / wall / roof — no piece kinds, R-252), reached through `WorldQuery.RenderGeometryOf(view)`; the stand-in's
+`TerrainWorldQuery` implements it from its navmesh soup. `Pick` stays with S2.
 
 ## 6. NOT VERIFIED — say so before it is built on
 

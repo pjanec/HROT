@@ -250,7 +250,9 @@ from the surface each step, but a reader of trajectory Z would be wrong; the Sim
 question (§6) is still open.
 
 **Gates:** 10 rails on the slope and the ridge (`TerrainHeightTests` H1 ×5 + H2 ×3 + H3 ×1, `FormationCreationTests.H3_…`) pass;
-regressions in the commit and the tracker.
+regressions: `Fdp.Toolkits.Tests` **3043/3044** (+1 skip), `Hrot.SimHost.Tests` **1177/1180** (3 skips), `Hrot.Editor.Tests`
+**474/476** (2 skips) — all green. ⚠ The cluster integration suite was NOT re-run for H2/H3 (its last run, 148/150 with the
+pre-existing `CE-1036`/`CE-1037`, was H1's).
 
 ## 7. Build or use a library? — the user's question, `2026-10-10` *(⚠ rev 1 below is CORRECTED by `R-250`/`R-251` — read the banner first)*
 

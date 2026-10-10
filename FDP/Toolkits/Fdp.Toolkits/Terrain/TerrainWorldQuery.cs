@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Terrain
     /// directly); what this class adds is the engine-neutral shape — crossings say <see cref="TraceCrossing.ClosedBarrier"/> instead of
     /// handing callers the terrain's piece kinds (R-252).
     /// </summary>
-    public sealed class TerrainWorldQuery : IWorldQuery
+    public sealed class TerrainWorldQuery : IWorldQuery, ITerrainRenderGeometry
     {
         public TerrainWorld World { get; }
         public DoorStates? Doors { get; }
@@ -87,6 +87,26 @@ namespace Fdp.Toolkit.Terrain
                 }
                 default:
                     throw new NotSupportedException($"Trace({purpose}) is not built yet — DESIGN_World_Query_Seam.md slice Q3 (sound).");
+            }
+        }
+
+        // ── ITerrainRenderGeometry (CE-1033 S1) ──
+
+        object ITerrainRenderGeometry.Identity => World;
+
+        /// <summary>The terrain mesh (the navmesh's own soup, unchanged), each triangle classed by its slope and its height over the ground.</summary>
+        public void Build(out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds)
+        {
+            TerrainWorldMesh.Build(World, out vertices, out indices);
+            kinds = new TerrainSurfaceKind[indices.Length / 3];
+            for (int t = 0; t < kinds.Length; t++)
+            {
+                var a = vertices[indices[3 * t]]; var b = vertices[indices[3 * t + 1]]; var c = vertices[indices[3 * t + 2]];
+                var n = Vector3.Cross(b - a, c - a);
+                float len = n.Length();
+                if (len < 1e-9f || MathF.Abs(n.Z) / len < 0.5f) { kinds[t] = TerrainSurfaceKind.Wall; continue; }
+                var centre = (a + b + c) / 3f;
+                kinds[t] = centre.Z > World.GroundHeightAt(centre.X, centre.Y) + 0.3f ? TerrainSurfaceKind.Roof : TerrainSurfaceKind.Ground;
             }
         }
 

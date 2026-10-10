@@ -126,21 +126,9 @@ public static class EntityTypeCatalog
 
     /// <summary>⭐ S5 — the glyph for a type whose TKB names no icon, from what the type IS (its DIS type, or being a
     /// composite), so a TKB without art still shows a meaningful picture. Null ⇒ the tool's glyph.</summary>
+    /// <remarks>⭐ CE-1033 S1 — the classification is <see cref="Map3D.VisualFamilies"/>, shared with the 3-D shape kits.</remarks>
     public static string? FallbackIconName(TkbTemplate t)
-    {
-        if (t.GetDescriptor<TkbCompositionDef>() is not null) return "_unit";
-        var d = t.DisType;
-        if (d.Kind == 3) return "_person";                       // Life Form
-        if (d.Kind == 1 && d.Domain == 1)                        // Platform / Land
-            return d.Category switch
-            {
-                1     => "_tank",
-                2     => "_afv",
-                3 or 6 or 7 or 81 => "_wheeled",                 // utility vehicles, car
-                _     => null,
-            };
-        return null;
-    }
+        => Map3D.VisualFamilies.IconName(Map3D.VisualFamilies.Of(t));
 
     /// <summary>The icon key of an entry: <c>entity/&lt;IconName&gt;</c>, else a per-tool fallback
     /// (<c>entity/_point</c>, <c>entity/_area</c> …) the icon library draws as a glyph (S5).</summary>

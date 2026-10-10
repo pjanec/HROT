@@ -20,5 +20,11 @@ namespace Fdp.Toolkit.World
             var world = repo.GetSingletonManaged<TerrainWorld>();
             return world == null ? null : TerrainWorldQuery.For(world, world.Doors.Count > 0 ? DoorStates.Of(view, world) : null);
         }
+
+        /// <summary>⭐ CE-1033 S1 (WQ-G) — the terrain's drawable triangles for <paramref name="view"/>, or null when it has no world.</summary>
+        public static ITerrainRenderGeometry? RenderGeometryOf(ISimulationView view)
+            => view is EntityRepository repo && repo.HasSingletonManaged<TerrainWorld>() && repo.GetSingletonManaged<TerrainWorld>() is { } w
+                ? TerrainWorldQuery.For(w)
+                : null;
     }
 }

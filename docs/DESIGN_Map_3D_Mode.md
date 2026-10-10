@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD for S1 — ALL leans M1–M22 APPROVED (U21, U22, U23, 2026-10-10). Nothing built.
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a as-built); S2 next. ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -8,9 +8,9 @@ updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assume
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
-  with leans · §6 slices · §7 what is NOT verified.
+  with leans · §6 slices · §6a S1 as-built · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
-known-rot: none.
+known-rot: §3.3's switch sequence and M10 say the 2-D map is "north up" — measured S1: it draws north DOWN (§6a).
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
@@ -191,7 +191,16 @@ classDiagram
   Gizmo3DTriage --> IDebugDrawSink3D
   IDebugDrawSink3D <|.. RaylibDrawSink3D
   IDebugDrawSink3D <|.. StrideDrawSink3D
-  TerrainLayer3D ..> TerrainWorldMesh
+  class ITerrainRenderGeometry { <<new, S1>> Identity, Build(verts, indices, kinds) }
+  class TerrainWorldQuery { <<exists>> +ITerrainRenderGeometry, kinds by slope and height }
+  class MapViewSwitch { <<new, S1>> Set(on), animated, pivots overhead }
+  class CameraPose { <<new, S1>> LookAt, Distance, Yaw, Pitch }
+  TerrainLayer3D ..> ITerrainRenderGeometry : WQ-G, never the stand-in
+  ITerrainRenderGeometry <|.. TerrainWorldQuery
+  TerrainWorldQuery ..> TerrainWorldMesh
+  MapViewSwitch --> MapCamera3D
+  MapViewSwitch ..> MapCanvas : swaps Camera
+  MapCamera3D ..> CameraPose
   TerrainLayer3D ..> LitShader
   EntityBodyLayer3D ..> LitShader
   EntityBodyLayer3D ..> VisualFamily
@@ -691,11 +700,47 @@ S1/S2 run on a small sloped test terrain, so the map is never built against the 
 
 ---
 
+### 6a. S1 — AS-BUILT `2026-10-10`
+
+📸 Rendered on the cloud's Mesa software GL by the frame rail: test-town's terrain (ground green, roofs red-brown, walls lit
+grey) and one entity of every built-in kit — tanks, AFVs, utility truck, car, soldiers standing / crouched / prone, a civilian.
+
+| piece | where | note |
+|---|---|---|
+| `MapCamera3D` + `CameraPose` | `FDP/Engine/Fdp.Presentation/Vis3D/MapCamera3D.cs` | Unity scene-view camera (M8); `ScreenToWorld` = the plane at the look-at height (the mesh pick is S2's `Picker3D`); 2-D `Zoom`/`Target` kept at their equivalents; refuses a non-finite pose |
+| `MapViewSwitch` | `…/Vis3D/MapViewSwitch.cs` | M12: snap overhead at the 2-D centre and scale, swap, tilt to −35° in 0.6 s; back: overhead, then the 2-D camera at the same centre and scale |
+| `LitShader` | `…/Vis3D/LitShader.cs` | M5: GLSL 330, vertex × material colour, ambient + one sun, two-sided, exp² fog; sky gradient drawn by the camera |
+| `HrotToRaylib` | `…/Vis3D/HrotToRaylib.cs` | M9, plus `ModelFromHrot` — a transform written in HROT terms, basis-changed and transposed for Raylib |
+| `TerrainLayer3D` | `…/Vis3D/TerrainLayer3D.cs` | draws `ITerrainRenderGeometry` (WQ-G), never `TerrainWorld`; flat-shaded by un-indexing; rebuilt when `Identity` changes |
+| `ITerrainRenderGeometry` + `TerrainWorldQuery.Build` | `FDP/Toolkits/Fdp.Toolkits/World/`, `…/Terrain/TerrainWorldQuery.cs` | the stand-in hands its navmesh soup unchanged, each triangle classed **wall** (steep), **roof** (> 0.3 m over the ground) or **ground** |
+| `VisualFamily` / `VisualFamilies` | `Hrot/Engine/Hrot.Presentation/Map3D/VisualFamily.cs` | extracted; `EntityTypeCatalog.FallbackIconName` now calls it — output unchanged for every built-in type (railed against the old body) |
+| `ShapeKits`, `KitPart`, `BlockFigure` | `…/Map3D/ShapeKit.cs` | §3.5 kits for tank, AFV, car, utility, unknown; the six-box person in three stance poses, rifle for soldiers |
+| `EntityBodyLayer3D` | `…/Map3D/EntityBodyLayer3D.cs` | every entity with `SimTransform` + `TkbIdentity`; size from `SimVehicleDef` → `VehicleParametersDto` → `ShapeHeight` → family default; colour from `VisualData.ColorHex` → the TKB visual → family default; units draw nothing |
+| canvas hooks | `MapCanvas.Draw3D`, `IMapLayer.Draw3D`/`Has3D`, `MapCamera.Is3D`/`ScreenDeltaToWorld`, `MapCanvas.LayersWithout3D` | as §4 planned — the 2-D path is byte-identical |
+| editor | `EditorSubsystem`: the switch, both layers, **View › 3D map** (checkable) | the other four hosts are S6 |
+
+| ⚠ deviation / finding | why |
+|---|---|
+| 🔴 **the 2-D map draws north DOWN** — it is a mirror of the view from above (`MapCamera` maps world Y screen-down and `DebugPrimitiveRenderer2D.cs:273` draws world XY straight). §3.3 and M10 assumed "north up" | a camera above the ground cannot show a mirror ⇒ **3-D is north-up, east-right, and the switch flips north–south** (scale, centre and east-is-right are kept). ⚠ Whether the 2-D map should become north-up is a separate question for the user — it touches every 2-D gizmo |
+| air kits (helicopter, fixed wing) not built | no built-in air type, and the DIS categories are unconfirmed (§3.5) — built with the first air type |
+| **F** (frame the selection) not built | it needs the selection — S2, with picking |
+| the editor's `MapCullingModule` still reads the 2-D camera's rectangle | culling is off by default (`map.entity.cullOffscreen`); in 3-D it would cull by a stale rectangle — S2 |
+| test-town shows a HOLE where its water is | the navmesh soup has no water (M4) — water surfaces are S4 |
+| the frame rail drives the production canvas, switch, shader and layers in a window — **not the whole editor shell** | a full-editor screenshot needs a launch path under Xvfb; the menu item is built but not driven |
+| `UiFrameSession.Screenshot` wrote to the wrong folder | Raylib's `TakeScreenshot` uses its START-UP directory, not the current one — fixed in the harness (read the screen, export to the absolute path) |
+
+**Gates** (feature suites first, T-1): `Map3DTests` + `Map3DFrameRail` **29/29** under Xvfb (the frame rail skips where there is
+no display); `Hrot.Presentation.Tests` **405/405** (the catalog's own suite included); `Hrot.Editor.Tests` **474/476** (2 skips);
+`Fdp.Toolkits.Tests` terrain query / height / mesh **12/12**; the Blueprints frame rails **8/8** on the fixed screenshot harness;
+`Fdp.Presentation.Tests` **563/572** — its 8 reds are the pre-existing set `CE-259aa` names, identical at `2e90e208f`.
+⚠ **Under a display, `Hrot.Presentation.Tests` aborts in about one run in three** (test host crash between tests, no test left
+incomplete — `--blame`); without a display it is clean 3/3. Whether that is new is being measured at the base commit.
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |
 |---|---|
-| ⚠ the lit shader compiles and runs on the hosts' GL and on the cloud's software GL (Mesa llvmpipe) | S1's screenshot |
+| ✅ **cloud's software GL: VERIFIED `2026-10-10`** (S1 frame rail, Mesa under Xvfb — compiles, lights, fogs). ⚠ the hosts' GL (Windows) is not yet run | the user's Windows run of `Map3DFrameRail` |
 | ⚠ 3-D frame cost inside the host frame (terrain mesh + a few hundred entities) | S1, measured on Windows and in the cloud |
 | ⚠ an entity box hit returning that entity's ground XY lands inside its 2-D pick box for every entity kind | S2 rail per kind |
 | ⚠ M18's `z = 0` test stays a convention: once the ground has height, a real point at exactly 0 m is rare, and where it happens it is drawn on the ground at that spot — the same place. A gizmo that means "on the roof" must give the roof's height | S2 rail |
@@ -704,8 +749,8 @@ S1/S2 run on a small sloped test terrain, so the map is never built against the 
 | ⚠ hover picking every frame: entity boxes + one mesh ray per frame | S2, measured |
 | ⚠ which CC0 texture pack — ambientCG / Poly Haven are CC0 by their own terms; specific textures and repo size not chosen | S7, with a licence table |
 | ⚠ the 3-D pass must accept primitives that target `PipelineTarget.Map2D` (the 2-D renderer filters on it, `DebugPrimitiveRenderer2D.cs:93`; `Viewport3D` is declared and read by nobody) — otherwise every label is filtered out | S3 rail |
-| ⚠ the overhead perspective camera at matched height looks close enough to the 2-D map at the swap (tall buildings lean slightly at the edges) | S1 screenshot pair |
-| ⚠ every built-in TKB type maps to a non-`unknown` family (units excepted) — and the icon fallback's output is unchanged by the extraction | S1 rail over the whole catalog |
+| ⚠ the overhead perspective camera at matched height looks close enough to the 2-D map at the swap (tall buildings lean slightly at the edges — seen in S1's overhead shot) — ⚠ and north flips at the swap (§6a) | the user, in the editor |
+| ✅ **VERIFIED `2026-10-10`**: every placeable built-in type has a family, and the icon fallback is unchanged for every built-in type (`Map3DTests`) | — |
 | ⚠ DIS air categories for helicopter / fixed wing | when the first air type is added |
 | ⚠ a terminal that does not know `CoordinateSpace.EntityCard` (an old build on the wire) must skip card primitives, not draw them as world text — the 2-D renderer treats every non-`EntityLocal` space as world today | S5b rail on the 2-D renderer |
 | ⚠ `FilledTriangle` bytes 48-51 are free (no reader treats `BoxAnchorId` or anything else there as set for a triangle) | before H2's flat fill height |

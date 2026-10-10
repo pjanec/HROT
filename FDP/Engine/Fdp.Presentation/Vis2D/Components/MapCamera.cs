@@ -333,6 +333,12 @@ namespace Fdp.Toolkit.Vis2D.Components
         }
 
 
+        /// <summary>⭐ CE-1033 S1 — true for the map's 3-D camera (<c>MapCamera3D</c>): the canvas then runs the layers' 3-D pass.</summary>
+        public virtual bool Is3D => false;
+
+        /// <summary>⭐ CE-1033 S1 — a mouse movement in pixels as a movement on the ground, for drags (2-D: divided by the zoom).</summary>
+        public virtual Vector2 ScreenDeltaToWorld(Vector2 screenDelta) => screenDelta / InnerCamera.Zoom;
+
         public virtual void BeginMode()
         {
             Raylib.BeginMode2D(InnerCamera);
