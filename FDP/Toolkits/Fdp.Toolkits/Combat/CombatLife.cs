@@ -25,6 +25,16 @@ namespace Fdp.Toolkit.Combat
         }
 
         /// <summary>
+        /// ⭐ W2 (docs/DESIGN_Visual_Effects.md §7 VE-N, R-269) — <b>a wreck or a body:</b> the entity EXISTS, has a <see cref="Health"/>
+        /// pool, and the pool is at or below zero. The one "destroyed" test every presentation reads (the near-black 3-D wreck, the
+        /// 2-D X, the flames and smoke, the dead figure). An entity with no <see cref="Health"/> is never destroyed.
+        /// <para>⚠ Not <c>!IsAlive</c>: a deleted entity is gone, not destroyed. When D1's damage states land
+        /// (DESIGN_Operations_Behaviour_Catalogue.md §10.1) only this body changes.</para>
+        /// </summary>
+        public static bool IsDestroyed(ISimulationView view, Entity entity)
+            => view.IsAlive(entity) && view.HasComponent<Health>(entity) && view.GetComponentRO<Health>(entity).Current <= 0f;
+
+        /// <summary>
         /// ⭐ <c>CE-3092</c> — what a hit does to a unit's CAPABILITIES, the ONE rule (both damage systems call it).
         /// Death (<c>Current &lt;= 0</c>) strips moving and shooting. A NON-lethal hit strips <c>CanMove</c> only on a unit type
         /// that opted in (<see cref="MobilityKill"/>) and only once health is below its fraction of max; every other unit keeps

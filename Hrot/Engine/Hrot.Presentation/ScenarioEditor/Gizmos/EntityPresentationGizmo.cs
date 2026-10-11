@@ -39,6 +39,8 @@ namespace Hrot.ScenarioEditor.Gizmos
     {
         private const uint ConditionDamaged  = 1u << 0;
         private const uint ConditionImmobile = 1u << 1;
+        /// <summary>⭐ W2 (docs/DESIGN_Visual_Effects.md §7 VE-O) — the MIL-STD-2525 X (<c>EntityShapeCondition.Destroyed</c>).</summary>
+        private const uint ConditionDestroyed = 1u << 2;
 
         private readonly GizmoSettingsRegistry? _settings;
         private readonly uint _damagedKey;
@@ -128,6 +130,8 @@ namespace Hrot.ScenarioEditor.Gizmos
                     if (damagePct >= ImmobileThreshold) conditionMask |= ConditionImmobile;
                 }
             }
+            // ⭐ W2 (VE-N) — the one "destroyed" test, shared with the 3-D wreck and the flames.
+            if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(view, entity)) conditionMask |= ConditionDestroyed;
 
             EntityPresentationGizmoShared.TryGetVehicleDimensions(view, entity, out float length, out float width);
             ulong profileId = EntityPresentationGizmoShared.ResolveProfileId(view, entity);

@@ -265,6 +265,25 @@ namespace Hrot.Presentation.Tests.Gizmos
             Assert.NotEqual(0u, semantic.ConditionMask & ConditionImmobile);
         }
 
+        /// <summary>⭐ W2 (docs/DESIGN_Visual_Effects.md §7 VE-O) — a wreck (Health ≤ 0, still in the world) carries the Destroyed bit
+        /// the renderer draws as the MIL-STD-2525 X; a badly hurt but living unit does not.</summary>
+        [Fact]
+        public void Draw_WhenDestroyed_SetsTheDestroyedBit_TheMilStdX()
+        {
+            var wreck = Spawn(7L, new Vector3(10f, 20f, 0f));
+            _repo.AddComponent(wreck, new Health { Current = 0f, Max = 100f });
+            var hurt = Spawn(8L, new Vector3(30f, 20f, 0f));
+            _repo.AddComponent(hurt, new Health { Current = 1f, Max = 100f });
+
+            var buffer = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, wreck, buffer);
+            Assert.Equal((uint)GizmoMap.Presentation.Shapes.EntityShapeCondition.Destroyed, buffer.GetFrame()[2].ConditionMask & 4u);
+
+            buffer = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, hurt, buffer);
+            Assert.Equal(0u, buffer.GetFrame()[2].ConditionMask & 4u);
+        }
+
         /// <summary>⭐ NEW — no health component means an UNDAMAGED mask, not a missing shape.</summary>
         [Fact]
         public void Draw_WithNoHealthState_EmitsAZeroConditionMask()

@@ -190,6 +190,40 @@ public sealed class EffectTests
                         m => m.Contains(nameof(EffectSpawnSystem)));
     }
 
+    /// <summary>⭐ W2 (VE-N, VE-O) — ONE "destroyed" test (Health ≤ 0 on an entity that still exists); a wreck draws near-black on
+    /// every part role; the 2-D X spans the shape's footprint corner to corner, turned with the unit.</summary>
+    [Fact]
+    public void W2_DestroyedIsHealthAtZero_TheWreckIsNearBlack_AndTheXCrossesTheFootprint()
+    {
+        var (world, _) = World();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, Vector3.Zero);
+        var marker = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, Vector3.Zero);   // no Health: never destroyed
+        world.AddComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 10f, Max = 100f });
+        Assert.False(Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, tank));
+        world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+        Assert.True(Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, tank));
+        Assert.False(Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, marker));
+        world.DestroyEntity(tank);
+        Assert.False(Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, tank));   // deleted is gone, not a wreck
+
+        var olive = new Raylib_cs.Color(112, 120, 82, 255);
+        foreach (var role in System.Enum.GetValues<Hrot.UI.Common.Map3D.ColourRole>())
+        {
+            var c = Hrot.UI.Common.Map3D.EntityBodyLayer3D.PartColour(role, olive, wreck: true);
+            Assert.True(c.R < 40 && c.G < 40 && c.B < 40, $"{role} on a wreck: {c.R},{c.G},{c.B}");
+        }
+        Assert.Equal(olive, Hrot.UI.Common.Map3D.EntityBodyLayer3D.PartColour(Hrot.UI.Common.Map3D.ColourRole.Body, olive, wreck: false));
+
+        // a 10 m × 4 m hull turned 90°: the X's strokes run corner to corner, past the corners, along the turned footprint
+        var (a, b, c2, d) = GizmoMap.Presentation.Shapes.PerspectiveShapeRenderer.DestroyedCross(
+            new System.Numerics.Vector2(100, 50), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, System.MathF.PI / 2f), 10f, 4f);
+        Assert.Equal(100f + 2.4f, a.X, 3); Assert.Equal(50f - 6f, a.Y, 3);
+        Assert.Equal(100f - 2.4f, b.X, 3); Assert.Equal(50f + 6f, b.Y, 3);
+        Assert.Equal(new System.Numerics.Vector2(100, 50), (a + b) / 2f);
+        Assert.Equal(new System.Numerics.Vector2(100, 50), (c2 + d) / 2f);
+    }
+
     /// <summary>⭐ W1 (VE-Q) — ONE generic timer: <see cref="Lifespan"/> on sim time; a jump BACK to before an entity was made removes
     /// it too (it did not exist then); the layer's phase and fade come from the sim clock.</summary>
     [Fact]
