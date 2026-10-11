@@ -12,6 +12,7 @@ known-rot: none.
 known-conflict: DESIGN_Terrain_Height.md §7 rev 1 called TerrainWorld's own methods "the seam" and leaned Jolt — both
   corrected there in rev 3 by this file (a real interface; Bepu inside the stand-in).
 related-designs:
+  - DESIGN_Peek_And_Fire.md — §10.8 lists the behaviour-library slices (CE-3158) checked against this seam; G3's friendly-line test moves behind Trace(Fire) with WQ-F
   - DESIGN_Terrain_World.md — owns TerrainWorld, the stand-in this seam's first implementation wraps.
   - DESIGN_Terrain_Height.md — the ground height this seam exposes (GroundHeightAt); §7 there is the library choice.
   - DESIGN_Building_Interiors.md — §3a planned "one query for all, but possibly different solver implementation" and the

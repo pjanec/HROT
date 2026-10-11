@@ -62,11 +62,22 @@ namespace Hrot.AI.Behaviors.Brains
         /// </remarks>
         public static SimRng FromSim(int entityIndex, int salt, float simTime)
         {
-            uint seed = (uint)(entityIndex ^ salt ^ (int)simTime);
-            // xorshift so even tiny/adjacent seeds spread — SlotOps' own comment, and its own constants.
-            seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5;
+            // ⭐ CE-3158 G7 (R-257) — MIX the three inputs (splitmix64's finaliser over each in turn) instead of XOR-ing them.
+            //   ⛔ SUPERSEDED: `entityIndex ^ salt ^ (int)simTime` — symmetric, so (unit 5, t 6) and (unit 6, t 5) drew the same
+            //   number, and every whole second of one unit repeated a neighbour's: two riflemen behind one wall came up together.
+            ulong z = Mix(Mix(Mix(0x9E3779B97F4A7C15ul ^ (uint)entityIndex) ^ (uint)salt) ^ (uint)(int)simTime);
+            uint seed = (uint)(z ^ (z >> 32));
             if (seed == 0) seed = 0x9E3779B9u;
             return new SimRng { _state = seed };
+        }
+
+        /// <summary>splitmix64's finaliser — every input bit moves every output bit.</summary>
+        private static ulong Mix(ulong z)
+        {
+            z += 0x9E3779B97F4A7C15ul;
+            z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ul;
+            z = (z ^ (z >> 27)) * 0x94D049BB133111EBul;
+            return z ^ (z >> 31);
         }
 
         /// <summary>Advances and returns the next raw value.</summary>

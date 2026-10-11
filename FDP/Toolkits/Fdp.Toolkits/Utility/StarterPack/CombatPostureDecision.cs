@@ -33,6 +33,9 @@ namespace Fdp.Toolkit.Utility
         OptionNames = typeof(Posture))]
     public sealed partial class CombatPostureDecision : IUtilityDecisionDefinition
     {
+        /// <summary>⭐ CE-3160 — the decision's asset id, for a C# tree that names it (CombatPostureBehavior).</summary>
+        public const string DecisionAssetId = "3c6f9e42-5d10-6f3a-ac23-posture0000001";
+
         /// <summary>Builds the decision definition via the fluent builder.</summary>
         public static void Build(IUtilityDecisionBuilder b) => b
             .Option((ushort)Posture.AdvanceAndAttack, ScoringMode.WeightedProduct, o => o

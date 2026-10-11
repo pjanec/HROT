@@ -242,7 +242,8 @@ public sealed class CatalogTests
         Assert.Contains("Target",          dataNames);
         Assert.Contains("CooldownSeconds", dataNames);
         Assert.Contains("Mount",           dataNames);
-        Assert.Equal(3, dataPins.Count);
+        Assert.Contains("Rounds",          dataNames);   // ⭐ CE-3136 B7 — aimed rounds, then Success (0 = until stopped); the count went stale on 2026-10-09
+        Assert.Equal(4, dataPins.Count);
     }
 
     [Fact]

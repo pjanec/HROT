@@ -46,6 +46,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     // ⭐ CE-3135 (peek-and-fire D5) — the point's stance travels with the answer, so a window point says
                     //   "crouch here" to the node and to the LOS test (CoverPoint.StanceHeight: 0 prone, 1 crouch, 2 stand).
                     Stance    = EqsResult.EncodeStance(StanceOf(rawPoints[i].StanceHeight)),
+                    // ⭐ CE-3158 G1 — and what the point IS (a cover, a window to fire from): the peek is chosen from the point
+                    Kind      = EqsResult.EncodeKind(rawPoints[i].Kind),
                     // ⛔ SUPERSEDED (§19): Flags = StanceHeight — it wrote stance into the §4.2 flag bits 0–1 (HasLOSToContext).
                 };
             }
@@ -70,6 +72,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                             PositionZ = p.PositionZ,
                             Score     = p.Quality,
                             Stance    = EqsResult.EncodeStance(StanceOf(p.StanceHeight)),
+                            Kind      = EqsResult.EncodeKind(CoverKind.Cover),   // ⭐ CE-3158 G1 — a vehicle's side is cover
                         };
                     }
             }

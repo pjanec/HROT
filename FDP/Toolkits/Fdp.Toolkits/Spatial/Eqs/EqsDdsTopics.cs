@@ -109,6 +109,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
         public ushort FlagsMeaningful;
         /// <summary>⭐ <c>CE-3135</c> — <see cref="EqsResult.Stance"/> (<c>StanceId + 1</c>, 0 = none).</summary>
         public byte Stance;
+        /// <summary>⭐ <c>CE-3158</c> G1 — <see cref="EqsResult.Kind"/> (<c>CoverKind + 1</c>, 0 = not a cover point).</summary>
+        public byte Kind;
     }
 
     /// <summary>

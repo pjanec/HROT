@@ -138,27 +138,12 @@ namespace Hrot.SimHost.Tests
 
             public void SetHealth(float health01) => Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(Unit).Current = health01 * 100f;
 
-            /// <summary>⭐ CE-3082 — the decision's CURRENT WINNER as the host keeps it: <c>St.choice</c> in the behaviour's own block.</summary>
+            /// <summary>⭐ CE-3082 / CE-3160 — the decision's CURRENT WINNER as the tree keeps it: <c>Choice</c> in the C# CombatPosture's block.</summary>
             public unsafe byte Winner(string behaviour)
             {
                 Assert.True(Registry.TryGetId(behaviour, out int hash));
-                if (behaviour == "CombatPosture")
-                {
-                    Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.CombatPosture_Block>(Repo, Unit, hash, out var b));
-                    return b->St.choice.Winner;
-                }
-                if (behaviour == "CombatPostureBp")
-                {
-                    // ⭐ CE-3083 — the blueprint keeps its winner in its own Vars (St) member `Winner`; its generated class name
-                    //   carries the asset hash, so the block is found by reflection and read at its field offset.
-                    var bp = typeof(PostureNodes).Assembly.GetTypes().Single(t => t.Name.StartsWith("CombatPostureBp_") && t.Name.EndsWith("_Bp"));
-                    var block = bp.GetNestedType("Block")!; var vars = bp.GetNestedType("Vars")!;
-                    int off = (int)System.Runtime.InteropServices.Marshal.OffsetOf(block, "St") + (int)System.Runtime.InteropServices.Marshal.OffsetOf(vars, "Winner");
-                    Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRootBytes(Repo, Unit, out byte* root, out int len) && off < len);
-                    return root[off];
-                }
-                Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Machines.CombatPostureHsm_Block>(Repo, Unit, hash, out var h));
-                return h->St.choice.Winner;
+                Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<CombatPostureBehavior.CombatPostureBlackboard>(Repo, Unit, hash, out var b));
+                return b->Choice.Winner;
             }
 
             /// <summary>⭐ CE-3084 — a sensor holds <paramref name="contact"/> NOW, by sight (what <c>ThreatInSight</c> reads).</summary>
@@ -176,8 +161,8 @@ namespace Hrot.SimHost.Tests
             public unsafe byte ApproachWinner()
             {
                 Assert.True(Registry.TryGetId("CombatPosture", out int hash));
-                Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.CombatPosture_Block>(Repo, Unit, hash, out var b));
-                return b->St.approachChoice.Winner;
+                Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<CombatPostureBehavior.CombatPostureBlackboard>(Repo, Unit, hash, out var b));
+                return b->ApproachChoice.Winner;
             }
 
             public unsafe Vector3 Destination()
@@ -251,27 +236,26 @@ namespace Hrot.SimHost.Tests
             w.Answer(cover, 5, 30f, 40f);                              // good cover nearby ⇒ TakeCover wins
             for (int i = 0; i < 4; i++) w.Tick();
             Assert.Equal("CombatPosture", w.TaskName);
-            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull,
+            // ⭐ CE-3158 G-6 — the TakeCover option runs the library's fight-from-cover node (PeekAndFire) and its sensor
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PeekAndFireNodes.CoverSite).IsNull,
                 "the TakeCover child runs, with its own sensor");
         }
 
         /// <summary>
         /// ⭐ <c>CE-3090</c> (🔒 user 2026-10-07, docs/DESIGN_Decision_Layer.md §3.3f) — a WOUNDED unit on OPEN GROUND (no cover, no
-        /// hidden retreat), outnumbered: every host picks HoldProne, stops moving and returns fire. ⛔ SUPERSEDED: TakeCover and Flee
+        /// hidden retreat), outnumbered: the posture picks HoldProne, stops moving and returns fire. ⛔ SUPERSEDED: TakeCover and Flee
         /// both scored 0 and the unit kept advancing at 10 HP (U6, backend).
         /// </summary>
-        [Theory]
-        [InlineData("CombatPosture")]
-        [InlineData("CombatPostureHsm")]
-        [InlineData("CombatPostureBp")]
-        public void CE3090_WoundedOnOpenGround_HoldsProne_StopsAndReturnsFire(string host)
+        [Fact]
+        public void CE3090_WoundedOnOpenGround_HoldsProne_StopsAndReturnsFire()
         {
+            const string host = "CombatPosture";   // ⭐ CE-3160 (R-266) — the HSM and blueprint hosts are retired
             var w = new World();
             w.Arm(health01: 0.2f);
             w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());   // CE-2121: a body that can lie down
             w.Contact(armed: true);
             w.Contact(armed: true);                                    // outnumbered
-            w.Order(host, host == BpPosture ? BpObjective : Objective);
+            w.Order(host, Objective);
             for (int i = 0; i < 8; i++) w.Tick();                      // the sensors answer nothing: open ground
             Assert.Equal((byte)Fdp.Toolkit.Utility.Posture.HoldProne, w.Winner(host));
             Assert.NotEqual(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
@@ -371,7 +355,7 @@ namespace Hrot.SimHost.Tests
             w.Tick();
             w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite), 6, 30f, 40f);
             for (int i = 0; i < 4; i++) w.Tick();
-            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull, "TakeCover runs");
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PeekAndFireNodes.CoverSite).IsNull, "TakeCover runs");   // ⭐ CE-3158 G-6 — PeekAndFire's sensor
             Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FlankSite).IsNull, "the flank manoeuvre (and its sensor) went with the branch");
             Assert.NotEqual(new Vector3(60f, 80f, 0f), w.Destination());
         }
@@ -400,198 +384,8 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
         }
 
-        // ── ⭐ CE-3082 (G4) — the SAME posture decision hosted as an HSM (docs/DESIGN_Decision_Layer.md §3.3c) ───────────────
-
-        private const string HsmPosture = "CombatPostureHsm";
-
-        [Fact]
-        public void CE3082_CombatPostureHsm_IsCompiledAndRegistered()
-        {
-            var w = new World();
-            Assert.True(w.Registry.TryGetId(HsmPosture, out _), "a mission task (U3) must be able to name it");
-        }
-
-        /// <summary>⭐ D1 — a weak enemy ⇒ the Advance leaf, moving to the objective firing; arrival ⇒ the HSM reaches its Final
-        /// state (its activity's Success is discarded, so the Arrived guard is the finish) and the run's sensors go.</summary>
-        [Fact]
-        public void CE3082_AgainstAWeakEnemy_TheHsmAdvancesFiring_AndFinishesAtTheObjective()
-        {
-            var w = new World();
-            w.Arm();
-            w.Contact(armed: false);
-            w.Order(HsmPosture, Objective);
-            for (int i = 0; i < 4; i++) w.Tick();
-            Assert.Equal(HsmPosture, w.TaskName);
-            Assert.Contains("Advance", w.ActiveStates(HsmPosture));
-            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
-            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
-            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
-            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the Sense region keeps the cover sensor");
-
-            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived
-            for (int i = 0; i < 3; i++) w.Tick();
-            Assert.NotEqual(HsmPosture, w.TaskName);                     // Final ⇒ the mission task is done
-            Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the run's sensors go with it");
-        }
-
-        /// <summary>⭐⭐ D3 CLOSED — the HSM switch railed at RUNTIME, both ways: a weak enemy ⇒ Advance (firing); hurt +
-        /// outnumbered + cover ⇒ TakeCover, and the advance's FIRE STOPS because leaving the Advance leaf ran
-        /// <c>Deactivate_AdvanceAndAttack</c> (D2 — TakeCover never touches the weapon, so nothing else stops it); healthy with
-        /// nothing to fight ⇒ back to Advance.</summary>
-        [Fact]
-        public void CE3082_HealthEdits_SwitchTheHsmPosture_BothWays_AndLeavingALeafRunsItsDeactivator()
-        {
-            var w = new World();
-            w.Arm();
-            w.Contact(armed: false);                                   // a weak enemy ⇒ AdvanceAndAttack
-            w.Order(HsmPosture, Objective);
-            for (int i = 0; i < 4; i++) w.Tick();
-            Assert.Contains("Advance", w.ActiveStates(HsmPosture));
-            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
-
-            w.SetHealth(0.3f);
-            w.Remember(Entity.Null);
-            w.Contact(armed: true);
-            w.Contact(armed: true);                                    // hurt and outnumbered
-            w.Tick();
-            w.Tick();
-            var cover = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite);
-            Assert.False(cover.IsNull);
-            w.Answer(cover, 5, 30f, 40f);                              // good cover nearby ⇒ TakeCover wins
-            for (int i = 0; i < 4; i++) w.Tick();
-            Assert.Contains("TakeCover", w.ActiveStates(HsmPosture));
-            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull, "the TakeCover leaf runs, with its own sensor");
-            Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
-
-            w.SetHealth(1f);
-            w.Remember(Entity.Null);                                   // nothing left to fight ⇒ AdvanceAndAttack (CE-2105)
-            for (int i = 0; i < 4; i++) w.Tick();
-            Assert.Contains("Advance", w.ActiveStates(HsmPosture));
-            Assert.DoesNotContain("TakeCover", w.ActiveStates(HsmPosture));
-            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());   // the advance's move replaced the cover move
-        }
-
-        /// <summary>⭐ U3's premise — the BTree and the HSM make the SAME decision for the same inputs, step by step, and the HSM's
-        /// active posture leaf is that decision's option.</summary>
-        [Fact]
-        public void CE3082_TheHsmAndTheBTree_MakeTheSameDecisions_ForTheSameInputs()
-        {
-            string[] leafOf = { "-", "Advance", "TakeCover", "Suppress", "FallBack", "Hold", "HoldProne" };   // CE-3090: option 6
-            var worlds = new[] { (w: new World(), name: "CombatPosture"), (w: new World(), name: HsmPosture) };
-            foreach (var (w, name) in worlds)
-            {
-                w.Arm();
-                w.Contact(armed: false);
-                w.Order(name, Objective);
-            }
-            var steps = new System.Action<World>[]
-            {
-                w => { },                                                                 // weak enemy ⇒ advance
-                w => { w.SetHealth(0.3f); w.Remember(Entity.Null); w.Contact(true); w.Contact(true); },   // hurt, outnumbered
-                w => { w.SetHealth(1f); w.Remember(Entity.Null); },                       // healthy, nothing to fight
-            };
-            var seen = new List<byte>();
-            foreach (var step in steps)
-            {
-                foreach (var (w, _) in worlds) { step(w); for (int i = 0; i < 4; i++) w.Tick(); }
-                byte bt = worlds[0].w.Winner("CombatPosture"), hsm = worlds[1].w.Winner(HsmPosture);
-                Assert.Equal(bt, hsm);
-                Assert.True(System.Array.IndexOf(worlds[1].w.ActiveStates(HsmPosture), leafOf[hsm]) >= 0,
-                    $"top {hsm} ⇒ {leafOf[hsm]}, HSM leaves [{string.Join(",", worlds[1].w.ActiveStates(HsmPosture))}]");
-                seen.Add(hsm);
-            }
-            Assert.True(seen.Distinct().Count() >= 2, $"the inputs must move the decision (saw {string.Join(",", seen)})");
-        }
-
-        // ── ⭐ CE-3083 (G5) — the SAME posture decision hosted as a BLUEPRINT (docs/DESIGN_Decision_Layer.md §3.3d) ─────────────
-
-        private const string BpPosture = "CombatPostureBp";
-        private const string BpObjective = "{\"advance\":{\"advance\":{\"Objective\":[200,0,0],\"Speed\":3,\"ArrivalRadius\":5,\"CooldownSeconds\":1}}}";
-
-        [Fact]
-        public void CE3083_CombatPostureBp_AndItsOptionBehaviours_AreRegistered()
-        {
-            var w = new World();
-            foreach (var name in new[] { BpPosture, "PostureAdvance", "PostureSuppress", "PostureHold", "PostureSense" })
-                Assert.True(w.Registry.TryGetId(name, out _), $"{name} must be registered (U3 orders the blueprint; each option is a behaviour)");
-        }
-
-        /// <summary>A weak enemy ⇒ the blueprint starts the advance task (moving to the objective, firing); arrival ⇒ the task
-        /// succeeds ⇒ the blueprint returns Success and the run's sensors go.</summary>
-        [Fact]
-        public void CE3083_AgainstAWeakEnemy_TheBlueprintAdvancesFiring_AndFinishesAtTheObjective()
-        {
-            var w = new World();
-            w.Arm();
-            w.Contact(armed: false);
-            w.Order(BpPosture, BpObjective);
-            for (int i = 0; i < 6; i++) w.Tick();
-            Assert.Equal(BpPosture, w.TaskName);
-            Assert.Equal((byte)1, w.Winner(BpPosture));
-            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
-            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
-            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
-            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the Sense task keeps the cover sensor");
-
-            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived
-            for (int i = 0; i < 4; i++) w.Tick();
-            Assert.NotEqual(BpPosture, w.TaskName);
-            Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the run's sensors go with it");
-        }
-
-        /// <summary>⭐ the switch, both ways: hurt + outnumbered + cover ⇒ the advance task is ABORTED (its fire stops) and TakeCover
-        /// starts; healthy with nothing to fight ⇒ back to the advance.</summary>
-        [Fact]
-        public void CE3083_HealthEdits_SwitchTheBlueprintsTask_BothWays()
-        {
-            var w = new World();
-            w.Arm();
-            w.Contact(armed: false);
-            w.Order(BpPosture, BpObjective);
-            for (int i = 0; i < 6; i++) w.Tick();
-            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
-
-            w.SetHealth(0.3f);
-            w.Remember(Entity.Null);
-            w.Contact(armed: true);
-            w.Contact(armed: true);
-            w.Tick();
-            w.Tick();
-            var cover = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite);
-            Assert.False(cover.IsNull);
-            w.Answer(cover, 5, 30f, 40f);
-            for (int i = 0; i < 6; i++) w.Tick();
-            Assert.Equal((byte)2, w.Winner(BpPosture));
-            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull, "the TakeCover task runs, with its own sensor");
-            Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
-
-            w.SetHealth(1f);
-            w.Remember(Entity.Null);
-            for (int i = 0; i < 6; i++) w.Tick();
-            Assert.Equal((byte)1, w.Winner(BpPosture));
-            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
-        }
-
-        /// <summary>⭐ U3's premise, all three hosts — the BTree, the HSM and the blueprint pick the same winner at every step.</summary>
-        [Fact]
-        public void CE3083_AllThreeHosts_MakeTheSameDecisions_ForTheSameInputs()
-        {
-            var worlds = new[] { (w: new World(), name: "CombatPosture", json: Objective), (w: new World(), name: HsmPosture, json: Objective),
-                                 (w: new World(), name: BpPosture, json: BpObjective) };
-            foreach (var (w, name, json) in worlds) { w.Arm(); w.Contact(armed: false); w.Order(name, json); }
-            var steps = new System.Action<World>[]
-            {
-                w => { },
-                w => { w.SetHealth(0.3f); w.Remember(Entity.Null); w.Contact(true); w.Contact(true); },
-                w => { w.SetHealth(1f); w.Remember(Entity.Null); },
-            };
-            foreach (var step in steps)
-            {
-                foreach (var (w, _, _) in worlds) { step(w); for (int i = 0; i < 6; i++) w.Tick(); }
-                var winners = worlds.Select(x => x.w.Winner(x.name)).ToArray();
-                Assert.True(winners.Distinct().Count() == 1, $"BTree / HSM / blueprint winners differ: {string.Join(",", winners)}");
-            }
-        }
+        // ⛔ CE-3082 (G4, the HSM host) and CE-3083 (G5, the blueprint host) rails RETIRED with those hosts — CE-3160 (R-266, R-258):
+        //   the library's CombatPosture is ONE C#-built tree (docs/DESIGN_Decision_Layer.md §3.3h); nothing is left to compare.
 
         [Fact]
         public void CE2092_BothTrees_AreCompiledAndRegistered()
@@ -911,5 +705,44 @@ namespace Hrot.SimHost.Tests
             w.Tick();
             Assert.Equal(epoch, w.Repo.GetComponentRO<EqsSensor>(sensor).Epoch);
         }
-    }
+    
+        /// <summary>
+        /// ⭐ <c>AQ88</c> B (R-265) — the ONE move sets the body it is made in: a soldier moves UPRIGHT when nothing threatens him,
+        /// CROUCHED when he remembers a live contact, a heard one, or was hit within 10 s; a cautious move (Crouched) always crouches,
+        /// a civilian's (Upright) never does, and Keep leaves the stance to the caller. A corpse in memory is no threat (CE-2120).
+        /// 🔴 Red before: no move touched the stance — every soldier ran upright under fire.
+        /// </summary>
+        [Fact]
+        public void AQ88_TheMove_CrouchesWhenThreatenedOrCautious_UprightOtherwise()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+            Fdp.Toolkit.Tkb.Domain.StanceId Move(MoveGait gait)
+            {
+                Assert.True(LocomotionMoveTo.Issue(w.Repo, w.Unit, new System.Numerics.Vector3(10f, 0f, 0f), 3f, 1f, gait));
+                return w.Repo.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(w.Unit).TargetStance;
+            }
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Move(MoveGait.Tactical));    // nothing known
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Move(MoveGait.Crouched));    // cautious
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Move(MoveGait.Keep));        // left as it was
+
+            var corpse = w.Contact(armed: true);
+            w.Repo.AddComponent(corpse, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Move(MoveGait.Tactical));    // a dead contact
+
+            w.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(corpse).Current = 50f;
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Move(MoveGait.Tactical));    // a live contact
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Move(MoveGait.Upright));     // a civilian runs upright
+
+            w.Remember(Entity.Null);
+            w.Hear(30f, 0f, 10f);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Move(MoveGait.Tactical));    // a heard shot
+
+            w.Remember(Entity.Null);
+            var senses = new RecentSenses();
+            senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.Hit, w.Repo.GetSingleton<GlobalTime>().TotalTime);
+            w.Repo.AddComponent(w.Unit, senses);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Move(MoveGait.Tactical));    // hit, shooter unknown
+        }
+}
 }

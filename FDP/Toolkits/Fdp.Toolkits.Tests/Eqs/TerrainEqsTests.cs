@@ -401,6 +401,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(1, point.StanceHeight);           // a 0.9 m sill: crouch
             Assert.True(best.TryGetStance(out var stance));   // ⭐ P-1: the answer carries it
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, stance);
+            Assert.All(top, r => Assert.True(r.TryGetKind(out var k) && k == CoverKind.WindowFiring));   // ⭐ CE-3158 G1: and its kind
             var mount = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.DefaultMount;
             Assert.All(top, r => Assert.False(
                 w.SegmentBlocked(new Vector3(r.PositionX, r.PositionY, r.PositionZ + (r.TryGetStance(out var s) ? mount.For(s) : mount.Standing)),

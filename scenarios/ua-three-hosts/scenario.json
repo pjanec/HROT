@@ -34,7 +34,7 @@
         "TkbType": 2002
       },
       "EntityInfo": {
-        "Name": "Rifleman BTree",
+        "Name": "Rifleman A",
         "ForceId": "Friend"
       },
       "TargetMemory": {
@@ -71,14 +71,14 @@
         "TkbType": 2002
       },
       "EntityInfo": {
-        "Name": "Rifleman HSM",
+        "Name": "Rifleman B",
         "ForceId": "Friend"
       },
       "TargetMemory": {
         "Entries": []
       },
       "Behavior": {
-        "Name": "CombatPostureHsm",
+        "Name": "CombatPosture",
         "Params": "{\"advance\":{\"Objective\":[325,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
       }
@@ -140,15 +140,15 @@
         "TkbType": 2002
       },
       "EntityInfo": {
-        "Name": "Rifleman Blueprint",
+        "Name": "Rifleman C",
         "ForceId": "Friend"
       },
       "TargetMemory": {
         "Entries": []
       },
       "Behavior": {
-        "Name": "CombatPostureBp",
-        "Params": "{\"advance\":{\"advance\":{\"Objective\":[325,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}}",
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[325,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
       }
     }

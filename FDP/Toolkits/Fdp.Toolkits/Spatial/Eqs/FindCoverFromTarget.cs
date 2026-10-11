@@ -34,7 +34,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
             ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
             ScoreExpensive = new IEqsTest[]
             {
-                los == null ? new ThreatExposureTest() : new ThreatExposureTest(los),
+                // ⭐ AQ88 C (R-265) — hidden from every known threat outweighs distance + path cost
+                los == null ? new ThreatExposureTest { Weight = ThreatExposureTest.HideFromAllWeight }
+                            : new ThreatExposureTest(los) { Weight = ThreatExposureTest.HideFromAllWeight },
                 new PathCostScoreTest(),
             },
             MaxCandidates  = 32,

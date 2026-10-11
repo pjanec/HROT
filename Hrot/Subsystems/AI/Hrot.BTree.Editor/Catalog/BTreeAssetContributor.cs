@@ -41,10 +41,21 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
                 var defAttr = method.GetCustomAttribute<BTreeDefinitionAttribute>();
                 if (defAttr is null) continue;
                 if (method.GetParameters().Length != 0) continue;
-                if (!typeof(BehaviorTreeBlob).IsAssignableFrom(method.ReturnType)) continue;
+                // ⭐ CE-3160 (R-266, R-137) — a C#-BUILT tree (the method returns its BTreeBuilder, R-223: CombatPosture,
+                //   WindowDuel, MoveToLocation …) is compiled here too, so it stays visible and debuggable on the canvas like a
+                //   JSON one. ⛔ Only blob-returning (generated) methods were listed, so porting a JSON tree to C# hid it.
+                bool returnsBuilder = method.ReturnType.IsGenericType
+                    && method.ReturnType.GetGenericTypeDefinition().FullName == "Fbt.Compiler.BTreeBuilder`2";   // by name: this editor does not reference the compiler
+                if (!returnsBuilder && !typeof(BehaviorTreeBlob).IsAssignableFrom(method.ReturnType)) continue;
 
                 BehaviorTreeBlob? blob;
-                try { blob = (BehaviorTreeBlob?)method.Invoke(null, null); }
+                try
+                {
+                    var made = method.Invoke(null, null);
+                    blob = returnsBuilder
+                        ? (BehaviorTreeBlob?)made?.GetType().GetMethod("Compile", new[] { typeof(string) })?.Invoke(made, new object[] { defAttr.TreeName })
+                        : (BehaviorTreeBlob?)made;
+                }
                 catch { blob = null; }
                 if (blob is null) continue;
 

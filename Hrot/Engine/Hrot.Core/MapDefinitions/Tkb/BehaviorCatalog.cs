@@ -26,6 +26,7 @@ public static class BehaviorCatalog
         ["WanderCivil", "PanicFlee"];
 
     private static readonly IReadOnlyList<string> s_militaryApcBehaviors;
+    private static readonly HashSet<string> s_demo = new(StringComparer.Ordinal);
     private static readonly IReadOnlyList<string> s_infantryBehaviors;
     private static readonly IReadOnlyList<string> s_insurgentBehaviors;
     private static readonly IReadOnlyList<string> s_commanderBehaviors;
@@ -51,6 +52,7 @@ public static class BehaviorCatalog
         {
             var attr = type.GetCustomAttribute<BehaviorContractAttribute>();
             if (attr == null) continue;
+            if (attr.Demo) { s_demo.Add(attr.BehaviorName); continue; }   // ⭐ CE-3160 (L4) — demos run, but are not offered
             foreach (var cat in categories)
             {
                 if (attr.ValidCategories.HasFlag(cat))
@@ -62,6 +64,9 @@ public static class BehaviorCatalog
             kv => kv.Key,
             kv => (IReadOnlyList<string>)kv.Value.AsReadOnly());
     }
+
+    /// <summary>⭐ <c>CE-3160</c> (L4, R-266) — a demo / example behaviour (its contract says <c>Demo</c>): runnable, never offered.</summary>
+    public static bool IsDemo(string behaviorName) => s_demo.Contains(behaviorName);
 
     /// <summary>
     /// Returns the list of behavior names valid for the given TKB entity type.

@@ -317,17 +317,8 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("IsAssignedTarget")]
         public static float IsAssignedTarget(in UtilityInputCtx ctx)
         {
-            var repo = ctx.Repo;
-            if (!repo.HasComponent<UnitSubordinate>(ctx.Self)) return 1f;
-            ref readonly var sub = ref repo.GetComponentRO<UnitSubordinate>(ctx.Self);
-            var commander = sub.Commander;
-            if (!repo.HasComponent<SquadCognitiveState>(commander) || !repo.HasComponent<UnitRoster>(commander)) return 1f;
-            ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
-            int idx = UnitRoster.IndexOf(ref roster, ctx.Self);
-            if (idx < 0) return 1f;
-            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander).Assignment;
-            long assignedHandle = state.GetAssignedTarget(idx);
-            if (assignedHandle == 0L) return 1f;
+            // ⭐ CE-3158 G4 — the ONE reader of the squad's assignment (the fire-from-cover node locks onto the same answer)
+            if (!SquadAssignment.TargetOf(ctx.Repo, ctx.Self, out long assignedHandle)) return 1f;
             float result = assignedHandle == (long)ctx.Context.PackedValue ? 1f : 0f;
             Debug.Assert(result >= 0f && result <= 1f);
             return result;

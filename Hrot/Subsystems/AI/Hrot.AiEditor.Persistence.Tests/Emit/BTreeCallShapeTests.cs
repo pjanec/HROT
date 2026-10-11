@@ -109,26 +109,7 @@ public sealed class BTreeCallShapeTests
         // ⭐ CE-2080 — the shipped SOP: its four SOP-order rows (DoWhenIdle / React) are plain actions.
         ("TakeCover.btree.json", "c2092000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),   // CE-2092
         ("FallBack.btree.json", "c2093000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),    // CE-2093
-        // ⭐ CE-2073 — CombatPosture: derived, not guessed: ChooseOption and the four IsOption conditions classify Plain, the posture / EQS actions Stateful, Hold NoParams.
-        ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Plain),
-        ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000004", BTreeDelegateShapeDto.Stateful),
-        ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000007", BTreeDelegateShapeDto.Plain),
-        ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000008", BTreeDelegateShapeDto.Stateful),
-        ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000010", BTreeDelegateShapeDto.Plain),
-        ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Stateful),
-        ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000013", BTreeDelegateShapeDto.Plain),
-        ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000014", BTreeDelegateShapeDto.Stateful),
-        ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000016", BTreeDelegateShapeDto.Plain),
-        ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000017", BTreeDelegateShapeDto.Stateful),
-        ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000018", BTreeDelegateShapeDto.NoParams),
-        ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Plain),    // CE-3084 G6: ChooseOption(approach)
-        ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Stateful),  // ApproachSensors
-        ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000006", BTreeDelegateShapeDto.Plain),     // IsOption(isFlank)
-        ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000009", BTreeDelegateShapeDto.Plain),     // IsOption(isFiringPos)
-        ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Stateful),
-        ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000012", BTreeDelegateShapeDto.Stateful),
-        ("CombatPosture.btree.json", "c3090000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Plain),       // CE-3090 is hold prone
-        ("CombatPosture.btree.json", "c3090000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Stateful),    // CE-3090 HoldProne
+        // ⛔ CE-2073's CombatPosture rows and CE-3083's Posture* wrapper rows went with those assets — CE-3160 (R-266): CombatPosture is C#-built.
         ("Flank.btree.json", "c2108000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Stateful),            // CE-2108
         ("Flank.btree.json", "c2108000-0000-0000-0000-000000000004", BTreeDelegateShapeDto.Stateful),
         ("FiringPosition.btree.json", "c2108000-0000-0000-0000-000000000103", BTreeDelegateShapeDto.Stateful),
@@ -140,11 +121,6 @@ public sealed class BTreeCallShapeTests
         ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000009", BTreeDelegateShapeDto.Plain),
         ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000010", BTreeDelegateShapeDto.Stateful),
         ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
-        ("PostureAdvance.btree.json", "c3083100-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),    // CE-3083 G5 wrappers
-        ("PostureSuppress.btree.json", "c3083200-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),
-        ("PostureHold.btree.json", "c3083300-0000-0000-0000-000000000002", BTreeDelegateShapeDto.NoParams),
-        ("PostureSense.btree.json", "c3083400-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),
-        ("PostureHoldProne.btree.json", "c3090200-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful), // CE-3090
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000022", BTreeDelegateShapeDto.Plain),

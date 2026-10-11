@@ -393,16 +393,16 @@ def run_weapon_choice(c, timeout):
          f"…a burst, not the magazine into the tank ({gun0 - gun1 if gun1 is not None and gun0 is not None else '?'} rounds)")
 
 
-# ── U3 (CE-3082/3083) — one decision, three hosts: BTree CombatPosture, HSM CombatPostureHsm, blueprint CombatPostureBp ──────
+# ── U3 (CE-3082/3083) — one decision, three riflemen; since CE-3160 (R-266) all three run the ONE C#-built CombatPosture ──────
 #   R-197. The SAME Health edits on every host ⇒ the same fight/defend class at every step; the exact winners are printed side by
 #   side (a defensive winner depends on the EQS answers where each unit stands — U1's measured caveat — and the HSM switches one
 #   tick later, behaviors' G4 note). Hosts present in the scenario are checked; a missing one is reported, not failed.
 
 def run_three_hosts(c, timeout):
     ids = ids_by_name()
-    hosts = {n: ids[n] for n in ("Rifleman BTree", "Rifleman HSM", "Rifleman Blueprint") if n in ids}
+    hosts = {n: ids[n] for n in ("Rifleman A", "Rifleman B", "Rifleman C") if n in ids}
     print(f"    hosts: {sorted(hosts)}")
-    if not c.ok(len(hosts) >= 2 and "Rifleman BTree" in hosts, "at least the BTree and one other host are loaded"):
+    if not c.ok(len(hosts) >= 2 and "Rifleman A" in hosts, "at least two riflemen are loaded"):
         return
     for nid in hosts.values():
         call("POST", "/trace/observe", {"networkId": nid, "on": True})

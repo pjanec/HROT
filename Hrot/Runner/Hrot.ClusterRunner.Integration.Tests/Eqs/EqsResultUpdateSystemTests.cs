@@ -95,7 +95,7 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
             RefreshTick = 5,
             Results     = new List<EqsResultEntry>
             {
-                new() { EntityId = 10L, PositionX = 100f, PositionY = 200f, PositionZ = 250f, Score = 0.8f, Flags = 1, Stance = 2 },
+                new() { EntityId = 10L, PositionX = 100f, PositionY = 200f, PositionZ = 250f, Score = 0.8f, Flags = 1, Stance = 2, Kind = 2 },
                 new() { EntityId = 20L, PositionX = 300f, PositionY = 400f, PositionZ = 17.5f, Score = 0.5f, Flags = 2 },
             },
         });
@@ -122,6 +122,10 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
         Assert.True(span[0].TryGetStance(out var stance));
         Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, stance);
         Assert.False(span[1].TryGetStance(out _));
+        // ⭐ CE-3158 G1: and what the point IS (here a window) — the node chooses its peek from it.
+        Assert.True(span[0].TryGetKind(out var kind));
+        Assert.Equal(CoverKind.WindowFiring, kind);
+        Assert.False(span[1].TryGetKind(out _));
     }
 
     /// <summary>

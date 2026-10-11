@@ -236,25 +236,26 @@ public sealed class BTreeJsonGeneratorTests
             "topology core must NOT contain [BTreeLayout( (§6.2)");
     }
 
-    /// <summary>⭐ <c>CE-2073</c>: a Parallel's policy is authorable — CombatPosture's RequireOne (1) is in the shipped JSON,
-    /// survives DTO → model → DTO, and comes back when the editor projects the COMPILED tree (the compiler keeps it in
-    /// IntParams). The default (0) stays out of the JSON, so older assets are byte-identical. ⭐ The EMITTED call is pinned by
-    /// the generated-source golden (<c>CombatPosture.g.cs.txt</c>: <c>.Parallel(1, …)</c>; <c>T03_Parallel</c>: <c>Parallel(0, …)</c>) —
-    /// emitting this asset outside the generator fails on purpose (its bindings need the packed managed blackboard).</summary>
+    /// <summary>⭐ <c>CE-2073</c>: a Parallel's policy is authorable — a RequireOne (1) survives DTO → model → DTO, and comes back
+    /// when the editor projects the COMPILED tree (the compiler keeps it in IntParams). The default (0) stays out of the JSON, so
+    /// older assets are byte-identical. ⭐ <c>CE-3160</c> (R-266): CombatPosture — the shipped RequireOne — is now a C#-built tree,
+    /// so the authored half reads <c>T03_Parallel</c> with its policy set to 1, and the compiled half still projects CombatPosture.</summary>
     [Fact]
     public void CE2073_TheParallelPolicy_RoundTrips_AndIsEmitted()
     {
         string path = null!;
         for (var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory); d != null && path == null; d = d.Parent)
         {
-            var c = System.IO.Path.Combine(d.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "BTrees", "Tactics", "CombatPosture.btree.json");
+            var c = System.IO.Path.Combine(d.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "BTrees", "Authoring", "T03_Parallel.btree.json");
             if (System.IO.File.Exists(c)) path = c;
         }
-        path.Should().NotBeNull("the shipped CombatPosture asset must be found above the test output");
+        path.Should().NotBeNull("the shipped T03_Parallel asset must be found above the test output");
 
         var dto = BTreeJsonServices.Deserialize(System.IO.File.ReadAllText(path))!;
         var par = dto.Nodes.OfType<BTreeParallelNodeDto>().Single();
-        par.Policy.Should().Be(1, "CombatPosture is authored RequireOne");
+        par.Policy = 1;
+        dto = BTreeJsonServices.Deserialize(BTreeJsonServices.Serialize(dto))!;
+        dto.Nodes.OfType<BTreeParallelNodeDto>().Single().Policy.Should().Be(1, "JSON round trip");
 
         var model = BehaviorTreeAssetMapper.FromDto(dto);
         model.Nodes.Single(n => n.KernelType == Fbt.NodeType.Parallel).ParallelPolicy.Should().Be(1, "DTO → model");

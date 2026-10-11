@@ -6,6 +6,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 // Disambiguate from GizmoMap.Contracts.Fdp.Toolkit.Diagnostics.Gizmos.FixedString32.
 using FixedString32 = Fdp.Core.FixedString32;
@@ -35,6 +36,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         private static readonly Rgba32 Hide   = new(60, 170, 90, 230);
         private static readonly Rgba32 Peek   = new(60, 160, 230, 230);
         private static readonly Rgba32 Phase  = new(230, 230, 230, 255);
+        private static readonly Rgba32 Claim  = new(170, 110, 230, 200);
 
         public unsafe void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
@@ -56,6 +58,13 @@ namespace Hrot.ScenarioEditor.Gizmos
             var unit = view.GetComponentRO<SimTransform>(entity).Position;
             draw.DrawText(unit.X, unit.Y, new FixedString32(text), Phase, fontSizePx: 11f, lineOffsetPx: -40f);
             draw.DrawSphere(m.HidePoint, 0.35f, Hide, thickness: 2f);
+            // ⭐ CE-3158 G5 (§10.7 "seen") — the unit's live CoverClaim: an owner line from him to the point he holds, so who keeps
+            //   squad-mates off which cover is visible on the map
+            if (view is EntityRepository world && world.IsComponentTypeRegistered<CoverClaim>() && world.HasComponent<CoverClaim>(entity))
+            {
+                ref readonly var claim = ref world.GetComponentRO<CoverClaim>(entity);
+                if (claim.Until > now) draw.DrawLine(unit, claim.Hide, Claim, thickness: 1f);
+            }
             if (Vector3.Distance(m.PeekPoint, m.HidePoint) > 0.25f)
             {
                 draw.DrawSphere(m.PeekPoint, 0.35f, Peek, thickness: 2f);

@@ -59,6 +59,15 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
             if (!AimAndFireExecutor.RoePermitsFire(world, entity)) { channel.Status = NodeStatus.Running; Say(world, entity, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldRoe); return; }
+            // ⭐ CE-3158 G3 — a DIRECT burst never flies through a friend (CE-321's rule, to a point); held like the aimed guard
+            //   (Running, no round spent). An INDIRECT warhead (a mortar, a thrown grenade) arcs over them — exempt.
+            if (CombatTkb.WarheadOf(world, CombatTkb.MountOf(world, entity, p.Mount)) is not { Indirect: true }
+                && LineOfFire.BlockedByFriendly(world, entity, p.Point))
+            {
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldFriendlyOnLine);
+                return;
+            }
             // ⭐ CE-3136 P-5 (D9) — an empty magazine reloads (held, Running) instead of ending the burst
             if (!Magazine.Ready(weapon))
             {

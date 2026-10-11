@@ -226,6 +226,8 @@ objective). Each task carries its own params.
 
 ### P5 — One decision, three hosts
 
+> ⛔ **`2026-10-11` (R-266):** the library's CombatPosture now exists ONCE, as a C#-built BTree (Decision Layer §3.3h); its HSM and blueprint copies are retired. The pattern below still holds for authors who choose a host — the library just ships one.
+
 ```mermaid
 graph LR
   DEC["CombatPostureDecision (C#)"] --> BT["BTree: ChooseOption + IsOption"]

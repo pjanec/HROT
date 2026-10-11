@@ -16,7 +16,7 @@ namespace Hrot.MuscleCharacter.Animation.Stance
         /// stance (no <see cref="StanceIntent"/> — no animation definition, or the type is not registered on this node).</summary>
         public static bool Set(EntityRepository world, Entity self, StanceId stance, float blendSeconds)
         {
-            if (!world.IsComponentTypeRegistered<StanceIntent>() || !world.HasComponent<StanceIntent>(self)) return false;
+            if (!CanCarry(world, self)) return false;
             ref var intent = ref world.GetComponentRW<StanceIntent>(self);
             if (intent.TargetStance == stance) return true;
             intent.TargetStance = stance;
@@ -24,5 +24,9 @@ namespace Hrot.MuscleCharacter.Animation.Stance
             intent.Version++;
             return true;
         }
+
+        /// <summary>⭐ <c>CE-3158</c> G1 — whether <paramref name="self"/> can carry a stance at all (the test <see cref="Set"/> makes).</summary>
+        public static bool CanCarry(EntityRepository world, Entity self)
+            => world.IsComponentTypeRegistered<StanceIntent>() && world.HasComponent<StanceIntent>(self);
     }
 }

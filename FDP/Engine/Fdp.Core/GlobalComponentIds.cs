@@ -722,6 +722,11 @@ namespace Fdp.Core
         /// (<c>CE-3136</c> P-7a, R-243). Absent ⇒ this node holds no terrain, and an obstacle is acked at once.</summary>
         public const int StaticObstacleBakery = 347;
 
+        /// <summary><c>CoverClaim</c> — the cover point a unit fighting from cover is going to / holds, so squad-mates pick other ones
+        /// (<c>CE-3158</c> G5, 📄 docs/DESIGN_Peek_And_Fire.md §10.7). was 348 (census <c>2026-10-10</c>); ⚠ ui took 348/349 in parallel,
+        /// so this moved to 350 at the ui merge <c>2026-10-11</c> — safe: <c>NoScenario</c>, never saved.</summary>
+        public const int CoverClaim = 350;
+
         /// <summary><c>EntityAppearance</c> — an entity's body colour: the TKB's (<c>VisualData.ColorHex</c>) stamped at spawn, or a
         /// per-instance value saved in the scenario (<c>CE-1033</c> S5c, docs/DESIGN_Map_3D_Mode.md §3.7, M15).</summary>
         public const int EntityAppearance = 348;

@@ -30,5 +30,11 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-3136</c> P-8 (D10) — the window duel: <c>PeekAndFire</c> with a shape — <c>window</c> (A: stance peeks, rotates
         /// windows) or <c>street</c> (B: step peeks round a cover, suppresses and bounds). 📄 docs/DESIGN_Peek_And_Fire.md §8.4.</summary>
         public const string WindowDuel = "WindowDuel";
+
+        /// <summary>⭐ CE-3160 (R-266) — the library's combat posture, a C#-built tree (DESIGN_Decision_Layer §3.3h).</summary>
+        public const string CombatPosture = "CombatPosture";
+
+        /// <summary>⭐ CE-3160 / CE-507 D2 (a) (R-264) — a squad commander's bounding overwatch (DESIGN_Squad_Wiring §6).</summary>
+        public const string BoundingOverwatch = "BoundingOverwatch";
     }
 }

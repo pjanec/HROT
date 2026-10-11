@@ -4,7 +4,7 @@ updated: 2026-10-06
 build-state: BUILT §3.3e (CE-3084, G6: AttackApproach nested in the advance; CE-2117 kernel sweep). BUILT §3.3d (CE-3083, G5: CombatPostureBp + the decision picker; CE-2115, CE-2116). BUILT §3.3c (CE-3082, G4: CombatPostureHsm + HSM exits run deactivators). BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
-known-rot: none.
+known-rot: §3.3c/§3.3d HSM + blueprint posture PARITY is SUPERSEDED for the library by R-258 (2026-10-10: the three hosts were a proof; the library is BTrees, its blueprint and HSM copies go) — REVIEW_Behaviour_Library_Genericity.md §5.
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:
@@ -1093,6 +1093,53 @@ came back to CGF; when the hostiles died the stand-up v2 made the same round tri
 **Slices:** ① single world — registry, capability, module line, TKB + capability flag, the brain's request, the gizmo, rails (editor-shaped
 world). ② the wire — `AnimationReplicationModule` on CGF (Brain) and SimHost (Muscle), live on `--mode all`. Owned by `CE-3010` for the
 rest of the animation pipeline (montages, look-at), which stays out of scope here.
+
+### 3.3h `CE-3160` (R-266) — CombatPosture becomes a C#-built tree; its JSON, HSM and blueprint copies go *(backend, `2026-10-11`; build-state: BUILT as CE-3161, as drawn)*
+
+🔒 *"TakeCove drift: drop the btree ans hsm versions, keep the demo on the btree implemented in csharp."* (R-266) — with R-258 (the
+blueprint and HSM copies go) this leaves ONE CombatPosture: a `[BTreeDefinition]` in C#, the form R-223 already uses for `WindowDuel`,
+`MoveToLocation`, `FireAtPoint`.
+
+```mermaid
+classDiagram
+  class CombatPostureBehavior { <<NEW, Hrot.AI.Behaviors>> +BuildTree() [BTreeDefinition CombatPosture] +Resolve(dto, ref block) [BehaviorResolver] }
+  class CombatPostureBlackboard { <<NEW struct>> Choose · Choice · Sensors · Approach · ApproachChoice · ApproachSensors · Advance · Peek · Engage · Fallback · Flank · Firing · IsX option ids · one working-state field per node }
+  class CombatPostureParamsJsonDto { <<NEW, Hrot.Core>> [BehaviorContract Infantry] advance: Objective · Speed · ArrivalRadius · CooldownSeconds }
+  class UtilityNodes { <<existing>> ChooseOption · IsOption }
+  class PostureNodes { <<existing>> PostureSensors · ApproachSensors · AdvanceAndAttack · Engage · HoldProne · Hold }
+  class EqsTacticsNodes { <<existing>> Flank · FiringPosition · FallBack }
+  class PeekAndFireNodes { <<existing>> PeekAndFire }
+  class CombatPosture_btree_json { <<DELETED>> }
+  class CombatPostureHsm_hsm_json { <<DELETED>> }
+  class CombatPostureBp_bp_json { <<DELETED, with its Posture* wrapper trees>> }
+  CombatPostureBehavior *-- CombatPostureBlackboard
+  CombatPostureBehavior ..> CombatPostureParamsJsonDto : resolves
+  CombatPostureBehavior ..> UtilityNodes
+  CombatPostureBehavior ..> PostureNodes
+  CombatPostureBehavior ..> EqsTacticsNodes
+  CombatPostureBehavior ..> PeekAndFireNodes
+```
+*What the picture shows: no node changes — the C# tree binds the SAME shared nodes the JSON tree bound (R-174), so the port changes
+the FORM and nothing the soldier does; what is deleted is every second and third copy.*
+
+```mermaid
+sequenceDiagram
+  participant A as author / scenario
+  participant I as BehaviorIngressSystem
+  participant R as CombatPostureBehavior.Resolve
+  participant T as the C# tree (Parallel RequireOne)
+  A->>I: AssignBehavior("CombatPosture", {"advance":{Objective, Speed, ArrivalRadius, CooldownSeconds}})
+  I->>R: the DTO + the block
+  R->>R: every default the JSON tree's blackboard carried (decisions, option ids, radii, speeds) + the advance
+  I->>T: tick: ChooseOption · PostureSensors · ChooseOption(approach) · ApproachSensors · ObserverSelector(run the winner)
+```
+
+| item | decision | why |
+|---|---|---|
+| topology | node for node the §3.3b/§3.3e/§3.3f tree: Parallel(RequireOne) of the two choosers, the two sensor nodes and an ObserverSelector over Advance(→ approach ObserverSelector: Flank · FiringPosition · Direct) · TakeCover(PeekAndFire) · Suppress · FallBack · HoldProne · Hold | the behaviour is unchanged; the rails that pinned it keep pinning it |
+| params | the contract keeps the shape every scenario already writes — `{"advance":{…}}` — so no scenario changes; every other value is a resolver default equal to the JSON blackboard's | the palette gets a param form (L4) without breaking the seven `ua-*` scenarios |
+| the demo | `ua-three-hosts` keeps running — all three soldiers on the C# CombatPosture | R-266 *"keep the demo on the btree implemented in csharp"* |
+| the "same decisions" rail (`CE3082`) | retired with the HSM it compared against; the BTree's own decision rails stay | ⛔ nothing left to compare |
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 

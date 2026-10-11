@@ -47,13 +47,8 @@ namespace Fdp.Toolkit.Combat
             return AnglesOf(hull, direction.LengthSquared() > 1e-8f ? direction : Vector3.Transform(Vector3.UnitX, hull.Rotation));
         }
 
-        /// <summary>True when the mount's round is an indirect (arcing) warhead — the same test <see cref="FireProcessingSystem"/> uses.</summary>
-        public static bool IsIndirect(EntityRepository world, WeaponMountDto mount)
-        {
-            long ammo = unchecked((long)mount.AmmoGuid);
-            if (ammo == 0 || !world.HasSingletonManaged<ITkbDatabase>()) return false;
-            var warhead = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(world.GetSingletonManaged<ITkbDatabase>(), ammo).Warhead;
-            return warhead is { Indirect: true };
-        }
+        /// <summary>True when the mount's round is an indirect (arcing) warhead — <see cref="CombatTkb.WarheadOf"/>, the one lookup
+        /// <see cref="FireProcessingSystem"/> reads too.</summary>
+        public static bool IsIndirect(EntityRepository world, WeaponMountDto mount) => CombatTkb.WarheadOf(world, mount) is { Indirect: true };
     }
 }

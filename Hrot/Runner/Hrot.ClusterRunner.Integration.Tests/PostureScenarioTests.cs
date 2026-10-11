@@ -380,16 +380,16 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐ <c>CE-3082</c> / <c>CE-3083</c> — U3 <c>ua-three-hosts</c> in-process (the live check's twin, R-197): ONE decision on THREE
-    /// hosts — the BTree <c>CombatPosture</c>, the HSM <c>CombatPostureHsm</c>, the blueprint <c>CombatPostureBp</c> — the same Health
-    /// edits ⇒ the same fight / defend class at every step on every host. 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §4 U3.
+    /// ⭐ <c>CE-3082</c> / <c>CE-3083</c> — U3 <c>ua-three-hosts</c> in-process (the live check's twin, R-197): the same Health edits ⇒
+    /// the same fight / defend class at every step. ⭐ <c>CE-3160</c> (R-266): the HSM and blueprint hosts are retired — the three
+    /// riflemen all run the ONE C#-built <c>CombatPosture</c> (Decision Layer §3.3h). 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §4 U3.
     /// </summary>
     [Fact(Timeout = 600_000)]
     public async Task CE3082_U3_OneDecision_ThreeHosts_TheSameChoices()
     {
         using var harness = await StartShippedScenario("ua-three-hosts");
         var cgf = harness.Cgf!.World!;
-        string[] names = { "Rifleman BTree", "Rifleman HSM", "Rifleman Blueprint" };
+        string[] names = { "Rifleman A", "Rifleman B", "Rifleman C" };
         Assert.True(harness.PumpUntil(() => names.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000), "the three riflemen must spawn on CGF");
         var units = names.Select(n => ByName(cgf, n)).ToArray();
         foreach (var u in units) Observe(cgf, u);
@@ -560,7 +560,46 @@ public sealed class PostureScenarioTests : IDisposable
                 }
             }
         }
+        // ⭐ CE-3097 / CE-3159 probe — per 150 frames: sim time advanced on SimHost, the unit's REAL speed (displacement / sim time),
+        //   the speed the brain ASKED for (CGF NavigationIntent.TargetSpeed), and the mover's own state on SimHost.
+        var lastMotion = new System.Collections.Generic.Dictionary<string, (Vector3 Pos, double T)>();
+        void Motion(int f, string name)
+        {
+            var ce = ByName(cgf, name);
+            if (ce.IsNull || harness.Cgf!.GhostEntityMap is not { } gm || !gm.TryGetNetworkId(ce, out long nid)) return;
+            var shw = harness.SimHost.World!;
+            if (!harness.SimHost.App.TestHook_EntityMap.TryGetEntity(nid, out var se) || !shw.IsAlive(se)) return;
+            double t = shw.HasSingleton<GlobalTime>() ? shw.GetSingleton<GlobalTime>().TotalTime : 0d;
+            float dt = shw.HasSingleton<GlobalTime>() ? shw.GetSingleton<GlobalTime>().DeltaTime : 0f;
+            var pos = shw.HasComponent<SimTransform>(se) ? shw.GetComponent<SimTransform>(se).Position : default;
+            string real = lastMotion.TryGetValue(name, out var last) && t > last.T
+                ? $"{Vector2.Distance(new Vector2(pos.X, pos.Y), new Vector2(last.Pos.X, last.Pos.Y)) / (t - last.T):F2} m/s over {t - last.T:F2} s"
+                : "-";
+            lastMotion[name] = (pos, t);
+            string asked = cgf.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationIntent>() && cgf.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(ce)
+                ? $"{cgf.GetComponent<Fdp.Toolkit.Navigation.NavigationIntent>(ce).Mode}@{cgf.GetComponent<Fdp.Toolkit.Navigation.NavigationIntent>(ce).TargetSpeed:F2}" : "none";
+            string veh = shw.IsComponentTypeRegistered<CarKinem.Core.VehicleState>() && shw.HasComponent<CarKinem.Core.VehicleState>(se)
+                ? $"veh speed={shw.GetComponent<CarKinem.Core.VehicleState>(se).Speed:F2} accel={shw.GetComponent<CarKinem.Core.VehicleState>(se).Accel:F2}" : "no VehicleState";
+            string nav = shw.IsComponentTypeRegistered<CarKinem.Core.NavState>() && shw.HasComponent<CarKinem.Core.NavState>(se)
+                ? $"nav {shw.GetComponent<CarKinem.Core.NavState>(se).Mode} target={shw.GetComponent<CarKinem.Core.NavState>(se).TargetSpeed:F2} arrived={shw.GetComponent<CarKinem.Core.NavState>(se).HasArrived} blocked={shw.GetComponent<CarKinem.Core.NavState>(se).IsBlocked}" : "no NavState";
+            string crowd = shw.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.CrowdAgent>() && shw.HasComponent<Fdp.Toolkit.Navigation.CrowdAgent>(se) ? "crowd" : "no crowd";
+            string vel = shw.HasComponent<SimVelocity>(se) ? $"{shw.GetComponent<SimVelocity>(se).Linear.Length():F2}" : "-";
+            _out.WriteLine($"   motion {name}: simT={t:F2} dt={dt:F4} real={real} asked={asked} | {veh} | {nav} | {crowd} | |vel|={vel}");
+        }
+        // ⭐ CE-3159 probe — the fight-from-cover node's phase, points and stance, logged on every phase change (its unit memory mirror).
+        byte lastPhase = 255;
+        void PeekProbe(int f)
+        {
+            if (!cgf.IsAlive(rifleman)) return;
+            var m = Fdp.Toolkit.Behavior.UnitMemory.Get<Fdp.Toolkit.Combat.FiringPositionMemory>(cgf, rifleman);
+            if (m.Phase == lastPhase) return;
+            lastPhase = m.Phase;
+            string stance = cgf.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceIntent>() && cgf.HasComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(rifleman)
+                ? cgf.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(rifleman).TargetStance.ToString() : "-";
+            _out.WriteLine($"   peek f{f}: phase={(Fdp.Toolkit.Combat.PeekPhase)m.Phase} hide={m.HidePoint.X:F1},{m.HidePoint.Y:F1},{m.HidePoint.Z:F1} peek={m.PeekPoint.X:F1},{m.PeekPoint.Y:F1} until={m.PhaseUntil:F1} stance={stance} pos={Pos(rifleman).X:F1},{Pos(rifleman).Y:F1} posture={Winner()}");
+        }
         int maxLeg = -1, firstHitFrame = -1; Vector3 posAtFirstHit = default; float movedAfterHit = 0f; bool defensiveAfterHit = false;
+        int firedFromCover = 0;   // ⭐ CE-3158 G-6 / CE-3157 — rounds he fires while his posture is TakeCover, after the first hit
         int lastAmmo = cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).Ammo : -1;   // ⭐ CE-3136 P-5: the spawned load, not a literal 30
         for (int f = 0; f < 24000; f++)
         {
@@ -569,6 +608,7 @@ public sealed class PostureScenarioTests : IDisposable
             int ammoNow = cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).Ammo : -1;
             if (ammoNow != lastAmmo)
             {
+                if (firstHitFrame >= 0 && ammoNow < lastAmmo && Winner() is Posture.TakeCover) firedFromCover += lastAmmo - ammoNow;
                 var t = FireTarget(cgf, rifleman);
                 string tn = ShooterName(cgf, t);
                 string tm = harness.Cgf!.GhostEntityMap is { } m && m.TryGetNetworkId(t, out long tid) ? $"net{tid}" : "UNMAPPED";
@@ -588,11 +628,13 @@ public sealed class PostureScenarioTests : IDisposable
                 movedAfterHit = MathF.Max(movedAfterHit, Vector3.Distance(Pos(rifleman), posAtFirstHit));
                 if (Winner() is Posture.TakeCover or Posture.Flee or Posture.HoldProne) defensiveAfterHit = true;
             }
-            if (f % 150 == 0) _out.WriteLine($"f{f}: {State()}");
+            if (f % 150 == 0) { _out.WriteLine($"f{f}: {State()}"); Motion(f, "Rifleman"); Motion(f, "Hostile 1"); }
+            PeekProbe(f);
             if (Hp(rifleman) <= 0f) { _out.WriteLine($"f{f}: RIFLEMAN DOWN — {State()}"); break; }
             if (Leg() >= 1 && Vector3.Distance(Pos(rifleman), final) <= 3.5f) { _out.WriteLine($"f{f}: FINAL OBJECTIVE — {State()}"); break; }
         }
         _out.WriteLine($"postures: {string.Join(" → ", postures)}");
+        _out.WriteLine($"CE-3157: rounds fired from cover after the first hit = {firedFromCover}");
         _out.WriteLine($"approaches: {string.Join(" → ", approaches)}");
         _out.WriteLine($"end: {State()} hostiles up={HostilesUp()}");
         var cgfMap = harness.Cgf!.GhostEntityMap;

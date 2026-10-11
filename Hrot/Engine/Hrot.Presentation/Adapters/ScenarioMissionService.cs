@@ -122,6 +122,8 @@ namespace Hrot.UI.Common.Adapters
             {
                 if (existingNames.Contains(name))
                     continue;
+                if (BehaviorCatalog.IsDemo(name))   // ⭐ CE-3160 (L4) — a demo runs when named, but is not offered
+                    continue;
                 if (!registry.TryGetId(name, out int id))
                     continue;
                 if (!registry.TryGetDefinition(id, out var def))

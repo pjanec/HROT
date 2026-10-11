@@ -49,21 +49,33 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// InfantrySoldier entity must map to the "InfantryCombat" behavior.
+        /// ⭐ <c>CE-3160</c> (L4, R-266) — an infantry soldier (and an insurgent) defends an area with the LIBRARY's
+        /// <c>CombatPosture</c>, advancing to the area's centre and holding within its radius. ⛔ It mapped to <c>InfantryCombat</c>,
+        /// the UrbanCombat example's tree registered on the editor only, so the order was silently dropped on CGF.
         /// </summary>
-        [Fact]
-        public void TryMap_InfantrySoldier_ReturnsInfantryCombat()
+        [Theory]
+        [InlineData(TkbEntityTypes.InfantrySoldier)]
+        [InlineData(TkbEntityTypes.Insurgent)]
+        public void TryMap_Infantry_DefendsWithCombatPosture_AtTheAreaCentre(long tkbType)
         {
             using var repo = CreateTestWorld();
+            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+            geo.SetOrigin(50.0, 14.0, 0.0);
+            repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+            var centre = geo.ToCartesian(50.001, 14.001, 0.0);
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.InfantrySoldier });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = tkbType });
 
-            var result = new DefendAreaMapper().TryMap(entity, repo, "{}", out var assignment);
+            var result = new DefendAreaMapper().TryMap(entity, repo,
+                "{\"CenterLat\":50.001,\"CenterLon\":14.001,\"RadiusMeters\":25}", out var assignment);
 
             Assert.True(result);
-            Assert.NotNull(assignment);
-            Assert.Equal("InfantryCombat", assignment.BehaviorName);
-            Assert.Equal(entity, assignment.Entity);
+            Assert.Equal("CombatPosture", assignment.BehaviorName);
+            var dto = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto>(
+                assignment.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(centre.X, dto.Advance.Objective.X, 2);
+            Assert.Equal(centre.Y, dto.Advance.Objective.Y, 2);
+            Assert.Equal(25f, dto.Advance.ArrivalRadius);
         }
 
         /// <summary>

@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-10
-current-answer: §1 the verdict · §4 the leans L1–L7, each awaiting the user. Nothing here is built or ruled yet.
+current-answer: §5 DECISIONS (user, 2026-10-10: L1–L4 accepted = R-256; L6 replaced by the user's own ruling = R-258) · §6 the retreat
+  concepts (L7) · §4 keeps the leans as proposed. Nothing built yet.
 stale-below: nothing
 known-rot: none
-known-conflict: DESIGN_Decision_Layer.md §3.3c/§3.3d (HSM and blueprint posture parity) — L6 asks whether that parity is a
-  library requirement or the three-host demo's; it does not overturn it.
+known-conflict: DESIGN_Decision_Layer.md §3.3c/§3.3d (HSM and blueprint posture parity) — ⛔ OVERTURNED for the library by R-258
+  (§5): the three posture hosts were a proof; that doc's parity requirement still has to be marked superseded there.
 related-designs:
+  - DESIGN_Peek_And_Fire.md §10 — OWNS the generalisation design that answers §3 (G1–G8)
   - OVERVIEW_Behaviour_Building_Blocks.md — OWNS the map of what exists; this review OWNS the verdict on which of it is generic.
   - TUTORIAL_Behaviour_Composition.md — OWNS the five roles and the composition patterns (P1–P6) the library is built from.
   - DESIGN_Peek_And_Fire.md — OWNS PeekAndFire (R-234, R-238); §3 here audits its genericity.
@@ -14,6 +16,7 @@ related-designs:
   - DESIGN_Eqs_Consuming_Behaviours.md — OWNS the EQS tactics (TakeCover/FallBack/Flank/FiringPosition, §9).
   - designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — OWNS the squad layer (five primitives, manoeuvres).
   - DESIGN_Behavior_Self_Registration.md — OWNS the behaviour registry (BehaviorNames, SR_R2 "nothing checks they agree").
+  - DESIGN_Operations_Behaviour_Catalogue.md — OWNS what the library is MISSING for modern operations (taxonomy IND/SQD/VEH/AIR/ASY/CIV/MED, blocks, sensors, EQS, engine support, roadmap); every entry there joins under this review's line.
 -->
 
 # Review — is the behaviour library GENERIC?
@@ -118,3 +121,69 @@ not in ①. Peek-and-fire is a ① node used only by a ③ tree.*
 | **L7** | **Built-but-never-composed** generic blocks (Flank/FiringPosition trees, squad manoeuvres, Flee/PlanRoute/Embark executors, RankCandidates) stay; ⚠ `FleeExecutor` vs `FallBack` is a second retreat concept — decide one | they are designed (EQS §9, squad design); not clutter, just unused |
 
 ⇒ ⭐ **Order if approved:** L1 (written line) → L2 (generalise peek-and-fire, then CE-3157) → L4 (registry finding) → L5/L3 (tidy) → L6/L7 (decisions only).
+
+## 5. DECISIONS — user, `2026-10-10`
+
+> 🔒 **User, verbatim:** *"L1 accepted · L2 accepted · L3 accepted · L4 accepted"* · on L6: *"that was likely just a proof that it
+> can be implemented using all platforms. we do not need to keep all, we can drop btrees and HSMs, and we can even rewrite all the
+> libray stuff into c# form for better maintainability."*
+
+| # | decision | ledger |
+|---|---|---|
+| L1–L4 | ✅ accepted as proposed in §4 · ⭐ **L1 DONE `2026-10-10`**: [`OVERVIEW_Behaviour_Building_Blocks.md`](OVERVIEW_Behaviour_Building_Blocks.md) §6a (the line + the promotion rule) · ⭐ **L2 BUILT** as `CE-3158` | **R-256** |
+| L6 | ✅ **REPLACED by the user's ruling:** the three posture hosts were a PROOF. The library keeps the **BTree** form; its **blueprint and HSM copies are dropped**; library BTrees may be C#-built | **R-258** |
+| L5 | ✅ approved | **R-256** (extended) |
+| L4 | ⛔ **STOPPED `2026-10-10` — premise half-false (R-106), measured:** `InfantryCombat`/`ConvoyEscort` are NOT tree-less — they are the UrbanCombat EXAMPLE's trees, registered only on the EDITOR host (`EditorSubsystem.cs:1246` `RegisterUrbanCombatBehaviors`), not on the CGF node ⇒ a DefendArea order resolves on the editor and is **silently dropped** on CGF (`BehaviorIngressSystem`: unknown name ⇒ `continue`). ⚠ Nothing sends DefendArea today (only `CommanderNodes.Action_IssueTacticalIntent`, a test-only reference). ⭐ **The real gap is the PALETTE:** `BehaviorCatalog` is built from `[BehaviorContract]` classes and offers 16 names — the UrbanCombat example's three, the demo-local `WindowDuel`/`PlatoonHillAttack` — but **no library behaviour** (CombatPosture, DangerCrossing, Sentry, BasicInfantrySop, FallBack, Flank, FiringPosition). ⭐ **Lean:** (1) give each library behaviour a `[BehaviorContract]` over its JSON params (the palette = ② of §6a); (2) map DefendArea(infantry) → `CombatPosture` with `Objective` = the area centre; (3) move the example/demo names out of the palette. ⚠ (1) is an authoring-surface change (the editor's param form reads the contract) ⇒ **for the user** | — |
+| L7 | ✅ **approved** (user, `2026-10-10`: *"the still open one approved, go"*): ONE retreat = `FallBack`; `FleeExecutor` is legacy, out of the library (L3 rule — it stays in code, marked) | **R-259** |
+
+> 🔒 **User, `2026-10-10`, correcting my reading:** *"..we can drop blueprint and HSM, not btrees"*
+
+⭐ **R-258 as ruled:** the library's form is the **BTREE**. The **blueprint and HSM copies** of library behaviours (`CombatPostureBp` + its `Posture*` wrapper trees, `CombatPostureHsm`, `DangerCrossingBp`, the `ua-three-hosts` demo) are dropped. Library BTrees may be **C#-built** (as `MoveToLocation`, `FireAtPoint`, `WindowDuel` already are, R-223) for maintainability. ⚠ The blueprint and HSM ENGINES stay — this is about the library's copies, not the hosts.
+
+~~Open interpretation (asked): blueprints stay the doctrine surface, HSM engine stays~~ — ⛔ SUPERSEDED by the correction above.
+
+
+> 🔒 **User, `2026-10-10`, refining R-258:** *"yes but only where there is redundancy and where HSM not the most suitable option from the three possibilities (HSM, btree, blueprints)"* · *"ok as long as the demo showing the feature stays, just using the library c# implementation"* · *"L5 approved"*.
+
+| refinement | meaning |
+|---|---|
+| ⭐ HSM / blueprint copies go **only where REDUNDANT and where that host is not the most suitable** | not a blanket deletion: each library behaviour keeps the host that fits it best; a copy is retired only when it duplicates the BTree and adds nothing |
+| ⭐ the three-host DEMO stays | `ua-three-hosts` keeps showing that one decision runs on all three hosts — rewritten to call the library's C# implementation, not to keep three library copies |
+| ✅ L5 approved | `FireAtTarget` routes onto `PostureNodes.Fire` (with an explicit target); `CgfNodes.Action_FireAtTarget` is retired |
+
+## 6. Retreat concepts (L7)
+
+| concept | what it does | used by | verdict |
+|---|---|---|---|
+| ⭐ `EqsTacticsNodes.FallBack` (+ `Tactics/FallBack.btree.json`) | EQS `FindSafeRetreatPoint` (hidden from the threat, far from it) → one pathed move → Success on arrival | posture **Flee** option (all three hosts); `BasicInfantrySop` (withdraw on contact under HoldFire, `CE-2080`) | ✅ **the library retreat** |
+| posture option **Flee** | not a mechanism — the decision option that RUNS FallBack; needs ≥ half health and a hidden escape (`CE-3090`) | `CombatPostureDecision` | ✅ library (decision) |
+| `FleeExecutor` (`ActionIdFlee`, `Navigation/Executors/FleeExecutor.cs`) | locomotion action: move AWAY from a threat entity along a flee vector, re-planned every N ticks; no cover, no terrain scoring | ⛔ registered on no CGF; tests + the old FDP cognitive example only | ⛔ second retreat concept → **legacy, out of the library** (L3 rule) |
+| `HillAttackTankNodes.Action_ReverseToBaseline` | tank reverses off the crest to its baseline slot | hill attack | demo-local (vehicle hull-down) |
+| PeekAndFire relocate / suppress-and-bound (D8/D12) | moves to the NEXT cover while still fighting | window duel | not a retreat — relocation |
+| `HoldProne` | the alternative when too hurt to flee (`CE-3090`) | posture | not a retreat |
+| `Demo_Retreat.bp` | delay stub | `Demo_MissionPlan` | demo |
+
+⇒ ✅ **Approved (R-259):** ONE retreat = `FallBack`. `FleeExecutor` leaves the library (legacy per L3); ⚠ revisit only if `FallBack` needs a
+no-cover escape (what it does when the EQS finds no point is ⛔ not measured).
+
+
+## 7. R-258 per item — measured `2026-10-10` *(corpus + reference sweep)*
+
+⭐ **Outcome: nothing is retired.** Under the refined rule (*"only where there is redundancy and where HSM not the most suitable"*,
+*"ok as long as the demo showing the feature stays"*) every candidate is either the three-host DEMO or unique:
+
+| item | references (measured) | verdict |
+|---|---|---|
+| `CombatPostureBp` + `Posture{Advance,Suppress,Hold,Sense,HoldProne}` wrappers | `ua-three-hosts`; `TacticsTreesTests` CE3083/CE3090; rail `CE3082_U3`; the wrappers are used ONLY by the blueprint (`CombatPosture.btree.json` calls the nodes directly) | **demo-only** — the blueprint host of the three-host demo; already calls the shared C# nodes (R-174) |
+| `CombatPostureHsm` | `ua-three-hosts`; `TacticsTreesTests` CE3082 (incl. *"the HSM and the BTree make the same decisions"*) | **demo-only** — the HSM host; already calls the shared C# nodes |
+| `DangerCrossingBp` | `ua-danger-crossing-bp`; rail `CE3079` (theory, same five checks for both forms); `ReadSensorResultTests.CE3078` needs its sensor decls | **unique** — the only shipped asset exercising the per-kind sensor nodes (`DESIGN_Utility_AI_Demo_Scenarios.md:975`); NOT a plain copy (rushes, no hold hysteresis, `:692`) |
+| `Demo_TakeCover.bp` | `mission-demo-bp`; CE3042/CE3043 rails | **demo stand-in** (a delay stub), not a library copy — `DESIGN_Decision_Layer.md:1513` keeps it |
+
+⚠ **Drift to know (not a defect of the demo's rail):** since `CE-3158` G-6 the BTree's TakeCover option runs **PeekAndFire** (fights
+from cover) while the HSM and blueprint hosts still run `EqsTacticsNodes.TakeCover` (hide only). `CE3082_U3` asserts the same
+CHOICES, so it stays green while the three hosts now ACT differently under TakeCover. ⭐ **Lean:** leave the demo as the decision
+proof it is (the ruling keeps it "showing the feature"); if the demo should also show the same ACTIONS, re-point its TakeCover option
+at PeekAndFire in both hosts — one node swap each, ⚠ behaviors-lane assets.
+
+✅ **Ruled `2026-10-11` (R-266):** 🔒 *"L4 accepted. TakeCove drift: drop the btree ans hsm versions, keep the demo on the btree implemented in csharp. D8 ok."*
+⇒ `CombatPosture` becomes a **C#-built BTree** (R-223 form); its **JSON BTree asset and HSM copy go** (and the blueprint copy, already ruled by R-258); the demo keeps running — on the C#-built tree. ⭐ L4 (the palette lean in §5) accepted as written. ✅ **Both BUILT `2026-10-11` as CE-3161** (Decision Layer §3.3h).

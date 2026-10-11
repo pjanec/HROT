@@ -49,6 +49,10 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.IG.Tests</_Parameter1>
     </AssemblyAttribute>
+    <!-- ⭐ CE-3158 — PeekAndFire's feature suite reads the node's evidence rule directly (FreshestEvidence). -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.SimHost.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>

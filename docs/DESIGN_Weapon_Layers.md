@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-11
 build-state: BUILDING (WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built) — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
-current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 OPEN (WL-4) · §5 slices · §6 ambient fire
+current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED (WL-4 on hold — behaviours being reorganised by the backend lane) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
 known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount parts are never created — stale, CgfComponentRegistry.cs:38
@@ -198,7 +198,11 @@ rifleman) keeps the per-shot path (W-2's simple profile). Blast radius: the WL-2
 changes. What would change it: a weapon that must aim two mounts on one turret at two targets at once (none in the catalog).
 Rejected: per-mount tasks — two tasks for one turret need a tie-break nobody owns, and the Muscle has no mount entities to hold them.
 
-### W-12 — ⏳ OPEN (needed for WL-4): what each category's profile does differently
+### W-12 — ✅ APPROVED `2026-10-11` (U-W8: *"Approved."*) — ⏸ **WL-4 ON HOLD** while the backend lane reorganises behaviours: what each category's profile does differently
+
+> 🔒 **User, `2026-10-11` (U-W8):** *"Approved. Note that backend lane is now reorganizing behaviors so we should wait with any behavior
+> changes."* ⇒ W-12a–f are the approved leans; WL-4 (the profiles, `CloseToThrow`, `ua-grenade-or-rifle`) is built only after that
+> reorganisation lands — merge `backend` first and re-check the executor and `AttackApproachDecision` homes.
 
 | # | question | ⭐ lean | rests on | rejected — one line |
 |---|---|---|---|---|

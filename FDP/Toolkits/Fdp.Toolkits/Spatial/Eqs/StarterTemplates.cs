@@ -78,7 +78,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
             Generator      = new GridGenerator { AnchorSlot = 0, Spacing = 5f },
             FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { Viewer = EqsLosViewer.Slot, Require = EqsLosRequire.Hidden } },
             ScoreCheap     = new IEqsTest[] { new DistanceScoreTest { FromSlot = 1, PreferFar = true } },
-            ScoreExpensive = new IEqsTest[] { new ThreatExposureTest(), new PathCostScoreTest() },
+            // ⭐ AQ88 C (R-265) — hidden from EVERY known threat outweighs distance + path cost (each ≤ 1); with no such point the
+            //   least-exposed wins, so the unit never freezes on open ground.
+            ScoreExpensive = new IEqsTest[] { new ThreatExposureTest { Weight = ThreatExposureTest.HideFromAllWeight }, new PathCostScoreTest() },
             MaxCandidates  = 128,
         };
     }

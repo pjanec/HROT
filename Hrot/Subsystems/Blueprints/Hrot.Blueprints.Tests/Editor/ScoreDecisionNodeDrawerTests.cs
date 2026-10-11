@@ -136,6 +136,9 @@ public sealed class ScoreDecisionNodeDrawerTests
                         $"{Path.GetFileName(file)}: ScoreDecision '{assetId}' is not in the decision catalog.");
                 }
         }
-        Assert.True(seen > 0, "no shipped ScoreDecision found — the rail is vacuous");
+        // ⭐ CE-3160 (R-266, R-258): the only shipped user, CombatPostureBp, was retired with the blueprint posture host — the
+        //   node itself keeps its rails (UtilityNodeRuntimeTests, V_ValueNodeReferencesTests). ⇒ zero shipped users is now the
+        //   expected state, and a future shipped ScoreDecision is still checked above.
+        Assert.True(seen >= 0);
     }
 }

@@ -95,7 +95,7 @@ public sealed class BTreeGoldenCorpusTests
     /// </summary>
     [Fact]
     public void TheCorpusIsTheTwentyFiveShippedAssets()
-        => Assert.Equal(38, AiAssetCorpus.EnumerateFiles(Kind).Count);   // 33 → 37: CE-3083 G5 wrapper BTrees PostureAdvance/Hold/Sense/Suppress · 37 → 38: CE-3090 PostureHoldProne
+        => Assert.Equal(32, AiAssetCorpus.EnumerateFiles(Kind).Count);   // 33 → 37: CE-3083 G5 wrapper BTrees PostureAdvance/Hold/Sense/Suppress · 37 → 38: CE-3090 PostureHoldProne · ⛔ 38 → 32: CE-3160 (R-266) — CombatPosture is C#-built; the five Posture* wrappers went with the blueprint host
 
     /// <summary>
     /// 🔴 <b>The gate can FAIL</b> — a new green gate proves nothing, so this shows a mutation moves it.
