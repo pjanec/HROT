@@ -14,7 +14,8 @@ namespace Hrot.UI.Common.Effects;
 /// ⭐⭐ P1 (docs/DESIGN_Visual_Effects.md §8 PR-A/PR-B) — <b>rounds in 3-D:</b> every round entity (<see cref="BallisticProjectile"/>)
 /// whose MUNITION type has a look (<c>Munition.Visual</c>, <see cref="MunitionTkbCatalog.VisualOf"/>) is drawn as a body — a grenade
 /// tumbling through its throw and lying on the ground until its fuze runs out, a mortar bomb nose-first down its arc, a rocket or a
-/// missile trailing smoke back to where it was fired. A round with no look (a bullet) draws nothing here — its tracer is an effect.
+/// missile trailing smoke back to where it was fired, a TRACER round burning a streak along its real flight (P2, PR-F). A round with
+/// no look (an ordinary bullet) draws nothing here.
 /// <para>On every map host (<c>MapInteractionPack.AttachMapLayers</c>); ⚠ a round exists only on the node that runs combat
 /// (§8.1), so other hosts draw nothing until PR-D.</para>
 /// <para>Bodies are drawn at least <see cref="MinPixels"/> tall so a 6 cm grenade is visible from map distances; everything is derived
@@ -33,6 +34,10 @@ public sealed class ProjectileLayer : IMapLayer
 
     /// <summary>A grenade's tumble, turns per second.</summary>
     public const float TumbleTurnsPerSecond = 2.5f;
+
+    /// <summary>⭐ P2 (§8 PR-F) — a tracer's visible streak: the last <see cref="TracerSeconds"/> of its flight, at most
+    /// <see cref="TracerMaxLength"/> metres, at least <see cref="TracerMinPixels"/> wide.</summary>
+    public const float TracerSeconds = 0.03f, TracerMaxLength = 25f, TracerMinPixels = 2.5f;
 
     /// <summary>Smoke-trail puffs: one every <see cref="TrailSpacing"/> metres back toward the muzzle, at most <see cref="TrailPuffs"/>.</summary>
     public const float TrailSpacing = 0.9f;
@@ -64,7 +69,8 @@ public sealed class ProjectileLayer : IMapLayer
 
     /// <summary>One round, resolved for drawing: its look, where its centre is, the way its nose points, whether it is lying, the
     /// seconds left on its fuze (0 without one), where it was fired from, and its own seed.</summary>
-    public readonly record struct Round(MunitionVisualDto Look, Vector3 Centre, Vector3 Nose, bool Lying, float FuzeLeft, Vector3 Muzzle, int Seed);
+    public readonly record struct Round(MunitionVisualDto Look, Vector3 Centre, Vector3 Nose, bool Lying, float FuzeLeft, Vector3 Muzzle, int Seed,
+                                        float Speed = 0f);
 
     /// <summary>One solid of a round's body: a cylinder or a cone (<see cref="RadiusFrom"/> ≠ <see cref="RadiusTo"/>) from
     /// <see cref="From"/> to <see cref="To"/>, or a sphere (<see cref="IsSphere"/>, radius <see cref="RadiusFrom"/> at <see cref="From"/>).</summary>
@@ -109,7 +115,8 @@ public sealed class ProjectileLayer : IMapLayer
                 nose = Vector3.Normalize(heading);
                 if (look.Shape == MunitionShape.Grenade) nose = Tumble(nose, now, seed);
             }
-            list.Add(new Round(look, at, nose, lying, (round.Warhead & WarheadRound.TimeFuze) != 0 ? round.FuzeRemaining : 0f, round.Muzzle, seed));
+            list.Add(new Round(look, at, nose, lying, (round.Warhead & WarheadRound.TimeFuze) != 0 ? round.FuzeRemaining : 0f, round.Muzzle, seed,
+                               lying ? 0f : velocity.Length()));
         }
         return list;
     }
@@ -150,6 +157,8 @@ public sealed class ProjectileLayer : IMapLayer
                 solids.Add(new Solid(At(-0.45f), At(0.35f), radius, radius, false, colour));
                 solids.Add(new Solid(At(-0.5f), At(-0.4f), radius * 1.5f, radius * 1.5f, false, dark));    // tail fins
                 break;
+            case MunitionShape.Bullet:
+                break;   // ⭐ P2 — a bullet has no body worth drawing; a tracer one is its streak (TracerOf)
             case MunitionShape.Missile:
                 solids.Add(new Solid(At(0.3f), At(0.5f), radius, radius * 0.3f, false, colour));
                 solids.Add(new Solid(At(-0.45f), At(0.3f), radius, radius, false, colour));
@@ -185,6 +194,18 @@ public sealed class ProjectileLayer : IMapLayer
         return puffs;
     }
 
+    /// <summary>⭐ P2 (§8 PR-F) — a tracer round's streak: from the round back along its flight for the last
+    /// <see cref="TracerSeconds"/> (≤ <see cref="TracerMaxLength"/>, never past its muzzle). False when it is no tracer, lying, or still.</summary>
+    public static bool TracerOf(in Round r, out Vector3 head, out Vector3 tail)
+    {
+        head = tail = r.Centre;
+        if (!r.Look.Tracer || r.Lying || r.Speed <= 0f) return false;
+        float length = MathF.Min(MathF.Min(r.Speed * TracerSeconds, TracerMaxLength), Vector3.Distance(r.Centre, r.Muzzle));
+        if (length <= 0.01f) return false;
+        tail = r.Centre - r.Nose * length;
+        return true;
+    }
+
     public void Draw3D(RenderContext ctx)
     {
         var rounds = Resolve();
@@ -205,6 +226,16 @@ public sealed class ProjectileLayer : IMapLayer
             }
             foreach (var (at, radius, colour) in TrailOf(r))
                 Raylib.DrawSphereEx(HrotToRaylib.Position(at), radius, 5, 8, colour);
+            if (TracerOf(r, out var head, out var tail))
+            {
+                float width = 0.03f;
+                if (camera != null)
+                    width = MathF.Max(width, TracerMinPixels * camera.MetresPerPixel / MathF.Max(1f, camera.Distance) * Vector3.Distance(camera.Eye, r.Centre) / 2f);
+                var glow = Hrot.UI.Common.Map3D.EntityBodyLayer3D.ParseHex(r.Look.TracerColorHex) ?? new Color(255, 154, 48, 255);
+                Raylib.BeginBlendMode(BlendMode.Additive);
+                Raylib.DrawCylinderEx(HrotToRaylib.Position(tail), HrotToRaylib.Position(head), width * 0.4f, width, 6, glow);
+                Raylib.EndBlendMode();
+            }
         }
         Drawn = rounds.Count;
     }

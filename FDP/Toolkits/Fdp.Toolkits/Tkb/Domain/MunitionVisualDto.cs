@@ -20,12 +20,15 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>A guided missile: a body with mid fins, nose along the flight, usually with a smoke trail.</summary>
         Missile = 4,
+
+        /// <summary>⭐ P2 (§8 PR-F) — a small-arms bullet: no body worth drawing — only its <see cref="MunitionVisualDto.Tracer"/>, if it has one.</summary>
+        Bullet = 5,
     }
 
     /// <summary>
     /// ⭐ P1 (Hrot docs/DESIGN_Visual_Effects.md §8 PR-A) — <b>how a munition's round looks</b> in flight and lying on the ground, on the
     /// MUNITION type (the round's <c>BallisticProjectile.Ammo</c>): "the TKB type defines it", as <c>Effect.Visual</c> does for effects.
-    /// Optional — a munition with none draws no body (a bullet: its tracer is the effect).
+    /// Optional — a munition with none draws nothing (an ordinary bullet); a <see cref="Tracer"/> munition draws its streak.
     /// </summary>
     [TkbDescriptor("Munition.Visual")]
     public record MunitionVisualDto
@@ -44,5 +47,13 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>Trails smoke back toward where it was fired from (a rocket, a missile).</summary>
         public bool SmokeTrail { get; init; }
+
+        /// <summary>⭐ P2 (§8 PR-F, user 2026-10-11: "Rifle bullets if they have tracers (special tkb type switch) might deserve its own
+        /// entity to be visualizable") — a TRACER round: it burns a bright streak along its REAL flight, so a miss shows where it went.
+        /// A tracer munition is drawn (and, with PR-D, sent to the other hosts); an ordinary bullet is not.</summary>
+        public bool Tracer { get; init; }
+
+        /// <summary>The tracer's glow, <c>#RRGGBB</c>.</summary>
+        public string TracerColorHex { get; init; } = "#FF9A30";
     }
 }

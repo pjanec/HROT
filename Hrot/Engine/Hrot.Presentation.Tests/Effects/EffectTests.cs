@@ -398,6 +398,47 @@ public sealed class EffectTests
         Assert.Equal(4, ProjectileLayer.SolidsOf(r).Count);                     // nose, body, mid wings, tail fins
     }
 
+    /// <summary>⭐ P2 (§8 PR-F) — a TRACER munition (the TKB switch) draws a streak along its REAL flight — the last 0.03 s, ≤ 25 m,
+    /// never past its muzzle — and no body; in 2-D a wider streak in its glow and no marker. An ordinary bullet draws nothing.</summary>
+    [Fact]
+    public void P2_ATracerBulletBurnsAStreakAlongItsRealFlight_AnOrdinaryBulletDrawsNothing()
+    {
+        var tracerLook = new MunitionVisualDto { Shape = MunitionShape.Bullet, Tracer = true };
+        var r = new ProjectileLayer.Round(tracerLook, new Vector3(300, 40, 2), Vector3.Normalize(new Vector3(1, 0.1f, 0)), false, 0f,
+                                          Vector3.Zero, 1, Speed: 850f);
+        Assert.True(ProjectileLayer.TracerOf(r, out var head, out var tail));
+        Assert.Equal(r.Centre, head);
+        Assert.Equal(25f, Vector3.Distance(head, tail), 3);                     // 850 m/s × 0.03 s = 25.5 ⇒ capped at 25 m
+        Assert.True(Vector3.Dot(head - tail, r.Nose) > 0f, "the streak trails BEHIND the round");
+        Assert.Empty(ProjectileLayer.SolidsOf(r));                               // a bullet has no body
+        var nearMuzzle = r with { Centre = new Vector3(10, 1, 2) };
+        Assert.True(ProjectileLayer.TracerOf(nearMuzzle, out var h2, out var t2));
+        Assert.True(Vector3.Distance(h2, t2) <= Vector3.Distance(nearMuzzle.Centre, nearMuzzle.Muzzle) + 1e-3f, "never past the muzzle");
+        Assert.False(ProjectileLayer.TracerOf(r with { Look = tracerLook with { Tracer = false } }, out _, out _));
+
+        const long TracerAmmo = 6998;
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        var t = new TkbTemplate("Test 5.56 tracer", TracerAmmo);
+        t.AddDescriptor(tracerLook);
+        tkb.Register(t);
+        var world = RoundsWorld(tkb);
+        var tracer = Round(world, TracerAmmo, new Vector3(300, 40, 2), new Vector3(850, 85, 0));
+        var plain = Round(world, 0, new Vector3(300, 50, 2), new Vector3(850, 85, 0));
+        var layer = new ProjectileLayer(() => world, () => tkb);
+        var drawn = Assert.Single(layer.Resolve());                              // the tracer only
+        Assert.Equal(System.MathF.Sqrt(850 * 850 + 85 * 85), drawn.Speed, 1);
+
+        var gizmo = new Hrot.ScenarioEditor.Gizmos.ProjectilePresentationGizmo();
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        gizmo.Draw(world, tracer, buffer);
+        var frame = buffer.GetFrame().ToArray();
+        Assert.Equal(2, frame.Length);                                           // the streak + its glow, no marker
+        Assert.All(frame, p => Assert.Equal(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Line, p.Shape));
+        buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        gizmo.Draw(world, plain, buffer);
+        Assert.Single(buffer.GetFrame().ToArray());
+    }
+
     /// <summary>⭐ P1 (§8 PR-C) — the 2-D projector: a bullet keeps its streak only; a grenade adds a marker; a LYING grenade adds its
     /// fuze seconds — before, a lying grenade's streak had zero length and it was invisible.</summary>
     [Fact]

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 BUILT 2026-10-11 (CE-1051); PR-D / PR-E open for the user. Programme index: PLAN_3D_World_And_Realism.md.
+build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E open for the user. Programme index: PLAN_3D_World_And_Realism.md.
 updated: 2026-10-11
 current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1 as-built §8.4; PR-D / PR-E open, §8.3).
 stale-below: nothing.
@@ -477,6 +477,8 @@ in 2-D the smoke hid the flames ⇒ flames draw last there, at least 3 px. Run i
 |---|---|
 | **U9** | *"Backend lane allowed throwing grenades today, i need you render the grenade when it flies and when it lays on ground before exploding. You can render basically any other projectile which is represented by its own entity, like missiles and rockets and bombs. If they have no entity and ballistic/flight model and no 3d model, lets think how to solve that."* |
 
+| **U10** | *"Rifle bullets if they have tracers (special tkb type switch) migh deserve its own entity to be visualizable, otherwise ordinary bullets does not need entity."* |
+
 ### 8.1 INVENTORY — measured `2026-10-11`
 
 Graph `search_graph` `.*(Projectile|Grenade|Munition|Missile|Rocket|Ballistic).*`, Class — **26, `has_more: false`**; production hits:
@@ -565,6 +567,7 @@ sequenceDiagram
 | **PR-B** | the 3-D body | ⭐ one `ProjectileLayer` on every host (`AttachMapLayers`): the body at the round, long axis along its velocity, a grenade tumbling (stateless spin from seed and sim time), a lying round flat on the ground; drawn at least ~6 px so a 6 cm grenade is visible at map distance; a rocket / missile trails stateless smoke back to its muzzle | drawing it in `EffectLayer` — a round is not an effect and has its own lifetime owner (combat) |
 | **PR-C** | the 2-D mark | ⭐ EXTEND `ProjectilePresentationGizmo` (the one 2-D projector of rounds): bullets keep the streak; a munition round adds a small filled marker in its colour; a LYING time-fuzed round adds its fuze countdown in seconds | a second 2-D projector — two implementations of one concept (ruling 9) |
 | **PR-D** | ⚠ **OPEN — rounds on hosts that do not run combat** (IG, CGF, the editor in a cluster) | ⭐ **lean (b): extend `WeaponFire` with the launch point, launch velocity and munition type; every host flies a local VISUAL copy** (gravity for arc rounds, straight otherwise), lands it on its own terrain, and ends it on `MunitionDetonation` (which already carries the munition and the burst point). ~28 bytes per shot on an existing reliable topic; exact for unguided rounds | (a) replicate rounds as network entities — exact, but a new descriptor per round at fire rate, and the brain-split design keeps rounds muscle state · (c) nothing remote — IG is the operator's view, and grenades would be invisible there |
+| **PR-F** | ⭐ **tracers** (U10) | ⭐ **a TRACER is a switch on the munition's look** (`Munition.Visual.Tracer`, + `TracerColorHex`; shape `Bullet` = no body): the layer burns a streak along the round's REAL flight (the last 0.03 s, ≤ 25 m, never past its muzzle) — a miss shows where it went. ⚠ **Measured: every bullet is ALREADY an entity — on the combat node only** (`FireProcessingSystem.cs:186`), because its hit is a swept raycast per round (`BallisticsSystem`); so U10's *"ordinary bullets do not need an entity"* holds for **every other host**: ⇒ the rule becomes **PR-D's filter** — only rounds whose munition has a look (tracers included) are drawn or sent; an ordinary bullet never crosses the wire. ⚠ The decorative effect tracer (7131, muzzle → target in 0.25 s, VE-C) is a SECOND tracer concept: it retires once PR-D lands and tracer munitions exist (until then remote hosts have only it); a mount's tracer MIX (*"1 in 5"*) is the combat lane's, with PR-E's munition types | ⛔ one entity per tracer on every host — that IS PR-D (a), rejected there · a tracer flag on the MOUNT — a belt is a munition, and the look already lives on the munition |
 | **PR-E** | ⚠ **OPEN — rockets, missiles, tank shells have no munition type** | ⭐ **lean: the combat lane gives those mounts munition types** (RPG rocket, ATGM missile, 125 mm round…) with a `Munition.Visual` — ⚠ NOT neutral: measured `ParameterResolver.MountPenetration` (`ParameterResolver.cs:226-250`) looks the AMMO NAME up in the reference library when the mount's own penetration is 0, so a new type can change armour penetration — the combat lane must set/verify the numbers. No flight model is needed to DRAW them: they fly straight, and the layer draws what flies. A guided flight model is a separate combat feature (and makes PR-D (a) necessary for that munition) | infer "missile" from speed / damage — a guess the TKB should state |
 
 ### 8.4 P1 — AS-BUILT `2026-10-11`
@@ -576,6 +579,8 @@ sequenceDiagram
 | `ProjectileLayer` (3-D), attached on every host by `AttachMapLayers` | `Hrot/Engine/Hrot.Presentation/Effects/ProjectileLayer.cs` |
 | `ProjectilePresentationGizmo` extended (marker, fuze countdown) | `Hrot/Engine/Hrot.Presentation/Gizmos/ProjectilePresentationGizmo.cs` |
 | rails + GL frame rail `P_Projectiles_*` (grenade flying, grenade lying, mortar bomb, a test missile type) | `EffectTests.P1_*`, `Map3DFrameRail` |
+
+| ⭐ **P2 (PR-F)** — `Munition.Visual.Tracer` / `TracerColorHex`, `MunitionShape.Bullet`; `ProjectileLayer.TracerOf` (additive streak, ≥ 2.5 px wide); the 2-D projector draws a tracer bullet's streak wider in its glow, no marker; an ordinary bullet still draws only the 1-frame streak (2-D) and nothing in 3-D | `MunitionVisualDto.cs`, `ProjectileLayer.cs`, `ProjectilePresentationGizmo.cs`; rails `EffectTests.P2_*`, the frame rail's tracer burst |
 
 ⚠ **Tuned from the Xvfb shots (`rounds-1…3`):** at 7 px the bodies read as specks ⇒ `MinPixels` 10; the 2-D marker first took the
 munition's PAINT (olive) and vanished on the grey/green map ⇒ it shows STATE — bright yellow flying, red-orange armed (lying, fuze

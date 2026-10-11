@@ -417,6 +417,10 @@ public sealed class Map3DFrameRail
         var missileType = new Fdp.Interfaces.TkbTemplate("Test ATGM", TestMissile);
         missileType.AddDescriptor(new MunitionVisualDto { Shape = MunitionShape.Missile, Length = 1.2f, Diameter = 0.14f, ColorHex = "#6B6E4A", SmokeTrail = true });
         tkb.Register(missileType);
+        const long TestTracer = 6998;   // ⭐ P2 — a tracer bullet type (the TKB switch, PR-F)
+        var tracerType = new Fdp.Interfaces.TkbTemplate("Test 7.62 tracer", TestTracer);
+        tracerType.AddDescriptor(new MunitionVisualDto { Shape = MunitionShape.Bullet, Tracer = true });
+        tkb.Register(tracerType);
         world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
         world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 3.3 });
         var query = WorldQuery.Of(world)!;
@@ -451,6 +455,13 @@ public sealed class Map3DFrameRail
               (byte)(Grenade | Fdp.Toolkit.Combat.Components.WarheadRound.Landed), 2.7f);
         Round(MunitionTkbCatalog.Tkb81mmMortarHe, new Vector3(spot.X + 10f, spot.Y + 12f, G(spot.X, spot.Y) + 14f), new Vector3(20f, 4f, -45f),
               Fdp.Toolkit.Combat.Components.WarheadRound.Arc | Fdp.Toolkit.Combat.Components.WarheadRound.Area);
+        // a machine-gun burst of tracers from the thrower toward the north-east, three rounds in the air, one slightly off (a miss)
+        var mg = new Vector3(spot.X - 8f, spot.Y, G(spot.X - 8f, spot.Y) + 1.4f);
+        foreach (var (range, off) in new[] { (60f, 0f), (110f, 0f), (160f, 4f) })
+        {
+            var dir = Vector3.Normalize(new Vector3(0.55f, 1f, 0.02f) + new Vector3(off * 0.004f, 0, 0));
+            Round(TestTracer, mg + dir * range, dir * 850f, 0, muzzle: mg);
+        }
         var missileAt = new Vector3(spot.X - 6f, spot.Y + 22f, G(spot.X, spot.Y) + 5f);
         Round(TestMissile, missileAt, new Vector3(160f, -10f, 0f), 0, muzzle: missileAt + new Vector3(-50f, 3f, -1f));
 
@@ -473,7 +484,7 @@ public sealed class Map3DFrameRail
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "rounds-1-overview.png"));
-        Assert.Equal(4, rounds.Drawn);
+        Assert.Equal(7, rounds.Drawn);
 
         // close on the throw and the lying grenade, at the soldiers' height
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 1f, spot.Y + 0.5f, G(spot.X, spot.Y) + 1.6f), 9f, MathF.PI * 0.5f, -0.12f);

@@ -41,13 +41,27 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             if (proj.Ammo == 0 || (proj.Warhead & WarheadRound.Spent) != 0) return;
             var tkb = view is EntityRepository repo && repo.HasSingletonManaged<ITkbDatabase>() ? repo.GetSingletonManaged<ITkbDatabase>() : null;
-            if (Hrot.Core.Tkb.MunitionTkbCatalog.VisualOf(tkb, proj.Ammo) is null) return;   // a bullet: the streak only
+            if (Hrot.Core.Tkb.MunitionTkbCatalog.VisualOf(tkb, proj.Ammo) is not { } look) return;   // an ordinary bullet: the streak only
+            if (look.Shape == Fdp.Toolkit.Tkb.Domain.MunitionShape.Bullet)
+            {
+                // ⭐ P2 (§8 PR-F) — a tracer bullet: its streak again, wider and in its glow; no marker (it is a bullet)
+                if (look.Tracer) draw.DrawLine(start, end, TracerGlow(look.TracerColorHex), thickness: 3f, SizeMode.ScreenPixels);
+                return;
+            }
             bool lying = (proj.Warhead & WarheadRound.Landed) != 0 || proj.StoppedTick != 0;
             bool armed = lying && (proj.Warhead & WarheadRound.TimeFuze) != 0 && proj.FuzeRemaining > 0f;
             draw.DrawSphere(end, lying ? LyingMarkerPixels : MarkerPixels, MarkerOutline, thickness: 1.5f, SizeMode.ScreenPixels,
                             fillColor: armed ? ArmedFill : FlyingFill);
             if (armed)
                 draw.DrawText(end.X, end.Y, new Fdp.Core.FixedString32(FuzeLabel(proj.FuzeRemaining)), FuzeText, fontSizePx: 20f, lineOffsetPx: -18f);
+        }
+
+        private static Rgba32 TracerGlow(string? hex)
+        {
+            var s = (hex ?? "").Trim().TrimStart('#');
+            return s.Length == 6 && uint.TryParse(s, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var v)
+                ? new Rgba32((byte)(v >> 16), (byte)(v >> 8), (byte)v, 255)
+                : new Rgba32(255, 154, 48, 255);
         }
 
         /// <summary>The seconds left on a fuze, rounded UP like a countdown: 2.7 ⇒ "3 s". ⚠ Whole seconds on purpose — the map's
