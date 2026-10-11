@@ -221,7 +221,7 @@ public sealed class NodePropertiesDetailsView : IDetailsViewInstance
             ImGuiNET.ImGui.TableSetupColumn("Property", ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.4f);
             ImGuiNET.ImGui.TableSetupColumn("Value",    ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.6f);
 
-            drawer.DrawEditNode(_facetSession.Document.Root);
+            drawer.DrawRoot(_facetSession.Document.Root);
 
             ImGuiNET.ImGui.EndTable();
         }
@@ -293,7 +293,7 @@ public sealed class NodePropertiesDetailsView : IDetailsViewInstance
             ImGuiNET.ImGui.TableSetupColumn("Field", ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.4f);
             ImGuiNET.ImGui.TableSetupColumn("Value", ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.6f);
 
-            drawer.DrawEditNode(_defaultValueSession.Document.Root);
+            drawer.DrawRoot(_defaultValueSession.Document.Root);
 
             ImGuiNET.ImGui.EndTable();
         }

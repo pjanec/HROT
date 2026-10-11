@@ -452,7 +452,7 @@ public sealed class VariableEditModal
                 ImGui.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
 
                 var drawer = new ComponentEditDrawer(session, pickerCtx: null);
-                drawer.DrawEditNode(ScalarRowOrRoot(session.Document.Root,
+                drawer.DrawRoot(ScalarRowOrRoot(session.Document.Root,   // ⭐ CE-1013/CE-1016 — no redundant struct-name row
                                                     _binder.ActiveRow?.ShortName));
 
                 ImGui.EndTable();
@@ -492,6 +492,14 @@ public sealed class VariableEditModal
             ImGui.TextWrapped(message);
             ImGui.Separator();
             if (ImGui.Button("Close")) DismissRefusal();
+        }
+
+        // ⭐ CE-1013 — Esc closes the dialog exactly as Cancel / Close does (one close path).
+        if (Shell.ModalKeys.EscapePressed())
+        {
+            if (_binder.ActiveSession != null) Cancel();
+            else if (RefusalMessage != null) DismissRefusal();
+            else _open = false;
         }
 
         ImGui.EndPopup();

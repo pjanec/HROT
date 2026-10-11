@@ -207,7 +207,7 @@ internal sealed class ComponentEditWindow : ManagedWindow
             ImGuiApi.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
 
             // 4. Render the full node tree.
-            _drawer.DrawEditNode(_session.Document.Root);
+            _drawer.DrawRoot(_session.Document.Root);
 
             // 5. Close table.
             ImGuiApi.EndTable();

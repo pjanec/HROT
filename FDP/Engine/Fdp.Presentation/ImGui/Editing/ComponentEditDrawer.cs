@@ -38,6 +38,44 @@ public sealed class ComponentEditDrawer
 
     // ── Public API ────────────────────────────────────────────────────────────
 
+    /// <summary>⭐ CE-1015 — child rows indent by this many pixels (about half ImGui's default 21, which read as ~5 characters).</summary>
+    public const float IndentPixels = 10f;
+
+    /// <summary>
+    /// ⭐ CE-1016 — renders a DOCUMENT ROOT: a struct / class / record root shows its FIELDS directly, without a collapsible row
+    /// named after its type (the window or panel already says what is being edited); any other root (a selection of several
+    /// components, an array) renders as <see cref="DrawEditNode"/> does. ⭐ CE-1015 — children indent by <see cref="IndentPixels"/>.
+    /// Must be called inside a two-column <c>BeginTable</c>/<c>EndTable</c> block.
+    /// </summary>
+    public void DrawRoot(EditNode root)
+    {
+        ImGuiApi.PushStyleVar(ImGuiStyleVar.IndentSpacing, IndentPixels);
+        try
+        {
+            if (FieldsOwner(root) is { } owner)
+                foreach (var child in owner.Children) DrawEditNode(child);
+            else
+                DrawEditNode(root);
+        }
+        finally { ImGuiApi.PopStyleVar(); }
+    }
+
+    /// <summary>
+    /// The node whose FIELDS <see cref="DrawRoot"/> shows without a row of its own: the root itself when it is a plain struct /
+    /// class / record, or the ONE such child of a selection root (a single object opened for editing). Null when the root is a
+    /// selection of several (each keeps its header), an array, or polymorphic.
+    /// </summary>
+    public static EditNode? FieldsOwner(EditNode root)
+    {
+        if (root.Kind == EditNodeKind.SelectionRoot)
+            return root.Children.Count == 1 && IsPlainRecord(root.Children[0]) ? root.Children[0] : null;
+        return IsPlainRecord(root) ? root : null;
+    }
+
+    private static bool IsPlainRecord(EditNode node)
+        => node.Kind is EditNodeKind.Struct or EditNodeKind.Class or EditNodeKind.Record
+           && !node.ClrType.IsAbstract && !node.ClrType.IsInterface && node.Binding is not IContainerBinding;
+
     /// <summary>
     /// Renders <paramref name="node"/> and all of its descendants as table rows.
     /// Must be called inside a two-column <c>BeginTable</c>/<c>EndTable</c> block.
