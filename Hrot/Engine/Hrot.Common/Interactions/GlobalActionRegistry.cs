@@ -26,9 +26,28 @@ namespace Hrot.Common.Interactions
                     $"GlobalActionRegistry: ActionId {actionId} is already registered.");
         }
 
+        // ⭐ CE-3178 — a handler for THIS node's own clicks only: an action an operator starts here (a follow-up pick, an
+        //   order issued from this station). A click relayed from another node (GlobalActionRequestedEvent.Relayed) does not
+        //   run it — that node's own registry already did, so running it here too would issue the order twice and open a
+        //   pick on a window nobody clicked.
+        public void RegisterLocal(int actionId, GlobalActionHandler handler)
+        {
+            Register(actionId, handler);
+            _localOnly.Add(actionId);
+        }
+
+        private readonly HashSet<int> _localOnly = new();
+
         // Returns true and sets <paramref name="handler"/> when a handler exists for
         // <paramref name="actionId"/>.
         public bool TryGetHandler(int actionId, out GlobalActionHandler handler)
             => _handlers.TryGetValue(actionId, out handler!);
+
+        // ⭐ CE-3178 — as above, and false for a RegisterLocal action that was relayed from another node.
+        public bool TryGetHandler(int actionId, bool relayed, out GlobalActionHandler handler)
+        {
+            if (relayed && _localOnly.Contains(actionId)) { handler = null!; return false; }
+            return TryGetHandler(actionId, out handler);
+        }
     }
 }

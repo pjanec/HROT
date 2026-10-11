@@ -170,6 +170,7 @@ namespace Hrot.Network.NED.Gizmos
                     {
                         EntityNetworkId = (int)batch.PickAnchorId,
                         ActionName      = batch.ActionId.ToString(),
+                        Relayed         = true,   // ⭐ CE-3178 — clicked on another node; RegisterLocal actions do not run here
                     });
                     // Also publish as a typed GizmoMenuActionEvent so DataDrivenGizmoSystem can
                     // route it to the matching gizmo via the composite key.

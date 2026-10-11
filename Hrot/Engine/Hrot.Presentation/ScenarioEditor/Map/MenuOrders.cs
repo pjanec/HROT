@@ -42,16 +42,18 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>Registers the menu ids on <paramref name="actions"/>: the three orders and Possess (FPS).</summary>
         public void RegisterOn(Hrot.Common.Interactions.GlobalActionRegistry actions)
         {
-            actions.Register(GlobalActionIds.MoveHere, (_, unit) => Begin(Kind.Move, unit));
-            actions.Register(GlobalActionIds.Engage,   (_, unit) => Begin(Kind.Attack, unit));
-            actions.Register(GlobalActionIds.Stop,     (_, unit) =>
+            // ⭐ CE-3178 — LOCAL clicks only: a station's click relayed to another windowed node (every node holding the unit
+            //   accepts the relay) would issue the order a second time there and open a pick on a window nobody clicked.
+            actions.RegisterLocal(GlobalActionIds.MoveHere, (_, unit) => Begin(Kind.Move, unit));
+            actions.RegisterLocal(GlobalActionIds.Engage,   (_, unit) => Begin(Kind.Attack, unit));
+            actions.RegisterLocal(GlobalActionIds.Stop,     (_, unit) =>
             {
                 if (PickService?.Invoke() is null || !TryNetworkId(unit, out long id)) return;
                 Report(Orders()?.Hold(id));
             });
             // ⭐ CE-3174 (§8d) — Possess (FPS): this station takes the unit; the map follows PossessedBy into first person
             //   (PossessionStation). Like the orders, only where a pick exists — a windowed station, never a relayed headless node.
-            actions.Register(GlobalActionIds.Possess,  (_, unit) =>
+            actions.RegisterLocal(GlobalActionIds.Possess,  (_, unit) =>
             {
                 if (PickService?.Invoke() is null || !TryNetworkId(unit, out long id)) return;
                 Report(Orders()?.Possess(id));

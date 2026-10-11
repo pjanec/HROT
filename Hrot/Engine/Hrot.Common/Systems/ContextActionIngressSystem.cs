@@ -65,6 +65,7 @@ namespace Hrot.Common.Systems
                 {
                     ActionId = actionId,
                     Target   = target,
+                    Relayed  = evt.Relayed ? (byte)1 : (byte)0,
                 });
             }
 

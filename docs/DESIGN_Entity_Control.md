@@ -722,10 +722,16 @@ pins, AI trace or layer control the pack already registered "on every map host".
 | the replay menu has no orders | ⭐ `OrdersOffered` world singleton, set by the pack on live hosts; the unit menu offers the three items only there; a replay registers no handler | the replay records `BehaviorState`, so "has a brain" could not tell them apart |
 | — | ⚠ orders are issued only where `PickService` answers (a station) — Stop too | a menu action relayed from a station to a headless node must not be ordered twice |
 
-⚠ **Known limits:** a WINDOWED node that also receives a station's relayed menu action would run it too (`CE-3178`). The ReplayBrowser
+⚠ **Known limits:** ~~a WINDOWED node that also receives a station's relayed menu action would run it too (`CE-3178`).~~ ✅ FIXED `2026-10-11` —
+measured by reading: the relay ingress accepts a batch on EVERY node whose world holds the anchor (`GizmoInteractionIngressTranslator`,
+"is this id in my world"), not only the owner, so each windowed node with the unit would issue the order and open a pick. The relay
+marks its `ContextActionTriggered` `Relayed`; the mark rides `GlobalActionRequestedEvent.Relayed` through the one ingress; the four
+station actions register with `GlobalActionRegistry.RegisterLocal` and do not run for a relayed click (an ordinary action — Rotate —
+still does). ⚠ So the external gizmo viewer's Move/Engage/Stop/Possess do nothing on the node it mirrors: it has no pick of its own
+and an order needs one. The ReplayBrowser
 ~~runs no context ingress, so its own map-menu actions (Center View…) never fire either (`CE-3179`, pre-existing).~~ ✅ FIXED
 `2026-10-11`: it runs the shared `ContextActionIngressSystem` in its world-following form (its world changes when a recording is
-rebound), ticked before the dispatcher. `CE-3178` is still assumed from the wiring, not measured live.
+rebound), ticked before the dispatcher.
 
 📐 **Rails:** `MenuOrdersTests` (7: move/engage picks → the order, cancel → nothing, Stop, headless → nothing, live vs replay menu,
 the picker's cancel) · `SimHostAuxiliaryTranslatorPackTests` +2 (the IG pack carries the egress).

@@ -37,5 +37,9 @@ namespace Hrot.Common.Events
 
         /// <summary>Name of the triggered action (typically the integer action ID as a string).</summary>
         public string ActionName { get; init; } = string.Empty;
+
+        /// <summary>⭐ <c>CE-3178</c> — true when the click was made on ANOTHER node and relayed here over the gizmo topic
+        /// (<c>GizmoInteractionIngressTranslator</c>); false for this node's own menu.</summary>
+        public bool Relayed { get; init; }
     }
 }

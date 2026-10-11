@@ -25,7 +25,7 @@ namespace Hrot.Common.Systems
         {
             foreach (ref readonly var evt in _interactionBus.Read<GlobalActionRequestedEvent>())
             {
-                if (_registry.TryGetHandler(evt.ActionId, out var handler))
+                if (_registry.TryGetHandler(evt.ActionId, evt.Relayed != 0, out var handler))
                     handler(view, evt.Target);
             }
         }
