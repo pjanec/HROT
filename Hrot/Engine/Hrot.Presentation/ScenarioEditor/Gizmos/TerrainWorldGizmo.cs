@@ -30,7 +30,8 @@ public sealed class TerrainWorldGizmo : IGlobalStatelessGizmo
     private static readonly Rgba32 WaterFill   = new(50, 110, 200, 150);
     private static readonly Rgba32 SlabFill    = new(90, 150, 220, 90);
     private static readonly Rgba32 RampFill    = new(130, 180, 230, 110);
-    private static readonly Rgba32 WallFill    = new(70, 70, 70, 230);
+    // ⭐ CE-1021 — a plain wall is a light concrete grey: the old (70,70,70) under a near-black outline read as black on the map.
+    private static readonly Rgba32 WallFill    = new(150, 150, 145, 235);
     private static readonly Rgba32 Outline     = new(30, 30, 30, 220);
     private static readonly Rgba32 SlabOutline = new(40, 90, 170, 220);
     private static readonly Rgba32 LabelColor  = new(20, 20, 20, 255);
@@ -71,7 +72,11 @@ public sealed class TerrainWorldGizmo : IGlobalStatelessGizmo
             var fill = p.Kind == TerrainPrismKind.Wall ? MaterialColor(p.Material?.Name) : HeightColor(p.Height);
             FillPolygon(draw, p.Footprint, p.Triangles, fill);
             bool fence = p.Material?.Name?.StartsWith("fence", StringComparison.Ordinal) == true || p.Material?.Name == "hedge";
-            Outline2(draw, p.Footprint, Outline, fence ? LineStyle.Dashed : LineStyle.Solid);
+            // ⭐ CE-1021 — a wall is thinner than a pixel at most zooms, so its FILL vanishes and only the outline shows: the outline
+            //   is drawn in the wall's own (slightly darker) colour and thicker, so a thin wall reads as a coloured line, never black.
+            bool wall = p.Kind == TerrainPrismKind.Wall;
+            Outline2(draw, p.Footprint, wall ? WallEdge(fill) : Outline, fence ? LineStyle.Dashed : LineStyle.Solid,
+                     wall ? WallEdgePixels : 1.5f);
             if (p.Kind == TerrainPrismKind.Building)
             {
                 var c = Centroid(p.Footprint);
@@ -101,6 +106,12 @@ public sealed class TerrainWorldGizmo : IGlobalStatelessGizmo
         _                   => WallFill,
     };
 
+    /// <summary>⭐ CE-1021 — a wall's outline width in screen pixels: it is what remains visible of a sub-pixel wall.</summary>
+    public const float WallEdgePixels = 2.5f;
+
+    /// <summary>⭐ CE-1021 — a wall's outline: its fill, a little darker and opaque (never the near-black building outline).</summary>
+    public static Rgba32 WallEdge(Rgba32 fill) => new((byte)(fill.R * 0.8f), (byte)(fill.G * 0.8f), (byte)(fill.B * 0.8f), 255);
+
     /// <summary>Building fill shaded by height: low = sand, mid = orange, tall = brick, tower = dark red.</summary>
     public static Rgba32 HeightColor(float height) => height switch
     {
@@ -116,13 +127,13 @@ public sealed class TerrainWorldGizmo : IGlobalStatelessGizmo
             draw.DrawFilledTriangle(poly[tris[t]], poly[tris[t + 1]], poly[tris[t + 2]], fill, TerrainLayer);
     }
 
-    private static void Outline2(IDebugDrawBuilder draw, IReadOnlyList<Vector2> poly, Rgba32 color, LineStyle style)
+    private static void Outline2(IDebugDrawBuilder draw, IReadOnlyList<Vector2> poly, Rgba32 color, LineStyle style, float pixels = 1.5f)
     {
         for (int i = 0; i < poly.Count; i++)
         {
             var a = poly[i];
             var b = poly[(i + 1) % poly.Count];
-            draw.DrawLine(new Vector3(a, 0f), new Vector3(b, 0f), color, 1.5f, SizeMode.ScreenPixels,
+            draw.DrawLine(new Vector3(a, 0f), new Vector3(b, 0f), color, pixels, SizeMode.ScreenPixels,
                 layer: TerrainLayer, style: style);
         }
     }

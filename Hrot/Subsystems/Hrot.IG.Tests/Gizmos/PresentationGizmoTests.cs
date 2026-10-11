@@ -190,6 +190,33 @@ namespace Hrot.IG.Tests.Gizmos
             Assert.Equal(4, draw.LineCalls.Count);                 // the building outline
         }
 
+        /// <summary>⭐ CE-1021 — a 0.3 m wall is narrower than a pixel at most zooms, so what shows is its outline: drawn in the
+        /// wall's own colour (light, not the near-black building outline) and thicker, a plain wall and a brick one alike.</summary>
+        [Fact]
+        public void CE1021_AThinWall_IsOutlinedInItsOwnColour_ThickEnoughToSee()
+        {
+            var world = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""
+                {"type":"FeatureCollection","features":[
+                  {"type":"Feature","properties":{"kind":"wall","thickness":0.3,"height":2},
+                   "geometry":{"type":"LineString","coordinates":[[0,0],[20,0]]}},
+                  {"type":"Feature","properties":{"kind":"wall","thickness":0.3,"height":2,"material":"brick"},
+                   "geometry":{"type":"LineString","coordinates":[[0,10],[20,10]]}}]}
+                """);
+            _repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            _repo.SetSingletonManaged(world);
+
+            var draw = new FullCapturingDrawBuilder();
+            new TerrainWorldGizmo().Draw(_repo, draw);
+
+            Assert.Equal(8, draw.LineCalls.Count);   // two walls, four edges each
+            Assert.All(draw.LineCalls, l =>
+            {
+                Assert.Equal(TerrainWorldGizmo.WallEdgePixels, l.Thickness);
+                Assert.True(l.Color.R + l.Color.G + l.Color.B > 200, $"outline {l.Color} reads as black");
+            });
+            Assert.Contains(draw.LineCalls, l => l.Color.R > l.Color.G + 20);   // the brick wall's edge is brick-coloured
+        }
+
         [Fact]
         public void TerrainWorldGizmo_DrawsNothing_WhenNoTerrainIsLoaded()
         {
