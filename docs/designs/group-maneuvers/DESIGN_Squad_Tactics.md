@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 READY-TO-BUILD 2026-10-11 (§4) · embark §5 and formations §6 are MEASUREMENTS, not plans
+build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · embark §5 and formations §6 are MEASUREMENTS, not plans
 current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch)
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
@@ -228,7 +228,7 @@ member never saw (§2); **a flank point computed on CGF** — it can land off th
 | `SquadTacticsScenarioTests` (cluster, `tt-suppress-flank`) | live: contact ⇒ start, the flank ≥ 45° round the enemy from the base, the base fires and holds (horizontally — a standing member's height followed the ground, z 0 → 9), the assault goes through | ✅ green `2026-10-11` (33 s): the flank came out **75°** round the enemy, the assault covered ~60 m, the base fired 150 → 113 rounds and held. The run before `AdvanceTo` failed at **2°**: the assault fired in place under `CombatPosture` |
 | `CuratedBehaviorRegistrarTests` (CE3164 group, SR_R2 names) | `AdvanceTo` and `SuppressAndManeuver` are registered and sit in their picker folders | — |
 
-## 4. S2 — react to contact *(build-state: READY-TO-BUILD — `2026-10-11`; 🔒 user: "go to S2")*
+## 4. S2 — react to contact *(build-state: BUILT `2026-10-11` — as-built §4.7; 🔒 user: "go to S2")*
 
 ⭐ **What S2 is, in one line:** when the squad meets the enemy, its LEADER notices (a squad-level sensing edge), its own
 standing orders react (a squad SOP), it holds and returns fire for a moment, decides once — assault, break contact or hold —
@@ -241,7 +241,7 @@ runs that drill on the S1 runner, and when the drill ends the leader's interrupt
 | a `SensorChangedEvent` lives one frame; published in frame N it is READ in N+1 | `FdpEventBus.cs:30` ("visible in the next frame (after SwapBuffers)") | Decision Layer §4.3 (R-195: the SOP wakes the next frame) |
 | the SOP wake, `RecentSenses` and the HSM reserved events key on `evt.Unit` only — a commander's SOP works unchanged | `RecentSensesSystem.cs:21-26`; `BrainTickSystem.cs:227` | Sensors & Doctrine §7.3 |
 | ⛔ `RecentSenses` records kinds 1–7 only, in a BYTE mask — a kind ≥ 8 is dropped (`default: return`), so the danger-area kinds 8–10 are never recorded today | `RecentSenses.cs:31-42` | Decision Layer §4.3 — "when each kind last happened": ALL kinds ⇒ the record is incomplete, not intended |
-| adding a kind touches: the enum, the HSM name table (pinned by `BuiltInHsmEventsParityTests`), `RecentSenses` | `SensorChangedEvent.cs:12`; `BuiltInHsmEvents.cs:19-23` | Sensors & Doctrine §7.3b ("the ids are ABI: 0xFF00 + SensorChange") |
+| adding a kind touches: the enum, the HSM name table (pinned by `BrainTickSystemHsmArmTests.CE3040_TheBuiltInNames_MatchTheRuntimeEnum`), `RecentSenses` | `SensorChangedEvent.cs:12`; `BuiltInHsmEvents.cs:19-23` | Sensors & Doctrine §7.3b ("the ids are ABI: 0xFF00 + SensorChange") |
 | `SensorChangedEvent` is NOT replicated (no translator; its IDL is only generated) ⇒ new kinds change no wire contract in use | grep `Hrot/Network`: no `SensorChangedEvent` | R-134 (network kept apart from internal events) |
 | producers publish through the command buffer | `ThreatEvaluationSystem.cs:178-188`, `NearMissSensingSystem.cs:24` | — |
 | `SquadCoordinationSystem` is the one squad driver on CGF; the pool changes only on a merge (≈ 10 Hz, or at once on a member epoch change) | `SquadCoordinationSystem.cs:63-70`; `SquadPerceptionMergeSystem.cs:56-61` | Squad_Wiring §3; Squad_Coordination v1.1 |
@@ -289,13 +289,13 @@ classDiagram
   class SquadCoordinationSystem { <<existing, EXTENDED>> + squad edges after the merge }
   class SquadSensing { <<NEW static, Fdp.Toolkits/Squad>> Edges(repo, commander, countBefore) · UnderFire(repo, gate) }
   class SquadInputs { <<existing, EXTENDED>> + SquadEnemyStrengthRatio }
-  class SquadContactResponseDecision { <<NEW [UtilityDecision], ManeuverSelect>> Assault 1 · BreakContact 2 · Hold 3 }
+  class SquadContactResponseDecision { <<NEW [UtilityDecision], PostureSelect>> Assault 1 · BreakContact 2 · Hold 3 }
   class UtilityNodes { <<existing, EXTENDED>> + ChooseOptionOnce }
   class SquadManeuverRunner { <<existing, FIXED>> re-takes the squad when another drill used it (S2-G) }
   class SquadHoldPlay { <<NEW play>> all Hold · ends on time or no contact }
   class BreakContactPlay { <<NEW play over BoundingOverwatchManeuver>> leader's FindSafeRetreatPoint · bounds straight to the answer }
   class SuppressAndManeuverPlay { <<existing S1 play>> }
-  class ReactToContactBehavior { <<NEW [BTreeDefinition ReactToContact, Library/Squad]>> hold · decide once · drill }
+  class ReactToContactBehavior { <<NEW [BTreeDefinition ReactToContact, Library/Squad]>> one stateful action: hold · decide once · drill · hold until clear }
   class BreakContactBehavior { <<NEW [BTreeDefinition BreakContact, Library/Squad]>> }
   class SquadHoldBehavior { <<NEW [BTreeDefinition SquadHold, Library/Squad]>> }
   class BasicSquadSop { <<NEW asset Library/Sop>> UnderFire → React · Contact → React }
@@ -368,7 +368,7 @@ sequenceDiagram
 | **S2-A** | the trigger | three NEW kinds `SquadContact` 11 · `SquadUnderFire` 12 · `SquadAllClear` 13, `Unit` = commander, from `SquadCoordinationSystem` after its merge | a soldier-leader's OWN `FirstThreat` and its squad's must stay distinguishable; the driver already knows the pool changed |
 | **S2-B** | `RecentSenses` | record EVERY kind (8–13 too) in a `ushort` mask | the byte mask cannot hold ≥ 8; the area kinds were silently dropped — round-out, same fix |
 | **S2-C** | the leader's standing orders | `BasicSquadSop`, a JSON SOP asset (the twin of `BasicInfantrySop`): UnderFire fresh → React `ReactToContact` (UnderFire); Contact fresh → React `ReactToContact` (Contact); no idle row | SOPs are recipes an author copies and edits in the editor, as `BasicInfantrySop` is. ⚠ ONE SOP slot per entity ⇒ a soldier-leader given the squad SOP no longer runs its own soldier reactions — it is the squad's brain; splitting body and command is out of S2's scope |
-| **S2-D** | the choice | NEW `SquadContactResponseDecision` (`ManeuverSelect` kind): Assault = our strength high × their share low; BreakContact = their share high; Hold = a floor | the existing `ManeuverSelectStarterDecision` answers another question, reads a dead provider and cannot be named by a tree |
+| **S2-D** | the choice | NEW `SquadContactResponseDecision` (the option kind `PostureSelect` — as built, §4.7): Assault = our strength high × their share low; BreakContact = their share high; Hold = a floor | the existing `ManeuverSelectStarterDecision` answers another question, reads a dead provider and cannot be named by a tree |
 | **S2-E** | when to decide | ONCE, after `DecideAfterSeconds` (3 s) of holding and returning fire — NEW shared node `ChooseOptionOnce` (keeps the first winner) | `ChooseOption` re-scores every tick; a flip mid-drill would restart the drill (new partition, new query) |
 | **S2-F** | breaking contact | `BreakContactPlay` over `BoundingOverwatchManeuver`: the leader's own `FindSafeRetreatPoint` query (slot 0 = a live member, slot 1 = the top threat); each bound goes STRAIGHT to the answer; ends when both elements are within `ArrivalRadius`; no answer ⇒ Failure (the tree falls back to Hold) | bounding's geometric steps can land off the walkable area (S1 measured: such moves fail forever); the answer is walkable and hidden from the threat |
 | **S2-G** | two drills on one squad | the runner remembers its own manoeuvre kind; on a tick where the squad's `ManeuverKind` is NOT its own (another drill ran while it was paused) it RE-TAKES the squad: re-partitions, restores its own kind and its last phase, re-issues | measured defect (§4.0): the resumed drill otherwise reads the other drill's phase — `Aborted` collides with its own abort id |
@@ -386,7 +386,7 @@ a body-less commander is the clean model and needs nothing new.
 |---|---|---|
 | the edges | `SquadCoordinationSystemTests` (the driver's suite) | pool 0→1 ⇒ one `SquadContact` on the commander; 1→0 ⇒ `SquadAllClear`; a member `Hit` ⇒ `SquadUnderFire`; a commander this node does not own ⇒ nothing; still allocation-free |
 | the record | `RoeAndRecentSensesTests` | every kind 1–13 is recorded and read back |
-| the HSM names | `BuiltInHsmEventsParityTests` | the three names, ids `0xFF0B`–`0xFF0D` |
+| the HSM names | `BrainTickSystemHsmArmTests.CE3040_TheBuiltInNames_MatchTheRuntimeEnum` (iterates the enum — covers the new kinds unchanged) | the three names, ids `0xFF0B`–`0xFF0D` |
 | the input | `SquadInputs` rail | 1 armed enemy vs 4 healthy armed members = 0.2; empty pool = 0 |
 | the choice | `SquadContactResponseDecision` rail | strong ⇒ Assault; outmatched ⇒ BreakContact |
 | `ChooseOptionOnce` | `UtilityNodes` rail | keeps its first winner when the scores change |
@@ -394,6 +394,45 @@ a body-less commander is the clean model and needs nothing new.
 | the reaction | `SquadManeuverTests` | `ReactToContact`: holds for `DecideAfterSeconds`, then a strong squad assaults, an outmatched one breaks contact to the leader's retreat answer; `BreakContact` with no answer falls back to hold |
 | the SOP | `BasicSquadSop` rail | a fresh `SquadContact` on the commander ⇒ React `ReactToContact` pausing its task |
 | live: `tt-react-contact` on `test-town` | `SquadTacticsScenarioTests` (cluster) | a squad bounding toward an objective meets an enemy ⇒ the leader's SOP pauses the bound, the squad holds, then runs a drill; when it ends, bounding resumes (`ManeuverKind` 2 → 3 → 2) |
+
+### 4.7 As built *(behaviors, `2026-10-11`)*
+
+| file | what |
+|---|---|
+| `Fdp.Toolkits/Perception/Events/SensorChangedEvent.cs` | `SquadContact` 11 · `SquadUnderFire` 12 · `SquadAllClear` 13 |
+| `Fdp.Toolkits/Behavior/Shared/BuiltInHsmEvents.cs` | `Sensor.SquadContact` … — ids `0xFF0B`–`0xFF0D` |
+| `Fdp.Toolkits/Behavior/Components/RecentSenses.cs` | records EVERY kind (8–13 added), `SeenMask` is a `ushort` |
+| `Fdp.Toolkits/Squad/Systems/SquadSensing.cs` (NEW) + `SquadCoordinationSystem.cs` | the three edges on the commander, after the merge |
+| `Fdp.Toolkits/Utility/Inputs/SquadInputs.cs` | `SquadEnemyStrengthRatio` |
+| `Fdp.Toolkits/Utility/StarterPack/SquadContactResponseDecision.cs` (NEW) | Assault · BreakContact · Hold |
+| `Fdp.Toolkits/Utility/Integration/UtilityNodes.cs` | `ChooseOptionOnce` |
+| `Fdp.Toolkits/Squad/Maneuvers/SquadHoldManeuver.cs` (NEW) | `SquadHoldManeuver` (kind 7) · `BreakContactManeuver` (kind 8, the bounding phases) |
+| `Brains/SquadManeuverRunner.cs` | S2-G re-take; `StartedAt`; the shared `AskTerrain` / `TopContact` / `FirstLive` (the S1 flank play now uses them) |
+| `Brains/SquadContactBehaviors.cs` (NEW) | `SquadHold`, `BreakContact`, `ReactToContact` (Library/Squad) and their plays |
+| `Hrot.Core/…/{SquadHold,BreakContact,ReactToContact}ParamsJsonDto.cs` (NEW) | the three Commander contracts |
+| `Assets/BTrees/Library/Sop/BasicSquadSop.btree.json` (NEW) | the leader's standing orders; also offered as a recipe |
+| `Recipes/Scenarios/tt-react-contact` (NEW) | a leader bounding its four riflemen toward an armed enemy, with `BasicSquadSop` |
+
+**Deviations from §4.2–§4.5 — each measured, none silent:**
+
+| planned | built | why |
+|---|---|---|
+| decision kind `ManeuverSelect` | `PostureSelect` | 📐 `UtilityScorer.ChooseOption` scores ONLY `PostureSelect` (the option-decision kind) and returns 0 for anything else — the first rail read winner 0 |
+| `ReactToContact` as a tree of composites (hold → `ChooseOptionOnce` → selector of drills) | ONE stateful action stepping through its stages, calling `ChooseOptionOnce` and the runner | the interpreter keeps one running-node index and one Parallel register (`Interpreter.cs:84-131`, `:349`); a Sequence → Parallel → Selector nest is exactly where that bites. One action is one play at a time — one play state |
+| the drill's own `Wait` (an assault ordered on a heard-only contact) | the reaction treats a drill that has not started as failed and holds until clear | a reaction must not wait for ever on a contact it cannot aim at |
+| — | the flank query code moved into the runner (`AskTerrain`) and is shared by the flank and retreat plays | one implementation (ruling 9) |
+
+| rail | proves | red-proof |
+|---|---|---|
+| `SquadCoordinationSystemTests.CE2123_ThePoolCrossingZero_…` · `…_AMemberHitOrShotAt_…` · `…_WithTheGate_…` | the three edges, on the commander, gated | `PoolEdges` call removed ⇒ red |
+| `RoeAndRecentSensesTests.CE2123_EveryKind_IsRecorded_AndReadBack` | kinds 1–13 recorded | — |
+| `BrainTickSystemHsmArmTests.CE3040_TheBuiltInNames_MatchTheRuntimeEnum` (unchanged) | the HSM names follow the enum | — |
+| `SquadInputsTests.CE2123_SquadEnemyStrengthRatio_…` · `…_SquadContactResponse_…` · `…_ChooseOptionOnce_…` | the input, the choice, deciding once | `ChooseOptionOnce` re-scoring ⇒ red |
+| `SquadManeuverTests.CE2123_S2G_…` | a resumed drill re-takes the squad | re-take skipped ⇒ red |
+| `SquadManeuverTests.CE2123_ReactToContact_…` (3) | hold → assault; outmatched → break contact element by element; no retreat point → hold until clear | — |
+| `SquadManeuverTests.CE2123_ABoundingSquadReactsToContact_ThenResumesItsBound` | pause → react → drill → resume, on the commander | — |
+| `SquadManeuverTests.CE2123_BasicSquadSop_…` | the shipped SOP reacts on a squad edge and is not restarted by the next one | — |
+| `SquadTacticsScenarioTests.CE2123_ABoundingSquadMeetsTheEnemy_…` (cluster, `tt-react-contact`) | live: bound → hold → assault → bound resumes | see the run recorded below |
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 

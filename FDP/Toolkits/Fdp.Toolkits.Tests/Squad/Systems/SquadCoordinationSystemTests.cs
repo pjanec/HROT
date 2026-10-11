@@ -1,8 +1,10 @@
 using System;
+using System.Linq;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Squad.Systems;
 using Xunit;
@@ -71,6 +73,71 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
 
             Assert.Equal(1, PoolCount(owned));
             Assert.Equal(0, PoolCount(remote));
+        }
+
+        private SensorChangedEvent[] EdgesAfter(Action frame)
+        {
+            frame();
+            _repo.Bus.SwapBuffers();
+            return _repo.Bus.Read<SensorChangedEvent>().ToArray();
+        }
+
+        private Entity MemberOf(Entity commander) => _repo.GetComponentRO<UnitRoster>(commander).SubordinateEntities[0];
+
+        /// <summary>⭐ <c>CE-2123</c> S2 — the merge that takes the pool from empty to a contact raises <c>SquadContact</c> on the
+        /// commander, once; the merge that empties it raises <c>SquadAllClear</c>. ✅ Red-proof: drop the <c>PoolEdges</c> call ⇒ red.</summary>
+        [Fact]
+        public void CE2123_ThePoolCrossingZero_RaisesSquadContactThenSquadAllClear_OnTheCommander()
+        {
+            var commander = Squad(owned: true);
+            var system = new SquadCoordinationSystem();
+
+            var first = EdgesAfter(() => system.Execute(_repo, 0.016f));
+            Assert.Equal(new[] { (commander, SensorChange.SquadContact) }, first.Select(e => (e.Unit, e.What)));
+
+            _repo.Tick();
+            var steady = EdgesAfter(() => system.Execute(_repo, 0.016f));
+            Assert.Empty(steady);
+
+            TargetMemory.Forget(ref _repo.GetComponentRW<TargetMemory>(MemberOf(commander)), 0);
+            for (int i = 0; i < 6; i++) _repo.Tick();
+            var cleared = EdgesAfter(() => system.Execute(_repo, 0.016f));
+            Assert.Equal(new[] { (commander, SensorChange.SquadAllClear) }, cleared.Select(e => (e.Unit, e.What)));
+        }
+
+        /// <summary>⭐ <c>CE-2123</c> S2 — a member's Hit or NearMiss edge (last frame) raises <c>SquadUnderFire</c> on its commander;
+        /// so does the commander's own (a soldier-leader); a unit in no squad raises nothing.</summary>
+        [Fact]
+        public void CE2123_AMemberHitOrShotAt_RaisesSquadUnderFire_OnItsCommander()
+        {
+            var commander = Squad(owned: true);
+            var system = new SquadCoordinationSystem();
+            EdgesAfter(() => system.Execute(_repo, 0.016f));   // the first merge's SquadContact
+            var loner = _repo.CreateEntity();
+
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = MemberOf(commander), What = SensorChange.Hit });
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = MemberOf(commander), What = SensorChange.FirstThreat });
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = commander, What = SensorChange.NearMiss });
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = loner, What = SensorChange.Hit });
+            _repo.Bus.SwapBuffers();
+            var edges = EdgesAfter(() => system.Execute(_repo, 0.016f));
+
+            Assert.Equal(new[] { (commander, SensorChange.SquadUnderFire), (commander, SensorChange.SquadUnderFire) },
+                         edges.Select(e => (e.Unit, e.What)));
+        }
+
+        /// <summary>⭐ <c>CE-2123</c> S2 — with the pack's gate, a commander this node does not own gets no squad edge.</summary>
+        [Fact]
+        public void CE2123_WithTheGate_ACommanderThisNodeDoesNotOwn_GetsNoSquadEdges()
+        {
+            var remote = Squad(owned: false);
+            var system = new SquadCoordinationSystem(gateOnAuthority: true);
+
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = MemberOf(remote), What = SensorChange.Hit });
+            _repo.Bus.SwapBuffers();
+            var edges = EdgesAfter(() => system.Execute(_repo, 0.016f));
+
+            Assert.Empty(edges);
         }
 
         /// <summary>⭐⭐ User ruling: no allocation on the hot path. The query is built once and cached.</summary>

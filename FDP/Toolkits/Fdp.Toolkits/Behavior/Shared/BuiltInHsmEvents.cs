@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Behavior.Shared
     /// <para>An authored event named after one of these gets its reserved id, whatever id it stored — so an author writes
     /// <i>On Sensor.FirstThreat → Engaged</i> and never types an id.</para>
     /// <para>⛔⛔ The ids are <b>ABI</b>: <c>0xFF00 + SensorChange</c>, far from the sequential authored range (from 1) and below
-    /// the kernel's reserved <c>0xFFFD</c> / <c>0xFFFE</c>. <c>BuiltInHsmEventsParityTests</c> pins the names against the
+    /// the kernel's reserved <c>0xFFFD</c> / <c>0xFFFE</c>. <c>BrainTickSystemHsmArmTests.CE3040_TheBuiltInNames_MatchTheRuntimeEnum</c> pins the names against the
     /// runtime <c>SensorChange</c> enum. ⚠ MobilityLost (id 1) is NOT here: 1 is inside the sequential range.</para>
     /// </summary>
     internal static class BuiltInHsmEvents
@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.Behavior.Shared
             "Sensor.Acquired", "Sensor.Lost", "Sensor.TopChanged", "Sensor.FirstThreat", "Sensor.AllClear", "Sensor.Hit",
             "Sensor.NearMiss",   // ⭐ CE-3064 — id 0xFF07
             "Sensor.AreaAhead", "Sensor.AreaThreatened", "Sensor.AreaCleared",   // ⭐ CE-3072 B0 — ids 0xFF08–0xFF0A, the danger-area sensor
+            "Sensor.SquadContact", "Sensor.SquadUnderFire", "Sensor.SquadAllClear",   // ⭐ CE-2123 S2 — ids 0xFF0B–0xFF0D, on the commander
         };
 
         /// <summary>The reserved id of a sensor change (its <c>SensorChange</c> value, 1-based).</summary>

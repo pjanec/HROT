@@ -44,5 +44,14 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ CE-2123 — go to a point firing at the top threat, no posture decision: a superior's MOVE order (DESIGN_Squad_Tactics §3.6).</summary>
         public const string AdvanceTo = "AdvanceTo";
+
+        /// <summary>⭐ <c>CE-2123</c> S2 — the squad leader's reaction to contact: hold and return fire, decide once, run a drill.</summary>
+        public const string ReactToContact = "ReactToContact";
+
+        /// <summary>⭐ <c>CE-2123</c> S2 — the squad gets out of the enemy's sight, element covering element.</summary>
+        public const string BreakContact = "BreakContact";
+
+        /// <summary>⭐ <c>CE-2123</c> S2 — the squad holds where it stands and fights.</summary>
+        public const string SquadHold = "SquadHold";
     }
 }

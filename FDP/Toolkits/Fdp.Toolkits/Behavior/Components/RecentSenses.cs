@@ -17,12 +17,16 @@ namespace Fdp.Toolkit.Behavior.Components
     [DataPolicy(DataPolicy.NoScenario)]
     public struct RecentSenses
     {
-        /// <summary>Sim time (s) of the last change of each kind, indexed by <see cref="SensorChange"/> (1–7).</summary>
+        /// <summary>Sim time (s) of the last change of each kind, indexed by <see cref="SensorChange"/> (1–13).</summary>
         public double Acquired, Lost, TopChanged, FirstThreat, AllClear, Hit;
         /// <summary>⭐ <c>CE-3064</c> — the last near miss (kind 7).</summary>
         public double NearMiss;
-        /// <summary>Bit <c>1 &lt;&lt; (int)kind</c> set once that kind has happened at least once.</summary>
-        public byte SeenMask;
+        /// <summary>⭐ <c>CE-2123</c> — the danger-area kinds 8–10 (until then silently not recorded: the mask was a byte).</summary>
+        public double AreaAhead, AreaThreatened, AreaCleared;
+        /// <summary>⭐ <c>CE-2123</c> S2 — the squad kinds 11–13, recorded on the commander.</summary>
+        public double SquadContact, SquadUnderFire, SquadAllClear;
+        /// <summary>Bit <c>1 &lt;&lt; (int)kind</c> set once that kind has happened at least once (kinds up to 15).</summary>
+        public ushort SeenMask;
 
         /// <summary>Record a change of <paramref name="kind"/> at <paramref name="now"/>.</summary>
         public void Record(SensorChange kind, double now)
@@ -36,9 +40,15 @@ namespace Fdp.Toolkit.Behavior.Components
                 case SensorChange.AllClear:    AllClear    = now; break;
                 case SensorChange.Hit:         Hit         = now; break;
                 case SensorChange.NearMiss:    NearMiss    = now; break;
+                case SensorChange.AreaAhead:      AreaAhead      = now; break;
+                case SensorChange.AreaThreatened: AreaThreatened = now; break;
+                case SensorChange.AreaCleared:    AreaCleared    = now; break;
+                case SensorChange.SquadContact:   SquadContact   = now; break;
+                case SensorChange.SquadUnderFire: SquadUnderFire = now; break;
+                case SensorChange.SquadAllClear:  SquadAllClear  = now; break;
                 default: return;
             }
-            SeenMask |= (byte)(1 << (int)kind);
+            SeenMask |= (ushort)(1 << (int)kind);
         }
 
         /// <summary>Did a change of <paramref name="kind"/> happen within the last <paramref name="seconds"/> before <paramref name="now"/>?</summary>
@@ -59,6 +69,12 @@ namespace Fdp.Toolkit.Behavior.Components
                 SensorChange.AllClear    => AllClear,
                 SensorChange.Hit         => Hit,
                 SensorChange.NearMiss    => NearMiss,
+                SensorChange.AreaAhead      => AreaAhead,
+                SensorChange.AreaThreatened => AreaThreatened,
+                SensorChange.AreaCleared    => AreaCleared,
+                SensorChange.SquadContact   => SquadContact,
+                SensorChange.SquadUnderFire => SquadUnderFire,
+                SensorChange.SquadAllClear  => SquadAllClear,
                 _                        => double.NegativeInfinity,
             };
             return true;

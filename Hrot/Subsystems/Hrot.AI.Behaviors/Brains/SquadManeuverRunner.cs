@@ -58,6 +58,8 @@ namespace Hrot.AI.Behaviors.Brains
     public unsafe struct SquadPlayState
     {
         public byte Started;
+        /// <summary>⭐ S2 — sim time the play went (its <see cref="PlayStart.Go"/>), for a play with a time limit.</summary>
+        public double StartedAt;
         /// <summary>1 = send every member's order again this tick (a resume after a pause, a moved threat, a new answer).</summary>
         public byte Reissue;
         public ushort IssuedPhase;
@@ -77,6 +79,11 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed float TargetX[UnitRoster.Capacity];
         public fixed float TargetY[UnitRoster.Capacity];
         public fixed float TargetZ[UnitRoster.Capacity];
+        /// <summary>⭐ <c>CE-2123</c> S2-G — the squad state this play LEFT at the end of its last tick (kind, phase, partition).
+        /// When the squad no longer holds it, another drill ran on the squad meanwhile (this one was paused under a reaction):
+        /// the runner restores it and re-sends every order.</summary>
+        public ushort OwnKind, OwnPhase;
+        public ElementPartition OwnElements;
     }
 
     /// <summary>⭐ <c>CE-2123</c> — what a play sees each tick.</summary>
@@ -182,9 +189,14 @@ namespace Hrot.AI.Behaviors.Brains
                 squad0.ManeuverKind = play.ManeuverKind;
                 squad0.PhaseId = play.StartPhase;
                 ws.Started = 1;
+                ws.StartedAt = now;
                 ws.IssuedPhase = ushort.MaxValue;
             }
-            else if (now - ws.LastTickAt > ResumeGapSeconds) ws.Reissue = 1;   // ⭐ S1-G — back from a pause
+            else
+            {
+                if (now - ws.LastTickAt > ResumeGapSeconds) ws.Reissue = 1;   // ⭐ S1-G — back from a pause
+                if (!StillOurs(in ws, in ctx.Squad)) Retake(ref ws, ref ctx.Squad);   // ⭐ S2-G — another drill used the squad
+            }
             ws.LastTickAt = now;
 
             if (ctx.Squad.PhaseId == play.AbortPhase) { play.Release(ref ws, world); return NodeStatus.Failure; }
@@ -202,7 +214,33 @@ namespace Hrot.AI.Behaviors.Brains
                 if (outcome != NodeStatus.Running) { play.Release(ref ws, world); return outcome; }
             }
             if (ctx.Squad.PhaseId != ws.IssuedPhase || ws.Reissue != 0) Issue<TPlay, TParams>(ref p, ref ws, in ctx);
+            Remember(ref ws, in ctx.Squad);
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ S2-G — does the squad still hold what this play left there?</summary>
+        private static unsafe bool StillOurs(in SquadPlayState ws, in SquadCognitiveState squad)
+        {
+            if (squad.ManeuverKind != ws.OwnKind || squad.PhaseId != ws.OwnPhase) return false;
+            var mine = ws.OwnElements;
+            var now  = squad.Elements;
+            return new ReadOnlySpan<byte>(&mine, sizeof(ElementPartition)).SequenceEqual(new ReadOnlySpan<byte>(&now, sizeof(ElementPartition)));
+        }
+
+        /// <summary>⭐ S2-G — put this play's kind, phase and partition back and re-send every order.</summary>
+        private static void Retake(ref SquadPlayState ws, ref SquadCognitiveState squad)
+        {
+            squad.ManeuverKind = ws.OwnKind;
+            squad.PhaseId = ws.OwnPhase;
+            squad.Elements = ws.OwnElements;
+            ws.Reissue = 1;
+        }
+
+        private static void Remember(ref SquadPlayState ws, in SquadCognitiveState squad)
+        {
+            ws.OwnKind = squad.ManeuverKind;
+            ws.OwnPhase = squad.PhaseId;
+            ws.OwnElements = squad.Elements;
         }
 
         /// <summary>One order per live member for the current phase.</summary>
@@ -270,6 +308,82 @@ namespace Hrot.AI.Behaviors.Brains
         {
             for (int i = 0; i < ctx.Roster.Count; i++) if (ctx.Live(i, out _)) return true;
             return false;
+        }
+
+        /// <summary><see cref="SquadPlayState.HasAnswer"/> when the terrain query found no point.</summary>
+        public const byte NoAnswer = 2;
+
+        /// <summary>
+        /// ⭐ <c>CE-2123</c> — the COMMANDER asks the terrain: its own child EQS sensor at <paramref name="site"/> running
+        /// <paramref name="blueprintId"/>, measured from <paramref name="from"/> (slot 0), aimed at <paramref name="at"/> (slot 1). Solved
+        /// on SimHost. The first answer lands in <see cref="SquadPlayState.Answer"/> (<see cref="SquadPlayState.HasAnswer"/> = 1, and a
+        /// re-issue), an empty one sets <see cref="NoAnswer"/>; either way the sensor goes. Call every tick until it answers.
+        /// ⭐ The one implementation the flank (S1) and the retreat (S2) plays share.
+        /// </summary>
+        public static void AskTerrain(ref SquadPlayState ws, in SquadPlayContext ctx, uint blueprintId, int site, float radius, Entity from, Entity at)
+        {
+            var world = ctx.World;
+            var child = ws.Sensor.IsValid && world.IsAlive(ws.Sensor.ChildId) ? ws.Sensor.ChildId : Entity.Null;
+            if (child.IsNull)
+            {
+                if (from.IsNull || at.IsNull) { ws.HasAnswer = NoAnswer; return; }
+                var config = new EqsSensor
+                {
+                    BlueprintId         = blueprintId,
+                    Epoch               = 1,
+                    SearchRadius        = radius,
+                    PublishPolicy       = (byte)EqsPublishPolicy.ScoreDelta,
+                    ScoreDeltaThreshold = 0.05f,
+                    ContextSlot0        = from,
+                    ContextSlot1        = at,
+                };
+                child = EqsChildSensor.Ensure(world, ctx.Commander, site, in config);
+                if (child.IsNull) return;
+                ws.Sensor = new EqsSensorHandle(child);
+                ws.LastAnswerTick = 0;
+            }
+            if (!world.HasComponent<EqsCognitiveBuffer>(child)) return;
+            ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(child);
+            if (!buffer.IsReady || buffer.LastUpdateTick == ws.LastAnswerTick) return;
+            ws.LastAnswerTick = buffer.LastUpdateTick;
+            if (buffer.Count == 0) ws.HasAnswer = NoAnswer;
+            else
+            {
+                var top = buffer.GetTop();
+                ws.Answer = new Vector3(top.PositionX, top.PositionY, top.PositionZ);
+                ws.HasAnswer = 1;
+                ws.Reissue = 1;
+            }
+            DropSensor(ref ws, world);
+        }
+
+        /// <summary>⭐ <c>CE-2123</c> — the squad's top IDENTIFIED pooled contact (highest threat), preferring <paramref name="keep"/>
+        /// while it is pooled. A heard-only contact has no entity to aim at and is skipped.</summary>
+        public static bool TopContact(in SquadPlayContext ctx, long keep, out SquadContact contact)
+        {
+            contact = default;
+            ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
+            var pool = MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
+            bool found = false;
+            for (int i = 0; i < squad.Contacts.Count && i < 16; i++)
+            {
+                var c = pool[i];
+                if ((c.Flags & SquadContact.AnonymousFlag) != 0 || c.EntityId <= 0) continue;
+                if (keep != 0 && c.EntityId == keep) { contact = c; return true; }
+                if (!found || c.ThreatScore > contact.ThreatScore) { contact = c; found = true; }
+            }
+            return found;
+        }
+
+        /// <summary>The first live member of <paramref name="element"/> (or any element when 255).</summary>
+        public static Entity FirstLive(in SquadPlayContext ctx, byte element = 255)
+        {
+            ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
+            for (int i = 0; i < ctx.Roster.Count; i++)
+                if ((element == 255 || squad.Elements.MemberElements[i] == element) && ctx.Live(i, out var m)) return m;
+            return Entity.Null;
         }
 
         /// <summary>The sensor the play owns goes.</summary>

@@ -205,6 +205,10 @@
     <Content Include="Assets\BTrees\Library\Sop\BasicInfantrySop.btree.json" Link="Recipes\BTrees\BasicInfantrySop.btree.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- ⭐ CE-2123 S2 — the squad leader's standing orders: same two roles. -->
+    <Content Include="Assets\BTrees\Library\Sop\BasicSquadSop.btree.json" Link="Recipes\BTrees\BasicSquadSop.btree.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <!-- H4 — SCENARIO SEEDS: the "recipe" a new scenario is created from (design §2.1e ⑤b: a scenario

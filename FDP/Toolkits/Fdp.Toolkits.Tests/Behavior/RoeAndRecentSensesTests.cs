@@ -1,3 +1,4 @@
+using System;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
@@ -154,5 +155,20 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.False(SopConditions.InContact(ref linger, e, world));                  // … until 30 s after AllClear
             world.Dispose();
         }
-    }
+    
+        /// <summary>⭐ <c>CE-2123</c> — every kind is recorded and read back, the danger-area kinds (8–10, until now silently dropped by a
+        /// byte mask) and the squad kinds (11–13) included. ✅ Red-proof: the mask back to a byte ⇒ the kinds ≥ 8 read as never seen.</summary>
+        [Fact]
+        public void CE2123_EveryKind_IsRecorded_AndReadBack()
+        {
+            var senses = new Fdp.Toolkit.Behavior.Components.RecentSenses();
+            var kinds = (Fdp.Toolkit.Perception.Events.SensorChange[])Enum.GetValues(typeof(Fdp.Toolkit.Perception.Events.SensorChange));
+            for (int i = 0; i < kinds.Length; i++) senses.Record(kinds[i], 10d + i);
+            for (int i = 0; i < kinds.Length; i++)
+            {
+                Assert.True(senses.TryGetLast(kinds[i], out double at), kinds[i].ToString());
+                Assert.Equal(10d + i, at);
+            }
+        }
+}
 }

@@ -143,4 +143,67 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         _out.WriteLine("end: " + State());
         Assert.True(through, $"the assault must go through the enemy's position; {State()}");
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2123</c> (S2) — the shipped <c>tt-react-contact</c> scenario: a leader with the squad standing orders
+    /// (<c>BasicSquadSop</c>) bounds its squad toward an enemy. Contact ⇒ the squad edge on the leader ⇒ its SOP reacts: the bound is
+    /// PAUSED, the squad holds and returns fire, the leader decides (four riflemen against one ⇒ assault) and runs the drill; when it
+    /// ends, the bound RESUMES. 📄 <c>docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md</c> §4.6.
+    /// </summary>
+    [Fact(Timeout = 300_000)]
+    public async Task CE2123_ABoundingSquadMeetsTheEnemy_ItsLeaderReacts_HoldsThenAssaults_ThenTheBoundResumes()
+    {
+        var root = RepoRoot();
+        var scenarioId = "tt_react_contact_" + Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
+        try
+        {
+            File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-react-contact", "scenario.json"),
+                Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
+
+            using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+            var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+            var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+            while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
+            {
+                harness.PumpFrames(1);
+                Thread.Sleep(10);
+            }
+            await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = ClusterOpType.TransitionState,
+                PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive), ScenarioId = scenarioId }),
+            }).ConfigureAwait(false);
+            Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000),
+                $"cluster must reach OperatingLive; at {(int)master.CurrentClusterState}");
+
+            var cgf = harness.Cgf!.World!;
+            Assert.True(harness.PumpUntil(() => !ByName(cgf, "Leader").IsNull && cgf.HasComponent<UnitRoster>(ByName(cgf, "Leader"))
+                                             && cgf.GetComponent<UnitRoster>(ByName(cgf, "Leader")).Count == 4, timeoutFrames: 3000),
+                "the leader and its four riflemen must spawn");
+            var leader = ByName(cgf, "Leader");
+            SquadCognitiveState Squad() => cgf.GetComponent<SquadCognitiveState>(leader);
+            bool Paused() => Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem.PausedTaskOf(cgf, leader) != null;
+            var kinds = new System.Collections.Generic.List<ushort>();
+            void Note() { var k = Squad().ManeuverKind; if (kinds.Count == 0 || kinds[^1] != k) kinds.Add(k); }
+            string State() => $"kinds=[{string.Join(",", kinds)}] phase={Squad().PhaseId} pool={Squad().Contacts.Count} paused={Paused()}";
+
+            // ① the leader's task bounds the squad.
+            Assert.True(harness.PumpUntil(() => { Note(); return kinds.Contains(BoundingOverwatchManeuver.ManeuverKind); }, timeoutFrames: 3000),
+                $"the leader must start its bound; {State()}");
+            // ② contact ⇒ the SOP's reaction pauses the bound and the squad holds and returns fire …
+            Assert.True(harness.PumpUntil(() => { Note(); return kinds.Contains(SquadHoldManeuver.ManeuverKind) && Paused(); }, timeoutFrames: 6000),
+                $"on contact the leader's standing orders must pause the bound and hold; {State()}");
+            // ③ … then the leader decides — four riflemen against one ⇒ assault.
+            Assert.True(harness.PumpUntil(() => { Note(); return kinds.Contains(SuppressAndManeuverManeuver.ManeuverKind); }, timeoutFrames: 3000),
+                $"the leader must decide to assault; {State()}");
+            // ④ the drill ends ⇒ the bound resumes, with its own squad state.
+            Assert.True(harness.PumpUntil(() => { Note(); return !Paused() && Squad().ManeuverKind == BoundingOverwatchManeuver.ManeuverKind
+                                                              && kinds.IndexOf(SuppressAndManeuverManeuver.ManeuverKind) < kinds.Count - 1; }, timeoutFrames: 8000),
+                $"after the drill the bound must resume; {State()}");
+            _out.WriteLine("end: " + State());
+        }
+        finally { NasScenarioStaging.Remove(scenarioId); }
+    }
 }

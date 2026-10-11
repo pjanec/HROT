@@ -23,6 +23,10 @@ namespace Fdp.Toolkit.Squad.Systems
     /// (D5 — its component id collides, <c>QA-037</c>, and Muscle has no reader), and maneuver execution (D2 — authored
     /// as a behaviour on the commander).</para>
     ///
+    /// <para>⭐ <c>CE-2123</c> S2 — and it raises the squad's sensing edges on the commander (<see cref="SquadSensing"/>):
+    /// contact / all-clear when a merge takes the pool across zero, under-fire when a member was hit or shot at.
+    /// 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §4.4.</para>
+    ///
     /// <para>⭐ Allocation-free per frame: the query is built once and cached.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
@@ -65,10 +69,16 @@ namespace Fdp.Toolkit.Squad.Systems
             uint tick = view.Tick;
             foreach (var commander in _commanders)
             {
+                int before = repo.GetComponentRO<SquadCognitiveState>(commander).Contacts.Count;
                 bool merged = SquadPerceptionMergeSystem.Run(repo, commander, tick, MergeIntervalTicks);
+                if (!merged) continue;
                 // ⭐ CE-3088 — re-assign fire only when the pool it reads changed (≈ 10 Hz), not every frame.
-                if (merged) _fire?.Run(repo, commander);
+                _fire?.Run(repo, commander);
+                // ⭐ CE-2123 S2 — the squad's contact / all-clear edges, on the commander.
+                SquadSensing.PoolEdges(repo, commander, before);
             }
+            // ⭐ CE-2123 S2 — a member hit or shot at ⇒ its squad is under fire.
+            SquadSensing.UnderFire(repo, _gateOnAuthority);
         }
     }
 }

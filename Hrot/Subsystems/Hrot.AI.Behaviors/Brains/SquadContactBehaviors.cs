@@ -1,0 +1,338 @@
+using System;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using Fbt;
+using Fbt.Compiler;
+using Fbt.Kernel;
+using Fdp.Core;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Squad;
+using Fdp.Toolkit.Squad.Maneuvers;
+using Fdp.Toolkit.Squad.Primitives;
+using Fdp.Toolkit.Utility;
+using Hrot.Map.Definitions.Behavior;
+
+namespace Hrot.AI.Behaviors.Brains
+{
+    // ── SquadHold ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ <c>CE-2123</c> S2 — a squad hold (resolved from <see cref="SquadHoldParamsJsonDto"/>).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SquadHoldParams
+    {
+        public float Speed;
+        /// <summary>Done after this long (s); 0 = never by time.</summary>
+        public float DurationSeconds;
+        /// <summary>1 = done once the squad knows no contact.</summary>
+        public byte EndWhenClear;
+    }
+
+    /// <summary>⭐ <c>CE-2123</c> S2 — the squad holds where it stands and fights (every member <c>CombatPosture</c> at its position).
+    /// 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §4.</summary>
+    public static class SquadHoldBehavior
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SquadHoldBlackboard
+        {
+            public SquadHoldParams Order;
+            public SquadPlayState State;
+        }
+
+        [BehaviorResolver(BehaviorNames.SquadHold)]
+        public static void Resolve(in SquadHoldParamsJsonDto authored, ref SquadHoldBlackboard block, EntityRepository world, Entity self)
+        {
+            block.Order = new SquadHoldParams
+            {
+                Speed           = authored.Speed > 0f ? authored.Speed : 3f,
+                DurationSeconds = authored.DurationSeconds > 0f ? authored.DurationSeconds : 0f,
+                EndWhenClear    = authored.EndWhenClear ? (byte)1 : (byte)0,
+            };
+            block.State = default;
+        }
+
+        [BTreeDefinition(BehaviorNames.SquadHold, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadHoldBlackboard))]
+        public static BTreeBuilder<SquadHoldBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<SquadHoldBlackboard, BTreeContext>()
+                .StatefulAction(bb => bb.Order, bb => bb.State, Run);
+
+        public static NodeStatus Run(ref SquadHoldParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
+            => SquadManeuverRunner.Tick<SquadHoldPlay, SquadHoldParams>(ref p, ref ws, self, world);
+    }
+
+    /// <summary>⭐ <c>CE-2123</c> S2 — the hold as a play over <see cref="SquadHoldManeuver"/>.</summary>
+    public struct SquadHoldPlay : ISquadPlay<SquadHoldParams>
+    {
+        private static readonly SquadHsmShell s_shell = new(SquadHoldManeuver.BuildTransitionTable(), SquadHoldManeuver.PhaseAborted);
+
+        public SquadHsmShell Shell => s_shell;
+        public ushort ManeuverKind => SquadHoldManeuver.ManeuverKind;
+        public ushort StartPhase => SquadHoldManeuver.PhaseHolding;
+        public ushort AbortPhase => SquadHoldManeuver.PhaseAborted;
+        public byte ElementCount => 1;
+
+        public PlayStart Start(ref SquadHoldParams p, ref SquadPlayState ws, in SquadPlayContext ctx, Span<MemberPartitionInput> partition)
+        {
+            for (int i = 0; i < ctx.Roster.Count; i++) partition[i] = new MemberPartitionInput(1f, 0f);
+            return SquadManeuverRunner.AnyLive(in ctx) ? PlayStart.Go : PlayStart.Fail;
+        }
+
+        public void Update(ref SquadHoldParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
+
+        public NodeStatus Outcome(ref SquadHoldParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (!SquadManeuverRunner.AnyLive(in ctx)) return NodeStatus.Failure;
+            if (p.DurationSeconds > 0f && ctx.Now - ws.StartedAt >= p.DurationSeconds) return NodeStatus.Success;
+            if (p.EndWhenClear != 0 && ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander).Contacts.Count == 0) return NodeStatus.Success;
+            return NodeStatus.Running;
+        }
+
+        public bool PhaseComplete(ref SquadHoldParams p, ref SquadPlayState ws, in SquadPlayContext ctx, out PhaseEventKind evt)
+        {
+            evt = default;
+            return false;
+        }
+
+        public void BeginIssue(ref SquadHoldParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
+
+        public MemberOrder OrderFor(ref SquadHoldParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)
+            => new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = SquadHoldManeuver.RoleHolding };
+
+        public void Release(ref SquadPlayState ws, EntityRepository world) { }
+    }
+
+    // ── BreakContact ──────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ <c>CE-2123</c> S2 — a squad's break contact (resolved from <see cref="BreakContactParamsJsonDto"/>).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BreakContactParams
+    {
+        public float RetreatSearchRadius;
+        public float Speed;
+        public float ArrivalRadius;
+        public float BoundTimeoutSeconds;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2123</c> S2-F — BREAK CONTACT on the commander: it asks the terrain for a point the enemy cannot see (its own
+    /// <see cref="FindSafeRetreatPoint"/> query, measured from a member, aimed at the squad's top identified contact); the squad
+    /// bounds STRAIGHT to it — one element moves while the other holds and fires, then the other way — until both are there.
+    /// No point found ⇒ Failure. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §4.5.
+    /// </summary>
+    public static class BreakContactBehavior
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BreakContactBlackboard
+        {
+            public BreakContactParams Order;
+            public SquadPlayState State;
+        }
+
+        [BehaviorResolver(BehaviorNames.BreakContact)]
+        public static void Resolve(in BreakContactParamsJsonDto authored, ref BreakContactBlackboard block, EntityRepository world, Entity self)
+        {
+            block.Order = Defaults(authored.RetreatSearchRadius, authored.Speed, authored.ArrivalRadius, authored.BoundTimeoutSeconds);
+            block.State = default;
+        }
+
+        internal static BreakContactParams Defaults(float radius, float speed, float arrival, float timeout) => new()
+        {
+            RetreatSearchRadius = radius > 0f ? radius : 60f,
+            Speed               = speed > 0f ? speed : 3f,
+            ArrivalRadius       = arrival > 0f ? arrival : 8f,
+            BoundTimeoutSeconds = timeout > 0f ? timeout : 60f,
+        };
+
+        [BTreeDefinition(BehaviorNames.BreakContact, Curated = true, Group = "Library/Squad", ParamsType = typeof(BreakContactBlackboard))]
+        public static BTreeBuilder<BreakContactBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<BreakContactBlackboard, BTreeContext>()
+                .StatefulAction(bb => bb.Order, bb => bb.State, Run);
+
+        public static NodeStatus Run(ref BreakContactParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
+            => SquadManeuverRunner.Tick<BreakContactPlay, BreakContactParams>(ref p, ref ws, self, world);
+
+        /// <summary>Leaving the node: the commander's retreat query goes.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.BreakContactBehavior.Run")]
+        public static void Deactivate_Run(ref BreakContactParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
+            => SquadManeuverRunner.DropSensor(ref ws, world);
+    }
+
+    /// <summary>⭐ <c>CE-2123</c> S2-F — break contact as a play: its own kind, the bounding table's phases.</summary>
+    public struct BreakContactPlay : ISquadPlay<BreakContactParams>
+    {
+        /// <summary>The commander's retreat-query site.</summary>
+        public const int RetreatSite = 0x21230002;
+
+        private static readonly SquadHsmShell s_shell = new(
+            BreakContactManeuver.BuildTransitionTable(), BoundingOverwatchManeuver.PhaseAborted);
+
+        public SquadHsmShell Shell => s_shell;
+        public ushort ManeuverKind => BreakContactManeuver.ManeuverKind;
+        public ushort StartPhase => BoundingOverwatchManeuver.PhaseElement0Moving;
+        public ushort AbortPhase => BoundingOverwatchManeuver.PhaseAborted;
+        public byte ElementCount => 2;
+
+        public PlayStart Start(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx, Span<MemberPartitionInput> partition)
+        {
+            if (!SquadManeuverRunner.AnyLive(in ctx)) return PlayStart.Fail;
+            if (!SquadManeuverRunner.TopContact(in ctx, 0, out var contact)) return PlayStart.Fail;   // nothing to break contact with
+            ws.ThreatId = contact.EntityId;
+            ws.ThreatPoint = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);
+            BoundingOverwatchManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);
+            return PlayStart.Go;
+        }
+
+        public void Update(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (ws.HasAnswer == 0)
+                SquadManeuverRunner.AskTerrain(ref ws, in ctx, FindSafeRetreatPoint.BlueprintId, RetreatSite, p.RetreatSearchRadius,
+                    SquadManeuverRunner.FirstLive(in ctx), new Entity((ulong)ws.ThreatId));
+        }
+
+        public NodeStatus Outcome(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (!SquadManeuverRunner.AnyLive(in ctx) || ws.HasAnswer == SquadManeuverRunner.NoAnswer) return NodeStatus.Failure;
+            if (ws.HasAnswer != 1) return NodeStatus.Running;
+            for (byte e = 0; e < 2; e++)
+            {
+                var c = ctx.Centre(e, out bool any);
+                if (any && Flat(c - ws.Answer) > p.ArrivalRadius) return NodeStatus.Running;
+            }
+            return NodeStatus.Success;
+        }
+
+        public bool PhaseComplete(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx, out PhaseEventKind evt)
+        {
+            evt = PhaseEventKind.BoundComplete;
+            if (ws.HasAnswer != 1 || ws.Reissue != 0) return false;
+            byte moving = ctx.Squad.PhaseId == BoundingOverwatchManeuver.PhaseElement0Moving ? (byte)0 : (byte)1;
+            return ctx.Now - ws.IssuedAt >= p.BoundTimeoutSeconds || SquadManeuverRunner.ElementArrived(in ws, in ctx, moving);
+        }
+
+        public void BeginIssue(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
+
+        public MemberOrder OrderFor(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)
+        {
+            byte moving = ctx.Squad.PhaseId == BoundingOverwatchManeuver.PhaseElement0Moving ? (byte)0 : (byte)1;
+            if (ws.HasAnswer != 1 || element != moving)
+                return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = BoundingOverwatchManeuver.RoleCovering };
+            return new MemberOrder
+            {
+                Kind = MemberOrderKind.AdvanceTo, Point = ws.Answer, Speed = p.Speed,
+                ArrivalRadius = SquadManeuverRunner.MoverArrivalMetres, RoleId = BoundingOverwatchManeuver.RoleMoving,
+            };
+        }
+
+        public void Release(ref SquadPlayState ws, EntityRepository world) => SquadManeuverRunner.DropSensor(ref ws, world);
+
+        private static float Flat(Vector3 d) { d.Z = 0f; return d.Length(); }
+    }
+
+    // ── ReactToContact ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ <c>CE-2123</c> S2 — the reaction's params (resolved from <see cref="ReactToContactParamsJsonDto"/>).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ReactToContactParams
+    {
+        /// <summary>Phase 1: every member holds and returns fire for <see cref="SquadHoldParams.DurationSeconds"/>.</summary>
+        public SquadHoldParams ReturnFire;
+        /// <summary>The choice (<see cref="SquadContactResponseDecision"/>).</summary>
+        public ChooseOptionParams Choose;
+        public SuppressAndManeuverParams Assault;
+        public BreakContactParams Break;
+        /// <summary>The fallback and the Hold choice: hold until the squad knows no contact.</summary>
+        public SquadHoldParams HoldOn;
+    }
+
+    /// <summary>⭐ <c>CE-2123</c> S2 — where the reaction is: one play at a time, so one play state.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ReactToContactState
+    {
+        /// <summary>0 = returning fire · 1 = the chosen drill · 2 = holding until clear.</summary>
+        public byte Stage;
+        public UtilityChoice Choice;
+        public SquadPlayState Play;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2123</c> S2 — the squad leader's REACTION TO CONTACT, started by its standing orders (<c>BasicSquadSop</c>) on a
+    /// squad edge: every member holds and returns fire for a moment; the leader then decides ONCE (<see cref="UtilityNodes.ChooseOptionOnce"/>
+    /// over <see cref="SquadContactResponseDecision"/>) — assault (the S1 suppress-and-manoeuvre), break contact, or hold — and runs it;
+    /// a drill that cannot start or fails falls back to holding until clear. When it ends, the task it paused resumes.
+    /// ⭐ One stateful action stepping through the stages (one play at a time on the S1 runner), not nested composites.
+    /// 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §4.3, §4.5.
+    /// </summary>
+    public static class ReactToContactBehavior
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct ReactToContactBlackboard
+        {
+            public ReactToContactParams Order;
+            public ReactToContactState State;
+        }
+
+        [BehaviorResolver(BehaviorNames.ReactToContact)]
+        public static void Resolve(in ReactToContactParamsJsonDto authored, ref ReactToContactBlackboard block, EntityRepository world, Entity self)
+        {
+            float speed   = authored.Speed > 0f ? authored.Speed : 3f;
+            float arrival = authored.ArrivalRadius > 0f ? authored.ArrivalRadius : 8f;
+            float timeout = authored.PhaseTimeoutSeconds > 0f ? authored.PhaseTimeoutSeconds : 90f;
+            block.Order = new ReactToContactParams
+            {
+                ReturnFire = new SquadHoldParams { Speed = speed, DurationSeconds = authored.DecideAfterSeconds > 0f ? authored.DecideAfterSeconds : 3f },
+                Choose     = new ChooseOptionParams { Decision = UtilityDecisionRef.FromAssetId(SquadContactResponseDecision.DecisionAssetId) },
+                Assault    = new SuppressAndManeuverParams
+                {
+                    FlankSearchRadius = authored.FlankSearchRadius > 0f ? authored.FlankSearchRadius : 40f,
+                    Speed = speed, ArrivalRadius = arrival, PhaseTimeoutSeconds = timeout,
+                },
+                Break      = BreakContactBehavior.Defaults(authored.RetreatSearchRadius, speed, arrival, timeout),
+                HoldOn     = new SquadHoldParams { Speed = speed, EndWhenClear = 1 },
+            };
+            block.State = default;
+        }
+
+        [BTreeDefinition(BehaviorNames.ReactToContact, Curated = true, Group = "Library/Squad", ParamsType = typeof(ReactToContactBlackboard))]
+        public static BTreeBuilder<ReactToContactBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<ReactToContactBlackboard, BTreeContext>()
+                .StatefulAction(bb => bb.Order, bb => bb.State, Run);
+
+        public const byte StageReturnFire = 0, StageDrill = 1, StageHoldOn = 2;
+
+        public static NodeStatus Run(ref ReactToContactParams p, ref ReactToContactState ws, Entity self, EntityRepository world)
+        {
+            if (ws.Stage == StageReturnFire)
+            {
+                var first = SquadManeuverRunner.Tick<SquadHoldPlay, SquadHoldParams>(ref p.ReturnFire, ref ws.Play, self, world);
+                if (first != NodeStatus.Success) return first;            // Running, or nobody left to fight
+                Next(ref ws, StageDrill, world);
+            }
+            if (ws.Stage == StageDrill)
+            {
+                UtilityNodes.ChooseOptionOnce(ref p.Choose, ref ws.Choice, self, world);
+                var drill = (SquadContactResponse)ws.Choice.Winner switch
+                {
+                    SquadContactResponse.Assault      => SquadManeuverRunner.Tick<SuppressAndManeuverPlay, SuppressAndManeuverParams>(ref p.Assault, ref ws.Play, self, world),
+                    SquadContactResponse.BreakContact => SquadManeuverRunner.Tick<BreakContactPlay, BreakContactParams>(ref p.Break, ref ws.Play, self, world),
+                    _                                 => NodeStatus.Failure,   // Hold, or nothing scored: hold until clear
+                };
+                if (drill == NodeStatus.Success) return NodeStatus.Success;
+                if (drill == NodeStatus.Running && ws.Play.Started != 0) return NodeStatus.Running;
+                Next(ref ws, StageHoldOn, world);                          // failed, or could not start (e.g. only a heard contact)
+            }
+            return SquadManeuverRunner.Tick<SquadHoldPlay, SquadHoldParams>(ref p.HoldOn, ref ws.Play, self, world);
+        }
+
+        /// <summary>Leaving the node: whichever query the current play owns goes.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.ReactToContactBehavior.Run")]
+        public static void Deactivate_Run(ref ReactToContactParams p, ref ReactToContactState ws, Entity self, EntityRepository world)
+            => SquadManeuverRunner.DropSensor(ref ws.Play, world);
+
+        private static void Next(ref ReactToContactState ws, byte stage, EntityRepository world)
+        {
+            SquadManeuverRunner.DropSensor(ref ws.Play, world);
+            ws.Play = default;
+            ws.Stage = stage;
+        }
+    }
+}
