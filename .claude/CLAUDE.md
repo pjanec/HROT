@@ -310,6 +310,18 @@ query, drive the server over stdio with a longer timeout instead.
 restart it between questions; **batch every symbol question into one run.** ⛔ **A one-shot CLI invocation
 pays the ~59 s every time.**
 
+## ⭐⭐⭐ THE MAP OF WHAT EXISTS — **read it before designing behaviours, squads or vehicles; extend it when you measure** *(user, `2026-10-11`)*
+
+> 🔒 **User, verbatim:** *"I need the guide to serve every other future you so it does not need to rederive the stuff that is available."*
+
+⭐ **[`docs/OVERVIEW_Behaviour_Building_Blocks.md`](../docs/OVERVIEW_Behaviour_Building_Blocks.md)** is the one explainer of the
+machinery: decision slots and the gate, utility decisions and inputs, sensors and memory, EQS (and who may ask it — any unit,
+a squad leader included), the library behaviours, groups (commanders, orders, the squad's shared contacts, manoeuvres) and
+vehicles (passengers, formations). ⭐ **Read it before an INVENTORY**, so the inventory starts from what is known.
+⛔ **When a measurement teaches you something it does not say — or proves a box wrong — fix the map in the same commit.**
+⚠ It is a map, not canon: verify a box against code before building on it, and a FACT about the engine belongs here, never in
+`RULINGS.md` (the ledger holds decisions people made).
+
 ## ⛔⛔ UNREFERENCED IS NOT UNINTENTIONAL — **search `docs/` FIRST, then `.dev/`, before proposing any deletion** *(user ruling, `2026-08-15`; corpus order corrected `2026-08-17` and again `2026-08-21`)*
 
 > ⭐⭐⭐ **User, verbatim:** *"what is not used does not mean it is existing without reason — a design doc
