@@ -87,13 +87,53 @@ namespace Hrot.Editor.DebugApi
                     return orders.Behavior(networkId, name, json);
                 }
                 case "attack":
-                    return new OrderResult(OrderRefusal.BadRequest,
-                        "attack arrives with CE-3170 (CombatPosture with a designated target); use kind 'behavior' meanwhile.", "", "");
+                {
+                    var t = body?["targetId"];
+                    if (t is null || !t.AsValue().TryGetValue<long>(out long targetId))
+                        return new OrderResult(OrderRefusal.BadRequest, "An attack needs targetId (the enemy's network id).", "", "");
+                    return orders.Attack(networkId, targetId);
+                }
                 default:
                     return new OrderResult(OrderRefusal.BadRequest,
-                        "kind must be one of: move, hold (stop), behavior, release.", "", "");
+                        "kind must be one of: move, attack, hold (stop), behavior, release.", "", "");
             }
         }
+
+        // ── possession (CE-3172, docs/DESIGN_Entity_Control.md §8b) ─────────────────────────────
+
+        /// <summary><c>POST /entities/{networkId}/possess</c> — this node, as a station, possesses the unit (FPS): its task pauses
+        /// and <c>POST …/control</c> frames drive it until <c>DELETE …/possess</c>.</summary>
+        public (JsonNode? result, int status, string? error, string? hint) PostPossess(long networkId)
+            => Answer(networkId, Orders().Possess(networkId));
+
+        /// <summary><c>DELETE /entities/{networkId}/possess</c> — let the unit go; the task it was doing resumes.</summary>
+        public (JsonNode? result, int status, string? error, string? hint) DeletePossess(long networkId)
+            => Answer(networkId, Orders().Unpossess(networkId));
+
+        /// <summary><c>POST /entities/{networkId}/control</c> — one control frame for the possessed unit:
+        /// <c>{seq, forward, lateral, steer, yaw, gait, trigger, aim:[x,y,z]}</c> (all optional but <c>seq</c>; newest seq wins).</summary>
+        public (JsonNode? result, int status, string? error, string? hint) PostControl(long networkId, JsonNode? body)
+        {
+            if (body?["seq"] is not JsonNode seqNode || !uint.TryParse(seqNode.ToString(), out uint seq))
+                return Answer(networkId, new OrderResult(OrderRefusal.BadRequest, "A control frame needs seq (rising per frame).", "", ""));
+            var frame = new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent
+            {
+                Seq = seq,
+                Forward = Float(body, "forward") ?? 0f,
+                Lateral = Float(body, "lateral") ?? 0f,
+                Steer = Float(body, "steer") ?? 0f,
+                Yaw = Float(body, "yaw") ?? 0f,
+                Gait = (byte)(Float(body, "gait") ?? 0f),
+                Trigger = (byte)((body?["trigger"]?.ToString() is "true" or "1") ? 1 : 0),
+                Mount = (byte)(Float(body, "mount") ?? 0f),
+            };
+            if (body?["aim"] is JsonArray aim && aim.Count >= 2)
+                frame.AimPoint = new System.Numerics.Vector3(Float(aim, 0), Float(aim, 1), aim.Count > 2 ? Float(aim, 2) : 0f);
+            return Answer(networkId, Orders().Control(networkId, frame));
+        }
+
+        private static float Float(JsonArray a, int i)
+            => float.TryParse(a[i]?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var f) ? f : 0f;
 
         private static (JsonNode? result, int status, string? error, string? hint) Answer(long networkId, OrderResult r)
         {
@@ -108,7 +148,7 @@ namespace Hrot.Editor.DebugApi
             int status = r.Refusal switch
             {
                 OrderRefusal.UnknownEntity => 404,
-                OrderRefusal.Dead or OrderRefusal.WrongSide => 409,
+                OrderRefusal.Dead or OrderRefusal.WrongSide or OrderRefusal.Possessed => 409,
                 _ => 400,
             };
             string? hint = r.Refusal switch
@@ -155,7 +195,7 @@ namespace Hrot.Editor.DebugApi
                 return node;
             }
 
-            if (bs.Origin == BehaviorOrigin.Reaction && _world.HasManagedComponent<PausedTask>(unit))
+            if (BehaviorOriginRank.Pauses(bs.Origin) && _world.HasManagedComponent<PausedTask>(unit))   // ⭐ CE-3172 — a reaction or a possession
             {
                 var paused = ((ISimulationView)_world).GetManagedComponentRO<PausedTask>(unit);
                 if (paused != null && paused.Origin == BehaviorOrigin.Operator)

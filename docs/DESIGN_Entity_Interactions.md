@@ -265,7 +265,7 @@ a tag with `Exposed = 0` and never read a passenger list.*
 | decision | ⭐ lean / ruling | why |
 |---|---|---|
 | the passenger's own flag | ✅ ruled: the existing `IsEmbarkedTag { VehicleEntity }` IS that flag; it gains `Exposed` | already on the passenger, already carries the carrier's id |
-| **open vehicles** *(lean)* | ⭐ a vehicle-type TKB field `PassengerExposure` (`Enclosed` default, `Open` for a door-less helicopter, a pickup bed, a motorcycle); the derivation copies it into the tag. `Exposed = 1` ⇒ carried but seen, targeted and hit like anyone | one per-type fact, read once at boarding; no per-query cost |
+| **open vehicles** *(✅ accepted 2026-10-11 — user: "open vehicles accepted")* | ⭐ a vehicle-type TKB field `PassengerExposure` (`Enclosed` default, `Open` for a door-less helicopter, a pickup bed, a motorcycle); the derivation copies it into the tag. `Exposed = 1` ⇒ carried but seen, targeted and hit like anyone | one per-type fact, read once at boarding; no per-query cost |
 | may an exposed passenger fire? *(lean)* | ⛔ not in I-2c: CanShoot stays stripped; a later `PassengersMayFire` type field (door gunners) | keeps I-2c small; firing from a moving platform needs its own aim model |
 | vehicle destroyed | ✅ ruled: every passenger dies, enclosed or open | — |
 | finer than per vehicle *(later)* | per-seat exposure (a gunner's hatch open, the cabin closed) once seats exist | rejected now: there are no seats (capacity is a fixed 8) |

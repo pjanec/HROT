@@ -87,9 +87,9 @@ public sealed class FdpPanelWindowsDumpTheirModelsTests : IDisposable
 
     // ── FdpEntityWatchWindow (only host of EntityWatchPanel) ─────────────────────────────────────
 
-    // ⚠ 508, the test-only high range (R-44): it was 350, which production CoverClaim now declares — whichever registered second
-    //   threw "Component ID collision", so this failed only in some test orders (the CE-3107 pattern, measured 2026-10-11).
-    [ComponentId(508)]
+    // ⭐ CE-3171 — a TEST-ONLY id. It was 350, which is GlobalComponentIds.CoverClaim: any earlier test that registered
+    //   CoverClaim in this process made RegisterComponent<WatchTag> throw "Component ID collision" (order-dependent red).
+    [ComponentId(510)]
     private struct WatchTag { public int Value; }
 
     [Fact]

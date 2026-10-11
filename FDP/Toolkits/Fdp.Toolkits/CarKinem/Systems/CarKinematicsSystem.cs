@@ -155,6 +155,40 @@ namespace CarKinem.Systems
             if (fwd2D.LengthSquared() < 0.0001f) fwd2D = Vector2.UnitX;
             else fwd2D = Vector2.Normalize(fwd2D);
 
+            // ⭐⭐ CE-3173 (M-1..M-3, docs/DESIGN_Entity_Control.md §8b) — an OPERATOR drives this body: ManualDrive's axes, through
+            //   their own integrators (ManualMotion) — the autonomous models below are untouched. No ManualDrive yet ⇒ it holds still.
+            if (nav.Mode == KinematicsMode.Manual)
+            {
+                bool hasDrive = repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.ManualDrive>()
+                                && repo.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(entity);
+                var drive = hasDrive ? repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(entity) : default;
+                bool walker = @params.Class == VehicleClass.Pedestrian;
+                Vector2 planar;
+                float turnRate;
+                if (walker)
+                {
+                    planar = new Vector2(vel.Linear.X, vel.Linear.Y);
+                    float yawTo = hasDrive ? drive.Yaw : MathF.Atan2(fwd2D.Y, fwd2D.X);
+                    float top = @params.MaxSpeedFwd * (drive.Gait == 1 ? 0.5f : 1f);
+                    var before = pos2D;
+                    turnRate = ManualMotion.Person(ref pos2D, ref fwd2D, ref planar, ref state, drive.Forward, drive.Lateral, yawTo,
+                        top, MathF.Max(@params.MaxAccel, HumanGait.StopDecel), dt);
+                    // ⭐ CE-3181 (M-5) — never off the walkable mesh: slide along it, or stop. The navmesh is this host's world singleton
+                    //   (EngineBackedNavigationModule); a host without one walks freely, as before.
+                    if (repo.HasSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>()
+                        && ManualMotion.KeepOnNavmesh(repo.GetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>()!,
+                            (uint)Fdp.Toolkit.Navigation.NavLayerSelection.For(repo, entity, 0), before, ref pos2D, tf.Position.Z))
+                        planar = (pos2D - before) / dt;
+                }
+                else
+                {
+                    turnRate = ManualMotion.Vehicle(ref pos2D, ref fwd2D, ref state, in @params, drive.Forward, drive.Steer, dt);
+                    planar = fwd2D * state.Speed;
+                }
+                FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D, planar, turnRate, walker, dt);
+                return;
+            }
+
             // Determine target (position, heading, speed) based on navigation mode
             Vector2 targetPos;
             Vector2 targetHeading;
@@ -378,6 +412,16 @@ namespace CarKinem.Systems
                 nav.ProgressS += state.Speed * dt;
             }
             
+            FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D, fwd2D * state.Speed, yawRate, person, dt);
+        }
+
+        /// <summary>
+        /// The output of a step, shared by the autonomous and the ⭐ CE-3173 manual integrators: the surface under the body, the
+        /// ledge rule, the pose and the velocity (<paramref name="planar"/> — a manual person's carries his strafe).
+        /// </summary>
+        private void FinishMove(EntityRepository repo, Entity entity, ref VehicleState state, ref NavState nav,
+            ref SimTransform tf, ref SimVelocity vel, Vector2 pos2D, Vector2 fwd2D, Vector2 planar, float yawRate, bool person, float dt)
+        {
             // Output conversion
             // ⭐⭐ W8 (R-182) — the movement model itself puts the vehicle on the surface under it: the
             //   ground, a roof, or the floor nearest its current Z (a garage deck). There is NO separate
@@ -396,6 +440,7 @@ namespace CarKinem.Systems
                     pos2D = here;
                     z = tf.Position.Z;
                     state.Speed = 0f;
+                    planar = Vector2.Zero;
                 }
             }
             float dz = z - tf.Position.Z;
@@ -407,7 +452,7 @@ namespace CarKinem.Systems
             // We use CreateFromAxisAngle directly because CreateFromYawPitchRoll uses Y-axis for Yaw.
             tf.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw);
 
-            vel.Linear = new Vector3(fwd2D.X * state.Speed, fwd2D.Y * state.Speed, dt > 0f ? dz / dt : 0f);
+            vel.Linear = new Vector3(planar.X, planar.Y, dt > 0f ? dz / dt : 0f);
             vel.Angular = new Vector3(0, 0, yawRate); // Yaw rate around Z
 
             // Write back state

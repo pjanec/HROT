@@ -54,6 +54,11 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
                 navState.Mode         = KinematicsMode.CustomTrajectory;
                 navState.ProgressS    = 0f;
                 navState.HasArrived   = 0;
+                // ⭐ CE-3176 — a MoveTo waited at speed 0 (NavigationIntentBridgeSystem, PathToPoint); it drives at the
+                //   requested speed from here. Other requests (a replan, a route) keep the speed they already carry.
+                if (repo.IsComponentTypeRegistered<NavigationIntent>() && repo.HasComponent<NavigationIntent>(entity)
+                    && repo.GetComponent<NavigationIntent>(entity) is { Mode: NavigationMode.PathToPoint } intent)
+                    navState.TargetSpeed = intent.TargetSpeed;
             }
         }
     }

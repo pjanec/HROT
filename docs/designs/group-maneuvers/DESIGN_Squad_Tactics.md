@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: S1 READY-TO-BUILD (leans §3.4 awaiting the user's nod) · S2 DESIGN (§4) · embark §5 and formations §6 are MEASUREMENTS, not plans
-current-answer: §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — how it works; §4.1 the alert hop by hop) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch)
+build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 READY-TO-BUILD 2026-10-11 (§4) · embark §5 and formations §6 are MEASUREMENTS, not plans
+current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch)
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
@@ -75,7 +75,7 @@ graph LR
 `DataPolicy.NoScenario` — not saved, not replicated), written by ONE system on CGF, and today read only for fire distribution and
 debugging. Members never see it except through utility inputs no decision uses ⇒ a soldier knows only what IT has seen.*
 
-## 3. S1 — one generic manoeuvre runner, and suppress-and-manoeuvre on it *(build-state: READY-TO-BUILD)*
+## 3. S1 — one generic manoeuvre runner, and suppress-and-manoeuvre on it *(build-state: BUILT — as-built §3.6)*
 
 ### 3.1 Who runs what, each frame (CGF)
 
@@ -88,7 +88,7 @@ graph TD
   RUN -->|"reads threat, writes phase, elements, roles"| POOL
   RUN -->|"AssignTacticalIntentEvent per member (Superior)"| TIR["TacticalIntentResolutionSystem ✅"]
   TIR --> ING2["BehaviorIngressSystem (member task slot)"]
-  ING2 --> BTS2["BrainTickSystem — members run CombatPosture"]
+  ING2 --> BTS2["BrainTickSystem — members run CombatPosture (hold) or AdvanceTo (move)"]
   BTS2 -->|"locomotion / weapon channels → DDS"| SIM["SimHost moves and fires the bodies"]
   SEI["SquadEventIngressSystem"]:::dead
   SVD["SquadVetoDetectionSystem"]:::dead
@@ -105,16 +105,18 @@ measured the ingress keys on intent ids the per-entity counter breaks).*
 
 ```mermaid
 classDiagram
-  class ISquadPlay { <<NEW interface, Hrot.AI.Behaviors/Brains/Squad>> ManeuverKind · Table · AbortPhase · ElementCount · IsSuccess(phase) · Start(ctx) bool · OrderFor(ctx, member) MemberOrder · Completed(ctx) PhaseEvent? }
+  class ISquadPlay { <<NEW interface, Hrot.AI.Behaviors/Brains/Squad>> ManeuverKind · Table · AbortPhase · ElementCount · IsSuccess(phase) · Start(ctx) PlayStart Go/Wait/Fail · OrderFor(ctx, member) MemberOrder · Completed(ctx) PhaseEvent? }
   class SquadManeuverRunner { <<NEW static>> +Tick(play, ref SquadPlayState, ctx) NodeStatus }
   class SquadPlayContext { <<NEW ref struct>> world · commander · roster · squad · now · Threat }
   class SquadPlayState { <<NEW — generalises BoundingOverwatchState>> Started · IssuedPhase · PhaseStartedAt · per-member target XYZ · Threat id + point }
-  class MemberOrder { <<NEW struct>> Hold | AdvanceTo · Point · Assault · ArrivalRadius }
+  class MemberOrder { <<NEW struct>> Hold | AdvanceTo · Point · Speed · ArrivalRadius · RoleId }
+  class AdvanceToBehavior { <<NEW library behaviour, Library/Infantry>> AdvanceTo: one StatefulAction over PostureNodes.AdvanceAndAttack }
+  class CombatPosture { <<existing library behaviour>> }
   class BoundingOverwatchPlay { <<NEW adapter>> over BoundingOverwatchManeuver }
   class SuppressAndManeuverPlay { <<NEW adapter>> over SuppressAndManeuverManeuver }
   class BoundingOverwatchBehavior { <<existing, REWIRED>> tree + params unchanged; Run → runner }
   class SuppressAndManeuverBehavior { <<NEW>> [BTreeDefinition SuppressAndManeuver, Library/Squad] }
-  class SuppressAndManeuverParamsJsonDto { <<NEW, Hrot.Core>> [BehaviorContract Commander] Target (optional EntityRef) · FlankMetres 25 · Speed 3 · PhaseTimeoutSeconds 90 · ArrivalRadius 8 }
+  class SuppressAndManeuverParamsJsonDto { <<NEW, Hrot.Core>> [BehaviorContract Commander] FlankSearchRadius 40 · Speed 3 · ArrivalRadius 8 · PhaseTimeoutSeconds 90 }
   class SquadHsmShell { <<existing>> Tick(ref state, events, tick) }
   class BoundingOverwatchManeuver { <<existing table>> }
   class SuppressAndManeuverManeuver { <<existing table, EXTENDED>> + PhaseAssaulting }
@@ -133,7 +135,9 @@ classDiagram
   SquadManeuverRunner ..> SquadHsmShell : phase on Completed()
   SquadManeuverRunner ..> ElementPartitionPrimitive : on Start
   SquadManeuverRunner ..> SquadCognitiveState
-  SquadManeuverRunner ..> AssignTacticalIntentEvent : MemberOrder → CombatPosture JSON
+  SquadManeuverRunner ..> AssignTacticalIntentEvent : MemberOrder → member order JSON
+  AssignTacticalIntentEvent ..> CombatPosture : Hold
+  AssignTacticalIntentEvent ..> AdvanceToBehavior : AdvanceTo
 ```
 
 *What the picture shows that prose hid: the existing tables stay the source of phases and roles; the NEW code is one runner and
@@ -149,17 +153,17 @@ sequenceDiagram
   participant P as SquadCognitiveState (pool)
   participant B as base-of-fire members
   participant A as assault members
-  O->>C: AssignBehavior("SuppressAndManeuver", {Target?, FlankMetres})
-  C->>P: threat = Target, else the top IDENTIFIED pooled contact (none ⇒ Failure)
+  O->>C: AssignBehavior("SuppressAndManeuver", {FlankSearchRadius, PhaseTimeoutSeconds}) — before contact the leader waits
+  C->>P: threat = the top IDENTIFIED pooled contact (none yet ⇒ wait, no orders)
   C->>C: partition: members in the threat's SourceMembersMask ⇒ base, the rest ⇒ assault (one side empty ⇒ halves)
   C->>B: CombatPosture at own position (they see the threat, they hold and fire)
-  C->>C: the LEADER's own FindFlankingPosition sensor: slot 0 = the assault's lead member (measured from there), slot 1 = the threat (solved on SimHost)
+  C->>C: the LEADER's own FindFlankingPosition sensor: slot 0 = a base-of-fire member (measured from there), slot 1 = the threat (solved on SimHost)
   C-->>C: the best flank point (walkable, sees the threat)
-  C->>A: CombatPosture advance to it (each keeping its offset), Assault=true
+  C->>A: AdvanceTo the answer (all to the answer, firing on the way)
   loop each tick
-    C->>C: every live assault member at its point, or PhaseTimeout ⇒ FarSideReached
+    C->>C: the assault's centre within 5 m of the answer, or PhaseTimeout, or no flank found ⇒ FarSideReached
   end
-  C->>A: phase Assaulting: CombatPosture advance onto the threat's last pooled point, Assault=true
+  C->>A: phase Assaulting: AdvanceTo the threat's last pooled point
   C->>B: keep holding (re-issued only if the threat moved > 10 m)
   C->>C: threat dead or gone from the pool, or the assault within ArrivalRadius ⇒ Success
 ```
@@ -171,7 +175,7 @@ sequenceDiagram
 |---|---|---|---|
 | **S1-A** | where the play logic lives | one runner + an `ISquadPlay` adapter per existing table, in `Hrot.AI.Behaviors` | orders are `CombatPosture` JSON (a `Hrot.Core` DTO), which `Fdp.Toolkits` must not see; the tables stay in the toolkit |
 | **S1-B** | how the base of fire is chosen | the members that REPORTED the threat (`SourceMembersMask`) | they already see it, so "hold and fire" means firing; the rest have no line of sight to waste |
-| **S1-C** | how the flank point is found | ⭐ **the LEADER queries the terrain**, as any unit can: its own child sensor with the existing `FindFlankingPosition` template, slot 0 (the unit it measures from) = the assault element's lead member, slot 1 = the threat entity; until it answers, the assault holds | 📐 measured: a point computed on CGF can land off the walkable area and the move then fails forever, and CGF has no navmesh (§2). The query is solved on SimHost and returns only walkable points that SEE the threat. `EqsContext.Self` takes slot 0 before the owner (`EqsContext.cs:22`), so a leader with no body still measures from a member; the sensor reaches SimHost when its owner and its slots are networked entities (`EqsSensorConfigEgressTranslator.cs:113-130`, `…IngressTranslator.cs:140,438`) |
+| **S1-C** | how the flank point is found | ⭐ **the LEADER queries the terrain**, as any unit can: its own child sensor with the existing `FindFlankingPosition` template, slot 0 (the unit it measures from) = a base-of-fire member (as built, §3.6), slot 1 = the threat entity; until it answers, the assault holds | 📐 measured: a point computed on CGF can land off the walkable area and the move then fails forever, and CGF has no navmesh (§2). The query is solved on SimHost and returns only walkable points that SEE the threat. `EqsContext.Self` takes slot 0 before the owner (`EqsContext.cs:22`), so a leader with no body still measures from a member; the sensor reaches SimHost when its owner and its slots are networked entities (`EqsSensorConfigEgressTranslator.cs:113-130`, `…IngressTranslator.cs:140,438`) |
 | **S1-D** | does the drill end at the flank or assault through | ⭐ **assault through** — the doctrinal end of the drill: from the flank the assault element moves ONTO and THROUGH the enemy's position, firing, while the base of fire shifts or stops its fire, so the position is cleared, not just shot at. Add `PhaseAssaulting` to `SuppressAndManeuverManeuver` (Suppressing → FarSideReached → Assaulting → BoundComplete → AssaultComplete) | a flank alone is half the drill; ⚠ changes a library table, so its unit tests are updated in the same commit |
 | **S1-E** | a mover that never arrives | the phase advances on `PhaseTimeoutSeconds`, as bounding's timeout does | a member pinned by its own SOP reaction must not freeze the squad |
 | **S1-G** | after a pause (S2's reaction, an operator order) | the runner notices a gap in its own ticks and re-issues every member's current order | 📐 measured (§2): resume keeps the runner's state but sends nothing again |
@@ -190,74 +194,206 @@ member never saw (§2); **a flank point computed on CGF** — it can land off th
 | `SuppressAndManeuverManeuverTests` | `Fdp.Toolkits.Tests` | the extended table |
 | live: `tt-suppress-flank` on `test-town` | new `SquadTacticsScenarioTests` (cluster) | base members fire (ammo drops) and stay within 5 m; the assault ends ≥ 60° round the threat from the base's bearing; then the threat dies or the assault reaches it |
 
-## 4. S2 — react to contact *(build-state: DESIGN — how it will work)*
+### 3.6 As built *(behaviors, `2026-10-11`; 🔒 user: "yes go to S1 please")*
 
-```mermaid
-sequenceDiagram
-  participant M as members (own SOP)
-  participant SC as SquadCoordinationSystem
-  participant L as commander SOP (BasicSquadSop, NEW)
-  participant R as commander task: ReactToContact (NEW tree)
-  M->>M: a member is fired on / sees the enemy ⇒ its own SOP: TakeCover (immediate action, unchanged)
-  SC->>SC: after the merge: pool went empty→non-empty, or a member Hit / NearMiss this tick
-  SC->>L: SensorChangedEvent{Unit = commander, SquadContact | SquadUnderFire} (NEW kinds)
-  L->>R: React("ReactToContact", urgency Contact / UnderFire) — the gate pauses the commander's task (e.g. a march)
-  R->>R: phase 1 Return fire — wait DecideAfterSeconds (members are already down and firing)
-  R->>R: decide (utility): our strength (SquadStrengthRatio ✅) vs theirs (SquadEnemyStrengthRatio, NEW, over the pool)
-  alt strong enough
-    R->>M: SuppressAndManeuver (S1 runner) — Superior orders end the members' TakeCover reactions
-  else too weak
-    R->>M: BreakContact = BoundingOverwatch AWAY from the threat (S1 runner, a point behind)
-  else neither
-    R->>M: hold and fight (CombatPosture at position)
-  end
-  R-->>L: done ⇒ the gate resumes the commander's paused task (CE-2081 resume)
-  SC->>L: SquadAllClear when the pool empties
-```
-
-*What the picture shows that prose hid: S2 adds only a squad-level TRIGGER and a small DECISION; the drill bodies are S1 plays, and
-the slot / gate / resume machinery is the per-unit one, unchanged — the commander is simply the unit whose senses are the squad's.*
-
-| new in S2 | why |
+| file | what |
 |---|---|
-| 3 `SensorChange` kinds: `SquadContact`, `SquadUnderFire`, `SquadAllClear`, published with `Unit = commander` | the SOP wake, `RecentSenses` and HSM reserved events all key on `evt.Unit` (`BrainTickSystem.cs:227`) — so the commander's SOP works unchanged. ⚠ NEW kinds, not FirstThreat/Hit: a soldier-leader's OWN contact and its squad's must stay distinguishable |
-| `BasicSquadSop` (library, commander) | the squad twin of `BasicInfantrySop` |
-| `ReactToContact` tree: ReturnFire → a utility choice → one S1 runner subtree | drills compose as subtrees, as CombatPosture composes its options |
-| input `SquadEnemyStrengthRatio` over the pool | `EnemyStrengthRatio` reads the unit's own memory (`StandardInputs.cs:271`) |
+| `Brains/SquadManeuverRunner.cs` | `ISquadPlay<TParams>`, `SquadPlayContext`, `SquadPlayState`, `MemberOrder`, `PlayStart`, `SquadManeuverRunner.Tick` |
+| `Brains/BoundingOverwatchBehavior.cs` | REWIRED: same name, params, tree; `BoundingOverwatchPlay` over the runner (its state type is now `SquadPlayState`) |
+| `Brains/SuppressAndManeuverBehavior.cs` | NEW behaviour `SuppressAndManeuver` (Library/Squad) + `SuppressAndManeuverPlay` + a deactivator that drops the flank query |
+| `Brains/AdvanceToBehavior.cs` + `Hrot.Core/…/AdvanceToParamsJsonDto.cs` | NEW library behaviour `AdvanceTo` (Library/Infantry; Infantry · Insurgent): move to `Objective` at `Speed`, firing at what it sees on the way (`PostureNodes.AdvanceAndAttack`), Success on arrival — every runner MOVE order uses it |
+| `Hrot.Core/…/SuppressAndManeuverParamsJsonDto.cs` | NEW contract (Commander): `FlankSearchRadius` 40 · `Speed` 3 · `ArrivalRadius` 8 · `PhaseTimeoutSeconds` 90 |
+| `Fdp.Toolkits/Squad/Maneuvers/SuppressAndManeuverManeuver.cs` | `PhaseAssaulting = 3` added (no id renumbered); FarSideReached → Assaulting → BoundComplete → AssaultComplete |
+| `Brains/AdvanceToBehavior.cs` rail: `TacticsTreesTests.CE2123_AdvanceTo_MovesToItsObjective_UnderContact_FiringOnTheWay` | a soldier ordered `AdvanceTo` with an enemy in sight moves AND fires |
+| `Recipes/Scenarios/tt-suppress-flank` | a leader (rifleman) ordered `SuppressAndManeuver`, four riflemen, an armed idle hostile with 100 000 health on `test-town` |
 
-### 4.1 The alert, hop by hop *(each hop measured; only the producer and the three kinds are new)*
+**Deviations from §3.2–§3.4 — each measured, none silent:**
+
+| planned | built | why |
+|---|---|---|
+| flank query slot 0 = the assault's lead member | slot 0 = the first live **base-of-fire** member | `FindFlankingPosition` scores side-on to the slot1→slot0 line (`StarterTemplates.cs:61`), so measuring from the base makes the answer a flank of the base→enemy axis — the doctrinal flank; and its threat-exposure test reads slot 0's memory, which the base has (it reported the enemy) and the assault may not |
+| optional `Target` param | none — the squad's top identified pooled contact | no shipped commander contract carries an entity reference yet; added when a scenario needs a named target |
+| no contact ⇒ Failure | no contact ⇒ **Wait** (`PlayStart.Wait`): Running, no orders, until the squad pools an identified enemy | a leader ordered at scenario load has no contact yet; "on contact, execute" is what an author means |
+| moves are `CombatPosture` with an objective (`Assault=true`) | HOLD orders stay `CombatPosture` at the member's own position; MOVE orders (assault, bounding movers) are the NEW library `AdvanceTo`; `MemberOrder.Assault` removed | 📐 measured live (first cluster run): under contact `CombatPosture` picks Suppress (winner 3) and fires IN PLACE — the assault never left the base line (flank 2°) and the phase only advanced on its timeout. Its options choose WHAT to do about a threat; an order to GO somewhere needs a tree whose only job is to go (Decision Layer §3.3b) |
+| each assault member at its own point | the flank is reached when the assault's CENTRE is within 5 m of the answer; every assault member is sent to the answer itself | offsets added to a walkable answer can land off the walkable area (§2: such moves fail forever); the answer and the enemy's own position are both walkable |
+
+| rail | proves | red-proof |
+|---|---|---|
+| `SquadManeuverTests.CE507_BoundingOverwatch_*` (2, unchanged) | bounding kept every behaviour through the rewire (R-137) | — |
+| `…CE2123_SuppressAndManeuver_TheSeersHold_TheRestFlankWhereTheLeaderAsks_ThenAssaultThrough` | reporters (members 2, 3 — not the first half) hold; the leader's query (slot 0 a seer, slot 1 the enemy); the assault goes to the answer, then through; Success | partition forced to halves ⇒ red |
+| `…CE2123_SuppressAndManeuver_NoFlankPoint_TheAssaultGoesStraightThrough` | an empty answer skips the flank | — |
+| `…CE2123_SuppressAndManeuver_EndsWhenTheEnemyIsDown_AndWaitsForContact` | enemy down ⇒ Success; ordered before contact ⇒ waits, then starts | — |
+| `…CE2123_AfterAPause_TheRunnerReSendsEveryOrder` | S1-G | gap detection off ⇒ red |
+| `SuppressAndManeuverManeuverTests.…TransitionsToAssaulting_ThenBoundComplete_ToAssaultComplete` | the extended table | — |
+| `SquadTacticsScenarioTests` (cluster, `tt-suppress-flank`) | live: contact ⇒ start, the flank ≥ 45° round the enemy from the base, the base fires and holds (horizontally — a standing member's height followed the ground, z 0 → 9), the assault goes through | ✅ green `2026-10-11` (33 s): the flank came out **75°** round the enemy, the assault covered ~60 m, the base fired 150 → 113 rounds and held. The run before `AdvanceTo` failed at **2°**: the assault fired in place under `CombatPosture` |
+| `CuratedBehaviorRegistrarTests` (CE3164 group, SR_R2 names) | `AdvanceTo` and `SuppressAndManeuver` are registered and sit in their picker folders | — |
+
+## 4. S2 — react to contact *(build-state: READY-TO-BUILD — `2026-10-11`; 🔒 user: "go to S2")*
+
+⭐ **What S2 is, in one line:** when the squad meets the enemy, its LEADER notices (a squad-level sensing edge), its own
+standing orders react (a squad SOP), it holds and returns fire for a moment, decides once — assault, break contact or hold —
+runs that drill on the S1 runner, and when the drill ends the leader's interrupted task carries on.
+
+### 4.0 Claims the design rests on *(measured `2026-10-11`; both columns)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a `SensorChangedEvent` lives one frame; published in frame N it is READ in N+1 | `FdpEventBus.cs:30` ("visible in the next frame (after SwapBuffers)") | Decision Layer §4.3 (R-195: the SOP wakes the next frame) |
+| the SOP wake, `RecentSenses` and the HSM reserved events key on `evt.Unit` only — a commander's SOP works unchanged | `RecentSensesSystem.cs:21-26`; `BrainTickSystem.cs:227` | Sensors & Doctrine §7.3 |
+| ⛔ `RecentSenses` records kinds 1–7 only, in a BYTE mask — a kind ≥ 8 is dropped (`default: return`), so the danger-area kinds 8–10 are never recorded today | `RecentSenses.cs:31-42` | Decision Layer §4.3 — "when each kind last happened": ALL kinds ⇒ the record is incomplete, not intended |
+| adding a kind touches: the enum, the HSM name table (pinned by `BuiltInHsmEventsParityTests`), `RecentSenses` | `SensorChangedEvent.cs:12`; `BuiltInHsmEvents.cs:19-23` | Sensors & Doctrine §7.3b ("the ids are ABI: 0xFF00 + SensorChange") |
+| `SensorChangedEvent` is NOT replicated (no translator; its IDL is only generated) ⇒ new kinds change no wire contract in use | grep `Hrot/Network`: no `SensorChangedEvent` | R-134 (network kept apart from internal events) |
+| producers publish through the command buffer | `ThreatEvaluationSystem.cs:178-188`, `NearMissSensingSystem.cs:24` | — |
+| `SquadCoordinationSystem` is the one squad driver on CGF; the pool changes only on a merge (≈ 10 Hz, or at once on a member epoch change) | `SquadCoordinationSystem.cs:63-70`; `SquadPerceptionMergeSystem.cs:56-61` | Squad_Wiring §3; Squad_Coordination v1.1 |
+| `SopActions.React` already running the same behaviour as a reaction ⇒ Success, nothing published ⇒ two rows naming one behaviour never restart it | `SopActions.cs:52-55` | Decision Layer §4.6 |
+| a reaction pauses the task (unless ROE `StayOnTask`); when it ends the task RESUMES with its storage | `BehaviorIngressSystem.cs:246-252`, `PauseRecord` | Decision Layer §4.9a (CE-2081) |
+| ⛔ **a resumed squad drill reads the squad state ANOTHER drill wrote**: `ManeuverKind`, `PhaseId`, `Elements` live on the commander, shared; a suppress drill that ended `Aborted` (2) leaves `PhaseId = 2` = bounding's `PhaseAborted` ⇒ the resumed bounding FAILS; any other end leaves the wrong partition | `SquadManeuverRunner.cs:174-190`; `SuppressAndManeuverManeuver.cs:34-38`; `BoundingOverwatchManeuver.cs:31-33` | ⛔ searched `docs/` + `.dev/`: no design covers two drills sharing one squad — new in S2 (S2-G) |
+| `ChooseOption` re-scores EVERY tick | `UtilityNodes.cs:64-68` | Decision Layer §3 (hysteresis, no latch) |
+| the existing squad decision `ManeuverSelectStarterDecision` answers "how to cross a danger area", reads only the active danger area (no producer) and is driven only by the dead `CommanderUtilityTickSystem` | `ManeuverSelectStarterDecision.cs:18-90` | Squad_Wiring §5 D3 (not wired) |
+| `SquadStrengthRatio` (squad health) exists; the enemy side exists only per unit (`EnemyStrengthRatio` over the unit's own memory) | `SquadInputs.cs:130-148`; `StandardInputs.cs:271-284` | Decision Layer §3.3 (CE-3054 C) |
+| the leader may own a `FindSafeRetreatPoint` query as it owns the flank query: grid around slot 0 that slot 1 cannot see, unreachable dropped | `StarterTemplates.cs:90-108`; §2 (EQS on any networked unit) | EQS v1.3 §19.6 |
+| `BoundingOverwatchManeuver` alternates the two elements until the play reports an outcome | `BoundingOverwatchManeuver.cs:47-54` | Squad_Coordination v1.1 |
+| no shipped TKB type sets a `DefaultSop`; a scenario sets the SOP per entity (`"Sop": {"Name": …}`) | grep `DefaultSop` in data: none; `tt-take-cover/scenario.json:43` | Decision Layer §4.5 (CE-2077) |
+| nothing named ReactToContact / BreakContact / squad SOP exists | `search_graph` `.*React.*Contact.*` · `.*BreakContact.*` · `.*SquadSop.*` · `.*SquadHold.*`: 0 code nodes | Decision Layer §4 sequence names `ReactToContact` as the drill |
+
+### 4.1 Who runs what, each frame (CGF)
+
+```mermaid
+graph TD
+  TE["ThreatEvaluationSystem / NearMissSensingSystem ✅"] -->|"member Hit / NearMiss (frame N)"| BUS["event bus"]
+  SCS["SquadCoordinationSystem ✅ (CgfLogicPack.cs:225)"] -->|"merge ✅"| POOL["SquadCognitiveState.Contacts"]
+  BUS -->|"read frame N+1"| SCS
+  SCS -->|"NEW: SquadContact / SquadAllClear (pool count edge) · SquadUnderFire (member or leader hit)"| BUS
+  BUS --> RSS["RecentSensesSystem ✅ (Input) — EXTENDED: every kind"]
+  BUS --> BTS["BrainTickSystem ✅ — wakes the commander's SOP"]
+  BTS --> SOP["commander SOP: BasicSquadSop (NEW asset)"]
+  SOP -->|"React ReactToContact"| ING["BehaviorIngressSystem ✅ — pauses the commander's task"]
+  ING --> RTC["ReactToContact (NEW C# tree) on the commander"]
+  RTC --> RUN["SquadManeuverRunner ✅ — Hold · SuppressAndManeuver · BreakContact plays"]
+  RUN -->|"AssignTacticalIntentEvent per member"| TIR["TacticalIntentResolutionSystem ✅"]
+  CUT["CommanderUtilityTickSystem — ManeuverSelect"]:::dead
+  classDef dead fill:#fdd,stroke:#c00,color:#600
+```
+
+*What the picture shows that prose hid: the only NEW system code is the producer inside the driver that already merges the
+pool; everything downstream of the event is the per-unit machinery, reached because the event's `Unit` is the commander. The
+red box is the existing squad chooser — not revived (S2-D).*
+
+### 4.2 Classes
+
+```mermaid
+classDiagram
+  class SensorChange { <<existing enum, EXTENDED>> + SquadContact 11 · SquadUnderFire 12 · SquadAllClear 13 }
+  class RecentSenses { <<existing, EXTENDED>> + AreaAhead..AreaCleared · SquadContact · SquadUnderFire · SquadAllClear · SeenMask ushort }
+  class BuiltInHsmEvents { <<existing, EXTENDED>> + Sensor.SquadContact · Sensor.SquadUnderFire · Sensor.SquadAllClear }
+  class SquadCoordinationSystem { <<existing, EXTENDED>> + squad edges after the merge }
+  class SquadSensing { <<NEW static, Fdp.Toolkits/Squad>> Edges(repo, commander, countBefore) · UnderFire(repo, gate) }
+  class SquadInputs { <<existing, EXTENDED>> + SquadEnemyStrengthRatio }
+  class SquadContactResponseDecision { <<NEW [UtilityDecision], ManeuverSelect>> Assault 1 · BreakContact 2 · Hold 3 }
+  class UtilityNodes { <<existing, EXTENDED>> + ChooseOptionOnce }
+  class SquadManeuverRunner { <<existing, FIXED>> re-takes the squad when another drill used it (S2-G) }
+  class SquadHoldPlay { <<NEW play>> all Hold · ends on time or no contact }
+  class BreakContactPlay { <<NEW play over BoundingOverwatchManeuver>> leader's FindSafeRetreatPoint · bounds straight to the answer }
+  class SuppressAndManeuverPlay { <<existing S1 play>> }
+  class ReactToContactBehavior { <<NEW [BTreeDefinition ReactToContact, Library/Squad]>> hold · decide once · drill }
+  class BreakContactBehavior { <<NEW [BTreeDefinition BreakContact, Library/Squad]>> }
+  class SquadHoldBehavior { <<NEW [BTreeDefinition SquadHold, Library/Squad]>> }
+  class BasicSquadSop { <<NEW asset Library/Sop>> UnderFire → React · Contact → React }
+  class ParamsDtos { <<NEW, Hrot.Core>> ReactToContact · BreakContact · SquadHold }
+  SquadCoordinationSystem ..> SquadSensing
+  SquadSensing ..> SensorChange : publishes, Unit = commander
+  RecentSenses ..> SensorChange
+  BuiltInHsmEvents ..> SensorChange
+  BasicSquadSop ..> RecentSenses : SensedFresh
+  BasicSquadSop ..> ReactToContactBehavior : React
+  ReactToContactBehavior ..> UtilityNodes : ChooseOptionOnce
+  UtilityNodes ..> SquadContactResponseDecision
+  SquadContactResponseDecision ..> SquadInputs
+  ReactToContactBehavior ..> SquadHoldPlay
+  ReactToContactBehavior ..> SuppressAndManeuverPlay
+  ReactToContactBehavior ..> BreakContactPlay
+  BreakContactBehavior ..> BreakContactPlay
+  SquadHoldBehavior ..> SquadHoldPlay
+  SquadHoldPlay ..> SquadManeuverRunner
+  BreakContactPlay ..> SquadManeuverRunner
+  SuppressAndManeuverPlay ..> SquadManeuverRunner
+```
+
+*What the picture shows that prose hid: S2 is three new plays-or-trees on the S1 runner plus one choice; the trigger is three
+enum values and one producer. The runner FIX is load-bearing — without it a drill run as a reaction breaks the task it paused.*
+
+### 4.3 One contact, end to end
 
 ```mermaid
 sequenceDiagram
-  participant TE as ThreatEvaluationSystem / NearMissSensingSystem (CGF)
-  participant SC as SquadCoordinationSystem (CGF)
-  participant BUS as event bus
-  participant RS as RecentSensesSystem (Input phase)
-  participant BT as BrainTickSystem
-  participant SOP as commander SOP (BasicSquadSop)
-  TE->>TE: frame N: a member's memory gains a contact (ChangeEpoch moves) / a member is Hit or NearMissed
-  SC->>SC: frame N: the epoch moved ⇒ merge now (SquadPerceptionMergeSystem.cs:58-61)
-  SC->>BUS: frame N: NEW — pool empty→non-empty ⇒ SensorChangedEvent{Unit = commander, SquadContact}, a member Hit/NearMiss ⇒ SquadUnderFire, pool emptied ⇒ SquadAllClear
-  BUS->>RS: frame N+1: recorded on the commander's RecentSenses (added on first use, RecentSensesSystem.cs:26)
-  BUS->>BT: frame N+1: the commander's SOP is WOKEN (an event whose Unit is it, BrainTickSystem.cs:227) — else it would tick within 0.2 s anyway
-  BT->>SOP: SensedFresh(SquadUnderFire / SquadContact) is true (SopConditions.cs:55, reads RecentSenses since the task started)
-  SOP->>BUS: React("ReactToContact") ⇒ the gate pauses the commander's task (BehaviorIngressSystem.cs:249)
+  participant M as members
+  participant SC as SquadCoordinationSystem
+  participant S as commander SOP (BasicSquadSop)
+  participant G as gate (BehaviorIngressSystem)
+  participant T as commander task (e.g. BoundingOverwatch)
+  participant R as ReactToContact
+  M->>SC: frame N: a member's memory gains a contact ⇒ merge ⇒ pool 0 → 1
+  SC->>S: SensorChangedEvent{Unit = commander, SquadContact} (read N+1, SOP woken)
+  S->>G: React(ReactToContact, Contact)
+  G->>T: PAUSE (storage kept)
+  G->>R: start
+  R->>M: phase 1 — SquadHold for DecideAfterSeconds: every member CombatPosture at its position (return fire)
+  R->>R: ChooseOptionOnce(SquadContactResponse): our strength vs the pool's
+  alt Assault (we are stronger)
+    R->>M: SuppressAndManeuver play (S1)
+  else BreakContact (they are stronger)
+    R->>M: BreakContact play: leader's retreat query, then the elements bound to it
+  else Hold (or the chosen drill failed)
+    R->>M: SquadHold until the pool is empty
+  end
+  R-->>G: Success / Failure ⇒ the reaction ends
+  G->>T: RESUME — the runner sees another drill used the squad, re-takes it (S2-G) and re-sends orders (S1-G)
 ```
 
-*What the picture shows that prose hid: the commander learns of contact ONE frame after the member does — the merge is not the
-delay (it runs the same frame); the bus is. An HSM-hosted squad SOP would get the same edges as reserved events (`0xFF00 + kind`,
-`BuiltInHsmEvents.cs`) because the HSM runner keys on `Unit` too.*
+### 4.4 The alert, hop by hop *(each hop measured)*
 
-| who | does what | where |
+| edge | produced when | the leader reads it |
 |---|---|---|
-| generates the alert | `SquadCoordinationSystem`, right after its merge — it already loops every commander and knows whether the pool changed | NEW code in `SquadCoordinationSystem.cs` (one method); it needs last frame's pool count (kept in `SquadCognitiveState`, NEW byte) and this frame's member Hit/NearMiss events (already on the bus) |
-| carries it | the existing `SensorChangedEvent`, `Unit` = the commander, three NEW `SensorChange` values | `SensorChangedEvent.cs` |
-| the leader reads it | its SOP — the SAME machinery a soldier's SOP uses: woken by the event, `SensedFresh(kind)` true for a few seconds after it | `BrainTickSystem`, `RecentSenses`, `SopConditions` — unchanged |
+| `SquadContact` | after a merge, the pool count went 0 → >0 | frame N+1 (merge runs in N, the bus delivers in N+1) |
+| `SquadAllClear` | after a merge, the pool count went >0 → 0 | frame N+1 |
+| `SquadUnderFire` | a `Hit` / `NearMiss` edge whose `Unit` is a roster member OR the commander itself (a soldier-leader is in the fight) | frame N+2 — the member's edge is published in N, read by the driver in N+1, re-published, read in N+2 |
 
-⛔ Measured since: a paused commander task resumes with its state but does not re-send orders (§2) ⇒ S1-G covers it. Still not
-measured: whether member-level and commander-level reactions fight over the same member in the first second (members' own TakeCover
-vs the leader's first order) — measured on the live rail when S2 is built.
-resumes it cleanly (CE-2081 covers member tasks); and how far `SquadCoordinationSystem`'s ~6-tick merge delays the trigger.
+⭐ One `SquadUnderFire` per member edge (no throttle) — the same grain as the per-unit `Hit`; `RecentSenses` only keeps the time.
+⚠ Published only for a commander this node owns (the driver's `WithOwnedWhen` gate).
+
+### 4.5 Decisions *(leans)*
+
+| # | decision | ⭐ lean | why |
+|---|---|---|---|
+| **S2-A** | the trigger | three NEW kinds `SquadContact` 11 · `SquadUnderFire` 12 · `SquadAllClear` 13, `Unit` = commander, from `SquadCoordinationSystem` after its merge | a soldier-leader's OWN `FirstThreat` and its squad's must stay distinguishable; the driver already knows the pool changed |
+| **S2-B** | `RecentSenses` | record EVERY kind (8–13 too) in a `ushort` mask | the byte mask cannot hold ≥ 8; the area kinds were silently dropped — round-out, same fix |
+| **S2-C** | the leader's standing orders | `BasicSquadSop`, a JSON SOP asset (the twin of `BasicInfantrySop`): UnderFire fresh → React `ReactToContact` (UnderFire); Contact fresh → React `ReactToContact` (Contact); no idle row | SOPs are recipes an author copies and edits in the editor, as `BasicInfantrySop` is. ⚠ ONE SOP slot per entity ⇒ a soldier-leader given the squad SOP no longer runs its own soldier reactions — it is the squad's brain; splitting body and command is out of S2's scope |
+| **S2-D** | the choice | NEW `SquadContactResponseDecision` (`ManeuverSelect` kind): Assault = our strength high × their share low; BreakContact = their share high; Hold = a floor | the existing `ManeuverSelectStarterDecision` answers another question, reads a dead provider and cannot be named by a tree |
+| **S2-E** | when to decide | ONCE, after `DecideAfterSeconds` (3 s) of holding and returning fire — NEW shared node `ChooseOptionOnce` (keeps the first winner) | `ChooseOption` re-scores every tick; a flip mid-drill would restart the drill (new partition, new query) |
+| **S2-F** | breaking contact | `BreakContactPlay` over `BoundingOverwatchManeuver`: the leader's own `FindSafeRetreatPoint` query (slot 0 = a live member, slot 1 = the top threat); each bound goes STRAIGHT to the answer; ends when both elements are within `ArrivalRadius`; no answer ⇒ Failure (the tree falls back to Hold) | bounding's geometric steps can land off the walkable area (S1 measured: such moves fail forever); the answer is walkable and hidden from the threat |
+| **S2-G** | two drills on one squad | the runner remembers its own manoeuvre kind; on a tick where the squad's `ManeuverKind` is NOT its own (another drill ran while it was paused) it RE-TAKES the squad: re-partitions, restores its own kind and its last phase, re-issues | measured defect (§4.0): the resumed drill otherwise reads the other drill's phase — `Aborted` collides with its own abort id |
+| **S2-H** | round-out | `BreakContact` and `SquadHold` are also Library/Squad behaviours an operator or mission can order | the reaction's options are drills a commander is ordered to do anyway; each is one attribute + one params contract |
+
+Rejected: **reuse `FirstThreat`/`Hit` with `Unit` = commander** — a soldier-leader's own edges would read as the squad's;
+**re-score the choice every tick** — drills restart on a flip; **bounding with geometric steps to break contact** — off-mesh
+points fail forever (S1); **revive `CommanderUtilityTickSystem`** — every consideration it carries reads a provider nobody
+writes (Squad_Wiring §5 D3); **a second SOP slot for the squad** — the gate, the wake and `RecentSenses` all key on one unit;
+a body-less commander is the clean model and needs nothing new.
+
+### 4.6 Acceptance
+
+| rail | where | asserts |
+|---|---|---|
+| the edges | `SquadCoordinationSystemTests` (the driver's suite) | pool 0→1 ⇒ one `SquadContact` on the commander; 1→0 ⇒ `SquadAllClear`; a member `Hit` ⇒ `SquadUnderFire`; a commander this node does not own ⇒ nothing; still allocation-free |
+| the record | `RoeAndRecentSensesTests` | every kind 1–13 is recorded and read back |
+| the HSM names | `BuiltInHsmEventsParityTests` | the three names, ids `0xFF0B`–`0xFF0D` |
+| the input | `SquadInputs` rail | 1 armed enemy vs 4 healthy armed members = 0.2; empty pool = 0 |
+| the choice | `SquadContactResponseDecision` rail | strong ⇒ Assault; outmatched ⇒ BreakContact |
+| `ChooseOptionOnce` | `UtilityNodes` rail | keeps its first winner when the scores change |
+| S2-G | `SquadManeuverTests` | bounding paused, a suppress drill runs and ends `Aborted`, bounding resumes ⇒ it keeps going with its own kind and partition |
+| the reaction | `SquadManeuverTests` | `ReactToContact`: holds for `DecideAfterSeconds`, then a strong squad assaults, an outmatched one breaks contact to the leader's retreat answer; `BreakContact` with no answer falls back to hold |
+| the SOP | `BasicSquadSop` rail | a fresh `SquadContact` on the commander ⇒ React `ReactToContact` pausing its task |
+| live: `tt-react-contact` on `test-town` | `SquadTacticsScenarioTests` (cluster) | a squad bounding toward an objective meets an enemy ⇒ the leader's SOP pauses the bound, the squad holds, then runs a drill; when it ends, bounding resumes (`ManeuverKind` 2 → 3 → 2) |
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 

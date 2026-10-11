@@ -17,10 +17,12 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
     /// </summary>
     public class SuppressAndManeuverManeuverTests
     {
-        // ── SC-P5-03-1: FarSideReached -> AssaultComplete transition ─────────────
+        // ── SC-P5-03-1: FarSideReached -> Assaulting -> AssaultComplete (⭐ CE-2123: the assault through) ──────
 
+        /// <summary>⭐ <c>CE-2123</c> (S1-D) — reaching the flank no longer ends the drill: the assault element goes through the
+        /// enemy's position (Assaulting) and only that completes it. ⛔ SUPERSEDED: FarSideReached went straight to AssaultComplete.</summary>
         [Fact]
-        public void Suppressing_FarSideReached_TransitionsToAssaultComplete()
+        public void Suppressing_FarSideReached_TransitionsToAssaulting_ThenBoundComplete_ToAssaultComplete()
         {
             var state = default(SquadCognitiveState);
             state.PhaseId          = SuppressAndManeuverManeuver.PhaseSuppressing;
@@ -30,7 +32,12 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
             bool transitioned = PhaseSequencer.Advance(ref state,
                 new ReadOnlySpan<PhaseEvent>(new[] { new PhaseEvent(PhaseEventKind.FarSideReached) }),
                 table, currentTick: 5, dwellTimeoutTicks: 100, recoveryPhaseId: 2);
+            Assert.True(transitioned);
+            Assert.Equal(SuppressAndManeuverManeuver.PhaseAssaulting, state.PhaseId);
 
+            transitioned = PhaseSequencer.Advance(ref state,
+                new ReadOnlySpan<PhaseEvent>(new[] { new PhaseEvent(PhaseEventKind.BoundComplete) }),
+                table, currentTick: 6, dwellTimeoutTicks: 100, recoveryPhaseId: 2);
             Assert.True(transitioned);
             Assert.Equal(SuppressAndManeuverManeuver.PhaseAssaultComplete, state.PhaseId);
         }

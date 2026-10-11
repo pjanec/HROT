@@ -110,6 +110,10 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtWeaponTaskStatus, GlobalComponentIds.WeaponTaskStatus);
         // ⭐ WL-6 (W-13d, R-272) — the weapon brain's posture of a unit's weapon (Brain group → every node).
         map.RegisterMapping((long)EDescriptorType.dtWeaponPosture, GlobalComponentIds.WeaponPosture);
+        // ⭐ CE-3172 / CE-3173 S4e (§8c) — possession: the operator's axes and who holds the unit (both Brain group).
+        map.RegisterMapping((long)EDescriptorType.dtManualDrive, GlobalComponentIds.ManualDrive);
+        map.RegisterMapping((long)EDescriptorType.dtPossessedBy, GlobalComponentIds.PossessedBy);
+        map.RegisterMapping((long)EDescriptorType.dtWeaponAmmo, GlobalComponentIds.WeaponAmmo);   // ⭐ CE-3174 — the HUD's ammunition
 
         map.BindGroups(HrotOwnershipGroups.Table, Anchors);
 

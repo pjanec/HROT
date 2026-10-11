@@ -49,7 +49,8 @@ namespace Hrot.ScenarioEditor.Map
         Fdp.Toolkit.Vis3D.TerrainLayer3D Terrain,
         Hrot.UI.Common.Map3D.EntityBodyLayer3D Bodies,
         Hrot.UI.Common.Effects.EffectLayer Effects,
-        Hrot.UI.Common.Effects.ProjectileLayer? Projectiles = null);
+        Hrot.UI.Common.Effects.ProjectileLayer? Projectiles = null,
+        Hrot.UI.Common.Map3D.PossessionStation? Possession = null);
 
     public static class MapInteractionPack
     {
@@ -305,6 +306,31 @@ namespace Hrot.ScenarioEditor.Map
             Hrot.Common.Diagnostics.Gizmos.GizmoPins.RegisterActions(actions);
             // ⭐ CE-3123 (R-228) — the AI-trace toggles, once for every map host (SimHost and the Editor each had a copy; the rest none).
             Hrot.Common.Diagnostics.Gizmos.AiTraceActions.RegisterActions(actions);
+            // ⭐ CE-3169 (DESIGN_Entity_Control §4.2) — Move Here · Engage · Stop, once for every LIVE map host. ⛔ Not in a replay
+            //   (no live brain to order): there the menu does not offer them (OrdersOffered unset) and nothing is registered.
+            var menuOrders = new MenuOrders(ctx.World);
+            if (ctx.IsReplayActive?.Invoke() != true)
+            {
+                menuOrders.RegisterOn(actions);
+                ctx.World.SetSingletonManaged(new Hrot.Common.Orders.OrdersOffered());
+
+                // ⭐ CE-3171 (DESIGN_Entity_Control §8a) — the RTS command tool, armed from View › RTS Command Mode. It routes three
+                //   gestures to three existing writes (the selection request, EntityOrders, the station's hit test) — Measure's shape.
+                var rts = new RtsCommands(ctx.World, () => selection.SelectedEntities, () => menuOrders.PickService?.Invoke());
+                tools.Register(
+                    new Hrot.ScenarioEditor.Tools.ToolDescriptor(Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand, "RTS Command Mode",
+                        Hrot.ScenarioEditor.Tools.ToolModality.Modal, Hrot.ScenarioEditor.Tools.ToolArbiter.Global, ToggleOnReactivate: true),
+                    _ =>
+                    {
+                        if (menuOrders.PickService?.Invoke() is null)   // a headless host: nobody to click
+                            return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
+                        var id = GlobalGizmoManager.NewId();
+                        globalManager.Register(id, new RtsCommandGizmo(rts, () => globalManager.Unregister(id)));
+                        return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
+                    });
+                actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleRtsCommand, (_, _) =>
+                    tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand, Entity.Null));
+            }
 
             // ⭐ CE-1017 — ONE entity-authoring surface per map, built here for every host that can author (Editor,
             //   CGF, SimHost, IG): spawn adapter, picker, Add Entity action and the canvas menu. The host only
@@ -325,6 +351,7 @@ namespace Hrot.ScenarioEditor.Map
                 rubberBand, actions, actionDispatch, layerControl, authoring, canvasMenu)
             {
                 IsReplayActive = ctx.IsReplayActive,   // ⭐ W1 (VE-R) — the effect systems stand down in a replay
+                MenuOrders     = menuOrders,
             };
         }
 
@@ -412,7 +439,12 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1033 S5 (R-260) — the scenario's camera entity, the same on every host: adopted when the scenario opens, REQUESTED
             //   (unowned, so the default processor creates and owns it — R-140) on the first camera move, moved by its owner.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider));
-            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles);
+            // ⭐ CE-3174 (docs/DESIGN_Entity_Control.md §8d) — this map host as a first-person station: it follows the replicated
+            //   PossessedBy, so a unit held by this node puts the map into its eyes (camera driver, cursor lock, HUD) and losing it
+            //   leaves. Here, so no map host can lack it.
+            var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider);
+            canvas.AddLayer(possession);
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)

@@ -889,6 +889,90 @@ public sealed class Map3DFrameRail
         finally { Raylib.UnloadImage(image); }
     }
 
+    /// <summary>
+    /// ⭐ CE-3174 (V) — the FPS STATION, in a real window: a rifleman this station holds (<see cref="Fdp.Toolkit.Behavior.Possession.PossessedBy"/>)
+    /// on test-town's ground, looking at a tank across the street. The production canvas + switch + <see cref="PossessionStation"/>
+    /// put the map into first person on him (the <see cref="FpsCameraDriver"/> on the 3-D camera), and the overlay draws the crosshair
+    /// and the HUD — health and ammunition per mount. 📄 docs/DESIGN_Entity_Control.md §8d, §13.3. Screenshot: <c>fps-1-station.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE3174_V_TheFpsStation_DrawsTheFirstPersonView_AndTheHud()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        var tkb = Map3DTests.BuiltIn();
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+
+        var tank = world.CreateEntity();
+        world.AddComponent(tank, new SimTransform { Position = new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y)),
+                                                    Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.2f) });
+        world.AddComponent(tank, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+
+        var stand = FindOpenArea(query, spot - new Vector2(22f, 0f), 2f);
+        float yaw = MathF.Atan2(spot.Y - stand.Y, spot.X - stand.X);   // facing the tank
+        var me = world.CreateEntity();
+        world.AddComponent(me, new SimTransform { Position = new Vector3(stand.X, stand.Y, query.GroundHeightAt(stand.X, stand.Y)),
+                                                  Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+        world.AddComponent(me, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        world.AddComponent(me, new StanceIntent { TargetStance = StanceId.Standing });
+        world.AddComponent(me, new Fdp.Toolkit.Combat.Components.Health { Current = 74f, Max = 100f });
+        var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 2 };
+        ammo.Set(0, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 112, MaxAmmo = 150, MagazineSize = 30, MagazineRounds = 22 });
+        ammo.Set(1, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 3, MaxAmmo = 4 });
+        world.AddComponent(me, ammo);
+        var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+        map.Register(1001L, me);
+        map.Register(1002L, tank);
+        world.SetSingletonManaged(map);
+        world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.PossessedBy
+        {
+            StationNodeId = 0, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1,   // this node (no authority data ⇒ 0)
+        });
+
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        var target = new Vector2(spot.X - 1280f / 2f / 4f, spot.Y + 800f / 2f / 4f);
+        two.ApplyCameraView(new MapCameraView { Target = target, Zoom = 4f, SmoothTarget = target, SmoothZoom = 4f });
+        canvas.Camera = two;
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb, (w, e) => ArticulationPose.Neutral);
+        canvas.AddLayer(bodies);
+        var sw = new MapViewSwitch(canvas, two, new MapCamera3D { ViewportOverride = new Vector2(1280, 800) });
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        var station = new PossessionStation(sw, () => world);
+        canvas.AddLayer(station);
+
+        station.Update(1f / 30f);
+        Assert.True(station.InFps, "the station follows PossessedBy into first person");
+        Assert.True(sw.Is3D);
+        sw.Camera3D.Update(1f / 30f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        string png = Path.Combine(shots, "fps-1-station.png");
+        frame.Screenshot(png);
+
+        var eye = sw.Camera3D.Eye;
+        Assert.InRange(Vector2.Distance(new Vector2(eye.X, eye.Y), stand), 0f, 0.05f);                 // the eye is on the rifleman
+        Assert.InRange(eye.Z - query.GroundHeightAt(stand.X, stand.Y), 1.2f, 2.0f);                       // at a standing eye height
+        Assert.True(bodies.BodiesDrawn >= 1, "the tank across the street is drawn");
+        var lines = PossessionStation.Hud.Lines(world, me, mount: 0, vehicle: false, hullLocked: false);
+        Assert.Equal(new[] { "HEALTH 74/100", "> WEAPON 0  112/150  [22]", "  WEAPON 1  3/4" }, lines[..3]);
+    }
+
     /// <summary>The point nearest <paramref name="from"/> with a clear square of ground ±<paramref name="half"/> metres around it.</summary>
     private static Vector2 FindOpenArea(IWorldQuery query, Vector2 from, float half)
     {

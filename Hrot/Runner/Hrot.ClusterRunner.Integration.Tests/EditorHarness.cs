@@ -258,6 +258,9 @@ public sealed class EditorHarness : IDisposable
         CrossTheDeterministicBarrier();
 
         EntityMap = new NetworkEntityMap();
+        // ⭐ CE-3170 — as the editor does (EditorSubsystem.cs, "SetSingletonManaged<NetworkEntityMap>"): behaviour resolvers that
+        //   take an entity reference (FireAtTarget, CombatPosture's target) read the node's map from this world singleton.
+        Repo.SetSingletonManaged<NetworkEntityMap>(EntityMap);
 
         var behaviorRegistry = new BehaviorRegistry();
         _behaviorRegistry = behaviorRegistry;

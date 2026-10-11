@@ -78,6 +78,12 @@ namespace Hrot.NED.Descriptors
         dtWeaponTaskStatus            = 126,
         // ⭐ WL-6 (W-13d, R-272) — the weapon brain's posture of a unit's weapon (Brain group → every node). 📄 docs/DESIGN_Weapon_Layers.md §5h
         dtWeaponPosture               = 127,
+        // ⭐ CE-3173 S4e — an operator's motion axes (the Brain group → the Muscle). 📄 docs/DESIGN_Entity_Control.md §8c
+        dtManualDrive                 = 128,
+        // ⭐ CE-3172 S4e — which station holds a unit (the Brain group → every node; C-3). 📄 docs/DESIGN_Entity_Control.md §8c
+        dtPossessedBy                 = 129,
+        // ⭐ CE-3174 (C-7) — a unit's ammunition per mount (the Brain group → every node, for the FPS HUD). 📄 docs/DESIGN_Entity_Control.md §8d
+        dtWeaponAmmo                  = 130,
         // etc., all known descriptor types here
     }
 

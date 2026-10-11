@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.Behavior
             ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
             if (scope == BrainIntentScope.Ordered && DrivenByMissionPlan(repo, entity)) return null;
 
-            if (state.Origin == BehaviorOrigin.Reaction)                  // the reaction is transient — keep what it paused
+            if (BehaviorOriginRank.Pauses(state.Origin))                  // a reaction / possession is transient — keep what it paused (CE-3172)
                 return BehaviorIngressSystem.PausedTaskOf(repo, entity) is { } paused
                     ? new SavedBrainSlot { Name = paused.BehaviorName, Params = Json(paused.JsonParams), Origin = paused.Origin }
                     : null;

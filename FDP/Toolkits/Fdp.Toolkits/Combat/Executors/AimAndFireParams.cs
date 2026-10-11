@@ -31,6 +31,18 @@ namespace Fdp.Toolkit.Combat.Executors
         /// </summary>
         public byte BlindFire;
 
+        /// <summary>
+        /// ⭐ <c>CE-3172</c> S4d (M-8, C-2; docs/DESIGN_Entity_Control.md §8b) — 1 = OPERATOR fire: a possessing station aims at
+        /// <see cref="Point"/> (no target entity) and fires while <see cref="Trigger"/> is held — no seen-now gate, no aim time, and
+        /// the unit's ROE does not hold it (the operator overrides it). 0 = the AI's aimed fire (every zero-filled writer). Sits in
+        /// the padding after <see cref="BlindFire"/>, so <see cref="Rounds"/> keeps its offset.
+        /// </summary>
+        public byte Operator;
+
+        /// <summary>⭐ <c>CE-3172</c> S4d — operator fire only: 1 = the trigger is held (fire), 0 = aim only (a turret tracks
+        /// <see cref="Point"/>).</summary>
+        public byte Trigger;
+
         /// <summary>The <see cref="Mount"/> value that asks the executor to choose the weapon per shot.</summary>
         public const byte MountAuto = 255;
 
@@ -40,5 +52,9 @@ namespace Fdp.Toolkit.Combat.Executors
         /// actions end the same way and no behaviour counts intents.
         /// </summary>
         public int Rounds;
+
+        /// <summary>⭐ <c>CE-3172</c> S4d — operator fire only: where the station aims (world metres). Fills the struct to its 32
+        /// bytes (<see cref="Fdp.Toolkit.Behavior.BehaviorConstants.ActionParamsByteSize"/>).</summary>
+        public System.Numerics.Vector3 Point;
     }
 }

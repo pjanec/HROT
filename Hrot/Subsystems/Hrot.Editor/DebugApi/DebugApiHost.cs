@@ -1094,6 +1094,41 @@ namespace Hrot.Editor.DebugApi
                 });
             }));
 
+            // ⭐ CE-3172 (docs/DESIGN_Entity_Control.md §8b) — possession: this node as a station drives one unit.
+            _routes.Add(new("POST", "/entities/{networkId}/possess", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId."));
+                return RunMainResult(s =>
+                {
+                    var (result, status, error, hint) = s.PostPossess(id);
+                    return error != null ? Fail(status, error, hint) : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("DELETE", "/entities/{networkId}/possess", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId."));
+                return RunMainResult(s =>
+                {
+                    var (result, status, error, hint) = s.DeletePossess(id);
+                    return error != null ? Fail(status, error, hint) : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("POST", "/entities/{networkId}/control", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId."));
+                var body = ctx.Body;
+                return RunMainResult(s =>
+                {
+                    var (result, status, error, hint) = s.PostControl(id, body);
+                    return error != null ? Fail(status, error, hint) : Ok(result);
+                });
+            }));
+
             _routes.Add(new("POST", "/orders", ctx =>
             {
                 var body = ctx.Body;

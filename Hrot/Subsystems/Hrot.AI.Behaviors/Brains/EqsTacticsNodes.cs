@@ -324,6 +324,16 @@ namespace Hrot.AI.Behaviors.Brains
             if (!world.HasComponent<TargetMemory>(self)) return false;
             if (world.GetComponentRO<TargetMemory>(self).Count == 0) return false;
 
+            // ⭐ CE-3170 (docs/DESIGN_Entity_Control.md C-5) — an attack order's target wins while the unit still REMEMBERS it (the
+            //   order seeds the memory; fog of war still applies after that) and it is in the fight: hidden or not, a nearer threat
+            //   does not take it over. (The squad's assignment stays a ranking bias, IsAssignedTarget: it orders the SEEN ones.)
+            if (DesignatedTarget.Of(world, self, out var designated) && Fdp.Toolkit.Combat.CombatLife.IsAlive(world, designated)
+                && Remembers(world, self, designated))
+            {
+                threat = designated;
+                return true;
+            }
+
             UtilityDecisionCatalog.EnsureRegistered();
             _scorer ??= new UtilityScorer(UtilityDecisionCatalog.Shared);
             if (!_scorer.TopCandidate(world, self, ThreatRankingId, 0, out Entity top, out float score)) return false;

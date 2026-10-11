@@ -190,6 +190,7 @@ namespace Hrot.Map.Common.Replication.Egress
             EcsNavMode.JoinFormation => ENavigationMode.NAV_JOIN_FORMATION,
             EcsNavMode.RoadGraph     => ENavigationMode.NAV_ROAD_GRAPH,
             EcsNavMode.PathToPoint   => ENavigationMode.NAV_PATH_TO_POINT,
+            EcsNavMode.Manual        => ENavigationMode.NAV_MANUAL,   // ⭐ CE-3173
             _                        => ENavigationMode.NAV_NONE,
         };
     }

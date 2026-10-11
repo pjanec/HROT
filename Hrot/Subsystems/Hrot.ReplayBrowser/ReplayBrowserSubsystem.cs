@@ -116,6 +116,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
     private Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer? _gizmoLayer;
     private Fdp.Core.FdpEventBus? _interactionBus;
     private Hrot.Common.Systems.GlobalActionDispatchSystem? _actionDispatchSystem;
+    /// <summary>⭐ <c>CE-3179</c> — the map-menu clicks (GizmoMenuActionEvent) become GlobalActionRequestedEvent here, as on every
+    /// other map host; it follows the ACTIVE world's entity map, which changes when a recording is rebound.</summary>
+    private Hrot.Common.Systems.ContextActionIngressSystem? _contextIngress;
     // ⭐ CE-3123 — applies the map menu's pin / AI-trace patches; the pack constructs it, this host ticks it (no kernel).
     private Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem? _debugStatePatchSystem;
     private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
@@ -266,6 +269,11 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             });
 
             _actionDispatchSystem = mapInteraction.ActionDispatch;
+            // ⭐ CE-3179 — the dispatcher above was ticked here with nothing feeding it: no ingress turned a map-menu click (Center
+            //   View, the pins, the main menu's layer control) into a request, so none of them ran in the replay browser.
+            _contextIngress = new Hrot.Common.Systems.ContextActionIngressSystem(
+                () => _activeRepo is { } r && r.HasSingletonManaged<NetworkEntityMap>() ? r.GetSingletonManaged<NetworkEntityMap>() : null,
+                _interactionBus!);
             _debugStatePatchSystem = mapInteraction.DebugStatePatch;
             // ⭐⭐ CE-259am — a DELEGATE, not `_canvas.Camera`: the canvas is replaced on a view-mode
             //    switch, and the system's own param doc gives that as the reason it takes a Func.
@@ -439,6 +447,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 //    land in one frame (the order ScenarioEditorModule registers them in).
                 _selectionRequests?.Execute(_activeRepo, deltaTime);
                 _selectionNotifications?.Execute(_activeRepo, deltaTime);
+                _contextIngress?.Execute(_activeRepo, deltaTime);   // ⭐ CE-3179 — before the dispatch, the order every host keeps
                 _actionDispatchSystem?.Execute(_activeRepo, deltaTime);
                 // ⭐ CE-3123 — the order InteractionSystems gives: dispatch, patch, then the gizmos below.
                 _debugStatePatchSystem?.Execute(_activeRepo, deltaTime);

@@ -232,13 +232,16 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 _innerTerminal.HandleInput(
                     _buffer.GetFrame(), _buffer.InternMap, _camera, OnInteraction,
                     screenToWorld: (screen, forDrag) => live.ScreenToWorld3D(screen, forDrag),
-                    zoomAt: live.ZoomAt);
+                    zoomAt: live.ZoomAt,
+                    nextTypedKey: _nextTypedKey);
             else
                 _innerTerminal.HandleInput(
                     _buffer.GetFrame(),
                     _buffer.InternMap,
                     _camera,
-                    OnInteraction);
+                    OnInteraction,
+                    nextTypedKey: _nextTypedKey);
+            _typedKeys.Clear();   // a key the terminal did not stream (no raw route this frame) is not carried to the next
         }
 
         public void Draw(RenderContext ctx)
@@ -284,7 +287,26 @@ namespace Fdp.Toolkit.Vis2D.Layers
         public bool HandleInput(Vector2 worldPos, AbstractionMouseButton button, bool isPressed) => false;
         public void HandleHover(Vector2 mouseWorldPos) { }
         public bool HandleDrag(Vector2 worldPos, Vector2 delta) => false;
-        public bool HandleKeyInput(AbstractionKeyboardKey key) => false;
+
+        /// <summary>
+        /// ⭐ <c>CE-3175</c> — the canvas' typed keys this frame, handed to the terminal in <see cref="Update"/>. 📐 Raylib's key queue
+        /// has ONE reader per frame and <c>MapCanvas.ProcessInputPipeline</c> drains it (to offer each key to its layers) BEFORE the
+        /// layers update, so the terminal's own read found it empty: no key PRESS ever reached a backend tool — Escape included,
+        /// which every interactive gizmo cancels on. ⭐ Not a second input mechanism: the terminal's raw-key route is unchanged, it is
+        /// only fed from the one drain. Returns <see langword="false"/> so the key still reaches every other layer.
+        /// </summary>
+        public bool HandleKeyInput(AbstractionKeyboardKey key)
+        {
+            _typedKeys.Enqueue((int)key);
+            return false;
+        }
+
+        private readonly System.Collections.Generic.Queue<int> _typedKeys = new();
+
+        /// <summary>The next typed key the canvas routed here (0 = none); what the terminal reads.</summary>
+        internal int NextTypedKey() => _typedKeys.Count > 0 ? _typedKeys.Dequeue() : 0;
+        private Func<int>? _nextTypedKeyFn;
+        private Func<int> _nextTypedKey => _nextTypedKeyFn ??= NextTypedKey;
 
         /// <summary>
         /// ⭐⭐⭐ <b><c>CE-259p</c> — THE ENTITY HIT-TEST, implemented for real.</b>

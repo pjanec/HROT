@@ -38,5 +38,15 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ CE-3160 / CE-507 D2 (a) (R-264) — a squad commander's bounding overwatch (DESIGN_Squad_Wiring §6).</summary>
         public const string BoundingOverwatch = "BoundingOverwatch";
+
+        /// <summary>⭐ CE-2123 — a squad commander's suppress-and-manoeuvre: base of fire + flank + assault through (DESIGN_Squad_Tactics §3).</summary>
+        public const string SuppressAndManeuver = "SuppressAndManeuver";
+
+        /// <summary>⭐ CE-2123 — go to a point firing at the top threat, no posture decision: a superior's MOVE order (DESIGN_Squad_Tactics §3.6).</summary>
+        public const string AdvanceTo = "AdvanceTo";
+
+        /// <summary>⭐ CE-3172 (R-270, M-7) — what a POSSESSED unit runs: the station's controls drive its body
+        /// (DESIGN_Entity_Control §8b). Assigned by <c>PossessionSystem</c> at origin Possession only.</summary>
+        public const string OperatorControl = "OperatorControl";
     }
 }

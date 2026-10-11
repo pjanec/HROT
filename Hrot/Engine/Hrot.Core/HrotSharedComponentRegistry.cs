@@ -63,6 +63,10 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMuscleState>();   // ⭐ WL-3 — the muscle's fire timing, never sent
         // ⭐ WL-6 (W-13, R-272) — the weapon brain's at ease / ready / aimed; the Brain writes it, every node draws it.
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        // ⭐ CE-3172 / CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c) — possession's replicated state, on every host
+        world.RegisterComponent<Fdp.Toolkit.Navigation.ManualDrive>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
 
         // ── Terrain / zone loading ────────────────────────────────────────────
         // ⭐ Registered UNCONDITIONALLY on every ECS host, exactly like the save handler and
@@ -86,6 +90,10 @@ public static class HrotSharedComponentRegistry
         //   marker from the TKB and receives the box (EntityObstacleShape). 📄 docs/DESIGN_Peek_And_Fire.md §9.
         world.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.ObstacleShape>();
+        // ⭐ CE-3172 S4e — possession: raised by a station anywhere, applied by the unit's brain owner (InteractionCodecs)
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.DoorCommandEvent>();   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
         // ⭐⭐ The transient-spawn tag (R-140 D2): NetworkSpawningSystem.ProcessSpawn stamps it on EVERY node that materialises a
         //   transient entity — a door entity (5b, transient: the terrain recreates it), an IG sketch. 🔴 It was registered by no

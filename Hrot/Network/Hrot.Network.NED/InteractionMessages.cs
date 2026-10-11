@@ -15,6 +15,11 @@ namespace Hrot.NED.Messages
         Embark          = 2,   // reserved — §7
         Disembark       = 3,   // reserved — §7
         EjectPassengers = 4,   // reserved — §7
+        // ⭐ CE-3172 S4e (docs/DESIGN_Entity_Control.md §8c) — possession: a station's request, release and control frames, applied by
+        //   the unit's brain owner.
+        Possess         = 5,
+        ReleasePossession = 6,
+        ControlFrame    = 7,
     }
 
     /// <summary>⭐ The <see cref="EInteractionKind.Door"/> case: what the actor does to the door.</summary>
@@ -24,6 +29,43 @@ namespace Hrot.NED.Messages
     {
         /// <summary><c>DoorVerb</c>: 0 Open · 1 Close · 2 Lock · 3 Unlock · 4 Breach.</summary>
         public byte Verb;
+    }
+
+    /// <summary>⭐ CE-3172 — the <see cref="EInteractionKind.Possess"/> case: which station asks, and how (<c>PossessionMode</c>).</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct PossessInteractionPayload
+    {
+        public long StationNodeId;
+        public byte Mode;
+    }
+
+    /// <summary>⭐ CE-3172 — the <see cref="EInteractionKind.ReleasePossession"/> case: which station lets go.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct ReleasePossessionInteractionPayload
+    {
+        public long StationNodeId;
+    }
+
+    /// <summary>⭐ CE-3172 / CE-3173 — the <see cref="EInteractionKind.ControlFrame"/> case: one frame of the station's controls (M-6:
+    /// the brain keeps the newest <see cref="Seq"/>).</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct ControlFrameInteractionPayload
+    {
+        public long StationNodeId;
+        public uint Seq;
+        public float Forward;
+        public float Lateral;
+        public float Steer;
+        public float Yaw;
+        public byte Gait;
+        public byte Trigger;
+        public byte Mount;
+        public float AimX;
+        public float AimY;
+        public float AimZ;
     }
 
     /// <summary>
@@ -40,6 +82,15 @@ namespace Hrot.NED.Messages
 
         [DdsCase(EInteractionKind.Door)]
         public DoorInteractionPayload Door;
+
+        [DdsCase(EInteractionKind.Possess)]
+        public PossessInteractionPayload Possess;
+
+        [DdsCase(EInteractionKind.ReleasePossession)]
+        public ReleasePossessionInteractionPayload ReleasePossession;
+
+        [DdsCase(EInteractionKind.ControlFrame)]
+        public ControlFrameInteractionPayload ControlFrame;
     }
 
     /// <summary>

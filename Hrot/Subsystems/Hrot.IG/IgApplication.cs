@@ -477,6 +477,8 @@ public class IgApplication : IDisposable
 
     // Map-pick bridge for component-editor map picking (created lazily after canvas init).
     private MapPickBroker?   _mapPickBroker;
+    /// <summary>⭐ CE-3169 — the adapter under <see cref="_mapPickBroker"/>, also the menu orders' follow-up picks.</summary>
+    private CanvasMapPickAdapter? _mapPickAdapter;
     /// application Window Manager and <see cref="DrawUI"/> skips calling their
     /// individual <c>Draw()</c> methods to avoid duplicate rendering.
     /// Set this via <see cref="SetPanelsWindowManaged"/> from
@@ -528,7 +530,7 @@ public class IgApplication : IDisposable
     public MapPickBroker? GetMapPickBroker()
     {
         if (_mapPickBroker == null && _canvas != null)
-            _mapPickBroker = new MapPickBroker(new CanvasMapPickAdapter(_canvas, _world,
+            _mapPickBroker = new MapPickBroker(_mapPickAdapter = new CanvasMapPickAdapter(_canvas, _world,
                     // ⭐ DESIGN_Map_Picking_Unification P2 — IG HOLDS both, so it passes both (the silent-default rule):
                     //    filter presets now narrow a pick, and a location pick is geodetic.
                     filterFactory: _entityFilterFactory ??= new HrotEntityFilterFactory(_world),
@@ -872,6 +874,8 @@ public class IgApplication : IDisposable
                         GeoTransform: () => ctx.GeoTransform),
                 });
             _igMapInteraction = igMapInteraction;
+            // ⭐ CE-3169 — the menu orders' follow-up picks (a resolver: the adapter is built lazily, once the canvas exists).
+            igMapInteraction.MenuOrders.PickService = () => { GetMapPickBroker(); return _mapPickAdapter; };
 
             _gizmoBuffer            = igMapInteraction.Buffer;
             _gizmoRegistry          = igMapInteraction.GizmoRegistry;
@@ -1005,7 +1009,10 @@ public class IgApplication : IDisposable
                 Fdp.Core.Logging.FdpLog<IgApplication>.Info("[Map] {0}", problem);
             ctx.Kernel.RegisterModule(new GizmoInteractionModule(
                 _interactionBus!,
-                contextIngress: null,
+                // ⭐ CE-3169 — the map's own menu clicks arrive as GizmoMenuActionEvent; without the ingress none of them ever became
+                //   a GlobalActionRequestedEvent, so the dispatcher below ran nothing (pins, AI trace, layer control, the orders).
+                //   📐 The ENTITY map is ctx's: this callback runs inside BootstrapNode, before _entityMap is assigned.
+                contextIngress: new Hrot.Common.Systems.ContextActionIngressSystem(ctx.EntityMap, _interactionBus!),
                 // ⭐ the action dispatcher + the group: IG now RUNS map-menu actions (it had no dispatcher).
                 interactionSystems: igMapInteraction.InteractionSystems,
                 gizmoIngress: gizmoIngress,
@@ -1021,6 +1028,9 @@ public class IgApplication : IDisposable
 
         _world     = _context.World;
         _entityMap = _context.EntityMap;
+        // ⭐ CE-3169 — as SimHost, CGF and the editor do: the map's menu orders (and any resolver taking an entity reference) read
+        //   the node's entity map from this world singleton. 📐 IG was the one map host that never published it.
+        if (!_world.HasSingletonManaged<NetworkEntityMap>()) _world.SetSingletonManaged<NetworkEntityMap>(_entityMap);
         _kernel    = _context.Kernel;
         _geoTransform = _context.GeoTransform as WGS84Transform;
         _ghostCreationSystem = _context.GhostCreationSystem;
@@ -2633,6 +2643,16 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         {
             if (_entityMap.TryGetEntity((int)anchorId, out var entity))
                 ExecuteLocalContextAction(entity, localAction);
+            return;
+        }
+
+        // ⭐ CE-3169 — an id the shared map registry knows (Move Here · Engage · Stop, the pins, the AI trace…) runs HERE, as the
+        //   map menu's own clicks do. 📐 It used to fall through to the ContextActionTriggered below, which nothing on IG reads
+        //   and no translator sends — so these items did nothing from this menu.
+        if (_igMapInteraction != null && _igMapInteraction.Actions.TryGetHandler(actionId, out var handler))
+        {
+            _entityMap.TryGetEntity(anchorId, out var target);
+            handler(_world, target);
             return;
         }
 

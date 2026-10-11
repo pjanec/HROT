@@ -28,5 +28,12 @@ namespace Fdp.Toolkit.Vis2D.Defaults
         public bool IsKeyReleased(MapKeyboardKey key) =>
             Raylib.IsKeyReleased((Raylib_cs.KeyboardKey)(int)key);
         public int GetKeyPressed() => Raylib.GetKeyPressed();
+
+        /// <summary>⭐ CE-3174 — the first-person view's cursor lock (Raylib keeps reporting <see cref="MouseDelta"/>).</summary>
+        public void SetCursorLocked(bool locked)
+        {
+            if (locked) Raylib.DisableCursor();
+            else Raylib.EnableCursor();
+        }
     }
 }

@@ -1,8 +1,10 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 using Fbt;
 using Fbt.Compiler;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Utility;
 using Hrot.Map.Definitions.Behavior;
 
@@ -32,6 +34,7 @@ namespace Hrot.AI.Behaviors.Brains
             public PostureSensorsParams ApproachSensors;
             public EqsTacticsParams Flank, Firing, Throw;
             public WillingToCloseParams Willing;   // ⭐ AQ89 C/D — the Suppress branch's closing gate
+            public DesignateParams Designate;      // ⭐ CE-3170 — an attack order's target (C-5)
 
             // ⭐ one working memory per node, as the JSON tree's auto slots were
             public PostureSensorsState SensorsState;
@@ -41,6 +44,7 @@ namespace Hrot.AI.Behaviors.Brains
             public PeekAndFireState PeekState;
             public EngageState SuppressState, HoldProneState;
             public EqsTacticsState SuppressThrowState;   // ⭐ AQ89 C — the close the Suppress branch runs (its own, not the approach's)
+            public DesignateState DesignateState;        // ⭐ CE-3170
         }
 
         /// <summary>Every value the JSON tree's blackboard carried as a default — the posture an unconfigured soldier fights with.</summary>
@@ -84,6 +88,19 @@ namespace Hrot.AI.Behaviors.Brains
             if (a.ArrivalRadius > 0f) block.Advance.ArrivalRadius = a.ArrivalRadius;
             if (a.CooldownSeconds > 0f) block.Advance.CooldownSeconds = a.CooldownSeconds;
             block.Willing.Assault = authored.Assault ? (byte)1 : (byte)0;   // ⭐ AQ89 D
+
+            // ⭐ CE-3170 (docs/DESIGN_Entity_Control.md C-5) — an ATTACK: the named target, and with no objective authored the advance
+            //   goes to where the target is now (the unit closes in; the decision picks the way).
+            if (authored.Target.IsNone) return;
+            var map = world.HasSingletonManaged<NetworkEntityMap>() ? world.GetSingletonManaged<NetworkEntityMap>() : null;
+            if (map == null || !map.TryGetEntity(authored.Target.NetworkId, out var target) || !world.IsAlive(target))
+            {
+                Hrot.AI.Behaviors.Logging.BehaviorLog.ParseWarn("CombatPosture target=" + authored.Target.NetworkId + " not found in entity map; the posture runs without one.");
+                return;
+            }
+            block.Designate.TargetPacked = (long)target.PackedValue;
+            if (a.Objective == Vector3.Zero && world.HasComponent<SimTransform>(target))
+                block.Advance.Objective = world.GetComponentRO<SimTransform>(target).Position;
         }
 
         /// <summary>📄 §3.3b: decide, sense and act in one Parallel (RequireOne — the posture ends when its winner ends); the winner runs
@@ -93,6 +110,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             return new BTreeBuilder<CombatPostureBlackboard, BTreeContext>()
                 .Parallel(1, decide => decide
+                    .StatefulAction(bb => bb.Designate, bb => bb.DesignateState, PostureNodes.UntilTargetDown)   // ⭐ CE-3170
                     .StatefulAction(bb => bb.Choose, bb => bb.Choice, UtilityNodes.ChooseOption)
                     .StatefulAction(bb => bb.Sensors, bb => bb.SensorsState, PostureNodes.PostureSensors)
                     .StatefulAction(bb => bb.Approach, bb => bb.ApproachChoice, UtilityNodes.ChooseOption)

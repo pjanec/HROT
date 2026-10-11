@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Terrain;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Descriptors;
@@ -94,7 +95,54 @@ namespace Hrot.Map.Common.Replication.Interactions
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
                 => new DoorCommandEvent { Door = target, Actor = actor, Verb = (DoorVerb)p.Door.Verb, IsRemote = true });
 
-        public static IReadOnlyList<IInteractionCodec> All { get; } = new[] { Door };
+        /// <summary>⭐ CE-3172 S4e (docs/DESIGN_Entity_Control.md §8c) — a station's request to possess a unit, for its brain owner.</summary>
+        public static readonly IInteractionCodec Possess = new InteractionCodec<PossessRequestEvent>(
+            EInteractionKind.Possess,
+            target:      static (in PossessRequestEvent e) => e.Unit,
+            actor:       static (in PossessRequestEvent e) => Entity.Null,
+            isRemote:    static (in PossessRequestEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, unit) => PossessionSystem.OwnsBrain(repo, unit),
+            toPayload:   static (in PossessRequestEvent e) => new InteractionPayload
+                { Possess = new PossessInteractionPayload { StationNodeId = e.StationNodeId, Mode = (byte)e.Mode } },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new PossessRequestEvent
+                { Unit = target, StationNodeId = p.Possess.StationNodeId, Mode = (PossessionMode)p.Possess.Mode, IsRemote = true });
+
+        /// <summary>⭐ CE-3172 S4e — a station lets its unit go.</summary>
+        public static readonly IInteractionCodec ReleasePossession = new InteractionCodec<ReleasePossessionEvent>(
+            EInteractionKind.ReleasePossession,
+            target:      static (in ReleasePossessionEvent e) => e.Unit,
+            actor:       static (in ReleasePossessionEvent e) => Entity.Null,
+            isRemote:    static (in ReleasePossessionEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, unit) => PossessionSystem.OwnsBrain(repo, unit),
+            toPayload:   static (in ReleasePossessionEvent e) => new InteractionPayload
+                { ReleasePossession = new ReleasePossessionInteractionPayload { StationNodeId = e.StationNodeId } },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new ReleasePossessionEvent
+                { Unit = target, StationNodeId = p.ReleasePossession.StationNodeId, IsRemote = true });
+
+        /// <summary>⭐ CE-3172 / CE-3173 S4e — one frame of a station's controls.</summary>
+        public static readonly IInteractionCodec ControlFrame = new InteractionCodec<OperatorControlFrameEvent>(
+            EInteractionKind.ControlFrame,
+            target:      static (in OperatorControlFrameEvent e) => e.Unit,
+            actor:       static (in OperatorControlFrameEvent e) => Entity.Null,
+            isRemote:    static (in OperatorControlFrameEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, unit) => PossessionSystem.OwnsBrain(repo, unit),
+            toPayload:   static (in OperatorControlFrameEvent e) => new InteractionPayload
+            {
+                ControlFrame = new ControlFrameInteractionPayload
+                {
+                    StationNodeId = e.StationNodeId, Seq = e.Seq, Forward = e.Forward, Lateral = e.Lateral, Steer = e.Steer, Yaw = e.Yaw,
+                    Gait = e.Gait, Trigger = e.Trigger, Mount = e.Mount, AimX = e.AimPoint.X, AimY = e.AimPoint.Y, AimZ = e.AimPoint.Z,
+                },
+            },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new OperatorControlFrameEvent
+            {
+                Unit = target, StationNodeId = p.ControlFrame.StationNodeId, Seq = p.ControlFrame.Seq,
+                Forward = p.ControlFrame.Forward, Lateral = p.ControlFrame.Lateral, Steer = p.ControlFrame.Steer, Yaw = p.ControlFrame.Yaw,
+                Gait = p.ControlFrame.Gait, Trigger = p.ControlFrame.Trigger, Mount = p.ControlFrame.Mount,
+                AimPoint = new System.Numerics.Vector3(p.ControlFrame.AimX, p.ControlFrame.AimY, p.ControlFrame.AimZ), IsRemote = true,
+            });
+
+        public static IReadOnlyList<IInteractionCodec> All { get; } = new[] { Door, Possess, ReleasePossession, ControlFrame };
     }
 
     /// <summary>

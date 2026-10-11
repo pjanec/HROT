@@ -97,4 +97,81 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         _out.WriteLine($"brain node runs hash {now.ActiveBehaviorHash} origin {now.Origin}; Idle = {idle}");
         Assert.True(ran, "the order issued on SimHost must reach the CGF brain and run there at origin Operator");
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-3172 / CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c) — possession across the cluster: SimHost is the STATION (it does
+    /// not own the brain). Its request, frames and release cross as interaction cases to CGF; CGF runs <c>OperatorControl</c> at origin
+    /// Possession; <c>dtPossessedBy</c> tells every node who holds the unit; <c>dtManualDrive</c> + <c>dtNavigationIntent</c> (Manual)
+    /// drive the body on SimHost; a release resumes the brain's task and every node forgets the hold.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE3172_ASoldierPossessedFromAnotherNode_IsDrivenThere_AndReleaseResumesItsTask()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull, timeoutFrames: 2000),
+            "the Rifleman must exist on both nodes");
+        var onBrain = ByName(cgf, "Rifleman");
+        var onMuscle = ByName(sim, "Rifleman");
+        var simMap = harness.SimHost.App.TestHook_EntityMap;
+        Assert.True(simMap.TryGetNetworkId(onMuscle, out long id), "the Rifleman has a network id on SimHost");
+        var station = new EntityOrders(sim, simMap, geo: null);
+        int operatorControl = BehaviorHash.FromName("OperatorControl");
+
+        // possess from SimHost: CGF runs OperatorControl at origin Possession, and SimHost learns it holds the unit
+        Assert.True(station.Possess(id).Accepted);
+        bool possessed = harness.PumpUntil(() =>
+        {
+            var bs = cgf.GetComponentRO<BehaviorState>(onBrain);
+            return bs.ActiveBehaviorHash == operatorControl && bs.Origin == BehaviorOrigin.Possession && station.HolderOf(id) is not null;
+        }, timeoutFrames: 600);
+        _out.WriteLine($"brain runs {cgf.GetComponentRO<BehaviorState>(onBrain).ActiveBehaviorHash} ({cgf.GetComponentRO<BehaviorState>(onBrain).Origin}); holder seen on SimHost {station.HolderOf(id)}");
+        Assert.True(possessed, "the possession must reach the CGF brain, and dtPossessedBy must come back to the station");
+
+        // drive: frames from SimHost; the axes come back from CGF as dtManualDrive and the body walks on SimHost
+        var start = sim.GetComponentRO<SimTransform>(onMuscle).Position;
+        uint seq = 1;
+        bool moved = harness.PumpUntil(() =>
+        {
+            station.Control(id, new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent { Seq = seq++, Forward = 1f, Yaw = 0f });
+            var p = sim.GetComponentRO<SimTransform>(onMuscle).Position;
+            return System.Numerics.Vector2.Distance(new(p.X, p.Y), new(start.X, start.Y)) > 1.5f;
+        }, timeoutFrames: 1500);
+        var end = sim.GetComponentRO<SimTransform>(onMuscle).Position;
+        _out.WriteLine($"body {start} -> {end} after {seq} frames; ManualDrive on SimHost: {(sim.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(onMuscle) ? sim.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(onMuscle).Forward : -9f)}");
+        Assert.True(moved, $"the possessed body must walk on SimHost: {start} -> {end}");
+
+        var onIg = ByName(ig, "Rifleman");
+        bool igSeesIt = !onIg.IsNull && harness.PumpUntil(() => ig.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>()
+            && ig.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onIg), timeoutFrames: 300);
+        Assert.True(igSeesIt, "the IG must see who holds the Rifleman (dtPossessedBy on a pure IG)");
+
+        // release: the brain's task resumes, every node forgets the hold, the body stops being driven
+        Assert.True(station.Unpossess(id).Accepted);
+        bool released = harness.PumpUntil(() =>
+            cgf.GetComponentRO<BehaviorState>(onBrain).Origin != BehaviorOrigin.Possession
+            && station.HolderOf(id) is null
+            && !ig.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onIg), timeoutFrames: 600);
+        Assert.True(released, $"released: brain origin {cgf.GetComponentRO<BehaviorState>(onBrain).Origin}, holder on SimHost {station.HolderOf(id)}");
+        Assert.True(harness.PumpUntil(() => !sim.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(onMuscle)
+            || sim.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(onMuscle).Forward == 0f, timeoutFrames: 300),
+            "the brain's let-go must reach the muscle: no axes left after the release");
+    }
 }

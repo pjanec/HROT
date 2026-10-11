@@ -120,7 +120,8 @@ namespace GizmoMap.Presentation
             Camera2D camera,
             Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte>? onInteraction = null,
             Func<Vector2, bool, Vector3>? screenToWorld = null,
-            Func<Vector3, float>? zoomAt = null)
+            Func<Vector3, float>? zoomAt = null,
+            Func<int>? nextTypedKey = null)
         {
             var screenPos = Raylib.GetMousePosition();
             // ⭐ CE-1033 S2 (M19) — a host camera that knows height (the 3-D map) answers screen → world itself: the PICK point for
@@ -357,17 +358,12 @@ namespace GizmoMap.Presentation
                 }
 
                 // ---- Generic Input Queue ----
-                // Raylib's GetKeyPressed() only queues *printable character presses*.
-                // We stream these blindly over the boundary.
-                int key;
-                while ((key = Raylib.GetKeyPressed()) != 0)
-                {
-                    if (!isKeyboardCaptured)
-                    {
-                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                            worldPos3, key | modifiers, 0x01);
-                    }
-                }
+                // Every key PRESS this frame (Raylib queues all of them, Escape included) is streamed over the boundary.
+                // ⭐ CE-3175 — the queue has ONE reader per frame. A host whose MapCanvas already drained it (to route keys to
+                //   its layers) hands the keys on through nextTypedKey; without that, this read found an empty queue and every
+                //   key press — Escape on a backend tool among them — was lost. Standalone (no canvas): Raylib's own queue.
+                StreamTypedKeys(nextTypedKey ?? Raylib.GetKeyPressed, isKeyboardCaptured, modifiers,
+                    key => onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput, worldPos3, key, 0x01));
 
                 // =====================================================================
                 // HARDWARE ABSTRACTION WORKAROUND: STRUCTURAL KEY POLLING
@@ -423,6 +419,22 @@ namespace GizmoMap.Presentation
         /// <c>rlImGui.Begin()</c>/<c>rlImGui.End()</c> block to merge gizmo-provided menus
         /// with the host application menu bar.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-3175</c> — drains <paramref name="nextKey"/> (always — a key read is a key consumed) and, unless the keyboard is
+        /// captured by a text field, emits each press with this frame's modifier bits. Apart from Raylib so a headless rail can drive it.
+        /// </summary>
+        public static int StreamTypedKeys(Func<int> nextKey, bool isKeyboardCaptured, int modifiers, Action<int> emit)
+        {
+            int key, sent = 0;
+            while ((key = nextKey()) != 0)
+            {
+                if (isKeyboardCaptured) continue;
+                emit(key | modifiers);
+                sent++;
+            }
+            return sent;
+        }
+
         public IReadOnlyList<ContextMenuItemDto> ConsumeMainMenu() => _mainMenuAdapter.ConsumeItems();
 
         /// <summary>

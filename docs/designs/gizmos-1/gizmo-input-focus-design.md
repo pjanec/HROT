@@ -1,11 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-09
+updated: 2026-10-11
 current-answer: §6 is the intent and still stands. ⚠ READ §6.4 FIRST — it records that §6.2's
-  single registry was NEVER ADOPTED INTO FDP, and what FDP actually has instead (§6.2a).
+  single registry was NEVER ADOPTED INTO FDP, and what FDP actually has instead (§6.2a). §6.2d:
+  typed keys reach the terminal through the canvas' one drain (CE-3175).
 known-rot: §13's closing line ("port the same GizmoInteractionManager into FDP and rewire
   DataDrivenGizmoSystem over it") and §9's "DataDrivenGizmoSystem shrinks dramatically" describe a
   port that DID NOT HAPPEN. ⛔ Do not quote either as a description of the code.
+related-designs:
+  - docs/DESIGN_Map_Rendering_And_Interaction.md — OWNS the MapCanvas input pipeline, the one reader of the key queue (§6.2d)
+  - docs/DESIGN_Entity_Control.md §8 — where CE-3175 (no key press reached a gizmo) was found, by reading
 -->
 
 # Gizmo Input & Focus — Design Document
@@ -535,6 +539,41 @@ cause; the six gizmos are its victims, not its authors.**
 could not have been exercised by hand. ⇒ ⭐⭐ **the `T3`/"run the real thing" tier is not optional for this
 subsystem**, and a manual test plan for it must check `WantsRawInput` against the terminal **before** it
 claims a test is runnable.
+
+### 6.2d 🔴 AS-BUILT DEFECT — **a raw KEY PRESS never reached a backend gizmo: the key queue had two readers** *(`CE-3175`, found by reading `2026-10-11`, fixed the same day)*
+
+```mermaid
+sequenceDiagram
+    participant R as Raylib key queue
+    participant C as MapCanvas.ProcessInputPipeline
+    participant L as Fdp DebugGizmoLayer
+    participant T as GizmoMap terminal
+    participant G as backend gizmo
+    Note over C,T: each frame: canvas pipeline FIRST, layer Update after
+    C->>R: GetKeyPressed until 0 (drains it)
+    C->>L: HandleKeyInput(key) (returns false, so lower layers see it too)
+    L->>L: keep the key
+    L->>T: Update: HandleInput(..., nextTypedKey = the kept keys)
+    T->>G: RawInput key, pressed (GizmoKeyEvent)
+```
+
+*What the picture shows that the prose hid:* the canvas and the terminal both read Raylib's one queue, and the canvas
+runs first (`MapCanvas.Update` → `ProcessInputPipeline`, then the layers). Before the fix the terminal's read always
+found it empty, so the `0x01` key presses §5.3 streams never existed. Only the structural keys the terminal POLLS
+(Escape/Enter/Delete/Tab RELEASE and the modifiers) arrived. ⇒ every gizmo that cancels on `Escape && isPressed`
+(Measure, VertexEdit, EntityPlacement, EntityRotator, RouteWaypoint, the RTS tool, the bounding-box picker) could
+not be cancelled from the keyboard in a window. The rails never saw it because the terminal polls Raylib and does
+not run headless (R4).
+
+| as-built | why |
+|---|---|
+| the canvas is the ONE drain; `Fdp DebugGizmoLayer.HandleKeyInput` keeps each key and still returns `false` | not a second input mechanism (ruling 9): the terminal's raw-key route is unchanged, only its source moved. Declining keeps every other layer's view of the key unchanged |
+| the terminal takes `nextTypedKey` (default: Raylib's queue, for the standalone viewer); `StreamTypedKeys` is its pure core | a headless rail can drive it; a captured keyboard still drains, so nothing leaks into the next frame |
+| keys left unstreamed (no raw route this frame) are dropped at the end of `Update` | a key is a press NOW. Replaying it to a tool that captures later would be a phantom press |
+
+📐 Rails: `MapCanvasTests` CE3175 ×2 (the canvas drains and the gizmo layer keeps the keys in order, still routed on;
+the terminal streams each key with its modifiers and sends nothing while typing). ⚠ The live Esc-cancels-a-tool check
+needs a windowed run.
 
 ### 6.3 What the terminal does NOT do
 

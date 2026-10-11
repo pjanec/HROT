@@ -28,6 +28,7 @@ public sealed class FdpLocationPickerGizmo : IEntityStatefulGizmo
 
     private readonly Action<Vector2> _onPicked;
     private readonly Action          _onRemove;
+    private readonly Action?         _onCancelled;
 
     private Vector3 _cursorWorld;
 
@@ -68,10 +69,15 @@ public sealed class FdpLocationPickerGizmo : IEntityStatefulGizmo
     /// Invoked when the gizmo wants to exit. Typically calls
     /// <c>GlobalGizmoManager.Unregister</c> to remove the gizmo from the manager.
     /// </param>
-    public FdpLocationPickerGizmo(Action<Vector2> onPicked, Action onRemove)
+    /// <param name="onCancelled">
+    /// ⭐ <c>CE-3169</c> — fired on right-click / Escape before <paramref name="onRemove"/>, as <c>EntityPickerGizmo</c> does. 📐 Without it
+    /// a cancelled <c>PickLocationAsync</c> never completed: the waiter (a menu's follow-up pick) hung for ever.
+    /// </param>
+    public FdpLocationPickerGizmo(Action<Vector2> onPicked, Action onRemove, Action? onCancelled = null)
     {
         _onPicked = onPicked ?? throw new ArgumentNullException(nameof(onPicked));
         _onRemove = onRemove ?? throw new ArgumentNullException(nameof(onRemove));
+        _onCancelled = onCancelled;
     }
 
     // ---- IEntityStatefulGizmo -- draw ----------------------------------------
@@ -108,12 +114,16 @@ public sealed class FdpLocationPickerGizmo : IEntityStatefulGizmo
     {
         if (button == MapMouseButton.Left && !isPressed)
         {
-            _onPicked(new Vector2(worldPos.X, worldPos.Y));
+            // ⭐ Remove FIRST, then complete: the pick's task runs its continuations on the pool (PickerToolHost), so a caller awaiting
+            //   it could resume before the tool underneath was restored — the rail CompletingAPickResumesTheToolUnderneath reddened
+            //   intermittently (measured 2026-10-11). Removing first restores it before anyone can observe the result.
             _onRemove();
+            _onPicked(new Vector2(worldPos.X, worldPos.Y));
         }
         else if (button == MapMouseButton.Right && isPressed)
         {
             _onRemove();
+            _onCancelled?.Invoke();
         }
     }
 
@@ -121,7 +131,10 @@ public sealed class FdpLocationPickerGizmo : IEntityStatefulGizmo
     public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
     {
         if (key == MapKeyboardKey.Escape && isPressed)
+        {
             _onRemove();
+            _onCancelled?.Invoke();
+        }
     }
 
     // ---- Unused IGizmoInteractionHandler methods -----------------------------

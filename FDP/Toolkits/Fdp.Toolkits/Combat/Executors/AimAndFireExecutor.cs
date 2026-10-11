@@ -70,6 +70,8 @@ namespace Fdp.Toolkit.Combat.Executors
             fixed (byte* src = channel.Params)
                 p = *(AimAndFireParams*)src;
 
+            if (p.Operator != 0) { OperatorFire(entity, ref channel, world, in p, dt); return; }   // ⭐ CE-3172 S4d (M-8)
+
             // ⭐ CE-466 rule (CombatLife): done when the target is gone OR knocked out (Health ≤ 0) — CE-267's revert keeps the
             //   body in the world, so existence alone never ends the action (CE-321: the squad emptied its rifles into a corpse).
             if (!CombatLife.IsAlive(world, p.Target))
@@ -218,6 +220,51 @@ namespace Fdp.Toolkit.Combat.Executors
             Say(world, entity, ActionReason.Firing, p.Target, fired, p.Rounds);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3172</c> S4d (M-8, C-2; docs/DESIGN_Entity_Control.md §8b) — OPERATOR fire: a possessing station aims at
+        /// <see cref="AimAndFireParams.Point"/> and fires while <see cref="AimAndFireParams.Trigger"/> is held. The operator is the
+        /// eyes and the decision: no seen-now gate, no aim time, no ROE hold. The rules that are not decisions stay — the ammunition,
+        /// the magazine, the cooldown, and no direct round through a friend. A turreted mount is aimed through its turret's
+        /// <see cref="WeaponTask"/> at the point (the muscle slews and times the rounds, as for the AI); any other mount fires the
+        /// per-shot round at a point (<see cref="FireAtPointExecutor.ShootAtPoint"/>). Never ends on its own: the operator
+        /// behaviour stops it.
+        /// </summary>
+        private static void OperatorFire(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p, float dt)
+        {
+            channel.Status = NodeStatus.Running;
+            Entity mountEntity = entity;
+            int mountIndex = p.Mount == 0 || p.Mount == AimAndFireParams.MountAuto ? 0 : MountByIndex(world, entity, p.Mount, out mountEntity);
+            if (!world.HasComponent<WeaponState>(mountEntity)) return;
+            ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
+
+            var mountDto = CombatTkb.MountOf(world, entity, mountIndex);
+            var profile = WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown);
+            if (profile.UsesTurretTask(world, entity, mountDto))
+            {
+                TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, entity, mountDto!.TurretIndex), ref weapon,
+                           profile.RoundsInFlight, mountDto, dt);
+                return;
+            }
+
+            if (weapon.Ammo == 0) { SayAt(world, entity, ActionReason.OutOfAmmo, p.Point); return; }
+            if (p.Trigger == 0)
+            {
+                if (weapon.CooldownSecondsRemaining > 0f) weapon.CooldownSecondsRemaining -= dt;
+                Magazine.StartIfEmpty(ref weapon);
+                SayAt(world, entity, ActionReason.Aiming, p.Point);
+                return;
+            }
+            var reason = FireAtPointExecutor.ShootAtPoint(world, entity, mountIndex, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: false);
+            if (reason == ActionReason.Firing) RoundsFired(ref channel)++;
+            SayAt(world, entity, reason, p.Point);
+        }
+
+        private static void SayAt(EntityRepository world, Entity unit, ActionReason reason, Vector3 point)
+        {
+            ActionStatusOf.Weapon(world, unit, CombatConstants.ActionIdAimAndFire, reason, Entity.Null);
+            WeaponPostureOf.Report(world, unit, reason, Entity.Null, point);
+        }
+
         /// <summary>⭐ AQ89 A — a blind round aims this far above the remembered ground point: a crouched man's middle, so it strikes
         /// a wall he crouches behind (a near miss) rather than flying over it.</summary>
         public const float BlindAimHeightMetres = 0.5f;
@@ -280,7 +327,11 @@ namespace Fdp.Toolkit.Combat.Executors
             ref var hold = ref AimTimer(ref channel).Elapsed;
             if (hold > 0f) hold = MathF.Max(0f, hold - dt);
             var current = world.HasComponent<WeaponTask>(part) ? world.GetComponent<WeaponTask>(part) : default;
-            bool fresh = current.Mode == WeaponTaskMode.Idle || current.Target != p.Target || current.MountIndex != (byte)mountIndex;
+            // ⭐ CE-3172 S4d — operator fire aims at a POINT that moves every frame; only a new mount (or an idle task) is a new
+            //   order, so the rounds in flight keep counting while the operator sweeps.
+            bool atPoint = p.Operator != 0;
+            bool fresh = current.Mode == WeaponTaskMode.Idle || current.Target != (atPoint ? Entity.Null : p.Target)
+                      || current.MountIndex != (byte)mountIndex;
             uint epoch = fresh ? current.Epoch + 1 : current.Epoch;
             ref int accounted = ref Accounted(ref channel);
             if (fresh) accounted = 0;
@@ -313,8 +364,9 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
-            bool seen = Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
-            bool roe = RoePermitsFire(world, entity);
+            // ⭐ CE-3172 S4d (C-2) — the operator is the eyes and overrides the ROE: the trigger is the only gate
+            bool seen = atPoint ? p.Trigger != 0 : Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
+            bool roe = atPoint || RoePermitsFire(world, entity);
             Magazine.StartIfEmpty(ref weapon);
             bool loaded = Magazine.Ready(weapon);
             int grant = accounted;
@@ -330,7 +382,8 @@ namespace Fdp.Toolkit.Combat.Executors
             var next = new WeaponTask
             {
                 Mode = grant > accounted ? WeaponTaskMode.Engage : WeaponTaskMode.Track,
-                Target = p.Target,
+                Target = atPoint ? Entity.Null : p.Target,
+                Point = atPoint ? p.Point : default,
                 MountIndex = (byte)mountIndex,
                 RoundsGranted = (ushort)System.Math.Min(grant, ushort.MaxValue),
                 CooldownSeconds = p.CooldownSeconds,
@@ -339,6 +392,12 @@ namespace Fdp.Toolkit.Combat.Executors
             if (fresh || !current.Equals(next)) world.SetComponent(part, next);
 
             channel.Status = NodeStatus.Running;
+            if (atPoint)
+            {
+                SayAt(world, entity, !loaded ? ActionReason.Reloading : p.Trigger == 0 ? ActionReason.Aiming
+                    : mine && status.State == WeaponTaskState.Slewing ? ActionReason.Slewing : ActionReason.Firing, p.Point);
+                return;
+            }
             if (!seen) Say(world, entity, ActionReason.HoldNotSeen, p.Target);
             else if (!roe) Say(world, entity, ActionReason.HoldRoe, p.Target);
             else if (!loaded) Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);

@@ -215,6 +215,10 @@ namespace Hrot.CGF
             var inputList     = new List<IEcsModuleSystem>();
             var simList       = new List<IEcsModuleSystem>();
 
+            // ⭐ CE-3172 (docs/DESIGN_Entity_Control.md §8b) — the brain owner's side of possession: a station's request starts
+            //   OperatorControl at origin Possession (pausing the task), its frames become OperatorInput, a release resumes the task.
+            //   First, so the assignment it publishes is on the bus before the behaviour ingress reads it.
+            inputList.Add(new Fdp.Toolkit.Behavior.Possession.PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl));
             inputList.Add(_missionExecutionSystem);
             foreach (var s in _missionControlModule.InputSystems) inputList.Add(s);
             foreach (var s in _cognitiveRuntimeModule.InputSystems) inputList.Add(s);
@@ -229,6 +233,8 @@ namespace Hrot.CGF
             simList.Add(_cgfThreatEvaluationSystem);
             // ⭐ CE-3064 (R-206) — a near miss becomes the unit's SensorChange.NearMiss, beside Hit.
             simList.Add(new Fdp.Toolkit.Perception.Systems.NearMissSensingSystem());
+            // ⭐ CE-3174 (C-7, docs/DESIGN_Entity_Control.md §8d) — the ammunition per mount, mirrored for every station's HUD (dtWeaponAmmo).
+            simList.Add(new Fdp.Toolkit.Combat.Systems.WeaponAmmoMirrorSystem());
             simList.Add(_squadCoordinationSystem);   // CE-454: after TargetMemory is boosted, before behaviours read the pool
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);

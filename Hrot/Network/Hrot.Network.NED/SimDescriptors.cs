@@ -171,6 +171,62 @@ namespace Hrot.NED.Descriptors
         public float PointZ;
     }
 
+    // ⭐ CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c, M-1) — an operator's motion axes for a body in Manual, Brain → the Muscle,
+    //   keyed by the unit. BestEffort + TransientLocal + KeepLast 1 like WorldPos: it changes every frame while driven, only the newest
+    //   matters (M-6), and a lost sample is repaired by the next one.
+    [DdsTopic("EntityManualDrive")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityManualDrive
+    {
+        [DdsKey] public long EntityId;
+        public float Forward;
+        public float Lateral;
+        public float Steer;
+        public float Yaw;
+        public byte Gait;
+        public uint Seq;
+    }
+
+    // ⭐ CE-3172 S4e (§8c, C-3) — which station holds a unit, Brain → every node, keyed by the unit. Reliable + TransientLocal +
+    //   KeepLast 1: a late joiner must see it; Held = 0 is the release (no revoke message exists to get lost).
+    [DdsTopic("EntityPossessedBy")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityPossessedBy
+    {
+        [DdsKey] public long EntityId;
+        /// <summary>1 = held, 0 = released.</summary>
+        public byte Held;
+        public long StationNodeId;
+        /// <summary><c>PossessionMode</c>: 1 Fps.</summary>
+        public byte Mode;
+        public uint Epoch;
+    }
+
+    // ⭐ CE-3174 (§8d, C-7) — a unit's ammunition per mount, Brain → every node, keyed by the unit. Reliable + TransientLocal +
+    //   KeepLast 1: it changes per round fired, and a station that possesses the unit later must see it.
+    [DdsTopic("EntityWeaponAmmo")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityWeaponAmmo
+    {
+        [DdsKey] public long EntityId;
+        public byte Count;
+        public int Ammo0;
+        public int Ammo1;
+        public int Ammo2;
+        public int Ammo3;
+        public int Max0;
+        public int Max1;
+        public int Max2;
+        public int Max3;
+        public int Mag0;
+        public int Mag1;
+        public int Mag2;
+        public int Mag3;
+    }
+
     // ⭐ CE-3136 P-7a (O3, R-242/R-243) — a static obstacle's box (the TKB's size or a scenario's per-instance one), published by the
     //   obstacle's creator, applied on every other node BEFORE its ghost promotes ([PerInstanceValue] ObstacleShape), so every node bakes
     //   the same box into its terrain. TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every obstacle.
@@ -211,6 +267,7 @@ namespace Hrot.NED.Descriptors
         NAV_JOIN_FORMATION  = 3,
         NAV_ROAD_GRAPH      = 4,
         NAV_PATH_TO_POINT   = 5,   // CE-3026 — find a path, then follow it (R-42: permanent)
+        NAV_MANUAL          = 6,   // ⭐ CE-3173 — the operator drives the body (ManualDrive); entered once
     }
 
     /// <summary>

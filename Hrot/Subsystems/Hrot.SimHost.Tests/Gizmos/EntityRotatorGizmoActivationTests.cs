@@ -94,5 +94,28 @@ namespace Hrot.SimHost.Tests.Gizmos
             // Should not throw.
             sys.Execute(_repo, 0f);
         }
+
+        /// <summary>⭐ CE-3178 — a RegisterLocal action (an operator's order) runs for this node's own click and NOT for one relayed
+        /// from another node; an ordinary action runs for both (a relayed Rotate still reaches the node that owns the unit).</summary>
+        [Fact]
+        public void CE3178_ALocalOnlyAction_SkipsARelayedClick_AnOrdinaryActionRunsForBoth()
+        {
+            int local = 0, ordinary = 0;
+            var registry = new GlobalActionRegistry();
+            registry.RegisterLocal(GlobalActionIds.MoveHere, (_, _) => local++);
+            registry.Register(GlobalActionIds.Rotate, (_, _) => ordinary++);
+            var bus = new FdpEventBus();
+            var sys = new GlobalActionDispatchSystem(registry, bus);
+
+            foreach (byte relayed in new byte[] { 0, 1 })
+            {
+                bus.Publish(new GlobalActionRequestedEvent { ActionId = GlobalActionIds.MoveHere, Relayed = relayed });
+                bus.Publish(new GlobalActionRequestedEvent { ActionId = GlobalActionIds.Rotate, Relayed = relayed });
+                bus.SwapBuffers();
+                sys.Execute(_repo, 0f);
+            }
+
+            Assert.Equal((1, 2), (local, ordinary));
+        }
     }
 }

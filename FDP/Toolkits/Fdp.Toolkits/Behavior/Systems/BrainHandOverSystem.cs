@@ -70,7 +70,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             bool hasTaskSlot = repo.IsComponentTypeRegistered<BehaviorState>() && repo.HasComponent<BehaviorState>(entity);
             bool taskDiffers = hasTaskSlot
-                && (repo.GetComponentRO<BehaviorState>(entity).Origin == BehaviorOrigin.Reaction
+                && (BehaviorOriginRank.Pauses(repo.GetComponentRO<BehaviorState>(entity).Origin)   // ⭐ CE-3172 — a reaction or a possession
                     || !BrainIntentReader.Same(BrainIntentReader.TaskOf(repo, entity, registry, BrainIntentScope.Running), intent.Behavior));
             if (taskDiffers)
             {

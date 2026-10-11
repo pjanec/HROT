@@ -252,6 +252,31 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2123</c> — the library <c>AdvanceTo</c>: with an enemy IN SIGHT a healthy soldier still goes to its objective and
+        /// fires on the way. 📐 Why it exists: <c>CombatPosture</c> in the same situation chooses Suppress and stays put (measured on
+        /// this harness and live on <c>tt-suppress-flank</c>), so it cannot carry a squad leader's MOVE order. DESIGN_Squad_Tactics §3.6.
+        /// </summary>
+        [Fact]
+        public void CE2123_AdvanceTo_MovesToItsObjective_UnderContact_FiringOnTheWay()
+        {
+            var w = new World();
+            w.Arm();
+            var enemy = w.Contact(armed: true);
+            w.See(enemy);
+            w.Order("AdvanceTo", "{\"Objective\":[200,0,0],\"Speed\":3}");
+            for (int i = 0; i < 6; i++) Step(w);
+            Assert.Equal("AdvanceTo", w.TaskName);
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            Arrive(w);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 4 && !done; i++) { w.Tick(); done = w.Finished(out result); }
+            Assert.True(done, "arrival ends the order");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
         [Fact]
         public void CE2073_HurtWithCover_ThePostureSwitchesToTakeCover()
         {
@@ -902,6 +927,127 @@ namespace Hrot.SimHost.Tests
             senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.Hit, w.Repo.GetSingleton<GlobalTime>().TotalTime);
             w.Repo.AddComponent(w.Unit, senses);
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Move(MoveGait.Tactical));    // hit, shooter unknown
+        }
+
+        // ── ⭐ CE-3170 — an ATTACK order: CombatPosture with a designated target (docs/DESIGN_Entity_Control.md C-5) ──────────
+
+        private const long NamedId = 2000;
+
+        /// <summary>The enemy an attack order names: alive, on the map at <paramref name="at"/>, known to the node by
+        /// <see cref="NamedId"/>, and NOT in the unit's memory yet.</summary>
+        private static Entity NamedEnemy(World w, Vector3 at)
+        {
+            var e = w.Repo.CreateEntity();
+            w.Repo.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            w.Repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            map.Register(NamedId, e);
+            w.Repo.SetSingletonManaged(map);
+            return e;
+        }
+
+        /// <summary>The unit has SEEN <paramref name="e"/>: a visual memory slot, as perception writes on a sighting (this world runs
+        /// no perception system), and a sensor track.</summary>
+        private static unsafe void SeenBefore(World w, Entity e)
+        {
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.EntityIds[mem.Count] = (long)e.PackedValue;
+            mem.Freshness[mem.Count] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
+            mem.Modalities[mem.Count] = (byte)SensorModality.Visual;
+            mem.Count++;
+            w.See(e);
+        }
+
+        private static unsafe Entity AimedAt(World w)
+        {
+            ref readonly var ch = ref w.Repo.GetComponentRO<WeaponChannel>(w.Unit);
+            if (ch.ActiveAction != Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire) return Entity.Null;
+            fixed (byte* src = ch.Params) return ((Fdp.Toolkit.Combat.Executors.AimAndFireParams*)src)->Target;
+        }
+
+        [Fact]
+        public void CE3170_AnAttackOrder_FightsTheNamedEnemy_NotTheNearerThreat_AndSucceedsWhenItIsDown()
+        {
+            var w = new World();
+            w.Arm();
+            var nearer = w.Contact(armed: false);                      // remembered, in sight
+            var named = NamedEnemy(w, new Vector3(80f, 10f, 0f));      // NOT remembered: the order tells the unit
+            w.Order("CombatPosture", "{\"target\":" + NamedId + ",\"assault\":true}");
+            for (int i = 0; i < 4; i++) w.Tick();
+
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.True(DesignatedTarget.Of(w.Repo, w.Unit, out var designated), "the run designates its target");
+            Assert.Equal(named, designated);
+            Assert.True(Fdp.Toolkit.Combat.HiddenTargetThrow.LastKnown(w.Repo, w.Unit, named, out var told), "the order TELLS the unit where it is");
+            Assert.Equal(new Vector3(80f, 10f, 0f), told);
+            Assert.Equal(named, AimedAt(w));                            // ⭐ whichever branch the decision picked — never the nearer one
+            Assert.NotEqual(nearer, AimedAt(w));
+
+            w.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(named).Current = 0f;    // down
+            bool finished = false;
+            Fbt.NodeStatus result = default;
+            for (int i = 0; i < 3 && !finished; i++) { w.Tick(); finished = w.Finished(out result); }
+            Assert.True(finished, "the order ends when its target is out of the fight");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        [Fact]
+        public void CE3170_AdvancingOnTheNamedEnemy_HuntsItsLastKnownPoint_AndArrivingDoesNotEndTheOrder()
+        {
+            var w = new World();
+            w.Arm();
+            var named = NamedEnemy(w, new Vector3(80f, 10f, 0f));
+            w.Repo.AddComponent(w.Unit, new TargetMemory());
+            SeenBefore(w, named);                                       // one weak enemy in sight ⇒ the decision advances (two outnumber: Suppress)
+            w.Order("CombatPosture", "{\"target\":" + NamedId + "}");
+            for (int i = 0; i < 4; i++) w.Tick();
+
+            Assert.Equal((byte)Fdp.Toolkit.Utility.Posture.AdvanceAndAttack, w.Winner("CombatPosture"));
+            Assert.Equal(new Vector3(80f, 10f, 0f), w.Destination());   // the TARGET, not an authored objective
+            Assert.Equal(named, AimedAt(w));
+
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // there — the fight goes on
+            w.Tick();
+            w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);
+
+            unsafe
+            {
+                ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);                    // it was seen further on
+                for (int i = 0; i < mem.Count; i++)
+                    if (mem.EntityIds[i] == (long)named.PackedValue) { mem.PositionsX[i] = 120f; mem.PositionsY[i] = 10f; }
+            }
+            w.Tick();
+            w.Tick();
+            Assert.Equal(new Vector3(120f, 10f, 0f), w.Destination());  // the move follows it
+        }
+
+        [Fact]
+        public void CE3170_TheDesignation_BelongsToItsRun_ALaterBehaviourDoesNotInheritIt()
+        {
+            var w = new World();
+            w.Arm();
+            w.Contact(armed: false);
+            NamedEnemy(w, new Vector3(80f, 10f, 0f));
+            w.Order("CombatPosture", "{\"target\":" + NamedId + "}");
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.True(DesignatedTarget.Of(w.Repo, w.Unit, out _));
+
+            w.Order("CombatPosture", Objective);                       // a new run, no target named
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.False(DesignatedTarget.Of(w.Repo, w.Unit, out _), "a new run starts with no designated target");
+        }
+
+        [Fact]
+        public void CE3170_AnUnknownTarget_LeavesThePostureAsAuthored()
+        {
+            var w = new World();
+            w.Arm();
+            w.Order("CombatPosture", "{\"target\":4242,\"advance\":{\"Objective\":[200,0,0]}}");
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.False(DesignatedTarget.Of(w.Repo, w.Unit, out _));
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
         }
 }
 }

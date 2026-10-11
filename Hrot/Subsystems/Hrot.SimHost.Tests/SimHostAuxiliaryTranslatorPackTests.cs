@@ -73,5 +73,20 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, Count<Hrot.Network.NED.SimHost.TacticalIntentEgressTranslator>(set));
             Assert.Equal(ingress, Count<Hrot.Network.NED.SimHost.TacticalIntentIngressTranslator>(set));
         }
+
+        /// <summary>⭐ CE-3169 — the IG station builds its own pack (never this one), so it carries the order egress there: a menu order
+        /// given on the IG reaches the brain owner. Headless or not, with or without ghosts.</summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void CE3169_TheIgStation_ForwardsOrdersToo(bool headless)
+        {
+            using var participant = new DdsParticipant(231u);
+            var set = new Hrot.Network.NED.IG.NedIgTranslators()
+                .GetTranslators(participant, new NetworkEntityMap(), new FdpEventBus(), ghostCreationSystem: null, localNodeId: 1, headless)
+                .Select(t => t.GetType()).ToArray();
+            Assert.Equal(1, Count<Hrot.Network.NED.SimHost.TacticalIntentEgressTranslator>(set));
+            Assert.Equal(0, Count<Hrot.Network.NED.SimHost.TacticalIntentIngressTranslator>(set));
+        }
     }
 }

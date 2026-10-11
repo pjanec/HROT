@@ -34,6 +34,10 @@ namespace Hrot.ScenarioEditor.Tools
         /// <summary>Measurement line.</summary>
         public const string Measure = "scenario.measure";
 
+        /// <summary>⭐ CE-3171 — the RTS command tool: LMB selects, RMB moves the selection or attacks a hostile
+        /// (docs/DESIGN_Entity_Control.md §8a).</summary>
+        public const string RtsCommand = "orders.rtsCommand";
+
         /// <summary>Entity rotation.</summary>
         public const string Rotate  = "scenario.rotate";
 

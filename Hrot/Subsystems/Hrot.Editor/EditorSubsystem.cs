@@ -2387,6 +2387,8 @@ namespace Hrot.Editor
                     tools:              () => _editorToolController,
                     geoTransform:       geoTransform,
                     areaGizmo:          (onPicked, onRemove) => new Hrot.Editor.Gizmos.ModalBoxSelectionGizmo(onPicked, onRemove: onRemove));
+                // ⭐ CE-3169 — the map menu's Move Here / Engage follow-up picks.
+                _editorMapInteraction!.MenuOrders.PickService = () => _mapPickAdapter;   // built above (the lines below assume it too)
 
                 // ⭐ CE-1017 — THE shared spawn adapter, built by the map pack (EntityAuthoring) over this host's
                 //   request queue, TKB and geo transform, with the tool arbiter PASSED (UXI-07 step 4a).

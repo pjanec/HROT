@@ -834,5 +834,161 @@ namespace CarKinem.Tests.Systems
             pool.Dispose();
             repo.Dispose();
         }
+    
+        // ── ⭐ CE-3173 (M-1..M-3, docs/DESIGN_Entity_Control.md §6, §8b) — KinematicsMode.Manual: the operator drives the body ──
+
+        private static (EntityRepository Repo, Entity E) ManualWorld(VehicleClass cls, Fdp.Toolkit.Navigation.ManualDrive? drive)
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<VehicleState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+            repo.RegisterComponent<VehicleParams>();
+            repo.RegisterComponent<NavState>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.RegisterComponent<Fdp.Toolkit.Navigation.ManualDrive>();
+            repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 1f / 60f, TimeScale = 1.0f });
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new VehicleState());
+            repo.AddComponent(e, new SimTransform { Position = Vector3.Zero, Rotation = SimMath.FromYaw(0f) });   // facing +X
+            repo.SetAuthority<SimTransform>(e, true);
+            repo.AddComponent(e, new SimVelocity());
+            var p = VehiclePresets.GetPreset(cls);
+            if (cls != VehicleClass.Pedestrian) { p.MaxSpeedRev = 5f; p.MaxSteerRate = 1f; }
+            repo.AddComponent(e, p);
+            repo.AddComponent(e, new NavState { Mode = KinematicsMode.Manual });
+            if (drive is { } d) repo.AddComponent(e, d);
+            return (repo, e);
+        }
+
+        private static void Run(EntityRepository repo, float seconds)
+        {
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            for (int i = 0; i < (int)(seconds * 60); i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+        }
+
+        private static float YawOf(EntityRepository repo, Entity e)
+        {
+            var f = Vector3.Transform(Vector3.UnitX, repo.GetComponent<SimTransform>(e).Rotation);
+            return MathF.Atan2(f.Y, f.X);
+        }
+
+        [Fact]
+        public void CE3173_APerson_Strafes_SidewaysAtSixtyPercent_WithoutTurning()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian, new Fdp.Toolkit.Navigation.ManualDrive { Lateral = 1f, Yaw = 0f });
+            float top = repo.GetComponent<VehicleParams>(e).MaxSpeedFwd;
+            Run(repo, 2f);
+            var pos = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(pos.Y > 0.5f, $"moved left (+Y): {pos}");
+            Assert.InRange(MathF.Abs(pos.X), 0f, 0.05f);                                  // no forward drift
+            Assert.InRange(YawOf(repo, e), -0.01f, 0.01f);                               // still facing +X
+            Assert.InRange(repo.GetComponent<SimVelocity>(e).Linear.Y, 0.6f * top - 0.05f, 0.6f * top + 0.05f);
+            repo.Dispose();
+        }
+
+        [Fact]
+        public void CE3173_APerson_TurnsOnTheSpot_ToTheAskedYaw_AndWalksBackSlower()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian, new Fdp.Toolkit.Navigation.ManualDrive { Yaw = MathF.PI / 2f });
+            Run(repo, 0.5f);
+            Assert.InRange(YawOf(repo, e), MathF.PI / 2f - 0.01f, MathF.PI / 2f + 0.01f);
+            Assert.InRange(new Vector2(repo.GetComponent<SimTransform>(e).Position.X, repo.GetComponent<SimTransform>(e).Position.Y).Length(), 0f, 0.001f);
+
+            float top = repo.GetComponent<VehicleParams>(e).MaxSpeedFwd;
+            repo.SetComponent(e, new Fdp.Toolkit.Navigation.ManualDrive { Forward = -1f, Yaw = MathF.PI / 2f });
+            Run(repo, 2f);
+            Assert.True(repo.GetComponent<SimTransform>(e).Position.Y < -0.5f, "backwards, away from where he faces");
+            Assert.InRange(repo.GetComponent<VehicleState>(e).Speed, -0.6f * top - 0.05f, -0.6f * top + 0.05f);   // signed speed
+            repo.Dispose();
+        }
+
+        [Fact]
+        public void CE3173_AVehicle_Steers_ThenBrakesAndReverses()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.PersonalCar, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f, Steer = 0.5f });
+            Run(repo, 3f);
+            Assert.True(repo.GetComponent<VehicleState>(e).Speed > 1f, "throttle moves it");
+            Assert.True(YawOf(repo, e) > 0.1f, "steering left turns it left");
+
+            repo.SetComponent(e, new Fdp.Toolkit.Navigation.ManualDrive { Forward = -1f });
+            Run(repo, 8f);
+            var state = repo.GetComponent<VehicleState>(e);
+            Assert.True(state.Speed < -0.5f, $"held back it brakes, then reverses: speed {state.Speed}");
+            var v = repo.GetComponent<SimVelocity>(e).Linear;
+            var fwd = Vector3.Transform(Vector3.UnitX, repo.GetComponent<SimTransform>(e).Rotation);
+            Assert.True(Vector3.Dot(v, fwd) < 0f, "moving backwards");
+            repo.Dispose();
+        }
+
+        [Fact]
+        public void CE3173_ManualWithNoDriveYet_HoldsStill()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian, drive: null);
+            Run(repo, 1f);
+            Assert.Equal(Vector3.Zero, repo.GetComponent<SimTransform>(e).Position);
+            repo.Dispose();
+        }
+
+        // ── ⭐ CE-3181 (M-5, docs/DESIGN_Entity_Control.md §6) — a manual person never leaves the walkable navmesh ──
+
+        /// <summary>The walkable mesh is x ≤ 5. <c>clamp</c>: off it projects to the nearest mesh point, as Recast's nearest-poly
+        /// does (the wall case); otherwise off it has no projection at all, as a blocked polygon in the fake navmesh.</summary>
+        private sealed class WallAtFive : Fdp.Toolkit.Navigation.INavmeshProvider
+        {
+            private readonly bool _clamp;
+            public WallAtFive(bool clamp) => _clamp = clamp;
+            public bool IsWalkable(Vector3 p, uint layerMask = 0xFFFFFFFF) => p.X <= 5f;
+            public bool ProjectToNavmesh(Vector3 p, out Vector3 snapped, uint layerMask = 0xFFFFFFFF)
+            {
+                if (p.X <= 5f) { snapped = p; return true; }
+                snapped = _clamp ? new Vector3(5f, p.Y, p.Z) : p;
+                return _clamp;
+            }
+            public int SampleNavmeshPoints(Vector3 c, float r, Span<Vector3> results, uint layerMask = 0xFFFFFFFF) => 0;
+            public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => false;
+            public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => float.PositiveInfinity;
+            public uint QueryVersion() => 0;
+            public int PlanPath(Vector3 from, Vector3 to, Span<Fdp.Toolkit.Navigation.NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF) => 0;
+        }
+
+        [Fact]
+        public void CE3181_APersonWalkingIntoAWall_SlidesAlongIt_NeverThrough()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian,
+                new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f, Yaw = MathF.PI / 4f });   // north-east, into the wall
+            repo.SetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>(new WallAtFive(clamp: true));
+            Run(repo, 7f);                                                     // ~1 m/s at 45°: the wall is reached, then followed
+            var atWall = repo.GetComponent<SimTransform>(e).Position;
+            Run(repo, 4f);
+            var pos = repo.GetComponent<SimTransform>(e).Position;
+            Assert.InRange(pos.X, 4.9f, 5f + CarKinem.Controllers.ManualMotion.OnMeshTolerance);   // at the wall, not through it
+            Assert.True(pos.Y > atWall.Y + 1.5f, $"slid along the wall (+Y): {atWall} -> {pos}");  // kept moving where the mesh allows
+            repo.Dispose();
+        }
+
+        [Fact]
+        public void CE3181_AStepWithNoMeshUnderIt_IsRefused_AndABodyAlreadyOffTheMesh_MovesFreely()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f, Yaw = 0f });
+            repo.SetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>(new WallAtFive(clamp: false));
+            Run(repo, 10f);
+            Assert.InRange(repo.GetComponent<SimTransform>(e).Position.X, 4.8f, 5f);   // stopped at the edge
+            repo.Dispose();
+
+            (repo, e) = ManualWorld(VehicleClass.Pedestrian, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f, Yaw = 0f });
+            repo.SetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>(new WallAtFive(clamp: false));
+            var tf = repo.GetComponent<SimTransform>(e);
+            tf.Position = new Vector3(10f, 0f, 0f);                                     // spawned off the mesh
+            repo.SetComponent(e, tf);
+            Run(repo, 1f);
+            Assert.True(repo.GetComponent<SimTransform>(e).Position.X > 10.5f, "not trapped where it already stood");
+            repo.Dispose();
+        }
     }
 }

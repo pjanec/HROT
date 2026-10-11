@@ -1668,6 +1668,41 @@ const TOOLS = [
     },
   },
 
+  // ⭐ CE-3172 — possession (docs/DESIGN_Entity_Control.md §13): this node's station drives one unit.
+  {
+    name: 'possess_entity',
+    description: TOOL_DEFS['possess_entity'].description,
+    inputSchema: TOOL_DEFS['possess_entity'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', `/entities/${encodeURIComponent(toolArgs.networkId)}/possess`));
+      } catch (err) { return toolError(err.message, err.envelope, 'possess_entity'); }
+    },
+  },
+
+  {
+    name: 'release_possession',
+    description: TOOL_DEFS['release_possession'].description,
+    inputSchema: TOOL_DEFS['release_possession'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('DELETE', `/entities/${encodeURIComponent(toolArgs.networkId)}/possess`));
+      } catch (err) { return toolError(err.message, err.envelope, 'release_possession'); }
+    },
+  },
+
+  {
+    name: 'control_entity',
+    description: TOOL_DEFS['control_entity'].description,
+    inputSchema: TOOL_DEFS['control_entity'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const { networkId, ...body } = toolArgs;
+        return toolSuccess(await callApi('POST', `/entities/${encodeURIComponent(networkId)}/control`, body));
+      } catch (err) { return toolError(err.message, err.envelope, 'control_entity'); }
+    },
+  },
+
   {
     name: 'order_entities',
     description: TOOL_DEFS['order_entities'].description,
