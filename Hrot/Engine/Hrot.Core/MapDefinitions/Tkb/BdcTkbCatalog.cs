@@ -58,11 +58,12 @@ namespace Hrot.Map.Definitions.Tkb
                         Penetration = 650,     // CE-3071 — mm RHA (design §9 calibration)
                         DamagePerHit = 1200,
                         Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1
+                        MuzzleOffset = new System.Numerics.Vector3(5.3f, 0f, 0f),   // ⭐ E4 — the 120 mm L/44 barrel from its trunnion
                     });
                     c.SensorRange = 8000;
                 })
                 // ⭐ WL-1 (DESIGN_Weapon_Layers W-9) — the turret: pivot aft of centre, −10…+20° gun, 40°/s traverse.
-                .WithTurrets(TkbEntityTypes.Tank_M1Abrams, new TurretDto { PivotX = -0.4f, PivotZ = 1.9f,
+                .WithTurrets(TkbEntityTypes.Tank_M1Abrams, new TurretDto { PivotX = -0.55f, PivotZ = 1.9f, TrunnionX = 1.65f,
                     ElevationMinDeg = -10f, ElevationMaxDeg = 20f, TraverseRateDegPerSec = 40f, ElevationRateDegPerSec = 10f })
                 .WithFaction(TkbEntityTypes.Tank_M1Abrams, 1)
                 .WithBehavior(TkbEntityTypes.Tank_M1Abrams)
@@ -96,13 +97,15 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorSide = 60;
                     c.ArmorRear = 40;
                     c.Weapons.Add(new WeaponMount { WeaponType = "25mm_M242", Ammunition = 300, Range = 2500, RateOfFire = 200, Penetration = 60, DamagePerHit = 60,
-                        Category = WeaponCategory.Autocannon, TurretIndex = 0 });   // ⭐ WL-1 — the 25 mm and the TOW share one turret
+                        Category = WeaponCategory.Autocannon, TurretIndex = 0,   // ⭐ WL-1 — the 25 mm and the TOW share one turret
+                        MuzzleOffset = new System.Numerics.Vector3(2.6f, 0f, 0f) });   // ⭐ E4
 
                     c.Weapons.Add(new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 7, Range = 3750, RateOfFire = 2, Penetration = 800, DamagePerHit = 2000,
-                        Category = WeaponCategory.Atgm, TurretIndex = 0 });
+                        Category = WeaponCategory.Atgm, TurretIndex = 0,
+                        MuzzleOffset = new System.Numerics.Vector3(0.4f, 1.0f, 0.35f) });   // ⭐ E4 — the launcher on the turret's left
                     c.SensorRange = 5000;
                 })
-                .WithTurrets(TkbEntityTypes.IFV_Bradley, new TurretDto { PivotX = 0f, PivotZ = 2.3f,
+                .WithTurrets(TkbEntityTypes.IFV_Bradley, new TurretDto { PivotX = -0.33f, PivotZ = 2.3f, TrunnionX = 0.65f,
                     ElevationMinDeg = -10f, ElevationMaxDeg = 60f, TraverseRateDegPerSec = 60f, ElevationRateDegPerSec = 30f })
                 .WithFaction(TkbEntityTypes.IFV_Bradley, 1)
                 .WithBehavior(TkbEntityTypes.IFV_Bradley)
@@ -163,10 +166,11 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorSide = 250;
                     c.ArmorRear = 150;
                     c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8, Penetration = 600, DamagePerHit = 1100,
-                        Category = WeaponCategory.TankGun, TurretIndex = 0 });   // ⭐ WL-1
+                        Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1
+                        MuzzleOffset = new System.Numerics.Vector3(6.0f, 0f, 0f) });   // ⭐ E4 — the 125 mm L/48 barrel
                     c.SensorRange = 6000;
                 })
-                .WithTurrets(TkbEntityTypes.Tank_T72, new TurretDto { PivotX = 0.2f, PivotZ = 1.75f,
+                .WithTurrets(TkbEntityTypes.Tank_T72, new TurretDto { PivotX = -0.3f, PivotZ = 1.75f, TrunnionX = 1.2f,
                     ElevationMinDeg = -6f, ElevationMaxDeg = 14f, TraverseRateDegPerSec = 24f, ElevationRateDegPerSec = 6f })
                 .WithFaction(TkbEntityTypes.Tank_T72, 2)
                 .WithBehavior(TkbEntityTypes.Tank_T72)

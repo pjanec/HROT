@@ -233,7 +233,7 @@ firing — beside `AimAndFire` and `FireAtPoint`; releasing the channel sets the
 | **WL-2** | `WeaponTask` / `WeaponTaskStatus` descriptors; the muscle's `WeaponTaskDispatcher` with **Track**; `BallisticAim` | a tank keeps its gun on a moving target |
 | **WL-3** | **Engage** on the muscle through `FireProcessingSystem`; the executor split + the default profile; rounds granted / fired; `TrackTarget` on the channel | a tank slews, then fires 3 rounds; behaviours unchanged |
 | **WL-4** | category profiles (tank gun, autocannon, ATGM, mortar, small arms); ammo choice | per-category gunnery |
-| **B5** | `Muzzle.Of` from the posed barrel — the round, the flash and the tracer from one point | VE-K |
+| **B5** ✅ | `Muzzle.Of` from the posed barrel — the round, the flash and the tracer from one point (built, DESIGN_Visual_Effects §6b) | VE-K |
 
 ### 5a. As built — WL-1a *(2026-10-11)*
 

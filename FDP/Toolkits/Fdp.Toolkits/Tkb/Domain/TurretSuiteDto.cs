@@ -24,6 +24,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         public float PivotY { get; init; }
         public float PivotZ { get; init; }
 
+        /// <summary>⭐ E4 (DESIGN_Visual_Effects §6b) — the gun's trunnion (its elevation axis) relative to the pivot: forward along
+        /// the turret's facing and up (m). The muzzle offset of a mount on this turret is measured from here.</summary>
+        public float TrunnionX { get; init; }
+        public float TrunnionZ { get; init; }
+
         /// <summary>Traverse limits; −180 … 180 = all round.</summary>
         public float TraverseMinDeg { get; init; } = -180f;
         public float TraverseMaxDeg { get; init; } = 180f;

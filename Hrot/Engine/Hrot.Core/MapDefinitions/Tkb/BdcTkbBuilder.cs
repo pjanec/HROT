@@ -213,6 +213,9 @@ namespace Hrot.Map.Definitions.Tkb
                         DispersionMils    = wm.DispersionMils,   // ⭐ AQ85 C
                         Category          = wm.Category,             // ⭐ WL W-5
                         TurretIndex       = wm.TurretIndex ?? -1,    // ⭐ WL-1 W-9
+                        MuzzleOffsetX     = wm.MuzzleOffset.X,       // ⭐ E4 VE-K
+                        MuzzleOffsetY     = wm.MuzzleOffset.Y,
+                        MuzzleOffsetZ     = wm.MuzzleOffset.Z,
                     });
                 }
                 template.AddDescriptor(suite);

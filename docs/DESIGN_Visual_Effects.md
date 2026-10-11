@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 waits for the turret (B1). Programme index: PLAN_3D_World_And_Realism.md.
+build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b) — all slices done. Programme index: PLAN_3D_World_And_Realism.md.
 updated: 2026-10-11
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built.
+current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`).
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -256,4 +256,55 @@ ages effects by the **replayed** time it stepped (paused ⇒ frozen); the other 
 kernel's per-module accumulated delta (`ModuleHostKernel.cs:689`), which is the same delta every other module gets.
 · Effect sets live on the AMMO type (VE-D) and only two built-in ammo types exist; every other mount resolves by calibre class.
 **Gates:** `EffectTests` (Hrot.Presentation.Tests) · frame rail shot ⑧ `map3d-8-effects.png` · IG module rails updated.
+
+### 6b. E4 — `Muzzle.Of`: the round, the flash, the tracer and the drawn barrel tip from ONE point *(✅ built `2026-10-11` as drawn; VE-J..VE-L)*
+
+E4 is split: **E4a** = `Muzzle.Of` and its three readers (the fire code, the flash, the tracer); **E4b** = the kit's turret and gun
+placed FROM the TKB, so the drawn barrel tip IS `Muzzle.Of` (VE-L, a 5 cm rail).
+
+```mermaid
+classDiagram
+  class Muzzle { <<new, Fdp.Toolkits Combat>> TryOf(world, shooter, weaponIndex, out point) }
+  class TurretDto { <<exists TKB>> Pivot; + TrunnionX, TrunnionZ (from the pivot) }
+  class WeaponMountDto { <<exists TKB>> TurretIndex; MuzzleOffsetX/Y/Z (from the trunnion) }
+  class TurretParts { <<exists>> PoseOf }
+  class FireProcessingSystem { <<exists>> the round leaves from Muzzle.TryOf, else today's eye + 1 m }
+  class EffectLayer { <<exists>> the flash and tracer at Muzzle.TryOf, else the interim box front }
+  class KitFromTkb { <<new, E4b, Hrot.Presentation Map3D>> pivots and gun part from TurretDto + mount 0 }
+  class EntityBodyLayer3D { <<exists>> draws the TKB-placed kit }
+  Muzzle ..> TurretDto
+  Muzzle ..> WeaponMountDto
+  Muzzle ..> TurretParts : pose
+  FireProcessingSystem ..> Muzzle
+  EffectLayer ..> Muzzle
+  KitFromTkb ..> TurretDto
+  KitFromTkb ..> WeaponMountDto
+  EntityBodyLayer3D ..> KitFromTkb
+```
+
+```mermaid
+sequenceDiagram
+  participant M as Muzzle.TryOf
+  M->>M: mount = the type's mount, turret = its TurretDto (none: offset from the hull, no offset: false)
+  M->>M: p = pivot + trunnion + muzzle offset (hull frame, metres from the reference point)
+  M->>M: elevate p about the trunnion (TurretPose.Elevation), then turn it about the pivot axis (TurretPose.Azimuth)
+  M->>M: place it with the hull's SimTransform
+```
+
+*What the pictures show that prose hid:* `Muzzle.TryOf` applies the SAME two rotations, in the same order, as the kit's
+`KitPart.BodyTransform` does to the gun part (elevation about the trunnion, then azimuth about the turret axis), so once E4b places the
+kit from the same numbers the drawn tip and the computed muzzle cannot disagree. A type with no muzzle data answers false, and every
+reader keeps its present behaviour — a rifleman's round still starts at his eye + 1 m.
+
+| choice | why | rejected — one line each |
+|---|---|---|
+| the trunnion is a TKB offset from the pivot (`TrunnionX/Z`), default 0 | a gun elevates about a point FORWARD of the turret axis (the kit already draws it so) | trunnion = pivot — the drawn barrel would swing about the turret centre |
+| the round's aim point is still chosen from the EYE (`AimPoint.For`, what the shooter sees); only its launch point moves | the sight question is the shooter's, the flight starts at the barrel | aiming from the muzzle — a hull-down tank would "see" over a crest with its gun |
+| "never past half way" kept: when the barrel is more than half way to the target, the round starts as today | CE-3059 — a round must not spawn beyond / inside a close target | dropping the clamp — point-blank shots would start past the target |
+| `BallisticAim` keeps solving from the pivot | the trunnion–pivot parallax (~1.5 m) is below the 0.5° on-target tolerance beyond ~170 m | moving it now — touches WL-2's rails for no visible gain |
+
+⚠ **As built (E4):** `Muzzle.Of` is `Muzzle.TryOf(world, shooter, weaponIndex, out point)` — false for a type with no muzzle data, so
+every reader keeps its old answer for it (riflemen, unknown types). The kit draws the barrel of the FIRST mount on turret 0 with a
+forward offset (mount 0 on a tank, the 25 mm on the Bradley); the TOW is not drawn, but its rounds and flashes leave from its own
+offset. Gates: `FireProcessingSystemTests.E4_*` (2), `Map3DTests.E4b_TheDrawnBarrelTip_IsTheMuzzle_Within5cm` (3 types).
 

@@ -829,6 +829,43 @@ public sealed class Map3DTests
         Assert.Equal(-1, rifleman.GetDescriptor<WeaponSuiteDto>()!.Mounts[0].TurretIndex);
     }
 
+    // ── E4b — the drawn barrel tip IS Muzzle.Of (docs/DESIGN_Visual_Effects.md VE-L, §6b) ──
+
+    /// <summary>⭐ E4b (VE-L) — for every catalog turreted type, the drawn gun's tip (the kit placed from the TKB, posed by the turret
+    /// part) is within 5 cm of <see cref="Fdp.Toolkit.Combat.Muzzle.TryOf"/> — where the round leaves and the flash and tracer start —
+    /// on a turned, sloped hull with the turret traversed and the gun elevated. (The family kit's own proportions put an M1's tip at
+    /// 5.55 m ahead of the reference point against the TKB's 6.4 m — ~0.85 m off, which is what placing the kit from the TKB removes.)</summary>
+    [Theory]
+    [InlineData(TkbEntityTypes.Tank_M1Abrams)]
+    [InlineData(TkbEntityTypes.Tank_T72)]
+    [InlineData(TkbEntityTypes.IFV_Bradley)]
+    public void E4b_TheDrawnBarrelTip_IsTheMuzzle_Within5cm(long type)
+    {
+        var tkb = HrotEnvironment.CreateTkb();
+        using var w = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(w);
+        w.SetSingletonManaged<ITkbDatabase>(tkb);
+        Assert.True(tkb.TryGetByType(type, out var tpl));
+        var tank = w.CreateEntity();
+        w.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });   // the spawn path stamps it
+        foreach (var t in TkbTranslatorSet.Base()) t.Inject(w, tank, tpl!);
+        var hullRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.7f) * Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.1f);
+        w.SetComponent(tank, new SimTransform { Position = new Vector3(30f, -20f, 4f), Rotation = hullRotation });
+        var turret = Fdp.Toolkit.Combat.TurretParts.Find(w, tank, 0);
+        w.SetComponent(turret, new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = 1.1f, Elevation = 0.15f });
+
+        var bodies = new EntityBodyLayer3D(() => w, () => tkb, new TurretPoseSource().PoseOf);
+        var look = bodies.LookOf(type, tkb);
+        var (parts, pivots) = bodies.PlacedKit(ShapeKits.For(look.Family), type, tkb, look.Size);
+        var gun = parts.First(p => p.Role == PartRole.Gun);
+        var pose = new TurretPoseSource().PoseOf(w, tank);
+        var body = Matrix4x4.CreateFromQuaternion(hullRotation) * Matrix4x4.CreateTranslation(new Vector3(30f, -20f, 4f));
+        var tip = Vector3.Transform(new Vector3(0f, 0f, 1f), gun.BodyTransform(look.Size, pivots, pose) * body);   // the unit cylinder's far end
+
+        Assert.True(Fdp.Toolkit.Combat.Muzzle.TryOf(w, tank, 0, out var muzzle));
+        Assert.True(Vector3.Distance(tip, muzzle) < 0.05f, $"drawn tip {tip} vs muzzle {muzzle}: {Vector3.Distance(tip, muzzle):F3} m");
+    }
+
     // ── CE-1040 — the 2-D map is north-up (docs/DESIGN_Map_North_Up.md) ──
 
     [Fact]

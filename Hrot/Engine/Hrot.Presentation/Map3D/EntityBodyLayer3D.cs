@@ -100,8 +100,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             else
             {
                 var kit = ShapeKits.For(look.Family);
-                parts = kit.Parts;
-                pivots = kit.Pivots;
+                (parts, pivots) = PlacedKit(kit, type, tkb, size);   // ⭐ E4b — the turret and barrel from the TKB (VE-L)
                 if (_poseOf != null && kit.IsArticulated) pose = _poseOf(world, e);
             }
 
@@ -241,6 +240,20 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     public const float AirborneMargin = 5f;
 
     /// <summary>What <paramref name="tkbType"/> looks like: its family, TKB size (else the family's) and colour.</summary>
+    private readonly Dictionary<(long Type, Vector3 Size), (KitPart[] Parts, KitPivots Pivots)> _placedKits = new();
+    private ITkbDatabase? _placedKitsTkb;
+
+    /// <summary>⭐ E4b — the kit for <paramref name="type"/> placed from its TKB turret data (<see cref="KitFromTkb"/>), cached per
+    /// type and size; the family kit when the type has none.</summary>
+    public (KitPart[] Parts, KitPivots Pivots) PlacedKit(ShapeKit kit, long type, ITkbDatabase? tkb, Vector3 size)
+    {
+        if (!ReferenceEquals(tkb, _placedKitsTkb)) { _placedKits.Clear(); _placedKitsTkb = tkb; }
+        if (_placedKits.TryGetValue((type, size), out var placed)) return placed;
+        placed = KitFromTkb.For(kit, tkb != null && tkb.TryGetByType(type, out var t) ? t : null, size);
+        _placedKits[(type, size)] = placed;
+        return placed;
+    }
+
     public TypeLook LookOf(long tkbType, ITkbDatabase? tkb)
     {
         if (_looks.TryGetValue(tkbType, out var look)) return look;
