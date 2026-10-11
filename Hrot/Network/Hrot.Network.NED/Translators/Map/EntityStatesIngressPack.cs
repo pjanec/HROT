@@ -61,6 +61,7 @@ public class EntityStatesIngressPack : IEcsModule
             // ⭐ WL-6 (W-13d, R-272) — the weapon brain's posture: a pure IG skips the shared pack's ingress (NedReplicationModule's
             //   !pureIg guard), so the figure would never leave "at ease" — measured on the cluster rail, 2026-10-11.
             new EntityWeaponPostureIngressTranslator(participant, entityMap),
+            new EntityPossessedByIngressTranslator(participant, entityMap),   // ⭐ CE-3172 S4e — a station sees who holds a unit
         };
     }
 

@@ -114,13 +114,16 @@ public sealed class FdpLocationPickerGizmo : IEntityStatefulGizmo
     {
         if (button == MapMouseButton.Left && !isPressed)
         {
-            _onPicked(new Vector2(worldPos.X, worldPos.Y));
+            // ⭐ Remove FIRST, then complete: the pick's task runs its continuations on the pool (PickerToolHost), so a caller awaiting
+            //   it could resume before the tool underneath was restored — the rail CompletingAPickResumesTheToolUnderneath reddened
+            //   intermittently (measured 2026-10-11). Removing first restores it before anyone can observe the result.
             _onRemove();
+            _onPicked(new Vector2(worldPos.X, worldPos.Y));
         }
         else if (button == MapMouseButton.Right && isPressed)
         {
-            _onCancelled?.Invoke();
             _onRemove();
+            _onCancelled?.Invoke();
         }
     }
 
@@ -129,8 +132,8 @@ public sealed class FdpLocationPickerGizmo : IEntityStatefulGizmo
     {
         if (key == MapKeyboardKey.Escape && isPressed)
         {
-            _onCancelled?.Invoke();
             _onRemove();
+            _onCancelled?.Invoke();
         }
     }
 

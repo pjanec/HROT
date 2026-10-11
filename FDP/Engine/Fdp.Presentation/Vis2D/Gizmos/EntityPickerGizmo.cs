@@ -147,9 +147,9 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Left released on valid target: fire <c>onPicked</c> then <c>onRemove</c>.
+    /// Left released on valid target: <c>onRemove</c>, then <c>onPicked</c> (remove first — the awaiting caller resumes on the pool).
     /// Left released with no valid target: do nothing (wait for a valid target).
-    /// Right pressed: fire <c>onCancelled</c> then <c>onRemove</c>.
+    /// Right pressed: <c>onRemove</c>, then <c>onCancelled</c>.
     /// </remarks>
     public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
     {
@@ -157,14 +157,15 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
         {
             if (_hoveredValid)
             {
-                _onPicked(_hoveredEntity);
-                _onRemove();
+                var picked = _hoveredEntity;
+                _onRemove();            // ⭐ remove first: a pool-thread continuation must see the tool underneath restored
+                _onPicked(picked);
             }
         }
         else if (button == MapMouseButton.Right && isPressed)
         {
-            _onCancelled();
             _onRemove();
+            _onCancelled();
         }
     }
 
@@ -173,8 +174,8 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
     {
         if (key == MapKeyboardKey.Escape && isPressed)
         {
-            _onCancelled();
             _onRemove();
+            _onCancelled();
         }
     }
 

@@ -215,7 +215,9 @@ namespace Fdp.Toolkit.Behavior.Possession
         private static bool HeldBy(EntityRepository repo, Entity unit, long station)
             => repo.HasComponent<PossessedBy>(unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId == station;
 
-        private static bool OwnsBrain(EntityRepository repo, Entity unit)
+        /// <summary>This node runs <paramref name="unit"/>'s brain — it applies possession events about it (the interaction codecs
+        /// send the rest to the node that does).</summary>
+        public static bool OwnsBrain(EntityRepository repo, Entity unit)
             => repo.IsAlive(unit) && repo.HasComponent<BehaviorState>(unit) && repo.HasAuthority<BehaviorState>(unit);
 
         private static bool Alive(EntityRepository repo, Entity unit)

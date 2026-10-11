@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4a-S4c built (§8b design, §13 as-built); S4d-S4e, S5 READY-TO-BUILD (M-1..M-10 approved, R-271 (backend))
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 READY-TO-BUILD (M-1..M-10 approved, R-271 (backend))
 current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive)
 stale-below: nothing
 known-rot: nothing yet
@@ -521,6 +521,106 @@ arrow OUT is replicated state, so the same code runs in the editor (one node) an
 ⚠ **Stated, not hidden:** control frames ride a Reliable/KeepAll topic. M-6's *newest seq wins* makes a late or doubled frame harmless; a
 lossy KeepLast topic per station would cut latency under load and is a later tuning, not a correctness change.
 
+## 8d. S5 DETAIL — the FPS station: camera, controls, HUD (`CE-3174`, designed `2026-10-11` after the inventory)
+
+📐 **INVENTORY** — what exists, and what it decides *(queries: `search_graph` `.*(InputProvider|CameraDriver|Hud).*` Class → 5
+hits, no camera driver and no HUD exists; grep of `: IInputProvider` → 1 production + 3 test implementers; `AttachMapLayers(` → 5
+hosts)*:
+
+| fact | where | so |
+|---|---|---|
+| the canvas hands the WHOLE input provider to the camera BEFORE any layer, and a consumed input skips every click and context menu | `MapCanvas.cs:253`, `:256-270` | ⭐ **a camera driver that consumes input IS the exclusive focus** — §3.2's separate `PossessionTool` is not needed (rejected below) |
+| every map host attaches its 3-D view through ONE function | `MapInteractionPack.AttachMapLayers` (5 callers) | the station layer is attached THERE — no per-host wiring (CE-1033's rule) |
+| `MapCameraLayer` writes the scenario camera once the view is still | `MapCameraLayer.cs:149-178` | it must not save while a driver drives (M-9, acceptance "the scenario camera is unchanged") |
+| one production input provider; `IInputProvider` has no cursor control | `RaylibInputProvider` | `SetCursorLocked` as a DEFAULT interface member — the test fakes need no change |
+| the eye height of a person by posture | `TerrainWorldLosStrategy.EyeHeightFor` + `LogicalStance.Of` | the FPS eye is the same eye perception uses |
+| a person vs a vehicle | `VehicleParams.Class == Pedestrian` (`CarKinematicsSystem.cs:327`) | the driver's axes: strafe + yaw, or throttle + steer |
+| ammunition lives only on the brain (`WeaponState`, mount children) | no ammo on the wire (`SimDescriptors.cs`) | C-7: a NEW `WeaponAmmo` (Brain group) mirrored from `WeaponState` |
+| health already crosses (`dtEntityDamage` → `Health`) | `SimDescriptors.cs:51` | the HUD reads `Health` as is |
+| free action ids 255–259 on every lane | `GlobalActionIds.cs` (census) | `Possess` = 255 |
+
+```mermaid
+classDiagram
+    direction LR
+    class ICameraDriver { <<NEW, Vis3D>> Update(cam, dt) · HandleInput(cam, input) bool }
+    class MapCamera3D { <<existing>> + Driver }
+    class IInputProvider { <<existing>> + SetCursorLocked(bool) default no-op }
+    class MapCameraLayer { <<existing>> no save while a driver drives }
+    class PossessionStation { <<NEW IMapLayer, every map host>> watches PossessedBy · Enter / Leave FPS · HUD overlay }
+    class FpsCameraDriver { <<NEW>> eye on the unit · mouse look · samples WASD, wheel, LMB, V, Esc }
+    class EntityOrders { <<existing>> Possess · Unpossess · Control · StationFor }
+    class PossessedBy { <<existing, replicated>> }
+    class WeaponAmmo { <<NEW component, Brain group>> per mount Ammo · Max }
+    class WeaponAmmoMirrorSystem { <<NEW, brain>> WeaponState ⇒ WeaponAmmo on change }
+    class MenuOrders { <<existing>> + Possess (255) }
+    FpsCameraDriver ..|> ICameraDriver
+    MapCamera3D o-- ICameraDriver
+    PossessionStation --> FpsCameraDriver : creates on Enter
+    PossessionStation ..> PossessedBy : reads
+    PossessionStation --> EntityOrders
+    FpsCameraDriver --> PossessionStation : frames, release
+    PossessionStation ..> WeaponAmmo : HUD reads
+    WeaponAmmoMirrorSystem --> WeaponAmmo : the one writer
+    MenuOrders --> EntityOrders : Possess
+```
+
+*What the picture shows that the prose hid:* the station never decides it is in FPS — it **follows the replicated `PossessedBy`**, so a
+possess from the menu, from HTTP, or a take-over by another station all land the same way, and a lost unit leaves FPS by itself.
+
+```mermaid
+sequenceDiagram
+    participant U as Operator
+    participant M as MenuOrders
+    participant B as Brain (PossessionSystem)
+    participant P as PossessionStation (layer)
+    participant D as FpsCameraDriver
+    U->>M: unit menu › Possess (FPS)
+    M->>B: EntityOrders.Possess (the bus, the interaction topic off-node)
+    B-->>P: PossessedBy = this station (replicated)
+    P->>P: remember the view (pose, 2-D/3-D) · switch to 3-D · Camera3D.Driver = D
+    loop each frame
+        D->>D: HandleInput: mouse look · WASD / wheel / LMB · cursor locked
+        D->>B: EntityOrders.Control(frame)
+        D->>D: Update: eye = unit + eye height, the look
+        P->>P: DrawOverlay: crosshair · health · ammo per mount
+    end
+    U->>D: Esc
+    D->>B: EntityOrders.Unpossess
+    B-->>P: PossessedBy removed
+    P->>P: Driver = null · cursor unlocked · the remembered view restored (never saved)
+```
+
+```mermaid
+graph TD
+    AML[MapInteractionPack.AttachMapLayers — every map host] --> PS[PossessionStation layer]
+    AML --> MCL[MapCameraLayer]
+    CAN[MapCanvas — every frame] -->|Camera.Update / HandleInput| CAM[MapCamera3D]
+    CAM -->|when Driver set| FPS[FpsCameraDriver]
+    CAN -->|layer Update / DrawOverlay| PS
+    MIP[MapInteractionPack.Build] --> MO[MenuOrders + Possess 255]
+    CGF[CgfLogicPack — brain hosts] --> WAM[WeaponAmmoMirrorSystem]
+    WAM -->|dtWeaponAmmo| PS
+```
+
+*Caption:* every arrow into the station comes from code that already runs on every map host each frame — the canvas and the shared
+attach — so there is no host on which FPS could be silently missing.
+
+| new | id | why |
+|---|---|---|
+| `WeaponAmmo` component | **365** | per mount (up to 4) ammo + max, Brain group |
+| `dtWeaponAmmo` → `EntityWeaponAmmo` | descriptor **130** | C-7 |
+| `GlobalActionIds.Possess` | **255** | the unit menu item |
+
+**Rejected — one line each:**
+- *A separate `PossessionTool` (exclusive gizmo)* — the camera already takes input before every layer (`MapCanvas.cs:253`); a second
+  focus owner would duplicate what consuming in the driver does.
+- *The station entering FPS from the menu click* — then HTTP possession and take-overs would not show; following `PossessedBy` covers all.
+- *A second camera class* — M-9: gizmos, labels and pickers draw only for `MapCamera3D`.
+- *Ammo read from the brain's `WeaponState` over HTTP* — a station on another node has no `WeaponState` (C-7).
+
+⚠ **Deferred, stated:** a vehicle's turret-mounted eye (the view from the turret pose) — v1 puts the eye on the hull; the hull-locked
+`V` view steers with the mouse as M-3 says. The `(V)` screenshot acceptance needs a windowed run.
+
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
 | design said | built | why |
@@ -688,7 +788,27 @@ its padding) and `Point` (fills the 32 bytes). No second weapon executor.
 every round spent once) · `DebugApiOrdersTests` CE3172 ×1 (a possessed HoldFire rifleman fires at the aim point while the trigger is
 held, holds when released, stops for good on release of the possession).
 
-⏭ **Still open in S4:** ~~S4d operator fire~~ (built, §13.1); S4e the `ManualDrive` + `PossessedBy` descriptors and the `Possess` / `Release` / `ControlFrame` interaction
+### 13.2 AS-BUILT — S4e possession on a cluster (`CE-3172` + `CE-3173`, `2026-10-11`)
+
+⭐ **Built as §8c draws it** — `dtManualDrive` (128) and `dtPossessedBy` (129) in the Brain group, the `Possess` (5) ·
+`ReleasePossession` (6) · `ControlFrame` (7) interaction cases, codecs keyed on `PossessionSystem.OwnsBrain`.
+
+| as-built detail | why |
+|---|---|
+| `EntityPossessedBy.Held`: the egress sends ONE `Held = 0` when the component leaves the brain; the ingress removes it | a release must reach every station, and a TransientLocal topic keeps the last sample per key — a disposal alone would not tell a late joiner |
+| ⚠ the `ManualDrive` ingress takes the latest sample, with NO `Seq` check | the one writer is the brain (samples in order); its let-go and a new station both restart the sequence, so a seq check would DROP the stop — M-6's newest-seq rule stays the brain's, on the frames it receives. (Found while writing the translator, before any test ran) |
+| `PossessedBy` ingress also in `EntityStatesIngressPack` | a pure IG skips the shared pack's ingress (the WL-6 lesson): without it no IG station would see who holds a unit |
+| the three possession events and both components registered in `HrotSharedComponentRegistry` | the R-221 rule: each kind's event on every host |
+
+📐 **Rails:** `InteractionTransportTests` CE3172 (possess, frame and release cross as their cases and arrive as the same events, marked
+remote, every axis intact) · `PossessionReplicationTests` ×2 (axes applied on the muscle, the let-go lands; `PossessedBy` set, taken
+over, removed by one release sample) · ⭐ `EntityOrdersAcrossNodesTests` CE3172 — **a live 4-node cluster**: SimHost possesses the
+Rifleman, CGF runs `OperatorControl` at origin Possession, the body walks 1.5 m on SimHost, the IG sees the hold, release resumes the
+task and every node forgets it.
+
+⏭ **S4 is complete.** M-5 (the navmesh refusal) is `CE-3181`. Next: S5 (`CE-3174`).
+
+⏭ ~~**Still open in S4:** ~~S4d operator fire~~ (built, §13.1); S4e the `ManualDrive` + `PossessedBy` descriptors and the `Possess` / `Release` / `ControlFrame` interaction
 cases (until then possession works where the station, brain and muscle share a world — the editor). M-5 (the navmesh wall check)
 did not land: the muscle's manual branch has no navmesh reach today — it stays its own row.
 

@@ -65,6 +65,10 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.WeaponTask);
         // ⭐ WL-6 (W-13c, R-272) — the weapon brain's at ease / ready / aimed (dtWeaponPosture).
         brain.SetBit(GlobalComponentIds.WeaponPosture);
+        // ⭐ CE-3172 / CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c) — possession: the operator's axes (dtManualDrive, written by
+        //   OperatorControl) and who holds the unit (dtPossessedBy, PossessionSystem the one writer). OperatorInput stays brain-local.
+        brain.SetBit(GlobalComponentIds.ManualDrive);
+        brain.SetBit(GlobalComponentIds.PossessedBy);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);

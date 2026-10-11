@@ -100,6 +100,69 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(writer.Written);
         }
 
+        /// <summary>
+        /// ⭐ CE-3172 S4e (docs/DESIGN_Entity_Control.md §8c) — possession crosses as three union cases: a station that does not run the
+        /// unit's brain sends its request, frame and release; the brain owner receives the same typed events, marked remote, with the
+        /// station's node id and every control axis intact.
+        /// </summary>
+        [Fact]
+        public void CE3172_PossessControlRelease_CrossAsTheirUnionCases_AndArriveAsTheSameEvents_MarkedRemote()
+        {
+            using var station = new EntityRepository();
+            station.RegisterEvent<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
+            station.RegisterEvent<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>();
+            station.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
+            var map = new NetworkEntityMap();
+            var unit = station.CreateEntity();   // no BehaviorState here: the brain runs elsewhere
+            map.Register(900L, unit);
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+
+            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent
+                { Unit = unit, StationNodeId = 300, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps });
+            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent
+            {
+                Unit = unit, StationNodeId = 300, Seq = 7, Forward = 1f, Lateral = -0.5f, Steer = 0.25f, Yaw = 1.5f, Gait = 1,
+                Trigger = 1, Mount = 2, AimPoint = new System.Numerics.Vector3(10f, 20f, 3f),
+            });
+            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent { Unit = unit, StationNodeId = 300 });
+            station.Bus.SwapBuffers();
+            egress.ScanAndPublish(station);
+
+            Assert.Equal(3, writer.Written.Count);
+            Assert.All(writer.Written, w => Assert.Equal(900L, w.TargetId));
+            Assert.Contains(writer.Written, w => w.Payload.Kind == EInteractionKind.Possess && w.Payload.Possess.StationNodeId == 300);
+            Assert.Contains(writer.Written, w => w.Payload.Kind == EInteractionKind.ControlFrame && w.Payload.ControlFrame.Seq == 7);
+            Assert.Contains(writer.Written, w => w.Payload.Kind == EInteractionKind.ReleasePossession);
+
+            using var brain = new EntityRepository();
+            brain.RegisterEvent<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
+            brain.RegisterEvent<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>();
+            brain.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
+            var brainMap = new NetworkEntityMap();
+            var brainsUnit = brain.CreateEntity();
+            brainMap.Register(900L, brainsUnit);
+            var ingress = new InteractionIngressTranslator(participant: null, brainMap);
+            using var cmd = new EntityCommandBuffer();
+            foreach (var sample in writer.Written) ingress.ProcessSample(in sample, cmd);
+            cmd.Playback(brain);
+            brain.Bus.SwapBuffers();
+
+            var possess = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>().ToArray());
+            Assert.Equal(brainsUnit, possess.Unit);
+            Assert.Equal(300L, possess.StationNodeId);
+            Assert.Equal(Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, possess.Mode);
+            Assert.True(possess.IsRemote);
+            var frame = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>().ToArray());
+            Assert.Equal((7u, 1f, -0.5f, 0.25f, 1.5f, (byte)1, (byte)1, (byte)2), (frame.Seq, frame.Forward, frame.Lateral, frame.Steer,
+                frame.Yaw, frame.Gait, frame.Trigger, frame.Mount));
+            Assert.Equal(new System.Numerics.Vector3(10f, 20f, 3f), frame.AimPoint);
+            Assert.True(frame.IsRemote);
+            var release = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>().ToArray());
+            Assert.Equal(300L, release.StationNodeId);
+            Assert.True(release.IsRemote);
+        }
+
         [Fact]
         public void R221_AKindThisBuildDoesNotKnow_IsDroppedAndCounted()
         {

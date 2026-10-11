@@ -97,6 +97,12 @@ namespace Hrot.Map.Common.Translators
             // ⭐ WL-6 (W-13d, R-272) — the weapon brain's posture of a unit's weapon, the dtWeaponPosture owner (the Brain) → every node.
             yield return new EntityWeaponPostureEgressTranslator(participant, entityMap);
             yield return new EntityWeaponPostureIngressTranslator(participant, entityMap);
+            // ⭐ CE-3172 / CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c) — possession: the operator's axes (Brain → the Muscle) and
+            //   who holds the unit (Brain → every node).
+            yield return new EntityManualDriveEgressTranslator(participant);
+            yield return new EntityManualDriveIngressTranslator(participant, entityMap);
+            yield return new EntityPossessedByEgressTranslator(participant);
+            yield return new EntityPossessedByIngressTranslator(participant, entityMap);
             // ⭐ R-221 — every interaction kind (doors first) travels to the target's owner on ONE topic; the kind's handler applies it there.
             yield return new Hrot.Map.Common.Replication.Interactions.InteractionEgressTranslator(participant, entityMap);
             yield return new Hrot.Map.Common.Replication.Interactions.InteractionIngressTranslator(participant, entityMap);
