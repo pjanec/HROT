@@ -135,6 +135,95 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     }
 }
 
+/// <summary>
+/// ⭐⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P, R-269) — <b>a vehicle that is destroyed burns:</b> when a VEHICLE's Health
+/// crosses from above zero to zero, this makes two effect entities attached to its body (<see cref="EffectAnchorKind.Body"/>) —
+/// flames (<see cref="EffectTkbCatalog.Fire"/>, ≈ 60 s) and smoke (<see cref="EffectTkbCatalog.Smoke"/>, ≈ 180 s, fading) — each with a
+/// <see cref="Lifespan"/>, so <see cref="LifespanSystem"/> removes them. On every map host, like <see cref="EffectSpawnSystem"/>:
+/// Health reaches every node, so each host makes its own.
+/// <list type="bullet">
+///   <item>Only a CROSSING burns: an entity first seen already destroyed (a scenario saved with a wreck, a late-joining host) does
+///   not (VE-P: "a wreck loaded already dead does not burn").</item>
+///   <item>Soldiers do not burn — only a type whose drawn body is a vehicle family (<see cref="EntityBodyLayer3D.Resolve"/>).</item>
+///   <item>⛔ OFF during a replay (<see cref="IsReplayActive"/>, VE-R): the recording holds the flames; and its memory is dropped, so
+///   coming back live cannot mistake the replayed wrecks for fresh kills.</item>
+/// </list>
+/// </summary>
+[UpdateInPhase(SystemPhase.PostSimulation)]
+public sealed class WreckSpawnSystem : IEcsModuleSystem
+{
+    private readonly Dictionary<Entity, bool> _wasDestroyed = new();
+    private readonly HashSet<Entity> _seen = new();
+    private readonly List<Entity> _gone = new();
+    private readonly Dictionary<long, bool> _burns = new();
+    private EntityRepository? _queryWorld;
+    private EntityQuery? _query;
+
+    /// <summary>Effect entities made in the last tick — the rail's counter.</summary>
+    public int Spawned { get; private set; }
+
+    /// <summary>True while this node's world is driven by a replay ⇒ the system does nothing and forgets (VE-R); null ⇒ never.</summary>
+    public Func<bool>? IsReplayActive { get; set; }
+
+    public void Execute(ISimulationView view, float deltaTime)
+    {
+        Spawned = 0;
+        if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()
+            || !world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() || !world.IsComponentTypeRegistered<TkbIdentity>()) return;
+        if (IsReplayActive?.Invoke() == true) { _wasDestroyed.Clear(); return; }
+        if (!ReferenceEquals(world, _queryWorld))
+        {
+            _queryWorld = world;
+            _query = world.Query().With<Fdp.Toolkit.Combat.Components.Health>().With<TkbIdentity>().With<SimTransform>().Build();
+            _wasDestroyed.Clear();
+            _burns.Clear();
+        }
+        var tkb = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
+        var cmd = view.GetCommandBuffer();
+        double now = SimClock.Of(world).TotalTime;
+        _seen.Clear();
+        foreach (var e in _query!)
+        {
+            _seen.Add(e);
+            bool destroyed = world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Current <= 0f;   // CombatLife.IsDestroyed, alive by the query
+            if (destroyed && _wasDestroyed.TryGetValue(e, out bool was) && !was && Burns(tkb, world.GetComponentRO<TkbIdentity>(e).TkbType))
+            {
+                var at = world.GetComponentRO<SimTransform>(e).Position;
+                Spawn(cmd, tkb, EffectTkbCatalog.Fire, e, at, now);
+                Spawn(cmd, tkb, EffectTkbCatalog.Smoke, e, at, now);
+            }
+            _wasDestroyed[e] = destroyed;
+        }
+        if (_wasDestroyed.Count > _seen.Count)
+        {
+            _gone.Clear();
+            foreach (var e in _wasDestroyed.Keys) if (!_seen.Contains(e)) _gone.Add(e);
+            foreach (var e in _gone) _wasDestroyed.Remove(e);
+        }
+    }
+
+    /// <summary>A vehicle burns; a person, a unit with no body, or a type the TKB does not know does not.</summary>
+    private bool Burns(ITkbDatabase? tkb, long type)
+    {
+        if (_burns.TryGetValue(type, out bool burns)) return burns;
+        var family = Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(tkb != null && tkb.TryGetByType(type, out var t) ? t : null).Family;
+        return _burns[type] = family is not (Hrot.UI.Common.Map3D.VisualFamily.Person or Hrot.UI.Common.Map3D.VisualFamily.Unit
+                                             or Hrot.UI.Common.Map3D.VisualFamily.Unknown);
+    }
+
+    private void Spawn(IEntityCommandBuffer cmd, ITkbDatabase? tkb, long type, Entity wreck, Vector3 at, double now)
+    {
+        if (EffectTkbCatalog.VisualOf(tkb, type) is not { } look) return;
+        var e = cmd.CreateEntity();
+        cmd.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        cmd.AddComponent(e, new TkbIdentity { TkbType = type });
+        cmd.AddComponent(e, Lifespan.Starting(now, look.Duration));
+        cmd.AddComponent(e, new EffectAnchor { Shooter = wreck, Kind = EffectAnchorKind.Body });
+        cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved with the scenario
+        Spawned++;
+    }
+}
+
 // ⛔ RETIRED (W1, docs/DESIGN_Visual_Effects.md §7 VE-Q): `EffectLifetimeSystem` — it aged every effect by the frame delta and removed
 //    it at its Duration. The generic Fdp.Toolkit.Time.LifespanSystem removes effects now (by sim time, so a replay jump or a rewind
 //    is right with no catch-up); the orphan and decal-cap rules it also carried moved into EffectSpawnSystem.Housekeep.

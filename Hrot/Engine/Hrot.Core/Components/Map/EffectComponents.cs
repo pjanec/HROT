@@ -18,7 +18,8 @@ namespace Hrot.Map.Common.Components;
 [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoPreview)]
 public struct EffectAnchor
 {
-    /// <summary>The entity that fired.</summary>
+    /// <summary>The entity it is attached to: the one that FIRED (<see cref="EffectAnchorKind.Muzzle"/>) or the burning WRECK
+    /// (<see cref="EffectAnchorKind.Body"/>). Gone ⇒ the effect ends.</summary>
     public Entity Shooter;
 
     /// <summary>Which of its weapon mounts fired.</summary>
@@ -26,4 +27,18 @@ public struct EffectAnchor
 
     /// <summary>Where the shot was aimed when it was fired (a tracer streaks toward it); zero when unknown.</summary>
     public Vector3 Toward;
+
+    /// <summary>⭐ W3 (VE-P) — WHERE on <see cref="Shooter"/>: its weapon's muzzle (a flash, a tracer) or the top of its body
+    /// (flames and smoke on a wreck).</summary>
+    public EffectAnchorKind Kind;
+}
+
+/// <summary>⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P) — where an attached effect sits on its entity, found every frame.</summary>
+public enum EffectAnchorKind : byte
+{
+    /// <summary>The muzzle of weapon <see cref="EffectAnchor.WeaponIndex"/> (<c>Muzzle.TryOf</c>, E4).</summary>
+    Muzzle = 0,
+
+    /// <summary>The top centre of the entity's drawn body.</summary>
+    Body = 1,
 }

@@ -52,8 +52,10 @@ public sealed class EffectLayer : IMapLayer
     public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
     public Entity? PickEntity(Vector2 worldPos) => null;
 
-    /// <summary>One effect, resolved for drawing: what it is, where, how far through its life, how opaque.</summary>
-    public readonly record struct Resolved(EffectVisualDto Look, Vector3 At, Vector3 Toward, float Phase, float Opacity, Color Colour);
+    /// <summary>One effect, resolved for drawing: what it is, where, how far through its life, how opaque — and (W3) its own seed and
+    /// age in seconds, from which its particles are derived (stateless, VE-P).</summary>
+    public readonly record struct Resolved(EffectVisualDto Look, Vector3 At, Vector3 Toward, float Phase, float Opacity, Color Colour,
+                                           int Seed = 0, float Age = 0f);
 
     /// <summary>Every live effect resolved for drawing — railable without a GL context.</summary>
     public List<Resolved> Resolve()
@@ -80,21 +82,112 @@ public sealed class EffectLayer : IMapLayer
             {
                 var a = world.GetComponentRO<EffectAnchor>(e);
                 if (a.Shooter == Entity.Null || !world.IsAlive(a.Shooter)) continue;   // VE-J: the shooter gone ⇒ the effect ends
-                at = MuzzleOf(world, a.Shooter, a.WeaponIndex, tkb);
-                toward = a.Toward;
+                if (a.Kind == EffectAnchorKind.Body)
+                {
+                    // ⭐ W3 (VE-P) — flames and smoke sit on the wreck's top and scale with its footprint (a car burns smaller than a tank).
+                    at = BodyTopOf(world, a.Shooter, tkb, out float scale);
+                    look = look with { Size = look.Size * scale };
+                }
+                else
+                {
+                    at = MuzzleOf(world, a.Shooter, a.WeaponIndex, tkb);
+                    toward = a.Toward;
+                }
             }
             if (life.IsOver(now)) continue;   // its time passed this frame; LifespanSystem removes it (or the replay already did)
             float remaining = life.Remaining(now);
             float opacity = look.FadeSeconds > 0f && remaining < look.FadeSeconds ? Math.Clamp(remaining / look.FadeSeconds, 0f, 1f) : 1f;
             var colour = ParseRgba(look.ColorHex);
-            list.Add(new Resolved(look, at, toward, life.Phase(now), opacity, colour));
+            list.Add(new Resolved(look, at, toward, life.Phase(now), opacity, colour, Seed: e.Index * 7919 + e.Generation, Age: life.Age(now)));
         }
-        // decals underneath, then bursts, then flashes and tracers
+        // decals underneath, then bursts, then fire, then smoke over it, then flashes and tracers
         list.Sort((x, y) => Order(x.Look.Kind).CompareTo(Order(y.Look.Kind)));
         return list;
     }
 
-    private static int Order(EffectKind k) => k switch { EffectKind.Decal => 0, EffectKind.Explosion => 1, _ => 2 };
+    private static int Order(EffectKind k) => k switch
+    {
+        EffectKind.Decal => 0, EffectKind.Explosion => 1, EffectKind.Fire => 2, EffectKind.Smoke => 3, _ => 4,
+    };
+
+    /// <summary>The tank-sized footprint the Fire / Smoke sizes are written for (m, the longer side).</summary>
+    public const float ReferenceWreckLength = 7f;
+
+    /// <summary>⭐ W3 (VE-P) — the top centre of an entity's drawn body, and how much bigger or smaller than a tank it is (0.4–2).</summary>
+    public Vector3 BodyTopOf(EntityRepository world, Entity body, ITkbDatabase? tkb, out float scale)
+    {
+        scale = 1f;
+        if (_bodies != null && _bodies.TryGetBox(world, body, tkb, out var centre, out var rotation, out var half))
+        {
+            scale = Math.Clamp(2f * MathF.Max(half.X, half.Y) / ReferenceWreckLength, 0.4f, 2f);
+            return centre + Vector3.Transform(new Vector3(0f, 0f, half.Z), rotation);
+        }
+        return world.HasComponent<SimTransform>(body) ? world.GetComponentRO<SimTransform>(body).Position + new Vector3(0, 0, 2f) : Vector3.Zero;
+    }
+
+    /// <summary>One particle of a fire or a smoke column: where, how big, what colour (alpha included).</summary>
+    public readonly record struct Puff(Vector3 At, float Radius, Color Colour);
+
+    /// <summary>The puffs fire burns with, and that smoke is drawn from.</summary>
+    public const int FirePuffs = 10, SmokePuffs = 14;
+
+    /// <summary>
+    /// ⭐ W3 (VE-P) — the particles of a <see cref="EffectKind.Fire"/> or <see cref="EffectKind.Smoke"/>, derived from nothing but the
+    /// effect's seed and age (no particle entities, no per-frame state): puff i runs a loop of its own period, phase-shifted by a hash
+    /// of (seed, i), rising from the anchor; so a replay jump, a pause or a second host draws exactly the same puffs.
+    /// <list type="bullet">
+    ///   <item>Fire: short tongues (0.8 s) rising one size and shrinking, yellow → red; they die down over the last 30 % of its life.</item>
+    ///   <item>Smoke: slow puffs (6 s) rising six sizes, growing, drifting downwind, thinning out; the effect's fade dims the column.</item>
+    /// </list>
+    /// </summary>
+    public static List<Puff> Puffs(in Resolved r)
+    {
+        var list = new List<Puff>();
+        float size = r.Look.Size;
+        if (r.Look.Kind == EffectKind.Fire)
+        {
+            float strength = r.Phase < 0.7f ? 1f : Math.Clamp(1f - (r.Phase - 0.7f) / 0.3f, 0f, 1f);
+            for (int i = 0; i < FirePuffs; i++)
+            {
+                float t = Frac(r.Age / 0.8f + Hash(r.Seed, i));
+                float jx = (Hash(r.Seed, i + 101) - 0.5f) * size * 0.7f, jy = (Hash(r.Seed, i + 211) - 0.5f) * size * 0.7f;
+                var at = r.At + new Vector3(jx * (1f - 0.5f * t), jy * (1f - 0.5f * t), t * size * strength);
+                float radius = size * 0.28f * (1f - 0.6f * t) * (0.4f + 0.6f * strength);
+                var colour = Lerp(new Color(255, 230, 120, 255), new Color(220, 50, 20, 255), t);
+                list.Add(new Puff(at, radius, Fade(colour, (1f - t) * strength * r.Opacity)));
+            }
+        }
+        else if (r.Look.Kind == EffectKind.Smoke)
+        {
+            var downwind = new Vector3(0.8f, 0.6f, 0f);   // a fixed light breeze until weather exists
+            for (int i = 0; i < SmokePuffs; i++)
+            {
+                float t = Frac(r.Age / 6f + Hash(r.Seed, i));
+                float jx = (Hash(r.Seed, i + 307) - 0.5f) * size * 0.5f, jy = (Hash(r.Seed, i + 401) - 0.5f) * size * 0.5f;
+                var at = r.At + new Vector3(jx, jy, size * 0.3f + t * size * 6f) + downwind * (t * t * size * 3f);
+                float radius = size * (0.35f + 1.2f * t);
+                list.Add(new Puff(at, radius, Fade(r.Colour, (1f - t) * r.Opacity)));
+            }
+        }
+        return list;
+    }
+
+    private static float Frac(float x) => x - MathF.Floor(x);
+
+    /// <summary>A stable hash of (seed, i) in [0, 1).</summary>
+    private static float Hash(int seed, int i)
+    {
+        unchecked
+        {
+            uint h = (uint)seed * 0x9E3779B1u ^ (uint)i * 0x85EBCA77u;
+            h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15;
+            return (h & 0xFFFFFF) / (float)0x1000000;
+        }
+    }
+
+    private static Color Lerp(Color a, Color b, float t)
+        => new((byte)(a.R + (b.R - a.R) * t), (byte)(a.G + (b.G - a.G) * t), (byte)(a.B + (b.B - a.B) * t), (byte)(a.A + (b.A - a.A) * t));
+
 
     /// <summary>Where a flash and a tracer start: ⭐ E4 — <see cref="Fdp.Toolkit.Combat.Muzzle.TryOf"/> (the same point the round
     /// left from and the drawn barrel tip); a type with no muzzle data: the front of the shooter's drawn box, in its upper half.</summary>
@@ -150,6 +243,14 @@ public sealed class EffectLayer : IMapLayer
                     if (TracerSpan(r, out var t0, out var t1))
                         Raylib.DrawLineEx(new Vector2(t0.X, t0.Y), new Vector2(t1.X, t1.Y), MathF.Max(r.Look.Size, 1.5f * px), c);
                     break;
+                case EffectKind.Fire:
+                case EffectKind.Smoke:
+                    // ⭐ W3 (VE-P) — seen from above: the smoke column drifts downwind as a trail of thinning puffs, the flames
+                    //   flicker over the wreck; at least a few pixels each, so a far wreck still shows it is burning.
+                    foreach (var puff in Puffs(r))
+                        Raylib.DrawCircleV(new Vector2(puff.At.X, puff.At.Y), MathF.Max(puff.Radius, 2f * px),
+                                           r.Look.Kind == EffectKind.Smoke ? Fade(puff.Colour, 0.6f) : puff.Colour);
+                    break;
             }
         }
         Drawn = effects.Count;
@@ -183,6 +284,16 @@ public sealed class EffectLayer : IMapLayer
                 case EffectKind.Tracer:
                     if (TracerSpan(r, out var t0, out var t1))
                         Raylib.DrawCylinderEx(HrotToRaylib.Position(t0), HrotToRaylib.Position(t1), size / 2f, size / 2f, 4, c);
+                    break;
+                case EffectKind.Fire:
+                    Raylib.BeginBlendMode(BlendMode.Additive);
+                    foreach (var puff in Puffs(r))
+                        Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, puff.Colour);
+                    Raylib.EndBlendMode();
+                    break;
+                case EffectKind.Smoke:
+                    foreach (var puff in Puffs(r))
+                        Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 6, 10, puff.Colour);
                     break;
             }
         }

@@ -256,6 +256,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             scheduled.Add(mi.ActionDispatch.GetType());
             scheduled.Add(mi.DebugStatePatch.GetType());   // ⭐ CE-3123 — the third member of InteractionSystems
             scheduled.Add(mi.EffectSpawn.GetType());       // ⭐ CE-1042 E2 — the effect systems, members four and five
+            scheduled.Add(mi.WreckSpawn.GetType());        // ⭐ W3 — flames and smoke on a fresh wreck
             scheduled.Add(mi.Lifespan.GetType());          // ⭐ W1 — the generic lifespan collector
 
             foreach (Type required in mi.RequiredSystems)
@@ -276,8 +277,9 @@ namespace Hrot.Presentation.Tests.Gizmos
             var missing = mi.Unserviceable(mi.GizmoGroup.GetSystems());
 
             // ⭐ CE-3123 — the debug-state patch is the other non-group member of InteractionSystems, so it is named too;
-            //   ⭐ CE-1042 E2 — and the two effect systems.
-            Assert.Equal(4, missing.Count);
+            //   ⭐ CE-1042 E2 — and the effect systems (W1: the lifespan collector; W3: the wreck spawner).
+            Assert.Equal(5, missing.Count);
+            Assert.Contains(missing, m => m.Contains("WreckSpawnSystem", StringComparison.Ordinal));
             Assert.Contains(missing, m => m.Contains("EffectSpawnSystem", StringComparison.Ordinal));
             Assert.Contains(missing, m => m.Contains("GlobalActionDispatchSystem", StringComparison.Ordinal));
             Assert.Contains(missing, m => m.Contains("DebugStatePatchSystem", StringComparison.Ordinal));

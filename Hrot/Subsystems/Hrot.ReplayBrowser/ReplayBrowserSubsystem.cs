@@ -112,6 +112,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
     // ⭐ CE-1042 E2 — the realism effects, driven here like the other map systems (this host runs them from Update).
     private Hrot.UI.Common.Effects.EffectSpawnSystem? _effectSpawn;
     private Fdp.Toolkit.Time.LifespanSystem? _lifespan;
+    private Hrot.UI.Common.Effects.WreckSpawnSystem? _wreckSpawn;
     private Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer? _gizmoLayer;
     private Fdp.Core.FdpEventBus? _interactionBus;
     private Hrot.Common.Systems.GlobalActionDispatchSystem? _actionDispatchSystem;
@@ -229,6 +230,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             _statelessGizmoSystem  = mapInteraction.StatelessSystem;
             _effectSpawn           = mapInteraction.EffectSpawn;
             _lifespan              = mapInteraction.Lifespan;
+            _wreckSpawn            = mapInteraction.WreckSpawn;
             var gizmoRegistry      = mapInteraction.GizmoRegistry;
             var statelessRegistry  = mapInteraction.StatelessRegistry;
             var settingsRegistry   = mapInteraction.Settings;
@@ -236,7 +238,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             // scheduling the group, so it declares exactly those three. §3.2e.
             foreach (string problem in mapInteraction.Unserviceable(
                          new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem, mapInteraction.ActionDispatch,
-                                        _effectSpawn, _lifespan }))
+                                        _effectSpawn, _wreckSpawn, _lifespan }))
                 Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
 
             // ⭐⭐⭐ UXI-11 — ALL FOUR COME FROM THE PACK NOW. 📐 This host used to construct the gesture
@@ -463,6 +465,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 //   fire / hit events is gone (it lost every long effect on a jump). Both systems are still ticked so this host's
                 //   run-set is the map's whole set; IsReplayActive keeps them standing down.
                 _effectSpawn?.Execute(_activeRepo, deltaTime);
+                _wreckSpawn?.Execute(_activeRepo, deltaTime);
                 _lifespan?.Execute(_activeRepo, deltaTime);
             }
 
