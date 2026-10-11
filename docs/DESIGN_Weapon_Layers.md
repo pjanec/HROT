@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-11
 build-state: BUILDING (WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built; WL-4 §5f building — backend) — ⭐ HANDED to the backend / behaviors lane 2026-10-11 (blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md); the ui lane builds no more of it — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
-current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILDING — the grenade at a hidden target, end to end) · §5 slices · §6 ambient fire
+current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
 known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount parts are never created — stale, CgfComponentRegistry.cs:38
@@ -504,7 +504,7 @@ classDiagram
   epoch, and a round the muscle fired under the old one but the brain had not yet accounted is not spent on the brain. WL-4's
   profiles choose the mount once per engagement, which removes it.
 
-### 5f. WL-4 — the grenade at a hidden target, end to end *(backend, `2026-10-11`; build-state: BUILDING)*
+### 5f. WL-4 — the grenade at a hidden target, end to end *(backend, `2026-10-11`; build-state: BUILT — cluster rail green)*
 
 > 🔒 **User, `2026-10-11`:** *"Other lanes are on hold. We should take the grenade scenario end to end."* ⇒ the backend lane builds
 > W-12a, W-12e, W-12f, the `TrackTarget` node and `ua-grenade-or-rifle` (handoff
@@ -629,7 +629,7 @@ never threw. ✅ Fixed by [AQ89](blueprints/Architect_Question_89_Suppress_And_C
   `CombatTemperament` (bravery / obedience, defaults 0.5 / 0.8) at or above 0.6.
 - The scenario authors the Grenadier brave (`"Temperament": {"riskAcceptance": 0.8}`).
 
-### 5g. WL-5 — W-12b/c: which categories use the turret task, and the ATGM one round at a time *(backend, `2026-10-11`; 🔒 user: *"Approved, add the Rifleman check then W-12b/c"*)*
+### 5g. WL-5 — W-12b/c: which categories use the turret task, and the ATGM one round at a time *(✅ built `2026-10-11`, as drawn; backend; 🔒 user: *"Approved, add the Rifleman check then W-12b/c"*)*
 
 #### INVENTORY *(graph + grep, `2026-10-11`)*
 
@@ -710,6 +710,13 @@ sequenceDiagram
 
 ⚠ **Known limit (G-2):** an estimate, not the detonation itself — a round stopped early by cover still holds the launcher for the full
 estimate. Stated, not hidden.
+
+| as built | |
+|---|---|
+| `WeaponBrainProfiles`: `TurretWeaponProfile` (was `DefaultWeaponBrainProfile`, no other user) · `PerShotWeaponProfile` · `GuidedWeaponProfile : TurretWeaponProfile` · `IWeaponBrainProfile.RoundsInFlight` | as G-1 |
+| `AimAndFireExecutor.TurretPath(…, roundsInFlight, mount, dt)` · `GuidedFlightSeconds` (public, so the rail checks the estimate) · `ActionReason.Guiding` ("guiding") while the hold runs | as G-2/G-3 |
+| ⚠ the hold shares `AimState.Elapsed` with the per-shot aim clock | harmless while a vehicle's mounts all sit on turrets (the Bradley's do); a unit mixing a guided turret mount and a per-shot mount on ONE target could start its aim with a leftover hold — filed here, not built |
+| rails | `AimAndFireExecutorTests.WL5_W12b_TheProfileTable` (8 categories) · `WL5_W12b_ASmallArmsMountOnATurret_FiresPerShot` · `WL5_W12c_AnAtgm_FiresOneRoundPerFlight` (3 rounds ≥ 1 s apart on a 0.5 s cooldown) |
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 

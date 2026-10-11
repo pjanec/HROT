@@ -40,6 +40,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         Throwing,
         /// <summary>⭐ AQ89 A (R-269) — the target is hidden: suppressive bursts at where it was last seen.</summary>
         BlindFire,
+        /// <summary>⭐ W-12c — a guided round is in flight: the launcher stays on the target and the next waits.</summary>
+        Guiding,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -110,6 +112,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.Slewing            => "slewing",
             ActionReason.Throwing           => "throw: last seen",
             ActionReason.BlindFire          => "suppress: last seen",
+            ActionReason.Guiding            => "guiding",
             ActionReason.OutOfArc           => "out of arc",
             _                               => "",
         };

@@ -706,7 +706,8 @@ namespace Fdp.Toolkit.Combat.Tests
 
         /// <summary>A shooter whose type has a turret and a mount on it, with the turret part built (one world = the editor's one
         /// node: the executor is the weapon brain, <see cref="Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem"/> the muscle).</summary>
-        private (Entity Shooter, Entity Turret, WeaponChannel Channel, Entity Target) TurretedTank(int rounds, float cooldown, int ammo = 5)
+        private (Entity Shooter, Entity Turret, WeaponChannel Channel, Entity Target) TurretedTank(int rounds, float cooldown, int ammo = 5,
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, float muzzleVelocity = 0f)
         {
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
@@ -718,7 +719,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var type = new Fdp.Interfaces.TkbTemplate("Tank", 42);
             type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { new Fdp.Toolkit.Tkb.Domain.TurretDto { PivotZ = 2f } } });
             type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
-                { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, TurretIndex = 0 } } });
+                { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = category, TurretIndex = 0, MuzzleVelocity = muzzleVelocity } } });
             db.Register(type);
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
 
@@ -913,6 +914,72 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0, BurstStep(shooter));
         }
     
+        // ── WL-5 W-12b/c (docs/DESIGN_Weapon_Layers.md §5g) — which categories use the turret task; the ATGM one round at a time ──
+
+        /// <summary>⭐ W-12b (§5g G-1) — the table: small arms, grenades, mortars per shot; the ATGM guided; the rest (and an untagged
+        /// mount) through the turret when one is named.</summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, false, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade, false, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar, false, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, true, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon, true, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun, true, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown, true, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm, true, 1)]
+        public void WL5_W12b_TheProfileTable(Fdp.Toolkit.Tkb.Domain.WeaponCategory category, bool turret, int inFlight)
+        {
+            var (shooter, _, _, _) = TurretedTank(rounds: 1, cooldown: 0.5f, category: category);
+            var profile = WeaponBrainProfiles.For(category);
+            Assert.Equal(turret, profile.UsesTurretTask(_world, shooter, CombatTkb.MountOf(_world, shooter, 0)));
+            Assert.Equal(inFlight, profile.RoundsInFlight);
+        }
+
+        /// <summary>⭐ W-12b — a small-arms mount that names a turret is still fought per shot: the turret gets no Engage task.</summary>
+        [Fact]
+        public void WL5_W12b_ASmallArmsMountOnATurret_FiresPerShot()
+        {
+            var (shooter, turret, channel, _) = TurretedTank(rounds: 1, cooldown: 0.5f, category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms);
+            _executor.OnEnter(shooter, ref channel, _world);
+            for (int f = 0; f < 600 && channel.Status == NodeStatus.Running; f++) Step(shooter, ref channel, 1f / 60f);
+            Assert.Equal(NodeStatus.Success, channel.Status);   // the aimed shot left through the per-shot path
+            Assert.False(_world.HasComponent<WeaponTask>(turret) && _world.GetComponent<WeaponTask>(turret).Mode == WeaponTaskMode.Engage,
+                "the turret is never tasked for a per-shot mount");
+        }
+
+        /// <summary>
+        /// ⭐⭐ W-12c (§5g G-2) — an ATGM at 100 m flying 200 m/s: ONE round is granted, and the next only after its estimated flight
+        /// (0.5 s + 0.5 s margin), so three rounds leave ≥ 1 s apart although the cooldown is 0.5 s. 🔴 Red before: the magazine was
+        /// granted and the rounds left on the cooldown, 0.5 s apart — two missiles in the air to guide.
+        /// </summary>
+        [Fact]
+        public void WL5_W12c_AnAtgm_FiresOneRoundPerFlight()
+        {
+            var (shooter, _, channel, target) = TurretedTank(rounds: 3, cooldown: 0.5f, category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm,
+                                                             muzzleVelocity: 200f);
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            _executor.OnEnter(shooter, ref channel, _world);
+            const float dt = 1f / 60f;
+            int shots = 0, last = -1, minGap = int.MaxValue;
+            for (int f = 0; f < 60 * 10 && channel.Status == NodeStatus.Running; f++)
+            {
+                _executor.Execute(shooter, ref channel, _world, dt);
+                muscle.Execute(_world, dt);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
+                {
+                    if (last >= 0) minGap = Math.Min(minGap, f - last);
+                    last = f;
+                    shots++;
+                }
+            }
+            Assert.Equal(NodeStatus.Success, channel.Status);
+            Assert.Equal(3, shots);
+            float flight = AimAndFireExecutor.GuidedFlightSeconds(_world, shooter, target, CombatTkb.MountOf(_world, shooter, 0), 0f);
+            Assert.Equal(1f, flight, 2);
+            Assert.True(minGap >= 59, $"rounds {minGap} frames apart: one flight is 60 frames, the cooldown only 30");
+        }
+
         // ── WL-4 W-12e (docs/DESIGN_Weapon_Layers.md §5f, L-2/L-3) — a hidden target gets a grenade at its last-known spot ────
 
         private const long M67 = 6001;

@@ -110,9 +110,11 @@ namespace Fdp.Toolkit.Combat.Executors
             //   weapon brain keeps the gates (target, rounds, ammo, magazine, ROE, seen-now) and GRANTS rounds; the weapon muscle
             //   aims, times and fires them. The profile decides (W-5); the per-shot path below is unchanged for the rest.
             var mountDto = CombatTkb.MountOf(world, entity, mountIndex);
-            if (WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown).UsesTurretTask(world, entity, mountDto))
+            var profile = WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown);   // ⭐ W-12b
+            if (profile.UsesTurretTask(world, entity, mountDto))
             {
-                TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, entity, mountDto!.TurretIndex), ref weapon);
+                TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, entity, mountDto!.TurretIndex), ref weapon,
+                           profile.RoundsInFlight, mountDto, dt);
                 return;
             }
 
@@ -270,8 +272,13 @@ namespace Fdp.Toolkit.Combat.Executors
         /// now (capped by the rounds asked), so it stays constant while rounds are in flight and drops to Track for a reload.
         /// </summary>
         private static void TurretPath(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
-                                       int mountIndex, Entity part, ref WeaponState weapon)
+                                       int mountIndex, Entity part, ref WeaponState weapon,
+                                       int roundsInFlight = 0, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto = null, float dt = 0f)
         {
+            // ⭐ W-12c (§5g G-2/G-3) — a guided mount's hold: the estimated flight of the last round it saw fired. The aim clock is
+            //   free on this path (the muscle aims), so it carries the hold.
+            ref var hold = ref AimTimer(ref channel).Elapsed;
+            if (hold > 0f) hold = MathF.Max(0f, hold - dt);
             var current = world.HasComponent<WeaponTask>(part) ? world.GetComponent<WeaponTask>(part) : default;
             bool fresh = current.Mode == WeaponTaskMode.Idle || current.Target != p.Target || current.MountIndex != (byte)mountIndex;
             uint epoch = fresh ? current.Epoch + 1 : current.Epoch;
@@ -287,6 +294,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 {
                     Magazine.Spend(ref weapon);
                     RoundsFired(ref channel)++;
+                    if (roundsInFlight > 0) hold = GuidedFlightSeconds(world, entity, p.Target, mountDto, weapon.MuzzleVelocity);
                 }
                 if (status.RoundsFired > accounted) accounted = status.RoundsFired;
                 if (status.State == WeaponTaskState.Failed)
@@ -314,6 +322,8 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 int inHand = weapon.MagazineSize > 0 ? weapon.MagazineRounds : weapon.Ammo;
                 if (p.Rounds > 0) inHand = System.Math.Min(inHand, p.Rounds - RoundsFired(ref channel));
+                // ⭐ W-12c — a guided weapon is granted its next round only once the last one's flight is over.
+                if (roundsInFlight > 0) inHand = hold > 0f ? 0 : System.Math.Min(inHand, roundsInFlight);
                 grant += System.Math.Max(0, inHand);
             }
 
@@ -333,7 +343,29 @@ namespace Fdp.Toolkit.Combat.Executors
             else if (!roe) Say(world, entity, ActionReason.HoldRoe, p.Target);
             else if (!loaded) Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
             else if (mine && status.State == WeaponTaskState.Slewing) Say(world, entity, ActionReason.Slewing, p.Target);
+            else if (roundsInFlight > 0 && hold > 0f) Say(world, entity, ActionReason.Guiding, p.Target, hold);
             else Say(world, entity, ActionReason.Firing, p.Target, RoundsFired(ref channel), p.Rounds);
+        }
+
+        /// <summary>⭐ W-12c (§5g G-2) — added to a guided round's flight estimate: launch and detonation are not instants.</summary>
+        public const float GuidedFlightMarginSeconds = 0.5f;
+
+        /// <summary>
+        /// ⭐ W-12c (§5g G-2) — how long a guided round just fired at <paramref name="target"/> flies: the flat distance over the mount's
+        /// muzzle velocity (the TKB's; else the mount state's; else the engine fallback), plus <see cref="GuidedFlightMarginSeconds"/>.
+        /// ⚠ An expected value, not the detonation (R-212): a round stopped early by cover still holds the launcher for the estimate.
+        /// </summary>
+        public static float GuidedFlightSeconds(EntityRepository world, Entity unit, Entity target,
+                                                Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, float stateMuzzleVelocity)
+        {
+            float speed = mount is { MuzzleVelocity: > 0f } ? mount.MuzzleVelocity
+                        : stateMuzzleVelocity > 0f ? stateMuzzleVelocity
+                        : Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocity;
+            if (!world.HasComponent<SimTransform>(unit) || !world.IsAlive(target) || !world.HasComponent<SimTransform>(target))
+                return GuidedFlightMarginSeconds;
+            var a = world.GetComponentRO<SimTransform>(unit).Position;
+            var b = world.GetComponentRO<SimTransform>(target).Position;
+            return new Vector2(b.X - a.X, b.Y - a.Y).Length() / speed + GuidedFlightMarginSeconds;
         }
 
         /// <summary>⭐ WL-3 — every turret of <paramref name="unit"/> with an order goes back to Idle (it holds its pose); the epoch is
