@@ -1404,6 +1404,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 {
                     HostPickers = () => _shellPickers,
                 },
+                // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — effects are recorded; in a replay the effect systems stand down.
+                //   The SAME source the ELM's gate reads (rrController, above).
+                IsReplayActive = () => rrController.IsReplayActive,
             });
 
         _cgfGizmoBuffer           = _cgfMapInteraction.Buffer;

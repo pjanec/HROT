@@ -60,18 +60,20 @@ public sealed class EffectLayer : IMapLayer
     {
         var list = new List<Resolved>();
         var world = _world();
-        if (world == null || !world.IsComponentTypeRegistered<EffectLifetime>() || !world.IsComponentTypeRegistered<TkbIdentity>()) return list;
+        if (world == null || !world.IsComponentTypeRegistered<Fdp.Toolkit.Time.Lifespan>() || !world.IsComponentTypeRegistered<TkbIdentity>()) return list;
         if (!ReferenceEquals(world, _queryWorld))
         {
             _queryWorld = world;
-            _query = world.Query().With<EffectLifetime>().With<TkbIdentity>().With<SimTransform>().Build();
+            _query = world.Query().With<Fdp.Toolkit.Time.Lifespan>().With<TkbIdentity>().With<SimTransform>().Build();
         }
         var tkb = _tkb();
         bool anchored = world.IsComponentTypeRegistered<EffectAnchor>();
+        // ⭐ W1 (VE-Q, VE-G) — the phase is the SIM clock's: paused ⇒ frozen; in a replay, the recording's own time (VE-R).
+        double now = Fdp.Toolkit.Time.SimClock.Of(world).TotalTime;
         foreach (var e in _query!)
         {
             if (EffectTkbCatalog.VisualOf(tkb, world.GetComponentRO<TkbIdentity>(e).TkbType) is not { } look) continue;
-            var life = world.GetComponentRO<EffectLifetime>(e);
+            var life = world.GetComponentRO<Fdp.Toolkit.Time.Lifespan>(e);
             var at = world.GetComponentRO<SimTransform>(e).Position;
             var toward = Vector3.Zero;
             if (anchored && world.HasComponent<EffectAnchor>(e))
@@ -81,10 +83,11 @@ public sealed class EffectLayer : IMapLayer
                 at = MuzzleOf(world, a.Shooter, a.WeaponIndex, tkb);
                 toward = a.Toward;
             }
-            float remaining = life.Duration - life.Age;
+            if (life.IsOver(now)) continue;   // its time passed this frame; LifespanSystem removes it (or the replay already did)
+            float remaining = life.Remaining(now);
             float opacity = look.FadeSeconds > 0f && remaining < look.FadeSeconds ? Math.Clamp(remaining / look.FadeSeconds, 0f, 1f) : 1f;
             var colour = ParseRgba(look.ColorHex);
-            list.Add(new Resolved(look, at, toward, life.Phase, opacity, colour));
+            list.Add(new Resolved(look, at, toward, life.Phase(now), opacity, colour));
         }
         // decals underneath, then bursts, then flashes and tracers
         list.Sort((x, y) => Order(x.Look.Kind).CompareTo(Order(y.Look.Kind)));

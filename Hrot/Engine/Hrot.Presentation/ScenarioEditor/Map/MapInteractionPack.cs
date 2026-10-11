@@ -321,7 +321,10 @@ namespace Hrot.ScenarioEditor.Map
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
                 selection, selectionInteraction, selectionRequests, selectionNotifications,
-                rubberBand, actions, actionDispatch, layerControl, authoring, canvasMenu);
+                rubberBand, actions, actionDispatch, layerControl, authoring, canvasMenu)
+            {
+                IsReplayActive = ctx.IsReplayActive,   // ⭐ W1 (VE-R) — the effect systems stand down in a replay
+            };
         }
 
         /// <summary>

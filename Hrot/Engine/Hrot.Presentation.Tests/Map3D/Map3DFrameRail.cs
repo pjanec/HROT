@@ -234,7 +234,7 @@ public sealed class Map3DFrameRail
                 world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
                 world.AddComponent(e, new TkbIdentity { TkbType = type });
                 var look = Hrot.Core.Tkb.EffectTkbCatalog.VisualOf(tkb, type)!;
-                world.AddComponent(e, new Hrot.Map.Common.Components.EffectLifetime { Age = age, Duration = look.Duration });
+                world.AddComponent(e, Fdp.Toolkit.Time.Lifespan.Starting(-age, look.Duration));   // W1: sim time 0 here ⇒ `age` seconds old
                 if (shooter != default) world.AddComponent(e, new Hrot.Map.Common.Components.EffectAnchor { Shooter = shooter });
             }
             var blast = new Vector2(spot.X + 25f, spot.Y + 25f);

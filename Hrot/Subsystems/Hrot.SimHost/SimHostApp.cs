@@ -427,6 +427,11 @@ namespace Hrot.SimHost
                                                 ? w.GetSingletonManaged<ITkbDatabase>() : null,
                             Requests:     () => EntityCreation?.LocalRequests,
                             GeoTransform: () => _geoTransform),
+                        // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — effects are recorded; in a replay the effect systems stand down.
+                        //   The SAME gate the ELM reads (NodeBootstrapper wires it to the record/replay controller), read late.
+                        IsReplayActive = () => ctx.BaseModules.Count > 0
+                                               && ctx.BaseModules[0] is Fdp.Toolkit.Lifecycle.EntityLifecycleModule elm
+                                               && elm.IsReplayActive?.Invoke() == true,
                         ContributeExtras = static regs =>
                             // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
                             regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(

@@ -73,6 +73,7 @@ related-designs:
   - docs/designs/two-ack/TwoAck-DESIGN.md — the IOS-facing two-phase ack that is BUILT ON TOP of the ELM handshake.
   - ../../DESIGN_Terrain_Combat_Tuning.md §5a — debug traces kept as recorded components so a seek restores what the map draws; CE-3118 (browser loads the terrain).
   - ../../DESIGN_Geo_Origin.md §5 — CE-3118: the Replay Browser loads the recording's terrain by name and mirrors it onto every replay world it draws; ZoneEnvironmentData is NoReplay (its pointers were recorded).
+  - ../../DESIGN_Visual_Effects.md §7 (W1, VE-R) — effect entities are RECORDED; the map's effect spawner and the generic LifespanSystem are gated in place by the same late-read IsReplayActive (§2.1m's mechanism), fed from MapInteractionContext.IsReplayActive.
 -->
 # Design: Replay Isolation and Modern Module System
 

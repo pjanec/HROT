@@ -256,7 +256,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             scheduled.Add(mi.ActionDispatch.GetType());
             scheduled.Add(mi.DebugStatePatch.GetType());   // ⭐ CE-3123 — the third member of InteractionSystems
             scheduled.Add(mi.EffectSpawn.GetType());       // ⭐ CE-1042 E2 — the effect systems, members four and five
-            scheduled.Add(mi.EffectLifetime.GetType());
+            scheduled.Add(mi.Lifespan.GetType());          // ⭐ W1 — the generic lifespan collector
 
             foreach (Type required in mi.RequiredSystems)
                 Assert.Contains(required, scheduled);

@@ -116,9 +116,9 @@ public static class PresentationComponentRegistry
     {
         world.RegisterComponent<SimTransform>();
         world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-        world.RegisterComponent<EffectLifetime>();
+        world.RegisterComponent<Fdp.Toolkit.Time.Lifespan>();   // ⭐ W1 (VE-Q) — the effects' timer, recorded (VE-R)
         world.RegisterComponent<EffectAnchor>();
-        world.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();   // an effect is never saved with the scenario (VE-B)
+        world.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();   // an effect is never saved with the scenario (VE-R)
     }
 
     public static void RegisterDebugViewState(EntityRepository world)

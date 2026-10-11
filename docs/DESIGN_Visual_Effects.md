@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269), slices W1–W4 not built. Programme index: PLAN_3D_World_And_Realism.md.
+build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269); W1 BUILT 2026-10-11 (§7.5), W2–W4 not built. Programme index: PLAN_3D_World_And_Realism.md.
 updated: 2026-10-11
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved, not built).
+current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1 as-built in §7.5).
 stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
@@ -15,6 +15,8 @@ related-designs:
     MapInteractionPack.AttachMapLayers.
   - DESIGN_Building_Interiors.md — owns warheads (§3k, CE-1032): the detonation that an explosion and a decal visualise.
   - DESIGN_Body_Geometry_And_Ground_Contact.md — the same "the TKB type defines it" pattern for bodies; decals drape on the ground.
+  - designs/replay-and-modules/DESIGN.md — §2.1m: the replay gate IN PLACE (a late-read Func<bool> IsReplayActive) that W1's effect
+    systems reuse; it links mgmt-1 §8.5/§8.10, the ruling that state-deriving systems stand down during replay.
   - DESIGN_Operations_Behaviour_Catalogue.md — §10.1 D1: vehicle damage states (destroyed / mobility / firepower kill) and human injury
     states; §7's "destroyed" reads Health ≤ 0 until those land, then only `WreckState.IsDestroyed` changes.
 -->
@@ -310,7 +312,7 @@ every reader keeps its old answer for it (riflemen, unknown types). The kit draw
 forward offset (mount 0 on a tank, the 25 mm on the Bradley); the TOW is not drawn, but its rounds and flashes leave from its own
 offset. Gates: `FireProcessingSystemTests.E4_*` (2), `Map3DTests.E4b_TheDrawnBarrelTip_IsTheMuzzle_Within5cm` (3 types).
 
-## 7. Wrecks, dead bodies, flames and smoke — and one generic `Lifespan` *(✅ APPROVED `2026-10-11`, U6–U8, R-269; not built)*
+## 7. Wrecks, dead bodies, flames and smoke — and one generic `Lifespan` *(✅ APPROVED `2026-10-11`, U6–U8, R-269; W1 built — §7.5)*
 
 | # | verbatim |
 |---|---|
@@ -365,9 +367,11 @@ one system for every timed entity, not a per-feature timer.
 
 ```mermaid
 classDiagram
-  class Lifespan { <<new component, Fdp.Toolkits, NoScenario + NoPreview, RECORDED>> double BornAtSimSeconds; float Seconds; Phase(now) }
-  class LifespanSystem { <<new>> destroys an entity once now ≥ BornAt + Seconds, or now < BornAt after a jump back }
-  class EffectLifetime { <<RETIRED — replaced by Lifespan>> }
+  class Lifespan { <<BUILT W1, Fdp.Toolkit.Time, id 356, NoScenario + NoPreview, RECORDED>> double BornAtSimSeconds; float Seconds; Age(now); Phase(now); IsOver(now) }
+  class LifespanSystem { <<BUILT W1, Fdp.Toolkit.Time>> destroys an entity once now ≥ BornAt + Seconds, or now < BornAt after a jump back; IsReplayActive ⇒ stands down }
+  class EffectLifetime { <<RETIRED W1 — struct and system gone, id 124 reserved>> }
+  class EffectSpawnSystem { <<exists, W1>> stamps Lifespan.Starting(now, Duration); IsReplayActive ⇒ stands down; Housekeep: orphaned anchor, decal cap 256 }
+  class MapInteractionContext { <<exists, W1>> + IsReplayActive — SimHost: the ELM's gate · CGF: rrController · replay browser: always · editor, IG: null }
   class WreckState { <<new static, Fdp.Toolkits Combat>> IsDestroyed(world, e) = Health ≤ 0 (later D1's destroyed state) }
   class WreckSpawnSystem { <<new, Hrot.Presentation Effects>> a vehicle's Health crossing to 0 ⇒ Fire + Smoke anchored to its body }
   class EffectAnchor { <<exists>> + Body mode: the anchor's top centre, every frame }
@@ -379,6 +383,9 @@ classDiagram
   class EntityPresentationGizmo { <<exists>> + Destroyed condition ⇒ the MIL-STD-2525 X }
   LifespanSystem ..> Lifespan
   EffectLifetime ..> Lifespan : replaced by
+  EffectSpawnSystem ..> Lifespan
+  MapInteractionContext ..> EffectSpawnSystem : IsReplayActive
+  MapInteractionContext ..> LifespanSystem : IsReplayActive
   WreckSpawnSystem ..> WreckState
   WreckSpawnSystem ..> EffectAnchor
   WreckSpawnSystem ..> Lifespan
@@ -422,4 +429,20 @@ sequenceDiagram
 | **W2** | `WreckState`; black wrecks in 3-D; the 2-D X | a killed tank is a black hull with an X |
 | **W3** | `Fire` / `Smoke` kinds + catalog types; `WreckSpawnSystem`; body anchor; stateless particles; the 2-D mark | the wreck burns ~60 s and smokes ~3 min, then they are gone |
 | **W4** | the `Dead` figure + the fall | a killed soldier lies on his back |
+
+### 7.5 W1 — AS-BUILT `2026-10-11`
+
+| what | where | ⚠ vs §7.2–7.4 |
+|---|---|---|
+| `Lifespan` (id **356**) + `LifespanSystem`, generic | `FDP/Toolkits/Fdp.Toolkits/Time/Lifespan.cs`, `LifespanSystem.cs` | as drawn. ⚠ 355 is the backend lane's `CombatTemperament` |
+| every effect stamped `Lifespan.Starting(sim now, Duration)`; the layer's phase and fade read `SimClock` | `EffectSystems.cs` `Spawn`, `EffectLayer.Resolve` | as drawn — VE-G now holds by construction (no stored age to forget to freeze) |
+| `EffectLifetime` + `EffectLifetimeSystem` retired | `EffectComponents.cs`, `EffectSystems.cs` (tombstones) | as drawn; ⭐ **deviation:** its orphan-anchor (VE-J) and decal-cap (VE-H) rules moved into `EffectSpawnSystem.Housekeep`, so `LifespanSystem` stays effect-blind |
+| `EffectAnchor` and `Lifespan` recorded, `NoScenario` + `NoPreview` | `EffectComponents.cs`, `Lifespan.cs` | as drawn (VE-R) |
+| ⭐ **the replay gate** — `MapInteractionContext.IsReplayActive` → `MapInteraction.IsReplayActive` → both systems, read each frame | `MapInteractionContext.cs`, `MapInteraction.cs`, `MapInteractionPack.cs` | ⭐ not drawn before: §7.2 said "spawners OFF in replay" without the WHO. The mechanism is replay-and-modules §2.1m's (gate in place). **SimHost** passes the ELM's gate (`HrotNodeContext.BaseModules[0]`, wired by `NodeBootstrapper` to the record/replay controller); **CGF** passes `rrController`; the **replay browser** passes `() => true`; the **editor** passes nothing (its replay is an isolated sandbox, `ReplayBrowserContext`); **IG** passes nothing (listen-only: it holds no recording, so it keeps making its own from the events it receives) |
+| the replay browser's hand-spawning and its private replayed-dt clock removed | `ReplayBrowserSubsystem.cs` | ⭐ **deviation:** it still TICKS both systems (gated off) so its declared run-set stays the map's whole set and `Unserviceable` raises no false alarm |
+| rails | `EffectTests.W1_*`, `E2_*` moved onto sim time | — |
+
+*NOT verified:* a real record → replay → seek round trip that shows a recorded decal after a jump (the rails pin the policy flags and the
+gates, not the recorder). ⚠ The recorder must see `Lifespan`/`EffectAnchor` registered on the recorded world — `RegisterEffects` does it
+on every map host's world.
 

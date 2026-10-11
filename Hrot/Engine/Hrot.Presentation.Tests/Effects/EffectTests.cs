@@ -5,6 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Core.Tkb;
 using Hrot.Map.Common;
@@ -39,10 +40,14 @@ public sealed class EffectTests
         ((EntityCommandBuffer)((ISimulationView)world).GetCommandBuffer()).Playback(world);
     }
 
+    /// <summary>Sets the world's sim time — what <see cref="SimClock"/> reads (the kernel pushes it every frame).</summary>
+    private static void At(EntityRepository world, double simSeconds)
+        => world.SetSingletonUnmanaged(new GlobalTime { TotalTime = simSeconds });
+
     private static List<(long Type, Entity Entity)> Effects(EntityRepository world)
     {
         var list = new List<(long, Entity)>();
-        foreach (var e in world.Query().With<EffectLifetime>().With<TkbIdentity>().Build())
+        foreach (var e in world.Query().With<Lifespan>().With<TkbIdentity>().Build())
             list.Add((world.GetComponentRO<TkbIdentity>(e).TkbType, e));
         return list;
     }
@@ -100,7 +105,7 @@ public sealed class EffectTests
         var anchor = world.GetComponentRO<EffectAnchor>(flash);
         Assert.Equal(tank, anchor.Shooter);                                      // VE-J: attached, no position of its own
         Assert.Equal(new Vector3(800, 0, 5), anchor.Toward);
-        Assert.True(world.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(flash), "VE-B: an effect is never saved with the scenario");
+        Assert.True(world.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(flash), "VE-R: an effect is never saved with the scenario");
         // and no map layer draws it as a body: an effect type has none (the body layer would show an unknown box)
         Assert.Equal(Hrot.UI.Common.Map3D.VisualFamily.Unit,
                      Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(Hrot.Map.Common.HrotEnvironment.CreateTkb().GetByType(EffectTkbCatalog.MuzzleFlashLarge)).Family);
@@ -129,14 +134,19 @@ public sealed class EffectTests
     public void E2_EffectsAgeOnSimulationTime_ExpireAtTheirDuration_AndAPausedSimFreezesThem()
     {
         var (world, _) = World();
+        At(world, 100.0);
         world.Bus.Publish(new DetonationNotification { Target = Entity.Null, HitX = 0, HitY = 0, Damage = 1100f });
         Tick(world, new EffectSpawnSystem(), 0.016f);
-        var life = new EffectLifetimeSystem();
+        foreach (var (_, e) in Effects(world))
+            Assert.Equal(100.0, world.GetComponentRO<Lifespan>(e).BornAtSimSeconds);   // W1: made at sim now, no age stored
+        var life = new LifespanSystem();
         int before = Effects(world).Count;
-        for (int i = 0; i < 100; i++) Tick(world, life, 0f);   // paused: dt = 0
+        for (int i = 0; i < 100; i++) Tick(world, life, 0.016f);   // paused: sim time does not move, whatever the frame delta
         Assert.Equal(before, Effects(world).Count);
-        Tick(world, life, 2f);                                  // past the explosion's 1.6 s, well inside the decal's 300 s
+        At(world, 102.0);                                            // past the explosion's 1.6 s, well inside the decal's 300 s
+        Tick(world, life, 0f);
         Assert.Equal(new[] { EffectTkbCatalog.DecalLarge }, Effects(world).Select(f => f.Type).ToArray());
+        Assert.Equal(1, life.Removed);
     }
 
     [Fact]
@@ -145,24 +155,25 @@ public sealed class EffectTests
         var (world, _) = World();
         var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, Vector3.Zero);
         world.Bus.Publish(new WeaponFireNotification { Shooter = tank, Target = Entity.Null, WeaponIndex = 0 });
-        Tick(world, new EffectSpawnSystem(), 0.016f);
+        var spawn = new EffectSpawnSystem();
+        Tick(world, spawn, 0.016f);
         Assert.Single(Effects(world));
         world.DestroyEntity(tank);
-        var life = new EffectLifetimeSystem();
-        Tick(world, life, 0.001f);
+        Tick(world, spawn, 0.001f);   // the spawner keeps its own population honest (VE-J)
         Assert.Empty(Effects(world));
 
-        for (int i = 0; i < EffectLifetimeSystem.DecalCap + 10; i++)
+        At(world, 10_000.0);
+        for (int i = 0; i < EffectSpawnSystem.DecalCap + 10; i++)
         {
             var d = world.CreateEntity();
             world.AddComponent(d, new SimTransform());
             world.AddComponent(d, new TkbIdentity { TkbType = EffectTkbCatalog.DecalSmall });
-            world.AddComponent(d, new EffectLifetime { Age = i, Duration = 10_000f });   // decal i is i seconds old
+            world.AddComponent(d, Lifespan.Starting(i, 100_000f));   // decal i was made at sim second i
         }
-        Tick(world, life, 0.001f);
-        var ages = Effects(world).Select(f => world.GetComponentRO<EffectLifetime>(f.Entity).Age).ToList();
-        Assert.Equal(EffectLifetimeSystem.DecalCap, ages.Count);
-        Assert.True(ages.Max() < EffectLifetimeSystem.DecalCap, "the OLDEST ten went");
+        Tick(world, spawn, 0.001f);
+        var born = Effects(world).Select(f => world.GetComponentRO<Lifespan>(f.Entity).BornAtSimSeconds).ToList();
+        Assert.Equal(EffectSpawnSystem.DecalCap, born.Count);
+        Assert.True(born.Min() >= 10, "the OLDEST ten went");
     }
 
     [Fact]
@@ -170,12 +181,74 @@ public sealed class EffectTests
     {
         var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext { World = new EntityRepository() });
         Assert.Contains(mi.EffectSpawn, mi.InteractionSystems);
-        Assert.Contains(mi.EffectLifetime, mi.InteractionSystems);
+        Assert.Contains(mi.Lifespan, mi.InteractionSystems);
         Assert.Contains(typeof(EffectSpawnSystem), mi.RequiredSystems);
+        Assert.Contains(typeof(LifespanSystem), mi.RequiredSystems);
         Assert.Empty(mi.Unserviceable(mi.InteractionSystems));
         // and a host that drives the systems itself but forgets the effects is REPORTED
         Assert.Contains(mi.Unserviceable(new object[] { mi.GlobalManager, mi.DataDrivenSystem, mi.StatelessSystem, mi.ActionDispatch }),
                         m => m.Contains(nameof(EffectSpawnSystem)));
+    }
+
+    /// <summary>⭐ W1 (VE-Q) — ONE generic timer: <see cref="Lifespan"/> on sim time; a jump BACK to before an entity was made removes
+    /// it too (it did not exist then); the layer's phase and fade come from the sim clock.</summary>
+    [Fact]
+    public void W1_Lifespan_IsSimTime_AJumpBackRemovesWhatDidNotExistYet_AndTheLayerPhaseFollowsTheClock()
+    {
+        var span = Lifespan.Starting(50.0, 4f);
+        Assert.Equal(0.5f, span.Phase(52.0));
+        Assert.Equal(1f, span.Remaining(53.0));
+        Assert.False(span.IsOver(53.9));
+        Assert.True(span.IsOver(54.0));
+        Assert.True(span.IsOver(49.0), "a jump back to before it was made");
+
+        var (world, tkb) = World();
+        At(world, 50.0);
+        world.Bus.Publish(new DetonationNotification { Target = Entity.Null, HitX = 0, HitY = 0, Damage = 1100f });
+        Tick(world, new EffectSpawnSystem(), 0.016f);
+        var layer = new EffectLayer(() => world, () => tkb, new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => world, () => tkb));
+        At(world, 50.8);   // half the large explosion's 1.6 s
+        var burst = Assert.Single(layer.Resolve(), x => x.Look.Kind == EffectKind.Explosion);
+        Assert.Equal(0.5f, burst.Phase, 3);
+
+        At(world, 10.0);   // a rewind to before the shot
+        Tick(world, new LifespanSystem(), 0f);
+        Assert.Empty(Effects(world));
+    }
+
+    /// <summary>⭐ W1 (VE-R, U8) — effects are RECORDED and never saved: neither component is <c>NoReplay</c>, both are
+    /// <c>NoScenario</c>; and in a replay the spawner and the collector stand down — the recording holds the effects.</summary>
+    [Fact]
+    public void W1_EffectsAreRecordedNeverSaved_AndInAReplayTheSpawnerAndTheCollectorStandDown()
+    {
+        foreach (var type in new[] { typeof(Lifespan), typeof(EffectAnchor) })
+        {
+            var policy = ((DataPolicyAttribute)System.Attribute.GetCustomAttribute(type, typeof(DataPolicyAttribute))!).Policy;
+            Assert.False(policy.HasFlag(DataPolicy.NoReplay), $"{type.Name} must be recorded");
+            Assert.True(policy.HasFlag(DataPolicy.NoScenario), $"{type.Name} is never saved");
+        }
+
+        var (world, _) = World();
+        bool replaying = true;
+        var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext
+        {
+            World = world, IsReplayActive = () => replaying,
+        });
+        At(world, 5.0);
+        world.Bus.Publish(new DetonationNotification { Target = Entity.Null, HitX = 0, HitY = 0, Damage = 1100f });
+        Tick(world, mi.EffectSpawn, 0.016f);
+        Assert.Empty(Effects(world));                       // a replayed hit makes nothing: the recording already has its effects
+
+        var recorded = world.CreateEntity();                // an effect the replay restored, its time long past
+        world.AddComponent(recorded, new SimTransform());
+        world.AddComponent(recorded, new TkbIdentity { TkbType = EffectTkbCatalog.ExplosionLarge });
+        world.AddComponent(recorded, Lifespan.Starting(1.0, 1f));
+        Tick(world, mi.Lifespan, 0.016f);
+        Assert.Single(Effects(world));                      // the replay removes it when the recording does, not the collector
+
+        replaying = false;                                  // back to live: the collector runs again
+        Tick(world, mi.Lifespan, 0.016f);
+        Assert.Empty(Effects(world));
     }
 
     [Fact]

@@ -339,7 +339,8 @@ namespace Fdp.Core
         /// <summary><c>IgMissionHolder</c> â€” managed component caching decoded EntityMission for rendering.</summary>
         public const int IgMissionHolder             = 123;
 
-        /// <summary><c>EffectLifetime</c> — ⭐ CE-1042 E2: the age of a realism effect entity (muzzle flash, explosion, decal, tracer).</summary>
+        /// <summary><c>EffectLifetime</c> — ⛔ RETIRED (W1, docs/DESIGN_Visual_Effects.md §7 VE-Q): the effects' timer moved onto the
+        /// generic <c>Lifespan</c> (<see cref="Lifespan"/>). The struct is gone; ⛔ the id stays RESERVED — never reuse 124.</summary>
         public const int EffectLifetime          = 124;
 
         /// <summary><c>EffectAnchor</c> — ⭐ CE-1042 E2: the shooter and weapon a muzzle flash / tracer is attached to.</summary>
@@ -747,5 +748,9 @@ namespace Fdp.Core
 
         /// <summary><c>WeaponMuscleState</c> — the weapon muscle's own per-turret fire timing (WL-3), never sent.</summary>
         public const int WeaponMuscleState = 354;
+
+        /// <summary><c>Lifespan</c> — ⭐ W1 (docs/DESIGN_Visual_Effects.md §7 VE-Q, R-269): when an entity was made (sim time) and how long
+        /// it lives; <c>LifespanSystem</c> removes it after. ⚠ 355 is the backend lane's <c>CombatTemperament</c>, so this takes 356.</summary>
+        public const int Lifespan = 356;
     }
 }
