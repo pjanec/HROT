@@ -76,19 +76,16 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
         Assert.True(offenders.Count == 0, $"built outside MapInteractionPack ({pattern}): " + string.Join(", ", offenders));
     }
 
-    /// <summary>⭐ CE-1033 S5 (R-260, R-140) — the camera entity is created only by a host that SAVES the scenario: the Editor and
-    /// the CGF (the Brain); IG — a passive, non-persisting node — and the others only adopt the saved view.</summary>
+    /// <summary>⭐ CE-1033 S5 (R-260, R-140) — the camera entity needs NO per-host wiring: the shared map attach adds its layer, and the
+    /// shared <c>EntityCreationPack</c> (which every creating host composes) publishes the request source the layer asks through.</summary>
     [Fact]
-    public void S5_OnlyTheSavingHosts_OwnTheMapCamera()
+    public void S5_TheCameraNeedsNoPerHostWiring()
     {
-        var calls = ProductionFiles().Where(f => f.Text.Contains("MapInteractionPack.AttachMapLayers(")).ToList();
-        string Of(string host) => string.Join("\n", calls.Where(f => f.Rel.StartsWith(host)).Select(f => f.Text));
-        Assert.Contains("MapCameraOwnership.SavesScenario", Of("Hrot/Subsystems/Hrot.Editor/"));
-        Assert.Contains("MapCameraOwnership.SavesScenario", Of("Hrot/Subsystems/Hrot.CGF/"));
-        foreach (var host in new[] { "Hrot/Subsystems/Hrot.IG/", "Hrot/Subsystems/Hrot.SimHost/", "Hrot/Subsystems/Hrot.ReplayBrowser/" })
-        {
-            Assert.Contains("MapCameraOwnership.AdoptOnly", Of(host));
-            Assert.DoesNotContain("MapCameraOwnership.SavesScenario", Of(host));
-        }
+        var pack = File.ReadAllText(Path.Combine(RepoRoot(), PackFile));
+        Assert.Contains("new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider)", pack);
+        var creation = File.ReadAllText(Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Common/EntityCreation/EntityCreationPack.cs"));
+        Assert.Contains("ctx.World.SetSingletonManaged(localRequests);", creation);
+        var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && System.Text.RegularExpressions.Regex.IsMatch(f.Text, @"MapCamera(Layer|Tkb|Pose)\b")).Select(f => f.Rel).ToList();
+        Assert.True(hostMentions.Count == 0, "a host wires the map camera itself: " + string.Join(", ", hostMentions));
     }
 }

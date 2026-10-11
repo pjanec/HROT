@@ -2557,8 +2557,7 @@ namespace Hrot.Editor
                 // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode (View › 2-D / 3-D Map), the same on
                 //   every host. The TKB is passed because this host HOLDS it (silent-default rule), not left to the singleton.
                 _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                    _canvas!, _gizmoBuffer!, interactionBus, () => _world,
-                    Hrot.UI.Common.Map3D.MapCameraOwnership.SavesScenario, () => _tkbDatabase).GizmoLayer;   // ⭐ S5 — the editor saves (R-260)
+                    _canvas!, _gizmoBuffer!, interactionBus, () => _world, () => _tkbDatabase).GizmoLayer;
 
                 // Grid map layer ? reads MapViewConfig.ShowGrid each frame.
                 var gridLayer = new GridMapLayer(() => _mapViewConfig!.ShowGrid);

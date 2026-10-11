@@ -668,7 +668,7 @@ public sealed class Map3DTests
         var saved3D = new CameraPose(new Vector3(500f, 200f, 0f), 350f, 1.1f, -0.5f);
         SaveCamera(w, saved3D);
         var (canvas, sw, _) = Map(Vector2.Zero, 1f);
-        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w, Hrot.UI.Common.Map3D.MapCameraOwnership.AdoptOnly);
+        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w);
 
         layer.Update(0.016f);
 
@@ -679,55 +679,88 @@ public sealed class Map3DTests
         using var w2 = CameraWorld();
         SaveCamera(w2, new CameraPose(new Vector3(-80f, 60f, 0f), 400f, MapCamera3D.NorthUpYaw, MapCamera3D.OverheadPitch));
         var (canvas2, sw2, two2) = Map(new Vector2(900f, 900f), 3f);
-        new Hrot.UI.Common.Map3D.MapCameraLayer(sw2, () => w2, Hrot.UI.Common.Map3D.MapCameraOwnership.AdoptOnly).Update(0.016f);
+        new Hrot.UI.Common.Map3D.MapCameraLayer(sw2, () => w2).Update(0.016f);
         Assert.False(sw2.Is3D);
         Assert.Same(two2, canvas2.Camera);
         Assert.InRange(Vector2.Distance(two2.ScreenToWorld(Viewport / 2f), new Vector2(-80f, 60f)), 0f, 0.1f);
     }
 
     [Fact]
-    public void S5_ASavingHost_CreatesTheCameraOnTheFirstMove_KeepsItsPose_AndItIsSavedInTheScenario()
+    public void S5_TheFirstMove_RequestsAnUnownedCamera_TheCreatorOwnsIt_AndItsPoseIsKept_AndSaved()
     {
         using var w = CameraWorld();
+        var requests = new Hrot.Core.Network.ScenarioEntityCreationRequestSource();
+        w.SetSingletonManaged(requests);                       // as the shared EntityCreationPack publishes it on every creating host
         var (_, sw, two) = Map(new Vector2(10f, 20f), 2f);
-        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w, Hrot.UI.Common.Map3D.MapCameraOwnership.SavesScenario);
+        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w);
         layer.Update(0.016f);                                  // the baseline
-        Assert.Null(layer.Camera);
+        Assert.True(requests.IsEmpty);
 
         two.ApplyCameraView(new MapCameraView { Target = new Vector2(300f, 400f), Zoom = 2f, SmoothTarget = new Vector2(300f, 400f), SmoothZoom = 2f });
         layer.Update(0.016f);                                  // a move …
-        Assert.Null(layer.Camera);                             // … not written while the view is still changing
+        Assert.True(requests.IsEmpty);                         // … nothing asked while the view is still changing
         for (int i = 0; i < 40; i++) layer.Update(0.016f);     // still for > SettleSeconds
-        var cam = Assert.IsType<Entity>(layer.Camera);
-        Assert.Equal(Hrot.Core.Tkb.MapCameraTkb.Type, w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(cam).TkbType);
+
+        var asked = new List<Hrot.Core.Network.EntityCreationRequest>();
+        requests.ProcessRequests(asked.Add);
+        var r = Assert.Single(asked);                          // one request, not one per frame
+        Assert.Equal(Hrot.Core.Tkb.MapCameraTkb.Type, r.TkbType);
+        Assert.Equal(Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor, r.OwnerAppInstanceId);   // R-140: unowned
+        Assert.True(layer.Requested);
+
+        // the default processor creates it (here: locally, as the editor's one-node cluster does)
+        var cam = w.CreateEntity();
+        w.AddComponent(cam, (SimTransform)r.InitialComponents![0]);
+        w.AddComponent(cam, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = r.TkbType });
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);
+        Assert.Equal(cam, layer.Camera);
+        Assert.False(layer.Requested);
         AssertPose(sw.CurrentPose, Hrot.UI.Common.Map3D.MapCameraPose.FromTransform(w.GetComponentRO<SimTransform>(cam), null));
 
-        sw.Set(true, animate: false);                          // switching to 3-D is a camera move too
+        sw.Set(true, animate: false);                          // switching to 3-D is a camera move: the owner keeps it
         for (int i = 0; i < 40; i++) layer.Update(0.016f);
-        var kept = Hrot.UI.Common.Map3D.MapCameraPose.FromTransform(w.GetComponentRO<SimTransform>(cam), null);
-        Assert.False(MapViewSwitch.IsTwoDPose(kept));
-        Assert.Equal(1, w.EntityCount);                        // one camera, moved — never a second one
+        Assert.False(MapViewSwitch.IsTwoDPose(Hrot.UI.Common.Map3D.MapCameraPose.FromTransform(w.GetComponentRO<SimTransform>(cam), null)));
+        Assert.True(requests.IsEmpty);                         // moved, never asked for a second one
+        Assert.Equal(1, w.EntityCount);
 
         var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.Editor").Build();
         string json = serializer.Serialize(w, new Fdp.Toolkit.Scenario.ScenarioHeader("Hrot.Editor")).ToJsonString();
-        Assert.Contains("\"SimTransform\"", json);             // the camera is an ordinary saved entity (U7)
+        Assert.Contains("\"SimTransform\"", json);           // an ordinary saved entity (U7)
     }
 
     [Fact]
-    public void S5_AnAdoptOnlyHost_NeverCreatesACamera_AndAViewTheUserAlreadyMovedIsNotTakenOver()
+    public void S5_AHostThatCannotCreate_NeverMakesACamera_AndAViewTheUserAlreadyMovedIsNotTakenOver()
     {
-        using var w = CameraWorld();
+        using var w = CameraWorld();                           // no request source: the replay browser
         var (_, sw, two) = Map(Vector2.Zero, 1f);
-        var ig = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w, Hrot.UI.Common.Map3D.MapCameraOwnership.AdoptOnly);
-        ig.Update(0.016f);
+        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w);
+        layer.Update(0.016f);
         two.ApplyCameraView(new MapCameraView { Target = new Vector2(50f, 50f), Zoom = 1f, SmoothTarget = new Vector2(50f, 50f), SmoothZoom = 1f });
-        for (int i = 0; i < 40; i++) ig.Update(0.016f);
-        Assert.Equal(0, w.EntityCount);                        // R-140: IG never makes a saved entity
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);
+        Assert.Equal(0, w.EntityCount);
+        Assert.False(layer.Requested);
 
         SaveCamera(w, new CameraPose(new Vector3(999f, 999f, 0f), 300f, 0.3f, -0.4f));   // arrives after the user moved
-        for (int i = 0; i < 40; i++) ig.Update(0.016f);
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);
         Assert.False(sw.Is3D);
-        Assert.False(ig.Adopted);
+        Assert.False(layer.Adopted);
+    }
+
+    [Fact]
+    public void S5_ACameraTheMapDoesNotOwn_IsNotMoved()
+    {
+        using var w = CameraWorld();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+        var cam = SaveCamera(w, new CameraPose(new Vector3(100f, 100f, 0f), 300f, 0.3f, -0.4f));
+        w.AddComponent(cam, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 1, localNodeId: 2));   // owned elsewhere
+        var before = w.GetComponentRO<SimTransform>(cam);
+        var (_, sw, _) = Map(Vector2.Zero, 1f);
+        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w);
+        layer.Update(0.016f);                                  // adopts it
+        Assert.True(layer.Adopted);
+        sw.Camera3D.Pose = sw.Camera3D.Pose with { Yaw = 2.0f };
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);
+        Assert.Equal(before.Position, w.GetComponentRO<SimTransform>(cam).Position);   // a request needs a pitch path (CE-1047)
     }
 
     [Fact]

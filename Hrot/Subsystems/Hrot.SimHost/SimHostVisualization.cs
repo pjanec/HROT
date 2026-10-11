@@ -344,8 +344,7 @@ namespace Hrot.SimHost
             //   stored nowhere. See DebugGizmoLayer._world.
             // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
             _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _map, _gizmoBuffer, interactionBus ?? repo.Bus, () => _repo,
-                Hrot.UI.Common.Map3D.MapCameraOwnership.AdoptOnly).GizmoLayer;   // ⭐ S5 — the scenario is saved by the Brain (R-260)
+                _map, _gizmoBuffer, interactionBus ?? repo.Bus, () => _repo).GizmoLayer;
             _interactionBus = interactionBus;
 
             // ── Interaction ───────────────────────────────────────────────────

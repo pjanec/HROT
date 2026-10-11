@@ -360,8 +360,6 @@ namespace Hrot.ScenarioEditor.Map
         /// happen by construction."</i> ⇒ a host that has a map calls THIS, and gets 3-D; there is no per-host 3-D wiring to forget
         /// (the rail <c>EveryMapHostAttachesTheSharedLayers</c> pins it). 📄 docs/DESIGN_Map_3D_Mode.md §3.1, §6b.
         /// </summary>
-        /// <param name="cameraOwnership">⭐ CE-1033 S5 (R-260) — whether this host saves the scenario and so creates and keeps the
-        /// map camera entity (Editor, CGF), or only adopts the saved view (IG — R-140 —, SimHost, the replay browser).</param>
         /// <param name="tkbProvider">The TKB the entity bodies are sized and classified from; default: the world's
         /// <see cref="Fdp.Interfaces.ITkbDatabase"/> singleton (every host that spawns sets one).</param>
         public static MapLayers AttachMapLayers(
@@ -369,7 +367,6 @@ namespace Hrot.ScenarioEditor.Map
             DebugPrimitiveBuffer buffer,
             FdpEventBus bus,
             Func<EntityRepository?> worldProvider,
-            Hrot.UI.Common.Map3D.MapCameraOwnership cameraOwnership,
             Func<Fdp.Interfaces.ITkbDatabase?>? tkbProvider = null,
             int layerBitIndex = 31)
         {
@@ -400,9 +397,9 @@ namespace Hrot.ScenarioEditor.Map
             var effects = new Hrot.UI.Common.Effects.EffectLayer(worldProvider, tkb, bodies) { GroundHeight = viewSwitch.Camera3D.GroundHeight };
             canvas.AddLayer(effects);
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapViewModeLayer(viewSwitch, bus));
-            // ⭐ CE-1033 S5 (R-260) — the scenario's camera entity: adopted on open on every host; created and kept only by a host
-            //   that saves the scenario (the host says which — a REQUIRED argument, so no host can forget to decide).
-            canvas.AddLayer(new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider, cameraOwnership));
+            // ⭐ CE-1033 S5 (R-260) — the scenario's camera entity, the same on every host: adopted when the scenario opens, REQUESTED
+            //   (unowned, so the default processor creates and owns it — R-140) on the first camera move, moved by its owner.
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider));
             return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects);
         }
 

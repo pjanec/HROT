@@ -725,5 +725,9 @@
         /// <summary><c>EntityAppearance</c> — an entity's body colour: the TKB's (<c>VisualData.ColorHex</c>) stamped at spawn, or a
         /// per-instance value saved in the scenario (<c>CE-1033</c> S5c, docs/DESIGN_Map_3D_Mode.md §3.7, M15).</summary>
         public const int EntityAppearance = 348;
+
+        /// <summary><c>ScenarioEntityCreationRequestSource</c> — a node's LOCAL entity-creation request queue, as a managed world singleton
+        /// (published by <c>EntityCreationPack</c>), so shared code holding only the world can request an entity (<c>CE-1033</c> S5, R-260).</summary>
+        public const int EntityCreationRequestSource = 349;
     }
 }

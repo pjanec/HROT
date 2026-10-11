@@ -974,8 +974,7 @@ public class IgApplication : IDisposable
             //   two constructors collapsed into one.
             // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode, the same on every host.
             var gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _canvas, _gizmoBuffer!, _interactionBus, () => _world,
-                Hrot.UI.Common.Map3D.MapCameraOwnership.AdoptOnly).GizmoLayer;   // ⭐ S5 — IG never saves (R-140)
+                _canvas, _gizmoBuffer!, _interactionBus, () => _world).GizmoLayer;
             _gizmoLayer = gizmoLayer;
             // Route gizmo interaction translators and publisher through the network factory
             // so that IgApplication has no direct dependency on Hrot.Network.NED.

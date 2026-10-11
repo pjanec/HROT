@@ -1119,54 +1119,60 @@ reloaded `VisualData.ColorHex` can be stale, and that is why the colour reads `E
 classDiagram
   class MapCameraTkb { <<new, Hrot.Core>> Type = 7201, hidden from the palette }
   class MapCameraPose { <<new>> ToTransform(CameraPose) SimTransform; FromTransform(tf, ground) CameraPose }
-  class MapCameraLayer { <<new, a map layer>> adopt on open; SavesScenario: create on first move, write when still 0.5 s }
-  class MapCameraOwnership { <<new enum>> AdoptOnly, SavesScenario }
+  class MapCameraLayer { <<new, a map layer>> adopt on open; on the first move REQUEST it unowned; the owner writes when still 0.5 s }
+  class EntityCreationPack { <<exists, shared by every creating host>> + publishes the local request source on the world }
+  class ScenarioEntityCreationRequestSource { <<exists>> + a world singleton, id 349 }
   class MapViewSwitch { <<exists>> + CurrentPose; ShowPose(pose); IsTwoDPose(pose) }
-  class MapInteractionPack { <<exists>> AttachMapLayers(+ cameraOwnership, REQUIRED) }
+  class MapInteractionPack { <<exists>> AttachMapLayers adds the layer, no new argument }
   class EntityBodyLayer3D { <<exists>> + no body for the camera type }
   class EntityPresentationGizmo { <<exists>> + no symbol for the camera type }
   MapInteractionPack ..> MapCameraLayer : adds on every host
   MapCameraLayer --> MapViewSwitch
   MapCameraLayer ..> MapCameraPose
   MapCameraLayer ..> MapCameraTkb
-  MapCameraLayer ..> MapCameraOwnership
+  EntityCreationPack ..> ScenarioEntityCreationRequestSource : SetSingletonManaged
+  MapCameraLayer ..> ScenarioEntityCreationRequestSource : unowned request
 ```
 
 ```mermaid
 sequenceDiagram
   participant U as user
-  participant L as MapCameraLayer (saving host)
+  participant L as MapCameraLayer (any host)
+  participant P as default processor (Brain, or the editor)
   participant S as MapViewSwitch
   participant W as world
   participant F as scenario file
   U->>S: pans / zooms / switches 2-D-3-D
   L->>S: CurrentPose each frame
   Note over L: changed, then still for 0.5 s
-  L->>W: first time CreateEntity + SimTransform(eye, yaw-pitch) + TkbIdentity 7201, later write SimTransform
+  L->>P: first time, an UNOWNED creation request (TKB 7201, SimTransform = eye + yaw-pitch)
+  P->>W: creates and OWNS it (R-140, never an IG)
+  L->>W: the owner writes SimTransform on later moves
   W->>F: saved like any owned entity (U7)
   F->>W: reload, re-spawned like any entity
   L->>S: camera appears and the user has not moved, so ShowPose (2-D if straight down, north up)
 ```
 
 *What the pictures show that prose hid:* the camera needs NO save or load code — it is saved and re-spawned as any entity, and
-the only new decision a host makes is the REQUIRED `cameraOwnership` argument, so no host can silently skip the choice.
+NO host wiring at all: the layer is added by the shared map attach, and it asks through the request source the shared `EntityCreationPack` puts on the world — so every creating host can ask, the replay browser (no creation) can only adopt, and ownership falls where R-140 puts it, on the default processor.
 
 | built | where |
 |---|---|
 | the camera TKB type (7201, `HideFromPalette`), registered in `HrotEnvironment.CreateTkb` | `Hrot.Core/Tkb/MapCameraTkb.cs` |
 | the pose in an ordinary `SimTransform`: position = the EYE, rotation turns +X onto the view direction (+Z = camera up); the look-at and distance come back by casting the view ray onto the ground (bracket + bisect on relief, R-248); looking level or up falls back to 300 m | `Map3D/MapCameraLayer.cs` (`MapCameraPose`) |
-| `MapCameraLayer` on EVERY map host: adopts the scenario's camera when it appears and the user has not moved the map since the world was emptied (a load / New); a saving host creates it on the first move and writes its pose after 0.5 s of stillness; the lowest network id wins if two exist | same file, `MapInteractionPack.AttachMapLayers` |
-| who owns it: Editor and CGF `SavesScenario`; IG (R-140), SimHost, ReplayBrowser `AdoptOnly` — pinned by a source rail | the five hosts' `AttachMapLayers` calls |
+| `MapCameraLayer` on EVERY map host (the shared attach): adopts the scenario's camera when it appears and the user has not moved the map since the world was emptied (a load / New); on the first move with none, REQUESTS one unowned (owner 0, no reliable init) and retries after 5 s if none appears; the owner writes its pose after 0.5 s of stillness; the lowest network id wins if two exist | same file, `MapInteractionPack.AttachMapLayers` |
+| the request path: `EntityCreationPack` (composed by IG, Stride, CGF, SimHost, Editor) publishes its local `ScenarioEntityCreationRequestSource` as a world singleton (id 349) — so the default processor creates and OWNS the camera (R-140), never an IG; zero per-host lines, pinned by a source rail | `Hrot.Common/EntityCreation/EntityCreationPack.cs` |
 | `MapViewSwitch.CurrentPose` / `ShowPose` / `IsTwoDPose` — the 2-D map is the pose straight down, north up (M10) | `Vis3D/MapViewSwitch.cs` |
 | never drawn or picked: no 3-D body, no 2-D symbol / anchor / pick box | `EntityBodyLayer3D.LookOf`, `EntityPresentationGizmo.Draw` |
 
-⚠ **Left, named:** a host that does not OWN the camera does not move it — a change request would need a pitch path the
+⛔ **Superseded the same day:** the first build had each host pass a `MapCameraOwnership` argument (Editor / CGF saved it). Measured wrong: every host, IG included, registers the SAME scenario save handler and saves what it OWNS (`IgNodeBootstrapper.cs:435-440`, CE-275), so "saves the scenario" is not a host property; and the user ruled out per-host wiring. ⚠ **Left, named:** a host that does not OWN the camera does not move it — a change request would need a pitch path the
 attribute vocabulary lacks (geodetic position + heading only); folded into [`CE-1047`](blueprints/Blueprint_Issues_Tracker.md).
 In a cluster the Brain owns the reloaded camera, so the Editor's own moves are not saved there until that lands. · Moves during
 Live/Preview are written too (the camera is the view, not simulation state). · Field of view stays a viewer setting (D7).
-**Gates:** `Map3DTests.S5_*` (5: pose round trip on a slope and overhead · adopt in 3-D and in 2-D · create on first move,
-keep, saved · adopt-only never creates and does not take over a moved view · no body, no symbol, hidden type) ·
-`EveryMapHostAttachesTheSharedLayersTests` (no host builds its own camera layer; only Editor / CGF own it).
+**Gates:** `Map3DTests.S5_*` (6: pose round trip on a slope and overhead · adopt in 3-D and in 2-D · the first move requests ONE
+unowned camera, the creator owns it, its pose is kept and saved · no request source ⇒ never made, a moved view not taken over ·
+a camera owned elsewhere is not moved · no body, no symbol, hidden type) ·
+`EveryMapHostAttachesTheSharedLayersTests` (no host builds its own camera layer; no host mentions the camera at all).
 
 ## 7. NOT VERIFIED — say so before it is built on
 

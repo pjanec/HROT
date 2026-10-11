@@ -8,17 +8,6 @@ using Hrot.Core.Tkb;
 
 namespace Hrot.UI.Common.Map3D;
 
-/// <summary>Whether a map host may create and move the scenario's camera entity (R-260), or only adopts it.</summary>
-public enum MapCameraOwnership
-{
-    /// <summary>Adopts the saved view when the scenario opens; never creates or writes the camera (IG — R-140 — and every
-    /// host that does not save the scenario).</summary>
-    AdoptOnly = 0,
-
-    /// <summary>A host that SAVES the scenario: also creates the camera on the first camera move and keeps its pose.</summary>
-    SavesScenario = 1,
-}
-
 /// <summary>
 /// ⭐ CE-1033 S5 (docs/DESIGN_Map_3D_Mode.md §3.12, R-260) — the camera entity's pose in its ordinary <see cref="SimTransform"/>
 /// (U7): the POSITION is the eye, the ROTATION turns +X onto the view direction with +Z as the camera's up. The look-at point and
@@ -87,13 +76,15 @@ public static class MapCameraPose
 }
 
 /// <summary>
-/// ⭐ CE-1033 S5 (docs/DESIGN_Map_3D_Mode.md §3.12, R-260) — the scenario's CAMERA ENTITY on the map, on every host (added by
-/// <c>MapInteractionPack.AttachMapLayers</c>). When the scenario's camera appears and the user has not moved the map since the
-/// scenario opened, the map ADOPTS it — its pose, and 2-D or 3-D by its pitch. On a host that saves the scenario
-/// (<see cref="MapCameraOwnership.SavesScenario"/>) the camera is created on the first camera move and its pose follows the map
-/// once the view has been still for <see cref="SettleSeconds"/>. A layer, so the canvas' own <c>Update</c> drives it.
-/// <para>⚠ A host that does not OWN the camera does not move it: a change-request would need a pitch path the attribute
-/// vocabulary does not have (only geodetic position and heading) — named in CE-1047.</para>
+/// ⭐ CE-1033 S5 (docs/DESIGN_Map_3D_Mode.md §3.12, R-260) — the scenario's CAMERA ENTITY on the map, the SAME on every host (added
+/// by <c>MapInteractionPack.AttachMapLayers</c>; nothing to wire per host). When the scenario's camera appears and the user has not
+/// moved the map since the scenario opened, the map ADOPTS it — its pose, and 2-D or 3-D by its pitch. On the first camera move
+/// with no camera yet, the layer REQUESTS one, UNOWNED, through the world's entity-creation request source (published by the shared
+/// <c>EntityCreationPack</c>): the default processor (the Brain, or the editor's one-node cluster) creates and OWNS it — the shape
+/// R-140 prescribes, so an IG never owns it. The owner keeps its pose once the view has been still for <see cref="SettleSeconds"/>.
+/// A host with no request source (the replay browser) only adopts.
+/// <para>⚠ A host that does not OWN the camera does not move it: a change request would need a pitch path the attribute vocabulary
+/// does not have (only geodetic position and heading) — named in CE-1047.</para>
 /// </summary>
 public sealed class MapCameraLayer : IMapLayer
 {
@@ -102,20 +93,24 @@ public sealed class MapCameraLayer : IMapLayer
 
     private readonly MapViewSwitch _switch;
     private readonly Func<EntityRepository?> _world;
-    private readonly MapCameraOwnership _ownership;
+
+    /// <summary>How long to wait for a requested camera to appear before asking again.</summary>
+    public const float RequestRetrySeconds = 5f;
 
     private Entity? _camera;
     private bool _adopted, _userMoved, _dirty, _haveLast;
     private CameraPose _last;
-    private float _still, _scanIn;
+    private float _still, _scanIn, _requestedFor = -1f;
     private int _lastCount;
 
-    public MapCameraLayer(MapViewSwitch viewSwitch, Func<EntityRepository?> world, MapCameraOwnership ownership)
+    public MapCameraLayer(MapViewSwitch viewSwitch, Func<EntityRepository?> world)
     {
         _switch = viewSwitch ?? throw new ArgumentNullException(nameof(viewSwitch));
         _world = world ?? throw new ArgumentNullException(nameof(world));
-        _ownership = ownership;
     }
+
+    /// <summary>True while a camera this map asked for has not appeared yet.</summary>
+    public bool Requested => _requestedFor >= 0f;
 
     /// <summary>The camera entity this map follows, once found or created.</summary>
     public Entity? Camera => _camera;
@@ -137,10 +132,18 @@ public sealed class MapCameraLayer : IMapLayer
         _lastCount = count;
         if (_camera is { } known && !w.IsAlive(known)) Reset();
 
+        if (_requestedFor >= 0f) _requestedFor += dt;
         if (_camera == null && (_scanIn -= dt) <= 0f)
         {
             _camera = Find(w);
             _scanIn = 0.5f;
+            if (_camera != null && _requestedFor >= 0f)
+            {
+                _adopted = true;          // the camera THIS map asked for: nothing to adopt, its pose is ours
+                _requestedFor = -1f;
+                _dirty = true;            // the view may have moved while it was being created — keep it
+                _still = SettleSeconds;
+            }
         }
 
         var now = _switch.CurrentPose;
@@ -172,7 +175,7 @@ public sealed class MapCameraLayer : IMapLayer
         _still += dt;
         if (_still < SettleSeconds) return;
         _dirty = false;
-        if (_ownership == MapCameraOwnership.SavesScenario) Commit(w, now);
+        Commit(w, now);
     }
 
     private void Commit(EntityRepository w, CameraPose pose)
@@ -184,11 +187,19 @@ public sealed class MapCameraLayer : IMapLayer
             w.GetComponentRW<SimTransform>(cam) = tf;
             return;
         }
-        var e = w.CreateEntity();
-        w.AddComponent(e, tf);
-        w.AddComponent(e, new TkbIdentity { TkbType = MapCameraTkb.Type });
-        _camera = e;
-        _adopted = true;
+        if (_requestedFor >= 0f && _requestedFor < RequestRetrySeconds) return;      // asked already; wait for it
+        if (!w.HasSingletonManaged<Hrot.Core.Network.ScenarioEntityCreationRequestSource>()) return;   // no creation here (replay)
+        // ⭐ R-140 — UNOWNED (owner 0): the default processor creates and owns it, never an IG. Nobody has to acknowledge a view.
+        w.GetSingletonManaged<Hrot.Core.Network.ScenarioEntityCreationRequestSource>()!.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+        {
+            RequestId = Guid.NewGuid(),
+            OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
+            TkbType = MapCameraTkb.Type,
+            InitialComponents = new List<object> { tf },
+            InitType = Fdp.Toolkit.Replication.ReliableInitType.None,
+        });
+        _requestedFor = 0f;
+        _dirty = true;   // write the latest pose once it exists
     }
 
     private void Reset()
@@ -196,6 +207,7 @@ public sealed class MapCameraLayer : IMapLayer
         _camera = null;
         _adopted = _userMoved = _dirty = false;
         _still = _scanIn = 0f;
+        _requestedFor = -1f;
     }
 
     /// <summary>The scenario's camera: the camera-type entity with the lowest network id (two saving hosts may each have made

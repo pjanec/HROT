@@ -274,8 +274,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             //   stored nowhere. See DebugGizmoLayer._world.
             // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
             _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _canvas, _gizmoBuffer, _interactionBus, () => _activeRepo,
-                Hrot.UI.Common.Map3D.MapCameraOwnership.AdoptOnly).GizmoLayer;   // ⭐ S5 — a replay is watched, never saved (U3)
+                _canvas, _gizmoBuffer, _interactionBus, () => _activeRepo).GizmoLayer;
 
             _diffService = new ComponentDiffService();
             _exportService = new RecordingExportService(_scenarioSerializer, _diffService);
