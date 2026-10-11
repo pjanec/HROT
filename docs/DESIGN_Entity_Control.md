@@ -18,6 +18,7 @@ related-designs:
   - docs/designs/ai-debug-api/DESIGN.md + docs/MCP_Integration.md — OWN the HTTP debug API the order routes extend
   - FDP/Docs/projects/toolkits/FDP.Toolkit.CarKinem.md — OWNS ground kinematics (HumanGait R-247, BicycleModel) that manual drive extends
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS the Brain / MuscleGround groups the new components join
+  - docs/designs/gizmos-1/gizmo-input-focus-design.md §6.2d — OWNS the raw-input route to backend gizmos (the key queue's one reader, CE-3175)
   - docs/DESIGN_Peek_And_Fire.md §10.9 G4 — OWNS SquadAssignment.TargetOf, the ONE reader of "the target this unit was told to fight"; the attack order's DesignatedTarget (CE-3170) answers first there
 -->
 
@@ -840,5 +841,5 @@ did not land: the muscle's manual branch has no navmesh reach today — it stays
 | ⚠ mission timers keep running during possession | a phase change while possessed is refused by rank (Possession outranks Superior); on release the unit resumes its OLD task while the plan has moved on — accepted for v1 |
 | ⚠ a vehicle under manual drive can enter a building | M-5 checks walkability for people only |
 | ⚠ `EntityBoxPicker` returns the entity's **position**, not the hit point | the operator's aim at an entity aims at its origin; fine for v1 |
-| 🔴 `CE-3175` | the map canvas and the gizmo layer **both drain** Raylib's typed-key queue (`MapCanvas.cs:218` vs `DebugGizmoLayer.cs:363`) ⇒ typed keys likely never reach a raw-input tool. Read, not run |
+| ✅ `CE-3175` | ~~the map canvas and the gizmo layer **both drain** Raylib's typed-key queue~~ — FIXED `2026-10-11`: the canvas is the one drain and hands the keys to the gizmo layer for its terminal. ⚠ Wider than first read: no key PRESS reached any backend gizmo, so Escape cancelled none of them. 📄 `docs/designs/gizmos-1/gizmo-input-focus-design.md` §6.2d |
 | 🔴 `CE-3176` | `KinematicsMode.None` is driven as Direct (`CarKinematicsSystem.cs:226`), and the PathToPoint bridge writes None **with a speed and destination** while the path is pending (`NavigationIntentBridgeSystem.cs:156`) ⇒ a CarKinem unit may drive straight at its goal until the 10 Hz solver answers. Read, not run |
