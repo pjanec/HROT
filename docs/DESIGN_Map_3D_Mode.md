@@ -346,7 +346,7 @@ being a composite unit) to a family: person, tank, AFV, wheeled, unit. ⇒ that 
 
 | family *(DIS)* | built-in types today | kit — parts, as fractions of the type's L × W × H |
 |---|---|---|
-| **person** *(kind 3)* | Rifleman, InfantrySoldier, Grenadier, MortarTeam, Insurgent, CivilianPedestrian | the six-box block figure; **rifle** part for soldiers (category 1), none for civilians; body in the entity colour (§3.7), side shown by the card frame |
+| **person** *(kind 3)* | Rifleman, InfantrySoldier, Grenadier, MortarTeam, Insurgent, CivilianPedestrian | the block figure; **rifle** part for soldiers (category 1), none for civilians; body in the entity colour (§3.7), side shown by the card frame. ⭐ **WL-6 (`2026-10-11`, R-272):** arms in two segments (elbows); a soldier holds the rifle in the weapon brain's `WeaponPosture` — at ease low, ready at the chest, aimed shouldered with the upper body turned and pitched toward the target — and his arms do not swing; running leans the upper body forward. 📄 `DESIGN_Weapon_Layers.md` W-13 / §5h |
 | **tank** *(1.1, cat 1)* | M1 Abrams, T-72 | lower hull · two track blocks (dark) · turret box set back · barrel cylinder forward |
 | **AFV / APC** *(1.1, cat 2)* | Bradley, MilitaryAPC | hull with a sloped front wedge · tracks or wheels (dark) · small turret · thin barrel |
 | **wheeled — car** *(1.1, cat 81)* | CivilianCar | lower body · cabin (glass) · four wheels (roll with speed) |

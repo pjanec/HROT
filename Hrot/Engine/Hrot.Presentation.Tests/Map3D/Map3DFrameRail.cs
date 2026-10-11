@@ -568,8 +568,8 @@ public sealed class Map3DFrameRail
         canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
         canvas.AddLayer(bodies);
         sw.Set(true, animate: false);
-        // from the north-east, a little above them: every figure side-on-ish, so the rifles and arms read
-        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 1f, spot.Y - 1.5f, G(spot.X, spot.Y) + 1.0f), 11f, MathF.PI * 0.30f, -0.10f);
+        // from the south-east, a little above them: they face east, so this is a front three-quarter view — the rifles and arms read
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 1f, spot.Y - 1.5f, G(spot.X, spot.Y) + 1.0f), 12f, MathF.PI * 0.80f, -0.10f);
 
         // the runner at 6 m/s and the walker at 1.4 m/s, over a few frames of sim time, so the gait and the lean are live
         void Move(Entity e, float speed, double dt)
@@ -590,8 +590,8 @@ public sealed class Map3DFrameRail
         frame.Screenshot(Path.Combine(shots, "posture-1-side.png"));
         Assert.Equal(8, bodies.BodiesDrawn);
 
-        // closer, from the front-left, on the aimed pair
-        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 0.2f, spot.Y - 1.5f, G(spot.X, spot.Y) + 1.2f), 5.5f, MathF.PI * 0.15f, -0.12f);
+        // closer, side-on from the south, on the aimed pair (the one turned toward the target on his left) and the crouched one
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 0.3f, spot.Y - 3f, G(spot.X, spot.Y) + 1.1f), 6.5f, MathF.PI * 0.62f, -0.08f);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "posture-2-aimed-close.png"));
     }
