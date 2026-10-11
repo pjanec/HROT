@@ -31,6 +31,7 @@ namespace Hrot.AI.Behaviors.Brains
             public IsOptionParams IsFlank, IsFiringPos, IsCloseToThrow;
             public PostureSensorsParams ApproachSensors;
             public EqsTacticsParams Flank, Firing, Throw;
+            public WillingToCloseParams Willing;   // ⭐ AQ89 C/D — the Suppress branch's closing gate
 
             // ⭐ one working memory per node, as the JSON tree's auto slots were
             public PostureSensorsState SensorsState;
@@ -39,6 +40,7 @@ namespace Hrot.AI.Behaviors.Brains
             public AdvanceState AdvanceState;
             public PeekAndFireState PeekState;
             public EngageState SuppressState, HoldProneState;
+            public EqsTacticsState SuppressThrowState;   // ⭐ AQ89 C — the close the Suppress branch runs (its own, not the approach's)
         }
 
         /// <summary>Every value the JSON tree's blackboard carried as a default — the posture an unconfigured soldier fights with.</summary>
@@ -81,6 +83,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (a.Speed > 0f) block.Advance.Speed = a.Speed;
             if (a.ArrivalRadius > 0f) block.Advance.ArrivalRadius = a.ArrivalRadius;
             if (a.CooldownSeconds > 0f) block.Advance.CooldownSeconds = a.CooldownSeconds;
+            block.Willing.Assault = authored.Assault ? (byte)1 : (byte)0;   // ⭐ AQ89 D
         }
 
         /// <summary>📄 §3.3b: decide, sense and act in one Parallel (RequireOne — the posture ends when its winner ends); the winner runs
@@ -112,9 +115,15 @@ namespace Hrot.AI.Behaviors.Brains
                         .Sequence(cover => cover
                             .StatefulCondition(bb => bb.IsCover, bb => bb.Choice, UtilityNodes.IsOption)
                             .StatefulAction(bb => bb.Peek, bb => bb.PeekState, PeekAndFireNodes.PeekAndFire))
+                        // ⭐⭐ AQ89 A/C (R-269) — at a hidden target a WILLING unit carrying a throwable closes to throw under its own
+                        //   blind fire; anyone else suppresses blind at the last-known spot instead of idling. Outer scores untouched.
                         .Sequence(suppress => suppress
                             .StatefulCondition(bb => bb.IsSuppress, bb => bb.Choice, UtilityNodes.IsOption)
-                            .StatefulAction(bb => bb.Engage, bb => bb.SuppressState, PostureNodes.Engage))
+                            .ObserverSelector(how => how
+                                .Sequence(close => close
+                                    .StatefulCondition(bb => bb.Willing, bb => bb.SuppressThrowState, PostureNodes.WillingToClose)
+                                    .StatefulAction(bb => bb.Throw, bb => bb.SuppressThrowState, EqsTacticsNodes.CloseToThrow))
+                                .StatefulAction(bb => bb.Engage, bb => bb.SuppressState, PostureNodes.Suppress)))
                         .Sequence(fallBack => fallBack
                             .StatefulCondition(bb => bb.IsFallBack, bb => bb.Choice, UtilityNodes.IsOption)
                             .StatefulAction(bb => bb.Fallback, bb => bb.FallBackState, EqsTacticsNodes.FallBack))

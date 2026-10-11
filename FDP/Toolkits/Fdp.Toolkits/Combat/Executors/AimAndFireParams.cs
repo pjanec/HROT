@@ -24,6 +24,13 @@ namespace Fdp.Toolkit.Combat.Executors
         /// </summary>
         public byte Mount;
 
+        /// <summary>
+        /// ⭐ AQ89 A (R-269) — 1 = SUPPRESS: when the target is not seen (and nothing can be thrown), fire slow bursts at where the
+        /// unit's memory last placed it instead of holding. 0 = hold (every zero-filled writer — today's behaviour). Sits in the
+        /// padding after <see cref="Mount"/>, so <see cref="Rounds"/> keeps its offset.
+        /// </summary>
+        public byte BlindFire;
+
         /// <summary>The <see cref="Mount"/> value that asks the executor to choose the weapon per shot.</summary>
         public const byte MountAuto = 255;
 

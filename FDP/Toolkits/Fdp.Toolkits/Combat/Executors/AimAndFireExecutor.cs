@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
@@ -150,8 +151,17 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 weapon.CooldownSecondsRemaining -= dt;
                 channel.Status = NodeStatus.Running;
-                if (!seen || aim.Ready == 0) SayAim(world, entity, p.Target, seen, in aim, mountIndex);
+                if (!seen && p.BlindFire != 0) Say(world, entity, ActionReason.BlindFire, p.Target, RoundsFired(ref channel), p.Rounds);
+                else if (!seen || aim.Ready == 0) SayAim(world, entity, p.Target, seen, in aim, mountIndex);
                 else Say(world, entity, ActionReason.Cooldown, p.Target, weapon.CooldownSecondsRemaining);
+                return;
+            }
+
+            // ⭐⭐ AQ89 A (R-269) — SUPPRESS: not seen and nothing thrown ⇒ slow rounds at where the memory last placed the target,
+            //   instead of holding. They strike the cover he hides behind and stamp UnderFire on him (a near miss — AQ85 E).
+            if (!seen && p.BlindFire != 0)
+            {
+                FireBlind(entity, ref channel, world, in p, mountIndex, mountDto, ref weapon);
                 return;
             }
 
@@ -204,6 +214,53 @@ namespace Fdp.Toolkit.Combat.Executors
             int fired = ++RoundsFired(ref channel);
             channel.Status = p.Rounds > 0 && fired >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
             Say(world, entity, ActionReason.Firing, p.Target, fired, p.Rounds);
+        }
+
+        /// <summary>⭐ AQ89 A — a blind round aims this far above the remembered ground point: a crouched man's middle, so it strikes
+        /// a wall he crouches behind (a near miss) rather than flying over it.</summary>
+        public const float BlindAimHeightMetres = 0.5f;
+
+        /// <summary>⭐ AQ89 A — blind rounds go this many times slower than aimed ones (bursts with pauses, not a magazine dump).</summary>
+        public const float BlindCooldownFactor = 2.5f;
+
+        /// <summary>
+        /// ⭐⭐ AQ89 A (R-269) — one suppressive round at the hidden target's last-known point: the at-point path a peek's blind burst
+        /// flies (<see cref="WeaponFireIntent.AtPoint"/>), with the aimed shot's gates — a live, identified memory slot
+        /// (<see cref="HiddenTargetThrow.LastKnown"/>), the magazine, the friendly line to the POINT, the ROE. An indirect mount
+        /// never fires blind (that is the throw's decision, W-12e). It counts as a round of this action.
+        /// </summary>
+        private static void FireBlind(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
+                                      int mountIndex, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto, ref WeaponState weapon)
+        {
+            channel.Status = NodeStatus.Running;
+            if (CombatTkb.WarheadOf(world, mountDto) is { Indirect: true } || !HiddenTargetThrow.LastKnown(world, entity, p.Target, out var point))
+            {
+                Say(world, entity, ActionReason.HoldNotSeen, p.Target);
+                return;
+            }
+            point.Z += BlindAimHeightMetres;
+            if (!Magazine.Ready(weapon))
+            {
+                Magazine.StartIfEmpty(ref weapon);
+                Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
+                return;
+            }
+            if (LineOfFire.BlockedByFriendly(world, entity, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
+            if (!RoePermitsFire(world, entity)) { Say(world, entity, ActionReason.HoldRoe, p.Target); return; }
+
+            world.Bus.Publish(new WeaponFireIntent
+            {
+                Shooter     = entity,
+                Target      = Entity.Null,
+                WeaponIndex = mountIndex,
+                AtPoint     = true,
+                TargetPoint = point,
+            });
+            Magazine.Spend(ref weapon);
+            weapon.CooldownSecondsRemaining = MathF.Max(p.CooldownSeconds, 0.1f) * BlindCooldownFactor;
+            int fired = ++RoundsFired(ref channel);
+            if (p.Rounds > 0 && fired >= p.Rounds) channel.Status = NodeStatus.Success;
+            Say(world, entity, ActionReason.BlindFire, p.Target, fired, p.Rounds);
         }
 
         /// <summary>

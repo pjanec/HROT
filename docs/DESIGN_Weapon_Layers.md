@@ -9,6 +9,7 @@ known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount part
   registers WeaponMountInfo and CombatTkbTranslator.cs:92-122 creates them on CGF. DESIGN_Decision_Layer.md :1330 calls
   AimAndFireExecutor "the only weapon-channel executor" — stale since FireAtPointExecutor (DESIGN_Building_Interiors.md §3k).
 related-designs:
+  - blueprints/Architect_Question_89_Suppress_And_Close.md — AQ89 (R-269): Suppress at a hidden target asks this file's weapon brain for BLIND fire; bravery/obedience (CombatTemperament) decides the close-to-throw
   - DESIGN_Map_3D_Mode.md — §3.11 M23–M26 (R-255): the turret is a part child with a TurretPose, the weapon side aims it, it
     replicates as a multi-instance descriptor. THIS file decides which weapon layer on which node does the aiming.
   - DESIGN_Visual_Effects.md — VE-J..VE-L: Muzzle.Of(shooter, weaponIndex) from the posed barrel, used by the round AND the flash.
@@ -616,6 +617,17 @@ Muscle — on `--mode editor` both are the same world, on the cluster the reques
 | **L-6** | `CloseToThrow` scoring | `HaveLiveTarget` (Step) × `ThreatInSight` (Inverse) × `CarriesThrowable` (Step) × `EqsTopScore(FindThrowingPosition)`, the last with exponent 0.6 (weights are exponents in a weighted product, ≤ 1 by rule UT0131; v^0.6 > v) — so a grenadier with a reachable covered spot prefers to throw, a rifleman (score 0) flanks | W-12f · `AttackApproachDecision.cs:33-46` | a separate grenade behaviour — W-12f rejected it |
 | **L-7** | the scenario wall | `bt-range`'s existing **1.2 m sandbags** (145–153, 40); the hostile crouched 2.5 m behind them (a crouched man's head is 1.1 m — hidden) | `bt-range.world.geojson` · premise "sandbags stop the rifle" | a new 1 m wall — a terrain change and new premises for a number the sandbags already give |
 | **L-8** | `TrackTarget` vocabulary | a shared node `TrackTargetNodes.TrackTarget` + a curated `TrackTarget` behaviour (`Library/Basic`), the `FireAtPoint` precedent | `FireAtPointBehavior.cs` · §5e "its node is NOT built" | a Blueprint channel catalog entry now — palette goldens; left as `FireAtPoint` left it |
+
+#### ⭐ What the scenario found, and how it was closed — AQ89 *(R-269)*
+
+📌 Measured on the cluster: an equally armed hidden hostile makes the posture **Suppress**, not Advance. The approach (and so
+`CloseToThrow`) is nested under the Advance branch, and Suppress at a hidden target held until the memory faded. ⇒ the Grenadier
+never threw. ✅ Fixed by [AQ89](blueprints/Architect_Question_89_Suppress_And_Close.md) §4, with no change to the posture scores:
+- Suppress asks the weapon brain for **blind fire** (`AimAndFireParams.BlindFire`). The weapon brain throws if it can (W-12e above), else
+  fires at the last-known point, else fires aimed once he is seen.
+- A **willing** grenadier closes inside the Suppress branch, running the same `CloseToThrow` with its own state. Willing means a
+  `CombatTemperament` (bravery / obedience, defaults 0.5 / 0.8) at or above 0.6.
+- The scenario authors the Grenadier brave (`"Temperament": {"riskAcceptance": 0.8}`).
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 

@@ -747,5 +747,9 @@ namespace Fdp.Core
 
         /// <summary><c>WeaponMuscleState</c> — the weapon muscle's own per-turret fire timing (WL-3), never sent.</summary>
         public const int WeaponMuscleState = 354;
+
+        /// <summary><c>CombatTemperament</c> — a soldier's bravery and obedience (AQ89 B, R-269), read through <c>TemperamentOf</c> with
+        /// defaults so it never reads zero; saved in the scenario by its own translator.</summary>
+        public const int CombatTemperament = 355;
     }
 }

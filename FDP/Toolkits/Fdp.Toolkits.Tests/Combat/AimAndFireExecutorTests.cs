@@ -1010,5 +1010,54 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0, Step(unit, ref channel, 0.1f));
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
+
+        // ── AQ89 A (R-269) — Suppress at a hidden target: blind rounds at the last-known spot, not an idle hold ────────────────
+
+        private static unsafe void AskBlind(ref WeaponChannel channel)
+        {
+            var p = Unsafe.Read<AimAndFireParams>(Unsafe.AsPointer(ref channel.Params[0]));
+            p.BlindFire = 1;
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
+        }
+
+        /// <summary>
+        /// ⭐ AQ89 A — hidden, 30 m away (beyond a throw), BlindFire asked: the RIFLE fires at the remembered point raised to a crouched
+        /// man's middle, cools down <see cref="AimAndFireExecutor.BlindCooldownFactor"/>× slower than aimed fire, and the round counts.
+        /// 🔴 Red before: Suppress at a hidden target held (<c>HoldNotSeen</c>) every frame until the memory faded.
+        /// </summary>
+        [Fact]
+        public void AQ89_A_AHiddenTargetBeyondAThrow_GetsBlindRoundsAtItsLastKnownSpot()
+        {
+            var remembered = new Vector3(0f, 30f, 0f);
+            var (unit, grenade, channel, _) = Grenadier(remembered);
+            AskBlind(ref channel);
+            _executor.OnEnter(unit, ref channel, _world);
+            _executor.Execute(unit, ref channel, _world, 0.1f);
+            _world.Bus.SwapBuffers();
+            var intents = _world.Bus.Read<WeaponFireIntent>();
+            Assert.Equal(1, intents.Length);
+            Assert.True(intents[0].AtPoint);
+            Assert.Equal(0, intents[0].WeaponIndex);
+            Assert.Equal(remembered + new Vector3(0f, 0f, AimAndFireExecutor.BlindAimHeightMetres), intents[0].TargetPoint);
+            Assert.Equal(29, _world.GetComponent<WeaponState>(unit).Ammo);
+            Assert.Equal(4, _world.GetComponent<WeaponState>(grenade).Ammo);   // nothing thrown
+            Assert.Equal(0.5f * AimAndFireExecutor.BlindCooldownFactor, _world.GetComponent<WeaponState>(unit).CooldownSecondsRemaining, 3);
+            Assert.Equal(1, AimAndFireExecutor.RoundsFiredOf(ref channel));
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        /// <summary>⭐ AQ89 A — no blind round without a LIVE memory of the target, nor when BlindFire is not asked (today's hold).</summary>
+        [Theory]
+        [InlineData(true, 0f)]
+        [InlineData(false, 500f)]
+        public void AQ89_A_NoBlindRound_WhenForgottenOrNotAsked(bool asked, float freshness)
+        {
+            var (unit, _, channel, _) = Grenadier(new Vector3(0f, 30f, 0f), freshness);
+            if (asked) AskBlind(ref channel);
+            _executor.OnEnter(unit, ref channel, _world);
+            Assert.Equal(0, Step(unit, ref channel, 0.1f));
+            Assert.Equal(30, _world.GetComponent<WeaponState>(unit).Ammo);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
 }
 }

@@ -38,6 +38,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         OutOfArc,
         /// <summary>⭐ WL-4 (W-12e) — the target is hidden: a grenade went to where it was last seen.</summary>
         Throwing,
+        /// <summary>⭐ AQ89 A (R-269) — the target is hidden: suppressive bursts at where it was last seen.</summary>
+        BlindFire,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -107,6 +109,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.Failed             => "failed",
             ActionReason.Slewing            => "slewing",
             ActionReason.Throwing           => "throw: last seen",
+            ActionReason.BlindFire          => "suppress: last seen",
             ActionReason.OutOfArc           => "out of arc",
             _                               => "",
         };

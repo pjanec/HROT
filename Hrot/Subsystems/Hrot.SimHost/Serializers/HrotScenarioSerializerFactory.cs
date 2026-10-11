@@ -23,6 +23,7 @@ namespace Hrot.SimHost.Serializers
                 .WithUnknownComponentPolicy(unknownComponentPolicy)
                 .RegisterTranslator(new MissionPlanTranslator(behaviorRegistry))
                 .RegisterTranslator(new TargetMemoryTranslator())
+                .RegisterTranslator(new CombatTemperamentTranslator())   // ⭐ AQ89 B (R-269)
                 .RegisterTranslator(new PassengerBufferTranslator())
                 .RegisterTranslator(new VisHierarchyNodeTranslator())
                 .RegisterTranslator(new IsEmbarkedTagTranslator())

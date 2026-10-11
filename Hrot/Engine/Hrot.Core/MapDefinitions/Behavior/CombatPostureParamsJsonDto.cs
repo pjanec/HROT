@@ -18,6 +18,11 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The advance-and-attack leg.</summary>
         [JsonPropertyName("advance")]
         public CombatPostureAdvanceJsonDto Advance { get; set; }
+
+        /// <summary>⭐ AQ89 D (R-269) — the order is an ASSAULT: at a hidden enemy the unit closes to throw under its own fire when
+        /// its OBEDIENCE allows (an ordinary soldier's does), instead of its own bravery deciding. Default false.</summary>
+        [JsonPropertyName("assault")]
+        public bool Assault { get; set; }
     }
 
     /// <summary>⭐ <c>CE-3160</c> — the advance of <see cref="CombatPostureParamsJsonDto"/>.</summary>

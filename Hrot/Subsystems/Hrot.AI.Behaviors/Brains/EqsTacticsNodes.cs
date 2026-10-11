@@ -280,7 +280,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (p.FireWhileMoving == 0) return;
             if (always || (ws.Moving == 1 && LocomotionMoveTo.Status(world, self) == NodeStatus.Running))
-                PostureNodes.Fire(world, self, ref ws.Fire, p.FireCooldownSeconds > 0f ? p.FireCooldownSeconds : 1f);
+                // ⭐ AQ89 C — FireAlways (CloseToThrow) suppresses BLIND at the hidden target while it closes (R-269)
+                PostureNodes.Fire(world, self, ref ws.Fire, p.FireCooldownSeconds > 0f ? p.FireCooldownSeconds : 1f, blind: always);
             else
                 PostureNodes.StopFiring(world, self, ref ws.Fire);
         }

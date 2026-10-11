@@ -394,6 +394,84 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Flank, w.ApproachWinner());
         }
 
+        // ── ⭐⭐ AQ89 (R-269) — Suppress at a HIDDEN, equally armed enemy (docs/blueprints/Architect_Question_89_Suppress_And_Close.md) ──
+
+        private static void Temperament(World w, float? risk = null, float? obey = null)
+        {
+            if (!w.Repo.IsComponentTypeRegistered<CombatTemperament>()) w.Repo.RegisterComponent<CombatTemperament>();
+            var t = new CombatTemperament();
+            if (risk is { } r) { t.RiskAcceptance = r; t.Set |= CombatTemperament.RiskAcceptanceSet; }
+            if (obey is { } o) { t.Obedience = o; t.Set |= CombatTemperament.ObedienceSet; }
+            w.Repo.AddComponent(w.Unit, t);
+        }
+
+        /// <summary>The unit has a sensor that holds nothing NOW — without one, <c>SightNow</c> reads "seen" (a world with no sensor model).</summary>
+        private static void SeesNothing(World w)
+        {
+            if (!w.Repo.IsComponentTypeRegistered<ActiveSensorTracks>()) w.Repo.RegisterComponent<ActiveSensorTracks>();
+            if (!w.Repo.HasComponent<ActiveSensorTracks>(w.Unit)) w.Repo.AddComponent(w.Unit, new ActiveSensorTracks());
+        }
+
+        private static unsafe byte BlindFireAsked(World w)
+        {
+            ref readonly var ch = ref w.Repo.GetComponentRO<WeaponChannel>(w.Unit);
+            fixed (byte* src = ch.Params) return ((Fdp.Toolkit.Combat.Executors.AimAndFireParams*)src)->BlindFire;
+        }
+
+        /// <summary>
+        /// ⭐ AQ89 A — an equally armed enemy out of sight: the posture is Suppress and the weapon is asked to SUPPRESS BLIND (the weapon
+        /// brain then fires at the last-known spot). No close for a rifleman. 🔴 Red before: Suppress asked for aimed fire only, which
+        /// held at a hidden target until the memory faded.
+        /// </summary>
+        [Fact]
+        public void AQ89_A_AHiddenEqualEnemy_IsSuppressedBlind()
+        {
+            var w = new World();
+            w.Arm();
+            SeesNothing(w);
+            w.Contact(armed: true);
+            w.Order("CombatPosture", Objective);
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal((byte)Fdp.Toolkit.Utility.Posture.Suppress, w.Winner("CombatPosture"));
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            Assert.Equal(1, BlindFireAsked(w));
+            Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.CloseToThrowSite).IsNull, "a rifleman does not close");
+        }
+
+        /// <summary>
+        /// ⭐⭐ AQ89 B/C/D — a grenadier at a hidden enemy CLOSES TO THROW under his own blind fire only when WILLING: brave on his own
+        /// (risk 0.8), or ordered to assault (an ordinary soldier's obedience 0.8). An ordinary grenadier left to himself (0.5), or a
+        /// disobedient one ordered to assault (0.3), suppresses where he is.
+        /// </summary>
+        [Theory]
+        [InlineData(0.8f, null, false, true)]
+        [InlineData(null, null, false, false)]
+        [InlineData(null, null, true, true)]
+        [InlineData(null, 0.3f, true, false)]
+        public void AQ89_C_AGrenadierClosesToThrow_OnlyWhenWilling(float? risk, float? obey, bool assault, bool closes)
+        {
+            var w = new World();
+            w.Arm();
+            w.ArmGrenades();
+            Temperament(w, risk, obey);
+            SeesNothing(w);
+            var enemy = w.Contact(armed: true);
+            w.Order("CombatPosture", assault ? Objective[..^1] + ",\"assault\":true}" : Objective);
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal((byte)Fdp.Toolkit.Utility.Posture.Suppress, w.Winner("CombatPosture"));
+            var close = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.CloseToThrowSite);
+            Assert.True(closes == !close.IsNull,
+                $"throwable={Fdp.Toolkit.Combat.HiddenTargetThrow.ThrowableMount(w.Repo, w.Unit, out _, out _, out _, out _)} " +
+                $"lastKnown={Fdp.Toolkit.Combat.HiddenTargetThrow.LastKnown(w.Repo, w.Unit, enemy, out _)} " +
+                $"seen={Fdp.Toolkit.Perception.SightNow.Sees(w.Repo, w.Unit, enemy)} " +
+                $"willing={TemperamentOf.Willing(w.Repo, w.Unit, assault)} origin={w.Repo.GetComponentRO<BehaviorState>(w.Unit).Origin}");
+            Assert.Equal(1, BlindFireAsked(w));   // closing or holding, he fires blind at the spot
+            if (!closes) return;
+            w.Answer(close, 6, 10f, 12f);
+            w.Tick();
+            Assert.Equal(new Vector3(10f, 12f, 0f), w.Destination());
+        }
+
         /// <summary>⭐ ⑤ — with the target IN SIGHT a scored flank does not matter: Direct, the old advance.</summary>
         [Fact]
         public void CE3084_InSight_TheAdvanceGoesStraightOn()

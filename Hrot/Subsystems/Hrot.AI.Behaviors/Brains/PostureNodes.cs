@@ -82,6 +82,14 @@ namespace Hrot.AI.Behaviors.Brains
         public Entity Threat;
     }
 
+    /// <summary>⭐ AQ89 C/D (R-269) — the Suppress branch's closing gate (<see cref="PostureNodes.WillingToClose"/>).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WillingToCloseParams
+    {
+        /// <summary>1 = the task was ordered as an assault (<c>CombatPosture</c>'s <c>assault</c>): obedience decides, not bravery.</summary>
+        public byte Assault;
+    }
+
     /// <summary>⭐ <c>CE-2073</c> — where the posture advances to, and how.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct AdvanceParams
@@ -186,6 +194,42 @@ namespace Hrot.AI.Behaviors.Brains
             => Fire(world, self, ref ws, p.CooldownSeconds) ? NodeStatus.Running : NodeStatus.Failure;
 
         /// <summary>
+        /// ⭐⭐ AQ89 A (R-269) — <see cref="Engage"/> that SUPPRESSES: aimed fire while the top threat is seen, and while it is hidden
+        /// slow rounds at where the memory last placed it (the weapon brain's blind fire) instead of an idle hold — they strike his
+        /// cover and spoil his aim (<c>UnderFire</c>, AQ85 E). Running; Failure when the unit has no weapon channel.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus Suppress(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+            => Fire(world, self, ref ws, p.CooldownSeconds, blind: true) ? NodeStatus.Running : NodeStatus.Failure;
+
+        /// <summary>
+        /// ⭐⭐ AQ89 C (R-269) — may the Suppress branch CLOSE to throw? All of: the top threat identified, remembered live and HIDDEN
+        /// now · the unit carries something to throw · it is WILLING (<see cref="TemperamentOf.Willing"/> — its obedience when the
+        /// task was ordered as an assault by anyone but its own SOP, else its bravery; R-212: a threshold, no dice). ⭐ Once the close
+        /// is under way (<paramref name="ws"/> = the close's own state, moving) a glimpse of the target does not stop it — the
+        /// close fires at him aimed then (WL-4), and the deactivator resets the state when the branch is left.
+        /// </summary>
+        [SharedAiCondition]
+        public static bool WillingToClose(ref WillingToCloseParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+        {
+            if (!EqsTacticsNodes.TopThreat(world, self, Entity.Null, out var threat) || !world.IsAlive(threat)) return false;
+            if (!Fdp.Toolkit.Combat.HiddenTargetThrow.ThrowableMount(world, self, out _, out _, out _, out _)) return false;
+            if (!Fdp.Toolkit.Combat.HiddenTargetThrow.LastKnown(world, self, threat, out _)) return false;
+            if (ws.Moving == 0 && Fdp.Toolkit.Perception.SightNow.Sees(world, self, threat)) return false;
+            return TemperamentOf.Willing(world, self, OrderedAssault(world, self, p.Assault != 0));
+        }
+
+        /// <summary>⭐ AQ89 D — an <c>assault</c> counts as an ORDER only when someone above the unit started the task (a superior,
+        /// an operator, an editor/scenario assignment) — never when its own SOP or a reaction did.</summary>
+        internal static bool OrderedAssault(EntityRepository world, Entity self, bool assault)
+        {
+            if (!assault) return false;
+            if (!world.HasComponent<BehaviorState>(self)) return true;
+            var origin = world.GetComponentRO<BehaviorState>(self).Origin;
+            return origin != BehaviorOrigin.Sop && origin != BehaviorOrigin.Reaction;
+        }
+
+        /// <summary>
         /// Moves to the objective while firing at the top threat. Success on arrival — the posture's (and the mission task's)
         /// end; Failure when the unit cannot move. A failed move is issued again.
         /// </summary>
@@ -262,6 +306,11 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Deactivate_Engage(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
             => StopFiring(world, self, ref ws);
 
+        /// <summary>⭐ AQ89 A — leaving the suppression: the weapon stops.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.Suppress")]
+        public static void Deactivate_Suppress(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+            => StopFiring(world, self, ref ws);
+
         /// <summary>⭐ <c>CE-3090</c> — leaving the prone hold: the weapon stops and the unit gets up (<c>CE-2121</c>).</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne")]
         public static void Deactivate_HoldProne(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
@@ -319,7 +368,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Aims the weapon at the top threat (a new command only when the target changed or the last one failed).
         /// False when the unit has no weapon channel. ⭐ <c>CE-2108</c>: the ONE fire step — <see cref="EqsTacticsNodes"/>
         /// fires on the move through it too.</summary>
-        internal static bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown, int rounds = 0)
+        internal static bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown, int rounds = 0, bool blind = false)
         {
             if (!world.HasComponent<WeaponChannel>(self)) return false;
             if (!EqsTacticsNodes.TopThreat(world, self, ws.Threat, out var threat) || !world.IsAlive(threat))
@@ -327,27 +376,29 @@ namespace Hrot.AI.Behaviors.Brains
                 StopFiring(world, self, ref ws);
                 return true;
             }
-            return Fire(world, self, ref ws, cooldown, rounds, threat);
+            return Fire(world, self, ref ws, cooldown, rounds, threat, blind);
         }
 
         /// <summary>
         /// ⭐ <c>CE-3158</c> G4 / L5 — the same ONE aimed step at a NAMED target (no re-ranking): what the caller checked for sight is
         /// what is shot at. Used by the fire-from-cover node's locked target and by <c>CgfNodes.Action_FireAtTarget</c>.
         /// </summary>
-        internal static unsafe bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown, int rounds, Entity threat)
+        internal static unsafe bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown, int rounds, Entity threat, bool blind = false)
         {
             if (!world.HasComponent<WeaponChannel>(self)) return false;
             if (threat.IsNull || !world.IsAlive(threat)) { StopFiring(world, self, ref ws); return true; }
             ref var channel = ref world.GetComponentRW<WeaponChannel>(self);
             if (world.HasComponent<BehaviorState>(self)) channel.BehaviorInstanceId = world.GetComponent<BehaviorState>(self).InstanceId;
+            byte blindFire = blind ? (byte)1 : (byte)0;
             bool reissue = !threat.Equals(ws.Threat)
                         || channel.ActiveAction != CombatConstants.ActionIdAimAndFire
-                        || channel.Status == NodeStatus.Failure;
+                        || channel.Status == NodeStatus.Failure
+                        || Unsafe.As<byte, AimAndFireParams>(ref channel.Params[0]).BlindFire != blindFire;   // ⭐ AQ89 A
             if (!reissue) return true;
             // ⭐ CE-3089 (G7, backend — a cross-lane line, said in the P2 handoff's SYNC) — the posture / tactics fire step lets the
             //   executor choose the weapon per shot (25 mm at infantry, TOW at a tank). 📄 Utility demo design §12 W3.
             Unsafe.As<byte, AimAndFireParams>(ref channel.Params[0]) = new AimAndFireParams
-                { Target = threat, CooldownSeconds = cooldown, Mount = AimAndFireParams.MountAuto, Rounds = rounds };   // ⭐ CE-3136 P-6 — B7's count
+                { Target = threat, CooldownSeconds = cooldown, Mount = AimAndFireParams.MountAuto, Rounds = rounds, BlindFire = blindFire };   // ⭐ CE-3136 P-6 — B7's count
             unchecked { channel.ActionInstanceId++; }
             channel.ActiveAction = CombatConstants.ActionIdAimAndFire;
             channel.Status = NodeStatus.Running;
