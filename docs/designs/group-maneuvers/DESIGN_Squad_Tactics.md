@@ -4,7 +4,7 @@ updated: 2026-10-11
 build-state: S1 READY-TO-BUILD (leans §3.4 awaiting the user's nod) · S2 DESIGN (§4) · embark §5 and formations §6 are MEASUREMENTS, not plans
 current-answer: §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — how it works; §4.1 the alert hop by hop) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch)
 stale-below: nothing
-known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by the EQS query on the lead assault member. DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
+known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then (user, R-270) on the LEADER with slot 0 = that member. DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
 related-designs:
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS which operations need squads (§3 taxonomy, §11 the review and S1–S3 order this file builds)
@@ -52,7 +52,8 @@ how it works. Also how formations work and if they can be used for squad marchin
 | ✅ a soldier ordered `CombatPosture` at its OWN position, with the enemy in SIGHT, holds and fires: it picks Suppress (healthy) or HoldProne (half health), never moves, the order never ends; with no enemy it ends at once (nothing to do) | 📐 measured `2026-10-11`: a throwaway rail on the `TacticsTreesTests` harness (winner 3 / 6, weapon channel AimAndFire, locomotion idle, no `BehaviorFinished`), then removed | Decision Layer §3.3b (CE-2105) |
 | ⛔ a move to a point more than 2 m off the walkable area FAILS: the end point is snapped only within ±2 m (±4 m vertically), else `FailedUnreachable` — and `AdvanceAndAttack` then re-issues the same failing move forever | `DotRecastNavmeshProvider.cs:43,428-431`; `MoveToExecutor.cs:120`; `PostureNodes.cs:242-247` | — |
 | ⛔ the navmesh lives on SimHost; the squad leader's logic runs on CGF, which cannot snap or test a point | `SimHostNodeBootstrapper.cs:60` (the node's `INavmeshProvider`); no provider on CGF | Terrain_World §4.1 |
-| ✅ an EQS query is solved on SimHost for a sensor parented to ANY unit, aimed at an entity (slot 1) the unit need not have seen | `EqsChildSensor.Ensure(view, parent, site, config)` (`EqsChildSensor.cs:57`); slot-1 aim `EqsTacticsNodes.cs:362-364` | EQS v1.3 |
+| ✅ an EQS query is solved on SimHost for a sensor parented to ANY networked unit — a body-less leader included — measuring from slot 0 when set, aimed at an entity (slot 1) the owner need not have seen | `EqsChildSensor.Ensure(view, parent, site, config)` (`EqsChildSensor.cs:57`); `EqsContext.Self` slot 0 first (`EqsContext.cs:20-30`); slot-1 aim `EqsTacticsNodes.cs:362-364` | EQS v1.3; 🔒 R-270 |
+| ⛔ a BODY-LESS leader (e.g. `hill-attack-close`'s platoon) has a network id SimHost resolves | not measured — the S1 live rail uses a soldier-leader; a body-less one is checked before a scenario relies on it | — |
 | ✅ the merge runs in the SAME frame a member's memory changes (any member's `ChangeEpoch` differs ⇒ merge now; else every 6 ticks); threat evaluation is registered before it | `SquadPerceptionMergeSystem.cs:44-61`; `CgfLogicPack.cs:222,225` | Squad_Coordination §4 (S-2) |
 | ⛔ a paused task RESUMES with its working state kept, and does not re-send what it already sent | Decision Layer §4.9 (CE-2081): only a channel leaf re-activates | ⇒ the runner must re-issue its members' orders after a pause (S1-G) |
 
@@ -152,8 +153,8 @@ sequenceDiagram
   C->>P: threat = Target, else the top IDENTIFIED pooled contact (none ⇒ Failure)
   C->>C: partition: members in the threat's SourceMembersMask ⇒ base, the rest ⇒ assault (one side empty ⇒ halves)
   C->>B: CombatPosture at own position (they see the threat, they hold and fire)
-  C->>A: a FindFlankingPosition sensor on the assault's LEAD member, slot 1 = the threat entity (solved on SimHost)
-  A-->>C: the best flank point (walkable, sees the threat)
+  C->>C: the LEADER's own FindFlankingPosition sensor: slot 0 = the assault's lead member (measured from there), slot 1 = the threat (solved on SimHost)
+  C-->>C: the best flank point (walkable, sees the threat)
   C->>A: CombatPosture advance to it (each keeping its offset), Assault=true
   loop each tick
     C->>C: every live assault member at its point, or PhaseTimeout ⇒ FarSideReached
@@ -165,11 +166,13 @@ sequenceDiagram
 
 ### 3.4 Decisions *(leans)*
 
+🔒 *User, `2026-10-11` (R-270): "Squad leader can use eqs queries if he needs something from terrain"*
+
 | # | decision | ⭐ lean | why |
 |---|---|---|---|
 | **S1-A** | where the play logic lives | one runner + an `ISquadPlay` adapter per existing table, in `Hrot.AI.Behaviors` | orders are `CombatPosture` JSON (a `Hrot.Core` DTO), which `Fdp.Toolkits` must not see; the tables stay in the toolkit |
 | **S1-B** | how the base of fire is chosen | the members that REPORTED the threat (`SourceMembersMask`) | they already see it, so "hold and fire" means firing; the rest have no line of sight to waste |
-| **S1-C** | how the flank point is found | ⭐ the existing `FindFlankingPosition` EQS template as a child sensor of the assault element's LEAD member, aimed (slot 1) at the threat entity; until it answers, the element holds | 📐 measured (§2): a point computed on CGF can land off the walkable area and the move then fails forever, and CGF has no navmesh to check it. The query runs on SimHost, returns only walkable points that SEE the threat, and needs no memory of the threat in the member |
+| **S1-C** | how the flank point is found | ⭐ 🔒 **the LEADER queries the terrain** (R-270): its own child sensor with the existing `FindFlankingPosition` template, slot 0 (the unit it measures from) = the assault element's lead member, slot 1 = the threat entity; until it answers, the assault holds | 📐 measured: a point computed on CGF can land off the walkable area and the move then fails forever, and CGF has no navmesh (§2). The query is solved on SimHost and returns only walkable points that SEE the threat. `EqsContext.Self` takes slot 0 before the owner (`EqsContext.cs:22`), so a leader with no body still measures from a member; the sensor reaches SimHost when its owner and its slots are networked entities (`EqsSensorConfigEgressTranslator.cs:113-130`, `…IngressTranslator.cs:140,438`) |
 | **S1-D** | does the drill end at the flank or assault through | ⭐ **assault through** — the doctrinal end of the drill: from the flank the assault element moves ONTO and THROUGH the enemy's position, firing, while the base of fire shifts or stops its fire, so the position is cleared, not just shot at. Add `PhaseAssaulting` to `SuppressAndManeuverManeuver` (Suppressing → FarSideReached → Assaulting → BoundComplete → AssaultComplete) | a flank alone is half the drill; ⚠ changes a library table, so its unit tests are updated in the same commit |
 | **S1-E** | a mover that never arrives | the phase advances on `PhaseTimeoutSeconds`, as bounding's timeout does | a member pinned by its own SOP reaction must not freeze the squad |
 | **S1-G** | after a pause (S2's reaction, an operator order) | the runner notices a gap in its own ticks and re-issues every member's current order | 📐 measured (§2): resume keeps the runner's state but sends nothing again |
@@ -177,7 +180,7 @@ sequenceDiagram
 
 Rejected: **one node per manoeuvre** — six copies of one shape; **ordering the member `Flank` behaviour** — it fails on a threat the
 member never saw (§2); **a flank point computed on CGF** — it can land off the walkable area and the move then fails forever (§2);
-**the query on the commander** — it scores from its owner's position, and a commander may have no body.
+**the query on the lead member** — it works, but the user ruled the leader is the one who asks the terrain (R-270), and it would make a member own squad-level state.
 
 ### 3.5 Acceptance
 
