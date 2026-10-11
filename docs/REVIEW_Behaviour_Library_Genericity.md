@@ -186,4 +186,4 @@ proof it is (the ruling keeps it "showing the feature"); if the demo should also
 at PeekAndFire in both hosts — one node swap each, ⚠ behaviors-lane assets.
 
 ✅ **Ruled `2026-10-11` (R-266):** 🔒 *"L4 accepted. TakeCove drift: drop the btree ans hsm versions, keep the demo on the btree implemented in csharp. D8 ok."*
-⇒ `CombatPosture` becomes a **C#-built BTree** (R-223 form); its **JSON BTree asset and HSM copy go** (and the blueprint copy, already ruled by R-258); the demo keeps running — on the C#-built tree. ⭐ L4 (the palette lean in §5) accepted as written.
+⇒ `CombatPosture` becomes a **C#-built BTree** (R-223 form); its **JSON BTree asset and HSM copy go** (and the blueprint copy, already ruled by R-258); the demo keeps running — on the C#-built tree. ⭐ L4 (the palette lean in §5) accepted as written. ✅ **Both BUILT `2026-10-11` as CE-3161** (Decision Layer §3.3h).

@@ -380,16 +380,16 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐ <c>CE-3082</c> / <c>CE-3083</c> — U3 <c>ua-three-hosts</c> in-process (the live check's twin, R-197): ONE decision on THREE
-    /// hosts — the BTree <c>CombatPosture</c>, the HSM <c>CombatPostureHsm</c>, the blueprint <c>CombatPostureBp</c> — the same Health
-    /// edits ⇒ the same fight / defend class at every step on every host. 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §4 U3.
+    /// ⭐ <c>CE-3082</c> / <c>CE-3083</c> — U3 <c>ua-three-hosts</c> in-process (the live check's twin, R-197): the same Health edits ⇒
+    /// the same fight / defend class at every step. ⭐ <c>CE-3160</c> (R-266): the HSM and blueprint hosts are retired — the three
+    /// riflemen all run the ONE C#-built <c>CombatPosture</c> (Decision Layer §3.3h). 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §4 U3.
     /// </summary>
     [Fact(Timeout = 600_000)]
     public async Task CE3082_U3_OneDecision_ThreeHosts_TheSameChoices()
     {
         using var harness = await StartShippedScenario("ua-three-hosts");
         var cgf = harness.Cgf!.World!;
-        string[] names = { "Rifleman BTree", "Rifleman HSM", "Rifleman Blueprint" };
+        string[] names = { "Rifleman A", "Rifleman B", "Rifleman C" };
         Assert.True(harness.PumpUntil(() => names.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000), "the three riflemen must spawn on CGF");
         var units = names.Select(n => ByName(cgf, n)).ToArray();
         foreach (var u in units) Observe(cgf, u);

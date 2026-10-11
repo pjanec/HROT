@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILT (W1–W4, 2026-10-02); D2/D3 DECIDED 2026-10-11 (R-264) — §6 the first commander manoeuvre (READY-TO-BUILD)
+build-state: BUILT (W1–W4, 2026-10-02); D2/D3 DECIDED 2026-10-11 (R-264) — §6 the first commander manoeuvre (BUILT, CE-3162)
 current-answer: §6 (CE-507 D2 (a): the commander behaviour, READY-TO-BUILD) · §2 (diagrams) and §5 (decisions)
 stale-below: none
 known-rot: Squad_Coordination_Design_v1_1.md and Hrot.SquadCoordination.md describe the layer as "fully implemented" — true of the code, never of its use (§1)
@@ -160,7 +160,7 @@ sequenceDiagram
 | **D2** | ✅ **(a)** — a squad manoeuvre is a BEHAVIOUR on the commander (the squad HSM orchestrates, the shell is library), members obey their role. ⭐ Library squad behaviours may be **C# fluent-built HSMs in `Hrot.AI.Behaviors`** — no JSON asset needed |
 | **D3** | ✅ as leaned — the commander's autonomous `ManeuverSelect` runs only after a REAL danger-area provider lands (Utility demos design §10.2, R-213) |
 
-## 6. CE-507 D2 (a) — the first commander manoeuvre: bounding overwatch *(backend, `2026-10-11`; build-state: READY-TO-BUILD)*
+## 6. CE-507 D2 (a) — the first commander manoeuvre: bounding overwatch *(backend, `2026-10-11`; build-state: BUILT as CE-3162, as drawn)*
 
 📐 **Measured before drawing** (an Explore sweep of `Squad/` + the hill-attack commander, `2026-10-11`): the six manoeuvres are static
 configurations (`BoundingOverwatchManeuver.Transitions`, `GetMovingElement`); `SquadHsmShell.Tick` advances `SquadCognitiveState.PhaseId`

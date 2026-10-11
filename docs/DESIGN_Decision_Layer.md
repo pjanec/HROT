@@ -1094,7 +1094,7 @@ came back to CGF; when the hostiles died the stand-up v2 made the same round tri
 world). ② the wire — `AnimationReplicationModule` on CGF (Brain) and SimHost (Muscle), live on `--mode all`. Owned by `CE-3010` for the
 rest of the animation pipeline (montages, look-at), which stays out of scope here.
 
-### 3.3h `CE-3160` (R-266) — CombatPosture becomes a C#-built tree; its JSON, HSM and blueprint copies go *(backend, `2026-10-11`; build-state: READY-TO-BUILD)*
+### 3.3h `CE-3160` (R-266) — CombatPosture becomes a C#-built tree; its JSON, HSM and blueprint copies go *(backend, `2026-10-11`; build-state: BUILT as CE-3161, as drawn)*
 
 🔒 *"TakeCove drift: drop the btree ans hsm versions, keep the demo on the btree implemented in csharp."* (R-266) — with R-258 (the
 blueprint and HSM copies go) this leaves ONE CombatPosture: a `[BTreeDefinition]` in C#, the form R-223 already uses for `WindowDuel`,

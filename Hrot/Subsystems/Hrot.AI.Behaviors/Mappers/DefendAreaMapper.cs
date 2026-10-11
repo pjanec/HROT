@@ -3,6 +3,8 @@ using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common;
+using Hrot.Map.Definitions.Behavior;
+using Hrot.Map.Definitions.Behavior.Intents;
 
 namespace Hrot.AI.Behaviors.Mappers
 {
@@ -12,12 +14,14 @@ namespace Hrot.AI.Behaviors.Mappers
     /// into a unit-type-specific <see cref="AssignBehaviorEvent"/>:
     /// <list type="bullet">
     ///   <item><see cref="TkbEntityTypes.MilitaryApc"/> → "ConvoyEscort" behavior</item>
-    ///   <item><see cref="TkbEntityTypes.InfantrySoldier"/> → "InfantryCombat" behavior</item>
+    ///   <item>⭐ <see cref="TkbEntityTypes.InfantrySoldier"/> / <see cref="TkbEntityTypes.Insurgent"/> → the library's
+    ///         <c>CombatPosture</c>, advancing to the area's centre and holding within its radius (<c>CE-3160</c>, L4, R-266 — ⛔ it
+    ///         was <c>InfantryCombat</c>, the UrbanCombat example's tree, registered on the editor only, so CGF dropped the order)</item>
     ///   <item>All other unit types → returns <c>false</c> (pass-through fallback)</item>
     /// </list>
     /// <para>
-    /// The JsonParams from the original intent (centre lat/lon, radius) are forwarded
-    /// unchanged to the target behavior for further interpretation.
+    /// The APC's JsonParams (centre lat/lon, radius) are forwarded unchanged; the infantry's are converted to the posture's
+    /// contract with the node's geographic transform.
     /// </para>
     /// </summary>
     public sealed class DefendAreaMapper : ITacticalOrderMapper
@@ -40,12 +44,16 @@ namespace Hrot.AI.Behaviors.Mappers
             string behaviorName = tkbType switch
             {
                 TkbEntityTypes.MilitaryApc     => "ConvoyEscort",
-                TkbEntityTypes.InfantrySoldier => "InfantryCombat",
+                TkbEntityTypes.InfantrySoldier => BehaviorNames.CombatPosture,
+                TkbEntityTypes.Insurgent       => BehaviorNames.CombatPosture,
                 _                              => string.Empty
             };
 
             if (string.IsNullOrEmpty(behaviorName))
                 return false;
+
+            if (behaviorName == BehaviorNames.CombatPosture)
+                jsonParams = PostureAt(repo, jsonParams);
 
             assignment = new AssignBehaviorEvent
             {
@@ -55,5 +63,27 @@ namespace Hrot.AI.Behaviors.Mappers
             };
             return true;
         }
-    }
+    
+        /// <summary>The area as CombatPosture's contract: advance to the centre (lat/lon → this node's sim frame), arrive within the
+        /// radius. Without a geographic transform the centre stays at the origin — the posture then holds where it is.</summary>
+        private static string PostureAt(EntityRepository repo, string jsonParams)
+        {
+            var options = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            var area = string.IsNullOrWhiteSpace(jsonParams) ? null
+                : System.Text.Json.JsonSerializer.Deserialize<DefendAreaIntentDto>(jsonParams, options);
+            var centre = System.Numerics.Vector3.Zero;
+            var geo = repo.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
+                ? repo.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>() : null;
+            if (area != null && (area.CenterLat != 0 || area.CenterLon != 0) && geo != null)
+            {
+                var c = geo.ToCartesian(area.CenterLat, area.CenterLon, 0.0);
+                centre = new System.Numerics.Vector3(c.X, c.Y, 0f);
+            }
+            var posture = new CombatPostureParamsJsonDto
+            {
+                Advance = new CombatPostureAdvanceJsonDto { Objective = centre, ArrivalRadius = area?.RadiusMeters ?? 0f },
+            };
+            return System.Text.Json.JsonSerializer.Serialize(posture, options);
+        }
+}
 }
