@@ -167,7 +167,10 @@ namespace Fdp.Toolkit.Combat.Systems
                     if (wh.Indirect)
                     {
                         warheadBits |= WarheadRound.Arc;
-                        velocity = ArcLaunch(origin, targetPos, muzzle, high: muzzle >= CombatConstants.HighArcMinMuzzleVelocity);
+                        // ⭐ WL-4 L-1 (Weapon_Layers §5f) — a throw whose low arc the terrain would stop (the wall the target is
+                        //   behind) is LOBBED: ThrowArc walks the arc through the same terrain rule the flight uses.
+                        float arcPen = firedMount != null && firedMount.DamagePerHit > 0f ? CombatTkb.PenetrationOf(repo, firedMount) : 0f;
+                        velocity = ThrowArc.Launch(Fdp.Toolkit.World.WorldQuery.Of(repo), origin, targetPos, muzzle, arcPen);
                     }
                 }
 

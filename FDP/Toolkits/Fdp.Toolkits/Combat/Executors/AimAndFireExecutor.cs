@@ -90,8 +90,10 @@ namespace Fdp.Toolkit.Combat.Executors
 
             // ⭐ CE-3089 (G7) — the mount that fires: chosen per shot (Auto), a named mount, or the primary (0, the default). Its
             //   ammo and cooldown live on ITS WeaponState — the owner for mount 0, the mount child otherwise.
+            // ⭐ WL-4 W-12a (Weapon_Layers §5f L-4) — Auto chooses ONCE per engagement (a new target, or the chosen mount ran
+            //   dry), not per shot: a per-frame flip started a new turret epoch and lost a round the muscle had fired (§5e).
             Entity mountEntity = entity;
-            int mountIndex = p.Mount == AimAndFireParams.MountAuto ? WeaponChoice.Choose(world, entity, p.Target, out mountEntity)
+            int mountIndex = p.Mount == AimAndFireParams.MountAuto ? EngagementMount(world, entity, ref channel, p.Target, out mountEntity)
                            : p.Mount == 0 ? 0
                            : MountByIndex(world, entity, p.Mount, out mountEntity);
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
@@ -119,13 +121,23 @@ namespace Fdp.Toolkit.Combat.Executors
             //   hold (Running, no round spent), like the ROE hold. Blind fire (FireAtPoint) has neither gate.
             ref var aim = ref AimTimer(ref channel);
             bool seen = Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
+            // ⭐⭐ WL-4 W-12e (Weapon_Layers §5f L-2) — not seen: the weapon brain may THROW at where the target was last seen (a
+            //   grenade over the cover it hides behind). It counts as a round of this action; nothing else changes.
+            if (!seen && HiddenTargetThrow.TryThrow(world, entity, p.Target))
+            {
+                aim = aim.Restarted(default, 0);
+                int thrown = ++RoundsFired(ref channel);
+                channel.Status = p.Rounds > 0 && thrown >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
+                Say(world, entity, ActionReason.Throwing, p.Target, thrown, p.Rounds);
+                return;
+            }
             if (!seen)
-                aim = default;
+                aim = aim.Restarted(default, 0);
             else
             {
                 byte stance = (byte)ShooterStance(world, entity);
                 if (aim.Target != p.Target || aim.Stance != stance)
-                    aim = new AimState { Target = p.Target, Stance = stance };
+                    aim = aim.Restarted(p.Target, stance);
                 if (aim.Ready == 0)
                 {
                     aim.Elapsed += dt;
@@ -307,6 +319,44 @@ namespace Fdp.Toolkit.Combat.Executors
             public float  Elapsed;
             public byte   Stance;
             public byte   Ready;
+            /// <summary>⭐ WL-4 W-12a — the mount chosen for this engagement (the struct's two former padding bytes: still 16).</summary>
+            public byte   ChosenMount;
+            /// <summary>1 when <see cref="ChosenMount"/> holds a choice.</summary>
+            public byte   HasChoice;
+
+            /// <summary>A fresh aim (timer and readiness reset) that KEEPS the engagement's mount choice.</summary>
+            public readonly AimState Restarted(Entity target, byte stance)
+                => new AimState { Target = target, Stance = stance, ChosenMount = ChosenMount, HasChoice = HasChoice };
+        }
+
+        /// <summary>
+        /// ⭐ WL-4 W-12a (L-4) — the mount for this engagement: the stored choice while the target is the one it was made for and
+        /// the mount still has ammunition; otherwise <see cref="WeaponChoice.Choose"/> once more. The engaged target is the
+        /// channel state's first field (written by <see cref="OnEnter"/>).
+        /// </summary>
+        private static unsafe int EngagementMount(EntityRepository world, Entity unit, ref WeaponChannel channel, Entity target, out Entity mountEntity)
+        {
+            ref var aim = ref AimTimer(ref channel);
+            ref Entity engaged = ref EngagedTarget(ref channel);
+            mountEntity = unit;
+            if (aim.HasChoice != 0 && engaged == target)
+            {
+                int kept = aim.ChosenMount == 0 ? 0 : MountByIndex(world, unit, aim.ChosenMount, out mountEntity);
+                if (kept == aim.ChosenMount && world.HasComponent<WeaponState>(mountEntity) && world.GetComponentRO<WeaponState>(mountEntity).Ammo > 0)
+                    return kept;
+            }
+            int chosen = WeaponChoice.Choose(world, unit, target, out mountEntity);
+            aim.ChosenMount = (byte)chosen;
+            aim.HasChoice = 1;
+            engaged = target;
+            return chosen;
+        }
+
+        /// <summary>The target this action engages (channel state bytes 0–7).</summary>
+        private static unsafe ref Entity EngagedTarget(ref WeaponChannel channel)
+        {
+            fixed (byte* s = channel.State)
+                return ref Unsafe.AsRef<Entity>(s);
         }
 
         /// <summary>⭐ <c>CE-3136</c> B7 — the rounds the CURRENT AimAndFire action has fired (valid once the dispatcher has entered it).</summary>

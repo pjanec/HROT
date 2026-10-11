@@ -36,6 +36,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         Slewing,
         /// <summary>⭐ WL-3 — the target needs an angle outside the turret's limits (W-8).</summary>
         OutOfArc,
+        /// <summary>⭐ WL-4 (W-12e) — the target is hidden: a grenade went to where it was last seen.</summary>
+        Throwing,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -104,6 +106,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.Done               => "done",
             ActionReason.Failed             => "failed",
             ActionReason.Slewing            => "slewing",
+            ActionReason.Throwing           => "throw: last seen",
             ActionReason.OutOfArc           => "out of arc",
             _                               => "",
         };

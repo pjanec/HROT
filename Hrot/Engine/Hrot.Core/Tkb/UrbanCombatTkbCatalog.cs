@@ -180,7 +180,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new WeaponSuiteDto { Mounts =
                 {
                     new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils },
-                    new WeaponMountDto { InitialAmmunition = GrenadeCount, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade },
+                    new WeaponMountDto { InitialAmmunition = GrenadeCount, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade, Category = WeaponCategory.Grenade },   // ⭐ WL-4 (W-5) — the category the weapon brain reads
                 } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms, RpgBurstRange));

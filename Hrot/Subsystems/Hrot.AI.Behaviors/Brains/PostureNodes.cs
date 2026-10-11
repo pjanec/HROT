@@ -53,6 +53,11 @@ namespace Hrot.AI.Behaviors.Brains
         public EqsSensorHandle Flank;
         /// <summary>The firing-position sensor (<see cref="FindOpenFiringPosition"/>).</summary>
         public EqsSensorHandle Firing;
+        /// <summary>⭐ WL-4 W-12f — the throwing-position sensor (<see cref="FindThrowingPosition"/>), only for a unit that carries a
+        /// throwable, pointed at the threat's LAST-KNOWN point …</summary>
+        public EqsSensorHandle Throw;
+        /// <summary>… which is this.</summary>
+        public Vector3 ThrowPoint;
         /// <summary>The threat both are pointed at.</summary>
         public Entity Threat;
         /// <summary>Or the HEARD contact (memory id; 0 = none) …</summary>
@@ -126,6 +131,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ <c>CE-3084</c> — the approach's sensor sites.</summary>
         public const int FlankScoreSite = 0x30840001, FiringScoreSite = 0x30840002;
+        /// <summary>⭐ WL-4 W-12f — the throwing-position score sensor's site.</summary>
+        public const int ThrowScoreSite = 0x40120002;
 
         /// <summary>
         /// ⭐ <c>CE-3084</c> (§3.3e A2) — keeps the APPROACH decision's flank and firing-position sensors pointed at the unit's top
@@ -137,6 +144,22 @@ namespace Hrot.AI.Behaviors.Brains
         {
             KeepPair(ref ws.Flank, FlankScoreSite, FindFlankingPosition.BlueprintId, ref ws.Firing, FiringScoreSite, FindOpenFiringPosition.BlueprintId,
                      ref ws.Threat, ref ws.HeardId, ref ws.HeardPoint, in p, self, world);
+            // ⭐ WL-4 W-12f (Weapon_Layers §5f L-5) — a grenadier's third sensor: where to THROW from, around the threat's
+            //   LAST-KNOWN point (never the live entity). A unit with no throwable keeps none (it would only cost a query).
+            if (Fdp.Toolkit.Combat.HiddenTargetThrow.ThrowableMount(world, self, out _, out _, out _, out _)
+                && EqsTacticsNodes.LastKnownAim(world, self, ws.Threat, out var throwAim))
+            {
+                bool repoint = !ws.Throw.IsValid || Vector3.Distance(throwAim.Point, ws.ThrowPoint) > EqsTacticsNodes.RepointMetres;
+                var near = p;
+                near.SearchRadius = EqsTacticsNodes.ThrowSearchRadius;
+                ws.Throw = Keep(ws.Throw, world, self, ThrowScoreSite, FindThrowingPosition.BlueprintId, in near, in throwAim, repoint);
+                if (repoint) ws.ThrowPoint = throwAim.Point;
+            }
+            else if (ws.Throw.IsValid)
+            {
+                Drop(world, ws.Throw);
+                ws.Throw = default;
+            }
             return NodeStatus.Running;
         }
 
@@ -230,6 +253,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             Drop(world, ws.Flank);
             Drop(world, ws.Firing);
+            Drop(world, ws.Throw);   // ⭐ WL-4
             ws = default;
         }
 

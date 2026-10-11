@@ -53,6 +53,8 @@ namespace Fdp.Toolkit.Utility
         public const ushort RoundsLeft               = 0xCAE9;
         /// <summary>⭐ CE-3084 — an identified remembered contact is held by a sensor NOW, by sight (<see cref="StandardInputs.ThreatInSight"/>).</summary>
         public const ushort ThreatInSight            = 0x2D27;
+        /// <summary>⭐ WL-4 W-12f — the unit carries a hand-thrown indirect round it can still throw (<see cref="StandardInputs.CarriesThrowable"/>).</summary>
+        public const ushort CarriesThrowable         = 0x4054;
     }
 
     /// <summary>
@@ -235,6 +237,15 @@ namespace Fdp.Toolkit.Utility
         /// input: it needs no context entity. ⛔ Not <see cref="HasLineOfSight"/> (needs a context; and the memory's modality is
         /// OR-accumulated — ever seen, not seen now) and not <c>FindThreatsInView</c> (its faction filter is absolute — 0 keeps nothing).
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>WL-4</c> W-12f (📄 docs/DESIGN_Weapon_Layers.md §5f L-6) — 1 when ctx.Self has a mount that THROWS an indirect warhead
+        /// (a grenade: indirect, hand speed) with rounds left, else 0. A self input. It is what lets the approach decision offer
+        /// <c>CloseToThrow</c> to a grenadier only — a rifleman scores 0 and flanks.
+        /// </summary>
+        [UtilityInput("CarriesThrowable")]
+        public static float CarriesThrowable(in UtilityInputCtx ctx)
+            => Fdp.Toolkit.Combat.HiddenTargetThrow.ThrowableMount(ctx.Repo, ctx.Self, out _, out _, out _, out _) ? 1f : 0f;
+
         [UtilityInput("ThreatInSight")]
         public static float ThreatInSight(in UtilityInputCtx ctx)
         {
@@ -469,6 +480,7 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.WeaponEffectivenessVsTarget, &WeaponEffectivenessVsTarget);
             UtilityInputReaderStore.Register(StandardInputIds.RoundsLeft,               &RoundsLeft);
             UtilityInputReaderStore.Register(StandardInputIds.ThreatInSight,            &ThreatInSight);
+            UtilityInputReaderStore.Register(StandardInputIds.CarriesThrowable,         &CarriesThrowable);
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────

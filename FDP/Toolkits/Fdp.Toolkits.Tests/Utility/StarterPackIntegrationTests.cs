@@ -609,6 +609,36 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal(299, repo.GetComponentRO<WeaponState>(bradley).Ammo);
         }
 
+        /// <summary>
+        /// ⭐ WL-4 W-12a (Weapon_Layers §5f L-4) — Auto chooses the mount ONCE per engagement: the TOW chosen for the tank is KEPT in
+        /// the action's state, and only an EMPTY TOW hands the tank to the 25 mm.
+        /// 🔴 Red before: <c>WeaponChoice</c> ran every shot and nothing kept the choice (§5e known limit).
+        /// </summary>
+        [Fact]
+        public unsafe void WL4_W12a_TheMountIsChosenOncePerEngagement_AndAgainOnlyWhenItRunsDry()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<global::Fdp.Toolkit.Behavior.Components.WeaponChannel>())
+                repo.RegisterComponent<global::Fdp.Toolkit.Behavior.Components.WeaponChannel>();
+            repo.RegisterEvent<global::Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
+            var (bradley, tow, _, tank) = ProductionBradley();
+            var exec = new global::Fdp.Toolkit.Combat.Executors.AimAndFireExecutor();
+            var ch = new global::Fdp.Toolkit.Behavior.Components.WeaponChannel();
+            *(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref ch.Params[0]) =
+                new global::Fdp.Toolkit.Combat.Executors.AimAndFireParams { Target = tank, CooldownSeconds = 0f, Mount = global::Fdp.Toolkit.Combat.Executors.AimAndFireParams.MountAuto };
+            static global::Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.AimState Aim(ref global::Fdp.Toolkit.Behavior.Components.WeaponChannel c)
+                => *(global::Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.AimState*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref c.State[sizeof(Entity)]);
+
+            exec.OnEnter(bradley, ref ch, repo);
+            exec.Execute(bradley, ref ch, repo, 0.1f);
+            Assert.Equal(1, Aim(ref ch).HasChoice);
+            Assert.Equal(1, Aim(ref ch).ChosenMount);   // the TOW for the tank
+
+            repo.GetComponentRW<WeaponState>(tow).Ammo = 0;   // the TOW runs dry ⇒ the next frame chooses again
+            exec.Execute(bradley, ref ch, repo, 0.1f);
+            Assert.Equal(0, Aim(ref ch).ChosenMount);   // the 25 mm
+        }
+
         /// <summary>⭐ W9 — a RELOADING TOW is still the TOW's target: the choice ignores cooldown (the executor waits on it), so a
         /// reloading launcher never hands the tank to the 25 mm. ✅ Red-proof: put WeaponReadiness back in the decision ⇒ mount 0.</summary>
         [Fact]

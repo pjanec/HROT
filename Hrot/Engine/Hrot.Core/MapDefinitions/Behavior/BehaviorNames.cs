@@ -25,6 +25,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string DoorLocksmith = "DoorLocksmith";
         /// <summary>⭐ Buildings Stage 6 (<c>CE-1032</c>, W-8) — fire a mount at a ground point (a thrown grenade, a mortar).</summary>
         public const string FireAtPoint = "FireAtPoint";
+        /// <summary>⭐ WL-4 L-8 — keep the gun on the top threat without firing (DESIGN_Weapon_Layers §5f).</summary>
+        public const string TrackTarget = "TrackTarget";
         /// <summary>⭐ <c>CE-1032</c> — a TEST behaviour: hold a posture (stand, crouch, lie) and do nothing else — a target for the warhead demos.</summary>
         public const string HoldStance = "HoldStance";
         /// <summary>⭐ <c>CE-3136</c> P-8 (D10) — the window duel: <c>PeekAndFire</c> with a shape — <c>window</c> (A: stance peeks, rotates

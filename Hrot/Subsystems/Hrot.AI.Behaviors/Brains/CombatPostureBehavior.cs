@@ -28,14 +28,14 @@ namespace Hrot.AI.Behaviors.Brains
             public EqsTacticsParams Fallback;
             public ChooseOptionParams Approach;
             public UtilityChoice ApproachChoice;
-            public IsOptionParams IsFlank, IsFiringPos;
+            public IsOptionParams IsFlank, IsFiringPos, IsCloseToThrow;
             public PostureSensorsParams ApproachSensors;
-            public EqsTacticsParams Flank, Firing;
+            public EqsTacticsParams Flank, Firing, Throw;
 
             // ⭐ one working memory per node, as the JSON tree's auto slots were
             public PostureSensorsState SensorsState;
             public ApproachSensorsState ApproachSensorsState;
-            public EqsTacticsState FlankState, FiringState, FallBackState;
+            public EqsTacticsState FlankState, FiringState, FallBackState, ThrowState;
             public AdvanceState AdvanceState;
             public PeekAndFireState PeekState;
             public EngageState SuppressState, HoldProneState;
@@ -57,9 +57,11 @@ namespace Hrot.AI.Behaviors.Brains
             Approach    = new ChooseOptionParams { Decision = UtilityDecisionRef.FromAssetId(AttackApproachDecision.DecisionAssetId) },
             IsFlank     = new IsOptionParams { Option = (byte)Approach.Flank },
             IsFiringPos = new IsOptionParams { Option = (byte)Approach.FiringPosition },
+            IsCloseToThrow = new IsOptionParams { Option = (byte)Approach.CloseToThrow },   // ⭐ WL-4 W-12f
             ApproachSensors = new PostureSensorsParams { SearchRadius = 40f, ScoreDeltaThreshold = 0.05f },
             Flank       = Approaching(),
             Firing      = Approaching(),
+            Throw       = Approaching() with { SearchRadius = EqsTacticsNodes.ThrowSearchRadius },   // ⭐ WL-4 W-12f
         };
 
         private static EqsTacticsParams Approaching() => new EqsTacticsParams
@@ -102,6 +104,10 @@ namespace Hrot.AI.Behaviors.Brains
                                 .Sequence(firing => firing
                                     .StatefulCondition(bb => bb.IsFiringPos, bb => bb.ApproachChoice, UtilityNodes.IsOption)
                                     .StatefulAction(bb => bb.Firing, bb => bb.FiringState, EqsTacticsNodes.FiringPosition))
+                                // ⭐ WL-4 W-12f (Weapon_Layers §5f) — a grenadier closes to throw at the hidden target
+                                .Sequence(close => close
+                                    .StatefulCondition(bb => bb.IsCloseToThrow, bb => bb.ApproachChoice, UtilityNodes.IsOption)
+                                    .StatefulAction(bb => bb.Throw, bb => bb.ThrowState, EqsTacticsNodes.CloseToThrow))
                                 .StatefulAction(bb => bb.Advance, bb => bb.AdvanceState, PostureNodes.AdvanceAndAttack)))
                         .Sequence(cover => cover
                             .StatefulCondition(bb => bb.IsCover, bb => bb.Choice, UtilityNodes.IsOption)

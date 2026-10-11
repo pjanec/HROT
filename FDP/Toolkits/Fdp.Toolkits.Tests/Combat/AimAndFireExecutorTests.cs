@@ -912,5 +912,103 @@ namespace Fdp.Toolkit.Combat.Tests
             var (shooter, _) = BurstWithAFriendOnTheLine(new Vector3(20f, 0f, 0f), "5.56x45 ball");
             Assert.Equal(0, BurstStep(shooter));
         }
-    }
+    
+        // ── WL-4 W-12e (docs/DESIGN_Weapon_Layers.md §5f, L-2/L-3) — a hidden target gets a grenade at its last-known spot ────
+
+        private const long M67 = 6001;
+
+        /// <summary>A grenadier (mount 0 rifle, mount 1 an M67 thrown at 15 m/s, range 25 m — the shipped Grenadier's suite), a
+        /// target his memory places at <paramref name="remembered"/>, not seen now, on Auto.</summary>
+        private unsafe (Entity Unit, Entity Grenade, WeaponChannel Channel, Entity Target) Grenadier(
+            Vector3 remembered, float freshness = 500f)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _world.RegisterComponent<WeaponMountInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+            _world.RegisterComponent<EntityInfo>();
+            RegisterSight();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            db.Register(new Fdp.Interfaces.TkbTemplate("M67 grenade", M67) { DisType = new Fdp.Core.DISEntityType { Kind = 2 } });
+            var type = new Fdp.Interfaces.TkbTemplate("Grenadier", 77);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = 300f },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { MuzzleVelocity = 15f, Range = 25f, AmmoGuid = unchecked((ulong)M67) },
+            } });
+            db.Register(type);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var target = SpawnTarget(remembered);
+            _world.AddComponent(target, new EntityInfo { ForceId = (Fdp.Core.ForceId)2 });
+            var (unit, channel) = SpawnShooter(Vector3.Zero, 30, 0f, target, 0.5f);
+            _world.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 77 });
+            _world.AddComponent(unit, new EntityInfo { ForceId = (Fdp.Core.ForceId)1 });
+            var mem = new Fdp.Toolkit.Perception.Components.TargetMemory { Count = 1 };
+            mem.EntityIds[0] = (long)target.PackedValue;
+            mem.PositionsX[0] = remembered.X; mem.PositionsY[0] = remembered.Y; mem.PositionsZ[0] = remembered.Z;
+            mem.Freshness[0] = freshness;
+            _world.AddComponent(unit, mem);
+            SetSight(unit, target, visual: false);
+
+            var grenade = _world.CreateEntity();
+            _world.AddComponent(grenade, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = unit, InstanceId = 1 });
+            _world.AddComponent(grenade, new WeaponMountInfo { MountIndex = 1 });
+            _world.AddComponent(grenade, new WeaponState { Ammo = 4, MuzzleVelocity = 15f });
+
+            var p = new AimAndFireParams { Target = target, CooldownSeconds = 0.5f, Mount = AimAndFireParams.MountAuto };
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
+            return (unit, grenade, channel, target);
+        }
+
+        /// <summary>
+        /// ⭐ W-12e — not seen, remembered 18 m away (inside the 25 m range and the throw's reach): ONE grenade goes to the
+        /// remembered point from mount 1, it counts as a round, the mount spends one and cools down 6 s (no second throw while it
+        /// does). 🔴 Red before: the executor held (<c>HoldNotSeen</c>) and nothing ever threw at a hidden target.
+        /// </summary>
+        [Fact]
+        public void WL4_W12e_AHiddenTargetInReach_GetsOneGrenadeAtItsLastKnownSpot()
+        {
+            var remembered = new Vector3(0f, 18f, 0f);
+            var (unit, grenade, channel, target) = Grenadier(remembered);
+            _executor.OnEnter(unit, ref channel, _world);
+            _executor.Execute(unit, ref channel, _world, 0.1f);
+            _world.Bus.SwapBuffers();
+            var intents = _world.Bus.Read<WeaponFireIntent>();
+            Assert.Equal(1, intents.Length);
+            Assert.True(intents[0].AtPoint);
+            Assert.Equal(remembered, intents[0].TargetPoint);
+            Assert.Equal(1, intents[0].WeaponIndex);
+            Assert.Equal(3, _world.GetComponent<WeaponState>(grenade).Ammo);
+            Assert.Equal(HiddenTargetThrow.CooldownSeconds, _world.GetComponent<WeaponState>(grenade).CooldownSecondsRemaining);
+            Assert.Equal(30, _world.GetComponent<WeaponState>(unit).Ammo);   // the rifle untouched
+            Assert.Equal(1, AimAndFireExecutor.RoundsFiredOf(ref channel));
+
+            for (int i = 0; i < 10; i++) Assert.Equal(0, Step(unit, ref channel, 0.1f));   // cooling down: no second grenade
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            _ = target;
+        }
+
+        /// <summary>⭐ W-12e — the cases that must NOT throw: beyond the throw (30 m), a forgotten sighting, a friendly beside the
+        /// target (inside the M67's lethal radius), the thrower's own spot, and a target that is SEEN (the rifle's business).</summary>
+        [Theory]
+        [InlineData("too far")]
+        [InlineData("stale")]
+        [InlineData("friendly near the burst")]
+        [InlineData("seen")]
+        public void WL4_W12e_NoThrow_WhenAConditionFails(string why)
+        {
+            var at = why == "too far" ? new Vector3(0f, 30f, 0f) : new Vector3(0f, 18f, 0f);
+            var (unit, _, channel, target) = Grenadier(at, freshness: why == "stale" ? 0f : 500f);
+            if (why == "friendly near the burst")
+            {
+                var friend = SpawnTarget(at + new Vector3(0.5f, 0f, 0f));
+                _world.AddComponent(friend, new EntityInfo { ForceId = (Fdp.Core.ForceId)1 });
+            }
+            if (why == "seen") SetSight(unit, target, visual: true);
+            _executor.OnEnter(unit, ref channel, _world);
+            Assert.Equal(0, Step(unit, ref channel, 0.1f));
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+}
 }
