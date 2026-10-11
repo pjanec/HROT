@@ -84,13 +84,13 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
         string[] names = { "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4" };
-        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Leader").IsNull && !ByName(cgf, "Hostile").IsNull
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Squad").IsNull && !ByName(cgf, "Hostile").IsNull
                                          && names.All(n => !ByName(cgf, n).IsNull) && names.All(n => !ByName(sim, n).IsNull), timeoutFrames: 2000),
             "the squad and the hostile must spawn");
-        var leader = ByName(cgf, "Leader");
+        var leader = ByName(cgf, "Squad");   // ⭐ CE-2125 (R-272) — the body-less commander; the leader soldier is a member
         var hostileSim = ByName(sim, "Hostile");
-        Assert.True(harness.PumpUntil(() => cgf.HasComponent<UnitRoster>(leader) && cgf.GetComponent<UnitRoster>(leader).Count == 4, timeoutFrames: 2000),
-            "the four riflemen are the leader's squad");
+        Assert.True(harness.PumpUntil(() => cgf.HasComponent<UnitRoster>(leader) && cgf.GetComponent<UnitRoster>(leader).Count == 5, timeoutFrames: 2000),
+            "the leader soldier and the four riflemen are the squad");
 
         SquadCognitiveState Squad() => cgf.GetComponent<SquadCognitiveState>(leader);
         Entity Member(int i) => cgf.GetComponent<UnitRoster>(leader).SubordinateEntities[i];
@@ -101,7 +101,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         {
             var sq = Squad();
             var s = $"kind={sq.ManeuverKind} phase={sq.PhaseId} pool={sq.Contacts.Count}";
-            for (int i = 0; i < 4; i++) s += $" | m{i} el={sq.Elements.MemberElements[i]} at={SimAt(i)} ammo={Ammo(i)}";
+            for (int i = 0; i < 5; i++) s += $" | m{i} el={sq.Elements.MemberElements[i]} at={SimAt(i)} ammo={Ammo(i)}";
             return s;
         }
 
@@ -109,8 +109,8 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         Assert.True(harness.PumpUntil(() => Squad().ManeuverKind == SuppressAndManeuverManeuver.ManeuverKind, timeoutFrames: 3000),
             $"the leader must start suppress-and-manoeuvre on contact; {State()}");
         var sq0 = Squad();
-        var bases = Enumerable.Range(0, 4).Where(i => sq0.Elements.MemberElements[i] == SuppressAndManeuverManeuver.ElementBaseOfFire).ToArray();
-        var assault = Enumerable.Range(0, 4).Where(i => sq0.Elements.MemberElements[i] == SuppressAndManeuverManeuver.ElementAssault).ToArray();
+        var bases = Enumerable.Range(0, 5).Where(i => sq0.Elements.MemberElements[i] == SuppressAndManeuverManeuver.ElementBaseOfFire).ToArray();
+        var assault = Enumerable.Range(0, 5).Where(i => sq0.Elements.MemberElements[i] == SuppressAndManeuverManeuver.ElementAssault).ToArray();
         Assert.NotEmpty(bases);
         Assert.NotEmpty(assault);
         var baseStart = bases.ToDictionary(i => i, SimAt);
@@ -179,10 +179,10 @@ public sealed class SquadTacticsScenarioTests : IDisposable
                 $"cluster must reach OperatingLive; at {(int)master.CurrentClusterState}");
 
             var cgf = harness.Cgf!.World!;
-            Assert.True(harness.PumpUntil(() => !ByName(cgf, "Leader").IsNull && cgf.HasComponent<UnitRoster>(ByName(cgf, "Leader"))
-                                             && cgf.GetComponent<UnitRoster>(ByName(cgf, "Leader")).Count == 4, timeoutFrames: 3000),
-                "the leader and its four riflemen must spawn");
-            var leader = ByName(cgf, "Leader");
+            Assert.True(harness.PumpUntil(() => !ByName(cgf, "Squad").IsNull && cgf.HasComponent<UnitRoster>(ByName(cgf, "Squad"))
+                                             && cgf.GetComponent<UnitRoster>(ByName(cgf, "Squad")).Count == 5, timeoutFrames: 3000),
+                "the squad's commander and its five men (the leader soldier among them) must spawn");
+            var leader = ByName(cgf, "Squad");   // ⭐ CE-2125 (R-272) — the body-less commander
             SquadCognitiveState Squad() => cgf.GetComponent<SquadCognitiveState>(leader);
             bool Paused() => Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem.PausedTaskOf(cgf, leader) != null;
             var kinds = new System.Collections.Generic.List<ushort>();
@@ -219,6 +219,31 @@ public sealed class SquadTacticsScenarioTests : IDisposable
                                                               && kinds.IndexOf(SuppressAndManeuverManeuver.ManeuverKind) < kinds.Count - 1; }, timeoutFrames: 30000),   // ⚠ ~150 frames per sim second here
                 $"after the drill the bound must resume; {State()}");
             _out.WriteLine("end: " + State());
+
+            // ⭐⭐ CE-2125 (R-272) — the commander stands at its live men's centre, on SimHost too (the owner's write replicated) …
+            var simSquad = ByName(sim, "Squad");
+            Vector3 Centre()
+            {
+                var roster = cgf.GetComponent<UnitRoster>(leader);
+                var sum = Vector3.Zero; int n = 0;
+                for (int i = 0; i < roster.Count; i++)
+                {
+                    var body = ByName(sim, cgf.GetComponent<EntityInfo>(roster.SubordinateEntities[i]).Name.ToString());
+                    if (body.IsNull || (sim.HasComponent<Health>(body) && sim.GetComponent<Health>(body).Current <= 0f)) continue;
+                    sum += sim.GetComponent<SimTransform>(body).Position; n++;
+                }
+                return n == 0 ? Vector3.Zero : sum / n;
+            }
+            Assert.True(harness.PumpUntil(() => Vector2.Distance(new Vector2(sim.GetComponent<SimTransform>(simSquad).Position.X, sim.GetComponent<SimTransform>(simSquad).Position.Y),
+                                                               new Vector2(Centre().X, Centre().Y)) < 3f, timeoutFrames: 600),
+                $"the squad's commander must stand at its men's centre on SimHost: at {sim.GetComponent<SimTransform>(simSquad).Position}, centre {Centre()}");
+            // … and the enemy never perceives it.
+            var hostile = ByName(cgf, "Hostile");
+            if (cgf.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(hostile))
+            {
+                var mem = cgf.GetComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(hostile);
+                for (int i = 0; i < mem.Count; i++) Assert.NotEqual((long)leader.PackedValue, mem.EntityIds[i]);
+            }
         }
         finally { NasScenarioStaging.Remove(scenarioId); }
     }

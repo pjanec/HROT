@@ -204,6 +204,10 @@ namespace Hrot.AI.Behaviors.Brains
             var outcome = play.Outcome(ref p, ref ws, in ctx);
             if (outcome != NodeStatus.Running) { play.Release(ref ws, world); return outcome; }
 
+            // ⭐ CE-2125 (§7.2 L2) — the leader fell: the commander is SILENT (no new orders, no phase change); members keep their
+            //   orders and their own SOP. When it ends, every order goes out again.
+            if (SquadLeadership.Silent(world, self, now)) { ws.Reissue = 1; Remember(ref ws, in ctx.Squad); return NodeStatus.Running; }
+
             if (ws.IssuedPhase == ctx.Squad.PhaseId && play.PhaseComplete(ref p, ref ws, in ctx, out var evt))
             {
                 Span<PhaseEvent> events = stackalloc PhaseEvent[1];

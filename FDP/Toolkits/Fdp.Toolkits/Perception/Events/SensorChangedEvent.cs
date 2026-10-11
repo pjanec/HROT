@@ -45,6 +45,9 @@ namespace Fdp.Toolkit.Perception.Events
 
         /// <summary>⭐ <c>CE-2123</c> S2 — the squad's shared contacts went from holding contacts to empty. Published on the COMMANDER.</summary>
         SquadAllClear  = 13,
+
+        /// <summary>⭐ <c>CE-2125</c> (§7.2 L3) — the squad's leader soldier fell; the next man took over. Published on the COMMANDER.</summary>
+        SquadLeaderDown = 14,
     }
 
     /// <summary>

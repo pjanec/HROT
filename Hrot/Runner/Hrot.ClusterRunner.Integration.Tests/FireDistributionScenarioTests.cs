@@ -81,10 +81,11 @@ public sealed class FireDistributionScenarioTests : IDisposable
         Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
 
         var cgf = harness.Cgf!.World!;
-        string[] names = { "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4" };
-        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Leader").IsNull && names.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
-            "the leader and the four riflemen must spawn on CGF");
-        var leader = ByName(cgf, "Leader");
+        // ⭐ CE-2125 (R-272) — the squad's commander is body-less ("Squad"); the leader soldier is the fifth member and fights too.
+        string[] names = { "Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4" };
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Squad").IsNull && names.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the squad's commander, its leader and the four riflemen must spawn on CGF");
+        var leader = ByName(cgf, "Squad");
         var members = names.Select(n => ByName(cgf, n)).ToArray();
 
         long[] Assigned()
@@ -102,7 +103,7 @@ public sealed class FireDistributionScenarioTests : IDisposable
         }
         string State() => "assigned=[" + string.Join(",", Assigned()) + "] ammo=[" + string.Join(",", members.Select(m => cgf.GetComponent<WeaponState>(m).Ammo)) + "]";
 
-        Assert.True(harness.PumpUntil(() => Assigned() is { Length: 4 } a && a.All(x => x != 0), timeoutFrames: 6000),
+        Assert.True(harness.PumpUntil(() => Assigned() is { Length: 5 } a && a.All(x => x != 0), timeoutFrames: 6000),
             $"every member is assigned a target (the fire distribution runs); {State()}");
         var assigned = Assigned();
         _out.WriteLine(State());

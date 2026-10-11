@@ -103,7 +103,7 @@ namespace Fdp.Toolkit.Perception.Systems
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
-            var query = view.Query().With<SimTransform>().Build();
+            var query = view.Query().With<SimTransform>().ExcludeHidden().Build();   // ⭐ CE-2125 (R-272) — a unit is not a body
 
             // ⭐ CE-3018 — a new terrain REBASES the grid (same memory: the visual template's copy sees the shared
             //    geometry) and invalidates every remembered position, which was hashed with the old geometry.

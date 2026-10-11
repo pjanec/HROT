@@ -250,6 +250,8 @@ namespace Hrot.AI.Behaviors.Brains
     {
         /// <summary>0 = returning fire · 1 = the chosen drill · 2 = holding until clear.</summary>
         public byte Stage;
+        /// <summary>⭐ CE-2125 — sim time the current stage began (a leader lost since then sends the reaction back to decide again).</summary>
+        public double StageSince;
         public UtilityChoice Choice;
         public SquadPlayState Play;
     }
@@ -301,6 +303,13 @@ namespace Hrot.AI.Behaviors.Brains
 
         public static NodeStatus Run(ref ReactToContactParams p, ref ReactToContactState ws, Entity self, EntityRepository world)
         {
+            // ⭐ CE-2125 (§7.2 L3) — the leader fell during the drill or the hold: the weaker squad holds and decides again.
+            if (ws.Stage != StageReturnFire
+                && Fdp.Toolkit.Behavior.Components.RecentSensesOf.WithinSince(world, self, Fdp.Toolkit.Perception.Events.SensorChange.SquadLeaderDown, 3600d, ws.StageSince))
+            {
+                Next(ref ws, StageReturnFire, world);
+                ws.Choice = default;
+            }
             if (ws.Stage == StageReturnFire)
             {
                 var first = SquadManeuverRunner.Tick<SquadHoldPlay, SquadHoldParams>(ref p.ReturnFire, ref ws.Play, self, world);
@@ -333,6 +342,7 @@ namespace Hrot.AI.Behaviors.Brains
             SquadManeuverRunner.DropSensor(ref ws.Play, world);
             ws.Play = default;
             ws.Stage = stage;
+            ws.StageSince = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
         }
     }
 }

@@ -209,6 +209,9 @@ public static class HrotSharedComponentRegistry
         // ⚠ Registration is not allocation: it creates table metadata, and the 1024 bytes only
         //    materialise on an entity that actually becomes a commander.
         world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+        // ⭐ CE-2125 (R-272) — a unit is not a body (the TKB translator stamps it on every node) and its leadership (CGF).
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        world.RegisterComponent<Fdp.Toolkit.Squad.SquadLeadership>();
 
         // ── Brain interrupts (O2, 2026-09-20) ─────────────────────────────────
         // ⭐ The entity-fact half of the BrainBlackboard split. Registered on the same Hrot-wide path

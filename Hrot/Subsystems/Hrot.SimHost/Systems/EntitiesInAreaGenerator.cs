@@ -63,7 +63,7 @@ namespace Hrot.SimHost.Systems
             }
 
             int count = 0;
-            foreach (var candidate in view.Query().With<SimTransform>().Build())
+            foreach (var candidate in Fdp.Toolkit.Perception.PhysicalPresence.ExcludeHidden(view.Query().With<SimTransform>()).Build())   // ⭐ CE-2125 (R-272)
             {
                 if (count >= candidates.Length) break;
 

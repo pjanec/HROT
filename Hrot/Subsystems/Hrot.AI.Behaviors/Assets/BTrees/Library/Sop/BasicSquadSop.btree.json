@@ -29,6 +29,7 @@
       "VisualId": "c2123000-0000-0000-0000-000000000002",
       "ChildVisualIds": [
         "c2123000-0000-0000-0000-000000000010",
+        "c2123000-0000-0000-0000-000000000030",
         "c2123000-0000-0000-0000-000000000020"
       ],
       "DisplayLabel": "Rows — first true wins",
@@ -100,7 +101,7 @@
       ],
       "DisplayLabel": "Squad contact → react",
       "EditorMetadata": {
-        "X": 620,
+        "X": 820,
         "Y": 260,
         "Comment": null,
         "Collapsed": false,
@@ -117,7 +118,7 @@
       "ChildVisualIds": [],
       "DisplayLabel": "Squad contact (fresh, 3 s)",
       "EditorMetadata": {
-        "X": 540,
+        "X": 740,
         "Y": 400,
         "Comment": null,
         "Collapsed": false,
@@ -135,9 +136,60 @@
       "ChildVisualIds": [],
       "DisplayLabel": "React: ReactToContact",
       "EditorMetadata": {
-        "X": 720,
+        "X": 920,
         "Y": 400,
         "Comment": "Hold and return fire, decide once (assault / break contact / hold), run the drill.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2123000-0000-0000-0000-000000000030",
+      "ChildVisualIds": [
+        "c2123000-0000-0000-0000-000000000031",
+        "c2123000-0000-0000-0000-000000000032"
+      ],
+      "DisplayLabel": "Squad leader down → react",
+      "EditorMetadata": {
+        "X": 420,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.SensedFresh",
+        "ExpressionTargetField": "leaderDown"
+      },
+      "VisualId": "c2123000-0000-0000-0000-000000000031",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Squad leader down (fresh, 3 s)",
+      "EditorMetadata": {
+        "X": 340,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "ReactToContact",
+        "Urgency": "UnderFire"
+      },
+      "VisualId": "c2123000-0000-0000-0000-000000000032",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: ReactToContact",
+      "EditorMetadata": {
+        "X": 520,
+        "Y": 400,
+        "Comment": "The next man took over (CE-2125): hold, then decide again with the weaker squad.",
         "Collapsed": false,
         "Color": null
       }
@@ -168,6 +220,16 @@
         },
         "DefaultValueJson": "{\"Kind\":\"SquadUnderFire\",\"Seconds\":3}",
         "Comment": "A squad member (or the leader) was hit or shot at recently (and since the current run began)."
+      },
+      {
+        "Name": "leaderDown",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Behavior.SopSenseParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Kind\":\"SquadLeaderDown\",\"Seconds\":3}",
+        "Comment": "The squad's leader soldier fell and the next man took over (CE-2125)."
       },
       {
         "Name": "contact",

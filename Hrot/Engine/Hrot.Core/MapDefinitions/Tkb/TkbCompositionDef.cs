@@ -38,6 +38,11 @@ namespace Hrot.Map.Definitions.Tkb
         /// Organizational echelon ("Platoon", "Company", "Battalion").
         /// </summary>
         public string Echelon { get; set; } = "Platoon";
+
+        /// <summary>
+        /// ⭐ CE-2125 (R-272 §7.2 L2) — how long the unit's commander gives no new orders after its leader soldier falls (s).
+        /// </summary>
+        public float CommandDisruptionSeconds { get; set; } = 6f;
         
         /// <summary>
         /// Whether children are automatically created with parent.

@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.Linq;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
@@ -27,6 +28,10 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             _repo.RegisterComponent<UnitSubordinate>();
             _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<TargetMemory>();
+            _repo.RegisterComponent<SquadLeadership>();
+            _repo.RegisterComponent<UnitEntity>();
+            _repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            _repo.RegisterComponent<SimTransform>();
         }
 
         public void Dispose() => _repo.Dispose();
@@ -106,7 +111,7 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
         }
 
         /// <summary>⭐ <c>CE-2123</c> S2 — a member's Hit or NearMiss edge (last frame) raises <c>SquadUnderFire</c> on its commander;
-        /// so does the commander's own (a soldier-leader); a unit in no squad raises nothing.</summary>
+        /// not the commander's own (CE-2125: it is body-less); a unit in no squad raises nothing.</summary>
         [Fact]
         public void CE2123_AMemberHitOrShotAt_RaisesSquadUnderFire_OnItsCommander()
         {
@@ -122,8 +127,8 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             _repo.Bus.SwapBuffers();
             var edges = EdgesAfter(() => system.Execute(_repo, 0.016f));
 
-            Assert.Equal(new[] { (commander, SensorChange.SquadUnderFire), (commander, SensorChange.SquadUnderFire) },
-                         edges.Select(e => (e.Unit, e.What)));
+            // ⭐ CE-2125 (R-272) — the commander's OWN near miss is no longer the squad's: it is body-less, the leader is a member.
+            Assert.Equal(new[] { (commander, SensorChange.SquadUnderFire) }, edges.Select(e => (e.Unit, e.What)));
         }
 
         /// <summary>⭐ <c>CE-2123</c> S2 — with the pack's gate, a commander this node does not own gets no squad edge.</summary>
@@ -138,6 +143,95 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             var edges = EdgesAfter(() => system.Execute(_repo, 0.016f));
 
             Assert.Empty(edges);
+        }
+
+        // ── CE-2125 — the leader soldier falls ────────────────────────────────
+
+        private (Entity commander, Entity[] members) Designated(params TacticalDesignation[] designations)
+        {
+            var commander = _repo.CreateEntity();
+            _repo.AddComponent(commander, new BehaviorState());
+            _repo.AddComponent(commander, new UnitRoster());
+            _repo.AddComponent(commander, default(SquadCognitiveState));
+            _repo.AddComponent(commander, new UnitEntity { CommandDisruptionSeconds = 4f });
+            var members = new Entity[designations.Length];
+            for (int i = 0; i < designations.Length; i++)
+            {
+                var m = _repo.CreateEntity();
+                _repo.AddComponent(m, new TargetMemory());
+                _repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+                _repo.AddComponent(m, new UnitSubordinate { Commander = commander, Designation = designations[i] });
+                UnitRoster.Add(ref _repo.GetComponentRW<UnitRoster>(commander), m);
+                members[i] = m;
+            }
+            return (commander, members);
+        }
+
+        private void Kill(Entity m) => _repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(m).Current = 0f;
+        private void At(double t) => _repo.SetSingleton(new GlobalTime { TotalTime = t, DeltaTime = 0.016f, TimeScale = 1f });
+
+        /// <summary>⭐ §7.2 L1–L3 — the leader falls ⇒ the first live TeamLeader (not the first member) takes over, the commander is silent
+        /// for its type's lull, and ONE <c>SquadLeaderDown</c> is published on it. ✅ Red-proof: drop the <c>Succession</c> call ⇒ red.</summary>
+        [Fact]
+        public void CE2125_TheLeaderFalls_TheTeamLeaderTakesOver_TheCommanderFallsSilent_AndSaysSo()
+        {
+            var (commander, m) = Designated(TacticalDesignation.SquadLeader, TacticalDesignation.Wingman, TacticalDesignation.TeamLeader);
+            var system = new SquadCoordinationSystem();
+            At(10); EdgesAfter(() => system.Execute(_repo, 0.016f));
+            Assert.Equal(m[0], _repo.GetComponentRO<SquadLeadership>(commander).Leader);
+
+            Kill(m[0]);
+            At(11);
+            var edges = EdgesAfter(() => system.Execute(_repo, 0.016f));
+
+            Assert.Contains((commander, SensorChange.SquadLeaderDown), edges.Select(e => (e.Unit, e.What)));
+            var lead = _repo.GetComponentRO<SquadLeadership>(commander);
+            Assert.Equal(m[2], lead.Leader);
+            Assert.Equal(15d, lead.SilentUntil, 3);
+            Assert.Equal(TacticalDesignation.SquadLeader, _repo.GetComponentRO<UnitSubordinate>(m[2]).Designation);
+            Assert.Equal((ushort)TacticalDesignation.SquadLeader, _repo.GetComponentRO<UnitRoster>(commander).TacticalDesignations[2]);
+
+            At(12);
+            Assert.DoesNotContain((commander, SensorChange.SquadLeaderDown), EdgesAfter(() => system.Execute(_repo, 0.016f)).Select(e => (e.Unit, e.What)));
+        }
+
+        /// <summary>⭐ L1 — no team leader ⇒ the first live member in roster order; a squad that never had a designated leader loses none.</summary>
+        [Fact]
+        public void CE2125_NoTeamLeader_TheFirstLiveMemberTakesOver_AndALeaderlessSquadHasNoneToLose()
+        {
+            var (commander, m) = Designated(TacticalDesignation.Wingman, TacticalDesignation.SquadLeader, TacticalDesignation.Wingman);
+            var (leaderless, n) = Designated(TacticalDesignation.Wingman, TacticalDesignation.Wingman);
+            var system = new SquadCoordinationSystem();
+            At(1); EdgesAfter(() => system.Execute(_repo, 0.016f));
+            Kill(m[1]); Kill(n[0]);
+            At(2);
+            var edges = EdgesAfter(() => system.Execute(_repo, 0.016f)).Select(e => (e.Unit, e.What)).ToArray();
+
+            Assert.Equal(m[0], _repo.GetComponentRO<SquadLeadership>(commander).Leader);
+            Assert.Contains((commander, SensorChange.SquadLeaderDown), edges);
+            Assert.DoesNotContain((leaderless, SensorChange.SquadLeaderDown), edges);
+        }
+
+        /// <summary>⭐ C-3 (CE-514) — the owned unit stands at its LIVE members' centre; a dead member does not count; a unit this node
+        /// does not own is left where it is. ✅ Red-proof: drop the liveness check ⇒ red.</summary>
+        [Fact]
+        public void CE2125_AUnitStandsAtItsLiveMembersCentre_OnItsOwner()
+        {
+            var (owned, a) = Designated(TacticalDesignation.SquadLeader, TacticalDesignation.Wingman, TacticalDesignation.Wingman);
+            var (remote, b) = Designated(TacticalDesignation.Wingman);
+            foreach (var u in new[] { owned, remote }) _repo.AddComponent(u, new SimTransform { Position = new Vector3(-1, -1, -1) });
+            _repo.SetAuthority<SimTransform>(owned, true);
+            _repo.SetAuthority<SimTransform>(remote, false);
+            _repo.AddComponent(a[0], new SimTransform { Position = new Vector3(0, 0, 0) });
+            _repo.AddComponent(a[1], new SimTransform { Position = new Vector3(10, 0, 0) });
+            _repo.AddComponent(a[2], new SimTransform { Position = new Vector3(100, 100, 0) });
+            _repo.AddComponent(b[0], new SimTransform { Position = new Vector3(7, 7, 0) });
+            Kill(a[2]);
+
+            new UnitCentroidSystem().Execute(_repo, 0.016f);
+
+            Assert.Equal(new Vector3(5, 0, 0), _repo.GetComponentRO<SimTransform>(owned).Position);
+            Assert.Equal(new Vector3(-1, -1, -1), _repo.GetComponentRO<SimTransform>(remote).Position);
         }
 
         /// <summary>⭐⭐ User ruling: no allocation on the hot path. The query is built once and cached.</summary>

@@ -67,8 +67,10 @@ namespace Fdp.Toolkit.Squad.Systems
                 .Build();
 
             uint tick = view.Tick;
+            double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
             foreach (var commander in _commanders)
             {
+                SquadSensing.Succession(repo, commander, now);   // ⭐ CE-2125 — the leader fell ⇒ the next man, a lull, an edge
                 int before = repo.GetComponentRO<SquadCognitiveState>(commander).Contacts.Count;
                 bool merged = SquadPerceptionMergeSystem.Run(repo, commander, tick, MergeIntervalTicks);
                 if (!merged) continue;

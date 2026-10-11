@@ -536,6 +536,15 @@ namespace Fdp.Core
         /// ⭐ <c>QA-037</c>: moved 264 → 273 — 264 is <c>NavFakeIds.FakeCrowdAgentState</c>.</summary>
         public const int MovementModeIntent = 273;
 
+        /// <summary><c>UnitEntity</c> — ⭐ CE-2125 (R-272): this entity is a UNIT (an organisation with a body-less commander), not a
+        /// physical actor: never seen, heard or found by an area search; placed at its live members' centroid by its owner.
+        /// Derived from the TKB composite description on every node. Not saved.</summary>
+        public const int UnitEntity = 274;
+
+        /// <summary><c>SquadLeadership</c> — ⭐ CE-2125: on a squad commander (CGF): which member leads, and until when the
+        /// commander is silent after its leader fell. Not saved, not sent.</summary>
+        public const int SquadLeadership = 275;
+
         /// <summary><c>SquadCognitiveState</c> — ⭐ <b>the commander's squad state, as its OWN 1024-byte
         /// component</b> (`O1`, 2026-09-20). It used to be a PROJECTION over the commander's
         /// <c>Blackboard1024</c>, which made "has a blackboard" an accidental proxy for "is a commander

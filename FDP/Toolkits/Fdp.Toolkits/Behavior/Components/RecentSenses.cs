@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Behavior.Components
     [DataPolicy(DataPolicy.NoScenario)]
     public struct RecentSenses
     {
-        /// <summary>Sim time (s) of the last change of each kind, indexed by <see cref="SensorChange"/> (1–13).</summary>
+        /// <summary>Sim time (s) of the last change of each kind, indexed by <see cref="SensorChange"/> (1–14).</summary>
         public double Acquired, Lost, TopChanged, FirstThreat, AllClear, Hit;
         /// <summary>⭐ <c>CE-3064</c> — the last near miss (kind 7).</summary>
         public double NearMiss;
@@ -25,6 +25,8 @@ namespace Fdp.Toolkit.Behavior.Components
         public double AreaAhead, AreaThreatened, AreaCleared;
         /// <summary>⭐ <c>CE-2123</c> S2 — the squad kinds 11–13, recorded on the commander.</summary>
         public double SquadContact, SquadUnderFire, SquadAllClear;
+        /// <summary>⭐ <c>CE-2125</c> — kind 14, on the commander.</summary>
+        public double SquadLeaderDown;
         /// <summary>Bit <c>1 &lt;&lt; (int)kind</c> set once that kind has happened at least once (kinds up to 15).</summary>
         public ushort SeenMask;
 
@@ -46,6 +48,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 case SensorChange.SquadContact:   SquadContact   = now; break;
                 case SensorChange.SquadUnderFire: SquadUnderFire = now; break;
                 case SensorChange.SquadAllClear:  SquadAllClear  = now; break;
+                case SensorChange.SquadLeaderDown: SquadLeaderDown = now; break;
                 default: return;
             }
             SeenMask |= (ushort)(1 << (int)kind);
@@ -75,6 +78,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 SensorChange.SquadContact   => SquadContact,
                 SensorChange.SquadUnderFire => SquadUnderFire,
                 SensorChange.SquadAllClear  => SquadAllClear,
+                SensorChange.SquadLeaderDown => SquadLeaderDown,
                 _                        => double.NegativeInfinity,
             };
             return true;

@@ -56,6 +56,30 @@ namespace Fdp.Toolkit.Perception.Tests
             grid.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-2125</c> (R-272) — a unit's body-less commander, standing among its men, is never put in the perception
+        /// grid (so never seen, heard or found by a grid search); the soldier next to it is. ✅ Red-proof: drop <c>ExcludeHidden</c> ⇒ red.</summary>
+        [Fact]
+        public void CE2125_AUnitsCommander_IsNeverInThePerceptionGrid()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+            var grid  = CreateTestGrid();
+            var sys   = new LocalGridBuilderSystem(grid);
+            var soldier = world.CreateEntity();
+            world.AddComponent(soldier, new SimTransform { Position = new Vector3(50f, 50f, 0f) });
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new SimTransform { Position = new Vector3(50.5f, 50f, 0f) });
+            world.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitEntity { CommandDisruptionSeconds = 6f });
+
+            sys.Execute(world, 0f);
+
+            Span<(Entity entity, Vector2 pos)> results = stackalloc (Entity, Vector2)[10];
+            int count = grid.QueryNeighbors(new Vector2(50f, 50f), 5f, results);
+            Assert.Equal(1, count);
+            Assert.Equal(soldier, results[0].entity);
+            grid.Dispose();
+        }
+
         // ── Test 2 ────────────────────────────────────────────────────────────
 
         /// <summary>

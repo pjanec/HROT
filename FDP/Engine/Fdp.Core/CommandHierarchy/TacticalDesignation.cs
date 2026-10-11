@@ -12,5 +12,7 @@ namespace Fdp.Core.CommandHierarchy
         SquadLeader  = 2,
         Wingman      = 3,
         Support      = 4,
+        /// <summary>⭐ CE-2125 — a fire-team leader: first in line when the squad leader falls (§7.2 L1).</summary>
+        TeamLeader   = 5,
     }
 }

@@ -516,5 +516,70 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(run, s.Repo.GetComponent<BehaviorState>(s.Commander).InstanceId);   // not restarted
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
+
+        // ── ⭐ CE-2125 — the leader falls: a lull, then the squad goes on ─────────────────────────────────────────────────
+
+        private static void Silence(Squad s, double seconds)
+        {
+            var now = s.Repo.GetSingleton<GlobalTime>().TotalTime;
+            var lead = new Fdp.Toolkit.Squad.SquadLeadership { SilentUntil = now + seconds };
+            if (s.Repo.HasComponent<Fdp.Toolkit.Squad.SquadLeadership>(s.Commander)) s.Repo.SetComponent(s.Commander, lead);
+            else s.Repo.AddComponent(s.Commander, lead);
+        }
+
+        /// <summary>⭐ §7.2 L2 — while the commander is silent it sends NO order (members keep theirs); when the lull ends every order goes
+        /// out again. ✅ Red-proof: drop the silence check in the runner ⇒ red.</summary>
+        [Fact]
+        public void CE2125_TheSilentCommander_SendsNoOrders_ThenReSendsThemAll()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.Tick(); s.Tick();
+            Assert.Equal(4, s.LastOrders().Count);
+
+            Silence(s, 0.2);
+            s.Orders.Clear();
+            foreach (var m in s.Members.Take(2)) s.Teleport(m, new Vector3(s.At(m).X, 30f, 0f));   // a phase would complete …
+            for (int i = 0; i < 6; i++) s.Tick();
+            Assert.Empty(s.Orders);                                                               // … but nobody gives the order
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
+
+            for (int i = 0; i < 12; i++) s.Tick();                                               // the lull is over
+            Assert.Equal(4, s.LastOrders().Count);
+        }
+
+        /// <summary>⭐ §7.2 L3 — the leader falls during the reaction's drill ⇒ the squad holds and the commander decides again.</summary>
+        [Fact]
+        public void CE2125_TheLeaderFallsDuringTheDrill_TheSquadHoldsAndDecidesAgain()
+        {
+            var s = new Squad(members: 4);
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
+
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadLeaderDown);
+            s.Tick(); s.Tick();
+            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);                                 // back to holding …
+            for (int i = 0; i < 12; i++) s.Tick();
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);                       // … and decided again
+        }
+
+        /// <summary>⭐ L3 — the shipped leader SOP reacts to <c>SquadLeaderDown</c> even with no contact (an unseen sniper).</summary>
+        [Fact]
+        public void CE2125_BasicSquadSop_TheLeaderDown_PausesTheTask_WithReactToContact()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 20; i++) s.Tick();
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadLeaderDown);
+            for (int i = 0; i < 4; i++) s.Tick();
+
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            Assert.Equal(ReactionUrgency.UnderFire, s.Repo.GetComponent<BehaviorState>(s.Commander).Urgency);
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
     }
 }

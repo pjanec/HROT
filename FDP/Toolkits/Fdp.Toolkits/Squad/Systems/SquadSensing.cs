@@ -29,9 +29,8 @@ namespace Fdp.Toolkit.Squad.Systems
         }
 
         /// <summary>
-        /// Publish <see cref="SensorChange.SquadUnderFire"/> on the commander of every unit that had a <c>Hit</c> or <c>NearMiss</c>
-        /// edge last frame — a roster member (its <see cref="UnitSubordinate.Commander"/>) or a commander itself (a soldier-leader
-        /// is in the fight). <paramref name="gateOnAuthority"/>: only commanders whose <see cref="BehaviorState"/> this node owns —
+        /// Publish <see cref="SensorChange.SquadUnderFire"/> on the commander of every MEMBER that had a <c>Hit</c> or <c>NearMiss</c>
+        /// edge last frame (its <see cref="UnitSubordinate.Commander"/>). <paramref name="gateOnAuthority"/>: only commanders whose <see cref="BehaviorState"/> this node owns —
         /// the driver's own gate.
         /// </summary>
         public static void UnderFire(EntityRepository repo, bool gateOnAuthority)
@@ -40,13 +39,71 @@ namespace Fdp.Toolkit.Squad.Systems
             {
                 if (evt.What != SensorChange.Hit && evt.What != SensorChange.NearMiss) continue;
                 if (!repo.IsAlive(evt.Unit)) continue;
-                var commander = IsCommander(repo, evt.Unit) ? evt.Unit
-                              : repo.HasComponent<UnitSubordinate>(evt.Unit) ? repo.GetComponentRO<UnitSubordinate>(evt.Unit).Commander
+                // ⭐ CE-2125 (R-272) — only MEMBERS: the commander is body-less now and the leader soldier is a member.
+                //   ⛔ SUPERSEDED: "or the commander itself (a soldier-leader is in the fight)" (CE-2123 S2).
+                var commander = repo.HasComponent<UnitSubordinate>(evt.Unit) ? repo.GetComponentRO<UnitSubordinate>(evt.Unit).Commander
                               : Entity.Null;
                 if (commander.IsNull || !repo.IsAlive(commander) || !IsCommander(repo, commander)) continue;
                 if (gateOnAuthority && (!repo.HasComponent<BehaviorState>(commander) || !repo.HasAuthority<BehaviorState>(commander))) continue;
                 Publish(repo, commander, SensorChange.SquadUnderFire);
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2125</c> (§7.2 L1–L3) — the leader soldier fell ⇒ the next man takes over: the first live <c>TeamLeader</c>, else
+        /// the first live member, in roster order, becomes <c>SquadLeader</c> (CGF-local — only CGF reads it); the commander goes
+        /// SILENT for its unit type's <see cref="UnitEntity.CommandDisruptionSeconds"/> (6 s without a type); and
+        /// <see cref="SensorChange.SquadLeaderDown"/> is published on it. A squad that never had a designated leader has none to lose.
+        /// </summary>
+        public static void Succession(EntityRepository repo, Entity commander, double now)
+        {
+            if (!repo.IsComponentTypeRegistered<SquadLeadership>()) return;
+            ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
+            if (!repo.HasComponent<SquadLeadership>(commander))
+            {
+                int first = Designated(repo, in roster, TacticalDesignation.SquadLeader);
+                repo.AddComponent(commander, new SquadLeadership { Leader = first < 0 ? Entity.Null : roster.SubordinateEntities[first] });
+                return;
+            }
+            ref var leadership = ref repo.GetComponentRW<SquadLeadership>(commander);
+            if (leadership.Leader.IsNull)
+            {
+                int first = Designated(repo, in roster, TacticalDesignation.SquadLeader);
+                if (first >= 0) leadership.Leader = roster.SubordinateEntities[first];
+                return;
+            }
+            if (Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, leadership.Leader)) return;
+
+            int next = Designated(repo, in roster, TacticalDesignation.TeamLeader);
+            if (next < 0) next = FirstLive(repo, in roster);
+            if (next < 0) { leadership.Leader = Entity.Null; return; }   // nobody left to lead
+            var successor = roster.SubordinateEntities[next];
+            roster.TacticalDesignations[next] = (ushort)TacticalDesignation.SquadLeader;
+            if (repo.HasComponent<UnitSubordinate>(successor))
+                repo.GetComponentRW<UnitSubordinate>(successor).Designation = TacticalDesignation.SquadLeader;
+            leadership.Leader = successor;
+            float lull = repo.HasComponent<UnitEntity>(commander) ? repo.GetComponentRO<UnitEntity>(commander).CommandDisruptionSeconds : 6f;
+            leadership.SilentUntil = now + (lull > 0f ? lull : 6f);
+            Publish(repo, commander, SensorChange.SquadLeaderDown);
+        }
+
+        /// <summary>The first LIVE member carrying <paramref name="designation"/>, in roster order; −1 when none.</summary>
+        private static int Designated(EntityRepository repo, in UnitRoster roster, TacticalDesignation designation)
+        {
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var m = roster.SubordinateEntities[i];
+                var d = repo.HasComponent<UnitSubordinate>(m) ? repo.GetComponentRO<UnitSubordinate>(m).Designation : (TacticalDesignation)roster.TacticalDesignations[i];
+                if (d == designation && Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, m)) return i;
+            }
+            return -1;
+        }
+
+        private static int FirstLive(EntityRepository repo, in UnitRoster roster)
+        {
+            for (int i = 0; i < roster.Count; i++)
+                if (Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, roster.SubordinateEntities[i])) return i;
+            return -1;
         }
 
         private static bool IsCommander(EntityRepository repo, Entity e)
