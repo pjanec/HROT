@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 PAUSED on Q-S5a..c (§3.12). ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 RULED (§3.12, U29) — building. ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -68,6 +68,7 @@ path. Built on the Raylib the hosts already run. Godot is deferred.
 | **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) … with imgui on top for menus?"* | measured in `DESIGN_Godot_3D_Viewer.md` §8 — lean B |
 | **U13** | *"The internal 3d solution could be switchable 2d/3d instead of current 2d only map so no new 3d window would be required. I think we should focus on B … Lets put godot aside (but keep its design as deferred). We need the simple renderer to handle the terrain geometry, use lighting color shaded polygons to give it some usable feeling of a real world, if not some freely available texture pack."* | ⭐ this file: a **mode of the map**, not a window; **lit, colour-shaded terrain**; textures as a later slice |
 | **U15** | *"Every host having the 2d map will get simple 3d, correct? Not just IG. … The current 2d map can be switched to 3d view and back (some camera animation between 2d camera and 3d camera or something)."* | ✅ yes, all five map hosts — by construction since U25 (§6b). ⭐ M12: the switch is an animated camera move, not a cut |
+| **U29** | *"S5 approved. We can build weapons here, no handoff necessary. 1047 approved."* (`2026-10-11`) | ✅ §3.12 Q-S5a..c RULED as leaned (R-260): one camera entity per scenario, owned by the saving node, the eye in `SimTransform`, the mode from the pitch · B1 (the live turret) is built in the ui lane · `CE-1047` (the colour's network half) approved for the backend lane |
 | **U28** | *"M23 - approved · M24 - yes the weapon side (the weapon logic) moves the turret - knows how to aim, brain just specifies the target · M25 - approved · M26 - solved already by multi-instance descriptors in NED/BDC (similar stuff as already used for sensor sub-entities)"* — and the effects: *"fire effect (from the barrel…), explosion effect (at hit position…), decal effect … temporary entities (counting their lifetime…) … so no gizmos as such - pls add those to the plan"* | ✅ §3.11 ruled (R-255); effects planned in [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) |
 | **U27** | *"each effect entity has its TKB type of course defining the effect"* | ⚠ recorded as a constraint on S3's effects (§6c) — 📐 today's effect entities carry NO TKB type (`CE-1042`) |
 | **U26** | *"It would be great if you built the heli and jet and cargo plane models including their mapping so we do not need to think about that later."* | ✅ built: three air kits + the SISO-REF-010 platform/air category mapping (§3.5) |
@@ -686,7 +687,7 @@ combat / network lanes' code; the map reads the pose through `EntityBodyLayer3D`
 
 ---
 
-### 3.12 The camera entity (S5) — ⏸ PAUSED on three questions for the user *(measured `2026-10-11`)*
+### 3.12 The camera entity (S5) — ✅ RULED `2026-10-11` (U29, R-260): all three leans approved *(measured `2026-10-11`)*
 
 📐 **Inventory** (graph `search_graph .*Camera.*` label Class: 20 results, `has_more:false`, plus grep; `check_index_coverage`
 not available through the CLI): no code saves or restores the map view today. The scenario JSON has only `header` +
@@ -768,7 +769,7 @@ It adopts the camera entity's pose and mode once when the scenario opens (`MapCa
 | **S3b** | ⭐ **realism effects** — muzzle fire, explosions, impact decals as temporary TKB-typed entities with two map layers, on every host: [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) slices E1–E4 | U27, U28 |
 | **S3c** | ⭐ **the articulated turret, live** — the turret part + `TurretPose` (M23), the weapon-side slew (M24), the TKB turret descriptor (M25), the sensor-style multi-instance descriptor (M26); the map plugs `poseOf` | §3.11, R-255 |
 | **S4** ✅ *(§6f)* | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
-| **S5** ⏸ *(§3.12)* | camera entity — create, follow, scenario save — ⏸ PAUSED on Q-S5a..c (owner after reload vs R-140, one per scenario or per host, where distance and mode live) | V-12..V-15 |
+| **S5** *(§3.12, ruled U29)* | camera entity — ONE per scenario, owned by the saving node, the eye in `SimTransform`, the mode from the pitch; map hosts adopt it on open and request moves | V-12..V-15 |
 | **S5b** ✅ *(§6g)* | **the card**: `CoordinateSpace.EntityCard`; `EntityCardRenderer` (rows by `ZIndex`, row 0 card-wide, `%` of the card, leader line) in 2-D and 3-D; `CardBuilder` sugar; `EntityCardFrameGizmo` + one side palette (M16); `HealthBarGizmo` re-targeted to a bar row; `EntityNameGizmo`; `EntityEditorLabelGizmo` rows moved in; a "Labels" layer default | U19, U20 |
 | **S5c** 🟡 *(§6h)* | **entity colour**: `EntityAppearance` per M15 — local part BUILT; descriptor arm + `"Color"` attribute = backend (`CE-1047`) | U19 colour |
 | ~~**S6**~~ | ⛔ **withdrawn `2026-10-10` (U25)** — every host gets 3-D from the shared attach; see §6b | V-01, V-18 (IG) — met by §6b |
