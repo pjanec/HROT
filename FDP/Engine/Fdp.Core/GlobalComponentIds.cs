@@ -766,19 +766,23 @@ namespace Fdp.Core
         /// Never saved, never sent. ⚠ 358 measured free on backend, ui and behaviors 2026-10-11.</summary>
         public const int OperatorOrderOutcome = 358;
 
+        /// <summary><c>WeaponPosture</c> — ⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13, R-272): the weapon brain's at ease / ready / aimed
+        /// state of a unit's weapon, Brain-owned, replicated as <c>dtWeaponPosture</c> to every node, drawn by the 3-D figure.</summary>
+        public const int WeaponPosture = 359;
+
         /// <summary><c>DesignatedTarget</c> — ⭐ CE-3170 (docs/DESIGN_Entity_Control.md §7 S2, C-5): the enemy an ATTACK order named,
         /// keyed to the run that carries it; the threat ranking's one reader (<c>SquadAssignment.TargetOf</c>) puts it first. Brain
-        /// node only; never saved, never sent. ⚠ 359 measured free on backend, ui and behaviors 2026-10-11.</summary>
-        public const int DesignatedTarget = 359;
+        /// node only; never saved, never sent. ⚠ 360: ⚠ 359 was taken twice the same evening (ui's WeaponPosture, 5 min apart); backend's three moved up one at the merge, 2026-10-11.</summary>
+        public const int DesignatedTarget = 360;
 
         /// <summary><c>OrdersOffered</c> — ⭐ CE-3169 (docs/DESIGN_Entity_Control.md §11): a managed world singleton the map pack sets on every
         /// LIVE map host; the unit menu offers Move Here · Engage · Stop only where it is set (never in a replay). Never saved, never sent.
-        /// ⚠ 360 measured free on backend, ui and behaviors 2026-10-11.</summary>
-        public const int OrdersOffered = 360;
+        /// ⚠ 361 (moved from 360 at the ui merge).</summary>
+        public const int OrdersOffered = 361;
 
         /// <summary><c>ManualDrive</c> — ⭐ CE-3173 (docs/DESIGN_Entity_Control.md §8b, M-1): an operator's motion axes for a body in
         /// <c>KinematicsMode.Manual</c>; Brain group (written by the possessing behaviour, read by the muscle). Never saved.
-        /// ⚠ 361 measured free on backend, ui and behaviors 2026-10-11.</summary>
-        public const int ManualDrive = 361;
+        /// ⚠ 362 (moved from 361 at the ui merge).</summary>
+        public const int ManualDrive = 362;
     }
 }

@@ -63,6 +63,8 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.Roe);
         // ⭐ WL-2b (CE-1049, W-2/W-11) — the weapon brain's order to a turret (dtWeaponTask).
         brain.SetBit(GlobalComponentIds.WeaponTask);
+        // ⭐ WL-6 (W-13c, R-272) — the weapon brain's at ease / ready / aimed (dtWeaponPosture).
+        brain.SetBit(GlobalComponentIds.WeaponPosture);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);

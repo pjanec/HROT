@@ -153,6 +153,24 @@ namespace Hrot.NED.Descriptors
         public ushort RoundsFired;
     }
 
+    // ⭐ WL-6 (W-13d, R-272) — the weapon brain's posture of a unit's weapon (at ease / ready / aimed), Brain → every node, keyed by the
+    //   unit. Reliable + TransientLocal + KeepLast 1: it changes a few times per engagement and a late joiner must see it.
+    //   📄 docs/DESIGN_Weapon_Layers.md §5h.
+    [DdsTopic("EntityWeaponPosture")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityWeaponPosture
+    {
+        [DdsKey] public long EntityId;
+        /// <summary><c>WeaponPostureKind</c>: 0 AtEase · 1 Ready · 2 Aimed.</summary>
+        public byte Kind;
+        /// <summary>The target's network id; 0 = the point (or nothing).</summary>
+        public long TargetNetworkId;
+        public float PointX;
+        public float PointY;
+        public float PointZ;
+    }
+
     // ⭐ CE-3136 P-7a (O3, R-242/R-243) — a static obstacle's box (the TKB's size or a scenario's per-instance one), published by the
     //   obstacle's creator, applied on every other node BEFORE its ghost promotes ([PerInstanceValue] ObstacleShape), so every node bakes
     //   the same box into its terrain. TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every obstacle.

@@ -61,6 +61,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponTask>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponTaskStatus>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMuscleState>();   // ⭐ WL-3 — the muscle's fire timing, never sent
+        // ⭐ WL-6 (W-13, R-272) — the weapon brain's at ease / ready / aimed; the Brain writes it, every node draws it.
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
 
         // ── Terrain / zone loading ────────────────────────────────────────────
         // ⭐ Registered UNCONDITIONALLY on every ECS host, exactly like the save handler and

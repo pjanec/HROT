@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-10 (§6a the LIBRARY line + promotion rule — R-256 L1; R-258 BTrees; R-259 one retreat)
-current-answer: the whole file — an EXPLAINER (map of what exists), not a design; every box names its owning design
+updated: 2026-10-11 (§5a who can ask EQS · §9 groups: commanders, squads, orders · §10 vehicles: passengers, formations · §6 / §6a refreshed)
+current-answer: the whole file — an EXPLAINER (map of what exists), not a design; every box names its owning design. ⭐ READ IT BEFORE designing any behaviour, squad or vehicle work; when you MEASURE something it does not say, ADD it here (user, 2026-10-11: "I need the guide to serve every other future you so it does not need to rederive the stuff that is available")
 stale-below: none
-known-rot: none known; built/partial/missing colours are a 2026-10-06 snapshot — re-check the tracker before relying on a red or amber box
+known-rot: §1–§8 colours are a 2026-10-06 snapshot (§5a, §9, §10 measured 2026-10-11) — re-check the tracker before relying on a red or amber box
 related-designs:
   - DESIGN_Peek_And_Fire.md — OWNS the library's fight-from-cover node (§10, CE-3158) that CombatPosture's TakeCover runs.
   - REVIEW_Behaviour_Library_Genericity.md — OWNS the genericity verdict on these blocks (library vs demo-local vs legacy) and the leans L1–L7.
@@ -15,6 +15,9 @@ related-designs:
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — owns the EQS tactics nodes (TakeCover / FallBack / Flank / FiringPosition)
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — owns the U1–U7 demo scenarios and the danger-area sensor
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — owns the GAP list: what modern-operations behaviours need that is not on this map yet
+  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — owns the squad-tactics build (§9 here is its measured starting point)
+  - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — owns WHAT the squad layer is (primitives, manoeuvre tables, merge)
+  - docs/DESIGN_Entity_Interactions.md — owns embarkation (§7, §7.1 plan) — §10 here is its measured state
 -->
 
 # Behaviour building blocks — an overview
@@ -45,7 +48,7 @@ graph TD
     SN["Sensor nodes"]
     ORD["SOP order node"]
   end
-  UT --> INP["21 standard inputs"]
+  UT --> INP["22 standard + 9 squad inputs"]
   INP --> MEM
   SN --> SENS
   TAC --> EQS
@@ -181,6 +184,16 @@ graph TD
 *Owner:* [EQS design](designs/eqs-2/EQS_Design_v1.3_final.md) §19 · [EQS-consuming behaviours](DESIGN_Eqs_Consuming_Behaviours.md).
 🟨 Amber = built, but no shipped template uses it yet.
 
+## 5a. Who can ask EQS, and what a query measures from *(measured 2026-10-11)*
+
+| fact | where |
+|---|---|
+| ⭐ **ANY networked unit can own a query** — a soldier, a vehicle, a squad leader, even a leader with no body: a query is a child sensor of its owner (`EqsChildSensor.Ensure(view, owner, site, config)`) | `EqsChildSensor.cs:57` |
+| a query measures from **slot 0** when set, else its owner (or the owner's parent) — so a body-less leader can measure from one of its members | `EqsContext.Self`, `EqsContext.cs:20-30` |
+| **slot 1 / slot 2** are what it is aimed at: an entity, or a POINT (`ContextPoint1` + `Point1Bit`, e.g. a heard shot) — the owner need not have seen the entity | `EqsContext.cs:41-75`; `EqsTacticsNodes.cs:362-364` |
+| it is **solved on SimHost** (the navmesh and terrain live there); the answer comes back to the owner's node | `EqsSensorConfigEgress/IngressTranslator.cs` |
+| ⛔ **the AI node (CGF) has no navmesh** — a point computed there can land off the walkable area, and a move to a point more than 2 m from it FAILS (the soldier then retries forever). ⇒ **ask the terrain through EQS**, never compute a destination in the brain and hope | `DotRecastNavmeshProvider.cs:43,428-431`; `PostureNodes.cs:242-247` |
+
 ## 6. Ready-made behaviours to reuse
 
 ```mermaid
@@ -189,7 +202,7 @@ graph TD
     a1["TakeCover"] --- a2["FallBack"] --- a3["Flank"] --- a4["FiringPosition"]
   end
   subgraph POS["Posture & movement"]
-    b1["CombatPosture<br/>BTree · HSM · Blueprint"]
+    b1["CombatPosture<br/>C#-built BTree (HSM / blueprint copies retired, R-266)"]
     b2["DangerCrossing<br/>BTree · Blueprint"]
     b3["Sentry"]
   end
@@ -197,7 +210,7 @@ graph TD
     c1["BasicInfantrySop<br/>Hit→TakeCover · HoldFire contact→FallBack<br/>contact→TakeCover · else Idle"]
   end
   subgraph BASIC["Basic orders"]
-    d1["MoveToLocation · FollowRoute · JoinFormation<br/>Wander · FireAtTarget · Idle"]
+    d1["MoveToLocation · FollowRoute · FireAtTarget · FireAtPoint<br/>TrackTarget · HoldStance · DoorLocksmith · Wander · Idle<br/>JoinFormation ⛔ broken — §10"]
   end
   subgraph LEARN["Learning material"]
     e1["BTree tutorials T01–T40"]
@@ -227,7 +240,8 @@ graph TD
     CP["CombatPosture"]
     TK["FallBack (THE retreat, R-259) · Flank · FiringPosition · TakeCover · Sentry · DangerCrossing"]
     SOP["BasicInfantrySop"]
-    ORD["MoveToLocation · FollowRoute · JoinFormation · FireAtTarget · FireAtPoint · HoldStance"]
+    ORD["MoveToLocation · FollowRoute · FireAtTarget · FireAtPoint · TrackTarget · HoldStance · DoorLocksmith (JoinFormation: broken, §10)"]
+    SQ["Library/Squad: BoundingOverwatch (on the commander, §9)"]
   end
   subgraph L3["③ NOT LIBRARY — never offered as a building block"]
     DM["demo-local: hill attack (PlatoonHillAttack, HullDownAttackRun, SlotOps) · WindowDuel · insurgent"]
@@ -293,3 +307,56 @@ graph TD
   classDef partial fill:#fff3cd,stroke:#c90
   classDef missing fill:#f8d7da,stroke:#c00
 ```
+
+## 9. Groups — commanders, squads and orders *(measured 2026-10-11)*
+
+```mermaid
+graph TD
+  H["UnitRoster (commander, up to 16) · UnitSubordinate.Commander (member)<br/>kept by UnitHierarchySystem · set in the scenario or the ORBAT"]:::built
+  ORD["a commander orders a member: AssignTacticalIntentEvent (origin Superior)"]:::built
+  TIR["TacticalIntentResolutionSystem: a mapper, or the intent id IS a behaviour name"]:::built
+  MT["the member's TASK slot — its own SOP may still react (pauses the order unless ROE StayOnTask)"]:::built
+  H --> ORD --> TIR --> MT
+  MRG["SquadPerceptionMergeSystem → SquadCognitiveState.Contacts on the commander<br/>16 pooled contacts + who reported each · same frame a member's memory changes"]:::built
+  FIRE["ThreatMatrixAssignmentSystem — who fires at whom (members pull it via IsAssignedTarget)"]:::built
+  MRG --> FIRE
+  MAN["6 manoeuvre TABLES: BoundingOverwatch · DangerAreaCrossing · SuppressAndManeuver · HillCrestHullDown · StackAndRoomEntry · TravellingOverwatch<br/>+ SquadHsmShell · partition · roles · slot rotation"]:::partial
+  RUN["BoundingOverwatch behaviour on the commander — the ONLY one that runs (CE-3162)"]:::built
+  MAN --> RUN
+  RUN --> ORD
+  DEAD["no production caller: SquadEventIngressSystem · SquadVetoDetectionSystem · CommanderUtilityTickSystem (ManeuverSelect) · SquadMovementModeBroadcastSystem"]:::missing
+  BP["Blueprint palette: Partition Elements · Assign Roles · Advance Phase · Acquire Slot — no shipped blueprint uses them"]:::partial
+  classDef built fill:#d4edda,stroke:#2a7
+  classDef partial fill:#fff3cd,stroke:#c90
+  classDef missing fill:#f8d7da,stroke:#c00
+```
+
+*What the picture shows that prose hid: a squad is a COMMANDER entity plus orders — members only ever run their own behaviours
+(usually `CombatPosture`) with an order's parameters; the squad's shared knowledge lives on the commander and members do NOT read
+it (only through utility inputs no shipped decision uses) ⇒ a soldier knows only what it has seen itself.*
+
+| need | how, today |
+|---|---|
+| make a squad | give members `UnitSubordinate.Commander` (scenario `CommanderGuid`, ORBAT drag-and-drop); the commander gets `UnitRoster` + `SquadCognitiveState` automatically |
+| order a member | publish `AssignTacticalIntentEvent { Entity = member, IntentId = <behaviour name>, JsonParams, Origin = Superior }` (see `BoundingOverwatchBehavior.Order`) |
+| know a member arrived | poll its position (the arrival events of `SquadEventIngressSystem` are dead — they key on intent ids the per-entity counter breaks) |
+| what the squad knows | `SquadCognitiveState.Contacts` on the commander (entity, position, threat, last seen, `SourceMembersMask`, heard flag) — CGF only, not saved, not replicated |
+| ask the terrain for the squad | the commander owns an EQS query (§5a), slot 0 = the member to measure from |
+| commander-level reaction ("the squad is under fire") | ⛔ none yet — no squad-level sensor edge exists; designed as S2 in `DESIGN_Squad_Tactics.md` §4 |
+| a commander is a soldier or a body-less entity | both exist: `ua-fire-distribution`'s Leader is a rifleman; `hill-attack-close`'s platoon has no body |
+
+*Owners:* [Squad_Coordination_Design_v1_1](designs/group-maneuvers/Squad_Coordination_Design_v1_1.md) (what) ·
+[DESIGN_Squad_Wiring](designs/group-maneuvers/DESIGN_Squad_Wiring.md) (where it runs) ·
+[DESIGN_Squad_Tactics](designs/group-maneuvers/DESIGN_Squad_Tactics.md) (the runner, react to contact, the march).
+
+## 10. Vehicles — passengers and formations *(measured 2026-10-11)*
+
+| mechanism | state | detail |
+|---|---|---|
+| **eject everyone** (`EjectPassengersExecutor`) | 🟨 runs on CGF + Editor only; NOT replicated — SimHost and viewers never see the soldiers leave | triggered only by the example APC HSM or a blueprint `EjectPassengers` node |
+| **board** (`EmbarkExecutor`) | 🟥 constructed only by its unit test; no host registers it | — |
+| **one soldier gets out** | 🟥 only the editor's authoring path (`EditorCargoSystem`) | — |
+| what "inside" means today | 🟥 only CanMove / CanShoot stripped: not carried, not hidden, still seen and shot | `IsEmbarkedTag { VehicleEntity }` exists on the passenger; nothing reads it |
+| ⭐ the plan (user-approved) | I-2a one applier → I-2b `PassengerBuffer` replicated, passenger side derived on CGF and SimHost → I-2c inside = carried, hidden, unseen, dies with the vehicle → I-2d AI nodes + the squad dismount | [`DESIGN_Entity_Interactions.md`](DESIGN_Entity_Interactions.md) §7.1 · `CE-3110` |
+| **formations** (`FormationController` / `FormationFollower` / `FormationTargetSystem`, CarKinem) | 🟥 for AI: works only in the standalone CarKinem example. `JoinFormation`'s params are empty, `VehicleAPI` is never built in production, nothing carries a join from CGF to SimHost; followers steer straight at a slot with no path finding | proper formations = their own programme, `CE-2124` |
+| ⭐ squad formation **for now** | a `SquadMarch` play: members ordered to slot points behind the lead, falling back to single file on the lead's breadcrumbs | [`DESIGN_Squad_Tactics.md`](designs/group-maneuvers/DESIGN_Squad_Tactics.md) §6.1 |

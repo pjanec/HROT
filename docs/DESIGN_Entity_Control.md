@@ -506,7 +506,7 @@ classDiagram
     class CombatPostureParamsJsonDto { <<existing>> advance · assault · + target : EntityRef }
     class CombatPosture { <<C# BTree>> decide Parallel(1) + UntilTargetDown }
     class UntilTargetDown { <<NEW node, PostureNodes>> designates · tells memory once · Success when target down }
-    class DesignatedTarget { <<NEW component 359, brain-local>> TargetPacked · InstanceId (the run) }
+    class DesignatedTarget { <<NEW component 360, brain-local>> TargetPacked · InstanceId (the run) }
     class SquadAssignment { <<existing, the ONE reader>> TargetOf: designation FIRST, then the squad's }
     class TopThreat { <<EqsTacticsNodes>> designated + remembered + alive wins }
     class AdvanceAndAttack { <<PostureNodes>> hunting: goes to the last-known point, arrival does not end it }
@@ -529,7 +529,7 @@ per-branch code.
 
 | design said | built | why |
 |---|---|---|
-| "CombatPosture with a designated target" | ⭐ `DesignatedTarget` (component **359**, NoScenario, brain-local) keyed to the run's `BehaviorState.InstanceId`; nothing removes it | a later run carries a new instance id, so it never inherits the designation; no deactivator ordering to get wrong |
+| "CombatPosture with a designated target" | ⭐ `DesignatedTarget` (component **360** — 359 at commit, moved at the ui merge, NoScenario, brain-local) keyed to the run's `BehaviorState.InstanceId`; nothing removes it | a later run carries a new instance id, so it never inherits the designation; no deactivator ordering to get wrong |
 | — | ⭐ read through **`SquadAssignment.TargetOf`** (designation first, then the squad's) and **`EqsTacticsNodes.TopThreat`** (hard override while remembered + alive) | the seam law: the "target I was told to fight" reader already existed (CE-3158 G4). ⛔ No second reader. The squad's assignment stays a ranking **bias** |
 | the order succeeds when the target is down | ⭐ `PostureNodes.UntilTargetDown` in the decide `Parallel(1)` — Success ⇒ the posture, so the order, **succeeds** (`OperatorOrderOutcome`) | RequireOne ends on the first Success (`Interpreter.cs` ExecuteParallel); "down" = `CombatLife.IsAlive` false (Health ≤ 0 keeps the body) |
 | — | ⭐ the order **tells** the unit where the target is: once, as a memory contact with **no modality** (not "in sight") at the score of a contact just seen | an attack on a target the unit has not seen would otherwise rank nothing; with no modality `HasLineOfSight` stays 0, and fog of war applies again after that (it is forgotten ≈ 70 s unconfirmed) |

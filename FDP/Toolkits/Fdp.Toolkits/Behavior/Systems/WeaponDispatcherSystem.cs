@@ -84,6 +84,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!caps.Capabilities.HasFlag(ActorCapabilities.CanShoot))
                 {
                     channel.Status = NodeStatus.Failure;
+                    Fdp.Toolkit.Combat.WeaponPostureOf.Idle(repo, entity, deltaTime);
                     continue;
                 }
 
@@ -108,6 +109,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     _executors[channel.ActiveAction]?.Execute(entity, ref channel, repo, deltaTime);
                 }
+                // ⭐ WL-6 (DESIGN_Weapon_Layers W-13b) — no weapon action runs: the weapon brain lowers the weapon (Aimed ⇒ Ready at
+                //   once, Ready ⇒ AtEase after WeaponPostureOf.LowerAfterSeconds). A running action's executor reports it instead.
+                else Fdp.Toolkit.Combat.WeaponPostureOf.Idle(repo, entity, deltaTime);
             }
         }
     }
