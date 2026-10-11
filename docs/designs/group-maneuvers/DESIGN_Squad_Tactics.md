@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-11
 build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · embark §5 and formations §6 are MEASUREMENTS, not plans
-current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) · §7 the unit commander (R-272): §7.1 the build, §7.2 leader down (approved)
+current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) · §7 the unit commander (R-272): §7.1 the build, §7.2 leader down (approved), §7.3 as built
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
@@ -443,7 +443,7 @@ a body-less commander is the clean model and needs nothing new.
 | `SquadManeuverTests.CE2123_BasicSquadSop_…` | the shipped SOP reacts on a squad edge and is not restarted by the next one | — |
 | `SquadTacticsScenarioTests.CE2123_ABoundingSquadMeetsTheEnemy_…` (cluster, `tt-react-contact`) | live: bound → hold → assault → bound resumes | ✅ green `2026-10-11` (38 s): drill kinds on the leader went 2 → 7 → 3 → 2, the bound paused under the reaction and resumed after it |
 
-## 7. The unit commander — a body-less entity at the unit's centre; the leader is a member *(R-272, `2026-10-11`; build-state: READY-TO-BUILD — §7.1)*
+## 7. The unit commander — a body-less entity at the unit's centre; the leader is a member *(R-272, `2026-10-11`; build-state: BUILT — as-built §7.3)*
 
 🔒 *User, `2026-10-11`: "each military unit in this engine needs its virtual commander entity intended to run the leader's logic like
 coordination etc; while the leader soldier can still exist as the member of the squad and fighting as usual … The virtual commander has
@@ -584,6 +584,34 @@ crawling to the casualty, the new leader moving and shouting, and afterwards a m
 
 Rejected: **the commander dies with its leader** (the brain is the unit, not the man — and R-272 separated them); **re-forming the
 whole squad on a leader loss** (doctrine keeps the teams and fills the gap; formation shape is `CE-2124`'s).
+
+### 7.3 As built *(behaviors, `2026-10-11`)*
+
+| file | what |
+|---|---|
+| `Fdp.Core/CommandHierarchy/UnitEntity.cs` (NEW, id 274) · `TacticalDesignation.TeamLeader = 5` | the unit marker + its command lull; the second in line |
+| `Hrot.Core/…/Tkb/CompositeUnitTkbTranslator.cs` (NEW, in `TkbTranslatorSet.Base`) · `TkbCompositionDef.CommandDisruptionSeconds` (6) | a composite type ⇒ `UnitEntity` on every node |
+| `Fdp.Toolkits/Perception/PhysicalPresence.cs` (NEW) · `LocalGridBuilderSystem` · `EntitiesInAreaGenerator` | the one hidden check, at the two doors |
+| `Fdp.Toolkits/Squad/Systems/UnitCentroidSystem.cs` (NEW, in `CgfLogicPack`) | CE-514: the owned unit at its live members' mean |
+| `Fdp.Toolkits/Squad/SquadLeadership.cs` (NEW, id 275) · `SquadSensing.Succession` (called by `SquadCoordinationSystem` each frame) | L1 successor · L2 `SilentUntil` · L3 `SquadLeaderDown` (14, HSM `Sensor.SquadLeaderDown`) |
+| `SquadManeuverRunner` · `ReactToContactBehavior` · `BasicSquadSop` (third row) | silent ⇒ no orders, re-sent after · the leader lost mid-drill ⇒ hold and decide again · leader down ⇒ React |
+| `SquadSensing.UnderFire` | the commander's own Hit / NearMiss no longer counts (it is body-less) |
+| `BdcTkbCatalog` 302 `.WithBehavior` | the squad commander can run the squad SOP and drills |
+| scenarios `tt-suppress-flank`, `tt-react-contact`, `ua-fire-distribution` | a body-less "Squad" (302) holds the task and SOP; "Leader" is a member designated `SquadLeader` (in `ua-fire-distribution` it keeps fighting with its own `CombatPosture`) |
+
+**Deviations from §7.1 — none in structure.** Two things measured while building: near-miss reads the COLLIDER hash
+(`BallisticsSystem.cs:64`), so a body-less unit is never near-missed without any filter (an earlier sweep had said otherwise);
+and ids 356–364 are the backend lane's — ours come from the squad block (274, 275).
+
+| rail | proves | red-proof |
+|---|---|---|
+| `UnitCommanderTests.CE2125_ACompositeType_IsAUnit_ASoldierIsNot` | the translator, and that it is in the base set | — |
+| `UnitCommanderTests.CE2125_AnAreaSearch_NeverFindsAUnitsCommander` · `LocalGridBuilderSystemTests.CE2125_AUnitsCommander_IsNeverInThePerceptionGrid` | the two doors | ⏳ pending |
+| `SquadCoordinationSystemTests.CE2125_TheLeaderFalls_…` · `…_NoTeamLeader_…` | succession, lull, one edge | ⏳ pending |
+| `SquadCoordinationSystemTests.CE2125_AUnitStandsAtItsLiveMembersCentre_OnItsOwner` | CE-514 | ⏳ pending |
+| `SquadManeuverTests.CE2125_TheSilentCommander_…` · `…_TheLeaderFallsDuringTheDrill_…` · `…_BasicSquadSop_TheLeaderDown_…` | L2, L3, the SOP row | ⏳ pending |
+| `CgfLogicPackTests` (count 20 + contains `UnitCentroidSystem`) | the pack really runs it | — |
+| live `SquadTacticsScenarioTests` ×2 + `FireDistributionScenarioTests` | the migrated scenarios; on SimHost the commander stands at its men's centre and the enemy never remembers it | see the run recorded below |
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 
