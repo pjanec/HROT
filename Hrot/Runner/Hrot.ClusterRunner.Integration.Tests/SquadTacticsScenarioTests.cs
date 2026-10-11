@@ -117,36 +117,6 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         var baseAmmo = bases.ToDictionary(i => i, Ammo);
         _out.WriteLine("started: " + State());
 
-        // ⚠ TEMPORARY DIAGNOSIS (CE-2123): where does the leader's flank query stop?
-        var simLeader = ByName(sim, "Leader");
-        string Probe()
-        {
-            var q = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(cgf, leader, Hrot.AI.Behaviors.Brains.SuppressAndManeuverPlay.FlankSite);
-            string r = q.IsNull ? "cgfQuery=none" : $"cgfQuery={q}";
-            if (!q.IsNull)
-            {
-                var c = cgf.GetComponent<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(q);
-                r += $" bp={c.BlueprintId:X8} s0={c.ContextSlot0} s1={c.ContextSlot1} epoch={c.Epoch:X8}";
-                if (cgf.HasComponent<Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(q))
-                { var b = cgf.GetComponent<Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(q); r += $" buf ready={b.IsReady} n={b.Count} t={b.LastUpdateTick}"; }
-                r += $" leaderNet={(cgf.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(leader) ? cgf.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(leader).Value : -1)}";
-            }
-            int simCarriers = 0; string simInfo = "";
-            for (int i = 0; i <= sim.MaxEntityIndex; i++)
-            {
-                var e = sim.GetEntityByIndex(i);
-                if (!sim.IsAlive(e) || !sim.HasComponent<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(e) || !sim.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(e)) continue;
-                if (!sim.GetComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(e).ParentEntity.Equals(simLeader)) continue;
-                simCarriers++;
-                var c = sim.GetComponent<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(e);
-                simInfo += $" [bp={c.BlueprintId:X8} s0={c.ContextSlot0} s1={c.ContextSlot1}";
-                if (sim.HasComponent<Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(e)) { var b = sim.GetComponent<Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(e); simInfo += $" ready={b.IsReady} n={b.Count}"; }
-                simInfo += "]";
-            }
-            return r + $" | simCarriers(leader)={simCarriers}{simInfo}";
-        }
-        for (int k = 0; k < 6; k++) { harness.PumpFrames(60); _out.WriteLine($"probe {k}: {Probe()} phase={Squad().PhaseId}"); }
-
         // ② the assault reaches the flank ⇒ Assaulting.
         Assert.True(harness.PumpUntil(() => Squad().PhaseId == SuppressAndManeuverManeuver.PhaseAssaulting, timeoutFrames: 4000),
             $"the assault must reach its flank; {State()}");
@@ -156,13 +126,15 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         var toAssault = Vector2.Normalize(new Vector2(Centre(assault).X - threat.X, Centre(assault).Y - threat.Y));
         float degrees = MathF.Acos(Math.Clamp(Vector2.Dot(toBase, toAssault), -1f, 1f)) * 180f / MathF.PI;
         _out.WriteLine($"flank: {degrees:F0}° round the enemy from the base · {State()}");
-        Assert.True(degrees >= 45f, $"the assault must come at the enemy from a different side (≥ 45°): {degrees:F0}°; {State()} || {Probe()}");
+        Assert.True(degrees >= 45f, $"the assault must come at the enemy from a different side (≥ 45°): {degrees:F0}°; {State()}");
 
         // ③ the base of fire fired from where it stood.
         foreach (var i in bases)
         {
             Assert.True(Ammo(i) < baseAmmo[i], $"base member {i} must fire; {State()}");
-            Assert.True(Vector3.Distance(baseStart[i], SimAt(i)) < 5f, $"base member {i} must hold its ground; {State()}");
+            // horizontal: the body's height follows the ground under it (measured: a member standing still went z 0 → 9)
+            var moved = new Vector2(SimAt(i).X - baseStart[i].X, SimAt(i).Y - baseStart[i].Y).Length();
+            Assert.True(moved < 5f, $"base member {i} must hold its ground ({moved:F1} m); {State()}");
         }
 
         // ④ the assault goes through the enemy's position ⇒ the drill ends.

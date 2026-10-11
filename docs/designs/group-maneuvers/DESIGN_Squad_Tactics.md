@@ -75,7 +75,7 @@ graph LR
 `DataPolicy.NoScenario` — not saved, not replicated), written by ONE system on CGF, and today read only for fire distribution and
 debugging. Members never see it except through utility inputs no decision uses ⇒ a soldier knows only what IT has seen.*
 
-## 3. S1 — one generic manoeuvre runner, and suppress-and-manoeuvre on it *(build-state: READY-TO-BUILD)*
+## 3. S1 — one generic manoeuvre runner, and suppress-and-manoeuvre on it *(build-state: BUILT — as-built §3.6)*
 
 ### 3.1 Who runs what, each frame (CGF)
 
@@ -88,7 +88,7 @@ graph TD
   RUN -->|"reads threat, writes phase, elements, roles"| POOL
   RUN -->|"AssignTacticalIntentEvent per member (Superior)"| TIR["TacticalIntentResolutionSystem ✅"]
   TIR --> ING2["BehaviorIngressSystem (member task slot)"]
-  ING2 --> BTS2["BrainTickSystem — members run CombatPosture"]
+  ING2 --> BTS2["BrainTickSystem — members run CombatPosture (hold) or AdvanceTo (move)"]
   BTS2 -->|"locomotion / weapon channels → DDS"| SIM["SimHost moves and fires the bodies"]
   SEI["SquadEventIngressSystem"]:::dead
   SVD["SquadVetoDetectionSystem"]:::dead
@@ -109,7 +109,9 @@ classDiagram
   class SquadManeuverRunner { <<NEW static>> +Tick(play, ref SquadPlayState, ctx) NodeStatus }
   class SquadPlayContext { <<NEW ref struct>> world · commander · roster · squad · now · Threat }
   class SquadPlayState { <<NEW — generalises BoundingOverwatchState>> Started · IssuedPhase · PhaseStartedAt · per-member target XYZ · Threat id + point }
-  class MemberOrder { <<NEW struct>> Hold | AdvanceTo · Point · Assault · ArrivalRadius }
+  class MemberOrder { <<NEW struct>> Hold | AdvanceTo · Point · Speed · ArrivalRadius · RoleId }
+  class AdvanceToBehavior { <<NEW library behaviour, Library/Infantry>> AdvanceTo: one StatefulAction over PostureNodes.AdvanceAndAttack }
+  class CombatPosture { <<existing library behaviour>> }
   class BoundingOverwatchPlay { <<NEW adapter>> over BoundingOverwatchManeuver }
   class SuppressAndManeuverPlay { <<NEW adapter>> over SuppressAndManeuverManeuver }
   class BoundingOverwatchBehavior { <<existing, REWIRED>> tree + params unchanged; Run → runner }
@@ -133,7 +135,9 @@ classDiagram
   SquadManeuverRunner ..> SquadHsmShell : phase on Completed()
   SquadManeuverRunner ..> ElementPartitionPrimitive : on Start
   SquadManeuverRunner ..> SquadCognitiveState
-  SquadManeuverRunner ..> AssignTacticalIntentEvent : MemberOrder → CombatPosture JSON
+  SquadManeuverRunner ..> AssignTacticalIntentEvent : MemberOrder → member order JSON
+  AssignTacticalIntentEvent ..> CombatPosture : Hold
+  AssignTacticalIntentEvent ..> AdvanceToBehavior : AdvanceTo
 ```
 
 *What the picture shows that prose hid: the existing tables stay the source of phases and roles; the NEW code is one runner and
@@ -155,11 +159,11 @@ sequenceDiagram
   C->>B: CombatPosture at own position (they see the threat, they hold and fire)
   C->>C: the LEADER's own FindFlankingPosition sensor: slot 0 = a base-of-fire member (measured from there), slot 1 = the threat (solved on SimHost)
   C-->>C: the best flank point (walkable, sees the threat)
-  C->>A: CombatPosture advance to it (all to the answer), Assault=true
+  C->>A: AdvanceTo the answer (all to the answer, firing on the way)
   loop each tick
     C->>C: the assault's centre within 5 m of the answer, or PhaseTimeout, or no flank found ⇒ FarSideReached
   end
-  C->>A: phase Assaulting: CombatPosture advance onto the threat's last pooled point, Assault=true
+  C->>A: phase Assaulting: AdvanceTo the threat's last pooled point
   C->>B: keep holding (re-issued only if the threat moved > 10 m)
   C->>C: threat dead or gone from the pool, or the assault within ArrivalRadius ⇒ Success
 ```
@@ -197,6 +201,7 @@ member never saw (§2); **a flank point computed on CGF** — it can land off th
 | `Brains/SquadManeuverRunner.cs` | `ISquadPlay<TParams>`, `SquadPlayContext`, `SquadPlayState`, `MemberOrder`, `PlayStart`, `SquadManeuverRunner.Tick` |
 | `Brains/BoundingOverwatchBehavior.cs` | REWIRED: same name, params, tree; `BoundingOverwatchPlay` over the runner (its state type is now `SquadPlayState`) |
 | `Brains/SuppressAndManeuverBehavior.cs` | NEW behaviour `SuppressAndManeuver` (Library/Squad) + `SuppressAndManeuverPlay` + a deactivator that drops the flank query |
+| `Brains/AdvanceToBehavior.cs` + `Hrot.Core/…/AdvanceToParamsJsonDto.cs` | NEW library behaviour `AdvanceTo` (Library/Infantry; Infantry · Insurgent): move to `Objective` at `Speed`, firing at what it sees on the way (`PostureNodes.AdvanceAndAttack`), Success on arrival — every runner MOVE order uses it |
 | `Hrot.Core/…/SuppressAndManeuverParamsJsonDto.cs` | NEW contract (Commander): `FlankSearchRadius` 40 · `Speed` 3 · `ArrivalRadius` 8 · `PhaseTimeoutSeconds` 90 |
 | `Fdp.Toolkits/Squad/Maneuvers/SuppressAndManeuverManeuver.cs` | `PhaseAssaulting = 3` added (no id renumbered); FarSideReached → Assaulting → BoundComplete → AssaultComplete |
 | `Recipes/Scenarios/tt-suppress-flank` | a leader (rifleman) ordered `SuppressAndManeuver`, four riflemen, an armed idle hostile with 100 000 health on `test-town` |
@@ -208,6 +213,7 @@ member never saw (§2); **a flank point computed on CGF** — it can land off th
 | flank query slot 0 = the assault's lead member | slot 0 = the first live **base-of-fire** member | `FindFlankingPosition` scores side-on to the slot1→slot0 line (`StarterTemplates.cs:61`), so measuring from the base makes the answer a flank of the base→enemy axis — the doctrinal flank; and its threat-exposure test reads slot 0's memory, which the base has (it reported the enemy) and the assault may not |
 | optional `Target` param | none — the squad's top identified pooled contact | no shipped commander contract carries an entity reference yet; added when a scenario needs a named target |
 | no contact ⇒ Failure | no contact ⇒ **Wait** (`PlayStart.Wait`): Running, no orders, until the squad pools an identified enemy | a leader ordered at scenario load has no contact yet; "on contact, execute" is what an author means |
+| moves are `CombatPosture` with an objective (`Assault=true`) | HOLD orders stay `CombatPosture` at the member's own position; MOVE orders (assault, bounding movers) are the NEW library `AdvanceTo`; `MemberOrder.Assault` removed | 📐 measured live (first cluster run): under contact `CombatPosture` picks Suppress (winner 3) and fires IN PLACE — the assault never left the base line (flank 2°) and the phase only advanced on its timeout. Its options choose WHAT to do about a threat; an order to GO somewhere needs a tree whose only job is to go (Decision Layer §3.3b) |
 | each assault member at its own point | the flank is reached when the assault's CENTRE is within 5 m of the answer; every assault member is sent to the answer itself | offsets added to a walkable answer can land off the walkable area (§2: such moves fail forever); the answer and the enemy's own position are both walkable |
 
 | rail | proves | red-proof |

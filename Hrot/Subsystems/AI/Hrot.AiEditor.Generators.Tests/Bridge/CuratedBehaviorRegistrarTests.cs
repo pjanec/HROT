@@ -73,6 +73,8 @@ public sealed class CuratedBehaviorRegistrarTests
         CuratedBehaviorRegistrar.Register(beh, NodeLogic());
         beh.GroupOf("CombatPosture").Should().Be("Library/Infantry");
         beh.GroupOf("BoundingOverwatch").Should().Be("Library/Squad");
+        beh.GroupOf("SuppressAndManeuver").Should().Be("Library/Squad");   // CE-2123
+        beh.GroupOf("AdvanceTo").Should().Be("Library/Infantry");          // CE-2123
         beh.GroupOf("MoveToLocation").Should().Be("Library/Basic");
         beh.GroupOf("Idle").Should().Be("Library/Basic");
         beh.GroupOf("WindowDuel").Should().Be("Demos/PeekAndFire");
@@ -106,6 +108,8 @@ public sealed class CuratedBehaviorRegistrarTests
             Hrot.Map.Definitions.Behavior.BehaviorNames.WanderMilitary,
             Hrot.Map.Definitions.Behavior.BehaviorNames.FireAtTarget,
             Hrot.Map.Definitions.Behavior.BehaviorNames.Idle,
+            Hrot.Map.Definitions.Behavior.BehaviorNames.SuppressAndManeuver,   // CE-2123
+            Hrot.Map.Definitions.Behavior.BehaviorNames.AdvanceTo,             // CE-2123
         };
 
         foreach (var name in curated)
