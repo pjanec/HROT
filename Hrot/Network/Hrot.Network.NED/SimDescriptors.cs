@@ -193,6 +193,7 @@ namespace Hrot.NED.Descriptors
         NAV_JOIN_FORMATION  = 3,
         NAV_ROAD_GRAPH      = 4,
         NAV_PATH_TO_POINT   = 5,   // CE-3026 — find a path, then follow it (R-42: permanent)
+        NAV_MANUAL          = 6,   // ⭐ CE-3173 — the operator drives the body (ManualDrive); entered once
     }
 
     /// <summary>

@@ -436,6 +436,73 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(BehaviorOrigin.Superior, f.Task_.Origin);
         }
 
+        // ── ⭐ CE-3172 (M-7, docs/DESIGN_Entity_Control.md §8b) — possession: above every order, pauses, resumes on release ──
+
+        private static void Release(Fixture f)
+        {
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = BehaviorOrigin.Possession });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);   // the possession ends…
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);   // …and the paused task is back
+        }
+
+        [Fact]
+        public void CE3172_APossession_PausesTheOrder_NothingInterruptsIt_AndTheReleaseResumesTheOrder()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Operator);
+            f.Task("SopT_Cover", BehaviorOrigin.Possession);                  // a station takes the unit
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Possession, f.Task_.Origin);
+            Assert.Equal("SopT_Task", f.Paused!.BehaviorName);
+            Assert.Equal(BehaviorOrigin.Operator, f.Paused.Origin);
+
+            f.Task("SopT_Task2", BehaviorOrigin.Operator);                    // an operator's order cannot take it over
+            f.React("SopT_Duck", ReactionUrgency.Hit);                        // nor can the most urgent reaction
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(2, f.Ingress.RefusedCount);
+            Assert.NotNull(f.Paused);                                         // and the paused order is still kept
+
+            Release(f);
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);                 // C-4: the earlier task runs again
+            Assert.Equal(BehaviorOrigin.Operator, f.Task_.Origin);
+            Assert.Null(f.Paused);
+        }
+
+        [Fact]
+        public void CE3172_APossession_OverAReaction_KeepsWhatTheReactionPaused()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.React("SopT_Cover", ReactionUrgency.Contact);                   // the task is paused by the reaction
+            f.Task("SopT_Task2", BehaviorOrigin.Possession);                  // possessed during the reaction
+            Assert.Equal(OtherTaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal("SopT_Task", f.Paused!.BehaviorName);                // still the TASK, never the reaction
+
+            Release(f);
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Superior, f.Task_.Origin);
+        }
+
+        [Fact]
+        public void CE3172_APossession_OverTheIdleChoice_PausesNothing_AndAnOrdersClearCannotReleaseIt()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task2", BehaviorOrigin.Sop);                         // the SOP's idle choice
+            f.Task("SopT_Cover", BehaviorOrigin.Possession);
+            Assert.Null(f.Paused);                                            // the SOP chooses again after the release
+
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = BehaviorOrigin.Operator });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);         // only the station releases its own hold
+            Assert.Equal(1, f.Ingress.RefusedCount);
+
+            Release(f);
+            Assert.Equal(BehaviorIds.None, f.Task_.ActiveBehaviorHash);
+        }
+
         [Fact]
         public void CE2078_AReactionsFinish_SaysItWasAReaction()
         {

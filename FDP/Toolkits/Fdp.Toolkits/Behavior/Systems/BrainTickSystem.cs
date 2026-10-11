@@ -442,13 +442,13 @@ namespace Fdp.Toolkit.Behavior.Systems
             _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
             BehaviorIngressSystem.Clear(repo, entity, _registry);
             // ⭐ CE-2078 (R-199 ②) — a reaction ended ⇒ the task it paused restarts, through the gate, next frame.
-            if (origin == BehaviorOrigin.Reaction) BehaviorIngressSystem.ResumePausedTask(repo, entity);
+            if (BehaviorOriginRank.Pauses(origin)) BehaviorIngressSystem.ResumePausedTask(repo, entity);   // ⭐ CE-3172 — or a possession
         }
 
         /// <summary>⭐ <c>CE-2078</c> — a run that cannot go on is cleared; if it was a reaction, the task it paused restarts.</summary>
         private void ClearResumingAPausedTask(EntityRepository repo, Entity entity)
         {
-            bool reaction = repo.GetComponentRO<BehaviorState>(entity).Origin == BehaviorOrigin.Reaction;
+            bool reaction = BehaviorOriginRank.Pauses(repo.GetComponentRO<BehaviorState>(entity).Origin);   // ⭐ CE-3172
             BehaviorIngressSystem.Clear(repo, entity, _registry);
             if (reaction) BehaviorIngressSystem.ResumePausedTask(repo, entity);
         }

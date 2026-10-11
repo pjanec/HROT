@@ -173,6 +173,13 @@ namespace Fdp.Toolkit.Navigation.Systems
                         nav.HasArrived       = 0;
                         break;
 
+                    case NavigationMode.Manual:
+                        // ⭐ CE-3173 — the body follows ManualDrive (CarKinematicsSystem's Manual branch); no destination.
+                        nav.Mode        = KinematicsMode.Manual;
+                        nav.TargetSpeed = 0f;
+                        nav.HasArrived  = 0;
+                        break;
+
                     case NavigationMode.FollowRoute:
                         nav.Mode         = KinematicsMode.CustomTrajectory;
                         nav.TrajectoryId = intent.TrajectoryId;

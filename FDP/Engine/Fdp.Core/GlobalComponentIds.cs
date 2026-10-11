@@ -775,5 +775,10 @@ namespace Fdp.Core
         /// LIVE map host; the unit menu offers Move Here · Engage · Stop only where it is set (never in a replay). Never saved, never sent.
         /// ⚠ 360 measured free on backend, ui and behaviors 2026-10-11.</summary>
         public const int OrdersOffered = 360;
+
+        /// <summary><c>ManualDrive</c> — ⭐ CE-3173 (docs/DESIGN_Entity_Control.md §8b, M-1): an operator's motion axes for a body in
+        /// <c>KinematicsMode.Manual</c>; Brain group (written by the possessing behaviour, read by the muscle). Never saved.
+        /// ⚠ 361 measured free on backend, ui and behaviors 2026-10-11.</summary>
+        public const int ManualDrive = 361;
     }
 }

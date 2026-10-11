@@ -39,6 +39,10 @@ namespace Fdp.Toolkit.Navigation
         /// Written by <c>MoveToExecutor</c>; <see cref="DirectPoint"/> keeps meaning "drive straight".
         /// </summary>
         PathToPoint = 5,
+
+        /// <summary>⭐ CE-3173 (M-1, docs/DESIGN_Entity_Control.md §8b) — the operator drives the body through <c>ManualDrive</c>;
+        /// entered ONCE (the bridge applies an intent only on an IntentId change), the axes then flow every frame.</summary>
+        Manual = 6,
     }
 
     /// <summary>

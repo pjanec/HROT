@@ -77,7 +77,7 @@ not run (not available via the CLI) — the zero rows are grep-and-graph zeros, 
 |---|---|---|---|
 | **M-1** | how manual motion reaches the muscle | a NEW Brain-group component **`ManualDrive`** + its own descriptor, consumed under a NEW **`KinematicsMode.Manual`** (entered once via `NavigationMode.Manual`) | a manual mode inside `NavigationIntent` — its egress sends and the bridge applies **only when `IntentId` changes** (`NavigationIntentEgressTranslator.cs:138`, bridge `:127`), and every change resets nav status · reusing `KinematicsMode.None` — "manual control" in its comment but treated as Direct (`CarKinematicsSystem.cs:226`, CE-3176) |
 | **M-2** | person axes | **forward/back + strafe in the body frame; body yaw = the camera's yaw**, turned at `HumanGait.TurnRate` (turn on the spot = mouse only). Back and strafe at **60 %** of the gait speed; sprint forward only; stance from the existing `StanceIntent` | a yaw-RATE axis — drifts under lag; an absolute yaw is latency-tolerant |
-| **M-3** | vehicle axes | **throttle (− = brake, then reverse) + steer**; default **free look**, A/D steer; **`V` toggles hull-locked view where mouse X steers**. Reverse needs the integrators' `speed ≥ 0` clamp lifted (`BicycleModel.cs:179`) | strafe for vehicles — not physical |
+| **M-3** | vehicle axes | **throttle (− = brake, then reverse) + steer**; default **free look**, A/D steer; **`V` toggles hull-locked view where mouse X steers**. Reverse needs the integrators' `speed ≥ 0` clamp lifted (`BicycleModel.cs:34` — ⚠ an earlier draft said `:179`) | strafe for vehicles — not physical |
 | **M-4** | aircraft / pilot stick | **deferred** — no aircraft motion model exists (`DESIGN_Body_Geometry_And_Ground_Contact.md:154`); the stick axes join `ManualDrive` with that model (PLAN_3D_World_And_Realism D1) | reserving pitch/roll fields now — speculative wire |
 | **M-5** | walls | a manual **person's step is refused where the navmesh is not walkable** (`INavmeshProvider.IsWalkable` / `ProjectToNavmesh`, slide along the projection); vehicles keep today's grounding + avoidance (known limit: they can drive into a building) | free movement — walks through walls |
 | **M-6** | how control frames reach the brain | three **interaction union cases** on the one topic (R-221): `Possess{mode}`, `Release`, `ControlFrame{seq,…}`; the brain keeps the newest by `seq` | a new topic per message · moving the unit's ownership to the station (moves its brain and muscle) · frames straight to the muscle (two writers of motion; R-180 keeps the request on the brain) |
@@ -406,6 +406,80 @@ sequenceDiagram
 | **hostile** = the clicked unit's `ForceId` differs from the ordering unit's and is not `Neutral` | a friendly or neutral under the cursor is a MOVE to its position (v1) |
 | each selected unit gets its own order; a refused one (dead, other side under the side lock) is skipped | the same `EntityOrders` checks the HTTP route makes |
 | ⚠ v1 has **no box select** inside the tool | the rubber band is suppressed with the menus; click / Shift-click select only. A box would be a second marquee — deferred, not duplicated |
+
+## 8b. S4 DETAIL — possession and manual drive (`CE-3172` + `CE-3173`, designed `2026-10-11` after the inventory sweep)
+
+📐 **What the inventory measured, and what it decides** *(file:line in the sweep's report, summarised)*:
+
+| fact | where | so |
+|---|---|---|
+| rank is `Sop 1 · Superior 2 · everything else 3`; a Reaction PAUSES a non-SOP task into `PausedTask`; an order of any other origin DROPS the paused task | `BehaviorOrigin.cs:52`; `BehaviorIngressSystem.cs:238-260`, `:388-401` | `Possession` = rank **4**, and it behaves like a reaction toward the running task (**pause**), never an order (**no drop**); a Reaction over a running Possession is **refused** |
+| a reaction resumes the paused task by clearing itself with `Self`, or by finishing (`BrainTickSystem.cs:445-453`) | `BehaviorIngressSystem.cs:131`, `:442` | releasing possession = a **clear with origin Possession that resumes** (the same `ResumePausedTask`) |
+| the motion request crosses as `NavigationIntent` (Brain), applied by the bridge only on an `IntentId` change; `KinematicsMode.None` is driven as Direct | `NavigationIntentBridgeSystem.cs:127`, `CarKinematicsSystem.cs:226` | M-1 holds: `NavigationMode.Manual` entered ONCE, and a separate `ManualDrive` component carries the per-frame axes |
+| a person's velocity is `fwd × speed` (no lateral); `HumanGait` and `BicycleModel` clamp speed ≥ 0 | `CarKinematicsSystem.cs:410`; `HumanGait.cs:66`; `BicycleModel.cs:34` *(the design's `:179` was wrong)* | the Manual branch is its OWN integrator — autonomous motion is untouched |
+| `AimAndFireParams` has no point; `RoePermitsFire` knows no origin; the turret task already aims at `Point` | `AimAndFireExecutor.cs:35`, `:330`; `WeaponTaskDispatcherSystem.cs:53` | M-8 (S4d): a point target + an operator flag in the SAME executor |
+| a descriptor joins a group in 11 steps (`dtWeaponTask`, `ed3434b4a`) | `HrotOwnershipGroups`, `NedOwnershipGroupBinding`, `AllDescriptors`, `SharedTranslatorPack` | S4e: `ManualDrive` (Brain) and `PossessedBy` (Brain) descriptors |
+
+```mermaid
+classDiagram
+    direction LR
+    class BehaviorOrigin { <<existing enum>> + Possession = 5, rank 4 }
+    class BehaviorIngressSystem { <<existing>> Possession pauses · reactions refused under it · its clear resumes }
+    class PossessionSystem { <<NEW, brain owner>> Possess · Release · frames · death releases }
+    class PossessedBy { <<NEW component, Brain>> StationNodeId · Mode · Epoch }
+    class OperatorInput { <<NEW component, brain-local>> the newest frame by Seq }
+    class OperatorControl { <<NEW C# BTree>> ManualControl node }
+    class ManualDrive { <<NEW component, Brain>> Forward · Lateral · Steer · Yaw · Gait · Seq }
+    class NavigationIntent { <<existing>> Mode = Manual, once }
+    class CarKinematicsSystem { <<existing>> + the Manual branch }
+    class EntityOrders { <<existing>> refuses a unit another station possesses }
+    class PossessRoutes { <<NEW, DebugApiHost>> POST/DELETE entities/ID/possess · POST entities/ID/control }
+    PossessRoutes --> PossessionSystem : FDP events
+    PossessionSystem --> PossessedBy : the one writer
+    PossessionSystem --> OperatorInput
+    PossessionSystem ..> BehaviorIngressSystem : AssignBehaviorEvent(OperatorControl, Possession)
+    OperatorControl --> ManualDrive : copies the axes
+    OperatorControl --> NavigationIntent : Manual, once
+    ManualDrive --> CarKinematicsSystem : the muscle reads it
+    EntityOrders ..> PossessedBy : C-3
+```
+
+```mermaid
+sequenceDiagram
+    participant S as Station (HTTP / FPS)
+    participant P as PossessionSystem (brain owner)
+    participant I as BehaviorIngressSystem
+    participant C as OperatorControl
+    participant K as CarKinematicsSystem (muscle)
+    S->>P: PossessRequestEvent{unit, station}
+    P->>P: PossessedBy = station (another station's hold is taken over)
+    P->>I: AssignBehaviorEvent(OperatorControl, origin Possession)
+    I->>I: the running task → PausedTask
+    loop each frame
+        S->>P: OperatorControlFrameEvent{seq, forward, lateral, yaw | steer}
+        P->>P: OperatorInput = newest seq
+        C->>C: ManualDrive ← OperatorInput · NavigationIntent.Mode = Manual (once)
+        K->>K: person: R(yaw)·(fwd, lat) · vehicle: throttle + steer, reverse
+    end
+    S->>P: ReleasePossessionEvent (or the unit dies)
+    P->>I: ClearBehaviorEvent(origin Possession)
+    I->>I: ResumePausedTask — the earlier task runs again
+```
+
+*What the pictures show that prose hid:* **one writer per thing** — `PossessedBy` only `PossessionSystem`, `ManualDrive` only the
+`OperatorControl` behaviour (on the brain), the body only `CarKinematicsSystem` (on the muscle). Possession is a behaviour of a
+new origin, ⛔ not a switch that turns the brain off (R-270).
+
+| step | builds | its rails |
+|---|---|---|
+| **S4a** | `BehaviorOrigin.Possession` (5, rank 4): pauses like a reaction, never drops the paused task, refuses reactions over it, its own clear resumes | the ingress suite |
+| **S4b** | `ManualDrive` (Brain) + `NavigationMode.Manual` → `KinematicsMode.Manual` + the Manual branch: person body-frame forward/strafe (back and strafe at 60 %), body yaw turned toward `Yaw` at `HumanGait.TurnRate`; vehicle throttle (− brakes, then reverses) + steer at `MaxSteerRate` | the kinematics suite |
+| **S4c** | `PossessionSystem`, `PossessedBy`, `OperatorInput`, `OperatorControl`, the three FDP events, HTTP `possess` / `control` / release, `EntityOrders` refuses a unit held by another station | the networkless editor, end to end |
+| **S4d** | operator fire: `AimAndFireParams` point + operator flag (no seen-now, no aim time, ROE bypass, C-2) | the combat suite |
+| **S4e** | `ManualDrive` + `PossessedBy` descriptors; `Possess` · `Release` · `ControlFrame` interaction cases | the cluster |
+
+⚠ **Deferred, stated:** the navmesh wall check (M-5) lands with S4b only if the muscle's `INavmeshProvider` is reachable there;
+otherwise it is its own row. Aircraft (M-4) stay deferred.
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 

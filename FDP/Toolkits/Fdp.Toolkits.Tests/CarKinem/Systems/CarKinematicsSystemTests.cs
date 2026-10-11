@@ -834,5 +834,105 @@ namespace CarKinem.Tests.Systems
             pool.Dispose();
             repo.Dispose();
         }
-    }
+    
+        // ── ⭐ CE-3173 (M-1..M-3, docs/DESIGN_Entity_Control.md §6, §8b) — KinematicsMode.Manual: the operator drives the body ──
+
+        private static (EntityRepository Repo, Entity E) ManualWorld(VehicleClass cls, Fdp.Toolkit.Navigation.ManualDrive? drive)
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<VehicleState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+            repo.RegisterComponent<VehicleParams>();
+            repo.RegisterComponent<NavState>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.RegisterComponent<Fdp.Toolkit.Navigation.ManualDrive>();
+            repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 1f / 60f, TimeScale = 1.0f });
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new VehicleState());
+            repo.AddComponent(e, new SimTransform { Position = Vector3.Zero, Rotation = SimMath.FromYaw(0f) });   // facing +X
+            repo.SetAuthority<SimTransform>(e, true);
+            repo.AddComponent(e, new SimVelocity());
+            var p = VehiclePresets.GetPreset(cls);
+            if (cls != VehicleClass.Pedestrian) { p.MaxSpeedRev = 5f; p.MaxSteerRate = 1f; }
+            repo.AddComponent(e, p);
+            repo.AddComponent(e, new NavState { Mode = KinematicsMode.Manual });
+            if (drive is { } d) repo.AddComponent(e, d);
+            return (repo, e);
+        }
+
+        private static void Run(EntityRepository repo, float seconds)
+        {
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            for (int i = 0; i < (int)(seconds * 60); i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+        }
+
+        private static float YawOf(EntityRepository repo, Entity e)
+        {
+            var f = Vector3.Transform(Vector3.UnitX, repo.GetComponent<SimTransform>(e).Rotation);
+            return MathF.Atan2(f.Y, f.X);
+        }
+
+        [Fact]
+        public void CE3173_APerson_Strafes_SidewaysAtSixtyPercent_WithoutTurning()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian, new Fdp.Toolkit.Navigation.ManualDrive { Lateral = 1f, Yaw = 0f });
+            float top = repo.GetComponent<VehicleParams>(e).MaxSpeedFwd;
+            Run(repo, 2f);
+            var pos = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(pos.Y > 0.5f, $"moved left (+Y): {pos}");
+            Assert.InRange(MathF.Abs(pos.X), 0f, 0.05f);                                  // no forward drift
+            Assert.InRange(YawOf(repo, e), -0.01f, 0.01f);                               // still facing +X
+            Assert.InRange(repo.GetComponent<SimVelocity>(e).Linear.Y, 0.6f * top - 0.05f, 0.6f * top + 0.05f);
+            repo.Dispose();
+        }
+
+        [Fact]
+        public void CE3173_APerson_TurnsOnTheSpot_ToTheAskedYaw_AndWalksBackSlower()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian, new Fdp.Toolkit.Navigation.ManualDrive { Yaw = MathF.PI / 2f });
+            Run(repo, 0.5f);
+            Assert.InRange(YawOf(repo, e), MathF.PI / 2f - 0.01f, MathF.PI / 2f + 0.01f);
+            Assert.InRange(new Vector2(repo.GetComponent<SimTransform>(e).Position.X, repo.GetComponent<SimTransform>(e).Position.Y).Length(), 0f, 0.001f);
+
+            float top = repo.GetComponent<VehicleParams>(e).MaxSpeedFwd;
+            repo.SetComponent(e, new Fdp.Toolkit.Navigation.ManualDrive { Forward = -1f, Yaw = MathF.PI / 2f });
+            Run(repo, 2f);
+            Assert.True(repo.GetComponent<SimTransform>(e).Position.Y < -0.5f, "backwards, away from where he faces");
+            Assert.InRange(repo.GetComponent<VehicleState>(e).Speed, -0.6f * top - 0.05f, -0.6f * top + 0.05f);   // signed speed
+            repo.Dispose();
+        }
+
+        [Fact]
+        public void CE3173_AVehicle_Steers_ThenBrakesAndReverses()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.PersonalCar, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f, Steer = 0.5f });
+            Run(repo, 3f);
+            Assert.True(repo.GetComponent<VehicleState>(e).Speed > 1f, "throttle moves it");
+            Assert.True(YawOf(repo, e) > 0.1f, "steering left turns it left");
+
+            repo.SetComponent(e, new Fdp.Toolkit.Navigation.ManualDrive { Forward = -1f });
+            Run(repo, 8f);
+            var state = repo.GetComponent<VehicleState>(e);
+            Assert.True(state.Speed < -0.5f, $"held back it brakes, then reverses: speed {state.Speed}");
+            var v = repo.GetComponent<SimVelocity>(e).Linear;
+            var fwd = Vector3.Transform(Vector3.UnitX, repo.GetComponent<SimTransform>(e).Rotation);
+            Assert.True(Vector3.Dot(v, fwd) < 0f, "moving backwards");
+            repo.Dispose();
+        }
+
+        [Fact]
+        public void CE3173_ManualWithNoDriveYet_HoldsStill()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian, drive: null);
+            Run(repo, 1f);
+            Assert.Equal(Vector3.Zero, repo.GetComponent<SimTransform>(e).Position);
+            repo.Dispose();
+        }
+}
 }

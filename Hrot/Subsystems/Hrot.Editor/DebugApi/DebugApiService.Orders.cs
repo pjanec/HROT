@@ -159,7 +159,7 @@ namespace Hrot.Editor.DebugApi
                 return node;
             }
 
-            if (bs.Origin == BehaviorOrigin.Reaction && _world.HasManagedComponent<PausedTask>(unit))
+            if (BehaviorOriginRank.Pauses(bs.Origin) && _world.HasManagedComponent<PausedTask>(unit))   // ⭐ CE-3172 — a reaction or a possession
             {
                 var paused = ((ISimulationView)_world).GetManagedComponentRO<PausedTask>(unit);
                 if (paused != null && paused.Origin == BehaviorOrigin.Operator)
