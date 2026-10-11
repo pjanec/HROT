@@ -770,5 +770,10 @@ namespace Fdp.Core
         /// keyed to the run that carries it; the threat ranking's one reader (<c>SquadAssignment.TargetOf</c>) puts it first. Brain
         /// node only; never saved, never sent. ⚠ 359 measured free on backend, ui and behaviors 2026-10-11.</summary>
         public const int DesignatedTarget = 359;
+
+        /// <summary><c>OrdersOffered</c> — ⭐ CE-3169 (docs/DESIGN_Entity_Control.md §11): a managed world singleton the map pack sets on every
+        /// LIVE map host; the unit menu offers Move Here · Engage · Stop only where it is set (never in a replay). Never saved, never sent.
+        /// ⚠ 360 measured free on backend, ui and behaviors 2026-10-11.</summary>
+        public const int OrdersOffered = 360;
     }
 }

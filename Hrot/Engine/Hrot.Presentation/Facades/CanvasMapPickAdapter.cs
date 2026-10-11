@@ -86,7 +86,8 @@ public sealed class CanvasMapPickAdapter : IMapPickService
             Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickLocation,
             (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
                 onPicked: worldPos => tcs.TrySetResult(ToGeoPoint(worldPos)),
-                onRemove: remove),
+                onRemove: remove,
+                onCancelled: () => tcs.TrySetCanceled()),   // ⭐ CE-3169 — Esc / right-click completes the task (it hung)
             ct);
 
     /// <inheritdoc/>

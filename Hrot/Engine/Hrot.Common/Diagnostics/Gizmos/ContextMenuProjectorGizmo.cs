@@ -39,17 +39,21 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
             };
 
-        /// <summary>Menu for a combat-effective (healthy) unit; ⭐ <c>CE-3123</c> — the <c>…Brain</c> variant adds the AI trace submenu.</summary>
-        private static readonly string MenuJsonHealthy      = UnitMenu(degraded: false, brain: false);
-        private static readonly string MenuJsonHealthyBrain = UnitMenu(degraded: false, brain: true);
+        /// <summary>The unit menu's permutations: health (degraded or not) × brain (the AI trace submenu, ⭐ <c>CE-3123</c>) × ⭐
+        /// <c>CE-3169</c> orders (Move Here · Engage · Stop, only where <see cref="Hrot.Common.Orders.OrdersOffered"/> is set).</summary>
+        private static readonly string[] UnitMenus = BuildUnitMenus();
 
-        /// <summary>Menu for a significantly damaged unit (health &lt; 50 %).</summary>
-        private static readonly string MenuJsonDegraded      = UnitMenu(degraded: true, brain: false);
-        private static readonly string MenuJsonDegradedBrain = UnitMenu(degraded: true, brain: true);
-
-        private static string UnitMenu(bool degraded, bool brain)
+        private static string[] BuildUnitMenus()
         {
-            var items = new System.Collections.Generic.List<ContextMenuItemDto>
+            var menus = new string[8];
+            for (int i = 0; i < 8; i++) menus[i] = UnitMenu(degraded: (i & 1) != 0, brain: (i & 2) != 0, orders: (i & 4) != 0);
+            return menus;
+        }
+
+        private static string UnitMenu(bool degraded, bool brain, bool orders)
+        {
+            var items = new System.Collections.Generic.List<ContextMenuItemDto>();
+            if (orders) items.AddRange(new[]
             {
                 degraded
                     ? new ContextMenuItemDto { Id = GlobalActionIds.MoveHere, Label = "Move Here", Enabled = false,
@@ -61,13 +65,16 @@ namespace Hrot.Common.Diagnostics.Gizmos
                     : new ContextMenuItemDto { Id = GlobalActionIds.Engage,   Label = "Engage",    Shortcut = "E" },
                 new ContextMenuItemDto { Id = GlobalActionIds.Stop,           Label = "Stop",        Shortcut = "S" },
                 new ContextMenuItemDto { IsSeparator = true },
+            });
+            items.AddRange(new[]
+            {
                 new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View", Shortcut = "C" },
                 new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",      Shortcut = "Space" },
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = GlobalActionIds.Rotate,         Label = "Rotate",      Shortcut = "R" },
                 new ContextMenuItemDto { IsSeparator = true },
                 GizmoPins.Submenu(),   // ⭐ CE-3120 — pin gizmo families on this unit
-            };
+            });
             if (brain) items.Add(AiTraceActions.Submenu());   // ⭐ CE-3123 — the AI trace toggles, on every map host
             return JsonSerializer.Serialize(items.ToArray(), SerializerOptions);
         }
@@ -156,9 +163,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
                     degraded = health.Max > 0f && health.Current / health.Max <= 0.5f;
                 }
                 bool brain = AiTraceActions.HasBrain(view, entity);   // ⭐ CE-3123 — has a brain = can be traced
-                menuJson = degraded
-                    ? (brain ? MenuJsonDegradedBrain : MenuJsonDegraded)
-                    : (brain ? MenuJsonHealthyBrain  : MenuJsonHealthy);
+                bool orders = view is EntityRepository repo && repo.HasSingletonManaged<Hrot.Common.Orders.OrdersOffered>();   // ⭐ CE-3169
+                menuJson = UnitMenus[(degraded ? 1 : 0) | (brain ? 2 : 0) | (orders ? 4 : 0)];
             }
 
             return menuJson;

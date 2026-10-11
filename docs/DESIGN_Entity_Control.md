@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 attack (CE-3170) built (§10); CE-3169 and S3-S5 READY-TO-BUILD (M-1..M-10 approved, R-271 (backend))
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack)
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3-S5 READY-TO-BUILD (M-1..M-10 approved, R-271 (backend))
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders)
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -401,6 +401,52 @@ per-branch code.
 down or the operator re-orders. An order from an IG station needs the IG egress (S2 `CE-3169`).
 
 📐 **Rails:** `TacticsTreesTests` +3 (the named enemy is fought over a nearer one and the order succeeds when it is down · the designation dies with its run · an unknown target leaves the posture as authored) · `DebugApiOrdersTests` +1 (HTTP attack in the networkless editor: Operator origin, designation, `succeeded`, the three refusals).
+
+## 11. AS-BUILT — S2 menu orders (`CE-3169`, `2026-10-11`)
+
+```mermaid
+graph TD
+    subgraph Station["Every LIVE map host — MapInteractionPack.Build"]
+        LAYER[map layer / ExCon menu click]
+        ING[ContextActionIngressSystem]
+        DISP[GlobalActionDispatchSystem]
+        MO[MenuOrders — Move Here · Engage · Stop]:::new
+        PICK[host's CanvasMapPickAdapter]
+        EO[EntityOrders]
+    end
+    LAYER -->|GizmoMenuActionEvent| ING
+    ING -->|GlobalActionRequestedEvent| DISP
+    DISP --> MO
+    MO -->|follow-up pick| PICK
+    MO -->|polled each frame| EO
+    EO -->|AssignTacticalIntentEvent| EGR[TacticalIntentEgress — every node, + the IG]
+    IGX[IG ExCon menu: HandleContextMenuActionById] -->|registered id| DISP
+    RB[ReplayBrowser]:::dead -. OrdersOffered unset: no items, no handlers .-> MO
+    classDef new fill:#dff5e1,stroke:#2e7d32
+    classDef dead fill:#fde2e2,stroke:#c62828,stroke-dasharray:4 3
+```
+
+*What the picture shows that prose hid:* the click → ingress → dispatcher edge. 📐 **CGF and IG scheduled the dispatcher but ran
+NO ingress** (`contextIngress: null`), so on those two hosts no map-menu click ever reached an action: not the orders, and not the
+pins, AI trace or layer control the pack already registered "on every map host". The ingress is the fix, not the orders.
+
+| design said | built | why |
+|---|---|---|
+| `MenuOrderHandlers` in `MapInteractionPack` | ⭐ `MenuOrders` (`Hrot.Presentation`, the pack builds it, scheduled in `InteractionSystems`, a `RequiredSystem`); the host sets `MenuOrders.PickService` (Editor, CGF, SimHost window, IG — a resolver, each builds its pick after the map) | the silent-default rule: every host that has a pick passes it |
+| follow-up picks | ⭐ the pick task is **polled each frame**, never awaited | `PickerToolHost` makes continuations asynchronous: an `await` would publish on a pool thread |
+| — | 🔴→⭐ **`ContextActionIngressSystem` on CGF and IG** | 📐 found by the agent sweep: `contextIngress: null` on both (`CgfSubsystem`, `IgApplication`) — every map-menu action dead there |
+| IG's menu | 🔴→⭐ `HandleContextMenuActionById` runs a **registered** id through the map's registry | it forwarded every non-IG id as a `ContextActionTriggered` that nothing on the IG reads and no translator sends |
+| the IG station's egress (§9) | ⭐ `TacticalIntentEgressTranslator` in `NedIgTranslators`; the IG also publishes its `NetworkEntityMap` world singleton | no host builds both packs (IG / auxiliary), so it is never doubled; IG was the one map host without the singleton |
+| the picker's cancel | ⭐ `FdpLocationPickerGizmo(onCancelled)` → the adapter cancels the task | Esc / right-click only removed the gizmo: `PickLocationAsync` never completed |
+| the replay menu has no orders | ⭐ `OrdersOffered` world singleton, set by the pack on live hosts; the unit menu offers the three items only there; a replay registers no handler | the replay records `BehaviorState`, so "has a brain" could not tell them apart |
+| — | ⚠ orders are issued only where `PickService` answers (a station) — Stop too | a menu action relayed from a station to a headless node must not be ordered twice |
+
+⚠ **Known limits:** a WINDOWED node that also receives a station's relayed menu action would run it too (`CE-3178`). The ReplayBrowser
+runs no context ingress, so its own map-menu actions (Center View…) never fire either (`CE-3179`, pre-existing). Both are
+assumed from the wiring, not yet measured live.
+
+📐 **Rails:** `MenuOrdersTests` (7: move/engage picks → the order, cancel → nothing, Stop, headless → nothing, live vs replay menu,
+the picker's cancel) · `SimHostAuxiliaryTranslatorPackTests` +2 (the IG pack carries the egress).
 MCP tools: `order_entity` · `get_entity_order` · `release_entity` · `order_entities` · `lock_side` · `get_sitrep` (group Z).
 
 ## 8. Known limits and defects found while designing

@@ -446,6 +446,8 @@ namespace Hrot.SimHost
                 _dataDrivenGizmoSystem  = mapInteraction.DataDrivenSystem;
                 _toolController         = mapInteraction.Tools;
                 _mapInteraction         = mapInteraction;
+                // ⭐ CE-3169 — the menu orders' follow-up picks: the window's pick (a resolver — the window is built later; headless has none).
+                mapInteraction.MenuOrders.PickService = () => _vis?.MapPick;
 
                 // ⭐⭐⭐ UXI-11 — SCHEDULE what the pack built. 🔒 "The pack CONSTRUCTS; the host
                 //    SCHEDULES" — unchanged; what moved is the CONSTRUCTION, which used to be five

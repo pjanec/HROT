@@ -305,6 +305,14 @@ namespace Hrot.ScenarioEditor.Map
             Hrot.Common.Diagnostics.Gizmos.GizmoPins.RegisterActions(actions);
             // ⭐ CE-3123 (R-228) — the AI-trace toggles, once for every map host (SimHost and the Editor each had a copy; the rest none).
             Hrot.Common.Diagnostics.Gizmos.AiTraceActions.RegisterActions(actions);
+            // ⭐ CE-3169 (DESIGN_Entity_Control §4.2) — Move Here · Engage · Stop, once for every LIVE map host. ⛔ Not in a replay
+            //   (no live brain to order): there the menu does not offer them (OrdersOffered unset) and nothing is registered.
+            var menuOrders = new MenuOrders(ctx.World);
+            if (ctx.IsReplayActive?.Invoke() != true)
+            {
+                menuOrders.RegisterOn(actions);
+                ctx.World.SetSingletonManaged(new Hrot.Common.Orders.OrdersOffered());
+            }
 
             // ⭐ CE-1017 — ONE entity-authoring surface per map, built here for every host that can author (Editor,
             //   CGF, SimHost, IG): spawn adapter, picker, Add Entity action and the canvas menu. The host only
@@ -325,6 +333,7 @@ namespace Hrot.ScenarioEditor.Map
                 rubberBand, actions, actionDispatch, layerControl, authoring, canvasMenu)
             {
                 IsReplayActive = ctx.IsReplayActive,   // ⭐ W1 (VE-R) — the effect systems stand down in a replay
+                MenuOrders     = menuOrders,
             };
         }
 
