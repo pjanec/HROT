@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b) — all slices done. Programme index: PLAN_3D_World_And_Realism.md.
+build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269), slices W1–W4 not built. Programme index: PLAN_3D_World_And_Realism.md.
 updated: 2026-10-11
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`).
+current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved, not built).
 stale-below: nothing.
-known-rot: none.
+known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
 related-designs:
   - DESIGN_Weapon_Layers.md — the weapon muscle owns TurretPose (W-9), which Muzzle.Of poses the barrel from.
@@ -15,6 +15,8 @@ related-designs:
     MapInteractionPack.AttachMapLayers.
   - DESIGN_Building_Interiors.md — owns warheads (§3k, CE-1032): the detonation that an explosion and a decal visualise.
   - DESIGN_Body_Geometry_And_Ground_Contact.md — the same "the TKB type defines it" pattern for bodies; decals drape on the ground.
+  - DESIGN_Operations_Behaviour_Catalogue.md — §10.1 D1: vehicle damage states (destroyed / mobility / firepower kill) and human injury
+    states; §7's "destroyed" reads Health ≤ 0 until those land, then only `WreckState.IsDestroyed` changes.
 -->
 
 # DESIGN — visual effects: muzzle fire, explosions, impact decals
@@ -143,7 +145,7 @@ sequenceDiagram
 | # | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **VE-A** | where effects are made | ⭐ **on every map host, locally, from the fire / detonation events** (which already reach every node); the pack BUILDS the two systems, every host schedules them, `RequiredSystems` declares them so `Unserviceable` reports a host that does not (R-254) | replicating effect entities — the events already cross the wire; an effect is presentation · keeping it an IG/Editor module — the measured "not on all hosts" |
-| **VE-B** | what an effect entity is (U1) | ⭐ `TkbIdentity` (the effect type) + `SimTransform` + `EffectLifetime { Age, Duration }`; not saved, not recorded | the current `VisualEffectState` enum + colours on the entity — the look would live in code, not the TKB |
+| **VE-B** | what an effect entity is (U1) — ⚠ *"not recorded" and `EffectLifetime` SUPERSEDED by §7 VE-Q/VE-R (U7/U8)* | ⭐ `TkbIdentity` (the effect type) + `SimTransform` + `EffectLifetime { Age, Duration }`; not saved, not recorded | the current `VisualEffectState` enum + colours on the entity — the look would live in code, not the TKB |
 | **VE-C** | what an effect looks like | ⭐ TKB `Effect.Visual { Kind, Duration, Size, ColorHex, FadeSeconds }` on built-in effect types: muzzle flash, explosion and decal in **small / medium / large** (nine), plus the tracer | one effect type with a scale parameter — the decal art and durations differ by size, not just scale |
 | **VE-D** | which effect an ammo makes (U2: "multiple sizes based on ammo type") | ⭐ TKB `Effect.Set { MuzzleFlash, Explosion, Decal }` on the AMMO type (references to effect types); an ammo with none uses a default by its calibre class | sizing from damage or penetration — a HEAT round and an APFSDS of the same gun look different |
 | **VE-E** | where a muzzle flash is | ⭐ `EffectAnchor { Shooter, WeaponIndex }`: the RENDERER finds the muzzle each frame from the shooter's posed kit (§3.11 turret pose, M23–M26) — the flash follows the barrel; until the pose exists, the kit's neutral barrel | a fixed spawn position — wrong as soon as the vehicle or turret moves during the flash |
@@ -307,4 +309,117 @@ reader keeps its present behaviour — a rifleman's round still starts at his ey
 every reader keeps its old answer for it (riflemen, unknown types). The kit draws the barrel of the FIRST mount on turret 0 with a
 forward offset (mount 0 on a tank, the 25 mm on the Bradley); the TOW is not drawn, but its rounds and flashes leave from its own
 offset. Gates: `FireProcessingSystemTests.E4_*` (2), `Map3DTests.E4b_TheDrawnBarrelTip_IsTheMuzzle_Within5cm` (3 types).
+
+## 7. Wrecks, dead bodies, flames and smoke — and one generic `Lifespan` *(✅ APPROVED `2026-10-11`, U6–U8, R-269; not built)*
+
+| # | verbatim |
+|---|---|
+| **U6** | *"The destroyed entities (vehicle wrecks, soldier bodies) should be rendered differently — vehicles could become fully black and we could add a time limited (auto removal) flames/smoke entity attached to them, generating some simple particle effect. Dead soldiers could take special dead laying pose."* · on the leans: *"Durations ok. X symbol OK in 2d."* |
+| **U7** | *"Timed effect could have component stating its lifespan and time of creation (simtime) so some garbage collection system removes those. Maybe this could be a generic component and maybe it already exists?"* |
+| **U8** | *"Why not recorded? If recorded, replay will show effects properly after jump in time."* · *"Approved. Local effect entities not significant in recording, no need to measure."* |
+
+### 7.1 INVENTORY — measured `2026-10-11`
+
+Graph `search_graph` `.*(Lifetime|Lifespan|Expir|TimeToLive|Ttl|Despawn|AutoRemov|Corpse|Timed).*` (Struct 0, Class 7 — only
+`EffectLifetime` / `EffectLifetimeSystem` are entity lifetimes) + grep; corpus sweep of `docs/` and `.dev/` by topic.
+
+| what exists | where | what §7 does with it |
+|---|---|---|
+| dead entities STAY in the world (Health 0, capabilities stripped) | `HealthApplicationSystem.cs:90-104`, `DamageSystem.cs:74-83` · ruling 2026-09-13 (`RUNBOOK_Cluster_Debugging_Over_Http.md:360`), CE-272 | the wreck / body is that entity, drawn differently |
+| "destroyed" = `Health.Current ≤ 0`, Health received on EVERY node | `CombatLife.cs:21`, `ThreatDanger.cs:32`; `EntityDamage` in `SharedTranslatorPack.cs:82` | `WreckState.IsDestroyed` — the one test |
+| vehicle damage states / human injury states | ⛔ not built — D1 decided (`DESIGN_Operations_Behaviour_Catalogue.md:290-296`) | later the source of "destroyed"; only `IsDestroyed` changes |
+| `EffectLifetime { Age, Duration }` (age summed per frame, effects only) + `EffectLifetimeSystem` | `EffectComponents.cs:16`, `EffectSystems.cs:96` | ⭐ replaced by the generic `Lifespan` (VE-Q) |
+| bullet timeout `BallisticProjectile.SpawnTick` | `BallisticsSystem.cs:134` | left (combat code); named as the next `Lifespan` user |
+| effect kinds MuzzleFlash / Explosion / Decal / Tracer; no smoke, fire, particles | `EffectDtos.cs:7`; `EffectLayer.cs:157-219` | + `Fire` and `Smoke` kinds, a stateless particle draw |
+| `EffectAnchor { Shooter, WeaponIndex, Toward }` — muzzle only | `EffectComponents.cs`, `EffectLayer.cs:77-82` | + a BODY anchor (the wreck's top) |
+| person figure per stance (Standing / Crouched / Prone), blended | `ShapeKit.cs:318-346` (`BlockFigure`), `EntityBodyLayer3D.cs:147` | + a `Dead` figure posture |
+| 2-D condition bits Damaged / Immobile from Health | `EntityPresentationGizmo.cs:120-130` | + Destroyed → the 2525 X |
+| the replay browser re-spawns effects from replayed events by hand | `ReplayBrowserSubsystem.cs:458-466` | ⭐ stops: the recording holds the effects (VE-R) |
+| `DataPolicy` keeps "not recorded" (`NoReplay`) and "not saved" (`NoScenario`) apart | `DataPolicyAttribute.cs` | effect components: `NoScenario` (+ `NoPreview`), RECORDED |
+
+### 7.2 Diagrams
+
+```mermaid
+graph TD
+  subgraph Every["every map host — MapInteraction.InteractionSystems (editor, CGF, SimHost, IG, Stride; the replay browser draws only)"]
+    WS["WreckSpawnSystem<br/>Health crosses to 0 on a vehicle ⇒ Fire + Smoke effect entities"]
+    ES["EffectSpawnSystem (exists)<br/>fire / hit events ⇒ flash, explosion, decal, tracer"]
+    LS["LifespanSystem<br/>sim time past BornAt + Seconds ⇒ destroy"]
+  end
+  REC[("recording<br/>effect entities + Lifespan are recorded")]
+  REP["Replay run-state / replay browser<br/>spawners OFF, the recorded effects are drawn"]
+  LAY["EffectLayer + EntityBodyLayer3D + EntityPresentationGizmo<br/>black wreck, Dead figure, X, flames and smoke"]
+  WS --> LAY
+  ES --> LAY
+  LS --> LAY
+  WS --> REC
+  ES --> REC
+  REC --> REP
+  REP --> LAY
+  style REP stroke-dasharray: 5 5
+```
+
+*What the picture shows that prose hid:* the spawners run where the map's systems already run on every host — and are OFF in replay,
+where the recording already holds the effects (U8); running them there too would draw every effect twice. The garbage collector is
+one system for every timed entity, not a per-feature timer.
+
+```mermaid
+classDiagram
+  class Lifespan { <<new component, Fdp.Toolkits, NoScenario + NoPreview, RECORDED>> double BornAtSimSeconds; float Seconds; Phase(now) }
+  class LifespanSystem { <<new>> destroys an entity once now ≥ BornAt + Seconds, or now < BornAt after a jump back }
+  class EffectLifetime { <<RETIRED — replaced by Lifespan>> }
+  class WreckState { <<new static, Fdp.Toolkits Combat>> IsDestroyed(world, e) = Health ≤ 0 (later D1's destroyed state) }
+  class WreckSpawnSystem { <<new, Hrot.Presentation Effects>> a vehicle's Health crossing to 0 ⇒ Fire + Smoke anchored to its body }
+  class EffectAnchor { <<exists>> + Body mode: the anchor's top centre, every frame }
+  class EffectKind { <<exists TKB>> + Fire; + Smoke }
+  class EffectTkbCatalog { <<exists>> + fire 7141 (60 s), smoke 7151 (180 s, fading); default per vehicle family }
+  class EffectLayer { <<exists>> + stateless particles: puff i of n from (entity seed, age) }
+  class EntityBodyLayer3D { <<exists>> a destroyed vehicle near-black on every part; a dead person the Dead figure }
+  class BlockFigure { <<exists>> + Dead posture (on the back, limbs spread), fallen into over ~0.6 s }
+  class EntityPresentationGizmo { <<exists>> + Destroyed condition ⇒ the MIL-STD-2525 X }
+  LifespanSystem ..> Lifespan
+  EffectLifetime ..> Lifespan : replaced by
+  WreckSpawnSystem ..> WreckState
+  WreckSpawnSystem ..> EffectAnchor
+  WreckSpawnSystem ..> Lifespan
+  EffectLayer ..> EffectKind
+  EntityBodyLayer3D ..> WreckState
+  EntityBodyLayer3D ..> BlockFigure
+  EntityPresentationGizmo ..> WreckState
+```
+
+```mermaid
+sequenceDiagram
+  participant H as Health (replicated, every node)
+  participant W as WreckSpawnSystem (each map host)
+  participant L as LifespanSystem
+  participant D as layers (2-D and 3-D)
+  H->>W: a vehicle's Health crosses from > 0 to 0
+  W->>W: Fire (Lifespan 60 s) + Smoke (Lifespan 180 s), anchored to the wreck's body, BornAt = sim now
+  loop every frame
+    D->>D: wreck near-black, flames and smoke puffs from (seed, now − BornAt), the X on the 2-D symbol
+    L->>L: now ≥ BornAt + Seconds ⇒ destroy the effect entity
+  end
+  Note over D: a dead soldier: the Dead figure, fallen into from his last stance
+```
+
+### 7.3 Decisions — ✅ approved (U6–U8)
+
+| # | decision | ⭐ approved | rejected — one line each |
+|---|---|---|---|
+| **VE-N** | what "destroyed" is | `Health.Current ≤ 0` through ONE helper, `WreckState.IsDestroyed` — D1's damage states replace its body later | a new replicated destroyed flag — Health already reaches every node |
+| **VE-O** | the wreck's look | the whole 3-D body near-black (every part, the Dark / Glass / Metal roles too), the turret where it last pointed; 2-D: the MIL-STD-2525 destroyed condition — an X through the symbol (U6: *"X symbol OK"*) | a darkened 2-D symbol — not the standard marking |
+| **VE-P** | flames and smoke | effect entities of two new kinds, `Fire` (≈ 60 s) and `Smoke` (≈ 180 s, fading) (U6: *"Durations ok"*), made by each map host when a VEHICLE's Health crosses to 0, anchored to the wreck's body; a stateless particle draw (each puff from the entity's seed and its age — no particle entities); a 2-D smoke/flame mark; soldiers do not burn; a wreck loaded already dead does not burn | a particle entity per puff — thousands of entities; a burn decal on the wreck — VE-M |
+| **VE-Q** | timed removal | ⭐ ONE generic `Lifespan { BornAtSimSeconds, Seconds }` + ONE `LifespanSystem` (U7); every effect uses it, `EffectLifetime` retires, the phase comes from the sim clock (VE-G kept) | a timer per feature (today's `EffectLifetime` and the bullets' `SpawnTick`) — the bullets move later, in the combat code's lane |
+| **VE-R** | recording | ⭐ effect entities ARE RECORDED (U8), never saved to a scenario (`NoScenario`); in replay the spawners are OFF and the recorded effects are drawn — a jump lands on the right fire and smoke | ⛔ SUPERSEDED: VE-B "not recorded" — a jump lost every long effect |
+| **VE-S** | the dead soldier | a `Dead` figure posture in `BlockFigure` (on the back, limbs spread), fallen into over ~0.6 s from his last stance; drawn because he is destroyed, NOT a stance | a `Dead` value in `StanceId` — the stance is the animation contract shared with the Muscle; death is a health fact |
+
+### 7.4 Slices
+
+| slice | builds | shows |
+|---|---|---|
+| **W1** | `Lifespan` + `LifespanSystem`; effects moved onto it; `EffectLifetime` retired; effect components `NoScenario` + recorded; spawners off in replay, the replay browser's hand-spawning removed | today's effects unchanged live; correct after a replay jump |
+| **W2** | `WreckState`; black wrecks in 3-D; the 2-D X | a killed tank is a black hull with an X |
+| **W3** | `Fire` / `Smoke` kinds + catalog types; `WreckSpawnSystem`; body anchor; stateless particles; the 2-D mark | the wreck burns ~60 s and smokes ~3 min, then they are gone |
+| **W4** | the `Dead` figure + the fall | a killed soldier lies on his back |
 
