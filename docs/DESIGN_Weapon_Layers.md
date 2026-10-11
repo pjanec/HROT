@@ -509,7 +509,7 @@ classDiagram
 > 🔒 **User, `2026-10-11`:** *"Other lanes are on hold. We should take the grenade scenario end to end."* ⇒ the backend lane builds
 > W-12a, W-12e, W-12f, the `TrackTarget` node and `ua-grenade-or-rifle` (handoff
 > [`HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md`](blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md)).
-> W-12b/c (turret task per category, ATGM one round at a time) are not needed by the scenario and stay open.
+> W-12b/c (turret task per category, ATGM one round at a time) are not needed by the scenario — built next, §5g.
 
 #### INVENTORY *(graph CLI + grep, `2026-10-11`)*
 
@@ -628,6 +628,88 @@ never threw. ✅ Fixed by [AQ89](blueprints/Architect_Question_89_Suppress_And_C
 - A **willing** grenadier closes inside the Suppress branch, running the same `CloseToThrow` with its own state. Willing means a
   `CombatTemperament` (bravery / obedience, defaults 0.5 / 0.8) at or above 0.6.
 - The scenario authors the Grenadier brave (`"Temperament": {"riskAcceptance": 0.8}`).
+
+### 5g. WL-5 — W-12b/c: which categories use the turret task, and the ATGM one round at a time *(backend, `2026-10-11`; 🔒 user: *"Approved, add the Rifleman check then W-12b/c"*)*
+
+#### INVENTORY *(graph + grep, `2026-10-11`)*
+
+| query | result |
+|---|---|
+| graph `.*(WeaponBrainProfile\|UsesTurretTask\|TurretPath\|WeaponTask).*` | **one** profile: `DefaultWeaponBrainProfile` (`WeaponBrainProfiles.cs:21`), returned by `For(category)` for EVERY category · the brain's turret path `AimAndFireExecutor.TurretPath` · the muscle `WeaponTaskDispatcherSystem` · the wire pair `EntityWeaponTask(Status)` |
+| grep `WeaponCategory.` in the TKB catalogs | Abrams `TankGun` turret 0 · Bradley `Autocannon` + `Atgm` (TOW) on turret 0 · infantry `SmallArms` (no turret) · Grenadier mount 1 `Grenade` (no turret). ⛔ no `MachineGun` / `Mortar` mount yet |
+| what says a round's flight ENDED | ⛔ nothing reaches the brain: `WeaponTaskStatus` = {Epoch, State, Reason, RoundsFired} · `BallisticProjectile` carries the `Shooter`, not the mount · projectiles live on the muscle |
+| free state in the brain's 32-byte weapon channel | ⛔ full (target 0–7 · `AimState` 8–23 · rounds 24–27 · accounted 28–31) — ⭐ but `AimState.Elapsed` (the per-shot aim clock) is unused on the turret path |
+
+#### The decision *(within the approved W-12b/c leans)*
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| every category goes through the turret task when the mount names a turret | `WeaponBrainProfiles.For` returns `Default` (`WeaponBrainProfiles.cs:33`) | W-12b lists the categories; WL-3 left the table for WL-4 |
+| a guided round is granted with the magazine, so a TOW salvo leaves on the cooldown | `TurretPath`: `grant += inHand` (`AimAndFireExecutor.cs`) | W-12c: *"a guided weapon cannot guide two"* |
+| the brain cannot see the missile land | INVENTORY rows 3–4 | W-7 (projectiles are muscle state) |
+
+```mermaid
+classDiagram
+  class IWeaponBrainProfile {
+    <<existing>>
+    +UsesTurretTask(world, unit, mount) bool
+    +RoundsInFlight int  new
+  }
+  class TurretWeaponProfile {
+    <<renamed from DefaultWeaponBrainProfile>>
+    TankGun, Autocannon, MachineGun, Unknown
+  }
+  class PerShotWeaponProfile {
+    <<new>>
+    SmallArms, Grenade, Mortar
+    UsesTurretTask false
+  }
+  class GuidedWeaponProfile {
+    <<new>>
+    Atgm
+    RoundsInFlight 1
+  }
+  class WeaponBrainProfiles {
+    <<existing table>>
+    +For(category) IWeaponBrainProfile
+  }
+  class AimAndFireExecutor {
+    <<existing>>
+    -TurretPath() grants one guided round per estimated flight
+  }
+  IWeaponBrainProfile <|.. TurretWeaponProfile
+  IWeaponBrainProfile <|.. PerShotWeaponProfile
+  TurretWeaponProfile <|-- GuidedWeaponProfile
+  WeaponBrainProfiles ..> IWeaponBrainProfile
+  AimAndFireExecutor ..> WeaponBrainProfiles
+```
+*What the picture shows: the table stays the one place a category is answered (W-5); the ATGM is a turret profile with one rule more,
+not a fourth weapon path. A hull machine gun needs no rule: it names no turret.*
+
+```mermaid
+sequenceDiagram
+  participant X as AimAndFireExecutor.TurretPath (Brain)
+  participant P as turret part
+  participant D as WeaponTaskDispatcherSystem (Muscle)
+  X->>P: Engage, RoundsGranted = accounted + 1 (guided)
+  D->>D: on target, cooldown over: launch
+  D->>P: status RoundsFired + 1
+  X->>X: RoundsFired grew: spend it, hold = distance / muzzle velocity
+  loop while hold > 0
+    X->>P: Track, RoundsGranted = accounted (the launcher stays on the target)
+  end
+  X->>P: Engage, RoundsGranted = accounted + 1
+```
+*Who runs it each frame: unchanged from §5e — the brain on the Brain node's weapon dispatcher, the muscle on SimHost's.*
+
+| # | lean | rests on | rejected — one line |
+|---|---|---|---|
+| **G-1** | `For`: SmallArms / Grenade / Mortar ⇒ **per-shot** even if a turret is named; Atgm ⇒ **guided**; TankGun / Autocannon / MachineGun / **Unknown** ⇒ the turret profile (today's rule) | W-12b · Unknown keeps today's behaviour, so no untagged mount changes silently | Unknown ⇒ per-shot — every untagged turret mount would change path |
+| **G-2** | a guided mount is granted **one round**, and the next only after the round's **estimated flight** (flat distance to the target ÷ the mount's muzzle velocity, +0.5 s) has run out since the brain saw it fired | W-12c · R-212 (expected values, no dice) · the muscle already Tracks while nothing is granted (§5e) | a `RoundsLanded` field on `WeaponTaskStatus` — a wire/IDL change for what the brain can estimate; the muscle holding launches while a projectile of the shooter flies — the projectile has no mount, so the coax would block the TOW |
+| **G-3** | the hold lives in `AimState.Elapsed`, unused on the turret path | INVENTORY row 4 | a new component per unit — state of one action belongs in the action (L-4's rule) |
+
+⚠ **Known limit (G-2):** an estimate, not the detonation itself — a round stopped early by cover still holds the launcher for the full
+estimate. Stated, not hidden.
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 
