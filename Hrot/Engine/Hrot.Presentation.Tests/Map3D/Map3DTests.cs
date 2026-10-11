@@ -628,6 +628,54 @@ public sealed class Map3DTests
         Assert.Equal(-EntityBodyLayer3D.MaxAimTwist, twist, 3);                    // a point square to his right — clamped at 75°
     }
 
+    /// <summary>⭐ WL-6b (docs/DESIGN_Weapon_Layers.md §5h) — a posture change moves the rifle over 0.3 s of SIM time: a unit first seen
+    /// is simply in its posture; halfway the muzzle is between the two poses; a pause (no sim time) freezes it; a change mid-blend starts
+    /// from the nearer end; a clock that goes back snaps.</summary>
+    [Fact]
+    public void WL6b_APostureChangeMovesTheRifleOverSimTime_NotInOneFrame()
+    {
+        var blend = new PostureBlend();
+        var man = new Entity(7, 1);
+        Assert.Equal((WeaponPostureKind.AtEase, WeaponPostureKind.AtEase, 1f), blend.Posture(man, WeaponPostureKind.AtEase, 10.0));
+        var (from, to, t) = blend.Posture(man, WeaponPostureKind.Aimed, 10.0);          // the weapon brain raises it
+        Assert.Equal((WeaponPostureKind.AtEase, WeaponPostureKind.Aimed, 0f), (from, to, t));
+        Assert.Equal(0.5f, blend.Posture(man, WeaponPostureKind.Aimed, 10.15).T, 3);
+        Assert.Equal(0.5f, blend.Posture(man, WeaponPostureKind.Aimed, 10.15).T, 3);     // paused: frozen
+        Assert.Equal(1f, blend.Posture(man, WeaponPostureKind.Aimed, 10.4).T);
+        blend.Posture(man, WeaponPostureKind.Ready, 11.0);                                  // a new change …
+        var mid = blend.Posture(man, WeaponPostureKind.AtEase, 11.2);                       // … and another at 2/3 of it
+        Assert.Equal((WeaponPostureKind.Ready, WeaponPostureKind.AtEase), (mid.From, mid.To));   // from the nearer end
+        Assert.Equal(1f, blend.Posture(man, WeaponPostureKind.AtEase, 5.0).T);              // a replay jump back: snapped
+
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        float Muzzle(KitPart[] parts) => Vector3.Transform(new Vector3(0.5f, 0, 0), parts[^1].BodyTransform(size)).Z;
+        float low = Muzzle(BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.AtEase));
+        float high = Muzzle(BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.Aimed));
+        float half = Muzzle(BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.AtEase, WeaponPostureKind.Aimed, 0.5f));
+        Assert.InRange(half, low + 0.1f, high - 0.1f);
+        // a soldier walking while he raises his rifle keeps swinging his legs (a posture blend keeps the parts' roles)
+        var halfway = BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.AtEase, WeaponPostureKind.Aimed, 0.5f);
+        Assert.Equal(PartRole.LegLeft, halfway[0].Role);
+        Assert.Equal(PartRole.LegRight, halfway[1].Role);
+    }
+
+    /// <summary>⭐ WL-6b — the aimed body TURNS toward its target over a fraction of a second instead of jumping, and turns back when
+    /// it is no longer aimed; a pause freezes it; a unit first seen is already turned.</summary>
+    [Fact]
+    public void WL6b_TheAimTurnEasesIn_AndBackOut()
+    {
+        var blend = new PostureBlend();
+        var man = new Entity(8, 1);
+        Assert.Equal((0f, 0f), blend.Aim(man, 0f, 0f, 1.0));
+        var (twist, _) = blend.Aim(man, 1.0f, 0f, 1.05);
+        Assert.InRange(twist, 0.2f, 0.5f);                                  // 0.05 s in: part of the way
+        Assert.Equal(twist, blend.Aim(man, 1.0f, 0f, 1.05).Twist);          // paused: frozen
+        Assert.InRange(blend.Aim(man, 1.0f, 0f, 1.6).Twist, 0.95f, 1.0f);    // ~0.5 s: there
+        Assert.InRange(blend.Aim(man, 0f, 0f, 1.65).Twist, 0.5f, 0.8f);      // no longer aimed: turning back
+        var other = new Entity(9, 1);
+        Assert.Equal(0.7f, blend.Aim(other, 0.7f, 0f, 2.0).Twist);           // first seen: already turned
+    }
+
     /// <summary>⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — the dead figure lies on the ground (lower than prone), arms flung out
     /// wider than any stance; a soldier's rifle lies beside him; halfway through the fall he is between his stance and the ground.</summary>
     [Fact]

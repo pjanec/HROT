@@ -514,6 +514,37 @@ public static class BlockFigure
         return Lerp(Parts(from, soldier, posture), Parts(to, soldier, posture), t);   // ⭐ W4 — the one interpolation, shared with the fall
     }
 
+    /// <summary>
+    /// ⭐ WL-6b (docs/DESIGN_Weapon_Layers.md §5h) — the figure part-way from weapon posture <paramref name="from"/> to
+    /// <paramref name="to"/> in <paramref name="stance"/> (<paramref name="t"/> 0..1, eased in and out; <see cref="PostureBlend"/> times
+    /// it). Unlike a stance blend every part KEEPS its role, so a soldier walking while he raises his rifle keeps swinging his legs.
+    /// </summary>
+    public static KitPart[] Parts(StanceId stance, bool soldier, WeaponPostureKind from, WeaponPostureKind to, float t)
+    {
+        var a = Parts(stance, soldier, from);
+        var b = Parts(stance, soldier, to);
+        t = Math.Clamp(t, 0f, 1f);
+        if (from == to || t >= 1f) return b;
+        if (t <= 0f) return a;
+        t = t * t * (3f - 2f * t);   // smoothstep: the rifle starts and stops gently
+        var blended = new KitPart[b.Length];
+        for (int i = 0; i < b.Length; i++)
+            blended[i] = b[i] with
+            {
+                Centre = Vector3.Lerp(a[i].Centre, b[i].Centre, t),
+                Extent = Vector3.Lerp(a[i].Extent, b[i].Extent, t),
+                YawDegrees = a[i].YawDegrees + (b[i].YawDegrees - a[i].YawDegrees) * t,
+                PitchDegrees = a[i].PitchDegrees + (b[i].PitchDegrees - a[i].PitchDegrees) * t,
+            };
+        return blended;
+    }
+
+    /// <summary>⭐ WL-6b — a stance blend whose two ends are themselves part-way between two weapon postures (a posture change during a
+    /// stance change).</summary>
+    public static KitPart[] Blend(StanceId from, StanceId to, float t, bool soldier, WeaponPostureKind postureFrom, WeaponPostureKind postureTo,
+                                  float postureT)
+        => Lerp(Parts(from, soldier, postureFrom, postureTo, postureT), Parts(to, soldier, postureFrom, postureTo, postureT), t);
+
     /// <summary>The posed parts for <paramref name="stance"/> (anything but crouched or prone stands — the rule's own default); a
     /// soldier's rifle and hands in the weapon brain's <paramref name="posture"/> (WL-6; prone is always on the rifle).</summary>
     public static KitPart[] Parts(StanceId stance, bool soldier, WeaponPostureKind posture = WeaponPostureKind.AtEase)
@@ -525,6 +556,89 @@ public static class BlockFigure
             StanceId.Prone => soldier ? ProneArmed : Prone,
             _ => soldier ? StandingArmed[p] : Standing,
         };
+    }
+}
+
+/// <summary>
+/// ⭐ WL-6b (docs/DESIGN_Weapon_Layers.md §5h) — the picture's own timing of a weapon-posture change, on SIMULATION time (a pause
+/// freezes it, every host shows the same): the rifle moves from the old posture to the new one over <see cref="Seconds"/>, and an aimed
+/// upper body turns and pitches toward its aim with a <see cref="AimSeconds"/> time constant instead of jumping. The posture itself is
+/// the weapon brain's (R-272), replicated; nothing here is sent — like <see cref="DeathFall"/>, a unit first seen (a load, a late host,
+/// a replay jump) is simply in its posture, and a clock that goes back snaps.
+/// </summary>
+public sealed class PostureBlend
+{
+    /// <summary>How long the rifle takes to move between two postures (s, sim time).</summary>
+    public const float Seconds = 0.3f;
+
+    /// <summary>The aim angles' time constant (s, sim time): about 95 % of a turn is done in three of these.</summary>
+    public const float AimSeconds = 0.12f;
+
+    private struct State
+    {
+        public WeaponPostureKind From, To;
+        public double ChangedAt;
+        public float Twist, Pitch;
+        public double AimAt;
+        public bool HasAim;
+    }
+
+    private readonly Dictionary<Entity, State> _states = new();
+    private readonly List<Entity> _gone = new();
+
+    /// <summary>Where <paramref name="e"/>'s rifle is this frame: between <c>From</c> and <c>To</c>, <c>T</c> of the way (1 = there).</summary>
+    public (WeaponPostureKind From, WeaponPostureKind To, float T) Posture(Entity e, WeaponPostureKind now, double simTime)
+    {
+        if (!_states.TryGetValue(e, out var st))
+        {
+            st = new State { From = now, To = now, ChangedAt = double.NegativeInfinity };
+            _states[e] = st;
+            return (now, now, 1f);
+        }
+        if (now != st.To)
+        {
+            // a change mid-blend starts from whichever end the rifle was nearer
+            float done = Progress(st, simTime);
+            st.From = done < 0.5f ? st.From : st.To;
+            st.To = now;
+            st.ChangedAt = simTime;
+            _states[e] = st;
+        }
+        return (st.From, st.To, Progress(st, simTime));
+    }
+
+    private static float Progress(in State st, double simTime)
+        => double.IsNegativeInfinity(st.ChangedAt) || simTime < st.ChangedAt ? 1f
+         : (float)Math.Clamp((simTime - st.ChangedAt) / Seconds, 0.0, 1.0);
+
+    /// <summary>The aim angles this frame, eased toward <paramref name="twist"/> / <paramref name="pitch"/> (0 when not aimed, so the
+    /// body turns back). Must follow <see cref="Posture"/> for the same entity in the frame.</summary>
+    public (float Twist, float Pitch) Aim(Entity e, float twist, float pitch, double simTime)
+    {
+        if (!_states.TryGetValue(e, out var st)) st = new State { From = WeaponPostureKind.AtEase, To = WeaponPostureKind.AtEase, ChangedAt = double.NegativeInfinity };
+        double dt = simTime - st.AimAt;
+        if (!st.HasAim || dt < 0 || dt > 1.0)
+        {
+            st.Twist = twist; st.Pitch = pitch;   // first seen, a clock jump, or a long gap: no easing
+        }
+        else if (dt > 0)
+        {
+            float k = 1f - MathF.Exp(-(float)dt / AimSeconds);
+            st.Twist += (twist - st.Twist) * k;
+            st.Pitch += (pitch - st.Pitch) * k;
+        }
+        st.AimAt = simTime;
+        st.HasAim = true;
+        _states[e] = st;
+        return (st.Twist, st.Pitch);
+    }
+
+    /// <summary>Forgets everyone not drawn this frame.</summary>
+    public void EndFrame(HashSet<Entity> drawn)
+    {
+        _gone.Clear();
+        foreach (var e in _states.Keys) if (!drawn.Contains(e)) _gone.Add(e);
+        foreach (var e in _gone) _states.Remove(e);
     }
 }
 

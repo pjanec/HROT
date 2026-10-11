@@ -116,7 +116,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
             bool rotorTurning = look.Family == VisualFamily.Helicopter && !wreck && IsAirborne(world, tf.Position, look.Geometry);
             var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning);
-            if (look.Family == VisualFamily.Person) motion = FigureMotion(world, e, motion, look.Soldier, tf, size);
+            if (look.Family == VisualFamily.Person) motion = FigureMotion(world, e, motion, look.Soldier, tf, size, simTime);
             _drawn.Add(e);
             // ⭐ CE-1041 — a type with Body.Geometry: the kit's box sits where the TKB puts it relative to the reference point
             //   (an aircraft's CG), and the gear is drawn AT the TKB's contact points instead of the kit's generic gear.
@@ -149,6 +149,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         }
         _motion.EndFrame(_drawn);
         _fall.EndFrame(_drawn);
+        _postures.EndFrame(_drawn);
     }
 
     /// <summary>⭐ CE-1033 S4 — the figure's parts: the logical stance (the shared rule), BLENDED from the stance it is leaving while
@@ -167,13 +168,20 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// toward his target or aim point (a soldier's body does not turn to face what he shoots at — nothing writes his heading for it),
     /// within <see cref="MaxAimTwist"/> / <see cref="MaxAimPitch"/>. Prone and dead figures do not lean or turn.
     /// </summary>
-    private static MotionPose FigureMotion(EntityRepository world, Entity e, MotionPose motion, bool soldier, in SimTransform tf, Vector3 size)
+    /// ⭐ WL-6b — the turn and pitch EASE toward the aim (<see cref="PostureBlend.Aim"/>), and back to 0 when it is no longer aimed.
+    private MotionPose FigureMotion(EntityRepository world, Entity e, MotionPose motion, bool soldier, in SimTransform tf, Vector3 size, double simTime)
     {
         var stance = LogicalStance.Of(world, e);
-        if (stance == StanceId.Prone || Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e)) return motion with { Lean = 0f, Twist = 0f };
+        if (stance == StanceId.Prone || Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e))
+        {
+            if (soldier) _postures.Aim(e, 0f, 0f, simTime);
+            return motion with { Lean = 0f, Twist = 0f };
+        }
         motion = motion with { HipZ = BlockFigure.HipFraction(stance) };
-        if (!soldier || !TryAim(world, e, tf, size, stance, out float twist, out float pitch)) return motion;
-        return motion with { Twist = twist, Lean = motion.Lean - pitch };
+        if (!soldier) return motion;
+        if (!TryAim(world, e, tf, size, stance, out float twist, out float pitch)) twist = pitch = 0f;
+        var (t, p) = _postures.Aim(e, twist, pitch, simTime);
+        return motion with { Twist = t, Lean = motion.Lean - p };
     }
 
     /// <summary>The aim of an AIMED unit relative to its body: turn (counter-clockwise) and pitch (up), both clamped. False when it is
@@ -203,6 +211,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     {
         var target = LogicalStance.Of(world, e);
         var posture = soldier ? PostureOf(world, e) : WeaponPostureKind.AtEase;   // ⭐ WL-6 — the rifle in the weapon brain's posture
+        // ⭐ WL-6b — moved there over PostureBlend.Seconds of sim time, not snapped
+        var (postureFrom, postureTo, postureT) = soldier ? _postures.Posture(e, posture, simTime) : (posture, posture, 1f);
         // ⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — a dead man lies on his back, fallen into it over 0.6 s of sim time from the
         //   stance he died in; a body first seen already dead just lies there (DeathFall).
         if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e))
@@ -215,13 +225,17 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         {
             ref readonly var status = ref world.GetComponentRO<StanceStatus>(e);
             if (status.Phase == StanceTransitionPhase.Transitioning && status.CurrentStance != target)
-                return BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier, posture);
+                return BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier, postureFrom, postureTo, postureT);
         }
-        return BlockFigure.Parts(target, soldier, posture);
+        return BlockFigure.Parts(target, soldier, postureFrom, postureTo, postureT);
     }
 
     private readonly MotionTracker _motion = new();
     private readonly DeathFall _fall = new();
+    private readonly PostureBlend _postures = new();
+
+    /// <summary>⭐ WL-6b — the posture changes' timing (the rail's seam).</summary>
+    public PostureBlend Postures => _postures;
 
     /// <summary>The dead men's falls (W4) — read by rails.</summary>
     public DeathFall Falls => _fall;

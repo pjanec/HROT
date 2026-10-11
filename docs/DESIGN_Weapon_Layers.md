@@ -817,8 +817,17 @@ estimate. Stated, not hidden.
 ⭐ **Rails:** `AimAndFireExecutorTests.WL6_*` (the weapon brain writes it; every status maps) · `Map3DTests.WL6_*` (hands on the rifle,
 elbows joined, civilian swing, run lean, aim turn/pitch/clamp) · frame rail `Map3DFrameRail.WL6_SoldiersHoldTheirRiflesInTheWeaponBrainsPosture`
 · cluster `GrenadeOrRifleScenarioTests` asserts the Rifleman's posture is Aimed on CGF, SimHost and IG, aimed at the hostile on IG.
-⚠ **Not built:** the posture snaps (no blend between postures); a vehicle's posture is written but nothing draws it (its turret has
-`TurretPose`); the Stride skeletal aim layer could read the same component — not wired.
+⭐ **WL-6b (`2026-10-11`, user: *"Yes, build the posture blend"*) — the picture TIMES a posture change; nothing new is sent.**
+`PostureBlend` (beside `DeathFall`, `Map3D/ShapeKit.cs`) remembers each soldier's last posture and when it changed (SIM time): the
+rifle and hands move between the two poses over 0.3 s, eased (`BlockFigure.Parts(stance, soldier, from, to, t)` — every part keeps its
+role, so the legs keep swinging); a change mid-blend starts from the nearer end; a posture change during a stance blend blends both. The
+aim turn and pitch ease toward the aim with a 0.12 s time constant and back to 0 when no longer aimed. A pause freezes both; a unit first
+seen (load, late host, replay jump) is simply in its posture, and a clock going back snaps. Rejected: replicating a transition progress
+like `StanceStatus` — the stance needs one because the Muscle plays it and the Brain waits for it; nothing waits on a rifle being raised.
+Rails: `Map3DTests.WL6b_*`.
+
+⚠ **Not built:** a vehicle's posture is written but nothing draws it (its turret has `TurretPose`); the Stride skeletal aim layer could
+read the same component — not wired.
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 
