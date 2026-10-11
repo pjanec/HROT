@@ -760,5 +760,10 @@ namespace Fdp.Core
         /// <summary><c>LightweightRound</c> — ⭐ LR-2 (docs/DESIGN_Visual_Effects.md §8.5, R-271): a round replicated WITHOUT any lifecycle —
         /// EntityMaster (Lightweight) + WorldPos only, no ghost promotion, no ELM, no acks.</summary>
         public const int LightweightRound = 357;
+
+        /// <summary><c>OperatorOrderOutcome</c> — ⭐ CE-3167 (docs/DESIGN_Entity_Control.md §7 S1): how the unit's last OPERATOR order
+        /// ended (succeeded / failed / faulted), written on the brain node when the run finishes; read by <c>GET /entities/{id}/order</c>.
+        /// Never saved, never sent. ⚠ 358 measured free on backend, ui and behaviors 2026-10-11.</summary>
+        public const int OperatorOrderOutcome = 358;
     }
 }

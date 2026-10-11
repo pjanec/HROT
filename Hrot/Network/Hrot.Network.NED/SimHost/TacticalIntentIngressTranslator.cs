@@ -81,6 +81,8 @@ namespace Hrot.Network.NED.SimHost
                 IntentId   = request.IntentId   ?? string.Empty,
                 JsonParams = request.JsonParams  ?? string.Empty,
                 Origin     = (Fdp.Toolkit.Behavior.Components.BehaviorOrigin)request.Origin,   // ⭐ CE-3034
+                Kind       = (TacticalIntentKind)request.Kind,                                    // ⭐ CE-3167
+                ClearsPriorIntent = (request.Flags & TacticalIntentFlags.ClearsPriorIntent) != 0,
             });
         }
 

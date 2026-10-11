@@ -1456,7 +1456,11 @@ namespace Hrot.Editor.DebugApi
                 try
                 {
                     var json = payload.ToJsonString();
-                    evt = JsonSerializer.Deserialize(json, clrType);
+                    // ⭐ CE-3168 — the CE-225 shape (SpawnTransformJsonOptions): FDP events declare public FIELDS, which the
+                    //   default options silently skip, so every payload used to publish an all-default event and answer ok.
+                    //   Fields bind now, an unknown key RAISES (the catch below refuses it), and an Entity field takes the
+                    //   unit's NETWORK id — the id this API speaks everywhere else.
+                    evt = JsonSerializer.Deserialize(json, clrType, CommandJsonOptions());
                 }
                 catch (Exception ex)
                 {
@@ -1515,6 +1519,50 @@ namespace Hrot.Editor.DebugApi
                 ["awaited"] = false,
                 ["reason"]  = "ack-wait not yet supported; event published",
             }, null);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3168</c> — how <c>POST /entities/command</c> binds a payload: fields included, case-insensitive, an
+        /// unmapped key refused, enums by name or number, and an <see cref="Entity"/> given as its network id (resolved
+        /// against THIS node's map). Built per call: the map is the active perspective's.
+        /// </summary>
+        private JsonSerializerOptions CommandJsonOptions()
+        {
+            var o = new JsonSerializerOptions
+            {
+                IncludeFields               = true,
+                PropertyNameCaseInsensitive = true,
+                UnmappedMemberHandling      = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
+            };
+            o.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+            o.Converters.Add(new EntityByNetworkIdConverter(_entityMap));
+            return o;
+        }
+
+        /// <summary>⭐ <c>CE-3168</c> — an <see cref="Entity"/> in a command payload is the unit's network id (a number).</summary>
+        private sealed class EntityByNetworkIdConverter : System.Text.Json.Serialization.JsonConverter<Entity>
+        {
+            private readonly NetworkEntityMap _map;
+            public EntityByNetworkIdConverter(NetworkEntityMap map) => _map = map;
+
+            public override Entity Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+            {
+                long id = reader.TokenType switch
+                {
+                    JsonTokenType.Number => reader.GetInt64(),
+                    JsonTokenType.String when long.TryParse(reader.GetString(), out var parsed) => parsed,
+                    _ => throw new JsonException("An entity is given as its network id (a number)."),
+                };
+                if (!_map.TryGetEntity(id, out var entity))
+                    throw new JsonException($"No entity with network id {id} on this node. List entities with GET /entities.");
+                return entity;
+            }
+
+            public override void Write(Utf8JsonWriter writer, Entity value, JsonSerializerOptions options)
+            {
+                if (_map.TryGetNetworkId(value, out long id)) writer.WriteNumberValue(id);
+                else writer.WriteNullValue();
+            }
         }
 
         /// <summary>

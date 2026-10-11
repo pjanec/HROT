@@ -56,6 +56,11 @@ namespace Hrot.CGF.Systems
 
         private readonly TacticalIntentMapperRegistry _mapperRegistry;
         private readonly BehaviorRegistry _behaviorRegistry;
+        private readonly IntentClearRegistry? _clearRegistry;
+
+        /// <summary>⭐ <c>CE-3167</c> — the providers a <c>ClearsPriorIntent</c> order runs (null when built without any; a
+        /// production host passes <c>CgfLogicPack</c>'s registry — <c>CgfLogicPackIntentClearTests</c> rails it).</summary>
+        public IntentClearRegistry? ClearRegistry => _clearRegistry;
 
         /// <summary>
         /// Creates the system with the supplied mapper registry.
@@ -64,10 +69,14 @@ namespace Hrot.CGF.Systems
         /// Registry of intent-to-behavior mappers.  May be empty (all intents fall
         /// through to the pass-through path).  Must not be <c>null</c>.
         /// </param>
+        /// <param name="clearRegistry">⭐ <c>CE-3167</c> — the providers an order with
+        /// <see cref="AssignTacticalIntentEvent.ClearsPriorIntent"/> runs before it starts; null clears nothing.</param>
         public TacticalIntentResolutionSystem(
             TacticalIntentMapperRegistry mapperRegistry,
-            BehaviorRegistry behaviorRegistry)
+            BehaviorRegistry behaviorRegistry,
+            IntentClearRegistry? clearRegistry = null)
         {
+            _clearRegistry = clearRegistry;
             _mapperRegistry = mapperRegistry
                 ?? throw new ArgumentNullException(nameof(mapperRegistry));
             _behaviorRegistry = behaviorRegistry
@@ -94,6 +103,19 @@ namespace Hrot.CGF.Systems
                 // false when the entity has been destroyed, handling the deleted-entity case.
                 if (!repo.HasAuthority<BehaviorState>(evt.Entity))
                     continue;
+
+                // ⭐ CE-3167 (Entity Commanding §2.5b-d) — the order cancels the unit's prior plans FIRST, synchronously, in
+                //   this one call: an abort and an assign arriving as two events would run the clear LAST in the ingress and
+                //   leave the unit brain-dead with the order discarded. Providers run on the owner only (after the gate).
+                if (evt.ClearsPriorIntent) _clearRegistry?.ClearFor(evt.Entity, repo);
+
+                // ⭐ CE-3167 — a Clear ends the running behaviour at the intent's origin (the gate still applies: a lower origin
+                //   cannot end a higher one); the SOP picks next. The one wire path for assign AND clear (Sensors §7.7).
+                if (evt.Kind == TacticalIntentKind.Clear)
+                {
+                    repo.Bus.Publish(new ClearBehaviorEvent { Entity = evt.Entity, Origin = evt.Origin });
+                    continue;
+                }
 
                 // Try mapper path first.
                 AssignBehaviorEvent? behaviorEvent = null;

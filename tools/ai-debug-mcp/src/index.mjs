@@ -1633,6 +1633,78 @@ const TOOLS = [
     },
   },
 
+  // ⭐⭐ CE-3167 — entity control (docs/DESIGN_Entity_Control.md §4.1): the AI player's orders and situation report.
+  {
+    name: 'order_entity',
+    description: TOOL_DEFS['order_entity'].description,
+    inputSchema: TOOL_DEFS['order_entity'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const { networkId, ...body } = toolArgs;
+        return toolSuccess(await callApi('POST', `/entities/${encodeURIComponent(networkId)}/order`, body));
+      } catch (err) { return toolError(err.message, err.envelope, 'order_entity'); }
+    },
+  },
+
+  {
+    name: 'get_entity_order',
+    description: TOOL_DEFS['get_entity_order'].description,
+    inputSchema: TOOL_DEFS['get_entity_order'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('GET', `/entities/${encodeURIComponent(toolArgs.networkId)}/order`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_entity_order'); }
+    },
+  },
+
+  {
+    name: 'release_entity',
+    description: TOOL_DEFS['release_entity'].description,
+    inputSchema: TOOL_DEFS['release_entity'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('DELETE', `/entities/${encodeURIComponent(toolArgs.networkId)}/order`));
+      } catch (err) { return toolError(err.message, err.envelope, 'release_entity'); }
+    },
+  },
+
+  {
+    name: 'order_entities',
+    description: TOOL_DEFS['order_entities'].description,
+    inputSchema: TOOL_DEFS['order_entities'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/orders', { orders: toolArgs.orders }));
+      } catch (err) { return toolError(err.message, err.envelope, 'order_entities'); }
+    },
+  },
+
+  {
+    name: 'lock_side',
+    description: TOOL_DEFS['lock_side'].description,
+    inputSchema: TOOL_DEFS['lock_side'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/orders/side-lock', { side: toolArgs.side ?? null }));
+      } catch (err) { return toolError(err.message, err.envelope, 'lock_side'); }
+    },
+  },
+
+  {
+    name: 'get_sitrep',
+    description: TOOL_DEFS['get_sitrep'].description,
+    inputSchema: TOOL_DEFS['get_sitrep'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const params = new URLSearchParams();
+        if (toolArgs.side != null) params.set('side', String(toolArgs.side));
+        if (toolArgs.truth != null) params.set('truth', String(toolArgs.truth));
+        const qs = params.toString() ? `?${params}` : '';
+        return toolSuccess(await callApi('GET', `/sitrep${qs}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_sitrep'); }
+    },
+  },
+
   {
     name: 'get_entity_sensors',
     description: TOOL_DEFS['get_entity_sensors'].description,

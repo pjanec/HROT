@@ -139,5 +139,46 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(writer.Written);
             Assert.Equal(0, translator.SentSampleCount);
         }
+
+        /// <summary>⭐ CE-3167 — the order's Kind and ClearsPriorIntent leave on the wire (Kind byte, Flags bit 0).</summary>
+        [Fact]
+        public void CE3167_KindAndClearsPriorIntent_CrossTheWire()
+        {
+            var (translator, writer) = BuildTranslator();
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new BehaviorState());
+            _entityMap.Register(42L, entity);
+
+            _world.Bus.PublishManaged(new AssignTacticalIntentEvent
+            {
+                Entity = entity, Kind = TacticalIntentKind.Clear, ClearsPriorIntent = true,
+                Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator,
+            });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+
+            Assert.Single(writer.Written);
+            Assert.Equal((byte)TacticalIntentKind.Clear, writer.Written[0].Kind);
+            Assert.Equal(TacticalIntentFlags.ClearsPriorIntent, writer.Written[0].Flags);
+        }
+
+        /// <summary>⭐ CE-3167 — on a node that registers no brain state (a SimHost / map node) the egress forwards the order instead
+        /// of throwing: such a node owns no brain.</summary>
+        [Fact]
+        public void CE3167_ANodeWithoutBrainState_ForwardsTheOrder()
+        {
+            using var bare = new EntityRepository();
+            var writer = new CapturingWriter<TacticalIntentRequest>();
+            var map = new NetworkEntityMap();
+            var translator = new TacticalIntentEgressTranslator(writer, map);
+            var entity = bare.CreateEntity();
+            map.Register(7L, entity);
+
+            bare.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = entity, IntentId = "Idle" });
+            bare.Bus.SwapBuffers();
+            translator.ScanAndPublish(bare);
+
+            Assert.Equal(7L, Assert.Single(writer.Written).TargetEntityId);
+        }
     }
 }

@@ -1062,6 +1062,69 @@ namespace Hrot.Editor.DebugApi
                 return Ok(node);
             }));
 
+            // ⭐⭐ CE-3167 (docs/DESIGN_Entity_Control.md §4.1, R-270) — orders: the AI player's hands. One path (EntityOrders),
+            //   shared with the map menu and the RTS tool; origin Operator; forwarded to the brain owner from any node.
+            _routes.Add(new("POST", "/entities/{networkId}/order", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId."));
+                var body = ctx.Body;
+                return RunMainResult(s =>
+                {
+                    var (result, status, error, hint) = s.PostOrder(id, body);
+                    return error != null ? Fail(status, error, hint) : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("GET", "/entities/{networkId}/order", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId."));
+                return RunMain(s => s.GetOrder(id));
+            }));
+
+            _routes.Add(new("DELETE", "/entities/{networkId}/order", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId."));
+                return RunMainResult(s =>
+                {
+                    var (result, status, error, hint) = s.DeleteOrder(id);
+                    return error != null ? Fail(status, error, hint) : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("POST", "/orders", ctx =>
+            {
+                var body = ctx.Body;
+                return RunMainResult(s =>
+                {
+                    var (result, error) = s.PostOrders(body);
+                    return error != null ? Fail(400, error) : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("POST", "/orders/side-lock", ctx =>
+            {
+                var body = ctx.Body;
+                return RunMainResult(s =>
+                {
+                    var (result, error) = s.SetSideLock(body);
+                    return error != null ? Fail(400, error) : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("GET", "/sitrep", ctx =>
+            {
+                var side = ctx.Query("side");
+                bool truth = bool.TryParse(ctx.Query("truth"), out var t) && t;
+                return RunMainResult(s =>
+                {
+                    var (result, error) = s.GetSitrep(side, truth);
+                    return error != null ? Fail(400, error) : Ok(result);
+                });
+            }));
+
             // ⭐ CE-3089 (G7) — a unit's weapon mounts; with ?target= the WeaponSelection inputs per mount and the choice.
             _routes.Add(new("GET", "/entities/{networkId}/weapons", async ctx =>
             {

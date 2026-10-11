@@ -624,5 +624,21 @@ namespace Hrot.SimHost.Tests
                 return system;
             }
         }
+
+        /// <summary>
+        /// ⭐ CE-3167 forwarding rail (the silent-default rule: a production caller that HAS a dependency must pass it) — the pack's
+        /// resolution system holds the pack's <see cref="IntentClearRegistry"/>, and that registry holds the mission plan's clear,
+        /// so an order with ClearsPriorIntent really clears the plan on every brain host.
+        /// </summary>
+        [Fact]
+        public void CE3167_TheResolutionSystem_HoldsThePacksClearRegistry_WithTheMissionPlanProvider()
+        {
+            var pack = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(), new ScenarioEntityCreationRequestSource(),
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
+
+            var resolution = pack.SimulationSystems.OfType<TacticalIntentResolutionSystem>().Single();
+            Assert.Same(pack.IntentClears, resolution.ClearRegistry);
+            Assert.Contains(pack.IntentClears.Providers, p => p is MissionControlExecutionSystem);
+        }
     }
 }

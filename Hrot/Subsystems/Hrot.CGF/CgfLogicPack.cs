@@ -100,6 +100,9 @@ namespace Hrot.CGF
 
         // ── Constructor ───────────────────────────────────────────────────────
 
+        /// <summary>⭐ <c>CE-3167</c> — the providers an order with <c>ClearsPriorIntent</c> runs on this brain (the mission plan).</summary>
+        public IntentClearRegistry IntentClears { get; }
+
         /// <summary>
         /// Creates the Brain-tier CGF logic pack with the standard Brain executor set
         /// (MoveToExecutor, FollowRouteExecutor, JoinFormationExecutor, AimAndFireExecutor).
@@ -160,7 +163,11 @@ namespace Hrot.CGF
             _cognitiveRuntimeModule = new CognitiveRuntimeModule(behaviorRegistry, gateOnAuthority);
             _missionExecutionSystem              = new MissionControlExecutionSystem(entityMap, behaviorRegistry, mapperRegistry);
             _missionAdapterSystem                = new MissionAdapterSystem();
-            _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry, behaviorRegistry);
+            // ⭐ CE-3167 (Entity Commanding §2.5d) — what an order with ClearsPriorIntent clears, registered once here: the
+            //   mission plan, by the system that owns it (one clear, shared with CMD_ABORT_ALL).
+            IntentClears = new IntentClearRegistry();
+            IntentClears.Register(_missionExecutionSystem);
+            _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry, behaviorRegistry, IntentClears);
             _actionDispatchModule   = new ActionDispatchModule(
                 locoExecutors: new (ushort, IActionExecutor<LocomotionChannel>)[]
                 {

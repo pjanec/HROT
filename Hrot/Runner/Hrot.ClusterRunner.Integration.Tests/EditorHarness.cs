@@ -123,7 +123,15 @@ public sealed class EditorHarness : IDisposable
             clusterState:   () => Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
             // ⭐ CE-515 ③ — the harness HOLDS a creation pack; a debug API built without it is the silent-default
             //   pattern (POST /entities/spawn and /create-request would refuse).
-            entityCreation: _ => EntityCreation);
+            entityCreation: _ => EntityCreation,
+            // ⭐ CE-3167 — the harness HOLDS the behaviour registry its brain runs; the API names behaviours and checks
+            //   ordered ones against it (the silent-default rule: a caller that has a dependency passes it).
+            behaviorRegistry: _behaviorRegistry);
+
+    private readonly BehaviorRegistry _behaviorRegistry;
+
+    /// <summary>⭐ CE-3167 — the behaviour registry the harness's brain (<c>CgfLogicPack</c>) runs.</summary>
+    public BehaviorRegistry Behaviors => _behaviorRegistry;
 
     /// <summary>
     /// The real ring-buffer history the debug API reads for <c>GET /events</c>.
@@ -206,7 +214,9 @@ public sealed class EditorHarness : IDisposable
     /// completing (19 failures) to <b>"Test host process crashed"</b> ~32 tests in. ⇒ only the suite that
     /// tests breakpoints pays for them.
     /// </param>
-    public EditorHarness(IEcsModuleSystem[]? extraGlobalSystems = null, bool enableBreakpoints = false)
+    /// <param name="productionBehaviors">⭐ CE-3167 — load the production behaviour set (<c>CgfBehaviorSetup.LoadFromAiAssembly</c>,
+    /// as every brain host does) so an order resolves to a real behaviour. Off by default: most rails need none.</param>
+    public EditorHarness(IEcsModuleSystem[]? extraGlobalSystems = null, bool enableBreakpoints = false, bool productionBehaviors = false)
     {
         Repo   = new EntityRepository();
         Bus    = Repo.Bus;
@@ -250,6 +260,7 @@ public sealed class EditorHarness : IDisposable
         EntityMap = new NetworkEntityMap();
 
         var behaviorRegistry = new BehaviorRegistry();
+        _behaviorRegistry = behaviorRegistry;
         var clusterSlave     = new ClusterSlave(0, "EditorHarness", OrchBus);
         // ⭐ The editor's OWN serializer (EditorBootstrap.CreateFileService), not a bare builder: the bare one has no
         //   translators, so a scenario saved here dropped ActiveMissionPlan (MissionPlanTranslator) and a live load of it
@@ -289,6 +300,8 @@ public sealed class EditorHarness : IDisposable
         // ⭐ A4/O0 — the registry must exist BEFORE the pack, which now builds the tick system
         //   against it. (It used to be created further down, beside the old root splice.)
         BlueprintRegistry = new Fdp.Toolkit.Blueprints.BlueprintRegistry();
+        if (productionBehaviors)
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry, BlueprintRegistry);   // CE-3167
         var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, EntityMap,
             new ScenarioEntityCreationRequestSource(), mapperRegistry, BlueprintRegistry);
         var scenarioMod      = new ScenarioEditorModule(fileService);

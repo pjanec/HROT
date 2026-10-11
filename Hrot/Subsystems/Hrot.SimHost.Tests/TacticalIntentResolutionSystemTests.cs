@@ -260,5 +260,82 @@ namespace Hrot.SimHost.Tests
             var behaviorEvents = repo.Bus.ReadManaged<AssignBehaviorEvent>();
             Assert.Empty(behaviorEvents);
         }
+
+        // ── CE-3167: ClearsPriorIntent and Kind ──────────────────────────────
+
+        private sealed class RecordingProvider : IIntentClearProvider
+        {
+            public readonly List<Entity> Cleared = new();
+            public string Name => "Recording";
+            public void ClearFor(Entity entity, EntityRepository repo) => Cleared.Add(entity);
+        }
+
+        private static (EntityRepository Repo, Entity Unit, RecordingProvider Provider, TacticalIntentResolutionSystem System) ClearRig(bool authority = true)
+        {
+            var repo = CreateTestWorld();
+            repo.RegisterEvent<ClearBehaviorEvent>();
+            var unit = repo.CreateEntity();
+            repo.AddComponent(unit, new BehaviorState());
+            repo.SetAuthority<BehaviorState>(unit, authority);
+            var provider = new RecordingProvider();
+            var clears = new IntentClearRegistry();
+            clears.Register(provider);
+            return (repo, unit, provider, new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), new BehaviorRegistry(), clears));
+        }
+
+        /// <summary>⭐ CE-3167 (Entity Commanding §2.5b-d) — an order with ClearsPriorIntent runs every provider for the unit in the
+        /// same call that publishes the assign; an order without the flag runs none.</summary>
+        [Fact]
+        public void CE3167_ClearsPriorIntent_RunsTheProviders_AndStillAssigns_WithoutTheFlagNoneRun()
+        {
+            var (repo, unit, provider, system) = ClearRig();
+            using var _ = repo;
+            repo.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = unit, IntentId = "Idle" });
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.016f);
+            Assert.Empty(provider.Cleared);
+
+            repo.Bus.SwapBuffers();
+            repo.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = unit, IntentId = "Idle", ClearsPriorIntent = true, Origin = BehaviorOrigin.Operator });
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.016f);
+            repo.Bus.SwapBuffers();
+
+            Assert.Equal(new[] { unit }, provider.Cleared);
+            var assigns = repo.Bus.ReadManaged<AssignBehaviorEvent>();
+            Assert.Single(assigns);
+            Assert.Equal(BehaviorOrigin.Operator, assigns[0].Origin);
+        }
+
+        /// <summary>⭐ CE-3167 — the providers run on the brain OWNER only: a node without authority clears nothing.</summary>
+        [Fact]
+        public void CE3167_ANonOwner_RunsNoProvider()
+        {
+            var (repo, unit, provider, system) = ClearRig(authority: false);
+            using var _ = repo;
+            repo.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = unit, IntentId = "Idle", ClearsPriorIntent = true });
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.016f);
+            Assert.Empty(provider.Cleared);
+        }
+
+        /// <summary>⭐ CE-3167 — a Clear intent ends the running behaviour at the intent's origin (a ClearBehaviorEvent), and
+        /// assigns nothing.</summary>
+        [Fact]
+        public void CE3167_AClearIntent_PublishesAClearAtItsOrigin_AndNoAssign()
+        {
+            var (repo, unit, _, system) = ClearRig();
+            using var __ = repo;
+            repo.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = unit, Kind = TacticalIntentKind.Clear, Origin = BehaviorOrigin.Operator });
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.016f);
+            repo.Bus.SwapBuffers();
+
+            Assert.Empty(repo.Bus.ReadManaged<AssignBehaviorEvent>());
+            var clears = repo.Bus.Read<ClearBehaviorEvent>().ToArray();
+            Assert.Single(clears);
+            Assert.Equal(unit, clears[0].Entity);
+            Assert.Equal(BehaviorOrigin.Operator, clears[0].Origin);
+        }
     }
 }
