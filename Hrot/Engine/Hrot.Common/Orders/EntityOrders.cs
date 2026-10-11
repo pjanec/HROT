@@ -2,9 +2,11 @@ using System;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Modules.Geographic;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Map.Definitions.Behavior;
 
@@ -22,6 +24,8 @@ namespace Hrot.Common.Orders
         WrongSide,
         /// <summary>The order itself is malformed (no behaviour name, no move target).</summary>
         BadRequest,
+        /// <summary>⭐ <c>CE-3172</c> (C-3) — a station possesses the unit: no order reaches it until it is released.</summary>
+        Possessed,
     }
 
     /// <summary>The outcome of one <see cref="EntityOrders"/> call: the refusal, or what was published.</summary>
@@ -131,6 +135,66 @@ namespace Hrot.Common.Orders
             return new OrderResult(OrderRefusal.None, "released", string.Empty, string.Empty);
         }
 
+        // ── possession (CE-3172, C-3/C-4/C-8; docs/DESIGN_Entity_Control.md §8b) ──────────────────────────────
+
+        /// <summary>⭐ <c>CE-3172</c> — this node, as a STATION (C-8: one operator per node). Null = the node id on the unit's
+        /// <c>NetworkAuthority</c> (every replicated unit carries this node's id), or 0 on a node with no authority data.</summary>
+        public long? Station { get; set; }
+
+        /// <summary>⭐ <c>CE-3172</c> — POSSESS the unit (FPS): its task pauses and this station's control frames drive it, until
+        /// <see cref="Unpossess"/> (or it dies) resumes the task. Another station's hold is taken over (C-3).</summary>
+        public OrderResult Possess(long unit)
+        {
+            if (!TryAddress(unit, out var entity, out var refused, ignorePossession: true)) return refused;
+            Publish(new PossessRequestEvent { Unit = entity, Mode = PossessionMode.Fps, StationNodeId = StationFor(entity) });
+            return new OrderResult(OrderRefusal.None, "possessing", string.Empty, string.Empty);
+        }
+
+        /// <summary>⭐ <c>CE-3172</c> (C-4) — let the possessed unit go: the task it was doing resumes.</summary>
+        public OrderResult Unpossess(long unit)
+        {
+            if (!TryHeld(unit, out var entity, out var refused)) return refused;
+            Publish(new ReleasePossessionEvent { Unit = entity, StationNodeId = StationFor(entity) });
+            return new OrderResult(OrderRefusal.None, "released", string.Empty, string.Empty);
+        }
+
+        /// <summary>⭐ <c>CE-3172</c> / <c>CE-3173</c> — one control frame for the unit this station possesses (M-6: the newest
+        /// <paramref name="frame"/><c>.Seq</c> wins). <paramref name="frame"/>'s unit and station are filled in here.</summary>
+        public OrderResult Control(long unit, OperatorControlFrameEvent frame)
+        {
+            if (!TryHeld(unit, out var entity, out var refused)) return refused;
+            frame.Unit = entity;
+            frame.StationNodeId = StationFor(entity);
+            frame.IsRemote = false;
+            Publish(frame);
+            return new OrderResult(OrderRefusal.None, "control", string.Empty, string.Empty);
+        }
+
+        /// <summary>The station holding the unit (null = nobody) — what a station reads to know it still holds it.</summary>
+        public long? HolderOf(long unit)
+            => _map.TryGetEntity(unit, out var e) && _world.IsAlive(e) ? PossessionSystem.HolderOf(_world, e) : null;
+
+        private bool TryHeld(long unit, out Entity entity, out OrderResult refused)
+        {
+            if (!TryAddress(unit, out entity, out refused, ignorePossession: true)) return false;
+            long station = StationFor(entity);
+            if (PossessionSystem.HolderOf(_world, entity) is long holder && holder == station) return true;
+            refused = OrderResult.Refused(OrderRefusal.Possessed, PossessionSystem.HolderOf(_world, entity) is long other
+                ? $"Entity {unit} is possessed by station {other}, not this one ({station})."
+                : $"Entity {unit} is not possessed by this station ({station}).");
+            return false;
+        }
+
+        private long StationFor(Entity entity)
+            => Station ?? (_world.IsComponentTypeRegistered<NetworkAuthority>() && _world.HasComponent<NetworkAuthority>(entity)
+                ? _world.GetComponentRO<NetworkAuthority>(entity).LocalNodeId : 0L);
+
+        private void Publish<T>(T evt) where T : unmanaged
+        {
+            if (!_world.Bus.IsRegistered<T>()) _world.Bus.Register<T>();
+            _world.Bus.Publish(evt);
+        }
+
         private OrderResult Assign(long unit, string intentId, string json)
         {
             if (!TryAddress(unit, out var entity, out var refused)) return refused;
@@ -143,7 +207,7 @@ namespace Hrot.Common.Orders
         }
 
         /// <summary>The checks every order shares: the unit exists here, is not killed, and is on the locked side.</summary>
-        private bool TryAddress(long unit, out Entity entity, out OrderResult refused)
+        private bool TryAddress(long unit, out Entity entity, out OrderResult refused, bool ignorePossession = false)
         {
             refused = default;
             if (!_map.TryGetEntity(unit, out entity) || !_world.IsAlive(entity))
@@ -155,6 +219,13 @@ namespace Hrot.Common.Orders
                 && _world.GetComponentRO<Health>(entity).Current <= 0)
             {
                 refused = OrderResult.Refused(OrderRefusal.Dead, $"Entity {unit} is killed.");
+                return false;
+            }
+            // ⭐ CE-3172 (C-3) — a possessed unit takes no order until its station lets it go (the ingress would refuse an
+            //   Operator order under a Possession anyway; this says WHY instead of a silent drop)
+            if (!ignorePossession && PossessionSystem.HolderOf(_world, entity) is long holder)
+            {
+                refused = OrderResult.Refused(OrderRefusal.Possessed, $"Entity {unit} is possessed by station {holder}; release it first.");
                 return false;
             }
             if (SideLock is ForceId side)

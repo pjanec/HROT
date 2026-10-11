@@ -223,4 +223,106 @@ public sealed class DebugApiOrdersTests
         Assert.NotNull(svc.SendCommand("CenterOnEntityCommand", new JsonObject { ["targetId"] = 42L }, wait: false).error);
         Assert.NotNull(svc.SendCommand("ClearBehaviorEvent", new JsonObject { ["entity"] = 999999L }, wait: false).error);
     }
+
+    // ── CE-3172 / CE-3173 — possession (docs/DESIGN_Entity_Control.md §8b) ─────────────────────────────
+
+    /// <summary>A walking body the muscle can drive (pedestrian preset, nav components the bridge and kinematics read).</summary>
+    private static Entity Walker(EditorHarness h, long id)
+    {
+        var e = Unit(h, id, ForceId.Friend, Vector3.Zero);
+        var r = h.Repo;
+        if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationIntent>()) r.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+        if (!r.IsComponentTypeRegistered<CarKinem.Core.NavState>()) r.RegisterComponent<CarKinem.Core.NavState>();
+        if (!r.IsComponentTypeRegistered<CarKinem.Core.VehicleState>()) r.RegisterComponent<CarKinem.Core.VehicleState>();
+        if (!r.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>()) r.RegisterComponent<CarKinem.Core.VehicleParams>();
+        if (!r.IsComponentTypeRegistered<SimVelocity>()) r.RegisterComponent<SimVelocity>();
+        r.AddComponent(e, new Fdp.Toolkit.Navigation.NavigationIntent());
+        r.SetAuthority<Fdp.Toolkit.Navigation.NavigationIntent>(e, true);
+        r.AddComponent(e, new CarKinem.Core.NavState());
+        r.AddComponent(e, new CarKinem.Core.VehicleState());
+        r.AddComponent(e, CarKinem.Core.VehiclePresets.GetPreset(CarKinem.Core.VehicleClass.Pedestrian));
+        r.AddComponent(e, new SimVelocity());
+        r.SetAuthority<SimTransform>(e, true);
+        return e;
+    }
+
+    [Fact]
+    public void CE3172_Possession_PausesTheOrder_DrivesTheBody_RefusesOrders_AndReleaseResumes()
+    {
+        using var h = new EditorHarness(productionBehaviors: true);
+        var svc = h.BuildDebugApiService();
+        var unit = Walker(h, UnitId);
+        svc.PostOrder(UnitId, new JsonObject { ["kind"] = "hold" });
+        h.PumpFrames(4);
+        Assert.Equal(BehaviorOrigin.Operator, h.Repo.GetComponentRO<BehaviorState>(unit).Origin);
+
+        // possess: OperatorControl runs at origin Possession, the hold is PAUSED (not dropped)
+        var (_, status, error, _) = svc.PostPossess(UnitId);
+        Assert.Null(error);
+        Assert.Equal(200, status);
+        h.PumpFrames(4);
+        var bs = h.Repo.GetComponentRO<BehaviorState>(unit);
+        Assert.Equal(IdOf(h, BehaviorNames.OperatorControl), bs.ActiveBehaviorHash);
+        Assert.Equal(BehaviorOrigin.Possession, bs.Origin);
+        var order = svc.GetOrder(UnitId);
+        Assert.Equal("paused", order["state"]!.GetValue<string>());
+        Assert.Equal(BehaviorNames.Idle, order["behavior"]!.GetValue<string>());
+
+        // a possessed unit takes no order (C-3) — it says why
+        var refused = svc.PostOrder(UnitId, new JsonObject { ["kind"] = "move", ["x"] = 10f, ["y"] = 0f });
+        Assert.Equal(409, refused.status);
+        Assert.Contains("Possessed", refused.error);
+
+        // drive: forward, facing +X — the body walks east (the harness steps 5 ms a frame: 300 frames = 1.5 s of sim time)
+        var start = h.Repo.GetComponentRO<SimTransform>(unit).Position;
+        for (uint seq = 1; seq <= 300; seq++)
+        {
+            Assert.Null(svc.PostControl(UnitId, new JsonObject { ["seq"] = seq, ["forward"] = 1f, ["yaw"] = 0f }).error);
+            h.PumpFrames(1);
+        }
+        Assert.Equal(Fdp.Toolkit.Navigation.NavigationMode.Manual, h.Repo.GetComponentRO<Fdp.Toolkit.Navigation.NavigationIntent>(unit).Mode);
+        Assert.Equal(1f, h.Repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(unit).Forward);
+        var moved = h.Repo.GetComponentRO<SimTransform>(unit).Position;
+        Assert.True(moved.X - start.X > 0.5f, $"walked east: {start} -> {moved}");
+        Assert.InRange(MathF.Abs(moved.Y - start.Y), 0f, 0.1f);
+
+        // an older frame is ignored (newest seq wins)
+        svc.PostControl(UnitId, new JsonObject { ["seq"] = 30, ["forward"] = -1f });
+        h.PumpFrames(2);
+        Assert.Equal(1f, h.Repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(unit).Forward);
+
+        // release: the body stops, the motion request is let go, and the hold RESUMES at origin Operator
+        (_, status, error, _) = svc.DeletePossess(UnitId);
+        Assert.Null(error);
+        h.PumpFrames(4);
+        bs = h.Repo.GetComponentRO<BehaviorState>(unit);
+        Assert.Equal(IdOf(h, BehaviorNames.Idle), bs.ActiveBehaviorHash);
+        Assert.Equal(BehaviorOrigin.Operator, bs.Origin);
+        Assert.Equal(0f, h.Repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(unit).Forward);
+        Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationMode.Manual, h.Repo.GetComponentRO<Fdp.Toolkit.Navigation.NavigationIntent>(unit).Mode);
+        Assert.False(h.Repo.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(unit));
+        Assert.Equal("running", svc.GetOrder(UnitId)["state"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void CE3172_AnotherStation_CannotDriveOrRelease_ButCanTakeOver()
+    {
+        using var h = new EditorHarness(productionBehaviors: true);
+        var unit = Walker(h, UnitId);
+        var a = new Hrot.Common.Orders.EntityOrders(h.Repo, h.EntityMap, geo: null) { Station = 7 };
+        var b = new Hrot.Common.Orders.EntityOrders(h.Repo, h.EntityMap, geo: null) { Station = 9 };
+        Assert.True(a.Possess(UnitId).Accepted);
+        h.PumpFrames(4);
+        Assert.Equal(7L, a.HolderOf(UnitId));
+
+        var f = new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent { Seq = 1, Forward = 1f };
+        Assert.Equal(Hrot.Common.Orders.OrderRefusal.Possessed, b.Control(UnitId, f).Refusal);
+        Assert.Equal(Hrot.Common.Orders.OrderRefusal.Possessed, b.Unpossess(UnitId).Refusal);
+
+        Assert.True(b.Possess(UnitId).Accepted);   // C-3: a later station takes the unit over
+        h.PumpFrames(4);
+        Assert.Equal(9L, b.HolderOf(UnitId));
+        Assert.Equal(BehaviorOrigin.Possession, h.Repo.GetComponentRO<BehaviorState>(unit).Origin);
+        Assert.Equal(Hrot.Common.Orders.OrderRefusal.Possessed, a.Control(UnitId, f).Refusal);
+    }
 }

@@ -1835,6 +1835,54 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "hand unit 1000 back to its AI"),
 
+        // ⭐ CE-3172 — possession (docs/DESIGN_Entity_Control.md §8b): one station drives one unit, first person.
+        [("POST", "/entities/{networkId}/possess")] = new RouteDoc(
+            Tool:    "possess_entity",
+            Group:   "Z — Entity control (orders)",
+            Summary: "Possess a unit as this node's station (first person): its current task pauses and control_entity frames drive its body until release_possession, or until it dies; the paused task then resumes. Another station's hold is taken over.",
+            Returns: "{ networkId, accepted:true, detail:'possessing' } — 404 unknown unit, 409 killed / other side.",
+            Hint:    "Req: networkId. Then send control_entity frames; read who holds it with get_entity_order (current.origin = Possession). Example: possess_entity({networkId:1000})",
+            Params: new RouteParam[] { new("networkId", "integer", true, "Network id of the unit") },
+            Notes: new[]
+            {
+                "While possessed, ordinary orders to the unit are refused (409 Possessed) — release it first.",
+                "Possession is a behaviour (OperatorControl) at origin Possession, above Operator: no reaction interrupts it (R-270).",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "take unit 1000 in first person"),
+
+        [("DELETE", "/entities/{networkId}/possess")] = new RouteDoc(
+            Tool:    "release_possession",
+            Group:   "Z — Entity control (orders)",
+            Summary: "Let a possessed unit go: it stops, and the task it was doing before resumes.",
+            Returns: "{ networkId, accepted:true, detail:'released' } — 409 when another station (or none) holds it.",
+            Hint:    "Req: networkId. Example: release_possession({networkId:1000})",
+            Params: new RouteParam[] { new("networkId", "integer", true, "Network id of the unit") },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "hand unit 1000 back to its task"),
+
+        [("POST", "/entities/{networkId}/control")] = new RouteDoc(
+            Tool:    "control_entity",
+            Group:   "Z — Entity control (orders)",
+            Summary: "One control frame for the unit this station possesses — a person: forward/back + strafe in its body frame, facing an absolute yaw; a vehicle: throttle (forward; negative brakes, then reverses) + steer. The newest seq wins; keep sending while the controls are held.",
+            Returns: "{ networkId, accepted:true, detail:'control' } — 409 when this station does not hold the unit.",
+            Hint:    "Req: networkId, seq (rising). Example: control_entity({networkId:1000, seq:1, forward:1, yaw:0})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "integer", true, "Network id of the unit"),
+                new("seq", "integer", true, "Frame number, rising — an older frame is ignored"),
+                new("forward", "number", false, "-1..1: a person's forward (+) / back (-, at 60 %); a vehicle's throttle (- brakes, then reverses)"),
+                new("lateral", "number", false, "-1..1: a person's strafe, + = left (at 60 %)"),
+                new("steer", "number", false, "-1..1: a vehicle's steer, + = left"),
+                new("yaw", "number", false, "a person's facing — ABSOLUTE world yaw in radians (0 = +X, counter-clockwise)"),
+                new("gait", "integer", false, "a person's pace: 0 = run, 1 = walk (half speed)"),
+                new("trigger", "boolean", false, "the trigger is held (operator fire — S4d)"),
+                new("aim", "array", false, "[x,y,z] where the station aims, world metres (S4d)"),
+            },
+            Notes: new[] { "Frames only drive a unit possessed by THIS node's station (possess_entity first)." },
+            ExampleArgsJson: "{\"networkId\":1000,\"seq\":1,\"forward\":1,\"yaw\":0}",
+            ExampleGist: "walk unit 1000 forward, facing east"),
+
         [("POST", "/orders")] = new RouteDoc(
             Tool:    "order_entities",
             Group:   "Z — Entity control (orders)",

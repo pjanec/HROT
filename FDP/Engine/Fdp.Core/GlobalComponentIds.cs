@@ -784,5 +784,14 @@ namespace Fdp.Core
         /// <c>KinematicsMode.Manual</c>; Brain group (written by the possessing behaviour, read by the muscle). Never saved.
         /// ⚠ 362 (moved from 361 at the ui merge).</summary>
         public const int ManualDrive = 362;
+
+        /// <summary><c>PossessedBy</c> — ⭐ CE-3172 (docs/DESIGN_Entity_Control.md §8b, C-3): WHICH STATION holds a unit (station node id, mode,
+        /// epoch); Brain group, the one writer is <c>PossessionSystem</c>. Never saved. ⚠ 363 measured free on backend, ui and behaviors
+        /// 2026-10-11 (after the ui merge).</summary>
+        public const int PossessedBy = 363;
+
+        /// <summary><c>OperatorInput</c> — ⭐ CE-3172 (§8b, M-6): the possessing station's newest control frame, on the brain only (the
+        /// <c>OperatorControl</c> behaviour reads it). Never saved, never sent. ⚠ 364 measured free 2026-10-11.</summary>
+        public const int OperatorInput = 364;
     }
 }

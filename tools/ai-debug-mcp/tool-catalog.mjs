@@ -4179,6 +4179,87 @@ export const TOOLS_CATALOG = [
   // ── Group Z — Entity control (orders) ───────────────────────────────────────
 
   {
+    "name": "control_entity",
+    "group": "Z — Entity control (orders)",
+    "summary": "One control frame for the unit this station possesses — a person: forward/back + strafe in its body frame, facing an absolute yaw; a vehicle: throttle (forward; negative brakes, then reverses) + steer. The newest seq wins; keep sending while the controls are held.",
+    "http": {
+      "method": "POST",
+      "path": "/entities/{networkId}/control"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the unit"
+      },
+      {
+        "name": "seq",
+        "type": "integer",
+        "required": true,
+        "description": "Frame number, rising — an older frame is ignored"
+      },
+      {
+        "name": "forward",
+        "type": "number",
+        "required": false,
+        "description": "-1..1: a person's forward (+) / back (-, at 60 %); a vehicle's throttle (- brakes, then reverses)"
+      },
+      {
+        "name": "lateral",
+        "type": "number",
+        "required": false,
+        "description": "-1..1: a person's strafe, + = left (at 60 %)"
+      },
+      {
+        "name": "steer",
+        "type": "number",
+        "required": false,
+        "description": "-1..1: a vehicle's steer, + = left"
+      },
+      {
+        "name": "yaw",
+        "type": "number",
+        "required": false,
+        "description": "a person's facing — ABSOLUTE world yaw in radians (0 = +X, counter-clockwise)"
+      },
+      {
+        "name": "gait",
+        "type": "integer",
+        "required": false,
+        "description": "a person's pace: 0 = run, 1 = walk (half speed)"
+      },
+      {
+        "name": "trigger",
+        "type": "boolean",
+        "required": false,
+        "description": "the trigger is held (operator fire — S4d)"
+      },
+      {
+        "name": "aim",
+        "type": "array",
+        "required": false,
+        "description": "[x,y,z] where the station aims, world metres (S4d)"
+      }
+    ],
+    "returns": "{ networkId, accepted:true, detail:'control' } — 409 when this station does not hold the unit.",
+    "notes": [
+      "Frames only drive a unit possessed by THIS node's station (possess_entity first)."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000,
+        "seq": 1,
+        "forward": 1,
+        "yaw": 0
+      },
+      "gist": "walk unit 1000 forward, facing east"
+    },
+    "hint": "Req: networkId, seq (rising). Example: control_entity({networkId:1000, seq:1, forward:1, yaw:0})",
+    "manualVerify": false
+  },
+
+  {
     "name": "release_entity",
     "group": "Z — Entity control (orders)",
     "summary": "Release a unit: the operator's order ends and the unit's own SOP decides again.",
@@ -4339,6 +4420,64 @@ export const TOOLS_CATALOG = [
       "gist": "send unit 1000 to a point"
     },
     "hint": "Req: networkId, kind. Move: {kind:'move', lat,lon} or {x,y} (+ speed, arrivalRadius, roadUse). Attack: {kind:'attack', targetId}. Any behaviour: {kind:'behavior', behavior, params} — discover with list_behaviors({entityId}). Then poll get_entity_order. Example: order_entity({networkId:1000, kind:'move', x:120, y:-40})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "release_possession",
+    "group": "Z — Entity control (orders)",
+    "summary": "Let a possessed unit go: it stops, and the task it was doing before resumes.",
+    "http": {
+      "method": "DELETE",
+      "path": "/entities/{networkId}/possess"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the unit"
+      }
+    ],
+    "returns": "{ networkId, accepted:true, detail:'released' } — 409 when another station (or none) holds it.",
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "hand unit 1000 back to its task"
+    },
+    "hint": "Req: networkId. Example: release_possession({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "possess_entity",
+    "group": "Z — Entity control (orders)",
+    "summary": "Possess a unit as this node's station (first person): its current task pauses and control_entity frames drive its body until release_possession, or until it dies; the paused task then resumes. Another station's hold is taken over.",
+    "http": {
+      "method": "POST",
+      "path": "/entities/{networkId}/possess"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the unit"
+      }
+    ],
+    "returns": "{ networkId, accepted:true, detail:'possessing' } — 404 unknown unit, 409 killed / other side.",
+    "notes": [
+      "While possessed, ordinary orders to the unit are refused (409 Possessed) — release it first.",
+      "Possession is a behaviour (OperatorControl) at origin Possession, above Operator: no reaction interrupts it (R-270)."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "take unit 1000 in first person"
+    },
+    "hint": "Req: networkId. Then send control_entity frames; read who holds it with get_entity_order (current.origin = Possession). Example: possess_entity({networkId:1000})",
     "manualVerify": false
   },
 

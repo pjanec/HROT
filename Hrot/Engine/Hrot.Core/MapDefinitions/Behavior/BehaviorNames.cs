@@ -44,5 +44,9 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ CE-2123 — go to a point firing at the top threat, no posture decision: a superior's MOVE order (DESIGN_Squad_Tactics §3.6).</summary>
         public const string AdvanceTo = "AdvanceTo";
+
+        /// <summary>⭐ CE-3172 (R-270, M-7) — what a POSSESSED unit runs: the station's controls drive its body
+        /// (DESIGN_Entity_Control §8b). Assigned by <c>PossessionSystem</c> at origin Possession only.</summary>
+        public const string OperatorControl = "OperatorControl";
     }
 }

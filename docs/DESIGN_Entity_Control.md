@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4-S5 READY-TO-BUILD (M-1..M-10 approved, R-271 (backend))
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool)
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4a-S4c built (§8b design, §13 as-built); S4d-S4e, S5 READY-TO-BUILD (M-1..M-10 approved, R-271 (backend))
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive)
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -606,6 +606,33 @@ default-`-1` member; `CanvasMapPickAdapter` implements it.
 RMB ground / friend / neutral moves · the gizmo is exclusive, routes its gestures, Esc leaves · offered and armed on a live map with
 a pick, absent in a replay).
 MCP tools: `order_entity` · `get_entity_order` · `release_entity` · `order_entities` · `lock_side` · `get_sitrep` (group Z).
+
+## 13. AS-BUILT — S4a-S4c possession and manual drive (`CE-3172` part, `CE-3173` part, `2026-10-11`)
+
+⭐ **Built as §8b's class and sequence diagrams draw them, with one moved responsibility:** the let-go after a possession ends is `PossessionSystem`'s, not `OperatorControl`'s (row below). The other deviations are additions:
+
+| as-built detail | why |
+|---|---|
+| ⭐ **the possess / release / control calls live on `EntityOrders`** (`Possess` · `Unpossess` · `Control` · `HolderOf`), and the HTTP routes call them | §3.1's rule — ONE operator service (R-270): the FPS tool (S5) will call the same three, so HTTP and FPS cannot drift. §8b's `PossessRoutes` box is that service's HTTP face |
+| ⭐ **`OperatorControl`'s node RE-ENTERS Manual whenever anything cleared it** (not strictly "once") | the paused task's MoveTo `OnExit` writes `Mode = None` when the possession pre-empts it; a strictly-once write could be overwritten in the same frames. Re-entering is idempotent (`IntentId++` only on a change) |
+| a station is a NODE id: `EntityOrders.Station`, else the unit's `NetworkAuthority.LocalNodeId` (C-8) | every replicated unit carries this node's id, so no new singleton |
+| `OrderRefusal.Possessed` (409): any order to a possessed unit, and control / release from a station that does not hold it | the ingress would refuse an Operator order under a Possession anyway — this says WHY instead of a silent drop |
+| `PossessionSystem` is the first Input system of `CgfLogicPack` | its `AssignBehaviorEvent` is on the bus before the behaviour ingress reads |
+| a unit with no frame yet holds still (axes 0, facing kept); once no possession runs, `PossessionSystem` zeroes `ManualDrive` and lets `NavigationIntent` go (the invariant *Manual lives only under a running possession*) | the resumed task starts from idle, never from the operator's last stick position. 🔴→⭐ **found by the rail:** the first build did it in an `OperatorControl` BTree deactivator, which never ran — a ROOT behaviour's deactivators do not fire on clear, by design (`DESIGN_Behaviour_Fault_And_Teardown.md`, rejected *"fire BTree deactivators on clear"*). The invariant also covers death and faults |
+| ⚠ component ids: `DesignatedTarget` **360**, `OrdersOffered` **361**, `ManualDrive` **362**, `PossessedBy` **363**, `OperatorInput` **364** | 359 was allocated twice the same evening (ui's `WeaponPosture`); backend's three moved up one at the ui merge |
+| event ids 5200-5202 (`PossessRequest` · `ReleasePossession` · `ControlFrame`) | a census of every event id on all lanes |
+
+📐 **Rails:** `SopSlotTests` CE3172 ×3 (a possession pauses / refuses reactions / its release resumes; over a reaction; over the
+idle choice, an Operator clear refused) · `CarKinematicsSystemTests` CE3173 ×4 (strafe at 60 %; turn on the spot, back at 60 %,
+signed speed; a vehicle steers, brakes, reverses; no drive = hold still) · `DebugApiOrdersTests` CE3172 ×2 in the NETWORKLESS
+editor world (possess pauses a hold, refuses an order, control frames walk the body east, an older frame is ignored, release stops
+the body and resumes the hold; another station cannot drive or release but can take over).
+MCP tools: `possess_entity` · `release_possession` · `control_entity` (group Z).
+
+⏭ **Still open in S4:** S4d operator fire (`AimAndFireParams` point + operator flag — the frame already carries `Trigger`,
+`Mount`, `AimPoint`); S4e the `ManualDrive` + `PossessedBy` descriptors and the `Possess` / `Release` / `ControlFrame` interaction
+cases (until then possession works where the station, brain and muscle share a world — the editor). M-5 (the navmesh wall check)
+did not land: the muscle's manual branch has no navmesh reach today — it stays its own row.
 
 ## 8. Known limits and defects found while designing
 

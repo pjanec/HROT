@@ -215,6 +215,10 @@ namespace Hrot.CGF
             var inputList     = new List<IEcsModuleSystem>();
             var simList       = new List<IEcsModuleSystem>();
 
+            // ⭐ CE-3172 (docs/DESIGN_Entity_Control.md §8b) — the brain owner's side of possession: a station's request starts
+            //   OperatorControl at origin Possession (pausing the task), its frames become OperatorInput, a release resumes the task.
+            //   First, so the assignment it publishes is on the bus before the behaviour ingress reads it.
+            inputList.Add(new Fdp.Toolkit.Behavior.Possession.PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl));
             inputList.Add(_missionExecutionSystem);
             foreach (var s in _missionControlModule.InputSystems) inputList.Add(s);
             foreach (var s in _cognitiveRuntimeModule.InputSystems) inputList.Add(s);

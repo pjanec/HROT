@@ -25,7 +25,8 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtNavigationIntent), D(EDescriptorType.dtSensorConfig), D(EDescriptorType.dtEqsSensorConfig),
         D(EDescriptorType.dtBrainIntent),     // ⭐ CE-3048 — the AI intent is granted with the Brain
         D(EDescriptorType.dtStanceIntent),    // ⭐ CE-2121 — the body-stance request
-        D(EDescriptorType.dtWeaponTask) };    // ⭐ CE-1049 WL-2 (R-261) — the weapon brain's standing order to a turret
+        D(EDescriptorType.dtWeaponTask),      // ⭐ CE-1049 WL-2 (R-261) — the weapon brain's standing order to a turret
+        D(EDescriptorType.dtWeaponPosture) }; // ⭐ WL-6 (W-13, R-272) — the weapon brain's posture (ui lane; pinned here at the backend merge)
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),
         D(EDescriptorType.dtStanceStatus),    // ⭐ CE-2121 — the body's stance report
         D(EDescriptorType.dtTurretPose),      // ⭐ CE-1049 WL-1b — the turret pose, Muscle-owned
