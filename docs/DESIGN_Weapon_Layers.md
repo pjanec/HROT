@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-11
 build-state: BUILDING (WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built) — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
-current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount) · §5 slices · §6 ambient fire
+current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 OPEN (WL-4) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
 known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount parts are never created — stale, CgfComponentRegistry.cs:38
@@ -197,6 +197,15 @@ the measured shape argues for keying them by the **turret part** instead (the `T
 rifleman) keeps the per-shot path (W-2's simple profile). Blast radius: the WL-2/3 wire and the Muscle's dispatcher only — nothing built
 changes. What would change it: a weapon that must aim two mounts on one turret at two targets at once (none in the catalog).
 Rejected: per-mount tasks — two tasks for one turret need a tie-break nobody owns, and the Muscle has no mount entities to hold them.
+
+### W-12 — ⏳ OPEN (needed for WL-4): what each category's profile does differently
+
+| # | question | ⭐ lean | rests on | rejected — one line |
+|---|---|---|---|---|
+| **W-12a** | when the mount is chosen | **once per engagement** (action entry, new target), with the same `WeaponChoice` / `WeaponSelectionDecision`; re-chosen only when that mount fails (OutOfArc, out of ammo) | ⚠ WL-3's known limit (§5e: a per-frame flip loses an unaccounted round) · `WeaponChoice.cs` (called per shot today) | per shot as today — flips the task's epoch mid-burst |
+| **W-12b** | which categories use the turret task | TankGun, Autocannon, Atgm, and a MachineGun **on a turret** (coax); SmallArms, Grenade, Mortar and a hull MachineGun keep the per-shot path | U-W1 *"AimSeconds can stay for simplest weapon brains"* · W-5 | every turret mount alike (today's default) — an ATGM needs its own rule (below) |
+| **W-12c** | the ATGM | grant **one round at a time**; the next only after the previous round's flight ended (its detonation), so the turret stays on target while a guided round flies | the muscle already tracks while granted rounds are 0 (Track) | firing a salvo — a guided weapon cannot guide two |
+| **W-12d** | ammo per target | **not in WL-4**: one `AmmoGuid` per mount (W-6) until a mount declares a second round; the task already carries `AmmoGuid`, so it lands with no wire change | `WeaponSuiteDto.cs:86` (one ammo per mount) · W-6 | inventing AP/HE rounds now — no TKB data to choose between |
 
 ⚠ **New behaviour vocabulary (part of W-1):** `TrackTarget(target)` on the weapon channel — keep the gun on a target without
 firing — beside `AimAndFire` and `FireAtPoint`; releasing the channel sets the task to Idle.
