@@ -511,6 +511,103 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ LR-3 (docs/DESIGN_Visual_Effects.md §8.5, R-271) — what a DUMB VIEWER draws: no combat state at all (BallisticProjectile is not
+    /// even registered), only replicated rounds — <c>LightweightRound</c> + the munition type + position + velocity, as the
+    /// EntityMaster / WorldPos ingress leaves them. The built-in types: a 5.56 tracer burst, a 120 mm APFSDS-T, an RPG-7 and a TOW with
+    /// their smoke, an 81 mm bomb falling and an M67 lying (a viewer knows no fuze); then the 2-D map's <c>LightweightRoundGizmo</c>.
+    /// </summary>
+    [SkippableFact]
+    public void LR_AViewerDrawsReplicatedRounds_FromMasterAndPositionOnly()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<SimVelocity>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.LightweightRound>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 3.3 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        void Soldier(float dx, float dy, StanceId stance, float yaw)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new StanceIntent { TargetStance = stance });
+        }
+        int sent = 0;
+        void Replicated(long type, Vector3 at, Vector3 velocity)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            world.AddComponent(e, new SimVelocity { Linear = velocity });
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, default(Fdp.Toolkit.Replication.Components.LightweightRound));
+            sent++;
+        }
+        Soldier(-8f, 0f, StanceId.Standing, 0f);
+        Soldier(6f, 2f, StanceId.Crouched, MathF.PI);
+        var mg = new Vector3(spot.X - 8f, spot.Y, G(spot.X - 8f, spot.Y) + 1.4f);
+        foreach (var range in new[] { 40f, 75f, 110f })
+        {
+            var dir = Vector3.Normalize(new Vector3(0.55f, 1f, 0.02f));
+            Replicated(MunitionTkbCatalog.Tkb556Tracer, mg + dir * range, dir * 900f);
+        }
+        Replicated(MunitionTkbCatalog.Tkb120mmApfsds, new Vector3(spot.X - 30f, spot.Y + 30f, G(spot.X, spot.Y) + 2.5f), new Vector3(1650f, 0f, 0f));
+        Replicated(MunitionTkbCatalog.TkbRpg7Rocket, new Vector3(spot.X + 2f, spot.Y + 16f, G(spot.X, spot.Y) + 3f), new Vector3(-110f, 8f, 1f));
+        Replicated(MunitionTkbCatalog.TkbTowMissile, new Vector3(spot.X - 8f, spot.Y + 24f, G(spot.X, spot.Y) + 6f), new Vector3(180f, -6f, 0f));
+        Replicated(MunitionTkbCatalog.Tkb81mmMortarHe, new Vector3(spot.X + 10f, spot.Y + 12f, G(spot.X, spot.Y) + 14f), new Vector3(20f, 4f, -45f));
+        Replicated(MunitionTkbCatalog.TkbM67Grenade, new Vector3(spot.X + 4.5f, spot.Y + 0.5f, G(spot.X + 4.5f, spot.Y + 0.5f)), Vector3.Zero);
+        Replicated(MunitionTkbCatalog.Tkb556Ball, mg + new Vector3(0, 30, 0), new Vector3(0, 900, 0));   // never sent for real; drawn as nothing
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        var rounds = new Hrot.UI.Common.Effects.ProjectileLayer(() => world, () => tkb, () => sw.Camera3D) { GroundHeight = G };
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        canvas.AddLayer(rounds);
+        sw.Set(true, animate: false);
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 2f, spot.Y + 10f, G(spot.X, spot.Y) + 5f), 40f, MathF.PI * 0.5f, -0.12f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "lr-1-viewer-overview.png"));
+        Assert.Equal(sent - 1, rounds.Drawn);                                    // all but the ball
+
+        var canvas2 = new MapCanvas(input: null);
+        var cam2 = new MapCamera();
+        const float zoom = 12f;
+        var target = new Vector2(spot.X + 2f - 1280f / 2f / zoom, spot.Y + 12f + 800f / 2f / zoom);
+        cam2.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas2.Camera = cam2;
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus(), camera: cam2);
+        canvas2.AddLayer(gizmos);
+        var projector = new Hrot.ScenarioEditor.Gizmos.LightweightRoundGizmo();
+        foreach (var e in world.Query().With<Fdp.Toolkit.Replication.Components.LightweightRound>().With<SimTransform>().Build())
+            projector.Draw(world, e, buffer);
+        gizmos.Update(0.016f);
+        frame.Step(canvas2.Draw);
+        frame.Step(canvas2.Draw);
+        frame.Screenshot(Path.Combine(shots, "lr-2-viewer-map2d.png"));
+    }
+
+    /// <summary>
     /// ⭐ CE-1034 H3b + H5d — a REAL height-grid terrain through the 3-D map: highway-rest's relief, the overpass (a deck 6 m up on two
     /// ramps) over the highway, a car on the deck and a truck on the highway under it. 📄 docs/DESIGN_Terrain_Height.md §3.4, §5.
     /// </summary>

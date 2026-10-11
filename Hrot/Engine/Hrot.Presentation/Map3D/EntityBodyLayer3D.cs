@@ -291,6 +291,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (t == null) return new TypeLook(VisualFamily.Unknown, ShapeKits.DefaultSize(VisualFamily.Unknown), DefaultColour(VisualFamily.Unknown), false);
         if (t.GetDescriptor<EffectVisualDto>() != null)   // ⭐ CE-1042 — an effect type has no body
             return new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
+        // ⭐ LR-3 (DESIGN_Visual_Effects.md §8.5, R-271) — a MUNITION type (DIS kind 2, or one with a Munition.Visual) is a round, not a body:
+        //   ProjectileLayer draws it. ⛔ Without this a replicated round (TkbIdentity = its munition) drew as an unknown purple box.
+        if (t.DisType.Kind == 2 || t.GetDescriptor<MunitionVisualDto>() != null)
+            return new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         var family = VisualFamilies.Of(t);
         var size = ShapeKits.DefaultSize(family);
         var geometry = t.GetDescriptor<BodyGeometryDto>();

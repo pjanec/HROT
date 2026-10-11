@@ -4,6 +4,7 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Replication.Components;
 
 namespace Hrot.ScenarioEditor.Gizmos
 {
@@ -37,23 +38,35 @@ namespace Hrot.ScenarioEditor.Gizmos
             var start = new Vector3(proj.PreviousPosition.X, proj.PreviousPosition.Y, 0f);
             var end   = new Vector3(tf.Position.X,           tf.Position.Y,           0f);
 
-            draw.DrawLine(start, end, StreakColor, thickness: 2f, SizeMode.ScreenPixels);
-
-            if (proj.Ammo == 0 || (proj.Warhead & WarheadRound.Spent) != 0) return;
+            if ((proj.Warhead & WarheadRound.Spent) != 0) { draw.DrawLine(start, end, StreakColor, thickness: 2f, SizeMode.ScreenPixels); return; }
             var tkb = view is EntityRepository repo && repo.HasSingletonManaged<ITkbDatabase>() ? repo.GetSingletonManaged<ITkbDatabase>() : null;
-            if (Hrot.Core.Tkb.MunitionTkbCatalog.VisualOf(tkb, proj.Ammo) is not { } look) return;   // an ordinary bullet: the streak only
+            var look = proj.Ammo == 0 ? null : Hrot.Core.Tkb.MunitionTkbCatalog.VisualOf(tkb, proj.Ammo);
+            bool lying = (proj.Warhead & WarheadRound.Landed) != 0 || proj.StoppedTick != 0;
+            bool armed = lying && (proj.Warhead & WarheadRound.TimeFuze) != 0 && proj.FuzeRemaining > 0f;
+            DrawRound(draw, start, end, look, lying, armed, proj.FuzeRemaining);
+        }
+
+        /// <summary>
+        /// ⭐ The ONE 2-D drawing of a round (P1/P2, LR-3), shared by this projector (rounds on the node that runs combat) and
+        /// <see cref="LightweightRoundGizmo"/> (replicated rounds on a viewer): the yellow 1-frame streak; for a munition with a look,
+        /// a STATE marker — yellow flying, red-orange armed (lying, fuze burning) with its "3 s" countdown; a tracer bullet's streak
+        /// wider in its glow, no marker.
+        /// </summary>
+        public static void DrawRound(IDebugDrawBuilder draw, Vector3 start, Vector3 end, Fdp.Toolkit.Tkb.Domain.MunitionVisualDto? look,
+                                     bool lying, bool armed, float fuzeLeft)
+        {
+            draw.DrawLine(start, end, StreakColor, thickness: 2f, SizeMode.ScreenPixels);
+            if (look == null) return;   // an ordinary bullet: the streak only
             if (look.Shape == Fdp.Toolkit.Tkb.Domain.MunitionShape.Bullet)
             {
                 // ⭐ P2 (§8 PR-F) — a tracer bullet: its streak again, wider and in its glow; no marker (it is a bullet)
                 if (look.Tracer) draw.DrawLine(start, end, TracerGlow(look.TracerColorHex), thickness: 3f, SizeMode.ScreenPixels);
                 return;
             }
-            bool lying = (proj.Warhead & WarheadRound.Landed) != 0 || proj.StoppedTick != 0;
-            bool armed = lying && (proj.Warhead & WarheadRound.TimeFuze) != 0 && proj.FuzeRemaining > 0f;
             draw.DrawSphere(end, lying ? LyingMarkerPixels : MarkerPixels, MarkerOutline, thickness: 1.5f, SizeMode.ScreenPixels,
                             fillColor: armed ? ArmedFill : FlyingFill);
             if (armed)
-                draw.DrawText(end.X, end.Y, new Fdp.Core.FixedString32(FuzeLabel(proj.FuzeRemaining)), FuzeText, fontSizePx: 20f, lineOffsetPx: -18f);
+                draw.DrawText(end.X, end.Y, new Fdp.Core.FixedString32(FuzeLabel(fuzeLeft)), FuzeText, fontSizePx: 20f, lineOffsetPx: -18f);
         }
 
         private static Rgba32 TracerGlow(string? hex)
@@ -69,5 +82,28 @@ namespace Hrot.ScenarioEditor.Gizmos
         public static string FuzeLabel(float seconds)
             => $"{(int)System.MathF.Ceiling(System.MathF.Max(0f, seconds))} s";
 
+    }
+
+    /// <summary>
+    /// ⭐ LR-3 (docs/DESIGN_Visual_Effects.md §8.5, R-271) — a REPLICATED round on a viewer (<see cref="LightweightRound"/>: no combat state,
+    /// just the munition type and the replicated position and velocity) drawn by the same <see cref="ProjectilePresentationGizmo.DrawRound"/>.
+    /// On the node that runs combat the round also has <see cref="BallisticProjectile"/> and the other projector draws it, so this one
+    /// stands down there. A viewer knows no fuze (master + position only, LR-C): a round at rest is drawn lying, not armed.
+    /// </summary>
+    [GizmoProjector(typeof(LightweightRound), typeof(SimTransform))]
+    public sealed class LightweightRoundGizmo : IStatelessGizmo
+    {
+        public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
+        {
+            if (view.HasComponent<BallisticProjectile>(entity) || !view.HasComponent<TkbIdentity>(entity)) return;
+            ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
+            var velocity = view.HasComponent<SimVelocity>(entity) ? view.GetComponentRO<SimVelocity>(entity).Linear : Vector3.Zero;
+            var tkb = view is EntityRepository repo && repo.HasSingletonManaged<ITkbDatabase>() ? repo.GetSingletonManaged<ITkbDatabase>() : null;
+            var look = Hrot.Core.Tkb.MunitionTkbCatalog.VisualOf(tkb, view.GetComponentRO<TkbIdentity>(entity).TkbType);
+            var end = new Vector3(tf.Position.X, tf.Position.Y, 0f);
+            var back = velocity * (1f / 60f);   // one frame of flight, as the combat projector's streak
+            var start = new Vector3(tf.Position.X - back.X, tf.Position.Y - back.Y, 0f);
+            ProjectilePresentationGizmo.DrawRound(draw, start, end, look, velocity.LengthSquared() < 0.04f, armed: false, fuzeLeft: 0f);
+        }
     }
 }

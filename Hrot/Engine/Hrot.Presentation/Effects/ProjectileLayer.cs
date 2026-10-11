@@ -28,6 +28,7 @@ public sealed class ProjectileLayer : IMapLayer
     private readonly Func<MapCamera3D?>? _camera;
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
+    private EntityQuery? _replicated;
 
     /// <summary>The smallest a round's body is drawn, in screen pixels (along its longest side).</summary>
     public const float MinPixels = 10f;
@@ -81,16 +82,56 @@ public sealed class ProjectileLayer : IMapLayer
     {
         var list = new List<Round>();
         var world = _world();
-        if (world == null || !world.IsComponentTypeRegistered<BallisticProjectile>() || !world.IsComponentTypeRegistered<SimTransform>()) return list;
+        if (world == null || !world.IsComponentTypeRegistered<SimTransform>()) return list;
+        bool combat = world.IsComponentTypeRegistered<BallisticProjectile>();
+        bool replicated = world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()
+                          && world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        if (!combat && !replicated) return list;
         if (!ReferenceEquals(world, _queryWorld))
         {
             _queryWorld = world;
-            _query = world.Query().With<BallisticProjectile>().With<SimTransform>().Build();
+            _query = combat ? world.Query().With<BallisticProjectile>().With<SimTransform>().Build() : null;
+            // ⭐ LR-3 (§8.5, R-271) — a VIEWER's rounds: replicated, so no combat state — the look from the munition type, the nose from
+            //   the replicated velocity, at rest = lying. On the muscle the same round also has BallisticProjectile ⇒ drawn once, above.
+            if (replicated)
+            {
+                var q = world.Query().With<Fdp.Toolkit.Replication.Components.LightweightRound>()
+                                     .With<Fdp.Toolkit.Replication.Components.TkbIdentity>().With<SimTransform>();
+                _replicated = (combat ? q.Without<BallisticProjectile>() : q).Build();
+            }
+            else _replicated = null;
         }
         var tkb = _tkb();
         bool hasVelocity = world.IsComponentTypeRegistered<SimVelocity>();
         double now = Fdp.Toolkit.Time.SimClock.Of(world).TotalTime;
-        foreach (var e in _query!)
+        if (_replicated != null)
+            foreach (var e in _replicated)
+            {
+                long type = world.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType;
+                if (MunitionTkbCatalog.VisualOf(tkb, type) is not { } look) continue;
+                var at = world.GetComponentRO<SimTransform>(e).Position;
+                var velocity = hasVelocity && world.HasComponent<SimVelocity>(e) ? world.GetComponentRO<SimVelocity>(e).Linear : Vector3.Zero;
+                int seed = e.Index * 7919 + e.Generation;
+                float speed = velocity.Length();
+                bool lying = speed < 0.2f;
+                Vector3 nose;
+                if (lying)
+                {
+                    nose = YawDirection(seed);
+                    float ground = GroundHeight?.Invoke(at.X, at.Y) ?? at.Z;
+                    at = new Vector3(at.X, at.Y, MathF.Max(at.Z, ground));
+                }
+                else
+                {
+                    nose = velocity / speed;
+                    if (look.Shape == MunitionShape.Grenade) nose = Tumble(nose, now, seed);
+                }
+                // the muzzle is unknown on a viewer: a tracer / smoke trail runs back along the flight, capped by its own limits
+                var muzzle = at - (lying ? Vector3.Zero : nose * (look.SmokeTrail ? TrailSpacing * TrailPuffs : TracerMaxLength));
+                list.Add(new Round(look, at, nose, lying, 0f, muzzle, seed, lying ? 0f : speed));
+            }
+        if (_query == null) return list;
+        foreach (var e in _query)
         {
             ref readonly var round = ref world.GetComponentRO<BallisticProjectile>(e);
             if ((round.Warhead & WarheadRound.Spent) != 0) continue;

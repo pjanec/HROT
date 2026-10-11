@@ -240,6 +240,10 @@ namespace Hrot.Common.EntityCreation
                     // ⭐ The SAME finalization instance the create side uses — a second one would give delete
                     //   its own ACK bookkeeping, the class of split this pack exists to prevent.
                     new DeleteEntityRequestSystem(adapters.DeleteSource, ackSink, ctx.EntityMap, finalization, ctx.NodeId),
+                    // ⭐ LR-2 (DESIGN_Visual_Effects.md §8.5, R-271) — a visible round (a shell, a grenade, a rocket, a tracer…) gets its
+                    //   network id and local ownership here, so the existing egress replicates it as EntityMaster (Lightweight) +
+                    //   WorldPos — no lifecycle, no acks. Only with a network: a standalone host's rounds stay local.
+                    new Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem(ctx.IdAllocator, ctx.EntityMap, ctx.NodeId),
                 };
 
             // ⭐ CE-1033 S5 (R-260) — the LOCAL request source on the world, so shared code that only holds the world (a map layer

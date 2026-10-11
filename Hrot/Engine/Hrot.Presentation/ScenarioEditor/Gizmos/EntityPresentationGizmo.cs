@@ -98,6 +98,9 @@ namespace Hrot.ScenarioEditor.Gizmos
             // ⭐ CE-1033 S5 (R-260) — the map CAMERA entity is the view, not a thing on the map: no symbol, no anchor, no pick box.
             if (view.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity)
                 && Hrot.Core.Tkb.MapCameraTkb.Is(view.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity).TkbType)) return;
+            // ⭐ LR-3 (DESIGN_Visual_Effects.md §8.5, R-271) — a replicated ROUND is not a unit: no symbol, no anchor, no pick box
+            //   (its projector draws it).
+            if (view.HasComponent<Fdp.Toolkit.Replication.Components.LightweightRound>(entity)) return;
 
             // ⭐ SimTransform is the single source on every host. CGF's copy preferred NetworkTransform on
             // the grounds that it is "fresher on a host that does not own the entity" — measured false:

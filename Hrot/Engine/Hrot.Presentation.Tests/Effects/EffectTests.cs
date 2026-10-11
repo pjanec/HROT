@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -89,7 +90,7 @@ public sealed class EffectTests
     }
 
     [Fact]
-    public void E2_AShot_MakesAFlashAttachedToTheWeapon_AndATracerTowardTheTarget()
+    public void E2_AShot_MakesAFlashAttachedToTheWeapon_AndNoDecorativeTracer()
     {
         var (world, _) = World();
         var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(0, 0, 3));
@@ -100,7 +101,7 @@ public sealed class EffectTests
 
         var fx = Effects(world);
         Assert.Contains(fx, f => f.Type == EffectTkbCatalog.MuzzleFlashLarge);   // the 125 mm gun is large calibre
-        Assert.Contains(fx, f => f.Type == EffectTkbCatalog.Tracer);
+        Assert.DoesNotContain(fx, f => f.Type == EffectTkbCatalog.Tracer);         // ⛔ LR-4: a tracer is a real, replicated round now
         var flash = fx.Single(f => f.Type == EffectTkbCatalog.MuzzleFlashLarge).Entity;
         var anchor = world.GetComponentRO<EffectAnchor>(flash);
         Assert.Equal(tank, anchor.Shooter);                                      // VE-J: attached, no position of its own
@@ -439,6 +440,96 @@ public sealed class EffectTests
         Assert.Single(buffer.GetFrame().ToArray());
     }
 
+    /// <summary>⭐⭐ LR-1 (docs/DESIGN_Visual_Effects.md §8.5, R-271: "Every ammo needs its tkb type, always") — every built-in mount
+    /// loads a registered munition type, and giving it one CHANGED NO COMBAT NUMBER: no new type picks up an explosive warhead from
+    /// the reference library by name (only the M67 and the 81 mm, which had them), and every mount's penetration is still its own.
+    /// The visible ones carry a look (tracers, the big gun rounds, the rocket, the missile); 5.56 ball does not.</summary>
+    [Fact]
+    public void LR1_EveryBuiltInMountLoadsAMunitionType_AndNoCombatNumberMoved()
+    {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        var explosive = new HashSet<long> { MunitionTkbCatalog.TkbM67Grenade, MunitionTkbCatalog.Tkb81mmMortarHe };
+        int mounts = 0, tracerMixed = 0;
+        foreach (var t in tkb.GetAll())
+        {
+            var suite = t.GetDescriptor<WeaponSuiteDto>();
+            if (suite == null) continue;
+            foreach (var m in suite.Mounts)
+            {
+                mounts++;
+                Assert.True(m.AmmoGuid != 0, $"{t.Name}: a mount with no munition type");
+                Assert.True(tkb.TryGetByType(unchecked((long)m.AmmoGuid), out var ammo) && ammo != null, $"{t.Name}: munition {m.AmmoGuid} not registered");
+                Assert.Equal(2, ammo!.DisType.Kind);
+                var (warhead, source, _) = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(tkb, unchecked((long)m.AmmoGuid));
+                Assert.True((warhead != null) == explosive.Contains(unchecked((long)m.AmmoGuid)), $"{t.Name} / {ammo.Name}: warhead changed — {source}");
+                if (m.Penetration > 0f)
+                    Assert.Equal(m.Penetration, Fdp.Toolkit.Tkb.Parameters.ParameterResolver.MountPenetration(tkb, m).Value);
+                if (m.TracerAmmoGuid != 0)
+                {
+                    tracerMixed++;
+                    Assert.True(m.TracerEvery > 0, $"{t.Name}: a tracer munition with no mix");
+                    Assert.True(MunitionTkbCatalog.VisualOf(tkb, unchecked((long)m.TracerAmmoGuid))?.Tracer == true);
+                    Assert.Null(Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(tkb, unchecked((long)m.TracerAmmoGuid)).Warhead);
+                }
+            }
+        }
+        Assert.True(mounts >= 6, $"only {mounts} mounts found");
+        Assert.True(tracerMixed >= 3, "the rifles mix tracers (the M4 and both insurgent rifles)");
+        Assert.Null(MunitionTkbCatalog.VisualOf(tkb, MunitionTkbCatalog.Tkb556Ball));          // an ordinary bullet: no look, never sent
+        foreach (var visible in new[] { MunitionTkbCatalog.Tkb556Tracer, MunitionTkbCatalog.Tkb25mmApdsT, MunitionTkbCatalog.Tkb120mmApfsds,
+                                        MunitionTkbCatalog.Tkb125mmApfsds, MunitionTkbCatalog.TkbTowMissile, MunitionTkbCatalog.TkbRpg7Rocket })
+            Assert.NotNull(tkb.GetByType(visible).GetDescriptor<MunitionVisualDto>());
+    }
+
+    /// <summary>⭐ LR-3 (§8.5, R-271) — a VIEWER draws a replicated round from nothing but its master and position: the look from its
+    /// munition type, the nose from the replicated velocity, a tracer streak back along the flight; at rest it lies. On the node that
+    /// runs combat the same round (BallisticProjectile + LightweightRound) is drawn ONCE. Neither the body layer nor the 2-D entity
+    /// marker draws it as a unit; the 2-D round projector does.</summary>
+    [Fact]
+    public void LR3_AViewerDrawsAReplicatedRound_FromItsTypeAndVelocity_AndTheMuscleDrawsItOnce()
+    {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        var world = RoundsWorld(tkb);
+        world.RegisterComponent<LightweightRound>();
+        world.RegisterComponent<TkbIdentity>();
+        Entity Replicated(long type, Vector3 at, Vector3 v)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            world.AddComponent(e, new SimVelocity { Linear = v });
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, default(LightweightRound));
+            return e;
+        }
+        var tracer = Replicated(MunitionTkbCatalog.Tkb556Tracer, new Vector3(100, 0, 2), new Vector3(900, 0, 0));
+        Replicated(MunitionTkbCatalog.TkbM67Grenade, new Vector3(30, 4, 0), Vector3.Zero);                 // lying, no fuze known
+        Replicated(MunitionTkbCatalog.Tkb556Ball, new Vector3(50, 0, 2), new Vector3(900, 0, 0));         // never sent; drawn as nothing
+        var muscleRound = Round(world, MunitionTkbCatalog.TkbRpg7Rocket, new Vector3(60, 0, 3), new Vector3(120, 0, 0));
+        world.AddComponent(muscleRound, new TkbIdentity { TkbType = MunitionTkbCatalog.TkbRpg7Rocket });
+        world.AddComponent(muscleRound, default(LightweightRound));
+        var layer = new ProjectileLayer(() => world, () => tkb) { GroundHeight = (_, _) => 0.5f };
+
+        var rounds = layer.Resolve();
+        Assert.Equal(3, rounds.Count);                                                         // tracer, grenade, rocket once
+        var t = Assert.Single(rounds, r => r.Look.Shape == MunitionShape.Bullet);
+        Assert.Equal(Vector3.UnitX, t.Nose);
+        Assert.True(ProjectileLayer.TracerOf(t, out var head, out var tail) && tail.X < head.X, "the streak trails behind it");
+        var g = Assert.Single(rounds, r => r.Look.Shape == MunitionShape.Grenade);
+        Assert.True(g.Lying);
+        Assert.Equal(0f, g.FuzeLeft);                                                          // a viewer knows no fuze (LR-C)
+        Assert.Equal(0.5f, g.Centre.Z);
+        Assert.Single(rounds, r => r.Look.Shape == MunitionShape.Rocket);
+
+        Assert.Equal(Hrot.UI.Common.Map3D.VisualFamily.Unit,
+                     Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(tkb.GetByType(MunitionTkbCatalog.Tkb556Tracer)).Family);
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        new Hrot.ScenarioEditor.Gizmos.LightweightRoundGizmo().Draw(world, tracer, buffer);
+        Assert.Equal(2, buffer.GetFrame().ToArray().Length);                                   // the streak + its glow
+        buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        new Hrot.ScenarioEditor.Gizmos.LightweightRoundGizmo().Draw(world, muscleRound, buffer);
+        Assert.Empty(buffer.GetFrame().ToArray());                                             // the combat projector draws that one
+    }
+
     /// <summary>⭐ P1 (§8 PR-C) — the 2-D projector: a bullet keeps its streak only; a grenade adds a marker; a LYING grenade adds its
     /// fuze seconds — before, a lying grenade's streak had zero length and it was invisible.</summary>
     [Fact]
@@ -527,13 +618,19 @@ public sealed class EffectTests
     }
 
     [Fact]
-    public void E3_TheLayerResolvesEachEffectFromItsTkbType_AFlashAtTheMuzzle_ATracerStreakingAlongItsPath()
+    public void E3_TheLayerResolvesEachEffectFromItsTkbType_AFlashAtTheMuzzle_ARecordedTracerStreakingAlongItsPath()
     {
         var (world, tkb) = World();
         var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(0, 0, 0));
         var target = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams, new Vector3(300, 0, 0));
         world.Bus.Publish(new WeaponFireNotification { Shooter = tank, Target = target, WeaponIndex = 0 });
         Tick(world, new EffectSpawnSystem(), 0.016f);
+        // ⭐ LR-4 — shots spawn no tracer effect any more; one RECORDED before it (a replay) still draws, so it is made here directly
+        var recorded = world.CreateEntity();
+        world.AddComponent(recorded, new SimTransform { Position = new Vector3(0, 0, 0), Rotation = Quaternion.Identity });
+        world.AddComponent(recorded, new TkbIdentity { TkbType = EffectTkbCatalog.Tracer });
+        world.AddComponent(recorded, Lifespan.Starting(0.0, EffectTkbCatalog.BuiltIn[EffectTkbCatalog.Tracer].Visual.Duration));
+        world.AddComponent(recorded, new EffectAnchor { Shooter = tank, WeaponIndex = 0, Toward = new Vector3(300, 0, 0) });
         var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => world, () => tkb);
         var layer = new EffectLayer(() => world, () => tkb, bodies);
 

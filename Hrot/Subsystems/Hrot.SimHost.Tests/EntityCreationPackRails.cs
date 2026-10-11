@@ -521,13 +521,15 @@ namespace Hrot.SimHost.Tests
         /// while SimHost/Stride registered a system. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S2b.
         /// </summary>
         [Fact]
-        public void Build_WithNetworkAdapters_YieldsThePollAndTheDeleteSystem()
+        public void Build_WithNetworkAdapters_YieldsThePollTheDeleteAndTheRoundIdentitySystem()
         {
             var adapters = new FakeAdapters();
             var creation = EntityCreationPack.Build(WithAdapters(MinimalContext(out var world), adapters));
 
-            Assert.Equal(2, creation.NetworkSystems.Count);
+            Assert.Equal(3, creation.NetworkSystems.Count);
             Assert.Contains(creation.NetworkSystems, s => s is Hrot.Common.Systems.DeleteEntityRequestSystem);
+            // ⭐ LR-2 (docs/DESIGN_Visual_Effects.md §8.5, R-271) — a visible round's network identity
+            Assert.Contains(creation.NetworkSystems, s => s is Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem);
             var poll = Assert.Single(creation.NetworkSystems.OfType<Hrot.Common.Systems.NetworkPollingSystem>());
 
             poll.Execute(world, 0f);

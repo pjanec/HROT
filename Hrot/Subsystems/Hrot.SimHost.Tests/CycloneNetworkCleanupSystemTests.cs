@@ -80,6 +80,35 @@ namespace Hrot.SimHost.Tests
 
         // â”€â”€ BUG1-N002 Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+        /// <summary>⭐ LR-2 (Hrot docs/DESIGN_Visual_Effects.md §8.5, R-271) — a LIGHTWEIGHT round has no lifecycle: no DestructionOrder ever
+        /// announces it. When it is simply destroyed (it burst), the next tick disposes it on every translator — so every viewer drops
+        /// its copy — exactly once; a remote (non-authoritative) round is never disposed from here.</summary>
+        [Fact]
+        public void LR2_ALightweightRound_IsDisposedWhenItIsDestroyed_WithoutAnyDestructionOrder()
+        {
+            var repo = CreateWorld();
+            repo.RegisterComponent<LightweightRound>();
+            var t1 = new MockTranslator();
+            var t2 = new MockTranslator();
+            var system = new CycloneNetworkCleanupSystem(new[] { t1, t2 });
+
+            var round = CreateAuthoritativeEntity(repo, netId: 900L);
+            repo.AddComponent(round, default(LightweightRound));
+            var remote = CreateAuthoritativeEntity(repo, netId: 901L, primaryOwner: 2, localNode: 1);
+            repo.AddComponent(remote, default(LightweightRound));
+            system.Execute(repo, 0f);
+            Assert.Empty(t1.DisposedIds);                      // alive: nothing yet
+
+            repo.DestroyEntity(round);                         // it burst — no ELM, no DestructionOrder
+            repo.DestroyEntity(remote);
+            system.Execute(repo, 0f);
+            Assert.Equal(new[] { 900L }, t1.DisposedIds);
+            Assert.Equal(new[] { 900L }, t2.DisposedIds);
+
+            system.Execute(repo, 0f);                          // once only
+            Assert.Single(t1.DisposedIds);
+        }
+
         [Fact]
         public void AllTranslatorsReceiveDispose_WhenEntityDies()
         {

@@ -756,5 +756,9 @@ namespace Fdp.Core
         /// <summary><c>Lifespan</c> — ⭐ W1 (docs/DESIGN_Visual_Effects.md §7 VE-Q, R-269 (ui)): when an entity was made (sim time) and how long
         /// it lives; <c>LifespanSystem</c> removes it after. ⚠ 355 is the backend lane's <c>CombatTemperament</c>, so this takes 356.</summary>
         public const int Lifespan = 356;
+
+        /// <summary><c>LightweightRound</c> — ⭐ LR-2 (docs/DESIGN_Visual_Effects.md §8.5, R-271): a round replicated WITHOUT any lifecycle —
+        /// EntityMaster (Lightweight) + WorldPos only, no ghost promotion, no ELM, no acks.</summary>
+        public const int LightweightRound = 357;
     }
 }

@@ -18,6 +18,8 @@ namespace Fdp.Network.Cyclone.Systems
     {
         private readonly Fdp.Interfaces.IDescriptorTranslator[] _translators;
         private readonly Dictionary<long, Entity> _trackedEntities = new();
+        private readonly Dictionary<long, Entity> _trackedLightweight = new();   // ⭐ LR-2 — rounds with no lifecycle (R-271)
+        private readonly List<long> _goneLightweight = new();
         private int _worldEpoch;   // ⭐ CE-2101 — tracked ids belong to ONE world (WorldEpoch)
         private readonly Dictionary<IDescriptorTranslator, SystemProfileData> _translatorProfileData = new();
 
@@ -42,7 +44,7 @@ namespace Fdp.Network.Cyclone.Systems
         {
             // ⭐ CE-2101 — the world boundary wiped these entities without a DestructionOrder; forget them locally
             //   (⛔ no Dispose: that writes "entity deleted" to the wire, and the next world reuses the ids).
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _trackedEntities.Clear();
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _trackedEntities.Clear(); _trackedLightweight.Clear(); }
 
             // 1. Scan for new entities to track (all lifecycle states — entities may be in
             //    Constructing, Active, or TearDown when they first need to be tracked).
@@ -66,7 +68,25 @@ namespace Fdp.Network.Cyclone.Systems
                  if (!_trackedEntities.ContainsKey(netId))
                  {
                      _trackedEntities[netId] = entity;
+                     if (view.HasComponent<LightweightRound>(entity)) _trackedLightweight[netId] = entity;
                  }
+            }
+
+            // ⭐⭐ 1b. LR-2 (Hrot docs/DESIGN_Visual_Effects.md §8.5, R-271) — a LIGHTWEIGHT round has no lifecycle, so no DestructionOrder
+            //   ever announces its end: it is simply destroyed when it bursts or stops. ⇒ a tracked lightweight round that is no
+            //   longer alive gets its descriptors disposed here (EntityMaster ⇒ every viewer destroys its copy). Without this, every
+            //   viewer would keep every round it ever saw.
+            if (_trackedLightweight.Count > 0)
+            {
+                _goneLightweight.Clear();
+                foreach (var (netId, round) in _trackedLightweight)
+                    if (!view.IsAlive(round)) _goneLightweight.Add(netId);
+                foreach (long netId in _goneLightweight)
+                {
+                    _trackedLightweight.Remove(netId);
+                    _trackedEntities.Remove(netId);
+                    DisposeAll(netId);
+                }
             }
 
             // 2. Dispose translators for entities entering TearDown via DestructionOrder.
@@ -84,29 +104,35 @@ namespace Fdp.Network.Cyclone.Systems
                         "Detected entity destruction {0}, sending dispose.",
                         netId);
 
-                    foreach (var translator in _translators)
+                    DisposeAll(netId);
+                }
+            }
+        }
+
+        /// <summary>Disposes <paramref name="netId"/> on every translator (writes "entity deleted" to the wire), timing each.</summary>
+        private void DisposeAll(long netId)
+        {
+            foreach (var translator in _translators)
+            {
+                var sw = Stopwatch.StartNew();
+                try
+                {
+                    translator.Dispose(netId);
+                }
+                catch (Exception ex)
+                {
+                    FdpLog<CycloneNetworkCleanupSystem>.Error(
+                        "Translator {0} failed to dispose entity {1}: {2}",
+                        translator.GetType().Name,
+                        netId,
+                        ex.Message);
+                }
+                finally
+                {
+                    sw.Stop();
+                    if (_translatorProfileData.TryGetValue(translator, out var profile))
                     {
-                        var sw = Stopwatch.StartNew();
-                        try
-                        {
-                            translator.Dispose(netId);
-                        }
-                        catch (Exception ex)
-                        {
-                            FdpLog<CycloneNetworkCleanupSystem>.Error(
-                                "Translator {0} failed to dispose entity {1}: {2}",
-                                translator.GetType().Name,
-                                netId,
-                                ex.Message);
-                        }
-                        finally
-                        {
-                            sw.Stop();
-                            if (_translatorProfileData.TryGetValue(translator, out var profile))
-                            {
-                                profile.RecordExecution(sw.Elapsed.TotalMilliseconds);
-                            }
-                        }
+                        profile.RecordExecution(sw.Elapsed.TotalMilliseconds);
                     }
                 }
             }

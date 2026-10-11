@@ -21,7 +21,7 @@ namespace Hrot.UI.Common.Effects;
 /// <c>RequiredSystems</c> so a host that skips it is reported (R-254). Replaces IG's <c>EventToEffectSystem</c> on the map hosts.
 /// <list type="bullet">
 ///   <item><b>Fired</b> (<see cref="WeaponFireNotification"/>): a muzzle flash ATTACHED to the shooter's weapon (<see cref="EffectAnchor"/>
-///   — no position of its own, VE-J) and, if the round has one, a tracer toward the target.</item>
+///   — no position of its own, VE-J). ⛔ No tracer any more (LR-4): a tracer is a real, replicated round.</item>
 ///   <item><b>Hit</b> (<see cref="DetonationNotification"/>): an explosion at the hit point, world-fixed; a decal on the GROUND under it
 ///   (VE-I step 1, draped) — but none for a hit on a vehicle or a person (VE-M).</item>
 /// </list>
@@ -72,7 +72,9 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                     ? view.GetComponentRO<SimTransform>(fire.Target).Position : Vector3.Zero;
                 var anchor = new EffectAnchor { Shooter = fire.Shooter, WeaponIndex = fire.WeaponIndex, Toward = toward };
                 Spawn(cmd, tkb, set.MuzzleFlash, at, anchor, now);
-                if (toward != Vector3.Zero) Spawn(cmd, tkb, set.Tracer, at, anchor, now);
+                // ⛔ LR-4 (DESIGN_Visual_Effects.md §8.5 LR-E, R-271) — no decorative tracer any more: a tracer is a REAL round now (a
+                //   tracer munition, replicated by the muscle), drawn along its actual flight by ProjectileLayer. The effect type 7131
+                //   stays registered, so recordings made before this still draw theirs.
             }
         }
 

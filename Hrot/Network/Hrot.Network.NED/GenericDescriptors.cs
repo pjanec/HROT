@@ -17,6 +17,11 @@ namespace Hrot.NED.Descriptors
     {
         None = 0,
         WaitForAcks = 1UL << 0,
+
+        /// <summary>⭐ LR-2 (Hrot docs/DESIGN_Visual_Effects.md §8.5, R-271) — a LIGHTWEIGHT entity (a replicated round): a receiver creates
+        /// it ACTIVE on this sample — no ghost, no promotion, no lifecycle, no acks — keeps it current from <c>WorldPos</c>, and
+        /// destroys it when this master is disposed.</summary>
+        Lightweight = 1UL << 1,
     }
 
     // ===================================================================================

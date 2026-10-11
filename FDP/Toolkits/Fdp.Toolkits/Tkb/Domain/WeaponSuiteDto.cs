@@ -84,5 +84,16 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// </summary>
         [AmmoRef]
         public ulong AmmoGuid { get; init; }
+
+        /// <summary>
+        /// ⭐ LR-1 (Hrot docs/DESIGN_Visual_Effects.md §8.5, R-271) — the TRACER round mixed into this mount's belt / magazine: every
+        /// <see cref="TracerEvery"/>-th shot carries this munition type instead of <see cref="AmmoGuid"/>. It changes WHAT the round is
+        /// (so it is drawn and replicated, PR-F) — never its damage, penetration or warhead, which stay the mount's. 0 = no tracers.
+        /// </summary>
+        [AmmoRef]
+        public ulong TracerAmmoGuid { get; init; }
+
+        /// <summary>⭐ LR-1 — one tracer in this many shots (5 = the common 1-in-5 mix); 0 = none.</summary>
+        public int TracerEvery { get; init; }
     }
 }

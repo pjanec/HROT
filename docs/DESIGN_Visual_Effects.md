@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E DECIDED (R-271) — §8.5 lightweight replicated rounds, DESIGN (LR-1..LR-4 not built). Programme index: PLAN_3D_World_And_Realism.md.
+build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E DECIDED (R-271) — §8.5 lightweight replicated rounds, LR-1..LR-4 BUILT 2026-10-11 (§8.5.5). Programme index: PLAN_3D_World_And_Realism.md.
 updated: 2026-10-11
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, not built).
+current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5).
 stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
@@ -471,7 +471,7 @@ in 2-D the smoke hid the flames ⇒ flames draw last there, at least 3 px. Run i
 `HROT_RAIL_SHOTS=<dir> xvfb-run -a -s "-screen 0 1280x800x24" dotnet test Hrot/Engine/Hrot.Presentation.Tests --filter "FullyQualifiedName~Map3DFrameRail"`.
 
 
-## 8. Projectiles in flight and on the ground — grenades, bombs, rockets, missiles *(P1 + P2 built `2026-10-11`; PR-D/PR-E decided by R-271 — §8.5 LR design, not built)*
+## 8. Projectiles in flight and on the ground — grenades, bombs, rockets, missiles *(P1 + P2 built `2026-10-11`; PR-D/PR-E decided by R-271 — §8.5 LR built `2026-10-11`)*
 
 | # | verbatim |
 |---|---|
@@ -588,7 +588,7 @@ munition's PAINT (olive) and vanished on the grey/green map ⇒ it shows STATE �
 burning); the fuze text "2.7 s" rendered as "27 s" (the map's default font drops the decimal point at that size) ⇒ whole seconds
 rounded up, "3 s"; the smoke trail of evenly spaced equal puffs read as beads ⇒ denser (0.9 m), jittered and spreading.
 
-### 8.5 Lightweight replicated rounds (LR) — the R-271 design *(DESIGN, `2026-10-11`; LR-1..LR-4 not built)*
+### 8.5 Lightweight replicated rounds (LR) — the R-271 design *(✅ LR-1..LR-4 BUILT `2026-10-11` — as-built in §8.5.5; the diagrams below are the AS-BUILT)*
 
 ⭐ U11: every ammo has a TKB type; the visible rounds — artillery, mortar, grenades, bombs, rockets, missiles, tracer bullets — are
 REPLICATED by the muscle (the only node that knows the trajectory); viewers simulate nothing; a round is LIGHTWEIGHT: `EntityMaster` +
@@ -615,47 +615,64 @@ Graph `.*(EntityMaster|GhostCreation|Geo.*Translator|NetworkTransform|Ghost.*Sys
 ```mermaid
 graph TD
   subgraph Muscle["the muscle (runs combat)"]
-    FP["FireProcessingSystem<br/>round + TkbIdentity(ammo) + NetworkIdentity if VISIBLE"]
+    FP["FireProcessingSystem<br/>round + TkbIdentity(ammo) + LightweightRound if VISIBLE"]
+    ID["LightweightRoundIdentitySystem<br/>pooled id + local NetworkAuthority + map"]
     BS["BallisticsSystem<br/>flies / lands / bursts it"]
     EM["EntityMaster egress<br/>Flags = Lightweight"]
     WP["WorldPos egress (exists)"]
+    CL["CycloneNetworkCleanupSystem<br/>round gone ⇒ dispose"]
+    PK["EntityCreationPack.NetworkSystems<br/>ticked by IG, Stride, CGF, SimHost"]
   end
+  ED["standalone editor<br/>no network systems"]
   subgraph Viewer["any viewer: IG, CGF, editor, replay of the muscle"]
     IN["EntityMaster ingress<br/>Lightweight ⇒ create ACTIVE, no ghost, no ELM"]
     GI["WorldPos ingress (exists)<br/>SimTransform + SimVelocity"]
     DR["dead reckoning (exists)"]
     PL["ProjectileLayer + 2-D projector<br/>draw by the munition look"]
   end
-  FP --> EM
+  PK --> ID
+  FP --> ID
+  ID --> EM
   BS --> WP
+  BS --> CL
+  ED -.-x ID
   EM -- "EntityMaster (Lightweight)" --> IN
   WP -- "WorldPos every tick" --> GI
   GI --> DR
   IN --> PL
   DR --> PL
-  BS -. "burst ⇒ dispose master" .-> IN
+  CL -. "dispose EntityMaster + WorldPos" .-> IN
+  style ED stroke-dasharray: 5 5
 ```
 
 *What the picture shows that prose hid:* nothing on the viewer side reaches the ELM or the ghost promotion — the `Lightweight` flag
 is the only fork, at the one place an entity is born on a viewer; position and dead reckoning are the existing paths, unchanged.
+⭐ As-built: the identity is given by a NETWORK system (`LightweightRoundIdentitySystem`, registered by `EntityCreationPack` and ticked
+only by the four networked hosts' `NetworkSystems` loops) — so the combat code knows nothing of the network (R-134), and on the
+**standalone editor** (dashed — never reached) a round is tagged but never identified: it stays local, which is right, there is no
+viewer to send it to. The dispose is not the ELM's `DestructionOrder` (a round has none): the cleanup system notices the round is gone.
 
 ```mermaid
 classDiagram
   class EntityMasterFlags { <<exists, NED>> WaitForAcks; + Lightweight }
   class MunitionTkb { <<LR-1, combat lane>> a munition type for EVERY mount; Munition.Visual on the visible ones }
-  class FireProcessingSystem { <<exists, combat>> + VISIBLE round: TkbIdentity(ammo) + NetworkIdentity (pooled id) + LightweightRound }
-  class LightweightRound { <<LR-2, new tag, Fdp.Toolkits Replication>> marks an entity replicated without lifecycle; never enters the ELM }
+  class FireProcessingSystem { <<exists, combat>> + tracer mix (every Nth round) + MarkIfVisible: TkbIdentity(ammo) + LightweightRound }
+  class LightweightRound { <<LR-2, tag id 357, Fdp.Toolkits Replication>> replicated without lifecycle; never saved, never previewed }
+  class LightweightRoundIdentitySystem { <<LR-2, new, PostSimulation>> pooled id + NetworkAuthority(local) + NetworkEntityMap }
   class EntityMasterEgressTranslator { <<exists>> + Flags Lightweight for a LightweightRound }
-  class EntityMasterIngressTranslator { <<exists>> + Lightweight: create Active + TkbIdentity + LightweightRound; dispose: destroy + unmap }
-  class GhostPromotionSystem { <<exists>> skips a LightweightRound }
+  class EntityMasterIngressTranslator { <<exists>> + Lightweight: Active, drop GhostStateTracker, LightweightRound; dispose: destroy }
+  class CycloneNetworkCleanupSystem { <<exists>> + a tracked LightweightRound no longer alive ⇒ dispose its samples + unmap }
   class ProjectileLayer { <<exists, LR-3>> + draws a LightweightRound by TkbIdentity's look, oriented by SimVelocity }
+  class LightweightRoundGizmo { <<LR-3, new 2-D projector>> ProjectilePresentationGizmo.DrawRound }
   class EffectSpawnSystem { <<exists, LR-4>> the decorative tracer retires (the real tracer round replaces it) }
   FireProcessingSystem ..> LightweightRound
+  LightweightRoundIdentitySystem ..> LightweightRound
   EntityMasterEgressTranslator ..> EntityMasterFlags
   EntityMasterIngressTranslator ..> EntityMasterFlags
   EntityMasterIngressTranslator ..> LightweightRound
-  GhostPromotionSystem ..> LightweightRound
+  CycloneNetworkCleanupSystem ..> LightweightRound
   ProjectileLayer ..> LightweightRound
+  LightweightRoundGizmo ..> LightweightRound
   FireProcessingSystem ..> MunitionTkb
 ```
 
@@ -664,16 +681,18 @@ sequenceDiagram
   participant M as muscle
   participant D as DDS
   participant V as viewer
-  M->>M: fire a VISIBLE round: entity + TkbIdentity(ammo) + NetworkIdentity + LightweightRound
+  M->>M: fire a VISIBLE round: entity + TkbIdentity(ammo) + LightweightRound
+  M->>M: LightweightRoundIdentitySystem: pooled id + local NetworkAuthority + map entry
   M->>D: EntityMaster (TkbType = ammo, DIS kind 2, Flags = Lightweight)
-  D->>V: create the entity ACTIVE at once (no ghost, no ELM, no acks)
+  D->>V: create the entity ACTIVE at once (no ghost, no ELM, no acks), or convert the ghost an early WorldPos made
   loop every tick while it flies or lies
     M->>D: WorldPos (pos, vel, sim stamp)
     D->>V: SimTransform + SimVelocity, dead-reckoned between samples
   end
   M->>M: burst (or a bullet stops) ⇒ round destroyed
-  M->>D: dispose EntityMaster
-  D->>V: destroy + unmap (no leak in NetworkEntityMap)
+  M->>M: CycloneNetworkCleanupSystem sees it gone (no DestructionOrder)
+  M->>D: dispose EntityMaster + WorldPos, unmap
+  D->>V: destroy (DisposalMonitoringSystem prunes the map entry)
 ```
 
 #### 8.5.3 Decisions inside LR
@@ -694,4 +713,22 @@ sequenceDiagram
 | **LR-2** | `EntityMasterFlags.Lightweight`; `LightweightRound`; muscle egress (id from the pooled allocator, master + `WorldPos`, dispose on burst); viewer ingress `Active` with no ghost / ELM, destroy + unmap on dispose; `GhostPromotionSystem` skips it | network lane (backend) |
 | **LR-3** | viewers draw it: `ProjectileLayer` and the 2-D projector read a `LightweightRound` (look from `TkbIdentity`, nose from `SimVelocity`, lying = at rest); body layer and unit-symbol gizmo ignore munition types | ui lane |
 | **LR-4** | the decorative effect tracer retires once tracer munitions replicate | ui lane |
+
+⭐ Built end to end by the ui lane (user `2026-10-11`: *"you will [do] it end to end, no handoffs"*), not split across the combat and
+network lanes as the owner column leaned.
+
+#### 8.5.5 LR-1..LR-4 — AS-BUILT `2026-10-11`
+
+| slice | as built | where |
+|---|---|---|
+| **LR-1** | seven new munition types `6003`–`6009` (5.56 ball, 5.56 tracer, 25 mm APDS-T, 120 / 125 mm APFSDS, TOW, RPG-7), DIS kind 2; a look on all but the ball. Every built-in mount loads one (`WeaponMount.AmmoTkb` in the BDC catalog, `AmmoGuid` in the urban one). ⭐ The rifles MIX tracers: `WeaponMountDto.TracerAmmoGuid` + `TracerEvery` (5), counted by a new `ShotOrdinal.Fired` — ⚠ kept apart from `ShotOrdinal.Count`, which drives the hit model's deflection sequence and so must not move | `MunitionTkbCatalog.cs`; `WeaponSuiteDto.cs`; `FireProcessingSystem.cs` |
+| **LR-1 neutrality** | ⭐ no combat number moved, by construction AND by rail: every mount states its penetration (it wins before the by-name library pair) and no new name matches an explosive reference entry — RPG / TOW deliberately do NOT carry the library names "PG-7V HEAT" / "TOW-2 HEAT" (a real HEAT warhead is the combat lane's call). Pinned by `EffectTests.LR1_EveryBuiltInMountLoadsAMunitionType_AndNoCombatNumberMoved` | — |
+| **LR-2 muscle** | `FireProcessingSystem.MarkIfVisible` tags a round whose munition has a `Munition.Visual` (`TkbIdentity` + `LightweightRound` + DIS type + `ScenarioIgnoreTag`); ⭐ DEVIATION: the network identity is NOT given by the fire path (the class diagram's first draft) but by a new network system, `LightweightRoundIdentitySystem`, in `EntityCreationPack`'s network systems — the combat code stays network-free (R-134). Egress sets `EntityMasterFlags.Lightweight` (`1 << 1`) | `LightweightRoundIdentitySystem.cs`; `EntityCreationPack.cs`; `EntityMasterEgressTranslator.cs` |
+| **LR-2 dispose** | ⭐ DEVIATION: a round has no ELM `DestructionOrder`, which is the only thing `CycloneNetworkCleanupSystem` disposed on — so it now also TRACKS `LightweightRound` entities and disposes the samples of one that is no longer alive | `CycloneNetworkCleanupSystem.cs` |
+| **LR-2 viewer** | the ingress makes a `Lightweight` master's entity `Active` at once, removes the `GhostStateTracker` (⭐ DEVIATION: no change in `GhostPromotionSystem` was needed — it queries lifecycle `Ghost` only, `GhostPromotionSystem.cs:296`, so an `Active` round is never seen), adds `LightweightRound` + `ScenarioIgnoreTag`; an early-`WorldPos` ghost is converted; its own round seen through loopback (local authority) is left alone. Its dispose DESTROYS the entity directly instead of publishing a teardown command | `EntityMasterIngressTranslator.cs` |
+| **LR-3** | `ProjectileLayer` resolves a `LightweightRound` without `BallisticProjectile` (look from `TkbIdentity`, nose from `SimVelocity`, at rest = lying, the trail / tracer run back along the flight); the 2-D drawing became `ProjectilePresentationGizmo.DrawRound`, shared with a new `LightweightRoundGizmo`; the body layer resolves a munition type to no body and the unit marker skips a `LightweightRound` | `ProjectileLayer.cs`; `ProjectilePresentationGizmo.cs`; `EntityBodyLayer3D.cs`; `EntityPresentationGizmo.cs` |
+| **LR-4** | `EffectSpawnSystem` spawns no tracer effect; type `7131` stays registered so older recordings still draw theirs | `EffectSystems.cs` |
+
+⚠ **Known limits, not built:** a viewer knows no fuze (LR-C — a lying grenade is drawn lying, not counting); a `WorldPos` sample that
+arrives AFTER the dispose makes a ghost the 60 s ghost timeout removes; the send rate is unmeasured for an MG burst (LR-D).
 
