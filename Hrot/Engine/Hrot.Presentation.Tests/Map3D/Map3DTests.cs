@@ -131,6 +131,38 @@ public sealed class Map3DTests
         Assert.Equal(10f, cam.LookAt.Z, 3);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ CE-1045 — the 3-D map's ground height resolves the terrain ONCE per tick, not once per point. 🔒 User, 2026-10-11: "the 3d
+    /// view had extremely low fps (1 FPS or so)". 🔴 Every draped gizmo point re-resolved the whole terrain query; a scene of ~2 250 lines
+    /// at up to 160 points each is hundreds of thousands of resolutions a frame.
+    /// </summary>
+    [Fact]
+    public void CE1045_TheGroundHeight_ResolvesTheTerrainOncePerTick_NotOncePerPoint()
+    {
+        var repo = new EntityRepository();
+        repo.SetSingletonManaged(new TerrainWorld { Name = "t" });
+        int asked = 0;
+        long tick = 1;
+        var ground = new CachedGroundHeight(() => { asked++; return repo; }, () => tick);
+
+        for (int i = 0; i < 5000; i++) ground.At(i, i * 0.5f);
+        Assert.Equal(1, asked);                              // 5 000 points, one resolution
+
+        tick = 2;                                            // the next frame re-reads (a scenario load can replace the terrain)
+        ground.At(0, 0);
+        Assert.Equal(2, asked);
+    }
+
+    [Fact]
+    public void CE1045_TheGroundHeight_WithoutATerrain_IsZero_AndStillResolvesOnce()
+    {
+        int asked = 0;
+        var ground = new CachedGroundHeight(() => { asked++; return null; }, () => 7);
+        Assert.Equal(0f, ground.At(10, 10));
+        Assert.Equal(0f, ground.At(20, 20));
+        Assert.Equal(1, asked);
+    }
+
     /// <summary>⭐ CE-1044 — plain WASD is fine-grained (a tenth of the distance per second); Shift or Ctrl is 10× that; both 30×.</summary>
     [Theory]
     [InlineData(false, false, 10f)]
