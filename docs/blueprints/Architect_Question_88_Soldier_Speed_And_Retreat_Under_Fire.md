@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-10
-current-answer: §3 the three sub-questions with leans — awaiting the user
+current-answer: §4 ANSWERED 2026-10-11 (R-265) — §3 is the question as asked
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -49,6 +49,13 @@ sight, is hit again, takes cover and is killed **walking to his hide point** (0.
 
 ⇒ **Recommended order:** A (one TKB edit, re-run `CE3094` and the posture suite) → C → re-measure → B only if still needed.
 
-## 4. Answers
+## 4. Answers *(user, `2026-10-11`, R-265)*
 
-*(awaiting the user)*
+> 🔒 *"On soldiers walking to cover. I guess they should run in slightly crouched pose whenever they feel threatened or are just cautios.  Also threatened civilians can run fast, they are just usually not using the crouched stance and just run.  Hiding from multiple enemies is desired."*
+
+| # | ruling | vs the lean |
+|---|---|---|
+| **A** | ✅ a person can RUN: the type's cap stops clamping every ask to a walk — soldiers AND threatened civilians run fast | lean taken, extended to civilians |
+| **B** | ⭐ **now, not later:** a soldier who is **threatened or cautious** moves in a **slight crouch** (a crouched run); a threatened civilian runs **upright** | ⛔ lean "later" overruled |
+| **C** | ⭐ **hide from MULTIPLE enemies** — the retreat (and cover) prefer points hidden from every known threat, not only one | ⛔ lean "the shooter wins" overruled; the open-ground case (no point hidden from all) still needs an answer — §5 |
+

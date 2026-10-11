@@ -148,3 +148,13 @@ sequenceDiagram
 | **D3** | Run `CommanderUtilityTickSystem` (autonomous `ManeuverSelect`) | ⛔ **not yet.** Every starter consideration reads the **active danger area**, and the only provider is `FakeDangerAreaProvider` (navmesh extraction is a dependency, design §11). Run without a feature, it would rewrite `ManeuverKind` from all-zero scores at 10 Hz | when a real danger-area provider lands, W6 = provision `UtilityResultBuffer` on commanders + call it |
 | **D5** | Movement-mode broadcast (`MovementModeIntent`) | ⛔ **not wired.** Its id collides (`QA-037`) and Muscle has no reader, so wiring it would write a value nobody reads, into a contested slot | after `QA-037` re-numbers it **and** a Muscle consumer exists |
 | **D4** | The tracker lean's "**shipped scenario** whose commander runs a maneuver end to end" | ⚠ **only meetable after D2.** `CE-454` proves the wiring with an integration rail through the real pack (W4) | — |
+
+
+### 5.1 Answers *(user, `2026-10-11`, R-264)*
+
+> 🔒 *"D2 (a). Feel free to use csharp fluent syntax defined hsms in ai behavior assembly, no need for json assets for those library behaviors. D3 agreed."*
+
+| # | ruling |
+|---|---|
+| **D2** | ✅ **(a)** — a squad manoeuvre is a BEHAVIOUR on the commander (the squad HSM orchestrates, the shell is library), members obey their role. ⭐ Library squad behaviours may be **C# fluent-built HSMs in `Hrot.AI.Behaviors`** — no JSON asset needed |
+| **D3** | ✅ as leaned — the commander's autonomous `ManeuverSelect` runs only after a REAL danger-area provider lands (Utility demos design §10.2, R-213) |

@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — a catalogue and gap analysis, not a buildable design; each programme it names gets its own design (with UML) before it is built
 updated: 2026-10-11
-current-answer: §10.1 the user's answers (D1–D5, D7 approved; D6/D8 open) · §2 the scenarios decomposed · §3 the behaviour taxonomy · §4–§7 what each needs (blocks, sensors, EQS, engine) · §8 squad model · §9 roadmap · §10 decisions for the user
+current-answer: §10.1 the user's answers (D1–D8 all decided) · §2 the scenarios decomposed · §3 the behaviour taxonomy · §4–§7 what each needs (blocks, sensors, EQS, engine) · §8 squad model · §9 roadmap · §10 decisions for the user
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -298,7 +298,7 @@ terrorist scenario. Air/drones (P5) need the largest new engine piece (flight) a
 | **D3** | ✅ crowd agents + a light per-person HSM + a crowd-level system. 🔒 *"Our HSMs are optimized for large crowds"* ⇒ HSM is THE host for civilian behaviours (R-258's "where HSM is most suitable") | CIV-1..7 are authored as HSMs, not BTrees |
 | **D4** | ✅ hidden ground-truth flag + observable cues | — |
 | **D5** | ✅ simple contact action + `ThrowAt` | — |
-| **D6** | ⏳ open — explained to the user (`CE-507` D2/D3) | every SQD item waits |
+| **D6** | ✅ `2026-10-11`: CE-507 D2 **(a)** (manoeuvre = a behaviour on the commander; library squad behaviours may be C# fluent HSMs), D3 as leaned — R-264 | SQD items unblocked once the first manoeuvre behaviour ships |
 | **D7** | ✅ authored trench polylines carved into the height grid and navmesh | — |
-| **D8** | ⏳ not answered (lean stands: P0 + P1 convoy ambush) | — |
+| **D8** | ✅ `2026-10-11` *"D8 ok"* — **P0 + P1 (convoy ambush) first** | — |
 
