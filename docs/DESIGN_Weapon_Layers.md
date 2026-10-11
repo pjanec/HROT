@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: DESIGN — decisions W-1..W-9 carry leans, awaiting the user; nothing built
-current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 · §5 slices
+build-state: READY-TO-BUILD for W-1..W-9 (approved U-W2, 2026-10-11); §6 ambient fire A-1..A-6 carry leans, awaiting the user
+current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
 known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount parts are never created — stale, CgfComponentRegistry.cs:38
@@ -159,7 +159,7 @@ turret keeps following) instead of cancelling it.
 **The simplest profile (a rifleman, no turret) is today's path, unchanged:** the profile's `UsesTurretTask` is false, the
 executor runs its `AimSeconds` timer and publishes `WeaponFireIntent` per shot → `WeaponFireRequest` → `FireProcessingSystem`.
 
-## 4. Decisions — each with a lean (approve, or name the one to change)
+## 4. Decisions — ✅ ALL APPROVED `2026-10-11` (U-W2: *"approved."*)
 
 | # | question | ⭐ lean | rests on (code · design) | rejected |
 |---|---|---|---|---|
@@ -176,7 +176,7 @@ executor runs its `AimSeconds` timer and publishes `WeaponFireIntent` per shot �
 ⚠ **New behaviour vocabulary (part of W-1):** `TrackTarget(target)` on the weapon channel — keep the gun on a target without
 firing — beside `AimAndFire` and `FireAtPoint`; releasing the channel sets the task to Idle.
 
-## 5. Slices (once W-1..W-9 are ruled)
+## 5. Slices
 
 | slice | builds | shows |
 |---|---|---|
@@ -185,3 +185,72 @@ firing — beside `AimAndFire` and `FireAtPoint`; releasing the channel sets the
 | **WL-3** | **Engage** on the muscle through `FireProcessingSystem`; the executor split + the default profile; rounds granted / fired; `TrackTarget` on the channel | a tank slews, then fires 3 rounds; behaviours unchanged |
 | **WL-4** | category profiles (tank gun, autocannon, ATGM, mortar, small arms); ammo choice | per-category gunnery |
 | **B5** | `Muzzle.Of` from the posed barrel — the round, the flash and the tracer from one point | VE-K |
+
+## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, leans awaiting the user)*
+
+> 🔒 **User, `2026-10-11` (U-W3):** *"What about low fidelity high count 'ambient' entities where the complicated weapon control model
+> is too much? … some entities never firing, having fixed turrets, or just making mechanical movement resembling target scans and
+> firing in approximate direction of target just to create fire effect (and detonation on predetermined place, no ballistics at all,
+> no real hit detection or target model, the hit is predetermined including the damage inflicted …) … That requires no weapon brain,
+> and the goal is to be simple, low resource, performant also in high amounts of entities."*
+
+📐 **Measured — what an ambient shot can reuse as is:**
+- Effects come only from two local events, read by `EffectSpawnSystem` on every map host: `WeaponFireNotification`
+  (muzzle flash and tracer, `EffectSystems.cs:42-54`) and `DetonationNotification` (explosion and decal at `Hit`, `:58-63`).
+- A detonation with no target does no damage: `DamageCalculationSystem` needs a live target.
+- A predetermined hit can publish the damage VERDICT, `DamageAssessedEvent { HitEntity, TotalDamage }`
+  (`Combat/Events/DetonationEvents.cs:26`), which the owner's `DamageSystem` applies to `Health` with no armour model.
+
+```mermaid
+graph TD
+  ORD["AmbientFire order<br/>component on the entity<br/>authored in the scenario or set by a simple action"]
+  SYS["AmbientFireSystem<br/>runs on EVERY node<br/>a pure function of the order and sim time"]
+  POSE["TurretPose (local)<br/>scan sweep or face the target"]
+  FIRE["WeaponFireNotification (local)"]
+  DET["DetonationNotification (local)<br/>at the predetermined point, no target"]
+  DMG["DamageAssessedEvent<br/>OWNER only, predetermined damage"]
+  FX["EffectSpawnSystem (exists)<br/>flash, tracer, explosion, decal"]
+  HP["Health (exists, replicated)"]
+  ORD --> SYS
+  SYS --> POSE
+  SYS --> FIRE
+  SYS --> DET
+  SYS -->|"if this node owns the target"| DMG
+  FIRE --> FX
+  DET --> FX
+  DMG --> HP
+```
+
+*What the picture shows that prose hid:* the ambient path never touches the weapon brain, the weapon muscle, `FireProcessingSystem`,
+`BallisticsSystem` or hit resolution. Nothing per shot crosses the network either. Every node computes the same shots from the
+same order and the same synchronised sim time; only the predetermined damage is applied once, by the target's owner, and
+reaches the others as the ordinary replicated `Health`.
+
+```mermaid
+sequenceDiagram
+  participant O as order (scenario or action node)
+  participant S as AmbientFireSystem (each node)
+  participant E as EffectSpawnSystem (each node)
+  participant T as target owner
+  O->>S: AmbientFire(target or point, interval, rounds, hit pattern, damage, seed)
+  loop each frame
+    S->>S: TurretPose = scan(simTime) or face target, no limits or rates
+    S->>S: shot k due when simTime passes start + k * interval + jitter(seed, k)
+  end
+  S->>E: WeaponFireNotification (local)
+  S->>E: DetonationNotification at point(seed, k) after the flight time, Target none
+  S->>T: DamageAssessedEvent(target, damage) only where this node owns the target
+```
+
+| # | question | ⭐ lean | rests on | rejected |
+|---|---|---|---|---|
+| **A-1** | where ambient fire lives | a **fourth path beside the three layers**: one `AmbientFire` order component + one `AmbientFireSystem` (Fdp.Toolkits Combat); no weapon channel, no weapon brain, no muscle task | U-W3 · the effects / damage seams above | an "ambient" weapon-brain profile (W-5) — it would still drive the channel, the task and the muscle per entity |
+| **A-2** | where it runs | on **every node**, as a deterministic function of (order, sim time, seed): shot times, scan pose and impact points come out identical everywhere with **zero wire traffic per shot** | sim time is synchronised across the cluster; the rotor already animates from `GlobalTime.TotalTime` (S4) | running it on one node and replicating fire, detonation and pose — network cost grows with the entity count |
+| **A-3** | the predetermined hit | the order names a hit pattern per shot (hit / miss offset from the target, seeded) and a fixed damage; the **target's owner alone** publishes `DamageAssessedEvent`, so damage happens exactly once and replicates as `Health` | `DamageAssessedEvent` → `DamageSystem` (exists) · ownership gate as everywhere | detonation-with-target — the armour model would recompute the damage on the Muscle |
+| **A-4** | the turret | `TurretPose` written LOCALLY by the system (a slow sweep in `Scan`, a lagged turn toward the target in `Engage`); no limits, no rates, no ballistics; ⚠ its egress is skipped for ambient entities (every node already has the same pose). **Fixed turret** = no `TurretDto` in the TKB (the pose stays neutral); **never fires** = no order | W-9's part + pose, reused | replicating the ambient pose — the same numbers sent to nodes that already computed them |
+| **A-5** | who sets the order | the **scenario** (per instance, saved, like any authored component) or a **simple action node** (`AmbientEngage(target or point, duration)`) any behaviour can call; an "ambient battle" generator is just a behaviour that hands out orders | R-138 (any node may create) · the order is plain authored state | a channel request — channels arbitrate real actions, an order needs none |
+| **A-6** | what real AI makes of it | ambient fire is **presentation-first**: the events it publishes are local, so real perception on the Brain hears the Brain's own copy — ⭐ lean: tag ambient events (`IsAmbient`) so hearing ignores them by default, a per-scenario switch can let real units react | `SoundSourceClass` hearing (R-207) | silently letting real units engage fake fire — changes the simulation |
+
+⚠ **Cost at high count:** per entity per frame, one time compare and one pose update. Per shot, two local events. No raycasts, no
+projectile entities, no network messages. The order rides the ordinary per-instance component path, so it costs one descriptor
+sample per change, not per shot.
