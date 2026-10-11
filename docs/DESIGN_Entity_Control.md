@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built) — the (V) windowed screenshot still owed
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3)
 current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check)
 stale-below: nothing
 known-rot: the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus
@@ -851,7 +851,13 @@ Esc releases, detaching unlocks; the HUD text) · `MenuOrdersTests` CE3174 (the 
 `WeaponAmmoMirrorSystemTests` (mount + children mirrored, spend updates it, replicas untouched) · `PossessionReplicationTests`
 CE3174 (the brain's count reaches the station over `dtWeaponAmmo`).
 
-⚠ **Not yet done:** the `(V)` screenshot acceptance needs a windowed run; the turret-mounted eye stays deferred (§8d).
+✅ **(V) acceptance — `2026-10-11`**, a real frame under Xvfb (`Map3DFrameRail.CE3174_V_TheFpsStation_DrawsTheFirstPersonView_AndTheHud`):
+the production canvas + switch + `PossessionStation` follow `PossessedBy` into first person on a rifleman on test-town's street — eye
+at standing height, an M1 across the street under the crosshair, the HUD with health and ammo per mount (the selected one marked).
+
+![FPS station, first frame](assets/entity-control/fps-1-station.png)
+
+⚠ The turret-mounted eye stays deferred (§8d).
 
 ⏭ ~~**Still open in S4:** ~~S4d operator fire~~ (built, §13.1); S4e the `ManualDrive` + `PossessedBy` descriptors and the `Possess` / `Release` / `ControlFrame` interaction
 cases (until then possession works where the station, brain and muscle share a world — the editor). M-5 (the navmesh wall check)
