@@ -2,9 +2,9 @@
 state: LIVE
 updated: 2026-10-11
 build-state: S1 READY-TO-BUILD (leans §3.4 awaiting the user's nod) · S2 DESIGN (§4) · embark §5 and formations §6 are MEASUREMENTS, not plans
-current-answer: §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — how it works) · §5 embark/disembark as measured · §6 formations as measured
+current-answer: §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — how it works; §4.1 the alert hop by hop) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch)
 stale-below: nothing
-known-rot: DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
+known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by the EQS query on the lead assault member. DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
 related-designs:
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS which operations need squads (§3 taxonomy, §11 the review and S1–S3 order this file builds)
@@ -49,8 +49,30 @@ how it works. Also how formations work and if they can be used for squad marchin
 | ⇒ the member `Flank` node cannot flank a threat it has not itself seen | `EqsTacticsNodes.cs:144-152` (NeedsEntity: own top threat) | Eqs_Consuming_Behaviours §9 |
 | a commander may be a body-less entity (no position) | `SquadManeuverTests.cs:53-66`; `hill-attack-close` "Tank Platoon" | — ⇒ the runner never reads the commander's position |
 | the covering element "holds and fights" through CombatPosture at its own position | `BoundingOverwatchBehavior.cs:139-150` | Squad_Wiring §6 |
-| ⛔ **assumed:** a CombatPosture holding at its own point actually FIRES at a known threat | not measured — the S1 live rail asserts it (ammo drops) | — |
-| ⛔ **assumed:** a flank point that lands inside a building is reached at the nearest walkable spot | not measured — the build checks `LocomotionMoveTo` with such a point first | — |
+| ✅ a soldier ordered `CombatPosture` at its OWN position, with the enemy in SIGHT, holds and fires: it picks Suppress (healthy) or HoldProne (half health), never moves, the order never ends; with no enemy it ends at once (nothing to do) | 📐 measured `2026-10-11`: a throwaway rail on the `TacticsTreesTests` harness (winner 3 / 6, weapon channel AimAndFire, locomotion idle, no `BehaviorFinished`), then removed | Decision Layer §3.3b (CE-2105) |
+| ⛔ a move to a point more than 2 m off the walkable area FAILS: the end point is snapped only within ±2 m (±4 m vertically), else `FailedUnreachable` — and `AdvanceAndAttack` then re-issues the same failing move forever | `DotRecastNavmeshProvider.cs:43,428-431`; `MoveToExecutor.cs:120`; `PostureNodes.cs:242-247` | — |
+| ⛔ the navmesh lives on SimHost; the squad leader's logic runs on CGF, which cannot snap or test a point | `SimHostNodeBootstrapper.cs:60` (the node's `INavmeshProvider`); no provider on CGF | Terrain_World §4.1 |
+| ✅ an EQS query is solved on SimHost for a sensor parented to ANY unit, aimed at an entity (slot 1) the unit need not have seen | `EqsChildSensor.Ensure(view, parent, site, config)` (`EqsChildSensor.cs:57`); slot-1 aim `EqsTacticsNodes.cs:362-364` | EQS v1.3 |
+| ✅ the merge runs in the SAME frame a member's memory changes (any member's `ChangeEpoch` differs ⇒ merge now; else every 6 ticks); threat evaluation is registered before it | `SquadPerceptionMergeSystem.cs:44-61`; `CgfLogicPack.cs:222,225` | Squad_Coordination §4 (S-2) |
+| ⛔ a paused task RESUMES with its working state kept, and does not re-send what it already sent | Decision Layer §4.9 (CE-2081): only a channel leaf re-activates | ⇒ the runner must re-issue its members' orders after a pause (S1-G) |
+
+### 2a. The squad's shared contacts — where they live, who writes, who reads *(measured)*
+
+```mermaid
+graph LR
+  TE["ThreatEvaluationSystem (CGF) — each member's own TargetMemory"] --> MEM["member TargetMemory ×N (ChangeEpoch)"]
+  MEM --> MRG["SquadPerceptionMergeSystem.Run — called by SquadCoordinationSystem (CgfLogicPack.cs:225)"]
+  MRG -->|"writes"| POOL["SquadCognitiveState.Contacts on the COMMANDER: 16 × {entity, position, threat, last seen, flags, SourceMembersMask}"]
+  POOL --> FIRE["ThreatMatrixAssignmentSystem — who fires at whom (writes .Assignment)"]
+  POOL --> DBG["debug API + squad gizmo (editor)"]
+  POOL -.->|"registered, read by NO decision"| IN["utility inputs SquadKnowsContact · SquadContactThreatLevel · SquadPoolThreatAggregate"]
+  POOL -.->|"S1 (new reader)"| RUN["SquadManeuverRunner — the threat, and who already sees it"]
+  POOL -.->|"S2 (new reader)"| EDGE["squad-level sensor edges"]
+```
+
+*What the picture shows that prose hid: the pool is a plain component on the commander (`SquadCognitiveState`, own `[ComponentId]`,
+`DataPolicy.NoScenario` — not saved, not replicated), written by ONE system on CGF, and today read only for fire distribution and
+debugging. Members never see it except through utility inputs no decision uses ⇒ a soldier knows only what IT has seen.*
 
 ## 3. S1 — one generic manoeuvre runner, and suppress-and-manoeuvre on it *(build-state: READY-TO-BUILD)*
 
@@ -130,7 +152,9 @@ sequenceDiagram
   C->>P: threat = Target, else the top IDENTIFIED pooled contact (none ⇒ Failure)
   C->>C: partition: members in the threat's SourceMembersMask ⇒ base, the rest ⇒ assault (one side empty ⇒ halves)
   C->>B: CombatPosture at own position (they see the threat, they hold and fire)
-  C->>A: CombatPosture advance to the FLANK point (threat + 90° off the threat→base line, FlankMetres out, on the assault's side), Assault=true
+  C->>A: a FindFlankingPosition sensor on the assault's LEAD member, slot 1 = the threat entity (solved on SimHost)
+  A-->>C: the best flank point (walkable, sees the threat)
+  C->>A: CombatPosture advance to it (each keeping its offset), Assault=true
   loop each tick
     C->>C: every live assault member at its point, or PhaseTimeout ⇒ FarSideReached
   end
@@ -145,13 +169,15 @@ sequenceDiagram
 |---|---|---|---|
 | **S1-A** | where the play logic lives | one runner + an `ISquadPlay` adapter per existing table, in `Hrot.AI.Behaviors` | orders are `CombatPosture` JSON (a `Hrot.Core` DTO), which `Fdp.Toolkits` must not see; the tables stay in the toolkit |
 | **S1-B** | how the base of fire is chosen | the members that REPORTED the threat (`SourceMembersMask`) | they already see it, so "hold and fire" means firing; the rest have no line of sight to waste |
-| **S1-C** | how the flank point is found | geometric (90° off the threat→base line, `FlankMetres` out, on the side the assault already is) | the member `Flank` node needs the threat in the member's OWN memory (§2), and an EQS sensor on the commander needs a body the commander may not have. EQS-scored flanks are a later step, run by a member who has seen the threat |
-| **S1-D** | does the drill end at the flank or assault through | ⭐ **assault through**: add `PhaseAssaulting` to `SuppressAndManeuverManeuver` (Suppressing → FarSideReached → Assaulting → BoundComplete → AssaultComplete) | a flank alone is half the drill; ⚠ changes a library table, so its unit tests are updated in the same commit |
+| **S1-C** | how the flank point is found | ⭐ the existing `FindFlankingPosition` EQS template as a child sensor of the assault element's LEAD member, aimed (slot 1) at the threat entity; until it answers, the element holds | 📐 measured (§2): a point computed on CGF can land off the walkable area and the move then fails forever, and CGF has no navmesh to check it. The query runs on SimHost, returns only walkable points that SEE the threat, and needs no memory of the threat in the member |
+| **S1-D** | does the drill end at the flank or assault through | ⭐ **assault through** — the doctrinal end of the drill: from the flank the assault element moves ONTO and THROUGH the enemy's position, firing, while the base of fire shifts or stops its fire, so the position is cleared, not just shot at. Add `PhaseAssaulting` to `SuppressAndManeuverManeuver` (Suppressing → FarSideReached → Assaulting → BoundComplete → AssaultComplete) | a flank alone is half the drill; ⚠ changes a library table, so its unit tests are updated in the same commit |
 | **S1-E** | a mover that never arrives | the phase advances on `PhaseTimeoutSeconds`, as bounding's timeout does | a member pinned by its own SOP reaction must not freeze the squad |
+| **S1-G** | after a pause (S2's reaction, an operator order) | the runner notices a gap in its own ticks and re-issues every member's current order | 📐 measured (§2): resume keeps the runner's state but sends nothing again |
 | **S1-F** | members' own SOP reactions | the runner leaves ROE alone; the acceptance scenario gives members ROE `StayOnTask` (CombatPosture takes cover by itself) | the gate already lets a fresh Superior order end a reaction; squad-level control of member reactions is S2's job |
 
 Rejected: **one node per manoeuvre** — six copies of one shape; **ordering the member `Flank` behaviour** — it fails on a threat the
-member never saw (§2); **a commander EQS flank query** — the template scores from the commander's own position, which may not exist.
+member never saw (§2); **a flank point computed on CGF** — it can land off the walkable area and the move then fails forever (§2);
+**the query on the commander** — it scores from its owner's position, and a commander may have no body.
 
 ### 3.5 Acceptance
 
@@ -197,7 +223,38 @@ the slot / gate / resume machinery is the per-unit one, unchanged — the comman
 | `ReactToContact` tree: ReturnFire → a utility choice → one S1 runner subtree | drills compose as subtrees, as CombatPosture composes its options |
 | input `SquadEnemyStrengthRatio` over the pool | `EnemyStrengthRatio` reads the unit's own memory (`StandardInputs.cs:271`) |
 
-⛔ Not measured yet (measured when S2's design is made buildable): that a commander reaction pausing a commander running an S1 play
+### 4.1 The alert, hop by hop *(each hop measured; only the producer and the three kinds are new)*
+
+```mermaid
+sequenceDiagram
+  participant TE as ThreatEvaluationSystem / NearMissSensingSystem (CGF)
+  participant SC as SquadCoordinationSystem (CGF)
+  participant BUS as event bus
+  participant RS as RecentSensesSystem (Input phase)
+  participant BT as BrainTickSystem
+  participant SOP as commander SOP (BasicSquadSop)
+  TE->>TE: frame N: a member's memory gains a contact (ChangeEpoch moves) / a member is Hit or NearMissed
+  SC->>SC: frame N: the epoch moved ⇒ merge now (SquadPerceptionMergeSystem.cs:58-61)
+  SC->>BUS: frame N: NEW — pool empty→non-empty ⇒ SensorChangedEvent{Unit = commander, SquadContact}, a member Hit/NearMiss ⇒ SquadUnderFire, pool emptied ⇒ SquadAllClear
+  BUS->>RS: frame N+1: recorded on the commander's RecentSenses (added on first use, RecentSensesSystem.cs:26)
+  BUS->>BT: frame N+1: the commander's SOP is WOKEN (an event whose Unit is it, BrainTickSystem.cs:227) — else it would tick within 0.2 s anyway
+  BT->>SOP: SensedFresh(SquadUnderFire / SquadContact) is true (SopConditions.cs:55, reads RecentSenses since the task started)
+  SOP->>BUS: React("ReactToContact") ⇒ the gate pauses the commander's task (BehaviorIngressSystem.cs:249)
+```
+
+*What the picture shows that prose hid: the commander learns of contact ONE frame after the member does — the merge is not the
+delay (it runs the same frame); the bus is. An HSM-hosted squad SOP would get the same edges as reserved events (`0xFF00 + kind`,
+`BuiltInHsmEvents.cs`) because the HSM runner keys on `Unit` too.*
+
+| who | does what | where |
+|---|---|---|
+| generates the alert | `SquadCoordinationSystem`, right after its merge — it already loops every commander and knows whether the pool changed | NEW code in `SquadCoordinationSystem.cs` (one method); it needs last frame's pool count (kept in `SquadCognitiveState`, NEW byte) and this frame's member Hit/NearMiss events (already on the bus) |
+| carries it | the existing `SensorChangedEvent`, `Unit` = the commander, three NEW `SensorChange` values | `SensorChangedEvent.cs` |
+| the leader reads it | its SOP — the SAME machinery a soldier's SOP uses: woken by the event, `SensedFresh(kind)` true for a few seconds after it | `BrainTickSystem`, `RecentSenses`, `SopConditions` — unchanged |
+
+⛔ Measured since: a paused commander task resumes with its state but does not re-send orders (§2) ⇒ S1-G covers it. Still not
+measured: whether member-level and commander-level reactions fight over the same member in the first second (members' own TakeCover
+vs the leader's first order) — measured on the live rail when S2 is built.
 resumes it cleanly (CE-2081 covers member tasks); and how far `SquadCoordinationSystem`'s ~6-tick merge delays the trigger.
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
@@ -250,8 +307,53 @@ AI decision to it is broken, and on Stride infantry nothing reads a slot at all.
 | no test moves a formation on any HROT host; no scenario uses `JoinFormation` | unit tests only |
 | no formations design doc exists (Navigation v2 defers it to a doc never written) | `Navigation_Design_v2_0.md:1040,1666` |
 
-⭐ **Verdict and lean for the squad march:** do NOT route infantry through the vehicle formation engine. A **march is one more S1
-play**: the leader's element advances along the route; each member is ordered to its slot point (the existing `FormationTemplateManager`
-offsets — column / wedge / line — rotated to the march heading), re-issued every few metres. Members then walk with their normal,
-navmesh-pathed movement on every host, keep fighting through CombatPosture, and the same runner hands over to S2's drills on contact.
-Rejected: repairing `JoinFormation` end to end — seven broken hops, a new DDS command, a Stride consumer, and still no path finding.
+⭐ **Verdict:** proper formation movement (vehicles and infantry, station keeping, wheeling, reforming, road and terrain shaping)
+is its own programme — filed as `CE-2124`, not started. ⛔ Repairing `JoinFormation` for infantry is rejected: seven broken hops, a new
+DDS command, and followers that still steer straight at a slot with no path finding.
+
+### 6.1 A simple squad formation for now — `SquadMarch`, one more play on the S1 runner *(lean; infantry only)*
+
+```mermaid
+classDiagram
+  class SquadMarchPlay { <<NEW, ISquadPlay>> one phase · re-issue policy }
+  class SquadMarchParamsJsonDto { <<NEW, Hrot.Core>> Objective · Shape File / Wedge / Line · Spacing 5 m · Speed 1.5 · MaxLagMetres 10 }
+  class MarchState { <<NEW, inside SquadPlayState>> lead's breadcrumbs (last ~60 m, a point per metre) · last ordered slot per member · stuck timer per member }
+  class FormationTemplateManager { <<existing, reused read-only>> Column / Wedge / Line offsets }
+  class SquadManeuverRunner { <<S1>> }
+  class CombatPosture { <<existing>> what every member runs }
+  SquadMarchPlay ..> FormationTemplateManager : slot offsets × Spacing
+  SquadMarchPlay *-- MarchState
+  SquadManeuverRunner ..> SquadMarchPlay
+  SquadMarchPlay ..> CombatPosture : lead to objective, others to slots
+```
+
+```mermaid
+sequenceDiagram
+  participant R as runner: SquadMarch
+  participant L as lead member
+  participant M as other members
+  R->>L: CombatPosture advance to the objective (Speed)
+  loop every tick
+    R->>R: record the lead's breadcrumb each metre · heading = the lead's last 5 m of travel
+    R->>R: slot i = lead + heading-rotated template offset × Spacing (File: the breadcrumb i×Spacing behind the lead)
+    R->>M: re-order a member when its slot moved ≥ 3 m since its last order
+    R->>R: a member making no progress for 3 s ⇒ it falls back to its FILE slot (a breadcrumb — walkable, the lead walked it)
+    R->>L: anyone more than MaxLagMetres behind ⇒ the lead halts until they close up
+  end
+  R->>R: the lead within 5 m of the objective and the others at their slots ⇒ Success
+```
+
+*What the pictures show that prose hid: every point a member is sent to is either a breadcrumb the lead actually walked (always
+reachable) or a shape slot that is DROPPED for the breadcrumb the moment it does not work — so the walls, doorways and narrow streets
+that make real formations hard collapse into "walk in file behind the lead", which is what a squad in a street does anyway.*
+
+| simplified now | left to the formations programme (`CE-2124`) |
+|---|---|
+| slots re-issued as ordinary moves, members path-find on their own | station keeping (speed matching, catch-up gain per member) |
+| heading from the lead's last 5 m; slots jump when it turns | wheeling / pivoting through a turn |
+| stuck or unreachable ⇒ file slot | reshaping to fit the terrain, choosing the shape by terrain or danger |
+| the lead waits for stragglers | per-member gaits and spacing by visibility |
+| infantry only | vehicles, convoys, mounted ↔ dismounted transitions |
+
+⛔ **Not measured** (measured in the build, on the live rail): how many path requests a squad's re-orders cost on SimHost (estimate:
+8 members × one re-order per ~2 s ≈ 4 a second per squad) against the solver's per-frame budget.
