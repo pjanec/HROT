@@ -16,6 +16,8 @@ known-conflict: it SUPERSEDES three places that frame DR as an IG-only presentat
   docs/designs/dds-to-ecs/DESIGN.md §6.3 (the birth design, which specifies the accumulator this
   removes), docs/designs/IG/DESIGN-IG.md, and docs/projects/relationships/FDP-Network-Stack.md §12.6.
   Each is marked at the site.
+related-designs:
+  - DESIGN_Weapon_Layers.md — W-10 applies this model to TurretPose (azimuth, elevation, rates, sim stamp).
 -->
 
 # DESIGN — dead reckoning: every node, both stacks, from the sample and its stamp

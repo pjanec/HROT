@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: READY-TO-BUILD for W-1..W-9 (approved U-W2, 2026-10-11); §6 ambient fire: A-1, A-5 approved, A-2/A-3/A-4/A-6 revised by U-W4 — awaiting a nod
+build-state: READY-TO-BUILD — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet)
 current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
@@ -22,6 +22,8 @@ related-designs:
   - DESIGN_Decision_Layer.md — §4.4 ROE enforced once (R-200).
   - DESIGN_World_Query_Seam.md — R-252: the brain makes no terrain assumptions — elevation is solved on the Muscle.
   - PLAN_3D_World_And_Realism.md — B1 (live turret) and B5 (Muzzle.Of) are built through this design.
+  - DESIGN_Dead_Reckoning.md — the ONE dead-reckoning model (sample + rate + sim stamp, pure projection, R1–R8); W-10 applies it
+    to TurretPose instead of inventing a second one.
 -->
 
 # Weapon layers — behaviour brain, weapon brain, weapon muscle
@@ -173,6 +175,8 @@ executor runs its `AimSeconds` timer and publishes `WeaponFireIntent` per shot �
 | **W-8** | elevation | the muscle's `BallisticAim`: direct fire = the line to the aim point (`AimPoint.For`, as today — no gravity on direct rounds yet); indirect = `ArcLaunch`; limits clamp; a target outside the limits → `Failed(OutOfArc)` so the profile can try another mount or the behaviour can move | `FireProcessingSystem.cs:128-133, 249-260` · R-252 (no terrain assumption on the Brain) | elevation from the Brain — it has no ballistics |
 | **W-9** | the turret and its pose | a turret part child per `TurretDto` on EVERY node (created by a TKB translator, derived — not saved), `TurretPose` Muscle-owned, replicated keyed (parent, turret index), BestEffort + KeepLast 1, sent when it changes; mounts name their turret (`TurretIndex`); with no task the turret holds its pose | M23, M25, M26 · ⚠ mount children exist on CGF only today (`CgfComponentRegistry.cs:38`) | the turret pose on the mount child — two mounts share one turret (Bradley: 25 mm + TOW) |
 
+| **W-10** | turret moves without flooding the network *(U-W5: "the turret moves might need simple dead reckoning to avoid flooding the network. No implementation yet.")* | ⭐ the **same dead-reckoning model positions use** (`DESIGN_Dead_Reckoning.md`), applied to two angles: the `TurretPose` sample carries azimuth, elevation, their RATES and the cluster-synced **sim stamp**; receivers keep the sample read-only (R2) and project it FRESH every frame — `angle + rate × (simNow − stamp)`, clamped to the turret's limits (R3, R4); a pause freezes it with no guard (R5). The owner sends only when the projection would be off by more than a small threshold (a fraction of a degree), when a rate changes (start, stop, reversal), and on a slow heartbeat — so a steady slew or an ambient scan sweep costs one sample per change of motion, not one per frame | `DeadReckoningSyncSystem.cs` (the position model) · `DESIGN_Dead_Reckoning.md` R2–R6 | a separate turret smoothing scheme — two dead-reckoning models for one idea; sending every frame — the flood U-W5 names |
+
 ⚠ **New behaviour vocabulary (part of W-1):** `TrackTarget(target)` on the weapon channel — keep the gun on a target without
 firing — beside `AimAndFire` and `FireAtPoint`; releasing the channel sets the task to Idle.
 
@@ -186,7 +190,7 @@ firing — beside `AimAndFire` and `FireAtPoint`; releasing the channel sets the
 | **WL-4** | category profiles (tank gun, autocannon, ATGM, mortar, small arms); ammo choice | per-category gunnery |
 | **B5** | `Muzzle.Of` from the posed barrel — the round, the flash and the tracer from one point | VE-K |
 
-## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4)*
+## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 
 > 🔒 **User, `2026-10-11` (U-W3):** *"What about low fidelity high count 'ambient' entities where the complicated weapon control model
 > is too much? … some entities never firing, having fixed turrets, or just making mechanical movement resembling target scans and
@@ -261,7 +265,7 @@ sequenceDiagram
 | **A-1** ✅ | where ambient fire lives | a **fourth path beside the three layers**: one `AmbientFire` order + one `AmbientFireSystem` (Fdp.Toolkits Combat); no weapon channel, no weapon brain, no weapon task | U-W3 (approved) | an "ambient" weapon-brain profile — it would still run the channel, the task and the muscle per entity |
 | **A-2** ↻ | where it runs | ⭐ **on the Muscle** (the editor alone when it is one node), the node that already owns `TurretPose` (W-9), sends fire and detonation notifications and runs the damage step — so the ambient shot uses those senders unchanged; the order travels Brain → Muscle like an intent, one sample per change | `SimHostAuxiliaryTranslatorPack.cs:85-93` · BS-1 (Brain decides, Muscle executes) · U-W4 | ⛔ SUPERSEDED: computing the shots on every node with no wire traffic — dumb viewers would see nothing (U-W4) |
 | **A-3** ↻ | the fake hit | the shot itself carries it: the system decides hit or miss from a seeded draw against the order's hit chance and publishes the ordinary `DetonationNotification` with `Target` = the hit entity (or none on a miss) and `Damage` = the order's damage per hit; the TARGET then handles it with an **extremely simplified damage model** — a `SimpleDamage` marker on entities playing ambient combat makes `DamageCalculationSystem` take the shot's damage as is (no armour, no penetration) | `DetonationNotification.Damage` exists (`DetonationNotification.cs:49`) · `DamageCalculationSystem` is the one damage step · U-W4 | ⛔ SUPERSEDED: the owner publishing a predetermined damage verdict with no detonation — the hit would not be visible as a hit |
-| **A-4** ↻ | the turret | `TurretPose` written by the ambient system (a slow sweep in `Scan`, a lagged turn toward the target when firing; no limits, rates or ballistics) and **replicated through the ordinary turret-pose descriptor, rate-limited**, so dumb viewers see it move. **Fixed turret** = no `TurretDto` in the TKB; **never fires** = no order | W-9 · U-W4 | ⛔ SUPERSEDED: skipping the pose egress for ambient entities |
+| **A-4** ↻ | the turret | `TurretPose` written by the ambient system (a slow sweep in `Scan`, a lagged turn toward the target when firing; no limits, rates or ballistics) and **replicated through the ordinary turret-pose descriptor with dead reckoning (W-10)** — a sweep is one sample per reversal, so dumb viewers see it move. **Fixed turret** = no `TurretDto` in the TKB; **never fires** = no order | W-9 · U-W4 | ⛔ SUPERSEDED: skipping the pose egress for ambient entities |
 | **A-5** ✅ | who sets the order | the **scenario** (per instance, saved) or a **simple action node** `AmbientEngage(target or point, duration)` any behaviour can call; an "ambient battle" generator is a behaviour handing out orders | approved | a weapon-channel request |
 | **A-6** ↻ | what real AI makes of it | the events are the ordinary ones (U-W4), so real units hear and see ambient fire like any fire; ⭐ lean: no special flag on the wire (a dumb viewer could not use one either) — keeping real units out of a fake battle is a scenario matter (place, side, perception range) | U-W4 · R-207 hearing | ⛔ SUPERSEDED: an `IsAmbient` tag that hearing ignores — it would need a field on the wire messages |
 
