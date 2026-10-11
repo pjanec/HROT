@@ -58,7 +58,9 @@ public sealed class MinimapRenderer
 
         // The graph bounds are unioned with what the canvas currently shows, so the viewport
         // rectangle stays inside the minimap even when the user pans away from every node.
-        var bounds = Union(GraphBounds(view), VisibleRect(view));
+        // ⭐ CE-1007 — while a scrub is held the mapped region is FROZEN at its press-time value: it includes the visible rect,
+        //   so a live one rescales the map under the cursor as the view moves (a runaway with the old pan sign).
+        var bounds = _dragBounds ?? Union(GraphBounds(view), VisibleRect(view));
         var fit    = Fit(bounds, min, max);
 
         foreach (var node in view.Model.Nodes)
@@ -92,6 +94,8 @@ public sealed class MinimapRenderer
     /// </summary>
     private void HandleClick(GraphView view, Vector2 min, RectF bounds)
     {
+        if (!ImGui.IsMouseDown(ImGuiMouseButton.Left)) _dragBounds = null;   // the scrub ended (wherever the mouse is)
+
         var mouse = ImGui.GetMousePos();
         var max   = min + Size;
         bool inside = mouse.X >= min.X && mouse.X <= max.X && mouse.Y >= min.Y && mouse.Y <= max.Y;
@@ -100,23 +104,34 @@ public sealed class MinimapRenderer
         // Consume the hover so the canvas underneath does not also act on it.
         ImGui.SetNextFrameWantCaptureMouse(true);
 
-        if (!ImGui.IsMouseDown(ImGuiMouseButton.Left)) return;
+        if (ImGui.IsMouseClicked(ImGuiMouseButton.Left)) _dragBounds = bounds;   // a scrub starts here, on its own press
+        if (_dragBounds is not { } frozen || !ImGui.IsMouseDown(ImGuiMouseButton.Left)) return;
 
-        var scale = FitScale(bounds);
-        if (scale <= 0f) return;
-
-        var offset = FitOffset(bounds, min, scale);
-        var graph  = (mouse - offset) / scale;
-
-        CentreOn(view, graph);
+        if (MinimapToGraph(mouse, min, frozen) is { } graph)
+            CentreOn(view, graph);
     }
 
-    /// <summary>Moves the viewport so <paramref name="graphPoint"/> sits at the canvas centre.</summary>
-    private static void CentreOn(GraphView view, Vector2 graphPoint)
+    private RectF? _dragBounds;
+
+    /// <summary>The graph point under minimap pixel <paramref name="mouse"/> for a map of <paramref name="bounds"/> drawn at <paramref name="min"/>.</summary>
+    internal Vector2? MinimapToGraph(Vector2 mouse, Vector2 min, RectF bounds)
+    {
+        var scale = FitScale(bounds);
+        if (scale <= 0f) return null;
+        return (mouse - FitOffset(bounds, min, scale)) / scale;
+    }
+
+    /// <summary>
+    /// Moves the viewport so <paramref name="graphPoint"/> sits at the canvas centre. ⭐ CE-1007 — the pan is
+    /// <c>graphPoint − centre</c>: <c>PanGraph</c> is the graph point at the canvas origin (<c>ScreenToGraph</c>), so adding the
+    /// difference moves the centre ONTO the point. ⛔ It was <c>centre − graphPoint</c>, which sent the view to the point's mirror
+    /// image — every held frame, a jump further away.
+    /// </summary>
+    internal static void CentreOn(GraphView view, Vector2 graphPoint)
     {
         var vp     = view.Viewport;
         var centre = vp.ScreenToGraph(vp.CanvasScreenOrigin + vp.CanvasScreenSize * 0.5f);
-        vp.Pan(centre - graphPoint);
+        vp.Pan(graphPoint - centre);
     }
 
     // ── geometry ──────────────────────────────────────────────────────────────

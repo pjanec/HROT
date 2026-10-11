@@ -118,6 +118,33 @@ public sealed class MinimapAndErrorNavigationTests
         Assert.Equal(240f, bounds.Size.Y);   // 100 … 340
     }
 
+    /// <summary>⭐ CE-1007 — centring puts the point AT the canvas centre (it used to land on its mirror image), and scrubbing on one
+    /// minimap pixel with the press-time map is stable: the second centre is the first, not a jump further away.</summary>
+    [Fact]
+    public void CE1007_ScrubbingTheMinimap_CentresOnThePoint_AndStaysThere()
+    {
+        var (_, view, model) = MakeSut();
+        model.Add(0, 0, size: new Vector2(160, 64));
+        model.Add(600, 400, size: new Vector2(160, 64));
+        view.Viewport.Pan(new Vector2(37f, -12f));
+        var target = new Vector2(250f, 180f);
+        MinimapRenderer.CentreOn(view, target);
+        var centre = view.Viewport.ScreenToGraph(new Vector2(400, 300));
+        Assert.Equal(target.X, centre.X, 3);
+        Assert.Equal(target.Y, centre.Y, 3);
+
+        var minimap = new MinimapRenderer();
+        var min = new Vector2(500f, 12f);
+        var frozen = MinimapRenderer.Union(MinimapRenderer.GraphBounds(view), MinimapRenderer.VisibleRect(view));
+        var pixel = min + new Vector2(60f, 40f);
+        for (int frame = 0; frame < 30; frame++)   // the button held for half a second
+            MinimapRenderer.CentreOn(view, minimap.MinimapToGraph(pixel, min, frozen)!.Value);
+        var once = minimap.MinimapToGraph(pixel, min, frozen)!.Value;
+        var after = view.Viewport.ScreenToGraph(new Vector2(400, 300));
+        Assert.Equal(once.X, after.X, 3);
+        Assert.Equal(once.Y, after.Y, 3);
+    }
+
     [Fact]
     public void GraphBounds_OfAnEmptyGraph_IsDegenerateRatherThanInfinite()
     {
