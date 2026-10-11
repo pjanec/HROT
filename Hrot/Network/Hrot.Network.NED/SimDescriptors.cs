@@ -132,6 +132,8 @@ namespace Hrot.NED.Descriptors
         public byte MountIndex;
         public ushort RoundsGranted;
         public ulong AmmoGuid;
+        /// <summary>⭐ WL-3 — seconds between rounds.</summary>
+        public float CooldownSeconds;
         public uint Epoch;
     }
 

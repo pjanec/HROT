@@ -59,7 +59,8 @@ namespace Hrot.Map.Common.Replication.Ingress
             return new WeaponTask
             {
                 Mode = (WeaponTaskMode)d.Mode, Target = target, Point = new System.Numerics.Vector3(d.PointX, d.PointY, d.PointZ),
-                MountIndex = d.MountIndex, RoundsGranted = d.RoundsGranted, AmmoGuid = d.AmmoGuid, Epoch = d.Epoch,
+                MountIndex = d.MountIndex, RoundsGranted = d.RoundsGranted, AmmoGuid = d.AmmoGuid,
+                CooldownSeconds = d.CooldownSeconds, Epoch = d.Epoch,
             };
         }
 

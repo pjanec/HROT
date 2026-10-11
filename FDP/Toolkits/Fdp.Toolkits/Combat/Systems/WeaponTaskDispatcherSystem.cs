@@ -35,6 +35,12 @@ namespace Fdp.Toolkit.Combat.Systems
         private static WeaponTaskStatus Run(EntityRepository repo, Entity part, in WeaponTask task, float dt)
         {
             var status = new WeaponTaskStatus { Epoch = task.Epoch, RoundsFired = PreviousRounds(repo, part, task.Epoch) };
+            // ⭐ WL-3 — the fire clock runs in every mode, so a Track → Engage switch finds it already drained.
+            if (repo.IsComponentTypeRegistered<WeaponMuscleState>() && repo.HasComponent<WeaponMuscleState>(part))
+            {
+                ref var clock = ref repo.GetComponentRW<WeaponMuscleState>(part);
+                if (clock.CooldownRemaining > 0f) clock.CooldownRemaining = System.MathF.Max(0f, clock.CooldownRemaining - dt);
+            }
             if (task.Mode == WeaponTaskMode.Idle) return status;   // State None: the turret holds its pose
 
             var meta = repo.GetComponent<PartMetadata>(part);
@@ -58,7 +64,43 @@ namespace Fdp.Toolkit.Combat.Systems
             ref var pose = ref repo.GetComponentRW<TurretPose>(part);
             pose = TurretSlew.Step(pose, azimuth, elevation, turret, dt);
             status.State = TurretSlew.OnTarget(pose, azimuth, elevation) ? WeaponTaskState.OnTarget : WeaponTaskState.Slewing;
+            if (task.Mode == WeaponTaskMode.Engage) Engage(repo, part, hull, task, ref status);
             return status;
+        }
+
+        /// <summary>
+        /// ⭐ WL-3 (§5e, W-4, W-7) — on target, with a granted round left and the fire clock run down, the round leaves through the
+        /// ordinary path (a <see cref="Fdp.Toolkit.Combat.Events.WeaponFireIntent"/> that <see cref="FireProcessingSystem"/> turns
+        /// into a bullet), unless a friendly is on the line at that moment (<see cref="LineOfFire.BlockedByFriendly"/> — the ONE
+        /// check, which the per-shot path calls too). All granted rounds fired ⇒ Done (the brain may grant more under the same epoch).
+        /// </summary>
+        private static void Engage(EntityRepository repo, Entity part, Entity hull, in WeaponTask task, ref WeaponTaskStatus status)
+        {
+            if (status.RoundsFired >= task.RoundsGranted)
+            {
+                if (task.RoundsGranted > 0) status.State = WeaponTaskState.Done;
+                return;
+            }
+            if (status.State != WeaponTaskState.OnTarget || !repo.IsComponentTypeRegistered<WeaponMuscleState>()) return;
+            if (!repo.HasComponent<WeaponMuscleState>(part)) repo.AddComponent(part, default(WeaponMuscleState));
+            ref var clock = ref repo.GetComponentRW<WeaponMuscleState>(part);
+            if (clock.CooldownRemaining > 0f) return;
+            if (!task.Target.IsNull && LineOfFire.BlockedByFriendly(repo, hull, task.Target)) return;
+
+            repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireIntent
+            {
+                Shooter     = hull,
+                Target      = task.Target,
+                WeaponIndex = task.MountIndex,
+                // ⭐ Already AT the muscle: never forwarded as a WeaponFireRequest (the only reader of this flag on a fire intent is
+                //   WeaponFireIntentEgressTranslator), so a Brain+Muscle node cannot fire the round twice.
+                IsRemote    = true,
+                AtPoint     = task.Target.IsNull,
+                TargetPoint = task.Point,
+            });
+            clock.CooldownRemaining = task.CooldownSeconds;
+            status.RoundsFired++;
+            status.State = WeaponTaskState.Firing;
         }
 
         private static WeaponTaskStatus Failed(WeaponTaskStatus status, WeaponTaskFailure reason)

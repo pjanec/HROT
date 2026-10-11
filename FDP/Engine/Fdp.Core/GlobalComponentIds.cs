@@ -739,5 +739,8 @@ namespace Fdp.Core
 
         /// <summary><c>WeaponTaskStatus</c> — the weapon muscle's report on that order (WL-2, W-3). MuscleGround group.</summary>
         public const int WeaponTaskStatus = 353;
+
+        /// <summary><c>WeaponMuscleState</c> — the weapon muscle's own per-turret fire timing (WL-3), never sent.</summary>
+        public const int WeaponMuscleState = 354;
     }
 }

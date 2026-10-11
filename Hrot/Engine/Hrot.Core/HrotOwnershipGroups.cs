@@ -82,6 +82,7 @@ public static class HrotOwnershipGroups
         // ⭐ WL-1b (CE-1049, DESIGN_Weapon_Layers W-9) — the weapon MUSCLE aims the turret, so it owns the pose (dtTurretPose).
         muscle.SetBit(GlobalComponentIds.TurretPose);
         muscle.SetBit(GlobalComponentIds.WeaponTaskStatus);   // ⭐ WL-2b (W-3) — the muscle's report on a turret's task
+        muscle.SetBit(GlobalComponentIds.WeaponMuscleState);  // ⭐ WL-3 — its never-sent fire timing (like FrustrationTicks)
 
         // ── Perception (§1.2b, R-171) — perception EXECUTION ─────────────────────────────────────────
         var perception = default(BitMask512);

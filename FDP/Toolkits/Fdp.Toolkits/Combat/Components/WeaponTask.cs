@@ -58,7 +58,19 @@ namespace Fdp.Toolkit.Combat.Components
         public ushort RoundsGranted;
         /// <summary>The ammunition to load (W-6); 0 = the mount's own.</summary>
         public ulong AmmoGuid;
+        /// <summary>⭐ WL-3 — seconds between rounds (the action's own cooldown); the muscle times the shots with it.</summary>
+        public float CooldownSeconds;
         public uint Epoch;
+    }
+
+    /// <summary>
+    /// ⭐ WL-3 (DESIGN_Weapon_Layers §5e) — the weapon muscle's own fire timing for a turret, on its part. Muscle state that never
+    /// crosses the wire (the MuscleGround group's never-sent state, like <c>FrustrationTicks</c>).
+    /// </summary>
+    [ComponentId(GlobalComponentIds.WeaponMuscleState)]
+    public struct WeaponMuscleState
+    {
+        public float CooldownRemaining;
     }
 
     /// <summary>⭐ WL-2 (W-3) — the weapon muscle's report on the turret's current <see cref="WeaponTask"/>, on the same part.</summary>

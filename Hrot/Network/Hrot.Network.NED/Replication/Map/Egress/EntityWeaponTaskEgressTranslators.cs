@@ -51,7 +51,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 {
                     ParentNetworkId = hullNet, PartId = partId, Mode = (byte)task.Mode, TargetNetworkId = targetNet,
                     PointX = task.Point.X, PointY = task.Point.Y, PointZ = task.Point.Z,
-                    MountIndex = task.MountIndex, RoundsGranted = task.RoundsGranted, AmmoGuid = task.AmmoGuid, Epoch = task.Epoch,
+                    MountIndex = task.MountIndex, RoundsGranted = task.RoundsGranted, AmmoGuid = task.AmmoGuid,
+                    CooldownSeconds = task.CooldownSeconds, Epoch = task.Epoch,
                 };
                 if (_last.TryGetValue((hullNet, partId), out var prev) && prev.Equals(sample)) continue;
                 _last[(hullNet, partId)] = sample;

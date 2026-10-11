@@ -32,6 +32,10 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         Done,
         /// <summary>The action failed.</summary>
         Failed,
+        /// <summary>⭐ WL-3 — the turret is turning onto the target (DESIGN_Weapon_Layers §5e).</summary>
+        Slewing,
+        /// <summary>⭐ WL-3 — the target needs an angle outside the turret's limits (W-8).</summary>
+        OutOfArc,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -99,12 +103,14 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.OutOfAmmo          => "out of ammo",
             ActionReason.Done               => "done",
             ActionReason.Failed             => "failed",
+            ActionReason.Slewing            => "slewing",
+            ActionReason.OutOfArc           => "out of arc",
             _                               => "",
         };
 
         /// <summary>True for the reasons that mean "wants to act and cannot" — the gizmo draws them amber.</summary>
         public static bool IsHold(ActionReason r) => r is ActionReason.HoldNotSeen or ActionReason.HoldFriendlyOnLine
-            or ActionReason.HoldRoe or ActionReason.OutOfAmmo or ActionReason.Failed;
+            or ActionReason.HoldRoe or ActionReason.OutOfAmmo or ActionReason.Failed or ActionReason.OutOfArc;
 
         private static void Write(ref ActionStatusRow row, ushort actionId, ActionReason reason, Entity target, float progress,
             float needed, double now)

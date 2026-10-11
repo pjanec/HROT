@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILDING (WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d built) — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
+build-state: BUILDING (WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built) — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
 current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
@@ -419,7 +419,7 @@ classDiagram
 (Brain and Muscle both run it; a pure IG needs neither). A target the Muscle does not know arrives as `Entity.Null` with no point,
 so the muscle reports `NoTarget` instead of aiming at the origin.
 
-### 5e. WL-3 — Engage: the brain grants rounds, the muscle fires them *(design 2026-10-11)*
+### 5e. WL-3 — Engage: the brain grants rounds, the muscle fires them *(✅ built 2026-10-11 — as drawn, plus the notes below)*
 
 ```mermaid
 sequenceDiagram
@@ -468,6 +468,16 @@ classDiagram
 | seen-now / ROE / magazine gate **Engage vs Track** on the Brain; the friendly line is checked by the muscle at the shot (W-7) | the seen-now memory is Brain state; the shot's moment is the Muscle's | the muscle reading `TargetMemory` — W-7 rejected |
 | no AimSeconds on the turret path — the slew is the aim | U-W1 *"AimSeconds can stay for simplest weapon brains not modelling turrets"* | both — a turreted gun would wait twice |
 | `Failed(OutOfArc)` → the action fails (Failure); `NoTarget` with a dead target → Success | the behaviour moves or picks another target; WL-4's profiles may try another mount first | silently holding — a behaviour would wait forever |
+
+⚠ **As built (WL-3):**
+- the muscle's fire intent is marked `IsRemote = true` — it is already at the muscle, and the only reader of that flag on a fire intent
+  (`WeaponFireIntentEgressTranslator`) must not forward it, or a Brain+Muscle node would fire the round twice;
+- `TrackTargetExecutor` (`ActionIdTrackTarget = 3` on the weapon channel) is registered in `CgfLogicPack`; ⚠ **its BTree / Blueprint
+  node is NOT built** — exposing it to behaviour authors is the behaviors lane's vocabulary (as `FireAtPoint` was, `FireAtPointBehavior`);
+- two diagnostic reasons, `Slewing` and `OutOfArc`, appended to `ActionReason` (the gizmo shows "slewing" / "out of arc");
+- ⚠ **known limit:** `Mount = Auto` re-chooses the mount every frame (`WeaponChoice`); a flip to a mount on the SAME turret starts a new
+  epoch, and a round the muscle fired under the old one but the brain had not yet accounted is not spent on the brain. WL-4's
+  profiles choose the mount once per engagement, which removes it.
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 

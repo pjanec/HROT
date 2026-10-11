@@ -165,6 +165,35 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(new WeaponTaskStatus { Epoch = 7 }, Status(idle));
         }
 
+        /// <summary>⭐ WL-3 — Engage fires only when on target, at most the granted rounds, spaced by the task's cooldown, through
+        /// an ordinary <see cref="Fdp.Toolkit.Combat.Events.WeaponFireIntent"/> marked remote (never forwarded again); then Done.</summary>
+        [Fact]
+        public void WL3_Engage_FiresTheGrantedRounds_OnTarget_SpacedByTheCooldown_ThenDone()
+        {
+            _world.RegisterComponent<WeaponMuscleState>();
+            _world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
+            var (hull, turret) = Tank(1);
+            _world.AddOrSet(turret, new WeaponTask { Mode = WeaponTaskMode.Engage, Point = new Vector3(0, 100, 2), RoundsGranted = 3,
+                                                     CooldownSeconds = 0.5f, Epoch = 1 });
+            var frames = new System.Collections.Generic.List<int>();
+            for (int f = 0; f < 60 * 8; f++)
+            {
+                _muscle.Execute(_world, Dt);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<Fdp.Toolkit.Combat.Events.WeaponFireIntent>())
+                {
+                    Assert.Equal(hull, shot.Shooter);
+                    Assert.True(shot.AtPoint && shot.IsRemote);
+                    frames.Add(f);
+                }
+            }
+            Assert.Equal(3, frames.Count);
+            Assert.True(frames[0] >= 225 - 2, $"first round at frame {frames[0]}: not before the 90° slew at 24°/s ends (3.75 s)");
+            Assert.True(frames[1] - frames[0] >= 30 && frames[2] - frames[1] >= 30, string.Join(",", frames));
+            Assert.Equal(WeaponTaskState.Done, Status(turret).State);
+            Assert.Equal(3, Status(turret).RoundsFired);
+        }
+
         private static (float, float) Round((float A, float E) v) => (MathF.Round(v.A, 3) + 0f, MathF.Round(v.E, 3) + 0f);
     }
 
