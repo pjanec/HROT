@@ -629,6 +629,8 @@ internal sealed class CSharpEmitter
         WriteLine("{");
         Indent();
         WriteLine($"Name = \"{asset.Name}\",");
+        if (!string.IsNullOrEmpty(_ctx.BehaviorGroup))   // ⭐ CE-3164 (R-268) — the picker folder, from the asset's folder
+            WriteLine($"Group = \"{_ctx.BehaviorGroup!.Replace("\"", "")}\",");
         WriteLine("BrainTier = global::Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBlueprint,");
         // ⭐ S2 (DESIGN_Unified_Behaviour_Run U-1) — the BLOCK is the root params slot; the brain state (cursor, When
         //   memory, suspended locals) is the root STATE slot, sized by the definition like a BTree cursor.

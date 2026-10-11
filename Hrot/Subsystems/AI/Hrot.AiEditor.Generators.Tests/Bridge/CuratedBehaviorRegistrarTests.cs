@@ -63,6 +63,23 @@ public sealed class CuratedBehaviorRegistrarTests
     //
     // The standing cover is everything below.
 
+    /// <summary>⭐ CE-3164 (R-268) — a curated behaviour's <c>[BTreeDefinition(Group = …)]</c> reaches the registry (the
+    /// picker's folder); a library behaviour is under <c>Library/</c>, the window-duel demo under <c>Demos/</c>.
+    /// 🔴 Red before: the attribute had no Group and the generated registrar wrote none.</summary>
+    [Fact]
+    public void CE3164_TheAttributeGroup_ReachesTheRegistry()
+    {
+        var beh = new BehaviorRegistry();
+        CuratedBehaviorRegistrar.Register(beh, NodeLogic());
+        beh.GroupOf("CombatPosture").Should().Be("Library/Infantry");
+        beh.GroupOf("BoundingOverwatch").Should().Be("Library/Squad");
+        beh.GroupOf("MoveToLocation").Should().Be("Library/Basic");
+        beh.GroupOf("Idle").Should().Be("Library/Basic");
+        beh.GroupOf("WindowDuel").Should().Be("Demos/PeekAndFire");
+        foreach (var name in beh.GetRegisteredNames())
+            beh.GroupOf(name).Should().NotBeNull($"every curated behaviour declares its folder — {name} does not");
+    }
+
     // ── SR_R2 — the standing cover, and it closes a live hazard ───────────────
 
     /// <summary>

@@ -8,9 +8,9 @@ internal static class Stage7_Emit
 {
     public static (string GeneratedSource, DebugMap DebugMap) Run(
         IrAsset asset, CompilerMode mode, DiagnosticSink sink,
-        IReadOnlyList<BlueprintSignature>? siblingSignatures = null)
+        IReadOnlyList<BlueprintSignature>? siblingSignatures = null, string? behaviorGroup = null)
     {
-        var ctx = new EmissionContext(asset, mode, siblingSignatures);
+        var ctx = new EmissionContext(asset, mode, siblingSignatures) { BehaviorGroup = behaviorGroup };
         var emitter = new CSharpEmitter(ctx);
         return emitter.Emit(asset);
     }

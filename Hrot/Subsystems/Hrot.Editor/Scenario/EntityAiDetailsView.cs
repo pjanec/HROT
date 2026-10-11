@@ -146,6 +146,16 @@ public sealed class EntityAiEditModel
             .OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
 
+    /// <summary>⭐ <c>CE-3164</c> (R-268) — <paramref name="names"/> as picker choices: each with its technology and folder.</summary>
+    public IReadOnlyList<Hrot.UI.Common.Facades.BehaviorChoice> AsChoices(IReadOnlyList<string> names)
+    {
+        if (_registry() is not { } r) return Array.Empty<Hrot.UI.Common.Facades.BehaviorChoice>();
+        return names.Select(n => new Hrot.UI.Common.Facades.BehaviorChoice(n, Hrot.UI.Common.Adapters.ScenarioMissionService.TechnologyOf(r, n))
+        {
+            Group = r.GroupOf(n) ?? Hrot.UI.Common.Facades.BehaviorChoice.OtherGroup,
+        }).ToList();
+    }
+
     /// <summary>The behaviour's authored params type — what the params form edits; <c>null</c> = it takes none.</summary>
     public Type? ParamsTypeOf(string behaviour)
         => _registry() is { } r && r.TryGetId(behaviour, out int id) && r.TryGetDefinition(id, out var d) ? d.JsonParamsDtoType : null;
@@ -282,12 +292,9 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
     {
         ImGui.PushID(id);
         if (pick.Length == 0 && current != null) pick = current;
-        if (ImGui.BeginCombo("Behaviour", pick.Length == 0 ? "(choose)" : pick))
-        {
-            foreach (var name in choices)
-                if (ImGui.Selectable(name, name == pick)) { pick = name; form = null; }
-            ImGui.EndCombo();
-        }
+        // ⭐ CE-3164 (R-268) — the shared folder-tree picker
+        if (Hrot.Presentation.Behavior.BehaviorPickerTree.Combo("Behaviour", pick.Length == 0 ? "(choose)" : pick,
+                _model.AsChoices(choices), pick, out var picked)) { pick = picked; form = null; }
         if (note != null) ImGui.TextDisabled(note);
 
         var type = pick.Length > 0 ? _model.ParamsTypeOf(pick) : null;

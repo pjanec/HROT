@@ -98,6 +98,9 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
             return;
         }
 
+        // ⭐ CE-3164 (R-268) — the picker group is the asset's FOLDER (never persisted in the file).
+        dto.Group = Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath(path);
+
         // ⭐⭐ CE-423 — a State variable that would get NO storage is an ERROR, not a silent skip.
         foreach (var unstored in Hrot.AiEditor.Persistence.Emit.StateVariableStorage.UnstoredStateVariables(dto))
             spc.ReportDiagnostic(MakeStateStorageDiagnostic(path, unstored));

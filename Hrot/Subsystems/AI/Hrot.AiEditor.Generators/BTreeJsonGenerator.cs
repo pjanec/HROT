@@ -111,6 +111,9 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             return;
         }
 
+        // ⭐ CE-3164 (R-268) — the picker group is the asset's FOLDER (never persisted in the file).
+        dto.Group = Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath(path);
+
         // ⭐⭐⭐ CE-417 B-1 (slice 4c) — a blueprint binding names its blueprint by ASSET ID; derive the generated
         //   TickCore it calls, here, once, before anything reads the DTO. ⇒ validator and emitters are unchanged and so
         //   is the emitted source. The class comes from the .bp.json catalog BY ID (rename-proof).

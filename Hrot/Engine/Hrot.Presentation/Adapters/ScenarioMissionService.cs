@@ -85,7 +85,10 @@ namespace Hrot.UI.Common.Adapters
             // Append editor-authored BTree behaviors not already in the curated list.
             AppendEditorBTreeBehaviors(_registry, result);
 
-            return result.Select(n => new BehaviorChoice(n, TechnologyOf(_registry, n))).ToList();
+            return result.Select(n => new BehaviorChoice(n, TechnologyOf(_registry, n))
+            {
+                Group = _registry.GroupOf(n) ?? BehaviorChoice.OtherGroup,   // ⭐ CE-3164 (R-268)
+            }).ToList();
         }
 
         /// <summary>
@@ -93,7 +96,7 @@ namespace Hrot.UI.Common.Adapters
         /// the name has no definition. ⚠ This is the RUNTIME technology: a curated behaviour written in C# that
         /// compiles to a BTree reads "BTree" — which is what runs it.
         /// </summary>
-        internal static string? TechnologyOf(BehaviorRegistry registry, string name)
+        public static string? TechnologyOf(BehaviorRegistry registry, string name)
         {
             if (!registry.TryGetId(name, out int id) || !registry.TryGetDefinition(id, out var def))
                 return null;
@@ -121,8 +124,6 @@ namespace Hrot.UI.Common.Adapters
             foreach (var name in registry.GetRegisteredNames())
             {
                 if (existingNames.Contains(name))
-                    continue;
-                if (BehaviorCatalog.IsDemo(name))   // ⭐ CE-3160 (L4) — a demo runs when named, but is not offered
                     continue;
                 if (!registry.TryGetId(name, out int id))
                     continue;

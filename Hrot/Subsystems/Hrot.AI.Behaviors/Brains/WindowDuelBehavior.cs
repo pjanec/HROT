@@ -52,7 +52,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Peek = p;
         }
 
-        [BTreeDefinition(BehaviorNames.WindowDuel, Curated = true, ParamsType = typeof(WindowDuelBlackboard))]
+        [BTreeDefinition(BehaviorNames.WindowDuel, Curated = true, Group = "Demos/PeekAndFire", ParamsType = typeof(WindowDuelBlackboard))]
         public static BTreeBuilder<WindowDuelBlackboard, BTreeContext> BuildWindowDuelTree()
         {
             return new BTreeBuilder<WindowDuelBlackboard, BTreeContext>()

@@ -96,11 +96,16 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     ? pt.ToDisplayString()
                     : null;
 
+                // CE-3164 (R-268): the pickers' folder, from the attribute.
+                var groupArg = attr.NamedArguments.FirstOrDefault(kv => kv.Key == "Group");
+                string? group = groupArg.Key != null ? groupArg.Value.Value as string : null;
+
                 return new CuratedTopology
                 {
                     Name       = name!,
                     IsHsm      = isHsm,
                     ParamsType = paramsType,
+                    Group      = string.IsNullOrEmpty(group) ? null : group,
                 };
             }
             return null;
@@ -247,6 +252,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 sb.AppendLine("            beh.Register(" + Q(t.Name) + ", new global::Fdp.Toolkit.Behavior.BehaviorDefinition");
                 sb.AppendLine("            {");
                 sb.AppendLine("                Name      = " + Q(t.Name) + ",");
+                if (t.Group != null) sb.AppendLine("                Group     = " + Q(t.Group) + ",");
                 if (t.IsHsm)
                 {
                     sb.AppendLine("                BrainTier = global::Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierHsm,");
@@ -346,6 +352,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public string Name { get; set; } = "";
         public bool IsHsm { get; set; }
         public string? ParamsType { get; set; }
+        /// <summary>CE-3164 (R-268): the attribute's <c>Group</c> — the pickers' folder — or null.</summary>
+        public string? Group { get; set; }
     }
 
     internal class CuratedResolver

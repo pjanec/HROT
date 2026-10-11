@@ -12,7 +12,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// <c>HillAttackCommanderNodes.ParsePlatoonHillAttackParams</c> at ingress time;
     /// never referenced from BTree hot-path nodes.</para>
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.Commander, Demo = true)]   // ⭐ CE-3160 (L4) — an example / demo tree, not the library
+    [BehaviorContract(BehaviorId, BehaviorCategory.Commander)]
     public sealed class PlatoonHillAttackParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.PlatoonHillAttack;

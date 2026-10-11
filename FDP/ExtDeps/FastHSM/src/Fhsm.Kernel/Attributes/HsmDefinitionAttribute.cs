@@ -46,6 +46,11 @@ namespace Fhsm.Kernel.Attributes
         // signal; see BTreeDefinitionAttribute.Curated for the measurement that made it necessary.
         public bool Curated { get; set; }
 
+        // CE-3164 (R-268): the behaviour pickers' folder for a curated behaviour, '/'-separated
+        // (e.g. "Library/Infantry"). JSON assets take theirs from the asset's folder instead.
+        // Null = "Other". Read by CuratedBehaviorGenerator into BehaviorDefinition.Group.
+        public string? Group { get; set; }
+
         public HsmDefinitionAttribute(string machineName)
         {
             MachineName = machineName;

@@ -39,7 +39,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
         }
 
-        [BTreeDefinition(BehaviorNames.DoorLocksmith, Curated = true, ParamsType = typeof(DoorLocksmithBlackboard))]
+        [BTreeDefinition(BehaviorNames.DoorLocksmith, Curated = true, Group = "Library/Basic", ParamsType = typeof(DoorLocksmithBlackboard))]
         public static BTreeBuilder<DoorLocksmithBlackboard, BTreeContext> BuildDoorLocksmithTree()
         {
             return new BTreeBuilder<DoorLocksmithBlackboard, BTreeContext>()

@@ -142,6 +142,7 @@ public static class TakeCoverRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("TakeCover"), "TakeCover", new BehaviorDefinition
         {
             Name         = "TakeCover",
+            Group        = "Tactics",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 12737655520619904180UL,   // CE-455: the root block's layout

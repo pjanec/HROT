@@ -35,6 +35,9 @@ internal sealed class EmissionContext
     /// </summary>
     public IReadOnlyList<BlueprintSignature> SiblingSignatures { get; }
 
+    /// <summary>⭐ CE-3164 (R-268) — the picker group a behaviour registration declares (<c>CompileOptions.BehaviorGroup</c>).</summary>
+    public string? BehaviorGroup { get; init; }
+
     public EmissionContext(
         IrAsset asset, CompilerMode mode,
         IReadOnlyList<BlueprintSignature>? siblingSignatures = null)

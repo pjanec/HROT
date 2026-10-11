@@ -104,6 +104,7 @@ public static class SentryRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("Sentry"), "Sentry", new BehaviorDefinition
         {
             Name         = "Sentry",
+            Group        = "Tactics",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 10910191762451334334UL,   // CE-455: the root block's layout

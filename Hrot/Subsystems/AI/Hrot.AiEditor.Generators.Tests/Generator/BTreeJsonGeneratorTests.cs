@@ -118,6 +118,32 @@ public sealed class BTreeJsonGeneratorTests
             "a valid asset should produce no generator diagnostics");
     }
 
+    /// <summary>⭐ CE-3164 (R-268) — the asset's folder below <c>Assets/BTrees/</c> is its picker group, written into the
+    /// generated registration; a root-level asset gets none (the picker's "Other"). 🔴 Red before: no Group was emitted.</summary>
+    [Theory]
+    [InlineData("/repo/Assets/BTrees/Library/Tactics/SampleScout.btree.json", "Library/Tactics")]
+    [InlineData("/repo/Assets/BTrees/Demos/SampleScout.btree.json", "Demos")]
+    [InlineData("/repo/Assets/BTrees/SampleScout.btree.json", null)]
+    public void CE3164_TheAssetFolder_IsTheRegisteredGroup(string path, string? group)
+    {
+        string json = BTreeJsonServices.Serialize(BehaviorTreeAssetMapper.ToDto(LoadSampleScout()));
+        var bridge = RunGenerator(MakeAdditionalText(path, json)).GeneratedTrees
+            .First(t => t.FilePath.Contains("Registrar")).ToString();
+        if (group == null) bridge.Should().NotMatchRegex(@"\bGroup\s+=");
+        else bridge.Should().MatchRegex($@"\bGroup\s+= ""{group}"",");
+    }
+
+    /// <summary>⭐ CE-3164 — the group rule itself: Windows or Unix separators, any kind root, root-level ⇒ none.</summary>
+    [Theory]
+    [InlineData(@"C:\repo\Hrot\Assets\BTrees\Demos\Urban\Ambush.btree.json", "Demos/Urban")]
+    [InlineData("C:/repo/Assets/HSMs/Library/Squad/Guard.hsm.json", "Library/Squad")]
+    [InlineData("/repo/Assets/Blueprints/Samples/Count4.bp.json", "Samples")]
+    [InlineData("/repo/Assets/Blueprints/Count4.bp.json", null)]
+    [InlineData("/elsewhere/Count4.bp.json", null)]
+    [InlineData(null, null)]
+    public void CE3164_FromAssetPath(string? path, string? group)
+        => Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath(path).Should().Be(group);
+
     [Fact]
     public void ValidBTreeJson_GeneratedFileName_MatchesAssetName()
     {

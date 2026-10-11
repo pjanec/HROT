@@ -31,7 +31,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// ⚠ It declares no params, so <c>ParamsType</c> is deliberately absent: the entity gets no
         /// root params slot, which is the legitimate <c>RootParamsBytes == 0</c> case.
         /// </summary>
-        [HsmDefinition("Idle", Curated = true)]
+        [HsmDefinition("Idle", Curated = true, Group = "Library/Basic")]
         public static StateMachineGraph BuildIdleMachine()
         {
             var builder = new HsmBuilder("Idle_HSM");

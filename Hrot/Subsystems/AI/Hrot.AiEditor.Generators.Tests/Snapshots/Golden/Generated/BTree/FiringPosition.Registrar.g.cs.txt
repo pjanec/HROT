@@ -195,6 +195,7 @@ public static class FiringPositionRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("FiringPosition"), "FiringPosition", new BehaviorDefinition
         {
             Name         = "FiringPosition",
+            Group        = "Tactics",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 8951572453834992612UL,   // CE-455: the root block's layout

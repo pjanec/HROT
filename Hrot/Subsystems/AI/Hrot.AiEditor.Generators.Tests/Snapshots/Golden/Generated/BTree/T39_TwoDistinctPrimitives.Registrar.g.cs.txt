@@ -194,6 +194,7 @@ public static class T39_TwoDistinctPrimitivesRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T39_TwoDistinctPrimitives"), "T39_TwoDistinctPrimitives", new BehaviorDefinition
         {
             Name         = "T39_TwoDistinctPrimitives",
+            Group        = "Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 14798114068855578804UL,   // CE-455: the root block's layout

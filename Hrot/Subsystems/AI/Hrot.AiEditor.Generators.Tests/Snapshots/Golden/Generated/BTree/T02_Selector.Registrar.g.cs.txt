@@ -33,6 +33,7 @@ public static class T02_SelectorRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T02_Selector"), "T02_Selector", new BehaviorDefinition
         {
             Name         = "T02_Selector",
+            Group        = "Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             WritesChannels = global::System.Array.Empty<global::System.Type>(),
