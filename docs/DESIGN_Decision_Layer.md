@@ -21,6 +21,7 @@ related-designs:
   - docs/blueprints/DESIGN_Behavior_Action_Binding.md — OWNS the HSM binding sites and the CE-388 OnExit auto-bind that §3.3c D2 extends with deactivators.
   - docs/designs/ai-btree-deactivator-1/DESIGN.md — OWNS the BTree exit sweep (deactivators); CE-2117 (§3.3e) extended it to switches beneath a running Parallel.
   - docs/designs/brain-split/BS-1-DESIGN.md — §5.1a OWNS the fire executor's guard order, where ROE `Fire` is enforced (CE-2075, backend).
+  - docs/DESIGN_Entity_Control.md — OWNS FPS possession, which pauses the task like a reaction and resumes it on release (M-7, C-4)
 -->
 
 # The decision layer — missions, SOP, threat, intent

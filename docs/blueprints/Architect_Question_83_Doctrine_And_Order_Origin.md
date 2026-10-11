@@ -15,6 +15,7 @@ related-designs:
   - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — §8.0 "The scorer is the autonomous default; orders win when present" (the commander precedent for D).
   - docs/UX/UX_Feature_Entity_Commanding.md — OWNS operator orders (InstanceId as the preemption token).
   - docs/blueprints/batches/FRAME_Eqs_Consuming_Behaviours.md — the behaviours lane's EQS-consuming behaviours; a doctrine is what would assign them.
+  - docs/DESIGN_Entity_Control.md — OWNS operator control: orders at origin Operator, and a proposed BehaviorOrigin.Possession above it (M-7) for FPS
 -->
 
 # Architect Question 83 — the DOCTRINE (autonomy) and the ORIGIN of a behaviour

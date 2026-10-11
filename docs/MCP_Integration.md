@@ -28,6 +28,8 @@ known-rot: §"Group Q" says the runtime hot-attach mechanism "already exists; ju
   DIFFERENT same-named interface (`Hrot.UI.Common.Facades`) — ✅ CORRECTED 2026-08-26 in §"UML" and
   §"Group P" (MX-002 resolved: the wired one is `Hrot.UI.Common.Facades.IMissionEditorService`).
 known-conflict: none.
+related-designs:
+  - docs/DESIGN_Entity_Control.md — OWNS the order routes (/entities/{id}/order, /orders, /sitrep, /possess) and the /entities/command payload fix (CE-3168)
 -->
 # AI-debug API + MCP server — integration status
 

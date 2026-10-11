@@ -55,6 +55,7 @@ known-rot: the line citations in the body are pre-CE-051 and mostly MOVED. 0b ca
   ScenarioSpawnAdapter); and the D-prime duplicate has a SECOND instance on IG that this document never named.
 related-designs:
   - ../DESIGN_Add_Entity_Picker.md — Shift-pick in the Add Entity picker arms this doc's placement tool
+  - ../DESIGN_Entity_Control.md — OWNS RtsCommandTool and PossessionTool, two exclusive-focus tools
 -->
 # Feature design — making a tool a thing
 

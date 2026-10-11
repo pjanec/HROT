@@ -25,6 +25,7 @@ related-designs:
   - PLAN_3D_World_And_Realism.md — B1 (live turret) and B5 (Muzzle.Of) are built through this design.
   - DESIGN_Dead_Reckoning.md — the ONE dead-reckoning model (sample + rate + sim stamp, pure projection, R1–R8); W-10 applies it
     to TurretPose instead of inventing a second one.
+  - DESIGN_Entity_Control.md — OWNS operator fire: AimAndFireExecutor's point target + operator mode (M-8, C-2)
 -->
 
 # Weapon layers — behaviour brain, weapon brain, weapon muscle

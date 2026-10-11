@@ -5,6 +5,7 @@ current-answer: whole document (the intent pipeline); §4.2 is the contract rule
 stale-below: nothing marked
 related-designs:
   - docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md — owns the blueprint Send Intent node that publishes AssignTacticalIntentEvent from a graph, keyed by the §4.2 contract; it added the missing HullDownAttackIntentDto (CE-472)
+  - docs/DESIGN_Entity_Control.md — OWNS EntityOrders, the one service HTTP, menu and RTS orders publish AssignTacticalIntentEvent through
 -->
 # Tactical Intent Distribution System - Design
 

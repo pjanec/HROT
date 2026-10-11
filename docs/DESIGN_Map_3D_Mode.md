@@ -42,6 +42,7 @@ related-designs:
     stop flattening Z (EntitiesInArea); §3.9's "area on a level" relies on it.
   - DESIGN_Ownership_Groups_And_Grants.md — owns descriptor ownership and PARTS (F-6: mount parts never created); §3.11's
     turret part (M23) is a part of that model — one owner per descriptor instance.
+  - DESIGN_Entity_Control.md — OWNS the FPS view: an ICameraDriver on MapCamera3D that never saves into the scenario camera (M-9, C-1)
 -->
 
 # DESIGN — a 3-D mode for the map
