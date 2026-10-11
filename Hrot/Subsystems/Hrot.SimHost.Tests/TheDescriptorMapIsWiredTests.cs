@@ -274,11 +274,14 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationIntent), D(Hrot.NED.Descriptors.EDescriptorType.dtSensorConfig),
                     D(Hrot.NED.Descriptors.EDescriptorType.dtEqsSensorConfig),
                     D(Hrot.NED.Descriptors.EDescriptorType.dtBrainIntent),     // ⭐ CE-3048 — the AI intent moves with the Brain
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtStanceIntent) },  // ⭐ CE-2121 — the body-stance request
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtStanceIntent),    // ⭐ CE-2121 — the body-stance request
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponTask) },    // ⭐ WL-2b (CE-1049) — the turret's order
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtStanceStatus) },   // ⭐ CE-2121 — the body's stance report
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtStanceStatus),     // ⭐ CE-2121 — the body's stance report
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtTurretPose),       // ⭐ WL-1b (CE-1049) — the turret part's pose
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponTaskStatus) }, // ⭐ WL-2b — the muscle's report on it
             map.DescriptorsOf(Fdp.Core.NodeRole.MuscleGround).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtEqsResult) },

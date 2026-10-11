@@ -101,6 +101,14 @@ namespace Fdp.Toolkit.Combat
             return suite != null && mountIndex >= 0 && mountIndex < suite.Mounts.Count ? suite.Mounts[mountIndex] : null;
         }
 
+        /// <summary>⭐ WL-2 — turret <paramref name="turretIndex"/> of <paramref name="owner"/>'s type (DESIGN_Weapon_Layers W-9), or null.</summary>
+        public static TurretDto? TurretOf(EntityRepository world, Entity owner, int turretIndex)
+        {
+            if (!TryGetTemplate(world, owner, out var t)) return null;
+            var suite = t.GetDescriptor<TurretSuiteDto>();
+            return suite != null && turretIndex >= 0 && turretIndex < suite.Turrets.Count ? suite.Turrets[turretIndex] : null;
+        }
+
         /// <summary>⭐ <c>CE-3158</c> G3 — the warhead of the round <paramref name="mount"/> fires (its loaded ammo), or null: a kinetic
         /// round, no ammo, or no TKB database in this world. The ONE lookup the flight (<c>FireProcessingSystem</c>) and the burst's
         /// friendly-line exemption (<c>FireAtPointExecutor</c>, an indirect warhead flies over friends) both read.</summary>

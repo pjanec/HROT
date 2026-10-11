@@ -211,6 +211,11 @@ namespace Hrot.Map.Definitions.Tkb
                         Penetration       = wm.Penetration,
                         DamagePerHit      = wm.DamagePerHit,
                         DispersionMils    = wm.DispersionMils,   // ⭐ AQ85 C
+                        Category          = wm.Category,             // ⭐ WL W-5
+                        TurretIndex       = wm.TurretIndex ?? -1,    // ⭐ WL-1 W-9
+                        MuzzleOffsetX     = wm.MuzzleOffset.X,       // ⭐ E4 VE-K
+                        MuzzleOffsetY     = wm.MuzzleOffset.Y,
+                        MuzzleOffsetZ     = wm.MuzzleOffset.Z,
                     });
                 }
                 template.AddDescriptor(suite);
@@ -246,6 +251,17 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
             template.AddDescriptor(geometry ?? throw new ArgumentNullException(nameof(geometry)));
+            return this;
+        }
+
+        /// <summary>⭐ WL-1 (docs/DESIGN_Weapon_Layers.md W-9) — the platform's turrets, index 0 first; each becomes a turret part
+        /// child on every node. Weapons name theirs with <see cref="WeaponMount.TurretIndex"/>.</summary>
+        public NedTkbBuilder WithTurrets(long tkbId, params TurretDto[] turrets)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(new TurretSuiteDto { Turrets = new List<TurretDto>(turrets ?? Array.Empty<TurretDto>()) });
             return this;
         }
 

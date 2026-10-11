@@ -65,7 +65,8 @@ namespace CarKinem.Tests.Systems
 
         // ── ⭐ CE-1034 H1 — the ground has height (R-248); the clamping flag decides who is held to it (R-249) ──
 
-        private static (EntityRepository Repo, Entity E) OnTheSlope(Vector3 start, Vector3 velocity, bool registerClamp = false)
+        private static (EntityRepository Repo, Entity E) OnTheSlope(Vector3 start, Vector3 velocity, bool registerClamp = false,
+            Fdp.Toolkit.Terrain.TerrainWorld? world = null, Quaternion? facing = null)
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<VehicleState>();
@@ -77,10 +78,10 @@ namespace CarKinem.Tests.Systems
             if (registerClamp) repo.RegisterComponent<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
             repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
             repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
-            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.Tests.SlopeFixture.World());
+            repo.SetSingletonManaged(world ?? Fdp.Toolkit.Terrain.Tests.SlopeFixture.World());
             var e = repo.CreateEntity();
             repo.AddComponent(e, new VehicleState { Speed = velocity.Length() });
-            repo.AddComponent(e, new SimTransform { Position = start, Rotation = SimMath.FacingNorth });
+            repo.AddComponent(e, new SimTransform { Position = start, Rotation = facing ?? SimMath.FacingNorth });
             repo.SetAuthority<SimTransform>(e, true);
             repo.AddComponent(e, new SimVelocity { Linear = velocity });
             repo.AddComponent(e, new VehicleParams
@@ -107,6 +108,50 @@ namespace CarKinem.Tests.Systems
             var pos = repo.GetComponent<SimTransform>(e).Position;
             Assert.True(pos.Y > 24f, $"the vehicle must have moved uphill, Y={pos.Y}");
             Assert.Equal(Fdp.Toolkit.Terrain.Tests.SlopeFixture.Rise * pos.Y, pos.Z, 2);   // on the hillside, not on a flat bed
+            repo.Dispose();
+        }
+
+        // ── ⭐ CE-1034 H5d — on highway-rest: a car on the local road drives up the ramp and over the deck; one on the highway passes
+        //   under it — both by the movement model's own SurfaceZ, no navmesh (TH-J) ──
+
+        [Fact]
+        public void H5d_ACarOnTheLocalRoad_ClimbsTheRampAndCrossesTheDeck_OverTheHighway()
+        {
+            var w = Fdp.Toolkit.Terrain.Tests.TerrainHeightTests.HighwayRest();
+            var (repo, e) = OnTheSlope(new Vector3(200, 70, w.GroundHeightAt(200, 70)), new Vector3(0, 10, 0), world: w);
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.Direct, FinalDestination = new Vector3(200, 230, 0), TargetSpeed = 10f, ArrivalRadius = 3f });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            float? zOverHighway = null;
+            for (int i = 0; i < 1200 && repo.GetComponent<SimTransform>(e).Position.Y < 190f; i++)
+            {
+                spatial.Execute(repo, 0.016f); kin.Execute(repo, 0.016f);
+                var p = repo.GetComponent<SimTransform>(e).Position;
+                if (zOverHighway == null && p.Y >= 150f) zOverHighway = p.Z;
+            }
+            Assert.NotNull(zOverHighway);
+            Assert.InRange(zOverHighway!.Value, w.GroundHeightAt(200, 150) + 5.6f, w.GroundHeightAt(200, 150) + 6.4f);   // on the deck
+            repo.Dispose();
+        }
+
+        [Fact]
+        public void H5d_ACarOnTheHighway_PassesUnderTheDeck_OnTheGround()
+        {
+            var w = Fdp.Toolkit.Terrain.Tests.TerrainHeightTests.HighwayRest();
+            var east = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0f);
+            var (repo, e) = OnTheSlope(new Vector3(140, 150, w.GroundHeightAt(140, 150)), new Vector3(10, 0, 0), world: w, facing: east);
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.Direct, FinalDestination = new Vector3(300, 150, 0), TargetSpeed = 10f, ArrivalRadius = 3f });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            float? zUnderDeck = null;
+            for (int i = 0; i < 1200 && repo.GetComponent<SimTransform>(e).Position.X < 260f; i++)
+            {
+                spatial.Execute(repo, 0.016f); kin.Execute(repo, 0.016f);
+                var p = repo.GetComponent<SimTransform>(e).Position;
+                if (zUnderDeck == null && p.X >= 200f) zUnderDeck = p.Z;
+            }
+            Assert.NotNull(zUnderDeck);
+            Assert.Equal(w.GroundHeightAt(200, 150), zUnderDeck!.Value, 1);   // under the bridge, on the highway
             repo.Dispose();
         }
 

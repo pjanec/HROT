@@ -119,8 +119,9 @@ namespace Fdp.Toolkit.Navigation
             float direct = navmesh.PathCost(q.Start, q.End, q.LayerMask, doors);
             if (roadOk && !float.IsPositiveInfinity(factor))
             {
-                var entry3 = new Vector3(entry.Point, q.Start.Z);
-                var exit3 = new Vector3(exit.Point, q.End.Z);
+                // ⭐ CE-1034 H5c (TH-L) — the road's own height where it is joined, not the unit's level
+                var entry3 = new Vector3(entry.Point, RoadHeights.At(roads, entry.Segment, entry.Along, entry.Point, World));
+                var exit3 = new Vector3(exit.Point, RoadHeights.At(roads, exit.Segment, exit.Along, exit.Point, World));
                 float access = LegCost(navmesh, q.Start, entry3, q.LayerMask, doors);
                 float egress = LegCost(navmesh, exit3, q.End, q.LayerMask, doors);
                 if (access < float.MaxValue && egress < float.MaxValue)
@@ -139,15 +140,19 @@ namespace Fdp.Toolkit.Navigation
             Fdp.Toolkit.Terrain.DoorStates? doors, RoadAccess entry, RoadAccess exit, out float distance, NavigationBackend backend)
         {
             distance = 0f;
-            // ⭐ H3 — the road's access points stand on the surface there, at the level of the end they serve (not at that end's Z)
-            var entry3 = new Vector3(entry.Point, World?.SurfaceZ(entry.Point.X, entry.Point.Y, q.Start.Z) ?? q.Start.Z);
-            var exit3 = new Vector3(exit.Point, World?.SurfaceZ(exit.Point.X, exit.Point.Y, q.End.Z) ?? q.End.Z);
+            // ⭐ CE-1034 H5c (TH-L) — the road's access points stand at the ROAD's height there (its nodes' above-ground heights,
+            //   snapped to the surface), not at the level of the unit that joins it: a unit under a bridge sent along the road over
+            //   it walks up to the deck. ⛔ SUPERSEDED (H3): the surface at the level of the end they serve.
+            var entry3 = new Vector3(entry.Point, RoadHeights.At(roads, entry.Segment, entry.Along, entry.Point, World));
+            var exit3 = new Vector3(exit.Point, RoadHeights.At(roads, exit.Segment, exit.Along, exit.Point, World));
             // access leg
             if (navmesh != null) { if (!AppendNavmesh(navmesh, q.Start, entry3, q.LayerMask, doors)) Straight(q.Start, entry3); }
             else Straight(q.Start, entry3);
             // road leg
-            uint layer = q.LayerMask;
-            _router.EmitLeg(roads, _points, p => HeightAt(navmesh, p, layer));
+            // ⭐ CE-1034 H5c (TH-J, TH-L) — every road point at the road's own height, by the rule the car drives by; no navmesh
+            var world = World;
+            var roadsCopy = roads;
+            _router.EmitLeg(roads, _points, (seg, along, p) => RoadHeights.At(roadsCopy, seg, along, p, world));
             PadTraversals();
             // egress leg
             if (navmesh != null) { if (!AppendNavmesh(navmesh, exit3, q.End, q.LayerMask, doors)) Straight(exit3, q.End); }
@@ -193,14 +198,6 @@ namespace Fdp.Toolkit.Navigation
         /// coincident points, which would wrongly rule out a unit already standing on the road).</summary>
         private static float LegCost(INavmeshProvider navmesh, Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
             => Vector2.Distance(Xy(from), Xy(to)) < ShortMoveMeters ? 0f : navmesh.PathCost(from, to, layerMask, doors);
-
-        /// <summary>A road node's height: the navmesh snapped from the GROUND there (⭐ H3 — the search box is centred on the real ground,
-        /// not on 0, so it still finds the mesh on a hill), else the ground itself.</summary>
-        private float HeightAt(INavmeshProvider? navmesh, Vector2 p, uint layer)
-        {
-            float ground = World?.GroundHeightAt(p.X, p.Y) ?? 0f;
-            return navmesh != null && navmesh.ProjectToNavmesh(new Vector3(p, ground), out var snapped, layer) ? snapped.Z : ground;
-        }
 
         private static Vector2 Xy(Vector3 v) => new(v.X, v.Y);
     }

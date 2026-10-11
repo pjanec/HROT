@@ -242,5 +242,74 @@ namespace Fdp.Toolkit.Combat.Tests
             // Child mount MaxAmmo must also match its own InitialAmmunition
             Assert.Equal(20, _repo.GetComponentRO<WeaponState>(mounts[1]).MaxAmmo);
         }
+
+        // ── WL-1 (docs/DESIGN_Weapon_Layers.md W-9) — turret part children ─────────────────────────────────────────────────
+
+        private static TkbTemplate Turrets(int count)
+        {
+            var template = new TkbTemplate("Turreted", 2);
+            var suite = new TurretSuiteDto();
+            for (int i = 0; i < count; i++) suite.Turrets.Add(new TurretDto { PivotZ = 2f });
+            template.AddDescriptor(suite);
+            return template;
+        }
+
+        /// <summary>⭐ WL-1 — one part child per TKB turret, keyed <c>2000 + index</c>, starting forward and level; a second Inject
+        /// (spawn + ghost promotion) makes no second child. ✅ Red-proof: drop <c>TurretParts.Ensure</c>'s Find ⇒ 4 children.</summary>
+        [Fact]
+        public void WL1_EachTkbTurret_IsOnePartChild_KeyedByIndex()
+        {
+            _repo.RegisterComponent<TurretPose>();
+            var owner = _repo.CreateEntity();
+            var translator = new TurretTkbTranslator();
+            translator.Inject(_repo, owner, Turrets(2));
+            translator.Inject(_repo, owner, Turrets(2));
+
+            int children = 0;
+            foreach (var _ in _repo.Query().With<TurretPose>().Build()) children++;
+            Assert.Equal(2, children);
+            for (int i = 0; i < 2; i++)
+            {
+                var child = TurretParts.Find(_repo, owner, i);
+                Assert.False(child.IsNull);
+                Assert.Equal(TurretParts.FirstPartId + i, _repo.GetComponentRO<PartMetadata>(child).InstanceId);
+                Assert.Equal(owner, _repo.GetComponentRO<PartMetadata>(child).ParentEntity);
+                Assert.Equal(default, _repo.GetComponentRO<TurretPose>(child));
+            }
+            Assert.Equal(1, TurretParts.IndexOf(TurretParts.FirstPartId + 1));
+            Assert.Equal(-1, TurretParts.IndexOf(1000));   // a TKB sensor's part id is not a turret's
+        }
+
+        /// <summary>⭐ WL-1 — a turret is not a weapon mount: the mount enumeration (weapon choice, utility scoring) does not see it,
+        /// and a turret pose set on the part reads back through <see cref="TurretParts.PoseOf"/>.</summary>
+        [Fact]
+        public void WL1_TurretParts_AreNotMounts_AndCarryTheirPose()
+        {
+            _repo.RegisterComponent<TurretPose>();
+            var owner = _repo.CreateEntity();
+            _translator.Inject(_repo, owner, BuildTemplate(new List<WeaponMountDto>
+            {
+                new WeaponMountDto { InitialAmmunition = 300, Category = WeaponCategory.Autocannon, TurretIndex = 0 },
+                new WeaponMountDto { InitialAmmunition = 7,   Category = WeaponCategory.Atgm,       TurretIndex = 0 },
+            }));
+            new TurretTkbTranslator().Inject(_repo, owner, Turrets(1));
+
+            Span<Entity> mounts = stackalloc Entity[4];
+            Assert.Equal(2, WeaponMountQuery.EnumerateMounts(_repo, owner, mounts));
+
+            var turret = TurretParts.Find(_repo, owner, 0);
+            _repo.GetComponentRW<TurretPose>(turret) = new TurretPose { Azimuth = 0.5f, Elevation = 0.1f };
+            Assert.Equal(0.5f, TurretParts.PoseOf(_repo, owner, 0).Azimuth);
+            Assert.Equal(default, TurretParts.PoseOf(_repo, owner, 1));   // no such turret ⇒ forward and level
+        }
+
+        /// <summary>⭐ WL-1 — a node that does not register <see cref="TurretPose"/> builds no turret child (and does not throw).</summary>
+        [Fact]
+        public void WL1_NoTurretChild_WhereTurretPoseIsNotRegistered()
+        {
+            var owner = _repo.CreateEntity();
+            new TurretTkbTranslator().Inject(_repo, owner, Turrets(1));
+            Assert.True(TurretParts.Ensure(_repo, owner, 0).IsNull);
+        }
     }
 }

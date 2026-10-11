@@ -57,6 +57,7 @@ public class EntityStatesIngressPack : IEcsModule
             new EntityDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId),
             new EntityDoorStateIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId),   // ⭐ Stage 5b — doors
             new EntityObstacleShapeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId),   // ⭐ CE-3136 P-7a — obstacles
+            new EntityTurretPoseIngressTranslator(participant, entityMap),   // ⭐ WL-1b (CE-1049) — turret poses
         };
     }
 

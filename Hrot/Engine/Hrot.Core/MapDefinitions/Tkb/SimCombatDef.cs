@@ -32,6 +32,17 @@ namespace Hrot.Map.Definitions.Tkb
 
         /// <summary>⭐ AQ85 C (R-216) — aim dispersion, mils; 0 = exact aim. Copied onto <c>WeaponMountDto.DispersionMils</c>.</summary>
         public float DispersionMils { get; set; }
+
+        /// <summary>⭐ WL (DESIGN_Weapon_Layers W-5) — the weapon's category; selects its weapon-brain profile. Copied onto
+        /// <c>WeaponMountDto.Category</c>.</summary>
+        public Fdp.Toolkit.Tkb.Domain.WeaponCategory Category { get; set; }
+
+        /// <summary>⭐ WL-1 (W-9) — the turret this weapon sits on (<c>NedTkbBuilder.WithTurrets</c> order); null = fixed to the hull.</summary>
+        public int? TurretIndex { get; set; }
+
+        /// <summary>⭐ E4 (DESIGN_Visual_Effects VE-K) — the muzzle from the turret's trunnion (or from the hull's reference point when
+        /// fixed), metres, X forward / Y left / Z up. Copied onto <c>WeaponMountDto.MuzzleOffsetX/Y/Z</c>.</summary>
+        public System.Numerics.Vector3 MuzzleOffset { get; set; }
     }
     
     /// <summary>

@@ -31,6 +31,20 @@ namespace Fdp.Toolkit.Combat
         /// <summary>Bisection steps per visible edge (body samples are ≥ 0.15 m apart ⇒ ≤ 1 cm).</summary>
         private const int EdgeSteps = 5;
 
+        /// <summary>
+        /// ⭐ WL-2 — the target's MIDDLE: its position raised to the aim height of its logical stance (a person by posture, a vehicle
+        /// by its hull, CE-3116). The ONE place both the round (<c>FireProcessingSystem</c>) and the turret (<c>BallisticAim</c>) take
+        /// it from, so the gun points where the round will go.
+        /// </summary>
+        public static Vector3 Middle(EntityRepository repo, Entity target, out StanceId stance, out float hullHeight)
+        {
+            var at = repo.GetComponent<SimTransform>(target).Position;
+            stance = HitModel.LogicalStance(repo, target);
+            hullHeight = Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, target);
+            at.Z += TerrainWorldLosStrategy.AimHeightFor(repo, target, stance, hullHeight);
+            return at;
+        }
+
         public static Vector3 For(ISimulationView view, IWorldQuery? world, Vector3 eye, Vector3 middle,
             Entity target, StanceId stance, float hullHeight, float penetration, List<Vector3> scratch)
         {

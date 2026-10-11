@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Road;
@@ -121,9 +121,10 @@ namespace Hrot.SimHost.Tests
             Assert.Null(ex);
 
             // Verify system counts match expected numbers from sub-module implementations:
-            // CombatModule: FireProcessingSystem, RaycastSolverSystem, HitResolutionSystem (input=3)
-            // PersonalRouteAuthoringSystem (input=1) -- InputSystems total = 4
-            Assert.Equal(4, pack.InputSystems.Count);
+            // CombatModule: WeaponTaskDispatcherSystem (⭐ WL-2, the weapon muscle), FireProcessingSystem, RaycastSolverSystem,
+            //   HitResolutionSystem (input=4)
+            // PersonalRouteAuthoringSystem (input=1) -- InputSystems total = 5
+            Assert.Equal(5, pack.InputSystems.Count);
 
             // CombatModule: no systems in sim (sim=0)
             // DamageAssessmentModule: DamageCalculationSystem (sim=1)

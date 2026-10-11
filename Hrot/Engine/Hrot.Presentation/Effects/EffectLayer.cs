@@ -78,7 +78,7 @@ public sealed class EffectLayer : IMapLayer
             {
                 var a = world.GetComponentRO<EffectAnchor>(e);
                 if (a.Shooter == Entity.Null || !world.IsAlive(a.Shooter)) continue;   // VE-J: the shooter gone ⇒ the effect ends
-                at = MuzzleOf(world, a.Shooter, tkb);
+                at = MuzzleOf(world, a.Shooter, a.WeaponIndex, tkb);
                 toward = a.Toward;
             }
             float remaining = life.Duration - life.Age;
@@ -93,9 +93,14 @@ public sealed class EffectLayer : IMapLayer
 
     private static int Order(EffectKind k) => k switch { EffectKind.Decal => 0, EffectKind.Explosion => 1, _ => 2 };
 
-    /// <summary>⚠ Interim muzzle (until E4's <c>Muzzle.Of</c>): the front of the shooter's drawn box, in its upper half.</summary>
-    public Vector3 MuzzleOf(EntityRepository world, Entity shooter, ITkbDatabase? tkb)
+    /// <summary>Where a flash and a tracer start: ⭐ E4 — <see cref="Fdp.Toolkit.Combat.Muzzle.TryOf"/> (the same point the round
+    /// left from and the drawn barrel tip); a type with no muzzle data: the front of the shooter's drawn box, in its upper half.</summary>
+    public Vector3 MuzzleOf(EntityRepository world, Entity shooter, ITkbDatabase? tkb) => MuzzleOf(world, shooter, 0, tkb);
+
+    /// <inheritdoc cref="MuzzleOf(EntityRepository, Entity, ITkbDatabase?)"/>
+    public Vector3 MuzzleOf(EntityRepository world, Entity shooter, int weaponIndex, ITkbDatabase? tkb)
     {
+        if (Fdp.Toolkit.Combat.Muzzle.TryOf(world, shooter, weaponIndex, out var barrel)) return barrel;
         if (_bodies != null && _bodies.TryGetBox(world, shooter, tkb, out var centre, out var rotation, out var half))
             return centre + Vector3.Transform(new Vector3(half.X + 0.15f, 0f, half.Z * 0.5f), rotation);
         return world.HasComponent<SimTransform>(shooter) ? world.GetComponentRO<SimTransform>(shooter).Position + new Vector3(0, 0, 1.5f) : Vector3.Zero;

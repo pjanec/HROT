@@ -383,7 +383,9 @@ namespace Hrot.ScenarioEditor.Map
                 worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.Of(w)?.GroundHeightAt(x, y) ?? 0f : 0f;
             var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>
                 worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null);
-            var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb);
+            // ⭐ WL-1 (DESIGN_Weapon_Layers W-9) — articulated kits are posed by their turret part's TurretPose.
+            var turretPoses = new Hrot.UI.Common.Map3D.TurretPoseSource();
+            var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb, turretPoses.PoseOf);
             // ⭐ CE-1033 S3 — gizmos in 3-D: z = 0 shapes drape on the ground (M18); labels sit on top of the bodies (M13).
             gizmoLayer.Renderer3D.GroundHeight = viewSwitch.Camera3D.GroundHeight;
             gizmoLayer.LabelLift = bodies.TopAbove;

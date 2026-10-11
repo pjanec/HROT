@@ -615,5 +615,68 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(300f, speed[tow], 2);
             Assert.Equal(800f, speed[gun], 2);
         }
+
+        // ── E4 (docs/DESIGN_Visual_Effects.md VE-K, §6b) — the round leaves from the posed barrel ─────────────────────────────
+
+        /// <summary>A tank type with one turret (pivot −0.5, 1.9 m up, trunnion 1.6 m ahead of it) and a 5 m barrel on it; the turret
+        /// part is built and its pose set by the caller.</summary>
+        private (Entity Tank, Entity Turret) TurretedTank(Vector3 at, float azimuth, float elevation)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            _world.RegisterComponent<TurretPose>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("Tank", 77);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets =
+                { new Fdp.Toolkit.Tkb.Domain.TurretDto { PivotX = -0.5f, PivotZ = 1.9f, TrunnionX = 1.6f, ElevationMaxDeg = 30f } } });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+                { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { TurretIndex = 0, MuzzleOffsetX = 5f, MuzzleVelocity = 1500f } } });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var tank = SpawnShooter(at, 1500f);
+            _world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 77 });
+            var turret = TurretParts.Ensure(_world, tank, 0);
+            _world.SetComponent(turret, new TurretPose { Azimuth = azimuth, Elevation = elevation });
+            return (tank, turret);
+        }
+
+        /// <summary>⭐ E4 — the trunnion-then-pivot posing: turret turned 90° left and the gun 10° up puts the muzzle LEFT of the hull, 5 m
+        /// out from a trunnion that itself swung left, and 5·sin 10° up.</summary>
+        [Fact]
+        public void E4_TheMuzzle_IsTheBarrelTip_PosedByTheTurret()
+        {
+            var (tank, _) = TurretedTank(new Vector3(100f, 50f, 0f), MathF.PI / 2f, 10f * MathF.PI / 180f);
+            Assert.True(Muzzle.TryOf(_world, tank, 0, out var muzzle));
+            float reach = 1.6f + 5f * MathF.Cos(10f * MathF.PI / 180f);   // trunnion + the barrel's horizontal reach, from the pivot axis
+            AssertNear(new Vector3(100f - 0.5f, 50f + reach, 1.9f + 5f * MathF.Sin(10f * MathF.PI / 180f)), muzzle);
+
+            var rifleman = SpawnShooter(Vector3.Zero);
+            Assert.False(Muzzle.TryOf(_world, rifleman, 0, out _));   // no muzzle data: the caller keeps its own answer
+        }
+
+        /// <summary>⭐ E4 — the round of a turreted type leaves from that point (the flash and the tracer use the same one), flying to the
+        /// target from there; a target closer than twice the barrel's distance keeps today's start (CE-3059's half-way clamp).</summary>
+        [Fact]
+        public void E4_ATurretedRound_LeavesFromTheBarrel_ButNotPastHalfWay()
+        {
+            var (tank, _) = TurretedTank(Vector3.Zero, 0f, 0f);
+            var far = SpawnTarget(new Vector3(400f, 0f, 0f));
+            PublishIntent(tank, far);
+            _sys.Execute(_world, 0.016f);
+            Assert.True(Muzzle.TryOf(_world, tank, 0, out var barrel));
+            Vector3? start = null;
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build()) start = _world.GetComponent<SimTransform>(e).Position;
+            Assert.NotNull(start);
+            AssertNear(barrel, start!.Value);
+            AssertNear(new Vector3(6.1f, 0f, 1.9f), barrel);
+
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build()) _world.DestroyEntity(e);
+            var close = SpawnTarget(new Vector3(8f, 0f, 0f));   // the muzzle (~6 m from the eye) is past half way to it
+            _world.Bus.SwapBuffers();
+            PublishIntent(tank, close);
+            _sys.Execute(_world, 0.016f);
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build())
+                Assert.True(Vector3.Distance(_world.GetComponent<SimTransform>(e).Position, barrel) > 1f, "a close target: today's start, not the barrel");
+        }
     }
 }

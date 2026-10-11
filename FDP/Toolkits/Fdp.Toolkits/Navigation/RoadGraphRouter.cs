@@ -167,7 +167,7 @@ namespace Fdp.Toolkit.Navigation
         /// Appends the last <see cref="Route"/> to <paramref name="output"/> as points along the curves, entry to exit, in travel
         /// direction. <paramref name="z"/> gives each point's height (the navmesh's, or 0).
         /// </summary>
-        public void EmitLeg(in RoadNetworkBlob roads, List<Vector3> output, Func<Vector2, float> z)
+        public void EmitLeg(in RoadNetworkBlob roads, List<Vector3> output, Func<int, float, Vector2, float> z)
         {
             if (_sameSegment)
             {
@@ -194,7 +194,7 @@ namespace Fdp.Toolkit.Navigation
         }
 
         /// <summary>Points from <paramref name="from"/> to <paramref name="to"/> metres along a segment (either direction).</summary>
-        private static void Partial(in RoadNetworkBlob roads, int segIndex, float from, float to, List<Vector3> output, Func<Vector2, float> z)
+        private static void Partial(in RoadNetworkBlob roads, int segIndex, float from, float to, List<Vector3> output, Func<int, float, Vector2, float> z)
         {
             var seg = roads.Segments[segIndex];
             float span = MathF.Abs(to - from);
@@ -203,7 +203,7 @@ namespace Fdp.Toolkit.Navigation
             {
                 float a = from + (to - from) * k / steps;
                 var p = RoadGraphNavigator.SampleRoadSegment(seg, a).pos;
-                Append(output, new Vector3(p, z(p)));
+                Append(output, new Vector3(p, z(segIndex, a, p)));
             }
         }
 

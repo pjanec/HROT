@@ -71,6 +71,11 @@ namespace Hrot.NED.Descriptors
         dtInteractionRequest          = 122,
         // ⭐ CE-3136 P-7a — a static obstacle's box (creator → every node, before promotion). 📄 docs/DESIGN_Peek_And_Fire.md §9
         dtObstacleShape               = 123,
+        // ⭐ WL-1b (CE-1049) — a turret part's pose (the MuscleGround group → every node). 📄 docs/DESIGN_Weapon_Layers.md §5b
+        dtTurretPose                  = 124,
+        // ⭐ WL-2b (CE-1049, W-11 / R-267) — a turret's order (Brain group → Muscle) and the muscle's report (MuscleGround → Brain).
+        dtWeaponTask                  = 125,
+        dtWeaponTaskStatus            = 126,
         // etc., all known descriptor types here
     }
 

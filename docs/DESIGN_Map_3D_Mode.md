@@ -674,8 +674,9 @@ containing turret hull relative azimuth and turret-relative barrel elevation - t
 
 ✅ **Built now (map side):** a kit part has a ROLE — hull, turret or gun — and the kit names its turret axis and gun trunnion
 (`KitPivots`). `EntityBodyLayer3D` poses them from an `ArticulationPose` (turret azimuth relative to the hull, gun elevation
-relative to the turret) taken from ONE seam (`poseOf`). That seam is null in production until M23 is ruled, so turrets face
-forward; the frame rail poses two to prove the drawing.
+relative to the turret) taken from ONE seam (`poseOf`). ⭐ **WL-1a (`2026-10-11`):** the seam is fed in production by
+`TurretPoseSource` — turret 0's `TurretPose`, wired once in `MapInteractionPack` (DESIGN_Weapon_Layers §5a). ⛔ SUPERSEDED: "null in
+production until M23 is ruled".
 
 | # | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
@@ -683,6 +684,12 @@ forward; the frame rail poses two to prove the drawing.
 | **M24** ✅ *(U28, reworded)* | who writes it | ⭐ the **weapon side — the weapon logic** turns the turret and gun: it knows how to aim (TKB rates and limits); the brain only names the TARGET, never an angle | the brain writing angles — kinematics in the brain (`R-252`) · fire writing its shot direction back — per shot and dispersed |
 | **M25** ✅ *(U28)* | the TKB | ⭐ a turret descriptor per turret part: pivot offset, traverse and elevation limits, slew rates; weapon mounts name the turret they sit on | angles with no limits — a turret could aim through its own hull |
 | **M26** ✅ *(U28: "solved already")* | the wire | ⭐ the NED/BDC multi-instance descriptor pattern the sensor sub-entities already use in production — 📐 `EqsSensorConfigTopic { ParentNetworkId, LocalChildIndex }` with the child identified by `PartMetadata` (`EqsSensorConfigEgressTranslator.cs:99,237`); a DIS gateway maps it to the articulated parts 4107 (turret 1 azimuth = 4096 + 11) and 4429 (gun 1 elevation = 4416 + 13) | putting the angles into the hull's geo descriptor — breaks the one-descriptor-per-concept rule and multi-turret vehicles |
+
+⚠ **As built (WL-1a, `2026-10-11`) — M23's part id is `2000 + turret index`, not the bare index** (`TurretParts.FirstPartId`):
+on the wire a part id is scoped to its descriptor (`dtTurretPose` cannot collide with the sensor descriptor), so the offset is not
+needed there; it keeps a parent's part ids unique ACROSS part classes locally (mounts `1…N`, TKB sensors `1000 + index`), which costs
+nothing. 🔒 **User, `2026-10-11`:** *"Part ids are usualy scoped to their careying NED descriptor types … But keeping unique ids
+independently on part class of course does not do any harm."* The index is recoverable (`TurretParts.IndexOf`).
 
 ✅ **Ruled `2026-10-10` (U28, R-255) ⇒ READY-TO-BUILD.** ⚠ The turret part, the weapon-side slew and the descriptor are the
 combat / network lanes' code; the map reads the pose through `EntityBodyLayer3D`'s one `poseOf` seam once the component exists.

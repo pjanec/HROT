@@ -61,6 +61,8 @@ public static class HrotOwnershipGroups
         // ⭐ CE-3048 — the SOP slot and the ROE: brain-written, carried by dtBrainIntent (they were in no group).
         brain.SetBit(GlobalComponentIds.SopState);
         brain.SetBit(GlobalComponentIds.Roe);
+        // ⭐ WL-2b (CE-1049, W-2/W-11) — the weapon brain's order to a turret (dtWeaponTask).
+        brain.SetBit(GlobalComponentIds.WeaponTask);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);
@@ -77,6 +79,10 @@ public static class HrotOwnershipGroups
         // ⭐ CE-513 / R-180 — …and the Muscle owns the REPORT (Architect_Question_80 §0 A).
         muscle.SetBit(GlobalComponentIds.AnimationChannelStatus);
         muscle.SetBit(GlobalComponentIds.LookAtChannelStatus);
+        // ⭐ WL-1b (CE-1049, DESIGN_Weapon_Layers W-9) — the weapon MUSCLE aims the turret, so it owns the pose (dtTurretPose).
+        muscle.SetBit(GlobalComponentIds.TurretPose);
+        muscle.SetBit(GlobalComponentIds.WeaponTaskStatus);   // ⭐ WL-2b (W-3) — the muscle's report on a turret's task
+        muscle.SetBit(GlobalComponentIds.WeaponMuscleState);  // ⭐ WL-3 — its never-sent fire timing (like FrustrationTicks)
 
         // ── Perception (§1.2b, R-171) — perception EXECUTION ─────────────────────────────────────────
         var perception = default(BitMask512);

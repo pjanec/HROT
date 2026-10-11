@@ -172,6 +172,7 @@ namespace Hrot.CGF
                 {
                     (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor()),
                     (CombatConstants.ActionIdFireAtPoint, new Fdp.Toolkit.Combat.Executors.FireAtPointExecutor()),   // ⭐ CE-1032 W-8
+                    (CombatConstants.ActionIdTrackTarget, new Fdp.Toolkit.Combat.Executors.TrackTargetExecutor()),   // ⭐ WL-3 (Weapon_Layers W-1)
                 },
                 // ⭐ CE-502 — the Brain writes embarkation state (DESIGN_Role_Affinity_Ownership.md §6, "the Brain's
                 //   EmbarkExecutor / EjectPassengersExecutor"). 🔴 None was registered here, so the dispatcher ran with no

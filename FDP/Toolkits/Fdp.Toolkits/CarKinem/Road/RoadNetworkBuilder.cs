@@ -17,11 +17,12 @@ namespace CarKinem.Road
         /// <summary>
         /// Add a road node (junction/intersection).
         /// </summary>
-        public void AddNode(Vector2 position)
+        public void AddNode(Vector2 position, float aboveGround = 0f)
         {
             _nodes.Add(new RoadNode
             {
                 Position = position,
+                AboveGround = aboveGround,   // ⭐ CE-1034 H5c (TH-L)
                 SegmentCount = 0
             });
         }

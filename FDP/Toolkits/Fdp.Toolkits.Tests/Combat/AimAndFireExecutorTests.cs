@@ -701,6 +701,139 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Reloading, Row().Reason);
             Assert.Equal(2f, Row().Needed, 3);
         }
+
+        // ── WL-3 (docs/DESIGN_Weapon_Layers.md §5e) — a turreted mount is fought through its turret ────────────────────────────
+
+        /// <summary>A shooter whose type has a turret and a mount on it, with the turret part built (one world = the editor's one
+        /// node: the executor is the weapon brain, <see cref="Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem"/> the muscle).</summary>
+        private (Entity Shooter, Entity Turret, WeaponChannel Channel, Entity Target) TurretedTank(int rounds, float cooldown, int ammo = 5)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _world.RegisterComponent<TurretPose>();
+            _world.RegisterComponent<WeaponTask>();
+            _world.RegisterComponent<WeaponTaskStatus>();
+            _world.RegisterComponent<WeaponMuscleState>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var type = new Fdp.Interfaces.TkbTemplate("Tank", 42);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { new Fdp.Toolkit.Tkb.Domain.TurretDto { PivotZ = 2f } } });
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+                { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, TurretIndex = 0 } } });
+            db.Register(type);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var target = SpawnTarget(new Vector3(0f, 100f, 2f));   // 90° left of the hull
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, ammo, 0f, target, cooldown);
+            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 42 });
+            unsafe
+            {
+                var p = new AimAndFireParams { Target = target, CooldownSeconds = cooldown, Rounds = rounds };
+                Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
+            }
+            return (shooter, TurretParts.Ensure(_world, shooter, 0), channel, target);
+        }
+
+        /// <summary>
+        /// ⭐ WL-3 — the brain grants, the muscle aims and fires: no round while the turret slews (no AimSeconds on this path — the
+        /// slew IS the aim), then exactly the rounds asked, spaced by the cooldown; every round the muscle reports is spent ONCE on
+        /// the brain's WeaponState; done ⇒ Success and the turret's task back to Idle.
+        /// </summary>
+        [Fact]
+        public void WL3_ATurretedMount_IsFoughtThroughItsTurret_TheBrainGrants_TheMuscleFires()
+        {
+            var (shooter, turret, channel, target) = TurretedTank(rounds: 3, cooldown: 0.5f);
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            _executor.OnEnter(shooter, ref channel, _world);
+
+            const float dt = 1f / 60f;
+            int shots = 0, firstShotFrame = -1, lastShotFrame = -1, minGap = int.MaxValue;
+            for (int f = 0; f < 60 * 8 && channel.Status == NodeStatus.Running; f++)
+            {
+                _executor.Execute(shooter, ref channel, _world, dt);
+                muscle.Execute(_world, dt);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
+                {
+                    Assert.Equal(shooter, shot.Shooter);
+                    Assert.Equal(target, shot.Target);
+                    if (firstShotFrame < 0) firstShotFrame = f;
+                    if (lastShotFrame >= 0) minGap = Math.Min(minGap, f - lastShotFrame);
+                    lastShotFrame = f;
+                    shots++;
+                }
+            }
+
+            Assert.Equal(NodeStatus.Success, channel.Status);
+            Assert.Equal(3, shots);
+            Assert.True(firstShotFrame >= 60 * 2, $"first shot at frame {firstShotFrame}: 90° at 40°/s is 2.25 s of slewing");
+            Assert.True(minGap >= 29, $"shots {minGap} frames apart: the 0.5 s cooldown is 30");
+            Assert.Equal(2, _world.GetComponent<WeaponState>(shooter).Ammo);   // 5 − 3, spent once each
+            Assert.Equal(WeaponTaskMode.Idle, _world.GetComponent<WeaponTask>(turret).Mode);
+        }
+
+        /// <summary>⭐ WL-3 — the grant is the magazine: an empty magazine withdraws it (Track — the gun keeps following) until the
+        /// reload ends, then fire resumes under the SAME epoch.</summary>
+        [Fact]
+        public void WL3_AnEmptyMagazine_DropsTheTaskToTrack_UntilTheReload()
+        {
+            var (shooter, turret, channel, _) = TurretedTank(rounds: 0, cooldown: 0.1f, ammo: 10);
+            ref var w = ref _world.GetComponentRW<WeaponState>(shooter);
+            Fdp.Toolkit.Combat.Magazine.Load(ref w, 2, 1f);   // two rounds per magazine, a one-second reload
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            _executor.OnEnter(shooter, ref channel, _world);
+
+            const float dt = 1f / 60f;
+            int shots = 0;
+            uint epoch = 0;
+            for (int f = 0; f < 60 * 4 && shots < 2; f++)
+            {
+                _executor.Execute(shooter, ref channel, _world, dt);
+                muscle.Execute(_world, dt);
+                _world.Bus.SwapBuffers();
+                shots += _world.Bus.Read<WeaponFireIntent>().Length;
+                epoch = _world.GetComponent<WeaponTask>(turret).Epoch;
+            }
+            Assert.Equal(2, shots);
+            _executor.Execute(shooter, ref channel, _world, dt);   // accounts the second round: the magazine is empty
+            Assert.Equal(WeaponTaskMode.Track, _world.GetComponent<WeaponTask>(turret).Mode);
+            Assert.True(Fdp.Toolkit.Combat.Magazine.Reloading(_world.GetComponent<WeaponState>(shooter)));
+
+            ref var reloading = ref _world.GetComponentRW<WeaponState>(shooter);
+            Fdp.Toolkit.Combat.Magazine.Tick(ref reloading, 1.1f);   // the weapon dispatcher runs the reload; here by hand
+            _executor.Execute(shooter, ref channel, _world, dt);
+            var task = _world.GetComponent<WeaponTask>(turret);
+            Assert.Equal(WeaponTaskMode.Engage, task.Mode);
+            Assert.Equal(epoch, task.Epoch);
+            Assert.Equal(4, task.RoundsGranted);   // two fired + two in the new magazine
+        }
+
+        /// <summary>⭐ WL-3 (W-1) — TrackTarget keeps the gun on the target and fires nothing; the target down ⇒ Success and Idle.</summary>
+        [Fact]
+        public void WL3_TrackTarget_FollowsWithoutFiring_AndEndsWhenTheTargetIsDown()
+        {
+            var (shooter, turret, channel, target) = TurretedTank(rounds: 0, cooldown: 0.1f);
+            unsafe { Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new TrackTargetParams { Target = target }); }
+            var track = new TrackTargetExecutor();
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            track.OnEnter(shooter, ref channel, _world);
+            int shots = 0;
+            for (int f = 0; f < 60 * 4; f++)
+            {
+                track.Execute(shooter, ref channel, _world, 1f / 60f);
+                muscle.Execute(_world, 1f / 60f);
+                _world.Bus.SwapBuffers();
+                shots += _world.Bus.Read<WeaponFireIntent>().Length;
+            }
+            Assert.Equal(0, shots);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            Assert.Equal(WeaponTaskState.OnTarget, _world.GetComponent<WeaponTaskStatus>(turret).State);
+            Assert.Equal(90f * MathF.PI / 180f, _world.GetComponent<TurretPose>(turret).Azimuth, 3);
+
+            _world.DestroyEntity(target);
+            track.Execute(shooter, ref channel, _world, 1f / 60f);
+            Assert.Equal(NodeStatus.Success, channel.Status);
+            Assert.Equal(WeaponTaskMode.Idle, _world.GetComponent<WeaponTask>(turret).Mode);
+        }
             // ── CE-3158 G3 — a BURST never flies through a friend; an indirect warhead does ─────────────────────────────────────
 
         /// <summary>A burst-firing unit at the origin with a <see cref="FireAtPointParams"/> action at <paramref name="point"/>, a friend

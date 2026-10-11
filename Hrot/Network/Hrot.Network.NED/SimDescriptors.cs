@@ -81,6 +81,78 @@ namespace Hrot.NED.Descriptors
         public string Key;
     }
 
+    // ⭐ WL-1b (CE-1049) — a turret's pose (its part child's TurretPose), published by the node owning dtTurretPose (the Muscle) and
+    //   applied on every other node's turret part, so a viewer — IG included — sees the turret turn. 📄 docs/DESIGN_Weapon_Layers.md
+    //   §5b, W-9, W-10. Keyed (hull network id, part id = 2000 + turret index) — the EQS sensor key shape (EqsSensorConfigTopic).
+    //   BestEffort + TransientLocal + KeepLast 1 like WorldPos: a lost sample is repaired by the next change or the heartbeat.
+    [DdsTopic("EntityTurretPose")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityTurretPose
+    {
+        /// <summary>Network id of the hull (the part's <c>PartMetadata.ParentEntity</c>).</summary>
+        [DdsKey]
+        public long ParentNetworkId;
+
+        /// <summary>The turret part's <c>PartMetadata.InstanceId</c> (<c>TurretParts.FirstPartId</c> + turret index).</summary>
+        [DdsKey]
+        public int PartId;
+
+        /// <summary>Traverse, radians, counter-clockwise from the hull's forward.</summary>
+        public float Azimuth;
+
+        /// <summary>Gun elevation, radians, up from the turret plane.</summary>
+        public float Elevation;
+
+        /// <summary>⭐ W-10 — traverse and elevation rates (rad/s) for receiver dead reckoning. Written 0 until W-10 is built.</summary>
+        public float AzimuthRate;
+        public float ElevationRate;
+
+        /// <summary>The cluster sim time of the sample (<c>SimStampCodec</c>); 0 = unspecified.</summary>
+        public DateTime Time;
+    }
+
+    // ⭐ WL-2b (CE-1049) — the weapon brain's standing order to ONE turret (W-2, W-11 / R-267), Brain → Muscle, keyed like
+    //   EntityTurretPose. Reliable + TransientLocal + KeepLast 1: an order is sent once per change and must arrive.
+    //   📄 docs/DESIGN_Weapon_Layers.md §5d.
+    [DdsTopic("EntityWeaponTask")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityWeaponTask
+    {
+        [DdsKey] public long ParentNetworkId;
+        [DdsKey] public int PartId;
+        /// <summary><c>WeaponTaskMode</c>: 0 Idle · 1 Track · 2 Engage.</summary>
+        public byte Mode;
+        /// <summary>The target's network id; 0 = aim at the point.</summary>
+        public long TargetNetworkId;
+        public float PointX;
+        public float PointY;
+        public float PointZ;
+        public byte MountIndex;
+        public ushort RoundsGranted;
+        public ulong AmmoGuid;
+        /// <summary>⭐ WL-3 — seconds between rounds.</summary>
+        public float CooldownSeconds;
+        public uint Epoch;
+    }
+
+    // ⭐ WL-2b (CE-1049) — the weapon muscle's report on that order (W-3), Muscle → Brain, same key.
+    [DdsTopic("EntityWeaponTaskStatus")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityWeaponTaskStatus
+    {
+        [DdsKey] public long ParentNetworkId;
+        [DdsKey] public int PartId;
+        public uint Epoch;
+        /// <summary><c>WeaponTaskState</c>.</summary>
+        public byte State;
+        /// <summary><c>WeaponTaskFailure</c>.</summary>
+        public byte Reason;
+        public ushort RoundsFired;
+    }
+
     // ⭐ CE-3136 P-7a (O3, R-242/R-243) — a static obstacle's box (the TKB's size or a scenario's per-instance one), published by the
     //   obstacle's creator, applied on every other node BEFORE its ghost promotes ([PerInstanceValue] ObstacleShape), so every node bakes
     //   the same box into its terrain. TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every obstacle.

@@ -93,6 +93,8 @@ namespace Hrot.Core.Tkb
             new CarKinem.Tkb.VehicleKinematicsTkbTranslator(),
             new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator(),
             new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator(),
+            // ⭐ WL-1 — a turret part child per TKB turret, on every node (docs/DESIGN_Weapon_Layers.md W-9).
+            new Fdp.Toolkit.Combat.Translators.TurretTkbTranslator(),
             new Fdp.Toolkit.Perception.Translators.PerceptionTkbTranslator(),
             // ⭐ CE-3061 — heat / noise an entity gives off (docs/DESIGN_Thermal_And_Acoustic_Sensing.md).
             new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator(),

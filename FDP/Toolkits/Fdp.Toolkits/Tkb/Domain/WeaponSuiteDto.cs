@@ -20,6 +20,18 @@ namespace Fdp.Toolkit.Tkb.Domain
     /// <summary>One weapon mount on a platform.</summary>
     public record WeaponMountDto
     {
+        /// <summary>⭐ WL (W-5) — what kind of weapon this is; selects the weapon-brain profile. Unknown = the default profile.</summary>
+        public WeaponCategory Category { get; init; }
+
+        /// <summary>⭐ WL-1 (W-9) — the turret this mount sits on (<see cref="TurretSuiteDto.Turrets"/> index); −1 = fixed to the hull.</summary>
+        public int TurretIndex { get; init; } = -1;
+
+        /// <summary>⭐ WL-1 (VE-K) — the muzzle relative to its turret's trunnion, or to the hull's reference point when fixed (m;
+        /// X forward, Y left, Z up). Read by <c>Muzzle.Of</c> (B5).</summary>
+        public float MuzzleOffsetX { get; init; }
+        public float MuzzleOffsetY { get; init; }
+        public float MuzzleOffsetZ { get; init; }
+
         /// <summary>TKB GUID of the weapon entity mounted here. Zero = no weapon linked.</summary>
         [WeaponRef]
         public ulong WeaponGuid { get; init; }

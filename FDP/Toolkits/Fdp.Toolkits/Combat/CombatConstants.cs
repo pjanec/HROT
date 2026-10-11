@@ -18,6 +18,9 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-8) — fire at a ground POINT (<c>FireAtPointExecutor</c>): a thrown grenade, a mortar.</summary>
         public const ushort ActionIdFireAtPoint = 2;
 
+        /// <summary>⭐ WL-3 (DESIGN_Weapon_Layers W-1) — keep the gun on a target WITHOUT firing (<c>TrackTargetExecutor</c>).</summary>
+        public const ushort ActionIdTrackTarget = 3;
+
         // ── Event IDs ─────────────────────────────────────────────────────────
         // Range 5001–5099 is reserved for combat-domain events.
         // 5001 was previously defined in FDP.Toolkit.Physics.PhysicsConstants.HitEventId.

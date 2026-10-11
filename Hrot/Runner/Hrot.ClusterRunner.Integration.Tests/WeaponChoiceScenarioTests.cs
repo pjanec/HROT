@@ -87,6 +87,17 @@ public sealed class WeaponChoiceScenarioTests : IDisposable
         Assert.True(harness.PumpUntil(() => tank0 - cgf.GetComponent<Health>(tank).Current >= 1000f, timeoutFrames: 20000),
             $"the T-72 must take a TOW hit; health {cgf.GetComponent<Health>(tank).Current}, 25 mm {cgf.GetComponent<WeaponState>(bradley).Ammo}");
         Assert.True(harness.PumpUntil(() => cgf.GetComponent<Health>(insurgent).Current <= 0f, timeoutFrames: 20000), "the insurgent must be killed");
+
+        // ⭐ WL-3 (CE-1049, DESIGN_Weapon_Layers §5e) — and both went through the TURRET: the Bradley's mounts share turret 0, so the
+        //   weapon brain on CGF ordered it (a WeaponTask, epoch > 0) and the weapon muscle on SimHost fired and reported back (the
+        //   status crossed the wire to CGF with rounds fired). Without this the old per-shot path would pass the same assertions.
+        var turret = Fdp.Toolkit.Combat.TurretParts.Find(cgf, bradley, 0);
+        Assert.False(turret.IsNull, "the Bradley has its turret part on CGF");
+        Assert.True(cgf.HasComponent<Fdp.Toolkit.Combat.Components.WeaponTask>(turret)
+                    && cgf.GetComponent<Fdp.Toolkit.Combat.Components.WeaponTask>(turret).Epoch > 0, "the weapon brain ordered the turret");
+        Assert.True(cgf.HasComponent<Fdp.Toolkit.Combat.Components.WeaponTaskStatus>(turret)
+                    && cgf.GetComponent<Fdp.Toolkit.Combat.Components.WeaponTaskStatus>(turret).Epoch > 0,
+            "the weapon muscle's report reached CGF");
     }
 
     /// <summary>Every mount, every WeaponSelection input, against <paramref name="target"/> — and the choice.</summary>

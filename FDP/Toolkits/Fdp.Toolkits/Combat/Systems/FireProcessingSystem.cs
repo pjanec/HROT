@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -107,7 +107,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 // Read muzzle velocity from the shooter's WeaponState.
                 var weapon      = repo.GetComponent<WeaponState>(shooter);
                 var shooterPos  = repo.GetComponent<SimTransform>(shooter).Position;
-                var targetPos   = evt.AtPoint ? evt.TargetPoint : repo.GetComponent<SimTransform>(target).Position;
+                var targetPos   = evt.AtPoint ? evt.TargetPoint : default;
                 // ⭐ Buildings §3d P2 (R-217; AQ85 §D's first half) — the shot flies along the SIGHT line: from the shooter's eye to
                 //   the middle of the target's silhouette, both for the LOGICAL stance (§3f — one profile for being seen and being
                 //   shot). ⛔ Before, it flew feet to feet, so once bullets meet the terrain every low wall and window sill would
@@ -115,9 +115,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 shooterPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(repo, shooter, HitModel.LogicalStance(repo, shooter));
                 if (!evt.AtPoint)
                 {
-                    var targetStance = HitModel.LogicalStance(repo, target);
-                    float hull = Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, target);
-                    targetPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.AimHeightFor(repo, target, targetStance, hull);   // ⭐ CE-3116 — a person by posture
+                    // ⭐ CE-3116 — a person by posture; ⭐ WL-2 — the same middle the turret aims at (AimPoint.Middle)
+                    targetPos = AimPoint.Middle(repo, target, out var targetStance, out float hull);
                     // ⭐ CE-3136 P-2 (D1, revised) — the middle when seen or shot through a weak cover, else the middle of the SEEN
                     //   part of the body (AimPoint). The round's own penetration decides "weak" — the fired mount's, as below.
                     var terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q1 — bound to this view's doors (R-219)
@@ -130,7 +129,14 @@ namespace Fdp.Toolkit.Combat.Systems
                 }
 
                 // Compute normalised direction from shooter toward target.
-                var delta     = targetPos - shooterPos;
+                // ⭐ E4 (DESIGN_Visual_Effects VE-K, §6b) — the round leaves from the BARREL when the type says where it is
+                //   (Muzzle.TryOf — the same point the flash, the tracer and the drawn barrel tip use); the aim point above was still
+                //   chosen from the eye. ⭐ CE-3059's "never past half way" stays: a barrel more than half way to the target ⇒ today's start.
+                var origin = shooterPos;
+                bool fromBarrel = Muzzle.TryOf(repo, shooter, evt.WeaponIndex, out var barrel)
+                                  && Vector3.Distance(barrel, shooterPos) <= 0.5f * Vector3.Distance(targetPos, shooterPos);
+                if (fromBarrel) origin = barrel;
+                var delta     = targetPos - origin;
                 var direction = delta.LengthSquared() > 0f
                     ? Vector3.Normalize(delta)
                     : Vector3.UnitX;    // fallback: fire east if entities are co-located
@@ -161,15 +167,16 @@ namespace Fdp.Toolkit.Combat.Systems
                     if (wh.Indirect)
                     {
                         warheadBits |= WarheadRound.Arc;
-                        velocity = ArcLaunch(shooterPos, targetPos, muzzle, high: muzzle >= CombatConstants.HighArcMinMuzzleVelocity);
+                        velocity = ArcLaunch(origin, targetPos, muzzle, high: muzzle >= CombatConstants.HighArcMinMuzzleVelocity);
                     }
                 }
 
                 // ⭐ CE-3059 — the shot starts MuzzleOffsetMeters along the aim line (never past half way to the target), so a
                 //   bullet does not spawn inside a squad-mate standing on the shooter's spot. 📐 Measured on the split cluster:
                 //   four dismounted soldiers on one point, 90 rounds, every hit on the squad.
-                var muzzlePos = shooterPos + direction * MathF.Min(CombatConstants.MuzzleOffsetMeters, delta.Length() * 0.5f);
-                if ((warheadBits & WarheadRound.Arc) != 0) muzzlePos = shooterPos;   // an arc leaves from the hand / tube
+                var muzzlePos = fromBarrel ? origin
+                              : shooterPos + direction * MathF.Min(CombatConstants.MuzzleOffsetMeters, delta.Length() * 0.5f);
+                if ((warheadBits & WarheadRound.Arc) != 0) muzzlePos = origin;   // an arc leaves from the hand / tube
 
                 // 1. Spawn the bullet entity.
                 var bullet = repo.CreateEntity();

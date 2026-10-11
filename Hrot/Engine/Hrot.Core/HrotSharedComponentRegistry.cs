@@ -54,6 +54,12 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<PartMetadata>();
         // ⭐ CE-485: the brain-local owner stamp of a part (an EQS sensor) — every host that can create one.
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
+        // ⭐ WL-1 (DESIGN_Weapon_Layers W-9) — a turret part's pose; every node builds the turret children, so every node registers it.
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.TurretPose>();
+        // ⭐ WL-2 (W-11 / R-267) — the turret's order (Brain) and the muscle's report on it, on the same part.
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponTask>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponTaskStatus>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMuscleState>();   // ⭐ WL-3 — the muscle's fire timing, never sent
 
         // ── Terrain / zone loading ────────────────────────────────────────────
         // ⭐ Registered UNCONDITIONALLY on every ECS host, exactly like the save handler and

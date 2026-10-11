@@ -40,7 +40,7 @@ namespace CarKinem.Road
             // Add nodes
             foreach (var node in roadData.Nodes)
             {
-                builder.AddNode(node.Position.ToVector2());
+                builder.AddNode(node.Position.ToVector2(), node.AboveGround);
             }
             
             // Add segments

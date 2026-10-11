@@ -73,6 +73,7 @@ namespace Fdp.Toolkit.Combat.Executors
             //   body in the world, so existence alone never ends the action (CE-321: the squad emptied its rifles into a corpse).
             if (!CombatLife.IsAlive(world, p.Target))
             {
+                ReleaseTurrets(world, entity);   // ⭐ WL-3 — the turret stops following a dead target
                 channel.Status = NodeStatus.Success;
                 Say(world, entity, ActionReason.Done, p.Target);
                 return;
@@ -81,6 +82,7 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐ CE-3136 B7 — the asked rounds are fired: done.
             if (p.Rounds > 0 && RoundsFired(ref channel) >= p.Rounds)
             {
+                ReleaseTurrets(world, entity);
                 channel.Status = NodeStatus.Success;
                 Say(world, entity, ActionReason.Done, p.Target);
                 return;
@@ -95,8 +97,19 @@ namespace Fdp.Toolkit.Combat.Executors
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
             if (weapon.Ammo == 0)
             {
+                ReleaseTurrets(world, entity);
                 channel.Status = NodeStatus.Failure;
                 Say(world, entity, ActionReason.OutOfAmmo, p.Target);
+                return;
+            }
+
+            // ⭐⭐ WL-3 (DESIGN_Weapon_Layers §5e, W-1/W-4) — a turreted mount is fought through its turret's WeaponTask: this
+            //   weapon brain keeps the gates (target, rounds, ammo, magazine, ROE, seen-now) and GRANTS rounds; the weapon muscle
+            //   aims, times and fires them. The profile decides (W-5); the per-shot path below is unchanged for the rest.
+            var mountDto = CombatTkb.MountOf(world, entity, mountIndex);
+            if (WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown).UsesTurretTask(world, entity, mountDto))
+            {
+                TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, entity, mountDto!.TurretIndex), ref weapon);
                 return;
             }
 
@@ -181,6 +194,101 @@ namespace Fdp.Toolkit.Combat.Executors
             Say(world, entity, ActionReason.Firing, p.Target, fired, p.Rounds);
         }
 
+        /// <summary>
+        /// ⭐ WL-3 (§5e) — the turret path. The task's epoch moves only with a new target or mount, so a Track ↔ Engage switch keeps
+        /// it and the muscle's <see cref="WeaponTaskStatus.RoundsFired"/> keeps counting; every round it reports is spent HERE once
+        /// (magazine, total, the action's count — W-4). The grant is what was fired under this epoch plus what the magazine holds
+        /// now (capped by the rounds asked), so it stays constant while rounds are in flight and drops to Track for a reload.
+        /// </summary>
+        private static void TurretPath(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
+                                       int mountIndex, Entity part, ref WeaponState weapon)
+        {
+            var current = world.HasComponent<WeaponTask>(part) ? world.GetComponent<WeaponTask>(part) : default;
+            bool fresh = current.Mode == WeaponTaskMode.Idle || current.Target != p.Target || current.MountIndex != (byte)mountIndex;
+            uint epoch = fresh ? current.Epoch + 1 : current.Epoch;
+            ref int accounted = ref Accounted(ref channel);
+            if (fresh) accounted = 0;
+
+            var status = world.IsComponentTypeRegistered<WeaponTaskStatus>() && world.HasComponent<WeaponTaskStatus>(part)
+                ? world.GetComponent<WeaponTaskStatus>(part) : default;
+            bool mine = status.Epoch == epoch && !fresh;
+            if (mine)
+            {
+                for (int n = status.RoundsFired - accounted; n > 0 && weapon.Ammo > 0; n--)
+                {
+                    Magazine.Spend(ref weapon);
+                    RoundsFired(ref channel)++;
+                }
+                if (status.RoundsFired > accounted) accounted = status.RoundsFired;
+                if (status.State == WeaponTaskState.Failed)
+                {
+                    ReleaseTurrets(world, entity);
+                    channel.Status = NodeStatus.Failure;
+                    Say(world, entity, status.Reason == WeaponTaskFailure.OutOfArc ? ActionReason.OutOfArc : ActionReason.Failed, p.Target);
+                    return;
+                }
+            }
+            if (p.Rounds > 0 && RoundsFired(ref channel) >= p.Rounds)
+            {
+                ReleaseTurrets(world, entity);
+                channel.Status = NodeStatus.Success;
+                Say(world, entity, ActionReason.Done, p.Target);
+                return;
+            }
+
+            bool seen = Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
+            bool roe = RoePermitsFire(world, entity);
+            Magazine.StartIfEmpty(ref weapon);
+            bool loaded = Magazine.Ready(weapon);
+            int grant = accounted;
+            if (seen && roe && loaded)
+            {
+                int inHand = weapon.MagazineSize > 0 ? weapon.MagazineRounds : weapon.Ammo;
+                if (p.Rounds > 0) inHand = System.Math.Min(inHand, p.Rounds - RoundsFired(ref channel));
+                grant += System.Math.Max(0, inHand);
+            }
+
+            var next = new WeaponTask
+            {
+                Mode = grant > accounted ? WeaponTaskMode.Engage : WeaponTaskMode.Track,
+                Target = p.Target,
+                MountIndex = (byte)mountIndex,
+                RoundsGranted = (ushort)System.Math.Min(grant, ushort.MaxValue),
+                CooldownSeconds = p.CooldownSeconds,
+                Epoch = epoch,
+            };
+            if (fresh || !current.Equals(next)) world.SetComponent(part, next);
+
+            channel.Status = NodeStatus.Running;
+            if (!seen) Say(world, entity, ActionReason.HoldNotSeen, p.Target);
+            else if (!roe) Say(world, entity, ActionReason.HoldRoe, p.Target);
+            else if (!loaded) Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
+            else if (mine && status.State == WeaponTaskState.Slewing) Say(world, entity, ActionReason.Slewing, p.Target);
+            else Say(world, entity, ActionReason.Firing, p.Target, RoundsFired(ref channel), p.Rounds);
+        }
+
+        /// <summary>⭐ WL-3 — every turret of <paramref name="unit"/> with an order goes back to Idle (it holds its pose); the epoch is
+        /// kept so the next order is a new one.</summary>
+        public static void ReleaseTurrets(EntityRepository world, Entity unit)
+        {
+            if (!world.IsComponentTypeRegistered<WeaponTask>() || !world.IsComponentTypeRegistered<TurretPose>()) return;
+            for (int i = 0; i < TurretParts.MaxTurrets; i++)
+            {
+                var part = TurretParts.Find(world, unit, i);
+                if (part.IsNull) break;
+                if (!world.HasComponent<WeaponTask>(part)) continue;
+                ref var task = ref world.GetComponentRW<WeaponTask>(part);
+                if (task.Mode != WeaponTaskMode.Idle) task = new WeaponTask { Mode = WeaponTaskMode.Idle, Epoch = task.Epoch };
+            }
+        }
+
+        /// <summary>⭐ WL-3 — rounds of the current turret epoch already spent here (bytes 28–31, after the action's round count).</summary>
+        private static unsafe ref int Accounted(ref WeaponChannel channel)
+        {
+            fixed (byte* s = channel.State)
+                return ref Unsafe.AsRef<int>(s + sizeof(Entity) + sizeof(AimState) + sizeof(int));
+        }
+
         // ⭐ CE-3136 (T1) — the weapon row of the unit's ActionStatus: why this action is (not) firing this frame.
         private static void Say(EntityRepository world, Entity unit, ActionReason reason, Entity target, float progress = 0f, float needed = 0f)
             => ActionStatusOf.Weapon(world, unit, CombatConstants.ActionIdAimAndFire, reason, target, progress, needed);
@@ -248,7 +356,7 @@ namespace Fdp.Toolkit.Combat.Executors
 
         public void OnExit(Entity entity, ref WeaponChannel channel, EntityRepository world)
         {
-            // No state to clean up.
+            ReleaseTurrets(world, entity);   // ⭐ WL-3 (W-1) — releasing the channel sets the turret's task to Idle
         }
     }
 }
