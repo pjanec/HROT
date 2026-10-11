@@ -120,7 +120,8 @@ public sealed class GrenadeOrRifleScenarioTests : IDisposable
         const string Hostile = "Hostile behind the sandbags";
         Assert.True(harness.PumpUntil(() => !ByName(cgf, "Grenadier").IsNull && !ByName(cgf, "Rifleman").IsNull && !ByName(cgf, Hostile).IsNull,
             timeoutFrames: 2000), "the three units must spawn on CGF");
-        Entity grenadier = ByName(cgf, "Grenadier"), hostile = ByName(cgf, Hostile);
+        Entity grenadier = ByName(cgf, "Grenadier"), hostile = ByName(cgf, Hostile), rifleman = ByName(cgf, "Rifleman");
+        int rifle0 = cgf.GetComponentRO<WeaponState>(rifleman).Ammo;
 
         int grenades0 = GrenadesLeft(cgf, grenadier);
         Assert.True(grenades0 > 0, $"the Grenadier carries grenades on mount 1 (found {grenades0})");
@@ -137,6 +138,19 @@ public sealed class GrenadeOrRifleScenarioTests : IDisposable
         var h = cgf.GetComponent<SimTransform>(hostile).Position;
         _out.WriteLine($"grenadier at {g}, hostile at {h}, grenades {GrenadesLeft(cgf, grenadier)}/{grenades0}, hostile hp {cgf.GetComponent<Health>(hostile).Current}");
         Assert.True(thrown, "the Grenadier must throw at the hidden hostile");
+
+        // ── ⭐ AQ89 A — the Rifleman (ordinary temperament) holds and SUPPRESSES BLIND: his rounds go at the hidden hostile's last-known
+        //   spot, strike the sandbags (no hurt before the grenade) and spoil his aim — UnderFire, stamped by the near miss on the muscle.
+        int rifle = cgf.GetComponentRO<WeaponState>(rifleman).Ammo;
+        _out.WriteLine($"rifleman rounds fired {rifle0 - rifle}, hostile hp before the burst {cgf.GetComponent<Health>(hostile).Current}");
+        Assert.True(rifle < rifle0, $"the Rifleman must fire blind at the hidden hostile (ammo {rifle}/{rifle0})");
+        Assert.Equal(hp0, cgf.GetComponent<Health>(hostile).Current);   // his rounds hit the sandbags, not the man
+        var sim = harness.SimHost.World!;
+        var hostileOnSim = ByName(sim, Hostile);
+        Assert.False(hostileOnSim.IsNull, "the hostile exists on SimHost");
+        Assert.True(sim.IsComponentTypeRegistered<UnderFire>() && sim.HasComponent<UnderFire>(hostileOnSim)
+                    && sim.GetComponentRO<UnderFire>(hostileOnSim).LastTime > 0.0,
+            "the blind rounds' near misses must stamp UnderFire on the hostile (AQ85 E) — his aim is spoiled");
 
         // ── the burst: the lob clears the sandbags and the hostile is hurt behind them ──
         Assert.True(harness.PumpUntil(() => cgf.GetComponent<Health>(hostile).Current < hp0, timeoutFrames: 1200),
