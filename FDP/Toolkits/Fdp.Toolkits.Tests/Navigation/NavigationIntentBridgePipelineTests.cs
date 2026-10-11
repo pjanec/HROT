@@ -60,6 +60,57 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.Equal(20f, events[0].End.Y);
             // ⭐ No straight-line start while the path is being planned.
             Assert.Equal(KinematicsMode.None, _repo.GetComponent<NavState>(entity).Mode);
+            // ⭐ CE-3176 — and None alone did not mean "wait": CarKinematicsSystem drives Mode None like Direct whenever it has a
+            //   speed, so this rail stayed green while the vehicle drove straight at its goal. The wait holds at speed 0.
+            Assert.Equal(0f, _repo.GetComponent<NavState>(entity).TargetSpeed);
+        }
+
+        /// <summary>⭐ CE-3176 (Navigation_Design_v2_0.md §3.1: "wait, no straight start") — a vehicle given a MoveTo does not move
+        /// while its path is pending (the muscle runs every frame meanwhile), and drives at the REQUESTED speed once the path comes
+        /// back.</summary>
+        [Fact]
+        public void CE3176_APendingMoveTo_HoldsItsGround_ThenFollowsThePathAtTheRequestedSpeed()
+        {
+            _repo.RegisterComponent<VehicleState>();
+            _repo.RegisterComponent<VehicleParams>();
+            _repo.RegisterComponent<global::CarKinem.Spatial.SpatialGridData>();
+            _repo.RegisterEvent<PathfindingResultEvent>();
+            _repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1f });
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = SimMath.FacingNorth });
+            _repo.SetAuthority<SimTransform>(entity, true);
+            _repo.AddComponent(entity, new SimVelocity());
+            _repo.AddComponent(entity, new VehicleState());
+            _repo.AddComponent(entity, new VehicleParams
+            {
+                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = 0.6f,
+                LookaheadTimeMin = 2f, LookaheadTimeMax = 10f, AccelGain = 2.0f, AvoidanceRadius = 2.5f,
+            });
+            _repo.AddComponent(entity, new NavState());
+            _repo.AddComponent(entity, new NavigationStatus());
+            _repo.AddComponent(entity, PathToPoint(1, new Vector3(0f, 100f, 0f)));
+
+            var grid = new global::CarKinem.Systems.SpatialHashSystem();
+            var kinematics = new global::CarKinem.Systems.CarKinematicsSystem(_pool);
+            void Muscle() { grid.Execute(_repo, 0.016f); kinematics.Execute(_repo, 0.016f); }
+            _system.Execute(_repo, 0.016f);
+            for (int i = 0; i < 30; i++) Muscle();   // the solver has not answered yet
+            Assert.InRange(_repo.GetComponent<SimTransform>(entity).Position.Length(), 0f, 0.01f);
+            Assert.Equal(0, _repo.GetComponent<NavState>(entity).HasArrived);
+
+            _pool.RegisterTrajectoryWithKey(new[] { new Vector2(0f, 0f), new Vector2(0f, 100f) }, 7);
+            _repo.Bus.Publish(new PathfindingResultEvent
+            {
+                RequestId = ((long)entity.Index << 32) | 1L, IsReachable = true, RouteHandle = 7, TotalDistanceMeters = 100f,
+            });
+            _repo.Bus.SwapBuffers();
+            new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedPathResponseSystem(
+                new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedPathRegistry(_pool)).Execute(_repo, 0.016f);
+
+            var nav = _repo.GetComponent<NavState>(entity);
+            Assert.Equal((KinematicsMode.CustomTrajectory, 7, 5f), (nav.Mode, nav.TrajectoryId, nav.TargetSpeed));
+            for (int i = 0; i < 30; i++) Muscle();
+            Assert.True(_repo.GetComponent<SimTransform>(entity).Position.Y > 0.05f, "drives once the path is in");
         }
 
         /// <summary>⭐ CE-3026 — DirectPoint means STRAIGHT: no path request, the vehicle drives at once.</summary>

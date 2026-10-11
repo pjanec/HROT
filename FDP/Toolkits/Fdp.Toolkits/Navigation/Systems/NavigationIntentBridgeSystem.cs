@@ -155,10 +155,13 @@ namespace Fdp.Toolkit.Navigation.Systems
 
                     case NavigationMode.PathToPoint:
                         // ⭐ CE-3026 — wait (no straight-line start) until the path arrives; the request is published
-                        //   below once the NavState is stored. Speed/arrival are kept for the trajectory follower.
+                        //   below once the NavState is stored.
+                        // ⭐ CE-3176 — and the wait HOLDS: speed 0. CarKinematicsSystem drives Mode None like Direct whenever it
+                        //   has a speed (the legacy idle-with-a-goal meaning examples and tests rely on), so a kept speed drove
+                        //   straight at the goal until the path came back. The path response restores the intent's speed.
                         nav.Mode             = KinematicsMode.None;
                         nav.FinalDestination = NavigationDestination.Of(repo, entity, intent);   // ⭐ CE-1035 Q0b
-                        nav.TargetSpeed      = intent.TargetSpeed;
+                        nav.TargetSpeed      = 0f;
                         nav.ArrivalRadius    = intent.ArrivalRadius;
                         nav.ReverseAllowed   = intent.ReverseAllowed;
                         nav.TrajectoryId     = 0;
