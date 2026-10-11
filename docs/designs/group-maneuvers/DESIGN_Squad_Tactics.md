@@ -606,12 +606,12 @@ and ids 356–364 are the backend lane's — ours come from the squad block (274
 | rail | proves | red-proof |
 |---|---|---|
 | `UnitCommanderTests.CE2125_ACompositeType_IsAUnit_ASoldierIsNot` | the translator, and that it is in the base set | — |
-| `UnitCommanderTests.CE2125_AnAreaSearch_NeverFindsAUnitsCommander` · `LocalGridBuilderSystemTests.CE2125_AUnitsCommander_IsNeverInThePerceptionGrid` | the two doors | ⏳ pending |
-| `SquadCoordinationSystemTests.CE2125_TheLeaderFalls_…` · `…_NoTeamLeader_…` | succession, lull, one edge | ⏳ pending |
-| `SquadCoordinationSystemTests.CE2125_AUnitStandsAtItsLiveMembersCentre_OnItsOwner` | CE-514 | ⏳ pending |
-| `SquadManeuverTests.CE2125_TheSilentCommander_…` · `…_TheLeaderFallsDuringTheDrill_…` · `…_BasicSquadSop_TheLeaderDown_…` | L2, L3, the SOP row | ⏳ pending |
+| `UnitCommanderTests.CE2125_AnAreaSearch_NeverFindsAUnitsCommander` · `LocalGridBuilderSystemTests.CE2125_AUnitsCommander_IsNeverInThePerceptionGrid` | the two doors | ✅ each filter removed ⇒ its rail red |
+| `SquadCoordinationSystemTests.CE2125_TheLeaderFalls_…` · `…_NoTeamLeader_…` | succession, lull, one edge | ✅ `Succession` call removed ⇒ both red |
+| `SquadCoordinationSystemTests.CE2125_AUnitStandsAtItsLiveMembersCentre_OnItsOwner` | CE-514 | ✅ liveness check removed ⇒ red |
+| `SquadManeuverTests.CE2125_TheSilentCommander_…` · `…_TheLeaderFallsDuringTheDrill_…` · `…_BasicSquadSop_TheLeaderDown_…` | L2, L3, the SOP row | ✅ silence check removed ⇒ the silence rail red |
 | `CgfLogicPackTests` (count 20 + contains `UnitCentroidSystem`) | the pack really runs it | — |
-| live `SquadTacticsScenarioTests` ×2 + `FireDistributionScenarioTests` | the migrated scenarios; on SimHost the commander stands at its men's centre and the enemy never remembers it | see the run recorded below |
+| live `SquadTacticsScenarioTests` ×2 + `FireDistributionScenarioTests` | the migrated scenarios; on SimHost the commander stands at its men's centre and the enemy never remembers it | ✅ live green `2026-10-11`: fire distribution 9 s (five members, the leader among them), S2 45 s, S1 41 s |
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 

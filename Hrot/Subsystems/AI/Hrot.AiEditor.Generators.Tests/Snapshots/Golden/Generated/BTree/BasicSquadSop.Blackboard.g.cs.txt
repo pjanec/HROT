@@ -5,12 +5,14 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Explicit, Size = 16)]
+[StructLayout(LayoutKind.Explicit, Size = 24)]
 public struct BasicSquadSop_FdpToolkitBehaviorComponentsBrainBlackboard
 {
     [FieldOffset(0)]
     public global::Fdp.Toolkit.Behavior.SopSenseParams underFire;
     [FieldOffset(8)]
+    public global::Fdp.Toolkit.Behavior.SopSenseParams leaderDown;
+    [FieldOffset(16)]
     public global::Fdp.Toolkit.Behavior.SopSenseParams contact;
 }
 
