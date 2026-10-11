@@ -153,10 +153,21 @@ public sealed class TheScenarioWindowsAreSharedTests
     [Fact]
     public void SelectingAnOrbatRowActivatesTheToolAndSelectsTheEntity()
     {
+        // ⭐⭐ CE-1020 — through a REAL row: the provider's node id is the entity INDEX, the command carries the NETWORK id.
+        //   ⛔ The earlier form passed 4242 straight in and asserted NetworkId 4242 — it pinned the defect (a click selected
+        //   nothing, or the entity whose network id equalled the row's index).
         using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        for (int i = 0; i < 3; i++) world.CreateEntity();   // push the tank's index away from 0
+        var tank = world.CreateEntity();
+        world.AddComponent(tank, new EntityInfo { Name = new FixedString64("Tank") });
+        world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.NetworkIdentity(5100L));
         var bus = world.Bus;
+        var adapter = new ScenarioOrbatAdapter(world, bus, Mock.Of<ISpawnController>());
+        var row = Assert.Single(adapter.GetVisibleNodes("", new System.Collections.Generic.HashSet<int>()));
 
-        new ScenarioOrbatAdapter(world, bus, Mock.Of<ISpawnController>()).SelectEntity(4242);
+        adapter.SelectEntity(row.EntityId);
         // ⭐ The bus is double-buffered — a publish is visible to Read<> only after the swap, the same
         //   way AdapterTests' embark/disembark rails read it.
         bus.SwapBuffers();
@@ -166,8 +177,8 @@ public sealed class TheScenarioWindowsAreSharedTests
 
         Assert.Single(tools);
         Assert.Equal(EditorTool.Select, tools[0].Tool);
-        Assert.Single(picks);
-        Assert.Equal(4242L, picks[0].NetworkId);   // ⛔ the half that was missing entirely
+        Assert.Equal(tank.Index, row.EntityId);              // the row is index-addressed (every other controller method relies on it)
+        Assert.Equal(5100L, Assert.Single(picks).NetworkId);  // ⭐ …and the selection is network-addressed
     }
 
     // ══ ④ ONE SPAWNER CATALOG ════════════════════════════════════════════════

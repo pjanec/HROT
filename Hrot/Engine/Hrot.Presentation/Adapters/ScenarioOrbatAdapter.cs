@@ -149,14 +149,19 @@ namespace Hrot.UI.Common.Adapters
         /// disappears — which is what let this adapter move out of <c>Hrot.Editor</c> at all — and the
         /// method finally selects the entity it was handed.</para>
         ///
-        /// <para>⚠ <b>The id is a NETWORK id.</b> <c>IOrbatDataProvider</c>'s nodes carry the network
-        /// index, which is what <c>SelectEntityCommand.NetworkId</c> takes and what
-        /// <c>SelectEntitySystem</c> resolves — ⛔ not a raw <c>Entity</c> handle.</para>
+        /// <para>⭐⭐ <c>CE-1020</c> (<c>2026-10-11</c>) — ⛔ SUPERSEDED: "the id is a NETWORK id". 📐 Measured: the nodes this
+        /// provider builds carry the entity INDEX (<see cref="GetVisibleNodes"/>, <c>EntityId: idx</c>), as every other method
+        /// here assumes (<c>_indexCache</c>), while <c>SelectEntityCommand</c> is resolved BY NETWORK ID
+        /// (<c>SelectionRequestSystem</c>, <c>NetworkIdResolver</c>) ⇒ a click selected nothing, or an unrelated entity whose
+        /// network id equalled the row's index. ⭐ The index is resolved here, at the boundary, to the entity's network id.</para>
         /// </remarks>
         public void SelectEntity(int entityId)
         {
             _bus.Publish(new ActivateEditorToolEvent(EditorTool.Select));
-            _bus.Publish(new SelectEntityCommand { NetworkId = entityId });
+            if (_indexCache.TryGetValue(entityId, out var entity) && _world.IsAlive(entity)
+                && _world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                && _world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity))
+                _bus.Publish(new SelectEntityCommand { NetworkId = _world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value });
         }
 
         /// <inheritdoc/>
