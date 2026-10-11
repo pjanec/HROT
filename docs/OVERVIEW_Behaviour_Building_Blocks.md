@@ -241,7 +241,7 @@ graph TD
     TK["FallBack (THE retreat, R-259) · Flank · FiringPosition · TakeCover · Sentry · DangerCrossing"]
     SOP["BasicInfantrySop"]
     ORD["MoveToLocation · FollowRoute · FireAtTarget · FireAtPoint · TrackTarget · HoldStance · DoorLocksmith (JoinFormation: broken, §10)"]
-    SQ["Library/Squad: BoundingOverwatch (on the commander, §9)"]
+    SQ["Library/Squad: BoundingOverwatch · SuppressAndManeuver (on the commander, §9)"]
   end
   subgraph L3["③ NOT LIBRARY — never offered as a building block"]
     DM["demo-local: hill attack (PlatoonHillAttack, HullDownAttackRun, SlotOps) · WindowDuel · insurgent"]
@@ -321,7 +321,7 @@ graph TD
   FIRE["ThreatMatrixAssignmentSystem — who fires at whom (members pull it via IsAssignedTarget)"]:::built
   MRG --> FIRE
   MAN["6 manoeuvre TABLES: BoundingOverwatch · DangerAreaCrossing · SuppressAndManeuver · HillCrestHullDown · StackAndRoomEntry · TravellingOverwatch<br/>+ SquadHsmShell · partition · roles · slot rotation"]:::partial
-  RUN["BoundingOverwatch behaviour on the commander — the ONLY one that runs (CE-3162)"]:::built
+  RUN["SquadManeuverRunner (CE-2123): one runner, a play per table — BoundingOverwatch · SuppressAndManeuver run on the commander"]:::built
   MAN --> RUN
   RUN --> ORD
   DEAD["no production caller: SquadEventIngressSystem · SquadVetoDetectionSystem · CommanderUtilityTickSystem (ManeuverSelect) · SquadMovementModeBroadcastSystem"]:::missing
@@ -339,6 +339,7 @@ it (only through utility inputs no shipped decision uses) ⇒ a soldier knows on
 |---|---|
 | make a squad | give members `UnitSubordinate.Commander` (scenario `CommanderGuid`, ORBAT drag-and-drop); the commander gets `UnitRoster` + `SquadCognitiveState` automatically |
 | order a member | publish `AssignTacticalIntentEvent { Entity = member, IntentId = <behaviour name>, JsonParams, Origin = Superior }` (see `BoundingOverwatchBehavior.Order`) |
+| run a squad drill | order the COMMANDER a Library/Squad behaviour (`BoundingOverwatch`, `SuppressAndManeuver`); a new drill = an `ISquadPlay` over its table on `SquadManeuverRunner` (`Brains/SquadManeuverRunner.cs`) — not a new node |
 | know a member arrived | poll its position (the arrival events of `SquadEventIngressSystem` are dead — they key on intent ids the per-entity counter breaks) |
 | what the squad knows | `SquadCognitiveState.Contacts` on the commander (entity, position, threat, last seen, `SourceMembersMask`, heard flag) — CGF only, not saved, not replicated |
 | ask the terrain for the squad | the commander owns an EQS query (§5a), slot 0 = the member to measure from |
