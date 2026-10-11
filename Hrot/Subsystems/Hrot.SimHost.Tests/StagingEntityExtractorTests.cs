@@ -140,6 +140,7 @@ namespace Hrot.SimHost.Tests
             // EditablePolyline must be registered so StagingEntityExtractor.RegisterAllGlobalTypesInRepo
             // can include it regardless of test-execution order (D-5 fixture gap fix).
             _goldRepo.RegisterManagedComponent<EditablePolyline>();
+            _goldRepo.RegisterComponent<CombatTemperament>();   // ⭐ AQ89
         }
 
         public void Dispose() => _goldRepo.Dispose();
@@ -278,6 +279,29 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(typeof(NetworkIdentity), types);
             Assert.DoesNotContain(typeof(NetworkAuthority), types);
             Assert.DoesNotContain(typeof(TkbIdentity), types);
+        }
+
+        /// <summary>
+        /// ⭐ AQ89 B (R-269) — an authored temperament REACHES the live entity. 📌 Measured on the cluster: a translator-consumed
+        /// component is excluded from extraction unless its translator says it is safe, so the brave Grenadier ran on the
+        /// defaults (0.5) and never closed to throw. 🔴 Red before <c>CombatTemperamentTranslator.IsExtractionSafe</c>.
+        /// </summary>
+        [Fact]
+        public void Extract_CarriesAnAuthoredTemperament_ToTheCreationRequest()
+        {
+            var e = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(e, new SimTransform());
+            _goldRepo.SetComponent(e, new TkbIdentity { TkbType = 42L });
+            _goldRepo.SetComponent(e, new CombatTemperament { RiskAcceptance = 0.8f, Set = CombatTemperament.RiskAcceptanceSet });
+
+            var serializer = BuildSerializer(new Hrot.SimHost.Serializers.CombatTemperamentTranslator());
+            var json = SerializeGoldRepo(_goldRepo, serializer);
+            Assert.Contains("\"Temperament\"", json);
+
+            var req = Assert.Single(new StagingEntityExtractor().Extract(serializer, json, new StubIdAllocator(100)));
+            var t = Assert.Single(req.InitialComponents!.OfType<CombatTemperament>());
+            Assert.Equal(0.8f, t.RiskAcceptance);
+            Assert.Equal(CombatTemperament.RiskAcceptanceSet, t.Set);
         }
 
         // ── Test 2: TKB structural child entities are filtered out ────────────────

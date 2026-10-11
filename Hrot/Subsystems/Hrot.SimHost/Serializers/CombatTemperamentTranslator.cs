@@ -19,6 +19,11 @@ namespace Hrot.SimHost.Serializers
         public const string Key = "Temperament";
         private const string Risk = "riskAcceptance", Obey = "obedience";
 
+        /// <summary>⭐ Two floats and a flag byte, no entity handle ⇒ the CGF staging extractor may carry it to the live entity.
+        /// 📌 Measured on the cluster: without this the extractor dropped it (a translator-consumed component is excluded by
+        /// default) and the Grenadier ran on the defaults.</summary>
+        public bool IsExtractionSafe => true;
+
         public BitMask512 GetConsumedComponentsMask()
         {
             var mask = new BitMask512();

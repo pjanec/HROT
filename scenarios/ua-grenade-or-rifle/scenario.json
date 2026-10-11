@@ -1,0 +1,147 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range"
+  },
+  "entities": {
+    "a4120000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          140,
+          12,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7701
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": [
+          {
+            "Entity": "a4120000-0000-4000-8000-000000000003",
+            "PosX": 149,
+            "PosY": 42.5,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[149,48,0],\"Speed\":3,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Origin": "Superior"
+      }
+    },
+    "a4120000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          158,
+          12,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7702
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Grenadier",
+        "ForceId": "Friend"
+      },
+      "Temperament": {
+        "riskAcceptance": 0.8
+      },
+      "TargetMemory": {
+        "Entries": [
+          {
+            "Entity": "a4120000-0000-4000-8000-000000000003",
+            "PosX": 149,
+            "PosY": 42.5,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[149,48,0],\"Speed\":3,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Origin": "Superior"
+      }
+    },
+    "a4120000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          149,
+          42.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "NetworkIdentity": {
+        "Value": 7703
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile behind the sandbags",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": "{\"stance\":\"Crouched\"}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}
