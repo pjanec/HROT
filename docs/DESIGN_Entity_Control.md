@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: READY-TO-BUILD (slices S1-S3); DESIGN (S4-S5 wait on the M-decisions in §2.2)
-current-answer: §2 decisions · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices
+build-state: READY-TO-BUILD (all slices; M-1..M-10 approved 2026-10-11, R-271)
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -28,7 +28,8 @@ related-designs:
 > available via http debug api … replace the human operator with ai debug http api allowing you to play the game"* →
 > *"Your leans accepted. … Shouldnt we control the motion channel directly … Vehicles cant strafe so they should turn their
 > steering wheel … Fps view should run on our 3d map view. The generic entity command http way should be fixed … menu items …
-> need some entity/point picker followup operation. Write design please."*
+> need some entity/point picker followup operation. Write design please."* → *"Approved. All the messaging needs to work in the
+> networkless editor so ig needs using fdp bus events translated to network and back, accepting the latency."*
 
 **The idea in one line:** taking control of a unit is **giving it an order of a high enough origin** — never an "AI off" switch
 (AQ83 rejected *"a separate autonomy on/off mode"*). HTTP, RTS clicks and the menu send **high-level orders** through **one
@@ -69,7 +70,7 @@ not run (not available via the CLI) — the zero rows are grep-and-graph zeros, 
 | **C-11** | HTTP orders carry origin **Operator**; build order = **HTTP orders first**, then menu/RTS, then FPS |
 | **C-12** | *(this message)* FPS motion is a **direct manual-drive command**, not direct-to-point; vehicles steer instead of strafing, with free look and an optional view locked to the hull where the mouse steers; the generic `/entities/command` route is fixed; the menu orders get a follow-up point / entity pick |
 
-### 2.2 ⏳ Proposed — the motion and plumbing decisions this design adds (lean per row)
+### 2.2 ✅ Approved — the motion and plumbing decisions (user, `2026-10-11`: *"Approved."* → `R-271`)
 
 | # | question | ⭐ lean | rejected — one line each |
 |---|---|---|---|
@@ -83,6 +84,32 @@ not run (not available via the CLI) — the zero rows are grep-and-graph zeros, 
 | **M-8** | operator fire | the **existing** `AimAndFireExecutor` gains a point target and an **operator mode** (no seen-now gate, no aim time, ROE bypass): a turret mount gets `WeaponTask{Track, Point}` + granted rounds (the muscle already aims at `Point`, `WeaponTaskDispatcherSystem.cs:54`); a per-shot mount spends through the per-shot path | a new operator weapon executor — a second weapon brain (R-174) |
 | **M-9** | the FPS camera | `MapCamera3D` gains an optional **`ICameraDriver`** (not unsealed — gizmos and labels draw only for `MapCamera3D`, `DebugGizmoLayer.cs:140,169`); while a driver is set `MapCameraLayer` **does not save the pose** into the scenario camera (R-260, `MapCameraLayer.cs:149`). `IInputProvider` gains **`SetCursorLocked`** | a second camera class — loses every 3-D gizmo, label and picker |
 | **M-10** | the menu orders | handlers for the existing `MoveHere / Engage / Stop` ids, registered **once in `MapInteractionPack`** (every map host): Move → **location follow-up pick**, Engage → **entity follow-up pick**, Stop → immediate. The args channel and TKB command sets (Entity Commanding §2.2-2.4) stay later work there | an editor-only registration — the IG and CGF menus stay dead |
+
+### 2.3 ✅ Messaging — FDP bus events first; the network is only a translator *(user, `2026-10-11` → `R-271`; R-134)*
+
+🔒 *"All the messaging needs to work in the networkless editor so ig needs using fdp bus events translated to network and back,
+accepting the latency."* ⇒ **every message in this design is a typed FDP event or a component on the local world.** A sender
+publishes on its own bus and never knows whether the receiver is local; the **owner's handler reads its own bus**, whichever
+way the event arrived; an **egress translator forwards only what this node does not own**, and an ingress translator
+republishes it on the owner's bus (the door pattern, `DoorCommands.cs:138-142`). ⇒ in the **editor** — which composes the
+station, the brain (`CgfLogicPack`) and the muscle (`SimHostCoreLogicPack`) in ONE world (`EditorSubsystem.cs:1602-1632`) —
+nothing is translated and everything works with no network; on an **IG / cluster** the same events cross by translator, and
+the extra hops are accepted latency (C-6).
+
+| message | FDP form *(what the sender publishes / the reader reads)* | owner-side reader | across nodes *(translator only)* |
+|---|---|---|---|
+| an order (HTTP · menu · RTS) | `AssignTacticalIntentEvent` *(existing; + `ClearsPriorIntent`)* | `TacticalIntentResolutionSystem` | `TacticalIntentRequest` *(existing)* |
+| possess / release | **NEW** `PossessRequestEvent{Entity, Mode, StationNodeId, IsRemote}` · `ReleasePossessionEvent{…}` | `PossessionSystem` | interaction union cases `Possess` · `Release` |
+| a control frame | **NEW** `OperatorControlFrameEvent{Entity, Seq, Forward, Lateral, Steer, Yaw, AimPoint, AimTarget, Trigger, Mount, Gait, Stance, IsRemote}` | `PossessionSystem` ⇒ `OperatorInput` | interaction union case `ControlFrame` |
+| who holds a unit | **NEW** component `PossessedBy` *(Brain group)* | every station reads it | its descriptor |
+| the manual drive demand | **NEW** component `ManualDrive` *(Brain group)* | `ManualDriveSystem` | its descriptor |
+| ammo for the HUD | **NEW** component per mount `WeaponAmmo` *(Brain group)* | `PossessionHudLayer` | its descriptor |
+
+| ⭐ rule | why |
+|---|---|
+| ⛔ **no sender or reader touches a DDS type** | R-134; and it is what makes the editor path the SAME code, not a second one |
+| ⭐ **every slice's FIRST rail runs in the networkless editor world**; the cluster rail comes second | the editor is the path a broken translator cannot hide |
+| ⭐ **`StationNodeId` is the local node id**, also in the editor | C-8; a second station is simulated in rails by a second id |
 
 ## 3. CLASSES
 
@@ -131,7 +158,9 @@ classDiagram
     class ICameraDriver { <<NEW, Vis3D>> Drive(MapCamera3D, input, dt) }
     class MapCamera3D { <<existing, sealed>> + Driver }
     class PossessionHudLayer { <<NEW, IMapLayer.DrawOverlay>> crosshair · health · ammo per mount · selected weapon }
-    class InteractionTransport { <<existing, R-221>> + Possess · Release · ControlFrame cases }
+    class PossessRequestEvent { <<NEW FDP event>> Entity · Mode · StationNodeId · IsRemote }
+    class OperatorControlFrameEvent { <<NEW FDP event>> Entity · Seq · axes · AimPoint · Trigger · Mount · IsRemote }
+    class InteractionTransport { <<existing, R-221>> + Possess · Release · ControlFrame cases — only between nodes }
     class PossessionSystem { <<NEW, brain owner>> arbitrates (C-3) · death ⇒ release }
     class PossessedBy { <<NEW component, Brain group, replicated>> StationNodeId · Mode · Epoch }
     class OperatorInput { <<NEW component, brain-local>> newest ControlFrame }
@@ -141,13 +170,16 @@ classDiagram
     class ManualDrive { <<NEW component, Brain group>> Forward · Lateral · Steer · Yaw · Gait · Seq }
     class ManualDriveSystem { <<NEW, muscle, GroundKinematicsModule>> person: strafe + yaw · vehicle: throttle + steer }
     class WeaponAmmo { <<NEW descriptor, C-7>> per mount: Ammo · MaxAmmo }
-    PossessionController --> InteractionTransport : Possess / Release
-    FpsInputSampler --> InteractionTransport : ControlFrame
+    PossessionController --> PossessRequestEvent : publishes on the local bus
+    FpsInputSampler --> OperatorControlFrameEvent : publishes on the local bus
+    PossessRequestEvent --> PossessionSystem : owner reads its bus
+    OperatorControlFrameEvent --> PossessionSystem
+    InteractionTransport ..> PossessRequestEvent : carries when not owned here
+    InteractionTransport ..> OperatorControlFrameEvent
     PossessionController --> PossessionTool
     PossessionController --> FpsCameraDriver
     FpsCameraDriver ..|> ICameraDriver
     MapCamera3D o-- ICameraDriver
-    InteractionTransport --> PossessionSystem
     PossessionSystem --> PossessedBy : writes
     PossessionSystem --> OperatorInput : writes
     PossessionSystem ..> OperatorControl : assigns / clears
@@ -159,7 +191,7 @@ classDiagram
     PossessionHudLayer ..> WeaponAmmo
 ```
 
-*What the picture shows that prose hid:* the station **never writes a unit component** — it sends interactions, and reads back
+*What the picture shows that prose hid:* the station **never writes a unit component** — it publishes FDP events (§2.3), and reads back
 `PossessedBy`, health and ammo. Exactly-one-station is enforced by **one writer** (the brain owner), and "station A lost it"
 is A reading `PossessedBy` — no revoke message exists to get lost.
 
@@ -215,19 +247,19 @@ sequenceDiagram
     participant S as Station (map host)
     participant B as Brain owner (CGF)
     participant K as Muscle (SimHost)
-    S->>B: interaction Possess{FPS}
+    S->>B: PossessRequestEvent{FPS} on the bus, translated only if B is another node
     B->>B: PossessionSystem: PossessedBy = S · assign OperatorControl (origin Possession) — task paused
     B-->>S: PossessedBy replicates
     S->>S: PossessionTool + FpsCameraDriver + HUD on · cursor locked
     loop every frame
-        S->>B: ControlFrame{seq, forward, lateral, yaw | steer, aim point, trigger, mount}
+        S->>B: OperatorControlFrameEvent{seq, forward, lateral, yaw | steer, aim point, trigger, mount}
         B->>B: OperatorControl ⇒ ManualDrive · fire via AimAndFireExecutor (operator mode)
         B->>K: ManualDrive / WeaponTask (DDS)
         K->>K: ManualDriveSystem moves the body · turret slews
         K-->>S: SimTransform, TurretPose, Health, WeaponAmmo
     end
     alt Esc
-        S->>B: Release
+        S->>B: ReleasePossessionEvent
     else unit killed (Health ≤ 0)
         B->>B: PossessionSystem releases on its own
     end
@@ -272,6 +304,8 @@ graph TD
     classDef dead fill:#fde2e2,stroke:#c62828,stroke-dasharray:4 3
 ```
 
+*In the **editor** the three subgraphs are ONE world* — the station, the brain and the muscle exchange the §2.3 events and
+components on one bus, with no translator. *On a cluster* each arrow that crosses a subgraph is an egress → DDS → ingress pair.
 *The red edges are the ones nothing reaches:* the **ReplayBrowser** also builds `MapInteractionPack`, but a replay has no live
 brain — orders, RTS and possession are **absent** there (not greyed). The **Stride** motors take `VehicleState`/`CrowdMotorIntent`
 as their inputs (`KinematicVehicleMotor.cs:184`, `BulletCharacterMotor.cs:211`) and will need their own `ManualDrive`
@@ -296,7 +330,7 @@ autonomous motion is unchanged.
 
 ## 7. SLICES
 
-| slice | builds | acceptance (headless unless marked) |
+| slice | builds | acceptance (headless unless marked; ⭐ each slice railed FIRST in the networkless editor world, then on the cluster — §2.3) |
 |---|---|---|
 | **S1** `CE-3167` + `CE-3168` | `EntityOrders`; `ClearsPriorIntent` + `IntentClearRegistry` + `MissionPlanClearProvider` (Entity Commanding §2.5b-d); `POST/GET/DELETE /entities/{id}/order`, `POST /orders`, `GET /sitrep?side=&truth=`; the side lock; **`/entities/command` fixed** — field-aware options (the CE-225 shape, `DebugApiService.cs:1546`) + an `Entity` given as a network id | an HTTP move reaches the brain from a non-owner node · an order clears the mission plan and never leaves the unit brain-dead · `GET …/order` reports running → finished · the sitrep lists only contacts the side knows · a `/entities/command` payload's fields arrive (the rail that was missing, `DebugApiBatch04Tests.cs:168`) |
 | **S2** `CE-3169` + `CE-3170` | the three menu handlers + follow-up picks on every map host; the location picker's **cancel completes the task** (today it never does, `FdpLocationPickerGizmo`); Attack = CombatPosture with a designated target | Engage → pick → the unit closes and fires on THAT target, ignoring a nearer threat · Esc cancels the pick · Stop idles it · IG and CGF menus work, the replay menu has no orders |
