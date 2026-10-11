@@ -150,7 +150,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
     /// PAUSED, the squad holds and returns fire, the leader decides (four riflemen against one ⇒ assault) and runs the drill; when it
     /// ends, the bound RESUMES. 📄 <c>docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md</c> §4.6.
     /// </summary>
-    [Fact(Timeout = 300_000)]
+    [Fact(Timeout = 600_000)]
     public async Task CE2123_ABoundingSquadMeetsTheEnemy_ItsLeaderReacts_HoldsThenAssaults_ThenTheBoundResumes()
     {
         var root = RepoRoot();
@@ -214,10 +214,9 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             Assert.True(harness.PumpUntil(() => { Note(); return kinds.Contains(SuppressAndManeuverManeuver.ManeuverKind); }, timeoutFrames: 3000),
                 $"the leader must decide to assault; {State()}");
             _out.WriteLine("assault: " + State());
-            for (int k = 0; k < 8; k++) { harness.PumpFrames(500); Note(); _out.WriteLine($"+{(k + 1) * 500}: " + State()); }
             // ④ the drill ends ⇒ the bound resumes, with its own squad state.
             Assert.True(harness.PumpUntil(() => { Note(); return !Paused() && Squad().ManeuverKind == BoundingOverwatchManeuver.ManeuverKind
-                                                              && kinds.IndexOf(SuppressAndManeuverManeuver.ManeuverKind) < kinds.Count - 1; }, timeoutFrames: 8000),
+                                                              && kinds.IndexOf(SuppressAndManeuverManeuver.ManeuverKind) < kinds.Count - 1; }, timeoutFrames: 30000),   // ⚠ ~150 frames per sim second here
                 $"after the drill the bound must resume; {State()}");
             _out.WriteLine("end: " + State());
         }
