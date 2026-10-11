@@ -275,7 +275,8 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtEqsSensorConfig),
                     D(Hrot.NED.Descriptors.EDescriptorType.dtBrainIntent),     // ⭐ CE-3048 — the AI intent moves with the Brain
                     D(Hrot.NED.Descriptors.EDescriptorType.dtStanceIntent),    // ⭐ CE-2121 — the body-stance request
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponTask) },    // ⭐ WL-2b (CE-1049) — the turret's order
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponTask),      // ⭐ WL-2b (CE-1049) — the turret's order
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponPosture) }, // ⭐ WL-6 (W-13, R-272) — the weapon brain's posture
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),
