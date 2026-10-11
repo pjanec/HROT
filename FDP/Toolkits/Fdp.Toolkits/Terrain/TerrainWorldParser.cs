@@ -84,6 +84,7 @@ namespace Fdp.Toolkit.Terrain
             float GroundUnder(IReadOnlyList<Vector2> polygon) => grid?.LowestUnder(polygon) ?? groundZ;
             float GroundAlong(IReadOnlyList<Vector2> line) => grid?.LowestAlong(line) ?? groundZ;
 
+            List<string>? warnings = null;
             var sink = new TerrainBuildingExpander.Sink();
             var prisms = sink.Prisms;
             var walkables = sink.Walkables;
@@ -181,10 +182,32 @@ namespace Fdp.Toolkit.Terrain
                     case "slab":
                     case "ramp":
                     {
-                        float? flatZ = props["z"] is JsonNode z ? ReadFloat(z, where + ".z") : null;
+                        // ⭐ CE-1034 H5a (TH-I) — heights may be GROUND-RELATIVE: "aboveGround": h (every vertex h above the ground
+                        //   under it), or "zRef": "ground" with the usual "z" / per-vertex Z read as heights above the ground.
+                        //   Absolute Z (the default) is unchanged. 📄 docs/DESIGN_Terrain_Height.md §3.4.
+                        float? aboveGround = props["aboveGround"] is JsonNode ag ? ReadFloat(ag, where + ".aboveGround") : null;
+                        bool relative = aboveGround.HasValue || (string?)props["zRef"] == "ground";
+                        float? flatZ = aboveGround ?? (props["z"] is JsonNode z ? ReadFloat(z, where + ".z") : null);
+                        var walkableKind = kind == "ramp" ? TerrainWalkableKind.Ramp : TerrainWalkableKind.Slab;
                         foreach (var ring in OuterRings(geometry, geomType, where))
-                            walkables.Add(MakeWalkable(kind == "ramp" ? TerrainWalkableKind.Ramp : TerrainWalkableKind.Slab,
-                                ring, flatZ, where));
+                        {
+                            if (relative)
+                                for (int i = 0; i < ring.Count; i++)
+                                {
+                                    float above = flatZ ?? ring[i].Z;
+                                    // ⭐ TH-K — a RAMP's foot (a vertex AT the ground) is BURIED: sunk below the ground, so the walkable
+                                    //   top surface is max(ground, ramp), joined along their intersection whatever the grid's
+                                    //   triangulation — continuous for the navmesh's step and for SurfaceZ by construction.
+                                    if (walkableKind == TerrainWalkableKind.Ramp && above <= RampFootTolerance) above = -RampFootSink;
+                                    float ground = grid?.Sample(ring[i].X, ring[i].Y) ?? groundZ;
+                                    ring[i] = new Vector3(ring[i].X, ring[i].Y, ground + above);
+                                }
+                            var walkable = MakeWalkable(walkableKind, ring, relative ? null : flatZ, where);
+                            if (walkableKind == TerrainWalkableKind.Ramp && MaxSlopeDegrees(walkable) > VehicleRampMaxSlopeDegrees)
+                                (warnings ??= new List<string>()).Add(
+                                    $"Terrain world {where}: ramp slope {MaxSlopeDegrees(walkable):F0}° is steeper than the vehicle navmesh's {VehicleRampMaxSlopeDegrees:F0}° — vehicles cannot use it.");
+                            walkables.Add(walkable);
+                        }
                         break;
                     }
                     case "surface":
@@ -241,6 +264,9 @@ namespace Fdp.Toolkit.Terrain
                 bMax += new Vector2(DefaultBoundsMargin);
             }
 
+            if (warnings != null)
+                foreach (var w in warnings) Fdp.Core.Logging.FdpLog<TerrainWorld>.Warn(w);
+
             return new TerrainWorld
             {
                 Name = name,
@@ -255,6 +281,7 @@ namespace Fdp.Toolkit.Terrain
                 Buildings = sink.Buildings,
                 Doors = sink.Doors,
                 Materials = materials,
+                Warnings = warnings ?? (IReadOnlyList<string>)Array.Empty<string>(),
             };
         }
 
@@ -282,6 +309,30 @@ namespace Fdp.Toolkit.Terrain
                 Kind = kind, Footprint = footprint, BaseZ = baseZ, TopZ = topZ, Floors = floors, Label = label,
                 Triangles = tris, Min = min, Max = max,
             };
+        }
+
+        /// <summary>⭐ TH-K — how far a ramp's foot is sunk below the ground (m).</summary>
+        public const float RampFootSink = 0.3f;
+
+        /// <summary>A ground-relative ramp vertex at or below this height is a FOOT (m).</summary>
+        public const float RampFootTolerance = 0.01f;
+
+        /// <summary>The steepest ramp the Vehicle navmesh layer walks (degrees; <c>RecastNavmeshBaker</c>'s Vehicle MaxSlope).</summary>
+        public const float VehicleRampMaxSlopeDegrees = 20f;
+
+        /// <summary>The steepest triangle of a walkable (degrees from horizontal).</summary>
+        public static float MaxSlopeDegrees(TerrainWalkable w)
+        {
+            float max = 0f;
+            for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+            {
+                var a = w.Vertices[w.Triangles[t]]; var b = w.Vertices[w.Triangles[t + 1]]; var c = w.Vertices[w.Triangles[t + 2]];
+                var n = Vector3.Cross(b - a, c - a);
+                float len = n.Length();
+                if (len < 1e-6f) continue;
+                max = MathF.Max(max, MathF.Acos(Math.Clamp(MathF.Abs(n.Z) / len, 0f, 1f)) * 180f / MathF.PI);
+            }
+            return max;
         }
 
         private static TerrainWalkable MakeWalkable(TerrainWalkableKind kind, List<Vector3> ring, float? flatZ, string where)

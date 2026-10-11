@@ -167,5 +167,53 @@ namespace Fdp.Toolkit.Terrain.Tests
             var high = new Vector3(100f, 190f, SlopeFixture.Rise * 190f);
             Assert.True(provider!.PathExists(low, high), "a path must climb the 10 % slope");
         }
+    
+        // ── H5a — bridges: ground-relative walkables (TH-I), the buried ramp foot (TH-K), the steep-ramp warning ──
+
+        private static string Feature(string kind, string props, string ring)
+            => "{ \"type\": \"Feature\", \"properties\": { \"kind\": \"" + kind + "\"" + props + " }, \"geometry\": { \"type\": \"Polygon\", \"coordinates\": [ " + ring + " ] } }";
+
+        [Fact]
+        public void H5a_ASlabAboveGround_StandsThatHighAboveTheSlopeAtEveryVertex()
+        {
+            var world = SlopeFixture.World(Feature("slab", ", \"aboveGround\": 6", "[ [80, 60], [120, 60], [120, 140], [80, 140], [80, 60] ]"));
+            var deck = Assert.Single(world.Walkables);
+            Assert.All(deck.Vertices, v => Assert.Equal(SlopeFixture.Rise * v.Y + 6f, v.Z, 3));
+            Assert.Equal(SlopeFixture.Rise * 100f + 6f, world.SurfaceZ(100f, 100f, 50f), 3);   // standing on the deck
+            Assert.Equal(SlopeFixture.Rise * 100f, world.SurfaceZ(100f, 100f, SlopeFixture.Rise * 100f), 3);   // and under it
+            Assert.Empty(world.Warnings);
+        }
+
+        [Fact]
+        public void H5a_ARampFromTheGroundToADeck_IsBuriedAtItsFoot_SoTheSurfaceRisesWithoutAStep()
+        {
+            // a ramp eastwards: its west edge AT the ground (0), its east edge 4 m up — heights above the ground per vertex
+            var world = SlopeFixture.World(Feature("ramp", ", \"zRef\": \"ground\"", "[ [40, 90, 0], [64, 90, 4], [64, 110, 4], [40, 110, 0], [40, 90, 0] ]"));
+            var ramp = Assert.Single(world.Walkables);
+            Assert.Equal(SlopeFixture.Rise * 90f - TerrainWorldParser.RampFootSink, ramp.Vertices.Min(v => v.Z), 3);   // the foot is sunk
+            Assert.Equal(SlopeFixture.Rise * 90f + 4f, ramp.Vertices.Where(v => v.Y < 95f).Max(v => v.Z), 3);
+
+            // drive east along y = 100 from the ground: every step up stays within the VEHICLE layer's 0.1 m, and it ends on the ramp
+            float z = world.GroundHeightAt(30f, 100f), maxStep = 0f;
+            for (float x = 30f; x <= 63f; x += 0.15f)
+            {
+                float next = world.SurfaceZ(x, 100f, z);
+                maxStep = MathF.Max(maxStep, next - z);
+                z = next;
+            }
+            Assert.True(maxStep < 0.1f, $"a step of {maxStep:F3} m where the ramp meets the ground");
+            Assert.InRange(z, SlopeFixture.Rise * 100f + 3.6f, SlopeFixture.Rise * 100f + 4.01f);   // near the top (the sunk foot steepens it slightly)
+            Assert.Empty(world.Warnings);   // 4 m over 24 m is 9.5°
+        }
+
+        [Fact]
+        public void H5a_ARampTooSteepForVehicles_LoadsWithAWarning_AndAbsoluteHeightsAreUnchanged()
+        {
+            var steep = SlopeFixture.World(Feature("ramp", ", \"zRef\": \"ground\"", "[ [40, 90, 0], [48, 90, 6], [48, 110, 6], [40, 110, 0], [40, 90, 0] ]"));
+            Assert.Contains(steep.Warnings, w => w.Contains("steeper than the vehicle navmesh"));
+
+            var absolute = SlopeFixture.World(Feature("slab", ", \"z\": 30", "[ [80, 60], [120, 60], [120, 140], [80, 140], [80, 60] ]"));
+            Assert.All(Assert.Single(absolute.Walkables).Vertices, v => Assert.Equal(30f, v.Z, 3));
+        }
     }
 }

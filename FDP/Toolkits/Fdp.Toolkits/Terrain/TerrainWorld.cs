@@ -92,6 +92,9 @@ namespace Fdp.Toolkit.Terrain
         public Vector2 BoundsMax { get; init; }
         public float GroundZ { get; init; }
 
+        /// <summary>⭐ CE-1034 H5a — what the parser found questionable but loaded (e.g. a ramp too steep for vehicles), also logged.</summary>
+        public IReadOnlyList<string> Warnings { get; init; } = Array.Empty<string>();
+
         /// <summary>⭐ CE-1034 H1 (TH-B) — the ground's relief, or null for the temporary flat ground at <see cref="GroundZ"/> (R-248).</summary>
         public TerrainHeightGrid? Height { get; init; }
 
