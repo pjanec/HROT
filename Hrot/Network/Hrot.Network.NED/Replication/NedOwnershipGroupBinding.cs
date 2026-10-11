@@ -103,6 +103,8 @@ public static class NedOwnershipGroupBinding
         //   [PerInstanceValue] holds a ghost until the box has arrived (MandatoryComponentResolver). 📄 docs/DESIGN_Peek_And_Fire.md §9.
         map.RegisterMapping((long)EDescriptorType.dtObstacleShape, GlobalComponentIds.ObstacleShape);
         map.RegisterMapping((long)EDescriptorType.dtStanceStatus, GlobalComponentIds.StanceStatus);   // ⭐ CE-2121 — the body's report
+        // ⭐ WL-1b (CE-1049) — a turret part's pose; MuscleGround group, so a part's claim follows (dtTurretPose, 0). 📄 Weapon_Layers §5b.
+        map.RegisterMapping((long)EDescriptorType.dtTurretPose, GlobalComponentIds.TurretPose);
 
         map.BindGroups(HrotOwnershipGroups.Table, Anchors);
 

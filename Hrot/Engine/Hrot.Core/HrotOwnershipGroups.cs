@@ -77,6 +77,8 @@ public static class HrotOwnershipGroups
         // ⭐ CE-513 / R-180 — …and the Muscle owns the REPORT (Architect_Question_80 §0 A).
         muscle.SetBit(GlobalComponentIds.AnimationChannelStatus);
         muscle.SetBit(GlobalComponentIds.LookAtChannelStatus);
+        // ⭐ WL-1b (CE-1049, DESIGN_Weapon_Layers W-9) — the weapon MUSCLE aims the turret, so it owns the pose (dtTurretPose).
+        muscle.SetBit(GlobalComponentIds.TurretPose);
 
         // ── Perception (§1.2b, R-171) — perception EXECUTION ─────────────────────────────────────────
         var perception = default(BitMask512);

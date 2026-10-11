@@ -278,7 +278,8 @@ public class TheDescriptorMapIsWiredTests
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtStanceStatus) },   // ⭐ CE-2121 — the body's stance report
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtStanceStatus),     // ⭐ CE-2121 — the body's stance report
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtTurretPose) },     // ⭐ WL-1b (CE-1049) — the turret part's pose
             map.DescriptorsOf(Fdp.Core.NodeRole.MuscleGround).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtEqsResult) },

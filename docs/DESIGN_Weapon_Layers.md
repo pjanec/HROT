@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILDING (WL-1a built, §5a) — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet)
-current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED) · §5 slices · §6 ambient fire
+build-state: BUILDING (WL-1a §5a and WL-1b §5b built) — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 (task per turret vs per mount) OPEN — blocks WL-2
+current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 OPEN · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
 known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount parts are never created — stale, CgfComponentRegistry.cs:38
@@ -174,8 +174,25 @@ executor runs its `AimSeconds` timer and publishes `WeaponFireIntent` per shot �
 | **W-7** | the gates | ROE + seen-now on the Brain decide Engage vs Track (a lost sighting downgrades to Track); the **friendly-on-the-line** check runs at the moment of the shot, wherever that moment is decided — one shared function called by the executor (simple path) and the muscle (task path) | `AimAndFireExecutor` gate order · R-200 (ROE once), Peek D4 | the muscle reading `TargetMemory` — perception memory is Brain state |
 | **W-8** | elevation | the muscle's `BallisticAim`: direct fire = the line to the aim point (`AimPoint.For`, as today — no gravity on direct rounds yet); indirect = `ArcLaunch`; limits clamp; a target outside the limits → `Failed(OutOfArc)` so the profile can try another mount or the behaviour can move | `FireProcessingSystem.cs:128-133, 249-260` · R-252 (no terrain assumption on the Brain) | elevation from the Brain — it has no ballistics |
 | **W-9** | the turret and its pose | a turret part child per `TurretDto` on EVERY node (created by a TKB translator, derived — not saved), `TurretPose` Muscle-owned, replicated keyed (parent, turret index), BestEffort + KeepLast 1, sent when it changes; mounts name their turret (`TurretIndex`); with no task the turret holds its pose | M23, M25, M26 · ⚠ mount children exist on CGF only today (`CgfComponentRegistry.cs:38`) | the turret pose on the mount child — two mounts share one turret (Bradley: 25 mm + TOW) |
-
 | **W-10** | turret moves without flooding the network *(U-W5: "the turret moves might need simple dead reckoning to avoid flooding the network. No implementation yet.")* | ⭐ the **same dead-reckoning model positions use** (`DESIGN_Dead_Reckoning.md`), applied to two angles: the `TurretPose` sample carries azimuth, elevation, their RATES and the cluster-synced **sim stamp**; receivers keep the sample read-only (R2) and project it FRESH every frame — `angle + rate × (simNow − stamp)`, clamped to the turret's limits (R3, R4); a pause freezes it with no guard (R5). The owner sends only when the projection would be off by more than a small threshold (a fraction of a degree), when a rate changes (start, stop, reversal), and on a slow heartbeat — so a steady slew or an ambient scan sweep costs one sample per change of motion, not one per frame | `DeadReckoningSyncSystem.cs` (the position model) · `DESIGN_Dead_Reckoning.md` R2–R6 | a separate turret smoothing scheme — two dead-reckoning models for one idea; sending every frame — the flood U-W5 names |
+
+### W-11 — ⏳ OPEN (found building WL-2, `2026-10-11`): where the weapon task lives — per MOUNT (W-2 as approved) or per TURRET
+
+W-2 keys `WeaponTask` / `WeaponTaskStatus` by (parent, **mount** index). Building WL-2 needs an entity on the Muscle to hold them, and
+the measured shape argues for keying them by the **turret part** instead (the `TurretPose` key), with the task naming the mount that fires.
+
+| the lean rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| two mounts share one turret | ✅ catalog Bradley: 25 mm and TOW both `TurretIndex = 0` (`BdcTkbCatalog.cs`) | ✅ W-9 "two mounts share one turret" |
+| a turret aims at ONE point at a time | ✅ one azimuth + one elevation (`TurretPose.cs`) | ✅ M23 "the turret and its gun are ONE assembly" |
+| per-part ownership needs a PART entity | ✅ `SyncPartClaims` walks `PartMetadata` entities only (`OwnershipRecomputeSystem.cs:125`) | ✅ Ownership G-3 (a multi-instance descriptor covers every instance) |
+| turret parts exist on every node; mount children on CGF only, and mount 0 is the hull itself | ✅ `TurretTkbTranslator` in the base set; `CgfComponentRegistry.cs:38`; `CombatTkbTranslator.cs:90` | ⛔ searched `docs/` + `.dev/`: no design puts mount parts on the Muscle |
+
+⭐ **Lean: one task per TURRET part** — `WeaponTask { Mode, Target/Point, MountIndex, RoundsGranted, AmmoGuid, Epoch }` and
+`WeaponTaskStatus` on the turret part, keyed (hull, `2000 + turret`) like `TurretPose`; a hull-fixed mount (`TurretIndex = −1`, the
+rifleman) keeps the per-shot path (W-2's simple profile). Blast radius: the WL-2/3 wire and the Muscle's dispatcher only — nothing built
+changes. What would change it: a weapon that must aim two mounts on one turret at two targets at once (none in the catalog).
+Rejected: per-mount tasks — two tasks for one turret need a tie-break nobody owns, and the Muscle has no mount entities to hold them.
 
 ⚠ **New behaviour vocabulary (part of W-1):** `TrackTarget(target)` on the weapon channel — keep the gun on a target without
 firing — beside `AimAndFire` and `FireAtPoint`; releasing the channel sets the task to Idle.
@@ -222,6 +239,71 @@ it (unlike mount children, CGF only) — that is what lets WL-1b's ingress land 
 `UtilityScorer`, `StandardInputs` on `WeaponMountInfo`; `SubEntityCleanupSystem` destroys the child with its parent). The catalog's
 M1, T-72 and Bradley carry one turret each (the Bradley's 25 mm and TOW share it) and every catalog weapon a category. The muzzle
 offset is in the DTO but the catalog does not set it yet — B5 (`Muzzle.Of`) is its first reader.
+
+### 5b. WL-1b — the turret pose on the wire *(✅ built 2026-10-11, as drawn)*
+
+```mermaid
+graph TD
+  subgraph Owner["node owning dtTurretPose (the Muscle via the MuscleGround group; the creator when no group applies)"]
+    W["writer of TurretPose<br/>(hand-set today; the weapon muscle WL-2, ambient fire §6)"]
+    E["EntityTurretPoseEgressTranslator<br/>scan PartMetadata + TurretPose,<br/>HasAuthority(part, PackKey(dtTurretPose, partId))"]
+  end
+  subgraph Every["every other node — Brain, Muscle, IG, Stride"]
+    I["EntityTurretPoseIngressTranslator<br/>parent from NetworkEntityMap,<br/>part = TurretParts.Find"]
+    P["turret part (built by the spawn, WL-1a)"]
+    M["3-D map TurretPoseSource"]
+  end
+  SP["SharedTranslatorPack<br/>(both halves, every NED node)"]
+  IG["EntityStatesIngressPack<br/>(pure IG — ingress only)"]
+  W --> E
+  E -->|"EntityTurretPose<br/>key ParentNetworkId + PartId"| I
+  I --> P --> M
+  SP -.registers.-> E
+  SP -.registers.-> I
+  IG -.registers.-> I
+```
+
+*What the picture shows that prose hid:* nothing new is called each frame by a host. Both translators ride the two packs every NED node
+already ticks — the shared pack on Brain / Muscle / Stride, the IG ingress pack on a pure IG (the shared pack's ingress is skipped
+there, `NedReplicationModule.cs:420-422`; the door, `EntityStatesIngressPack.cs:58`, is the precedent). The editor alone is one node
+and needs no wire.
+
+```mermaid
+classDiagram
+  class EntityTurretPose { <<new wire, hrot-sim-desc>> [Key] long ParentNetworkId; [Key] int PartId; Azimuth; Elevation; AzimuthRate; ElevationRate; DateTime Time }
+  class EntityTurretPoseEgressTranslator { <<new>> last sent per (net id, part); 0.2 deg threshold; salted heartbeat }
+  class EntityTurretPoseIngressTranslator { <<new>> skip when IsRecordedOwner; drop when parent or part is not built yet }
+  class TurretParts { <<exists, WL-1a>> Find; IndexOf }
+  class DescriptorOwnershipMap { <<exists>> RegisterMapping(dtTurretPose, TurretPose) }
+  class HrotOwnershipGroups { <<exists>> MuscleGround += TurretPose }
+  class SimStampCodec { <<exists>> Encode(simSeconds) }
+  EntityTurretPoseEgressTranslator ..> EntityTurretPose : writes
+  EntityTurretPoseIngressTranslator ..> EntityTurretPose : reads
+  EntityTurretPoseIngressTranslator ..> TurretParts : Find
+  EntityTurretPoseEgressTranslator ..> SimStampCodec : stamp
+  DescriptorOwnershipMap ..> HrotOwnershipGroups : BindGroups
+```
+
+```mermaid
+sequenceDiagram
+  participant O as owner (Muscle)
+  participant D as DDS EntityTurretPose
+  participant R as other node
+  O->>O: TurretPose on part 2000 changes by more than 0.2 deg (or heartbeat)
+  O->>D: (net id of the hull, 2000) az, el, rates 0, sim stamp
+  D->>R: sample
+  R->>R: hull from NetworkEntityMap, part = TurretParts.Find(hull, 0)
+  R->>R: recorded owner of (dtTurretPose, 2000)? skip : SetComponent(TurretPose)
+```
+
+| choice | why | rejected — one line each |
+|---|---|---|
+| a **new descriptor** `dtTurretPose = 124`, mapped to `TurretPose` and put in the **MuscleGround** group | the same three steps every Muscle-owned report took (`dtNavigationStatus`, `dtStanceStatus`); `SyncPartClaims` then gives the part the claim from `(dtTurretPose, 0)` | the `TurretPose` bit with no descriptor — it would ride `dtWorldPos` (`BindGroups` anchor) and travel with no topic of its own |
+| **hand-written translator pair**, the door's shape | the production pattern for every new replicated datum | `MultiInstanceCycloneTranslator` — tests-only, needs a `ChildMap` nothing in production builds |
+| key = **(hull network id, part id)** | the EQS sensor key (`EqsSensorKey.Resolve`); the part id names the turret (`2000 + index`) | the turret index alone — the part id is what both sides already hold |
+| **BestEffort, TransientLocal, KeepLast 1** (the `WorldPos` QoS) + a salted heartbeat (120 ticks, ~2 s) and a 0.2° change threshold | W-9; a lost sample is repaired by the next change or heartbeat, a late joiner gets the last sample | Reliable — a reliable history for a value that is superseded many times a second |
+| **rates and sim stamp on the wire, written 0 / now** | W-10 fills them with no wire change; receivers do not project yet (U-W5: "no implementation yet") | adding them later — a wire-format change on every node |
+| ingress **drops** a sample whose hull or turret part is not built yet | the spawn builds the part from the TKB; the next heartbeat lands on it | a pending queue (`EqsSensorConfigIngressTranslator`) — needed for config sent once, not for a value resent every ~2 s |
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 
