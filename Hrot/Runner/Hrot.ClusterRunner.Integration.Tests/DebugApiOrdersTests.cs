@@ -325,4 +325,38 @@ public sealed class DebugApiOrdersTests
         Assert.Equal(BehaviorOrigin.Possession, h.Repo.GetComponentRO<BehaviorState>(unit).Origin);
         Assert.Equal(Hrot.Common.Orders.OrderRefusal.Possessed, a.Control(UnitId, f).Refusal);
     }
+
+    /// <summary>⭐ CE-3172 S4d (C-2, M-8) — a possessed rifleman on HoldFire fires at the operator's aim point while the trigger is
+    /// held, holds when it is released, and stops for good when the possession ends (the weapon action belongs to the run).</summary>
+    [Fact]
+    public void CE3172_OperatorFire_ShootsAtTheAimPoint_OverridingHoldFire_AndStopsOnRelease()
+    {
+        using var h = new EditorHarness(productionBehaviors: true);
+        var svc = h.BuildDebugApiService();
+        var unit = Walker(h, UnitId);
+        var r = h.Repo;
+        if (!r.IsComponentTypeRegistered<WeaponState>()) r.RegisterComponent<WeaponState>();
+        if (!r.IsComponentTypeRegistered<WeaponChannel>()) r.RegisterComponent<WeaponChannel>();
+        if (!r.IsComponentTypeRegistered<Roe>()) r.RegisterComponent<Roe>();
+        r.AddComponent(unit, new WeaponState { Ammo = 30, MuzzleVelocity = 800f });
+        r.AddComponent(unit, new WeaponChannel());
+        r.AddComponent(unit, new Roe { Fire = RoeFire.HoldFire });
+        if (!r.IsComponentTypeRegistered<ActorCapabilityState>()) r.RegisterComponent<ActorCapabilityState>();
+        r.AddComponent(unit, new ActorCapabilityState { Capabilities = ActorCapabilities.CanShoot });   // the dispatcher's gate
+
+        Assert.Null(svc.PostPossess(UnitId).error);
+        h.PumpFrames(4);
+        var aim = new JsonArray(50f, 0f, 1f);
+        uint seq = 1;
+        for (int i = 0; i < 20; i++, seq++) { svc.PostControl(UnitId, new JsonObject { ["seq"] = seq, ["aim"] = aim.DeepClone() }); h.PumpFrames(1); }
+        Assert.Equal(30, r.GetComponentRO<WeaponState>(unit).Ammo);   // aimed, trigger released: no round
+
+        for (int i = 0; i < 200; i++, seq++) { svc.PostControl(UnitId, new JsonObject { ["seq"] = seq, ["aim"] = aim.DeepClone(), ["trigger"] = true }); h.PumpFrames(1); }
+        int afterBurst = r.GetComponentRO<WeaponState>(unit).Ammo;
+        Assert.True(afterBurst < 30, $"fired under HoldFire: ammo {afterBurst}");
+
+        Assert.Null(svc.DeletePossess(UnitId).error);
+        h.PumpFrames(200);   // no more frames: the possession ended, its weapon action with it
+        Assert.Equal(afterBurst, r.GetComponentRO<WeaponState>(unit).Ammo);
+    }
 }

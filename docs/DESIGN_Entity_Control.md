@@ -481,6 +481,46 @@ new origin, ⛔ not a switch that turns the brain off (R-270).
 ⚠ **Deferred, stated:** the navmesh wall check (M-5) lands with S4b only if the muscle's `INavmeshProvider` is reachable there;
 otherwise it is its own row. Aircraft (M-4) stay deferred.
 
+## 8c. S4e DETAIL — possession on a cluster (`CE-3172` / `CE-3173`, designed `2026-10-11` from the measured templates)
+
+📐 **Templates measured, both reused unchanged:** a hull component in the Brain group replicated to every node =
+`dtWeaponPosture` (ui's WL-6: `AllDescriptors` · `SimDescriptors` · `HrotOwnershipGroups` · `NedOwnershipGroupBinding` · an egress +
+ingress translator pair in `SharedTranslatorPack`, the ingress also in `EntityStatesIngressPack` for the pure IG); a request to an
+entity this node does not own = the R-221 interaction topic (`InteractionCodecs`: one codec per FDP event, the transport and the
+topic do not change).
+
+```mermaid
+sequenceDiagram
+    participant St as Station node (editor / IG)
+    participant Br as Brain node (CGF)
+    participant Mu as Muscle node (SimHost)
+    St->>St: EntityOrders.Possess → PossessRequestEvent (local bus)
+    St->>Br: EntityInteractionRequest{Possess, StationNodeId} (InteractionCodecs.Possess)
+    Br->>Br: PossessRequestEvent{IsRemote} → PossessionSystem → PossessedBy, OperatorControl
+    Br-->>St: dtPossessedBy (every node — the station learns it holds the unit)
+    loop each frame
+        St->>Br: EntityInteractionRequest{ControlFrame, seq, axes, aim, trigger}
+        Br->>Br: OperatorInput (newest seq) → OperatorControl → ManualDrive, weapon action
+        Br-->>Mu: dtManualDrive · dtNavigationIntent (Manual) · dtWeaponTask (a turret)
+        Mu->>Mu: CarKinematicsSystem Manual branch · the turret muscle
+    end
+    St->>Br: EntityInteractionRequest{Release}
+    Br-->>St: dtPossessedBy disposed — the task resumes
+```
+
+*What the picture shows that the prose hid:* the station never writes the unit — every arrow INTO the brain is a request, every
+arrow OUT is replicated state, so the same code runs in the editor (one node) and on a cluster (three).
+
+| new | id | group / case | why |
+|---|---|---|---|
+| `dtManualDrive` → `EntityManualDrive` | descriptor **128** | Brain (written by `OperatorControl`, read by the muscle) | M-1: per-frame axes cross to the muscle |
+| `dtPossessedBy` → `EntityPossessedBy` | descriptor **129** | Brain (`PossessionSystem` the one writer), ingress on the pure IG too | C-3: every station sees who holds a unit; no revoke message |
+| `Possess` · `ReleasePossession` · `ControlFrame` | interaction kinds **5 · 6 · 7** | the R-221 topic | after the reserved 2-4; the station's node id rides the payload |
+| ⚠ `OperatorInput` | — | never sent | brain-local, filled from the frames |
+
+⚠ **Stated, not hidden:** control frames ride a Reliable/KeepAll topic. M-6's *newest seq wins* makes a late or doubled frame harmless; a
+lossy KeepLast topic per station would cut latency under load and is a later tuning, not a correctness change.
+
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
 | design said | built | why |
@@ -629,8 +669,26 @@ editor world (possess pauses a hold, refuses an order, control frames walk the b
 the body and resumes the hold; another station cannot drive or release but can take over).
 MCP tools: `possess_entity` · `release_possession` · `control_entity` (group Z).
 
-⏭ **Still open in S4:** S4d operator fire (`AimAndFireParams` point + operator flag — the frame already carries `Trigger`,
-`Mount`, `AimPoint`); S4e the `ManualDrive` + `PossessedBy` descriptors and the `Possess` / `Release` / `ControlFrame` interaction
+### 13.1 AS-BUILT — S4d operator fire (`CE-3172` part, `2026-10-11`)
+
+⭐ **Built as M-8 decided it:** the existing `AimAndFireExecutor` gained an OPERATOR mode — `AimAndFireParams.Operator`, `Trigger` (in
+its padding) and `Point` (fills the 32 bytes). No second weapon executor.
+
+| as-built detail | why |
+|---|---|
+| ⭐ the per-shot round at a point is ONE function, `FireAtPointExecutor.ShootAtPoint`, now used by `FireAtPoint` and by operator fire | measured before building: `FireAtPointExecutor` already WAS the point-target, no-sight, no-aim-time path; operator fire differs only in skipping the ROE (C-2), so it reuses the round instead of copying it |
+| a turreted mount goes through the existing turret path with `WeaponTask.Point` (Target null) | the muscle already aims and fires at `Point` when there is no target entity (`WeaponTaskDispatcherSystem.cs:55`, `:98`); a moved point re-aims WITHOUT a new epoch, so rounds in flight keep counting |
+| kept for the operator: ammunition, magazine, cooldown, no DIRECT round through a friend; skipped: seen-now, aim time, ROE | C-2 lists exactly the three skipped; the friendly line is a rule, not a decision |
+| `OperatorControl` starts the weapon action once and steers its params in place each frame; stamped with the run's id | ⭐ `ChannelArbitrationSystem` cancels a channel action whose run ended — so a release (or death, or fault) stops the weapon by construction, no extra teardown |
+| ⚠ cooldown is a constant, `OperatorControlBehavior.OperatorCooldownSeconds` = 0.25 s | the TKB carries no cyclic rate (`WeaponMountDto` has aim time, magazine and reload only) |
+| 🔴→⭐ found by the rail: a unit with no `ActorCapabilityState{CanShoot}` is never dispatched | the dispatcher's existing gate; production soldiers carry it — the rail's fixture did not |
+
+📐 **Rails:** `AimAndFireExecutorTests` CE3172 ×3 (per-shot fires at the point under HoldFire only while held, 3 rounds in 0.5 s at a
+0.2 s cooldown; the AI's aimed fire still obeys HoldFire; a turret tracks the point, engages while held, re-aims with no new epoch,
+every round spent once) · `DebugApiOrdersTests` CE3172 ×1 (a possessed HoldFire rifleman fires at the aim point while the trigger is
+held, holds when released, stops for good on release of the possession).
+
+⏭ **Still open in S4:** ~~S4d operator fire~~ (built, §13.1); S4e the `ManualDrive` + `PossessedBy` descriptors and the `Possess` / `Release` / `ControlFrame` interaction
 cases (until then possession works where the station, brain and muscle share a world — the editor). M-5 (the navmesh wall check)
 did not land: the muscle's manual branch has no navmesh reach today — it stays its own row.
 
