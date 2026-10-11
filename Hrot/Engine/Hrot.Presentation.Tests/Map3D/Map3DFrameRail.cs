@@ -609,6 +609,14 @@ public sealed class Map3DFrameRail
             frame.Step(canvas.Draw);
         }
         frame.Screenshot(Path.Combine(shots, "posture-3-athletic-and-glide.png"));
+
+        // the prone soldier, close: side-on, then from the front-left (the arms and the rifle)
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 2.0f, spot.Y - 9f, G(spot.X, spot.Y) + 0.15f), 2.6f, MathF.PI * 0.5f, -0.18f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "posture-4-prone-side.png"));
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 2.0f, spot.Y - 9f, G(spot.X, spot.Y) + 0.15f), 2.4f, MathF.PI * 0.85f, -0.30f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "posture-5-prone-front.png"));
     }
 
     /// <summary>
