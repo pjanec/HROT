@@ -187,7 +187,22 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             bool Paused() => Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem.PausedTaskOf(cgf, leader) != null;
             var kinds = new System.Collections.Generic.List<ushort>();
             void Note() { var k = Squad().ManeuverKind; if (kinds.Count == 0 || kinds[^1] != k) kinds.Add(k); }
-            string State() => $"kinds=[{string.Join(",", kinds)}] phase={Squad().PhaseId} pool={Squad().Contacts.Count} paused={Paused()}";
+            var sim = harness.SimHost.World!;
+            string Where()
+            {
+                var r = "";
+                var roster = cgf.GetComponent<UnitRoster>(leader);
+                for (int i = 0; i < roster.Count; i++)
+                {
+                    var name = cgf.GetComponent<EntityInfo>(roster.SubordinateEntities[i]).Name.ToString();
+                    var body = ByName(sim, name);
+                    r += $" | m{i} el={Squad().Elements.MemberElements[i]} at={(body.IsNull ? "?" : sim.GetComponent<SimTransform>(body).Position.ToString("F0", null))}";
+                }
+                return r;
+            }
+            double SimNow() => cgf.HasSingleton<GlobalTime>() ? cgf.GetSingleton<GlobalTime>().TotalTime : -1;
+            string State() => $"t={SimNow():F1}s kinds=[{string.Join(",", kinds)}] phase={Squad().PhaseId} pool={Squad().Contacts.Count} paused={Paused()} "
+                             + $"flankQuery={!Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(cgf, leader, Hrot.AI.Behaviors.Brains.SuppressAndManeuverPlay.FlankSite).IsNull}{Where()}";
 
             // ① the leader's task bounds the squad.
             Assert.True(harness.PumpUntil(() => { Note(); return kinds.Contains(BoundingOverwatchManeuver.ManeuverKind); }, timeoutFrames: 3000),
@@ -198,6 +213,8 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             // ③ … then the leader decides — four riflemen against one ⇒ assault.
             Assert.True(harness.PumpUntil(() => { Note(); return kinds.Contains(SuppressAndManeuverManeuver.ManeuverKind); }, timeoutFrames: 3000),
                 $"the leader must decide to assault; {State()}");
+            _out.WriteLine("assault: " + State());
+            for (int k = 0; k < 8; k++) { harness.PumpFrames(500); Note(); _out.WriteLine($"+{(k + 1) * 500}: " + State()); }
             // ④ the drill ends ⇒ the bound resumes, with its own squad state.
             Assert.True(harness.PumpUntil(() => { Note(); return !Paused() && Squad().ManeuverKind == BoundingOverwatchManeuver.ManeuverKind
                                                               && kinds.IndexOf(SuppressAndManeuverManeuver.ManeuverKind) < kinds.Count - 1; }, timeoutFrames: 8000),
