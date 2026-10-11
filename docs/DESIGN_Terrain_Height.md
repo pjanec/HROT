@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — H1, H2, H3 BUILT 2026-10-10 (§5a, §5b as-built); H4 (basic-desert's ridge as a grid, with the backend lane) to come; H5 bridges designed (§3.4, TH-I approved, TH-J awaiting a nod). Leans TH-A..TH-H APPROVED (R-249); the library
+build-state: BUILDING — H1, H2, H3 BUILT 2026-10-10 (§5a, §5b as-built); H4 (basic-desert's ridge as a grid, with the backend lane) to come; H5 bridges designed (§3.4, TH-I approved; TH-J revised and TH-K new after U-TH2, awaiting a nod). Leans TH-A..TH-H APPROVED (R-249); the library
   question settled by the Q0 spike (DESIGN_World_Query_Seam.md §5a: Bepu for objects, the height stays a grid).
 updated: 2026-10-10 (rev 5 — §5b H2 + H3 as built. Rev 4 — §5a H1 as built, with its deviations argued. Rev 3 — §7 corrected by R-250/R-251: a real interface, Bepu not Jolt. Rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
   (R-249, §4a); §7 the library question. Rev 1 — R-248: the flat ground is a temporary simplification; this file plans its removal)
@@ -176,17 +176,30 @@ sequenceDiagram
 ⛔ **The gaps on a height grid:**
 1. A ramp's low end must meet the GROUND, but walkable Z is ABSOLUTE only (`TerrainWorldParser.cs:184`). On relief the author would have
    to know the grid's height at each end.
-2. A road node takes its height from the navmesh, snapped from the GROUND below it (`RoutePlanner.cs:197-202`, ±4 m search). On a deck
-   higher than 4 m above the ground the search misses the deck and returns the ground under it. Within 4 m it returns the nearest of
-   the two levels. Either way a road crossing a bridge is routed on the ground under it.
+2. ⛔ **SUPERSEDED the same day (U-TH2):** an earlier line here said a road crossing a bridge "is routed on the ground under it".
+   Measured wrong for DRIVING: the movement model takes its Z from height queries, never from the navmesh or the path —
+   `CarKinematicsSystem.cs:380-382` uses `SurfaceZ(x, y, current Z)`, the HIGHEST surface at or below the current Z + 0.6 m step
+   (`TerrainWorld.cs:196-235`, `StepHeight` `:86`). A car on the road climbs the ramp at its foot (within the step) and stays on the
+   deck, and a car under the bridge stays on the ground (the deck is beyond the step). What IS wrong is only the planned path's
+   reported Z on a road leg: `RoutePlanner.HeightAt` snaps it from the navmesh around the ground (`RoutePlanner.cs:197-202`), so a
+   road leg over a deck reports ground heights. The car ignores them (it follows the path's XY), but path readers such as the danger
+   check and the gizmo see a road under the bridge.
+3. **The road data has no height at all** — `RoadNode.Position` is a `Vector2`, a segment is a 2-D Hermite spline (`RoadNode.cs`,
+   `RoadSegment.cs`, the JSON `position` is 2-D). ⛔ Searched `docs/` for road heights (relative or absolute): none found.
+
+> 🔒 **User, `2026-10-11` (U-TH2):** *"a thought roads node have height already (either relative to terrain height or absolute — i like
+> relative ones), independently on the navmesh … i thought … that vehicle follows a road, it drives over the height queries not navmesh
+> queries, and that navmesh is not used for height by the movement model. … will the navmesh be created both on the bridge ramp as well
+> as the terrain under it? Both required. How to ensure the navmesh builder find the ramp to terrain connection?"*
 
 | # | question | ⭐ lean | rests on | rejected |
 |---|---|---|---|---|
 | **TH-I** ✅ | the ramp's ends on relief | an optional **ground-relative height** on `slab` and `ramp` vertices — `"aboveGround": h` (one value) or per vertex — resolved against the height grid when the terrain loads; absolute Z keeps working unchanged. A ramp then reads "0 at the bank, 6 m at the deck", wherever the bank is | the parser reads absolute Z only (`:184`) · U-TH1 *"your lean probably suffices"* | importing 3-D meshes (U-TH1: no) · splitting a straight ramp at the grid's cells — a bridge approach is a straight slope by design; splitting is only needed for a sidewalk that must follow relief, which is not the requirement |
-| **TH-J** | a road over a bridge | ⭐ a road node may carry its own **height or level** (absolute, `aboveGround`, or "on the walkable here"); without one it keeps today's rule (snapped from the ground). `HeightAt` then searches the navmesh around THAT height, so the road's leg runs over the deck | `RoutePlanner.cs:197-202` · H3 (road legs on the ground) | widening the ±4 m search — on a two-level crossing it still picks the wrong one |
+| **TH-J** ↻ | a road over a bridge | ⭐ **the road leg's reported Z follows the SAME rule the car drives by**: each sampled road point takes `SurfaceZ(x, y, previous point's Z)` starting from the entry point's surface — no navmesh. No road data change is needed for driving. ⭐ If roads ever need a height of their own, it is **ground-relative** (`aboveGround`, the user's preference), optional per node | `CarKinematicsSystem.cs:380-382` · `RoutePlanner.cs:197-202` · U-TH2 | ⛔ SUPERSEDED: per-node road heights as the fix — not needed, the car never reads them · the navmesh snap — it answers "where can I stand near the ground", not "which level is this road on" |
+| **TH-K** | the navmesh on the deck AND under it, and the ramp joining the ground | ⭐ **(a) both levels:** Recast keeps every walkable span in a column, so the deck and the ground under it are baked as long as the free height between them is at least the agent height (Infantry 1.8 m, Vehicle 2.0 m, plus one 0.2 m cell) — a lower deck correctly blocks the space under it. ⭐ **(b) the join:** Recast links neighbouring spans only within the agent's step (Infantry 0.4 m; Vehicle **0.1 m**, below the 0.2 m cell height, so effectively NONE) — the ramp's foot must therefore be continuous with the ground, not merely close. ⭐ Make it continuous by construction: **the ramp's foot is buried** — extended about 1 m past the bank and sunk 0.3 m below the ground (TH-I's ground-relative heights make that one number) — so the walkable top surface is max(ground, ramp), joined along their intersection whatever the grid's triangulation. ⭐ **(c) the slope:** a vehicle ramp no steeper than the Vehicle layer's 20° (a 6 m deck needs at least about 16.5 m of ramp); the parser warns otherwise | `RecastNavmeshBaker.cs:66-87` (agent radius, slope, step, height), `:112-121` (cells 0.3 / 0.15 m, height 0.2 m) · `TerrainWorld.cs:196-235` (the same buried foot works for the movement model: ground until the ramp emerges, then the ramp) | relying on the foot meeting the ground exactly — between the ramp's two foot vertices the 2 m grid bends, a few centimetres off is already beyond the vehicle step · an off-mesh link at each ramp foot — a second mechanism for what the geometry can give |
 
-⚠ **Not verified:** whether the Recast step height lets a vehicle climb onto the ramp's foot where it meets the grid (it should: the ramp's
-low end is AT the ground by TH-I), and whether a deck high above relief keeps the navmesh tile heights in range.
+⚠ **Not verified:** that the buried foot bakes as one continuous span on the Vehicle layer (H5's first rail), and that a deck high above
+relief keeps the navmesh tile height range (`RecastNavmeshBaker.cs:328` sizes it from the highest surface + agent height).
 
 ## 4. DECISIONS
 
@@ -225,7 +238,7 @@ not by a second system.
 | **H2** ✅ | the ground trace (`TerrainHeightGrid.Crosses`) in the three queries; rounds and fragments stop at a hill — §5b | a hill blocks sight and fragments |
 | **H3** ✅ | road legs, road access points and the 2-D spawn command on the real ground; the navmesh search centred on it; 2-D move orders already resolved by Q0b — §5b | 2-D orders and route legs work on a hill |
 | **H4** | basic-desert's ridge and wadi as a grid (with the backend lane) | the utility demos on real relief |
-| **H5** | bridges over a height grid — §3.4 (TH-I approved, TH-J awaiting a nod) | a car drives over the deck and a person walks under it, on relief |
+| **H5** | bridges over a height grid — §3.4 (TH-I approved; TH-J, TH-K awaiting a nod) | a car drives over the deck and a person walks under it, on relief |
 
 ⭐ Gates: the terrain feature suites first (`TerrainWorldTests`, the Recast and SimHost terrain tests — about 35 asserts assume
 ground 0 and stay green on flat terrains), then new rails on the sloped fixture.
