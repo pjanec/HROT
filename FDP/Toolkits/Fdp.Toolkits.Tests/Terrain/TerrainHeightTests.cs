@@ -215,5 +215,40 @@ namespace Fdp.Toolkit.Terrain.Tests
             var absolute = SlopeFixture.World(Feature("slab", ", \"z\": 30", "[ [80, 60], [120, 60], [120, 140], [80, 140], [80, 60] ]"));
             Assert.All(Assert.Single(absolute.Walkables).Vertices, v => Assert.Equal(30f, v.Z, 3));
         }
+    
+        // ── H5b — the navmesh on a bridge (TH-K): the deck AND the ground under it, the ramp feet joined, both layers ──
+
+        /// <summary>An east–west overpass on the slope: a deck 6 m above the ground (x 80–120), a 30 m ramp each side, 10 m wide.</summary>
+        internal static TerrainWorld Overpass() => SlopeFixture.World(string.Join(", ",
+            Feature("slab", ", \"aboveGround\": 6", "[ [80, 95], [120, 95], [120, 105], [80, 105], [80, 95] ]"),
+            Feature("ramp", ", \"zRef\": \"ground\"", "[ [50, 95, 0], [80, 95, 6], [80, 105, 6], [50, 105, 0], [50, 95, 0] ]"),
+            Feature("ramp", ", \"zRef\": \"ground\"", "[ [120, 95, 6], [150, 95, 0], [150, 105, 0], [120, 105, 6], [120, 95, 6] ]")));
+
+        [Theory]
+        [InlineData(Fdp.Toolkit.Navigation.NavLayerMask.Infantry)]
+        // ⛔ the Vehicle layer bakes NO navmesh on any slope (CE-1048): its 0.1 m step is below the 0.2 m voxel, so Recast's climb is 0 cells
+        [InlineData(Fdp.Toolkit.Navigation.NavLayerMask.Vehicle, Skip = "CE-1048 — the Vehicle layer has no navmesh on relief until its step is at least one voxel")]
+        public void H5b_TheNavmesh_HasTheDeckAndTheGroundUnderIt_AndTheRampFeetJoinTheGround(Fdp.Toolkit.Navigation.NavLayerMask layer)
+        {
+            var w = Overpass();
+            Assert.Empty(w.Warnings);
+            var provider = new RecastNavmeshFactory { TileCache = null }.Build(w);
+            Assert.NotNull(provider);
+            uint mask = (uint)layer;
+            float g(float x, float y) => w.GroundHeightAt(x, y);
+
+            // ① the deck is baked: projected from just above it, a point lands ON the deck
+            Assert.True(provider!.ProjectToNavmesh(new Vector3(100f, 100f, g(100f, 100f) + 6.5f), out var onDeck, mask), "no navmesh on the deck");
+            Assert.InRange(onDeck.Z, g(100f, 100f) + 5.6f, g(100f, 100f) + 6.4f);
+            // ② and so is the ground under it: projected from the ground, the same XY lands on the ground
+            Assert.True(provider.ProjectToNavmesh(new Vector3(100f, 100f, g(100f, 100f) + 0.2f), out var under, mask), "no navmesh under the deck");
+            Assert.InRange(under.Z, g(100f, 100f) - 0.4f, g(100f, 100f) + 0.4f);
+            // ③ the deck is reached from the ground beyond EACH ramp — only through the buried feet
+            Assert.True(provider.PathExists(onDeck, new Vector3(30f, 100f, g(30f, 100f)), mask), "the west ramp's foot does not join the ground");
+            Assert.True(provider.PathExists(onDeck, new Vector3(170f, 100f, g(170f, 100f)), mask), "the east ramp's foot does not join the ground");
+            // ④ and the road under the bridge passes from south to north beneath it
+            Assert.True(provider.PathExists(new Vector3(100f, 60f, g(100f, 60f)), new Vector3(100f, 140f, g(100f, 140f)), mask), "no passage under the deck");
+        }
+    
     }
 }
