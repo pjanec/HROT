@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — a catalogue and gap analysis, not a buildable design; each programme it names gets its own design (with UML) before it is built
-updated: 2026-10-11
-current-answer: §10.1 the user's answers (D1–D8 all decided) · §2 the scenarios decomposed · §3 the behaviour taxonomy · §4–§7 what each needs (blocks, sensors, EQS, engine) · §8 squad model · §9 roadmap · §10 decisions for the user
+updated: 2026-10-11 (§11 behaviors lane)
+current-answer: §11 the behaviors-lane review of the taxonomy and the squad-tactics start (leans, awaiting the user) · §10.1 the user's answers (D1–D8 all decided) · §2 the scenarios decomposed · §3 the behaviour taxonomy · §4–§7 what each needs (blocks, sensors, EQS, engine) · §8 squad model · §9 roadmap · §10 decisions for the user
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -302,3 +302,53 @@ terrorist scenario. Air/drones (P5) need the largest new engine piece (flight) a
 | **D7** | ✅ authored trench polylines carved into the height grid and navmesh | — |
 | **D8** | ✅ `2026-10-11` *"D8 ok"* — **P0 + P1 (convoy ambush) first** | — |
 
+
+## 11. Review of the taxonomy, and where squad tactics start *(behaviors lane, `2026-10-11`; leans, awaiting the user)*
+
+🔒 *User: "check the categorization of various behaviors i enumerated before. I need to start solving group behaviors (squad
+tactics first)."*
+
+### 11.1 What the §3 taxonomy gets wrong
+
+| # | finding | lean |
+|---|---|---|
+| **T1** | §3 mixes two axes. IND / SQD / VEH / AIR say **who acts** (one soldier, a squad, a vehicle, an aircraft); ASY / CIV / MED say **which side or job**. So the same behaviour appears twice: ASY-3 insurgent ambush = SQD-10 ambush; ASY-2 VBIED = VEH-4; ASY-5 riot instigator sits inside CIV-4; MED-2 "drag to cover" = IND-5 | ⭐ group by **who acts** only. Side and job become a **unit scope + ROE / doctrine** on a generic block (R-256), not a category. An insurgent ambush is SQD-10 run by insurgents |
+| **T2** | SQD mixes three levels. **Drills** (seconds to minutes, phased: bounding, danger crossing, suppress-and-manoeuvre, stack-and-entry, react to contact, dismount, break contact) sit next to **squad tasks** (patrol, defend area / building, attack building, house search, trench clearing, ambush, checkpoint, march), and the tasks are made OF drills | ⭐ split SQD into **drills** (one manoeuvre, run by the commander) and **tasks** (a mission that sequences drills). Different hosts: a drill is a manoeuvre node; a task is the commander's task-slot behaviour; react-to-contact is the commander's SOP / reaction |
+| **T3** | "group" is not only an infantry squad. A **convoy** (VEH-1/2) is a commanded group with the same five primitives (lead / main / trail elements = travelling overwatch). A **crowd** (CIV-3/4/5) is an UNcommanded group — no leader, a crowd-level system (D3) | ⭐ name both: **commanded groups** (squad, convoy, later platoon) share the squad layer; **crowds** get the D3 crowd system. Neither belongs under CIV or VEH as an individual behaviour |
+| **T4** | MED-1 "casualty states" is engine, not a behaviour | move it to §7 (it is already there as "injury states") |
+| **T5** | missing squad items: **consolidate / reorganise** after an assault, **casualty handling inside the squad** (who drags the wounded), **break contact / withdraw** as its own drill, **flank** (EQS `FindFlankingPosition` exists, no drill uses it), **sectors of fire** in a defence | add them as drills / tasks |
+| **T6** | no echelon above the squad: a platoon of squads (attack a building with two squads) | later; ⚠ whether a commander can itself have a commander that orders it as a group is not measured |
+
+```mermaid
+graph TD
+  P["5 primitives ✅ built: partition · features · roles · phase sequencer · slot rotation"]
+  D["DRILLS — one manoeuvre each, run by the commander: bounding ✅ runs · crossing · suppress-and-manoeuvre · stack-and-entry · travelling overwatch · react to contact · break contact · dismount"]
+  T["TASKS — the commander's mission, a sequence of drills: patrol · defend area / building · attack building · house search · ambush · checkpoint · convoy march"]
+  M["MEMBERS — library ② behaviours obeying their role: CombatPosture ✅ · PeekAndFire ✅ · ThrowAt …"]
+  P --> D --> T
+  D -->|"orders per role"| M
+```
+
+*What the picture shows that the §3 list hid: a squad task is never built directly — it is drills in sequence, each drill is
+the five primitives with a table, and members only ever run individual behaviours with an order.*
+
+### 11.2 State of the squad layer *(measured `2026-10-11`)*
+
+| claim | code — how it is | design — how it was meant |
+|---|---|---|
+| the six manoeuvres are tables only; ONE runs | `Squad/Maneuvers/*.cs` (static classes, no shared interface — grep `IManeuver`: 0); `BoundingOverwatchBehavior.cs` (216 lines) is the only runner | Squad_Coordination §2: "they differ only in configuration"; Squad_Wiring §6: "each is the same node shape over its own table" |
+| a second manoeuvre today = a copy of that node | the node hard-codes `BoundingOverwatchManeuver` (`BoundingOverwatchBehavior.cs:62-145`) | — (the design expects configuration, not copies) |
+| no squad-level reaction exists | the merge pools contacts on the commander (`SquadPerceptionMergeSystem`); no event tells the commander "the squad is in contact"; `PhaseEventKind` has ShotFired / arrivals / veto / abort only | Squad_Coordination §8.0 picks a manoeuvre by scorer (deferred, D3) or by mission order — a REACTION path is not designed |
+| arrival events are polled, not taken from `SquadEventIngressSystem` | it keys on fixed intent ids the per-entity counter breaks (Squad_Wiring §6) | — |
+
+### 11.3 Squad tactics — the lean order
+
+| slice | what | acceptance |
+|---|---|---|
+| **S1** | ⭐ **one generic manoeuvre runner** — a commander node over a small manoeuvre description (table, partition, per-role order: hold / advance to / suppress / flank, completion test). `BoundingOverwatch` moves onto it; **suppress-and-manoeuvre** is the second user (base of fire suppresses the known threat; assault flanks via `FindFlankingPosition`) | a 4-man squad on `test-town` suppresses a hostile and flanks it |
+| **S2** | **react to contact** — a squad "contact" event into the commander (first threat in the pooled contacts) and the commander's SOP runs the drill: everyone to cover facing the threat and returns fire, then the leader chooses suppress-and-manoeuvre or break contact by strength ratio | the same squad, fired on while moving, reacts as a squad, not as four individuals |
+| **S3** | travelling overwatch / squad march; then **dismount under fire** (needs the embark / disembark executors registered on CGF — Entity Interactions §7 I-2) ⇒ the P1 convoy ambush | the convoy ambush scenario (D8) |
+
+Rejected: **one node per manoeuvre** — six copies of the same 200-line shape, against "differ only in configuration"; **starting
+with the convoy ambush** — it needs S1 + S2 + the dismount first; **the autonomous scorer (`ManeuverSelect`) first** — D3 waits for
+a real danger-area provider, and a mission or the SOP can pick the drill until then.
