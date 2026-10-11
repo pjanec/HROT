@@ -698,7 +698,8 @@ public sealed class VariablesPanelControl
                  }
             }
             ImGui.SameLine();
-            if (ImGui.Button("Cancel")) { ImGui.CloseCurrentPopup(); _addPopupSchema = null; }
+            // ⭐ CE-1014 — Esc means Cancel.
+            if (ImGui.Button("Cancel") || Hrot.Editor.AiShared.Shell.ModalKeys.EscapePressed()) { ImGui.CloseCurrentPopup(); _addPopupSchema = null; }
             ImGui.EndPopup();
         }
 

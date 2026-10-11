@@ -350,6 +350,40 @@ public class ComponentEditDrawerTests
         Assert.Equal(2f, committed.X);
     }
 
+    private struct TwoFields { public float A; public int B; }
+
+    /// <summary>
+    /// ⭐ CE-1016 — a single struct opened for editing shows its FIELDS, not a collapsible row named after its type: the field owner
+    /// is the struct (under the selection root the session wraps it in); several objects keep their headers. ⭐ CE-1015 — the
+    /// root draw runs with the narrower indent and leaves the ImGui style stack balanced.
+    /// </summary>
+    [Fact]
+    public void CE1016_ASingleStruct_ShowsItsFields_WithoutATypeRow()
+    {
+        var service = new ComponentEditServiceBuilder().Build();
+        using var session = service.Open(new TwoFields { A = 1f, B = 2 }, typeof(TwoFields));
+        var owner = ComponentEditDrawer.FieldsOwner(session.Document.Root);
+        Assert.NotNull(owner);
+        Assert.Equal(typeof(TwoFields), owner!.ClrType);
+        Assert.Equal(new[] { nameof(TwoFields.A), nameof(TwoFields.B) }, owner.Children.Select(c => c.Name).ToArray());
+
+        using (var imgui = new ImGuiTestFixture())
+        {
+            imgui.NewFrame();
+            float before = ImGuiNET.ImGui.GetStyle().IndentSpacing;
+            ImGuiNET.ImGui.Begin("CE1016");
+            if (ImGuiNET.ImGui.BeginTable("t", 2))
+            {
+                new ComponentEditDrawer(session, null).DrawRoot(session.Document.Root);
+                ImGuiNET.ImGui.EndTable();
+            }
+            ImGuiNET.ImGui.End();
+            Assert.Equal(before, ImGuiNET.ImGui.GetStyle().IndentSpacing);   // pushed and popped
+            imgui.Render();
+        }
+        Assert.True(ComponentEditDrawer.IndentPixels < 21f / 2f + 1f);   // about half ImGui's default
+    }
+
     private struct LocComp
     {
         public Fdp.Toolkit.Behavior.Params.PickableGeoPoint Where;

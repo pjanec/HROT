@@ -306,7 +306,7 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
         if (type != null && form != null && ImGui.BeginTable("params", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
         {
             if (form.RebuildState == EditRebuildState.RebuildRequired) form.RebuildDocument();
-            new Fdp.Presentation.Editing.ComponentEditDrawer(form, pickerCtx: null).DrawEditNode(form.Document.Root);
+            new Fdp.Presentation.Editing.ComponentEditDrawer(form, pickerCtx: null).DrawRoot(form.Document.Root);
             ImGui.EndTable();
         }
 
@@ -333,7 +333,7 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
             if (form != null && ImGui.BeginTable("params", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
             {
                 if (form.RebuildState == EditRebuildState.RebuildRequired) form.RebuildDocument();
-                new Fdp.Presentation.Editing.ComponentEditDrawer(form, pickerCtx: null).DrawEditNode(form.Document.Root);
+                new Fdp.Presentation.Editing.ComponentEditDrawer(form, pickerCtx: null).DrawRoot(form.Document.Root);
                 ImGui.EndTable();
             }
             if (form != null && ImGui.Button("Apply"))

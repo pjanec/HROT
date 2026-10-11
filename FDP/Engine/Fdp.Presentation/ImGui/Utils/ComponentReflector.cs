@@ -407,7 +407,7 @@ public class ComponentReflector
             ImGuiApi.TableSetupColumn("Property", ImGuiTableColumnFlags.WidthFixed, 180f);
             ImGuiApi.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
 
-            _inPlaceEditDrawer!.DrawEditNode(_inPlaceEditSession.Document.Root);
+            _inPlaceEditDrawer!.DrawRoot(_inPlaceEditSession.Document.Root);
 
             ImGuiApi.EndTable();
         }

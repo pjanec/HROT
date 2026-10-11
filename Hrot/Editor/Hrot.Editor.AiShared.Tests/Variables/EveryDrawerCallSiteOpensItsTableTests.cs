@@ -170,9 +170,10 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
             entryResolver: _ => null,
             runState:      () => Hrot.Editor.AiShared.Variables.VariableRunState.Planning);
 
-    /// <summary>⭐ A call, not the declaration and not a doc-comment mention.</summary>
+    /// <summary>⭐ A call, not the declaration and not a doc-comment mention. ⭐ CE-1016 — <c>DrawRoot</c> (the document-root entry
+    /// that drops a lone struct's type row) carries the same table contract, so it counts as a call site too.</summary>
     private static bool IsCallSite(string line)
-        => line.Contains(".DrawEditNode(", StringComparison.Ordinal)
+        => (line.Contains(".DrawEditNode(", StringComparison.Ordinal) || line.Contains(".DrawRoot(", StringComparison.Ordinal))
         && !line.TrimStart().StartsWith("///", StringComparison.Ordinal)
         && !line.TrimStart().StartsWith("//",  StringComparison.Ordinal);
 
