@@ -2,6 +2,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Components;
+using Fdp.Toolkit.Combat.Components;
 
 namespace Hrot.UI.Common.Map3D;
 
@@ -37,7 +38,10 @@ public enum PartRole : byte
 /// ⭐ CE-1033 S4 (docs/DESIGN_Map_3D_Mode.md §6, "things come alive") — the moving parts' pose for one frame: the main-rotor
 /// angle, the wheels' roll angle (radians) and the limb swing (radians, + = the left leg forward). Default: all still.
 /// </summary>
-public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swing)
+/// <para>⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13e) — and the block figure's UPPER BODY (<see cref="KitPart.Upper"/> parts): <paramref name="Lean"/>
+/// tilts it forward about the hip (radians; a run, and an aim pitched down), <paramref name="Twist"/> turns it about the vertical
+/// (radians, counter-clockwise; an aim to the side), about a hip at <paramref name="HipZ"/> of the figure's height.</para>
+public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swing, float Lean = 0f, float Twist = 0f, float HipZ = 0.5f)
 {
     public static readonly MotionPose Still = default;
 }
@@ -62,9 +66,12 @@ public readonly record struct KitPivots(Vector2 Turret, Vector2 GunTrunnionXZ);
 /// one). <paramref name="PitchDegrees"/> tilts the part nose-down about the body's y axis (a glacis, a swept fin);
 /// <paramref name="YawDegrees"/> turns it about the up axis (a swept wing).
 /// </summary>
+/// <para>⭐ WL-6 — <paramref name="Upper"/> marks a block figure's upper-body part (torso, head, arms, rifle), which leans and twists
+/// with <see cref="MotionPose.Lean"/> / <see cref="MotionPose.Twist"/>; <paramref name="SwingPivot"/> (a fraction, like the centre) is
+/// where a limb swings from when it is not its own top — a forearm swings from the shoulder with its upper arm.</para>
 public readonly record struct KitPart(
     PartShape Shape, Vector3 Centre, Vector3 Extent, ColourRole Colour, PartAxis Axis = PartAxis.Z, float PitchDegrees = 0f,
-    float YawDegrees = 0f, PartRole Role = PartRole.Hull)
+    float YawDegrees = 0f, PartRole Role = PartRole.Hull, bool Upper = false, Vector3? SwingPivot = null)
 {
     /// <summary>The part's transform in BODY space (metres, before the entity's own rotation and position), unarticulated.</summary>
     public Matrix4x4 BodyTransform(Vector3 size) => BodyTransform(size, default, ArticulationPose.Neutral);
@@ -115,10 +122,18 @@ public readonly record struct KitPart(
             {
                 // + swing = the left leg forward (its foot toward +x), so the right leg and the left arm go back
                 float sign = Role is PartRole.LegLeft or PartRole.ArmRight ? 1f : -1f;
-                var pivot = centre + new Vector3(0f, 0f, Extent.Z * size.Z / 2f);
+                var pivot = SwingPivot is { } sp ? sp * size : centre + new Vector3(0f, 0f, Extent.Z * size.Z / 2f);
                 m *= Matrix4x4.CreateTranslation(-pivot) * Matrix4x4.CreateRotationY(-sign * motion.Swing) * Matrix4x4.CreateTranslation(pivot);
                 break;
             }
+        }
+
+        // ⭐ WL-6 (W-13e) — the upper body leans (a run, an aim pitched down) and twists (an aim to the side) about the hip
+        if (Upper && (motion.Lean != 0f || motion.Twist != 0f))
+        {
+            var hip = new Vector3(0f, 0f, motion.HipZ * size.Z);
+            m *= Matrix4x4.CreateTranslation(-hip) * Matrix4x4.CreateRotationY(motion.Lean) * Matrix4x4.CreateRotationZ(motion.Twist)
+               * Matrix4x4.CreateTranslation(hip);
         }
 
         if (Role == PartRole.Gun && pose.GunElevation != 0f)
@@ -303,64 +318,162 @@ public static class ShapeKits
 }
 
 /// <summary>
-/// ⭐ CE-1033 S1 — the person kit: a six-box block figure (U14) posed by the shared stance rule (<see cref="LogicalStance"/>,
-/// M7), with a rifle for a soldier. Parts are fractions of a 1.8 m standing figure's size (<see cref="ShapeKits.DefaultSize"/>),
-/// so a taller or shorter TKB person scales. ⭐ S4: the standing figure's limbs swing with the walking speed (<see cref="MotionPose"/>).
+/// ⭐ CE-1033 S1 — the person kit: a block figure (U14) posed by the shared stance rule (<see cref="LogicalStance"/>, M7), with a
+/// rifle for a soldier. Parts are fractions of a 1.8 m standing figure's size (<see cref="ShapeKits.DefaultSize"/>), so a taller or
+/// shorter TKB person scales. ⭐ S4: a civilian's limbs swing with the walking speed (<see cref="MotionPose"/>).
+/// ⭐⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13e) — each arm is an upper arm and a forearm, built point to point (shoulder → elbow →
+/// hand), and a SOLDIER's arms hold the rifle in the weapon brain's posture (<see cref="WeaponPostureKind"/>): at ease (carried low,
+/// muzzle down), ready (at the chest, muzzle forward and down), aimed (shouldered, level); his arms do not swing. Every pose has the
+/// same parts in the same order — legs, torso, head, left upper arm, left forearm, right upper arm, right forearm (+ rifle) — so a
+/// stance change and a fall can blend.
 /// </summary>
 public static class BlockFigure
 {
+    private static readonly Vector3 S = new(0.35f, 0.55f, 1.8f);
+
     // Metres for a 1.8 m figure, converted to fractions of (0.35, 0.55, 1.8) below.
-    private static KitPart P(float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c, PartRole role = PartRole.Hull)
+    private static KitPart P(float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c, PartRole role = PartRole.Hull,
+                             bool upper = false)
+        => new KitPart(PartShape.Box, new Vector3(cx, cy, cz) / S, new Vector3(ex, ey, ez) / S, c, Role: role, Upper: upper);
+
+    /// <summary>A box from <paramref name="a"/> to <paramref name="b"/> (metres), <paramref name="w"/> wide and <paramref name="h"/>
+    /// tall across — an arm segment or the rifle.</summary>
+    private static KitPart Limb(Vector3 a, Vector3 b, float w, float h, ColourRole c, PartRole role = PartRole.Hull, Vector3? pivot = null)
     {
-        var s = new Vector3(0.35f, 0.55f, 1.8f);
-        return new KitPart(PartShape.Box, new Vector3(cx, cy, cz) / s, new Vector3(ex, ey, ez) / s, c, Role: role);
+        var d = b - a;
+        float length = d.Length();
+        float yaw = MathF.Atan2(d.Y, d.X) * 180f / MathF.PI;
+        float pitch = MathF.Atan2(-d.Z, MathF.Sqrt(d.X * d.X + d.Y * d.Y)) * 180f / MathF.PI;   // + = nose down (KitPart's convention)
+        if (MathF.Abs(d.X) < 1e-5f && MathF.Abs(d.Y) < 1e-5f) yaw = 0f;
+        return new KitPart(PartShape.Box, (a + b) / 2f / S, new Vector3(length, w, h) / S, c, PartAxis.Z, pitch, yaw, role, Upper: true,
+                           SwingPivot: pivot is { } p ? p / S : null);
     }
 
-    private static readonly KitPart[] Standing =
+    private const float ArmWidth = 0.11f, RifleLength = 0.80f;
+
+    /// <summary>A two-segment arm, shoulder → elbow → hand; a swinging arm (a civilian's) swings both from the shoulder.</summary>
+    private static KitPart[] Arm(Vector3 shoulder, Vector3 elbow, Vector3 hand, PartRole role)
+        => [Limb(shoulder, elbow, ArmWidth, ArmWidth, ColourRole.Body, role, role == PartRole.Hull ? null : shoulder),
+            Limb(elbow, hand, ArmWidth * 0.9f, ArmWidth * 0.9f, ColourRole.Body, role, role == PartRole.Hull ? null : shoulder)];
+
+    private static KitPart LegL(float cx, float cz, float ex, float ez, bool swings)
+        => P(cx, 0.11f, cz, ex, 0.13f, ez, ColourRole.Dark, swings ? PartRole.LegLeft : PartRole.Hull);
+    private static KitPart LegR(float cx, float cz, float ex, float ez, bool swings)
+        => P(cx, -0.11f, cz, ex, 0.13f, ez, ColourRole.Dark, swings ? PartRole.LegRight : PartRole.Hull);
+
+    // ── the bodies (legs, torso, head) per stance ──────────────────────────────────────────────────────────────────────────────────
+
+    private static readonly KitPart[] StandingBody =
     {
-        P(0f, 0.11f, 0.45f, 0.15f, 0.13f, 0.90f, ColourRole.Dark, PartRole.LegLeft),     // legs (S4: they swing when walking)
-        P(0f, -0.11f, 0.45f, 0.15f, 0.13f, 0.90f, ColourRole.Dark, PartRole.LegRight),
-        P(0f, 0f, 1.18f, 0.24f, 0.40f, 0.56f, ColourRole.Body),                          // torso
-        P(0f, 0f, 1.60f, 0.21f, 0.20f, 0.24f, ColourRole.Body),                          // head
-        P(0f, 0.27f, 1.13f, 0.11f, 0.11f, 0.60f, ColourRole.Body, PartRole.ArmLeft),     // arms
-        P(0f, -0.27f, 1.13f, 0.11f, 0.11f, 0.60f, ColourRole.Body, PartRole.ArmRight),
+        LegL(0f, 0.45f, 0.15f, 0.90f, swings: true),                                             // legs (S4: they swing when walking)
+        LegR(0f, 0.45f, 0.15f, 0.90f, swings: true),
+        P(0f, 0f, 1.18f, 0.24f, 0.40f, 0.56f, ColourRole.Body, upper: true),                       // torso
+        P(0f, 0f, 1.60f, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),                       // head
     };
 
-    private static readonly KitPart[] Crouched =
+    private static readonly KitPart[] CrouchedBody =
     {
-        P(0.10f, 0.11f, 0.25f, 0.42f, 0.13f, 0.50f, ColourRole.Dark),
-        P(0.10f, -0.11f, 0.25f, 0.42f, 0.13f, 0.50f, ColourRole.Dark),
-        P(-0.02f, 0f, 0.76f, 0.26f, 0.40f, 0.52f, ColourRole.Body),
-        P(0.04f, 0f, 1.14f, 0.21f, 0.20f, 0.24f, ColourRole.Body),
-        P(0.14f, 0.24f, 0.74f, 0.34f, 0.11f, 0.11f, ColourRole.Body),
-        P(0.14f, -0.24f, 0.74f, 0.34f, 0.11f, 0.11f, ColourRole.Body),
+        LegL(0.10f, 0.25f, 0.42f, 0.50f, swings: false),
+        LegR(0.10f, 0.25f, 0.42f, 0.50f, swings: false),
+        P(-0.02f, 0f, 0.76f, 0.26f, 0.40f, 0.52f, ColourRole.Body, upper: true),
+        P(0.04f, 0f, 1.14f, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),
     };
 
-    private static readonly KitPart[] Prone =
+    private static readonly KitPart[] ProneBody =
     {
         P(-0.62f, 0.12f, 0.08f, 0.90f, 0.13f, 0.15f, ColourRole.Dark),
         P(-0.62f, -0.12f, 0.08f, 0.90f, 0.13f, 0.15f, ColourRole.Dark),
         P(0.04f, 0f, 0.13f, 0.60f, 0.42f, 0.24f, ColourRole.Body),
         P(0.48f, 0f, 0.17f, 0.24f, 0.20f, 0.21f, ColourRole.Body),
-        P(0.56f, 0.22f, 0.08f, 0.46f, 0.10f, 0.10f, ColourRole.Body),
-        P(0.56f, -0.22f, 0.08f, 0.46f, 0.10f, 0.10f, ColourRole.Body),
     };
 
-    private static readonly KitPart RifleStanding = P(0.30f, -0.14f, 1.20f, 0.80f, 0.05f, 0.08f, ColourRole.Metal);
-    private static readonly KitPart RifleCrouched = P(0.42f, -0.10f, 0.80f, 0.80f, 0.05f, 0.08f, ColourRole.Metal);
-    private static readonly KitPart RifleProne = P(0.92f, -0.12f, 0.14f, 0.80f, 0.05f, 0.08f, ColourRole.Metal);
+    /// <summary>Where the shoulders are, per stance (metres; left is +y).</summary>
+    private static readonly Vector3 StandShoulderL = new(0f, 0.26f, 1.43f), StandShoulderR = new(0f, -0.26f, 1.43f);
+    private static readonly Vector3 CrouchDrop = new(0.02f, 0f, -0.45f);   // a crouched shoulder: lower, a little forward
+
+    /// <summary>The hip height of a stance as a fraction of the figure's height — where its upper body leans and turns from.</summary>
+    public static float HipFraction(StanceId stance) => stance switch { StanceId.Crouched => 0.28f, StanceId.Prone => 0.05f, _ => 0.5f };
+
+    // ── the arms and the rifle ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>A civilian's arms hanging at his sides (standing; they swing), or resting forward (crouched).</summary>
+    private static KitPart[] CivilianArms(Vector3 drop, bool swing)
+    {
+        var l = StandShoulderL + drop; var r = StandShoulderR + drop;
+        var reach = drop == Vector3.Zero ? new Vector3(0.02f, 0f, -0.60f) : new Vector3(0.30f, -0.02f, -0.24f);
+        var bend = drop == Vector3.Zero ? new Vector3(0f, 0f, -0.30f) : new Vector3(0.06f, 0f, -0.20f);
+        return [.. Arm(l, l + bend, l + reach with { Y = -reach.Y }, swing ? PartRole.ArmLeft : PartRole.Hull),
+                .. Arm(r, r + bend, r + reach, swing ? PartRole.ArmRight : PartRole.Hull)];
+    }
+
+    /// <summary>A soldier's arms and rifle in <paramref name="posture"/>, shifted by <paramref name="drop"/> (crouched). The rifle runs
+    /// from its stock <c>stock</c> along <c>dir</c>; the right (trigger) hand grips it 0.22 along, the left (support) hand 0.52 along.</summary>
+    private static KitPart[] SoldierArms(WeaponPostureKind posture, Vector3 drop)
+    {
+        Vector3 stock, dir, elbowL, elbowR;
+        switch (posture)
+        {
+            case WeaponPostureKind.Aimed:     // shouldered, level, under the eye
+                stock = new(0.00f, -0.13f, 1.41f); dir = new(1f, 0.07f, 0f);
+                elbowR = new(0.04f, -0.36f, 1.30f); elbowL = new(0.24f, 0.08f, 1.22f);
+                break;
+            case WeaponPostureKind.Ready:     // at the chest, muzzle forward and down
+                stock = new(0.06f, -0.15f, 1.30f); dir = new(0.88f, 0.12f, -0.46f);
+                elbowR = new(0.00f, -0.32f, 1.15f); elbowL = new(0.18f, 0.14f, 1.08f);
+                break;
+            default:                          // at ease: carried low in front, muzzle down toward the ground ahead
+                stock = new(0.12f, -0.17f, 1.17f); dir = new(0.52f, 0.20f, -0.83f);
+                elbowR = new(0.00f, -0.30f, 1.15f); elbowL = new(0.06f, 0.20f, 1.12f);
+                break;
+        }
+        dir = Vector3.Normalize(dir);
+        stock += drop; elbowL += drop; elbowR += drop;
+        var grip = stock + dir * (RifleLength * 0.22f) + new Vector3(0f, 0f, -0.04f);
+        var handguard = stock + dir * (RifleLength * 0.52f) + new Vector3(0f, 0f, -0.04f);
+        return [.. Arm(StandShoulderL + drop, elbowL, handguard, PartRole.Hull),
+                .. Arm(StandShoulderR + drop, elbowR, grip, PartRole.Hull),
+                Limb(stock, stock + dir * RifleLength, 0.05f, 0.08f, ColourRole.Metal)];
+    }
+
+    private static readonly Vector3 ProneShoulderL = new(0.30f, 0.21f, 0.15f), ProneShoulderR = new(0.30f, -0.21f, 0.15f);
+    private static KitPart[] ProneArms(bool soldier)
+    {
+        if (!soldier)
+            return [.. Arm(ProneShoulderL, new(0.50f, 0.25f, 0.07f), new(0.78f, 0.22f, 0.07f), PartRole.Hull),
+                    .. Arm(ProneShoulderR, new(0.50f, -0.25f, 0.07f), new(0.78f, -0.22f, 0.07f), PartRole.Hull)];
+        var stock = new Vector3(0.40f, -0.12f, 0.15f);
+        var dir = new Vector3(1f, 0.02f, 0.02f);
+        return [.. Arm(ProneShoulderL, new(0.58f, 0.20f, 0.05f), stock + dir * (RifleLength * 0.55f) + new Vector3(0, 0, -0.03f), PartRole.Hull),
+                .. Arm(ProneShoulderR, new(0.46f, -0.28f, 0.05f), stock + dir * (RifleLength * 0.22f) + new Vector3(0, 0, -0.03f), PartRole.Hull),
+                Limb(stock, stock + Vector3.Normalize(dir) * RifleLength, 0.05f, 0.08f, ColourRole.Metal)];
+    }
+
+    // ── the poses, built once ─────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    private static readonly KitPart[] Standing = [.. StandingBody, .. CivilianArms(Vector3.Zero, swing: true)];
+    private static readonly KitPart[] Crouched = [.. CrouchedBody, .. CivilianArms(CrouchDrop, swing: false)];
+    private static readonly KitPart[] Prone = [.. ProneBody, .. ProneArms(false)];
+    private static readonly KitPart[] ProneArmed = [.. ProneBody, .. ProneArms(true)];
+    private static readonly KitPart[][] StandingArmed =
+        [[.. StandingBody, .. SoldierArms(WeaponPostureKind.AtEase, Vector3.Zero)],
+         [.. StandingBody, .. SoldierArms(WeaponPostureKind.Ready, Vector3.Zero)],
+         [.. StandingBody, .. SoldierArms(WeaponPostureKind.Aimed, Vector3.Zero)]];
+    private static readonly KitPart[][] CrouchedArmed =
+        [[.. CrouchedBody, .. SoldierArms(WeaponPostureKind.AtEase, CrouchDrop)],
+         [.. CrouchedBody, .. SoldierArms(WeaponPostureKind.Ready, CrouchDrop)],
+         [.. CrouchedBody, .. SoldierArms(WeaponPostureKind.Aimed, CrouchDrop)]];
 
     /// <summary>⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — a dead man: on his back, head forward (+X, like prone), legs apart,
     /// arms flung out; a soldier's rifle dropped beside him. Same parts in the same order as every stance, so a fall can blend.</summary>
     private static readonly KitPart[] DeadPose =
-    {
+    [
         P(-0.60f, 0.20f, 0.08f, 0.90f, 0.14f, 0.14f, ColourRole.Dark) with { YawDegrees = 12f },
         P(-0.60f, -0.20f, 0.08f, 0.90f, 0.14f, 0.14f, ColourRole.Dark) with { YawDegrees = -12f },
         P(0.02f, 0f, 0.12f, 0.60f, 0.42f, 0.22f, ColourRole.Body),
         P(0.46f, 0f, 0.11f, 0.22f, 0.20f, 0.21f, ColourRole.Body),
-        P(0.18f, 0.48f, 0.06f, 0.55f, 0.10f, 0.10f, ColourRole.Body) with { YawDegrees = 70f },
-        P(0.18f, -0.48f, 0.06f, 0.55f, 0.10f, 0.10f, ColourRole.Body) with { YawDegrees = -70f },
-    };
+        .. Arm(new(0.28f, 0.21f, 0.08f), new(0.36f, 0.48f, 0.06f), new(0.30f, 0.76f, 0.06f), PartRole.Hull),
+        .. Arm(new(0.28f, -0.21f, 0.08f), new(0.36f, -0.48f, 0.06f), new(0.30f, -0.76f, 0.06f), PartRole.Hull),
+    ];
 
     private static readonly KitPart RifleDropped = P(0.30f, -0.95f, 0.04f, 0.80f, 0.05f, 0.08f, ColourRole.Metal) with { YawDegrees = 20f };
     private static readonly KitPart[] DeadArmed = [.. DeadPose, RifleDropped];
@@ -391,27 +504,28 @@ public static class BlockFigure
         return blended;
     }
 
-    private static readonly KitPart[] StandingArmed = [.. Standing, RifleStanding];
-    private static readonly KitPart[] CrouchedArmed = [.. Crouched, RifleCrouched];
-    private static readonly KitPart[] ProneArmed = [.. Prone, RifleProne];
-
     /// <summary>
     /// ⭐ CE-1033 S4 — the figure part-way from <paramref name="from"/> to <paramref name="to"/> (<paramref name="t"/> 0..1, the
     /// replicated <c>StanceStatus.TransitionProgress</c>): every stance has the same parts in the same order, so each part's centre
     /// and size are interpolated. A standing figure's limbs keep their roles (they swing); a blend's do not.
     /// </summary>
-    public static KitPart[] Blend(StanceId from, StanceId to, float t, bool soldier)
+    public static KitPart[] Blend(StanceId from, StanceId to, float t, bool soldier, WeaponPostureKind posture = WeaponPostureKind.AtEase)
     {
-        return Lerp(Parts(from, soldier), Parts(to, soldier), t);   // ⭐ W4 — the one interpolation, shared with the fall
+        return Lerp(Parts(from, soldier, posture), Parts(to, soldier, posture), t);   // ⭐ W4 — the one interpolation, shared with the fall
     }
 
-    /// <summary>The posed parts for <paramref name="stance"/> (anything but crouched or prone stands — the rule's own default).</summary>
-    public static KitPart[] Parts(StanceId stance, bool soldier) => stance switch
+    /// <summary>The posed parts for <paramref name="stance"/> (anything but crouched or prone stands — the rule's own default); a
+    /// soldier's rifle and hands in the weapon brain's <paramref name="posture"/> (WL-6; prone is always on the rifle).</summary>
+    public static KitPart[] Parts(StanceId stance, bool soldier, WeaponPostureKind posture = WeaponPostureKind.AtEase)
     {
-        StanceId.Crouched => soldier ? CrouchedArmed : Crouched,
-        StanceId.Prone => soldier ? ProneArmed : Prone,
-        _ => soldier ? StandingArmed : Standing,
-    };
+        int p = Math.Clamp((int)posture, 0, 2);
+        return stance switch
+        {
+            StanceId.Crouched => soldier ? CrouchedArmed[p] : Crouched,
+            StanceId.Prone => soldier ? ProneArmed : Prone,
+            _ => soldier ? StandingArmed[p] : Standing,
+        };
+    }
 }
 
 /// <summary>

@@ -76,6 +76,8 @@ namespace Hrot.NED.Descriptors
         // ⭐ WL-2b (CE-1049, W-11 / R-267) — a turret's order (Brain group → Muscle) and the muscle's report (MuscleGround → Brain).
         dtWeaponTask                  = 125,
         dtWeaponTaskStatus            = 126,
+        // ⭐ WL-6 (W-13d, R-272) — the weapon brain's posture of a unit's weapon (Brain group → every node). 📄 docs/DESIGN_Weapon_Layers.md §5h
+        dtWeaponPosture               = 127,
         // etc., all known descriptor types here
     }
 

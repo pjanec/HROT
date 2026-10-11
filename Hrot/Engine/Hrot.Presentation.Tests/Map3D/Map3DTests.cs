@@ -1,4 +1,5 @@
 using System.Numerics;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Terrain;
@@ -512,6 +513,119 @@ public sealed class Map3DTests
         for (int i = 0; i < half.Length; i++)
             Assert.InRange(Vector3.Distance(half[i].Centre, (stand[i].Centre + prone[i].Centre) / 2f), 0f, 1e-4f);
         Assert.Same(prone, BlockFigure.Blend(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Fdp.Toolkit.Tkb.Domain.StanceId.Prone, 1f, true));
+    }
+
+    // ── ⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13e, R-272) — the rifle in the weapon brain's posture ─────────────────────────────
+
+    private static Vector3 End(KitPart p, Vector3 size, float along = 0.5f) => Vector3.Transform(new Vector3(along, 0, 0), p.BodyTransform(size));
+
+    private static float DistanceToSegment(Vector3 p, Vector3 a, Vector3 b)
+    {
+        var ab = b - a;
+        float t = Math.Clamp(Vector3.Dot(p - a, ab) / ab.LengthSquared(), 0f, 1f);
+        return Vector3.Distance(p, a + ab * t);
+    }
+
+    /// <summary>⭐ WL-6 (W-13e) — at ease the rifle hangs low, muzzle down; ready it is at the chest, muzzle forward and down; aimed it
+    /// is level at the shoulder. In every posture and stance both hands are ON the rifle and each arm's two segments meet at the elbow.</summary>
+    [Theory]
+    [InlineData(StanceId.Standing)]
+    [InlineData(StanceId.Crouched)]
+    public void WL6_TheRifleIsHeldInThePosture_HandsOnIt_ElbowsJoined(StanceId stance)
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        float Muzzle(WeaponPostureKind k) => End(BlockFigure.Parts(stance, true, k)[^1], size).Z;
+        float Stock(WeaponPostureKind k) => End(BlockFigure.Parts(stance, true, k)[^1], size, -0.5f).Z;
+        Assert.True(Muzzle(WeaponPostureKind.AtEase) < Muzzle(WeaponPostureKind.Ready), "at ease is lower than ready");
+        Assert.True(Muzzle(WeaponPostureKind.Ready) < Muzzle(WeaponPostureKind.Aimed), "ready is lower than aimed");
+        Assert.Equal(Stock(WeaponPostureKind.Aimed), Muzzle(WeaponPostureKind.Aimed), 2);          // aimed is level
+        Assert.True(Muzzle(WeaponPostureKind.AtEase) < Stock(WeaponPostureKind.AtEase) - 0.4f, "at ease: muzzle well down");
+
+        foreach (WeaponPostureKind k in Enum.GetValues(typeof(WeaponPostureKind)))
+        {
+            var parts = BlockFigure.Parts(stance, true, k);
+            Assert.Equal(BlockFigure.Parts(stance, false).Length + 1, parts.Length);
+            var rifle = parts[^1];
+            Vector3 stock = End(rifle, size, -0.5f), muzzle = End(rifle, size);
+            for (int arm = 4; arm <= 6; arm += 2)   // left then right: upper arm, forearm
+            {
+                Assert.InRange(Vector3.Distance(End(parts[arm], size), End(parts[arm + 1], size, -0.5f)), 0f, 0.01f);   // the elbow
+                Assert.InRange(DistanceToSegment(End(parts[arm + 1], size), stock, muzzle), 0f, 0.07f);                // the hand on the rifle
+            }
+            Assert.All(parts, p => Assert.False(p.Role is PartRole.ArmLeft or PartRole.ArmRight, "an armed soldier's arms hold the rifle — they do not swing"));
+        }
+    }
+
+    /// <summary>⭐ WL-6 — a civilian's arm swings as one piece from the shoulder: the forearm follows the upper arm.</summary>
+    [Fact]
+    public void WL6_ACiviliansArm_SwingsFromTheShoulder_ForearmAndAll()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var parts = BlockFigure.Parts(StanceId.Standing, false);
+        var swing = new MotionPose(0, 0, 0.5f);
+        var upper = parts[4]; var fore = parts[5];
+        Assert.Equal(PartRole.ArmLeft, upper.Role);
+        Assert.Equal(PartRole.ArmLeft, fore.Role);
+        var elbow = Vector3.Transform(new Vector3(0.5f, 0, 0), upper.BodyTransform(size, default, ArticulationPose.Neutral, swing));
+        var forearmTop = Vector3.Transform(new Vector3(-0.5f, 0, 0), fore.BodyTransform(size, default, ArticulationPose.Neutral, swing));
+        Assert.InRange(Vector3.Distance(elbow, forearmTop), 0f, 0.01f);
+        var hand = Vector3.Transform(new Vector3(0.5f, 0, 0), fore.BodyTransform(size, default, ArticulationPose.Neutral, swing));
+        Assert.True(hand.X < End(fore, size).X - 0.15f, $"the left arm swings BACK on a positive swing: {hand}");
+    }
+
+    /// <summary>⭐ WL-6 (W-13e) — a running figure leans forward from the hip (12° at a full run), a walking one barely, a still one not;
+    /// the legs do not lean.</summary>
+    [Fact]
+    public void WL6_ARunningFigureLeansForward_FromTheHip()
+    {
+        var t = new MotionTracker();
+        var man = new Entity(3, 1);
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        MotionPose pose = default;
+        for (int i = 0; i <= 30; i++) pose = t.Advance(man, new Vector3(i * 0.2f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, i / 30.0, false);   // 6 m/s
+        Assert.Equal(MotionTracker.RunLean, pose.Lean, 2);
+        var still = t.Advance(man, new Vector3(6f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, 1.1, false);
+        Assert.Equal(0f, still.Lean);
+
+        var parts = BlockFigure.Parts(StanceId.Standing, true);
+        var head = parts[3];
+        var leaning = new MotionPose(0, 0, 0, Lean: MotionTracker.RunLean, HipZ: 0.5f);
+        var headAt = Vector3.Transform(Vector3.Zero, head.BodyTransform(size, default, ArticulationPose.Neutral, leaning));
+        Assert.True(headAt.X > 0.12f, $"the head goes forward: {headAt}");
+        var leg = parts[0];
+        Assert.Equal(Vector3.Transform(Vector3.Zero, leg.BodyTransform(size)),
+                     Vector3.Transform(Vector3.Zero, leg.BodyTransform(size, default, ArticulationPose.Neutral, leaning)));
+    }
+
+    /// <summary>⭐ WL-6 (W-13e) — an AIMED soldier turns his upper body toward his target (his heading does not change) and pitches it;
+    /// the turn is clamped at 75°; a soldier not aimed, or aimed at nothing placeable, does not turn.</summary>
+    [Fact]
+    public void WL6_AnAimedSoldierTurnsAndPitchesTowardHisTarget_Clamped()
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var man = world.CreateEntity();
+        var tf = new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity };
+        world.AddComponent(man, tf);
+        var target = world.CreateEntity();
+        world.AddComponent(target, new SimTransform { Position = new Vector3(20f, 20f, -10f), Rotation = Quaternion.Identity });
+        world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = WeaponPostureKind.Ready, Target = target });
+        Assert.False(EntityBodyLayer3D.TryAim(world, man, tf, size, StanceId.Standing, out _, out _));      // ready: not aimed
+
+        world.SetComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = target });
+        Assert.True(EntityBodyLayer3D.TryAim(world, man, tf, size, StanceId.Standing, out float twist, out float pitch));
+        Assert.Equal(MathF.PI / 4f, twist, 2);                                     // 45° to the left
+        Assert.True(pitch < -0.2f, $"pitched down at the lower target: {pitch}");
+
+        world.SetComponent(target, new SimTransform { Position = new Vector3(-10f, 1f, 1f), Rotation = Quaternion.Identity });
+        Assert.True(EntityBodyLayer3D.TryAim(world, man, tf, size, StanceId.Standing, out twist, out _));
+        Assert.Equal(EntityBodyLayer3D.MaxAimTwist, twist, 3);                     // behind him: clamped
+
+        world.SetComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = WeaponPostureKind.Aimed, Point = new Vector3(0f, -30f, 1.4f) });
+        Assert.True(EntityBodyLayer3D.TryAim(world, man, tf, size, StanceId.Standing, out twist, out _));
+        Assert.Equal(-EntityBodyLayer3D.MaxAimTwist, twist, 3);                    // a point square to his right — clamped at 75°
     }
 
     /// <summary>⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — the dead figure lies on the ground (lower than prone), arms flung out

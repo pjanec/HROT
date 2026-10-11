@@ -702,6 +702,63 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(2f, Row().Needed, 3);
         }
 
+        // ── WL-6 (docs/DESIGN_Weapon_Layers.md W-13, R-272) — the weapon brain's posture ───────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ WL-6 (W-13b) — the weapon brain writes the unit's <see cref="WeaponPosture"/> where it decides: hidden ⇒ Ready (raised,
+        /// not aimed); seen and aiming ⇒ Aimed at the target; firing stays Aimed; then, with no weapon action running, Aimed drops to
+        /// Ready at once and Ready to AtEase after <see cref="Fdp.Toolkit.Combat.WeaponPostureOf.LowerAfterSeconds"/>.
+        /// </summary>
+        [Fact]
+        public void WL6_TheWeaponBrainWritesThePosture_ReadyWhenHidden_AimedWhenAiming_AtEaseAfterIdle()
+        {
+            RegisterSight();
+            _world.RegisterComponent<WeaponPosture>();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 60, 0f, target, cooldownSeconds: 0.2f);
+            _world.AddComponent(shooter, new WeaponPosture());
+            WeaponPosture Posture() => _world.GetComponent<WeaponPosture>(shooter);
+            Assert.Equal(WeaponPostureKind.AtEase, Posture().Kind);
+
+            SetSight(shooter, target, visual: false);
+            _executor.OnEnter(shooter, ref channel, _world);
+            Step(shooter, ref channel, 0.1f);
+            Assert.Equal(WeaponPostureKind.Ready, Posture().Kind);
+
+            SetSight(shooter, target, visual: true);
+            Step(shooter, ref channel, 0.1f);
+            Assert.Equal(WeaponPostureKind.Aimed, Posture().Kind);
+            Assert.Equal(target, Posture().Target);
+            int fired = 0;
+            for (int i = 0; i < 10 && fired == 0; i++) fired += Step(shooter, ref channel, 0.1f);
+            Assert.Equal(1, fired);
+            Assert.Equal(WeaponPostureKind.Aimed, Posture().Kind);
+
+            // the action ends: no weapon action runs — the dispatcher's idle branch
+            Fdp.Toolkit.Combat.WeaponPostureOf.Idle(_world, shooter, 0.1f);
+            Assert.Equal(WeaponPostureKind.Ready, Posture().Kind);
+            for (int i = 0; i < 45; i++) Fdp.Toolkit.Combat.WeaponPostureOf.Idle(_world, shooter, 0.1f);   // 4.6 s
+            Assert.Equal(WeaponPostureKind.Ready, Posture().Kind);
+            for (int i = 0; i < 5; i++) Fdp.Toolkit.Combat.WeaponPostureOf.Idle(_world, shooter, 0.1f);
+            Assert.Equal(WeaponPostureKind.AtEase, Posture().Kind);
+            Assert.True(Posture().Target.IsNull);
+        }
+
+        /// <summary>⭐ WL-6 (W-13b) — every weapon-brain status maps to a posture (or explicitly to none), so a new status cannot be
+        /// silently drawn as "at ease" in the middle of a fight.</summary>
+        [Fact]
+        public void WL6_EveryWeaponStatusHasAPosture()
+        {
+            foreach (Fdp.Toolkit.Behavior.Diagnostics.ActionReason r in System.Enum.GetValues(typeof(Fdp.Toolkit.Behavior.Diagnostics.ActionReason)))
+            {
+                var kind = Fdp.Toolkit.Combat.WeaponPostureOf.For(r);
+                bool says = r is not (Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None or Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Moving);
+                Assert.True(says == kind.HasValue, $"{r}: {(kind?.ToString() ?? "none")}");
+            }
+            Assert.Equal(WeaponPostureKind.Aimed, Fdp.Toolkit.Combat.WeaponPostureOf.For(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.BlindFire));
+            Assert.Equal(WeaponPostureKind.Ready, Fdp.Toolkit.Combat.WeaponPostureOf.For(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Reloading));
+        }
+
         // ── WL-3 (docs/DESIGN_Weapon_Layers.md §5e) — a turreted mount is fought through its turret ────────────────────────────
 
         /// <summary>A shooter whose type has a turret and a mount on it, with the turret part built (one world = the editor's one

@@ -11,7 +11,8 @@ known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount part
 related-designs:
   - blueprints/Architect_Question_89_Suppress_And_Close.md — AQ89 (R-269): Suppress at a hidden target asks this file's weapon brain for BLIND fire; bravery/obedience (CombatTemperament) decides the close-to-throw
   - DESIGN_Map_3D_Mode.md — §3.11 M23–M26 (R-255): the turret is a part child with a TurretPose, the weapon side aims it, it
-    replicates as a multi-instance descriptor. THIS file decides which weapon layer on which node does the aiming.
+    replicates as a multi-instance descriptor. THIS file decides which weapon layer on which node does the aiming. ⭐ W-13 (R-272):
+    its §3.5 block figure DRAWS this file's WeaponPosture (rifle in the hands, aim turn, run lean) — it owns the drawing, not the state.
   - DESIGN_Visual_Effects.md — VE-J..VE-L: Muzzle.Of(shooter, weaponIndex) from the posed barrel, used by the round AND the flash.
   - DESIGN_Utility_AI_Demo_Scenarios.md — §12 W1–W9: weapon choice per shot inside the executor (Mount=Auto), mount children on
     CGF; §9 the one ArmorModel (R-212). The weapon brain here takes over that choice.
@@ -227,6 +228,90 @@ Rejected: per-mount tasks — two tasks for one turret need a tie-break nobody o
 ⚠ **New behaviour vocabulary (part of W-1):** `TrackTarget(target)` on the weapon channel — keep the gun on a target without
 firing — beside `AimAndFire` and `FireAtPoint`; releasing the channel sets the task to Idle.
 
+### W-13 — the WEAPON POSTURE: at ease · ready · aimed, owned by the weapon brain *(🔒 user `2026-10-11` (U-W9), R-272; WL-6 §5h)*
+
+> 🔒 **User, `2026-10-11` (U-W9):** *"the aiming/at ease needs to be weapon state controlled from the weapon brain. if not there we
+> need to define and add"*
+
+⛔ **Not there** (measured): the only aim state is the executor's private `AimState` timer and the diagnostic `ActionStatus.Weapon`
+row, which is "never on the wire" (R-226); the animation stack's `LookAtChannel` is driven by no combat code and is not on DDS.
+⇒ a soldier's 3-D figure had nothing to show (`DESIGN_Map_3D_Mode.md` §3.5: one standing pose, arms hanging, rifle floating).
+
+```mermaid
+graph TD
+  subgraph Brain["Brain node (CGF, or the editor)"]
+    EX["weapon brain executors<br/>AimAndFire · FireAtPoint · TrackTarget<br/>WeaponPostureOf.Report at every status point"]
+    WD["WeaponDispatcherSystem<br/>no running action: WeaponPostureOf.Idle lowers it"]
+    WP["WeaponPosture on the unit<br/>Brain group"]
+    EG["EntityWeaponPostureEgressTranslator<br/>owner of dtWeaponPosture, on change"]
+  end
+  subgraph Every["every other node: SimHost, IG, Stride, the replay"]
+    IN["EntityWeaponPostureIngressTranslator"]
+    WP2["WeaponPosture (replica)"]
+    FIG["EntityBodyLayer3D.FigurePose<br/>the block figure: rifle down / at the chest / shouldered toward the target"]
+  end
+  EX --> WP
+  WD --> WP
+  WP --> EG
+  EG -- "EntityWeaponPosture (127)" --> IN
+  IN --> WP2
+  WP2 --> FIG
+  WP -. "the editor: same world, no wire" .-> FIG
+```
+
+*What the picture shows that prose hid:* the posture is written in ONE place per cause — the executors' status points (the moments the
+weapon brain already decides "aiming / firing / holding") and the dispatcher's idle branch — and read by nobody on the Brain; its only
+reader is the picture, on every host. The editor reads it in its own world, so the networkless editor shows the same.
+
+```mermaid
+classDiagram
+  class WeaponPosture { <<new, Brain group, id 359>> Kind AtEase-Ready-Aimed; Target; Point; IdleSeconds (never sent) }
+  class WeaponPostureOf { <<new, Combat>> Report(unit, reason, target, point); Idle(unit, dt); LowerAfterSeconds = 5 }
+  class AimAndFireExecutor { <<exists>> Say also reports the posture }
+  class FireAtPointExecutor { <<exists>> Say also reports it, at its Point }
+  class TrackTargetExecutor { <<exists>> Say also reports it }
+  class WeaponDispatcherSystem { <<exists>> + Idle when no action runs }
+  class BehaviorTkbTranslator { <<exists>> + provisions WeaponPosture beside WeaponChannel }
+  class EntityWeaponPosture { <<new DDS, dtWeaponPosture 127>> EntityId key; Kind; TargetNetworkId; Point }
+  class BlockFigure { <<exists, Map3D>> + arms in two parts; poses per WeaponPostureKind }
+  class MotionPose { <<exists, Map3D>> + Lean (run tilt + aim pitch); Twist (aim yaw) }
+  AimAndFireExecutor ..> WeaponPostureOf
+  FireAtPointExecutor ..> WeaponPostureOf
+  TrackTargetExecutor ..> WeaponPostureOf
+  WeaponDispatcherSystem ..> WeaponPostureOf
+  WeaponPostureOf ..> WeaponPosture : writes
+  BehaviorTkbTranslator ..> WeaponPosture : adds at spawn
+  EntityWeaponPosture ..> WeaponPosture : carries
+  BlockFigure ..> WeaponPosture : reads
+  BlockFigure ..> MotionPose
+```
+
+```mermaid
+sequenceDiagram
+  participant B as behaviour brain
+  participant W as weapon brain (Brain)
+  participant N as every other node
+  participant F as 3-D figure
+  B->>W: WeaponChannel AimAndFire(target)
+  W->>W: target seen, aim timer running ⇒ Report(Aiming) ⇒ Aimed at target
+  W->>N: EntityWeaponPosture(Aimed, target)
+  N->>F: shouldered, upper body turned and pitched toward the target
+  W->>W: target hidden ⇒ Report(HoldNotSeen) ⇒ Ready
+  W->>N: EntityWeaponPosture(Ready)
+  B->>W: action ends (Done)
+  W->>W: Ready, then 5 s with no action ⇒ AtEase
+  W->>N: EntityWeaponPosture(AtEase)
+  N->>F: rifle carried low across the body
+```
+
+| # | question | ⭐ decision | rests on (code · design) | rejected — one line each |
+|---|---|---|---|---|
+| **W-13a** | the states | **AtEase** (rifle low across the body) · **Ready** (raised, not aimed: target hidden, reloading, throwing, just finished) · **Aimed** (shouldered at a target or point) | `ActionReason` already separates aiming from holding (`ActionStatus.cs:10-30`) · U-W9 | two states — a hidden target or a reload would snap the rifle down mid-fight |
+| **W-13b** | who writes it | the weapon brain's executors, at the points they already report status, through ONE mapping (`WeaponPostureOf.Report`: Aiming / Firing / Cooldown / BlindFire / Hold-friendly / Hold-ROE / Slewing / Guiding ⇒ Aimed; HoldNotSeen / Reloading / Throwing / OutOfArc / Done / Failed / OutOfAmmo ⇒ Ready); the dispatcher lowers Aimed ⇒ Ready when no action runs and Ready ⇒ AtEase after `LowerAfterSeconds` (5 s) | every executor exit calls `Say` (`AimAndFireExecutor.cs:394`, `FireAtPointExecutor.cs:94`, `TrackTargetExecutor.cs:74`) · W-1 (the weapon brain keeps the gates) | reading `ActionStatus` — it is diagnostics and never on the wire (R-226) · deriving it on viewers from fire events — not the weapon brain (U-W9) |
+| **W-13c** | where it lives | a component on the UNIT (a rifleman has no turret part), in the Brain ownership group, provisioned at spawn beside `WeaponChannel` | `HrotOwnershipGroups.cs` brain group · `BehaviorTkbTranslator.cs:140` | on a turret part — persons have none · inside `StanceIntent` — the animation contract, a different writer |
+| **W-13d** | the wire | `dtWeaponPosture` = 127, keyed by the unit's network id, Reliable + TransientLocal + KeepLast 1, sent on change only (it changes a few times per engagement); the target crosses as its network id | `EntityWeaponTask` (`SimDescriptors.cs:118`), `SharedTranslatorPack.cs:93` (every node) | inside `dtBrainIntent` — a JSON slot written per change of task, SOP or ROE |
+| **W-13e** | how it is drawn | each arm is an upper arm + a forearm; AtEase / Ready / Aimed rifle-and-hand poses for standing and crouched (prone is always aimed, dead unchanged); Aimed turns the upper body toward the target (≤ 75°) and pitches it (≤ 35°) — a soldier's body does not turn to face his target (searched: nothing writes his heading when firing); an ARMED soldier's arms do not swing (they hold the rifle); running tilts the upper body forward (12° at a full run) | `ShapeKit.cs` `BlockFigure` · `MotionTracker.cs` | turning the whole body — the heading is the Muscle's (movement), not the picture's |
+
 ## 5. Slices
 
 | slice | builds | shows |
@@ -235,6 +320,7 @@ firing — beside `AimAndFire` and `FireAtPoint`; releasing the channel sets the
 | **WL-2** | `WeaponTask` / `WeaponTaskStatus` descriptors; the muscle's `WeaponTaskDispatcher` with **Track**; `BallisticAim` | a tank keeps its gun on a moving target |
 | **WL-3** | **Engage** on the muscle through `FireProcessingSystem`; the executor split + the default profile; rounds granted / fired; `TrackTarget` on the channel | a tank slews, then fires 3 rounds; behaviours unchanged |
 | **WL-4** | category profiles (tank gun, autocannon, ATGM, mortar, small arms); ammo choice | per-category gunnery |
+| **WL-6** | W-13: `WeaponPosture` written by the weapon brain, `dtWeaponPosture` to every node, the block figure posed by it (elbows, rifle in the hands, aim, run tilt) — §5h | a soldier carries his rifle low, raises it when the target hides, shoulders it toward the target when he aims |
 | **B5** ✅ | `Muzzle.Of` from the posed barrel — the round, the flash and the tracer from one point (built, DESIGN_Visual_Effects §6b) | VE-K |
 
 ### 5a. As built — WL-1a *(2026-10-11)*

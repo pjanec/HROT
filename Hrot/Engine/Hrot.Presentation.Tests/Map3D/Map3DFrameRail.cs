@@ -511,6 +511,92 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13, R-272) — soldiers in the weapon brain's postures on a real GL: at ease (rifle low),
+    /// ready (at the chest), aimed (shouldered; one turned toward a target off to his left, the other straight ahead), crouched aimed,
+    /// prone; a soldier RUNNING (leaning forward, arms on the rifle) and a civilian walking (arms swinging).
+    /// </summary>
+    [SkippableFact]
+    public void WL6_SoldiersHoldTheirRiflesInTheWeaponBrainsPosture()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        double now = 1.0;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        var foe = world.CreateEntity();   // what the turned soldier aims at — off to his left, not drawn (no TKB identity)
+        world.AddComponent(foe, new SimTransform { Position = new Vector3(spot.X + 6f, spot.Y + 30f, G(spot.X, spot.Y)), Rotation = Quaternion.Identity });
+        Entity Person(float dx, float dy, long type, StanceId stance, Fdp.Toolkit.Combat.Components.WeaponPostureKind posture, Entity aimAt = default)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // all face +x (east)
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new StanceIntent { TargetStance = stance });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = posture, Target = aimAt });
+            return e;
+        }
+        const long Rifleman = TkbEntityTypes.Infantry_Rifleman;
+        Person(0f, 6f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+        Person(0f, 3f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        Person(0f, 0f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);   // aimed, at nothing placed: straight ahead
+        Person(0f, -3f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, foe);
+        Person(0f, -6f, Rifleman, StanceId.Crouched, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
+        Person(1.5f, -9f, Rifleman, StanceId.Prone, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
+        var runner = Person(-5f, 1.5f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        var walker = Person(-5f, -4.5f, UrbanCombatTkbCatalog.TkbCivilianPedestrian, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        // from the north-east, a little above them: every figure side-on-ish, so the rifles and arms read
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 1f, spot.Y - 1.5f, G(spot.X, spot.Y) + 1.0f), 11f, MathF.PI * 0.30f, -0.10f);
+
+        // the runner at 6 m/s and the walker at 1.4 m/s, over a few frames of sim time, so the gait and the lean are live
+        void Move(Entity e, float speed, double dt)
+        {
+            var tf = world.GetComponent<SimTransform>(e);
+            tf.Position += new Vector3(speed * (float)dt, 0f, 0f);
+            tf.Position = tf.Position with { Z = G(tf.Position.X, tf.Position.Y) };
+            world.SetComponent(e, tf);
+        }
+        for (int i = 0; i < 9; i++)
+        {
+            now += 1.0 / 30.0;
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+            Move(runner, 6f, 1.0 / 30.0);
+            Move(walker, 1.4f, 1.0 / 30.0);
+            frame.Step(canvas.Draw);
+        }
+        frame.Screenshot(Path.Combine(shots, "posture-1-side.png"));
+        Assert.Equal(8, bodies.BodiesDrawn);
+
+        // closer, from the front-left, on the aimed pair
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 0.2f, spot.Y - 1.5f, G(spot.X, spot.Y) + 1.2f), 5.5f, MathF.PI * 0.15f, -0.12f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "posture-2-aimed-close.png"));
+    }
+
+    /// <summary>
     /// ⭐ LR-3 (docs/DESIGN_Visual_Effects.md §8.5, R-271) — what a DUMB VIEWER draws: no combat state at all (BallisticProjectile is not
     /// even registered), only replicated rounds — <c>LightweightRound</c> + the munition type + position + velocity, as the
     /// EntityMaster / WorldPos ingress leaves them. The built-in types: a 5.56 tracer burst, a 120 mm APFSDS-T, an RPG-7 and a TOW with

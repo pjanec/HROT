@@ -765,5 +765,9 @@ namespace Fdp.Core
         /// ended (succeeded / failed / faulted), written on the brain node when the run finishes; read by <c>GET /entities/{id}/order</c>.
         /// Never saved, never sent. ⚠ 358 measured free on backend, ui and behaviors 2026-10-11.</summary>
         public const int OperatorOrderOutcome = 358;
+
+        /// <summary><c>WeaponPosture</c> — ⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13, R-272): the weapon brain's at ease / ready / aimed
+        /// state of a unit's weapon, Brain-owned, replicated as <c>dtWeaponPosture</c> to every node, drawn by the 3-D figure.</summary>
+        public const int WeaponPosture = 359;
     }
 }

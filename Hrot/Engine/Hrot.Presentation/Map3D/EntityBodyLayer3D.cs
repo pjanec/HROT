@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Physics.Components;
@@ -115,6 +116,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
             bool rotorTurning = look.Family == VisualFamily.Helicopter && !wreck && IsAirborne(world, tf.Position, look.Geometry);
             var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning);
+            if (look.Family == VisualFamily.Person) motion = FigureMotion(world, e, motion, look.Soldier, tf, size);
             _drawn.Add(e);
             // ⭐ CE-1041 — a type with Body.Geometry: the kit's box sits where the TKB puts it relative to the reference point
             //   (an aircraft's CG), and the gear is drawn AT the TKB's contact points instead of the kit's generic gear.
@@ -151,24 +153,71 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     /// <summary>⭐ CE-1033 S4 — the figure's parts: the logical stance (the shared rule), BLENDED from the stance it is leaving while
     /// the muscle reports a transition in progress (<see cref="StanceStatus"/> — replicated, so every host shows the same blend).</summary>
+    /// <summary>⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13) — the weapon brain's posture of <paramref name="e"/>'s weapon (replicated,
+    /// R-272); at ease where the world or the unit has none.</summary>
+    public static WeaponPostureKind PostureOf(EntityRepository world, Entity e)
+        => world.IsComponentTypeRegistered<WeaponPosture>() && world.HasComponent<WeaponPosture>(e)
+            ? world.GetComponentRO<WeaponPosture>(e).Kind : WeaponPostureKind.AtEase;
+
+    /// <summary>The most an aimed upper body turns toward its target, and pitches (radians).</summary>
+    public const float MaxAimTwist = 75f * MathF.PI / 180f, MaxAimPitch = 35f * MathF.PI / 180f;
+
+    /// <summary>
+    /// ⭐ WL-6 (W-13e) — the figure's upper body: it leans from the hip at a stance's height; an AIMED soldier turns and pitches it
+    /// toward his target or aim point (a soldier's body does not turn to face what he shoots at — nothing writes his heading for it),
+    /// within <see cref="MaxAimTwist"/> / <see cref="MaxAimPitch"/>. Prone and dead figures do not lean or turn.
+    /// </summary>
+    private static MotionPose FigureMotion(EntityRepository world, Entity e, MotionPose motion, bool soldier, in SimTransform tf, Vector3 size)
+    {
+        var stance = LogicalStance.Of(world, e);
+        if (stance == StanceId.Prone || Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e)) return motion with { Lean = 0f, Twist = 0f };
+        motion = motion with { HipZ = BlockFigure.HipFraction(stance) };
+        if (!soldier || !TryAim(world, e, tf, size, stance, out float twist, out float pitch)) return motion;
+        return motion with { Twist = twist, Lean = motion.Lean - pitch };
+    }
+
+    /// <summary>The aim of an AIMED unit relative to its body: turn (counter-clockwise) and pitch (up), both clamped. False when it is
+    /// not aimed or aims at nothing it can place.</summary>
+    public static bool TryAim(EntityRepository world, Entity e, in SimTransform tf, Vector3 size, StanceId stance, out float twist, out float pitch)
+    {
+        twist = pitch = 0f;
+        if (!world.IsComponentTypeRegistered<WeaponPosture>() || !world.HasComponent<WeaponPosture>(e)) return false;
+        ref readonly var posture = ref world.GetComponentRO<WeaponPosture>(e);
+        if (posture.Kind != WeaponPostureKind.Aimed) return false;
+        Vector3 at;
+        if (!posture.Target.IsNull && world.IsAlive(posture.Target) && world.HasComponent<SimTransform>(posture.Target))
+            at = world.GetComponentRO<SimTransform>(posture.Target).Position + new Vector3(0f, 0f, 1.0f);
+        else if (posture.Target.IsNull && posture.Point != Vector3.Zero) at = posture.Point;
+        else return false;
+        float shoulder = (stance == StanceId.Crouched ? 0.98f : 1.41f) / 1.8f * size.Z;
+        var toward = at - (tf.Position + new Vector3(0f, 0f, shoulder));
+        var local = Vector3.Transform(toward, Quaternion.Inverse(tf.Rotation));
+        float horizontal = MathF.Sqrt(local.X * local.X + local.Y * local.Y);
+        if (horizontal < 0.1f) return false;
+        twist = Math.Clamp(MathF.Atan2(local.Y, local.X), -MaxAimTwist, MaxAimTwist);
+        pitch = Math.Clamp(MathF.Atan2(local.Z, horizontal), -MaxAimPitch, MaxAimPitch);
+        return true;
+    }
+
     private KitPart[] FigurePose(EntityRepository world, Entity e, bool soldier, double simTime)
     {
         var target = LogicalStance.Of(world, e);
+        var posture = soldier ? PostureOf(world, e) : WeaponPostureKind.AtEase;   // ⭐ WL-6 — the rifle in the weapon brain's posture
         // ⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — a dead man lies on his back, fallen into it over 0.6 s of sim time from the
         //   stance he died in; a body first seen already dead just lies there (DeathFall).
         if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e))
         {
             var (t, from) = _fall.Dead(e, simTime);
-            return BlockFigure.Fall(BlockFigure.Parts(from, soldier), t, soldier);
+            return BlockFigure.Fall(BlockFigure.Parts(from, soldier, posture), t, soldier);
         }
         _fall.Alive(e, target, simTime);
         if (world.IsComponentTypeRegistered<StanceStatus>() && world.HasComponent<StanceStatus>(e))
         {
             ref readonly var status = ref world.GetComponentRO<StanceStatus>(e);
             if (status.Phase == StanceTransitionPhase.Transitioning && status.CurrentStance != target)
-                return BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier);
+                return BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier, posture);
         }
-        return BlockFigure.Parts(target, soldier);
+        return BlockFigure.Parts(target, soldier, posture);
     }
 
     private readonly MotionTracker _motion = new();

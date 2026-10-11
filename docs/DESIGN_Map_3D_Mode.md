@@ -17,6 +17,7 @@ related-designs:
   - DESIGN_Visual_Effects.md §7 (R-269 (ui)) — the destroyed look in this map: a near-black wreck, flames and smoke particles, the `Dead` figure posture (VE-N..VE-S).
   - DESIGN_Weapon_Layers.md — which weapon layer on which node aims the turret (behaviour brain, weapon brain, weapon muscle) and
     the TurretPose / WeaponTask wire; §3.11 here keeps the part, the pose and the drawing.
+    ⭐ W-13 (R-272) owns the WEAPON POSTURE (at ease / ready / aimed) that §3.5's block figure draws (WL-6).
   - PLAN_3D_World_And_Realism.md — the programme index (roadmap A1…E2 across this design, effects, turret, aircraft, sound).
   - DESIGN_Map_North_Up.md — CE-1040: the 2-D map north-up at its camera seam, so the 2-D ↔ 3-D swap keeps orientation.
   - DESIGN_Visual_Effects.md — muzzle fire, explosions and impact decals as TKB-typed temporary entities; the 3-D map draws them

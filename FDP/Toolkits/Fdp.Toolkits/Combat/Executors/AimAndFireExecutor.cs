@@ -392,7 +392,10 @@ namespace Fdp.Toolkit.Combat.Executors
 
         // ⭐ CE-3136 (T1) — the weapon row of the unit's ActionStatus: why this action is (not) firing this frame.
         private static void Say(EntityRepository world, Entity unit, ActionReason reason, Entity target, float progress = 0f, float needed = 0f)
-            => ActionStatusOf.Weapon(world, unit, CombatConstants.ActionIdAimAndFire, reason, target, progress, needed);
+        {
+            ActionStatusOf.Weapon(world, unit, CombatConstants.ActionIdAimAndFire, reason, target, progress, needed);
+            WeaponPostureOf.Report(world, unit, reason, target);   // ⭐ WL-6 (DESIGN_Weapon_Layers W-13b) — the weapon posture
+        }
 
         private static void SayAim(EntityRepository world, Entity unit, Entity target, bool seen, in AimState aim, int mountIndex)
         {
