@@ -312,6 +312,23 @@ namespace Hrot.ScenarioEditor.Map
             {
                 menuOrders.RegisterOn(actions);
                 ctx.World.SetSingletonManaged(new Hrot.Common.Orders.OrdersOffered());
+
+                // ⭐ CE-3171 (DESIGN_Entity_Control §8a) — the RTS command tool, armed from View › RTS Command Mode. It routes three
+                //   gestures to three existing writes (the selection request, EntityOrders, the station's hit test) — Measure's shape.
+                var rts = new RtsCommands(ctx.World, () => selection.SelectedEntities, () => menuOrders.PickService?.Invoke());
+                tools.Register(
+                    new Hrot.ScenarioEditor.Tools.ToolDescriptor(Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand, "RTS Command Mode",
+                        Hrot.ScenarioEditor.Tools.ToolModality.Modal, Hrot.ScenarioEditor.Tools.ToolArbiter.Global, ToggleOnReactivate: true),
+                    _ =>
+                    {
+                        if (menuOrders.PickService?.Invoke() is null)   // a headless host: nobody to click
+                            return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
+                        var id = GlobalGizmoManager.NewId();
+                        globalManager.Register(id, new RtsCommandGizmo(rts, () => globalManager.Unregister(id)));
+                        return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
+                    });
+                actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleRtsCommand, (_, _) =>
+                    tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand, Entity.Null));
             }
 
             // ⭐ CE-1017 — ONE entity-authoring surface per map, built here for every host that can author (Editor,

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3-S5 READY-TO-BUILD (M-1..M-10 approved, R-271 (backend))
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders)
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4-S5 READY-TO-BUILD (M-1..M-10 approved, R-271 (backend))
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool)
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -341,6 +341,72 @@ autonomous motion is unchanged.
 | **S4** `CE-3172` + `CE-3173` | possession interactions, `PossessionSystem`, `PossessedBy`, `BehaviorOrigin.Possession`, `OperatorControl`, operator fire (M-8), `ManualDrive` + `KinematicsMode.Manual` + `ManualDriveSystem`; **HTTP `POST /entities/{id}/possess` + control frames** so it is railable before any camera exists | a person strafes and turns on the spot · a vehicle steers and reverses · a second station takes over · death releases · release resumes the paused task · ROE `HoldFire` does not stop operator fire |
 | **S5** `CE-3174` | `ICameraDriver` + `FpsCameraDriver`, cursor lock, `PossessionTool`, `PossessionHudLayer`, `WeaponAmmo` descriptor; "Possess ▸ FPS / RTS" on the unit menu | the scenario camera is unchanged after an FPS session · the HUD shows the unit's ammo from a non-brain station · **(V)** an Xvfb screenshot of the FPS view + HUD |
 
+## 8a. S3 DETAIL — the RTS command tool (`CE-3171`, designed `2026-10-11` after the prior-art sweep)
+
+📐 **What the sweep measured, and what it decides:**
+
+| fact | where | so |
+|---|---|---|
+| an EXCLUSIVE-focus gizmo already suppresses every map context menu (entity and canvas) | `GizmoMap…/DebugGizmoLayer.cs` :160 / :265 / :576 | "menus suppressed while active" needs **no new code** — the tool is exclusive |
+| …and it suppresses the map's own LMB selection and the rubber band too | `DebugGizmoLayer.cs` :207 / :244; `SelectionInteractionSystem.cs:84` | the tool does its own click-select — **through `SelectionChangeRequest`**, the one write path (UX_Feature_Selection §2.7.3 rule 1), ⛔ never a second store |
+| in 3-D the gizmo's `worldPos` is `MapCamera3D.Pick` (entity box → terrain → ground) and an entity hit lands ON the entity | `Vis2D/Layers/DebugGizmoLayer.cs:230`; `MapCamera3D.cs:257` | one hit test serves both views: `MapCanvas.PickTopmostEntity(xy)` |
+| the canvas hit test lives in the station's `CanvasMapPickAdapter` | `CanvasMapPickAdapter.cs:101` | ⭐ `IMapPickService.EntityAt(xy)` (a default-`-1` interface member) — the tool reaches it through the pick the hosts already hand `MenuOrders` (§11): **no new per-host wiring** |
+| tools register on the pack's `ToolController`; `ToolDescriptor` + an activation delegate | `ToolController.cs:78`; `ScenarioToolRegistrations.cs:107` (Measure — the analogue) | the pack registers `ScenarioToolIds.RtsCommand` on every live host |
+| no toolbar exists outside the Editor; the every-host menu is the map's **View** main menu | `LayerControlGizmo.cs:154` | "View ▸ RTS command mode" (`GlobalActionIds.ToggleRtsCommand` = 254), only where `OrdersOffered` is set |
+
+```mermaid
+classDiagram
+    direction LR
+    class MapInteractionPack { <<existing>> registers RtsCommand on Tools + action 254 }
+    class ToolController { <<existing>> Activate(RtsCommand) · Esc ends }
+    class RtsCommandGizmo { <<NEW, exclusive + raw>> LMB-up · RMB-down · Shift · Esc }
+    class RtsCommands { <<NEW, Hrot.Presentation>> Select(xy, additive) · Command(xy) }
+    class IMapPickService { <<existing>> + EntityAt(xy) : netId (default -1) }
+    class CanvasMapPickAdapter { <<existing>> EntityAt = canvas.PickTopmostEntity }
+    class SelectionChangeRequest { <<existing, the one write>> Replace · Add · Clear }
+    class EcsSelectionState { <<existing>> SelectedEntities }
+    class EntityOrders { <<existing>> Move · Attack }
+    MapInteractionPack --> ToolController
+    ToolController ..> RtsCommandGizmo : arms
+    RtsCommandGizmo --> RtsCommands
+    RtsCommands --> IMapPickService : hit test
+    CanvasMapPickAdapter ..|> IMapPickService
+    RtsCommands --> SelectionChangeRequest : LMB
+    RtsCommands ..> EcsSelectionState : reads the selection
+    RtsCommands --> EntityOrders : RMB, one order per selected unit
+```
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant G as RtsCommandGizmo
+    participant R as RtsCommands
+    participant P as IMapPickService
+    participant O as EntityOrders
+    U->>G: View ▸ RTS command mode (tool armed, menus off)
+    U->>G: LMB on a unit (Shift = add)
+    G->>R: Select(xy, additive)
+    R->>P: EntityAt(xy)
+    R-->>R: publish SelectionChangeRequest
+    U->>G: RMB on the ground
+    G->>R: Command(xy)
+    R->>P: EntityAt(xy) = none
+    R->>O: Move(unit, point) for every selected unit
+    U->>G: RMB on a hostile
+    R->>O: Attack(unit, hostile) for every selected unit
+    U->>G: Esc
+    G-->>U: tool ends, menus back
+```
+
+*What the pictures show that prose hid:* the tool owns **no** state of its own — selection is the map's, orders are
+`EntityOrders`', the hit test is the station's pick. It is a router from three mouse gestures to three existing writes.
+
+| ⭐ rule | |
+|---|---|
+| **hostile** = the clicked unit's `ForceId` differs from the ordering unit's and is not `Neutral` | a friendly or neutral under the cursor is a MOVE to its position (v1) |
+| each selected unit gets its own order; a refused one (dead, other side under the side lock) is skipped | the same `EntityOrders` checks the HTTP route makes |
+| ⚠ v1 has **no box select** inside the tool | the rubber band is suppressed with the menus; click / Shift-click select only. A box would be a second marquee — deferred, not duplicated |
+
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
 | design said | built | why |
@@ -447,6 +513,24 @@ assumed from the wiring, not yet measured live.
 
 📐 **Rails:** `MenuOrdersTests` (7: move/engage picks → the order, cancel → nothing, Stop, headless → nothing, live vs replay menu,
 the picker's cancel) · `SimHostAuxiliaryTranslatorPackTests` +2 (the IG pack carries the egress).
+
+## 12. AS-BUILT — S3 RTS command tool (`CE-3171`, `2026-10-11`)
+
+⭐ **Built as §8a draws it**, with no deviation in the classes or the sequence. `RtsCommands` and `RtsCommandGizmo` live in
+`Hrot.Presentation/ScenarioEditor/Map/RtsCommands.cs`. The pack registers `ScenarioToolIds.RtsCommand` ("orders.rtsCommand",
+Global arbiter, toggles on reactivate) and action `ToggleRtsCommand` (254) on live hosts only. `IMapPickService.EntityAt` is a
+default-`-1` member; `CanvasMapPickAdapter` implements it.
+
+| as-built detail | why |
+|---|---|
+| the tool arms only where `MenuOrders.PickService` answers | a headless host has no one to click; the tool reports Unserviceable (`ToolController` tells the operator) |
+| the View menu item appears only with `OrdersOffered` (two `LayerControlGizmo` menu strings) | the same gate as the unit menu (§11): never in a replay |
+| RMB on the clicked unit itself is skipped for that unit | a unit is never ordered to attack or walk onto itself |
+| 🔴→⭐ found: `FdpPanelWindowsDumpTheirModelsTests`'s fixture used `[ComponentId(350)]` = `CoverClaim` | an order-dependent collision red; fixed with a test-only id. Two more fixtures in that suite reuse production ids (220, 221): `CE-3180` |
+
+📐 **Rails:** `RtsCommandToolTests` (5: click / Shift / empty-ground select · RMB hostile attacks with every selected unit ·
+RMB ground / friend / neutral moves · the gizmo is exclusive, routes its gestures, Esc leaves · offered and armed on a live map with
+a pick, absent in a replay).
 MCP tools: `order_entity` · `get_entity_order` · `release_entity` · `order_entities` · `lock_side` · `get_sitrep` (group Z).
 
 ## 8. Known limits and defects found while designing

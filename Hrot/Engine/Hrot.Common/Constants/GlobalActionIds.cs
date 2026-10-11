@@ -51,6 +51,9 @@ namespace Hrot.Common.Constants
         public const int OpenLayerControl = 250;
         /// <summary>⭐ CE-1033 — View › 2-D / 3-D map: the animated switch, on every map host (<c>DESIGN_Map_3D_Mode.md</c> M12).</summary>
         public const int ToggleMap3D      = 253;
+        /// <summary>⭐ CE-3171 — View › RTS Command Mode: arms the RTS command tool (LMB select, RMB move / attack, Esc leaves),
+        /// on every LIVE map host (docs/DESIGN_Entity_Control.md §8a).</summary>
+        public const int ToggleRtsCommand = 254;
 
         // --- AI Diagnostics (behav-diag-1) ---
         /// <summary>Toggle <c>DebugState.Behavior.EnableTraceBuffer</c> on the target entity.</summary>

@@ -87,7 +87,9 @@ public sealed class FdpPanelWindowsDumpTheirModelsTests : IDisposable
 
     // ── FdpEntityWatchWindow (only host of EntityWatchPanel) ─────────────────────────────────────
 
-    [ComponentId(350)]
+    // ⭐ CE-3171 — a TEST-ONLY id. It was 350, which is GlobalComponentIds.CoverClaim: any earlier test that registered
+    //   CoverClaim in this process made RegisterComponent<WatchTag> throw "Component ID collision" (order-dependent red).
+    [ComponentId(510)]
     private struct WatchTag { public int Value; }
 
     [Fact]

@@ -40,4 +40,11 @@ public interface IMapPickService
     /// </param>
     /// <param name="ct">Optional cancellation token.</param>
     Task<IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// ⭐ <c>CE-3171</c> (DESIGN_Entity_Control §8a) — the network id of the topmost entity drawn at world point
+    /// <paramref name="worldXY"/> NOW, with no pick session: the hit test a click-driven tool (the RTS command tool) needs.
+    /// -1 when nothing is there, or when this service has no map to test against (the default).
+    /// </summary>
+    int EntityAt(System.Numerics.Vector2 worldXY) => -1;
 }

@@ -116,6 +116,16 @@ public sealed class CanvasMapPickAdapter : IMapPickService
             ct);
     }
 
+    /// <inheritdoc/>
+    /// <remarks>⭐ CE-3171 — the same hit test the entity picker uses (<c>MapCanvas.PickTopmostEntity</c>); in the 3-D view the
+    /// gizmo's world point already lands on a picked entity's position, so it resolves there too.</remarks>
+    public int EntityAt(System.Numerics.Vector2 worldXY)
+    {
+        var entity = _canvas.PickTopmostEntity(worldXY) ?? Fdp.Core.Entity.Null;
+        if (_repo == null || entity.IsNull || !_repo.IsAlive(entity) || !_repo.HasComponent<NetworkIdentity>(entity)) return -1;
+        return (int)_repo.GetComponentRO<NetworkIdentity>(entity).Value;
+    }
+
     /// <summary>The clicked world position as a <see cref="GeoPoint"/> — geodetic through the host's transform.
     /// ⭐ The passed transform, else the world's <see cref="IGeographicTransform"/> singleton — the one behaviour resolvers
     /// read (SimHost, CGF and the editor publish it) — resolved at pick time, since a host may publish it after building
