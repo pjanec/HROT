@@ -34,18 +34,6 @@ namespace Hrot.AI.Behaviors.Brains
         public float BoundTimeoutSeconds;
     }
 
-    /// <summary>⭐ The commander's working memory: each member's point for the current bound.</summary>
-    [StructLayout(LayoutKind.Sequential)]
-    public unsafe struct BoundingOverwatchState
-    {
-        public byte Started;
-        public ushort IssuedPhase;
-        public double BoundStartedAt;
-        public fixed float TargetX[UnitRoster.Capacity];
-        public fixed float TargetY[UnitRoster.Capacity];
-        public fixed float TargetZ[UnitRoster.Capacity];
-    }
-
     /// <summary>
     /// ⭐⭐ <c>CE-3160</c> / <c>CE-507</c> D2 (a) (R-264) — the first commander manoeuvre that RUNS: bounding overwatch. The phases are
     /// the library's (<see cref="SquadHsmShell"/> over <see cref="BoundingOverwatchManeuver"/>'s table); this node only TRANSLATES a
@@ -57,16 +45,14 @@ namespace Hrot.AI.Behaviors.Brains
     public static class BoundingOverwatchBehavior
     {
         /// <summary>A mover this close to its point has finished its bound (m).</summary>
-        public const float MoverArrivalMetres = 3f;
-
-        private static readonly SquadHsmShell s_shell = new(
-            BoundingOverwatchManeuver.BuildTransitionTable(), BoundingOverwatchManeuver.PhaseAborted);
+        public const float MoverArrivalMetres = SquadManeuverRunner.MoverArrivalMetres;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct BoundingOverwatchBlackboard
         {
             public BoundingOverwatchParams Order;
-            public BoundingOverwatchState State;
+            /// <summary>⭐ <c>CE-2123</c> — the generic runner's state (was a bounding-only struct).</summary>
+            public SquadPlayState State;
         }
 
         [BehaviorResolver(BehaviorNames.BoundingOverwatch)]
@@ -88,129 +74,77 @@ namespace Hrot.AI.Behaviors.Brains
             => new BTreeBuilder<BoundingOverwatchBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);
 
-        /// <summary>The commander's tick: start (partition, first orders) · detect a finished bound ⇒ the shell flips the phase ⇒
-        /// new orders · both elements at the objective ⇒ Success. Failure when the commander has no squad.</summary>
-        public static NodeStatus Run(ref BoundingOverwatchParams p, ref BoundingOverwatchState ws, Entity self, EntityRepository world)
+        /// <summary>⭐ <c>CE-2123</c> — the commander's tick, through the generic runner (<see cref="BoundingOverwatchPlay"/>).</summary>
+        public static NodeStatus Run(ref BoundingOverwatchParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
+            => SquadManeuverRunner.Tick<BoundingOverwatchPlay, BoundingOverwatchParams>(ref p, ref ws, self, world);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2123</c> — bounding overwatch as a play: two elements; the moving element advances its centre <c>BoundMetres</c>
+    /// toward the objective (each member keeping its offset) while the other holds and fights; every mover at its point, or the bound
+    /// timed out ⇒ <see cref="PhaseEventKind.BoundComplete"/>; both elements at the objective ⇒ Success. (As built by CE-3162.)
+    /// </summary>
+    public struct BoundingOverwatchPlay : ISquadPlay<BoundingOverwatchParams>
+    {
+        private static readonly SquadHsmShell s_shell = new(
+            BoundingOverwatchManeuver.BuildTransitionTable(), BoundingOverwatchManeuver.PhaseAborted);
+
+        public SquadHsmShell Shell => s_shell;
+        public ushort ManeuverKind => BoundingOverwatchManeuver.ManeuverKind;
+        public ushort StartPhase => BoundingOverwatchManeuver.PhaseElement0Moving;
+        public ushort AbortPhase => BoundingOverwatchManeuver.PhaseAborted;
+        public byte ElementCount => 2;
+
+        public PlayStart Start(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx, Span<MemberPartitionInput> partition)
         {
-            if (!world.HasComponent<UnitRoster>(self) || !world.HasComponent<SquadCognitiveState>(self)) return NodeStatus.Failure;
-            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(self);
-            if (roster.Count == 0) return NodeStatus.Failure;
-            ref var squad = ref world.GetComponentRW<SquadCognitiveState>(self);
-            double now = Now(world);
-
-            if (ws.Started == 0)
-            {
-                Span<MemberPartitionInput> inputs = stackalloc MemberPartitionInput[roster.Count];
-                BoundingOverwatchManeuver.ComputePartitionInputs(roster.Count, inputs);
-                ElementPartitionPrimitive.Partition(ref squad, inputs, 2, 0f, out _);
-                squad.ManeuverKind = BoundingOverwatchManeuver.ManeuverKind;
-                squad.PhaseId = BoundingOverwatchManeuver.PhaseElement0Moving;
-                ws.Started = 1;
-                Issue(ref p, ref ws, ref squad, in roster, self, world, now);
-            }
-
-            if (squad.PhaseId == BoundingOverwatchManeuver.PhaseAborted) return NodeStatus.Failure;
-            if (BothAtObjective(in p, in squad, in roster, world)) return NodeStatus.Success;
-
-            if (BoundDone(in p, ref ws, in squad, in roster, world, now))
-            {
-                Span<PhaseEvent> events = stackalloc PhaseEvent[1];
-                events[0] = new PhaseEvent(PhaseEventKind.BoundComplete);
-                s_shell.Tick(ref squad, events, (uint)world.GetSingleton<GlobalTime>().FrameNumber);
-            }
-            if (squad.PhaseId != ws.IssuedPhase) Issue(ref p, ref ws, ref squad, in roster, self, world, now);
-            return NodeStatus.Running;
+            BoundingOverwatchManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);
+            return PlayStart.Go;
         }
 
-        /// <summary>One order per live member for the current phase: movers advance their element's centre <c>BoundMetres</c> toward
-        /// the objective (each keeping its offset), the covering element holds where it is — both run the library posture.</summary>
-        private static unsafe void Issue(ref BoundingOverwatchParams p, ref BoundingOverwatchState ws, ref SquadCognitiveState squad,
-                                         in UnitRoster roster, Entity self, EntityRepository world, double now)
-        {
-            byte moving = BoundingOverwatchManeuver.GetMovingElement(squad.PhaseId);
-            var centre = Centre(in squad, in roster, world, moving, out bool any);
-            var step = Vector3.Zero;
-            if (any)
-            {
-                var to = p.Objective - centre; to.Z = 0f;
-                float d = to.Length();
-                if (d > 1e-3f) step = to * (MathF.Min(p.BoundMetres, d) / d);
-            }
-            for (int i = 0; i < roster.Count; i++)
-            {
-                var m = roster.SubordinateEntities[i];
-                if (m.IsNull || !CombatLife.IsAlive(world, m) || !world.HasComponent<SimTransform>(m)) continue;
-                var at = world.GetComponentRO<SimTransform>(m).Position;
-                bool mover = squad.Elements.MemberElements[i] == moving;
-                squad.Roles[i].RoleId = mover ? BoundingOverwatchManeuver.RoleMoving : BoundingOverwatchManeuver.RoleCovering;
-                var point = mover ? at + step : at;
-                ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
-                Order(world, m, point, p.Speed, mover ? MoverArrivalMetres : 1f);
-            }
-            ws.IssuedPhase = squad.PhaseId;
-            ws.BoundStartedAt = now;
-        }
+        public void Update(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
 
-        private static void Order(EntityRepository world, Entity member, Vector3 point, float speed, float arrival)
-        {
-            var posture = new CombatPostureParamsJsonDto
-            {
-                Advance = new CombatPostureAdvanceJsonDto { Objective = point, Speed = speed, ArrivalRadius = arrival },
-            };
-            world.Bus.PublishManaged(new AssignTacticalIntentEvent
-            {
-                Entity     = member,
-                IntentId   = BehaviorNames.CombatPosture,   // no mapper ⇒ the intent id IS the behaviour (TacticalIntentResolutionSystem)
-                JsonParams = JsonSerializer.Serialize(posture, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed),
-                Origin     = BehaviorOrigin.Superior,
-            });
-        }
-
-        /// <summary>The bound is over when every live mover is within <see cref="MoverArrivalMetres"/> of its point, or it timed out.</summary>
-        private static unsafe bool BoundDone(in BoundingOverwatchParams p, ref BoundingOverwatchState ws, in SquadCognitiveState squad,
-                                             in UnitRoster roster, EntityRepository world, double now)
-        {
-            if (now - ws.BoundStartedAt >= p.BoundTimeoutSeconds) return true;
-            byte moving = BoundingOverwatchManeuver.GetMovingElement(squad.PhaseId);
-            for (int i = 0; i < roster.Count; i++)
-            {
-                var m = roster.SubordinateEntities[i];
-                if (m.IsNull || squad.Elements.MemberElements[i] != moving) continue;
-                if (!CombatLife.IsAlive(world, m) || !world.HasComponent<SimTransform>(m)) continue;
-                var at = world.GetComponentRO<SimTransform>(m).Position;
-                float dx = at.X - ws.TargetX[i], dy = at.Y - ws.TargetY[i];
-                if (dx * dx + dy * dy > MoverArrivalMetres * MoverArrivalMetres) return false;
-            }
-            return true;
-        }
-
-        private static bool BothAtObjective(in BoundingOverwatchParams p, in SquadCognitiveState squad, in UnitRoster roster, EntityRepository world)
+        public NodeStatus Outcome(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
             for (byte e = 0; e < 2; e++)
             {
-                var c = Centre(in squad, in roster, world, e, out bool any);
+                var c = ctx.Centre(e, out bool any);
                 if (!any) continue;
                 var d = p.Objective - c; d.Z = 0f;
-                if (d.LengthSquared() > p.ArrivalRadius * p.ArrivalRadius) return false;
+                if (d.LengthSquared() > p.ArrivalRadius * p.ArrivalRadius) return NodeStatus.Running;
             }
-            return true;
+            return NodeStatus.Success;
         }
 
-        private static Vector3 Centre(in SquadCognitiveState squad, in UnitRoster roster, EntityRepository world, byte element, out bool any)
+        public bool PhaseComplete(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx, out PhaseEventKind evt)
         {
-            var sum = Vector3.Zero; int n = 0;
-            for (int i = 0; i < roster.Count; i++)
-            {
-                var m = roster.SubordinateEntities[i];
-                if (m.IsNull || squad.Elements.MemberElements[i] != element) continue;
-                if (!CombatLife.IsAlive(world, m) || !world.HasComponent<SimTransform>(m)) continue;
-                sum += world.GetComponentRO<SimTransform>(m).Position; n++;
-            }
-            any = n > 0;
-            return n > 0 ? sum / n : Vector3.Zero;
+            evt = PhaseEventKind.BoundComplete;
+            return ctx.Now - ws.IssuedAt >= p.BoundTimeoutSeconds
+                || SquadManeuverRunner.ElementArrived(in ws, in ctx, BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId));
         }
 
-        private static double Now(EntityRepository world)
-            => world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+        public void BeginIssue(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            var centre = ctx.Centre(BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId), out bool any);
+            ws.Scratch = Vector3.Zero;
+            if (!any) return;
+            var to = p.Objective - centre; to.Z = 0f;
+            float d = to.Length();
+            if (d > 1e-3f) ws.Scratch = to * (MathF.Min(p.BoundMetres, d) / d);
+        }
+
+        public MemberOrder OrderFor(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)
+        {
+            bool mover = element == BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId);
+            return new MemberOrder
+            {
+                Kind          = mover ? MemberOrderKind.AdvanceTo : MemberOrderKind.Hold,
+                Point         = at + ws.Scratch,
+                Speed         = p.Speed,
+                ArrivalRadius = SquadManeuverRunner.MoverArrivalMetres,
+                RoleId        = mover ? BoundingOverwatchManeuver.RoleMoving : BoundingOverwatchManeuver.RoleCovering,
+            };
+        }
+
+        public void Release(ref SquadPlayState ws, EntityRepository world) { }
     }
 }
