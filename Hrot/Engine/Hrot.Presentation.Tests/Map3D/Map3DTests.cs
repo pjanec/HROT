@@ -132,12 +132,12 @@ public sealed class Map3DTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ CE-1045 — the 3-D map's ground height resolves the terrain ONCE per tick, not once per point. 🔒 User, 2026-10-11: "the 3d
+    /// ⭐⭐⭐ CE-1054 — the 3-D map's ground height resolves the terrain ONCE per tick, not once per point. 🔒 User, 2026-10-11: "the 3d
     /// view had extremely low fps (1 FPS or so)". 🔴 Every draped gizmo point re-resolved the whole terrain query; a scene of ~2 250 lines
     /// at up to 160 points each is hundreds of thousands of resolutions a frame.
     /// </summary>
     [Fact]
-    public void CE1045_TheGroundHeight_ResolvesTheTerrainOncePerTick_NotOncePerPoint()
+    public void CE1054_TheGroundHeight_ResolvesTheTerrainOncePerTick_NotOncePerPoint()
     {
         var repo = new EntityRepository();
         repo.SetSingletonManaged(new TerrainWorld { Name = "t" });
@@ -154,7 +154,7 @@ public sealed class Map3DTests
     }
 
     [Fact]
-    public void CE1045_TheGroundHeight_WithoutATerrain_IsZero_AndStillResolvesOnce()
+    public void CE1054_TheGroundHeight_WithoutATerrain_IsZero_AndStillResolvesOnce()
     {
         int asked = 0;
         var ground = new CachedGroundHeight(() => { asked++; return null; }, () => 7);

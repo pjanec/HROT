@@ -4,7 +4,7 @@ using Fdp.Toolkit.Terrain;
 namespace Hrot.UI.Common.Map3D;
 
 /// <summary>
-/// ⭐ CE-1045 — the ground height for the 3-D map, resolving the terrain ONCE per tick instead of once per point.
+/// ⭐ CE-1054 — the ground height for the 3-D map, resolving the terrain ONCE per tick instead of once per point.
 /// 🔒 User, 2026-10-11: <i>"tried the 3d map on grenade or rifle scenario. the 3d view had extremely low fps (1 FPS or so)."</i>
 /// <para>🔴 <b>Measured</b> (dotnet-stack on the spinning render thread): <c>GizmoRenderer3D.Drape → Ground → WorldQuery.Of</c> — every
 /// draped point re-resolved the whole terrain query (singleton lookups, <c>DoorStates.Of</c>, component-type registry lookups). The

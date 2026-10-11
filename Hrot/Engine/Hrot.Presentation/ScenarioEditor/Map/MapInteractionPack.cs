@@ -383,7 +383,7 @@ namespace Hrot.ScenarioEditor.Map
             var tkb = tkbProvider ?? (() => worldProvider() is { } w && w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
                                           ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null);
             var viewSwitch = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, canvas.Camera);
-            // ⭐ CE-1045 — one terrain resolution per tick, not one per draped point (the 3-D map ran at ~1 FPS)
+            // ⭐ CE-1054 — one terrain resolution per tick, not one per draped point (the 3-D map ran at ~1 FPS)
             viewSwitch.Camera3D.GroundHeight = new Hrot.UI.Common.Map3D.CachedGroundHeight(worldProvider).At;
             var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>
                 worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null);
