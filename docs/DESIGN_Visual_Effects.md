@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E open for the user. Programme index: PLAN_3D_World_And_Realism.md.
+build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E DECIDED (R-271) — §8.5 lightweight replicated rounds, DESIGN (LR-1..LR-4 not built). Programme index: PLAN_3D_World_And_Realism.md.
 updated: 2026-10-11
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1 as-built §8.4; PR-D / PR-E open, §8.3).
+current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, not built).
 stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
@@ -471,12 +471,13 @@ in 2-D the smoke hid the flames ⇒ flames draw last there, at least 3 px. Run i
 `HROT_RAIL_SHOTS=<dir> xvfb-run -a -s "-screen 0 1280x800x24" dotnet test Hrot/Engine/Hrot.Presentation.Tests --filter "FullyQualifiedName~Map3DFrameRail"`.
 
 
-## 8. Projectiles in flight and on the ground — grenades, bombs, rockets, missiles *(P1 built `2026-10-11`; PR-D/PR-E open)*
+## 8. Projectiles in flight and on the ground — grenades, bombs, rockets, missiles *(P1 + P2 built `2026-10-11`; PR-D/PR-E decided by R-271 — §8.5 LR design, not built)*
 
 | # | verbatim |
 |---|---|
 | **U9** | *"Backend lane allowed throwing grenades today, i need you render the grenade when it flies and when it lays on ground before exploding. You can render basically any other projectile which is represented by its own entity, like missiles and rockets and bombs. If they have no entity and ballistic/flight model and no 3d model, lets think how to solve that."* |
 
+| **U11** | 🔒 *"Every ammo needs its tkb type, always. Big stuff like arty shells, grenades, mortar rounds, bombs, rockets as well as small bullets with tracers need to be network replicated from the muscle node who is the only one knowing the flight trajectory, no local simulation, so any dumb viewer knows about them. Projectiles need to be lightweight so their entiries should not use any lifecycle management and acks. they need just entity master and worldposition."* (R-271) |
 | **U10** | *"Rifle bullets if they have tracers (special tkb type switch) migh deserve its own entity to be visualizable, otherwise ordinary bullets does not need entity."* |
 
 ### 8.1 INVENTORY — measured `2026-10-11`
@@ -566,9 +567,9 @@ sequenceDiagram
 | **PR-A** | where a round's look comes from | ⭐ its MUNITION type: a new optional `Munition.Visual` descriptor (shape, length, diameter, colour, smoke trail), the "the TKB type defines it" pattern of VE-C; built-in looks for M67 and 81 mm, so a host with no TKB (the replay browser) still draws them. A round with no munition look (`Ammo = 0`, every bullet) draws no body — its tracer is the effect | a look per weapon CATEGORY — the round does not carry its mount, and a category is not a munition |
 | **PR-B** | the 3-D body | ⭐ one `ProjectileLayer` on every host (`AttachMapLayers`): the body at the round, long axis along its velocity, a grenade tumbling (stateless spin from seed and sim time), a lying round flat on the ground; drawn at least ~6 px so a 6 cm grenade is visible at map distance; a rocket / missile trails stateless smoke back to its muzzle | drawing it in `EffectLayer` — a round is not an effect and has its own lifetime owner (combat) |
 | **PR-C** | the 2-D mark | ⭐ EXTEND `ProjectilePresentationGizmo` (the one 2-D projector of rounds): bullets keep the streak; a munition round adds a small filled marker in its colour; a LYING time-fuzed round adds its fuze countdown in seconds | a second 2-D projector — two implementations of one concept (ruling 9) |
-| **PR-D** | ⚠ **OPEN — rounds on hosts that do not run combat** (IG, CGF, the editor in a cluster) | ⭐ **lean (b): extend `WeaponFire` with the launch point, launch velocity and munition type; every host flies a local VISUAL copy** (gravity for arc rounds, straight otherwise), lands it on its own terrain, and ends it on `MunitionDetonation` (which already carries the munition and the burst point). ~28 bytes per shot on an existing reliable topic; exact for unguided rounds | (a) replicate rounds as network entities — exact, but a new descriptor per round at fire rate, and the brain-split design keeps rounds muscle state · (c) nothing remote — IG is the operator's view, and grenades would be invisible there |
+| **PR-D** | ✅ **DECIDED by U11 (R-271) — option (a): the muscle REPLICATES the visible rounds as LIGHTWEIGHT network entities** — `EntityMaster` + `WorldPos` only, no lifecycle, no acks; no local simulation on the viewers. Design: §8.5. ⛔ SUPERSEDED lean below — kept for the record | ⛔ **SUPERSEDED lean (b): extend `WeaponFire` with the launch point, launch velocity and munition type; every host flies a local VISUAL copy** (gravity for arc rounds, straight otherwise), lands it on its own terrain, and ends it on `MunitionDetonation` (which already carries the munition and the burst point). ~28 bytes per shot on an existing reliable topic; exact for unguided rounds | (a) replicate rounds as network entities — exact, but a new descriptor per round at fire rate, and the brain-split design keeps rounds muscle state · (c) nothing remote — IG is the operator's view, and grenades would be invisible there |
 | **PR-F** | ⭐ **tracers** (U10) | ⭐ **a TRACER is a switch on the munition's look** (`Munition.Visual.Tracer`, + `TracerColorHex`; shape `Bullet` = no body): the layer burns a streak along the round's REAL flight (the last 0.03 s, ≤ 25 m, never past its muzzle) — a miss shows where it went. ⚠ **Measured: every bullet is ALREADY an entity — on the combat node only** (`FireProcessingSystem.cs:186`), because its hit is a swept raycast per round (`BallisticsSystem`); so U10's *"ordinary bullets do not need an entity"* holds for **every other host**: ⇒ the rule becomes **PR-D's filter** — only rounds whose munition has a look (tracers included) are drawn or sent; an ordinary bullet never crosses the wire. ⚠ The decorative effect tracer (7131, muzzle → target in 0.25 s, VE-C) is a SECOND tracer concept: it retires once PR-D lands and tracer munitions exist (until then remote hosts have only it); a mount's tracer MIX (*"1 in 5"*) is the combat lane's, with PR-E's munition types | ⛔ one entity per tracer on every host — that IS PR-D (a), rejected there · a tracer flag on the MOUNT — a belt is a munition, and the look already lives on the munition |
-| **PR-E** | ⚠ **OPEN — rockets, missiles, tank shells have no munition type** | ⭐ **lean: the combat lane gives those mounts munition types** (RPG rocket, ATGM missile, 125 mm round…) with a `Munition.Visual` — ⚠ NOT neutral: measured `ParameterResolver.MountPenetration` (`ParameterResolver.cs:226-250`) looks the AMMO NAME up in the reference library when the mount's own penetration is 0, so a new type can change armour penetration — the combat lane must set/verify the numbers. No flight model is needed to DRAW them: they fly straight, and the layer draws what flies. A guided flight model is a separate combat feature (and makes PR-D (a) necessary for that munition) | infer "missile" from speed / damage — a guess the TKB should state |
+| **PR-E** | ✅ **DECIDED by U11 (R-271) — EVERY ammo has its TKB type, always** (rifle ball, tracer, shells, rockets, missiles, bombs). ⚠ The penetration caution below stands: the combat lane sets the numbers when it adds the types | ⭐ **was the lean: the combat lane gives those mounts munition types** (RPG rocket, ATGM missile, 125 mm round…) with a `Munition.Visual` — ⚠ NOT neutral: measured `ParameterResolver.MountPenetration` (`ParameterResolver.cs:226-250`) looks the AMMO NAME up in the reference library when the mount's own penetration is 0, so a new type can change armour penetration — the combat lane must set/verify the numbers. No flight model is needed to DRAW them: they fly straight, and the layer draws what flies. A guided flight model is a separate combat feature (and makes PR-D (a) necessary for that munition) | infer "missile" from speed / damage — a guess the TKB should state |
 
 ### 8.4 P1 — AS-BUILT `2026-10-11`
 
@@ -586,3 +587,111 @@ sequenceDiagram
 munition's PAINT (olive) and vanished on the grey/green map ⇒ it shows STATE — bright yellow flying, red-orange armed (lying, fuze
 burning); the fuze text "2.7 s" rendered as "27 s" (the map's default font drops the decimal point at that size) ⇒ whole seconds
 rounded up, "3 s"; the smoke trail of evenly spaced equal puffs read as beads ⇒ denser (0.9 m), jittered and spreading.
+
+### 8.5 Lightweight replicated rounds (LR) — the R-271 design *(DESIGN, `2026-10-11`; LR-1..LR-4 not built)*
+
+⭐ U11: every ammo has a TKB type; the visible rounds — artillery, mortar, grenades, bombs, rockets, missiles, tracer bullets — are
+REPLICATED by the muscle (the only node that knows the trajectory); viewers simulate nothing; a round is LIGHTWEIGHT: `EntityMaster` +
+`WorldPos`, no lifecycle, no acks.
+
+#### 8.5.1 INVENTORY — measured `2026-10-11`
+
+Graph `.*(EntityMaster|GhostCreation|Geo.*Translator|NetworkTransform|Ghost.*System).*`, Class — **24, `has_more: false`**; corpus sweep.
+
+| what exists | where | LR does |
+|---|---|---|
+| `EntityMaster { EntityId, TkbType, DisType, Flags }`; `Flags` has ONE bit, `WaitForAcks` | `GenericDescriptors.cs:16-20, 89-121` | + a `Lightweight` bit |
+| `WorldPos { Time (sim stamp), Pos, Ori, Vel, Acc, RotVel }`, BestEffort / TransientLocal / KeepLast(1); egress on a 1 cm / 0.5° change, 10 s heartbeat | `GeoSpatialEgressTranslator.cs:121-240`; `Hrot.Network.NED.md:616` | reused as is: a flying round moves every tick ⇒ a sample every tick |
+| every node DEAD-RECKONS a remote entity from the last sample: `LastPosition + Vel × (simNow − stamp)` — a pure function of replicated data, not a simulation | `DESIGN_Dead_Reckoning.md` Headline, R2/R4/R7 | ⭐ applies unchanged — it is the muscle's state extrapolated, which U11's *"no local simulation"* does not forbid |
+| ingress: ANY descriptor with an unknown id makes a GHOST (`GhostCreationSystem.CreateGhost` ⇒ lifecycle `Ghost`), promoted by `GhostPromotionSystem` through the ELM (Constructing → local module acks → Active); `WaitForAcks` adds the cross-node barrier | `GhostCreationSystem.cs`; `EntityMasterIngressTranslator.cs:80-110`; `DESIGN_Cross_Node_Construction_Barrier.md:45-58` | ⭐ a `Lightweight` master skips ALL of it: the entity is created `Active` on the first sample |
+| ⛔ no ELM-free path is built: `GhostCreationSystem.BypassLifecycle` is set by 3 sites and read by none (the replay intent) | `replay-and-modules/DESIGN.md` §2.1k; `mgmt-1/DESIGN.md` §8.10 | the per-entity bypass LR needs is NEW (per entity, by the master's flag — not the global replay switch) |
+| BDC replicates with `BDC_EntityMaster` + `BDC_WorldPos` only — a precedent for the shape (still through the ghost path) | `Hrot.Network.BDC.md:73-74`; `BdcEntityMasterTranslator.cs` | the precedent for "master + world position" |
+| network ids: pooled allocator, chunks of 100, a LOCAL dequeue per id | `DESIGN_Deterministic_Network_Ids.md:197-199` | cheap enough per round |
+| ⚠ `NetworkEntityMap` grows with ephemeral entities unless disposals are processed | `REPL-DESIGN.md` §3, §3.3 | a round's dispose MUST unmap it on every node |
+| a viewer's position ingress writes `SimTransform` + `SimVelocity` (heading-only rotation) | `GeoSpatialIngressTranslator.cs:73-100` | the viewer orients the round by its VELOCITY, not the rotation |
+
+#### 8.5.2 Diagrams
+
+```mermaid
+graph TD
+  subgraph Muscle["the muscle (runs combat)"]
+    FP["FireProcessingSystem<br/>round + TkbIdentity(ammo) + NetworkIdentity if VISIBLE"]
+    BS["BallisticsSystem<br/>flies / lands / bursts it"]
+    EM["EntityMaster egress<br/>Flags = Lightweight"]
+    WP["WorldPos egress (exists)"]
+  end
+  subgraph Viewer["any viewer: IG, CGF, editor, replay of the muscle"]
+    IN["EntityMaster ingress<br/>Lightweight ⇒ create ACTIVE, no ghost, no ELM"]
+    GI["WorldPos ingress (exists)<br/>SimTransform + SimVelocity"]
+    DR["dead reckoning (exists)"]
+    PL["ProjectileLayer + 2-D projector<br/>draw by the munition look"]
+  end
+  FP --> EM
+  BS --> WP
+  EM -- "EntityMaster (Lightweight)" --> IN
+  WP -- "WorldPos every tick" --> GI
+  GI --> DR
+  IN --> PL
+  DR --> PL
+  BS -. "burst ⇒ dispose master" .-> IN
+```
+
+*What the picture shows that prose hid:* nothing on the viewer side reaches the ELM or the ghost promotion — the `Lightweight` flag
+is the only fork, at the one place an entity is born on a viewer; position and dead reckoning are the existing paths, unchanged.
+
+```mermaid
+classDiagram
+  class EntityMasterFlags { <<exists, NED>> WaitForAcks; + Lightweight }
+  class MunitionTkb { <<LR-1, combat lane>> a munition type for EVERY mount; Munition.Visual on the visible ones }
+  class FireProcessingSystem { <<exists, combat>> + VISIBLE round: TkbIdentity(ammo) + NetworkIdentity (pooled id) + LightweightRound }
+  class LightweightRound { <<LR-2, new tag, Fdp.Toolkits Replication>> marks an entity replicated without lifecycle; never enters the ELM }
+  class EntityMasterEgressTranslator { <<exists>> + Flags Lightweight for a LightweightRound }
+  class EntityMasterIngressTranslator { <<exists>> + Lightweight: create Active + TkbIdentity + LightweightRound; dispose: destroy + unmap }
+  class GhostPromotionSystem { <<exists>> skips a LightweightRound }
+  class ProjectileLayer { <<exists, LR-3>> + draws a LightweightRound by TkbIdentity's look, oriented by SimVelocity }
+  class EffectSpawnSystem { <<exists, LR-4>> the decorative tracer retires (the real tracer round replaces it) }
+  FireProcessingSystem ..> LightweightRound
+  EntityMasterEgressTranslator ..> EntityMasterFlags
+  EntityMasterIngressTranslator ..> EntityMasterFlags
+  EntityMasterIngressTranslator ..> LightweightRound
+  GhostPromotionSystem ..> LightweightRound
+  ProjectileLayer ..> LightweightRound
+  FireProcessingSystem ..> MunitionTkb
+```
+
+```mermaid
+sequenceDiagram
+  participant M as muscle
+  participant D as DDS
+  participant V as viewer
+  M->>M: fire a VISIBLE round: entity + TkbIdentity(ammo) + NetworkIdentity + LightweightRound
+  M->>D: EntityMaster (TkbType = ammo, DIS kind 2, Flags = Lightweight)
+  D->>V: create the entity ACTIVE at once (no ghost, no ELM, no acks)
+  loop every tick while it flies or lies
+    M->>D: WorldPos (pos, vel, sim stamp)
+    D->>V: SimTransform + SimVelocity, dead-reckoned between samples
+  end
+  M->>M: burst (or a bullet stops) ⇒ round destroyed
+  M->>D: dispose EntityMaster
+  D->>V: destroy + unmap (no leak in NetworkEntityMap)
+```
+
+#### 8.5.3 Decisions inside LR
+
+| # | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **LR-A** | which rounds replicate | ⭐ every round whose munition has a `Munition.Visual` (U11's list: shells, mortar, grenades, bombs, rockets, missiles, TRACER bullets); an ordinary bullet stays an entity on the muscle only (it IS the hit test) | every round — a rifle burst would put ~10 entities/s per rifleman on the wire for nothing a viewer draws |
+| **LR-B** | where "no lifecycle" lives | ⭐ a `Lightweight` bit on `EntityMaster.Flags` (the field built for "entity-type specific flags") + a local `LightweightRound` tag; the ingress creates the entity `Active` and `GhostPromotionSystem` skips it | honouring the global `BypassLifecycle` — that is the replay switch and would bypass every entity |
+| **LR-C** | what a viewer knows of a lying grenade | ⭐ only what `WorldPos` says (U11: master + position): it lies still; the FUZE countdown stays on the muscle's 2-D map. A later tiny "munition state" descriptor is possible if wanted | adding fuze state to `WorldPos` — not U11's shape |
+| **LR-D** | send rate | ⭐ the existing egress rule — a moving round sends every tick, a lying one only its heartbeat; dead reckoning smooths between; measure an MG burst before tuning | a dedicated rate limiter now — no measurement yet |
+| **LR-E** | the fire-event extension (old PR-D lean) and the decorative effect tracer | ⭐ both retire: the round itself crosses the wire; the effect tracer is replaced by the real tracer round (LR-4) | keeping both — two tracers per shot |
+
+#### 8.5.4 Slices
+
+| slice | builds | owner (lean) |
+|---|---|---|
+| **LR-1** | a munition TKB type for EVERY mount (rifle ball + tracer, MG, autocannon, tank gun, RPG, ATGM, mortar, grenade); `Munition.Visual` on the visible ones; ⚠ penetration numbers stated explicitly (the name lookup, PR-E) | combat lane (backend) |
+| **LR-2** | `EntityMasterFlags.Lightweight`; `LightweightRound`; muscle egress (id from the pooled allocator, master + `WorldPos`, dispose on burst); viewer ingress `Active` with no ghost / ELM, destroy + unmap on dispose; `GhostPromotionSystem` skips it | network lane (backend) |
+| **LR-3** | viewers draw it: `ProjectileLayer` and the 2-D projector read a `LightweightRound` (look from `TkbIdentity`, nose from `SimVelocity`, lying = at rest); body layer and unit-symbol gizmo ignore munition types | ui lane |
+| **LR-4** | the decorative effect tracer retires once tracer munitions replicate | ui lane |
+
