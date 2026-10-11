@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-11
 build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · embark §5 and formations §6 are MEASUREMENTS, not plans
-current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch)
+current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) · §7 the unit commander (R-272) + §7.2 leader down (proposal)
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
@@ -441,6 +441,64 @@ a body-less commander is the clean model and needs nothing new.
 | `SquadManeuverTests.CE2123_ABoundingSquadReactsToContact_ThenResumesItsBound` | pause → react → drill → resume, on the commander | — |
 | `SquadManeuverTests.CE2123_BasicSquadSop_…` | the shipped SOP reacts on a squad edge and is not restarted by the next one | — |
 | `SquadTacticsScenarioTests.CE2123_ABoundingSquadMeetsTheEnemy_…` (cluster, `tt-react-contact`) | live: bound → hold → assault → bound resumes | ✅ green `2026-10-11` (38 s): drill kinds on the leader went 2 → 7 → 3 → 2, the bound paused under the reaction and resumed after it |
+
+## 7. The unit commander — a body-less entity at the unit's centre; the leader is a member *(R-272, `2026-10-11`; build-state: DESIGN)*
+
+🔒 *User, `2026-10-11`: "each military unit in this engine needs its virtual commander entity intended to run the leader's logic like
+coordination etc; while the leader soldier can still exist as the member of the squad and fighting as usual … The virtual commander has
+no body and places himself into geomtric average of his unit members"* — and, on the two sub-questions (excluded from sight and
+targeting; the centre over every live member, the leader included): *"yes to both"*.
+
+```mermaid
+graph TD
+  CMD["unit commander (body-less, TKB composite e.g. Unit_InfantrySquad 302)<br/>UnitRoster · SquadCognitiveState · squad SOP · drills<br/>SimTransform = centroid of LIVE members"]
+  LDR["leader soldier (Infantry_Officer, Designation SquadLeader)<br/>own soldier SOP · fights"]
+  M1["rifleman"]
+  M2["rifleman"]
+  CMD -->|"roster"| LDR
+  CMD -->|"roster"| M1
+  CMD -->|"roster"| M2
+  PHY["one predicate: is this a PHYSICAL actor?<br/>false for a body-less commander and for a hidden passenger (R-271)"]
+  PHY -.->|"honoured by"| CH["sight broadphase · EQS EntitiesInRadius / InArea · hit and damage · near-miss"]
+```
+
+*What the picture shows that prose hid: command and body are two entities, so the one-SOP-per-entity conflict (S2-C) disappears; and the
+commander's position is real (map symbol, editor overlay, danger-area route) yet it is never seen, hit or shot at — by the SAME check
+that hides a passenger.*
+
+| measured, `2026-10-11` | where |
+|---|---|
+| the TKB already models it: `Unit_InfantrySquad` is a composite of one `Infantry_Officer` (`SquadLeader`) + nine riflemen | `BdcTkbCatalog.cs:244-247` |
+| a body-less commander already runs on the cluster (hill-attack "Tank Platoon", TKB 303: no Health, collider or weapon); it needs `NetworkIdentity` + `TkbIdentity` | `EntityMasterEgressTranslator.cs:62-67`, `GhostPromotionSystem.cs:196` |
+| nothing writes a commander's position today | searched centroid / average writers: none |
+| a positioned commander would be SEEN (`EntityInfo` is the only sight filter), found by EQS area searches (`SimTransform`), near-missed (`EntityInfo`), and never die (no Health) | `VisionBroadphase.cs:182`, `EntitiesInAreaGenerator.cs:66`, `BallisticsSystem.cs:256`, `CombatLife.cs:21-24` |
+
+### 7.1 What R-272 changes *(to design in full before building)*
+
+1. a centroid writer on CGF (the commander's authority), at merge rate, over LIVE members; with none left it stays put;
+2. ONE physical-actor predicate at the choke points above, MERGED with R-271's passenger check (two flags at five places is the failure ruling 9 forbids);
+3. the three squad scenarios (`tt-suppress-flank`, `tt-react-contact`, `ua-fire-distribution`) move to a body-less commander + an officer member;
+4. S2's "the commander's own Hit / NearMiss is squad under fire" branch goes — the leader is a member now (§4.4);
+5. formations (`CE-2124`) lead from a member, never from the commander (`commander-subordinates/DESIGN.md:220` assumes a physical leader).
+
+### 7.2 When the leader soldier is killed *(PROPOSAL — leans, not approved)*
+
+📖 **Doctrine (infantry squad drills, general knowledge — no source in the corpus):** the succession is fixed in advance (squad
+leader → senior team leader → the other team leader → senior rifleman) and taking over is IMMEDIATE; the fight goes on — return fire
+and fire superiority first, the casualty is treated only when the situation allows; the new leader moves where he can control, checks
+his men, ammunition and casualties, reports, and reorganises (a new team leader for the team he left, key kit such as the radio
+cross-loaded). **What an observer would see:** a short lull in COORDINATED movement (men keep firing from where they are), one man
+crawling to the casualty, the new leader moving and shouting, and afterwards a more cautious squad.
+
+| # | lean | why |
+|---|---|---|
+| **L1** | **succession**: the `SquadLeader` designation passes at once to the next live member by an authored precedence (fallback: roster order) | cheap; the march's lead member, a future radio and the leader's place in a drill read it |
+| **L2** | **command disruption**: for `CommandDisruptionSeconds` (≈ 5–10 s, TKB-tunable) the COMMANDER issues no new orders; members keep their current orders and their own SOP; then every order is re-sent (the S1-G resume path) | ⭐ the visible part — the lull; the brain survives (it is the commander) but the voice that carries it was lost |
+| **L3** | a squad edge **`SquadLeaderDown`** on the commander, so its SOP / HSM can react — e.g. re-decide the running reaction with the weaker squad | the same machinery as S2's edges; an author decides what a squad does, not the engine |
+| **L4** | casualty care (buddy aid, moving the casualty) waits for R-263's injury states (wounded / incapacitated) | a dead man needs no aid; the states that make it matter are decided but not built |
+
+Rejected: **the commander dies with its leader** (the brain is the unit, not the man — and R-272 separated them); **re-forming the
+whole squad on a leader loss** (doctrine keeps the teams and fills the gap; formation shape is `CE-2124`'s).
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 
