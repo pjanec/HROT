@@ -80,7 +80,11 @@ public sealed class RecastNavmeshBaker
     {
         AgentRadius   = 1.8f,
         MaxSlope      = 20f,
-        MaxStepHeight = 0.1f,
+        // ⭐ CE-1048 (user-approved 2026-10-11) — at least ONE voxel (CellHeight 0.2 m): Recast's climb is floor(step / cell), and on
+        //   relief neighbouring spans sit one voxel apart, so a step below a voxel filtered EVERY span on a slope as a ledge — the
+        //   Vehicle layer was empty on any hill. 0.3 m covers a 20° slope over a 0.3 m cell (0.11 m) and a curb.
+        //   ⛔ SUPERSEDED: 0.1 m (§10.1). 📄 docs/DESIGN_Terrain_Height.md §3.4.
+        MaxStepHeight = 0.3f,
         AgentHeight   = 2.0f,
     };
 

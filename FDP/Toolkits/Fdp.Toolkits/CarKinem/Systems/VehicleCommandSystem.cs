@@ -58,7 +58,11 @@ namespace CarKinem.Systems
                 
                 // Add SimTransform and SimVelocity
                 // ⭐ CE-1034 H3 (TH-F) — the command is 2-D: the vehicle is born on the ground THERE, never at Z = 0 (R-248)
-                float groundZ = Fdp.Toolkit.World.WorldQuery.Of(repo)?.ResolveLevel(cmd.Position.X, cmd.Position.Y, 0) ?? 0f;
+                var worldQuery = Fdp.Toolkit.World.WorldQuery.Of(repo);
+                float groundZ = worldQuery?.ResolveLevel(cmd.Position.X, cmd.Position.Y, 0) ?? 0f;
+                // ⭐ CE-1034 H5c (TH-L) — born ON A ROAD, the vehicle takes the road's height there (a car placed on a bridge's road
+                //   stands on the deck, not on the valley floor under it)
+                if (OnRoadHeight(repo, cmd.Position, worldQuery) is { } roadZ) groundZ = roadZ;
                 float yaw = MathF.Atan2(cmd.Heading.Y, cmd.Heading.X);
                 repo.AddComponent(entity, new SimTransform
                 {
@@ -205,5 +209,19 @@ namespace CarKinem.Systems
                 repo.SetComponent(sub, channel);
             }
         }
-    }
+    
+        /// <summary>⭐ CE-1034 H5c — the road's height at <paramref name="p"/> when <paramref name="p"/> lies on a road's carriageway, else null.</summary>
+        internal static float? OnRoadHeight(EntityRepository repo, Vector2 p, Fdp.Toolkit.World.IWorldQuery? world)
+        {
+            if (!repo.HasSingletonManaged<CarKinem.Road.RoadNetworkHolder>()) return null;
+            using var lease = repo.GetSingletonManaged<CarKinem.Road.RoadNetworkHolder>()!.Borrow();
+            var roads = lease.Value;
+            if (!Fdp.Toolkit.Navigation.RoadGraphRouter.HasRoads(roads)) return null;
+            var access = Fdp.Toolkit.Navigation.RoadGraphRouter.NearestAccess(roads, p, 20f);
+            if (!access.IsValid) return null;
+            var seg = roads.Segments[access.Segment];
+            if (access.Distance > seg.LaneWidth * Math.Max(1, seg.LaneCount) * 0.5f + 0.5f) return null;
+            return Fdp.Toolkit.Navigation.RoadHeights.At(roads, access.Segment, access.Along, access.Point, world);
+        }
+}
 }

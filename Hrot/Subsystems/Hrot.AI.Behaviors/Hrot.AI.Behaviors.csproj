@@ -216,10 +216,10 @@
   </ItemGroup>
 
   <!-- TERRAIN WORLD (docs/DESIGN_Terrain_World.md §7.3 W12) — the terrains shipped with the build. A terrain
-       is a FOLDER <name>/terrain.json + the files it names (the GeoJSON world, road networks); deployed to
+       is a FOLDER <name>/terrain.json + the files it names (the GeoJSON world, road networks, the height grid .asc — CE-1034); deployed to
        Recipes/Terrain/<name>/ = TerrainCatalog.DefaultShippedRoot, the catalog's last search root. -->
   <ItemGroup>
-    <Content Include="Recipes\Terrain\**\*.json;Recipes\Terrain\**\*.geojson">
+    <Content Include="Recipes\Terrain\**\*.json;Recipes\Terrain\**\*.geojson;Recipes\Terrain\**\*.asc">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
