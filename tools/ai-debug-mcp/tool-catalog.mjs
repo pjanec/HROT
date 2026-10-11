@@ -4235,7 +4235,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "order_entity",
     "group": "Z — Entity control (orders)",
-    "summary": "Order a unit, as an operator: move to a point, hold (stop), run any behaviour, or release it to its own SOP. The unit works out HOW (route, cover, weapon). The order outranks its SOP and mission and clears its mission plan; works from any node (forwarded to the unit's brain owner).",
+    "summary": "Order a unit, as an operator: move to a point, attack an enemy, hold (stop), run any behaviour, or release it to its own SOP. The unit works out HOW (route, cover, weapon). The order outranks its SOP and mission and clears its mission plan; works from any node (forwarded to the unit's brain owner).",
     "http": {
       "method": "POST",
       "path": "/entities/{networkId}/order"
@@ -4251,9 +4251,10 @@ export const TOOLS_CATALOG = [
         "name": "kind",
         "type": "string",
         "required": true,
-        "description": "move · hold · stop (= hold) · behavior · release",
+        "description": "move · attack · hold · stop (= hold) · behavior · release",
         "enum": [
           "move",
+          "attack",
           "hold",
           "stop",
           "behavior",
@@ -4303,6 +4304,12 @@ export const TOOLS_CATALOG = [
         "description": "move: Never · Neutral · Prefer · StronglyPrefer"
       },
       {
+        "name": "targetId",
+        "type": "integer",
+        "required": false,
+        "description": "attack: the enemy's network id (get_sitrep lists the contacts your side knows)"
+      },
+      {
         "name": "behavior",
         "type": "string",
         "required": false,
@@ -4318,7 +4325,7 @@ export const TOOLS_CATALOG = [
     "returns": "{ networkId, accepted:true, detail, behavior?, params?, note } — 404 unknown unit, 409 killed / other side (side lock), 400 malformed.",
     "notes": [
       "An order is origin Operator: the unit's SOP and its mission cannot replace it; a reaction (under fire) may pause it unless its ROE says StayOnTask.",
-      "kind 'attack' is not built yet (CE-3170); until then order a combat behaviour by name.",
+      "kind 'attack' runs CombatPosture with the target designated and assault: the unit closes in and fights THAT enemy (a nearer threat does not take over) and the order SUCCEEDS when it is down. ROE still applies — on HoldFire it closes in without firing.",
       "The order is resolved on the unit's brain node a frame or two later; get_entity_order reads the result there."
     ],
     "example": {
@@ -4331,7 +4338,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "send unit 1000 to a point"
     },
-    "hint": "Req: networkId, kind. Move: {kind:'move', lat,lon} or {x,y} (+ speed, arrivalRadius, roadUse). Any behaviour: {kind:'behavior', behavior, params} — discover with list_behaviors({entityId}). Then poll get_entity_order. Example: order_entity({networkId:1000, kind:'move', x:120, y:-40})",
+    "hint": "Req: networkId, kind. Move: {kind:'move', lat,lon} or {x,y} (+ speed, arrivalRadius, roadUse). Attack: {kind:'attack', targetId}. Any behaviour: {kind:'behavior', behavior, params} — discover with list_behaviors({entityId}). Then poll get_entity_order. Example: order_entity({networkId:1000, kind:'move', x:120, y:-40})",
     "manualVerify": false
   },
 

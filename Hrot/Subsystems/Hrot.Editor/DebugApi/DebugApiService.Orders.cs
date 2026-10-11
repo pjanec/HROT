@@ -87,11 +87,15 @@ namespace Hrot.Editor.DebugApi
                     return orders.Behavior(networkId, name, json);
                 }
                 case "attack":
-                    return new OrderResult(OrderRefusal.BadRequest,
-                        "attack arrives with CE-3170 (CombatPosture with a designated target); use kind 'behavior' meanwhile.", "", "");
+                {
+                    var t = body?["targetId"];
+                    if (t is null || !t.AsValue().TryGetValue<long>(out long targetId))
+                        return new OrderResult(OrderRefusal.BadRequest, "An attack needs targetId (the enemy's network id).", "", "");
+                    return orders.Attack(networkId, targetId);
+                }
                 default:
                     return new OrderResult(OrderRefusal.BadRequest,
-                        "kind must be one of: move, hold (stop), behavior, release.", "", "");
+                        "kind must be one of: move, attack, hold (stop), behavior, release.", "", "");
             }
         }
 

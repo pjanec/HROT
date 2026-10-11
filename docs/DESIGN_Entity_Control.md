@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2-S5 READY-TO-BUILD (M-1..M-10 approved, R-271 (backend))
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1)
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 attack (CE-3170) built (§10); CE-3169 and S3-S5 READY-TO-BUILD (M-1..M-10 approved, R-271 (backend))
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack)
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -18,6 +18,7 @@ related-designs:
   - docs/designs/ai-debug-api/DESIGN.md + docs/MCP_Integration.md — OWN the HTTP debug API the order routes extend
   - FDP/Docs/projects/toolkits/FDP.Toolkit.CarKinem.md — OWNS ground kinematics (HumanGait R-247, BicycleModel) that manual drive extends
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS the Brain / MuscleGround groups the new components join
+  - docs/DESIGN_Peek_And_Fire.md §10.9 G4 — OWNS SquadAssignment.TargetOf, the ONE reader of "the target this unit was told to fight"; the attack order's DesignatedTarget (CE-3170) answers first there
 -->
 
 # DESIGN — **entity control** *(orders over HTTP, RTS clicks, the menu, and FPS possession — one path)*
@@ -348,13 +349,58 @@ autonomous motion is unchanged.
 | `DELETE …/order` releases the unit | ⭐ **`AssignTacticalIntentEvent.Kind` (`Assign` / `Clear`)**, a `Kind` byte + `Flags` byte on `TacticalIntentRequest` | `DESIGN_Sensors_And_Doctrine.md` §7.7 already named the intent topic as THE one wire path *"which gains a `Kind`"*; `ClearBehaviorEvent` has no translator, so a release from a non-owner node would have gone nowhere |
 | `GET …/order` reports finished / failed | ⭐ **`OperatorOrderOutcome`** (component 358, NoScenario, never sent), written by `BrainTickSystem.Finish` for an Operator run | the run's state is cleared on finish (CE-449); its outcome had nowhere to live. Read on the brain node; elsewhere the route says so |
 | the service reads the geo transform | ⭐ `EntityOrders(world, map, IGeographicTransform?)` — handed in | the user's `2026-09-08` ruling: one transform, read through the interface the host resolved, never looked up by each consumer |
-| `attack` in S1 | ⏳ refused with *"arrives with CE-3170"* | the designated-target CombatPosture is S2; ordering a combat behaviour by name works meanwhile |
+| `attack` in S1 | ⏳ refused with *"arrives with CE-3170"* — ⛔ SUPERSEDED by §10 (built) | the designated-target CombatPosture is S2; ordering a combat behaviour by name works meanwhile |
 | — | the flags constant lives in `TacticalIntentFlags`, outside the DDS struct | the DDS generator serialises every member of a `[DdsStruct]`, constants included |
 | "any node publishes, the owner resolves" (tactical-intent design) | 🔴→⭐ **`TacticalIntentEgressTranslator` on EVERY node** (`SimHostAuxiliaryTranslatorPack`), the ingress still Brain-only | 📐 found writing the cross-node rail: the egress sat inside the `NodeRole.Brain` branch, so an order published on a SimHost / map node reached nobody. ⚠ **The IG builds no auxiliary pack** (`NedIgTranslators`) — an IG station's order still needs its own egress: **S2 owns it** (the menu is the first IG-issued order) |
 | — | `EditorHarness(productionBehaviors: true)` + the harness passes its `BehaviorRegistry` to the debug API | the networkless-editor rail needs real behaviours; the API names and checks them (silent-default rule) |
 
 📐 **Rails:** `TacticalIntentResolutionSystemTests` (+3), `TacticalIntent{Egress,Ingress}TranslatorTests` (+1 each),
 `MissionControlExecutionSystemTests` (+1), `CgfLogicPackTests` (+1 forwarding rail), `SimHostAuxiliaryTranslatorPackTests` (+4 cases), `DebugApiOrdersTests` (7, networkless editor), `EntityOrdersAcrossNodesTests` (1, SimHost → CGF over DDS).
+
+## 10. AS-BUILT — S2 attack (`CE-3170`, `2026-10-11`)
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityOrders { <<Hrot.Common>> + Attack(unit, targetNetId) }
+    class CombatPostureParamsJsonDto { <<existing>> advance · assault · + target : EntityRef }
+    class CombatPosture { <<C# BTree>> decide Parallel(1) + UntilTargetDown }
+    class UntilTargetDown { <<NEW node, PostureNodes>> designates · tells memory once · Success when target down }
+    class DesignatedTarget { <<NEW component 359, brain-local>> TargetPacked · InstanceId (the run) }
+    class SquadAssignment { <<existing, the ONE reader>> TargetOf: designation FIRST, then the squad's }
+    class TopThreat { <<EqsTacticsNodes>> designated + remembered + alive wins }
+    class AdvanceAndAttack { <<PostureNodes>> hunting: goes to the last-known point, arrival does not end it }
+    class IsAssignedTarget { <<utility input>> ranking bias }
+    class LockTarget { <<PeekAndFireNodes>> fire-from-cover lock }
+    EntityOrders ..> CombatPostureParamsJsonDto : target + assault
+    CombatPosture *-- UntilTargetDown
+    UntilTargetDown --> DesignatedTarget : writes
+    SquadAssignment --> DesignatedTarget : reads first
+    IsAssignedTarget --> SquadAssignment
+    LockTarget --> SquadAssignment
+    TopThreat --> DesignatedTarget
+    AdvanceAndAttack --> DesignatedTarget
+```
+
+*What the picture shows that prose hid:* no branch of the posture was taught about orders. The designation joins the reader every
+targeting step **already** asks (`SquadAssignment.TargetOf`, G4's one reader), plus `TopThreat`, which every fire, sensor and
+close-to-throw step goes through. So Suppress, TakeCover's peek, Flank and the grenade close all follow the named enemy, with no
+per-branch code.
+
+| design said | built | why |
+|---|---|---|
+| "CombatPosture with a designated target" | ⭐ `DesignatedTarget` (component **359**, NoScenario, brain-local) keyed to the run's `BehaviorState.InstanceId`; nothing removes it | a later run carries a new instance id, so it never inherits the designation; no deactivator ordering to get wrong |
+| — | ⭐ read through **`SquadAssignment.TargetOf`** (designation first, then the squad's) and **`EqsTacticsNodes.TopThreat`** (hard override while remembered + alive) | the seam law: the "target I was told to fight" reader already existed (CE-3158 G4). ⛔ No second reader. The squad's assignment stays a ranking **bias** |
+| the order succeeds when the target is down | ⭐ `PostureNodes.UntilTargetDown` in the decide `Parallel(1)` — Success ⇒ the posture, so the order, **succeeds** (`OperatorOrderOutcome`) | RequireOne ends on the first Success (`Interpreter.cs` ExecuteParallel); "down" = `CombatLife.IsAlive` false (Health ≤ 0 keeps the body) |
+| — | ⭐ the order **tells** the unit where the target is: once, as a memory contact with **no modality** (not "in sight") at the score of a contact just seen | an attack on a target the unit has not seen would otherwise rank nothing; with no modality `HasLineOfSight` stays 0, and fog of war applies again after that (it is forgotten ≈ 70 s unconfirmed) |
+| — | 🔴→⭐ **`AdvanceAndAttack` hunts**: with a live designation its objective is the target's last-known point (re-issued when it moves more than the arrival radius), and **arriving does not end the posture** | 📐 found wiring it: the advance's arrival is a Success that ends the Parallel, so an attack would have reported "succeeded" on reaching the target's start point with the target alive |
+| the HTTP `attack` kind | ⭐ `{kind:'attack', targetId}` → `EntityOrders.Attack` → `CombatPosture {"target":id,"assault":true}`; refuses self, unknown and killed targets (400) | `assault` per AQ89 D: obedience decides closing in, not bravery |
+
+⚠ **Known limits:** 📐 **a HIDDEN named target is SUPPRESSED, not closed on** (`CE-3177`): the posture's utility decision has no "ordered to attack" input, so an unseen enemy scores Suppress (AQ89 A). The fire still goes to the named enemy, and a grenadier closes to throw under `assault`. A seen one is advanced on and hunted. Raising Advance under a live designation is a decision-scoring change for the behaviors lane. ROE `HoldFire` still holds the fire (the unit closes in without shooting), which is C-5's stated design. A target the unit
+**forgets** drops out of `TopThreat`: the posture then fights whatever it ranks, and the order keeps running until the target is
+down or the operator re-orders. An order from an IG station needs the IG egress (S2 `CE-3169`).
+
+📐 **Rails:** `TacticsTreesTests` +3 (the named enemy is fought over a nearer one and the order succeeds when it is down · the designation dies with its run · an unknown target leaves the posture as authored) · `DebugApiOrdersTests` +1 (HTTP attack in the networkless editor: Operator origin, designation, `succeeded`, the three refusals).
 MCP tools: `order_entity` · `get_entity_order` · `release_entity` · `order_entities` · `lock_side` · `get_sitrep` (group Z).
 
 ## 8. Known limits and defects found while designing

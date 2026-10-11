@@ -1788,13 +1788,13 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/entities/{networkId}/order")] = new RouteDoc(
             Tool:    "order_entity",
             Group:   "Z — Entity control (orders)",
-            Summary: "Order a unit, as an operator: move to a point, hold (stop), run any behaviour, or release it to its own SOP. The unit works out HOW (route, cover, weapon). The order outranks its SOP and mission and clears its mission plan; works from any node (forwarded to the unit's brain owner).",
+            Summary: "Order a unit, as an operator: move to a point, attack an enemy, hold (stop), run any behaviour, or release it to its own SOP. The unit works out HOW (route, cover, weapon). The order outranks its SOP and mission and clears its mission plan; works from any node (forwarded to the unit's brain owner).",
             Returns: "{ networkId, accepted:true, detail, behavior?, params?, note } — 404 unknown unit, 409 killed / other side (side lock), 400 malformed.",
-            Hint:    "Req: networkId, kind. Move: {kind:'move', lat,lon} or {x,y} (+ speed, arrivalRadius, roadUse). Any behaviour: {kind:'behavior', behavior, params} — discover with list_behaviors({entityId}). Then poll get_entity_order. Example: order_entity({networkId:1000, kind:'move', x:120, y:-40})",
+            Hint:    "Req: networkId, kind. Move: {kind:'move', lat,lon} or {x,y} (+ speed, arrivalRadius, roadUse). Attack: {kind:'attack', targetId}. Any behaviour: {kind:'behavior', behavior, params} — discover with list_behaviors({entityId}). Then poll get_entity_order. Example: order_entity({networkId:1000, kind:'move', x:120, y:-40})",
             Params: new RouteParam[]
             {
                 new("networkId", "integer", true, "Network id of the unit"),
-                new("kind", "string", true, "move · hold · stop (= hold) · behavior · release", EnumJson: "[\"move\",\"hold\",\"stop\",\"behavior\",\"release\"]"),
+                new("kind", "string", true, "move · attack · hold · stop (= hold) · behavior · release", EnumJson: "[\"move\",\"attack\",\"hold\",\"stop\",\"behavior\",\"release\"]"),
                 new("lat", "number", false, "move: target latitude (degrees) — the portable form"),
                 new("lon", "number", false, "move: target longitude (degrees)"),
                 new("x", "number", false, "move: target easting in THIS node's local metres (converted to lat/lon when the node can)"),
@@ -1802,13 +1802,14 @@ namespace Hrot.Editor.DebugApi
                 new("speed", "number", false, "move: speed in m/s (default: the unit's)"),
                 new("arrivalRadius", "number", false, "move: arrival radius in metres"),
                 new("roadUse", "string", false, "move: Never · Neutral · Prefer · StronglyPrefer"),
+                new("targetId", "integer", false, "attack: the enemy's network id (get_sitrep lists the contacts your side knows)"),
                 new("behavior", "string", false, "behavior: the behaviour name (list_behaviors)"),
                 new("params", "object", false, "behavior: its parameters, matching its paramSchema"),
             },
             Notes: new[]
             {
                 "An order is origin Operator: the unit's SOP and its mission cannot replace it; a reaction (under fire) may pause it unless its ROE says StayOnTask.",
-                "kind 'attack' is not built yet (CE-3170); until then order a combat behaviour by name.",
+                "kind 'attack' runs CombatPosture with the target designated and assault: the unit closes in and fights THAT enemy (a nearer threat does not take over) and the order SUCCEEDS when it is down. ROE still applies — on HoldFire it closes in without firing.",
                 "The order is resolved on the unit's brain node a frame or two later; get_entity_order reads the result there.",
             },
             ExampleArgsJson: "{\"networkId\":1000,\"kind\":\"move\",\"x\":120,\"y\":-40,\"speed\":3}",

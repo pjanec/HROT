@@ -94,6 +94,21 @@ namespace Hrot.Common.Orders
             return Assign(unit, BehaviorNames.MoveToLocation, p.ToJsonString());
         }
 
+        /// <summary>⭐ <c>CE-3170</c> (C-5) — ATTACK a unit: <c>CombatPosture</c> with that target designated and <c>assault</c> — the unit
+        /// closes in and fights IT (a nearer threat does not take over), picking its own way, cover and weapon; the order succeeds
+        /// when the target is out of the fight. ⚠ ROE still applies: a unit on HoldFire closes in but does not fire.</summary>
+        public OrderResult Attack(long unit, long target)
+        {
+            if (target == unit) return OrderResult.Refused(OrderRefusal.BadRequest, "A unit cannot attack itself.");
+            if (!_map.TryGetEntity(target, out var victim) || !_world.IsAlive(victim))
+                return OrderResult.Refused(OrderRefusal.BadRequest, $"Target {target} not found.");
+            if (_world.IsComponentTypeRegistered<Health>() && _world.HasComponent<Health>(victim)
+                && _world.GetComponentRO<Health>(victim).Current <= 0)
+                return OrderResult.Refused(OrderRefusal.BadRequest, $"Target {target} is already killed.");
+            var p = new JsonObject { ["target"] = target, ["assault"] = true };
+            return Assign(unit, BehaviorNames.CombatPosture, p.ToJsonString());
+        }
+
         /// <summary>Hold where it stands — the operator orders <c>Idle</c>, which never ends (AQ83 E). The menu's "Stop".</summary>
         public OrderResult Hold(long unit) => Assign(unit, BehaviorNames.Idle, "{}");
 

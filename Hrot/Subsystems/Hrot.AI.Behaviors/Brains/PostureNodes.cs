@@ -90,6 +90,22 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Assault;
     }
 
+    /// <summary>⭐ <c>CE-3170</c> — the target an attack order named (<see cref="PostureNodes.UntilTargetDown"/>).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DesignateParams
+    {
+        /// <summary>The target (<see cref="Entity.PackedValue"/>; 0 = none named).</summary>
+        public long TargetPacked;
+    }
+
+    /// <summary>⭐ <c>CE-3170</c> — <see cref="PostureNodes.UntilTargetDown"/>'s working memory.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DesignateState
+    {
+        /// <summary>1 once the unit was told where its target is.</summary>
+        public byte Told;
+    }
+
     /// <summary>⭐ <c>CE-2073</c> — where the posture advances to, and how.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct AdvanceParams
@@ -112,6 +128,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Moving;
         /// <summary>What the weapon is aimed at while advancing.</summary>
         public EngageState Fire;
+        /// <summary>⭐ <c>CE-3170</c> — where the move was issued to (a hunted target that moves further re-issues it).</summary>
+        public Vector3 IssuedTo;
     }
 
     /// <summary>
@@ -238,15 +256,23 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!world.HasComponent<LocomotionChannel>(self)) return NodeStatus.Failure;
             Fire(world, self, ref ws.Fire, p.CooldownSeconds);   // no weapon: it still advances
+
+            // ⭐ CE-3170 (docs/DESIGN_Entity_Control.md C-5) — HUNTING an attack order's target: the objective follows where the memory
+            //   last placed it, and arriving does not end the posture — the target going down does (UntilTargetDown).
+            bool hunting = DesignatedTarget.Of(world, self, out var hunted) && CombatLife.IsAlive(world, hunted);
+            var objective = hunting && HiddenTargetThrow.LastKnown(world, self, hunted, out var seenAt) ? seenAt : p.Objective;
+            if (ws.Moving == 1 && hunting && Vector3.Distance(objective, ws.IssuedTo) > p.ArrivalRadius) ws.Moving = 0;   // it moved
             if (ws.Moving == 1)
             {
                 var status = LocomotionMoveTo.Status(world, self);
+                if (status == NodeStatus.Success && hunting) return NodeStatus.Running;   // there: the fight goes on
                 if (status == NodeStatus.Success) { StopFiring(world, self, ref ws.Fire); return NodeStatus.Success; }
                 if (status == NodeStatus.Running) return NodeStatus.Running;
                 ws.Moving = 0;   // failed or taken over: issue it again
             }
-            if (!LocomotionMoveTo.Issue(world, self, p.Objective, p.Speed, p.ArrivalRadius)) return NodeStatus.Failure;
+            if (!LocomotionMoveTo.Issue(world, self, objective, p.Speed, p.ArrivalRadius)) return NodeStatus.Failure;
             ws.Moving = 1;
+            ws.IssuedTo = objective;
             return NodeStatus.Running;
         }
 
@@ -271,6 +297,39 @@ namespace Hrot.AI.Behaviors.Brains
             Fire(world, self, ref ws, p.CooldownSeconds);
             return NodeStatus.Running;
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3170</c> (<c>docs/DESIGN_Entity_Control.md</c> C-5) — an ATTACK order's target: keeps it designated for this run
+        /// (<see cref="DesignatedTarget"/> — the threat ranking's one reader puts it first, so every branch fights IT) and ends the
+        /// posture with Success once it is out of the fight (<see cref="CombatLife"/>) — the order succeeded. On the first tick the
+        /// unit is TOLD where it is: the target enters its memory as a reported contact (no sensor modality, so it does not read as
+        /// in sight); after that fog of war applies. No target named = Running for ever (the posture runs as authored).
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus UntilTargetDown(ref DesignateParams p, ref DesignateState ws, Entity self, EntityRepository world)
+        {
+            if (p.TargetPacked == 0) return NodeStatus.Running;
+            var target = new Entity((ulong)p.TargetPacked);
+            if (!CombatLife.IsAlive(world, target)) return NodeStatus.Success;
+            if (!DesignatedTarget.Of(world, self, out var designated) || !designated.Equals(target))
+                DesignatedTarget.Set(world, self, target);
+            if (ws.Told == 0)
+            {
+                ws.Told = 1;
+                if (world.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self) && world.HasComponent<SimTransform>(target))
+                {
+                    var at = world.GetComponentRO<SimTransform>(target).Position;
+                    ref var mem = ref world.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
+                    Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, p.TargetPacked, at.X, at.Y, ReportedScore,
+                        ((Fdp.ModuleHost.Abstractions.ISimulationView)world).Tick, (Fdp.Toolkit.Perception.Components.SensorModality)0, at.Z);
+                }
+            }
+            return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ <c>CE-3170</c> — the memory score a reported target enters with: a contact just seen (live ≈ 14 s, then fading and
+        /// forgotten ≈ 70 s unconfirmed — <c>PerceptionConstants.LiveFreshness</c>, <c>ForgetThreatScore</c>).</summary>
+        public const float ReportedScore = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
 
         /// <summary>
         /// ⭐ <c>CE-3082</c> D1 — true when THIS advance arrived: its move was issued and the channel reports Success. The HSM

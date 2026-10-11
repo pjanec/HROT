@@ -136,6 +136,40 @@ public sealed class DebugApiOrdersTests
         Assert.False(rows[1]!["accepted"]!.GetValue<bool>());
     }
 
+    /// <summary>⭐ CE-3170 (C-5) — an attack order runs CombatPosture at origin Operator with the target designated, and reads back
+    /// SUCCEEDED once the target is down; a missing / unknown / killed target is refused.</summary>
+    [Fact]
+    public void CE3170_AnAttackOrder_DesignatesTheTarget_AndSucceedsWhenItIsDown()
+    {
+        using var h = new EditorHarness(productionBehaviors: true);
+        var svc = h.BuildDebugApiService();
+        var unit = Unit(h, UnitId, ForceId.Friend, Vector3.Zero);
+        h.Repo.AddComponent(unit, new TargetMemory());
+        var enemy = Unit(h, 2000, ForceId.Hostile, new Vector3(60, 0, 0));
+        h.Repo.AddComponent(enemy, new Health { Current = 100, Max = 100 });
+
+        var (result, status, error, _) = svc.PostOrder(UnitId, new JsonObject { ["kind"] = "attack", ["targetId"] = 2000L });
+        Assert.Null(error);
+        Assert.Equal(200, status);
+        Assert.Equal(BehaviorNames.CombatPosture, result!["behavior"]!.GetValue<string>());
+
+        h.PumpFrames(4);
+        var bs = h.Repo.GetComponentRO<BehaviorState>(unit);
+        Assert.Equal(IdOf(h, BehaviorNames.CombatPosture), bs.ActiveBehaviorHash);
+        Assert.Equal(BehaviorOrigin.Operator, bs.Origin);
+        Assert.True(DesignatedTarget.Of(h.Repo, unit, out var designated));
+        Assert.Equal(enemy, designated);
+        Assert.Equal("running", svc.GetOrder(UnitId)["state"]!.GetValue<string>());
+
+        h.Repo.GetComponentRW<Health>(enemy).Current = 0;
+        h.PumpFrames(4);
+        Assert.Equal("succeeded", svc.GetOrder(UnitId)["state"]!.GetValue<string>());
+
+        Assert.Equal(400, svc.PostOrder(UnitId, new JsonObject { ["kind"] = "attack" }).status);                          // no target
+        Assert.Equal(400, svc.PostOrder(UnitId, new JsonObject { ["kind"] = "attack", ["targetId"] = 4242L }).status);     // unknown
+        Assert.Equal(400, svc.PostOrder(UnitId, new JsonObject { ["kind"] = "attack", ["targetId"] = 2000L }).status);     // killed
+    }
+
     /// <summary>⭐ C-9 — the sitrep shows what the side KNOWS: a hostile in a friendly unit's target memory is a contact, a
     /// hostile nobody remembers is not; truth=true lists both.</summary>
     [Fact]
