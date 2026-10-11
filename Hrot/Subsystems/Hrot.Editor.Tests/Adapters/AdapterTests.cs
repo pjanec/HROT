@@ -279,9 +279,30 @@ namespace Hrot.Editor.Tests.Adapters
         private static long NetIdFor(Entity e) => 1000 + e.Index;
 
         [Fact]
-        public void GetAvailableBehaviors_InsurgentWithRegisteredAmbush_ReturnsAmbush()
+        public void GetAvailableBehaviors_InsurgentWithRegisteredCombatPosture_ReturnsIt()
         {
-            // Register "Ambush" behavior.
+            // ⭐ CE-3160 (L4) — the library posture is offered to an insurgent (its contract names Insurgent).
+            _registry.Register(1, "CombatPosture", new BehaviorDefinition
+            {
+                Name       = "CombatPosture",
+                BrainTier  = BehaviorConstants.BrainTierBTree,
+            });
+
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
+            _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
+
+            var service = new ScenarioMissionService(_bus, _repo, _registry);
+            var behaviors = service.GetAvailableBehaviors(NetIdFor(entity));
+
+            Assert.Contains("CombatPosture", behaviors);
+        }
+
+        /// <summary>⭐ CE-3160 (L4, R-266) — a registered DEMO tree (its contract says <c>Demo</c>: the UrbanCombat example's
+        /// Ambush) runs when a scenario names it, but the picker does not offer it — neither curated nor appended.</summary>
+        [Fact]
+        public void GetAvailableBehaviors_ARegisteredDemoTree_IsNotOffered()
+        {
             _registry.Register(1, "Ambush", new BehaviorDefinition
             {
                 Name       = "Ambush",
@@ -293,9 +314,7 @@ namespace Hrot.Editor.Tests.Adapters
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
             var service = new ScenarioMissionService(_bus, _repo, _registry);
-            var behaviors = service.GetAvailableBehaviors(NetIdFor(entity));
-
-            Assert.Contains("Ambush", behaviors);
+            Assert.DoesNotContain("Ambush", service.GetAvailableBehaviors(NetIdFor(entity)));
         }
 
         [Fact]
@@ -394,11 +413,11 @@ namespace Hrot.Editor.Tests.Adapters
         public void GetAvailableBehaviors_DoesNotDuplicateCuratedEntries()
         {
             // Arrange: register a behavior that also exists in the BehaviorCatalog curated list
-            // (e.g., "Ambush" appears for Insurgent via [BehaviorContract]).  Registering it with
+            // (e.g., "CombatPosture" appears for Insurgent via [BehaviorContract], CE-3160).  Registering it with
             // BrainTierBTree must NOT cause it to appear twice.
-            _registry.Register(1, "Ambush", new BehaviorDefinition
+            _registry.Register(1, "CombatPosture", new BehaviorDefinition
             {
-                Name      = "Ambush",
+                Name      = "CombatPosture",
                 BrainTier = BehaviorConstants.BrainTierBTree,
             });
 
@@ -412,7 +431,7 @@ namespace Hrot.Editor.Tests.Adapters
             var behaviors = service.GetAvailableBehaviors(NetIdFor(entity));
 
             // Assert: exactly one occurrence — no duplicates regardless of catalog/registry overlap.
-            int count = behaviors.Count(n => n == "Ambush");
+            int count = behaviors.Count(n => n == "CombatPosture");
             Assert.Equal(1, count);
         }
 
