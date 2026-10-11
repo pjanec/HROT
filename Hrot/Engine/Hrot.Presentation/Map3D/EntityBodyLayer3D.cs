@@ -99,24 +99,27 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             // ⭐ W2 (docs/DESIGN_Visual_Effects.md §7 VE-N/VE-O) — a destroyed VEHICLE is a near-black wreck, every part; the turret
             //   stays where it last pointed (its pose is no longer driven). A dead person is drawn by the Dead figure instead (VE-S).
             bool wreck = look.Family != VisualFamily.Person && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
+            ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
+            var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
+            // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
+            bool rotorTurning = look.Family == VisualFamily.Helicopter && !wreck && IsAirborne(world, tf.Position, look.Geometry);
+            var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning);
+
             KitPart[] parts;
             KitPivots pivots = default;
             var pose = ArticulationPose.Neutral;
             if (look.Family == VisualFamily.Person)
-                parts = FigurePose(world, e, look.Soldier, simTime);
+            {
+                // ⭐ WL-6c — the posture first (how AIMED he is), then the gait and the upper body from it
+                (parts, float aimed) = FigurePose(world, e, look.Soldier, simTime, motion.Stride);
+                motion = FigureMotion(world, e, motion, look.Soldier, tf, size, simTime, aimed);
+            }
             else
             {
                 var kit = ShapeKits.For(look.Family);
                 (parts, pivots) = PlacedKit(kit, type, tkb, size);   // ⭐ E4b — the turret and barrel from the TKB (VE-L)
                 if (_poseOf != null && kit.IsArticulated) pose = _poseOf(world, e);
             }
-
-            ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
-            var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
-            // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
-            bool rotorTurning = look.Family == VisualFamily.Helicopter && !wreck && IsAirborne(world, tf.Position, look.Geometry);
-            var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning);
-            if (look.Family == VisualFamily.Person) motion = FigureMotion(world, e, motion, look.Soldier, tf, size, simTime);
             _drawn.Add(e);
             // ⭐ CE-1041 — a type with Body.Geometry: the kit's box sits where the TKB puts it relative to the reference point
             //   (an aircraft's CG), and the gear is drawn AT the TKB's contact points instead of the kit's generic gear.
@@ -160,6 +163,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         => world.IsComponentTypeRegistered<WeaponPosture>() && world.HasComponent<WeaponPosture>(e)
             ? world.GetComponentRO<WeaponPosture>(e).Kind : WeaponPostureKind.AtEase;
 
+    /// <summary>⭐ WL-6c — the athletic stance's forward lean (about 10°), how much shorter the glide's steps are than a walk's, and
+    /// how far a shin bends back as its leg swings through (radians, at a full stride).</summary>
+    public const float AthleticLean = 0.17f, GlideStepCut = 0.45f, KneeLift = 0.55f;
+
     /// <summary>The most an aimed upper body turns toward its target, and pitches (radians).</summary>
     public const float MaxAimTwist = 75f * MathF.PI / 180f, MaxAimPitch = 35f * MathF.PI / 180f;
 
@@ -169,16 +176,34 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// within <see cref="MaxAimTwist"/> / <see cref="MaxAimPitch"/>. Prone and dead figures do not lean or turn.
     /// </summary>
     /// ⭐ WL-6b — the turn and pitch EASE toward the aim (<see cref="PostureBlend.Aim"/>), and back to 0 when it is no longer aimed.
-    private MotionPose FigureMotion(EntityRepository world, Entity e, MotionPose motion, bool soldier, in SimTransform tf, Vector3 size, double simTime)
+    /// ⭐ WL-6c — the GAIT: each shin bends back as its leg swings through (both feet lift); an AIMED soldier (<paramref name="aimed"/>
+    /// 0..1, the posture blend) stands in the athletic stance — hips <see cref="BlockFigure.AthleticDrop"/> lower, the upper body leaning
+    /// <see cref="AthleticLean"/> forward — and on the move GLIDES: shorter steps, knees always bent.
+    private MotionPose FigureMotion(EntityRepository world, Entity e, MotionPose motion, bool soldier, in SimTransform tf, Vector3 size, double simTime,
+                                    float aimed)
     {
         var stance = LogicalStance.Of(world, e);
         if (stance == StanceId.Prone || Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e))
         {
             if (soldier) _postures.Aim(e, 0f, 0f, simTime);
-            return motion with { Lean = 0f, Twist = 0f };
+            return motion with { Lean = 0f, Twist = 0f, KneeFlexL = 0f, KneeFlexR = 0f };
         }
-        motion = motion with { HipZ = BlockFigure.HipFraction(stance) };
+        float swingThrough = MathF.Cos(motion.GaitPhase);   // > 0: the left leg is coming forward, < 0: the right one
+        float lift = motion.Stride * KneeLift;
+        motion = motion with
+        {
+            HipZ = BlockFigure.HipFraction(stance),
+            KneeFlexL = lift * MathF.Max(0f, swingThrough),
+            KneeFlexR = lift * MathF.Max(0f, -swingThrough),
+        };
         if (!soldier) return motion;
+        if (stance == StanceId.Standing && aimed > 0f)
+            motion = motion with
+            {
+                HipZ = (0.90f - BlockFigure.AthleticDrop * aimed) / 1.8f,
+                Lean = motion.Lean + AthleticLean * aimed,
+                Swing = motion.Swing * (1f - GlideStepCut * aimed),
+            };
         if (!TryAim(world, e, tf, size, stance, out float twist, out float pitch)) twist = pitch = 0f;
         var (t, p) = _postures.Aim(e, twist, pitch, simTime);
         return motion with { Twist = t, Lean = motion.Lean - p };
@@ -197,7 +222,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             at = world.GetComponentRO<SimTransform>(posture.Target).Position + new Vector3(0f, 0f, 1.0f);
         else if (posture.Target.IsNull && posture.Point != Vector3.Zero) at = posture.Point;
         else return false;
-        float shoulder = (stance == StanceId.Crouched ? 0.98f : 1.41f) / 1.8f * size.Z;
+        float shoulder = (stance == StanceId.Crouched ? 0.98f : 1.41f - BlockFigure.AthleticDrop) / 1.8f * size.Z;   // aimed: the athletic stance
         var toward = at - (tf.Position + new Vector3(0f, 0f, shoulder));
         var local = Vector3.Transform(toward, Quaternion.Inverse(tf.Rotation));
         float horizontal = MathF.Sqrt(local.X * local.X + local.Y * local.Y);
@@ -207,27 +232,34 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         return true;
     }
 
-    private KitPart[] FigurePose(EntityRepository world, Entity e, bool soldier, double simTime)
+    /// <returns>The parts, and how AIMED he is (0..1, the posture blend) — the athletic stance and the glide follow it.</returns>
+    private (KitPart[] Parts, float Aimed) FigurePose(EntityRepository world, Entity e, bool soldier, double simTime, float stride)
     {
         var target = LogicalStance.Of(world, e);
         var posture = soldier ? PostureOf(world, e) : WeaponPostureKind.AtEase;   // ⭐ WL-6 — the rifle in the weapon brain's posture
         // ⭐ WL-6b — moved there over PostureBlend.Seconds of sim time, not snapped
         var (postureFrom, postureTo, postureT) = soldier ? _postures.Posture(e, posture, simTime) : (posture, posture, 1f);
+        float eased = postureT * postureT * (3f - 2f * postureT);
+        float aimed = (postureTo == WeaponPostureKind.Aimed ? eased : 0f) + (postureFrom == WeaponPostureKind.Aimed ? 1f - eased : 0f);
+        if (postureFrom == postureTo) aimed = postureTo == WeaponPostureKind.Aimed ? 1f : 0f;
         // ⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — a dead man lies on his back, fallen into it over 0.6 s of sim time from the
         //   stance he died in; a body first seen already dead just lies there (DeathFall).
         if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e))
         {
             var (t, from) = _fall.Dead(e, simTime);
-            return BlockFigure.Fall(BlockFigure.Parts(from, soldier, posture), t, soldier);
+            return (BlockFigure.Fall(BlockFigure.Parts(from, soldier, posture), t, soldier), 0f);
         }
         _fall.Alive(e, target, simTime);
         if (world.IsComponentTypeRegistered<StanceStatus>() && world.HasComponent<StanceStatus>(e))
         {
             ref readonly var status = ref world.GetComponentRO<StanceStatus>(e);
             if (status.Phase == StanceTransitionPhase.Transitioning && status.CurrentStance != target)
-                return BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier, postureFrom, postureTo, postureT);
+                return (BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier, postureFrom, postureTo, postureT), 0f);
         }
-        return BlockFigure.Parts(target, soldier, postureFrom, postureTo, postureT);
+        var parts = BlockFigure.Parts(target, soldier, postureFrom, postureTo, postureT);
+        // ⭐ WL-6c — aimed and on the move: the combat glide (feet under the lowered hips, knees bent)
+        if (soldier && target == StanceId.Standing && aimed > 0f && stride > 0f) parts = BlockFigure.Glide(parts, aimed * stride);
+        return (parts, target == StanceId.Standing ? aimed : 0f);
     }
 
     private readonly MotionTracker _motion = new();

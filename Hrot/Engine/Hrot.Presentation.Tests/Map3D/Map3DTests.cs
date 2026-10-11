@@ -497,9 +497,9 @@ public sealed class Map3DTests
 
         // the left leg's foot goes FORWARD (+x) on a positive swing
         var leg = BlockFigure.Parts(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, false)
-                             .Single(k => k.Role == PartRole.LegLeft);
-        var foot = Vector3.Transform(new Vector3(0, 0, -0.5f), leg.BodyTransform(size, default, ArticulationPose.Neutral, new MotionPose(0, 0, 0.4f)));
-        var footStill = Vector3.Transform(new Vector3(0, 0, -0.5f), leg.BodyTransform(size));
+                             .Last(k => k.Role == PartRole.LegLeft);   // WL-6c — the shin (thigh + shin swing together from the hip)
+        var foot = Vector3.Transform(new Vector3(0.5f, 0, 0), leg.BodyTransform(size, default, ArticulationPose.Neutral, new MotionPose(0, 0, 0.4f)));
+        var footStill = Vector3.Transform(new Vector3(0.5f, 0, 0), leg.BodyTransform(size));
         Assert.True(foot.X > footStill.X + 0.1f, $"left foot forward: {foot} vs {footStill}");
     }
 
@@ -547,7 +547,7 @@ public sealed class Map3DTests
             Assert.Equal(BlockFigure.Parts(stance, false).Length + 1, parts.Length);
             var rifle = parts[^1];
             Vector3 stock = End(rifle, size, -0.5f), muzzle = End(rifle, size);
-            for (int arm = 4; arm <= 6; arm += 2)   // left then right: upper arm, forearm
+            for (int arm = BlockFigure.TorsoIndex + 2; arm <= BlockFigure.TorsoIndex + 4; arm += 2)   // left then right: upper arm, forearm
             {
                 Assert.InRange(Vector3.Distance(End(parts[arm], size), End(parts[arm + 1], size, -0.5f)), 0f, 0.01f);   // the elbow
                 Assert.InRange(DistanceToSegment(End(parts[arm + 1], size), stock, muzzle), 0f, 0.07f);                // the hand on the rifle
@@ -563,7 +563,7 @@ public sealed class Map3DTests
         var size = ShapeKits.DefaultSize(VisualFamily.Person);
         var parts = BlockFigure.Parts(StanceId.Standing, false);
         var swing = new MotionPose(0, 0, 0.5f);
-        var upper = parts[4]; var fore = parts[5];
+        var upper = parts[BlockFigure.TorsoIndex + 2]; var fore = parts[BlockFigure.TorsoIndex + 3];
         Assert.Equal(PartRole.ArmLeft, upper.Role);
         Assert.Equal(PartRole.ArmLeft, fore.Role);
         var elbow = Vector3.Transform(new Vector3(0.5f, 0, 0), upper.BodyTransform(size, default, ArticulationPose.Neutral, swing));
@@ -588,7 +588,7 @@ public sealed class Map3DTests
         Assert.Equal(0f, still.Lean);
 
         var parts = BlockFigure.Parts(StanceId.Standing, true);
-        var head = parts[3];
+        var head = parts[BlockFigure.TorsoIndex + 1];
         var leaning = new MotionPose(0, 0, 0, Lean: MotionTracker.RunLean, HipZ: 0.5f);
         var headAt = Vector3.Transform(Vector3.Zero, head.BodyTransform(size, default, ArticulationPose.Neutral, leaning));
         Assert.True(headAt.X > 0.12f, $"the head goes forward: {headAt}");
@@ -656,7 +656,7 @@ public sealed class Map3DTests
         // a soldier walking while he raises his rifle keeps swinging his legs (a posture blend keeps the parts' roles)
         var halfway = BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.AtEase, WeaponPostureKind.Aimed, 0.5f);
         Assert.Equal(PartRole.LegLeft, halfway[0].Role);
-        Assert.Equal(PartRole.LegRight, halfway[1].Role);
+        Assert.Equal(PartRole.LegRight, halfway[2].Role);
     }
 
     /// <summary>⭐ WL-6b — the aimed body TURNS toward its target over a fraction of a second instead of jumping, and turns back when
@@ -674,6 +674,78 @@ public sealed class Map3DTests
         Assert.InRange(blend.Aim(man, 0f, 0f, 1.65).Twist, 0.5f, 0.8f);      // no longer aimed: turning back
         var other = new Entity(9, 1);
         Assert.Equal(0.7f, blend.Aim(other, 0.7f, 0f, 2.0).Twist);           // first seen: already turned
+    }
+
+    // ── ⭐ WL-6c — knees: the athletic fighting stance, the combat glide, the walking knee ─────────────────────────────────────────
+
+    private static Vector3 Point(KitPart p, Vector3 size, float along) => Vector3.Transform(new Vector3(along, 0, 0), p.BodyTransform(size));
+
+    /// <summary>⭐ WL-6c — the knee keeps the thigh and shin lengths, bends forward, and a leg out of reach is straight.</summary>
+    [Fact]
+    public void WL6c_TheKneeIsSolvedFromHipAndAnkle()
+    {
+        var hip = new Vector3(0, 0, 0.8f); var ankle = new Vector3(0.1f, 0, 0.02f);
+        var knee = BlockFigure.Knee(hip, ankle, 0.44f, 0.44f, Vector3.UnitX);
+        Assert.Equal(0.44f, Vector3.Distance(hip, knee), 3);
+        Assert.Equal(0.44f, Vector3.Distance(knee, ankle), 3);
+        Assert.True(knee.X > 0.1f, $"the knee bends forward: {knee}");
+        var straight = BlockFigure.Knee(new Vector3(0, 0, 0.9f), new Vector3(0, 0, -0.5f), 0.44f, 0.44f, Vector3.UnitX);
+        Assert.InRange(Vector3.Distance(new Vector3(0, 0, 0.46f), straight), 0f, 1e-5f);
+    }
+
+    /// <summary>⭐ WL-6c — an AIMED soldier standing still is in the athletic fighting stance: hips lower, knees bent, the support foot
+    /// forward and the firing-side foot back, both feet on the ground, the head lower; at ease he stands straight.</summary>
+    [Fact]
+    public void WL6c_AnAimedSoldierStandsInTheAthleticStance()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var easy = BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.AtEase);
+        var aimed = BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.Aimed);
+        float HipZ(KitPart[] p) => Point(p[0], size, -0.5f).Z;
+        Assert.Equal(0.90f, HipZ(easy), 2);
+        Assert.Equal(0.90f - BlockFigure.AthleticDrop, HipZ(aimed), 2);
+        Vector3 ankleL = Point(aimed[1], size, 0.5f), ankleR = Point(aimed[3], size, 0.5f);
+        Assert.True(ankleL.X - ankleR.X > 0.3f, $"staggered: left {ankleL}, right {ankleR}");
+        Assert.InRange(ankleL.Z, 0f, 0.05f); Assert.InRange(ankleR.Z, 0f, 0.05f);   // on the ground
+        var kneeL = Point(aimed[0], size, 0.5f);
+        Assert.True(kneeL.X > (Point(aimed[0], size, -0.5f).X + ankleL.X) / 2f + 0.05f, "the knee is bent forward");
+        Assert.InRange(Point(easy[1], size, 0.5f).X, -0.01f, 0.01f);              // at ease: straight, feet together under him
+        float Head(KitPart[] p) => Vector3.Transform(Vector3.Zero, p[BlockFigure.TorsoIndex + 1].BodyTransform(size)).Z;
+        Assert.Equal(Head(easy) - BlockFigure.AthleticDrop, Head(aimed), 2);
+    }
+
+    /// <summary>⭐ WL-6c — aimed and on the move he GLIDES: feet back under the lowered hips, knees bent; the leg parts keep their
+    /// swing roles; a shin bends back about its knee as the gait swings it through.</summary>
+    [Fact]
+    public void WL6c_AimedAndMovingHeGlides_KneesBent_AndTheShinBendsAsTheLegSwingsThrough()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var glide = BlockFigure.Glide(BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.Aimed), 1f);
+        for (int i = 1; i <= 3; i += 2)
+        {
+            var ankle = Point(glide[i], size, 0.5f);
+            Assert.InRange(ankle.X, -0.01f, 0.07f);                                         // under the hips
+            Assert.True(Vector3.Distance(Point(glide[i - 1], size, -0.5f), ankle) < 0.84f, "knees bent");
+        }
+        Assert.Equal(PartRole.LegLeft, glide[1].Role);
+        Assert.Equal(PartRole.LegRight, glide[3].Role);
+        Assert.Same(BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.Aimed),
+                    BlockFigure.Glide(BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.Aimed), 0f));
+
+        var walk = BlockFigure.Parts(StanceId.Standing, false);
+        var shin = walk[1];
+        var footStill = Point(shin, size, 0.5f);
+        var footBent = Vector3.Transform(new Vector3(0.5f, 0, 0), shin.BodyTransform(size, default, ArticulationPose.Neutral, new MotionPose(0, 0, 0, KneeFlexL: 0.5f)));
+        Assert.True(footBent.X < footStill.X - 0.15f && footBent.Z > footStill.Z + 0.04f, $"the foot lifts back: {footBent} vs {footStill}");
+        var thigh = walk[0];
+        Assert.Equal(Point(thigh, size, 0.5f),
+                     Vector3.Transform(new Vector3(0.5f, 0, 0), thigh.BodyTransform(size, default, ArticulationPose.Neutral, new MotionPose(0, 0, 0, KneeFlexL: 0.5f))));
+
+        var t = new MotionTracker();
+        var man = new Entity(11, 1);
+        MotionPose pose = default;
+        for (int i = 0; i <= 30; i++) pose = t.Advance(man, new Vector3(i * 0.05f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, i / 30.0, false);
+        Assert.InRange(pose.Stride, 0.9f, 1f);                                              // 1.5 m/s: a full walk
     }
 
     /// <summary>⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — the dead figure lies on the ground (lower than prone), arms flung out

@@ -57,7 +57,7 @@ public sealed class MotionTracker
         float along = Vector3.Dot(new Vector3(delta.X, delta.Y, 0f), new Vector3(forward.X, forward.Y, 0f));
         float planar = new Vector2(delta.X, delta.Y).Length();
 
-        float swing = 0f, rotor = 0f, lean = 0f;
+        float swing = 0f, rotor = 0f, lean = 0f, stride = 0f;
         switch (family)
         {
             case VisualFamily.WheeledCar or VisualFamily.WheeledUtility:
@@ -73,6 +73,7 @@ public sealed class MotionTracker
                 st.Gait = Wrap(st.Gait + planar / StrideMetres * MathF.PI * 2f);
                 swing = (gait.Walk * WalkSwing + gait.Run * RunSwing) * MathF.Sin(st.Gait);
                 lean = gait.Walk * WalkLean + gait.Run * RunLean;
+                stride = Math.Clamp(gait.Walk + gait.Run, 0f, 1f);   // ⭐ WL-6c — how much he is walking (knees, the glide)
                 break;
             }
             case VisualFamily.Helicopter when rotorTurning:
@@ -83,7 +84,7 @@ public sealed class MotionTracker
         st.Last = position;
         st.SimTime = simTime;
         _states[e] = st;
-        return new MotionPose(rotor, st.Roll, swing, lean);
+        return new MotionPose(rotor, st.Roll, swing, lean, Stride: stride, GaitPhase: st.Gait);
     }
 
     /// <summary>Forgets entities not seen for a while — called once per frame with the set drawn this frame.</summary>

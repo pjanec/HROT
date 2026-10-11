@@ -555,6 +555,7 @@ public sealed class Map3DFrameRail
         Person(0f, -6f, Rifleman, StanceId.Crouched, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
         Person(1.5f, -9f, Rifleman, StanceId.Prone, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
         var runner = Person(-5f, 1.5f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        var glider = Person(-5f, -1.5f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);   // ⭐ WL-6c — the glide
         var walker = Person(-5f, -4.5f, UrbanCombatTkbCatalog.TkbCivilianPedestrian, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
 
         using var frame = UiFrameHarness.Begin(1280, 800);
@@ -585,15 +586,29 @@ public sealed class Map3DFrameRail
             world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
             Move(runner, 6f, 1.0 / 30.0);
             Move(walker, 1.4f, 1.0 / 30.0);
+            Move(glider, 1.2f, 1.0 / 30.0);
             frame.Step(canvas.Draw);
         }
         frame.Screenshot(Path.Combine(shots, "posture-1-side.png"));
-        Assert.Equal(8, bodies.BodiesDrawn);
+        Assert.Equal(9, bodies.BodiesDrawn);
 
         // closer, side-on from the south, on the aimed pair (the one turned toward the target on his left) and the crouched one
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 0.3f, spot.Y - 3f, G(spot.X, spot.Y) + 1.1f), 6.5f, MathF.PI * 0.62f, -0.08f);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "posture-2-aimed-close.png"));
+
+        // ⭐ WL-6c — side-on, low: the athletic stance (knees bent, feet staggered) and the glide (aimed, walking, short steps)
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 2.5f, spot.Y - 1f, G(spot.X, spot.Y) + 0.8f), 7.5f, MathF.PI * 0.5f, -0.04f);
+        for (int i = 0; i < 4; i++)
+        {
+            now += 1.0 / 30.0;
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+            Move(glider, 1.2f, 1.0 / 30.0);
+            Move(runner, 6f, 1.0 / 30.0);
+            Move(walker, 1.4f, 1.0 / 30.0);
+            frame.Step(canvas.Draw);
+        }
+        frame.Screenshot(Path.Combine(shots, "posture-3-athletic-and-glide.png"));
     }
 
     /// <summary>

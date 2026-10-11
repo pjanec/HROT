@@ -826,6 +826,17 @@ seen (load, late host, replay jump) is simply in its posture, and a clock going 
 like `StanceStatus` — the stance needs one because the Muscle plays it and the Brain waits for it; nothing waits on a rifle being raised.
 Rails: `Map3DTests.WL6b_*`.
 
+⭐ **WL-6c (`2026-10-11`, user: *"can we use 'modern athletic rifle fighting stance' when the weapon is aimed and duck-walk when aimed
+and the soldier is moving? soldiers are not usually standing straight in close quarters and direct engagement"*) — the legs get KNEES.**
+Each leg is a thigh + shin, the knee solved from hip and ankle (two-bone IK, `BlockFigure.Knee`). **Aimed, standing still ⇒ the
+athletic fighting stance**: hips 0.10 m lower, knees bent, support foot forward and firing-side foot back, upper body leaning ~10° into
+the rifle (`AthleticLean`). **Aimed and moving ⇒ the combat glide**: feet under the lowered hips, knees bent, steps 45 % shorter
+(`BlockFigure.Glide`, weight = aimed × stride). **Every walker's shin bends back as its leg swings through** (`MotionPose.KneeFlexL/R`
+from the gait phase) — civilians too. All of it follows the posture blend, so a soldier SINKS into the stance as he raises the rifle.
+⛔ **Drawing only:** the LOGICAL stance stays Standing — the hit model, shot heights and perception body points do not change
+(Buildings §3f: an animation shows the stance, never gates it); the move speed is unchanged (the Muscle's, not the picture's).
+Rails: `Map3DTests.WL6c_*`, frame rail `posture-3-athletic-and-glide`.
+
 ⚠ **Not built:** a vehicle's posture is written but nothing draws it (its turret has `TurretPose`); the Stride skeletal aim layer could
 read the same component — not wired.
 
