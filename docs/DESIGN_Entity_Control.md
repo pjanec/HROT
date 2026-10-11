@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: READY-TO-BUILD (all slices; M-1..M-10 approved 2026-10-11, R-271)
+build-state: READY-TO-BUILD (all slices; M-1..M-10 approved 2026-10-11, R-271 (backend))
 current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices
 stale-below: nothing
 known-rot: nothing yet
@@ -70,7 +70,7 @@ not run (not available via the CLI) — the zero rows are grep-and-graph zeros, 
 | **C-11** | HTTP orders carry origin **Operator**; build order = **HTTP orders first**, then menu/RTS, then FPS |
 | **C-12** | *(this message)* FPS motion is a **direct manual-drive command**, not direct-to-point; vehicles steer instead of strafing, with free look and an optional view locked to the hull where the mouse steers; the generic `/entities/command` route is fixed; the menu orders get a follow-up point / entity pick |
 
-### 2.2 ✅ Approved — the motion and plumbing decisions (user, `2026-10-11`: *"Approved."* → `R-271`)
+### 2.2 ✅ Approved — the motion and plumbing decisions (user, `2026-10-11`: *"Approved."* → `R-271 (backend)`)
 
 | # | question | ⭐ lean | rejected — one line each |
 |---|---|---|---|
@@ -85,7 +85,7 @@ not run (not available via the CLI) — the zero rows are grep-and-graph zeros, 
 | **M-9** | the FPS camera | `MapCamera3D` gains an optional **`ICameraDriver`** (not unsealed — gizmos and labels draw only for `MapCamera3D`, `DebugGizmoLayer.cs:140,169`); while a driver is set `MapCameraLayer` **does not save the pose** into the scenario camera (R-260, `MapCameraLayer.cs:149`). `IInputProvider` gains **`SetCursorLocked`** | a second camera class — loses every 3-D gizmo, label and picker |
 | **M-10** | the menu orders | handlers for the existing `MoveHere / Engage / Stop` ids, registered **once in `MapInteractionPack`** (every map host): Move → **location follow-up pick**, Engage → **entity follow-up pick**, Stop → immediate. The args channel and TKB command sets (Entity Commanding §2.2-2.4) stay later work there | an editor-only registration — the IG and CGF menus stay dead |
 
-### 2.3 ✅ Messaging — FDP bus events first; the network is only a translator *(user, `2026-10-11` → `R-271`; R-134)*
+### 2.3 ✅ Messaging — FDP bus events first; the network is only a translator *(user, `2026-10-11` → `R-271 (backend)`; R-134)*
 
 🔒 *"All the messaging needs to work in the networkless editor so ig needs using fdp bus events translated to network and back,
 accepting the latency."* ⇒ **every message in this design is a typed FDP event or a component on the local world.** A sender

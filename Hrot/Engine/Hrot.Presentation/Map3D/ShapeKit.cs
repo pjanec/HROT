@@ -1,4 +1,5 @@
 using System.Numerics;
+using Fdp.Core;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Components;
 
@@ -349,6 +350,47 @@ public static class BlockFigure
     private static readonly KitPart RifleCrouched = P(0.42f, -0.10f, 0.80f, 0.80f, 0.05f, 0.08f, ColourRole.Metal);
     private static readonly KitPart RifleProne = P(0.92f, -0.12f, 0.14f, 0.80f, 0.05f, 0.08f, ColourRole.Metal);
 
+    /// <summary>⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — a dead man: on his back, head forward (+X, like prone), legs apart,
+    /// arms flung out; a soldier's rifle dropped beside him. Same parts in the same order as every stance, so a fall can blend.</summary>
+    private static readonly KitPart[] DeadPose =
+    {
+        P(-0.60f, 0.20f, 0.08f, 0.90f, 0.14f, 0.14f, ColourRole.Dark) with { YawDegrees = 12f },
+        P(-0.60f, -0.20f, 0.08f, 0.90f, 0.14f, 0.14f, ColourRole.Dark) with { YawDegrees = -12f },
+        P(0.02f, 0f, 0.12f, 0.60f, 0.42f, 0.22f, ColourRole.Body),
+        P(0.46f, 0f, 0.11f, 0.22f, 0.20f, 0.21f, ColourRole.Body),
+        P(0.18f, 0.48f, 0.06f, 0.55f, 0.10f, 0.10f, ColourRole.Body) with { YawDegrees = 70f },
+        P(0.18f, -0.48f, 0.06f, 0.55f, 0.10f, 0.10f, ColourRole.Body) with { YawDegrees = -70f },
+    };
+
+    private static readonly KitPart RifleDropped = P(0.30f, -0.95f, 0.04f, 0.80f, 0.05f, 0.08f, ColourRole.Metal) with { YawDegrees = 20f };
+    private static readonly KitPart[] DeadArmed = [.. DeadPose, RifleDropped];
+
+    /// <summary>⭐ W4 (VE-S) — the dead figure. ⛔ Not a <see cref="StanceId"/>: the stance is the animation contract shared with the
+    /// Muscle; death is a health fact, and the renderer draws it because the man is destroyed (<c>CombatLife.IsDestroyed</c>).</summary>
+    public static KitPart[] Dead(bool soldier) => soldier ? DeadArmed : DeadPose;
+
+    /// <summary>⭐ W4 (VE-S) — the fall: <paramref name="from"/> (his last stance's parts) part-way to <see cref="Dead"/>, every part's
+    /// centre, size, yaw and pitch interpolated (<paramref name="t"/> 0..1 over <see cref="DeathFall.Seconds"/>).</summary>
+    public static KitPart[] Fall(KitPart[] from, float t, bool soldier) => Lerp(from, Dead(soldier), t);
+
+    private static KitPart[] Lerp(KitPart[] a, KitPart[] b, float t)
+    {
+        t = Math.Clamp(t, 0f, 1f);
+        if (t <= 0f) return a;
+        if (t >= 1f || a.Length != b.Length) return b;
+        var blended = new KitPart[a.Length];
+        for (int i = 0; i < a.Length; i++)
+            blended[i] = b[i] with
+            {
+                Centre = Vector3.Lerp(a[i].Centre, b[i].Centre, t),
+                Extent = Vector3.Lerp(a[i].Extent, b[i].Extent, t),
+                YawDegrees = a[i].YawDegrees + (b[i].YawDegrees - a[i].YawDegrees) * t,
+                PitchDegrees = a[i].PitchDegrees + (b[i].PitchDegrees - a[i].PitchDegrees) * t,
+                Role = PartRole.Hull,
+            };
+        return blended;
+    }
+
     private static readonly KitPart[] StandingArmed = [.. Standing, RifleStanding];
     private static readonly KitPart[] CrouchedArmed = [.. Crouched, RifleCrouched];
     private static readonly KitPart[] ProneArmed = [.. Prone, RifleProne];
@@ -360,20 +402,7 @@ public static class BlockFigure
     /// </summary>
     public static KitPart[] Blend(StanceId from, StanceId to, float t, bool soldier)
     {
-        var a = Parts(from, soldier);
-        var b = Parts(to, soldier);
-        t = Math.Clamp(t, 0f, 1f);
-        if (t <= 0f) return a;
-        if (t >= 1f || a.Length != b.Length) return b;
-        var blended = new KitPart[a.Length];
-        for (int i = 0; i < a.Length; i++)
-            blended[i] = b[i] with
-            {
-                Centre = Vector3.Lerp(a[i].Centre, b[i].Centre, t),
-                Extent = Vector3.Lerp(a[i].Extent, b[i].Extent, t),
-                Role = PartRole.Hull,
-            };
-        return blended;
+        return Lerp(Parts(from, soldier), Parts(to, soldier), t);   // ⭐ W4 — the one interpolation, shared with the fall
     }
 
     /// <summary>The posed parts for <paramref name="stance"/> (anything but crouched or prone stands — the rule's own default).</summary>
@@ -383,4 +412,53 @@ public static class BlockFigure
         StanceId.Prone => soldier ? ProneArmed : Prone,
         _ => soldier ? StandingArmed : Standing,
     };
+}
+
+/// <summary>
+/// ⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — when each dead man fell, so the renderer can blend him from his last stance into
+/// <see cref="BlockFigure.Dead"/> over <see cref="Seconds"/> of SIMULATION time (a pause freezes the fall). Only a death SEEN happening
+/// falls: a body first seen already dead (a load, a late host, a replay jump) is simply lying there.
+/// </summary>
+public sealed class DeathFall
+{
+    /// <summary>How long the fall takes (s, sim time).</summary>
+    public const float Seconds = 0.6f;
+
+    /// <summary>A death further than this from the last frame he was seen alive was not seen happening (a jump) ⇒ no fall.</summary>
+    public const double SeenWithin = 0.5;
+
+    private readonly Dictionary<Entity, (double At, StanceId Stance)> _lastAlive = new();
+    private readonly Dictionary<Entity, (double At, StanceId From)> _fell = new();
+    private readonly List<Entity> _gone = new();
+
+    /// <summary>He is alive this frame, in <paramref name="stance"/>.</summary>
+    public void Alive(Entity e, StanceId stance, double now)
+    {
+        _lastAlive[e] = (now, stance);
+        _fell.Remove(e);
+    }
+
+    /// <summary>He is dead this frame: how far through the fall (0..1, 1 = lying) and the stance he fell from.</summary>
+    public (float T, StanceId From) Dead(Entity e, double now)
+    {
+        if (!_fell.TryGetValue(e, out var fall))
+        {
+            fall = _lastAlive.TryGetValue(e, out var alive) && now >= alive.At && now - alive.At <= SeenWithin
+                ? (now, alive.Stance)
+                : (double.NegativeInfinity, StanceId.Standing);
+            _fell[e] = fall;
+            _lastAlive.Remove(e);
+        }
+        if (double.IsNegativeInfinity(fall.At) || now < fall.At) return (1f, fall.From);
+        return ((float)Math.Clamp((now - fall.At) / Seconds, 0.0, 1.0), fall.From);
+    }
+
+    /// <summary>Forgets everyone not drawn this frame.</summary>
+    public void EndFrame(HashSet<Entity> drawn)
+    {
+        _gone.Clear();
+        foreach (var e in _lastAlive.Keys) if (!drawn.Contains(e)) _gone.Add(e);
+        foreach (var e in _fell.Keys) if (!drawn.Contains(e)) _gone.Add(e);
+        foreach (var e in _gone) { _lastAlive.Remove(e); _fell.Remove(e); }
+    }
 }

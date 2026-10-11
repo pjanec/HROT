@@ -39,6 +39,8 @@ namespace Hrot.ScenarioEditor.Gizmos
     {
         private const uint ConditionDamaged  = 1u << 0;
         private const uint ConditionImmobile = 1u << 1;
+        /// <summary>⭐ W2 (docs/DESIGN_Visual_Effects.md §7 VE-O) — the MIL-STD-2525 X (<c>EntityShapeCondition.Destroyed</c>).</summary>
+        private const uint ConditionDestroyed = 1u << 2;
 
         private readonly GizmoSettingsRegistry? _settings;
         private readonly uint _damagedKey;
@@ -96,6 +98,9 @@ namespace Hrot.ScenarioEditor.Gizmos
             // ⭐ CE-1033 S5 (R-260) — the map CAMERA entity is the view, not a thing on the map: no symbol, no anchor, no pick box.
             if (view.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity)
                 && Hrot.Core.Tkb.MapCameraTkb.Is(view.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity).TkbType)) return;
+            // ⭐ LR-3 (DESIGN_Visual_Effects.md §8.5, R-271) — a replicated ROUND is not a unit: no symbol, no anchor, no pick box
+            //   (its projector draws it).
+            if (view.HasComponent<Fdp.Toolkit.Replication.Components.LightweightRound>(entity)) return;
 
             // ⭐ SimTransform is the single source on every host. CGF's copy preferred NetworkTransform on
             // the grounds that it is "fresher on a host that does not own the entity" — measured false:
@@ -128,6 +133,8 @@ namespace Hrot.ScenarioEditor.Gizmos
                     if (damagePct >= ImmobileThreshold) conditionMask |= ConditionImmobile;
                 }
             }
+            // ⭐ W2 (VE-N) — the one "destroyed" test, shared with the 3-D wreck and the flames.
+            if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(view, entity)) conditionMask |= ConditionDestroyed;
 
             EntityPresentationGizmoShared.TryGetVehicleDimensions(view, entity, out float length, out float width);
             ulong profileId = EntityPresentationGizmoShared.ResolveProfileId(view, entity);

@@ -216,6 +216,9 @@ namespace Hrot.Map.Definitions.Tkb
                         MuzzleOffsetX     = wm.MuzzleOffset.X,       // ⭐ E4 VE-K
                         MuzzleOffsetY     = wm.MuzzleOffset.Y,
                         MuzzleOffsetZ     = wm.MuzzleOffset.Z,
+                        AmmoGuid          = unchecked((ulong)wm.AmmoTkb),        // ⭐ LR-1 (R-271)
+                        TracerAmmoGuid    = unchecked((ulong)wm.TracerAmmoTkb),
+                        TracerEvery       = wm.TracerEvery,
                     });
                 }
                 template.AddDescriptor(suite);

@@ -48,7 +48,8 @@ namespace Hrot.ScenarioEditor.Map
         Fdp.Toolkit.Vis3D.MapViewSwitch ViewSwitch,
         Fdp.Toolkit.Vis3D.TerrainLayer3D Terrain,
         Hrot.UI.Common.Map3D.EntityBodyLayer3D Bodies,
-        Hrot.UI.Common.Effects.EffectLayer Effects);
+        Hrot.UI.Common.Effects.EffectLayer Effects,
+        Hrot.UI.Common.Effects.ProjectileLayer? Projectiles = null);
 
     public static class MapInteractionPack
     {
@@ -321,7 +322,10 @@ namespace Hrot.ScenarioEditor.Map
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
                 selection, selectionInteraction, selectionRequests, selectionNotifications,
-                rubberBand, actions, actionDispatch, layerControl, authoring, canvasMenu);
+                rubberBand, actions, actionDispatch, layerControl, authoring, canvasMenu)
+            {
+                IsReplayActive = ctx.IsReplayActive,   // ⭐ W1 (VE-R) — the effect systems stand down in a replay
+            };
         }
 
         /// <summary>
@@ -398,11 +402,17 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1042 E3 — muzzle flashes, tracers, explosions and decals, from their TKB type, in both modes (VE-F).
             var effects = new Hrot.UI.Common.Effects.EffectLayer(worldProvider, tkb, bodies) { GroundHeight = viewSwitch.Camera3D.GroundHeight };
             canvas.AddLayer(effects);
+            // ⭐ P1 (DESIGN_Visual_Effects.md §8 PR-B) — rounds with a munition look (a grenade flying and lying, a mortar bomb, a rocket…).
+            var projectiles = new Hrot.UI.Common.Effects.ProjectileLayer(worldProvider, tkb, () => viewSwitch.Is3D ? viewSwitch.Camera3D : null)
+            {
+                GroundHeight = viewSwitch.Camera3D.GroundHeight,
+            };
+            canvas.AddLayer(projectiles);
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapViewModeLayer(viewSwitch, bus));
             // ⭐ CE-1033 S5 (R-260) — the scenario's camera entity, the same on every host: adopted when the scenario opens, REQUESTED
             //   (unowned, so the default processor creates and owns it — R-140) on the first camera move, moved by its owner.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider));
-            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects);
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)

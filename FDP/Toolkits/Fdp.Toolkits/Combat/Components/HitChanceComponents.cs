@@ -11,6 +11,11 @@ namespace Fdp.Toolkit.Combat.Components
     public struct ShotOrdinal
     {
         public uint Count;
+
+        /// <summary>⭐ LR-1 (R-271) — every round this shooter fired from a mount with a tracer mix, so one in
+        /// <c>TracerEvery</c> is the tracer. ⚠ Separate from <see cref="Count"/>: that one drives the hit model's deflection sequence
+        /// and must not move when a tracer is counted.</summary>
+        public uint Fired;
     }
 
     /// <summary>

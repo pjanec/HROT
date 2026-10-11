@@ -339,7 +339,8 @@ namespace Fdp.Core
         /// <summary><c>IgMissionHolder</c> â€” managed component caching decoded EntityMission for rendering.</summary>
         public const int IgMissionHolder             = 123;
 
-        /// <summary><c>EffectLifetime</c> — ⭐ CE-1042 E2: the age of a realism effect entity (muzzle flash, explosion, decal, tracer).</summary>
+        /// <summary><c>EffectLifetime</c> — ⛔ RETIRED (W1, docs/DESIGN_Visual_Effects.md §7 VE-Q): the effects' timer moved onto the
+        /// generic <c>Lifespan</c> (<see cref="Lifespan"/>). The struct is gone; ⛔ the id stays RESERVED — never reuse 124.</summary>
         public const int EffectLifetime          = 124;
 
         /// <summary><c>EffectAnchor</c> — ⭐ CE-1042 E2: the shooter and weapon a muzzle flash / tracer is attached to.</summary>
@@ -751,5 +752,13 @@ namespace Fdp.Core
         /// <summary><c>CombatTemperament</c> — a soldier's bravery and obedience (AQ89 B, R-269), read through <c>TemperamentOf</c> with
         /// defaults so it never reads zero; saved in the scenario by its own translator.</summary>
         public const int CombatTemperament = 355;
+
+        /// <summary><c>Lifespan</c> — ⭐ W1 (docs/DESIGN_Visual_Effects.md §7 VE-Q, R-269 (ui)): when an entity was made (sim time) and how long
+        /// it lives; <c>LifespanSystem</c> removes it after. ⚠ 355 is the backend lane's <c>CombatTemperament</c>, so this takes 356.</summary>
+        public const int Lifespan = 356;
+
+        /// <summary><c>LightweightRound</c> — ⭐ LR-2 (docs/DESIGN_Visual_Effects.md §8.5, R-271): a round replicated WITHOUT any lifecycle —
+        /// EntityMaster (Lightweight) + WorldPos only, no ghost promotion, no ELM, no acks.</summary>
+        public const int LightweightRound = 357;
     }
 }

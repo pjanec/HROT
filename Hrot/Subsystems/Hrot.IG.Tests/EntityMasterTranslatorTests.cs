@@ -53,6 +53,53 @@ public class EntityMasterTranslatorTests
         return (repo, entityMap, eventBus, translator);
     }
 
+    // ── ⭐ LR-2 — lightweight rounds (docs/DESIGN_Visual_Effects.md §8.5, R-271) ──────────────────────
+
+    /// <summary>⭐ LR-2 — a master with the <c>Lightweight</c> flag (a replicated round) makes the entity ACTIVE at once: no ghost
+    /// tracker, no promotion, no acks; tagged <c>LightweightRound</c> and never saved. Its dispose DESTROYS it directly — there is no
+    /// lifecycle to tear down — instead of publishing a teardown command.</summary>
+    [Fact]
+    public void LR2_ALightweightMaster_CreatesTheEntityActive_AndItsDisposeDestroysIt()
+    {
+        var (repo, entityMap, eventBus, translator) = CreateFixture();
+        repo.RegisterComponent<LightweightRound>();
+        repo.RegisterComponent<NetworkAuthority>();
+        repo.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
+        var master = new EntityMaster { EntityId = 88, TkbType = 6004, Flags = (ulong)EntityMasterFlags.Lightweight };
+
+        translator.ProcessSample(in master, new RecordingCommandBuffer(), repo, writerNodeId: 2);
+
+        Assert.True(entityMap.TryGetEntity(88, out var round));
+        Assert.Equal(EntityLifecycle.Active, repo.GetLifecycleState(round));
+        Assert.False(repo.HasComponent<GhostStateTracker>(round));
+        Assert.True(repo.HasComponent<LightweightRound>(round));
+        Assert.True(repo.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(round));
+
+        translator.ProcessDispose(88);
+        Assert.False(repo.IsAlive(round));                                   // gone at once — no teardown command
+        eventBus.SwapBuffers();
+        Assert.Empty(eventBus.ReadManaged<DestroyEntityCommand>());
+    }
+
+    /// <summary>⭐ LR-2 — a WorldPos sample can arrive BEFORE its master and make a ghost; the lightweight master then converts that
+    /// ghost to an Active round.</summary>
+    [Fact]
+    public void LR2_AGhostMadeByAnEarlyWorldPos_IsConvertedByTheLightweightMaster()
+    {
+        var (repo, entityMap, _, translator) = CreateFixture();
+        repo.RegisterComponent<LightweightRound>();
+        repo.RegisterComponent<NetworkAuthority>();
+        var ghost = new GhostCreationSystem(entityMap).CreateGhost(repo, 89);
+        Assert.Equal(EntityLifecycle.Ghost, repo.GetLifecycleState(ghost));
+
+        var master = new EntityMaster { EntityId = 89, TkbType = 6008, Flags = (ulong)EntityMasterFlags.Lightweight };
+        translator.ProcessSample(in master, new RecordingCommandBuffer(), repo, writerNodeId: 2);
+
+        Assert.Equal(EntityLifecycle.Active, repo.GetLifecycleState(ghost));
+        Assert.False(repo.HasComponent<GhostStateTracker>(ghost));
+        Assert.True(repo.HasComponent<LightweightRound>(ghost));
+    }
+
     // ── Ghost spawn path (new entity) ──────────────────────────────────────────
 
     /// <summary>

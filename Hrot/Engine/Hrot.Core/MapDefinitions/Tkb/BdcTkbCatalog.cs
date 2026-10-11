@@ -59,6 +59,7 @@ namespace Hrot.Map.Definitions.Tkb
                         DamagePerHit = 1200,
                         Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1
                         MuzzleOffset = new System.Numerics.Vector3(5.3f, 0f, 0f),   // ⭐ E4 — the 120 mm L/44 barrel from its trunnion
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmApfsds,   // ⭐ LR-1 (R-271)
                     });
                     c.SensorRange = 8000;
                 })
@@ -97,10 +98,12 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorSide = 60;
                     c.ArmorRear = 40;
                     c.Weapons.Add(new WeaponMount { WeaponType = "25mm_M242", Ammunition = 300, Range = 2500, RateOfFire = 200, Penetration = 60, DamagePerHit = 60,
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb25mmApdsT,   // ⭐ LR-1
                         Category = WeaponCategory.Autocannon, TurretIndex = 0,   // ⭐ WL-1 — the 25 mm and the TOW share one turret
                         MuzzleOffset = new System.Numerics.Vector3(2.6f, 0f, 0f) });   // ⭐ E4
 
                     c.Weapons.Add(new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 7, Range = 3750, RateOfFire = 2, Penetration = 800, DamagePerHit = 2000,
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbTowMissile,   // ⭐ LR-1
                         Category = WeaponCategory.Atgm, TurretIndex = 0,
                         MuzzleOffset = new System.Numerics.Vector3(0.4f, 1.0f, 0.35f) });   // ⭐ E4 — the launcher on the turret's left
                     c.SensorRange = 5000;
@@ -166,6 +169,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorSide = 250;
                     c.ArmorRear = 150;
                     c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8, Penetration = 600, DamagePerHit = 1100,
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds,   // ⭐ LR-1
                         Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1
                         MuzzleOffset = new System.Numerics.Vector3(6.0f, 0f, 0f) });   // ⭐ E4 — the 125 mm L/48 barrel
                     c.SensorRange = 6000;
@@ -203,6 +207,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 5; // Body armor
                     c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
                         DispersionMils = RifleDispersionMils,   // ⭐ AQ85 C — the first opt-in (~50 % at 100 m standing still)
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5,   // ⭐ LR-1 — 1 in 5 traces
                         Category = WeaponCategory.SmallArms });
                     c.SensorRange = 500;
                 })

@@ -19,6 +19,9 @@ namespace Hrot.Core.Tkb
         public const long ExplosionSmall = 7111, ExplosionMedium = 7112, ExplosionLarge = 7113;
         public const long DecalSmall = 7121, DecalMedium = 7122, DecalLarge = 7123;
         public const long Tracer = 7131;
+        /// <summary>⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P) — what a destroyed vehicle burns with: flames ≈ 60 s, smoke ≈ 180 s
+        /// fading (U6: "Durations ok").</summary>
+        public const long Fire = 7141, Smoke = 7151;
 
         /// <summary>The calibre classes the default effect set is chosen by, from a round's damage per hit.</summary>
         public enum CalibreClass : byte { Small, Medium, Large }
@@ -68,6 +71,8 @@ namespace Hrot.Core.Tkb
                 [DecalMedium]       = ("Decal medium",        V(EffectKind.Decal, 180f, 1.8f, "#18140FD0", 30f)),
                 [DecalLarge]        = ("Decal large",         V(EffectKind.Decal, 300f, 4.5f, "#120F0CE0", 60f)),       // a crater
                 [Tracer]            = ("Tracer",              V(EffectKind.Tracer, 0.25f, 0.12f, "#FFB040", 0.1f)),
+                [Fire]              = ("Wreck fire",          V(EffectKind.Fire, 60f, 3.2f, "#FF8A2A", 15f)),          // sized for a tank, scaled by the wreck
+                [Smoke]             = ("Wreck smoke",         V(EffectKind.Smoke, 180f, 3f, "#2E2B28B0", 60f)),
             };
 
         private static EffectVisualDto V(EffectKind kind, float duration, float size, string colour, float fade)

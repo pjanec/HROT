@@ -45,6 +45,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<ReportLifecycleOnActive>();   // CE-283: reliable-init barrier peer tag
         world.RegisterComponent<NetworkTransform>();
         world.RegisterComponent<NetworkVelocity>();
+        world.RegisterComponent<LightweightRound>();   // ⭐ LR-2 (R-271) — a round replicated with no lifecycle, on every node
 
         // ── Geographic / physics ──────────────────────────────────────────────
         world.RegisterComponent<SimTransform>();
