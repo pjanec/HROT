@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: READY-TO-BUILD — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet)
+build-state: BUILDING (WL-1a built, §5a) — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet)
 current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
@@ -189,6 +189,39 @@ firing — beside `AimAndFire` and `FireAtPoint`; releasing the channel sets the
 | **WL-3** | **Engage** on the muscle through `FireProcessingSystem`; the executor split + the default profile; rounds granted / fired; `TrackTarget` on the channel | a tank slews, then fires 3 rounds; behaviours unchanged |
 | **WL-4** | category profiles (tank gun, autocannon, ATGM, mortar, small arms); ammo choice | per-category gunnery |
 | **B5** | `Muzzle.Of` from the posed barrel — the round, the flash and the tracer from one point | VE-K |
+
+### 5a. As built — WL-1a *(2026-10-11)*
+
+WL-1 was split: **WL-1a** = the TKB data, the turret part on every node, the 3-D drawing; **WL-1b** = the keyed wire message
+(the pose leaves the Muscle). Until WL-1b, a pose set on a node draws on that node only.
+
+```mermaid
+classDiagram
+  class TurretSuiteDto { <<TKB, Combat.Turrets>> List~TurretDto~ Turrets }
+  class TurretDto { PivotX/Y/Z; Traverse min/max; Elevation min/max; rates deg/s }
+  class WeaponMountDto { + Category; + TurretIndex = -1; + MuzzleOffsetX/Y/Z }
+  class TurretTkbTranslator { <<Base set, after CombatTkbTranslator>> Inject: Ensure per turret }
+  class TurretParts { <<static>> FirstPartId = 2000; Ensure; Find; PoseOf; IndexOf }
+  class TurretPose { <<component 351, shared registry>> Azimuth; Elevation (radians) }
+  class PartMetadata { <<exists>> ParentEntity; InstanceId = 2000 + index }
+  class TurretPoseSource { <<Hrot.Presentation Map3D>> PoseOf(world, entity) }
+  class EntityBodyLayer3D { <<exists>> poseOf seam }
+  TurretSuiteDto o-- TurretDto
+  TurretTkbTranslator ..> TurretSuiteDto : reads
+  TurretTkbTranslator ..> TurretParts : Ensure
+  TurretParts ..> PartMetadata : builds
+  TurretParts ..> TurretPose : builds
+  TurretPoseSource ..> TurretPose : reads turret 0 live
+  EntityBodyLayer3D ..> TurretPoseSource : poseOf (MapInteractionPack only)
+  WeaponMountDto ..> TurretDto : TurretIndex
+```
+
+*What the picture shows that prose hid:* the turret child is built by the BASE translator set, so every node that spawns the unit has
+it (unlike mount children, CGF only) — that is what lets WL-1b's ingress land on an existing entity. Part ids on one parent: mounts
+`1…N`, TKB sensors `1000+`, turrets `2000+`. Every generic part consumer filters on its own component (`WeaponMountQuery`,
+`UtilityScorer`, `StandardInputs` on `WeaponMountInfo`; `SubEntityCleanupSystem` destroys the child with its parent). The catalog's
+M1, T-72 and Bradley carry one turret each (the Bradley's 25 mm and TOW share it) and every catalog weapon a category. The muzzle
+offset is in the DTO but the catalog does not set it yet — B5 (`Muzzle.Of`) is its first reader.
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 

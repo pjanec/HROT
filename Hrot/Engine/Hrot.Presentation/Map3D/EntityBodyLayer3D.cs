@@ -38,9 +38,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     public readonly record struct TypeLook(VisualFamily Family, Vector3 Size, Color Colour, bool Soldier,
                                            BodyGeometryDto? Geometry = null);
 
-    /// <param name="poseOf">⭐ CE-1033 §3.11 — the turret azimuth and gun elevation of an entity with an articulated kit. ⚠ Null today
-    /// in production: the component that will carry the pose awaits the user's ruling (§3.11, M23–M26); until then turrets face
-    /// forward. The seam is here so that ruling plugs in at ONE place.</param>
+    /// <param name="poseOf">⭐ CE-1033 §3.11 — the turret azimuth and gun elevation of an entity with an articulated kit. ⭐ WL-1 — in
+    /// production it is <see cref="TurretPoseSource.PoseOf"/> (the turret part's <c>TurretPose</c>, DESIGN_Weapon_Layers W-9), plugged in
+    /// at ONE place, <c>MapInteractionPack.AttachMapLayers</c>. Null = every turret faces forward.</param>
     public EntityBodyLayer3D(Func<EntityRepository?> world, Func<ITkbDatabase?> tkb,
                              Func<EntityRepository, Entity, ArticulationPose>? poseOf = null)
     {

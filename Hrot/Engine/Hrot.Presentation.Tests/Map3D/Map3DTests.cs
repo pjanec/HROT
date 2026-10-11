@@ -780,6 +780,55 @@ public sealed class Map3DTests
         Assert.True(tkb.TryGetByType(Hrot.Core.Tkb.MapCameraTkb.Type, out var t) && t!.GetDescriptor<TkbMasterDto>()!.HideFromPalette);
     }
 
+    // ── WL-1 — the drawn turret follows its part's TurretPose (docs/DESIGN_Weapon_Layers.md W-9, §3.11 M23) ──
+
+    /// <summary>⭐ WL-1 — the 3-D map poses a kit from turret 0's <c>TurretPose</c>, read LIVE (a turn shows the next frame with no
+    /// rebuild), and falls back to forward-and-level when the unit has no turret or the turret part is gone.</summary>
+    [Fact]
+    public void WL1_TheDrawnTurret_FollowsItsPartsPose_ReadLive()
+    {
+        using var w = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(w);
+        var tank = w.CreateEntity();
+        var bare = w.CreateEntity();
+        var turret = Fdp.Toolkit.Combat.TurretParts.Ensure(w, tank, 0);
+        Assert.False(turret.IsNull, "every shared-registry node can build a turret part");
+        var source = new TurretPoseSource();
+
+        Assert.Equal(ArticulationPose.Neutral, source.PoseOf(w, tank));
+        w.GetComponentRW<Fdp.Toolkit.Combat.Components.TurretPose>(turret) =
+            new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = 0.7f, Elevation = 0.1f };
+        Assert.Equal(new ArticulationPose(0.7f, 0.1f), source.PoseOf(w, tank));
+        Assert.Equal(ArticulationPose.Neutral, source.PoseOf(w, bare));
+        w.DestroyEntity(turret);
+        Assert.Equal(ArticulationPose.Neutral, source.PoseOf(w, tank));
+    }
+
+    /// <summary>⭐ WL-1 — end to end from the catalog: an M1 spawned through the base translator set on a shared-registry world gets
+    /// one turret part, a Bradley's two weapons share its one turret, and every catalog weapon carries a category.</summary>
+    [Fact]
+    public void WL1_CatalogTanks_GetATurretPart_ThroughTheBaseTranslators()
+    {
+        var tkb = HrotEnvironment.CreateTkb();
+        using var w = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(w);
+        var translators = TkbTranslatorSet.Base();
+        foreach (var type in new[] { TkbEntityTypes.Tank_M1Abrams, TkbEntityTypes.IFV_Bradley, TkbEntityTypes.Tank_T72 })
+        {
+            Assert.True(tkb.TryGetByType(type, out var tpl));
+            var e = w.CreateEntity();
+            foreach (var t in translators) t.Inject(w, e, tpl!);
+            Assert.False(Fdp.Toolkit.Combat.TurretParts.Find(w, e, 0).IsNull, $"type {type} has no turret part");
+            Assert.True(Fdp.Toolkit.Combat.TurretParts.Find(w, e, 1).IsNull);
+            var mounts = tpl!.GetDescriptor<WeaponSuiteDto>()!.Mounts;
+            Assert.All(mounts, m => Assert.Equal(0, m.TurretIndex));
+            Assert.All(mounts, m => Assert.NotEqual(WeaponCategory.Unknown, m.Category));
+        }
+        Assert.True(tkb.TryGetByType(TkbEntityTypes.Infantry_Rifleman, out var rifleman));
+        Assert.Null(rifleman!.GetDescriptor<TurretSuiteDto>());
+        Assert.Equal(-1, rifleman.GetDescriptor<WeaponSuiteDto>()!.Mounts[0].TurretIndex);
+    }
+
     // ── CE-1040 — the 2-D map is north-up (docs/DESIGN_Map_North_Up.md) ──
 
     [Fact]

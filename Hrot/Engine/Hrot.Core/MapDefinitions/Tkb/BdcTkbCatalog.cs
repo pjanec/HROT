@@ -2,6 +2,7 @@ using Fdp.Core.CommandHierarchy;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Tkb;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Map.Common;
 
 namespace Hrot.Map.Definitions.Tkb
@@ -56,9 +57,13 @@ namespace Hrot.Map.Definitions.Tkb
                         RateOfFire = 6,
                         Penetration = 650,     // CE-3071 — mm RHA (design §9 calibration)
                         DamagePerHit = 1200,
+                        Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1
                     });
                     c.SensorRange = 8000;
                 })
+                // ⭐ WL-1 (DESIGN_Weapon_Layers W-9) — the turret: pivot aft of centre, −10…+20° gun, 40°/s traverse.
+                .WithTurrets(TkbEntityTypes.Tank_M1Abrams, new TurretDto { PivotX = -0.4f, PivotZ = 1.9f,
+                    ElevationMinDeg = -10f, ElevationMaxDeg = 20f, TraverseRateDegPerSec = 40f, ElevationRateDegPerSec = 10f })
                 .WithFaction(TkbEntityTypes.Tank_M1Abrams, 1)
                 .WithBehavior(TkbEntityTypes.Tank_M1Abrams)
                 .WithDisType(TkbEntityTypes.Tank_M1Abrams, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 1 });
@@ -90,10 +95,15 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 100;
                     c.ArmorSide = 60;
                     c.ArmorRear = 40;
-                    c.Weapons.Add(new WeaponMount { WeaponType = "25mm_M242", Ammunition = 300, Range = 2500, RateOfFire = 200, Penetration = 60, DamagePerHit = 60 });
-                    c.Weapons.Add(new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 7, Range = 3750, RateOfFire = 2, Penetration = 800, DamagePerHit = 2000 });
+                    c.Weapons.Add(new WeaponMount { WeaponType = "25mm_M242", Ammunition = 300, Range = 2500, RateOfFire = 200, Penetration = 60, DamagePerHit = 60,
+                        Category = WeaponCategory.Autocannon, TurretIndex = 0 });   // ⭐ WL-1 — the 25 mm and the TOW share one turret
+
+                    c.Weapons.Add(new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 7, Range = 3750, RateOfFire = 2, Penetration = 800, DamagePerHit = 2000,
+                        Category = WeaponCategory.Atgm, TurretIndex = 0 });
                     c.SensorRange = 5000;
                 })
+                .WithTurrets(TkbEntityTypes.IFV_Bradley, new TurretDto { PivotX = 0f, PivotZ = 2.3f,
+                    ElevationMinDeg = -10f, ElevationMaxDeg = 60f, TraverseRateDegPerSec = 60f, ElevationRateDegPerSec = 30f })
                 .WithFaction(TkbEntityTypes.IFV_Bradley, 1)
                 .WithBehavior(TkbEntityTypes.IFV_Bradley)
                 .WithDisType(TkbEntityTypes.IFV_Bradley, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 2 });
@@ -152,9 +162,12 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 500;
                     c.ArmorSide = 250;
                     c.ArmorRear = 150;
-                    c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8, Penetration = 600, DamagePerHit = 1100 });
+                    c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8, Penetration = 600, DamagePerHit = 1100,
+                        Category = WeaponCategory.TankGun, TurretIndex = 0 });   // ⭐ WL-1
                     c.SensorRange = 6000;
                 })
+                .WithTurrets(TkbEntityTypes.Tank_T72, new TurretDto { PivotX = 0.2f, PivotZ = 1.75f,
+                    ElevationMinDeg = -6f, ElevationMaxDeg = 14f, TraverseRateDegPerSec = 24f, ElevationRateDegPerSec = 6f })
                 .WithFaction(TkbEntityTypes.Tank_T72, 2)
                 .WithBehavior(TkbEntityTypes.Tank_T72)
                 .WithDisType(TkbEntityTypes.Tank_T72, new DISEntityType { Kind = 1, Domain = 1, Country = Russia, Category = 1 });
@@ -185,7 +198,8 @@ namespace Hrot.Map.Definitions.Tkb
                 {
                     c.ArmorFront = 5; // Body armor
                     c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
-                        DispersionMils = RifleDispersionMils });   // ⭐ AQ85 C — the first opt-in (~50 % at 100 m standing still)
+                        DispersionMils = RifleDispersionMils,   // ⭐ AQ85 C — the first opt-in (~50 % at 100 m standing still)
+                        Category = WeaponCategory.SmallArms });
                     c.SensorRange = 500;
                 })
                 .WithFaction(TkbEntityTypes.Infantry_Rifleman, 1)

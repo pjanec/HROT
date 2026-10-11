@@ -729,5 +729,9 @@
         /// <summary><c>ScenarioEntityCreationRequestSource</c> — a node's LOCAL entity-creation request queue, as a managed world singleton
         /// (published by <c>EntityCreationPack</c>), so shared code holding only the world can request an entity (<c>CE-1033</c> S5, R-260).</summary>
         public const int EntityCreationRequestSource = 349;
+
+        /// <summary><c>TurretPose</c> — a turret part's traverse and gun elevation (WL-1, docs/DESIGN_Weapon_Layers.md W-9). ⚠ 350 is
+        /// taken by test-only components, so this skips to 351.</summary>
+        public const int TurretPose = 351;
     }
 }

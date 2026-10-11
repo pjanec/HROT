@@ -88,4 +88,15 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
         var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && System.Text.RegularExpressions.Regex.IsMatch(f.Text, @"MapCamera(Layer|Tkb|Pose)\b")).Select(f => f.Rel).ToList();
         Assert.True(hostMentions.Count == 0, "a host wires the map camera itself: " + string.Join(", ", hostMentions));
     }
+
+    /// <summary>⭐ WL-1 (DESIGN_Weapon_Layers W-9) — the turret pose reaches the 3-D bodies at ONE place, the shared attach; no host
+    /// passes a pose of its own.</summary>
+    [Fact]
+    public void WL1_TheTurretPoseNeedsNoPerHostWiring()
+    {
+        var pack = File.ReadAllText(Path.Combine(RepoRoot(), PackFile));
+        Assert.Contains("new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb, turretPoses.PoseOf)", pack);
+        var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && f.Text.Contains("TurretPoseSource")).Select(f => f.Rel).ToList();
+        Assert.True(hostMentions.Count == 0, "a host wires the turret pose itself: " + string.Join(", ", hostMentions));
+    }
 }
