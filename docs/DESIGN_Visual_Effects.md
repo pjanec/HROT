@@ -462,6 +462,11 @@ on every map host's world.
 | W4 | `BlockFigure.Dead` (on the back, legs apart, arms flung out, rifle dropped) + `BlockFigure.Fall`; `DeathFall` remembers when each death was SEEN (sim time) — a body first seen dead, or a death found across a jump (> 0.5 s since last seen alive), just lies | `Map3D/ShapeKit.cs`, `EntityBodyLayer3D.FigurePose` | as drawn; `Blend` and `Fall` share one interpolation (now with yaw/pitch) |
 | rails | `EffectTests.W2_*`, `W3_*`; `EntityPresentationGizmoTests.Draw_WhenDestroyed_*`; `Map3DTests.W4_*`; `MapSelfCheckTests` pinned counts | | — |
 
-*NOT verified:* the look on a GL host (the frame rails skip without GL here) — flame and smoke sizes, colours and the X's weight are first
-guesses for a visual check.
+⭐ **Verified on GL `2026-10-11`** — `Map3DFrameRail.W_DestroyedEntities_*` renders the story under Xvfb (Mesa) and writes six
+screenshots (`wreck-1…6-*.png`): three wrecks killed through the production `WreckSpawnSystem`, the riflemen dead / falling / alive,
+the fire dying at 52 s, smoke alone at 150 s, and the 2-D symbols with the X. ⚠ **Tuned from those shots:** the first flames were
+ADDITIVE yellow puffs that saturated to a white ball ⇒ now ALPHA-blended orange → red → soot tongues spread over the hull (16 puffs,
+Fire size 3.2 m); the first X was heavier than the outline and overshot the corners ⇒ now corner to corner at the outline's weight;
+in 2-D the smoke hid the flames ⇒ flames draw last there, at least 3 px. Run it:
+`HROT_RAIL_SHOTS=<dir> xvfb-run -a -s "-screen 0 1280x800x24" dotnet test Hrot/Engine/Hrot.Presentation.Tests --filter "FullyQualifiedName~Map3DFrameRail"`.
 

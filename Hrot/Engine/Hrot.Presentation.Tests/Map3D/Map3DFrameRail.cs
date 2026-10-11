@@ -259,6 +259,140 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1050 W2–W4 (docs/DESIGN_Visual_Effects.md §7) — the destroyed-entity story on a real GL: three vehicles killed at sim 0
+    /// (an M1, a Bradley, a civilian car) beside a living T-72 — near-black wrecks, flames and smoke made by the production
+    /// <c>WreckSpawnSystem</c>; three riflemen — one found dead (lying), one falling mid-way, one alive; later frames with the fire
+    /// dying down (52 s) and only fading smoke left (150 s); and the 2-D map with the MIL-STD X on the wrecks' symbols.
+    /// </summary>
+    [SkippableFact]
+    public void W_DestroyedEntities_BlackWrecksBurnAndSmoke_DeadMenLie_AndThe2DSymbolsCarryTheX()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(world);
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        void At(double t) => world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        long net = 500;
+        Entity Put(long type, float dx, float dy, float hp, StanceId stance = StanceId.Standing, float yaw = 0.35f)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, query.GroundHeightAt(x, y)),
+                                                     Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new StanceIntent { TargetStance = stance });
+            world.AddComponent(e, new NetworkIdentity { Value = ++net });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = hp, Max = 100f });
+            return e;
+        }
+        void Kill(Entity e) => world.SetComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+        var m1 = Put(TkbEntityTypes.Tank_M1Abrams, -22f, 0f, 100f);
+        var bradley = Put(TkbEntityTypes.IFV_Bradley, -10f, 1f, 100f, yaw: 1.2f);
+        var car = Put(UrbanCombatTkbCatalog.TkbCivilianCar, 2f, 0f, 100f, yaw: -0.4f);
+        Put(TkbEntityTypes.Tank_T72, 14f, 0f, 100f);                                       // alive, for comparison
+        Put(TkbEntityTypes.Infantry_Rifleman, -6f, -9f, 0f, StanceId.Standing, 0.9f);      // found dead: lying
+        var falling = Put(TkbEntityTypes.Infantry_Rifleman, -3f, -9f, 100f, StanceId.Crouched, 0.9f);
+        Put(TkbEntityTypes.Infantry_Rifleman, 0f, -9f, 100f, StanceId.Standing, 0.9f);     // alive
+
+        // the kills happen at sim 0, through the production spawner (a crossing makes flames and smoke)
+        At(0.0);
+        var wrecks = new Hrot.UI.Common.Effects.WreckSpawnSystem();
+        void Tick()
+        {
+            wrecks.Execute(world, 0f);
+            ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetCommandBuffer()).Playback(world);
+        }
+        Tick();
+        Kill(m1); Kill(bradley); Kill(car);
+        Tick();
+        Assert.Equal(6, wrecks.Spawned);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();   // a new window: the shared shader compiles in THIS context
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var effects = new Hrot.UI.Common.Effects.EffectLayer(() => world, () => tkb, bodies) { GroundHeight = query.GroundHeightAt };
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        canvas.AddLayer(effects);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        sw.Set(true, animate: false);
+        var close = new CameraPose(new Vector3(spot.X - 6f, spot.Y - 2f, query.GroundHeightAt(spot.X, spot.Y)), 46f, MathF.PI * 0.72f, -0.30f);
+        sw.Camera3D.Pose = close;
+
+        // the falling man: seen alive at 7.7 s, dead from 8.0 s, drawn at 8.3 s — half-way down
+        At(7.7);
+        frame.Step(canvas.Draw);
+        Kill(falling);
+        At(8.0);
+        frame.Step(canvas.Draw);
+        At(8.3);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "wreck-1-burning-8s.png"));
+        Assert.Equal(6, effects.Drawn);
+        Assert.Equal(7, bodies.BodiesDrawn);
+        Assert.Equal(0.5f, bodies.Falls.Dead(falling, 8.3).T, 2);
+
+        // the riflemen up close: dead (lying, rifle dropped), falling, alive
+        var men = new Vector2(spot.X - 3f, spot.Y - 9f);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(men, query.GroundHeightAt(men.X, men.Y)), 9f, MathF.PI * 0.62f, -0.45f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "wreck-2-riflemen-8s.png"));
+
+        // a wreck up close, from the side
+        var tank = world.GetComponentRO<SimTransform>(m1).Position;
+        sw.Camera3D.Pose = new CameraPose(tank, 22f, MathF.PI * 0.85f, -0.22f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "wreck-3-m1-closeup-8s.png"));
+
+        // later: the fire dying down at 52 s; at 150 s the flames are gone and the smoke is fading
+        sw.Camera3D.Pose = close;
+        At(52.0);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "wreck-4-dying-fire-52s.png"));
+        Assert.Equal(6, effects.Drawn);
+        At(150.0);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "wreck-5-fading-smoke-150s.png"));
+        Assert.Equal(3, effects.Drawn);
+
+        // the 2-D map at 8.3 s: the symbols (the production EntityPresentationGizmo) with the X on the three wrecks, the puffs from above
+        At(8.3);
+        var canvas2 = new MapCanvas(input: null);
+        var cam2 = new MapCamera();
+        const float zoom = 9f;
+        var target = new Vector2(spot.X - 4f - 1280f / 2f / zoom, spot.Y - 3f + 800f / 2f / zoom);
+        cam2.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas2.Camera = cam2;
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus(), camera: cam2);
+        canvas2.AddLayer(effects);
+        canvas2.AddLayer(gizmos);
+        var symbol = new Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo();
+        foreach (var e in world.Query().With<NetworkIdentity>().With<SimTransform>().Build())
+            symbol.Draw(world, e, buffer);
+        gizmos.Update(0.016f);
+        frame.Step(canvas2.Draw);
+        frame.Step(canvas2.Draw);
+        frame.Screenshot(Path.Combine(shots, "wreck-6-map2d-x-8s.png"));
+    }
+
+    /// <summary>
     /// ⭐ CE-1034 H3b + H5d — a REAL height-grid terrain through the 3-D map: highway-rest's relief, the overpass (a deck 6 m up on two
     /// ramps) over the highway, a car on the deck and a truck on the highway under it. 📄 docs/DESIGN_Terrain_Height.md §3.4, §5.
     /// </summary>

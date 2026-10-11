@@ -71,7 +71,7 @@ namespace Hrot.Core.Tkb
                 [DecalMedium]       = ("Decal medium",        V(EffectKind.Decal, 180f, 1.8f, "#18140FD0", 30f)),
                 [DecalLarge]        = ("Decal large",         V(EffectKind.Decal, 300f, 4.5f, "#120F0CE0", 60f)),       // a crater
                 [Tracer]            = ("Tracer",              V(EffectKind.Tracer, 0.25f, 0.12f, "#FFB040", 0.1f)),
-                [Fire]              = ("Wreck fire",          V(EffectKind.Fire, 60f, 2.4f, "#FF8A2A", 15f)),          // sized for a tank, scaled by the wreck
+                [Fire]              = ("Wreck fire",          V(EffectKind.Fire, 60f, 3.2f, "#FF8A2A", 15f)),          // sized for a tank, scaled by the wreck
                 [Smoke]             = ("Wreck smoke",         V(EffectKind.Smoke, 180f, 3f, "#2E2B28B0", 60f)),
             };
 

@@ -129,14 +129,15 @@ public sealed class EffectLayer : IMapLayer
     public readonly record struct Puff(Vector3 At, float Radius, Color Colour);
 
     /// <summary>The puffs fire burns with, and that smoke is drawn from.</summary>
-    public const int FirePuffs = 10, SmokePuffs = 14;
+    public const int FirePuffs = 16, SmokePuffs = 14;
 
     /// <summary>
     /// ⭐ W3 (VE-P) — the particles of a <see cref="EffectKind.Fire"/> or <see cref="EffectKind.Smoke"/>, derived from nothing but the
     /// effect's seed and age (no particle entities, no per-frame state): puff i runs a loop of its own period, phase-shifted by a hash
     /// of (seed, i), rising from the anchor; so a replay jump, a pause or a second host draws exactly the same puffs.
     /// <list type="bullet">
-    ///   <item>Fire: short tongues (0.8 s) rising one size and shrinking, yellow → red; they die down over the last 30 % of its life.</item>
+    ///   <item>Fire: short tongues (0.9 s) spread over the hull, rising 1.3 sizes and shrinking, yellow → orange → soot; they die down over
+    ///   the last 30 % of its life.</item>
     ///   <item>Smoke: slow puffs (6 s) rising six sizes, growing, drifting downwind, thinning out; the effect's fade dims the column.</item>
     /// </list>
     /// </summary>
@@ -146,15 +147,18 @@ public sealed class EffectLayer : IMapLayer
         float size = r.Look.Size;
         if (r.Look.Kind == EffectKind.Fire)
         {
+            // ⭐ tuned on the Xvfb frame rail (2026-10-11): ALPHA-blended orange → red → soot tongues spread over the hull — additive
+            //   yellow puffs saturated to a white ball and read as a lamp, not a fire.
             float strength = r.Phase < 0.7f ? 1f : Math.Clamp(1f - (r.Phase - 0.7f) / 0.3f, 0f, 1f);
             for (int i = 0; i < FirePuffs; i++)
             {
-                float t = Frac(r.Age / 0.8f + Hash(r.Seed, i));
-                float jx = (Hash(r.Seed, i + 101) - 0.5f) * size * 0.7f, jy = (Hash(r.Seed, i + 211) - 0.5f) * size * 0.7f;
-                var at = r.At + new Vector3(jx * (1f - 0.5f * t), jy * (1f - 0.5f * t), t * size * strength);
-                float radius = size * 0.28f * (1f - 0.6f * t) * (0.4f + 0.6f * strength);
-                var colour = Lerp(new Color(255, 230, 120, 255), new Color(220, 50, 20, 255), t);
-                list.Add(new Puff(at, radius, Fade(colour, (1f - t) * strength * r.Opacity)));
+                float t = Frac(r.Age / 0.9f + Hash(r.Seed, i));
+                float jx = (Hash(r.Seed, i + 101) - 0.5f) * size * 0.9f, jy = (Hash(r.Seed, i + 211) - 0.5f) * size * 0.6f;
+                var at = r.At + new Vector3(jx * (1f - 0.6f * t), jy * (1f - 0.6f * t), t * size * 1.3f * strength);
+                float radius = size * 0.20f * (1f - 0.5f * t) * (0.4f + 0.6f * strength);
+                var colour = t < 0.5f ? Lerp(new Color(255, 200, 70, 255), new Color(240, 90, 20, 255), t * 2f)
+                                      : Lerp(new Color(240, 90, 20, 255), new Color(80, 36, 24, 255), (t - 0.5f) * 2f);
+                list.Add(new Puff(at, radius, Fade(colour, 0.9f * MathF.Pow(1f - t, 0.6f) * strength * r.Opacity)));
             }
         }
         else if (r.Look.Kind == EffectKind.Smoke)
@@ -209,6 +213,8 @@ public sealed class EffectLayer : IMapLayer
         float zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
         float px = 1f / zoom;   // one screen pixel in metres
         var effects = Resolve();
+        // ⭐ W3 — seen from above the smoke would hide the flames, so in 2-D the flames are drawn LAST (on top).
+        effects.Sort((x, y) => (x.Look.Kind == EffectKind.Fire).CompareTo(y.Look.Kind == EffectKind.Fire));
         foreach (var r in effects)
         {
             var c = Fade(r.Colour, r.Opacity);
@@ -248,7 +254,8 @@ public sealed class EffectLayer : IMapLayer
                     // ⭐ W3 (VE-P) — seen from above: the smoke column drifts downwind as a trail of thinning puffs, the flames
                     //   flicker over the wreck; at least a few pixels each, so a far wreck still shows it is burning.
                     foreach (var puff in Puffs(r))
-                        Raylib.DrawCircleV(new Vector2(puff.At.X, puff.At.Y), MathF.Max(puff.Radius, 2f * px),
+                        Raylib.DrawCircleV(new Vector2(puff.At.X, puff.At.Y),
+                                           MathF.Max(puff.Radius, (r.Look.Kind == EffectKind.Fire ? 3f : 2f) * px),
                                            r.Look.Kind == EffectKind.Smoke ? Fade(puff.Colour, 0.6f) : puff.Colour);
                     break;
             }
@@ -286,10 +293,8 @@ public sealed class EffectLayer : IMapLayer
                         Raylib.DrawCylinderEx(HrotToRaylib.Position(t0), HrotToRaylib.Position(t1), size / 2f, size / 2f, 4, c);
                     break;
                 case EffectKind.Fire:
-                    Raylib.BeginBlendMode(BlendMode.Additive);
                     foreach (var puff in Puffs(r))
                         Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, puff.Colour);
-                    Raylib.EndBlendMode();
                     break;
                 case EffectKind.Smoke:
                     foreach (var puff in Puffs(r))

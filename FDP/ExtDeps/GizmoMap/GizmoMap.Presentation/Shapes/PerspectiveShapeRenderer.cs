@@ -55,12 +55,12 @@ namespace GizmoMap.Presentation.Shapes
                 DrawDestroyedCross(worldPos, rotation, lengthMeters * visualScaleMultiplier, widthMeters * visualScaleMultiplier, color, safeZoom);
         }
 
-        /// <summary>⭐ W2 (VE-O) — the MIL-STD-2525 destroyed marking: an X corner to corner across the shape's footprint, a little
-        /// beyond it so it reads on a small symbol.</summary>
+        /// <summary>⭐ W2 (VE-O) — the MIL-STD-2525 destroyed marking: an X corner to corner across the shape's footprint, at the
+        /// outline's own weight (tuned on the Xvfb frame rail: a heavier, overshooting X buried the symbol).</summary>
         public static void DrawDestroyedCross(Vector2 worldPos, Quaternion rotation, float lengthMeters, float widthMeters, Color color, float zoom)
         {
             var (a, b, c, d) = DestroyedCross(worldPos, rotation, lengthMeters, widthMeters);
-            float thickness = 3f / (zoom > 0f ? zoom : 1f);
+            float thickness = 2f / (zoom > 0f ? zoom : 1f);
             Raylib.DrawLineEx(a, b, thickness, color);
             Raylib.DrawLineEx(c, d, thickness, color);
         }
@@ -68,7 +68,7 @@ namespace GizmoMap.Presentation.Shapes
         /// <summary>The X's two strokes (a→b, c→d) in world space — railable without a GL context.</summary>
         public static (Vector2 A, Vector2 B, Vector2 C, Vector2 D) DestroyedCross(Vector2 worldPos, Quaternion rotation, float lengthMeters, float widthMeters)
         {
-            const float Reach = 0.6f;   // half-extent × 1.2: past the corners
+            const float Reach = 0.5f;   // half-extent: corner to corner
             float hl = lengthMeters * Reach, hw = widthMeters * Reach;
             Vector2 At(float x, float y)
             {

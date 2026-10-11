@@ -215,11 +215,11 @@ public sealed class EffectTests
         }
         Assert.Equal(olive, Hrot.UI.Common.Map3D.EntityBodyLayer3D.PartColour(Hrot.UI.Common.Map3D.ColourRole.Body, olive, wreck: false));
 
-        // a 10 m × 4 m hull turned 90°: the X's strokes run corner to corner, past the corners, along the turned footprint
+        // a 10 m × 4 m hull turned 90°: the X's strokes run corner to corner along the turned footprint
         var (a, b, c2, d) = GizmoMap.Presentation.Shapes.PerspectiveShapeRenderer.DestroyedCross(
             new System.Numerics.Vector2(100, 50), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, System.MathF.PI / 2f), 10f, 4f);
-        Assert.Equal(100f + 2.4f, a.X, 3); Assert.Equal(50f - 6f, a.Y, 3);
-        Assert.Equal(100f - 2.4f, b.X, 3); Assert.Equal(50f + 6f, b.Y, 3);
+        Assert.Equal(100f + 2f, a.X, 3); Assert.Equal(50f - 5f, a.Y, 3);
+        Assert.Equal(100f - 2f, b.X, 3); Assert.Equal(50f + 5f, b.Y, 3);
         Assert.Equal(new System.Numerics.Vector2(100, 50), (a + b) / 2f);
         Assert.Equal(new System.Numerics.Vector2(100, 50), (c2 + d) / 2f);
     }
