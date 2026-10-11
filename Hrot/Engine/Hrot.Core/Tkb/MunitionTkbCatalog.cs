@@ -88,6 +88,9 @@ namespace Hrot.Core.Tkb
                 [TkbRpg7Rocket] = new() { Shape = MunitionShape.Rocket, Length = 0.95f, Diameter = 0.085f, ColorHex = "#5C5A3E", SmokeTrail = true },
             };
 
+        /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6009), whether or not it has a look: a round, never a body.</summary>
+        public static bool IsBuiltIn(long type) => type >= TkbM67Grenade && type <= TkbRpg7Rocket;
+
         /// <summary>⭐ P1 (§8 PR-A) — the look of a round of munition type <paramref name="ammo"/>: its TKB <see cref="MunitionVisualDto"/>,
         /// else the built-in one (a host with no TKB — the replay browser — still draws the built-ins), else null (no body: a bullet).</summary>
         public static MunitionVisualDto? VisualOf(ITkbDatabase? tkb, long ammo)

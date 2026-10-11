@@ -588,6 +588,7 @@ public sealed class Map3DFrameRail
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "lr-1-viewer-overview.png"));
         Assert.Equal(sent - 1, rounds.Drawn);                                    // all but the ball
+        Assert.Equal(2, bodies.BodiesDrawn);                                        // ⛔ the two soldiers only — no round as a purple box
 
         var canvas2 = new MapCanvas(input: null);
         var cam2 = new MapCamera();

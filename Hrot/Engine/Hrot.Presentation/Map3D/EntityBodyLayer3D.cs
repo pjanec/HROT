@@ -70,7 +70,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (!ReferenceEquals(world, _queryWorld))
         {
             _queryWorld = world;
-            _query = world.Query().With<SimTransform>().With<TkbIdentity>().WithLifecycle(EntityLifecycle.All).Build();
+            var q = world.Query().With<SimTransform>().With<TkbIdentity>().WithLifecycle(EntityLifecycle.All);
+            // ⭐ LR-3 (DESIGN_Visual_Effects.md §8.5, R-271) — a replicated ROUND is never a body: ProjectileLayer draws it
+            _query = (world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()
+                ? q.Without<Fdp.Toolkit.Replication.Components.LightweightRound>() : q).Build();
         }
         EnsureMeshes();
         var shader = LitShader.Shared;
@@ -278,7 +281,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         // ⭐ CE-1042 — an EFFECT type (muzzle flash, explosion, decal, tracer) has no body: the effect layer draws it. Checked by
         //   the catalog too, so a host with no TKB (the replay browser) does not draw a recorded effect as an unknown box.
         // ⭐ CE-1033 S5 — nor has the map CAMERA entity (R-260): it is the view, not a thing in it.
-        if (Hrot.Core.Tkb.EffectTkbCatalog.BuiltIn.ContainsKey(tkbType) || Hrot.Core.Tkb.MapCameraTkb.Is(tkbType))
+        // ⭐ LR-3 — nor has a built-in MUNITION type (a round), on a host whose TKB lacks it (the replay browser).
+        if (Hrot.Core.Tkb.EffectTkbCatalog.BuiltIn.ContainsKey(tkbType) || Hrot.Core.Tkb.MapCameraTkb.Is(tkbType)
+            || Hrot.Core.Tkb.MunitionTkbCatalog.IsBuiltIn(tkbType))
             return _looks[tkbType] = new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         look = Resolve(tkb != null && tkb.TryGetByType(tkbType, out var t) ? t : null);
         _looks[tkbType] = look;
@@ -327,6 +332,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     {
         centre = default; rotation = Quaternion.Identity; half = default;
         if (!world.HasComponent<TkbIdentity>(e) || !world.HasComponent<SimTransform>(e)) return false;
+        if (world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()
+            && world.HasComponent<Fdp.Toolkit.Replication.Components.LightweightRound>(e)) return false;   // LR-3: a round has no box
         var look = LookOf(world.GetComponentRO<TkbIdentity>(e).TkbType, tkb);
         if (look.Family == VisualFamily.Unit) return false;
         var size = SizeOf(world, e, look);

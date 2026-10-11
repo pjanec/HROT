@@ -522,6 +522,8 @@ public sealed class EffectTests
 
         Assert.Equal(Hrot.UI.Common.Map3D.VisualFamily.Unit,
                      Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(tkb.GetByType(MunitionTkbCatalog.Tkb556Tracer)).Family);
+        Assert.Equal(Hrot.UI.Common.Map3D.VisualFamily.Unit,                                    // a host whose TKB lacks it (replay browser)
+                     new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => null, () => null).LookOf(MunitionTkbCatalog.Tkb556Ball, null).Family);
         var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
         new Hrot.ScenarioEditor.Gizmos.LightweightRoundGizmo().Draw(world, tracer, buffer);
         Assert.Equal(2, buffer.GetFrame().ToArray().Length);                                   // the streak + its glow
