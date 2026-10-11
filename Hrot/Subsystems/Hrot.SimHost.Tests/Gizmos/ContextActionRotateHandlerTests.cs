@@ -80,5 +80,42 @@ namespace Hrot.SimHost.Tests.Gizmos
             var events = interactionBus.Read<GlobalActionRequestedEvent>();
             Assert.Equal(0, events.Length);
         }
+
+        /// <summary>⭐ CE-3179 — the world-following form the ReplayBrowser uses: its active world (and so its entity map) changes when
+        /// a recording is rebound. A map-menu click resolves its anchor against the map current THAT frame; with no map the action
+        /// still runs, untargeted (a main-menu item has no target).</summary>
+        [Fact]
+        public void CE3179_AMenuClick_ResolvesAgainstTheCurrentWorldsMap_AndStillRunsWithoutOne()
+        {
+            var a = _repo.CreateEntity();
+            var b = _repo.CreateEntity();
+            var first = new NetworkEntityMap();
+            first.Register(7L, a);
+            var second = new NetworkEntityMap();
+            second.Register(7L, b);
+            NetworkEntityMap? current = first;
+            var bus = new FdpEventBus();
+            bus.Register<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMenuActionEvent>();
+            bus.Register<GlobalActionRequestedEvent>();
+            var sys = new ContextActionIngressSystem(() => current, bus);
+
+            Entity Click()
+            {
+                bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMenuActionEvent { AnchorId = 7, ActionId = GlobalActionIds.CenterOnEntity });
+                bus.SwapBuffers();
+                sys.Execute(_repo, 0f);
+                bus.SwapBuffers();
+                var events = bus.Read<GlobalActionRequestedEvent>();
+                Assert.Equal(1, events.Length);
+                Assert.Equal(GlobalActionIds.CenterOnEntity, events[0].ActionId);
+                return events[0].Target;
+            }
+
+            Assert.Equal(a, Click());
+            current = second;                 // a recording was rebound
+            Assert.Equal(b, Click());
+            current = null;                   // no world yet
+            Assert.Equal(Entity.Null, Click());
+        }
     }
 }
