@@ -41,5 +41,8 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ CE-2123 — a squad commander's suppress-and-manoeuvre: base of fire + flank + assault through (DESIGN_Squad_Tactics §3).</summary>
         public const string SuppressAndManeuver = "SuppressAndManeuver";
+
+        /// <summary>⭐ CE-2123 — go to a point firing at the top threat, no posture decision: a superior's MOVE order (DESIGN_Squad_Tactics §3.6).</summary>
+        public const string AdvanceTo = "AdvanceTo";
     }
 }

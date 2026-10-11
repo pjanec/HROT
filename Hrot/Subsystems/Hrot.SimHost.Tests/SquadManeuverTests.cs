@@ -85,13 +85,21 @@ namespace Hrot.SimHost.Tests
             /// <summary>⭐ CE-2123 — time passes with the commander's task not ticked (a pause).</summary>
             public void Pause(double seconds) => _time += seconds;
 
-            /// <summary>⭐ CE-2123 — the last order each member got, whole.</summary>
-            public Dictionary<Entity, CombatPostureParamsJsonDto> LastOrders()
+            /// <summary>⭐ CE-2123 — the last order each member got: which behaviour, and where.</summary>
+            public Dictionary<Entity, (string Intent, Vector3 Objective)> LastOrders()
             {
-                var d = new Dictionary<Entity, CombatPostureParamsJsonDto>();
+                var d = new Dictionary<Entity, (string, Vector3)>();
+                var opts = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
                 foreach (var o in Orders)
-                    d[o.Entity] = System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(
-                        o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+                {
+                    Assert.Equal(BehaviorOrigin.Superior, o.Origin);
+                    d[o.Entity] = o.IntentId switch
+                    {
+                        BehaviorNames.CombatPosture => (o.IntentId, System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(o.JsonParams, opts).Advance.Objective),
+                        BehaviorNames.AdvanceTo     => (o.IntentId, System.Text.Json.JsonSerializer.Deserialize<AdvanceToParamsJsonDto>(o.JsonParams, opts).Objective),
+                        _ => throw new Xunit.Sdk.XunitException("unexpected order " + o.IntentId),
+                    };
+                }
                 return d;
             }
 
@@ -117,20 +125,9 @@ namespace Hrot.SimHost.Tests
                 Repo.SetComponent(sensor, buf);
             }
 
-            /// <summary>The last order each member got, as CombatPosture's contract.</summary>
-            public Dictionary<Entity, Vector3> LastObjectives()
-            {
-                var d = new Dictionary<Entity, Vector3>();
-                foreach (var o in Orders)
-                {
-                    Assert.Equal(BehaviorNames.CombatPosture, o.IntentId);
-                    Assert.Equal(BehaviorOrigin.Superior, o.Origin);
-                    d[o.Entity] = System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(
-                        o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).Advance.Objective;
-                }
-                return d;
-            }
-
+            /// <summary>The last order each member got: a HOLD is CombatPosture at its own position, a MOVE the library AdvanceTo
+            /// (⭐ CE-2123). Either way from the commander (Superior).</summary>
+            public Dictionary<Entity, Vector3> LastObjectives() => LastOrders().ToDictionary(kv => kv.Key, kv => kv.Value.Objective);
             public Vector3 At(Entity m) => Repo.GetComponentRO<SimTransform>(m).Position;
             public void Teleport(Entity m, Vector3 p) => Repo.GetComponentRW<SimTransform>(m).Position = p;
             public ushort Phase => Repo.GetComponentRO<SquadCognitiveState>(Commander).PhaseId;
@@ -219,8 +216,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(SuppressAndManeuverManeuver.PhaseSuppressing, s.Phase);
             var first = s.LastOrders();
             Assert.Equal(4, first.Count);
-            foreach (var m in s.Members) Assert.Equal(s.At(m), first[m].Advance.Objective);    // everyone holds until the terrain answers
-            Assert.False(first[s.Members[2]].Assault);
+            foreach (var m in s.Members) Assert.Equal((BehaviorNames.CombatPosture, s.At(m)), first[m]);   // everyone holds until the terrain answers
 
             var query = s.FlankQuery();
             Assert.False(query.IsNull, "the commander owns a flank query");
@@ -233,10 +229,9 @@ namespace Hrot.SimHost.Tests
             s.Answer(query, new Vector3(40f, 60f, 0f));
             s.Tick(); s.Tick();
             var flank = s.LastOrders();
-            Assert.Equal(new Vector3(40f, 60f, 0f), flank[s.Members[0]].Advance.Objective);   // the two who did NOT see him assault
-            Assert.Equal(new Vector3(40f, 60f, 0f), flank[s.Members[1]].Advance.Objective);
-            Assert.True(flank[s.Members[0]].Assault);
-            Assert.Equal(s.At(s.Members[2]), flank[s.Members[2]].Advance.Objective);   // the base (the seers) keeps holding
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(40f, 60f, 0f)), flank[s.Members[0]]);   // the two who did NOT see him MOVE
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(40f, 60f, 0f)), flank[s.Members[1]]);
+            Assert.Equal((BehaviorNames.CombatPosture, s.At(s.Members[2])), flank[s.Members[2]]);     // the base (the seers) keeps holding
             Assert.True(s.FlankQuery().IsNull, "the answered query goes");
 
             s.Orders.Clear();
@@ -245,7 +240,7 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick();
             Assert.Equal(SuppressAndManeuverManeuver.PhaseAssaulting, s.Phase);
             var through = s.LastOrders();
-            Assert.Equal(new Vector3(0f, 60f, 0f), through[s.Members[0]].Advance.Objective);   // onto the enemy's position
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(0f, 60f, 0f)), through[s.Members[0]]);   // onto the enemy's position
 
             s.Teleport(s.Members[0], new Vector3(2f, 60f, 0f));
             s.Teleport(s.Members[1], new Vector3(1f, 58f, 0f));
@@ -268,7 +263,7 @@ namespace Hrot.SimHost.Tests
             s.Answer(s.FlankQuery(), null);
             s.Tick(); s.Tick();
             Assert.Equal(SuppressAndManeuverManeuver.PhaseAssaulting, s.Phase);
-            Assert.Equal(new Vector3(0f, 60f, 0f), s.LastOrders()[s.Members[3]].Advance.Objective);
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(0f, 60f, 0f)), s.LastOrders()[s.Members[3]]);
         }
 
         /// <summary>⭐ <c>CE-2123</c> — the enemy down ends the drill in Success; ordered before any contact, the commander WAITS (no

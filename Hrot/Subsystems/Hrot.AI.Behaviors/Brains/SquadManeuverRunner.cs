@@ -33,19 +33,19 @@ namespace Hrot.AI.Behaviors.Brains
     {
         /// <summary>Stay where it stands and fight (CombatPosture at its own position).</summary>
         Hold = 0,
-        /// <summary>Go to <see cref="MemberOrder.Point"/>, fighting on the way (CombatPosture's advance).</summary>
+        /// <summary>Go to <see cref="MemberOrder.Point"/>, firing on the way (the library <c>AdvanceTo</c> — no posture decision: 📐 a
+        /// CombatPosture with the enemy in sight chooses Suppress and stays put, measured live on <c>tt-suppress-flank</c>).</summary>
         AdvanceTo = 1,
     }
 
-    /// <summary>⭐ <c>CE-2123</c> — one member's order, as a play computes it. The runner turns it into the library CombatPosture.</summary>
+    /// <summary>⭐ <c>CE-2123</c> — one member's order, as a play computes it. The runner turns a hold into the library CombatPosture at
+    /// the member's own position and a move into the library AdvanceTo.</summary>
     public struct MemberOrder
     {
         public MemberOrderKind Kind;
         public Vector3 Point;
         public float Speed;
         public float ArrivalRadius;
-        /// <summary>The order is an assault (CombatPosture's <c>Assault</c>: obedience, not bravery, decides closing in).</summary>
-        public bool Assault;
         /// <summary>The role written into <see cref="SquadCognitiveState.Roles"/> for the member.</summary>
         public byte RoleId;
     }
@@ -221,7 +221,8 @@ namespace Hrot.AI.Behaviors.Brains
                 squad.Roles[i].RoleId = order.RoleId;
                 var point = order.Kind == MemberOrderKind.Hold ? at : order.Point;
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
-                Order(ctx.World, m, point, order.Speed, order.Kind == MemberOrderKind.Hold ? 1f : order.ArrivalRadius, order.Assault);
+                if (order.Kind == MemberOrderKind.Hold) Hold(ctx.World, m, point, order.Speed);
+                else Move(ctx.World, m, point, order.Speed, order.ArrivalRadius);
             }
             ws.IssuedPhase = squad.PhaseId;
             ws.IssuedAt = ctx.Now;
@@ -229,22 +230,26 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Reissue = 0;
         }
 
-        /// <summary>The library CombatPosture, from the commander: the intent id IS the behaviour (no mapper).</summary>
-        public static void Order(EntityRepository world, Entity member, Vector3 point, float speed, float arrival, bool assault)
-        {
-            var posture = new CombatPostureParamsJsonDto
+        /// <summary>HOLD: the library CombatPosture at the member's own position — with the enemy in sight it suppresses (or lies prone)
+        /// and stays (measured, §2). From the commander; the intent id IS the behaviour (no mapper).</summary>
+        public static void Hold(EntityRepository world, Entity member, Vector3 at, float speed)
+            => Publish(world, member, BehaviorNames.CombatPosture, JsonSerializer.Serialize(new CombatPostureParamsJsonDto
             {
-                Advance = new CombatPostureAdvanceJsonDto { Objective = point, Speed = speed, ArrivalRadius = arrival },
-                Assault = assault,
-            };
-            world.Bus.PublishManaged(new AssignTacticalIntentEvent
+                Advance = new CombatPostureAdvanceJsonDto { Objective = at, Speed = speed, ArrivalRadius = 1f },
+            }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+
+        /// <summary>MOVE: the library AdvanceTo — there, firing on the way, whatever the posture decision would say.</summary>
+        public static void Move(EntityRepository world, Entity member, Vector3 point, float speed, float arrival)
+            => Publish(world, member, BehaviorNames.AdvanceTo, JsonSerializer.Serialize(new AdvanceToParamsJsonDto
             {
-                Entity     = member,
-                IntentId   = BehaviorNames.CombatPosture,
-                JsonParams = JsonSerializer.Serialize(posture, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed),
-                Origin     = BehaviorOrigin.Superior,
+                Objective = point, Speed = speed, ArrivalRadius = arrival,
+            }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+
+        private static void Publish(EntityRepository world, Entity member, string behaviour, string json)
+            => world.Bus.PublishManaged(new AssignTacticalIntentEvent
+            {
+                Entity = member, IntentId = behaviour, JsonParams = json, Origin = BehaviorOrigin.Superior,
             });
-        }
 
         /// <summary>Every live member of <paramref name="element"/> is within <see cref="MoverArrivalMetres"/> of its point.</summary>
         public static unsafe bool ElementArrived(in SquadPlayState ws, in SquadPlayContext ctx, byte element)

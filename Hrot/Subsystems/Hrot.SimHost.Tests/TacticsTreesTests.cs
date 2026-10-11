@@ -252,6 +252,31 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2123</c> — the library <c>AdvanceTo</c>: with an enemy IN SIGHT a healthy soldier still goes to its objective and
+        /// fires on the way. 📐 Why it exists: <c>CombatPosture</c> in the same situation chooses Suppress and stays put (measured on
+        /// this harness and live on <c>tt-suppress-flank</c>), so it cannot carry a squad leader's MOVE order. DESIGN_Squad_Tactics §3.6.
+        /// </summary>
+        [Fact]
+        public void CE2123_AdvanceTo_MovesToItsObjective_UnderContact_FiringOnTheWay()
+        {
+            var w = new World();
+            w.Arm();
+            var enemy = w.Contact(armed: true);
+            w.See(enemy);
+            w.Order("AdvanceTo", "{\"Objective\":[200,0,0],\"Speed\":3}");
+            for (int i = 0; i < 6; i++) Step(w);
+            Assert.Equal("AdvanceTo", w.TaskName);
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            Arrive(w);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 4 && !done; i++) { w.Tick(); done = w.Finished(out result); }
+            Assert.True(done, "arrival ends the order");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
         [Fact]
         public void CE2073_HurtWithCover_ThePostureSwitchesToTakeCover()
         {

@@ -154,7 +154,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (element == SuppressAndManeuverManeuver.ElementBaseOfFire)
                 return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = SuppressAndManeuverManeuver.RoleBaseOfFire };
 
-            var order = new MemberOrder { Speed = p.Speed, Assault = true, RoleId = SuppressAndManeuverManeuver.RoleAssault };
+            var order = new MemberOrder { Speed = p.Speed, RoleId = SuppressAndManeuverManeuver.RoleAssault };
             if (ctx.Squad.PhaseId == SuppressAndManeuverManeuver.PhaseAssaulting)
             {
                 order.Kind = MemberOrderKind.AdvanceTo;          // through the enemy's position — a point he stands on, so walkable
