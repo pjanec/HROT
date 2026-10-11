@@ -38,5 +38,8 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ CE-3160 / CE-507 D2 (a) (R-264) — a squad commander's bounding overwatch (DESIGN_Squad_Wiring §6).</summary>
         public const string BoundingOverwatch = "BoundingOverwatch";
+
+        /// <summary>⭐ CE-2123 — a squad commander's suppress-and-manoeuvre: base of fire + flank + assault through (DESIGN_Squad_Tactics §3).</summary>
+        public const string SuppressAndManeuver = "SuppressAndManeuver";
     }
 }
