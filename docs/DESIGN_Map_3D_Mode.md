@@ -686,8 +686,10 @@ production until M23 is ruled".
 | **M26** ✅ *(U28: "solved already")* | the wire | ⭐ the NED/BDC multi-instance descriptor pattern the sensor sub-entities already use in production — 📐 `EqsSensorConfigTopic { ParentNetworkId, LocalChildIndex }` with the child identified by `PartMetadata` (`EqsSensorConfigEgressTranslator.cs:99,237`); a DIS gateway maps it to the articulated parts 4107 (turret 1 azimuth = 4096 + 11) and 4429 (gun 1 elevation = 4416 + 13) | putting the angles into the hull's geo descriptor — breaks the one-descriptor-per-concept rule and multi-turret vehicles |
 
 ⚠ **As built (WL-1a, `2026-10-11`) — M23's part id is `2000 + turret index`, not the bare index** (`TurretParts.FirstPartId`):
-one parent's part ids share one space with weapon-mount children (`1…N`) and TKB sensors (`1000 + index`, the same convention), so a
-bare index would make turret 1 and mount 1 the same part id. The index is still recoverable (`TurretParts.IndexOf`).
+on the wire a part id is scoped to its descriptor (`dtTurretPose` cannot collide with the sensor descriptor), so the offset is not
+needed there; it keeps a parent's part ids unique ACROSS part classes locally (mounts `1…N`, TKB sensors `1000 + index`), which costs
+nothing. 🔒 **User, `2026-10-11`:** *"Part ids are usualy scoped to their careying NED descriptor types … But keeping unique ids
+independently on part class of course does not do any harm."* The index is recoverable (`TurretParts.IndexOf`).
 
 ✅ **Ruled `2026-10-10` (U28, R-255) ⇒ READY-TO-BUILD.** ⚠ The turret part, the weapon-side slew and the descriptor are the
 combat / network lanes' code; the map reads the pose through `EntityBodyLayer3D`'s one `poseOf` seam once the component exists.

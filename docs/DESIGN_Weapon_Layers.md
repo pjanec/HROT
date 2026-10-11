@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILDING (WL-1a §5a and WL-1b §5b built) — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 (task per turret vs per mount) OPEN — blocks WL-2
-current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 OPEN · §5 slices · §6 ambient fire
+build-state: BUILDING (WL-1a §5a and WL-1b §5b built) — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
+current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
 known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount parts are never created — stale, CgfComponentRegistry.cs:38
@@ -101,8 +101,8 @@ classDiagram
   class AimAndFireExecutor { <<exists, split>> keeps: target alive, rounds, ROE, seen-now, magazine; delegates the rest to the profile }
   class WeaponChoice { <<exists, moves into the profile>> }
   class ArmorModel { <<exists>> R-212, one model }
-  class WeaponTask { <<new, Brain-owned, keyed parent + mount index>> Mode Idle-Track-Engage; Target; Point; RoundsGranted; AmmoGuid; Epoch }
-  class WeaponTaskStatus { <<new, Muscle-owned, keyed parent + mount index>> Epoch; State; Reason; RoundsFired }
+  class WeaponTask { <<new, Brain-owned, on the turret part, W-11>> Mode Idle-Track-Engage; Target; Point; MountIndex; RoundsGranted; AmmoGuid; Epoch }
+  class WeaponTaskStatus { <<new, Muscle-owned, on the turret part, W-11>> Epoch; State; Reason; RoundsFired }
   class WeaponTaskDispatcher { <<new, Muscle>> one executor per Mode }
   class BallisticAim { <<new, Muscle>> azimuth and elevation for a target; direct and ArcLaunch }
   class TurretPose { <<new, Muscle-owned, on the turret part>> Azimuth; Elevation }
@@ -141,7 +141,7 @@ sequenceDiagram
   participant A as every node
   B->>W: WeaponChannel AimAndFire(target, rounds 3, mount auto)
   W->>W: profile picks mount and ammo (ArmorModel), ROE, seen-now, magazine ready
-  W->>M: WeaponTask(mount 0, Engage, target, granted 3, ammo, epoch)
+  W->>M: WeaponTask(turret 0, fire mount 0, Engage, target, granted 3, ammo, epoch)
   loop every muscle frame
     M->>M: BallisticAim gives azimuth and elevation, slew within TKB limits and rates
     M->>A: TurretPose(turret 0)
@@ -166,7 +166,7 @@ executor runs its `AimSeconds` timer and publishes `WeaponFireIntent` per shot �
 | # | question | ⭐ lean | rests on (code · design) | rejected |
 |---|---|---|---|---|
 | **W-1** | the layer split | behaviour brain → `WeaponChannel` (unchanged) → **weapon brain** (Brain: weapon + ammo choice, ROE, seen-now, magazine, rounds) → **weapon muscle** (Muscle: slew, ballistic aim, fire timing) | `AimAndFireExecutor.cs:66-182` holds both halves today · U-W1, M24, R-180 | the brain computing angles — M24 / R-252 |
-| **W-2** | what crosses Brain → Muscle | a standing **`WeaponTask` per mount** (Idle / Track / Engage, target or point, rounds GRANTED, ammo, epoch), multi-instance keyed (parent, mount index), Reliable + TransientLocal + KeepLast 1; ⭐ the simplest profile keeps the existing per-shot `WeaponFireRequest` | `EqsSensorConfigTopic` pattern (`EqsDdsTopics.cs:16-21`) · M26, BS-1 | a per-shot request for turrets — the muscle could not keep the gun on target between shots |
+| **W-2** | what crosses Brain → Muscle | ⚠ *per mount SUPERSEDED by W-11 — per TURRET part, naming the mount* · a standing **`WeaponTask` per mount** (Idle / Track / Engage, target or point, rounds GRANTED, ammo, epoch), multi-instance keyed (parent, mount index), Reliable + TransientLocal + KeepLast 1; ⭐ the simplest profile keeps the existing per-shot `WeaponFireRequest` | `EqsSensorConfigTopic` pattern (`EqsDdsTopics.cs:16-21`) · M26, BS-1 | a per-shot request for turrets — the muscle could not keep the gun on target between shots |
 | **W-3** | how the result returns | **`WeaponTaskStatus` per mount** (echoed epoch, Slewing / OnTarget / Firing / Done / Failed + reason, rounds fired), Muscle-owned; the executor turns it into the channel's Success / Failure / Running | `NavigationIntent` / `NavigationStatus` echo (`SimDescriptors.cs:148,196`) · R-180, R-241 (`ActionStatus`) | polling `TurretPose` for "on target" — needs ballistics on the Brain |
 | **W-4** | who owns ammo and the magazine | the **Brain** (logistics is higher-level): it GRANTS rounds in the task; the muscle fires at most those and reports `RoundsFired`; the brain decrements | `WeaponState` in the Brain group (`HrotOwnershipGroups.cs:52`) · R-239 magazine model | moving `WeaponState` to the Muscle — re-homes every reader of ammo on the Brain (utility inputs, executors) |
 | **W-5** | the weapon category | a new `WeaponCategory` on `WeaponMountDto` (SmallArms, MachineGun, Autocannon, TankGun, Atgm, Mortar, Grenade) selecting a **hardcoded `IWeaponBrainProfile`** (C# class per category, registered in one table); the default profile reproduces today's behaviour | ⛔ no category exists (searched) · U-W1 "hardcoded system customizable per weapon category" | profiles in data (a script per weapon) — no need yet |
@@ -176,7 +176,11 @@ executor runs its `AimSeconds` timer and publishes `WeaponFireIntent` per shot �
 | **W-9** | the turret and its pose | a turret part child per `TurretDto` on EVERY node (created by a TKB translator, derived — not saved), `TurretPose` Muscle-owned, replicated keyed (parent, turret index), BestEffort + KeepLast 1, sent when it changes; mounts name their turret (`TurretIndex`); with no task the turret holds its pose | M23, M25, M26 · ⚠ mount children exist on CGF only today (`CgfComponentRegistry.cs:38`) | the turret pose on the mount child — two mounts share one turret (Bradley: 25 mm + TOW) |
 | **W-10** | turret moves without flooding the network *(U-W5: "the turret moves might need simple dead reckoning to avoid flooding the network. No implementation yet.")* | ⭐ the **same dead-reckoning model positions use** (`DESIGN_Dead_Reckoning.md`), applied to two angles: the `TurretPose` sample carries azimuth, elevation, their RATES and the cluster-synced **sim stamp**; receivers keep the sample read-only (R2) and project it FRESH every frame — `angle + rate × (simNow − stamp)`, clamped to the turret's limits (R3, R4); a pause freezes it with no guard (R5). The owner sends only when the projection would be off by more than a small threshold (a fraction of a degree), when a rate changes (start, stop, reversal), and on a slow heartbeat — so a steady slew or an ambient scan sweep costs one sample per change of motion, not one per frame | `DeadReckoningSyncSystem.cs` (the position model) · `DESIGN_Dead_Reckoning.md` R2–R6 | a separate turret smoothing scheme — two dead-reckoning models for one idea; sending every frame — the flood U-W5 names |
 
-### W-11 — ⏳ OPEN (found building WL-2, `2026-10-11`): where the weapon task lives — per MOUNT (W-2 as approved) or per TURRET
+### W-11 — ✅ APPROVED `2026-10-11` (U-W6): the weapon task lives on the TURRET part, not per mount *(supersedes W-2's "per mount")*
+
+> 🔒 **User, `2026-10-11` (U-W6):** *"Ad turret vs mounts. A movable mount on a turret is basically a sub-turret. I would ignore it
+> now, accepting your lean."* ⇒ a movable mount on a turret (a sub-turret) is out of scope for now; when it comes it is another turret
+> part, not a per-mount task.
 
 W-2 keys `WeaponTask` / `WeaponTaskStatus` by (parent, **mount** index). Building WL-2 needs an entity on the Muscle to hold them, and
 the measured shape argues for keying them by the **turret part** instead (the `TurretPose` key), with the task naming the mount that fires.
@@ -188,7 +192,7 @@ the measured shape argues for keying them by the **turret part** instead (the `T
 | per-part ownership needs a PART entity | ✅ `SyncPartClaims` walks `PartMetadata` entities only (`OwnershipRecomputeSystem.cs:125`) | ✅ Ownership G-3 (a multi-instance descriptor covers every instance) |
 | turret parts exist on every node; mount children on CGF only, and mount 0 is the hull itself | ✅ `TurretTkbTranslator` in the base set; `CgfComponentRegistry.cs:38`; `CombatTkbTranslator.cs:90` | ⛔ searched `docs/` + `.dev/`: no design puts mount parts on the Muscle |
 
-⭐ **Lean: one task per TURRET part** — `WeaponTask { Mode, Target/Point, MountIndex, RoundsGranted, AmmoGuid, Epoch }` and
+⭐ **Ruled: one task per TURRET part** — `WeaponTask { Mode, Target/Point, MountIndex, RoundsGranted, AmmoGuid, Epoch }` and
 `WeaponTaskStatus` on the turret part, keyed (hull, `2000 + turret`) like `TurretPose`; a hull-fixed mount (`TurretIndex = −1`, the
 rifleman) keeps the per-shot path (W-2's simple profile). Blast radius: the WL-2/3 wire and the Muscle's dispatcher only — nothing built
 changes. What would change it: a weapon that must aim two mounts on one turret at two targets at once (none in the catalog).
