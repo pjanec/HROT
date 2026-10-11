@@ -212,7 +212,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 4);
             var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
-            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);          // members 0 and 1 see him
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b1100);          // members 2 and 3 see him (not the first half)
             s.Order("{}", BehaviorNames.SuppressAndManeuver);
             s.Tick(); s.Tick();
 
@@ -220,35 +220,35 @@ namespace Hrot.SimHost.Tests
             var first = s.LastOrders();
             Assert.Equal(4, first.Count);
             foreach (var m in s.Members) Assert.Equal(s.At(m), first[m].Advance.Objective);    // everyone holds until the terrain answers
-            Assert.False(first[s.Members[0]].Assault);
+            Assert.False(first[s.Members[2]].Assault);
 
             var query = s.FlankQuery();
             Assert.False(query.IsNull, "the commander owns a flank query");
             var cfg = s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(query);
             Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindFlankingPosition.BlueprintId, cfg.BlueprintId);
-            Assert.Equal(s.Members[0], cfg.ContextSlot0);                            // measured from a member that sees the enemy
+            Assert.Equal(s.Members[2], cfg.ContextSlot0);                            // measured from a member that sees the enemy
             Assert.Equal(enemy, cfg.ContextSlot1);                                   // aimed at the enemy
 
             s.Orders.Clear();
             s.Answer(query, new Vector3(40f, 60f, 0f));
             s.Tick(); s.Tick();
             var flank = s.LastOrders();
-            Assert.Equal(new Vector3(40f, 60f, 0f), flank[s.Members[2]].Advance.Objective);
-            Assert.Equal(new Vector3(40f, 60f, 0f), flank[s.Members[3]].Advance.Objective);
-            Assert.True(flank[s.Members[2]].Assault);
-            Assert.Equal(s.At(s.Members[0]), flank[s.Members[0]].Advance.Objective);   // the base keeps holding
+            Assert.Equal(new Vector3(40f, 60f, 0f), flank[s.Members[0]].Advance.Objective);   // the two who did NOT see him assault
+            Assert.Equal(new Vector3(40f, 60f, 0f), flank[s.Members[1]].Advance.Objective);
+            Assert.True(flank[s.Members[0]].Assault);
+            Assert.Equal(s.At(s.Members[2]), flank[s.Members[2]].Advance.Objective);   // the base (the seers) keeps holding
             Assert.True(s.FlankQuery().IsNull, "the answered query goes");
 
             s.Orders.Clear();
-            s.Teleport(s.Members[2], new Vector3(39f, 60f, 0f));
-            s.Teleport(s.Members[3], new Vector3(41f, 61f, 0f));
+            s.Teleport(s.Members[0], new Vector3(39f, 60f, 0f));
+            s.Teleport(s.Members[1], new Vector3(41f, 61f, 0f));
             s.Tick(); s.Tick();
             Assert.Equal(SuppressAndManeuverManeuver.PhaseAssaulting, s.Phase);
             var through = s.LastOrders();
-            Assert.Equal(new Vector3(0f, 60f, 0f), through[s.Members[2]].Advance.Objective);   // onto the enemy's position
+            Assert.Equal(new Vector3(0f, 60f, 0f), through[s.Members[0]].Advance.Objective);   // onto the enemy's position
 
-            s.Teleport(s.Members[2], new Vector3(2f, 60f, 0f));
-            s.Teleport(s.Members[3], new Vector3(1f, 58f, 0f));
+            s.Teleport(s.Members[0], new Vector3(2f, 60f, 0f));
+            s.Teleport(s.Members[1], new Vector3(1f, 58f, 0f));
             bool done = false; Fbt.NodeStatus result = default;
             for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
             Assert.True(done, "the assault through the position ends the drill");
