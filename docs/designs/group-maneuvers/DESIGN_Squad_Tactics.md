@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-11
 build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · embark §5 and formations §6 are MEASUREMENTS, not plans
-current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) · §7 the unit commander (R-272) + §7.2 leader down (proposal)
+current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) · §7 the unit commander (R-272): §7.1 the build, §7.2 leader down (approved)
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
@@ -14,6 +14,7 @@ related-designs:
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS SensorChange and the SOP wake (§7.3) S2 extends with squad-level edges
   - docs/DESIGN_Entity_Interactions.md — OWNS embarkation (§7, R-224, CE-3110); §5 here is its measured state
   - docs/designs/navig-2/Navigation_Design_v2_0.md — names a "formations" design that was never written (:1040, :1666); §6 here is the measured state
+  - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS who owns a composite unit's position (R-175, §4 D-8) and CE-514 (derive it from the members), which §7 builds
   - docs/designs/commander-subordinates/DESIGN.md — OWNS UnitRoster / UnitSubordinate and the FormationController/Follower refactor (Phase 2) §6 measures
 -->
 
@@ -442,7 +443,7 @@ a body-less commander is the clean model and needs nothing new.
 | `SquadManeuverTests.CE2123_BasicSquadSop_…` | the shipped SOP reacts on a squad edge and is not restarted by the next one | — |
 | `SquadTacticsScenarioTests.CE2123_ABoundingSquadMeetsTheEnemy_…` (cluster, `tt-react-contact`) | live: bound → hold → assault → bound resumes | ✅ green `2026-10-11` (38 s): drill kinds on the leader went 2 → 7 → 3 → 2, the bound paused under the reaction and resumed after it |
 
-## 7. The unit commander — a body-less entity at the unit's centre; the leader is a member *(R-272, `2026-10-11`; build-state: DESIGN)*
+## 7. The unit commander — a body-less entity at the unit's centre; the leader is a member *(R-272, `2026-10-11`; build-state: READY-TO-BUILD — §7.1)*
 
 🔒 *User, `2026-10-11`: "each military unit in this engine needs its virtual commander entity intended to run the leader's logic like
 coordination etc; while the leader soldier can still exist as the member of the squad and fighting as usual … The virtual commander has
@@ -473,15 +474,99 @@ that hides a passenger.*
 | nothing writes a commander's position today | searched centroid / average writers: none |
 | a positioned commander would be SEEN (`EntityInfo` is the only sight filter), found by EQS area searches (`SimTransform`), near-missed (`EntityInfo`), and never die (no Health) | `VisionBroadphase.cs:182`, `EntitiesInAreaGenerator.cs:66`, `BallisticsSystem.cs:256`, `CombatLife.cs:21-24` |
 
-### 7.1 What R-272 changes *(to design in full before building)*
+### 7.1 The build *(CE-2125 + CE-514; build-state: READY-TO-BUILD `2026-10-11`; 🔒 user: "approved, build them together with CE-2125")*
 
-1. a centroid writer on CGF (the commander's authority), at merge rate, over LIVE members; with none left it stays put;
-2. ONE physical-actor predicate at the choke points above, MERGED with R-271's passenger check (two flags at five places is the failure ruling 9 forbids);
-3. the three squad scenarios (`tt-suppress-flank`, `tt-react-contact`, `ua-fire-distribution`) move to a body-less commander + an officer member;
-4. S2's "the commander's own Hit / NearMiss is squad under fire" branch goes — the leader is a member now (§4.4);
-5. formations (`CE-2124`) lead from a member, never from the commander (`commander-subordinates/DESIGN.md:220` assumes a physical leader).
+| measured, `2026-10-11` (both columns) | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a composite unit's position is the CREATOR's (CGF on a scenario load) and a CGF write replicates to SimHost / IG | no kinematics ⇒ no MuscleGround grant (`HrotOwnershipGroups.cs:68-73,113`); `GeoSpatialEgressTranslator.cs:136,174-182`; ingress skips an owned `SimTransform` (`GeoSpatialIngressTranslator.cs:90-94`) | ✅ R-175; ✅ CE-514 (user): *"the platoon position needs to be derived from the position of their members (averaging …), likely the platoon entity owner would be doing that"* |
+| nothing writes a composite's position today | searched writers: none (CE-514) | CE-514 DEFERRED — built here |
+| the composite description reaches NO component today; a TKB translator runs on the creator AND on every ghost promotion (all nodes) | `TkbTranslatorSet.cs:90-106`; `NetworkSpawningSystem.cs:141`; `GhostPromotionSystem.cs:271` | tkb-1 §6.6a (translators derive components per node) |
+| who can be SEEN or found by an area search enters through the perception grid (visual, thermal, acoustic) and `EntitiesInAreaGenerator`; hit, near-miss and `EntitiesInRadius` read the COLLIDER hash, which a body-less unit is never in | `LocalGridBuilderSystem.cs:106`, `EqsModule.cs:56-80`; `EntitiesInAreaGenerator.cs:66`; `SpatialHashSystem.cs:73`, `BallisticsSystem.cs:64` | R-271 §7.2 names the same choke points for the passenger |
+| a member's `Designation` written on CGF stays CGF-local unless marked dirty; a re-sent `CmdAssignSubordinate` appends a duplicate roster entry | `UnitSubordinate.cs:21,24`; `EntityInfoEgressTranslator.cs:116-121`; `UnitHierarchySystem.cs:117-149` | ⛔ searched: no design for succession ⇒ new here |
+| `Unit_InfantrySquad` (302) has no `.WithBehavior` ⇒ no brain on it; `Infantry_Officer` (201) has no template | `BdcTkbCatalog.cs:234-251` | the TKB composite's own slot list (officer = `SquadLeader`) |
 
-### 7.2 When the leader soldier is killed *(PROPOSAL — leans, not approved)*
+```mermaid
+classDiagram
+  class UnitEntity { <<NEW component, Fdp.Core.CommandHierarchy, NoScenario>> CommandDisruptionSeconds — "a unit, not a body" }
+  class TkbCompositionDef { <<existing TKB descriptor, EXTENDED>> + CommandDisruptionSeconds = 6 }
+  class CompositeUnitTkbTranslator { <<NEW, Hrot.Core>> TkbCompositionDef ⇒ UnitEntity (every node) }
+  class PhysicalPresence { <<NEW static, Fdp.Toolkits>> IsHidden(view, e) — a UnitEntity (R-272); I-2c adds the enclosed passenger (R-271) }
+  class LocalGridBuilderSystem { <<existing, FILTERED>> skips IsHidden }
+  class EntitiesInAreaGenerator { <<existing, FILTERED>> skips IsHidden }
+  class UnitCentroidSystem { <<NEW, Fdp.Toolkits/Squad>> owned SimTransform of a UnitEntity = mean of LIVE members }
+  class SquadLeadership { <<NEW component, CGF-only>> Leader · SilentUntil }
+  class SquadSensing { <<existing, EXTENDED>> + Succession: leader dead ⇒ next by precedence, SquadLeaderDown edge, lull }
+  class TacticalDesignation { <<existing enum, EXTENDED>> + TeamLeader 5 }
+  class SensorChange { <<existing, EXTENDED>> + SquadLeaderDown 14 }
+  class SquadManeuverRunner { <<existing, EXTENDED>> issues nothing while SilentUntil > now, re-sends after }
+  class ReactToContactBehavior { <<existing, EXTENDED>> SquadLeaderDown during the drill ⇒ back to return fire + decide again }
+  class BasicSquadSop { <<existing asset, EXTENDED>> + leader down ⇒ React ReactToContact }
+  TkbCompositionDef <.. CompositeUnitTkbTranslator
+  CompositeUnitTkbTranslator ..> UnitEntity
+  PhysicalPresence ..> UnitEntity
+  LocalGridBuilderSystem ..> PhysicalPresence
+  EntitiesInAreaGenerator ..> PhysicalPresence
+  UnitCentroidSystem ..> UnitEntity
+  SquadSensing ..> SquadLeadership
+  SquadSensing ..> TacticalDesignation
+  SquadSensing ..> SensorChange
+  SquadManeuverRunner ..> SquadLeadership
+```
+
+```mermaid
+graph TD
+  TKB["TKB composite type"] --> TR["CompositeUnitTkbTranslator — creator + every ghost promotion"]
+  TR --> UE["UnitEntity on the commander (all nodes)"]
+  UE --> SH["SimHost: LocalGridBuilderSystem / EntitiesInAreaGenerator skip it ⇒ never seen, heard, area-found"]
+  UE --> CGF["CGF (owner): UnitCentroidSystem writes its SimTransform each frame"]
+  CGF -->|"GeoSpatialEgress"| REP["SimHost / IG / editor: the unit symbol at the centre"]
+  SCS["CGF: SquadCoordinationSystem → SquadSensing"] --> SUC["leader dead ⇒ successor · SquadLeaderDown · SilentUntil"]
+  SUC --> RUN["SquadManeuverRunner: silent until then, then re-sends"]
+```
+
+*What the pictures show that prose hid: ONE TKB fact (a composite) reaches every node as one component, and the two
+consequences — "never sensed" on SimHost, "positioned at the centre" by the owner — key on it; succession and the lull live
+entirely on CGF, next to the merge that already watches the members.*
+
+```mermaid
+sequenceDiagram
+  participant M as leader soldier (member)
+  participant SCS as SquadCoordinationSystem (CGF)
+  participant C as commander (SquadLeadership)
+  participant R as SquadManeuverRunner (any drill)
+  M->>M: Health 0 (stays in the world, CE-272)
+  SCS->>SCS: the remembered leader is dead ⇒ successor = first live TeamLeader, else first live member (roster order)
+  SCS->>C: Designation SquadLeader → successor (CGF-local) · SilentUntil = now + CommandDisruptionSeconds
+  SCS->>C: SensorChangedEvent{Unit = commander, SquadLeaderDown}
+  R->>R: each tick while silent: no orders (members keep theirs and their own SOP), Reissue = 1
+  R->>R: after the lull: every order re-sent (S1-G path)
+  C->>C: SOP: leader down fresh ⇒ React ReactToContact · a running ReactToContact goes back to return fire and decides again
+```
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **C-1** | the marker | ONE component `UnitEntity` from the TKB composite description, carrying the per-type tunable — not a tag beside a profile |
+| **C-2** | the predicate's home | `PhysicalPresence.IsHidden` (Fdp.Toolkits); the two entry points call it; R-271's I-2c adds the passenger case in the same method |
+| **C-3** | the centroid | owner-side `UnitCentroidSystem` (CE-514's direction): live members only, X/Y/Z mean; none alive ⇒ unchanged; registered in the CGF pack (the creator of scenario units) |
+| **C-4** | succession precedence | `SquadLeader` → the first live `TeamLeader` (NEW designation 5) → the first live member, in roster order; CGF-local (no replication — avoids the duplicate-roster path; only CGF reads it) |
+| **C-5** | the lull | `SquadLeadership.SilentUntil` on the commander; the RUNNER honours it (every squad drill goes through it) |
+| **C-6** | the squad type | `Unit_InfantrySquad` (302) gains `.WithBehavior`; scenarios use it for the commander and a rifleman with `Designation SquadLeader` for the leader (the officer template stays a gap) |
+
+Rejected: **a tag derived from `UnitRoster`** — the roster is CGF-built and not replicated, SimHost may not have it; **filtering at
+every consumer (vision, thermal, acoustic, EQS)** — the grid is their one door; **replicating the new designation** — the re-sent
+EntityInfo path appends duplicate roster entries (measured), and nothing off CGF reads it yet.
+
+| rail | asserts |
+|---|---|
+| `CompositeUnitTkbTranslator` rail | a composite type ⇒ `UnitEntity` with its seconds; a soldier type ⇒ none |
+| `PhysicalPresence` + grid / area rails | a `UnitEntity` with a position is not in the perception grid nor in an area search; a soldier is |
+| `UnitCentroidSystem` rail | the owned commander sits at the live members' mean; a dead member does not count; a non-owned one is untouched |
+| succession rails (`SquadCoordinationSystemTests`) | leader dies ⇒ TeamLeader promoted (else first live), one `SquadLeaderDown`, `SilentUntil` set |
+| runner rail (`SquadManeuverTests`) | no orders while silent, all re-sent after |
+| `ReactToContact` rail | leader down during the drill ⇒ holds, decides again |
+| live (`tt-react-contact`, migrated) | the commander's position on SimHost is the members' centre; no member's memory holds it; the S2 chain still runs |
+
+### 7.2 When the leader soldier is killed *(✅ APPROVED `2026-10-11` — 🔒 user: "approved, build them together with CE-2125")*
 
 📖 **Doctrine (infantry squad drills, general knowledge — no source in the corpus):** the succession is fixed in advance (squad
 leader → senior team leader → the other team leader → senior rifleman) and taking over is IMMEDIATE; the fight goes on — return fire
