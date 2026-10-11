@@ -242,7 +242,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             if (cgf.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(hostile))
             {
                 var mem = cgf.GetComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(hostile);
-                for (int i = 0; i < mem.Count; i++) Assert.NotEqual((long)leader.PackedValue, mem.EntityIds[i]);
+                unsafe { for (int i = 0; i < mem.Count; i++) Assert.NotEqual((long)leader.PackedValue, mem.EntityIds[i]); }
             }
         }
         finally { NasScenarioStaging.Remove(scenarioId); }
