@@ -748,6 +748,52 @@ public sealed class Map3DTests
         Assert.InRange(pose.Stride, 0.9f, 1f);                                              // 1.5 m/s: a full walk
     }
 
+    /// <summary>⭐ WL-6d — the CRAWL: elbows take turns reaching forward, the OPPOSITE knee draws up and out; it stays low; the leg
+    /// segments keep their lengths; the rifle is carried, not aimed (well below the shoulder line and never ahead of the hands' reach);
+    /// a figure not moving is in his prone pose; the tracker crawls one cycle per 0.7 m.</summary>
+    [Fact]
+    public void WL6d_ACrawlAlternatesElbowAndOppositeKnee_LowAndCarryingTheRifle()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var prone = BlockFigure.Parts(StanceId.Prone, true, WeaponPostureKind.Aimed);
+        Assert.Same(prone, BlockFigure.Crawl(prone, true, 1f, 0f));
+        Assert.Equal(prone.Length, BlockFigure.CrawlPose(true, 0f).Length);
+        Assert.Equal(BlockFigure.Parts(StanceId.Prone, false).Length, BlockFigure.CrawlPose(false, 0f).Length);
+
+        int t = BlockFigure.TorsoIndex;
+        Vector3 ElbowL(KitPart[] p) => Point(p[t + 2], size, 0.5f);
+        Vector3 ElbowR(KitPart[] p) => Point(p[t + 4], size, 0.5f);
+        Vector3 AnkleL(KitPart[] p) => Point(p[1], size, 0.5f);
+        Vector3 AnkleR(KitPart[] p) => Point(p[3], size, 0.5f);
+        var leftReach = BlockFigure.CrawlPose(true, MathF.PI / 2f);
+        Assert.True(ElbowL(leftReach).X > ElbowR(leftReach).X + 0.25f, "the left elbow reaches forward");
+        Assert.True(AnkleR(leftReach).X > AnkleL(leftReach).X + 0.3f && -AnkleR(leftReach).Y > AnkleL(leftReach).Y + 0.2f,
+                    $"the right knee draws up and out: R {AnkleR(leftReach)} L {AnkleL(leftReach)}");
+        var rightReach = BlockFigure.CrawlPose(true, 3f * MathF.PI / 2f);
+        Assert.True(ElbowR(rightReach).X > ElbowL(rightReach).X + 0.25f, "then the right elbow");
+        Assert.True(AnkleL(rightReach).X > AnkleR(rightReach).X + 0.3f, "and the left knee");
+
+        for (float phase = 0f; phase < 6.3f; phase += 0.7f)
+        {
+            var p = BlockFigure.CrawlPose(true, phase);
+            Assert.All(p, part => Assert.True(Vector3.Transform(Vector3.Zero, part.BodyTransform(size)).Z < 0.4f, "he stays low"));
+            for (int leg = 0; leg <= 2; leg += 2)
+            {
+                Assert.Equal(0.44f, Vector3.Distance(Point(p[leg], size, -0.5f), Point(p[leg], size, 0.5f)), 2);   // thigh
+                Assert.Equal(0.44f, Vector3.Distance(Point(p[leg + 1], size, -0.5f), Point(p[leg + 1], size, 0.5f)), 2);   // shin
+            }
+            Assert.InRange(Vector3.Distance(Point(p[t + 5], size, 0.5f), Point(p[^1], size, -0.5f)), 0.15f, 0.25f);   // the right hand holds the rifle a quarter along
+        }
+
+        var tracker = new MotionTracker();
+        var man = new Entity(12, 1);
+        MotionPose first = tracker.Advance(man, Vector3.Zero, Quaternion.Identity, VisualFamily.Person, size, 0.0, false), pose = first;
+        for (int i = 1; i <= 35; i++) pose = tracker.Advance(man, new Vector3(i * 0.01f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, i / 60.0, false);   // 0.6 m/s
+        Assert.Equal(0.35f / MotionTracker.CrawlMetres * MathF.PI * 2f, pose.CrawlPhase, 3);   // half a cycle in 0.35 m
+        Assert.Equal(1f, pose.Moving, 2);
+        Assert.Equal(0f, tracker.Advance(man, new Vector3(0.35f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, 36 / 60.0, false).Moving);
+    }
+
     /// <summary>⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — the dead figure lies on the ground (lower than prone), arms flung out
     /// wider than any stance; a soldier's rifle lies beside him; halfway through the fall he is between his stance and the ground.</summary>
     [Fact]

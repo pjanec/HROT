@@ -111,7 +111,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             if (look.Family == VisualFamily.Person)
             {
                 // ⭐ WL-6c — the posture first (how AIMED he is), then the gait and the upper body from it
-                (parts, float aimed) = FigurePose(world, e, look.Soldier, simTime, motion.Stride);
+                (parts, float aimed) = FigurePose(world, e, look.Soldier, simTime, motion);
                 motion = FigureMotion(world, e, motion, look.Soldier, tf, size, simTime, aimed);
             }
             else
@@ -233,8 +233,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     }
 
     /// <returns>The parts, and how AIMED he is (0..1, the posture blend) — the athletic stance and the glide follow it.</returns>
-    private (KitPart[] Parts, float Aimed) FigurePose(EntityRepository world, Entity e, bool soldier, double simTime, float stride)
+    private (KitPart[] Parts, float Aimed) FigurePose(EntityRepository world, Entity e, bool soldier, double simTime, in MotionPose motion)
     {
+        float stride = motion.Stride;
         var target = LogicalStance.Of(world, e);
         var posture = soldier ? PostureOf(world, e) : WeaponPostureKind.AtEase;   // ⭐ WL-6 — the rifle in the weapon brain's posture
         // ⭐ WL-6b — moved there over PostureBlend.Seconds of sim time, not snapped
@@ -257,6 +258,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 return (BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier, postureFrom, postureTo, postureT), 0f);
         }
         var parts = BlockFigure.Parts(target, soldier, postureFrom, postureTo, postureT);
+        // ⭐ WL-6d — prone and moving: the crawl (never aimed), blended in by how much he moves
+        if (target == StanceId.Prone && motion.Moving > 0f) return (BlockFigure.Crawl(parts, soldier, motion.CrawlPhase, motion.Moving), 0f);
         // ⭐ WL-6c — aimed and on the move: the combat glide (feet under the lowered hips, knees bent)
         if (soldier && target == StanceId.Standing && aimed > 0f && stride > 0f) parts = BlockFigure.Glide(parts, aimed * stride);
         return (parts, target == StanceId.Standing ? aimed : 0f);

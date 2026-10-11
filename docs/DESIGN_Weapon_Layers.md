@@ -837,6 +837,14 @@ from the gait phase) — civilians too. All of it follows the posture blend, so 
 (Buildings §3f: an animation shows the stance, never gates it); the move speed is unchanged (the Muscle's, not the picture's).
 Rails: `Map3DTests.WL6c_*`, frame rail `posture-3-athletic-and-glide`.
 
+⭐ **WL-6d (`2026-10-11`, user: *"the prone pose is not bad; the crawling motion would be nice"*) — the CRAWL.** A prone figure that
+moves was a statue sliding at 20 % speed (`StanceSpeed`); now it crawls: an elbow-and-knee combat crawl, one cycle per 0.7 m crawled
+(`MotionTracker.CrawlMetres`, its own phase — a crawl is too slow to read as a walk, so its weight is `MotionPose.Moving`, from speed
+alone). The elbows take turns reaching forward and pulling (lifted as they come forward, out wide so they read from above), the
+OPPOSITE knee draws up and out to the side, the body stays flat with a small shimmy; a soldier carries the rifle in his right hand —
+never aimed while crawling — and blends back into his prone pose (unchanged — *"not bad"*) as he stops (`BlockFigure.Crawl` /
+`CrawlPose`). Drawing only: stance and speed unchanged. Rails: `Map3DTests.WL6d_*`, frame rail `posture-6/7-crawl`.
+
 ⚠ **Not built:** a vehicle's posture is written but nothing draws it (its turret has `TurretPose`); the Stride skeletal aim layer could
 read the same component — not wired.
 

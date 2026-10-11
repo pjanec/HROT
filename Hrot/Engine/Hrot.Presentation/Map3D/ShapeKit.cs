@@ -44,8 +44,11 @@ public enum PartRole : byte
 /// <para>⭐ WL-6c — the gait itself: <paramref name="Stride"/> (0..1, how much the figure is walking or running) and its
 /// <paramref name="GaitPhase"/> (radians; <c>Swing = amplitude · sin(phase)</c>); <paramref name="KneeFlexL"/> / <paramref name="KneeFlexR"/>
 /// bend each shin back about its knee (radians) — the foot lifting as the leg swings through.</para>
+/// <para>⭐ WL-6d — <paramref name="Moving"/> (0..1, from the speed alone — a crawl is too slow to read as a walk) and the
+/// <paramref name="CrawlPhase"/> (radians, one cycle per <c>MotionTracker.CrawlMetres</c>).</para>
 public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swing, float Lean = 0f, float Twist = 0f, float HipZ = 0.5f,
-                                         float Stride = 0f, float GaitPhase = 0f, float KneeFlexL = 0f, float KneeFlexR = 0f)
+                                         float Stride = 0f, float GaitPhase = 0f, float KneeFlexL = 0f, float KneeFlexR = 0f,
+                                         float Moving = 0f, float CrawlPhase = 0f)
 {
     public static readonly MotionPose Still = default;
 }
@@ -633,6 +636,70 @@ public static class BlockFigure
     public static KitPart[] Blend(StanceId from, StanceId to, float t, bool soldier, WeaponPostureKind postureFrom, WeaponPostureKind postureTo,
                                   float postureT)
         => Lerp(Parts(from, soldier, postureFrom, postureTo, postureT), Parts(to, soldier, postureFrom, postureTo, postureT), t);
+
+    // ── ⭐ WL-6d — the CRAWL: an elbow-and-knee combat crawl, procedural, one cycle per MotionTracker.CrawlMetres ────────────────
+
+    private static readonly Vector3 CrawlHipL = new(-0.20f, 0.12f, 0.09f), CrawlHipR = new(-0.20f, -0.12f, 0.09f);
+
+    /// <summary>
+    /// ⭐ WL-6d — the prone figure CRAWLING, part-way (<paramref name="weight"/> 0..1, how much he is moving) from <paramref name="still"/>
+    /// (his prone pose) into the crawl at <paramref name="phase"/>: the elbows take turns reaching forward and pulling (lifted a little as
+    /// they come forward), the OPPOSITE knee draws up and out to the side, the body stays flat with a small shimmy; a soldier carries his
+    /// rifle in his right hand, never aimed. Same parts in the same order as <paramref name="still"/>.
+    /// </summary>
+    public static KitPart[] Crawl(KitPart[] still, bool soldier, float phase, float weight)
+    {
+        weight = Math.Clamp(weight, 0f, 1f);
+        if (weight <= 0f) return still;
+        var pose = CrawlPose(soldier, phase);
+        if (pose.Length != still.Length) return still;
+        return Mix(still, pose, weight);
+    }
+
+    /// <summary>The crawl itself at <paramref name="phase"/> (sin φ > 0: the LEFT elbow reaching, the RIGHT knee drawn up).</summary>
+    public static KitPart[] CrawlPose(bool soldier, float phase)
+    {
+        float reachL = MathF.Sin(phase), reachR = -reachL;                 // + = that elbow forward
+        float liftL = MathF.Max(0f, MathF.Cos(phase)), liftR = MathF.Max(0f, -MathF.Cos(phase));   // lifted while coming forward
+        float pullR = MathF.Max(0f, reachL), pullL = MathF.Max(0f, reachR);                        // the opposite knee draws up
+        float shimmy = 4f * reachL;                                          // degrees: the body twists a little toward the reaching arm
+
+        Vector3 Ankle(float pull, float side) => Vector3.Lerp(new(-1.06f, 0.14f * side, 0.07f), new(-0.66f, 0.42f * side, 0.07f), pull);
+        // elbows out wide (a crawl reads from above by its limbs), forearms forward and a little in
+        Vector3 Elbow(float reach, float lift, float side) => new(0.44f + 0.17f * reach, 0.31f * side, 0.05f + 0.05f * lift);
+        var elbowL = Elbow(reachL, liftL, 1f); var elbowR = Elbow(reachR, liftR, -1f);
+        var handL = elbowL + new Vector3(0.25f, -0.06f, 0.03f + 0.03f * liftL);
+        var handR = elbowR + new Vector3(0.25f, 0.06f, 0.03f + 0.03f * liftR);
+        KitPart[] parts =
+        [
+            .. Leg(CrawlHipL, Ankle(pullL, 1f), true, swings: false, bend: new Vector3(0.3f, 1f, 0.1f)),
+            .. Leg(CrawlHipR, Ankle(pullR, -1f), false, swings: false, bend: new Vector3(0.3f, -1f, 0.1f)),
+            P(0.04f, 0f, 0.14f, 0.60f, 0.42f, 0.24f, ColourRole.Body) with { YawDegrees = shimmy },
+            P(0.50f, 0f, 0.20f, 0.24f, 0.20f, 0.21f, ColourRole.Body) with { YawDegrees = shimmy * 1.5f },
+            .. Arm(ProneShoulderL + new Vector3(0f, 0f, 0.01f), elbowL, handL, PartRole.Hull),
+            .. Arm(ProneShoulderR + new Vector3(0f, 0f, 0.01f), elbowR, handR, PartRole.Hull),
+        ];
+        if (!soldier) return parts;
+        // the rifle in the right hand, held a quarter along, muzzle forward and a little in — dragged along with that arm
+        var dir = Vector3.Normalize(new Vector3(1f, 0.10f, -0.02f));
+        var stock = handR + new Vector3(0f, 0f, 0.03f) - dir * (RifleLength * 0.25f);
+        return [.. parts, Limb(stock, stock + dir * RifleLength, 0.05f, 0.08f, ColourRole.Metal)];
+    }
+
+    /// <summary>Part-way from <paramref name="a"/> to <paramref name="b"/>, every part keeping <paramref name="b"/>'s role.</summary>
+    private static KitPart[] Mix(KitPart[] a, KitPart[] b, float t)
+    {
+        var mixed = new KitPart[b.Length];
+        for (int i = 0; i < b.Length; i++)
+            mixed[i] = b[i] with
+            {
+                Centre = Vector3.Lerp(a[i].Centre, b[i].Centre, t),
+                Extent = Vector3.Lerp(a[i].Extent, b[i].Extent, t),
+                YawDegrees = a[i].YawDegrees + (b[i].YawDegrees - a[i].YawDegrees) * t,
+                PitchDegrees = a[i].PitchDegrees + (b[i].PitchDegrees - a[i].PitchDegrees) * t,
+            };
+        return mixed;
+    }
 
     /// <summary>The posed parts for <paramref name="stance"/> (anything but crouched or prone stands — the rule's own default); a
     /// soldier's rifle and hands in the weapon brain's <paramref name="posture"/> (WL-6; prone is always on the rifle).</summary>

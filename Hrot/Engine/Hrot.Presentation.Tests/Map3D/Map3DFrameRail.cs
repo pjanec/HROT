@@ -617,6 +617,25 @@ public sealed class Map3DFrameRail
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 2.0f, spot.Y - 9f, G(spot.X, spot.Y) + 0.15f), 2.4f, MathF.PI * 0.85f, -0.30f);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "posture-5-prone-front.png"));
+
+        // ⭐ WL-6d — a crawling soldier (0.6 m/s), side-on, at two points of the cycle: left elbow forward, then right
+        var crawler = Person(4f, -12f, Rifleman, StanceId.Prone, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        // from above and behind-left: a crawl reads by its limbs spreading and drawing in, which a low camera hides behind the body
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 4.4f, spot.Y - 12f, G(spot.X, spot.Y) + 0.1f), 3.2f, MathF.PI * 0.20f, -0.95f);
+        void CrawlFrames(int n)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                now += 1.0 / 60.0;
+                world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+                Move(crawler, 0.6f, 1.0 / 60.0);
+                frame.Step(canvas.Draw);
+            }
+        }
+        CrawlFrames(18);   // 0.18 m: about a quarter of a cycle
+        frame.Screenshot(Path.Combine(shots, "posture-6-crawl-a.png"));
+        CrawlFrames(35);   // half a cycle on
+        frame.Screenshot(Path.Combine(shots, "posture-7-crawl-b.png"));
     }
 
     /// <summary>
