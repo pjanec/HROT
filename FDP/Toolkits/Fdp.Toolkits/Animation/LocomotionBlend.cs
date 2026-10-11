@@ -1,6 +1,9 @@
 using System;
 
-namespace Hrot.Stride.Animation;
+namespace Fdp.Toolkit.Animation;
+
+// ⭐ CE-1033 S4 — EXTRACTED from Stride/Hrot.Stride.Animation (docs/DESIGN_Map_3D_Mode.md §4, the reuse ledger): the speed → gait
+//   rule is engine-free, so the Stride blend tree and the 3-D map's block figures (their limb swing) share ONE implementation.
 
 /// <summary>
 /// Which two locomotion clips are being cross-blended this frame, and at what
@@ -51,7 +54,7 @@ public readonly struct LocomotionBlendWeights : IEquatable<LocomotionBlendWeight
     /// </summary>
     public float Factor { get; }
 
-    internal LocomotionBlendWeights(
+    public LocomotionBlendWeights(
         float idle, float walk, float run,
         LocomotionClip lower, LocomotionClip upper, float factor)
     {
@@ -78,9 +81,9 @@ public readonly struct LocomotionBlendWeights : IEquatable<LocomotionBlendWeight
 
 /// <summary>
 /// Pure, deterministic mapping from locomotion speed (m/s) to idle/walk/run blend
-/// weights. This is the <b>testable half</b> of <see cref="StrideAnimationBackend"/>'s
+/// weights. This is the <b>testable half</b> of the Stride animation backend's
 /// locomotion blending (STR-P4-T1): it has no Stride dependency, so the speed→weight
-/// thresholds can be asserted headlessly. The <see cref="PerEntityBlendTreeBuilder"/>
+/// thresholds can be asserted headlessly. The Stride <c>PerEntityBlendTreeBuilder</c>
 /// consumes the result to drive the GPU-bound Stride <c>AnimationComponent</c> blend tree.
 /// </summary>
 /// <remarks>

@@ -339,6 +339,12 @@
         /// <summary><c>IgMissionHolder</c> â€” managed component caching decoded EntityMission for rendering.</summary>
         public const int IgMissionHolder             = 123;
 
+        /// <summary><c>EffectLifetime</c> — ⭐ CE-1042 E2: the age of a realism effect entity (muzzle flash, explosion, decal, tracer).</summary>
+        public const int EffectLifetime          = 124;
+
+        /// <summary><c>EffectAnchor</c> — ⭐ CE-1042 E2: the shooter and weapon a muzzle flash / tracer is attached to.</summary>
+        public const int EffectAnchor            = 125;
+
         // IDs 124â€“139 are reserved for future IG components.
 
         // â”€â”€ ModuleHost Network (140â€“159) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -717,8 +723,16 @@
         public const int StaticObstacleBakery = 347;
 
         /// <summary><c>CoverClaim</c> — the cover point a unit fighting from cover is going to / holds, so squad-mates pick other ones
-        /// (<c>CE-3158</c> G5, 📄 docs/DESIGN_Peek_And_Fire.md §10.7). 348 free by a census of backend, behaviors and ui,
-        /// <c>2026-10-10</c> (ui and backend end at 347, behaviors at 334).</summary>
-        public const int CoverClaim = 348;
+        /// (<c>CE-3158</c> G5, 📄 docs/DESIGN_Peek_And_Fire.md §10.7). was 348 (census <c>2026-10-10</c>); ⚠ ui took 348/349 in parallel,
+        /// so this moved to 350 at the ui merge <c>2026-10-11</c> — safe: <c>NoScenario</c>, never saved.</summary>
+        public const int CoverClaim = 350;
+
+        /// <summary><c>EntityAppearance</c> — an entity's body colour: the TKB's (<c>VisualData.ColorHex</c>) stamped at spawn, or a
+        /// per-instance value saved in the scenario (<c>CE-1033</c> S5c, docs/DESIGN_Map_3D_Mode.md §3.7, M15).</summary>
+        public const int EntityAppearance = 348;
+
+        /// <summary><c>ScenarioEntityCreationRequestSource</c> — a node's LOCAL entity-creation request queue, as a managed world singleton
+        /// (published by <c>EntityCreationPack</c>), so shared code holding only the world can request an entity (<c>CE-1033</c> S5, R-260).</summary>
+        public const int EntityCreationRequestSource = 349;
     }
 }

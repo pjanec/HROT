@@ -94,13 +94,15 @@ public class IgNodeBootstrapperTests
         Assert.DoesNotContain(modules, m => m is EventEffectModule);
     }
 
+    /// <summary>⭐ CE-1042 E2 — the effect module is RETIRED on IG: the map pack's effect systems replace it on every map host
+    /// (docs/DESIGN_Visual_Effects.md VE-A), so a non-headless IG must not ALSO run it — both would make every shot twice.</summary>
     [Fact]
-    public void GetAdditionalModules_NonHeadless_ContainsEventEffectModule()
+    public void GetAdditionalModules_NonHeadless_NoLongerContainsEventEffectModule()
     {
         var sut     = CreateBootstrapper(headless: false);
         var modules = InvokeGetAdditionalModules(sut);
 
-        Assert.Contains(modules, m => m is EventEffectModule);
+        Assert.DoesNotContain(modules, m => m is EventEffectModule);
     }
 
     // ── Order ─────────────────────────────────────────────────────────────────
@@ -134,13 +136,11 @@ public class IgNodeBootstrapperTests
     }
 
     [Fact]
-    public void GetAdditionalModules_NonHeadless_AppendsTheEffectModuleLAST()
+    public void GetAdditionalModules_NonHeadless_IsTheSameSequence_TheEffectModuleRetired()
     {
         var sut     = CreateBootstrapper(headless: false);
         var modules = InvokeGetAdditionalModules(sut);
 
-        Assert.Equal(
-            HeadlessOrder.Append(typeof(EventEffectModule)).ToArray(),
-            modules.Select(m => m.GetType()).ToArray());
+        Assert.Equal(HeadlessOrder, modules.Select(m => m.GetType()).ToArray());
     }
 }

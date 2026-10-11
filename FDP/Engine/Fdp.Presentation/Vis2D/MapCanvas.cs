@@ -142,6 +142,9 @@ namespace Fdp.Toolkit.Vis2D
             }
 
             Camera.EndMode();
+            // ⭐ CE-1033 S5b — the screen-space pass: entity cards over the finished map.
+            foreach (var layer in _layers)
+                if (IsLayerVisible(layer)) layer.DrawOverlay(ctx);
         }
 
         /// <summary>⭐ CE-1033 S1 (M1/M3) — the same layers, through their 3-D path, inside the 3-D camera.</summary>
@@ -165,6 +168,9 @@ namespace Fdp.Toolkit.Vis2D
             }
             LayersWithout3D = without;
             Camera.EndMode();
+            // ⭐ CE-1033 S3 (M13) — the screen-space pass: labels over the finished scene.
+            foreach (var layer in _layers)
+                if (layer.Has3D && IsLayerVisible(layer)) layer.DrawOverlay(ctx);
         }
 
         private bool IsLayerVisible(IMapLayer layer)
@@ -196,6 +202,7 @@ namespace Fdp.Toolkit.Vis2D
             Vector2 deltaWorld = Camera.ScreenDeltaToWorld(delta);   // ⭐ CE-1033 S1 — the camera knows its own scale (2-D: /Zoom)
 
             bool consumed = false;
+            Vector2? dragWorld = null;
 
             // Track right-button drags so that pan-then-release does not fire a click.
             if (rightDown && delta.LengthSquared() > RightDragThresholdSq)
@@ -229,7 +236,9 @@ namespace Fdp.Toolkit.Vis2D
                 layer.HandleHover(mouseWorld);
                 if ((leftDown || rightDown) && delta.LengthSquared() > 0f)
                 {
-                    if (layer.HandleDrag(mouseWorld, deltaWorld))
+                    // ⭐ CE-1033 S2 (P2) — a drag follows the terrain under the cursor, never an entity (2-D: the same point).
+                    dragWorld ??= Camera.ScreenToWorldForDrag(mouseScreen);
+                    if (layer.HandleDrag(dragWorld.Value, deltaWorld))
                         consumed = true;
                 }
             }

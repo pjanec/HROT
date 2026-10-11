@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
@@ -66,12 +67,23 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
             _inner = inner ?? throw new System.ArgumentNullException(nameof(inner));
         }
 
+        /// <summary>⭐ CE-1040 — the map camera this renderer draws under, set by its layer. 📐 Measured: no host registers a
+        /// <see cref="MapCamera"/> as a canvas resource, so <c>ctx.Resources.Get&lt;MapCamera&gt;()</c> is null in production —
+        /// the layer, which owns its camera, hands it over instead.</summary>
+        public MapCamera? Camera { get; set; }
+
+        /// <summary>⭐ CE-1033 S5b — the card primitives the last <see cref="Render"/> set aside (layer mask and LOD applied).</summary>
+        public IReadOnlyList<DebugPrimitive> CardPrimitives => _inner.CardPrimitives;
+
         public void Render(ReadOnlySpan<DebugPrimitive> primitives, RenderContext ctx)
         {
             var zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
-            var mapCamera = ctx.Resources.Get<MapCamera>();
+            var mapCamera = ctx.Resources.Get<MapCamera>() ?? Camera;
             Camera2D camera = mapCamera != null ? mapCamera.InnerCamera : default;
 
+            // ⭐ CE-1040 — the map camera draws north-up: the renderer keeps world text upright and re-enters THIS camera's mode.
+            _inner.WorldYUp = mapCamera != null && MapCamera.NorthUp;
+            _inner.BeginWorldMode = mapCamera != null ? mapCamera.BeginMode : null;
             _inner.Render(primitives, camera, zoom);
         }
     }

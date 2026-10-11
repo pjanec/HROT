@@ -242,6 +242,11 @@ namespace Hrot.Common.EntityCreation
                     new DeleteEntityRequestSystem(adapters.DeleteSource, ackSink, ctx.EntityMap, finalization, ctx.NodeId),
                 };
 
+            // ⭐ CE-1033 S5 (R-260) — the LOCAL request source on the world, so shared code that only holds the world (a map layer
+            //   asking for the scenario's camera entity) can REQUEST an entity the way R-140 prescribes — unowned, for the default
+            //   processor to create and own — with no per-host wiring: every host that creates entities composes THIS pack.
+            ctx.World.SetSingletonManaged(localRequests);
+
             return new EntityCreation(
                 translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem,
                 promotionSystem, ctx.NodeId, networkSystems, ctx.World, obstacleBake);

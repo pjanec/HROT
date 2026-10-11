@@ -167,5 +167,88 @@ namespace Fdp.Toolkit.Terrain.Tests
             var high = new Vector3(100f, 190f, SlopeFixture.Rise * 190f);
             Assert.True(provider!.PathExists(low, high), "a path must climb the 10 % slope");
         }
+    
+        // ── H5a — bridges: ground-relative walkables (TH-I), the buried ramp foot (TH-K), the steep-ramp warning ──
+
+        private static string Feature(string kind, string props, string ring)
+            => "{ \"type\": \"Feature\", \"properties\": { \"kind\": \"" + kind + "\"" + props + " }, \"geometry\": { \"type\": \"Polygon\", \"coordinates\": [ " + ring + " ] } }";
+
+        [Fact]
+        public void H5a_ASlabAboveGround_StandsThatHighAboveTheSlopeAtEveryVertex()
+        {
+            var world = SlopeFixture.World(Feature("slab", ", \"aboveGround\": 6", "[ [80, 60], [120, 60], [120, 140], [80, 140], [80, 60] ]"));
+            var deck = Assert.Single(world.Walkables);
+            Assert.All(deck.Vertices, v => Assert.Equal(SlopeFixture.Rise * v.Y + 6f, v.Z, 3));
+            Assert.Equal(SlopeFixture.Rise * 100f + 6f, world.SurfaceZ(100f, 100f, 50f), 3);   // standing on the deck
+            Assert.Equal(SlopeFixture.Rise * 100f, world.SurfaceZ(100f, 100f, SlopeFixture.Rise * 100f), 3);   // and under it
+            Assert.Empty(world.Warnings);
+        }
+
+        [Fact]
+        public void H5a_ARampFromTheGroundToADeck_IsBuriedAtItsFoot_SoTheSurfaceRisesWithoutAStep()
+        {
+            // a ramp eastwards: its west edge AT the ground (0), its east edge 4 m up — heights above the ground per vertex
+            var world = SlopeFixture.World(Feature("ramp", ", \"zRef\": \"ground\"", "[ [40, 90, 0], [64, 90, 4], [64, 110, 4], [40, 110, 0], [40, 90, 0] ]"));
+            var ramp = Assert.Single(world.Walkables);
+            Assert.Equal(SlopeFixture.Rise * 90f - TerrainWorldParser.RampFootSink, ramp.Vertices.Min(v => v.Z), 3);   // the foot is sunk
+            Assert.Equal(SlopeFixture.Rise * 90f + 4f, ramp.Vertices.Where(v => v.Y < 95f).Max(v => v.Z), 3);
+
+            // drive east along y = 100 from the ground: every step up stays within the VEHICLE layer's 0.1 m, and it ends on the ramp
+            float z = world.GroundHeightAt(30f, 100f), maxStep = 0f;
+            for (float x = 30f; x <= 63f; x += 0.15f)
+            {
+                float next = world.SurfaceZ(x, 100f, z);
+                maxStep = MathF.Max(maxStep, next - z);
+                z = next;
+            }
+            Assert.True(maxStep < 0.1f, $"a step of {maxStep:F3} m where the ramp meets the ground");
+            Assert.InRange(z, SlopeFixture.Rise * 100f + 3.6f, SlopeFixture.Rise * 100f + 4.01f);   // near the top (the sunk foot steepens it slightly)
+            Assert.Empty(world.Warnings);   // 4 m over 24 m is 9.5°
+        }
+
+        [Fact]
+        public void H5a_ARampTooSteepForVehicles_LoadsWithAWarning_AndAbsoluteHeightsAreUnchanged()
+        {
+            var steep = SlopeFixture.World(Feature("ramp", ", \"zRef\": \"ground\"", "[ [40, 90, 0], [48, 90, 6], [48, 110, 6], [40, 110, 0], [40, 90, 0] ]"));
+            Assert.Contains(steep.Warnings, w => w.Contains("steeper than the vehicle navmesh"));
+
+            var absolute = SlopeFixture.World(Feature("slab", ", \"z\": 30", "[ [80, 60], [120, 60], [120, 140], [80, 140], [80, 60] ]"));
+            Assert.All(Assert.Single(absolute.Walkables).Vertices, v => Assert.Equal(30f, v.Z, 3));
+        }
+    
+        // ── H5b — the navmesh on a bridge (TH-K): the deck AND the ground under it, the ramp feet joined, both layers ──
+
+        /// <summary>An east–west overpass on the slope: a deck 6 m above the ground (x 80–120), a 30 m ramp each side, 10 m wide.</summary>
+        internal static TerrainWorld Overpass() => SlopeFixture.World(string.Join(", ",
+            Feature("slab", ", \"aboveGround\": 6", "[ [80, 95], [120, 95], [120, 105], [80, 105], [80, 95] ]"),
+            Feature("ramp", ", \"zRef\": \"ground\"", "[ [50, 95, 0], [80, 95, 6], [80, 105, 6], [50, 105, 0], [50, 95, 0] ]"),
+            Feature("ramp", ", \"zRef\": \"ground\"", "[ [120, 95, 6], [150, 95, 0], [150, 105, 0], [120, 105, 6], [120, 95, 6] ]")));
+
+        [Theory]
+        [InlineData(Fdp.Toolkit.Navigation.NavLayerMask.Infantry)]
+        // ⛔ the Vehicle layer bakes NO navmesh on any slope (CE-1048): its 0.1 m step is below the 0.2 m voxel, so Recast's climb is 0 cells
+        [InlineData(Fdp.Toolkit.Navigation.NavLayerMask.Vehicle, Skip = "CE-1048 — the Vehicle layer has no navmesh on relief until its step is at least one voxel")]
+        public void H5b_TheNavmesh_HasTheDeckAndTheGroundUnderIt_AndTheRampFeetJoinTheGround(Fdp.Toolkit.Navigation.NavLayerMask layer)
+        {
+            var w = Overpass();
+            Assert.Empty(w.Warnings);
+            var provider = new RecastNavmeshFactory { TileCache = null }.Build(w);
+            Assert.NotNull(provider);
+            uint mask = (uint)layer;
+            float g(float x, float y) => w.GroundHeightAt(x, y);
+
+            // ① the deck is baked: projected from just above it, a point lands ON the deck
+            Assert.True(provider!.ProjectToNavmesh(new Vector3(100f, 100f, g(100f, 100f) + 6.5f), out var onDeck, mask), "no navmesh on the deck");
+            Assert.InRange(onDeck.Z, g(100f, 100f) + 5.6f, g(100f, 100f) + 6.4f);
+            // ② and so is the ground under it: projected from the ground, the same XY lands on the ground
+            Assert.True(provider.ProjectToNavmesh(new Vector3(100f, 100f, g(100f, 100f) + 0.2f), out var under, mask), "no navmesh under the deck");
+            Assert.InRange(under.Z, g(100f, 100f) - 0.4f, g(100f, 100f) + 0.4f);
+            // ③ the deck is reached from the ground beyond EACH ramp — only through the buried feet
+            Assert.True(provider.PathExists(onDeck, new Vector3(30f, 100f, g(30f, 100f)), mask), "the west ramp's foot does not join the ground");
+            Assert.True(provider.PathExists(onDeck, new Vector3(170f, 100f, g(170f, 100f)), mask), "the east ramp's foot does not join the ground");
+            // ④ and the road under the bridge passes from south to north beneath it
+            Assert.True(provider.PathExists(new Vector3(100f, 60f, g(100f, 60f)), new Vector3(100f, 140f, g(100f, 140f)), mask), "no passage under the deck");
+        }
+    
     }
 }

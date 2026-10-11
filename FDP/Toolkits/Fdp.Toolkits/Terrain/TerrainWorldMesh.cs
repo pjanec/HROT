@@ -29,26 +29,40 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>Builds the soup. <paramref name="verts"/> are engine-space points; <paramref name="indices"/>
         /// three per triangle.</summary>
         public static void Build(TerrainWorld world, out Vector3[] verts, out int[] indices, float cellSize = 0f)
+            => Build(world, out verts, out indices, out _, cellSize);
+
+        /// <summary>
+        /// ⭐ CE-1033 S4 (docs/DESIGN_Map_3D_Mode.md §4 — "an OPTIONAL per-triangle tag output … verts and indices unchanged, so the
+        /// navmesh is unaffected") — the same soup, and for each triangle what it IS: <see cref="TerrainTriangleTag"/> (ground, a
+        /// roof, a wall, a floor slab) and its material (a prism's material name; <c>"forest"</c> for ground under a forest surface;
+        /// null for plain ground). The 3-D map colours by it; nothing else reads it.
+        /// </summary>
+        public static void Build(TerrainWorld world, out Vector3[] verts, out int[] indices, out TerrainTriangleTag[] tags, float cellSize = 0f)
         {
             if (cellSize <= 0f) cellSize = DefaultCellSize(world);
             var v = new List<Vector3>();
             var t = new List<int>();
+            var g = new List<TerrainTriangleTag>();
 
-            AddGround(world, cellSize, v, t);
-            foreach (var prism in world.Prisms) AddPrism(prism, v, t);
+            AddGround(world, cellSize, v, t, g);
+            foreach (var prism in world.Prisms) AddPrism(prism, v, t, g);
             foreach (var w in world.Walkables)
             {
                 int b = v.Count;
                 v.AddRange(w.Vertices);
                 for (int i = 0; i + 2 < w.Triangles.Length; i += 3)
+                {
                     AddUp(v, t, b + w.Triangles[i], b + w.Triangles[i + 1], b + w.Triangles[i + 2]);
+                    g.Add(new TerrainTriangleTag(TerrainTriangleKind.Slab, null));
+                }
             }
 
             verts = v.ToArray();
             indices = t.ToArray();
+            tags = g.ToArray();
         }
 
-        private static void AddGround(TerrainWorld world, float cell, List<Vector3> v, List<int> t)
+        private static void AddGround(TerrainWorld world, float cell, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
         {
             var min = world.BoundsMin;
             var max = world.BoundsMax;
@@ -77,7 +91,20 @@ namespace Fdp.Toolkit.Terrain
                 v.Add(new Vector3(x0, y1, world.GroundHeightAt(x0, y1)));
                 t.Add(b); t.Add(b + 1); t.Add(b + 2);
                 t.Add(b); t.Add(b + 2); t.Add(b + 3);
+                var tag = new TerrainTriangleTag(TerrainTriangleKind.Ground,
+                    InForest(world, new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f)) ? ForestMaterial : null);
+                g.Add(tag); g.Add(tag);
             }
+        }
+
+        /// <summary>The material tag of ground under a forest surface.</summary>
+        public const string ForestMaterial = "forest";
+
+        private static bool InForest(TerrainWorld world, Vector2 p)
+        {
+            foreach (var s in world.Surfaces)
+                if (s.Type == TerrainSurfaceType.Forest && InBox(p, s.Min, s.Max) && PolygonMath.Contains(s.Polygon, p)) return true;
+            return false;
         }
 
         private static bool Excluded(TerrainWorld world, Vector2 p)
@@ -98,17 +125,21 @@ namespace Fdp.Toolkit.Terrain
             return false;
         }
 
-        private static void AddPrism(TerrainPrism prism, List<Vector3> v, List<int> t)
+        private static void AddPrism(TerrainPrism prism, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
         {
             var fp = prism.Footprint;
             int n = fp.Length;
             if (n < 3) return;
+            string material = prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial;
 
             // Roof.
             int roof = v.Count;
             foreach (var p in fp) v.Add(new Vector3(p, prism.TopZ));
             for (int i = 0; i + 2 < prism.Triangles.Length; i += 3)
+            {
                 AddUp(v, t, roof + prism.Triangles[i], roof + prism.Triangles[i + 1], roof + prism.Triangles[i + 2]);
+                g.Add(new TerrainTriangleTag(TerrainTriangleKind.Roof, material));
+            }
 
             // Side walls, one quad per edge, facing outward.
             bool ccw = PolygonMath.SignedArea2(fp) > 0f;
@@ -124,6 +155,8 @@ namespace Fdp.Toolkit.Terrain
                 v.Add(new Vector3(a, prism.TopZ));
                 t.Add(b); t.Add(b + 1); t.Add(b + 2);
                 t.Add(b); t.Add(b + 2); t.Add(b + 3);
+                var wall = new TerrainTriangleTag(TerrainTriangleKind.Wall, material);
+                g.Add(wall); g.Add(wall);
             }
         }
 
@@ -139,4 +172,10 @@ namespace Fdp.Toolkit.Terrain
         private static bool InBox(Vector2 p, Vector2 min, Vector2 max)
             => p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y;
     }
+
+    /// <summary>⭐ CE-1033 S4 — what a terrain mesh triangle is.</summary>
+    public enum TerrainTriangleKind : byte { Ground = 0, Wall = 1, Roof = 2, Slab = 3 }
+
+    /// <summary>⭐ CE-1033 S4 — a terrain mesh triangle's kind and material name (null = plain ground).</summary>
+    public readonly record struct TerrainTriangleTag(TerrainTriangleKind Kind, string? Material);
 }

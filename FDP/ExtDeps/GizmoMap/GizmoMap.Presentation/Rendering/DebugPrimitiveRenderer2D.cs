@@ -33,6 +33,17 @@ namespace GizmoMap.Presentation
         /// </summary>
         public static Font? TextFont { get; set; }
 
+        /// <summary>
+        /// ⭐ CE-1040 (docs/DESIGN_Map_North_Up.md N3) — the map's camera draws world Y UP (north-up), a mirror of a plain
+        /// <c>Camera2D</c>. Set per frame by the host's camera; when true, world text is drawn upright (a local un-flip at its
+        /// point) and the badge's screen point is computed with the flip. False ⇒ exactly the old drawing (the standalone viewer).
+        /// </summary>
+        public bool WorldYUp { get; set; }
+
+        /// <summary>⭐ CE-1040 — re-enters the host camera's world mode after a screen-space primitive (a raw
+        /// <c>BeginMode2D(camera)</c> would drop the flip for every primitive after it). Null ⇒ <c>Raylib.BeginMode2D</c>.</summary>
+        public Action? BeginWorldMode { get; set; }
+
         public DebugPrimitiveRenderer2D(
             IEntityShapeLibrary? shapeLibrary = null,
             ImGuiPropertyTreeAdapter? imGuiAdapter = null)
@@ -40,6 +51,10 @@ namespace GizmoMap.Presentation
             _shapeLibrary = shapeLibrary ?? new DefaultEntityShapeLibrary();
             _imGuiAdapter = imGuiAdapter ?? new ImGuiPropertyTreeAdapter();
         }
+
+        /// <summary>⭐ CE-1033 S5b — the frame's ENTITY-CARD primitives that passed the layer mask and LOD, collected by
+        /// <see cref="Render"/> (they are not world shapes) for the card pass the host draws in screen space after the camera mode.</summary>
+        public List<DebugPrimitive> CardPrimitives { get; } = new();
 
         /// <summary>
         /// Filters, resolves coordinate spaces using the two-pass SpatialAnchor cache,
@@ -49,6 +64,7 @@ namespace GizmoMap.Presentation
         public void Render(ReadOnlySpan<DebugPrimitive> primitives, Camera2D camera, float zoom)
         {
             if (zoom <= 0f) zoom = 1f;
+            CardPrimitives.Clear();
 
             // Enforce stateless default: fully visible unless overridden by the backend this frame.
             var activeLayers = new LayerMask256();
@@ -100,6 +116,10 @@ namespace GizmoMap.Presentation
                 // Filter: LOD zoom culling.
                 if (prim.MinZoomLod != 0 && zoom < prim.MinZoomLod * 0.25f) continue;
                 if (prim.MaxZoomLod != 0 && zoom > prim.MaxZoomLod * 0.25f) continue;
+
+                // ⭐ CE-1033 S5b (§3.6) — a card primitive is never a world shape: it is set aside for the card pass.
+                //   (A terminal that did not know the space must skip it — this one draws it, in screen space, later.)
+                if (prim.Space == CoordinateSpace.EntityCard) { CardPrimitives.Add(prim); continue; }
 
                 if (prim.Space == CoordinateSpace.EntityLocal)
                 {
@@ -393,16 +413,10 @@ namespace GizmoMap.Presentation
                     // ThicknessU16 is repurposed for Text: carries the desired font size in pixels
                     // (stored as-is, NOT multiplied by 10 like line/sphere thickness).
                     // 0 means "use the renderer default of 13 px".
-                    float px = prim.ThicknessU16 > 0 ? prim.ThicknessU16 : 13f;
-
+                    // ⭐ CE-1033 S3 — size and font come from GizmoTextDraw, shared with the 3-D map's label overlay.
+                    float px = GizmoTextDraw.PixelSize(in prim);
                     string str = prim.TextContent.ToString();
-
-                    // Use the embedded TTF only if it actually loaded (valid GPU texture).
-                    // Drawing with an invalid font texture corrupts the active render batch
-                    // (symptom: missing lines AND no text), so fall back to the built-in font.
-                    Font font = (TextFont.HasValue && TextFont.Value.Texture.Id != 0)
-                        ? TextFont.Value
-                        : Raylib.GetFontDefault();
+                    Font font = GizmoTextDraw.Font;
 
                     // AnchorGeneration carries a screen-pixel vertical line offset for Text
                     // (set via DrawText/DrawTextLong lineOffsetPx). Lets a gizmo stack multiple
@@ -411,8 +425,7 @@ namespace GizmoMap.Presentation
                     {
                         // Already outside camera space (outer guard called EndMode2D):
                         // TextX/TextY are screen pixels — draw at the requested pixel size.
-                        float offsetY = prim.LineOffsetPx;   // S6 -- the alias, no cast
-                        Raylib.DrawTextEx(font, str, new Vector2(prim.TextX, prim.TextY + offsetY), px, 1f, color);
+                        GizmoTextDraw.DrawScreen(in prim, new Vector2(prim.TextX, prim.TextY), color);
                     }
                     else
                     {
@@ -427,9 +440,23 @@ namespace GizmoMap.Presentation
                         float invZoom = 1f / camZoom;
                         // Screen-pixel line offset (signed) converted to world units so it stays constant on screen.
                         float offsetY = prim.LineOffsetPx * invZoom;   // S6 -- the alias, no cast
-                        Raylib.DrawTextEx(
-                            font, str, new Vector2(prim.TextX, prim.TextY + offsetY),
-                            px * invZoom, 1f * invZoom, color);
+                        if (WorldYUp)
+                        {
+                            // ⭐ CE-1040 (N3) — under the north-up mirror text would read upside down: un-flip locally at the
+                            //   text's point (rlgl transforms each vertex, no batch toggle). Local +Y is screen-DOWN again, so
+                            //   the pixel line offset keeps its meaning.
+                            Rlgl.PushMatrix();
+                            Rlgl.Translatef(prim.TextX, prim.TextY, 0f);
+                            Rlgl.Scalef(1f, -1f, 1f);
+                            Raylib.DrawTextEx(font, str, new Vector2(0f, offsetY), px * invZoom, 1f * invZoom, color);
+                            Rlgl.PopMatrix();
+                        }
+                        else
+                        {
+                            Raylib.DrawTextEx(
+                                font, str, new Vector2(prim.TextX, prim.TextY + offsetY),
+                                px * invZoom, 1f * invZoom, color);
+                        }
                     }
                     break;
                 }
@@ -440,7 +467,9 @@ namespace GizmoMap.Presentation
                     // BadgeTargetIndex holds the anchor network ID in the decoupled scenario.
                     float worldX = prim.BoxCenterX; // world position stored in BoxCenterX/Y for badge
                     float worldY = prim.BoxCenterY;
-                    var screenPos = Raylib.GetWorldToScreen2D(new Vector2(worldX, worldY), camera);
+                    var screenPos = WorldYUp   // ⭐ CE-1040 — the host camera's mirror, not Raylib's unflipped conversion
+                        ? camera.Offset + new Vector2(worldX - camera.Target.X, camera.Target.Y - worldY) * camera.Zoom
+                        : Raylib.GetWorldToScreen2D(new Vector2(worldX, worldY), camera);
                     var richText = prim.BadgeRichText;
                     RichTextRenderer.DrawRichTextBadge(ref richText, (int)screenPos.X, (int)screenPos.Y, 12);
                     break;
@@ -515,7 +544,8 @@ namespace GizmoMap.Presentation
                         prim.MilWorldPosX,
                         prim.MilWorldPosY,
                         camera,
-                        zoom);
+                        zoom,
+                        WorldYUp);
                     break;
                 }
 
@@ -537,7 +567,11 @@ namespace GizmoMap.Presentation
                     break;
             }
 
-            if (screenSpace) Raylib.BeginMode2D(camera);
+            if (screenSpace)
+            {
+                if (BeginWorldMode != null) BeginWorldMode();   // ⭐ CE-1040 — the host camera's own (north-up) world mode
+                else Raylib.BeginMode2D(camera);
+            }
         }
 
         // ---- Protected static helpers used by production DispatchShape ----------

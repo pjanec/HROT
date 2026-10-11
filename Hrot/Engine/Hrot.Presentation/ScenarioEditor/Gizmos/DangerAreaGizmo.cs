@@ -37,9 +37,30 @@ public sealed class DangerAreaGizmo : IGlobalStatelessGizmo
             {
                 ref readonly var a = ref areas[i];
                 var color = DetonationGizmo.Mix(new Rgba32(240, 220, 40, 220), new Rgba32(230, 40, 40, 220), a.ThreatRating);
-                Box(draw, a.Center, a.ExtentsXY, a.AngleRad, color);
+                // ⭐ CE-1033 S2 (§3.9 H3) — the area's HEIGHT BAND, which it always had and never drew: bottom and top outlines at
+                //   ZFloor / ZCeiling joined at the corners (a bridge deck vs the street below are two areas). In 2-D the outlines lie
+                //   on top of each other; a band of zero thickness draws the old single outline.
+                if (a.ZCeiling > a.ZFloor + 0.05f)
+                    Band(draw, a.Center, a.ExtentsXY, a.AngleRad, a.ZFloor, a.ZCeiling, color);
+                else
+                    Box(draw, a.Center, a.ExtentsXY, a.AngleRad, color);
                 draw.DrawText(a.Center.X, a.Center.Y, new Fdp.Core.FixedString32($"{a.Kind} {a.ThreatRating:0.00}"), color, layer: Layer);
             }
+        }
+    }
+
+    /// <summary>⭐ CE-1033 S2 (H3) — the wire prism of an oriented footprint between two absolute heights.</summary>
+    public static void Band(IDebugDrawBuilder draw, Vector3 c, Vector2 half, float yaw, float zFloor, float zCeiling, Rgba32 color)
+    {
+        Box(draw, c with { Z = zFloor }, half, yaw, color);
+        Box(draw, c with { Z = zCeiling }, half, yaw, color);
+        var ax = new Vector3(MathF.Cos(yaw), MathF.Sin(yaw), 0f) * half.X;
+        var ay = new Vector3(-MathF.Sin(yaw), MathF.Cos(yaw), 0f) * half.Y;
+        Span<Vector3> corners = stackalloc Vector3[] { -ax - ay, ax - ay, ax + ay, -ax + ay };
+        foreach (var corner in corners)
+        {
+            var p = c + corner;
+            draw.DrawLine(p with { Z = zFloor }, p with { Z = zCeiling }, color, 1.5f, layer: Layer);
         }
     }
 

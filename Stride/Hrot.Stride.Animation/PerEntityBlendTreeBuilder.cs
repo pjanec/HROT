@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Stride.Animations;
 using Stride.Engine;
+using Fdp.Toolkit.Animation;   // CE-1033 S4 — LocomotionBlend moved here (Fdp.Toolkits)
 
 namespace Hrot.Stride.Animation;
 

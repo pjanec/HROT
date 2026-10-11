@@ -129,9 +129,11 @@ namespace Fdp.Toolkit.Vis2D.Tests.Components
             // Second time: 90. Delta = -10. Target moves +10.
             // Third time: 80. Delta = -10. Target moves +10.
             // Total +20.
-            // Let's just check it moved "some amount" in positive direction.
+            // Let's just check it moved "some amount" in the right direction.
             Assert.True(camera.Target.X > 0);
-            Assert.True(camera.Target.Y > 0);
+            // ⭐ CE-1040 — the 2-D map is north-up: dragging the map UP-left (mouse −Y) shows more of the SOUTH, so the target
+            //   moves south (−Y). Under the old mirror it moved +Y. 📄 docs/DESIGN_Map_North_Up.md.
+            Assert.True(camera.Target.Y < 0);
         }
 
         // ══ A NON-FINITE CAMERA UN-CLICKS THE WHOLE MAP ═══════════════════════════

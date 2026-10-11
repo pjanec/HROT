@@ -84,7 +84,8 @@ public sealed class Map3DFrameRail
         var canvas = new MapCanvas(input: null);
         var two = new MapCamera();
         var zoom = 4f;
-        var target = spot - new Vector2(1280, 800) / 2f / zoom;
+        // ⭐ CE-1040 — north-up: the Target (the screen's top-left) is the view's WEST and NORTH edge.
+        var target = new Vector2(spot.X - 1280f / 2f / zoom, spot.Y + 800f / 2f / zoom);
         two.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
         canvas.Camera = two;
         var terrainLayer = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
@@ -174,8 +175,168 @@ public sealed class Map3DFrameRail
             frame.Screenshot(Path.Combine(shots, "map3d-6-parked-c130.png"));
         }
 
+        // ⑦ CE-1033 S3 — gizmos in 3-D, through the production gizmo layer: a measurement line and a pick ring DRAPED on the
+        //   ground (z = 0, M18), a fire trace from the M1's muzzle height, a fragment radius with height, and a ground label.
+        {
+            var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+            var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus())
+            {
+                CurrentCamera = () => canvas.Camera,
+            };
+            gizmos.Renderer3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+            canvas.AddLayer(gizmos);
+            var yellow = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 220, 40);
+            var red = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 60, 40);
+            var tank = new Vector2(spot.X - 12f, spot.Y);
+            float gz = query.GroundHeightAt(tank.X, tank.Y);
+            buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeLine(
+                new Vector3(spot.X - 25f, spot.Y - 6f, 0f), new Vector3(spot.X + 15f, spot.Y - 6f, 0f), yellow, 2f,
+                target: Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Map2D));
+            buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeSphere(
+                new Vector3(tank, 0f), 5f, yellow, 1.5f, target: Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Map2D));
+            buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeLine(
+                new Vector3(tank, gz + 2.4f), new Vector3(spot.X + 30f, spot.Y + 40f, gz + 1f), red, 1.5f,
+                target: Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Map2D));
+            buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeSphere(
+                new Vector3(spot.X + 30f, spot.Y + 40f, gz + 1f), 6f, red, 1.5f, target: Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Map2D));
+            var label = Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeText(spot.X - 25f, spot.Y - 6f,
+                new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("40 m"), yellow, fontSizePx: 16f);
+            label.TargetView = Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Map2D;
+            buffer.AppendRaw(label);
+            // ⭐ S5b — the tank's CARD (§3.6): frame in the side colour, health bar, name — drawn above its body, leader down to it.
+            buffer.DrawSpatialAnchor(4242, tank.X, tank.Y, gz, 0f, 0f, 0f);
+            var card = Fdp.Toolkit.Diagnostics.Gizmos.EntityCards.Card(buffer, 4242, Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Labels);
+            card.Row(0).Frame(new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(235, 72, 60));
+            card.Row(10).Bar(0.6f, new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 255, 0), new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(40, 40, 40, 220));
+            card.Row(20).Text("T-72 #4242", new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(240, 240, 240));
+
+            sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y + 10f, gz), 70f, MathF.PI * 0.75f, -0.45f);
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            frame.Screenshot(Path.Combine(shots, "map3d-7-gizmos.png"));
+            Assert.True(gizmos.Renderer3D.LinesDrawn > 20, $"gizmo lines: {gizmos.Renderer3D.LinesDrawn}");
+            Assert.Equal(0, gizmos.Renderer3D.Skipped.Total);
+            Assert.Equal(1, gizmos.LabelsDrawn3D);
+            Assert.Equal(1, gizmos.Cards.CardsDrawn);
+        }
+
+        // ⑧ CE-1042 E3 — realism effects from their TKB type: a large explosion mid-bloom, a crater decal draped on the ground,
+        //   a medium explosion, and a 125 mm muzzle flash at the T-72's hull front.
+        {
+            Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(world);
+            world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+            var effectsLayer = new Hrot.UI.Common.Effects.EffectLayer(() => world, () => tkb, bodies) { GroundHeight = query.GroundHeightAt };
+            canvas.AddLayer(effectsLayer);
+            void Fx(long type, Vector3 at, float age, Entity shooter = default)
+            {
+                var e = world.CreateEntity();
+                world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                world.AddComponent(e, new TkbIdentity { TkbType = type });
+                var look = Hrot.Core.Tkb.EffectTkbCatalog.VisualOf(tkb, type)!;
+                world.AddComponent(e, new Hrot.Map.Common.Components.EffectLifetime { Age = age, Duration = look.Duration });
+                if (shooter != default) world.AddComponent(e, new Hrot.Map.Common.Components.EffectAnchor { Shooter = shooter });
+            }
+            var blast = new Vector2(spot.X + 25f, spot.Y + 25f);
+            float bz = query.GroundHeightAt(blast.X, blast.Y);
+            Fx(Hrot.Core.Tkb.EffectTkbCatalog.ExplosionLarge, new Vector3(blast, bz + 1f), 0.5f);
+            Fx(Hrot.Core.Tkb.EffectTkbCatalog.DecalLarge, new Vector3(blast.X - 9f, blast.Y - 4f, query.GroundHeightAt(blast.X - 9f, blast.Y - 4f)), 5f);
+            Fx(Hrot.Core.Tkb.EffectTkbCatalog.ExplosionMedium, new Vector3(blast.X - 15f, blast.Y + 8f, bz + 0.5f), 0.3f);
+            Entity t72 = default;
+            foreach (var e in world.Query().With<TkbIdentity>().Build())
+                if (world.GetComponentRO<TkbIdentity>(e).TkbType == TkbEntityTypes.Tank_T72) t72 = e;
+            Fx(Hrot.Core.Tkb.EffectTkbCatalog.MuzzleFlashLarge, Vector3.Zero, 0.02f, t72);
+
+            sw.Camera3D.Pose = new CameraPose(new Vector3(blast.X - 15f, blast.Y - 5f, bz), 70f, MathF.PI * 0.8f, -0.35f);
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            frame.Screenshot(Path.Combine(shots, "map3d-8-effects.png"));
+            Assert.Equal(4, effectsLayer.Drawn);
+        }
+
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-2-tilted.png"));
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-3-close.png"));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1040 — the 2-D map draws NORTH UP (docs/DESIGN_Map_North_Up.md): a red filled triangle north of the centre lands in
+    /// the top half of the picture, a blue box south of it in the bottom half, and both SURVIVE the mirror (back-face culling is
+    /// off for the 2-D pass, N4); the gizmo text draws (N3).
+    /// </summary>
+    [SkippableFact]
+    public void CE1040_The2DMap_DrawsNorthUp_AndFilledShapesAndTextSurviveTheMirror()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        const float zoom = 4f;
+        var target = new Vector2(-1280f / 2f / zoom, 800f / 2f / zoom);   // centre (0, 0), north-up: the top edge is north
+        two.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas.Camera = two;
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus(), camera: two);
+        canvas.AddLayer(gizmos);
+        var red = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(230, 30, 30);
+        var blue = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(30, 60, 230);
+        // a CCW triangle (as world data usually is) north of the centre
+        buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeFilledTriangle(new Vector2(-20, 40), new Vector2(20, 40), new Vector2(0, 70), red));
+        buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeBox2D(new Vector2(0f, -50f), new Vector2(20f, 10f), blue,
+            sizeMode: Fdp.Toolkit.Diagnostics.Gizmos.SizeMode.WorldMeters, fillColor: blue));
+        buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeText(-40f, 20f, new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("NORTH"),
+            new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 255, 255), fontSizePx: 30f));
+        // a big "T" east of the centre: upright, its crossbar is its TOP (N3 — world text is un-flipped at its point)
+        buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeText(60f, 30f, new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("T"),
+            new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 255, 255), fontSizePx: 60f));
+        // ⭐ CE-1033 S5b — an entity CARD in 2-D (§3.6), south-west of the centre: the same renderer as in 3-D, over the symbol
+        buffer.DrawSpatialAnchor(77, -100f, -30f, 0f, 0f, 0f, 0f);
+        var card = Fdp.Toolkit.Diagnostics.Gizmos.EntityCards.Card(buffer, 77, Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Labels);
+        card.Row(0).Frame(new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(90, 150, 255));
+        card.Row(10).Bar(0.8f, new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(0, 230, 0), new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(40, 40, 40, 220));
+        card.Row(20).Text("M1A2 #77", new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(240, 240, 240));
+        gizmos.Update(0.016f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        Assert.Equal(1, gizmos.Cards.CardsDrawn);
+        string png = Path.Combine(shots, "map2d-north-up.png");
+        frame.Screenshot(png);
+
+        var image = Raylib.LoadImage(png);
+        try
+        {
+            int redTop = 0, redBottom = 0, blueTop = 0, blueBottom = 0, white = 0;
+            for (int y = 0; y < 800; y += 2)
+                for (int x = 0; x < 1280; x += 2)
+                {
+                    var c = Raylib.GetImageColor(image, x, y);
+                    bool isRed = c.R > 180 && c.G < 90 && c.B < 90, isBlue = c.B > 180 && c.R < 90 && c.G < 120;
+                    if (isRed) { if (y < 400) redTop++; else redBottom++; }
+                    if (isBlue) { if (y < 400) blueTop++; else blueBottom++; }
+                    if (c.R > 230 && c.G > 230 && c.B > 230) white++;
+                }
+            Assert.True(redTop > 200 && redBottom == 0, $"the triangle north of the centre must draw in the TOP half (top {redTop}, bottom {redBottom})");
+            Assert.True(blueBottom > 200 && blueTop == 0, $"the box south of the centre must draw in the BOTTOM half (top {blueTop}, bottom {blueBottom})");
+            Assert.True(white > 20, $"the gizmo text must draw (white pixels: {white})");
+            // the "T": the widest white row is in the top third of the glyph ⇒ upright, not mirrored
+            int top = int.MaxValue, bottom = -1, bestRow = -1, bestCount = 0;
+            for (int y = 150; y < 450; y++)
+            {
+                int count = 0;
+                for (int x = 860; x < 1040; x++)
+                {
+                    var c = Raylib.GetImageColor(image, x, y);
+                    if (c.R > 230 && c.G > 230 && c.B > 230) count++;
+                }
+                if (count == 0) continue;
+                top = Math.Min(top, y); bottom = Math.Max(bottom, y);
+                if (count > bestCount) { bestCount = count; bestRow = y; }
+            }
+            Assert.True(bottom > top, "the T must draw east of the centre");
+            Assert.True(bestRow < top + (bottom - top) / 3, $"the T's crossbar (row {bestRow}) must be its TOP ({top}..{bottom}) — text upright");
+        }
+        finally { Raylib.UnloadImage(image); }
     }
 
     /// <summary>The point nearest <paramref name="from"/> with a clear square of ground ±<paramref name="half"/> metres around it.</summary>

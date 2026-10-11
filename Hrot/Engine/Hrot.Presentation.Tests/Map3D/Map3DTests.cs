@@ -41,6 +41,116 @@ public sealed class Map3DTests
         return null;
     }
 
+    // ── CE-1044 — the free camera behaves like Unity's scene view ───────────────────────────────────────────────────────────
+
+    private sealed class FakeInput : Fdp.Toolkit.Vis2D.Abstractions.IInputProvider
+    {
+        public Vector2 MousePosition { get; set; }
+        public Vector2 MouseDelta => Vector2.Zero;
+        public float MouseWheelMove { get; set; }
+        public bool RightDown { get; set; }
+        public HashSet<int> Keys { get; } = new();
+        public bool IsMouseButtonPressed(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsMouseButtonDown(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => b == Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton.Right && RightDown;
+        public bool IsMouseButtonReleased(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsKeyPressed(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public bool IsKeyDown(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => Keys.Contains((int)k);
+        public bool IsKeyReleased(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public int GetKeyPressed() => 0;
+        public bool IsMouseCaptured => false;
+        public bool IsKeyboardCaptured => false;
+    }
+
+    private static MapCamera3D FlyCamera() => new()
+    {
+        ViewportOverride = new Vector2(1280, 720),
+        GroundHeight = (_, _) => 0f,                       // the relief follow is ON — that is what used to fight the free camera
+        Pose = new CameraPose(new Vector3(0, 0, 0), 100f, MapCamera3D.NorthUpYaw, -0.5f),
+    };
+
+    private static void Frame(MapCamera3D cam, FakeInput input, float dt = 0.016f)
+    {
+        cam.Update(dt);
+        cam.HandleInput(input);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ CE-1044 — right-drag LOOKS around the eye; it does not move the eye. 🔒 User, 2026-10-10: "when i press right button and
+    /// move mouse up/down the camera is not just changing the pitch but travel up/down". 🔴 The per-frame ground pin on the look-at
+    /// height moved the EYE every time a pitch change moved the look-at.
+    /// </summary>
+    [Fact]
+    public void CE1044_RightDragUpDown_ChangesThePitch_AndTheEyeStaysWhereItIs()
+    {
+        var cam = FlyCamera();
+        var input = new FakeInput { RightDown = true, MousePosition = new Vector2(600, 400) };
+        Frame(cam, input);                                  // the press frame: arms the look
+        var eye = cam.Eye;
+        float pitch = cam.Pitch;
+
+        for (int i = 1; i <= 20; i++)
+        {
+            input.MousePosition = new Vector2(600, 400 - i * 6);   // mouse UP
+            Frame(cam, input);
+        }
+
+        Assert.NotEqual(pitch, cam.Pitch, 3);               // it looked
+        Assert.True(Vector3.Distance(eye, cam.Eye) < 0.05f, $"the eye travelled {Vector3.Distance(eye, cam.Eye):F2} m while only looking");
+    }
+
+    /// <summary>⭐⭐⭐ CE-1044 — W flies along the view direction, vertical part included (Unity). Used to fly level: the ground pin ate the vertical part.</summary>
+    [Fact]
+    public void CE1044_W_FliesToWhereTheCameraIsLooking()
+    {
+        var cam = FlyCamera();
+        var input = new FakeInput { RightDown = true, MousePosition = new Vector2(600, 400) };
+        input.Keys.Add((int)Raylib_cs.KeyboardKey.W);
+        Frame(cam, input);
+        var eye = cam.Eye;
+        var forward = cam.Forward;
+
+        for (int i = 0; i < 30; i++) Frame(cam, input);
+
+        var travelled = cam.Eye - eye;
+        Assert.True(travelled.Length() > 2f, "W did not move the camera");
+        Assert.True(Vector3.Dot(Vector3.Normalize(travelled), forward) > 0.999f,
+            $"W flew {Vector3.Normalize(travelled)} but the camera looks along {forward}");
+        Assert.True(travelled.Z < -1f, "looking down, forward must descend");
+    }
+
+    /// <summary>⭐ CE-1044 — the relief follow still works for what it was for: a middle-drag pan keeps the look-at point on the ground.</summary>
+    [Fact]
+    public void CE1044_ThePan_StillKeepsTheLookAtOnTheRelief()
+    {
+        var cam = FlyCamera();
+        cam.GroundHeight = (x, _) => x * 0.1f;              // a slope
+        cam.Update(0.016f);
+        cam.LookAt += new Vector3(100, 0, 0);               // what a pan does: sideways only
+        cam.Update(0.016f);
+        Assert.Equal(10f, cam.LookAt.Z, 3);
+    }
+
+    /// <summary>⭐ CE-1044 — plain WASD is fine-grained (a tenth of the distance per second); Shift or Ctrl is 10× that; both 30×.</summary>
+    [Theory]
+    [InlineData(false, false, 10f)]
+    [InlineData(true,  false, 100f)]
+    [InlineData(false, true,  100f)]
+    [InlineData(true,  true,  300f)]
+    public void CE1044_FlySpeed_IsATenthOfTheDistancePerSecond_BoostedByShiftAndCtrl(bool shift, bool ctrl, float metresPerSecond)
+    {
+        var cam = FlyCamera();                              // distance 100 ⇒ 10 m/s plain
+        var input = new FakeInput { RightDown = true, MousePosition = new Vector2(600, 400) };
+        input.Keys.Add((int)Raylib_cs.KeyboardKey.W);
+        if (shift) input.Keys.Add((int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.LeftShift);
+        if (ctrl)  input.Keys.Add((int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.LeftControl);
+        Frame(cam, input, 0.1f);                            // the press frame
+        var eye = cam.Eye;
+
+        Frame(cam, input, 0.1f);
+
+        Assert.Equal(metresPerSecond * 0.1f, Vector3.Distance(eye, cam.Eye), 1);
+    }
+
     [Fact]
     public void S1_TheIconFallback_IsUnchangedByTheExtraction_ForEveryBuiltInType()
     {
@@ -247,7 +357,8 @@ public sealed class Map3DTests
     {
         var c = new MapCamera();
         var vp = Viewport;
-        var target = centre - vp / 2f / zoom;
+        // ⭐ CE-1040 — the Target is the world point at the screen's top-left; north-up, the screen's top is the view's NORTH edge.
+        var target = new Vector2(centre.X - vp.X / 2f / zoom, centre.Y + vp.Y / 2f / zoom);
         c.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
         return c;
     }
@@ -318,6 +429,410 @@ public sealed class Map3DTests
         Assert.InRange(two.Zoom, 1.7f * 0.999f, 1.7f * 1.001f);
         var centre = two.ScreenToWorld(new Vector2(640, 360));
         Assert.InRange(Vector2.Distance(centre, new Vector2(-120, 300)), 0f, 0.05f);
+    }
+
+    // ── CE-1033 S4 — the terrain by surface and material, water ──
+
+    [Fact]
+    public void S4_TheTerrainTags_LeaveTheNavmeshSoupUnchanged_AndColourForestAndWater()
+    {
+        var town = TestTown();
+        Fdp.Toolkit.Terrain.TerrainWorldMesh.Build(town, out var soupV, out var soupI);
+        Fdp.Toolkit.Terrain.TerrainWorldMesh.Build(town, out var tagV, out var tagI, out var tags);
+        Assert.Equal(soupV, tagV);                                       // the navmesh is baked from exactly the same triangles
+        Assert.Equal(soupI, tagI);
+        Assert.Equal(tagI.Length / 3, tags.Length);
+        Assert.Contains(tags, t => t.Kind == Fdp.Toolkit.Terrain.TerrainTriangleKind.Wall && t.Material == "concrete");
+        Assert.Contains(tags, t => t.Material == Fdp.Toolkit.Terrain.TerrainWorldMesh.ForestMaterial);   // test-town has a forest
+
+        var geometry = WorldQuery.RenderGeometryOf(WorldWith(town))!;
+        geometry.BuildTagged(out var verts, out var indices, out var kinds, out var materials);
+        Assert.Contains(TerrainSurfaceKind.Water, kinds);                                     // and a pond, drawn into its hole
+        Assert.Equal(kinds.Length, materials.Length);
+        TerrainLayer3D.BuildVertexData(verts, indices, kinds, materials, out _, out var normals, out var colours);
+        int water = Array.IndexOf(kinds, TerrainSurfaceKind.Water);
+        Assert.Equal(TerrainLayer3D.WaterColor, colours[3 * water]);
+        Assert.True(normals[3 * water].Y > 0.9f, "the water faces up");
+        int forest = Array.IndexOf(materials, "forest");
+        Assert.Equal(TerrainLayer3D.ForestColor, colours[3 * forest]);
+        Assert.Equal(new Raylib_cs.Color(172, 96, 72, 255), TerrainLayer3D.ColourOf(TerrainSurfaceKind.Wall, "brick"));
+        Assert.Equal(TerrainLayer3D.RoofColor, TerrainLayer3D.ColourOf(TerrainSurfaceKind.Roof, "concrete"));
+    }
+
+    // ── CE-1033 S4 — things come alive (§6 S4): wheels roll, limbs swing, a rotor turns ──
+
+    [Fact]
+    public void S4_WheelsRollByTheDistanceDriven_BackwardsInReverse_AndATeleportDoesNotSpinThem()
+    {
+        var t = new MotionTracker();
+        var car = new Entity(1, 1);
+        var size = new Vector3(4.5f, 1.8f, 1.5f);
+        float radius = ShapeKits.WheelRadiusOfHeight * size.Z;
+        t.Advance(car, Vector3.Zero, Quaternion.Identity, VisualFamily.WheeledCar, size, 0, false);
+        var p = t.Advance(car, new Vector3(1f, 0, 0), Quaternion.Identity, VisualFamily.WheeledCar, size, 0.1, false);
+        Assert.Equal(1f / radius % (MathF.PI * 2f), p.WheelRoll, 3);
+        p = t.Advance(car, new Vector3(0.5f, 0, 0), Quaternion.Identity, VisualFamily.WheeledCar, size, 0.2, false);
+        Assert.Equal(0.5f / radius % (MathF.PI * 2f), p.WheelRoll, 3);                        // reversing rolls back
+        var before = p.WheelRoll;
+        p = t.Advance(car, new Vector3(500f, 0, 0), Quaternion.Identity, VisualFamily.WheeledCar, size, 0.3, false);
+        Assert.Equal(before, p.WheelRoll, 4);                                                  // a teleport is not driving
+    }
+
+    [Fact]
+    public void S4_AWalkingFigureSwingsItsLimbs_AStandingOneDoesNot_ByTheSharedGaitRule()
+    {
+        var t = new MotionTracker();
+        var man = new Entity(2, 1);
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        float maxSwing = 0f, minSwing = 0f;
+        for (int i = 0; i <= 60; i++)   // 1.5 m/s for 2 s at 30 Hz — a full walk
+        {
+            var pose = t.Advance(man, new Vector3(i * 0.05f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, i / 30.0, false);
+            maxSwing = MathF.Max(maxSwing, pose.Swing); minSwing = MathF.Min(minSwing, pose.Swing);
+        }
+        Assert.True(maxSwing > 0.3f && minSwing < -0.3f, $"the legs swing both ways at a walk ({minSwing}..{maxSwing})");
+        var still = t.Advance(man, new Vector3(3f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, 2.1, false);
+        Assert.Equal(0f, still.Swing);
+
+        // the left leg's foot goes FORWARD (+x) on a positive swing
+        var leg = BlockFigure.Parts(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, false)
+                             .Single(k => k.Role == PartRole.LegLeft);
+        var foot = Vector3.Transform(new Vector3(0, 0, -0.5f), leg.BodyTransform(size, default, ArticulationPose.Neutral, new MotionPose(0, 0, 0.4f)));
+        var footStill = Vector3.Transform(new Vector3(0, 0, -0.5f), leg.BodyTransform(size));
+        Assert.True(foot.X > footStill.X + 0.1f, $"left foot forward: {foot} vs {footStill}");
+    }
+
+    [Fact]
+    public void S4_AStanceChange_Blends_HalfWayIsBetweenTheTwoPoses()
+    {
+        var stand = BlockFigure.Parts(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, true);
+        var prone = BlockFigure.Parts(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, true);
+        var half = BlockFigure.Blend(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Fdp.Toolkit.Tkb.Domain.StanceId.Prone, 0.5f, true);
+        Assert.Equal(stand.Length, half.Length);
+        for (int i = 0; i < half.Length; i++)
+            Assert.InRange(Vector3.Distance(half[i].Centre, (stand[i].Centre + prone[i].Centre) / 2f), 0f, 1e-4f);
+        Assert.Same(prone, BlockFigure.Blend(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Fdp.Toolkit.Tkb.Domain.StanceId.Prone, 1f, true));
+    }
+
+    [Fact]
+    public void S4_ARotorTurnsOnSimulationTimeWhileFlying_AndStandsWhenParked()
+    {
+        var t = new MotionTracker();
+        var heli = new Entity(3, 1);
+        var size = ShapeKits.DefaultSize(VisualFamily.Helicopter);
+        var a = t.Advance(heli, new Vector3(0, 0, 30), Quaternion.Identity, VisualFamily.Helicopter, size, 10.00, rotorTurning: true);
+        var b = t.Advance(heli, new Vector3(0, 0, 30), Quaternion.Identity, VisualFamily.Helicopter, size, 10.05, rotorTurning: true);
+        Assert.NotEqual(a.Rotor, b.Rotor);
+        var c = t.Advance(heli, new Vector3(0, 0, 30), Quaternion.Identity, VisualFamily.Helicopter, size, 10.05, rotorTurning: true);
+        Assert.Equal(b.Rotor, c.Rotor);                                              // a paused sim clock freezes it
+        Assert.Equal(0f, t.Advance(heli, Vector3.Zero, Quaternion.Identity, VisualFamily.Helicopter, size, 11.0, rotorTurning: false).Rotor);
+        // the blades turn about their mast, the spokes about their wheel: the part's centre stays put
+        var blade = ShapeKits.Helicopter.Parts.First(k => k.Role == PartRole.Rotor);
+        var centre = Vector3.Transform(Vector3.Zero, blade.BodyTransform(size, default, ArticulationPose.Neutral, new MotionPose(1.2f, 0, 0)));
+        Assert.InRange(Vector3.Distance(centre, Vector3.Transform(Vector3.Zero, blade.BodyTransform(size))), 0f, 1e-3f);
+    }
+
+    // ── S5c — the entity colour (§3.7, M15): built like affiliation ──
+
+    [Fact]
+    public void S5c_TheTkbColour_IsStampedOnlyIfAbsent_APerSpawnColourWins_AndNoColourIsStillStamped()
+    {
+        using var w = new EntityRepository();
+        w.RegisterComponent<VisualData>();
+        w.RegisterComponent<EntityInfo>();
+        w.RegisterComponent<EntityAppearance>();
+        var tpl = new TkbTemplate("Painted", 90101);
+        tpl.AddDescriptor(new VisualDefinitionDto { SymbolCode = "SFGPUCA---", ColorHex = "#2E4057" });
+        var blank = new TkbTemplate("Blank", 90102);
+        blank.AddDescriptor(new VisualDefinitionDto { SymbolCode = "SFGPUCA---", ColorHex = "" });
+        var translator = new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator();
+
+        var fromTkb = w.CreateEntity();
+        translator.Inject(w, fromTkb, tpl);
+        var authored = w.CreateEntity();
+        w.AddComponent(authored, EntityAppearance.Of(200, 30, 30));   // the scenario's own value, applied before / kept after
+        translator.Inject(w, authored, tpl);
+        var none = w.CreateEntity();
+        translator.Inject(w, none, blank);
+
+        Assert.Equal("#2E4057", w.GetComponentRO<EntityAppearance>(fromTkb).ToHex());
+        Assert.Equal("#C81E1E", w.GetComponentRO<EntityAppearance>(authored).ToHex());
+        Assert.True(w.HasComponent<EntityAppearance>(none), "always stamped — a [PerInstanceValue] component must never leave a ghost waiting");
+        Assert.False(w.GetComponentRO<EntityAppearance>(none).HasColour);
+        Assert.Contains(typeof(EntityAppearance), translator.GetProducedComponents());
+    }
+
+    [Fact]
+    public void S5c_TheBodyColour_IsTheEntitysOwn_ThenTheTkbs_ThenTheFamilys()
+    {
+        using var w = new EntityRepository();
+        w.RegisterComponent<VisualData>();
+        w.RegisterComponent<EntityAppearance>();
+        var family = new Raylib_cs.Color((byte)1, (byte)2, (byte)3, (byte)255);
+        var bare = w.CreateEntity();
+        var tkbOnly = w.CreateEntity();
+        w.AddComponent(tkbOnly, new VisualData { ColorHex = new FixedString32("#102030") });
+        var own = w.CreateEntity();
+        w.AddComponent(own, new VisualData { ColorHex = new FixedString32("#102030") });
+        w.AddComponent(own, EntityAppearance.Of(250, 200, 10));
+        var noColour = w.CreateEntity();
+        w.AddComponent(noColour, new VisualData { ColorHex = new FixedString32("#102030") });
+        w.AddComponent(noColour, default(EntityAppearance));
+
+        Assert.Equal(family, EntityBodyLayer3D.ColourOf(w, bare, family));
+        Assert.Equal(new Raylib_cs.Color((byte)0x10, (byte)0x20, (byte)0x30, (byte)255), EntityBodyLayer3D.ColourOf(w, tkbOnly, family));
+        Assert.Equal(new Raylib_cs.Color((byte)250, (byte)200, (byte)10, (byte)255), EntityBodyLayer3D.ColourOf(w, own, family));
+        Assert.Equal(new Raylib_cs.Color((byte)0x10, (byte)0x20, (byte)0x30, (byte)255), EntityBodyLayer3D.ColourOf(w, noColour, family));
+    }
+
+    [Fact]
+    public void S5c_TheColour_IsSavedInTheScenario_AndComesBack()
+    {
+        using var w = new EntityRepository();
+        w.RegisterComponent<EntityAppearance>();
+        var e = w.CreateEntity();
+        w.AddComponent(e, EntityAppearance.FromHex("#C81E1E"));
+        var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.Editor").Build();
+
+        string json = serializer.Serialize(w, new Fdp.Toolkit.Scenario.ScenarioHeader("Hrot.Editor")).ToJsonString();
+        Assert.Contains("\"EntityAppearance\"", json);
+
+        using var back = new EntityRepository();
+        back.RegisterComponent<EntityAppearance>();
+        serializer.Deserialize(back, json);
+        Entity loaded = default;
+        int count = 0;
+        foreach (var x in back.Query().With<EntityAppearance>().Build()) { loaded = x; count++; }
+        Assert.Equal(1, count);   // the coloured entity comes back
+        Assert.Equal("#C81E1E", back.GetComponentRO<EntityAppearance>(loaded).ToHex());
+        Assert.Equal(0x2E4057AAu, EntityAppearance.FromHex("#2E4057AA").ColorRgba);   // #RRGGBBAA keeps its alpha
+    }
+
+    // ── S5 — the scenario's camera entity (§3.12, R-260) ──
+
+    private static (Fdp.Toolkit.Vis2D.MapCanvas Canvas, MapViewSwitch Switch, MapCamera Two) Map(Vector2 centre, float zoom, Func<float, float, float>? ground = null)
+    {
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var two = Camera2D(centre, zoom);
+        canvas.Camera = two;
+        var sw = new MapViewSwitch(canvas, two, new MapCamera3D { ViewportOverride = Viewport, GroundHeight = ground });
+        return (canvas, sw, two);
+    }
+
+    private static EntityRepository CameraWorld()
+    {
+        var w = new EntityRepository();
+        w.RegisterComponent<SimTransform>();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        return w;
+    }
+
+    private static Entity SaveCamera(EntityRepository w, CameraPose pose)
+    {
+        var e = w.CreateEntity();
+        w.AddComponent(e, Hrot.UI.Common.Map3D.MapCameraPose.ToTransform(pose));
+        w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Core.Tkb.MapCameraTkb.Type });
+        return e;
+    }
+
+    private static void AssertPose(CameraPose expected, CameraPose actual)
+    {
+        Assert.InRange(Vector3.Distance(expected.LookAt, actual.LookAt), 0f, 0.05f);
+        Assert.InRange(MathF.Abs(expected.Distance - actual.Distance), 0f, 0.05f);
+        Assert.InRange(MathF.Abs(MathF.IEEERemainder(expected.Yaw - actual.Yaw, 2f * MathF.PI)), 0f, 1e-3f);
+        Assert.InRange(MathF.Abs(expected.Pitch - actual.Pitch), 0f, 1e-3f);
+    }
+
+    [Fact]
+    public void S5_ThePose_RoundTripsThroughAnOrdinarySimTransform_OnASlope_AndOverhead()
+    {
+        // R-248: never flat — the look-at sits on a slope rising half a metre per metre east
+        Func<float, float, float> slope = (x, y) => 0.5f * x;
+        var tilted = new CameraPose(new Vector3(100f, 40f, 50f), 220f, 0.7f, -0.6f);
+        var tf = Hrot.UI.Common.Map3D.MapCameraPose.ToTransform(tilted);
+        AssertPose(tilted, Hrot.UI.Common.Map3D.MapCameraPose.FromTransform(tf, slope));
+        Assert.True(tf.Position.Z > 50f, "the position is the EYE, above the look-at");
+
+        var overhead = new CameraPose(new Vector3(-30f, 12f, -15f), 900f, MapCamera3D.NorthUpYaw, MapCamera3D.OverheadPitch);
+        var back = Hrot.UI.Common.Map3D.MapCameraPose.FromTransform(Hrot.UI.Common.Map3D.MapCameraPose.ToTransform(overhead), slope);
+        AssertPose(overhead, back);
+        Assert.True(MapViewSwitch.IsTwoDPose(back), "straight down, north up = the 2-D map");
+        Assert.False(MapViewSwitch.IsTwoDPose(tilted));
+    }
+
+    [Fact]
+    public void S5_TheSavedView_IsAdoptedWhenTheScenarioOpens_In3D_OrIn2D_ByItsPitch()
+    {
+        using var w = CameraWorld();
+        var saved3D = new CameraPose(new Vector3(500f, 200f, 0f), 350f, 1.1f, -0.5f);
+        SaveCamera(w, saved3D);
+        var (canvas, sw, _) = Map(Vector2.Zero, 1f);
+        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w);
+
+        layer.Update(0.016f);
+
+        Assert.True(layer.Adopted);
+        Assert.True(sw.Is3D);
+        AssertPose(saved3D, sw.Camera3D.Pose);
+
+        using var w2 = CameraWorld();
+        SaveCamera(w2, new CameraPose(new Vector3(-80f, 60f, 0f), 400f, MapCamera3D.NorthUpYaw, MapCamera3D.OverheadPitch));
+        var (canvas2, sw2, two2) = Map(new Vector2(900f, 900f), 3f);
+        new Hrot.UI.Common.Map3D.MapCameraLayer(sw2, () => w2).Update(0.016f);
+        Assert.False(sw2.Is3D);
+        Assert.Same(two2, canvas2.Camera);
+        Assert.InRange(Vector2.Distance(two2.ScreenToWorld(Viewport / 2f), new Vector2(-80f, 60f)), 0f, 0.1f);
+    }
+
+    [Fact]
+    public void S5_TheFirstMove_RequestsAnUnownedCamera_TheCreatorOwnsIt_AndItsPoseIsKept_AndSaved()
+    {
+        using var w = CameraWorld();
+        var requests = new Hrot.Core.Network.ScenarioEntityCreationRequestSource();
+        w.SetSingletonManaged(requests);                       // as the shared EntityCreationPack publishes it on every creating host
+        var (_, sw, two) = Map(new Vector2(10f, 20f), 2f);
+        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w);
+        layer.Update(0.016f);                                  // the baseline
+        Assert.True(requests.IsEmpty);
+
+        two.ApplyCameraView(new MapCameraView { Target = new Vector2(300f, 400f), Zoom = 2f, SmoothTarget = new Vector2(300f, 400f), SmoothZoom = 2f });
+        layer.Update(0.016f);                                  // a move …
+        Assert.True(requests.IsEmpty);                         // … nothing asked while the view is still changing
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);     // still for > SettleSeconds
+
+        var asked = new List<Hrot.Core.Network.EntityCreationRequest>();
+        requests.ProcessRequests(asked.Add);
+        var r = Assert.Single(asked);                          // one request, not one per frame
+        Assert.Equal(Hrot.Core.Tkb.MapCameraTkb.Type, r.TkbType);
+        Assert.Equal(Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor, r.OwnerAppInstanceId);   // R-140: unowned
+        Assert.True(layer.Requested);
+
+        // the default processor creates it (here: locally, as the editor's one-node cluster does)
+        var cam = w.CreateEntity();
+        w.AddComponent(cam, (SimTransform)r.InitialComponents![0]);
+        w.AddComponent(cam, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = r.TkbType });
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);
+        Assert.Equal(cam, layer.Camera);
+        Assert.False(layer.Requested);
+        AssertPose(sw.CurrentPose, Hrot.UI.Common.Map3D.MapCameraPose.FromTransform(w.GetComponentRO<SimTransform>(cam), null));
+
+        sw.Set(true, animate: false);                          // switching to 3-D is a camera move: the owner keeps it
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);
+        Assert.False(MapViewSwitch.IsTwoDPose(Hrot.UI.Common.Map3D.MapCameraPose.FromTransform(w.GetComponentRO<SimTransform>(cam), null)));
+        Assert.True(requests.IsEmpty);                         // moved, never asked for a second one
+        Assert.Equal(1, w.EntityCount);
+
+        var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.Editor").Build();
+        string json = serializer.Serialize(w, new Fdp.Toolkit.Scenario.ScenarioHeader("Hrot.Editor")).ToJsonString();
+        Assert.Contains("\"SimTransform\"", json);           // an ordinary saved entity (U7)
+    }
+
+    [Fact]
+    public void S5_AHostThatCannotCreate_NeverMakesACamera_AndAViewTheUserAlreadyMovedIsNotTakenOver()
+    {
+        using var w = CameraWorld();                           // no request source: the replay browser
+        var (_, sw, two) = Map(Vector2.Zero, 1f);
+        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w);
+        layer.Update(0.016f);
+        two.ApplyCameraView(new MapCameraView { Target = new Vector2(50f, 50f), Zoom = 1f, SmoothTarget = new Vector2(50f, 50f), SmoothZoom = 1f });
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);
+        Assert.Equal(0, w.EntityCount);
+        Assert.False(layer.Requested);
+
+        SaveCamera(w, new CameraPose(new Vector3(999f, 999f, 0f), 300f, 0.3f, -0.4f));   // arrives after the user moved
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);
+        Assert.False(sw.Is3D);
+        Assert.False(layer.Adopted);
+    }
+
+    [Fact]
+    public void S5_ACameraTheMapDoesNotOwn_IsNotMoved()
+    {
+        using var w = CameraWorld();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+        var cam = SaveCamera(w, new CameraPose(new Vector3(100f, 100f, 0f), 300f, 0.3f, -0.4f));
+        w.AddComponent(cam, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 1, localNodeId: 2));   // owned elsewhere
+        var before = w.GetComponentRO<SimTransform>(cam);
+        var (_, sw, _) = Map(Vector2.Zero, 1f);
+        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w);
+        layer.Update(0.016f);                                  // adopts it
+        Assert.True(layer.Adopted);
+        sw.Camera3D.Pose = sw.Camera3D.Pose with { Yaw = 2.0f };
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);
+        Assert.Equal(before.Position, w.GetComponentRO<SimTransform>(cam).Position);   // a request needs a pitch path (CE-1047)
+    }
+
+    [Fact]
+    public void S5_TheCameraIsTheView_NotAThingOnTheMap_NoBody_NoPickBox_NoSymbol()
+    {
+        var bodies = new EntityBodyLayer3D(() => null, () => null);
+        Assert.Equal(VisualFamily.Unit, bodies.LookOf(Hrot.Core.Tkb.MapCameraTkb.Type, null).Family);   // no body, not pickable
+
+        using var w = CameraWorld();
+        var cam = SaveCamera(w, new CameraPose(Vector3.Zero, 300f, 0.3f, -0.4f));
+        w.AddComponent(cam, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4711));   // as it comes back from a load
+        var draw = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        new Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo().Draw(w, cam, draw);
+        Assert.Equal(0, draw.GetFrame().Length);
+
+        var tkb = HrotEnvironment.CreateTkb();
+        Assert.True(tkb.TryGetByType(Hrot.Core.Tkb.MapCameraTkb.Type, out var t) && t!.GetDescriptor<TkbMasterDto>()!.HideFromPalette);
+    }
+
+    // ── CE-1040 — the 2-D map is north-up (docs/DESIGN_Map_North_Up.md) ──
+
+    [Fact]
+    public void CE1040_In2D_NorthIsUp_EastIsRight_AndTheConversionsAreInverses()
+    {
+        var two = Camera2D(new Vector2(40, -60), 3f);
+        var centre = two.WorldToScreen(new Vector2(40, -60));
+        var north = two.WorldToScreen(new Vector2(40, -40));
+        var east = two.WorldToScreen(new Vector2(60, -60));
+        Assert.True(north.Y < centre.Y - 10f, $"north {north} should be ABOVE the centre {centre}");
+        Assert.True(east.X > centre.X + 10f, $"east {east} should be right of the centre {centre}");
+        Assert.InRange(Vector2.Distance(centre, Viewport / 2f), 0f, 0.01f);
+        foreach (var px in new[] { new Vector2(0, 0), new Vector2(200, 650), new Vector2(1279, 3) })
+            Assert.InRange(Vector2.Distance(px, two.WorldToScreen(two.ScreenToWorld(px))), 0f, 0.01f);
+        Assert.Equal(-1f / 3f, two.ScreenDeltaToWorld(new Vector2(0, 1)).Y, 4);   // a pixel DOWN is south
+    }
+
+    [Fact]
+    public void CE1040_DraggingTheMapDown_MovesTheViewNorth_AndTheWheelZoomsAboutTheCursor()
+    {
+        var two = Camera2D(new Vector2(0, 0), 2f);
+        two.EnableSmoothing = false;
+        var under = two.ScreenToWorld(new Vector2(100, 100));
+        two.ProcessInput(0f, new Vector2(100, 100), isPanDown: true, isInputCaptured: false);
+        two.ProcessInput(0f, new Vector2(100, 160), isPanDown: true, isInputCaptured: false);   // drag 60 px down
+        two.Update(0.016f);
+        // the ground point that was under the cursor followed it down
+        Assert.InRange(Vector2.Distance(two.WorldToScreen(under), new Vector2(100, 160)), 0f, 0.01f);
+
+        two.ProcessInput(0f, new Vector2(100, 160), isPanDown: false, isInputCaptured: false);
+        var atCursor = two.ScreenToWorld(new Vector2(300, 500));
+        two.ProcessInput(2f, new Vector2(300, 500), isPanDown: false, isInputCaptured: false);
+        two.Update(0.016f);
+        Assert.InRange(Vector2.Distance(two.ScreenToWorld(new Vector2(300, 500)), atCursor), 0f, 0.01f);
+    }
+
+    [Fact]
+    public void CE1040_TheSwitchKeepsNorthUp_ThePointNorthOfTheCentreIsAboveItInBothViews()
+    {
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var two = Camera2D(new Vector2(500, 200), 1.2f);
+        canvas.Camera = two;
+        var sw = new MapViewSwitch(canvas, two, new MapCamera3D { ViewportOverride = Viewport });
+        var northOf = new Vector2(500, 260);
+
+        float twoDy = two.WorldToScreen(northOf).Y;
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = sw.Camera3D.OverheadMatching(two);
+        float threeDy = sw.Camera3D.WorldToScreen(northOf).Y;
+        Assert.True(twoDy < 360f && threeDy < 360f, $"north is above the centre in 2-D ({twoDy}) and in 3-D ({threeDy})");
+        Assert.InRange(MathF.Abs(twoDy - threeDy), 0f, 2f);   // the same pixel: the swap does not jump
+        sw.Set(false, animate: false);
+        Assert.True(two.WorldToScreen(northOf).Y < 360f);
     }
 
     [Fact]

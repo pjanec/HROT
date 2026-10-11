@@ -25,7 +25,17 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
     private readonly Action<Vector2[]> _onFinish;
     private readonly Action            _onRemove;
     private readonly List<Vector2>     _points = new();
+    private readonly List<float>       _heights = new();   // ⭐ CE-1033 M22 — each point's level height (0 = the ground)
     private Vector3                    _currentPos;
+    private Fdp.Toolkit.World.IWorldQuery? _world;
+
+    /// <summary>
+    /// ⭐ CE-1033 S3 (docs/DESIGN_Map_3D_Mode.md M22 step 1) — the height of the level the sequence is drawn on: the FIRST point's
+    /// surface height when it was picked on a roof or an upper floor (a 3-D click, <see cref="Fdp.Toolkit.World.Levels"/> ≥ 1),
+    /// else 0 = on the ground, which is DRAPED (M18) so a ground area follows relief instead of floating at one height (R-248).
+    /// A 2-D click has no height, so in 2-D this is always 0 — byte-identical to before.
+    /// </summary>
+    public float AreaHeight => _heights.Count > 0 ? _heights[0] : 0f;
 
     // Raylib Color.Blue = R:0, G:121, B:241. SkyBlue = R:102, G:191, B:255.
     private static readonly Rgba32 Blue    = new Rgba32(0,   121, 241, 255);
@@ -85,6 +95,7 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
     /// <inheritdoc/>
     public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
     {
+        _world = Fdp.Toolkit.World.WorldQuery.Of(view);
         // Draw captured points and connecting lines.
         if (_points.Count > 0)
         {
@@ -92,20 +103,20 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
             for (int i = 0; i < _points.Count - 1; i++)
             {
                 draw.DrawLine(
-                    new Vector3(_points[i].X,     _points[i].Y,     0f),
-                    new Vector3(_points[i + 1].X, _points[i + 1].Y, 0f),
+                    new Vector3(_points[i].X,     _points[i].Y,     _heights[i]),
+                    new Vector3(_points[i + 1].X, _points[i + 1].Y, _heights[i + 1]),
                     Blue, LineWidth);
             }
 
             // Sphere at each collected point.
-            foreach (var p in _points)
+            for (int i = 0; i < _points.Count; i++)
             {
-                draw.DrawSphere(new Vector3(p.X, p.Y, 0f), PointRadius, Blue);
+                draw.DrawSphere(new Vector3(_points[i].X, _points[i].Y, _heights[i]), PointRadius, Blue);
             }
 
             // Elastic line from last point to current cursor.
             draw.DrawLine(
-                new Vector3(_points[^1].X,  _points[^1].Y,  0f),
+                new Vector3(_points[^1].X,  _points[^1].Y,  _heights[^1]),
                 _currentPos,
                 SkyBlue, ElasticWidth);
         }
@@ -132,6 +143,9 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
         if (button == MapMouseButton.Left && !isPressed)
         {
             _points.Add(new Vector2(worldPos.X, worldPos.Y));
+            // ⭐ CE-1033 M22 — a point picked on a roof keeps the roof's height; one on the ground keeps 0 (draped).
+            bool onLevel = worldPos.Z != 0f && _world != null && Fdp.Toolkit.World.Levels.LevelOf(_world, worldPos) >= 1;
+            _heights.Add(onLevel ? worldPos.Z : 0f);
         }
         else if (button == MapMouseButton.Right && isPressed)
         {

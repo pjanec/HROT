@@ -109,6 +109,10 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
     private Hrot.ScenarioEditor.Tools.ToolController? _replayToolController;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _dataDrivenGizmoSystem;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem? _statelessGizmoSystem;
+    // ⭐ CE-1042 E2 — the realism effects, driven here like the other map systems (this host runs them from Update).
+    private Hrot.UI.Common.Effects.EffectSpawnSystem? _effectSpawn;
+    private Hrot.UI.Common.Effects.EffectLifetimeSystem? _effectLifetime;
+    private float _replayAdvanceSeconds;
     private Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer? _gizmoLayer;
     private Fdp.Core.FdpEventBus? _interactionBus;
     private Hrot.Common.Systems.GlobalActionDispatchSystem? _actionDispatchSystem;
@@ -221,13 +225,16 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             _replayToolController  = mapInteraction.Tools;
             _dataDrivenGizmoSystem = mapInteraction.DataDrivenSystem;
             _statelessGizmoSystem  = mapInteraction.StatelessSystem;
+            _effectSpawn           = mapInteraction.EffectSpawn;
+            _effectLifetime        = mapInteraction.EffectLifetime;
             var gizmoRegistry      = mapInteraction.GizmoRegistry;
             var statelessRegistry  = mapInteraction.StatelessRegistry;
             var settingsRegistry   = mapInteraction.Settings;
             // ⭐⭐ UXI-23 S3: this host drives the three systems directly from its own Update rather than
             // scheduling the group, so it declares exactly those three. §3.2e.
             foreach (string problem in mapInteraction.Unserviceable(
-                         new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem, mapInteraction.ActionDispatch }))
+                         new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem, mapInteraction.ActionDispatch,
+                                        _effectSpawn, _effectLifetime }))
                 Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
 
             // ⭐⭐⭐ UXI-11 — ALL FOUR COME FROM THE PACK NOW. 📐 This host used to construct the gesture
@@ -375,6 +382,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 while (_playbackAccumulator >= frameTime)
                 {
                     _playbackAccumulator -= frameTime;
+                    _replayAdvanceSeconds += frameTime;   // ⭐ CE-1042 E2 — the effects' clock is the REPLAYED time (VE-G)
                     if (!TryStepForwardViaManager())
                     {
                         _timelinePanel.IsPlaying = false;
@@ -449,6 +457,14 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 _dataDrivenGizmoSystem?.Execute(_activeRepo, deltaTime);
                 _globalGizmoManager?.Execute(_activeRepo, deltaTime);
                 _statelessGizmoSystem?.Execute(_activeRepo, deltaTime);
+                // ⭐ CE-1042 E2 — effects from the replayed fire / hit events, aged by the replayed time (paused ⇒ frozen, VE-G).
+                //   ⚠ This host has no kernel, so the systems' command buffer is played back here — nothing else would.
+                float effectDt = _replayAdvanceSeconds;
+                _replayAdvanceSeconds = 0f;
+                _effectSpawn?.Execute(_activeRepo, effectDt);
+                _effectLifetime?.Execute(_activeRepo, effectDt);
+                if (((Fdp.ModuleHost.Abstractions.ISimulationView)_activeRepo).GetCommandBuffer() is Fdp.Core.EntityCommandBuffer effectCommands)
+                    effectCommands.Playback(_activeRepo);
             }
 
             // Swap the interaction bus so intent events are visible on the next frame

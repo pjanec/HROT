@@ -88,6 +88,10 @@ namespace Hrot.SimHost.Tests.Gizmos
             // ⭐ CE-3133 — so has the navmesh layer, OFF by default
             Assert.False(all.IsSet(DebugTraceLayers.Navmesh));
             Assert.True(new LayerControlDto { Navmesh = true }.ToMask().IsSet(DebugTraceLayers.Navmesh));
+            // ⭐ CE-1033 S5b — the entity cards (Labels) have their own toggle, ON by default (U19: "switchable on/off")
+            Assert.True(all.IsSet(DebugTraceLayers.Labels));
+            Assert.False(new LayerControlDto { Labels = false }.ToMask().IsSet(DebugTraceLayers.Labels));
+            Assert.True(DebugTraceLayers.Labels < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
         }
 
         // ⭐ CE-3133 — the navmesh layer choice: Infantry by default, kept in the settings registry by the panel, and an enum that

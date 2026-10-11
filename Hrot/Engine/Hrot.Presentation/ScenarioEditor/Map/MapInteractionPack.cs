@@ -47,7 +47,8 @@ namespace Hrot.ScenarioEditor.Map
         Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer GizmoLayer,
         Fdp.Toolkit.Vis3D.MapViewSwitch ViewSwitch,
         Fdp.Toolkit.Vis3D.TerrainLayer3D Terrain,
-        Hrot.UI.Common.Map3D.EntityBodyLayer3D Bodies);
+        Hrot.UI.Common.Map3D.EntityBodyLayer3D Bodies,
+        Hrot.UI.Common.Effects.EffectLayer Effects);
 
     public static class MapInteractionPack
     {
@@ -96,6 +97,8 @@ namespace Hrot.ScenarioEditor.Map
 
             // ⭐ CE-3123 (R-228) — the debug view state the pin and AI-trace actions patch, on every map host.
             Hrot.Map.Common.PresentationComponentRegistry.RegisterDebugViewState(ctx.World);
+            // ⭐ CE-1042 E2 — the effect entities' components, so the effect systems below can run on every map host.
+            Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(ctx.World);
 
             var settings          = ctx.Settings ?? new GizmoSettingsRegistry();
             var gizmoRegistry     = new GizmoRegistry();
@@ -369,6 +372,7 @@ namespace Hrot.ScenarioEditor.Map
         {
             if (canvas is null) throw new ArgumentNullException(nameof(canvas));
             var gizmoLayer = BuildRenderLayer(buffer, bus, canvas.Camera, worldProvider, layerBitIndex);
+            gizmoLayer.CurrentCamera = () => canvas.Camera;   // ⭐ CE-1033 S2 — gizmo input picks in 3-D too
             canvas.AddLayer(gizmoLayer);
             canvas.DrawBuffer = buffer;
 
@@ -380,10 +384,23 @@ namespace Hrot.ScenarioEditor.Map
             var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>
                 worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null);
             var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb);
+            // ⭐ CE-1033 S3 — gizmos in 3-D: z = 0 shapes drape on the ground (M18); labels sit on top of the bodies (M13).
+            gizmoLayer.Renderer3D.GroundHeight = viewSwitch.Camera3D.GroundHeight;
+            gizmoLayer.LabelLift = bodies.TopAbove;
+            // ⭐ CE-1033 S2 (M17) — what a 3-D click can hit: the drawn terrain, then the entity boxes (nearest wins).
+            viewSwitch.Camera3D.Pickers.Add(new Fdp.Toolkit.Vis3D.TerrainPicker(() =>
+                worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null));
+            viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.EntityBoxPicker(worldProvider, tkb, bodies));
             canvas.AddLayer(terrain);
             canvas.AddLayer(bodies);
+            // ⭐ CE-1042 E3 — muzzle flashes, tracers, explosions and decals, from their TKB type, in both modes (VE-F).
+            var effects = new Hrot.UI.Common.Effects.EffectLayer(worldProvider, tkb, bodies) { GroundHeight = viewSwitch.Camera3D.GroundHeight };
+            canvas.AddLayer(effects);
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapViewModeLayer(viewSwitch, bus));
-            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies);
+            // ⭐ CE-1033 S5 (R-260) — the scenario's camera entity, the same on every host: adopted when the scenario opens, REQUESTED
+            //   (unowned, so the default processor creates and owns it — R-140) on the first camera move, moved by its owner.
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider));
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)

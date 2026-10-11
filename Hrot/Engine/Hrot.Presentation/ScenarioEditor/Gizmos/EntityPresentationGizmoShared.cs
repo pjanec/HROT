@@ -110,24 +110,38 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// come back. ⭐ The <paramref name="style"/> parameter is what lets the zone gizmo say
         /// "loaded / stale / loading" without forking the geometry (design §9.2 U1).</para>
         /// </summary>
+        /// <summary>
+        /// ⭐ CE-1033 M22 — the height a ground-anchored shape (an area, an overlay) is drawn at: its position's Z when that is on
+        /// a roof or an upper floor (level ≥ 1), else 0 = the ground, which the 3-D map DRAPES so the shape follows relief (M18).
+        /// ⛔ Not the raw Z: an area spawned at the ground's height on a slope would otherwise float as one flat plane (R-248).
+        /// </summary>
+        public static float LevelHeightOf(ISimulationView view, Vector3 position)
+        {
+            if (position.Z == 0f) return 0f;
+            var world = Fdp.Toolkit.World.WorldQuery.Of(view);
+            return world != null && Fdp.Toolkit.World.Levels.LevelOf(world, position) >= 1 ? position.Z : 0f;
+        }
+
         public static void DrawClosedPolylineOutline(
             IDebugDrawBuilder draw,
             System.Collections.Generic.IReadOnlyList<Vector2> points,
             Vector2 origin,
             Rgba32 color,
             float thickness = 1.5f,
-            LineStyle style = LineStyle.Solid)
+            LineStyle style = LineStyle.Solid,
+            float z = 0f)
         {
             if (points == null || points.Count < 2) return;
 
+            // ⭐ CE-1033 M22 — z is the level the shape is on (an area on a roof); 0 = the ground, draped in 3-D (M18).
             int n = points.Count;
             for (int i = 0; i < n; i++)
             {
                 var pa = origin + points[i];
                 var pb = origin + points[(i + 1) % n];
                 draw.DrawLine(
-                    new Vector3(pa.X, pa.Y, 0f),
-                    new Vector3(pb.X, pb.Y, 0f),
+                    new Vector3(pa.X, pa.Y, z),
+                    new Vector3(pb.X, pb.Y, z),
                     color, thickness, SizeMode.ScreenPixels,
                     PipelineTarget.All, layer: 0, style: style);
             }

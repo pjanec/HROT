@@ -8,6 +8,7 @@ using Hrot.Core.Network;
 using Hrot.Stride.Animation;
 using Hrot.Stride.Core.TestHarness;
 using SNum = System.Numerics;
+using Fdp.Toolkit.Animation;   // CE-1033 S4 — LocomotionBlend moved here (Fdp.Toolkits)
 
 namespace HrotStrideApp;
 

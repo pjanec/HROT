@@ -62,6 +62,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         internal const string MultiPlacementHint = "click: place  ·  right-click/Esc: done";
 
         private Vector3 _cursorWorld;
+        private Fdp.Toolkit.World.IWorldQuery? _world;
 
         /// <summary>
         /// Raised after a <see cref="SpawnEntityCommand"/> has been constructed and passed
@@ -138,19 +139,44 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </remarks>
         public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
+            _world = Fdp.Toolkit.World.WorldQuery.Of(view);   // ⭐ CE-1033 S2 — for the clicked level (M20)
             var ghostColor = GetAffiliationColor(_affiliationForDisplay);
             ghostColor.A = GhostAlpha;
 
             draw.DrawSphere(_cursorWorld, GhostRadiusPx, ghostColor);
+            DrawGhostBox(view, draw, ghostColor);
             // ⭐ CE-1017 S2: the type's NAME (it used to be the bare TKB number), and while the tool stays armed
             //   the hint that says how to finish.
             draw.DrawTextLong(
                 _cursorWorld.X,
-                _cursorWorld.Y + GhostLabelOffsetY,
+                _cursorWorld.Y - GhostLabelOffsetY,   // ⭐ CE-1040 (N5) — north-up: below the cursor is world −Y
                 string.IsNullOrWhiteSpace(_displayName) ? _tkbType.ToString() : _displayName!,
                 Rgba32.White);
             if (!_autoPopOnPlace)
-                draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y + 2 * GhostLabelOffsetY, MultiPlacementHint, Rgba32.White);
+                draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y - 2 * GhostLabelOffsetY, MultiPlacementHint, Rgba32.White);
+        }
+
+        /// <summary>
+        /// ⭐ CE-1033 S3 (docs/DESIGN_Map_3D_Mode.md M20) — the placement GHOST: a wire box of the type's drawn size (the 3-D map's
+        /// <see cref="Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve"/>, one sizing rule) standing on the picked surface. In 3-D
+        /// it shows the body where it will land (a roof, a slope); in 2-D its edges collapse onto the type's footprint.
+        /// ⚠ A wire box, not the translucent shape kit the design names: a gizmo emits primitives, and a kit mesh is not one.
+        /// </summary>
+        private void DrawGhostBox(ISimulationView view, IDebugDrawBuilder draw, Rgba32 colour)
+        {
+            if (view is not Fdp.Core.EntityRepository repo || !repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return;
+            var tkb = repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            if (tkb == null || !tkb.TryGetByType(_tkbType, out var template) || template == null) return;
+            var look = Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(template);
+            if (look.Family == Hrot.UI.Common.Map3D.VisualFamily.Unit) return;
+            var h = look.Size / 2f;
+            float z0 = _cursorWorld.Z, z1 = _cursorWorld.Z + look.Size.Z;
+            Span<Vector3> c = stackalloc Vector3[8];
+            for (int i = 0; i < 8; i++)
+                c[i] = new Vector3(_cursorWorld.X + ((i & 1) == 0 ? -h.X : h.X), _cursorWorld.Y + ((i & 2) == 0 ? -h.Y : h.Y),
+                                   (i & 4) == 0 ? z0 : z1);
+            ReadOnlySpan<int> edges = stackalloc int[] { 0, 1, 1, 3, 3, 2, 2, 0, 4, 5, 5, 7, 7, 6, 6, 4, 0, 4, 1, 5, 2, 6, 3, 7 };
+            for (int k = 0; k < edges.Length; k += 2) draw.DrawLine(c[edges[k]], c[edges[k + 1]], colour, 1f);
         }
 
         // IEntityStatefulGizmo — interaction
@@ -238,7 +264,12 @@ namespace Hrot.ScenarioEditor.Gizmos
                 },
                 // ⭐ CE-1017 S2 (D6b rev 5): stand on the GROUND (level 0) at this point — the creating node
                 //   resolves the Z from its terrain (NetworkSpawningSystem), ignoring the 0 sent above.
-                SpawnHeight           = Fdp.Toolkit.NetworkSpawning.SpawnHeight.OnGround,
+                // ⭐ CE-1033 S2 (M20) — a 3-D click on a roof or an upper floor carries its height: spawn on THAT level. A 2-D click
+                //   (Z = 0) stays on the ground, as before.
+                SpawnHeight           = worldPos.Z != 0f && _world != null
+                    ? new Fdp.Toolkit.NetworkSpawning.SpawnHeight(Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.OnLevel,
+                                                                 (short)Fdp.Toolkit.World.Levels.LevelOf(_world, worldPos))
+                    : Fdp.Toolkit.NetworkSpawning.SpawnHeight.OnGround,
                 InitialAttributesJson = _initialPropertiesJson,
                 RequestId             = Guid.NewGuid(),
             };

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Hrot.MuscleCharacter.Animation.Contracts;
 using Fdp.Toolkit.Tkb.Domain;
+using Fdp.Toolkit.Animation;   // CE-1033 S4 — LocomotionBlend moved here (Fdp.Toolkits)
 
 namespace Hrot.Stride.Animation;
 

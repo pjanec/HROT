@@ -117,6 +117,46 @@ public sealed class AreaAuthoringArmTests
     }
 
     /// <summary>
+    /// ⭐ CE-1033 S3 (docs/DESIGN_Map_3D_Mode.md M22 step 1) — an area drawn on a ROOF is on the roof: the committed anchor keeps
+    /// the level's height. One drawn on the ground keeps 0, so the 3-D map drapes it over relief (M18, R-248) — and a 2-D click
+    /// (no height) is byte-identical to before.
+    /// </summary>
+    [Fact]
+    public void M22_AnAreaDrawnOnARoof_KeepsTheRoofsHeight_OnTheGround_Zero()
+    {
+        var terrain = Hrot.Presentation.Tests.Map3D.Map3DTests.TestTown();
+        var world = Hrot.Presentation.Tests.Map3D.Map3DTests.WorldWith(terrain);
+        var q = Fdp.Toolkit.World.WorldQuery.Of(world)!;
+        Vector3? roof = null, ground = null;
+        for (float x = terrain.BoundsMin.X + 5; x < terrain.BoundsMax.X && (roof == null || ground == null); x += 2f)
+            for (float y = terrain.BoundsMin.Y + 5; y < terrain.BoundsMax.Y && (roof == null || ground == null); y += 2f)
+            {
+                var s = q.SurfacesAt(x, y, out int g);
+                if (roof == null && s.Count > g + 1 && s[^1] - s[g] > 4f) roof = new Vector3(x, y, s[^1]);
+                if (ground == null && s.Count == g + 1) ground = new Vector3(x, y, s[g]);
+            }
+        Assert.True(roof != null && ground != null, "test-town has a roof and open ground");
+
+        SpawnEntityCommand? committed = null;
+        var arm = new AreaAuthoringArm(MakeManager());
+        void Draw(Vector3 at)
+        {
+            committed = null;
+            arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.TacGraphic_Area, string.Empty, c => committed = c));
+            var gizmo = arm.ActiveGizmo!;
+            gizmo.UpdateAndDraw(world, 0f, new DebugPrimitiveBuffer());   // the gizmo learns the world it picks in
+            foreach (var d in new[] { Vector3.Zero, new Vector3(1f, 0f, 0f), new Vector3(0f, 1f, 0f) })
+                gizmo.OnMouseEvent(MapMouseButton.Left, false, at + d);
+            gizmo.OnMouseEvent(MapMouseButton.Right, true, at);
+        }
+
+        Draw(roof!.Value);
+        Assert.Equal(roof.Value.Z, committed!.Value.InitialTransform!.Value.Position.Z, 3);
+        Draw(ground!.Value with { Z = ground.Value.Z == 0f ? 0.01f : ground.Value.Z });
+        Assert.Equal(0f, committed!.Value.InitialTransform!.Value.Position.Z);
+    }
+
+    /// <summary>
     /// ⚠ A null manager still ARMS — IG's prior body used <c>?.Register</c> and reached the gizmo
     /// through its own field, which is how its headless rails drive a commit. ⛔ Hardening this would
     /// have reddened those 11 rails.

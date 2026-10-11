@@ -50,9 +50,11 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// <summary>⭐ <c>CE-3133</c> — which navmesh the Navmesh layer draws (R-233: Infantry by default). Kept in the settings registry
         /// (<see cref="NavmeshLayerSetting"/>), read and written with the family scopes.</summary>
         public NavmeshDrawLayers NavmeshLayers { get; set; } = NavmeshLayerSetting.Default;
+        /// <summary>⭐ CE-1033 S5b — the entity cards (frame, name, health bar; layer 11). U19: "switchable on/off (layer for labels)".</summary>
+        public bool Labels { get; set; } = true;
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 11;
+        public const int FirstUntoggledLayer = 12;
 
         // ⭐ CE-3120 (R-227) — per gizmo FAMILY: true = draw only for the selected and the pinned units, false = for every unit.
         //   Written into the GizmoSettingsRegistry on Apply (map.scope.<Family>), where GizmoFamilyVisibilityPolicy reads it.
@@ -120,6 +122,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Roads) mask.SetBit(DebugTraceLayers.Roads);
             if (Cover) mask.SetBit(DebugTraceLayers.Cover);
             if (Navmesh) mask.SetBit(DebugTraceLayers.Navmesh);
+            if (Labels) mask.SetBit(DebugTraceLayers.Labels);
             for (int i = FirstUntoggledLayer; i < 256; i++) mask.SetBit(i);
             return mask;
         }

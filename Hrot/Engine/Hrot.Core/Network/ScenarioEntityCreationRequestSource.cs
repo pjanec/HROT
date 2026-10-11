@@ -14,6 +14,8 @@ namespace Hrot.Core.Network;
 /// <para><b>Drain cap:</b> <see cref="ProcessRequests"/> drains at most
 /// <c>maxRequestsPerTick</c> items per call to prevent tick overrun.</para>
 /// </summary>
+// ⭐ CE-1033 S5 — also a managed world singleton (EntityCreationPack publishes it), which needs an id.
+[Fdp.Core.ComponentId(Fdp.Core.GlobalComponentIds.EntityCreationRequestSource)]
 public sealed class ScenarioEntityCreationRequestSource : IEntityCreationRequestSource
 {
     private readonly int _maxRequestsPerTick;

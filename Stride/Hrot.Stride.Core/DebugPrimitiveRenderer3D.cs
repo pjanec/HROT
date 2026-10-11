@@ -49,12 +49,13 @@ namespace Hrot.Stride.Core;
 /// </summary>
 public sealed class DebugPrimitiveRenderer3D
 {
-    private const float DegToRad = MathF.PI / 180f;
-
     private readonly IDebugDrawSink3D _sink;
 
-    // Reused across frames to avoid per-frame allocation on the hot path.
-    private readonly Dictionary<long, SpatialAnchor3D> _anchors = new();
+    // ⭐ CE-1033 S3 — the two-pass anchor cache + EntityLocal resolution is the SHARED triage now (GizmoMap.Contracts,
+    //   DebugPrimitiveTriage3D), the same one the 3-D map draws from. Its filters stay OFF here, so this shell draws exactly
+    //   what it drew before the extraction (docs/DESIGN_Map_3D_Mode.md S3; DESIGN_Godot_3D_Viewer.md D9).
+    private readonly DebugPrimitiveTriage3D _triage = new();
+    private readonly List<TriagedPrimitive3D> _triaged = new();
 
     /// <summary>
     /// The sink this renderer emits resolved+swizzled shapes to. Exposed so the host
@@ -62,6 +63,10 @@ public sealed class DebugPrimitiveRenderer3D
     /// <see cref="IDebugDrawSink3D.EndFrame"/> around each <see cref="Render"/> call.
     /// </summary>
     public IDebugDrawSink3D Sink => _sink;
+
+    /// <summary>⭐ What the last <see cref="Render"/> SKIPPED, per shape — a 2-D-only gizmo is counted, never silently dropped
+    /// (DESIGN_Stride_Node_Modes.md §8, Q5).</summary>
+    public ShapeCounters Skipped { get; } = new();
 
     /// <param name="sink">
     /// The 3-D debug-draw sink the resolved+swizzled shapes are emitted to. In the live GPU
@@ -74,134 +79,25 @@ public sealed class DebugPrimitiveRenderer3D
     }
 
     /// <summary>
-    /// Sweeps <paramref name="primitives"/> twice — Pass 1 caches anchors, Pass 2 resolves
-    /// shapes against their anchor, swizzles via <see cref="FdpStrideTransform"/>, and emits
-    /// each to the sink. Returns the number of drawable primitives emitted (anchors and
-    /// non-visual meta-primitives are not counted).
+    /// Triages <paramref name="primitives"/> (anchors cached, <see cref="CoordinateSpace.EntityLocal"/> resolved in 3-D),
+    /// swizzles each kept shape via <see cref="FdpStrideTransform"/> and emits it to the sink. Returns the number of drawable
+    /// primitives emitted (anchors and non-visual meta-primitives are not counted).
     /// </summary>
     /// <param name="primitives">The <see cref="DebugPrimitive"/> span to render (e.g. one frame
     /// of the gizmo ProducerBuffer).</param>
     public int Render(ReadOnlySpan<DebugPrimitive> primitives)
     {
-        // ── Pass 1: cache SpatialAnchors by NetworkId ─────────────────────────
-        _anchors.Clear();
-        foreach (ref readonly var prim in primitives)
-        {
-            if (prim.Shape == DebugPrimitiveShape.SpatialAnchor)
-            {
-                _anchors[prim.NetworkId] = new SpatialAnchor3D
-                {
-                    X        = prim.AnchorWorldX,
-                    Y        = prim.AnchorWorldY,
-                    Z        = prim.AnchorWorldZ,
-                    YawRad   = prim.Heading * DegToRad,
-                    PitchRad = prim.Pitch * DegToRad,
-                    RollRad  = prim.Roll * DegToRad,
-                };
-            }
-        }
-
-        // ── Pass 2: resolve, swizzle, emit ────────────────────────────────────
+        Skipped.Reset();
+        _triage.Triage(primitives, _triaged);
         int emitted = 0;
-        foreach (ref readonly var prim in primitives)
+        foreach (var t in _triaged)
         {
-            // Anchors and non-visual meta-primitives are never drawn directly.
-            switch (prim.Shape)
-            {
-                case DebugPrimitiveShape.SpatialAnchor:
-                case DebugPrimitiveShape.ContextMenuBinding:
-                case DebugPrimitiveShape.InputCaptureBinding:
-                case DebugPrimitiveShape.MainMenuBinding:
-                case DebugPrimitiveShape.LayerControlMask:
-                    continue;
-            }
-
-            DebugPrimitive resolved = prim;
             // SemanticShape needs the anchor's full 3-D position (including altitude Z), which the
-            // 64-byte payload's Resolved* fields cannot hold (no Z slot — see DebugPrimitive). Carry
-            // the resolved FDP altitude alongside the stamped X/Y/angles so emit needs no lookup.
-            float semanticZ = 0f;
-
-            if (prim.Space == CoordinateSpace.EntityLocal)
-            {
-                // EntityLocal primitives carry their anchor's NetworkId in AnchorIndex
-                // (mirrors DebugPrimitiveRenderer2D's keying).
-                if (!_anchors.TryGetValue(prim.AnchorIndex, out var anchor))
-                    continue; // dangling anchor reference → skip (no anchor to resolve against)
-
-                ResolveAgainstAnchor(ref resolved, in anchor);
-                resolved.Space = CoordinateSpace.World;
-                semanticZ = anchor.Z;
-            }
-
-            if (EmitWorld(in resolved, semanticZ))
-                emitted++;
+            // 64-byte payload's Resolved* fields cannot hold (no Z slot — see DebugPrimitive).
+            if (EmitWorld(in t.Primitive, t.AnchorZ)) emitted++;
+            else Skipped.Add(t.Primitive.Shape);
         }
-
         return emitted;
-    }
-
-    // ── Anchor resolution (mutates the primitive's payload in-place) ──────────
-
-    /// <summary>
-    /// Resolves an <see cref="CoordinateSpace.EntityLocal"/> primitive's payload into absolute
-    /// FDP world coordinates by composing it with its cached anchor. Mirrors
-    /// <c>DebugPrimitiveRenderer2D</c>: the local offset is rotated by the anchor yaw (about the
-    /// FDP Up/Z axis, the ground-plane heading) and translated by the anchor world position.
-    /// For <see cref="DebugPrimitiveShape.SemanticShape"/> the full resolved transform is stamped
-    /// into the Resolved* spare-payload fields, exactly like the 2-D renderer.
-    /// </summary>
-    private static void ResolveAgainstAnchor(ref DebugPrimitive prim, in SpatialAnchor3D anchor)
-    {
-        float cos = MathF.Cos(anchor.YawRad);
-        float sin = MathF.Sin(anchor.YawRad);
-
-        switch (prim.Shape)
-        {
-            case DebugPrimitiveShape.Line:
-                prim.LineStart = ApplyAnchor(in anchor, cos, sin, prim.LineStart);
-                prim.LineEnd   = ApplyAnchor(in anchor, cos, sin, prim.LineEnd);
-                break;
-
-            case DebugPrimitiveShape.Arrow:
-                prim.ArrowFrom = ApplyAnchor(in anchor, cos, sin, prim.ArrowFrom);
-                prim.ArrowTo   = ApplyAnchor(in anchor, cos, sin, prim.ArrowTo);
-                break;
-
-            case DebugPrimitiveShape.Sphere:
-                prim.SphereCenter = ApplyAnchor(in anchor, cos, sin, prim.SphereCenter);
-                break;
-
-            case DebugPrimitiveShape.SemanticShape:
-                // Stamp the resolved world transform into the spare payload (in-place), so the
-                // emit step needs zero further lookups. Mirrors DebugPrimitiveRenderer2D.
-                prim.ResolvedWorldX   = anchor.X;
-                prim.ResolvedWorldY   = anchor.Y;
-                prim.ResolvedYawRad   = anchor.YawRad;
-                prim.ResolvedPitchRad = anchor.PitchRad;
-                prim.ResolvedRollRad  = anchor.RollRad;
-                break;
-
-            default:
-                // Other shapes are anchored at their 2-D payload position; resolve in the
-                // ground plane (Box2D/Text/Icon). 3-D shapes above are the common gizmo case.
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Rotates a local FDP offset by the anchor yaw about the FDP Up (Z) axis and translates
-    /// by the anchor world position. Pitch/roll are carried on the anchor for full 3-D shapes
-    /// (SemanticShape) but the line/sphere/arrow ground-plane offset uses heading-only rotation,
-    /// matching the 2-D renderer's <c>ApplyAnchor2D</c> so the two renderers agree.
-    /// </summary>
-    private static SNum.Vector3 ApplyAnchor(in SpatialAnchor3D a, float cos, float sin, SNum.Vector3 local)
-    {
-        // FDP X=East, Y=North, Z=Up. Heading rotates about Up (Z): standard 2-D rotation of X/Y.
-        float wx = a.X + cos * local.X - sin * local.Y;
-        float wy = a.Y + sin * local.X + cos * local.Y;
-        float wz = a.Z + local.Z;
-        return new SNum.Vector3(wx, wy, wz);
     }
 
     // ── Emit (swizzle FDP → Stride, dispatch to sink) ─────────────────────────
@@ -278,17 +174,6 @@ public sealed class DebugPrimitiveRenderer3D
     }
 
     private static SMath.Color ToStrideColor(Rgba32 c) => new SMath.Color(c.R, c.G, c.B, c.A);
-
-    /// <summary>Cached anchor entry built from a <see cref="DebugPrimitiveShape.SpatialAnchor"/>.</summary>
-    private struct SpatialAnchor3D
-    {
-        public float X;        // FDP East
-        public float Y;        // FDP North
-        public float Z;        // FDP Up
-        public float YawRad;
-        public float PitchRad;
-        public float RollRad;
-    }
 }
 
 // ── Sink contract (the GPU-deferred boundary) ─────────────────────────────────

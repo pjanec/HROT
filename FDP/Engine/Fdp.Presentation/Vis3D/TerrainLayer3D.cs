@@ -55,8 +55,9 @@ namespace Fdp.Toolkit.Vis3D
         {
             Release();
             _identity = geometry.Identity;
-            geometry.Build(out var verts, out var indices, out var kinds);
-            BuildVertexData(verts, indices, kinds, out var positions, out var normals, out var colors);
+            // ⭐ CE-1033 S4 — the tagged build: each triangle's material, and the water surfaces.
+            geometry.BuildTagged(out var verts, out var indices, out var kinds, out var materials);
+            BuildVertexData(verts, indices, kinds, materials, out var positions, out var normals, out var colors);
             TriangleCount = positions.Length / 3;
             if (TriangleCount == 0) return;
 
@@ -78,6 +79,11 @@ namespace Fdp.Toolkit.Vis3D
         /// </summary>
         public static void BuildVertexData(Vector3[] verts, int[] indices, TerrainSurfaceKind[] kinds,
             out Vector3[] positions, out Vector3[] normals, out Color[] colors)
+            => BuildVertexData(verts, indices, kinds, null, out positions, out normals, out colors);
+
+        /// <summary>⭐ CE-1033 S4 — as above, coloured by kind AND material (<see cref="ColourOf(TerrainSurfaceKind, string?)"/>).</summary>
+        public static void BuildVertexData(Vector3[] verts, int[] indices, TerrainSurfaceKind[] kinds, string?[]? materials,
+            out Vector3[] positions, out Vector3[] normals, out Color[] colors)
         {
             int tris = indices.Length / 3;
             positions = new Vector3[tris * 3];
@@ -91,7 +97,8 @@ namespace Fdp.Toolkit.Vis3D
                 var n = Vector3.Cross(b - a, c - a);
                 float len = n.Length();
                 n = len > 1e-12f ? n / len : Vector3.UnitY;
-                var colour = ColourOf(t < kinds.Length ? kinds[t] : TerrainSurfaceKind.Ground);
+                var colour = ColourOf(t < kinds.Length ? kinds[t] : TerrainSurfaceKind.Ground,
+                                      materials != null && t < materials.Length ? materials[t] : null);
                 positions[3 * t] = a; positions[3 * t + 1] = b; positions[3 * t + 2] = c;
                 normals[3 * t] = normals[3 * t + 1] = normals[3 * t + 2] = n;
                 colors[3 * t] = colors[3 * t + 1] = colors[3 * t + 2] = colour;
@@ -102,8 +109,40 @@ namespace Fdp.Toolkit.Vis3D
         {
             TerrainSurfaceKind.Wall => WallColor,
             TerrainSurfaceKind.Roof => RoofColor,
+            TerrainSurfaceKind.Water => WaterColor,
             _ => GroundColor,
         };
+
+        public static readonly Color WaterColor = new(66, 112, 158, 255);
+        public static readonly Color ForestColor = new(66, 100, 54, 255);
+
+        /// <summary>
+        /// ⭐ CE-1033 S4 — a triangle's colour from its kind and its material (the shared material library's names). A building's
+        /// concrete or brick roof keeps the roof colour; a fence, a hedge, sandbags, a berm, glass or a car body shows its own.
+        /// </summary>
+        public static Color ColourOf(TerrainSurfaceKind kind, string? material)
+        {
+            if (kind == TerrainSurfaceKind.Water) return WaterColor;
+            if (kind == TerrainSurfaceKind.Ground) return material == "forest" ? ForestColor : GroundColor;
+            Color? own = material switch
+            {
+                "brick" => new Color(172, 96, 72, 255),
+                "glass" => new Color(150, 184, 206, 255),
+                "steel-plate" or "fence-metal-sheet" => new Color(124, 130, 138, 255),
+                "fence-wood" or "door-wood" => new Color(140, 104, 68, 255),
+                "fence-chainlink" => new Color(156, 158, 160, 255),
+                "hedge" => new Color(56, 94, 46, 255),
+                "sandbags" => new Color(182, 162, 112, 255),
+                "earth-berm" => new Color(128, 108, 78, 255),
+                "car-body" => new Color(92, 98, 112, 255),
+                _ => null,   // concrete and unknown: the kind's colour
+            };
+            if (kind == TerrainSurfaceKind.Roof)
+                return material is null or "concrete" or "brick" ? RoofColor : Shade(own ?? RoofColor, 0.85f);
+            return own ?? WallColor;
+        }
+
+        private static Color Shade(Color c, float k) => new((byte)(c.R * k), (byte)(c.G * k), (byte)(c.B * k), c.A);
 
         private void Release()
         {

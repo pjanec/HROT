@@ -1517,9 +1517,7 @@ public class IgApplication : IDisposable
 
         // --- Arrow-key panning ---
 
-        // panDir is in screen space: Up arrow = -Y (screen Y goes down),
-
-        // which scrolls the view upward as the user expects.
+        // panDir is in WORLD space (the camera target is a world point).
 
         Vector2 panDir = Vector2.Zero;
 
@@ -1527,9 +1525,10 @@ public class IgApplication : IDisposable
 
         if (Raylib.IsKeyDown(KeyboardKey.Left))  panDir.X -= 1f;
 
-        if (Raylib.IsKeyDown(KeyboardKey.Up))    panDir.Y -= 1f; // screen-up = -Y
+        // ⭐ CE-1040 — the 2-D map is north-up: the Up arrow moves the view NORTH (+Y in the world the target lives in).
+        if (Raylib.IsKeyDown(KeyboardKey.Up))    panDir.Y += 1f; // north
 
-        if (Raylib.IsKeyDown(KeyboardKey.Down))  panDir.Y += 1f; // screen-down = +Y
+        if (Raylib.IsKeyDown(KeyboardKey.Down))  panDir.Y -= 1f; // south
 
 
 

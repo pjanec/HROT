@@ -1,6 +1,7 @@
 using System;
 using Xunit;
 using Hrot.MuscleCharacter.Animation.Contracts;
+using Fdp.Toolkit.Animation;   // CE-1033 S4 — LocomotionBlend moved here (Fdp.Toolkits)
 
 namespace Hrot.Stride.Animation.Tests;
 

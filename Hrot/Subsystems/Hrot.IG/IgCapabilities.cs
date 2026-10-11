@@ -81,9 +81,9 @@ internal static class IgCapabilities
             // G. HistoryTrailModule --- records entity position trails (IG.4.1)
             yield return new HistoryTrailModule();
 
-            // H. EventEffectModule --- spawns and cleans up visual effects (IG.4.2)
-            if (!_headless)
-                yield return new EventEffectModule();
+            // H. ⛔ EventEffectModule is RETIRED on IG (CE-1042 E2): the realism effects now come from the map pack's
+            //    EffectSpawnSystem / EffectLifetimeSystem, scheduled with the map's interaction systems on EVERY map host
+            //    (docs/DESIGN_Visual_Effects.md VE-A). Running both would make every shot twice. Stride keeps the module.
         }
     }
 }

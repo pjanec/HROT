@@ -68,10 +68,24 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [InlineData(@"new\s+([\w.]+\.)?EntityBodyLayer3D\(")]
     [InlineData(@"new\s+(Fdp\.Toolkit\.Vis3D\.)?MapViewSwitch\(")]
     [InlineData(@"new\s+([\w.]+\.)?MapViewModeLayer\(")]
+    [InlineData(@"new\s+([\w.]+\.)?MapCameraLayer\(")]
     public void NoHostBuildsAMapLayerOfItsOwn(string pattern)
     {
         var re = new Regex(pattern);
         var offenders = ProductionFiles().Where(f => f.Rel != PackFile && re.IsMatch(f.Text)).Select(f => f.Rel).ToList();
         Assert.True(offenders.Count == 0, $"built outside MapInteractionPack ({pattern}): " + string.Join(", ", offenders));
+    }
+
+    /// <summary>⭐ CE-1033 S5 (R-260, R-140) — the camera entity needs NO per-host wiring: the shared map attach adds its layer, and the
+    /// shared <c>EntityCreationPack</c> (which every creating host composes) publishes the request source the layer asks through.</summary>
+    [Fact]
+    public void S5_TheCameraNeedsNoPerHostWiring()
+    {
+        var pack = File.ReadAllText(Path.Combine(RepoRoot(), PackFile));
+        Assert.Contains("new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider)", pack);
+        var creation = File.ReadAllText(Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Common/EntityCreation/EntityCreationPack.cs"));
+        Assert.Contains("ctx.World.SetSingletonManaged(localRequests);", creation);
+        var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && System.Text.RegularExpressions.Regex.IsMatch(f.Text, @"MapCamera(Layer|Tkb|Pose)\b")).Select(f => f.Rel).ToList();
+        Assert.True(hostMentions.Count == 0, "a host wires the map camera itself: " + string.Join(", ", hostMentions));
     }
 }

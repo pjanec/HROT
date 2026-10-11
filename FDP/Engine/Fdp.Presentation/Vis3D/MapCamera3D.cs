@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
@@ -21,10 +22,8 @@ namespace Fdp.Toolkit.Vis3D
     /// button is held</b> (so tools keep their keys; Shift is faster), the <b>middle button pans</b>, the <b>wheel dollies</b>.
     /// A right CLICK stays the context menu — the canvas tells drag from click.</para>
     ///
-    /// <para>⚠ <b>North is UP in 3-D, and the 2-D map draws it DOWN</b> (measured: world Y goes screen-down in
-    /// <see cref="MapCamera"/>, and the 2-D renderer draws world XY straight, <c>DebugPrimitiveRenderer2D.cs:273</c>) — the 2-D map
-    /// is a mirror of the view from above. A camera above the ground cannot show a mirror, so the switch keeps east on the right and
-    /// flips north–south (see <see cref="MapViewSwitch"/>).</para>
+    /// <para>⭐ <b>North is UP in 3-D, and in 2-D too</b> since CE-1040 (docs/DESIGN_Map_North_Up.md) — the swap keeps the
+    /// orientation. ⛔ HISTORY: the 2-D map used to draw north DOWN, a mirror of the view from above.</para>
     /// </summary>
     public sealed class MapCamera3D : MapCamera
     {
@@ -52,6 +51,7 @@ namespace Fdp.Toolkit.Vis3D
         private float _dt;
         private Vector2 _lastMouse;
         private bool _looking, _panning;
+        private Vector2 _followedXY = new(float.NaN, float.NaN);   // the look-at XY the ground height was last matched at
 
         // animation
         private CameraPose _from, _to;
@@ -126,6 +126,7 @@ namespace Fdp.Toolkit.Vis3D
 
         public override void Update(float dt)
         {
+            _cachePixel = new Vector2(float.NaN);   // a new frame: entities may have moved
             if (!float.IsFinite(dt) || dt < 0f) dt = 0f;
             _dt = dt;
             if (IsAnimating)
@@ -147,7 +148,19 @@ namespace Fdp.Toolkit.Vis3D
             }
             else if (GroundHeight != null)
             {
-                LookAt = LookAt with { Z = GroundHeight(LookAt.X, LookAt.Y) };
+                // ⭐⭐⭐ CE-1044 — FOLLOW THE RELIEF ONLY WHEN THE LOOK-AT POINT MOVED SIDEWAYS (a pan, an animation), never to
+                //    re-pin its height every frame. 🔒 User, 2026-10-10: "in unity the forward key (w) always flies to where the
+                //    camera is currently looking … when i press right button and move mouse up/down the camera is not just
+                //    changing the pitch but travel up/down." 🔴 It re-pinned LookAt.Z to the ground EVERY frame, and the eye is
+                //    LookAt − Forward·Distance: a pitch change moved the look-at point's height, the pin undid it by moving the
+                //    EYE; W's vertical component was cancelled the same way. ⇒ free-look and fly-through were impossible.
+                var xy = new Vector2(LookAt.X, LookAt.Y);
+                if (_looking) _followedXY = xy;                                   // flying: the eye is the anchor, never the ground
+                else if (xy != _followedXY)
+                {
+                    LookAt = LookAt with { Z = GroundHeight(LookAt.X, LookAt.Y) };
+                    _followedXY = xy;
+                }
             }
             Sanitise();
             SyncEquivalents();
@@ -182,7 +195,13 @@ namespace Fdp.Toolkit.Vis3D
                     Pitch = Math.Clamp(Pitch - delta.Y * LookSpeed, MinPitch, MaxPitch);
                     LookAt = eye + Forward * Distance;
 
-                    float speed = MathF.Max(5f, Distance) * (input.IsKeyDown(MapKeyboardKey.LeftShift) ? 3f : 1f) * _dt;
+                    // ⭐ CE-1044 — Unity-like speeds. 🔒 User, 2026-10-10: plain WASD "around 10 times slower allowing for finer flight";
+                    //    Shift / Ctrl faster. Base = a tenth of the distance per second (min 0.5 m/s); Shift or Ctrl = 10× that (the
+                    //    old speed); both = 30×.
+                    bool shift = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
+                    bool ctrl  = input.IsKeyDown(MapKeyboardKey.LeftControl) || input.IsKeyDown(MapKeyboardKey.RightControl);
+                    float boost = shift && ctrl ? 30f : (shift || ctrl) ? 10f : 1f;
+                    float speed = MathF.Max(0.5f, Distance * 0.1f) * boost * _dt;
                     var move = Vector3.Zero;
                     if (input.IsKeyDown((MapKeyboardKey)KeyboardKey.W)) move += Forward;
                     if (input.IsKeyDown((MapKeyboardKey)KeyboardKey.S)) move -= Forward;
@@ -224,20 +243,72 @@ namespace Fdp.Toolkit.Vis3D
             return (right * screenDelta.X - ahead * screenDelta.Y) * mpp;
         }
 
-        /// <summary>The ground point under a screen pixel — S1: the plane at the look-at height, capped at the horizon.</summary>
+        /// <summary>⭐ CE-1033 S2 — what a pick can hit: the terrain mesh, the entity boxes (added by the shared attach). Nearest wins.</summary>
+        public List<IPicker3D> Pickers { get; } = new();
+
+        /// <summary>The last pick (point with height, kind, entity id) — what the five former <c>z = 0</c> sites read (M19).</summary>
+        public PickResult LastPick { get; private set; } = PickResult.None;
+
+        // One pick per (pixel, filter, camera pose) per frame: the canvas, the gizmo layer and the hover all ask for the same pixel.
+        private Vector2 _cachePixel = new(float.NaN);
+        private bool _cacheForDrag;
+        private CameraPose _cachePose;
+        private PickResult _cacheResult;
+
+        /// <summary>The ground point under a screen pixel: an entity's own position when its box is hit (so its 2-D pick box
+        /// contains it), else the terrain, else the plane at the look-at height, capped at the horizon (§3.8).</summary>
         public override Vector2 ScreenToWorld(Vector2 screenPos)
         {
+            var p = ScreenToWorld3D(screenPos);
+            return new Vector2(p.X, p.Y);
+        }
+
+        public override Vector3 ScreenToWorld3D(Vector2 screenPos, bool forDrag = false)
+        {
+            var pick = Pick(screenPos, forDrag ? PickFilter.Terrain : PickFilter.All);
+            if (!forDrag) LastPick = pick;
+            return pick.Point;
+        }
+
+        /// <summary>The pick under a screen pixel with <paramref name="filter"/> (P2: a drag passes <see cref="PickFilter.Terrain"/>).</summary>
+        public PickResult Pick(Vector2 screenPos, PickFilter filter)
+        {
+            bool forDrag = filter == PickFilter.Terrain;
+            if (screenPos == _cachePixel && forDrag == _cacheForDrag && Pose == _cachePose) return _cacheResult;
+
             var dir = RayDirection(screenPos);
             var eye = Eye;
             float maxRange = MathF.Max(500f, Distance * 30f);
-            if (dir.Z < -1e-4f)
+            var best = PickResult.None;
+            foreach (var picker in Pickers)
             {
-                float t = (LookAt.Z - eye.Z) / dir.Z;
-                if (t > 0f && t < maxRange) { var p = eye + dir * t; return new Vector2(p.X, p.Y); }
+                if ((picker.Kind & filter) == 0) continue;
+                if (picker.TryPick(eye, dir, maxRange, out var hit) && hit.Distance < best.Distance) best = hit;
             }
-            var flat = Flat(dir);
-            if (flat == Vector2.Zero) flat = Flat(Forward);
-            return new Vector2(eye.X, eye.Y) + flat * maxRange;
+            if (best.Kind == PickKind.None)
+            {
+                if (dir.Z < -1e-4f)
+                {
+                    float t = (LookAt.Z - eye.Z) / dir.Z;
+                    if (t > 0f && t < maxRange) best = new PickResult(eye + dir * t, PickKind.Ground, t);
+                }
+                if (best.Kind == PickKind.None)
+                {
+                    var flat = Flat(dir);
+                    if (flat == Vector2.Zero) flat = Flat(Forward);
+                    var far = new Vector2(eye.X, eye.Y) + flat * maxRange;
+                    best = new PickResult(new Vector3(far, LookAt.Z), PickKind.None, maxRange);
+                }
+            }
+            _cachePixel = screenPos; _cacheForDrag = forDrag; _cachePose = Pose; _cacheResult = best;
+            return best;
+        }
+
+        /// <summary>Pixels per metre at a world point: the screen height over the view's height at that point's distance.</summary>
+        public override float ZoomAt(Vector3 worldPoint)
+        {
+            float z = MathF.Max(0.1f, Vector3.Dot(worldPoint - Eye, Forward));
+            return Viewport.Y / (2f * z * TanHalfFov);
         }
 
         /// <summary>The screen pixel of a ground point (at the look-at height); far off screen when behind the camera.</summary>

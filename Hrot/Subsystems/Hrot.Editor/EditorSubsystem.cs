@@ -1827,8 +1827,8 @@ namespace Hrot.Editor
             _kernel.RegisterModule(new MapCullingModule(_cameraViewport));
             _kernel.RegisterModule(new StyleResolutionModule(_userConfig, localNodeId: EditorNodeId));
 
-            // ?? 4f. Visual effects module ? spawns and cleans up tracers / explosions ??
-            _kernel.RegisterModule(new EventEffectModule());
+            // ── 4f. ⛔ EventEffectModule RETIRED here (CE-1042 E2) — the map pack's effect systems make the muzzle flashes,
+            //    tracers, explosions and decals on every map host (docs/DESIGN_Visual_Effects.md VE-A); both would double them.
 
             // ── Universal breakpoints (UBP-P10T1) ────────────────────────────────────
             // Allocate the pre-tick snapshot repo and mirror all component registrations.
@@ -1843,6 +1843,7 @@ namespace Hrot.Editor
             _bpPreTickSnapshot.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
             _bpPreTickSnapshot.RegisterComponent<VisualEffectState>();
             _bpPreTickSnapshot.RegisterComponent<TracerTarget>();
+            Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(_bpPreTickSnapshot);   // ⭐ CE-1042 E2 — mirror the effects
 
             // ⭐ BATCH 84 / R-66: kept as a FIELD so RunStateSource's "is time frozen?" signal reads
             //   through this adapter -- the same one the breakpoint manager drives time with. ⛔ A
