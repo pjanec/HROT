@@ -142,7 +142,7 @@ public static class FallBackRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("FallBack"), "FallBack", new BehaviorDefinition
         {
             Name         = "FallBack",
-            Group        = "Tactics",
+            Group        = "Library/Tactics",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 12737655520619904180UL,   // CE-455: the root block's layout

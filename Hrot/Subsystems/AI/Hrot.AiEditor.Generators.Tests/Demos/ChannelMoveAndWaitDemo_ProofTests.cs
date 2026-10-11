@@ -17,7 +17,7 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 /// twins retired (<c>2026-10-01</c>) because no other production asset carries <c>WaitForChannel</c> (<c>R-137</c>).
 ///
 /// <para>
-/// The committed blueprint <c>Assets/Blueprints/ChannelMoveAndWaitDemo.bp.json</c> (AiPrimitive,
+/// The committed blueprint <c>Assets/Blueprints/Samples/ChannelMoveAndWaitDemo.bp.json</c> (AiPrimitive,
 /// Intent=Action, Hostings=[BTreeAction]) is a from-scratch, blueprint-authored rebuild of the C# oracle
 /// <c>HillAttackTankNodes.Action_ReverseToBaseline</c> (~line 456), using only shipped nodes
 /// (<c>ChannelCommand</c>, <c>WaitForChannel</c>, <c>GetParameter</c>, <c>PublishEvent</c>,

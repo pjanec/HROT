@@ -46,6 +46,7 @@ public static class BTreeRenderShowcaseRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("BTreeRenderShowcase"), "BTreeRenderShowcase", new BehaviorDefinition
         {
             Name         = "BTreeRenderShowcase",
+            Group        = "Samples",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             StatefulWorkingSlots = __hosted.Slots,

@@ -205,6 +205,7 @@ public static class PlatoonHillAttackRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), "PlatoonHillAttack", new BehaviorDefinition
         {
             Name         = "PlatoonHillAttack",
+            Group        = "Demos/HillAttack",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 7637557242606817479UL,   // CE-455: the root block's layout

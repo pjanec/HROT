@@ -22,7 +22,7 @@ namespace Hrot.BTree.Editor.Tests.Persistence;
 /// <see cref="BehaviorTreeAsset"/> that maps — via the save path,
 /// <see cref="BehaviorTreeAssetMapper.ToDto"/> — to a persisted DTO Action node equivalent to
 /// the committed golden reference
-/// Assets/BTrees/Authoring/T31_ComposedAiPrimitive.btree.json: DelegateShape=AiPrimitiveTickCore,
+/// Assets/BTrees/Tests/Authoring/T31_ComposedAiPrimitive.btree.json: DelegateShape=AiPrimitiveTickCore,
 /// WorkingStateTypeId set to the generated WorkingState FQN, ExpressionTargetField set, and a
 /// matching Params-typed blackboard variable present in the DTO's Blackboard block.
 /// Slice 1 (shared working-state): also proves the sink now auto-creates a SECOND blackboard

@@ -38,7 +38,7 @@ public static class T07_SubtreeRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T07_Subtree"), "T07_Subtree", new BehaviorDefinition
         {
             Name         = "T07_Subtree",
-            Group        = "Authoring",
+            Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             StatefulWorkingSlots = __hosted.Slots,

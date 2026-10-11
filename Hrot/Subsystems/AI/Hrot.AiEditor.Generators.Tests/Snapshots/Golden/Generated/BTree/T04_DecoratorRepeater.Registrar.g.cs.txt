@@ -41,7 +41,7 @@ public static class T04_DecoratorRepeaterRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T04_DecoratorRepeater"), "T04_DecoratorRepeater", new BehaviorDefinition
         {
             Name         = "T04_DecoratorRepeater",
-            Group        = "Authoring",
+            Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             WritesChannels = global::System.Array.Empty<global::System.Type>(),

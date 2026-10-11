@@ -182,7 +182,7 @@ public static class T35_SharedWorkingStateRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T35_SharedWorkingState"), "T35_SharedWorkingState", new BehaviorDefinition
         {
             Name         = "T35_SharedWorkingState",
-            Group        = "Authoring",
+            Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 115358217542764780UL,   // CE-455: the root block's layout

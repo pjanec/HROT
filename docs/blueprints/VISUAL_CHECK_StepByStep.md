@@ -82,7 +82,7 @@ Nothing you can do here will work: the editor never records the peer, so every a
 ## E · 🔴 Sample data — **SKIP, blocked by BP-118**
 
 `SmokePatrol` / `SmokeGuard` / `SmokeMathLib` are recipe **templates**, not openable assets.
-If you want to look at a library today, open **`Assets/Blueprints/LibraryFunctionsDemo.bp.json`** —
+If you want to look at a library today, open **`Assets/Blueprints/Samples/LibraryFunctionsDemo.bp.json`** —
 that one *is* an openable asset, and it covers 1-output, 2-output and zero-output library functions.
 
 ## F · Return-node `Status` visibility — ~3 min

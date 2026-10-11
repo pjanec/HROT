@@ -45,7 +45,7 @@ public sealed class BTreeShowcaseAndStarterTests : IDisposable
         for (int i = 0; i < 7; i++)
             repoRoot = Path.GetDirectoryName(repoRoot)!;
         return Path.Combine(repoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Assets", "BTrees", "CombatShowcase.btree.json");
+            "Assets", "BTrees", "Samples", "CombatShowcase.btree.json");
     }
 
     // ── Showcase: deserialization ─────────────────────────────────────────────

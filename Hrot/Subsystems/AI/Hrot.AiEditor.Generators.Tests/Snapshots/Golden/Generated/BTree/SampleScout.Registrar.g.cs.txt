@@ -33,6 +33,7 @@ public static class SampleScoutRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("SampleScout"), "SampleScout", new BehaviorDefinition
         {
             Name         = "SampleScout",
+            Group        = "Samples",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             WritesChannels = global::System.Array.Empty<global::System.Type>(),

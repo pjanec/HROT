@@ -41,7 +41,7 @@ public static class T06_ObserverSelectorRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T06_ObserverSelector"), "T06_ObserverSelector", new BehaviorDefinition
         {
             Name         = "T06_ObserverSelector",
-            Group        = "Authoring",
+            Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             WritesChannels = global::System.Array.Empty<global::System.Type>(),

@@ -168,7 +168,7 @@ public static class BasicInfantrySopRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("BasicInfantrySop"), "BasicInfantrySop", new BehaviorDefinition
         {
             Name         = "BasicInfantrySop",
-            Group        = "Sop",
+            Group        = "Library/Sop",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 14746393605982593609UL,   // CE-455: the root block's layout

@@ -147,6 +147,7 @@ public static class HullDownAttackRunRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("HullDownAttackRun"), "HullDownAttackRun", new BehaviorDefinition
         {
             Name         = "HullDownAttackRun",
+            Group        = "Demos/HillAttack",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 642183108553885152UL,   // CE-455: the root block's layout

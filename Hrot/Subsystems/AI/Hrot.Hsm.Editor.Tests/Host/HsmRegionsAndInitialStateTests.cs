@@ -183,7 +183,7 @@ public sealed class HsmRegionsAndInitialStateTests
     {
         var dir = System.IO.Path.GetDirectoryName(typeof(HsmRegionsAndInitialStateTests).Assembly.Location)!;
         for (int i = 0; i < 7; i++) dir = System.IO.Path.GetDirectoryName(dir)!;
-        var path = System.IO.Path.Combine(dir, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "HSMs", "HsmCuratedBindingDemo.hsm.json");
+        var path = System.IO.Path.Combine(dir, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "HSMs", "Tests", "Binding", "HsmCuratedBindingDemo.hsm.json");
         var dto = Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Deserialize(System.IO.File.ReadAllText(path))!;
 
         var code = HsmEmitCore.EmitTopologyCore(dto);

@@ -272,7 +272,7 @@ public sealed class BTreeJsonGeneratorTests
         string path = null!;
         for (var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory); d != null && path == null; d = d.Parent)
         {
-            var c = System.IO.Path.Combine(d.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "BTrees", "Authoring", "T03_Parallel.btree.json");
+            var c = System.IO.Path.Combine(d.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "BTrees", "Tests", "Authoring", "T03_Parallel.btree.json");
             if (System.IO.File.Exists(c)) path = c;
         }
         path.Should().NotBeNull("the shipped T03_Parallel asset must be found above the test output");

@@ -33,7 +33,7 @@ public static class T01_SequenceRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T01_Sequence"), "T01_Sequence", new BehaviorDefinition
         {
             Name         = "T01_Sequence",
-            Group        = "Authoring",
+            Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             WritesChannels = global::System.Array.Empty<global::System.Type>(),

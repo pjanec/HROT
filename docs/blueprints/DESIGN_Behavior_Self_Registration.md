@@ -417,7 +417,7 @@ actions and guards by STRING (`OnEntry(string)`, `Activity(string)`, `Transition
 ⭐ **Blueprints:** no new builder — the test builder exists; production needs none (C# is used directly where a blueprint would be
 hand-coded).
 
-## 10c. ⭐ EVERY BEHAVIOUR CARRIES A PICKER GROUP — **the attribute for C#, the folder for JSON** *(R-268, CE-3164, `2026-10-11`; build-state: BUILT — commit A; the asset folder reorganisation is commit B)*
+## 10c. ⭐ EVERY BEHAVIOUR CARRIES A PICKER GROUP — **the attribute for C#, the folder for JSON** *(R-268, CE-3164, `2026-10-11`; build-state: BUILT)*
 
 🔒 User, `2026-10-11`: *"for hardcoded behaviors the attribute sets it, for json asset generated ones this group attrib comes from the
 folder structure the asset file stays in"* · *"allowing all to be used just not show all as one plain list in the picker, but various
@@ -489,8 +489,19 @@ sequenceDiagram
 **As-built (commit A):** the groups set today — `Library/Basic` (MoveToLocation, FollowRoute, JoinFormation, WanderMilitary,
 FireAtTarget, FireAtPoint, DoorLocksmith, HoldStance, Idle), `Library/Infantry` (CombatPosture), `Library/Squad`
 (BoundingOverwatch), `Demos/PeekAndFire` (WindowDuel), `Demos/UrbanCombat` (the example's hand registrations). The JSON assets
-still sit at their kind roots ⇒ `Other` until commit B moves them into folders. The entity AI details' rows map names to choices
+were moved into folders by commit B (below). The entity AI details' rows map names to choices
 through `EntityAiEditModel.AsChoices` (same technology label as the mission panel).
+
+**As-built (commit B) — the asset folders, i.e. the JSON picker groups** (top level = what an author reaches for first):
+
+| folder | holds |
+|---|---|
+| `BTrees/Library/Tactics`, `BTrees/Library/Sop` | the library tactics (TakeCover, FallBack, Flank, FiringPosition, Sentry, DangerCrossing) and the shipped SOP |
+| `BTrees/Samples`, `HSMs/Samples`, `Blueprints/Samples` (+ `Samples/Tactics`) | editor showcases and feature samples (SampleScout, SampleGuard, the `*Demo.bp.json` feature samples) |
+| `BTrees/Demos/HillAttack`, `Blueprints/Demos/HillAttack`, `Blueprints/Demos/Mission` | demo scenarios' behaviours |
+| `BTrees/Tests/Authoring`, `HSMs/Tests/Binding`, `Blueprints/Tests` (+ `Tests/Smoke`) | regression assets that pin a generator / binding shape |
+
+⚠ A file's folder is now meaningful: moving it changes its picker group (and its generated registrar — the golden moves by one line).
 
 ## 11. ⛔ REJECTED
 

@@ -34,7 +34,7 @@ public sealed class HsmShowcaseTests
 
     private static string ShowcaseJsonPath =>
         Path.Combine(RepoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Assets", "HSMs", "HsmShowcase.hsm.json");
+            "Assets", "HSMs", "Samples", "HsmShowcase.hsm.json");
 
     private static string ReadShowcaseJson()
     {

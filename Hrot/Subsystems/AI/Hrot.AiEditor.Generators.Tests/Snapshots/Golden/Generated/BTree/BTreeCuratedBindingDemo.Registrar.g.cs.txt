@@ -136,7 +136,7 @@ public static class BTreeCuratedBindingDemoRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("BTreeCuratedBindingDemo"), "BTreeCuratedBindingDemo", new BehaviorDefinition
         {
             Name         = "BTreeCuratedBindingDemo",
-            Group        = "Authoring",
+            Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 3293970583950566746UL,   // CE-455: the root block's layout
