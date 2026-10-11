@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - DESIGN_Weapon_Layers.md — B1 and B5 are built through it (behaviour brain / weapon brain / weapon muscle).
   - DESIGN_Map_3D_Mode.md — CE-1033: the 3-D mode of the map (slices S1–S7, §3.11 articulated turret, §6a–§6c as-built).
   - DESIGN_Visual_Effects.md — CE-1042: muzzle fire, explosions, decals (VE-A..VE-M approved; slices E1–E4).
   - DESIGN_Map_North_Up.md — CE-1040: the 2-D map north-up at its camera seam (built).

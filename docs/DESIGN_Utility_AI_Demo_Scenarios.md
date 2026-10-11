@@ -8,6 +8,7 @@ known-rot: none.
 known-conflict:
   - docs/DESIGN_Decision_Layer.md §3 INVENTORY says five decisions are registered at CGF start — four are (ManeuverSelect has no [UtilityDecision]); its STATUS line still calls §3.3 "not started" while its body records CE-2067…2073 BUILT. Noted there, 2026-10-05.
 related-designs:
+  - DESIGN_Weapon_Layers.md — proposes moving §12's per-shot weapon choice into a per-category weapon brain (W-1, W-5).
   - docs/DESIGN_Terrain_Height.md — TH-G proposes basic-desert's ridge and wadi as a real height grid instead of ramps
     (the ramp workaround existed only because no heightfield did); the call stays with this programme's lane.
   - docs/designs/navig-2/Navigation_Design_v2_0.md §5.2a — CE-3128 (R-231): the danger classifier moves onto the road GRAPH (D7) and the watched route onto the shared RoutePlanner (D2), so it watches the route the unit drives
