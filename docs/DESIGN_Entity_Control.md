@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-11
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built) — the (V) windowed screenshot still owed
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station)
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check)
 stale-below: nothing
 known-rot: the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -479,8 +479,8 @@ new origin, ⛔ not a switch that turns the brain off (R-270).
 | **S4d** | operator fire: `AimAndFireParams` point + operator flag (no seen-now, no aim time, ROE bypass, C-2) | the combat suite |
 | **S4e** | `ManualDrive` + `PossessedBy` descriptors; `Possess` · `Release` · `ControlFrame` interaction cases | the cluster |
 
-⚠ **Deferred, stated:** the navmesh wall check (M-5) lands with S4b only if the muscle's `INavmeshProvider` is reachable there;
-otherwise it is its own row. Aircraft (M-4) stay deferred.
+⚠ ~~**Deferred, stated:** the navmesh wall check (M-5) lands with S4b only if the muscle's `INavmeshProvider` is reachable there;
+otherwise it is its own row.~~ SUPERSEDED — it was reachable (a world singleton); built as `CE-3181`, §13.4. Aircraft (M-4) stay deferred.
 
 ## 8c. S4e DETAIL — possession on a cluster (`CE-3172` / `CE-3173`, designed `2026-10-11` from the measured templates)
 
@@ -723,8 +723,9 @@ pins, AI trace or layer control the pack already registered "on every map host".
 | — | ⚠ orders are issued only where `PickService` answers (a station) — Stop too | a menu action relayed from a station to a headless node must not be ordered twice |
 
 ⚠ **Known limits:** a WINDOWED node that also receives a station's relayed menu action would run it too (`CE-3178`). The ReplayBrowser
-runs no context ingress, so its own map-menu actions (Center View…) never fire either (`CE-3179`, pre-existing). Both are
-assumed from the wiring, not yet measured live.
+~~runs no context ingress, so its own map-menu actions (Center View…) never fire either (`CE-3179`, pre-existing).~~ ✅ FIXED
+`2026-10-11`: it runs the shared `ContextActionIngressSystem` in its world-following form (its world changes when a recording is
+rebound), ticked before the dispatcher. `CE-3178` is still assumed from the wiring, not measured live.
 
 📐 **Rails:** `MenuOrdersTests` (7: move/engage picks → the order, cancel → nothing, Stop, headless → nothing, live vs replay menu,
 the picker's cancel) · `SimHostAuxiliaryTranslatorPackTests` +2 (the IG pack carries the egress).
@@ -807,7 +808,23 @@ over, removed by one release sample) · ⭐ `EntityOrdersAcrossNodesTests` CE317
 Rifleman, CGF runs `OperatorControl` at origin Possession, the body walks 1.5 m on SimHost, the IG sees the hold, release resumes the
 task and every node forgets it.
 
-⏭ **S4 is complete.** M-5 (the navmesh refusal) is `CE-3181`. S5 (`CE-3174`) — §13.3.
+⏭ **S4 is complete.** M-5 (the navmesh refusal) is `CE-3181` — built, §13.4. S5 (`CE-3174`) — §13.3.
+
+### 13.4 AS-BUILT — M-5 the navmesh wall check (`CE-3181`, `2026-10-11`)
+
+⭐ **Built as M-5 states, people only.** The muscle reaches the navmesh after all: `INavmeshProvider` is a managed world singleton
+on every host that has one (`EngineBackedNavigationModule`), so §8b's deferral ("only if the muscle's provider is reachable") is
+SUPERSEDED. `ManualMotion.KeepOnNavmesh` runs after `ManualMotion.Person` in the `Manual` walker branch.
+
+| as-built detail | why |
+|---|---|
+| the step's END is PROJECTED onto the mesh: within 5 cm it stands; further, it slides to the projection when that is no further from the start than the step; no projection ⇒ refused | ⛔ `IsWalkable` is not the test — Recast's answer is "a polygon lies within the query extent", so a point just inside a wall passes it. The nearest mesh point IS the slide along the wall |
+| a body whose START is already off the mesh moves freely | refusing it every step would trap a unit spawned (or pushed) off the mesh |
+| the layer is `NavLayerSelection.For` (a pedestrian ⇒ Infantry) | the mesh the person would be planned on |
+| a host with no navmesh singleton walks freely, as before | no regression where there is no terrain mesh |
+
+📐 Rails: `CarKinematicsSystemTests.CE3181_*` ×2 (slides along a Recast-like wall and never passes it; a step with no mesh under it is
+refused, and a body already off the mesh is not trapped).
 
 ### 13.3 AS-BUILT — S5 the FPS station (`CE-3174`, `2026-10-11`)
 
@@ -839,7 +856,7 @@ did not land: the muscle's manual branch has no navmesh reach today — it stays
 | | |
 |---|---|
 | ⚠ mission timers keep running during possession | a phase change while possessed is refused by rank (Possession outranks Superior); on release the unit resumes its OLD task while the plan has moved on — accepted for v1 |
-| ⚠ a vehicle under manual drive can enter a building | M-5 checks walkability for people only |
+| ⚠ a vehicle under manual drive can enter a building | M-5 checks walkability for people only (built, §13.4) |
 | ⚠ `EntityBoxPicker` returns the entity's **position**, not the hit point | the operator's aim at an entity aims at its origin; fine for v1 |
 | ✅ `CE-3175` | ~~the map canvas and the gizmo layer **both drain** Raylib's typed-key queue~~ — FIXED `2026-10-11`: the canvas is the one drain and hands the keys to the gizmo layer for its terminal. ⚠ Wider than first read: no key PRESS reached any backend gizmo, so Escape cancelled none of them. 📄 `docs/designs/gizmos-1/gizmo-input-focus-design.md` §6.2d |
 | ✅ `CE-3176` | ~~`KinematicsMode.None` is driven as Direct and the PathToPoint bridge writes None with a speed~~ — FIXED `2026-10-11`: the pending state holds at speed 0 and the path response restores the intent's speed. 📄 `docs/designs/navig-2/Navigation_Design_v2_0.md` §3.1 |

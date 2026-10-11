@@ -50,6 +50,39 @@ namespace CarKinem.Controllers
             return turned / dt;
         }
 
+        /// <summary>Within this horizontal distance a projection counts as "on the mesh" (m).</summary>
+        public const float OnMeshTolerance = 0.05f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3181</c> (M-5, <c>docs/DESIGN_Entity_Control.md</c> §6) — a manual PERSON's step may not leave the walkable navmesh.
+        /// The step's end is projected onto the mesh: within <see cref="OnMeshTolerance"/> it stands; further, it SLIDES to the
+        /// projection (the nearest mesh point — along a wall) when that is no further from the start than the step itself; with no
+        /// projection at all it is refused and the body stays. ⛔ <c>IsWalkable</c> is not the test: it only asks whether some polygon
+        /// lies within the query extent, so a point just inside a wall passes it. A body that is OFF the mesh already (no projection
+        /// of its start) moves freely — refusing it every step would trap it. Returns true when the step was changed.
+        /// </summary>
+        public static bool KeepOnNavmesh(Fdp.Toolkit.Navigation.INavmeshProvider navmesh, uint layerMask, Vector2 before, ref Vector2 pos, float z)
+        {
+            if (Vector2.DistanceSquared(before, pos) < 1e-10f) return false;
+            if (!OnMesh(navmesh, layerMask, before, z, out _)) return false;          // off the mesh already: free
+            if (OnMesh(navmesh, layerMask, pos, z, out var snapped)) return false;     // the step stays on it
+            if (snapped is { } slide && Vector2.Distance(before, slide) <= Vector2.Distance(before, pos) + OnMeshTolerance)
+            {
+                pos = slide;
+                return true;
+            }
+            pos = before;
+            return true;
+        }
+
+        private static bool OnMesh(Fdp.Toolkit.Navigation.INavmeshProvider navmesh, uint layerMask, Vector2 at, float z, out Vector2? snapped)
+        {
+            snapped = null;
+            if (!navmesh.ProjectToNavmesh(new Vector3(at.X, at.Y, z), out var s, layerMask)) return false;
+            snapped = new Vector2(s.X, s.Y);
+            return Vector2.Distance(at, snapped.Value) <= OnMeshTolerance;
+        }
+
         /// <summary>
         /// A GROUND VEHICLE: <paramref name="throttle"/> ∈ [−1, 1] (− brakes, and once stopped reverses), <paramref name="steer"/> ∈
         /// [−1, 1] of <see cref="VehicleParams.MaxSteerAngle"/>, the wheel turned toward it at <see cref="VehicleParams.MaxSteerRate"/>

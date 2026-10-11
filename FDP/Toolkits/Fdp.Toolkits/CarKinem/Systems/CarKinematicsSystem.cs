@@ -170,8 +170,15 @@ namespace CarKinem.Systems
                     planar = new Vector2(vel.Linear.X, vel.Linear.Y);
                     float yawTo = hasDrive ? drive.Yaw : MathF.Atan2(fwd2D.Y, fwd2D.X);
                     float top = @params.MaxSpeedFwd * (drive.Gait == 1 ? 0.5f : 1f);
+                    var before = pos2D;
                     turnRate = ManualMotion.Person(ref pos2D, ref fwd2D, ref planar, ref state, drive.Forward, drive.Lateral, yawTo,
                         top, MathF.Max(@params.MaxAccel, HumanGait.StopDecel), dt);
+                    // ⭐ CE-3181 (M-5) — never off the walkable mesh: slide along it, or stop. The navmesh is this host's world singleton
+                    //   (EngineBackedNavigationModule); a host without one walks freely, as before.
+                    if (repo.HasSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>()
+                        && ManualMotion.KeepOnNavmesh(repo.GetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>()!,
+                            (uint)Fdp.Toolkit.Navigation.NavLayerSelection.For(repo, entity, 0), before, ref pos2D, tf.Position.Z))
+                        planar = (pos2D - before) / dt;
                 }
                 else
                 {

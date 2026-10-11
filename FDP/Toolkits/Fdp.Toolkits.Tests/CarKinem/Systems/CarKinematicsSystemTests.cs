@@ -934,5 +934,61 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(Vector3.Zero, repo.GetComponent<SimTransform>(e).Position);
             repo.Dispose();
         }
-}
+
+        // ── ⭐ CE-3181 (M-5, docs/DESIGN_Entity_Control.md §6) — a manual person never leaves the walkable navmesh ──
+
+        /// <summary>The walkable mesh is x ≤ 5. <c>clamp</c>: off it projects to the nearest mesh point, as Recast's nearest-poly
+        /// does (the wall case); otherwise off it has no projection at all, as a blocked polygon in the fake navmesh.</summary>
+        private sealed class WallAtFive : Fdp.Toolkit.Navigation.INavmeshProvider
+        {
+            private readonly bool _clamp;
+            public WallAtFive(bool clamp) => _clamp = clamp;
+            public bool IsWalkable(Vector3 p, uint layerMask = 0xFFFFFFFF) => p.X <= 5f;
+            public bool ProjectToNavmesh(Vector3 p, out Vector3 snapped, uint layerMask = 0xFFFFFFFF)
+            {
+                if (p.X <= 5f) { snapped = p; return true; }
+                snapped = _clamp ? new Vector3(5f, p.Y, p.Z) : p;
+                return _clamp;
+            }
+            public int SampleNavmeshPoints(Vector3 c, float r, Span<Vector3> results, uint layerMask = 0xFFFFFFFF) => 0;
+            public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => false;
+            public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => float.PositiveInfinity;
+            public uint QueryVersion() => 0;
+            public int PlanPath(Vector3 from, Vector3 to, Span<Fdp.Toolkit.Navigation.NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF) => 0;
+        }
+
+        [Fact]
+        public void CE3181_APersonWalkingIntoAWall_SlidesAlongIt_NeverThrough()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian,
+                new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f, Yaw = MathF.PI / 4f });   // north-east, into the wall
+            repo.SetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>(new WallAtFive(clamp: true));
+            Run(repo, 7f);                                                     // ~1 m/s at 45°: the wall is reached, then followed
+            var atWall = repo.GetComponent<SimTransform>(e).Position;
+            Run(repo, 4f);
+            var pos = repo.GetComponent<SimTransform>(e).Position;
+            Assert.InRange(pos.X, 4.9f, 5f + CarKinem.Controllers.ManualMotion.OnMeshTolerance);   // at the wall, not through it
+            Assert.True(pos.Y > atWall.Y + 1.5f, $"slid along the wall (+Y): {atWall} -> {pos}");  // kept moving where the mesh allows
+            repo.Dispose();
+        }
+
+        [Fact]
+        public void CE3181_AStepWithNoMeshUnderIt_IsRefused_AndABodyAlreadyOffTheMesh_MovesFreely()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f, Yaw = 0f });
+            repo.SetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>(new WallAtFive(clamp: false));
+            Run(repo, 10f);
+            Assert.InRange(repo.GetComponent<SimTransform>(e).Position.X, 4.8f, 5f);   // stopped at the edge
+            repo.Dispose();
+
+            (repo, e) = ManualWorld(VehicleClass.Pedestrian, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f, Yaw = 0f });
+            repo.SetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>(new WallAtFive(clamp: false));
+            var tf = repo.GetComponent<SimTransform>(e);
+            tf.Position = new Vector3(10f, 0f, 0f);                                     // spawned off the mesh
+            repo.SetComponent(e, tf);
+            Run(repo, 1f);
+            Assert.True(repo.GetComponent<SimTransform>(e).Position.X > 10.5f, "not trapped where it already stood");
+            repo.Dispose();
+        }
+    }
 }
