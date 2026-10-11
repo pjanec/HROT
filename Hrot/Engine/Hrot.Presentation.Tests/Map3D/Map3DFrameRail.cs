@@ -393,6 +393,113 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ P1 (docs/DESIGN_Visual_Effects.md §8) — rounds on a real GL: a grenade mid-throw from a rifleman, a grenade LYING by a living
+    /// soldier with its fuze burning, an 81 mm bomb on its way down, and a test MISSILE type (Munition.Visual Missile + smoke trail) —
+    /// the bodies at least <see cref="Hrot.UI.Common.Effects.ProjectileLayer.MinPixels"/> tall; then the 2-D map with the projector's
+    /// markers and the lying grenade's fuze seconds.
+    /// </summary>
+    [SkippableFact]
+    public void P_Projectiles_AGrenadeFliesAndLies_ABombFalls_AMissileTrailsSmoke()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<SimVelocity>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+        var tkb = Map3DTests.BuiltIn();
+        const long TestMissile = 6999;
+        var missileType = new Fdp.Interfaces.TkbTemplate("Test ATGM", TestMissile);
+        missileType.AddDescriptor(new MunitionVisualDto { Shape = MunitionShape.Missile, Length = 1.2f, Diameter = 0.14f, ColorHex = "#6B6E4A", SmokeTrail = true });
+        tkb.Register(missileType);
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 3.3 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        void Soldier(float dx, float dy, StanceId stance, float yaw)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new StanceIntent { TargetStance = stance });
+        }
+        Entity Round(long ammo, Vector3 at, Vector3 velocity, byte warhead, float fuze = 0f, Vector3 muzzle = default)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            world.AddComponent(e, new SimVelocity { Linear = velocity });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.BallisticProjectile
+            {
+                Ammo = ammo, Warhead = warhead, FuzeRemaining = fuze, PreviousPosition = at - velocity * 0.05f, Muzzle = muzzle,
+            });
+            return e;
+        }
+        const byte Grenade = Fdp.Toolkit.Combat.Components.WarheadRound.Arc | Fdp.Toolkit.Combat.Components.WarheadRound.TimeFuze
+                           | Fdp.Toolkit.Combat.Components.WarheadRound.Area;
+        Soldier(-8f, 0f, StanceId.Standing, 0f);       // the thrower
+        Soldier(6f, 2f, StanceId.Crouched, MathF.PI);   // the one the grenade landed by
+        var throwPoint = new Vector3(spot.X - 2f, spot.Y + 0.3f, G(spot.X - 2f, spot.Y) + 3.4f);
+        Round(MunitionTkbCatalog.TkbM67Grenade, throwPoint, new Vector3(9f, 0.5f, 1.5f), Grenade, 3.6f);
+        Round(MunitionTkbCatalog.TkbM67Grenade, new Vector3(spot.X + 4.5f, spot.Y + 0.5f, G(spot.X + 4.5f, spot.Y + 0.5f)), Vector3.Zero,
+              (byte)(Grenade | Fdp.Toolkit.Combat.Components.WarheadRound.Landed), 2.7f);
+        Round(MunitionTkbCatalog.Tkb81mmMortarHe, new Vector3(spot.X + 10f, spot.Y + 12f, G(spot.X, spot.Y) + 14f), new Vector3(20f, 4f, -45f),
+              Fdp.Toolkit.Combat.Components.WarheadRound.Arc | Fdp.Toolkit.Combat.Components.WarheadRound.Area);
+        var missileAt = new Vector3(spot.X - 6f, spot.Y + 22f, G(spot.X, spot.Y) + 5f);
+        Round(TestMissile, missileAt, new Vector3(160f, -10f, 0f), 0, muzzle: missileAt + new Vector3(-50f, 3f, -1f));
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        var rounds = new Hrot.UI.Common.Effects.ProjectileLayer(() => world, () => tkb, () => sw.Camera3D) { GroundHeight = G };
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        canvas.AddLayer(rounds);
+        sw.Set(true, animate: false);
+
+        // from the south, looking north: the soldiers in front, the bomb falling above them, the missile crossing behind
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 2f, spot.Y + 10f, G(spot.X, spot.Y) + 5f), 36f, MathF.PI * 0.5f, -0.12f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "rounds-1-overview.png"));
+        Assert.Equal(4, rounds.Drawn);
+
+        // close on the throw and the lying grenade, at the soldiers' height
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 1f, spot.Y + 0.5f, G(spot.X, spot.Y) + 1.6f), 9f, MathF.PI * 0.5f, -0.12f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "rounds-2-grenade-close.png"));
+
+        // 2-D: the projector's streaks, markers and the lying grenade's fuze seconds
+        var canvas2 = new MapCanvas(input: null);
+        var cam2 = new MapCamera();
+        const float zoom = 14f;
+        var target = new Vector2(spot.X + 2f - 1280f / 2f / zoom, spot.Y + 8f + 800f / 2f / zoom);
+        cam2.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas2.Camera = cam2;
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus(), camera: cam2);
+        canvas2.AddLayer(gizmos);
+        var projector = new Hrot.ScenarioEditor.Gizmos.ProjectilePresentationGizmo();
+        foreach (var e in world.Query().With<Fdp.Toolkit.Combat.Components.BallisticProjectile>().With<SimTransform>().Build())
+            projector.Draw(world, e, buffer);
+        gizmos.Update(0.016f);
+        frame.Step(canvas2.Draw);
+        frame.Step(canvas2.Draw);
+        frame.Screenshot(Path.Combine(shots, "rounds-3-map2d.png"));
+    }
+
+    /// <summary>
     /// ⭐ CE-1034 H3b + H5d — a REAL height-grid terrain through the 3-D map: highway-rest's relief, the overpass (a deck 6 m up on two
     /// ramps) over the highway, a car on the deck and a truck on the highway under it. 📄 docs/DESIGN_Terrain_Height.md §3.4, §5.
     /// </summary>

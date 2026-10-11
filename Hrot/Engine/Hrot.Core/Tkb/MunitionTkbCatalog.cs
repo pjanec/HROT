@@ -36,7 +36,26 @@ namespace Hrot.Core.Tkb
         {
             var t = new TkbTemplate(name, type) { DisType = dis };
             t.AddDescriptor(new TkbMasterDto { CustomName = name, DisType = dis.ToString(), HideFromPalette = true });
+            if (BuiltInLooks.TryGetValue(type, out var look)) t.AddDescriptor(look);   // ⭐ P1 — how its round looks
             tkb.Register(t);
+        }
+
+        /// <summary>⭐ P1 (docs/DESIGN_Visual_Effects.md §8 PR-A) — how the built-in munitions' rounds look: the M67 a small olive
+        /// grenade, the 81 mm a finned bomb.</summary>
+        public static readonly System.Collections.Generic.IReadOnlyDictionary<long, MunitionVisualDto> BuiltInLooks =
+            new System.Collections.Generic.Dictionary<long, MunitionVisualDto>
+            {
+                [TkbM67Grenade] = new() { Shape = MunitionShape.Grenade, Length = 0.11f, Diameter = 0.064f, ColorHex = "#4B5320" },
+                [Tkb81mmMortarHe] = new() { Shape = MunitionShape.Bomb, Length = 0.5f, Diameter = 0.081f, ColorHex = "#5A5E3A" },
+            };
+
+        /// <summary>⭐ P1 (§8 PR-A) — the look of a round of munition type <paramref name="ammo"/>: its TKB <see cref="MunitionVisualDto"/>,
+        /// else the built-in one (a host with no TKB — the replay browser — still draws the built-ins), else null (no body: a bullet).</summary>
+        public static MunitionVisualDto? VisualOf(ITkbDatabase? tkb, long ammo)
+        {
+            if (ammo == 0) return null;
+            if (tkb != null && tkb.TryGetByType(ammo, out var t) && t?.GetDescriptor<MunitionVisualDto>() is { } v) return v;
+            return BuiltInLooks.TryGetValue(ammo, out var b) ? b : null;
         }
     }
 }

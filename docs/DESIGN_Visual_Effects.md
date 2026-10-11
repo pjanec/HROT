@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). Programme index: PLAN_3D_World_And_Realism.md.
+build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 BUILT 2026-10-11 (CE-1051); PR-D / PR-E open for the user. Programme index: PLAN_3D_World_And_Realism.md.
 updated: 2026-10-11
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5).
+current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1 as-built §8.4; PR-D / PR-E open, §8.3).
 stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
@@ -470,3 +470,114 @@ Fire size 3.2 m); the first X was heavier than the outline and overshot the corn
 in 2-D the smoke hid the flames ⇒ flames draw last there, at least 3 px. Run it:
 `HROT_RAIL_SHOTS=<dir> xvfb-run -a -s "-screen 0 1280x800x24" dotnet test Hrot/Engine/Hrot.Presentation.Tests --filter "FullyQualifiedName~Map3DFrameRail"`.
 
+
+## 8. Projectiles in flight and on the ground — grenades, bombs, rockets, missiles *(P1 built `2026-10-11`; PR-D/PR-E open)*
+
+| # | verbatim |
+|---|---|
+| **U9** | *"Backend lane allowed throwing grenades today, i need you render the grenade when it flies and when it lays on ground before exploding. You can render basically any other projectile which is represented by its own entity, like missiles and rockets and bombs. If they have no entity and ballistic/flight model and no 3d model, lets think how to solve that."* |
+
+### 8.1 INVENTORY — measured `2026-10-11`
+
+Graph `search_graph` `.*(Projectile|Grenade|Munition|Missile|Rocket|Ballistic).*`, Class — **26, `has_more: false`**; production hits:
+`BallisticProjectile`, `BallisticsSystem`, `BallisticAim`, `AmmoWeaponBallisticsDto`, `MunitionEffectsDto`, `MunitionTkbCatalog`,
+`MunitionDetonation` (+ its two translators), `ProjectilePresentationGizmo`. Corpus sweep of `docs/` + `.dev/` by topic.
+
+| what exists | where | what §8 does with it |
+|---|---|---|
+| every round is its OWN entity: `SimTransform` + `SimVelocity` + `BallisticProjectile` + `PhysicsCollider`; no `TkbIdentity`, no `NetworkIdentity` | `FireProcessingSystem.cs:186-243`; `designs/dds-to-ecs/DESIGN.md:864` | drawn from those components |
+| the round knows its MUNITION type (`Ammo`) and warhead bits — `Arc`, `TimeFuze`, `Landed` (lying, fuze burning), `Spent` — and `FuzeRemaining` | `CombatComponents.cs:73-148`; `DESIGN_Building_Interiors.md` §3k (W-4, W-8) | the look comes from the munition type; `Landed` + `FuzeRemaining` draw the lying grenade |
+| rounds live ONLY on the node running combat (the Muscle, or the editor as one node) — never on the wire; only the fire / detonation EVENTS cross | `designs/brain-split/BS-1-DESIGN.md` §2.1, §5.4a; `DESIGN_Weapon_Layers.md:641` | ⚠ the open question PR-D |
+| the `WeaponFire` wire event carries ONLY shooter, target, weapon index — no launch point, velocity or munition; `MunitionDetonation` carries the munition type and hit point | `FireInteractionMessages.cs:55-64, 93-115` | PR-D's lean extends it |
+| munition types: only `M67` (6001) and `81 mm HE` (6002) — warhead + `Effect.Set`, no look; every other mount fires `Ammo = 0` | `MunitionTkbCatalog.cs`; `UrbanCombatTkbCatalog.cs:183,199` | + `Munition.Visual` on the two; ⚠ PR-E for the rest |
+| `ProjectilePresentationGizmo` — a 1-frame yellow streak (previous → current position) per round on the 2-D map | `Gizmos/ProjectilePresentationGizmo.cs` | ⭐ extended, not duplicated: a lying grenade (zero-length streak, invisible today) gets a marker and its fuze countdown |
+| no flight model for rockets / missiles: straight line at muzzle velocity, gravity only on arc rounds; ATGM "guidance" is the brain holding fire for the estimated flight | `DESIGN_Building_Interiors.md:1138,1286`; `DESIGN_Weapon_Layers.md` W-12c | drawn as flown (straight), smoke trail from the muzzle |
+
+### 8.2 Diagrams
+
+```mermaid
+graph TD
+  subgraph Combat["the node that runs combat (Muscle; the editor as one node)"]
+    FP["FireProcessingSystem<br/>spawns the round entity"]
+    BS["BallisticsSystem<br/>flies it; lands a time fuze; bursts it"]
+    R[("round entity<br/>BallisticProjectile + SimTransform + SimVelocity")]
+    PL["ProjectileLayer (3-D)<br/>body from Munition.Visual"]
+    PG["ProjectilePresentationGizmo (2-D)<br/>streak / marker / fuze countdown"]
+  end
+  subgraph Remote["IG · CGF · editor in a cluster"]
+    EV["WeaponFire / MunitionDetonation events only"]
+    NO["no round entity ⇒ nothing to draw"]
+  end
+  FP --> R
+  BS --> R
+  R --> PL
+  R --> PG
+  FP -. "WeaponFire (shooter, target, weapon)" .-> EV
+  EV --> NO
+  style NO stroke-dasharray: 5 5
+  style EV stroke-dasharray: 5 5
+```
+
+*What the picture shows that the prose hid:* a round can be drawn only where it EXISTS. On every other host the dashed path ends in
+nothing — the events that do cross carry no launch point or velocity, so no host can fly a copy. That is PR-D, not a renderer gap.
+
+```mermaid
+classDiagram
+  class BallisticProjectile { <<exists, combat>> Ammo; Warhead bits Arc / TimeFuze / Landed / Spent; FuzeRemaining; Muzzle }
+  class MunitionVisualDto { <<new TKB descriptor "Munition.Visual", Fdp.Toolkits>> Shape; Length; Diameter; ColorHex; SmokeTrail }
+  class MunitionShape { <<new enum>> Grenade; Bomb; Shell; Rocket; Missile }
+  class MunitionTkbCatalog { <<exists>> + M67 Grenade 0.11 m olive; + 81 mm Bomb 0.5 m; VisualOf(tkb, ammo) with built-in fallback }
+  class ProjectileLayer { <<new, Hrot.Presentation Effects>> Resolve(): body pose per round; Draw3D; min on-screen size }
+  class ProjectilePresentationGizmo { <<exists, extended>> bullet: streak; munition: marker; lying: marker + fuze seconds }
+  class MapInteractionPack { <<exists>> AttachMapLayers adds ProjectileLayer on every host }
+  ProjectileLayer ..> BallisticProjectile
+  ProjectileLayer ..> MunitionTkbCatalog
+  ProjectilePresentationGizmo ..> BallisticProjectile
+  ProjectilePresentationGizmo ..> MunitionTkbCatalog
+  MunitionTkbCatalog ..> MunitionVisualDto
+  MunitionVisualDto ..> MunitionShape
+  MapInteractionPack ..> ProjectileLayer
+```
+
+```mermaid
+sequenceDiagram
+  participant F as FireProcessingSystem
+  participant B as BallisticsSystem
+  participant L as ProjectileLayer / gizmo
+  F->>F: spawn round (Ammo = M67, Arc + TimeFuze + Area, FuzeRemaining 4.5 s)
+  loop flying
+    B->>B: gravity arc, fuze counting
+    L->>L: 3-D: grenade body at the round, tumbling, 2-D: streak + marker
+  end
+  B->>B: terrain stop ⇒ Landed (lying), fuze still counting
+  loop lying
+    L->>L: 3-D: grenade on the ground, 2-D: marker + "2.7 s"
+  end
+  B->>B: fuze out ⇒ burst (DetonationNotification), round destroyed
+  Note over L: the explosion and decal are §6's effects, unchanged
+```
+
+### 8.3 Decisions
+
+| # | decision | lean | rejected — one line each |
+|---|---|---|---|
+| **PR-A** | where a round's look comes from | ⭐ its MUNITION type: a new optional `Munition.Visual` descriptor (shape, length, diameter, colour, smoke trail), the "the TKB type defines it" pattern of VE-C; built-in looks for M67 and 81 mm, so a host with no TKB (the replay browser) still draws them. A round with no munition look (`Ammo = 0`, every bullet) draws no body — its tracer is the effect | a look per weapon CATEGORY — the round does not carry its mount, and a category is not a munition |
+| **PR-B** | the 3-D body | ⭐ one `ProjectileLayer` on every host (`AttachMapLayers`): the body at the round, long axis along its velocity, a grenade tumbling (stateless spin from seed and sim time), a lying round flat on the ground; drawn at least ~6 px so a 6 cm grenade is visible at map distance; a rocket / missile trails stateless smoke back to its muzzle | drawing it in `EffectLayer` — a round is not an effect and has its own lifetime owner (combat) |
+| **PR-C** | the 2-D mark | ⭐ EXTEND `ProjectilePresentationGizmo` (the one 2-D projector of rounds): bullets keep the streak; a munition round adds a small filled marker in its colour; a LYING time-fuzed round adds its fuze countdown in seconds | a second 2-D projector — two implementations of one concept (ruling 9) |
+| **PR-D** | ⚠ **OPEN — rounds on hosts that do not run combat** (IG, CGF, the editor in a cluster) | ⭐ **lean (b): extend `WeaponFire` with the launch point, launch velocity and munition type; every host flies a local VISUAL copy** (gravity for arc rounds, straight otherwise), lands it on its own terrain, and ends it on `MunitionDetonation` (which already carries the munition and the burst point). ~28 bytes per shot on an existing reliable topic; exact for unguided rounds | (a) replicate rounds as network entities — exact, but a new descriptor per round at fire rate, and the brain-split design keeps rounds muscle state · (c) nothing remote — IG is the operator's view, and grenades would be invisible there |
+| **PR-E** | ⚠ **OPEN — rockets, missiles, tank shells have no munition type** | ⭐ **lean: the combat lane gives those mounts munition types** (RPG rocket, ATGM missile, 125 mm round…) with a `Munition.Visual` — ⚠ NOT neutral: measured `ParameterResolver.MountPenetration` (`ParameterResolver.cs:226-250`) looks the AMMO NAME up in the reference library when the mount's own penetration is 0, so a new type can change armour penetration — the combat lane must set/verify the numbers. No flight model is needed to DRAW them: they fly straight, and the layer draws what flies. A guided flight model is a separate combat feature (and makes PR-D (a) necessary for that munition) | infer "missile" from speed / damage — a guess the TKB should state |
+
+### 8.4 P1 — AS-BUILT `2026-10-11`
+
+| what | where |
+|---|---|
+| `MunitionVisualDto` (`Munition.Visual`) + `MunitionShape` | `FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/MunitionVisualDto.cs` |
+| looks for M67 (grenade, 0.11 m × 0.06 m, olive) and 81 mm (bomb, 0.5 m × 0.081 m); `MunitionTkbCatalog.VisualOf` with built-in fallback | `Hrot/Engine/Hrot.Core/Tkb/MunitionTkbCatalog.cs` |
+| `ProjectileLayer` (3-D), attached on every host by `AttachMapLayers` | `Hrot/Engine/Hrot.Presentation/Effects/ProjectileLayer.cs` |
+| `ProjectilePresentationGizmo` extended (marker, fuze countdown) | `Hrot/Engine/Hrot.Presentation/Gizmos/ProjectilePresentationGizmo.cs` |
+| rails + GL frame rail `P_Projectiles_*` (grenade flying, grenade lying, mortar bomb, a test missile type) | `EffectTests.P1_*`, `Map3DFrameRail` |
+
+⚠ **Tuned from the Xvfb shots (`rounds-1…3`):** at 7 px the bodies read as specks ⇒ `MinPixels` 10; the 2-D marker first took the
+munition's PAINT (olive) and vanished on the grey/green map ⇒ it shows STATE — bright yellow flying, red-orange armed (lying, fuze
+burning); the fuze text "2.7 s" rendered as "27 s" (the map's default font drops the decimal point at that size) ⇒ whole seconds
+rounded up, "3 s"; the smoke trail of evenly spaced equal puffs read as beads ⇒ denser (0.9 m), jittered and spreading.

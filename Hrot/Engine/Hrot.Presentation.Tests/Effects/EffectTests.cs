@@ -318,6 +318,112 @@ public sealed class EffectTests
         Assert.Contains(layer.Resolve(), r => r.Look.Kind == EffectKind.Smoke);
     }
 
+    private static Entity Round(EntityRepository world, long ammo, Vector3 at, Vector3 velocity, byte warhead = 0, float fuze = 0f,
+                                Vector3 muzzle = default)
+    {
+        var e = world.CreateEntity();
+        world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        world.AddComponent(e, new SimVelocity { Linear = velocity });
+        world.AddComponent(e, new Fdp.Toolkit.Combat.Components.BallisticProjectile
+        {
+            Ammo = ammo, Warhead = warhead, FuzeRemaining = fuze, PreviousPosition = at - velocity * 0.016f, Muzzle = muzzle,
+        });
+        return e;
+    }
+
+    private static EntityRepository RoundsWorld(ITkbDatabase tkb)
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<SimVelocity>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+        world.SetSingletonManaged<ITkbDatabase>(tkb);
+        return world;
+    }
+
+    /// <summary>⭐ P1 (docs/DESIGN_Visual_Effects.md §8 PR-A/PR-B) — a round's body comes from its MUNITION type: a thrown grenade
+    /// flies (tumbling) and then LIES flat on the ground with its fuze counting; a mortar bomb points its nose down its arc; a bullet
+    /// (no munition look) and a burst round draw no body.</summary>
+    [Fact]
+    public void P1_AGrenadeFliesThenLiesOnTheGround_ABombPointsDownItsArc_ABulletDrawsNoBody()
+    {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        var world = RoundsWorld(tkb);
+        var W = Fdp.Toolkit.Combat.Components.WarheadRound.Arc | Fdp.Toolkit.Combat.Components.WarheadRound.TimeFuze
+              | Fdp.Toolkit.Combat.Components.WarheadRound.Area;
+        Round(world, MunitionTkbCatalog.TkbM67Grenade, new Vector3(0, 0, 3), new Vector3(8, 0, 2), (byte)W, 3.5f);
+        Round(world, MunitionTkbCatalog.TkbM67Grenade, new Vector3(20, 5, 0.4f), Vector3.Zero,
+              (byte)(W | Fdp.Toolkit.Combat.Components.WarheadRound.Landed), 2.7f);
+        Round(world, MunitionTkbCatalog.Tkb81mmMortarHe, new Vector3(50, 0, 80), new Vector3(30, 0, -40));
+        Round(world, 0, new Vector3(5, 5, 1), new Vector3(800, 0, 0));                                       // a bullet
+        Round(world, MunitionTkbCatalog.TkbM67Grenade, new Vector3(9, 9, 0), Vector3.Zero, (byte)(W | Fdp.Toolkit.Combat.Components.WarheadRound.Spent));
+        var layer = new ProjectileLayer(() => world, () => tkb) { GroundHeight = (_, _) => 0.5f };
+
+        var rounds = layer.Resolve();
+        Assert.Equal(3, rounds.Count);
+        var flying = Assert.Single(rounds, r => r.Look.Shape == MunitionShape.Grenade && !r.Lying);
+        var lying = Assert.Single(rounds, r => r.Lying);
+        var bomb = Assert.Single(rounds, r => r.Look.Shape == MunitionShape.Bomb);
+        Assert.Equal(2.7f, lying.FuzeLeft);
+        Assert.Equal(0.5f, lying.Centre.Z);                                     // up on the ground, not under it
+        Assert.Equal(0f, lying.Nose.Z, 3);                                      // flat
+        Assert.True(ProjectileLayer.SolidsOf(lying).Min(s => s.From.Z - s.RadiusFrom) >= 0.5f - 1e-3f, "it rests ON the ground");
+        Assert.Equal(1f, flying.Nose.Length(), 3);
+        Assert.Equal(Vector3.Normalize(new Vector3(30, 0, -40)), bomb.Nose);     // nose down its arc
+        var noseCone = ProjectileLayer.SolidsOf(bomb)[0];
+        Assert.True(Vector3.Dot(noseCone.To - bomb.Centre, bomb.Nose) > 0f, "the bomb's nose leads");
+
+        // the grenade tumbles: its axis turns with sim time (stateless)
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.1 });
+        var a = layer.Resolve().Single(r => r.Look.Shape == MunitionShape.Grenade && !r.Lying).Nose;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.2 });
+        var b = layer.Resolve().Single(r => r.Look.Shape == MunitionShape.Grenade && !r.Lying).Nose;
+        Assert.True(Vector3.Dot(a, b) < 0.99f, "the grenade tumbles");
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.1 });
+        Assert.Equal(a, layer.Resolve().Single(r => r.Look.Shape == MunitionShape.Grenade && !r.Lying).Nose);   // same time, same pose
+    }
+
+    /// <summary>⭐ P1 (§8 PR-B) — a munition with a smoke trail (a rocket, a missile) trails puffs back toward its muzzle, thinning;
+    /// a grenade does not.</summary>
+    [Fact]
+    public void P1_ARocketTrailsSmokeBackToItsMuzzle()
+    {
+        var look = new MunitionVisualDto { Shape = MunitionShape.Missile, Length = 1.2f, Diameter = 0.12f, SmokeTrail = true };
+        var r = new ProjectileLayer.Round(look, new Vector3(40, 0, 2), Vector3.UnitX, false, 0f, new Vector3(20, 0, 2), 1);
+        var trail = ProjectileLayer.TrailOf(r);
+        Assert.Equal(22, trail.Count);                                          // 20 m back, one puff each 0.9 m
+        Assert.All(trail, p => Assert.InRange(p.At.X, 20f, 40f));             // between the missile and its muzzle
+        Assert.True(trail[^1].Colour.A < trail[0].Colour.A, "older puffs are thinner");
+        Assert.Empty(ProjectileLayer.TrailOf(r with { Look = look with { SmokeTrail = false } }));
+        Assert.Equal(4, ProjectileLayer.SolidsOf(r).Count);                     // nose, body, mid wings, tail fins
+    }
+
+    /// <summary>⭐ P1 (§8 PR-C) — the 2-D projector: a bullet keeps its streak only; a grenade adds a marker; a LYING grenade adds its
+    /// fuze seconds — before, a lying grenade's streak had zero length and it was invisible.</summary>
+    [Fact]
+    public void P1_The2DMark_ALyingGrenadeShowsItsFuzeSeconds_ABulletOnlyItsStreak()
+    {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        var world = RoundsWorld(tkb);
+        var W = Fdp.Toolkit.Combat.Components.WarheadRound.Arc | Fdp.Toolkit.Combat.Components.WarheadRound.TimeFuze;
+        var lying = Round(world, MunitionTkbCatalog.TkbM67Grenade, new Vector3(20, 5, 0), Vector3.Zero,
+                          (byte)(W | Fdp.Toolkit.Combat.Components.WarheadRound.Landed), 2.74f);
+        var bullet = Round(world, 0, new Vector3(5, 5, 1), new Vector3(800, 0, 0));
+        var gizmo = new Hrot.ScenarioEditor.Gizmos.ProjectilePresentationGizmo();
+
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        gizmo.Draw(world, bullet, buffer);
+        Assert.Single(buffer.GetFrame().ToArray());                              // the streak
+
+        buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        gizmo.Draw(world, lying, buffer);
+        var frame = buffer.GetFrame().ToArray();
+        Assert.Equal(3, frame.Length);                                           // streak + marker + fuze text
+        Assert.Contains(frame, p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Sphere);
+        Assert.Contains(frame, p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text);
+        Assert.Equal("3 s", Hrot.ScenarioEditor.Gizmos.ProjectilePresentationGizmo.FuzeLabel(2.74f));   // a countdown rounds up
+    }
+
     /// <summary>⭐ W1 (VE-Q) — ONE generic timer: <see cref="Lifespan"/> on sim time; a jump BACK to before an entity was made removes
     /// it too (it did not exist then); the layer's phase and fade come from the sim clock.</summary>
     [Fact]
