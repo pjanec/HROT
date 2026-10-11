@@ -116,8 +116,8 @@ namespace CarKinem.Core
                     Length = 0.6f,
                     Width = 0.4f,
                     WheelBase = 0.3f,
-                    MaxSpeedFwd = 2.0f,  // Walking speed
-                    MaxAccel = 1.0f,
+                    MaxSpeedFwd = 6.0f,  // ⭐ AQ88 A (R-265) — a person's SPRINT (was 2.0 "walking speed", which clamped every run to a walk); a walk asks its own speed, the stance scales the cap
+                    MaxAccel = 2.5f,
                     MaxDecel = 2.0f,
                     MaxSteerAngle = 1.57f,  // Nearly 90 degrees (can turn in place)
                     MaxSteerRate = 3.0f,

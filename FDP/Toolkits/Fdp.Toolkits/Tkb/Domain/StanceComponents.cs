@@ -85,4 +85,21 @@ namespace Hrot.MuscleCharacter.Animation.Components
             return view.HasComponent<StanceIntent>(e) ? view.GetComponentRO<StanceIntent>(e).TargetStance : Fdp.Toolkit.Tkb.Domain.StanceId.Standing;
         }
     }
+
+    /// <summary>
+    /// ⭐ <c>AQ88</c> B (R-265) — how fast a person may move in a stance, as a fraction of the type's top speed: Standing 1.0 ·
+    /// Crouched 0.5 · Prone 0.2 (📄 docs/designs/navig-2/Navigation_Design_v2_0.md §11 "default ratios"). Applied by the
+    /// pedestrian mover to the LOGICAL stance (<see cref="LogicalStance"/>), so the mover joins the hit model, the fire chain and
+    /// perception as a reader of the one stance rule.
+    /// </summary>
+    public static class StanceSpeed
+    {
+        /// <summary>The top-speed fraction for <paramref name="stance"/>; 1 for any stance not listed.</summary>
+        public static float Factor(Fdp.Toolkit.Tkb.Domain.StanceId stance) => stance switch
+        {
+            Fdp.Toolkit.Tkb.Domain.StanceId.Crouched => 0.5f,
+            Fdp.Toolkit.Tkb.Domain.StanceId.Prone    => 0.2f,
+            _                                        => 1f,
+        };
+    }
 }

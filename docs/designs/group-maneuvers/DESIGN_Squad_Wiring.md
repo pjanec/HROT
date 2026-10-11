@@ -1,11 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-02
-build-state: BUILT (W1–W4, 2026-10-02); D2/D3/D5 open as CE-507 (behaviors), awaiting the user's decision (§5)
-current-answer: §2 (diagrams) and §5 (decisions)
+updated: 2026-10-11
+build-state: BUILT (W1–W4, 2026-10-02); D2/D3 DECIDED 2026-10-11 (R-264) — §6 the first commander manoeuvre (READY-TO-BUILD)
+current-answer: §6 (CE-507 D2 (a): the commander behaviour, READY-TO-BUILD) · §2 (diagrams) and §5 (decisions)
 stale-below: none
 known-rot: Squad_Coordination_Design_v1_1.md and Hrot.SquadCoordination.md describe the layer as "fully implemented" — true of the code, never of its use (§1)
 related-designs:
+  - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS which squad operations need this (SQD-1..14, P1 convoy ambush); §6 here is its first squad execution
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the fire-distribution (U6) and squad-maneuver (U7) demo scenarios; its §2.2 F4–F6 are measured wiring defects for D3/W6.
   - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — owns WHAT the squad layer is (primitives, maneuvers, authority-by-weight); this doc owns only WHERE it runs
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — owns the scorer and its §7 integration nodes; this doc adds the missing runtime bootstrap (input registration) both tiers need
@@ -158,3 +159,69 @@ sequenceDiagram
 |---|---|
 | **D2** | ✅ **(a)** — a squad manoeuvre is a BEHAVIOUR on the commander (the squad HSM orchestrates, the shell is library), members obey their role. ⭐ Library squad behaviours may be **C# fluent-built HSMs in `Hrot.AI.Behaviors`** — no JSON asset needed |
 | **D3** | ✅ as leaned — the commander's autonomous `ManeuverSelect` runs only after a REAL danger-area provider lands (Utility demos design §10.2, R-213) |
+
+## 6. CE-507 D2 (a) — the first commander manoeuvre: bounding overwatch *(backend, `2026-10-11`; build-state: READY-TO-BUILD)*
+
+📐 **Measured before drawing** (an Explore sweep of `Squad/` + the hill-attack commander, `2026-10-11`): the six manoeuvres are static
+configurations (`BoundingOverwatchManeuver.Transitions`, `GetMovingElement`); `SquadHsmShell.Tick` advances `SquadCognitiveState.PhaseId`
+from a `PhaseEvent` span and has **no production caller**; members learn a role only through the `AssignedRole` utility input, which
+**no member decision reads**; the hill-attack commander (`HillAttackCommanderNodes.cs:125-167, 484-551`) is the working precedent —
+it publishes an `AssignTacticalIntentEvent` per roster member and POLLS each member's arrival.
+
+```mermaid
+classDiagram
+  class BoundingOverwatchBehavior { <<NEW, Hrot.AI.Behaviors>> [BTreeDefinition BoundingOverwatch] one stateful node · [BehaviorResolver] }
+  class BoundingOverwatchParamsJsonDto { <<NEW, Hrot.Core>> [BehaviorContract Commander] Objective · BoundMetres 30 · Speed 3 · ArrivalRadius 10 · BoundTimeoutSeconds 60 }
+  class SquadManeuverNodes { <<NEW>> +BoundingOverwatch(ref P, ref WS, self, world) NodeStatus }
+  class BoundingOverwatchState { <<NEW>> targets per member · bound start time · started }
+  class SquadHsmShell { <<existing, library — first production caller>> +Tick(ref state, events, tick) }
+  class BoundingOverwatchManeuver { <<existing>> Transitions · GetMovingElement · ComputePartitionInputs · roles }
+  class ElementPartitionPrimitive { <<existing>> +Partition }
+  class SquadCognitiveState { <<existing, on the commander>> PhaseId · ManeuverKind · Elements · Roles }
+  class UnitRoster { <<existing>> members }
+  class AssignTacticalIntentEvent { <<existing>> IntentId CombatPosture · advance objective }
+  class CombatPostureBehavior { <<existing, §3.3h of Decision Layer>> what every member runs }
+  BoundingOverwatchBehavior *-- SquadManeuverNodes
+  SquadManeuverNodes *-- BoundingOverwatchState
+  SquadManeuverNodes ..> SquadHsmShell : phase on BoundComplete
+  SquadManeuverNodes ..> BoundingOverwatchManeuver
+  SquadManeuverNodes ..> ElementPartitionPrimitive : two elements
+  SquadManeuverNodes ..> SquadCognitiveState : writes phase, roles
+  SquadManeuverNodes ..> UnitRoster : reads members
+  SquadManeuverNodes ..> AssignTacticalIntentEvent : one per member per bound
+  AssignTacticalIntentEvent ..> CombatPostureBehavior : intent id = behaviour name (fallback)
+```
+*What the picture shows that prose hid: nothing new decides a phase — the library shell does, with the manoeuvre's own table; the
+new code only TRANSLATES (phase → per-member orders) and DETECTS (arrival → `BoundComplete`). Members obey their role by running
+the library posture with the role's objective, so they still fight while they move.*
+
+```mermaid
+sequenceDiagram
+  participant O as order (mission / author)
+  participant C as commander: BoundingOverwatch node
+  participant S as SquadHsmShell (library)
+  participant M as member (CombatPosture)
+  O->>C: AssignBehavior("BoundingOverwatch", {Objective, BoundMetres})
+  C->>C: first tick: partition the roster into 2 elements, PhaseId 0
+  C->>M: moving element: CombatPosture advance to a point BoundMetres toward the objective (spacing kept)
+  C->>M: covering element: CombatPosture at its own position (it fights, it does not move)
+  loop every tick
+    C->>C: every live mover within 3 m of its point (or the bound timed out) ⇒ BoundComplete
+    C->>S: Tick(state, [BoundComplete])
+    S-->>C: PhaseId 0 ⇄ 1 ⇒ the other element moves
+  end
+  C->>C: both elements within ArrivalRadius of the objective ⇒ Success (the behaviour ends)
+```
+
+| item | decision | why |
+|---|---|---|
+| ⭐ **form** | a C#-built BTree with ONE stateful node that drives `SquadHsmShell` — not a hand-built fluent HSM | 📐 measured: a hand-written HSM cannot take PARAMS — only JSON-generated HSMs get a binding (`HsmActionGenerator` doc, E3 *"per-occurrence storage is NOT built"*); the one hand-built machine (`CuratedMachines.Idle`) is param-less. The objective must reach the commander ⇒ the BTree form (R-223). ⭐ The phases are still a state machine — the library shell, with the manoeuvre's own transition table, as §7 of the coordination design calls it (*"shell = library, HSM = orchestrator"*). ⚠ **A deviation from R-264's "may be a C# fluent HSM" — reported to the user** |
+| members obey their role | by the ORDER they get: moving ⇒ `CombatPosture` advance to the bound point; covering ⇒ `CombatPosture` at their position | reuses the library posture (they crouch-run under threat, R-265, and fight); the `AssignedRole` utility input stays unread for now — no member decision exists to read it |
+| completion | polled per member, like the hill-attack commander: within 3 m of its point, or dead; a bound times out after `BoundTimeoutSeconds` | `SquadEventIngressSystem`'s arrival test keys on a fixed intent id, which the per-entity counter breaks (measured) — so the node detects arrival itself and feeds the shell a `BoundComplete` |
+| the bound point | each mover keeps its offset from its element's centre; the centre moves `BoundMetres` toward the objective, capped at it | no cover query yet — a later slice asks EQS for cover near the point (`FindDismountCover`/`FindOverwatch`, catalogue §6) |
+| ownership | runs where the commander's brain runs (CGF), as any behaviour | the coordination system's merge + fire allocation keep running beside it |
+
+⚠ **Not in this slice:** autonomous selection (D3 — after the real danger-area provider), the other five manoeuvres (each is the same node
+shape over its own table), cover-aware bound points, and the `ManeuverKind` ↔ starter-decision id mismatch the sweep found
+(`ManeuverSelectStarterDecision` options 0–2 vs the manoeuvres' kinds 1–6) — filed for D3.
+

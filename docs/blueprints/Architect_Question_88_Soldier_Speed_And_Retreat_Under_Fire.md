@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
+build-state: READY-TO-BUILD
 updated: 2026-10-10
-current-answer: §4 ANSWERED 2026-10-11 (R-265) — §3 is the question as asked
+current-answer: §4 ANSWERED 2026-10-11 (R-265) · §5 the build design (build-state READY-TO-BUILD) — §3 is the question as asked
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -58,4 +59,52 @@ sight, is hit again, takes cover and is killed **walking to his hide point** (0.
 | **A** | ✅ a person can RUN: the type's cap stops clamping every ask to a walk — soldiers AND threatened civilians run fast | lean taken, extended to civilians |
 | **B** | ⭐ **now, not later:** a soldier who is **threatened or cautious** moves in a **slight crouch** (a crouched run); a threatened civilian runs **upright** | ⛔ lean "later" overruled |
 | **C** | ⭐ **hide from MULTIPLE enemies** — the retreat (and cover) prefer points hidden from every known threat, not only one | ⛔ lean "the shooter wins" overruled; the open-ground case (no point hidden from all) still needs an answer — §5 |
+
+## 5. The build *(design `2026-10-11`, from §4)*
+
+```mermaid
+classDiagram
+  class LocomotionMoveTo { <<existing — the ONE move of a C# node>> +Issue(world, self, dest, speed, radius, gait = Tactical) }
+  class MoveGait { <<NEW enum>> Tactical · Upright · Crouched }
+  class TacticalGait { <<NEW>> +Threatened(world, self) bool +StanceFor(world, self, gait) StanceId }
+  class StanceRequest { <<existing>> +Set(world, self, stance, blend) }
+  class LogicalStance { <<existing — THE stance rule>> +Of(view, e) }
+  class StanceSpeed { <<NEW, beside LogicalStance>> +Factor(stance) 1.0 / 0.5 / 0.2 }
+  class CarKinematicsSystem { <<existing>> pedestrian cap = MaxSpeedFwd × StanceSpeed.Factor }
+  class ThreatExposureTest { <<existing>> hidden-from-all score, Weight }
+  class FindSafeRetreatPoint { <<existing template>> Weight 1 → 3 }
+  class FindCoverFromTarget { <<existing template>> Weight 1 → 3 }
+  LocomotionMoveTo ..> TacticalGait
+  TacticalGait ..> StanceRequest : sets the moving stance
+  CarKinematicsSystem ..> LogicalStance
+  CarKinematicsSystem ..> StanceSpeed
+  FindSafeRetreatPoint *-- ThreatExposureTest
+  FindCoverFromTarget *-- ThreatExposureTest
+```
+*What the picture shows: no new mover and no new stance rule — the speed cap joins the readers of the ONE logical stance (hit
+model, fire chain, perception, now the mover), and the gait choice sits in the ONE move every library node already uses.*
+
+```mermaid
+sequenceDiagram
+  participant N as library node (TakeCover / FallBack / Flank / PeekAndFire / Advance)
+  participant M as LocomotionMoveTo.Issue
+  participant G as TacticalGait
+  participant S as StanceIntent
+  participant K as CarKinematicsSystem (Muscle)
+  N->>M: Issue(dest, speed, gait = Tactical)
+  M->>G: StanceFor(self, Tactical)
+  G-->>M: Crouched if threatened (remembers a contact, or hit / near-missed in the last 10 s), else Standing
+  M->>S: StanceRequest.Set(stance, 0.3 s)
+  M->>M: write MoveTo on the locomotion channel (unchanged)
+  K->>K: cap = MaxSpeedFwd × Factor(LogicalStance) — 6 × 0.5 = 3 m/s crouched
+```
+
+| item | decision | basis |
+|---|---|---|
+| **A — the cap** | soldiers, insurgents, grenadiers, civilians: `MaxSpeedFwd` 2 → **6 m/s** (a sprint), `MaxAccel` 1 → **2.5**; mortar team 1.5 → **4**; the generic `Pedestrian` preset follows (6 / 2.5) | §4 A: *"threatened civilians can run fast"*. Speed passes through unchanged and 0 = stop (`MoveToExecutor.cs:53`), so only asks above 2 m/s change |
+| **B — stance caps speed** | `StanceSpeed.Factor` = Standing 1.0 · Crouched 0.5 · Prone 0.2, applied to a pedestrian's cap from its LOGICAL stance | ✅ the ratios are Nav design §11's (*"default ratios: Standing=1.0, Crouched=0.5, Prone=0.2"*); the logical stance is Buildings §3f's one rule (`LogicalStance`), not the animation's `StanceStatus` §11 named |
+| **B — who crouches** | `LocomotionMoveTo.Issue` takes a `MoveGait`: **Tactical** (default for library nodes) = crouched when threatened, upright otherwise; **Crouched** = cautious (the danger-area nodes always pass it); **Upright** = civilians and anything that must not crouch | §4 B: *"whenever they feel threatened or are just cautious"*. "Threatened" reuses what exists: `TargetMemory` holds a contact, or `RecentSenses` Hit/NearMiss within 10 s |
+| **C — hide from all** | `ThreatExposureTest.Weight` 1 → **3** in `FindSafeRetreatPoint` and `FindCoverFromTarget`: hidden-from-every-known-threat now outweighs distance + path cost (each ≤ 1) | §4 C. ⭐ the open-ground answer comes free: the test is a SCORE, so with no point hidden from all the least-exposed wins and the unit never freezes. The hard filter (hidden from the top threat) stays |
+
+⚠ **Not in this build:** a per-type ratio in the TKB (§11 says "TKB-configurable"; the defaults serve every type today) · a scenario-level "cautious" mode (the danger-area nodes are the cautious moves that exist) · counting remembered-but-unseen contacts in the exposure test (it counts `Acquired` only — re-measure on `CE3094` first).
 

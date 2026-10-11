@@ -1094,6 +1094,53 @@ came back to CGF; when the hostiles died the stand-up v2 made the same round tri
 world). ② the wire — `AnimationReplicationModule` on CGF (Brain) and SimHost (Muscle), live on `--mode all`. Owned by `CE-3010` for the
 rest of the animation pipeline (montages, look-at), which stays out of scope here.
 
+### 3.3h `CE-3160` (R-266) — CombatPosture becomes a C#-built tree; its JSON, HSM and blueprint copies go *(backend, `2026-10-11`; build-state: READY-TO-BUILD)*
+
+🔒 *"TakeCove drift: drop the btree ans hsm versions, keep the demo on the btree implemented in csharp."* (R-266) — with R-258 (the
+blueprint and HSM copies go) this leaves ONE CombatPosture: a `[BTreeDefinition]` in C#, the form R-223 already uses for `WindowDuel`,
+`MoveToLocation`, `FireAtPoint`.
+
+```mermaid
+classDiagram
+  class CombatPostureBehavior { <<NEW, Hrot.AI.Behaviors>> +BuildTree() [BTreeDefinition CombatPosture] +Resolve(dto, ref block) [BehaviorResolver] }
+  class CombatPostureBlackboard { <<NEW struct>> Choose · Choice · Sensors · Approach · ApproachChoice · ApproachSensors · Advance · Peek · Engage · Fallback · Flank · Firing · IsX option ids · one working-state field per node }
+  class CombatPostureParamsJsonDto { <<NEW, Hrot.Core>> [BehaviorContract Infantry] advance: Objective · Speed · ArrivalRadius · CooldownSeconds }
+  class UtilityNodes { <<existing>> ChooseOption · IsOption }
+  class PostureNodes { <<existing>> PostureSensors · ApproachSensors · AdvanceAndAttack · Engage · HoldProne · Hold }
+  class EqsTacticsNodes { <<existing>> Flank · FiringPosition · FallBack }
+  class PeekAndFireNodes { <<existing>> PeekAndFire }
+  class CombatPosture_btree_json { <<DELETED>> }
+  class CombatPostureHsm_hsm_json { <<DELETED>> }
+  class CombatPostureBp_bp_json { <<DELETED, with its Posture* wrapper trees>> }
+  CombatPostureBehavior *-- CombatPostureBlackboard
+  CombatPostureBehavior ..> CombatPostureParamsJsonDto : resolves
+  CombatPostureBehavior ..> UtilityNodes
+  CombatPostureBehavior ..> PostureNodes
+  CombatPostureBehavior ..> EqsTacticsNodes
+  CombatPostureBehavior ..> PeekAndFireNodes
+```
+*What the picture shows: no node changes — the C# tree binds the SAME shared nodes the JSON tree bound (R-174), so the port changes
+the FORM and nothing the soldier does; what is deleted is every second and third copy.*
+
+```mermaid
+sequenceDiagram
+  participant A as author / scenario
+  participant I as BehaviorIngressSystem
+  participant R as CombatPostureBehavior.Resolve
+  participant T as the C# tree (Parallel RequireOne)
+  A->>I: AssignBehavior("CombatPosture", {"advance":{Objective, Speed, ArrivalRadius, CooldownSeconds}})
+  I->>R: the DTO + the block
+  R->>R: every default the JSON tree's blackboard carried (decisions, option ids, radii, speeds) + the advance
+  I->>T: tick: ChooseOption · PostureSensors · ChooseOption(approach) · ApproachSensors · ObserverSelector(run the winner)
+```
+
+| item | decision | why |
+|---|---|---|
+| topology | node for node the §3.3b/§3.3e/§3.3f tree: Parallel(RequireOne) of the two choosers, the two sensor nodes and an ObserverSelector over Advance(→ approach ObserverSelector: Flank · FiringPosition · Direct) · TakeCover(PeekAndFire) · Suppress · FallBack · HoldProne · Hold | the behaviour is unchanged; the rails that pinned it keep pinning it |
+| params | the contract keeps the shape every scenario already writes — `{"advance":{…}}` — so no scenario changes; every other value is a resolver default equal to the JSON blackboard's | the palette gets a param form (L4) without breaking the seven `ua-*` scenarios |
+| the demo | `ua-three-hosts` keeps running — all three soldiers on the C# CombatPosture | R-266 *"keep the demo on the btree implemented in csharp"* |
+| the "same decisions" rail (`CE3082`) | retired with the HSM it compared against; the BTree's own decision rails stay | ⛔ nothing left to compare |
+
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 
 > 🔒 **User, `2026-10-04`:** *"Standing orders sound good."* (the name for what the corpus calls the DOCTRINE — rename

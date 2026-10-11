@@ -476,7 +476,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.PeekStance = peekStance ?? StanceId.Standing;
             ws.Stepping = 1;
             ws.Counted = 0;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, peek, p.RelocateSpeed, ArrivalRadius) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, peek, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep) ? 1 : 0);   // AQ88: the side-step keeps this node's own stance
             ws.Phase = PeekPhase.Expose;
         }
 
@@ -645,7 +645,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.PeekIsStep == 1 && Vector3.Distance(ws.PeekPoint, ws.HidePoint) > ArrivalRadius)
             {
                 StanceRequest.Set(world, self, ws.HideStance, StanceBlendSeconds);
-                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.RelocateSpeed, ArrivalRadius) ? 1 : 0);
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep) ? 1 : 0);   // AQ88: the step back keeps the hide stance just set
                 ws.Phase = PeekPhase.Recover;
                 return;
             }

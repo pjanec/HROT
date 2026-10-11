@@ -33,6 +33,10 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <summary>A test over an explicit sight source (tests, host-specific sight).</summary>
         public ThreatExposureTest(ILosService los) => _los = los;
 
+        /// <summary>⭐ <c>AQ88</c> C (R-265) — the weight the cover and retreat templates give hiding from ALL threats: above the sum of
+        /// their other scores (distance ≤ 1, path cost ≤ 1), so a point hidden from everyone wins over a nearer one seen by someone.</summary>
+        public const float HideFromAllWeight = 3f;
+
         /// <summary>The score a fully hidden candidate gains. Default 1.</summary>
         public float Weight { get; set; } = 1f;
 

@@ -507,6 +507,34 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐ <c>AQ88</c> A/B (R-265) — a PERSON can run, and his stance caps how fast: asked 5 m/s on a path, the pedestrian preset
+        /// (a 6 m/s sprint) runs ≈ 5 upright, 3 crouched (× 0.5) and 1.2 prone (× 0.2) — Nav §11's ratios on the LOGICAL stance.
+        /// 🔴 Red before: the preset capped every person at 2.0 m/s, and the stance changed nothing.
+        /// </summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, 5.0f)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, 3.0f)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.StanceId.Prone,    1.2f)]
+        public void AQ88_APerson_Runs_AndHisStanceCapsHowFast(Fdp.Toolkit.Tkb.Domain.StanceId stance, float expected)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            repo.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            repo.AddComponent(e, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = stance });
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float top = 0f;
+            for (int i = 0; i < 8 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                top = MathF.Max(top, repo.GetComponent<VehicleState>(e).Speed);
+            }
+            Assert.InRange(top, expected - 0.25f, expected + 0.05f);
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2059</c> — a vehicle on a one-shot path brakes on the approach and comes to rest within the arrival radius of
         /// the path's end — the same standard as Direct mode's rail above (the speed controller's lag is the residue).
         /// 🔴 Red before: it commanded 0 only at the end and rolled on (measured live 11 m past the end node).
