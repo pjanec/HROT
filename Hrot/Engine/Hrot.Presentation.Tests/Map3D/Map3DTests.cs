@@ -608,6 +608,145 @@ public sealed class Map3DTests
         Assert.Equal(0x2E4057AAu, EntityAppearance.FromHex("#2E4057AA").ColorRgba);   // #RRGGBBAA keeps its alpha
     }
 
+    // ── S5 — the scenario's camera entity (§3.12, R-260) ──
+
+    private static (Fdp.Toolkit.Vis2D.MapCanvas Canvas, MapViewSwitch Switch, MapCamera Two) Map(Vector2 centre, float zoom, Func<float, float, float>? ground = null)
+    {
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var two = Camera2D(centre, zoom);
+        canvas.Camera = two;
+        var sw = new MapViewSwitch(canvas, two, new MapCamera3D { ViewportOverride = Viewport, GroundHeight = ground });
+        return (canvas, sw, two);
+    }
+
+    private static EntityRepository CameraWorld()
+    {
+        var w = new EntityRepository();
+        w.RegisterComponent<SimTransform>();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        return w;
+    }
+
+    private static Entity SaveCamera(EntityRepository w, CameraPose pose)
+    {
+        var e = w.CreateEntity();
+        w.AddComponent(e, Hrot.UI.Common.Map3D.MapCameraPose.ToTransform(pose));
+        w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Core.Tkb.MapCameraTkb.Type });
+        return e;
+    }
+
+    private static void AssertPose(CameraPose expected, CameraPose actual)
+    {
+        Assert.InRange(Vector3.Distance(expected.LookAt, actual.LookAt), 0f, 0.05f);
+        Assert.InRange(MathF.Abs(expected.Distance - actual.Distance), 0f, 0.05f);
+        Assert.InRange(MathF.Abs(MathF.IEEERemainder(expected.Yaw - actual.Yaw, 2f * MathF.PI)), 0f, 1e-3f);
+        Assert.InRange(MathF.Abs(expected.Pitch - actual.Pitch), 0f, 1e-3f);
+    }
+
+    [Fact]
+    public void S5_ThePose_RoundTripsThroughAnOrdinarySimTransform_OnASlope_AndOverhead()
+    {
+        // R-248: never flat — the look-at sits on a slope rising half a metre per metre east
+        Func<float, float, float> slope = (x, y) => 0.5f * x;
+        var tilted = new CameraPose(new Vector3(100f, 40f, 50f), 220f, 0.7f, -0.6f);
+        var tf = Hrot.UI.Common.Map3D.MapCameraPose.ToTransform(tilted);
+        AssertPose(tilted, Hrot.UI.Common.Map3D.MapCameraPose.FromTransform(tf, slope));
+        Assert.True(tf.Position.Z > 50f, "the position is the EYE, above the look-at");
+
+        var overhead = new CameraPose(new Vector3(-30f, 12f, -15f), 900f, MapCamera3D.NorthUpYaw, MapCamera3D.OverheadPitch);
+        var back = Hrot.UI.Common.Map3D.MapCameraPose.FromTransform(Hrot.UI.Common.Map3D.MapCameraPose.ToTransform(overhead), slope);
+        AssertPose(overhead, back);
+        Assert.True(MapViewSwitch.IsTwoDPose(back), "straight down, north up = the 2-D map");
+        Assert.False(MapViewSwitch.IsTwoDPose(tilted));
+    }
+
+    [Fact]
+    public void S5_TheSavedView_IsAdoptedWhenTheScenarioOpens_In3D_OrIn2D_ByItsPitch()
+    {
+        using var w = CameraWorld();
+        var saved3D = new CameraPose(new Vector3(500f, 200f, 0f), 350f, 1.1f, -0.5f);
+        SaveCamera(w, saved3D);
+        var (canvas, sw, _) = Map(Vector2.Zero, 1f);
+        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w, Hrot.UI.Common.Map3D.MapCameraOwnership.AdoptOnly);
+
+        layer.Update(0.016f);
+
+        Assert.True(layer.Adopted);
+        Assert.True(sw.Is3D);
+        AssertPose(saved3D, sw.Camera3D.Pose);
+
+        using var w2 = CameraWorld();
+        SaveCamera(w2, new CameraPose(new Vector3(-80f, 60f, 0f), 400f, MapCamera3D.NorthUpYaw, MapCamera3D.OverheadPitch));
+        var (canvas2, sw2, two2) = Map(new Vector2(900f, 900f), 3f);
+        new Hrot.UI.Common.Map3D.MapCameraLayer(sw2, () => w2, Hrot.UI.Common.Map3D.MapCameraOwnership.AdoptOnly).Update(0.016f);
+        Assert.False(sw2.Is3D);
+        Assert.Same(two2, canvas2.Camera);
+        Assert.InRange(Vector2.Distance(two2.ScreenToWorld(Viewport / 2f), new Vector2(-80f, 60f)), 0f, 0.1f);
+    }
+
+    [Fact]
+    public void S5_ASavingHost_CreatesTheCameraOnTheFirstMove_KeepsItsPose_AndItIsSavedInTheScenario()
+    {
+        using var w = CameraWorld();
+        var (_, sw, two) = Map(new Vector2(10f, 20f), 2f);
+        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w, Hrot.UI.Common.Map3D.MapCameraOwnership.SavesScenario);
+        layer.Update(0.016f);                                  // the baseline
+        Assert.Null(layer.Camera);
+
+        two.ApplyCameraView(new MapCameraView { Target = new Vector2(300f, 400f), Zoom = 2f, SmoothTarget = new Vector2(300f, 400f), SmoothZoom = 2f });
+        layer.Update(0.016f);                                  // a move …
+        Assert.Null(layer.Camera);                             // … not written while the view is still changing
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);     // still for > SettleSeconds
+        var cam = Assert.IsType<Entity>(layer.Camera);
+        Assert.Equal(Hrot.Core.Tkb.MapCameraTkb.Type, w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(cam).TkbType);
+        AssertPose(sw.CurrentPose, Hrot.UI.Common.Map3D.MapCameraPose.FromTransform(w.GetComponentRO<SimTransform>(cam), null));
+
+        sw.Set(true, animate: false);                          // switching to 3-D is a camera move too
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);
+        var kept = Hrot.UI.Common.Map3D.MapCameraPose.FromTransform(w.GetComponentRO<SimTransform>(cam), null);
+        Assert.False(MapViewSwitch.IsTwoDPose(kept));
+        Assert.Equal(1, w.EntityCount);                        // one camera, moved — never a second one
+
+        var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.Editor").Build();
+        string json = serializer.Serialize(w, new Fdp.Toolkit.Scenario.ScenarioHeader("Hrot.Editor")).ToJsonString();
+        Assert.Contains("\"SimTransform\"", json);             // the camera is an ordinary saved entity (U7)
+    }
+
+    [Fact]
+    public void S5_AnAdoptOnlyHost_NeverCreatesACamera_AndAViewTheUserAlreadyMovedIsNotTakenOver()
+    {
+        using var w = CameraWorld();
+        var (_, sw, two) = Map(Vector2.Zero, 1f);
+        var ig = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w, Hrot.UI.Common.Map3D.MapCameraOwnership.AdoptOnly);
+        ig.Update(0.016f);
+        two.ApplyCameraView(new MapCameraView { Target = new Vector2(50f, 50f), Zoom = 1f, SmoothTarget = new Vector2(50f, 50f), SmoothZoom = 1f });
+        for (int i = 0; i < 40; i++) ig.Update(0.016f);
+        Assert.Equal(0, w.EntityCount);                        // R-140: IG never makes a saved entity
+
+        SaveCamera(w, new CameraPose(new Vector3(999f, 999f, 0f), 300f, 0.3f, -0.4f));   // arrives after the user moved
+        for (int i = 0; i < 40; i++) ig.Update(0.016f);
+        Assert.False(sw.Is3D);
+        Assert.False(ig.Adopted);
+    }
+
+    [Fact]
+    public void S5_TheCameraIsTheView_NotAThingOnTheMap_NoBody_NoPickBox_NoSymbol()
+    {
+        var bodies = new EntityBodyLayer3D(() => null, () => null);
+        Assert.Equal(VisualFamily.Unit, bodies.LookOf(Hrot.Core.Tkb.MapCameraTkb.Type, null).Family);   // no body, not pickable
+
+        using var w = CameraWorld();
+        var cam = SaveCamera(w, new CameraPose(Vector3.Zero, 300f, 0.3f, -0.4f));
+        w.AddComponent(cam, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4711));   // as it comes back from a load
+        var draw = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        new Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo().Draw(w, cam, draw);
+        Assert.Equal(0, draw.GetFrame().Length);
+
+        var tkb = HrotEnvironment.CreateTkb();
+        Assert.True(tkb.TryGetByType(Hrot.Core.Tkb.MapCameraTkb.Type, out var t) && t!.GetDescriptor<TkbMasterDto>()!.HideFromPalette);
+    }
+
     // ── CE-1040 — the 2-D map is north-up (docs/DESIGN_Map_North_Up.md) ──
 
     [Fact]

@@ -69,6 +69,34 @@ namespace Fdp.Toolkit.Vis3D
             }
         }
 
+        /// <summary>⭐ CE-1033 S5 — the pose the map shows now: the 3-D camera's, or in 2-D the overhead pose matching the 2-D view.</summary>
+        public CameraPose CurrentPose => Is3D ? Camera3D.Pose : Camera3D.OverheadMatching(_camera2D);
+
+        /// <summary>True when <paramref name="pose"/> is what the 2-D map shows: straight down, north up (M10: <i>"the 2-D map is simply
+        /// that camera at pitch −90°"</i>).</summary>
+        public static bool IsTwoDPose(CameraPose pose)
+        {
+            float dy = MathF.IEEERemainder(pose.Yaw - MapCamera3D.NorthUpYaw, 2f * MathF.PI);
+            return MathF.Abs(pose.Pitch - MapCamera3D.OverheadPitch) < 0.01f && MathF.Abs(dy) < 0.01f;
+        }
+
+        /// <summary>⭐ CE-1033 S5 — show <paramref name="pose"/> at once, in 3-D or (when it is a 2-D pose) in 2-D: a saved view
+        /// restored. Ignored while a switch animates.</summary>
+        public void ShowPose(CameraPose pose)
+        {
+            if (_toggling) return;
+            Camera3D.Pose = pose;
+            if (IsTwoDPose(pose))
+            {
+                MatchTwoD();
+                _canvas.Camera = _camera2D;
+            }
+            else
+            {
+                _canvas.Camera = Camera3D;
+            }
+        }
+
         /// <summary>The 2-D camera at the 3-D camera's centre and metres per pixel.</summary>
         private void MatchTwoD()
         {

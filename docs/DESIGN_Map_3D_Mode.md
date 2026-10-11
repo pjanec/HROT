@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 RULED (§3.12, U29) — building. ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260). ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -769,7 +769,7 @@ It adopts the camera entity's pose and mode once when the scenario opens (`MapCa
 | **S3b** | ⭐ **realism effects** — muzzle fire, explosions, impact decals as temporary TKB-typed entities with two map layers, on every host: [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) slices E1–E4 | U27, U28 |
 | **S3c** | ⭐ **the articulated turret, live** — the turret part + `TurretPose` (M23), the weapon-side slew (M24), the TKB turret descriptor (M25), the sensor-style multi-instance descriptor (M26); the map plugs `poseOf` | §3.11, R-255 |
 | **S4** ✅ *(§6f)* | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
-| **S5** *(§3.12, ruled U29)* | camera entity — ONE per scenario, owned by the saving node, the eye in `SimTransform`, the mode from the pitch; map hosts adopt it on open and request moves | V-12..V-15 |
+| **S5** ✅ *(§6i, ruled U29)* | camera entity — ONE per scenario, owned by the saving node, the eye in `SimTransform`, the mode from the pitch; map hosts adopt it on open and request moves | V-12..V-15 |
 | **S5b** ✅ *(§6g)* | **the card**: `CoordinateSpace.EntityCard`; `EntityCardRenderer` (rows by `ZIndex`, row 0 card-wide, `%` of the card, leader line) in 2-D and 3-D; `CardBuilder` sugar; `EntityCardFrameGizmo` + one side palette (M16); `HealthBarGizmo` re-targeted to a bar row; `EntityNameGizmo`; `EntityEditorLabelGizmo` rows moved in; a "Labels" layer default | U19, U20 |
 | **S5c** 🟡 *(§6h)* | **entity colour**: `EntityAppearance` per M15 — local part BUILT; descriptor arm + `"Color"` attribute = backend (`CE-1047`) | U19 colour |
 | ~~**S6**~~ | ⛔ **withdrawn `2026-10-10` (U25)** — every host gets 3-D from the shared attach; see §6b | V-01, V-18 (IG) — met by §6b |
@@ -1112,6 +1112,61 @@ parent's colour. · The 2-D map does not use it: 2-D tints by side (M16). · ⚠
 and is still saved into scenarios (`scenarios/hill-attack/scenario.json:117-122`), which conflicts with R-136 §3 ②. So a
 reloaded `VisualData.ColorHex` can be stale, and that is why the colour reads `EntityAppearance` first.
 **Gates:** `Map3DTests.S5c_*` (stamp-if-absent + per-spawn wins + always stamped · the colour order · the scenario round trip).
+
+### 6i. S5 — AS-BUILT `2026-10-11` (the scenario's camera entity, R-260)
+
+```mermaid
+classDiagram
+  class MapCameraTkb { <<new, Hrot.Core>> Type = 7201, hidden from the palette }
+  class MapCameraPose { <<new>> ToTransform(CameraPose) SimTransform; FromTransform(tf, ground) CameraPose }
+  class MapCameraLayer { <<new, a map layer>> adopt on open; SavesScenario: create on first move, write when still 0.5 s }
+  class MapCameraOwnership { <<new enum>> AdoptOnly, SavesScenario }
+  class MapViewSwitch { <<exists>> + CurrentPose; ShowPose(pose); IsTwoDPose(pose) }
+  class MapInteractionPack { <<exists>> AttachMapLayers(+ cameraOwnership, REQUIRED) }
+  class EntityBodyLayer3D { <<exists>> + no body for the camera type }
+  class EntityPresentationGizmo { <<exists>> + no symbol for the camera type }
+  MapInteractionPack ..> MapCameraLayer : adds on every host
+  MapCameraLayer --> MapViewSwitch
+  MapCameraLayer ..> MapCameraPose
+  MapCameraLayer ..> MapCameraTkb
+  MapCameraLayer ..> MapCameraOwnership
+```
+
+```mermaid
+sequenceDiagram
+  participant U as user
+  participant L as MapCameraLayer (saving host)
+  participant S as MapViewSwitch
+  participant W as world
+  participant F as scenario file
+  U->>S: pans / zooms / switches 2-D-3-D
+  L->>S: CurrentPose each frame
+  Note over L: changed, then still for 0.5 s
+  L->>W: first time CreateEntity + SimTransform(eye, yaw-pitch) + TkbIdentity 7201, later write SimTransform
+  W->>F: saved like any owned entity (U7)
+  F->>W: reload, re-spawned like any entity
+  L->>S: camera appears and the user has not moved, so ShowPose (2-D if straight down, north up)
+```
+
+*What the pictures show that prose hid:* the camera needs NO save or load code — it is saved and re-spawned as any entity, and
+the only new decision a host makes is the REQUIRED `cameraOwnership` argument, so no host can silently skip the choice.
+
+| built | where |
+|---|---|
+| the camera TKB type (7201, `HideFromPalette`), registered in `HrotEnvironment.CreateTkb` | `Hrot.Core/Tkb/MapCameraTkb.cs` |
+| the pose in an ordinary `SimTransform`: position = the EYE, rotation turns +X onto the view direction (+Z = camera up); the look-at and distance come back by casting the view ray onto the ground (bracket + bisect on relief, R-248); looking level or up falls back to 300 m | `Map3D/MapCameraLayer.cs` (`MapCameraPose`) |
+| `MapCameraLayer` on EVERY map host: adopts the scenario's camera when it appears and the user has not moved the map since the world was emptied (a load / New); a saving host creates it on the first move and writes its pose after 0.5 s of stillness; the lowest network id wins if two exist | same file, `MapInteractionPack.AttachMapLayers` |
+| who owns it: Editor and CGF `SavesScenario`; IG (R-140), SimHost, ReplayBrowser `AdoptOnly` — pinned by a source rail | the five hosts' `AttachMapLayers` calls |
+| `MapViewSwitch.CurrentPose` / `ShowPose` / `IsTwoDPose` — the 2-D map is the pose straight down, north up (M10) | `Vis3D/MapViewSwitch.cs` |
+| never drawn or picked: no 3-D body, no 2-D symbol / anchor / pick box | `EntityBodyLayer3D.LookOf`, `EntityPresentationGizmo.Draw` |
+
+⚠ **Left, named:** a host that does not OWN the camera does not move it — a change request would need a pitch path the
+attribute vocabulary lacks (geodetic position + heading only); folded into [`CE-1047`](blueprints/Blueprint_Issues_Tracker.md).
+In a cluster the Brain owns the reloaded camera, so the Editor's own moves are not saved there until that lands. · Moves during
+Live/Preview are written too (the camera is the view, not simulation state). · Field of view stays a viewer setting (D7).
+**Gates:** `Map3DTests.S5_*` (5: pose round trip on a slope and overhead · adopt in 3-D and in 2-D · create on first move,
+keep, saved · adopt-only never creates and does not take over a moved view · no body, no symbol, hidden type) ·
+`EveryMapHostAttachesTheSharedLayersTests` (no host builds its own camera layer; only Editor / CGF own it).
 
 ## 7. NOT VERIFIED — say so before it is built on
 

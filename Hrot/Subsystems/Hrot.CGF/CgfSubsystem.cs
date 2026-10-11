@@ -1742,7 +1742,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //      must PASS it. Every other host does.
             // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
             _cgfGizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _canvas, _cgfGizmoBuffer, _cgfInteractionBus!, () => _context.World).GizmoLayer;
+                _canvas, _cgfGizmoBuffer, _cgfInteractionBus!, () => _context.World,
+                Hrot.UI.Common.Map3D.MapCameraOwnership.SavesScenario).GizmoLayer;   // ⭐ S5 — the Brain saves the scenario (R-260)
 
             // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
 

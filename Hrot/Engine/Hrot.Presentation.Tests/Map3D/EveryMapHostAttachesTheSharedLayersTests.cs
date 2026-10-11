@@ -68,10 +68,27 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [InlineData(@"new\s+([\w.]+\.)?EntityBodyLayer3D\(")]
     [InlineData(@"new\s+(Fdp\.Toolkit\.Vis3D\.)?MapViewSwitch\(")]
     [InlineData(@"new\s+([\w.]+\.)?MapViewModeLayer\(")]
+    [InlineData(@"new\s+([\w.]+\.)?MapCameraLayer\(")]
     public void NoHostBuildsAMapLayerOfItsOwn(string pattern)
     {
         var re = new Regex(pattern);
         var offenders = ProductionFiles().Where(f => f.Rel != PackFile && re.IsMatch(f.Text)).Select(f => f.Rel).ToList();
         Assert.True(offenders.Count == 0, $"built outside MapInteractionPack ({pattern}): " + string.Join(", ", offenders));
+    }
+
+    /// <summary>⭐ CE-1033 S5 (R-260, R-140) — the camera entity is created only by a host that SAVES the scenario: the Editor and
+    /// the CGF (the Brain); IG — a passive, non-persisting node — and the others only adopt the saved view.</summary>
+    [Fact]
+    public void S5_OnlyTheSavingHosts_OwnTheMapCamera()
+    {
+        var calls = ProductionFiles().Where(f => f.Text.Contains("MapInteractionPack.AttachMapLayers(")).ToList();
+        string Of(string host) => string.Join("\n", calls.Where(f => f.Rel.StartsWith(host)).Select(f => f.Text));
+        Assert.Contains("MapCameraOwnership.SavesScenario", Of("Hrot/Subsystems/Hrot.Editor/"));
+        Assert.Contains("MapCameraOwnership.SavesScenario", Of("Hrot/Subsystems/Hrot.CGF/"));
+        foreach (var host in new[] { "Hrot/Subsystems/Hrot.IG/", "Hrot/Subsystems/Hrot.SimHost/", "Hrot/Subsystems/Hrot.ReplayBrowser/" })
+        {
+            Assert.Contains("MapCameraOwnership.AdoptOnly", Of(host));
+            Assert.DoesNotContain("MapCameraOwnership.SavesScenario", Of(host));
+        }
     }
 }

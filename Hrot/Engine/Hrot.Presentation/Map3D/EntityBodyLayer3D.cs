@@ -246,7 +246,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (_looks.TryGetValue(tkbType, out var look)) return look;
         // ⭐ CE-1042 — an EFFECT type (muzzle flash, explosion, decal, tracer) has no body: the effect layer draws it. Checked by
         //   the catalog too, so a host with no TKB (the replay browser) does not draw a recorded effect as an unknown box.
-        if (Hrot.Core.Tkb.EffectTkbCatalog.BuiltIn.ContainsKey(tkbType))
+        // ⭐ CE-1033 S5 — nor has the map CAMERA entity (R-260): it is the view, not a thing in it.
+        if (Hrot.Core.Tkb.EffectTkbCatalog.BuiltIn.ContainsKey(tkbType) || Hrot.Core.Tkb.MapCameraTkb.Is(tkbType))
             return _looks[tkbType] = new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         look = Resolve(tkb != null && tkb.TryGetByType(tkbType, out var t) ? t : null);
         _looks[tkbType] = look;

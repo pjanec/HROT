@@ -93,6 +93,10 @@ namespace Hrot.ScenarioEditor.Gizmos
             //   the frame the id exists. 📌 Prior art: ContextMenuProjectorGizmo.cs:102.
             if (networkId == 0) return;
 
+            // ⭐ CE-1033 S5 (R-260) — the map CAMERA entity is the view, not a thing on the map: no symbol, no anchor, no pick box.
+            if (view.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity)
+                && Hrot.Core.Tkb.MapCameraTkb.Is(view.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity).TkbType)) return;
+
             // ⭐ SimTransform is the single source on every host. CGF's copy preferred NetworkTransform on
             // the grounds that it is "fresher on a host that does not own the entity" — measured false:
             // GeoSpatialIngressTranslator writes BOTH from the same packet in the same call (:75, :89), so
