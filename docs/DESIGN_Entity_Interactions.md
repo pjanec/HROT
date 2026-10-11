@@ -2,11 +2,12 @@
 state: LIVE
 updated: 2026-10-08 (I-1 as built; §7 split off to CE-3110 by the user)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.1 embarkation measured status + build plan (2026-10-11) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §5 the measured state of embark/disembark (2026-10-11) and why the squad dismount (S3) needs I-2a/I-2b first
   - docs/DESIGN_Building_Interiors.md §3j "5d" — OWNS doors (DoorRules, the door actions, DoorCommandSystem); doors are this design's first kind
   - docs/designs/edit-1/DESIGN.md §3.A — OWNS the typed FDP domain commands EmbarkEntityCommand / DisembarkEntityCommand; this design carries such commands to the owner
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS who owns what (descriptor claims, F-10 edit requests to the owner); a handler's gate is that design's descriptor ownership
@@ -220,3 +221,51 @@ before I-2b is built.
 |---|---|
 | **I-2a** *(single node correct; no new replication)* | `Embarkation` rules · `EmbarkationSystem` + `EjectPassengersCommand` · `EmbarkExecutor`/`EjectPassengersExecutor` raise commands · `EditorCargoSystem` retired · genesis calls the rules · `IsRemote` on the two existing commands · both kinds registered with the interaction transport |
 | **I-2b** *(across nodes, after Q-1)* | `PassengerBuffer` descriptor + translators (owner → every node) · the derivation system · the cross-node rail (a soldier on one node boards a vehicle owned by another) |
+
+### 7.1 Measured status and the build plan *(behaviors lane, `2026-10-11`; 🔒 user: "Pls plan for fixing the embark/disembark … Ignore stride host" · "No handoffs to backend")*
+
+| piece | state today *(measured)* | evidence |
+|---|---|---|
+| boarding (`EmbarkExecutor`) | ⛔ constructed only by its unit test — no host registers it, no `ActionId` exists for it | `EmbarkExecutorTests.cs:31` is the only `new EmbarkExecutor` |
+| eject-all (`EjectPassengersExecutor`) | ✅ on CGF + Editor only (`CgfLogicPack.cs:184`); triggered only by the example APC HSM or a Blueprint node | — |
+| per-passenger disembark at runtime | ⛔ none — only the editor's `EditorCargoSystem` (which leaves the soldier where it was) | `EditorCargoSystem.cs:68-88` |
+| replication of the passenger list / tag / capabilities | ⛔ none — a dismount on CGF never reaches SimHost or the viewers | no translator under `Hrot/Network` |
+| what "inside" means | ⛔ only CanMove/CanShoot stripped: the passenger stays where it boarded, is not carried, not hidden, still targetable and sensed | no reader of `IsEmbarkedTag` outside its writers |
+| who reads the capability bits the derivation must set | CGF dispatchers (`LocomotionDispatcherSystem`, `WeaponDispatcherSystem`, `InteractionDispatcherSystem`, `CognitiveInterruptSystem`) **and** SimHost animation (`StanceTransitionSystem`, `AnimationDispatcherSystem`, `LookAtDispatcherSystem`) | grep `ActorCapabilityState` ⇒ the derivation runs on BOTH node kinds, before those systems |
+| an AI way to ask | ⛔ no BTree node, no library behaviour; capacity is a hard-coded 8, no seats | `InteractionComponents.cs:14` |
+
+| slice | content | acceptance |
+|---|---|---|
+| **I-2a** — one applier, single node | as §7's table (rules class, `EmbarkationSystem` on the vehicle's owner, `EjectPassengersCommand`, executors raise commands, `EditorCargoSystem` retired, genesis calls the rules) **+ an `ActionId` for embark and both executors registered in `CgfLogicPack`** | unit rails on one world: board, refuse when full, disembark one, eject all (CE-321 placement kept — R-137) |
+| **I-2b** — across nodes (Q-1 / R-224) | `PassengerBuffer` descriptor + translators (vehicle owner → every node); a derivation system on CGF and SimHost that sets `IsEmbarkedTag` + the capability bits from the list, ordered before the readers above | cluster rail: a soldier boards on CGF, SimHost sees it inside; eject on CGF, SimHost sees the soldiers beside the hull |
+| **I-2c** — what "inside" means *(✅ ruled 2026-10-11, R-271 — §7.2)* | carried (transform follows the vehicle), hidden from sensing and targeting unless the vehicle is OPEN, dies with the vehicle; the passenger carries its carrier's id itself | rails: a carried passenger moves with the vehicle; nobody sees or shoots an enclosed one; an open one is seen and shot; the vehicle destroyed ⇒ all inside dead |
+| **I-2d** — the AI can ask | library nodes `Embark(vehicle)` / `Disembark` (raise the commands) and a commander-level `Dismount` drill for the squad (S3 of `DESIGN_Squad_Tactics.md`) | the convoy-ambush slice (catalogue P1) |
+
+⭐ Order: I-2a → I-2b → I-2c → I-2d. Stride is out of scope (user).
+
+### 7.2 What "inside" means *(✅ ruled `2026-10-11`, R-271 — I-2c)*
+
+🔒 *User: "Accepted the lean of what inside a vehicle mean. If vehicle gets destroyed, all inside die. Passenger needs a flag (carrier entity id,) on itself to be ignored by visibility queries so they do not need to check the passenger list. Some vehicles are open (like a helicopter without side doors), those are not hiding entities from being seen or shot, how to solve those?"*
+
+```mermaid
+graph LR
+  PB["PassengerBuffer on the vehicle (owner-applied, replicated — I-2b)"] --> DER["derivation (every node)"]
+  TKB["vehicle type (TKB): PassengerExposure = Enclosed | Open (NEW)"] --> DER
+  DER --> TAG["passenger: IsEmbarkedTag { VehicleEntity, Exposed } (exists; + Exposed)"]
+  TAG --> CARRY["transform follows the vehicle"]
+  TAG -->|"Exposed = 0 ⇒ skip"| SKIP["VisionBroadphase (visual + hearing) · EntitiesInRadius / EntitiesInArea generators · HitResolution / Ballistics · AreaEffect blast"]
+  VD["vehicle destroyed"] --> DIE["every passenger dies (enclosed or open)"]
+```
+
+*What the picture shows that prose hid: the passenger answers "am I hidden?" from ITS OWN tag — the five systems that decide
+"can this unit be seen, targeted or hit" (measured: `VisionBroadphase` serves both the visual and the acoustic sensor;
+`EntitiesInRadiusGenerator`, `EntitiesInAreaGenerator`, `HitResolutionSystem`/`BallisticsSystem`, `AreaEffectSystem`) each skip
+a tag with `Exposed = 0` and never read a passenger list.*
+
+| decision | ⭐ lean / ruling | why |
+|---|---|---|
+| the passenger's own flag | ✅ ruled: the existing `IsEmbarkedTag { VehicleEntity }` IS that flag; it gains `Exposed` | already on the passenger, already carries the carrier's id |
+| **open vehicles** *(lean)* | ⭐ a vehicle-type TKB field `PassengerExposure` (`Enclosed` default, `Open` for a door-less helicopter, a pickup bed, a motorcycle); the derivation copies it into the tag. `Exposed = 1` ⇒ carried but seen, targeted and hit like anyone | one per-type fact, read once at boarding; no per-query cost |
+| may an exposed passenger fire? *(lean)* | ⛔ not in I-2c: CanShoot stays stripped; a later `PassengersMayFire` type field (door gunners) | keeps I-2c small; firing from a moving platform needs its own aim model |
+| vehicle destroyed | ✅ ruled: every passenger dies, enclosed or open | — |
+| finer than per vehicle *(later)* | per-seat exposure (a gunner's hatch open, the cabin closed) once seats exist | rejected now: there are no seats (capacity is a fixed 8) |

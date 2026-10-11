@@ -8,6 +8,7 @@ known-rot: §3.3c/§3.3d HSM + blueprint posture PARITY is SUPERSEDED for the li
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad-level react-to-contact (§4): a commander SOP on squad-level sensor edges, using this file's slots and gate unchanged
   - docs/blueprints/Architect_Question_89_Suppress_And_Close.md — AQ89 (R-269): what §3.3's Suppress branch DOES at a hidden target (blind fire; a willing grenadier closes to throw)
   - REVIEW_Behaviour_Library_Genericity.md — L2 (TakeCover child = generalised PeekAndFire) and L6 (host parity: library vs three-host demo).
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the utility demo scenarios (U1–U7) that exercise §3.3 live over HTTP, and the measured findings F1–F9 (F1: ThreatRanking scores every contact 0 — DistanceToContext reads an unregistered component).

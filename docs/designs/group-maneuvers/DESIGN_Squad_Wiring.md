@@ -6,6 +6,7 @@ current-answer: §6 (CE-507 D2 (a): the commander behaviour, READY-TO-BUILD) · 
 stale-below: none
 known-rot: Squad_Coordination_Design_v1_1.md and Hrot.SquadCoordination.md describe the layer as "fully implemented" — true of the code, never of its use (§1)
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the generic runner §6 here is generalised into, suppress-and-manoeuvre and react to contact
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS which squad operations need this (SQD-1..14, P1 convoy ambush); §6 here is its first squad execution
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the fire-distribution (U6) and squad-maneuver (U7) demo scenarios; its §2.2 F4–F6 are measured wiring defects for D3/W6.
   - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — owns WHAT the squad layer is (primitives, maneuvers, authority-by-weight); this doc owns only WHERE it runs

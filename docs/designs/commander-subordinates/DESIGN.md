@@ -6,6 +6,7 @@ owns-beyond-its-title: ⭐ §7.2 "Composite-Spawning Update" is one of only thre
   each spawned child, and GenesisMaterializationSystem resolving it once both ends are alive.
   ⚠ A topical search for "child entity" does not reach it.
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §6 measures the FormationController/Follower engine and why infantry squads march by orders instead
   - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE for entity genesis; its §6 routes
     child/composite questions here and to ../cgf-scn/DESIGN.md.
   - ../cgf-scn/DESIGN.md — Decisions 5 + 11 own the child MARKER (PartMetadata), the double-spawn
