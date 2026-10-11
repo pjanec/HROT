@@ -422,6 +422,14 @@ a body-less commander is the clean model and needs nothing new.
 | the drill's own `Wait` (an assault ordered on a heard-only contact) | the reaction treats a drill that has not started as failed and holds until clear | a reaction must not wait for ever on a contact it cannot aim at |
 | — | the flank query code moved into the runner (`AskTerrain`) and is shared by the flank and retreat plays | one implementation (ruling 9) |
 
+📐 **Measured on the live runs — durable facts, not S2 defects:**
+
+| fact | evidence | consequence |
+|---|---|---|
+| `BoundingOverwatch`'s GEOMETRIC bound steps can lead a squad onto a spot no move works from | the first `tt-react-contact` layout (squad 145 m south-west of the enemy): after its bounds all four riflemen stood at z = 9 near (274, 251) and NONE moved for 27 sim-seconds, although the leader's flank query had answered | the S2-F choice (break contact moves only to walkable EQS answers) is right; bounding's own steps share the S1 off-mesh hazard — its fix belongs with the formations/march work (`CE-2124`, §6.1), not here. The scenario now uses the S1 layout, proven walkable live |
+| the cluster harness runs ~150 frames per sim-second | live probe: 500 frames ≈ 3.3 sim-s | a frame budget for a sim-time limit (a 90 s phase timeout) needs ~150 frames per second of it |
+
+
 | rail | proves | red-proof |
 |---|---|---|
 | `SquadCoordinationSystemTests.CE2123_ThePoolCrossingZero_…` · `…_AMemberHitOrShotAt_…` · `…_WithTheGate_…` | the three edges, on the commander, gated | `PoolEdges` call removed ⇒ red |
@@ -432,7 +440,7 @@ a body-less commander is the clean model and needs nothing new.
 | `SquadManeuverTests.CE2123_ReactToContact_…` (3) | hold → assault; outmatched → break contact element by element; no retreat point → hold until clear | — |
 | `SquadManeuverTests.CE2123_ABoundingSquadReactsToContact_ThenResumesItsBound` | pause → react → drill → resume, on the commander | — |
 | `SquadManeuverTests.CE2123_BasicSquadSop_…` | the shipped SOP reacts on a squad edge and is not restarted by the next one | — |
-| `SquadTacticsScenarioTests.CE2123_ABoundingSquadMeetsTheEnemy_…` (cluster, `tt-react-contact`) | live: bound → hold → assault → bound resumes | see the run recorded below |
+| `SquadTacticsScenarioTests.CE2123_ABoundingSquadMeetsTheEnemy_…` (cluster, `tt-react-contact`) | live: bound → hold → assault → bound resumes | ✅ green `2026-10-11` (38 s): drill kinds on the leader went 2 → 7 → 3 → 2, the bound paused under the reaction and resumed after it |
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 
