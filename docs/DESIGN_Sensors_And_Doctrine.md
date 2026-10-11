@@ -588,7 +588,8 @@ classDiagram
   class EqsResultUpdateSystem { <<existing Brain, PRODUCER>> writes EqsCognitiveBuffer +publishes TopChanged (perception sensors only) }
   class ThreatEvaluationSystem { <<existing Brain, PRODUCER>> writes TargetMemory +publishes FirstThreat / AllClear / Hit }
   class SensorChangedEvent { <<BUILT unmanaged bus event, id 4006>> +Entity Unit +Entity Sensor +Entity Target +SensorModality Kind +SensorChange What }
-  class SensorChange { <<BUILT enum>> Acquired Lost TopChanged FirstThreat AllClear Hit }
+  class SensorChange { <<BUILT enum>> Acquired Lost TopChanged FirstThreat AllClear Hit NearMiss · AreaAhead AreaThreatened AreaCleared · SquadContact SquadUnderFire SquadAllClear }
+  class SquadCoordinationSystem { <<existing Brain, PRODUCER since CE-2123 S2>> merges the squad pool +publishes SquadContact / SquadUnderFire / SquadAllClear on the COMMANDER }
   class BuiltInEngineEventCatalog { <<existing, grows>> SensorChangedEvent: target field Unit, filterable What / Kind }
   class SensorHsmEventIds { <<NEW reserved HSM ids, beside MobilityLost>> one id per SensorChange }
   class HsmRunner { <<existing, grows>> MobilityLost bridge +SensorChangedEvent bridge }
@@ -598,6 +599,7 @@ classDiagram
   ActiveSensorTracksUpdateSystem ..> SensorChangedEvent
   EqsResultUpdateSystem ..> SensorChangedEvent
   ThreatEvaluationSystem ..> SensorChangedEvent
+  SquadCoordinationSystem ..> SensorChangedEvent
   SensorChangedEvent --> SensorChange
   BuiltInEngineEventCatalog ..> SensorChangedEvent : names it for When
   HsmRunner ..> SensorChangedEvent : reads, for ctx.Self
@@ -610,6 +612,11 @@ classDiagram
 `HsmRunner`'s bridge (`CE-3040`) is not; `ObserverSelector` (`CE-3041`) is BUILT `2026-10-05` (§7.3a). ⚠ **Deviation:** *Acquired / Lost* come
 from `ActiveSensorTracksUpdateSystem` (it holds the unit's track set), not from `EqsResultUpdateSystem` as first drawn —
 the buffer writer sees one sensor's answer, not the unit's union.
+⭐ **`2026-10-11` (`CE-2123` S2):** three SQUAD kinds, published on the COMMANDER by `SquadCoordinationSystem` after its merge —
+`SquadContact` (pool empty → contact), `SquadUnderFire` (a member's or the leader's own Hit / NearMiss), `SquadAllClear` (pool →
+empty) — so a leader's SOP, `RecentSenses` and HSM events react to the squad as a soldier does to itself (`Unit` is the key).
+`RecentSenses` now records EVERY kind (the area kinds 8–10 had been silently dropped by a byte mask). 📄
+`docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md` §4.
 
 *What the picture shows that prose hid:* ONE producer per fact (the system that already writes it), and each tier
 consumes it the way it already consumes anything — the HSM through the queue that carries MobilityLost today, the

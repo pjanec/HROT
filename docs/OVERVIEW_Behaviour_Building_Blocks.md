@@ -83,7 +83,7 @@ graph LR
   subgraph SOPNODES["SOP authoring"]
     O1["SOP order node<br/>DoWhenIdle / React"]
     C1["Conditions<br/>SensedWithin · SensedFresh · InContact · RoeFire≥ / ≤"]
-    E1["HSM events<br/>Sensor.Acquired · Lost · Hit · NearMiss · AllClear …"]
+    E1["HSM events<br/>Sensor.Acquired · Lost · Hit · NearMiss · AllClear …<br/>Sensor.SquadContact · SquadUnderFire · SquadAllClear (on the leader)"]
   end
 ```
 
@@ -208,6 +208,7 @@ graph TD
   end
   subgraph SOPB["SOP"]
     c1["BasicInfantrySop<br/>Hit→TakeCover · HoldFire contact→FallBack<br/>contact→TakeCover · else Idle"]
+    c2["BasicSquadSop (leader)<br/>SquadUnderFire / SquadContact → ReactToContact"]
   end
   subgraph BASIC["Basic orders"]
     d1["MoveToLocation · AdvanceTo · FollowRoute · FireAtTarget · FireAtPoint<br/>TrackTarget · HoldStance · DoorLocksmith · Wander · Idle<br/>JoinFormation ⛔ broken — §10"]
@@ -234,14 +235,14 @@ graph TD
     PF["PeekAndFireNodes: fight from cover (CE-3158)"]
     ET["EqsTacticsNodes: FallBack · Flank · FiringPosition · TakeCover (hide only)"]
     FP["FireAtPoint · DoorNodes · DangerArea · Sensor · SOP nodes"]
-    UT["Utility decisions: CombatPosture · AttackApproach · ThreatRanking · WeaponSelection"]
+    UT["Utility decisions: CombatPosture · AttackApproach · ThreatRanking · WeaponSelection · SquadContactResponse<br/>ChooseOption (re-scores) · ChooseOptionOnce (keeps its first winner)"]
   end
   subgraph L2["② LIBRARY BEHAVIOURS — BTrees (R-258), assets an author assigns"]
     CP["CombatPosture"]
     TK["FallBack (THE retreat, R-259) · Flank · FiringPosition · TakeCover · Sentry · DangerCrossing"]
-    SOP["BasicInfantrySop"]
+    SOP["BasicInfantrySop · BasicSquadSop (the leader, §9)"]
     ORD["MoveToLocation · AdvanceTo · FollowRoute · FireAtTarget · FireAtPoint · TrackTarget · HoldStance · DoorLocksmith (JoinFormation: broken, §10)"]
-    SQ["Library/Squad: BoundingOverwatch · SuppressAndManeuver (on the commander, §9)"]
+    SQ["Library/Squad: BoundingOverwatch · SuppressAndManeuver · ReactToContact · BreakContact · SquadHold (on the commander, §9)"]
   end
   subgraph L3["③ NOT LIBRARY — never offered as a building block"]
     DM["demo-local: hill attack (PlatoonHillAttack, HullDownAttackRun, SlotOps) · WindowDuel · insurgent"]
@@ -344,7 +345,9 @@ it (only through utility inputs no shipped decision uses) ⇒ a soldier knows on
 | know a member arrived | poll its position (the arrival events of `SquadEventIngressSystem` are dead — they key on intent ids the per-entity counter breaks) |
 | what the squad knows | `SquadCognitiveState.Contacts` on the commander (entity, position, threat, last seen, `SourceMembersMask`, heard flag) — CGF only, not saved, not replicated |
 | ask the terrain for the squad | the commander owns an EQS query (§5a), slot 0 = the member to measure from |
-| commander-level reaction ("the squad is under fire") | ⛔ none yet — no squad-level sensor edge exists; designed as S2 in `DESIGN_Squad_Tactics.md` §4 |
+| commander-level reaction ("the squad is under fire") | ✅ (CE-2123 S2) `SquadCoordinationSystem` publishes `SensorChangedEvent{Unit = commander}` with `SquadContact` (pool 0 → >0) · `SquadUnderFire` (a member's or the leader's Hit / NearMiss) · `SquadAllClear` (pool → 0); the leader's SOP, `RecentSenses` and HSM events (`Sensor.SquadContact` …) take them exactly as a soldier's own. Give the leader the SOP `BasicSquadSop` ⇒ contact pauses its task with `ReactToContact` |
+| what a squad does on contact | `ReactToContact` (Library/Squad): every member holds and returns fire for `DecideAfterSeconds`, the leader decides ONCE (`SquadContactResponseDecision` over `SquadStrengthRatio` / `SquadEnemyStrengthRatio`): assault (`SuppressAndManeuver`), `BreakContact` (its own `FindSafeRetreatPoint` query, element by element) or `SquadHold`; a drill that cannot start falls back to holding until clear. When it ends the paused task resumes — the runner re-takes the squad state another drill used (S2-G) |
+| a leader who is also a soldier | ⚠ ONE SOP slot per entity: a leader given `BasicSquadSop` no longer runs its own soldier reactions (it is the squad's brain). A body-less commander has no such conflict |
 | a commander is a soldier or a body-less entity | both exist: `ua-fire-distribution`'s Leader is a rifleman; `hill-attack-close`'s platoon has no body |
 
 *Owners:* [Squad_Coordination_Design_v1_1](designs/group-maneuvers/Squad_Coordination_Design_v1_1.md) (what) ·
