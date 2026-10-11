@@ -860,6 +860,15 @@ public sealed class Map3DTests
         Assert.InRange(Vector3.Distance(tip, new Vector3(0, 0, -2f)), 0f, 1e-4f);
     }
 
+    /// <summary>⭐ CE-1034 H5d — the highway-rest terrain: a height grid, a highway under an overpass to a drivers' rest area.</summary>
+    internal static TerrainWorld HighwayRest()
+    {
+        string dir = AppContext.BaseDirectory;
+        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Path.GetDirectoryName(dir)!;
+        var file = Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "highway-rest", "highway-rest.world.geojson");
+        return TerrainWorldParser.Parse(File.ReadAllText(file), "highway-rest", TerrainAssets.ForFolder(Path.GetDirectoryName(file)!));
+    }
+
     internal static TerrainWorld TestTown()
     {
         string dir = AppContext.BaseDirectory;

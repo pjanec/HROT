@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — H1, H2, H3 BUILT 2026-10-10 (§5a, §5b as-built); H4 (basic-desert's ridge as a grid, with the backend lane) to come; H5 bridges READY-TO-BUILD (§3.4, TH-I/TH-J/TH-K APPROVED, U-TH1 + U-TH3); TH-L road heights APPROVED (U-TH5) — slices H5a–H5d, H6 in §5. Leans TH-A..TH-H APPROVED (R-249); the library
+build-state: BUILDING — H1, H2, H3 BUILT 2026-10-10 (§5a, §5b as-built); H4 (basic-desert's ridge as a grid, with the backend lane) to come; H3b + H5a–H5d BUILT 2026-10-11 (§5c: bridges, road heights, the highway-rest terrain, CE-1048); H4 and H6 to come. Leans TH-A..TH-H APPROVED (R-249); the library
   question settled by the Q0 spike (DESIGN_World_Query_Seam.md §5a: Bepu for objects, the height stays a grid).
 updated: 2026-10-10 (rev 5 — §5b H2 + H3 as built. Rev 4 — §5a H1 as built, with its deviations argued. Rev 3 — §7 corrected by R-250/R-251: a real interface, Bepu not Jolt. Rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
   (R-249, §4a); §7 the library question. Rev 1 — R-248: the flat ground is a temporary simplification; this file plans its removal)
@@ -249,11 +249,11 @@ not by a second system.
 | **H2** ✅ | the ground trace (`TerrainHeightGrid.Crosses`) in the three queries; rounds and fragments stop at a hill — §5b | a hill blocks sight and fragments |
 | **H3** ✅ | road legs, road access points and the 2-D spawn command on the real ground; the navmesh search centred on it; 2-D move orders already resolved by Q0b — §5b | 2-D orders and route legs work on a hill |
 | **H4** | basic-desert's ridge and wadi as a grid (with the backend lane) | the utility demos on real relief |
-| **H3b** | a frame-rail shot of a REAL height-grid terrain (the sloped fixture) through the 3-D map | the 3-D renderer draws relief from a grid, not only from a height function |
-| **H5a** | TH-I: `aboveGround` on `slab` / `ramp` (one value or per vertex), resolved against the grid at load; TH-K: the buried ramp foot (extended ~1 m, sunk 0.3 m) and the slope warning (vehicle ramp > 20°) | parser + `SurfaceZ` rails: the foot is continuous with the ground on a slope |
-| **H5b** | TH-K bake proof: a bridge on the sloped fixture baked on the Infantry AND Vehicle layers — the deck, the ground under it (clearance ≥ agent height + one cell), the ramp foot joined; a path from bank to bank over the deck and one under it | the navmesh finds both levels and the join, on both layers |
-| **H5c** | TH-L: road nodes' `aboveGround` (road-network schema + migration), the nominal-then-snap resolve; the route planner's access / exit points and road legs and the vehicle spawn on a road take it (TH-J's no-navmesh rule, now from the road's own level) | a unit under the bridge sent along the deck road climbs a ramp to it; a car spawned on the bridge road stands on the deck; a road over the deck reports the deck, one under it the ground |
-| **H5d** | ⭐ **the test terrain `highway-rest`** (U-TH5): a height grid with gentle relief; a multi-lane **highway** at grade; an **overpass** — a deck slab about 6 m up with a buried-foot ramp each side — carrying a local road from the near side to a **drivers' rest area** (a parking surface and a building) on the far side; the navmesh over the deck, so a non-road, navmesh-navigated entity (infantry, an off-road vehicle) crosses the highway by the bridge; the highway under the deck with vehicle clearance. Live rails: a car on the highway passes under the deck; a car on the local road crosses over it into the rest area; a soldier walks from the near side to the rest area over the bridge; a 3-D frame-rail shot | over and under, road and navmesh, end to end on relief |
+| **H3b** ✅ | a frame-rail shot of a REAL height-grid terrain (the sloped fixture) through the 3-D map | the 3-D renderer draws relief from a grid, not only from a height function |
+| **H5a** ✅ | TH-I: `aboveGround` on `slab` / `ramp` (one value or per vertex), resolved against the grid at load; TH-K: the buried ramp foot (extended ~1 m, sunk 0.3 m) and the slope warning (vehicle ramp > 20°) | parser + `SurfaceZ` rails: the foot is continuous with the ground on a slope |
+| **H5b** ✅ | TH-K bake proof: a bridge on the sloped fixture baked on the Infantry AND Vehicle layers — the deck, the ground under it (clearance ≥ agent height + one cell), the ramp foot joined; a path from bank to bank over the deck and one under it | the navmesh finds both levels and the join, on both layers |
+| **H5c** ✅ | TH-L: road nodes' `aboveGround` (road-network schema + migration), the nominal-then-snap resolve; the route planner's access / exit points and road legs and the vehicle spawn on a road take it (TH-J's no-navmesh rule, now from the road's own level) | a unit under the bridge sent along the deck road climbs a ramp to it; a car spawned on the bridge road stands on the deck; a road over the deck reports the deck, one under it the ground |
+| **H5d** ✅ | ⭐ **the test terrain `highway-rest`** (U-TH5): a height grid with gentle relief; a multi-lane **highway** at grade; an **overpass** — a deck slab about 6 m up with a buried-foot ramp each side — carrying a local road from the near side to a **drivers' rest area** (a parking surface and a building) on the far side; the navmesh over the deck, so a non-road, navmesh-navigated entity (infantry, an off-road vehicle) crosses the highway by the bridge; the highway under the deck with vehicle clearance. Live rails: a car on the highway passes under the deck; a car on the local road crosses over it into the rest area; a soldier walks from the near side to the rest area over the bridge; a 3-D frame-rail shot | over and under, road and navmesh, end to end on relief |
 | **H6** | the 3-D terrain mesh in chunks with a distance level of detail — only when a grid larger than a few hundred metres lands (H4 or a real map) | a 2 km grid draws without a 170 MB single mesh |
 | — | *deferred:* imported 3-D meshes (U-TH1: no) | — |
 
@@ -318,6 +318,29 @@ question (§6) is still open.
 regressions: `Fdp.Toolkits.Tests` **3043/3044** (+1 skip), `Hrot.SimHost.Tests` **1177/1180** (3 skips), `Hrot.Editor.Tests`
 **474/476** (2 skips) — all green. ⚠ The cluster integration suite was NOT re-run for H2/H3 (its last run, 148/150 with the
 pre-existing `CE-1036`/`CE-1037`, was H1's).
+
+## 5c. H3b + H5a–H5d — as built `2026-10-11` (bridges over a height grid, road heights, highway-rest)
+
+| built | where |
+|---|---|
+| **H5a** TH-I: `slab` / `ramp` take `"aboveGround": h` or `"zRef": "ground"` (`z` / per-vertex Z read above the ground), resolved against the grid at load; absolute Z unchanged. TH-K: a ground-relative ramp vertex at 0 is SUNK `RampFootSink` (0.3 m) below the ground. A ramp steeper than the vehicles' 20° loads with a warning (`TerrainWorld.Warnings`, logged) | `TerrainWorldParser.cs` (slab / ramp case, `MaxSlopeDegrees`), `TerrainWorld.Warnings` |
+| **H5b** the navmesh on a bridge: deck, ground under it, both buried feet joined, passage under — on BOTH layers | rails `TerrainHeightTests.H5b_*` |
+| **CE-1048** the Vehicle navmesh step 0.1 → **0.3 m** (≥ one 0.2 m voxel): the layer was EMPTY on any slope | `RecastNavmeshBaker.cs` Vehicle profile; `H1_TheNavmesh_BakesOverTheSlope…` now asserts each layer |
+| **H5c** TH-L: `RoadNode.AboveGround` (JSON `aboveGround`); `RoadHeights` — the nominal (nodes' absolute heights carried along the segment, or ground + interpolated above-ground, whichever is higher) snapped by `SurfaceZ`; the route planner's access / exit points and road legs (TH-J: no navmesh snap) and a vehicle spawned on a road (`VehicleCommandSystem.OnRoadHeight`) take it | `Navigation/RoadHeights.cs`, `RoutePlanner.cs`, `RoadGraphRouter.EmitLeg` (segment-aware), `CarKinem/Road/*` |
+| **H5d** `Recipes/Terrain/highway-rest`: a 400 × 300 m grid (gentle relief), an east–west 4-lane highway at grade, an overpass (deck 6 m up, two 40 m buried-foot ramps, two piers on the verges) carrying the local road from the near side to a drivers' rest area (a rest stop, a picnic wood); `*.asc` grids now ship with the build | the terrain folder; `Hrot.AI.Behaviors.csproj` content include |
+| **H3b** a 3-D frame rail on the REAL grid: relief, the overpass, a car on the deck, one on the ramp, a truck on the highway under it | `Map3DFrameRail.H5d_HighwayRest_In3D…` (`map3d-9-highway-rest.png`) |
+
+⚠ **Deviations, argued:** the ramp's foot is **sunk, not also extended** — sinking alone makes the top surface max(ground, ramp), so
+the join is continuous wherever the grid bends; the visible start moves about 1–2 m inside the outline, so an author draws the foot
+that far past the bank. · The road file's schema version is **not bumped**: `aboveGround` is an optional additive field and a v1 file
+without it reads as before. · TH-L's nominal is the **higher of** the carried and the draped height (the design said the carried one):
+carried alone dips under a hump between two nodes, draped alone drops into a valley under a bridge.
+🔴 **Found on the way:** `LitShader.Shared` survived a closed window, so a second 3-D frame rail in one test run drew only the sky (a
+GL program dies with its context, its stale id still reads valid; GLFW reuses the window address). Fix: `LitShader.Reset()`, called
+by the rails after opening a window.
+**Gates:** `TerrainHeightTests` 21/21 (H5a 3, H5b 2, H5c 3, H5d 3) · `CarKinematicsSystemTests.H5d_*` (a car climbs the ramp onto the
+deck over the highway; a car on the highway passes under it on the ground) · the 3 frame rails · Toolkits full 3056/3057, SimHost
+1177/1180 with the new vehicle step.
 
 ## 7. Build or use a library? — the user's question, `2026-10-10` *(⚠ rev 1 below is CORRECTED by `R-250`/`R-251` — read the banner first)*
 

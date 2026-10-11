@@ -52,9 +52,35 @@ void main()
 }";
 
         private static LitShader? _shared;
+        private static nint _sharedWindow;
 
-        /// <summary>The shared instance, compiled on first use (needs the window's GL context).</summary>
-        public static LitShader Shared => _shared ??= new LitShader();
+        /// <summary>The shared instance, compiled on first use (needs the window's GL context). ⭐ A GL program dies with its context and
+        /// its stale id still reads as valid — measured `2026-10-11`: a second 3-D frame rail in one test run drew only the sky. The
+        /// window handle is checked, but GLFW can reuse the address, so code that opens a NEW window calls <see cref="Reset"/>.</summary>
+        public static LitShader Shared
+        {
+            get
+            {
+                nint window = CurrentWindow();
+                if (_shared == null || window != _sharedWindow)
+                {
+                    _shared = new LitShader();
+                    _sharedWindow = window;
+                }
+                return _shared;
+            }
+        }
+
+        private static unsafe nint CurrentWindow()
+        {
+            try { return (nint)Raylib.GetWindowHandle(); }
+            catch (DllNotFoundException) { return 0; }
+            catch (EntryPointNotFoundException) { return 0; }
+        }
+
+        /// <summary>Forget the shared instance, so the next <see cref="Shared"/> compiles in the CURRENT window's context — call after
+        /// opening a new window in the same process (the frame rails do); the old program died with its context.</summary>
+        public static void Reset() { _shared = null; _sharedWindow = 0; }
 
         /// <summary>True once <see cref="Shared"/> exists — the camera only feeds a shader somebody draws with.</summary>
         public static bool IsCreated => _shared != null;

@@ -81,6 +81,7 @@ public sealed class Map3DFrameRail
         Directory.CreateDirectory(shots);
 
         using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();   // a new window: the shared shader compiles in THIS context
         var canvas = new MapCanvas(input: null);
         var two = new MapCamera();
         var zoom = 4f;
@@ -258,6 +259,76 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1034 H3b + H5d — a REAL height-grid terrain through the 3-D map: highway-rest's relief, the overpass (a deck 6 m up on two
+    /// ramps) over the highway, a car on the deck and a truck on the highway under it. 📄 docs/DESIGN_Terrain_Height.md §3.4, §5.
+    /// </summary>
+    [SkippableFact]
+    public void H5d_HighwayRest_In3D_DrawsTheReliefTheOverpassAndBothLevels()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.HighwayRest();
+        Assert.NotNull(terrain.Height);
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        var tkb = Map3DTests.BuiltIn();
+        var query = WorldQuery.Of(world)!;
+        void Put(long type, float x, float y, float z, float yaw)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, z), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+        }
+        float g = query.GroundHeightAt(200f, 150f);
+        Put(UrbanCombatTkbCatalog.TkbCivilianCar, 200f, 147f, query.SurfaceZ(200f, 147f, g + 6f), MathF.PI / 2f);   // on the deck
+        Put(TkbEntityTypes.Truck_HMMWV, 196f, 152f, g, 0f);                                                          // under it, on the highway
+        Put(UrbanCombatTkbCatalog.TkbCivilianCar, 200f, 115f, query.SurfaceZ(200f, 115f, g + 3f), MathF.PI / 2f);   // half-way up the ramp
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();   // a new window: the shared shader compiles in THIS context
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var terrainLayer = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        canvas.AddLayer(terrainLayer);
+        canvas.AddLayer(bodies);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        sw.Set(true, animate: false);
+        // from the south-west, looking along the highway at the overpass
+        sw.Camera3D.Pose = new CameraPose(new Vector3(200f, 150f, g + 3f), 75f, MathF.PI * 0.18f, -0.32f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        string png = Path.Combine(shots, "map3d-9-highway-rest.png");
+        frame.Screenshot(png);
+
+        Assert.True(terrainLayer.TriangleCount > 2000, $"terrain triangles: {terrainLayer.TriangleCount}");
+        Assert.Equal(3, bodies.BodiesDrawn);
+        // the relief and the overpass drew: ground green fills the lower half, the deck/ramp surfaces show over it
+        var image = Raylib.LoadImage(png);
+        try
+        {
+            int ground = 0, deck = 0;
+            for (int y = 400; y < 800; y += 4)
+                for (int x = 0; x < 1280; x += 4)
+                {
+                    var c = Raylib.GetImageColor(image, x, y);
+                    if (c.G > c.R + 15 && c.G > c.B + 15) ground++;
+                    if (c.R > c.G + 30 && c.R > c.B + 30) deck++;
+                }
+            Assert.True(ground > 5000, $"ground pixels {ground}");
+            Assert.True(deck > 300, $"overpass pixels {deck}");
+        }
+        finally { Raylib.UnloadImage(image); }
+    }
+
+    /// <summary>
     /// ⭐ CE-1040 — the 2-D map draws NORTH UP (docs/DESIGN_Map_North_Up.md): a red filled triangle north of the centre lands in
     /// the top half of the picture, a blue box south of it in the bottom half, and both SURVIVE the mirror (back-face culling is
     /// off for the 2-D pass, N4); the gizmo text draws (N3).
@@ -270,6 +341,7 @@ public sealed class Map3DFrameRail
         Directory.CreateDirectory(shots);
 
         using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();   // a new window: the shared shader compiles in THIS context
         var canvas = new MapCanvas(input: null);
         var two = new MapCamera();
         const float zoom = 4f;

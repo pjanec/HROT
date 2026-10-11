@@ -205,6 +205,7 @@ public sealed class TerrainDefinitionTests
     [InlineData("test-town")]
     [InlineData("bt-range")]
     [InlineData("basic-desert")]
+    [InlineData("highway-rest")]   // ⭐ CE-1034 H5d
     public void CE3126_EveryShippedTerrain_DeclaresItsOrigin(string terrain)
     {
         string dir = AppContext.BaseDirectory;
