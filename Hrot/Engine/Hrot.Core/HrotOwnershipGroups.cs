@@ -69,6 +69,8 @@ public static class HrotOwnershipGroups
         //   OperatorControl) and who holds the unit (dtPossessedBy, PossessionSystem the one writer). OperatorInput stays brain-local.
         brain.SetBit(GlobalComponentIds.ManualDrive);
         brain.SetBit(GlobalComponentIds.PossessedBy);
+        // ⭐ CE-3174 (C-7) — the ammunition per mount, mirrored by the brain from its WeaponStates (dtWeaponAmmo).
+        brain.SetBit(GlobalComponentIds.WeaponAmmo);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);

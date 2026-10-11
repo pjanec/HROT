@@ -793,5 +793,10 @@ namespace Fdp.Core
         /// <summary><c>OperatorInput</c> — ⭐ CE-3172 (§8b, M-6): the possessing station's newest control frame, on the brain only (the
         /// <c>OperatorControl</c> behaviour reads it). Never saved, never sent. ⚠ 364 measured free 2026-10-11.</summary>
         public const int OperatorInput = 364;
+
+        /// <summary><c>WeaponAmmo</c> — ⭐ CE-3174 (docs/DESIGN_Entity_Control.md §8d, C-7): a unit's ammunition per mount, mirrored on the
+        /// brain from its WeaponState(s) and replicated (dtWeaponAmmo), so a HUD on any station can show it. Never saved.
+        /// ⚠ 365 measured free on backend, ui and behaviors 2026-10-11.</summary>
+        public const int WeaponAmmo = 365;
     }
 }

@@ -54,6 +54,9 @@ namespace Hrot.Common.Constants
         /// <summary>⭐ CE-3171 — View › RTS Command Mode: arms the RTS command tool (LMB select, RMB move / attack, Esc leaves),
         /// on every LIVE map host (docs/DESIGN_Entity_Control.md §8a).</summary>
         public const int ToggleRtsCommand = 254;
+        /// <summary>⭐ CE-3174 — the unit menu's "Possess (FPS)": this station takes the unit in first person (docs/DESIGN_Entity_Control.md
+        /// §8d). ⚠ 255 measured free on backend, ui and behaviors 2026-10-11.</summary>
+        public const int Possess          = 255;
 
         // --- AI Diagnostics (behav-diag-1) ---
         /// <summary>Toggle <c>DebugState.Behavior.EnableTraceBuffer</c> on the target entity.</summary>

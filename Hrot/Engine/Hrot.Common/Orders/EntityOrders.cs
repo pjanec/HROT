@@ -185,7 +185,8 @@ namespace Hrot.Common.Orders
             return false;
         }
 
-        private long StationFor(Entity entity)
+        /// <summary>⭐ CE-3174 — this node as a station, for <paramref name="entity"/> (C-8): what <see cref="Fdp.Toolkit.Behavior.Possession.PossessedBy.StationNodeId"/> says when THIS station holds it.</summary>
+        public long StationFor(Entity entity)
             => Station ?? (_world.IsComponentTypeRegistered<NetworkAuthority>() && _world.HasComponent<NetworkAuthority>(entity)
                 ? _world.GetComponentRO<NetworkAuthority>(entity).LocalNodeId : 0L);
 

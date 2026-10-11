@@ -133,6 +133,20 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Equal("Idle", order.IntentId);
     }
 
+    /// <summary>⭐ CE-3174 (§8d) — the unit menu's Possess (FPS) asks to possess the unit for THIS station; the station's map then
+    /// follows PossessedBy into first person (PossessionStationTests).</summary>
+    [Fact]
+    public void CE3174_Possess_AsksToPossessTheUnit_ForThisStation()
+    {
+        var (mi, _) = Live();
+        Assert.Contains("Possess (FPS)", ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit));
+        Click(mi, GlobalActionIds.Possess);
+        _w.Bus.SwapBuffers();
+        var ask = Assert.Single(_w.Bus.Read<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>().ToArray());
+        Assert.Equal(_unit, ask.Unit);
+        Assert.Equal(Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, ask.Mode);
+    }
+
     [Fact]
     public void CE3169_AHostWithNoPick_IssuesNothing_SoARelayedMenuActionIsNotOrderedTwice()
     {

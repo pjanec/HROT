@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 READY-TO-BUILD (M-1..M-10 approved, R-271 (backend))
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive)
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built) — the (V) windowed screenshot still owed
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station)
 stale-below: nothing
-known-rot: nothing yet
+known-rot: the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
 related-designs:
   - docs/UX/UX_Feature_Entity_Commanding.md — OWNS the right-click order vocabulary, the args channel, TKB command sets and ClearsPriorIntent/IntentClearRegistry (§2.5b-d); S1-S2 here build its §2.5b-d and §2.6 and bind its three ids
@@ -806,7 +806,28 @@ over, removed by one release sample) · ⭐ `EntityOrdersAcrossNodesTests` CE317
 Rifleman, CGF runs `OperatorControl` at origin Possession, the body walks 1.5 m on SimHost, the IG sees the hold, release resumes the
 task and every node forgets it.
 
-⏭ **S4 is complete.** M-5 (the navmesh refusal) is `CE-3181`. Next: S5 (`CE-3174`).
+⏭ **S4 is complete.** M-5 (the navmesh refusal) is `CE-3181`. S5 (`CE-3174`) — §13.3.
+
+### 13.3 AS-BUILT — S5 the FPS station (`CE-3174`, `2026-10-11`)
+
+⭐ **Built as §8d draws it** — the classes, the sequence and the module edges are the ones in §8d's three diagrams; no box moved.
+
+| as-built detail | why |
+|---|---|
+| `MapCamera3D.Driver` setter: detaches the old driver, cancels any animation, clears look/pan; `Update` and `HandleInput` delegate wholly while it is set | a half-finished fly-to or a held pan from before the possess would otherwise fight the driver's eye on the first frame |
+| `MapCameraLayer.Update` returns early (and forgets its last pose) while a driver drives | M-9 / R-260: the FPS eye is never saved into the scenario camera, and the first still frame after release is not mistaken for an operator's move |
+| `PossessionStation.HeldHere` keys on `PossessedBy.StationNodeId == EntityOrders.StationFor(unit)` — the same node id the possess was sent with | one definition of "this station" for both sending and following; a networkless editor is node 0 on both sides |
+| `WeaponAmmo` carries the magazine too (`Mag0..3`, −1 when the weapon has none); the HUD shows `[rounds in magazine]` | the HUD would otherwise show a total the operator cannot fire without a reload |
+| `WeaponAmmoMirrorSystem` (CGF simulation phase, after `NearMissSensingSystem`) mirrors mount 0 + mount children for units with `BehaviorState` this node has authority over, writing only on change | one writer on the brain; replicas never write it; a write per change, not per frame, keeps the Reliable topic quiet |
+| `Possess (FPS)` (action 255) is offered only on hosts that pass a `PickService` | the same rule as Move/Engage (§11): a headless node has no operator to put in first person |
+
+📐 **Rails:** `PossessionStationTests` ×4 (the driver seam replaces update + input and is told when removed; the station follows
+`PossessedBy` into FPS and back to the 2-D pose it had, saving nothing; WASD/mouse/LMB become ONE control frame, the cursor locks,
+Esc releases, detaching unlocks; the HUD text) · `MenuOrdersTests` CE3174 (the menu item possesses for this station) ·
+`WeaponAmmoMirrorSystemTests` (mount + children mirrored, spend updates it, replicas untouched) · `PossessionReplicationTests`
+CE3174 (the brain's count reaches the station over `dtWeaponAmmo`).
+
+⚠ **Not yet done:** the `(V)` screenshot acceptance needs a windowed run; the turret-mounted eye stays deferred (§8d).
 
 ⏭ ~~**Still open in S4:** ~~S4d operator fire~~ (built, §13.1); S4e the `ManualDrive` + `PossessedBy` descriptors and the `Possess` / `Release` / `ControlFrame` interaction
 cases (until then possession works where the station, brain and muscle share a world — the editor). M-5 (the navmesh wall check)

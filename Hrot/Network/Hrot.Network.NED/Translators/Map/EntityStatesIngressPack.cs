@@ -62,6 +62,7 @@ public class EntityStatesIngressPack : IEcsModule
             //   !pureIg guard), so the figure would never leave "at ease" — measured on the cluster rail, 2026-10-11.
             new EntityWeaponPostureIngressTranslator(participant, entityMap),
             new EntityPossessedByIngressTranslator(participant, entityMap),   // ⭐ CE-3172 S4e — a station sees who holds a unit
+            new EntityWeaponAmmoIngressTranslator(participant, entityMap),    // ⭐ CE-3174 — and the ammunition its HUD shows
         };
     }
 

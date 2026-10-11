@@ -64,6 +64,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
                         Tooltip = "Cannot engage: Unit is heavily damaged" }
                     : new ContextMenuItemDto { Id = GlobalActionIds.Engage,   Label = "Engage",    Shortcut = "E" },
                 new ContextMenuItemDto { Id = GlobalActionIds.Stop,           Label = "Stop",        Shortcut = "S" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Possess,        Label = "Possess (FPS)", Shortcut = "P" },   // ⭐ CE-3174
                 new ContextMenuItemDto { IsSeparator = true },
             });
             items.AddRange(new[]

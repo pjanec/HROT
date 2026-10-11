@@ -89,5 +89,24 @@ namespace Hrot.SimHost.Tests
                 Assert.False(station.HasComponent<PossessedBy>(stationsUnit));
             }
         }
+
+        [Fact]
+        public void CE3174_WeaponAmmo_TheBrainsCount_ReachesTheStation()
+        {
+            var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 2 };
+            ammo.Set(0, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 27, MaxAmmo = 30, MagazineSize = 10, MagazineRounds = 7 });
+            ammo.Set(1, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 2, MaxAmmo = 4 });
+            var sample = EntityWeaponAmmoEgressTranslator.ToSample(66L, ammo);
+            var (station, unit, map) = Node(66L);
+            using (station)
+            {
+                station.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();
+                var ingress = new EntityWeaponAmmoIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, station);
+                cmd.Playback(station);
+                Assert.Equal(ammo, station.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(unit));
+            }
+        }
     }
 }

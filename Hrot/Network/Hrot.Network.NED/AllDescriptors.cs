@@ -82,6 +82,8 @@ namespace Hrot.NED.Descriptors
         dtManualDrive                 = 128,
         // ⭐ CE-3172 S4e — which station holds a unit (the Brain group → every node; C-3). 📄 docs/DESIGN_Entity_Control.md §8c
         dtPossessedBy                 = 129,
+        // ⭐ CE-3174 (C-7) — a unit's ammunition per mount (the Brain group → every node, for the FPS HUD). 📄 docs/DESIGN_Entity_Control.md §8d
+        dtWeaponAmmo                  = 130,
         // etc., all known descriptor types here
     }
 

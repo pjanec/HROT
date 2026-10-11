@@ -207,7 +207,8 @@ namespace Hrot.SimHost.Tests
             //    📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3 W2.
             // ⭐ CE-3064 (2026-10-05) — 1 MORE: NearMissSensingSystem (a near miss → SensorChange.NearMiss, R-206).
             // ⭐ CE-3104 5d-1 (2026-10-08) — 1 MORE: DoorCommandSystem (the door's owner applies door commands).
-            Assert.Equal(19, pack.SimulationSystems.Count);
+            // ⭐ CE-3174 (2026-10-11) — 1 MORE: WeaponAmmoMirrorSystem (the ammunition every station's HUD reads).
+            Assert.Equal(20, pack.SimulationSystems.Count);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
             // ⭐ CE-3088 — the silent-default rail: the driver's fire assignment is an optional dependency, and the pack (every
             //   Brain host) must PASS it. ✅ Red-proof: drop the argument in CgfLogicPack ⇒ null ⇒ red.
@@ -420,7 +421,8 @@ namespace Hrot.SimHost.Tests
             //    📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3 W2.
             // ⭐ CE-3064 (2026-10-05) — 1 MORE: NearMissSensingSystem (a near miss → SensorChange.NearMiss, R-206).
             // ⭐ CE-3104 5d-1 (2026-10-08) — 1 MORE: DoorCommandSystem (the door's owner applies door commands).
-            Assert.Equal(19, pack.SimulationSystems.Count);
+            // ⭐ CE-3174 (2026-10-11) — 1 MORE: WeaponAmmoMirrorSystem (the ammunition every station's HUD reads).
+            Assert.Equal(20, pack.SimulationSystems.Count);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.NearMissSensingSystem);
         }
@@ -454,7 +456,7 @@ namespace Hrot.SimHost.Tests
             // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
             // ⛔ O7c-④b (2026-09-23): 19 → 18 — the two brain ticks merged (§31.14 / §31.16).
             // ⭐ CE-454 (2026-10-02): 18 → 19 — SquadCoordinationSystem (DESIGN_Squad_Wiring.md §3 W2).
-            Assert.Equal(24, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · 5d-1: +1 (DoorCommandSystem) · CE-3172: +1 (PossessionSystem)
+            Assert.Equal(25, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · 5d-1: +1 (DoorCommandSystem) · CE-3172: +1 (PossessionSystem) · CE-3174: +1 (WeaponAmmoMirrorSystem)
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────

@@ -49,7 +49,8 @@ namespace Hrot.ScenarioEditor.Map
         Fdp.Toolkit.Vis3D.TerrainLayer3D Terrain,
         Hrot.UI.Common.Map3D.EntityBodyLayer3D Bodies,
         Hrot.UI.Common.Effects.EffectLayer Effects,
-        Hrot.UI.Common.Effects.ProjectileLayer? Projectiles = null);
+        Hrot.UI.Common.Effects.ProjectileLayer? Projectiles = null,
+        Hrot.UI.Common.Map3D.PossessionStation? Possession = null);
 
     public static class MapInteractionPack
     {
@@ -438,7 +439,12 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1033 S5 (R-260) — the scenario's camera entity, the same on every host: adopted when the scenario opens, REQUESTED
             //   (unowned, so the default processor creates and owns it — R-140) on the first camera move, moved by its owner.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider));
-            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles);
+            // ⭐ CE-3174 (docs/DESIGN_Entity_Control.md §8d) — this map host as a first-person station: it follows the replicated
+            //   PossessedBy, so a unit held by this node puts the map into its eyes (camera driver, cursor lock, HUD) and losing it
+            //   leaves. Here, so no map host can lack it.
+            var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider);
+            canvas.AddLayer(possession);
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)

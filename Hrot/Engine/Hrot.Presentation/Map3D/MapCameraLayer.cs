@@ -146,6 +146,10 @@ public sealed class MapCameraLayer : IMapLayer
             }
         }
 
+        // ⭐ CE-3174 (M-9, R-260) — a driven camera (a first-person view) is not the operator's view: never saved, and the pose it
+        //   hands back is a fresh baseline, so leaving the view restores the scenario camera without writing it.
+        if (_switch.Camera3D.Driver != null) { _haveLast = false; _dirty = false; return; }
+
         var now = _switch.CurrentPose;
         if (_switch.IsSwitching || _switch.Camera3D.IsAnimating)
         {

@@ -124,11 +124,37 @@ namespace Fdp.Toolkit.Vis3D
             _animDone = done;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3174</c> (M-9) — when set, <see cref="Update"/> and <see cref="HandleInput"/> are the driver's (a first-person view);
+        /// null = the free camera. Setting it ends any animation; replacing it tells the old one it was <see cref="ICameraDriver.Detached"/>.
+        /// </summary>
+        public ICameraDriver? Driver
+        {
+            get => _driver;
+            set
+            {
+                if (ReferenceEquals(_driver, value)) return;
+                _driver?.Detached(this);
+                _driver = value;
+                _animSeconds = 0f;
+                _animDone = null;
+                _looking = _panning = false;
+            }
+        }
+        private ICameraDriver? _driver;
+
         public override void Update(float dt)
         {
             _cachePixel = new Vector2(float.NaN);   // a new frame: entities may have moved
             if (!float.IsFinite(dt) || dt < 0f) dt = 0f;
             _dt = dt;
+            if (_driver != null)
+            {
+                _driver.Update(this, dt);
+                Sanitise();
+                SyncEquivalents();
+                return;
+            }
             if (IsAnimating)
             {
                 _animT += dt / _animSeconds;
@@ -168,6 +194,13 @@ namespace Fdp.Toolkit.Vis3D
 
         public override bool HandleInput(IInputProvider input)
         {
+            if (_driver != null)   // ⭐ CE-3174 — a driver holds the map's input
+            {
+                _lastMouse = input.MousePosition;
+                bool usedByDriver = _driver.HandleInput(this, input);
+                if (usedByDriver) { Sanitise(); SyncEquivalents(); }
+                return usedByDriver;
+            }
             var mouse = input.MousePosition;
             if (input.IsMouseCaptured || IsAnimating)
             {

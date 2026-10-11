@@ -39,7 +39,7 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>True while a follow-up pick is waiting for the operator.</summary>
         public bool IsPicking => _location is { IsCompleted: false } || _enemy is { IsCompleted: false };
 
-        /// <summary>Registers the three menu ids on <paramref name="actions"/>.</summary>
+        /// <summary>Registers the menu ids on <paramref name="actions"/>: the three orders and Possess (FPS).</summary>
         public void RegisterOn(Hrot.Common.Interactions.GlobalActionRegistry actions)
         {
             actions.Register(GlobalActionIds.MoveHere, (_, unit) => Begin(Kind.Move, unit));
@@ -48,6 +48,13 @@ namespace Hrot.ScenarioEditor.Map
             {
                 if (PickService?.Invoke() is null || !TryNetworkId(unit, out long id)) return;
                 Report(Orders()?.Hold(id));
+            });
+            // ⭐ CE-3174 (§8d) — Possess (FPS): this station takes the unit; the map follows PossessedBy into first person
+            //   (PossessionStation). Like the orders, only where a pick exists — a windowed station, never a relayed headless node.
+            actions.Register(GlobalActionIds.Possess,  (_, unit) =>
+            {
+                if (PickService?.Invoke() is null || !TryNetworkId(unit, out long id)) return;
+                Report(Orders()?.Possess(id));
             });
         }
 

@@ -66,6 +66,7 @@ public static class HrotSharedComponentRegistry
         // ⭐ CE-3172 / CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c) — possession's replicated state, on every host
         world.RegisterComponent<Fdp.Toolkit.Navigation.ManualDrive>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
 
         // ── Terrain / zone loading ────────────────────────────────────────────
         // ⭐ Registered UNCONDITIONALLY on every ECS host, exactly like the save handler and
