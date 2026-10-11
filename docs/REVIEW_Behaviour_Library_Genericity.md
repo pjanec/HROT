@@ -16,6 +16,7 @@ related-designs:
   - DESIGN_Eqs_Consuming_Behaviours.md — OWNS the EQS tactics (TakeCover/FallBack/Flank/FiringPosition, §9).
   - designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — OWNS the squad layer (five primitives, manoeuvres).
   - DESIGN_Behavior_Self_Registration.md — OWNS the behaviour registry (BehaviorNames, SR_R2 "nothing checks they agree").
+  - DESIGN_Operations_Behaviour_Catalogue.md — OWNS what the library is MISSING for modern operations (taxonomy IND/SQD/VEH/AIR/ASY/CIV/MED, blocks, sensors, EQS, engine support, roadmap); every entry there joins under this review's line.
 -->
 
 # Review — is the behaviour library GENERIC?

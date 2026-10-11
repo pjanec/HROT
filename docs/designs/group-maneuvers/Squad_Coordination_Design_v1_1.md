@@ -10,6 +10,7 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — owns WHERE the layer runs (CE-454: which pack/system ticks it, the mapper registration, what stays unwired and why)
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — owns the scorer the commander tier recurses into (§8.0)
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — owns the REAL danger-area sensor that feeds §5's buffer (§10.2: solved on the navigation node, rated on the Brain, R-213) and the single-unit crossing demo (§10.4); this document keeps the squad drill (§8.1) and what the handles mean (§5.2)
+  - ../../DESIGN_Operations_Behaviour_Catalogue.md — owns the squad-level operations the layer must carry (SQD-1..14: dismount under fire, room/house/trench clearing, defend/attack building, ambush, checkpoint) and the role/claim/shared-memory model they need (§8)
 -->
 
 # Squad Coordination — Design v1.1
