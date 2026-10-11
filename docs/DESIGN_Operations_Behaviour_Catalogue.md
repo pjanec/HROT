@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — a catalogue and gap analysis, not a buildable design; each programme it names gets its own design (with UML) before it is built
 updated: 2026-10-11
-current-answer: §2 the scenarios decomposed · §3 the behaviour taxonomy · §4–§7 what each needs (blocks, sensors, EQS, engine) · §8 squad model · §9 roadmap · §10 decisions for the user
+current-answer: §10.1 the user's answers (D1–D5, D7 approved; D6/D8 open) · §2 the scenarios decomposed · §3 the behaviour taxonomy · §4–§7 what each needs (blocks, sensors, EQS, engine) · §8 squad model · §9 roadmap · §10 decisions for the user
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -220,9 +220,11 @@ library needs ~40 blocks, not one behaviour per scenario. ✅ = built, 🟨 = bu
 | need | why | state |
 |---|---|---|
 | **injury states** (ok / wounded / incapacitated / dead, bleed-out timer, mobility & weapon effects) | every casualty, medic and panic scenario | 🟥 — Health is one float (decision D1) |
+| **vehicle damage states** (mobility kill · firepower kill · destroyed), derived from **per-compartment damage** (D1, user 2026-10-11) | VEH-1/2, convoy ambush, air strike, FPV drone vs vehicle | 🟨 today: one `Health` pool, per-facing armour (`ArmorModel.cs:11`), opt-in `MobilityKill` by health fraction (`MobilityKill.cs`, CE-3092); death strips `CanMove`/`CanShoot` (`CombatLife.cs:42`). ⛔ no firepower kill, no compartments (searched `docs/`+`.dev/`: none) |
 | **explosive carried by an entity** (bomb vest, VBIED) + detonate | ASY-1/2 | warheads ✅ — the carrier and trigger 🟥 |
 | **flight model** (point-mass, altitude, speed, dive) + acoustic signature | drones, strike aircraft | 🟥 (aircraft are data only, CE-1041) |
 | **motorcycle vehicle class** | VEH-3 | 🟥 (`VehicleClass` has no bike) |
+| **drone 3-D route following + autonomous attack** (D2, user 2026-10-11) | AIR-2, AIR-3 | 🟥 — no flight model; routes and nav are 2-D ground (`RoutePlan`, navmesh) |
 | **building damage** (collapse / breach from a heavy charge) | air strike, bombs, breaching | 🟨 doors breach; walls deferred (§14 runtime navmesh) |
 | **trenches** (authored polylines carved into the height grid + navmesh) | SQD-7 | 🟥 (decision D7) |
 | **room graph** (rooms + portals from walls) | SQD-5/6/8/9, sound v2 | 🟥 designed (Building Interiors) |
@@ -282,3 +284,21 @@ terrorist scenario. Air/drones (P5) need the largest new engine piece (flight) a
 | **D6** | squad execution | ⭐ decide CE-507 D2/D3 first (`DESIGN_Squad_Wiring.md` — its own leans); every SQD item waits on it | — |
 | **D7** | where trenches come from | ⭐ authored polylines (like roads) carved into the height grid and the infantry navmesh | procedural trenches |
 | **D8** | first programme | ⭐ **P0 + P1 (convoy ambush)** — most reuse, the user's first example | the user's priority |
+
+### 10.1 Answers *(user, `2026-10-11`)*
+
+> 🔒 *"D1 ok for human. Vehicles need fire power kill, mobility kill, destroyed. And maybe smarter per-compartment damage model those
+> overall damage states are derived from. D2 accepted. Drones must be able to follow a planned 3d path and be able attack autonomously
+> if suitable target is spotted. D3 ok. Our Hsms are optimized for large crowds. D4 ok. D5 ok. … D7 ok."*
+
+| # | ruling | consequence for the programmes |
+|---|---|---|
+| **D1** | ✅ **humans:** the four injury states + bleed-out, as leaned. ⭐ **vehicles:** three damage states — **mobility kill, firepower kill, destroyed** — preferably **derived from a per-compartment damage model** (e.g. engine/drive → mobility, weapon/turret → firepower, crew/ammo/fuel → destroyed) | P0 gets a vehicle-damage item. Builds on what exists: per-facing armour, the opt-in `MobilityKill`, the `CanMove`/`CanShoot` capability bits (the derived states map onto them), and turrets as part children (R-255) — a natural home for a compartment. Its own design (with UML) before building |
+| **D2** | ✅ point-mass flight + acoustic signature + battery. ⭐ **plus:** a drone **follows a planned 3-D path** and **attacks autonomously** when a suitable target is spotted | AIR-2/AIR-3 = a 3-D route (waypoints with altitude) + a loiter/search phase + a target-selection rule (the existing sensor + threat ranking) + a terminal dive. The routes we have are 2-D ground routes ⇒ a 3-D route type is new |
+| **D3** | ✅ crowd agents + a light per-person HSM + a crowd-level system. 🔒 *"Our HSMs are optimized for large crowds"* ⇒ HSM is THE host for civilian behaviours (R-258's "where HSM is most suitable") | CIV-1..7 are authored as HSMs, not BTrees |
+| **D4** | ✅ hidden ground-truth flag + observable cues | — |
+| **D5** | ✅ simple contact action + `ThrowAt` | — |
+| **D6** | ⏳ open — explained to the user (`CE-507` D2/D3) | every SQD item waits |
+| **D7** | ✅ authored trench polylines carved into the height grid and navmesh | — |
+| **D8** | ⏳ not answered (lean stands: P0 + P1 convoy ambush) | — |
+
