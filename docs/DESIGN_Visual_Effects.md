@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269); W1 BUILT 2026-10-11 (§7.5), W2–W4 not built. Programme index: PLAN_3D_World_And_Realism.md.
+build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269); W1–W4 BUILT 2026-10-11 (§7.5). Programme index: PLAN_3D_World_And_Realism.md.
 updated: 2026-10-11
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1 as-built in §7.5).
+current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5).
 stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
@@ -312,7 +312,7 @@ every reader keeps its old answer for it (riflemen, unknown types). The kit draw
 forward offset (mount 0 on a tank, the 25 mm on the Bradley); the TOW is not drawn, but its rounds and flashes leave from its own
 offset. Gates: `FireProcessingSystemTests.E4_*` (2), `Map3DTests.E4b_TheDrawnBarrelTip_IsTheMuzzle_Within5cm` (3 types).
 
-## 7. Wrecks, dead bodies, flames and smoke — and one generic `Lifespan` *(✅ APPROVED `2026-10-11`, U6–U8, R-269; W1 built — §7.5)*
+## 7. Wrecks, dead bodies, flames and smoke — and one generic `Lifespan` *(✅ APPROVED `2026-10-11`, U6–U8, R-269; W1–W4 built — §7.5)*
 
 | # | verbatim |
 |---|---|
@@ -372,15 +372,16 @@ classDiagram
   class EffectLifetime { <<RETIRED W1 — struct and system gone, id 124 reserved>> }
   class EffectSpawnSystem { <<exists, W1>> stamps Lifespan.Starting(now, Duration); IsReplayActive ⇒ stands down; Housekeep: orphaned anchor, decal cap 256 }
   class MapInteractionContext { <<exists, W1>> + IsReplayActive — SimHost: the ELM's gate · CGF: rrController · replay browser: always · editor, IG: null }
-  class WreckState { <<new static, Fdp.Toolkits Combat>> IsDestroyed(world, e) = Health ≤ 0 (later D1's destroyed state) }
-  class WreckSpawnSystem { <<new, Hrot.Presentation Effects>> a vehicle's Health crossing to 0 ⇒ Fire + Smoke anchored to its body }
-  class EffectAnchor { <<exists>> + Body mode: the anchor's top centre, every frame }
-  class EffectKind { <<exists TKB>> + Fire; + Smoke }
-  class EffectTkbCatalog { <<exists>> + fire 7141 (60 s), smoke 7151 (180 s, fading); default per vehicle family }
-  class EffectLayer { <<exists>> + stateless particles: puff i of n from (entity seed, age) }
-  class EntityBodyLayer3D { <<exists>> a destroyed vehicle near-black on every part; a dead person the Dead figure }
-  class BlockFigure { <<exists>> + Dead posture (on the back, limbs spread), fallen into over ~0.6 s }
-  class EntityPresentationGizmo { <<exists>> + Destroyed condition ⇒ the MIL-STD-2525 X }
+  class WreckState { <<BUILT W2 as CombatLife.IsDestroyed — exists, has Health, Current ≤ 0 (later D1's destroyed state)>> }
+  class WreckSpawnSystem { <<BUILT W3, Hrot.Presentation Effects>> a vehicle's Health crossing to 0 ⇒ Fire + Smoke anchored to its body; IsReplayActive ⇒ off, forgets }
+  class EffectAnchor { <<exists, W3>> + Kind: Muzzle or Body (the body's top centre, every frame) }
+  class EffectKind { <<exists TKB, W3>> + Fire = 4; + Smoke = 5 }
+  class EffectTkbCatalog { <<exists, W3>> + Fire 7141 (60 s, fades 15 s), Smoke 7151 (180 s, fades 60 s); sized for a tank, scaled by the wreck }
+  class EffectLayer { <<exists, W3>> + BodyTopOf; + Puffs(r): puff i of n from (entity seed, age), stateless }
+  class EntityBodyLayer3D { <<exists, W2/W4>> PartColour: a destroyed vehicle near-black on every part and its gear; a dead person the Dead figure via DeathFall }
+  class BlockFigure { <<exists, W4>> + Dead(soldier) (on the back, limbs spread, rifle dropped); + Fall(from, t) }
+  class DeathFall { <<BUILT W4, Map3D>> when each dead man fell (sim time); a body first seen dead just lies }
+  class EntityPresentationGizmo { <<exists, W2>> + Destroyed condition bit ⇒ PerspectiveShapeRenderer draws the MIL-STD-2525 X }
   LifespanSystem ..> Lifespan
   EffectLifetime ..> Lifespan : replaced by
   EffectSpawnSystem ..> Lifespan
@@ -392,6 +393,7 @@ classDiagram
   EffectLayer ..> EffectKind
   EntityBodyLayer3D ..> WreckState
   EntityBodyLayer3D ..> BlockFigure
+  EntityBodyLayer3D ..> DeathFall
   EntityPresentationGizmo ..> WreckState
 ```
 
@@ -445,4 +447,21 @@ sequenceDiagram
 *NOT verified:* a real record → replay → seek round trip that shows a recorded decal after a jump (the rails pin the policy flags and the
 gates, not the recorder). ⚠ The recorder must see `Lifespan`/`EffectAnchor` registered on the recorded world — `RegisterEffects` does it
 on every map host's world.
+
+### 7.6 W2–W4 — AS-BUILT `2026-10-11`
+
+| slice | what | where | ⚠ vs §7.2–7.4 |
+|---|---|---|---|
+| W2 | "destroyed" = `CombatLife.IsDestroyed` (exists, has `Health`, `Current ≤ 0`) | `FDP/Toolkits/Fdp.Toolkits/Combat/CombatLife.cs` | ⭐ **deviation:** no new `WreckState` class — `CombatLife` already owns *"is this unit still in the fight"* (CE-466), so the one test lives beside `IsAlive` (seam law: one home per rule) |
+| W2 | 2-D X: `EntityShapeCondition.Destroyed` (bit 4), set by `EntityPresentationGizmo`; drawn by `PerspectiveShapeRenderer.DrawDestroyedCross` for ANY profile, and on the no-profile fallback box | GizmoMap `Shapes/`, `Rendering/DebugPrimitiveRenderer2D.cs` | ⚠ measured: no shape profile uses the condition elements (`ShowWhen` has zero data users), so the renderer draws the X itself. ⚠ A dead SOLDIER's symbol gets the X too — he is destroyed by the same test |
+| W2 | 3-D wreck: `EntityBodyLayer3D.PartColour` near-black for every role and the aircraft gear; a wrecked helicopter's rotor stands | `Map3D/EntityBodyLayer3D.cs` | as drawn; the turret keeps its last `TurretPose` (nothing drives it once dead) |
+| W3 | `EffectKind.Fire` / `Smoke`; catalog `Fire 7141` (60 s), `Smoke 7151` (180 s) | `EffectDtos.cs`, `EffectTkbCatalog.cs` | ⚠ "default per vehicle family" became ONE pair for every vehicle, **scaled by the wreck's drawn footprint** (0.4–2 × a 7 m tank) — no per-family TKB descriptor (new vocabulary not needed yet) |
+| W3 | `WreckSpawnSystem` — only a CROSSING burns (memory per entity, dropped on a world change and while replaying); a person / bodiless unit / unknown type never burns | `EffectSystems.cs`; scheduled through `MapInteraction.InteractionSystems` on every host, declared in `RequiredSystems` | as drawn |
+| W3 | `EffectAnchor.Kind` (`Muzzle` / `Body`); the layer puts a body-anchored effect at the top of the drawn box (`EffectLayer.BodyTopOf`) | `EffectComponents.cs`, `EffectLayer.cs` | as drawn; the wreck deleted ⇒ the flames end (the spawner's orphan rule, W1) |
+| W3 | stateless particles `EffectLayer.Puffs` — fire tongues (0.8 s loop, dying down over the last 30 %), smoke puffs (6 s loop, rising 6 sizes, drifting on a fixed breeze); 2-D draws the same puffs from above | `EffectLayer.cs` | ⚠ the breeze is a constant until weather exists |
+| W4 | `BlockFigure.Dead` (on the back, legs apart, arms flung out, rifle dropped) + `BlockFigure.Fall`; `DeathFall` remembers when each death was SEEN (sim time) — a body first seen dead, or a death found across a jump (> 0.5 s since last seen alive), just lies | `Map3D/ShapeKit.cs`, `EntityBodyLayer3D.FigurePose` | as drawn; `Blend` and `Fall` share one interpolation (now with yaw/pitch) |
+| rails | `EffectTests.W2_*`, `W3_*`; `EntityPresentationGizmoTests.Draw_WhenDestroyed_*`; `Map3DTests.W4_*`; `MapSelfCheckTests` pinned counts | | — |
+
+*NOT verified:* the look on a GL host (the frame rails skip without GL here) — flame and smoke sizes, colours and the X's weight are first
+guesses for a visual check.
 

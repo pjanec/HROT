@@ -6,6 +6,9 @@ current-answer: this file is now LEAN. Feature intent lives in the DESIGN docs (
   This file holds ONLY what those two cannot: engine invariants, silent-failure hazards,
   and cross-cutting decisions with no single design home.
 stale-below: nothing.
+re-read: 2026-10-11 — DESIGN_Visual_Effects.md (R-269) gained §7.5/§7.6 as-built tables (W1–W4) and the tracker's
+  CE-1050 row closed; re-read R-269's §7.3 decisions — UNCHANGED (as-built deviations are recorded in §7.5/§7.6, not in the
+  approved decisions). The quote still matches.
 re-read: 2026-09-19 — Architect_Question_72 changed in the SAME commit that added R-147 (the new row
   cites the new Q72-M section), so the WARN is self-referential, not rot. Also re-read R-147's neighbour
   content: Q72-L gained a NARROWED-BY banner pointing at Q72-M and was otherwise untouched; every other

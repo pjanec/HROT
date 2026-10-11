@@ -514,6 +514,49 @@ public sealed class Map3DTests
         Assert.Same(prone, BlockFigure.Blend(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Fdp.Toolkit.Tkb.Domain.StanceId.Prone, 1f, true));
     }
 
+    /// <summary>⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — the dead figure lies on the ground (lower than prone), arms flung out
+    /// wider than any stance; a soldier's rifle lies beside him; halfway through the fall he is between his stance and the ground.</summary>
+    [Fact]
+    public void W4_TheDeadFigureLiesOnTheGround_ArmsOut_AndTheFallBlendsIntoIt()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var dead = BlockFigure.Dead(soldier: true);
+        Assert.Equal(BlockFigure.Parts(StanceId.Standing, true).Length, dead.Length);   // same parts, so a fall can blend
+        Assert.Equal(BlockFigure.Dead(false).Length + 1, dead.Length);                   // the dropped rifle
+        Assert.InRange(Top(dead, size), 0.1f, 0.35f);
+        float Reach(KitPart[] parts) => parts.Max(p => MathF.Abs(Vector3.Transform(Vector3.Zero, p.BodyTransform(size)).Y));
+        Assert.True(Reach(BlockFigure.Dead(false)) > Reach(BlockFigure.Parts(StanceId.Prone, false)) + 0.1f, "arms flung out");
+
+        var stand = BlockFigure.Parts(StanceId.Standing, true);
+        var half = BlockFigure.Fall(stand, 0.5f, true);
+        Assert.InRange(Top(half, size), Top(dead, size) + 0.1f, Top(stand, size) - 0.1f);
+        Assert.Same(stand, BlockFigure.Fall(stand, 0f, true));
+        Assert.Same(dead, BlockFigure.Fall(stand, 1f, true));
+    }
+
+    /// <summary>⭐ W4 (VE-S) — a death SEEN happening falls over 0.6 s of sim time from the stance he died in (a pause freezes it); a
+    /// body first seen already dead, or a death found across a jump, is simply lying there.</summary>
+    [Fact]
+    public void W4_AFallIsSimTime_FromHisLastStance_ABodyFoundDeadJustLies()
+    {
+        var falls = new DeathFall();
+        var shot = new Entity(1, 1);
+        falls.Alive(shot, StanceId.Crouched, 10.0);
+        Assert.Equal((0f, StanceId.Crouched), falls.Dead(shot, 10.0));
+        Assert.Equal(0.5f, falls.Dead(shot, 10.3).T, 3);
+        Assert.Equal(0.5f, falls.Dead(shot, 10.3).T, 3);                   // paused: the same sim time, the same pose
+        Assert.Equal(1f, falls.Dead(shot, 11.0).T);
+
+        Assert.Equal((1f, StanceId.Standing), falls.Dead(new Entity(2, 1), 10.0));   // first seen dead: lying
+
+        var jumped = new Entity(3, 1);
+        falls.Alive(jumped, StanceId.Standing, 10.0);
+        Assert.Equal(1f, falls.Dead(jumped, 40.0).T);                       // found dead 30 s later (a replay jump): no fall
+
+        falls.EndFrame(new HashSet<Entity> { shot });
+        Assert.Equal(1f, falls.Dead(jumped, 40.1).T);                       // forgotten, then first seen dead again
+    }
+
     [Fact]
     public void S4_ARotorTurnsOnSimulationTimeWhileFlying_AndStandsWhenParked()
     {

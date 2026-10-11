@@ -99,7 +99,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             KitPivots pivots = default;
             var pose = ArticulationPose.Neutral;
             if (look.Family == VisualFamily.Person)
-                parts = FigurePose(world, e, look.Soldier);
+                parts = FigurePose(world, e, look.Soldier, simTime);
             else
             {
                 var kit = ShapeKits.For(look.Family);
@@ -143,13 +143,22 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             BodiesDrawn++;
         }
         _motion.EndFrame(_drawn);
+        _fall.EndFrame(_drawn);
     }
 
     /// <summary>⭐ CE-1033 S4 — the figure's parts: the logical stance (the shared rule), BLENDED from the stance it is leaving while
     /// the muscle reports a transition in progress (<see cref="StanceStatus"/> — replicated, so every host shows the same blend).</summary>
-    private static KitPart[] FigurePose(EntityRepository world, Entity e, bool soldier)
+    private KitPart[] FigurePose(EntityRepository world, Entity e, bool soldier, double simTime)
     {
         var target = LogicalStance.Of(world, e);
+        // ⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — a dead man lies on his back, fallen into it over 0.6 s of sim time from the
+        //   stance he died in; a body first seen already dead just lies there (DeathFall).
+        if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e))
+        {
+            var (t, from) = _fall.Dead(e, simTime);
+            return BlockFigure.Fall(BlockFigure.Parts(from, soldier), t, soldier);
+        }
+        _fall.Alive(e, target, simTime);
         if (world.IsComponentTypeRegistered<StanceStatus>() && world.HasComponent<StanceStatus>(e))
         {
             ref readonly var status = ref world.GetComponentRO<StanceStatus>(e);
@@ -160,6 +169,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     }
 
     private readonly MotionTracker _motion = new();
+    private readonly DeathFall _fall = new();
+
+    /// <summary>The dead men's falls (W4) — read by rails.</summary>
+    public DeathFall Falls => _fall;
     private readonly HashSet<Entity> _drawn = new();
     private float _wallFallback;
 
