@@ -1,4 +1,4 @@
-﻿namespace Fdp.Core
+namespace Fdp.Core
 {
     /// <summary>
     /// Central catalog of globally unique ECS component IDs, allocated in named blocks.
@@ -733,5 +733,11 @@
         /// <summary><c>TurretPose</c> — a turret part's traverse and gun elevation (WL-1, docs/DESIGN_Weapon_Layers.md W-9). ⚠ 350 is
         /// taken by test-only components, so this skips to 351.</summary>
         public const int TurretPose = 351;
+
+        /// <summary><c>WeaponTask</c> — the weapon brain's standing order to a turret (WL-2, DESIGN_Weapon_Layers W-2/W-11). Brain group.</summary>
+        public const int WeaponTask = 352;
+
+        /// <summary><c>WeaponTaskStatus</c> — the weapon muscle's report on that order (WL-2, W-3). MuscleGround group.</summary>
+        public const int WeaponTaskStatus = 353;
     }
 }

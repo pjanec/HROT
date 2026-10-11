@@ -101,6 +101,14 @@ namespace Fdp.Toolkit.Combat
             return suite != null && mountIndex >= 0 && mountIndex < suite.Mounts.Count ? suite.Mounts[mountIndex] : null;
         }
 
+        /// <summary>⭐ WL-2 — turret <paramref name="turretIndex"/> of <paramref name="owner"/>'s type (DESIGN_Weapon_Layers W-9), or null.</summary>
+        public static TurretDto? TurretOf(EntityRepository world, Entity owner, int turretIndex)
+        {
+            if (!TryGetTemplate(world, owner, out var t)) return null;
+            var suite = t.GetDescriptor<TurretSuiteDto>();
+            return suite != null && turretIndex >= 0 && turretIndex < suite.Turrets.Count ? suite.Turrets[turretIndex] : null;
+        }
+
         /// <summary>
         /// ⭐ Buildings §3d P1 (R-217) — the penetration (mm RHA) of the round <paramref name="mount"/> fires: its loaded ammo × this
         /// weapon, else the ammo's generic profile, else the mount's own value (<c>ParameterResolver.MountPenetration</c> — the rule

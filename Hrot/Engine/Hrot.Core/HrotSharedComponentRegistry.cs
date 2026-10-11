@@ -56,6 +56,9 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
         // ⭐ WL-1 (DESIGN_Weapon_Layers W-9) — a turret part's pose; every node builds the turret children, so every node registers it.
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.TurretPose>();
+        // ⭐ WL-2 (W-11 / R-267) — the turret's order (Brain) and the muscle's report on it, on the same part.
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponTask>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponTaskStatus>();
 
         // ── Terrain / zone loading ────────────────────────────────────────────
         // ⭐ Registered UNCONDITIONALLY on every ECS host, exactly like the save handler and

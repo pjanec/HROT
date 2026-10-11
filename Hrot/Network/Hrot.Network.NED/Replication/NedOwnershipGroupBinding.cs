@@ -105,6 +105,9 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtStanceStatus, GlobalComponentIds.StanceStatus);   // ⭐ CE-2121 — the body's report
         // ⭐ WL-1b (CE-1049) — a turret part's pose; MuscleGround group, so a part's claim follows (dtTurretPose, 0). 📄 Weapon_Layers §5b.
         map.RegisterMapping((long)EDescriptorType.dtTurretPose, GlobalComponentIds.TurretPose);
+        // ⭐ WL-2b (CE-1049, W-11 / R-267) — a turret's order (Brain group) and the muscle's report on it (MuscleGround group).
+        map.RegisterMapping((long)EDescriptorType.dtWeaponTask, GlobalComponentIds.WeaponTask);
+        map.RegisterMapping((long)EDescriptorType.dtWeaponTaskStatus, GlobalComponentIds.WeaponTaskStatus);
 
         map.BindGroups(HrotOwnershipGroups.Table, Anchors);
 

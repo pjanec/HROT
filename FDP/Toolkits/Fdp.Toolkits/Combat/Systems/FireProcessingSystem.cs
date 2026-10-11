@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -107,7 +107,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 // Read muzzle velocity from the shooter's WeaponState.
                 var weapon      = repo.GetComponent<WeaponState>(shooter);
                 var shooterPos  = repo.GetComponent<SimTransform>(shooter).Position;
-                var targetPos   = evt.AtPoint ? evt.TargetPoint : repo.GetComponent<SimTransform>(target).Position;
+                var targetPos   = evt.AtPoint ? evt.TargetPoint : default;
                 // ⭐ Buildings §3d P2 (R-217; AQ85 §D's first half) — the shot flies along the SIGHT line: from the shooter's eye to
                 //   the middle of the target's silhouette, both for the LOGICAL stance (§3f — one profile for being seen and being
                 //   shot). ⛔ Before, it flew feet to feet, so once bullets meet the terrain every low wall and window sill would
@@ -115,9 +115,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 shooterPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(repo, shooter, HitModel.LogicalStance(repo, shooter));
                 if (!evt.AtPoint)
                 {
-                    var targetStance = HitModel.LogicalStance(repo, target);
-                    float hull = Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, target);
-                    targetPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.AimHeightFor(repo, target, targetStance, hull);   // ⭐ CE-3116 — a person by posture
+                    // ⭐ CE-3116 — a person by posture; ⭐ WL-2 — the same middle the turret aims at (AimPoint.Middle)
+                    targetPos = AimPoint.Middle(repo, target, out var targetStance, out float hull);
                     // ⭐ CE-3136 P-2 (D1, revised) — the middle when seen or shot through a weak cover, else the middle of the SEEN
                     //   part of the body (AimPoint). The round's own penetration decides "weak" — the fired mount's, as below.
                     var terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q1 — bound to this view's doors (R-219)

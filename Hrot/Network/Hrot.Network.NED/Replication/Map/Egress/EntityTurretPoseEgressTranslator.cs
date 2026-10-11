@@ -55,13 +55,10 @@ namespace Hrot.Map.Common.Replication.Egress
             bool stamped = false;
             foreach (var part in view.Query().With<PartMetadata>().With<TurretPose>().Build())
             {
-                ref readonly var meta = ref view.GetComponentRO<PartMetadata>(part);
-                var hull = meta.ParentEntity;
-                if (!view.IsAlive(hull) || !view.HasComponent<NetworkIdentity>(hull)) continue;
-                if (!view.HasAuthority(part, OwnershipExtensions.PackKey(DescriptorOrdinal, meta.InstanceId))) continue;
+                if (!TurretPartKey.TryResolve(view, part, DescriptorOrdinal, out long hullNet, out int partId)) continue;
 
                 var pose = view.GetComponentRO<TurretPose>(part);
-                var key = (view.GetComponentRO<NetworkIdentity>(hull).Value, meta.InstanceId);
+                var key = (hullNet, partId);
                 bool heartbeat = ((view.Tick + (uint)(part.Index % HeartbeatInterval)) % HeartbeatInterval) == 0;
                 if (!heartbeat && _lastPublished.TryGetValue(key, out var prev)
                     && MathF.Abs(pose.Azimuth - prev.Azimuth) <= AngleThreshold
@@ -76,7 +73,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 _writer?.Write(new EntityTurretPose
                 {
                     ParentNetworkId = key.Item1,
-                    PartId          = meta.InstanceId,
+                    PartId          = partId,
                     Azimuth         = pose.Azimuth,
                     Elevation       = pose.Elevation,
                     Time            = stamp,
@@ -85,13 +82,7 @@ namespace Hrot.Map.Common.Replication.Egress
             }
         }
 
-        public void Dispose(long networkEntityId)
-        {
-            List<(long, int)>? gone = null;
-            foreach (var key in _lastPublished.Keys)
-                if (key.NetId == networkEntityId) (gone ??= new()).Add(key);
-            if (gone != null) foreach (var key in gone) _lastPublished.Remove(key);
-        }
+        public void Dispose(long networkEntityId) => TurretPartKey.Forget(_lastPublished, networkEntityId);
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }

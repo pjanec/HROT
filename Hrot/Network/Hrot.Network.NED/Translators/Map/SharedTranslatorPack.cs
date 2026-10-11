@@ -89,6 +89,11 @@ namespace Hrot.Map.Common.Translators
             // ⭐ WL-1b (CE-1049) — a turret part's pose, the dtTurretPose owner (the Muscle) → every node. 📄 DESIGN_Weapon_Layers §5b.
             yield return new EntityTurretPoseEgressTranslator(participant);
             yield return new EntityTurretPoseIngressTranslator(participant, entityMap);
+            // ⭐ WL-2b (CE-1049) — a turret's order (Brain → Muscle) and the muscle's report (Muscle → Brain). 📄 DESIGN_Weapon_Layers §5d.
+            yield return new EntityWeaponTaskEgressTranslator(participant, entityMap);
+            yield return new EntityWeaponTaskIngressTranslator(participant, entityMap);
+            yield return new EntityWeaponTaskStatusEgressTranslator(participant);
+            yield return new EntityWeaponTaskStatusIngressTranslator(participant, entityMap);
             // ⭐ R-221 — every interaction kind (doors first) travels to the target's owner on ONE topic; the kind's handler applies it there.
             yield return new Hrot.Map.Common.Replication.Interactions.InteractionEgressTranslator(participant, entityMap);
             yield return new Hrot.Map.Common.Replication.Interactions.InteractionIngressTranslator(participant, entityMap);

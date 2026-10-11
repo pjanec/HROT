@@ -114,6 +114,8 @@ with the creator. LOCAL components are in no group (each node writes its own cop
 | `AnimationChannel`, `LookAtChannel` | ~~intent fields by the Brain AND status fields by the Muscle in ONE component~~ ✅ split `2026-10-03`: request → Brain group, new `AnimationChannelStatus`/`LookAtChannelStatus` → MuscleGround | ✅ F-9 / `CE-513 (backend)` built (Q80 §5) |
 | `GroundClampingConfig` | IG ingress of an externally sent `dtGroundClampingOverride` only | LOCAL |
 | `TurretPose` (on a turret PART child, `PartMetadata` 2000 + index) | the weapon muscle / ambient fire on the Muscle (DESIGN_Weapon_Layers W-9, §6); hand-set today | MUSCLEGROUND via `dtTurretPose` (WL-1b, CE-1049, `2026-10-11`) — the part's claim resolves from `(dtTurretPose, 0)` |
+| `WeaponTask` (on the turret part) | the weapon brain on the Brain (DESIGN_Weapon_Layers W-2, W-11 / R-267; WL-3) | BRAIN via `dtWeaponTask` (WL-2b, `2026-10-11`) |
+| `WeaponTaskStatus` (on the turret part) | `WeaponTaskDispatcherSystem`, the weapon muscle (W-3) | MUSCLEGROUND via `dtWeaponTaskStatus` (WL-2b) |
 
 ⚠ **Animation replication is dormant:** `AnimationReplicationModule` is constructed by no production host and referenced by no
 host project; its translators are `INetworkTranslator`s outside the descriptor map and gate on ENTITY authority. The tank probe

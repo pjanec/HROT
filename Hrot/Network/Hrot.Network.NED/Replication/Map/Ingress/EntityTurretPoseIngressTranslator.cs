@@ -61,11 +61,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         }
 
         private Entity PartOf(in EntityTurretPose data, ISimulationView view)
-        {
-            int index = TurretParts.IndexOf(data.PartId);
-            if (index < 0 || !_entityMap.TryGetEntity(data.ParentNetworkId, out var hull)) return Entity.Null;
-            return TurretParts.Find(view, hull, index);
-        }
+            => TurretPartLookup.Find(_entityMap, view, data.ParentNetworkId, data.PartId);
 
         public void ScanAndPublish(ISimulationView view) { }
 
@@ -80,6 +76,6 @@ namespace Hrot.Map.Common.Replication.Ingress
         public void Dispose(long networkEntityId) { }
 
         private static bool OwnsThePose(EntityRepository repo, Entity part, int partId)
-            => AuthorityExtensions.IsRecordedOwner(repo, part, OwnershipExtensions.PackKey(OrdinalValue, partId));
+            => TurretPartLookup.IsRecordedOwner(repo, part, OrdinalValue, partId);
     }
 }

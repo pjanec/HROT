@@ -32,6 +32,8 @@ namespace Hrot.SimHost.Modules
         {
             InputSystems = new IEcsModuleSystem[]
             {
+                // ⭐ WL-2 (DESIGN_Weapon_Layers §5c) — the weapon muscle slews turrets to their tasks, before a round is born.
+                new WeaponTaskDispatcherSystem(),
                 new FireProcessingSystem(),
                 new RaycastSolverSystem(),
                 new HitResolutionSystem(),

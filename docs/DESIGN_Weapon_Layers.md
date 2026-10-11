@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILDING (WL-1a §5a and WL-1b §5b built) — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
+build-state: BUILDING (WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d built) — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
 current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
@@ -308,6 +308,166 @@ sequenceDiagram
 | **BestEffort, TransientLocal, KeepLast 1** (the `WorldPos` QoS) + a salted heartbeat (120 ticks, ~2 s) and a 0.2° change threshold | W-9; a lost sample is repaired by the next change or heartbeat, a late joiner gets the last sample | Reliable — a reliable history for a value that is superseded many times a second |
 | **rates and sim stamp on the wire, written 0 / now** | W-10 fills them with no wire change; receivers do not project yet (U-W5: "no implementation yet") | adding them later — a wire-format change on every node |
 | ingress **drops** a sample whose hull or turret part is not built yet | the spawn builds the part from the TKB; the next heartbeat lands on it | a pending queue (`EqsSensorConfigIngressTranslator`) — needed for config sent once, not for a value resent every ~2 s |
+
+### 5c. WL-2a — the weapon muscle keeps the gun on a target (Track) *(✅ built 2026-10-11, as drawn; W-11 / R-267)*
+
+WL-2 is split like WL-1: **WL-2a** = the task and status components on the turret part, the Muscle's dispatcher with **Track**,
+`BallisticAim` and the slew — runnable on one node (the editor) by writing a task by hand; **WL-2b** = the task and status on the
+wire (Brain → Muscle, Muscle → Brain), the `TurretPose` pattern twice.
+
+```mermaid
+graph TD
+  subgraph Muscle["Muscle node — SimHostCoreLogicPack (SimHost, and the editor as its one node)"]
+    CM["CombatModule.InputSystems"]
+    D["WeaponTaskDispatcherSystem<br/>(before FireProcessingSystem)"]
+    F["FireProcessingSystem (WL-3 fires through it)"]
+    CM -->|"each frame"| D
+    CM -->|"each frame"| F
+  end
+  T["turret part: WeaponTask (Brain group) · WeaponTaskStatus (Muscle group) · TurretPose"]
+  D -->|reads| T
+  D -->|writes pose + status| T
+```
+
+*What the picture shows that prose hid:* the dispatcher is reached each frame only where `CombatModule` is composed — the same
+composition gate `FireProcessingSystem` relies on (`FireProcessingSystem.cs` CE-198 note: no authority gate, one node schedules it). A
+Brain or IG never runs it, so it needs no runtime authority check of its own.
+
+```mermaid
+classDiagram
+  class WeaponTask { <<new component 352, Brain group>> Mode; Target; Point; MountIndex; RoundsGranted; AmmoGuid; Epoch }
+  class WeaponTaskStatus { <<new component 353, Muscle group>> Epoch; State; Reason; RoundsFired }
+  class WeaponTaskDispatcherSystem { <<new, Muscle, Input phase>> Idle holds; Track slews }
+  class BallisticAim { <<new static>> Solve(world, hull, turret, mount, aimPoint) azimuth elevation in the hull frame }
+  class TurretSlew { <<new static, pure>> Step(pose, desired, TurretDto, dt); InArc }
+  class AimPoint { <<exists>> + Middle(world, target) — the target's mid-silhouette, shared with FireProcessingSystem }
+  class CombatTkb { <<exists>> + TurretOf(world, hull, index) }
+  class TurretPose { <<exists, WL-1>> }
+  class TurretDto { <<exists TKB, WL-1>> pivot, limits, rates }
+  WeaponTaskDispatcherSystem ..> WeaponTask : reads
+  WeaponTaskDispatcherSystem ..> WeaponTaskStatus : writes
+  WeaponTaskDispatcherSystem --> BallisticAim
+  WeaponTaskDispatcherSystem --> TurretSlew
+  WeaponTaskDispatcherSystem ..> TurretPose : writes
+  BallisticAim ..> AimPoint : Middle
+  BallisticAim ..> TurretDto : pivot
+  TurretSlew ..> TurretDto : limits and rates
+  WeaponTaskDispatcherSystem ..> CombatTkb : TurretOf, MountOf
+```
+
+```mermaid
+sequenceDiagram
+  participant D as WeaponTaskDispatcherSystem
+  participant A as BallisticAim
+  participant S as TurretSlew
+  participant P as turret part
+  D->>P: read WeaponTask (Track, target, epoch 5)
+  D->>A: Solve(hull pose, turret pivot, target middle)
+  A-->>D: azimuth, elevation (hull frame), in arc?
+  alt out of the turret's limits
+    D->>P: status Failed(OutOfArc), pose holds
+  else in arc
+    D->>S: Step(pose, desired, rates x dt)
+    S-->>D: new pose
+    D->>P: TurretPose, status Slewing or OnTarget (within 0.5 deg)
+  end
+```
+
+| choice | why | rejected — one line each |
+|---|---|---|
+| angles solved in the **hull frame** (inverse hull rotation) | a hull on a slope tilts its turret plane; `TurretPose` is relative to the hull (M23) | world bearing minus yaw — wrong on any slope (R-248) |
+| direct fire = the line pivot → target middle; indirect (the mount's warhead `Indirect`) = `FireProcessingSystem.ArcLaunch` | W-8; the same arc the round will fly | a second ballistic model |
+| aim point = `AimPoint.Middle` (one helper, `FireProcessingSystem` routed onto it) | the round and the gun aim at the same point | the dispatcher computing its own aim height |
+| full-circle traverse wraps the short way; a limited arc slews inside it | `TurretDto` −180…180 = all round | always the short way — would swing a limited turret through its dead zone |
+| out of limits ⇒ `Failed(OutOfArc)`, pose holds | W-8 — the profile tries another mount or the behaviour moves | clamping silently — the brain would think it is aimed |
+| `OnTarget` within 0.5° of both angles | a status the Brain can gate the shot on (WL-3) | exact equality — never reached at a finite rate |
+
+⚠ **As built (WL-2a):** `WeaponTaskFailure`'s zero member is `NoFailure`, not `None` — the DDS code generator emits one IDL scope
+per file and two enums with a `None` member collide there. `FireProcessingSystem` now takes the target's middle from
+`AimPoint.Middle` (the same three calls it inlined before), so the round and the turret aim at one point by construction.
+
+### 5d. WL-2b — the task and its report on the wire *(✅ built 2026-10-11)*
+
+```mermaid
+sequenceDiagram
+  participant B as Brain (owns dtWeaponTask)
+  participant M as Muscle (owns dtWeaponTaskStatus, dtTurretPose)
+  participant V as every node
+  B->>M: EntityWeaponTask (hull net id, 2000+turret) mode, target net id, point, mount, rounds, ammo, epoch
+  M->>M: target net id to its own entity, WeaponTaskDispatcherSystem slews
+  M->>V: EntityTurretPose (WL-1b)
+  M->>B: EntityWeaponTaskStatus (same key) epoch, state, reason, rounds fired
+```
+
+```mermaid
+classDiagram
+  class EntityWeaponTask { <<wire, Reliable TransientLocal KeepLast 1>> [Key] ParentNetworkId; [Key] PartId; Mode; TargetNetworkId; Point; MountIndex; RoundsGranted; AmmoGuid; Epoch }
+  class EntityWeaponTaskStatus { <<wire, Reliable TransientLocal KeepLast 1>> [Key] ParentNetworkId; [Key] PartId; Epoch; State; Reason; RoundsFired }
+  class TurretPartKey { <<egress helper>> TryResolve(part, descriptor) hull net id, part id, owner gate }
+  class TurretPartLookup { <<ingress helper>> Find(map, hull net id, part id); IsRecordedOwner }
+  class EntityTurretPoseEgressTranslator { <<WL-1b, routed onto TurretPartKey>> }
+  class EntityTurretPoseIngressTranslator { <<WL-1b, routed onto TurretPartLookup>> }
+  EntityWeaponTask ..> TurretPartKey
+  EntityWeaponTaskStatus ..> TurretPartKey
+  EntityTurretPoseEgressTranslator ..> TurretPartKey
+  EntityTurretPoseIngressTranslator ..> TurretPartLookup
+```
+
+*What the picture shows that prose hid:* the three turret-part topics share ONE key rule (`TurretPartKey` out, `TurretPartLookup` in)
+— the pose translators were routed onto it, so the key cannot drift between them. Ownership: `dtWeaponTask = 125` in the Brain group
+(`WeaponTask`), `dtWeaponTaskStatus = 126` in the MuscleGround group (`WeaponTaskStatus`), both registered in `SharedTranslatorPack`
+(Brain and Muscle both run it; a pure IG needs neither). A target the Muscle does not know arrives as `Entity.Null` with no point,
+so the muscle reports `NoTarget` instead of aiming at the origin.
+
+### 5e. WL-3 — Engage: the brain grants rounds, the muscle fires them *(design 2026-10-11)*
+
+```mermaid
+sequenceDiagram
+  participant X as AimAndFireExecutor (Brain, weapon brain)
+  participant P as turret part
+  participant D as WeaponTaskDispatcherSystem (Muscle)
+  participant F as FireProcessingSystem (Muscle)
+  X->>X: target alive, rounds asked, mount (choice), ammo, magazine, ROE, seen-now
+  alt seen, ROE permits, magazine ready
+    X->>P: WeaponTask Engage, RoundsGranted = fired so far + rounds left in the magazine (capped by the rounds asked)
+  else not seen, ROE holds, or reloading
+    X->>P: WeaponTask Track (same epoch — the gun keeps following)
+  end
+  D->>P: slew, OnTarget
+  D->>D: cooldown over, RoundsFired below RoundsGranted, no friendly on the line
+  D->>F: WeaponFireIntent(hull, target, mount)
+  D->>P: status Firing, RoundsFired + 1
+  X->>X: status RoundsFired grew by n: Magazine.Spend n times, rounds fired + n
+  X->>X: rounds asked reached or target dead: Success, task Idle
+```
+
+```mermaid
+classDiagram
+  class AimAndFireExecutor { <<exists, split>> profile.UsesTurretTask(mount) ? turret path : per-shot path (unchanged) }
+  class IWeaponBrainProfile { <<new>> UsesTurretTask(world, unit, mount) }
+  class DefaultWeaponBrainProfile { <<new>> true when the mount names a turret the unit has }
+  class WeaponBrainProfiles { <<new static table>> For(category) — WL-3 registers the default for every category }
+  class WeaponTask { <<WL-2>> + CooldownSeconds }
+  class WeaponTaskDispatcherSystem { <<WL-2>> + Engage: fire when on target, granted, cooled, line clear }
+  class WeaponMuscleState { <<new local component on the turret part>> CooldownRemaining }
+  class LineOfFire { <<exists>> BlockedByFriendly — the ONE check, called by both paths (W-7) }
+  AimAndFireExecutor --> WeaponBrainProfiles
+  WeaponBrainProfiles --> IWeaponBrainProfile
+  DefaultWeaponBrainProfile ..|> IWeaponBrainProfile
+  AimAndFireExecutor ..> WeaponTask : writes
+  WeaponTaskDispatcherSystem ..> WeaponMuscleState : cooldown
+  WeaponTaskDispatcherSystem ..> LineOfFire
+  AimAndFireExecutor ..> LineOfFire : per-shot path only
+```
+
+| choice | why | rejected — one line each |
+|---|---|---|
+| `RoundsGranted` is **cumulative per epoch**; a Track ↔ Engage switch keeps the epoch, a new target or mount bumps it | the brain accounts the DELTA of `RoundsFired`; the muscle never re-fires after a mode flip | a new epoch per grant — the counter resets and a round in flight is double-counted or lost |
+| the grant = rounds left in the **magazine** (capped by the action's rounds) | W-4: logistics stay Brain-side; a reload withdraws the grant (Track) and re-grants after it | granting the whole ammo load — the muscle would fire through a reload it knows nothing of |
+| the **cooldown** travels in the task (`CooldownSeconds`, the action's parameter); the muscle keeps the remaining time in a LOCAL `WeaponMuscleState` | fire timing is the muscle's (W-1); the number is the behaviour's, as today | a TKB rate of fire — not every mount declares one, and the action already carries it |
+| seen-now / ROE / magazine gate **Engage vs Track** on the Brain; the friendly line is checked by the muscle at the shot (W-7) | the seen-now memory is Brain state; the shot's moment is the Muscle's | the muscle reading `TargetMemory` — W-7 rejected |
+| no AimSeconds on the turret path — the slew is the aim | U-W1 *"AimSeconds can stay for simplest weapon brains not modelling turrets"* | both — a turreted gun would wait twice |
+| `Failed(OutOfArc)` → the action fails (Failure); `NoTarget` with a dead target → Success | the behaviour moves or picks another target; WL-4's profiles may try another mount first | silently holding — a behaviour would wait forever |
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 

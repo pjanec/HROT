@@ -112,6 +112,45 @@ namespace Hrot.NED.Descriptors
         public DateTime Time;
     }
 
+    // ⭐ WL-2b (CE-1049) — the weapon brain's standing order to ONE turret (W-2, W-11 / R-267), Brain → Muscle, keyed like
+    //   EntityTurretPose. Reliable + TransientLocal + KeepLast 1: an order is sent once per change and must arrive.
+    //   📄 docs/DESIGN_Weapon_Layers.md §5d.
+    [DdsTopic("EntityWeaponTask")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityWeaponTask
+    {
+        [DdsKey] public long ParentNetworkId;
+        [DdsKey] public int PartId;
+        /// <summary><c>WeaponTaskMode</c>: 0 Idle · 1 Track · 2 Engage.</summary>
+        public byte Mode;
+        /// <summary>The target's network id; 0 = aim at the point.</summary>
+        public long TargetNetworkId;
+        public float PointX;
+        public float PointY;
+        public float PointZ;
+        public byte MountIndex;
+        public ushort RoundsGranted;
+        public ulong AmmoGuid;
+        public uint Epoch;
+    }
+
+    // ⭐ WL-2b (CE-1049) — the weapon muscle's report on that order (W-3), Muscle → Brain, same key.
+    [DdsTopic("EntityWeaponTaskStatus")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityWeaponTaskStatus
+    {
+        [DdsKey] public long ParentNetworkId;
+        [DdsKey] public int PartId;
+        public uint Epoch;
+        /// <summary><c>WeaponTaskState</c>.</summary>
+        public byte State;
+        /// <summary><c>WeaponTaskFailure</c>.</summary>
+        public byte Reason;
+        public ushort RoundsFired;
+    }
+
     // ⭐ CE-3136 P-7a (O3, R-242/R-243) — a static obstacle's box (the TKB's size or a scenario's per-instance one), published by the
     //   obstacle's creator, applied on every other node BEFORE its ghost promotes ([PerInstanceValue] ObstacleShape), so every node bakes
     //   the same box into its terrain. TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every obstacle.
