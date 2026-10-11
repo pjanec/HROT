@@ -17,7 +17,7 @@ public class PlatoonHillAttackBpAuthoringTests
         while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln"))) dir = dir.Parent;
         Assert.NotNull(dir);
         return Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints",
-            PlatoonHillAttackBpAuthoring.Name + ".bp.json");
+            "Demos", "HillAttack", PlatoonHillAttackBpAuthoring.Name + ".bp.json");
     }
 
     private static string Diags(CompileResult r)

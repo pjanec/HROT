@@ -5,7 +5,7 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Time
 {
     /// <summary>
-    /// ⭐ W1 (docs/DESIGN_Visual_Effects.md §7 VE-Q, R-269) — <b>a timed entity:</b> when it was made, in SIMULATION seconds, and how
+    /// ⭐ W1 (docs/DESIGN_Visual_Effects.md §7 VE-Q, R-269 (ui)) — <b>a timed entity:</b> when it was made, in SIMULATION seconds, and how
     /// long it lives. <see cref="LifespanSystem"/> removes it once sim time passes <c>BornAt + Seconds</c> — one collector for every
     /// timed entity, not a timer per feature (U7: <i>"some garbage collection system removes those … maybe this could be a generic
     /// component"</i>).

@@ -392,6 +392,11 @@ public sealed class BehaviorTreeAssetDto
     public string BlackboardTypeName { get; set; } = string.Empty;
     public string ContextTypeName { get; set; } = string.Empty;
 
+    /// <summary>⭐ <c>CE-3164</c> (R-268) — the picker group, set by the generator from the file's FOLDER
+    /// (<see cref="Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath"/>). ⛔ Never persisted: the folder IS the data.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? Group { get; set; }
+
     // ── Topology ──────────────────────────────────────────────────────────────
     public List<BTreeNodeDto> Nodes { get; set; } = new();
 

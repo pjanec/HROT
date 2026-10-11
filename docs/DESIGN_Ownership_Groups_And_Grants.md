@@ -20,6 +20,7 @@ related-designs:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md — owns the EQS solve, the child-sensor wire and its lifecycle; §5.8 here decides only WHICH node solves (R-179).
   - docs/DESIGN_Subsystem_Composition_Unification.md — owns role-based composition; its B5 (not started) is what composes NavigationSolverModule and the Muscle executor set, which §5.9/§5.10 here wait on.
   - docs/designs/navig-2/Navigation_Design_v2_0.md — owns the navigation topologies (collocated in-process answer, scale-out batch pair) that §5.9 keeps.
+  - docs/DESIGN_Entity_Control.md — adds ManualDrive, PossessedBy and WeaponAmmo to the Brain group
 -->
 
 # Ownership groups and grants — the build design

@@ -117,6 +117,7 @@ public static class T33_ComposedParamBlueprintRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T33_ComposedParamBlueprint"), "T33_ComposedParamBlueprint", new BehaviorDefinition
         {
             Name         = "T33_ComposedParamBlueprint",
+            Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 11510756699212446489UL,   // CE-455: the root block's layout

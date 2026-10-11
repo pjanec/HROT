@@ -34,4 +34,8 @@ public sealed record CompileOptions(
     // ⚠ Null is the NORMAL case, exactly as ClrSignatureResolver is: one production site supplies one
     // (BlueprintIncrementalGenerator). Absence means "no opinion", and the caller must then mark the
     // size UNRELIABLE rather than trust the AN2 4-byte placeholder -- see Stage4_TypeResolve.
-    Func<string, int?>? StructSizeOracle = null);
+    Func<string, int?>? StructSizeOracle = null,
+
+    // ⭐ CE-3164 (R-268) — the picker group of a blueprint BEHAVIOUR: the asset's folder below Assets/Blueprints/, supplied by
+    // the generator that holds the path (BehaviorGroups.FromAssetPath). Null ⇒ no group (the picker's "Other").
+    string? BehaviorGroup = null);

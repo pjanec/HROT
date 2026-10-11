@@ -31,7 +31,7 @@ public sealed class BehaviorResolverAuthoringTests
     }
 
     private static BehaviorTreeAssetDto LoadT40() => BTreeJsonServices.Deserialize(File.ReadAllText(RepoFile(
-        "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "BTrees", "Authoring", "T40_BehaviorResolverAsset.btree.json")))!;
+        "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "BTrees", "Tests", "Authoring", "T40_BehaviorResolverAsset.btree.json")))!;
 
     private static BehaviorTreeAssetDto Behaviour(params (string Name, string Type, bool State, bool NodeScope)[] vars)
     {
@@ -57,7 +57,7 @@ public sealed class BehaviorResolverAuthoringTests
     {
         var derived = BehaviorResolverAuthoring.Create(LoadT40(), Guid.NewGuid()).ResolverSubject!;
         var shipped = BlueprintJsonServices.Deserialize(File.ReadAllText(RepoFile(
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "T40Resolver.bp.json")))!.ResolverSubject!;
+            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "Tests", "T40Resolver.bp.json")))!.ResolverSubject!;
 
         Assert.Equal(shipped.BehaviorName,   derived.BehaviorName);
         Assert.Equal(shipped.BlockTypeId,    derived.BlockTypeId);
@@ -144,7 +144,7 @@ public sealed class BehaviorResolverAuthoringTests
     // ── ⭐ CE-503 — the HSM binds a resolver through the SAME derivation (its BlackboardOwner view) ─────────────────────
 
     private static HsmAssetDto LoadHsmDemo() => HsmJsonServices.Deserialize(File.ReadAllText(RepoFile(
-        "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "HSMs", "HsmResolverDemo.hsm.json")))!;
+        "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "HSMs", "Tests", "Binding", "HsmResolverDemo.hsm.json")))!;
 
     /// <summary>
     /// ⭐⭐⭐ CE-503 — the strong one, for the HSM: deriving a resolver from the SHIPPED <c>HsmResolverDemo</c> yields exactly the
@@ -156,7 +156,7 @@ public sealed class BehaviorResolverAuthoringTests
     {
         var derived = BehaviorResolverAuthoring.Create(LoadHsmDemo(), Guid.NewGuid()).ResolverSubject!;
         var shipped = BlueprintJsonServices.Deserialize(File.ReadAllText(RepoFile(
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "HsmResolverDemoResolver.bp.json")))!.ResolverSubject!;
+            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "Tests", "HsmResolverDemoResolver.bp.json")))!.ResolverSubject!;
 
         Assert.Equal(shipped.BehaviorName,   derived.BehaviorName);
         Assert.Equal(shipped.BlockTypeId,    derived.BlockTypeId);

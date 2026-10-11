@@ -38,7 +38,7 @@ compiles and runs it, asserting behavior against the C# oracle — mirroring `Sh
 - `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/HillAttackCommanderNodes.cs` (commander logic + tree builder)
 - `.../Brains/HillAttackTankNodes.cs` (tank logic + tree builder)
 - `.../Brains/HillAttackDtos.cs` (`PlatoonHillAttackParams`, `HillAttackMutableState`, `HullDownAttackParams`)
-- `Assets/BTrees/PlatoonHillAttack.btree.json`, `.../HullDownAttackRun*.btree.json` (topology)
+- `Assets/BTrees/Demos/HillAttack/PlatoonHillAttack.btree.json`, `.../HullDownAttackRun*.btree.json` (topology)
 - Node vocabulary: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Assets/Nodes.cs`
 
 ## Capability status (2026-07-16) — generic nodes shipped

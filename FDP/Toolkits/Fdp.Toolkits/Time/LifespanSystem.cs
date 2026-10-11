@@ -5,7 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.Toolkit.Time
 {
     /// <summary>
-    /// ⭐ W1 (docs/DESIGN_Visual_Effects.md §7 VE-Q, R-269) — <b>the one collector for timed entities:</b> destroys every entity whose
+    /// ⭐ W1 (docs/DESIGN_Visual_Effects.md §7 VE-Q, R-269 (ui)) — <b>the one collector for timed entities:</b> destroys every entity whose
     /// <see cref="Lifespan"/> is over by SIMULATION time (<see cref="SimClock"/>), or that a jump back put before its own birth.
     /// <para>⛔ OFF during a replay (<see cref="IsReplayActive"/>, VE-R): the recording already holds when each timed entity went, and
     /// the replay restores it — removing it here as well would fight the playback.</para>

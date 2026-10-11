@@ -569,7 +569,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the MoveToLocation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("MoveToLocation", Curated = true, ParamsType = typeof(MoveToLocationParams))]
+        [BTreeDefinition("MoveToLocation", Curated = true, Group = "Library/Basic", ParamsType = typeof(MoveToLocationParams))]
         public static BTreeBuilder<MoveToBlackboard, BTreeContext> BuildMoveToLocationTree()
         {
             return new BTreeBuilder<MoveToBlackboard, BTreeContext>()
@@ -579,7 +579,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the FollowRoute BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("FollowRoute", Curated = true, ParamsType = typeof(FollowRouteParams))]
+        [BTreeDefinition("FollowRoute", Curated = true, Group = "Library/Basic", ParamsType = typeof(FollowRouteParams))]
         public static BTreeBuilder<FollowRouteBlackboard, BTreeContext> BuildFollowRouteTree()
         {
             return new BTreeBuilder<FollowRouteBlackboard, BTreeContext>()
@@ -589,7 +589,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the JoinFormation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("JoinFormation", Curated = true, ParamsType = typeof(JoinFormationParams))]
+        [BTreeDefinition("JoinFormation", Curated = true, Group = "Library/Basic", ParamsType = typeof(JoinFormationParams))]
         public static BTreeBuilder<JoinFormationBlackboard, BTreeContext> BuildJoinFormationTree()
         {
             return new BTreeBuilder<JoinFormationBlackboard, BTreeContext>()
@@ -599,7 +599,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the WanderMilitary BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("WanderMilitary", Curated = true)]
+        [BTreeDefinition("WanderMilitary", Curated = true, Group = "Library/Basic")]
         // ⭐ P4-②: `byte` here, and it is the RAW-DELEGATE case so nothing is lost. A selector-form
         //   builder still needs a struct with fields (which is why the wrapper structs stay — §30.18);
         //   this tree binds a delegate directly, and that delegate now takes `ref byte`.
@@ -614,7 +614,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the FireAtTarget BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("FireAtTarget", Curated = true, ParamsType = typeof(FireAtTargetParams))]
+        [BTreeDefinition("FireAtTarget", Curated = true, Group = "Library/Basic", ParamsType = typeof(FireAtTargetParams))]
         public static BTreeBuilder<FireAtTargetBlackboard, BTreeContext> BuildFireAtTargetTree()
         {
             return new BTreeBuilder<FireAtTargetBlackboard, BTreeContext>()

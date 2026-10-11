@@ -104,6 +104,7 @@ public static class T09_BlackboardManagedRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T09_BlackboardManaged"), "T09_BlackboardManaged", new BehaviorDefinition
         {
             Name         = "T09_BlackboardManaged",
+            Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 7129698420404886995UL,   // CE-455: the root block's layout

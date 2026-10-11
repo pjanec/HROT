@@ -3,6 +3,9 @@ state: LIVE
 build-state: NOT-BUILT
 verified: 2026-08-28 (coordinator source scan)
 current-answer: NOT-BUILT (design only; Q29 accepted). Separate MoveHere/Engage/Stop via the old DDS menu; no IssueTacticalIntent handler, no args channel; commander node intent still hardcoded.
+known-rot: §1 maps Engage → FireAtTarget; SUPERSEDED 2026-10-11 by DESIGN_Entity_Control.md C-5 (Engage = the attack order, CombatPosture with a designated target, which closes in). §2.6's follow-up pick and §2.5b-d are built by that design's S1-S2.
+related-designs:
+  - docs/DESIGN_Entity_Control.md — OWNS the order service EntityOrders, the HTTP order routes, the RTS tool and FPS possession; it builds this doc's §2.5b-d + §2.6 and binds MoveHere/Engage/Stop (S1-S2), and maps Engage to the attack order (C-5)
 -->
 # Feature design — entity commanding (right-click orders)
 

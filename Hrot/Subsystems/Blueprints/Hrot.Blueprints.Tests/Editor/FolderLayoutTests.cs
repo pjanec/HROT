@@ -90,7 +90,7 @@ public sealed class FolderLayoutTests
         var assetsBlueprintsDir = Path.Combine(sourceDir, "Assets", "Blueprints");
         Assert.True(Directory.Exists(assetsBlueprintsDir),
             $"Expected Assets/Blueprints directory in source: {assetsBlueprintsDir}");
-        var assetBpFiles = Directory.GetFiles(assetsBlueprintsDir, "*.bp.json");
+        var assetBpFiles = Directory.GetFiles(assetsBlueprintsDir, "*.bp.json", SearchOption.AllDirectories);   // CE-3164: assets live in picker folders
         Assert.NotEmpty(assetBpFiles);
         Assert.Contains(assetBpFiles.Select(Path.GetFileName),
             f => f == "Count4.bp.json");
@@ -98,7 +98,7 @@ public sealed class FolderLayoutTests
         var assetsHsmsDir = Path.Combine(sourceDir, "Assets", "HSMs");
         Assert.True(Directory.Exists(assetsHsmsDir),
             $"Expected Assets/HSMs directory in source: {assetsHsmsDir}");
-        var hsmFiles = Directory.GetFiles(assetsHsmsDir, "*.hsm.json");
+        var hsmFiles = Directory.GetFiles(assetsHsmsDir, "*.hsm.json", SearchOption.AllDirectories);   // CE-3164: assets live in picker folders
         Assert.NotEmpty(hsmFiles);
         Assert.Contains(hsmFiles.Select(Path.GetFileName),
             f => f == "SampleGuard.hsm.json");
@@ -106,7 +106,7 @@ public sealed class FolderLayoutTests
         var assetsBTreesDir = Path.Combine(sourceDir, "Assets", "BTrees");
         Assert.True(Directory.Exists(assetsBTreesDir),
             $"Expected Assets/BTrees directory in source: {assetsBTreesDir}");
-        var btreeFiles = Directory.GetFiles(assetsBTreesDir, "*.btree.json");
+        var btreeFiles = Directory.GetFiles(assetsBTreesDir, "*.btree.json", SearchOption.AllDirectories);   // CE-3164: assets live in picker folders
         Assert.NotEmpty(btreeFiles);
         Assert.Contains(btreeFiles.Select(Path.GetFileName),
             f => f == "SampleScout.btree.json");

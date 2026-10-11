@@ -1957,7 +1957,7 @@ public HsmValidator(IActionSchemaExporter? schema = null,
 >
 > **The HSM half is not deferred — it is currently unauthorable.** BP-30 records that HSM has **no compose command** (0 partition-slot refs), so two AiPrimitives cannot be placed on one HSM at all; there is no artifact to characterize. The regression test belongs with BP-30's fix, not here.
 >
-> Files: `Assets/BTrees/Authoring/T39_TwoDistinctPrimitives.btree.json`, `Brains/DemoAiPrimitiveNodesB.cs`, `Demos/T39_TwoDistinctAiPrimitives_ProofTests.cs`.
+> Files: `Assets/BTrees/Tests/Authoring/T39_TwoDistinctPrimitives.btree.json`, `Brains/DemoAiPrimitiveNodesB.cs`, `Demos/T39_TwoDistinctAiPrimitives_ProofTests.cs`.
 - Coverage is by analogy only: `T20` uses two *hardcoded* stateful actions on the same rail; `T35` uses the *same* blueprint 3×. The scenario an author will actually hit is unproven. HSM's collision has no regression test either.
 
 <a id="bp-45"></a>
@@ -2670,7 +2670,7 @@ fixed it.** The two are unrelated defects that happen to share the Library surfa
 
 ##### ⭐ The second half — the durable part
 
-`Assets/Blueprints/LibraryFunctionsDemo.bp.json` is the **first Library asset ever to pass through the
+`Assets/Blueprints/Samples/LibraryFunctionsDemo.bp.json` is the **first Library asset ever to pass through the
 real source generator**. Because `Assets\Blueprints\**\*.bp.json` is an `<AdditionalFiles>` entry of
 `Hrot.AI.Behaviors`, a regression in the Library emit path now **fails the solution build before any
 test runs** — a stronger lock than any assertion.
@@ -3354,7 +3354,7 @@ variables panels, and **never invoked Save**, `git status` showed **two modified
 
 ```
  M Hrot/Subsystems/Hrot.AI.Behaviors/Assets/BTrees/Authoring/PlatoonHillAttack2.btree.json
- M Hrot/Subsystems/Hrot.AI.Behaviors/Assets/HSMs/SampleGuard.hsm.json
+ M Hrot/Subsystems/Hrot.AI.Behaviors/Assets/HSMs/Samples/SampleGuard.hsm.json
 ```
 
 Exploratory edits were **persisted to disk anyway**:

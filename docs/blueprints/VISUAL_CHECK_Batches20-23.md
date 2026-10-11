@@ -46,7 +46,7 @@ human**.
 | G1c | Add a function with **2 outputs**, wire both, build | ✅ Clean — the multi-output adapter walk |
 
 💡 There is now a shipped demo asset covering all three adapter shapes:
-`Assets/Blueprints/LibraryFunctionsDemo.bp.json` (1 output · 2 outputs · zero-output `NodeStatus`).
+`Assets/Blueprints/Samples/LibraryFunctionsDemo.bp.json` (1 output · 2 outputs · zero-output `NodeStatus`).
 **It is the first Library asset the real generator has ever compiled.** Worth opening to see a correct
 library.
 

@@ -64,6 +64,29 @@ namespace Fdp.Toolkit.Spatial.Eqs
         };
     }
 
+    /// <summary>
+    /// ⭐ <c>WL-4</c> W-12f (📄 docs/DESIGN_Weapon_Layers.md §5f L-5/L-6) — where to THROW from: ring points around slot 1 — the
+    /// target's LAST-KNOWN point (the node points the sensor there, never at the live entity: the thrower cannot know where a
+    /// hidden man is now) — between 35 % and 100 % of the search radius (the node sets ~18 m, inside an M67's reach and outside
+    /// its burst), nearer the unit scoring more (a short dash), then exposure and path cost. ⚠ No "hidden" filter: the sight test
+    /// judges a standing man, who sees over the 1.2 m wall a crouched thrower hides behind (§5f).
+    /// </summary>
+    [EqsTemplate(AssetId)]
+    public static class FindThrowingPosition
+    {
+        public const string AssetId = "29715528-c08c-4277-b723-bc40624bd70c";
+        public const uint BlueprintId = 0xA893E4F3u;
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new DonutGenerator { AnchorSlot = 1, Rings = 2, PointsPerRing = 24, InnerFraction = 0.35f },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest { FromSlot = 0 } },
+            ScoreExpensive = new IEqsTest[] { new ThreatExposureTest(), new PathCostScoreTest() },
+            MaxCandidates  = 48,
+        };
+    }
+
     /// <summary>⭐ Somewhere safe to fall back to: grid points around the self that the target CANNOT see, farther from the
     /// target scores more, hidden from every known threat scores more, unreachable dropped.</summary>
     [EqsTemplate(AssetId)]

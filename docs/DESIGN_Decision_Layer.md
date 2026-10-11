@@ -8,6 +8,7 @@ known-rot: §3.3c/§3.3d HSM + blueprint posture PARITY is SUPERSEDED for the li
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:
+  - docs/blueprints/Architect_Question_89_Suppress_And_Close.md — AQ89 (R-269): what §3.3's Suppress branch DOES at a hidden target (blind fire; a willing grenadier closes to throw)
   - REVIEW_Behaviour_Library_Genericity.md — L2 (TakeCover child = generalised PeekAndFire) and L6 (host parity: library vs three-host demo).
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the utility demo scenarios (U1–U7) that exercise §3.3 live over HTTP, and the measured findings F1–F9 (F1: ThreatRanking scores every contact 0 — DistanceToContext reads an unregistered component).
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS the CE-3031 children (TakeCoverBp, FallBackBp) that CombatPosture picks between and that replace the SOP stand-ins.
@@ -20,6 +21,7 @@ related-designs:
   - docs/blueprints/DESIGN_Behavior_Action_Binding.md — OWNS the HSM binding sites and the CE-388 OnExit auto-bind that §3.3c D2 extends with deactivators.
   - docs/designs/ai-btree-deactivator-1/DESIGN.md — OWNS the BTree exit sweep (deactivators); CE-2117 (§3.3e) extended it to switches beneath a running Parallel.
   - docs/designs/brain-split/BS-1-DESIGN.md — §5.1a OWNS the fire executor's guard order, where ROE `Fire` is enforced (CE-2075, backend).
+  - docs/DESIGN_Entity_Control.md — OWNS FPS possession, which pauses the task like a reaction and resumes it on release (M-7, C-4)
 -->
 
 # The decision layer — missions, SOP, threat, intent

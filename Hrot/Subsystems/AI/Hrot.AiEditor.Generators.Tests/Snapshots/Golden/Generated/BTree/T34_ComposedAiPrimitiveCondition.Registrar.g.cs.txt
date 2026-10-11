@@ -122,6 +122,7 @@ public static class T34_ComposedAiPrimitiveConditionRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T34_ComposedAiPrimitiveCondition"), "T34_ComposedAiPrimitiveCondition", new BehaviorDefinition
         {
             Name         = "T34_ComposedAiPrimitiveCondition",
+            Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 16246012517647093476UL,   // CE-455: the root block's layout

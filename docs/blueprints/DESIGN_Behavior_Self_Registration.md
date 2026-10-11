@@ -3,7 +3,7 @@ state: LIVE
 build-state: ✅ BUILT (2026-09-27) — all five §9 items shipped as CE-371..CE-375. ⚠ This line read
   READY-TO-BUILD for the whole of the build and was corrected afterwards; §10a is the AS-BUILT and
   wins over §9 wherever they disagree.
-updated: 2026-10-08 (§10b — which form a test behaviour takes, R-223)
+updated: 2026-10-11 (§10c — every behaviour carries a picker GROUP, R-268)
 current-answer: ⭐ §10a is the AS-BUILT — read it FIRST for what actually exists. §4 is the decision,
   §5-§7 the UML, §9 the build items as dispatched. ⭐ Start at §2 (INVENTORY)
   if you are about to argue that something here already exists — it probably does, and §2 says which.
@@ -416,6 +416,92 @@ actions and guards by STRING (`OnEntry(string)`, `Activity(string)`, `Transition
 `nameof(Nodes.Method)` so the compiler and a rename still reach them. Only one curated machine (`Idle`) exists so far.
 ⭐ **Blueprints:** no new builder — the test builder exists; production needs none (C# is used directly where a blueprint would be
 hand-coded).
+
+## 10c. ⭐ EVERY BEHAVIOUR CARRIES A PICKER GROUP — **the attribute for C#, the folder for JSON** *(R-268, CE-3164, `2026-10-11`; build-state: BUILT)*
+
+🔒 User, `2026-10-11`: *"for hardcoded behaviors the attribute sets it, for json asset generated ones this group attrib comes from the
+folder structure the asset file stays in"* · *"allowing all to be used just not show all as one plain list in the picker, but various
+subfolders."* ⇒ ⛔ the `BehaviorContract.Demo` HIDE (CE-3161) is withdrawn: nothing is hidden, demos are a folder.
+
+📐 **Measured:** all three asset generators already hold the asset's path (`AdditionalText.Path`: `BTreeJsonGenerator`,
+`HsmJsonGenerator`, `BlueprintIncrementalGenerator`); the asset globs are recursive (`Assets\BTrees\**\*.btree.json` …); the four
+registration emitters are `BTreeBridgeEmitCore`, `HsmBridgeEmitCore`, the blueprint `CSharpEmitter.EmitBehaviorRegistration` and the
+curated C# `CuratedBehaviorGenerator`; the pickers are `MissionPanel` and `EntityAiDetailsView`, both fed by
+`ScenarioMissionService.GetAvailableBehaviorChoices`.
+
+```mermaid
+classDiagram
+  class BehaviorDefinition { <<existing>> +Group string? NEW }
+  class BehaviorRegistry { <<existing>> +GroupOf(name) NEW, MergeFrom keeps a live group the staging lacks }
+  class BehaviorGroups { <<NEW, Hrot.AiEditor.Persistence>> +FromAssetPath(path) "Library/Tactics" }
+  class BTreeDefinitionAttribute { <<existing>> +Group NEW }
+  class HsmDefinitionAttribute { <<existing>> +Group NEW }
+  class CuratedBehaviorGenerator { <<existing>> emits Group from the attribute }
+  class BTreeBridgeEmitCore { <<existing>> emits Group from dto.Group }
+  class HsmBridgeEmitCore { <<existing>> emits Group from dto.Group }
+  class CSharpEmitter { <<existing, blueprints>> emits Group from CompileOptions.BehaviorGroup }
+  class AssetGenerators { <<existing: BTree / HSM / Blueprint>> set the group = BehaviorGroups.FromAssetPath(path) }
+  class BehaviorChoice { <<existing>> +Group NEW · +OtherGroup }
+  class ScenarioMissionService { <<existing>> choice.Group = registry.GroupOf(name) ?? Other }
+  class BehaviorPickerTree { <<NEW, Hrot.Presentation>> +Build(choices) Folder · +Combo(label, preview, choices, current, out picked) }
+  class MissionPanel { <<existing>> }
+  class EntityAiDetailsView { <<existing>> }
+  AssetGenerators ..> BehaviorGroups
+  AssetGenerators ..> BTreeBridgeEmitCore
+  AssetGenerators ..> HsmBridgeEmitCore
+  AssetGenerators ..> CSharpEmitter
+  CuratedBehaviorGenerator ..> BTreeDefinitionAttribute
+  CuratedBehaviorGenerator ..> HsmDefinitionAttribute
+  BTreeBridgeEmitCore ..> BehaviorDefinition : Group = …
+  ScenarioMissionService ..> BehaviorRegistry
+  BehaviorRegistry o-- BehaviorDefinition
+  ScenarioMissionService ..> BehaviorChoice
+  MissionPanel ..> BehaviorPickerTree
+  EntityAiDetailsView ..> BehaviorPickerTree
+```
+*What the picture shows: the group is decided at BUILD time by the producer that already knows it (the attribute's author, the
+asset's folder) and rides the ONE registration record to the ONE picker helper — no lookup table, no second taxonomy.*
+
+```mermaid
+sequenceDiagram
+  participant G as asset generator (build)
+  participant R as BehaviorRegistry (runtime)
+  participant S as ScenarioMissionService
+  participant P as picker (BehaviorPickerTree)
+  G->>G: path …/Assets/BTrees/Library/Tactics/Flank.btree.json ⇒ group "Library/Tactics"
+  G->>R: generated registrar: beh.Register("Flank", { …, Group = "Library/Tactics" })
+  S->>R: every offered name ⇒ GroupOf(name) (or "Other")
+  S-->>P: BehaviorChoice(name, technology, group)
+  P->>P: one folder per group path segment, Library first and open, a leaf selects the name
+```
+
+| item | decision | why |
+|---|---|---|
+| JSON group | the folder path BELOW the kind's root (`Assets/BTrees/`, `Assets/HSMs/`, `Assets/Blueprints/`), `/`-separated; a file at the root ⇒ `Other` | R-268; relative, so no machine path reaches generated code or goldens |
+| C# group | `[BTreeDefinition(…, Group = "…")]` / `[HsmDefinition(…, Group = "…")]`; hand registrations pass it on the definition | R-268 |
+| no group | `Other` | nothing is lost — it is still offered |
+| groups across technologies | merged by path: a `Library/Tactics` BTree and a `Library/Tactics` blueprint share one folder; the technology stays in the label | the author picks WHAT, the label says HOW |
+| order | `Library` first and open, then the rest alphabetically, `Other` last | the library is what an author should reach for (R-256) |
+| demos | a folder (`Demos/…`), not hidden | R-268 withdraws the CE-3161 hide |
+| hot reload | the staging→live `MergeFrom` carries the staging groups; a name the staging registration gave no group KEEPS its live group (`BehaviorRegistry.GroupOf`) | the editor's live re-registration knows no path; the group must not fall to `Other` on every save |
+| `Other` constant | lives on the picker side (`BehaviorChoice.OtherGroup`), not in `BehaviorGroups` | a root-level asset has NO group (`null`); `Other` is a display choice |
+
+**As-built (commit A):** the groups set today — `Library/Basic` (MoveToLocation, FollowRoute, JoinFormation, WanderMilitary,
+FireAtTarget, FireAtPoint, DoorLocksmith, HoldStance, Idle), `Library/Infantry` (CombatPosture), `Library/Squad`
+(BoundingOverwatch), `Demos/PeekAndFire` (WindowDuel), `Demos/UrbanCombat` (the example's hand registrations). The JSON assets
+were moved into folders by commit B (below). The entity AI details' rows map names to choices
+through `EntityAiEditModel.AsChoices` (same technology label as the mission panel).
+
+**As-built (commit B) — the asset folders, i.e. the JSON picker groups** (top level = what an author reaches for first):
+
+| folder | holds |
+|---|---|
+| `BTrees/Library/Tactics`, `BTrees/Library/Sop` | the library tactics (TakeCover, FallBack, Flank, FiringPosition, Sentry, DangerCrossing) and the shipped SOP |
+| `BTrees/Samples`, `HSMs/Samples`, `Blueprints/Samples` (+ `Samples/Tactics`) | editor showcases and feature samples (SampleScout, SampleGuard, the `*Demo.bp.json` feature samples) |
+| `BTrees/Demos/HillAttack`, `Blueprints/Demos/HillAttack`, `Blueprints/Demos/Mission` | demo scenarios' behaviours |
+| `BTrees/Tests/Authoring`, `HSMs/Tests/Binding`, `Blueprints/Tests` (+ `Tests/Smoke`) | regression assets that pin a generator / binding shape |
+
+⚠ A file's folder is now meaningful: moving it changes its picker group (and its generated registrar — the golden moves by one line).
 
 ## 11. ⛔ REJECTED
 

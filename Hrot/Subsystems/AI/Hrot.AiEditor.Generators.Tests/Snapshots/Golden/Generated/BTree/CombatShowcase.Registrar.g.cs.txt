@@ -46,6 +46,7 @@ public static class CombatShowcaseRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("CombatShowcase"), "CombatShowcase", new BehaviorDefinition
         {
             Name         = "CombatShowcase",
+            Group        = "Samples",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             StatefulWorkingSlots = __hosted.Slots,

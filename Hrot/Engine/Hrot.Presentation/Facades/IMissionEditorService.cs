@@ -66,6 +66,13 @@ public interface IMissionEditorService
 /// </summary>
 public sealed record BehaviorChoice(string Name, string? Technology)
 {
+    /// <summary>⭐ <c>CE-3164</c> (R-268): the folder a behaviour with no group sits in.</summary>
+    public const string OtherGroup = "Other";
+
     /// <summary>What a picker shows: the name, then the technology in brackets when known.</summary>
     public string Label => Technology is null ? Name : $"{Name}  [{Technology}]";
+
+    /// <summary>⭐ <c>CE-3164</c> (R-268): the picker folder, <c>/</c>-separated (e.g. <c>Library/Infantry</c>) — from the C#
+    /// attribute or the JSON asset's folder (📄 DESIGN_Behavior_Self_Registration.md §10c). Never hides anything.</summary>
+    public string Group { get; init; } = OtherGroup;
 }

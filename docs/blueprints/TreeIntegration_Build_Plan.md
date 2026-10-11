@@ -9,7 +9,7 @@
 | Need | Mirror this shipped asset | Key detail |
 |---|---|---|
 | Blueprints share behavior state | `Assets/Blueprints/SharedStateRallyDemo.bp.json` + `T37_SharedStateManifestProvisioning.btree.json` | Empty `WorkingState`; `GetShared`/`SetShared` with `VariableId="state"`, `SharedTypeId="Hrot.AI.Behaviors.Brains.<SharedStruct>"` → `BlueprintSharedState.TryGetShared/TrySetShared` (Role=State, Scope=Entity) |
-| Compose generated blueprints into a BTree | `Assets/BTrees/Authoring/T32_ComposedGeneratedBlueprint.btree.json` | Bind the generated `<Name>_*_Bp.TickCore` thunk via `"DelegateShape": "AiPrimitiveTickCore"` |
+| Compose generated blueprints into a BTree | `Assets/BTrees/Tests/Authoring/T32_ComposedGeneratedBlueprint.btree.json` | Bind the generated `<Name>_*_Bp.TickCore` thunk via `"DelegateShape": "AiPrimitiveTickCore"` |
 | Overall tree shape | `Assets/BTrees/Authoring/PlatoonHillAttack.btree.json` | `Sequence(CalculateSegments, DispatchAllToBaseline, AreAllAtBaseline, Repeater(Sequence(RequestAreaQuery, IsAreaQueryResolved, DispatchWaveWithTargets, IsWaveCompleted)))` |
 
 ## Step 1 — the shared Category-1 struct

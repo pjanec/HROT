@@ -139,6 +139,7 @@ public static class T10_MultiActionRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T10_MultiAction"), "T10_MultiAction", new BehaviorDefinition
         {
             Name         = "T10_MultiAction",
+            Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 1762746025902246009UL,   // CE-455: the root block's layout

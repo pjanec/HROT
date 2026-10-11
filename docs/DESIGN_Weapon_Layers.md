@@ -1,14 +1,15 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: BUILDING (WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built) — ⭐ HANDED to the backend / behaviors lane 2026-10-11 (blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md); the ui lane builds no more of it — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
-current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED (WL-4 on hold — behaviours being reorganised by the backend lane) · §5 slices · §6 ambient fire
+build-state: BUILDING (WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built; WL-4 §5f building — backend) — ⭐ HANDED to the backend / behaviors lane 2026-10-11 (blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md); the ui lane builds no more of it — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
+current-answer: §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
 known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount parts are never created — stale, CgfComponentRegistry.cs:38
   registers WeaponMountInfo and CombatTkbTranslator.cs:92-122 creates them on CGF. DESIGN_Decision_Layer.md :1330 calls
   AimAndFireExecutor "the only weapon-channel executor" — stale since FireAtPointExecutor (DESIGN_Building_Interiors.md §3k).
 related-designs:
+  - blueprints/Architect_Question_89_Suppress_And_Close.md — AQ89 (R-269): Suppress at a hidden target asks this file's weapon brain for BLIND fire; bravery/obedience (CombatTemperament) decides the close-to-throw
   - DESIGN_Map_3D_Mode.md — §3.11 M23–M26 (R-255): the turret is a part child with a TurretPose, the weapon side aims it, it
     replicates as a multi-instance descriptor. THIS file decides which weapon layer on which node does the aiming.
   - DESIGN_Visual_Effects.md — VE-J..VE-L: Muzzle.Of(shooter, weaponIndex) from the posed barrel, used by the round AND the flash.
@@ -24,6 +25,7 @@ related-designs:
   - PLAN_3D_World_And_Realism.md — B1 (live turret) and B5 (Muzzle.Of) are built through this design.
   - DESIGN_Dead_Reckoning.md — the ONE dead-reckoning model (sample + rate + sim stamp, pure projection, R1–R8); W-10 applies it
     to TurretPose instead of inventing a second one.
+  - DESIGN_Entity_Control.md — OWNS operator fire: AimAndFireExecutor's point target + operator mode (M-8, C-2)
 -->
 
 # Weapon layers — behaviour brain, weapon brain, weapon muscle
@@ -198,7 +200,7 @@ rifleman) keeps the per-shot path (W-2's simple profile). Blast radius: the WL-2
 changes. What would change it: a weapon that must aim two mounts on one turret at two targets at once (none in the catalog).
 Rejected: per-mount tasks — two tasks for one turret need a tie-break nobody owns, and the Muscle has no mount entities to hold them.
 
-### W-12 — ✅ APPROVED `2026-10-11` (U-W8: *"Approved."*) — ⏸ **WL-4 ON HOLD** while the backend lane reorganises behaviours: what each category's profile does differently
+### W-12 — ✅ APPROVED `2026-10-11` (U-W8: *"Approved."*) — what each category's profile does differently (⏸ the hold is LIFTED `2026-10-11`: the reorganisation landed, CE-3164; WL-4 = §5f)
 
 > 🔒 **User, `2026-10-11` (U-W8):** *"Approved. Note that backend lane is now reorganizing behaviors so we should wait with any behavior
 > changes."* ⇒ W-12a–f are the approved leans; WL-4 (the profiles, `CloseToThrow`, `ua-grenade-or-rifle`) is built only after that
@@ -502,6 +504,220 @@ classDiagram
 - ⚠ **known limit:** `Mount = Auto` re-chooses the mount every frame (`WeaponChoice`); a flip to a mount on the SAME turret starts a new
   epoch, and a round the muscle fired under the old one but the brain had not yet accounted is not spent on the brain. WL-4's
   profiles choose the mount once per engagement, which removes it.
+
+### 5f. WL-4 — the grenade at a hidden target, end to end *(backend, `2026-10-11`; build-state: BUILT — cluster rail green)*
+
+> 🔒 **User, `2026-10-11`:** *"Other lanes are on hold. We should take the grenade scenario end to end."* ⇒ the backend lane builds
+> W-12a, W-12e, W-12f, the `TrackTarget` node and `ua-grenade-or-rifle` (handoff
+> [`HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md`](blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md)).
+> W-12b/c (turret task per category, ATGM one round at a time) are not needed by the scenario — built next, §5g.
+
+#### INVENTORY *(graph CLI + grep, `2026-10-11`)*
+
+| query | result |
+|---|---|
+| graph `.*WeaponChoice.*`, `.*WeaponSelection.*`, `.*AimAndFire.*`, `.*FireAtPoint.*`, `.*TrackTarget.*` (Class) | `WeaponChoice` (`Combat/WeaponChoice.cs:13`, one per-shot caller: `AimAndFireExecutor.cs:94`) · `WeaponSelectionDecision` · `AimAndFireExecutor` · `FireAtPointExecutor` + `FireAtPointNodes` + `FireAtPointBehavior` · `TrackTargetExecutor` (action 3, CGF) — ⛔ no `TrackTarget` node |
+| graph `.*Approach.*`, `.*Flank.*`, `.*Throw.*`, `.*Grenade.*` | `AttackApproachDecision` (`Approach` Direct 1 · Flank 2 · FiringPosition 3), `FindFlankingPosition`, `FindOpenFiringPosition`, `EqsTacticsNodes.Flank/FiringPosition`, `PostureNodes.ApproachSensors` · ⛔ no throw/grenade type (searched) |
+| grep `TargetMemory` in `Combat/` | ⛔ none — nothing throws at a remembered position; the precedent for a remembered point is `PeekAndFireNodes`' blind burst (`:537-547`, `EqsTacticsNodes.ThreatPosition`) |
+| grep `HasIndirect\|HandWeapon\|HasGrenade` | ⛔ none — no utility input says "carries a throwable" |
+| walls on `bt-range` | 0.5 m Low Wall (100–120, 40) · 1.2 m sandbags (145–153, 40) · ⛔ no 1 m wall |
+
+#### The low throw does NOT clear a wall at close range — measured *(the U-W7 open point)*
+
+`ArcLaunch` low arc, 15 m/s (M67), aim point on the ground, height of the round above a wall standing **k m in front of the aim point**:
+
+| throw distance | eye 1.7 m: k = 2 · 3 · 4 | eye 1.1 m (crouched): k = 2 · 3 · 4 |
+|---|---|---|
+| 12 m | 0.73 · 1.02 · 1.27 | 0.63 · 0.88 · 1.09 |
+| 16 m | 0.87 · 1.23 · 1.55 | 0.81 · 1.14 · 1.42 |
+| 20 m | 1.10 · 1.57 · 2.00 | 1.08 · 1.54 · 1.94 |
+
+⇒ a man crouched 1–3 m behind a 1–1.2 m wall is **unreachable by the low arc** from 12–16 m — exactly where `CloseToThrow` takes the
+thrower. A real thrower lobs. ⭐ Lean **L-1** below.
+
+```mermaid
+classDiagram
+  class AimAndFireExecutor { <<exists, extended>> per-shot path · W-12a mount once · W-12e not seen ⇒ HiddenTargetThrow.TryThrow }
+  class HiddenTargetThrow { <<NEW, Combat>> TryThrow(world, unit, target, dt) bool · ThrowableMount(world, unit, out mount) · LastKnown(world, unit, target, out point) }
+  class WeaponChoice { <<exists>> Choose — now called once per engagement }
+  class AimState { <<exists, extended>> + ChosenMount, HasChoice (its two padding bytes) }
+  class FireAtPointExecutor { <<exists>> }
+  class FireProcessingSystem { <<exists, extended>> L-1: low arc blocked ⇒ the high arc (lob) }
+  class ThrowArc { <<NEW, Combat>> LowArcClear(terrain, from, to, speed) bool }
+  class TargetMemory { <<exists>> PositionsX/Y/Z, Freshness }
+  class ThreatFreshness { <<exists>> IsLive }
+  class CarriesThrowable { <<NEW utility input>> 1 when an indirect hand mount has ammo }
+  class AttackApproachDecision { <<exists, extended>> + Approach.CloseToThrow = 4 }
+  class FindThrowingPosition { <<NEW EQS template>> donut around the LAST-KNOWN point, hidden from it, near it }
+  class EqsTacticsNodes { <<exists, extended>> + CloseToThrow (anchored at the last-known point) }
+  class PostureNodes { <<exists, extended>> ApproachSensors + a third sensor }
+  class CombatPostureBehavior { <<exists, extended>> + IsOption(CloseToThrow) branch }
+  class TrackTargetNodes { <<NEW>> TrackTarget shared node + curated TrackTarget behaviour }
+  class TrackTargetExecutor { <<exists, action 3>> }
+  AimAndFireExecutor --> WeaponChoice : once
+  AimAndFireExecutor --> HiddenTargetThrow : not seen
+  HiddenTargetThrow ..> TargetMemory
+  HiddenTargetThrow ..> ThreatFreshness
+  HiddenTargetThrow ..> FireProcessingSystem : WeaponFireIntent AtPoint
+  FireProcessingSystem --> ThrowArc
+  AttackApproachDecision ..> CarriesThrowable
+  AttackApproachDecision ..> FindThrowingPosition : EqsTopScore
+  CombatPostureBehavior --> EqsTacticsNodes : CloseToThrow
+  CombatPostureBehavior --> PostureNodes
+  TrackTargetNodes ..> TrackTargetExecutor : weapon channel action 3
+```
+*What the picture shows that prose hid: the throw is decided in ONE place (the weapon brain), the arc in ONE place (the muscle), and
+the behaviour only moves the thrower — no behaviour issues `FireAtPoint` for a grenade.*
+
+```mermaid
+sequenceDiagram
+  participant B as CombatPosture (behaviour brain)
+  participant D as AttackApproachDecision
+  participant E as EqsTacticsNodes.CloseToThrow
+  participant X as AimAndFireExecutor (weapon brain)
+  participant H as HiddenTargetThrow
+  participant F as FireProcessingSystem (muscle)
+  B->>D: target hidden, carries a throwable
+  D-->>B: CloseToThrow wins (EqsTopScore of FindThrowingPosition)
+  B->>E: move to a covered spot near the last-known point
+  B->>X: AimAndFire(target, Mount=Auto) (fire while moving)
+  X->>X: mount chosen once (W-12a), target not seen now
+  X->>H: TryThrow
+  H->>H: throwable mount ready, last-known point live, in range, ROE, no friendly in the lethal radius
+  H->>F: WeaponFireIntent AtPoint = last-known, mount = grenade
+  F->>F: low arc blocked by the wall ⇒ high arc (L-1)
+  H-->>X: thrown: the round counts, the grenade mount cools down
+```
+
+```mermaid
+graph TD
+  CGF["CGF node (Brain)"] --> WD["WeaponDispatcherSystem — every frame"]
+  WD --> AF["AimAndFireExecutor (action 1)"]
+  WD --> TT["TrackTargetExecutor (action 3)"]
+  AF --> HT["HiddenTargetThrow (static)"]
+  HT -->|"WeaponFireIntent AtPoint"| EG["WeaponFireIntentEgressTranslator"]
+  EG -->|"dtWeaponFireRequest"| SH["SimHost (MuscleGround)"]
+  SH --> FP["FireProcessingSystem — every frame"]
+  FP --> TA["ThrowArc.LowArcClear"]
+  CGF --> BT["BrainTickSystem — CombatPosture"]
+  BT --> EQ["EqsTacticsNodes.CloseToThrow"]
+  EQ --> EQS["EQS solver (FindThrowingPosition)"]
+```
+*Who calls it each frame: the throw runs inside the weapon dispatcher on the Brain; the arc choice inside FireProcessingSystem on the
+Muscle — on `--mode editor` both are the same world, on the cluster the request crosses the wire as every shot does today.*
+
+#### Decisions *(within the approved W-12 leans)*
+
+| # | question | ⭐ lean | rests on (code · design) | rejected — one line |
+|---|---|---|---|---|
+| **L-1** | the low throw cannot clear the wall | the **muscle** lobs: `FireProcessingSystem` samples the low arc against the terrain; blocked ⇒ the high arc (in reach whenever the low one is) | table above · W-8 *"elevation is the muscle's"* · `TerrainPenetration.Carry` already stops arc rounds (`BallisticsSystem.cs:156`) | always lob a hand throw — changes `bt-grenade-posture`'s measured flight for no reason; placing the thrower 20 m out — the EQS would need a 1-m band |
+| **L-2** | W-12e's conditions | not seen now · a throwable mount (indirect warhead, hand speed < 40 m/s) with ammo and cooled · the target's slot in the unit's `TargetMemory` live (`ThreatFreshness.IsLive`, not anonymous) · flat distance ≤ the mount's `Range` and the arc's reach · ROE · **no friendly (and not the thrower) inside the warhead's lethal radius of the point** | `ThreatDanger.cs:89` · `WarheadDto.BlastLethalRadiusM` · R-200 (ROE once) | the friendly LINE check — exempt for indirect fire already (`FireAtPointExecutor.cs:64`); the danger is the burst, not the line |
+| **L-3** | how often | one throw, then the grenade mount cools **6 s** (fuze 4.5 s + a look) — on the mount's own `WeaponState`, which the dispatcher already drains | `WeaponDispatcherSystem.cs:55` · R-239 | the action's `CooldownSeconds` — the rifle's 1 s would empty four grenades in four seconds |
+| **L-4** | W-12a — where the choice lives | the chosen mount in `AimState`'s two padding bytes (the channel state is full at 32 B); re-chosen on a new target, an empty mount, or `OutOfArc` | `BehaviorConstants.ActionStateByteSIze = 32` · §5e known limit | a new component per unit — state of one action belongs in the action |
+| **L-5** | the planner must not see through walls | `CloseToThrow`'s sensor is anchored at the **last-known point** (`ContextPoint1`), never the live entity | `EqsContext.cs:59-75` · W-7 (memory is Brain state) | the live entity — the thrower would walk to where the hidden man IS, which he cannot know; ⚠ `Flank` does this today — filed, not changed here |
+| **L-6** | `CloseToThrow` scoring | `HaveLiveTarget` (Step) × `ThreatInSight` (Inverse) × `CarriesThrowable` (Step) × `EqsTopScore(FindThrowingPosition)`, the last with exponent 0.6 (weights are exponents in a weighted product, ≤ 1 by rule UT0131; v^0.6 > v) — so a grenadier with a reachable covered spot prefers to throw, a rifleman (score 0) flanks | W-12f · `AttackApproachDecision.cs:33-46` | a separate grenade behaviour — W-12f rejected it |
+| **L-7** | the scenario wall | `bt-range`'s existing **1.2 m sandbags** (145–153, 40); the hostile crouched 2.5 m behind them (a crouched man's head is 1.1 m — hidden) | `bt-range.world.geojson` · premise "sandbags stop the rifle" | a new 1 m wall — a terrain change and new premises for a number the sandbags already give |
+| **L-8** | `TrackTarget` vocabulary | a shared node `TrackTargetNodes.TrackTarget` + a curated `TrackTarget` behaviour (`Library/Basic`), the `FireAtPoint` precedent | `FireAtPointBehavior.cs` · §5e "its node is NOT built" | a Blueprint channel catalog entry now — palette goldens; left as `FireAtPoint` left it |
+
+#### ⭐ What the scenario found, and how it was closed — AQ89 *(R-269)*
+
+📌 Measured on the cluster: an equally armed hidden hostile makes the posture **Suppress**, not Advance. The approach (and so
+`CloseToThrow`) is nested under the Advance branch, and Suppress at a hidden target held until the memory faded. ⇒ the Grenadier
+never threw. ✅ Fixed by [AQ89](blueprints/Architect_Question_89_Suppress_And_Close.md) §4, with no change to the posture scores:
+- Suppress asks the weapon brain for **blind fire** (`AimAndFireParams.BlindFire`). The weapon brain throws if it can (W-12e above), else
+  fires at the last-known point, else fires aimed once he is seen.
+- A **willing** grenadier closes inside the Suppress branch, running the same `CloseToThrow` with its own state. Willing means a
+  `CombatTemperament` (bravery / obedience, defaults 0.5 / 0.8) at or above 0.6.
+- The scenario authors the Grenadier brave (`"Temperament": {"riskAcceptance": 0.8}`).
+
+### 5g. WL-5 — W-12b/c: which categories use the turret task, and the ATGM one round at a time *(✅ built `2026-10-11`, as drawn; backend; 🔒 user: *"Approved, add the Rifleman check then W-12b/c"*)*
+
+#### INVENTORY *(graph + grep, `2026-10-11`)*
+
+| query | result |
+|---|---|
+| graph `.*(WeaponBrainProfile\|UsesTurretTask\|TurretPath\|WeaponTask).*` | **one** profile: `DefaultWeaponBrainProfile` (`WeaponBrainProfiles.cs:21`), returned by `For(category)` for EVERY category · the brain's turret path `AimAndFireExecutor.TurretPath` · the muscle `WeaponTaskDispatcherSystem` · the wire pair `EntityWeaponTask(Status)` |
+| grep `WeaponCategory.` in the TKB catalogs | Abrams `TankGun` turret 0 · Bradley `Autocannon` + `Atgm` (TOW) on turret 0 · infantry `SmallArms` (no turret) · Grenadier mount 1 `Grenade` (no turret). ⛔ no `MachineGun` / `Mortar` mount yet |
+| what says a round's flight ENDED | ⛔ nothing reaches the brain: `WeaponTaskStatus` = {Epoch, State, Reason, RoundsFired} · `BallisticProjectile` carries the `Shooter`, not the mount · projectiles live on the muscle |
+| free state in the brain's 32-byte weapon channel | ⛔ full (target 0–7 · `AimState` 8–23 · rounds 24–27 · accounted 28–31) — ⭐ but `AimState.Elapsed` (the per-shot aim clock) is unused on the turret path |
+
+#### The decision *(within the approved W-12b/c leans)*
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| every category goes through the turret task when the mount names a turret | `WeaponBrainProfiles.For` returns `Default` (`WeaponBrainProfiles.cs:33`) | W-12b lists the categories; WL-3 left the table for WL-4 |
+| a guided round is granted with the magazine, so a TOW salvo leaves on the cooldown | `TurretPath`: `grant += inHand` (`AimAndFireExecutor.cs`) | W-12c: *"a guided weapon cannot guide two"* |
+| the brain cannot see the missile land | INVENTORY rows 3–4 | W-7 (projectiles are muscle state) |
+
+```mermaid
+classDiagram
+  class IWeaponBrainProfile {
+    <<existing>>
+    +UsesTurretTask(world, unit, mount) bool
+    +RoundsInFlight int  new
+  }
+  class TurretWeaponProfile {
+    <<renamed from DefaultWeaponBrainProfile>>
+    TankGun, Autocannon, MachineGun, Unknown
+  }
+  class PerShotWeaponProfile {
+    <<new>>
+    SmallArms, Grenade, Mortar
+    UsesTurretTask false
+  }
+  class GuidedWeaponProfile {
+    <<new>>
+    Atgm
+    RoundsInFlight 1
+  }
+  class WeaponBrainProfiles {
+    <<existing table>>
+    +For(category) IWeaponBrainProfile
+  }
+  class AimAndFireExecutor {
+    <<existing>>
+    -TurretPath() grants one guided round per estimated flight
+  }
+  IWeaponBrainProfile <|.. TurretWeaponProfile
+  IWeaponBrainProfile <|.. PerShotWeaponProfile
+  TurretWeaponProfile <|-- GuidedWeaponProfile
+  WeaponBrainProfiles ..> IWeaponBrainProfile
+  AimAndFireExecutor ..> WeaponBrainProfiles
+```
+*What the picture shows: the table stays the one place a category is answered (W-5); the ATGM is a turret profile with one rule more,
+not a fourth weapon path. A hull machine gun needs no rule: it names no turret.*
+
+```mermaid
+sequenceDiagram
+  participant X as AimAndFireExecutor.TurretPath (Brain)
+  participant P as turret part
+  participant D as WeaponTaskDispatcherSystem (Muscle)
+  X->>P: Engage, RoundsGranted = accounted + 1 (guided)
+  D->>D: on target, cooldown over: launch
+  D->>P: status RoundsFired + 1
+  X->>X: RoundsFired grew: spend it, hold = distance / muzzle velocity
+  loop while hold > 0
+    X->>P: Track, RoundsGranted = accounted (the launcher stays on the target)
+  end
+  X->>P: Engage, RoundsGranted = accounted + 1
+```
+*Who runs it each frame: unchanged from §5e — the brain on the Brain node's weapon dispatcher, the muscle on SimHost's.*
+
+| # | lean | rests on | rejected — one line |
+|---|---|---|---|
+| **G-1** | `For`: SmallArms / Grenade / Mortar ⇒ **per-shot** even if a turret is named; Atgm ⇒ **guided**; TankGun / Autocannon / MachineGun / **Unknown** ⇒ the turret profile (today's rule) | W-12b · Unknown keeps today's behaviour, so no untagged mount changes silently | Unknown ⇒ per-shot — every untagged turret mount would change path |
+| **G-2** | a guided mount is granted **one round**, and the next only after the round's **estimated flight** (flat distance to the target ÷ the mount's muzzle velocity, +0.5 s) has run out since the brain saw it fired | W-12c · R-212 (expected values, no dice) · the muscle already Tracks while nothing is granted (§5e) | a `RoundsLanded` field on `WeaponTaskStatus` — a wire/IDL change for what the brain can estimate; the muscle holding launches while a projectile of the shooter flies — the projectile has no mount, so the coax would block the TOW |
+| **G-3** | the hold lives in `AimState.Elapsed`, unused on the turret path | INVENTORY row 4 | a new component per unit — state of one action belongs in the action (L-4's rule) |
+
+⚠ **Known limit (G-2):** an estimate, not the detonation itself — a round stopped early by cover still holds the launcher for the full
+estimate. Stated, not hidden.
+
+| as built | |
+|---|---|
+| `WeaponBrainProfiles`: `TurretWeaponProfile` (was `DefaultWeaponBrainProfile`, no other user) · `PerShotWeaponProfile` · `GuidedWeaponProfile : TurretWeaponProfile` · `IWeaponBrainProfile.RoundsInFlight` | as G-1 |
+| `AimAndFireExecutor.TurretPath(…, roundsInFlight, mount, dt)` · `GuidedFlightSeconds` (public, so the rail checks the estimate) · `ActionReason.Guiding` ("guiding") while the hold runs | as G-2/G-3 |
+| ⚠ the hold shares `AimState.Elapsed` with the per-shot aim clock | harmless while a vehicle's mounts all sit on turrets (the Bradley's do); a unit mixing a guided turret mount and a per-shot mount on ONE target could start its aim with a leftover hold — filed here, not built |
+| rails | `AimAndFireExecutorTests.WL5_W12b_TheProfileTable` (8 categories) · `WL5_W12b_ASmallArmsMountOnATurret_FiresPerShot` · `WL5_W12c_AnAtgm_FiresOneRoundPerFlight` (3 rounds ≥ 1 s apart on a 0.5 s cooldown) |
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 

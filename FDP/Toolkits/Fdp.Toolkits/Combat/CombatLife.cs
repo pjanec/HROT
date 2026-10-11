@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Combat
         }
 
         /// <summary>
-        /// ⭐ W2 (docs/DESIGN_Visual_Effects.md §7 VE-N, R-269) — <b>a wreck or a body:</b> the entity EXISTS, has a <see cref="Health"/>
+        /// ⭐ W2 (docs/DESIGN_Visual_Effects.md §7 VE-N, R-269 (ui)) — <b>a wreck or a body:</b> the entity EXISTS, has a <see cref="Health"/>
         /// pool, and the pool is at or below zero. The one "destroyed" test every presentation reads (the near-black 3-D wreck, the
         /// 2-D X, the flames and smoke, the dead figure). An entity with no <see cref="Health"/> is never destroyed.
         /// <para>⚠ Not <c>!IsAlive</c>: a deleted entity is gone, not destroyed. When D1's damage states land

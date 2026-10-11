@@ -442,19 +442,23 @@ namespace Fdp.Examples.Scenarios.Integrated
         /// UrbanCombat entities loaded from a scenario file.  The instance-method overload
         /// <c>RegisterBehaviors()</c> delegates here.</para>
         /// </summary>
+        /// <summary>⭐ CE-3164 (R-268): the behaviour pickers' folder for this demo's behaviours.</summary>
+        public const string DemoGroup = "Demos/UrbanCombat";
+
         public static void RegisterUrbanCombatBehaviors(BehaviorRegistry registry)
         {
             if (registry == null) throw new ArgumentNullException(nameof(registry));
 
             // ── Civilian behaviors (BrainTier=0; TrafficBrainSystem absent — civilians static) ──
             registry.Register(BehaviorWanderCivil, "WanderCivil",
-                new BehaviorDefinition { Name = "WanderCivil", BrainTier = 0 });
+                new BehaviorDefinition { Name = "WanderCivil", BrainTier = 0, Group = DemoGroup });
 
             // ── APC: HSM ConvoyEscort ─────────────────────────────────────────
             registry.Register(BehaviorConvoyEscort, "ConvoyEscort",
                 new BehaviorDefinition
                 {
                     Name          = "ConvoyEscort",
+                    Group         = DemoGroup,
                     BrainTier     = BehaviorConstants.BrainTierHsm,
                     HsmDefinition = BuildApcHsm(),
                 });
@@ -469,6 +473,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 new BehaviorDefinition
                 {
                     Name             = "InfantryCombat",
+                    Group            = DemoGroup,
                     BrainTier        = BehaviorConstants.BrainTierBTree,
                     BTreeInterpreter = new Interpreter<byte, BTreeContext>(infantryBlob, infantryReg),
                 });
@@ -483,6 +488,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 new BehaviorDefinition
                 {
                     Name             = "Ambush",
+                    Group            = DemoGroup,
                     BrainTier        = BehaviorConstants.BrainTierBTree,
                     BTreeInterpreter = new Interpreter<byte, BTreeContext>(ambushBlob, ambushReg),
                 });

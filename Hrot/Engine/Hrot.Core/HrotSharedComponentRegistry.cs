@@ -116,6 +116,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Health>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.MobilityKill>(); // CE-3092 — the TKB mobility-kill opt-in
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.CoverClaim>();   // CE-3158 G5 — squad-mates keep off each other's cover
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>();   // AQ89 B (R-269) — bravery / obedience; the editor saves it too
 
         // ── Application-layer events ──────────────────────────────────────────
         world.RegisterEvent<FireInteractionEvent>();

@@ -75,3 +75,55 @@ namespace Fdp.Toolkit.Combat.Executors
             => ActionStatusOf.Weapon(world, unit, CombatConstants.ActionIdTrackTarget, reason, target, 0f, 0f);
     }
 }
+
+namespace Fdp.Toolkit.Combat
+{
+    /// <summary>⭐ <c>WL-4</c> L-8 — the params of the shared <see cref="TrackTargetNodes.TrackTarget"/> node.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct TrackTargetNodeParams
+    {
+        /// <summary>The entity to keep the gun on.</summary>
+        public Entity Target;
+        /// <summary>The mount whose turret follows it; 0 = the primary.</summary>
+        public byte Mount;
+        [System.Text.Json.Serialization.JsonIgnore] public uint Started;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>WL-4</c> L-8 (📄 docs/DESIGN_Weapon_Layers.md §5f; W-1's vocabulary) — <c>TrackTarget</c>, a SHARED action node: starts
+    /// <see cref="Executors.TrackTargetExecutor"/> (weapon channel action 3) on the unit and reports its answer once — the shape of
+    /// <see cref="FireAtPointNodes.FireAtPoint"/>. A new target restarts the action (the turret's task gets a new epoch).
+    /// </summary>
+    public static class TrackTargetNodes
+    {
+        [Fbt.Kernel.SharedAiAction]
+        public static unsafe NodeStatus TrackTarget(ref TrackTargetNodeParams p, Entity self, EntityRepository world)
+        {
+            if (!world.HasComponent<WeaponChannel>(self)) return NodeStatus.Failure;
+            ref var channel = ref world.GetComponentRW<WeaponChannel>(self);
+            if (p.Started != 0 && channel.ActionInstanceId == p.Started && channel.ActiveAction == CombatConstants.ActionIdTrackTarget)
+            {
+                var running = System.Runtime.CompilerServices.Unsafe.As<byte, Executors.TrackTargetParams>(ref channel.Params[0]);
+                if (running.Target == p.Target && running.Mount == p.Mount)
+                {
+                    if (channel.Status == NodeStatus.Running) return NodeStatus.Running;
+                    var done = channel.Status;   // the executor's answer — reported ONCE, then the node may run again
+                    p.Started = 0;
+                    channel.ActiveAction = 0;
+                    unchecked { channel.ActionInstanceId++; if (channel.ActionInstanceId == 0) channel.ActionInstanceId = 1; }
+                    return done;
+                }
+            }
+            if (p.Target.IsNull) return NodeStatus.Failure;
+            if (world.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(self))
+                channel.BehaviorInstanceId = world.GetComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(self).InstanceId;
+            unchecked { channel.ActionInstanceId++; if (channel.ActionInstanceId == 0) channel.ActionInstanceId = 1; }
+            channel.ActiveAction = CombatConstants.ActionIdTrackTarget;
+            channel.Status = NodeStatus.Running;
+            System.Runtime.CompilerServices.Unsafe.As<byte, Executors.TrackTargetParams>(ref channel.Params[0]) =
+                new Executors.TrackTargetParams { Target = p.Target, Mount = p.Mount };
+            p.Started = channel.ActionInstanceId;
+            return NodeStatus.Running;
+        }
+    }
+}

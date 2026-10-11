@@ -35,7 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Running;
         }
 
-        [BTreeDefinition(BehaviorNames.HoldStance, Curated = true, ParamsType = typeof(HoldStanceBlackboard))]
+        [BTreeDefinition(BehaviorNames.HoldStance, Curated = true, Group = "Library/Basic", ParamsType = typeof(HoldStanceBlackboard))]
         public static BTreeBuilder<HoldStanceBlackboard, BTreeContext> BuildHoldStanceTree()
             => new BTreeBuilder<HoldStanceBlackboard, BTreeContext>().Action(bb => bb.Hold, Hold);
     }

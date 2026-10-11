@@ -706,7 +706,8 @@ namespace Fdp.Toolkit.Combat.Tests
 
         /// <summary>A shooter whose type has a turret and a mount on it, with the turret part built (one world = the editor's one
         /// node: the executor is the weapon brain, <see cref="Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem"/> the muscle).</summary>
-        private (Entity Shooter, Entity Turret, WeaponChannel Channel, Entity Target) TurretedTank(int rounds, float cooldown, int ammo = 5)
+        private (Entity Shooter, Entity Turret, WeaponChannel Channel, Entity Target) TurretedTank(int rounds, float cooldown, int ammo = 5,
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, float muzzleVelocity = 0f)
         {
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
@@ -718,7 +719,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var type = new Fdp.Interfaces.TkbTemplate("Tank", 42);
             type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { new Fdp.Toolkit.Tkb.Domain.TurretDto { PivotZ = 2f } } });
             type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
-                { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, TurretIndex = 0 } } });
+                { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = category, TurretIndex = 0, MuzzleVelocity = muzzleVelocity } } });
             db.Register(type);
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
 
@@ -912,5 +913,218 @@ namespace Fdp.Toolkit.Combat.Tests
             var (shooter, _) = BurstWithAFriendOnTheLine(new Vector3(20f, 0f, 0f), "5.56x45 ball");
             Assert.Equal(0, BurstStep(shooter));
         }
-    }
+    
+        // ── WL-5 W-12b/c (docs/DESIGN_Weapon_Layers.md §5g) — which categories use the turret task; the ATGM one round at a time ──
+
+        /// <summary>⭐ W-12b (§5g G-1) — the table: small arms, grenades, mortars per shot; the ATGM guided; the rest (and an untagged
+        /// mount) through the turret when one is named.</summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, false, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade, false, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar, false, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, true, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon, true, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun, true, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown, true, 0)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm, true, 1)]
+        public void WL5_W12b_TheProfileTable(Fdp.Toolkit.Tkb.Domain.WeaponCategory category, bool turret, int inFlight)
+        {
+            var (shooter, _, _, _) = TurretedTank(rounds: 1, cooldown: 0.5f, category: category);
+            var profile = WeaponBrainProfiles.For(category);
+            Assert.Equal(turret, profile.UsesTurretTask(_world, shooter, CombatTkb.MountOf(_world, shooter, 0)));
+            Assert.Equal(inFlight, profile.RoundsInFlight);
+        }
+
+        /// <summary>⭐ W-12b — a small-arms mount that names a turret is still fought per shot: the turret gets no Engage task.</summary>
+        [Fact]
+        public void WL5_W12b_ASmallArmsMountOnATurret_FiresPerShot()
+        {
+            var (shooter, turret, channel, _) = TurretedTank(rounds: 1, cooldown: 0.5f, category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms);
+            _executor.OnEnter(shooter, ref channel, _world);
+            for (int f = 0; f < 600 && channel.Status == NodeStatus.Running; f++) Step(shooter, ref channel, 1f / 60f);
+            Assert.Equal(NodeStatus.Success, channel.Status);   // the aimed shot left through the per-shot path
+            Assert.False(_world.HasComponent<WeaponTask>(turret) && _world.GetComponent<WeaponTask>(turret).Mode == WeaponTaskMode.Engage,
+                "the turret is never tasked for a per-shot mount");
+        }
+
+        /// <summary>
+        /// ⭐⭐ W-12c (§5g G-2) — an ATGM at 100 m flying 200 m/s: ONE round is granted, and the next only after its estimated flight
+        /// (0.5 s + 0.5 s margin), so three rounds leave ≥ 1 s apart although the cooldown is 0.5 s. 🔴 Red before: the magazine was
+        /// granted and the rounds left on the cooldown, 0.5 s apart — two missiles in the air to guide.
+        /// </summary>
+        [Fact]
+        public void WL5_W12c_AnAtgm_FiresOneRoundPerFlight()
+        {
+            var (shooter, _, channel, target) = TurretedTank(rounds: 3, cooldown: 0.5f, category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm,
+                                                             muzzleVelocity: 200f);
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            _executor.OnEnter(shooter, ref channel, _world);
+            const float dt = 1f / 60f;
+            int shots = 0, last = -1, minGap = int.MaxValue;
+            for (int f = 0; f < 60 * 10 && channel.Status == NodeStatus.Running; f++)
+            {
+                _executor.Execute(shooter, ref channel, _world, dt);
+                muscle.Execute(_world, dt);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
+                {
+                    if (last >= 0) minGap = Math.Min(minGap, f - last);
+                    last = f;
+                    shots++;
+                }
+            }
+            Assert.Equal(NodeStatus.Success, channel.Status);
+            Assert.Equal(3, shots);
+            float flight = AimAndFireExecutor.GuidedFlightSeconds(_world, shooter, target, CombatTkb.MountOf(_world, shooter, 0), 0f);
+            Assert.Equal(1f, flight, 2);
+            Assert.True(minGap >= 59, $"rounds {minGap} frames apart: one flight is 60 frames, the cooldown only 30");
+        }
+
+        // ── WL-4 W-12e (docs/DESIGN_Weapon_Layers.md §5f, L-2/L-3) — a hidden target gets a grenade at its last-known spot ────
+
+        private const long M67 = 6001;
+
+        /// <summary>A grenadier (mount 0 rifle, mount 1 an M67 thrown at 15 m/s, range 25 m — the shipped Grenadier's suite), a
+        /// target his memory places at <paramref name="remembered"/>, not seen now, on Auto.</summary>
+        private unsafe (Entity Unit, Entity Grenade, WeaponChannel Channel, Entity Target) Grenadier(
+            Vector3 remembered, float freshness = 500f)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _world.RegisterComponent<WeaponMountInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+            _world.RegisterComponent<EntityInfo>();
+            RegisterSight();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            db.Register(new Fdp.Interfaces.TkbTemplate("M67 grenade", M67) { DisType = new Fdp.Core.DISEntityType { Kind = 2 } });
+            var type = new Fdp.Interfaces.TkbTemplate("Grenadier", 77);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = 300f },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { MuzzleVelocity = 15f, Range = 25f, AmmoGuid = unchecked((ulong)M67) },
+            } });
+            db.Register(type);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var target = SpawnTarget(remembered);
+            _world.AddComponent(target, new EntityInfo { ForceId = (Fdp.Core.ForceId)2 });
+            var (unit, channel) = SpawnShooter(Vector3.Zero, 30, 0f, target, 0.5f);
+            _world.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 77 });
+            _world.AddComponent(unit, new EntityInfo { ForceId = (Fdp.Core.ForceId)1 });
+            var mem = new Fdp.Toolkit.Perception.Components.TargetMemory { Count = 1 };
+            mem.EntityIds[0] = (long)target.PackedValue;
+            mem.PositionsX[0] = remembered.X; mem.PositionsY[0] = remembered.Y; mem.PositionsZ[0] = remembered.Z;
+            mem.Freshness[0] = freshness;
+            _world.AddComponent(unit, mem);
+            SetSight(unit, target, visual: false);
+
+            var grenade = _world.CreateEntity();
+            _world.AddComponent(grenade, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = unit, InstanceId = 1 });
+            _world.AddComponent(grenade, new WeaponMountInfo { MountIndex = 1 });
+            _world.AddComponent(grenade, new WeaponState { Ammo = 4, MuzzleVelocity = 15f });
+
+            var p = new AimAndFireParams { Target = target, CooldownSeconds = 0.5f, Mount = AimAndFireParams.MountAuto };
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
+            return (unit, grenade, channel, target);
+        }
+
+        /// <summary>
+        /// ⭐ W-12e — not seen, remembered 18 m away (inside the 25 m range and the throw's reach): ONE grenade goes to the
+        /// remembered point from mount 1, it counts as a round, the mount spends one and cools down 6 s (no second throw while it
+        /// does). 🔴 Red before: the executor held (<c>HoldNotSeen</c>) and nothing ever threw at a hidden target.
+        /// </summary>
+        [Fact]
+        public void WL4_W12e_AHiddenTargetInReach_GetsOneGrenadeAtItsLastKnownSpot()
+        {
+            var remembered = new Vector3(0f, 18f, 0f);
+            var (unit, grenade, channel, target) = Grenadier(remembered);
+            _executor.OnEnter(unit, ref channel, _world);
+            _executor.Execute(unit, ref channel, _world, 0.1f);
+            _world.Bus.SwapBuffers();
+            var intents = _world.Bus.Read<WeaponFireIntent>();
+            Assert.Equal(1, intents.Length);
+            Assert.True(intents[0].AtPoint);
+            Assert.Equal(remembered, intents[0].TargetPoint);
+            Assert.Equal(1, intents[0].WeaponIndex);
+            Assert.Equal(3, _world.GetComponent<WeaponState>(grenade).Ammo);
+            Assert.Equal(HiddenTargetThrow.CooldownSeconds, _world.GetComponent<WeaponState>(grenade).CooldownSecondsRemaining);
+            Assert.Equal(30, _world.GetComponent<WeaponState>(unit).Ammo);   // the rifle untouched
+            Assert.Equal(1, AimAndFireExecutor.RoundsFiredOf(ref channel));
+
+            for (int i = 0; i < 10; i++) Assert.Equal(0, Step(unit, ref channel, 0.1f));   // cooling down: no second grenade
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            _ = target;
+        }
+
+        /// <summary>⭐ W-12e — the cases that must NOT throw: beyond the throw (30 m), a forgotten sighting, a friendly beside the
+        /// target (inside the M67's lethal radius), the thrower's own spot, and a target that is SEEN (the rifle's business).</summary>
+        [Theory]
+        [InlineData("too far")]
+        [InlineData("stale")]
+        [InlineData("friendly near the burst")]
+        [InlineData("seen")]
+        public void WL4_W12e_NoThrow_WhenAConditionFails(string why)
+        {
+            var at = why == "too far" ? new Vector3(0f, 30f, 0f) : new Vector3(0f, 18f, 0f);
+            var (unit, _, channel, target) = Grenadier(at, freshness: why == "stale" ? 0f : 500f);
+            if (why == "friendly near the burst")
+            {
+                var friend = SpawnTarget(at + new Vector3(0.5f, 0f, 0f));
+                _world.AddComponent(friend, new EntityInfo { ForceId = (Fdp.Core.ForceId)1 });
+            }
+            if (why == "seen") SetSight(unit, target, visual: true);
+            _executor.OnEnter(unit, ref channel, _world);
+            Assert.Equal(0, Step(unit, ref channel, 0.1f));
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        // ── AQ89 A (R-269) — Suppress at a hidden target: blind rounds at the last-known spot, not an idle hold ────────────────
+
+        private static unsafe void AskBlind(ref WeaponChannel channel)
+        {
+            var p = Unsafe.Read<AimAndFireParams>(Unsafe.AsPointer(ref channel.Params[0]));
+            p.BlindFire = 1;
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
+        }
+
+        /// <summary>
+        /// ⭐ AQ89 A — hidden, 30 m away (beyond a throw), BlindFire asked: the RIFLE fires at the remembered point raised to a crouched
+        /// man's middle, cools down <see cref="AimAndFireExecutor.BlindCooldownFactor"/>× slower than aimed fire, and the round counts.
+        /// 🔴 Red before: Suppress at a hidden target held (<c>HoldNotSeen</c>) every frame until the memory faded.
+        /// </summary>
+        [Fact]
+        public void AQ89_A_AHiddenTargetBeyondAThrow_GetsBlindRoundsAtItsLastKnownSpot()
+        {
+            var remembered = new Vector3(0f, 30f, 0f);
+            var (unit, grenade, channel, _) = Grenadier(remembered);
+            AskBlind(ref channel);
+            _executor.OnEnter(unit, ref channel, _world);
+            _executor.Execute(unit, ref channel, _world, 0.1f);
+            _world.Bus.SwapBuffers();
+            var intents = _world.Bus.Read<WeaponFireIntent>();
+            Assert.Equal(1, intents.Length);
+            Assert.True(intents[0].AtPoint);
+            Assert.Equal(0, intents[0].WeaponIndex);
+            Assert.Equal(remembered + new Vector3(0f, 0f, AimAndFireExecutor.BlindAimHeightMetres), intents[0].TargetPoint);
+            Assert.Equal(29, _world.GetComponent<WeaponState>(unit).Ammo);
+            Assert.Equal(4, _world.GetComponent<WeaponState>(grenade).Ammo);   // nothing thrown
+            Assert.Equal(0.5f * AimAndFireExecutor.BlindCooldownFactor, _world.GetComponent<WeaponState>(unit).CooldownSecondsRemaining, 3);
+            Assert.Equal(1, AimAndFireExecutor.RoundsFiredOf(ref channel));
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        /// <summary>⭐ AQ89 A — no blind round without a LIVE memory of the target, nor when BlindFire is not asked (today's hold).</summary>
+        [Theory]
+        [InlineData(true, 0f)]
+        [InlineData(false, 500f)]
+        public void AQ89_A_NoBlindRound_WhenForgottenOrNotAsked(bool asked, float freshness)
+        {
+            var (unit, _, channel, _) = Grenadier(new Vector3(0f, 30f, 0f), freshness);
+            if (asked) AskBlind(ref channel);
+            _executor.OnEnter(unit, ref channel, _world);
+            Assert.Equal(0, Step(unit, ref channel, 0.1f));
+            Assert.Equal(30, _world.GetComponent<WeaponState>(unit).Ammo);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+}
 }

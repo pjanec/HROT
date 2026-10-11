@@ -316,6 +316,7 @@ public static class DangerCrossingRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("DangerCrossing"), "DangerCrossing", new BehaviorDefinition
         {
             Name         = "DangerCrossing",
+            Group        = "Library/Tactics",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 5411267613390732858UL,   // CE-455: the root block's layout

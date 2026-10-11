@@ -749,7 +749,11 @@ namespace Fdp.Core
         /// <summary><c>WeaponMuscleState</c> — the weapon muscle's own per-turret fire timing (WL-3), never sent.</summary>
         public const int WeaponMuscleState = 354;
 
-        /// <summary><c>Lifespan</c> — ⭐ W1 (docs/DESIGN_Visual_Effects.md §7 VE-Q, R-269): when an entity was made (sim time) and how long
+        /// <summary><c>CombatTemperament</c> — a soldier's bravery and obedience (AQ89 B, R-269), read through <c>TemperamentOf</c> with
+        /// defaults so it never reads zero; saved in the scenario by its own translator.</summary>
+        public const int CombatTemperament = 355;
+
+        /// <summary><c>Lifespan</c> — ⭐ W1 (docs/DESIGN_Visual_Effects.md §7 VE-Q, R-269 (ui)): when an entity was made (sim time) and how long
         /// it lives; <c>LifespanSystem</c> removes it after. ⚠ 355 is the backend lane's <c>CombatTemperament</c>, so this takes 356.</summary>
         public const int Lifespan = 356;
     }

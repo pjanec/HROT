@@ -470,17 +470,9 @@ public sealed class MissionPanel
                     ? "<none>"
                     : task.BehaviorId;
 
-                if (ImGui.BeginCombo($"Behavior##{i}", behaviorLabel))
-                {
-                    for (int b = 0; b < behaviors.Count; b++)
-                    {
-                        bool selected = task.BehaviorId == behaviors[b].Name;
-                        if (ImGui.Selectable($"{behaviors[b].Label}##{behaviors[b].Name}", selected))
-                            HandleEditBehaviorId(i, behaviors[b].Name);
-                        if (selected) ImGui.SetItemDefaultFocus();
-                    }
-                    ImGui.EndCombo();
-                }
+                // ⭐ CE-3164 (R-268) — the shared folder-tree picker
+                if (Hrot.Presentation.Behavior.BehaviorPickerTree.Combo($"Behavior##{i}", behaviorLabel, behaviors, task.BehaviorId, out var pickedBehavior))
+                    HandleEditBehaviorId(i, pickedBehavior);
 
                 string paramsBuffer = task.BehaviorParams ?? string.Empty;
 

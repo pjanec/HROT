@@ -31,7 +31,7 @@ blackboard Variables/Shared). Approved by the architect in **Q#15 (read)** + **Q
 CA-07a `66cf4432` (collection pin + GetComponent out-pin), CA-07b `3b294552` (consumer nodes
 ForEach/Get[i]/Count + IR + emit; `IrOp_ForEach` reused, one new `IrOp_ComponentAccessorCall`),
 CA-07c `3d480e5b` (wire-bake in `ApplyAddLink` + palette + titles + demo). All gated (184 serial +
-broad). **Feature is editor-wireable now.** Demo: `Hrot.AI.Behaviors/Assets/Blueprints/ComponentCollectionDemo.bp.json`
+broad). **Feature is editor-wireable now.** Demo: `Hrot.AI.Behaviors/Assets/Blueprints/Samples/ComponentCollectionDemo.bp.json`
 (GetComponent<BpCollectionDemo> "Values" → ForEach/Get/Count). **Awaiting the user's visual check.**
 **Remaining:** CA-07d (managed collections + `Contains`/`Find`, deferred) → then PR
 `claude/blueprint-component-read` → `main`. Full detail in the TASK_TRACKER running log.

@@ -28,17 +28,19 @@ namespace Hrot.AI.Behaviors.Brains
             public EqsTacticsParams Fallback;
             public ChooseOptionParams Approach;
             public UtilityChoice ApproachChoice;
-            public IsOptionParams IsFlank, IsFiringPos;
+            public IsOptionParams IsFlank, IsFiringPos, IsCloseToThrow;
             public PostureSensorsParams ApproachSensors;
-            public EqsTacticsParams Flank, Firing;
+            public EqsTacticsParams Flank, Firing, Throw;
+            public WillingToCloseParams Willing;   // ⭐ AQ89 C/D — the Suppress branch's closing gate
 
             // ⭐ one working memory per node, as the JSON tree's auto slots were
             public PostureSensorsState SensorsState;
             public ApproachSensorsState ApproachSensorsState;
-            public EqsTacticsState FlankState, FiringState, FallBackState;
+            public EqsTacticsState FlankState, FiringState, FallBackState, ThrowState;
             public AdvanceState AdvanceState;
             public PeekAndFireState PeekState;
             public EngageState SuppressState, HoldProneState;
+            public EqsTacticsState SuppressThrowState;   // ⭐ AQ89 C — the close the Suppress branch runs (its own, not the approach's)
         }
 
         /// <summary>Every value the JSON tree's blackboard carried as a default — the posture an unconfigured soldier fights with.</summary>
@@ -57,9 +59,11 @@ namespace Hrot.AI.Behaviors.Brains
             Approach    = new ChooseOptionParams { Decision = UtilityDecisionRef.FromAssetId(AttackApproachDecision.DecisionAssetId) },
             IsFlank     = new IsOptionParams { Option = (byte)Approach.Flank },
             IsFiringPos = new IsOptionParams { Option = (byte)Approach.FiringPosition },
+            IsCloseToThrow = new IsOptionParams { Option = (byte)Approach.CloseToThrow },   // ⭐ WL-4 W-12f
             ApproachSensors = new PostureSensorsParams { SearchRadius = 40f, ScoreDeltaThreshold = 0.05f },
             Flank       = Approaching(),
             Firing      = Approaching(),
+            Throw       = Approaching() with { SearchRadius = EqsTacticsNodes.ThrowSearchRadius },   // ⭐ WL-4 W-12f
         };
 
         private static EqsTacticsParams Approaching() => new EqsTacticsParams
@@ -79,11 +83,12 @@ namespace Hrot.AI.Behaviors.Brains
             if (a.Speed > 0f) block.Advance.Speed = a.Speed;
             if (a.ArrivalRadius > 0f) block.Advance.ArrivalRadius = a.ArrivalRadius;
             if (a.CooldownSeconds > 0f) block.Advance.CooldownSeconds = a.CooldownSeconds;
+            block.Willing.Assault = authored.Assault ? (byte)1 : (byte)0;   // ⭐ AQ89 D
         }
 
         /// <summary>📄 §3.3b: decide, sense and act in one Parallel (RequireOne — the posture ends when its winner ends); the winner runs
         /// under an ObserverSelector so a changed decision switches branch at once (the old branch's deactivators run).</summary>
-        [BTreeDefinition(BehaviorNames.CombatPosture, Curated = true, ParamsType = typeof(CombatPostureBlackboard))]
+        [BTreeDefinition(BehaviorNames.CombatPosture, Curated = true, Group = "Library/Infantry", ParamsType = typeof(CombatPostureBlackboard))]
         public static BTreeBuilder<CombatPostureBlackboard, BTreeContext> BuildCombatPostureTree()
         {
             return new BTreeBuilder<CombatPostureBlackboard, BTreeContext>()
@@ -102,13 +107,23 @@ namespace Hrot.AI.Behaviors.Brains
                                 .Sequence(firing => firing
                                     .StatefulCondition(bb => bb.IsFiringPos, bb => bb.ApproachChoice, UtilityNodes.IsOption)
                                     .StatefulAction(bb => bb.Firing, bb => bb.FiringState, EqsTacticsNodes.FiringPosition))
+                                // ⭐ WL-4 W-12f (Weapon_Layers §5f) — a grenadier closes to throw at the hidden target
+                                .Sequence(close => close
+                                    .StatefulCondition(bb => bb.IsCloseToThrow, bb => bb.ApproachChoice, UtilityNodes.IsOption)
+                                    .StatefulAction(bb => bb.Throw, bb => bb.ThrowState, EqsTacticsNodes.CloseToThrow))
                                 .StatefulAction(bb => bb.Advance, bb => bb.AdvanceState, PostureNodes.AdvanceAndAttack)))
                         .Sequence(cover => cover
                             .StatefulCondition(bb => bb.IsCover, bb => bb.Choice, UtilityNodes.IsOption)
                             .StatefulAction(bb => bb.Peek, bb => bb.PeekState, PeekAndFireNodes.PeekAndFire))
+                        // ⭐⭐ AQ89 A/C (R-269) — at a hidden target a WILLING unit carrying a throwable closes to throw under its own
+                        //   blind fire; anyone else suppresses blind at the last-known spot instead of idling. Outer scores untouched.
                         .Sequence(suppress => suppress
                             .StatefulCondition(bb => bb.IsSuppress, bb => bb.Choice, UtilityNodes.IsOption)
-                            .StatefulAction(bb => bb.Engage, bb => bb.SuppressState, PostureNodes.Engage))
+                            .ObserverSelector(how => how
+                                .Sequence(close => close
+                                    .StatefulCondition(bb => bb.Willing, bb => bb.SuppressThrowState, PostureNodes.WillingToClose)
+                                    .StatefulAction(bb => bb.Throw, bb => bb.SuppressThrowState, EqsTacticsNodes.CloseToThrow))
+                                .StatefulAction(bb => bb.Engage, bb => bb.SuppressState, PostureNodes.Suppress)))
                         .Sequence(fallBack => fallBack
                             .StatefulCondition(bb => bb.IsFallBack, bb => bb.Choice, UtilityNodes.IsOption)
                             .StatefulAction(bb => bb.Fallback, bb => bb.FallBackState, EqsTacticsNodes.FallBack))

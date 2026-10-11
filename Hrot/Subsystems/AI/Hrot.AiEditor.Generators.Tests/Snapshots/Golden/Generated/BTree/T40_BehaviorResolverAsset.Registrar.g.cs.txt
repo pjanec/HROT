@@ -92,6 +92,7 @@ public static class T40_BehaviorResolverAssetRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T40_BehaviorResolverAsset"), "T40_BehaviorResolverAsset", new BehaviorDefinition
         {
             Name         = "T40_BehaviorResolverAsset",
+            Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             BlueprintStructureHash = 7965524788811656827UL,   // CE-455: the root block's layout

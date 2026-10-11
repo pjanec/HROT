@@ -87,7 +87,7 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
         string jsonPath = Path.Combine(
             repoRoot,
             "Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Assets", "BTrees", "Authoring",
+            "Assets", "BTrees", "Tests", "Authoring",
             $"{assetName}.btree.json");
 
         if (!File.Exists(jsonPath))

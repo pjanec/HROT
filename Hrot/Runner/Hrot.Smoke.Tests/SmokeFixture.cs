@@ -103,8 +103,11 @@ public sealed class SmokeFixture : IDisposable
         var dir = AppContext.BaseDirectory;
         for (int i = 0; i < 12 && dir != null; i++)
         {
-            var candidate = Path.Combine(
-                dir, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", $"{name}.bp.json");
+            // ⭐ CE-3164: assets live in picker folders (Tests/, Tests/Smoke/, …) — find the one file by name.
+            var root = Path.Combine(dir, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints");
+            var candidate = Directory.Exists(root)
+                ? Directory.GetFiles(root, $"{name}.bp.json", SearchOption.AllDirectories).SingleOrDefault() ?? ""
+                : "";
             if (File.Exists(candidate))
                 return Hrot.Blueprints.Core.BlueprintJsonServices.Deserialize(
                            File.ReadAllText(candidate))

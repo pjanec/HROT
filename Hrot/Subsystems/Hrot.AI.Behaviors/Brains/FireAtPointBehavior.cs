@@ -34,7 +34,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
         }
 
-        [BTreeDefinition(BehaviorNames.FireAtPoint, Curated = true, ParamsType = typeof(FireAtPointBlackboard))]
+        [BTreeDefinition(BehaviorNames.FireAtPoint, Curated = true, Group = "Library/Basic", ParamsType = typeof(FireAtPointBlackboard))]
         public static BTreeBuilder<FireAtPointBlackboard, BTreeContext> BuildFireAtPointTree()
         {
             return new BTreeBuilder<FireAtPointBlackboard, BTreeContext>()

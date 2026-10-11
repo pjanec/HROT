@@ -11,6 +11,9 @@ namespace Fdp.Toolkit.Utility
         Flank          = 2,
         /// <summary>Move to a nearby firing position that sees the target first (<see cref="FindOpenFiringPosition"/>).</summary>
         FiringPosition = 3,
+        /// <summary>⭐ WL-4 W-12f — close to within a throw of where the hidden target was last seen (<see cref="FindThrowingPosition"/>);
+        /// the weapon brain throws from there (W-12e). Scored only for a unit that carries a throwable.</summary>
+        CloseToThrow   = 4,
     }
 
     /// <summary>
@@ -44,6 +47,14 @@ namespace Fdp.Toolkit.Utility
             .Option((ushort)Approach.FiringPosition, ScoringMode.WeightedProduct, o => o
                 .Consider(In.HaveLiveTarget(),                             1.0f, Curve.Step)
                 .Consider(In.ThreatInSight(),                              1.0f, Curve.InverseLinear)   // not in sight
-                .Consider(In.EqsTopScore(FindOpenFiringPosition.AssetId),  1.0f, Curve.Linear));
+                .Consider(In.EqsTopScore(FindOpenFiringPosition.AssetId),  1.0f, Curve.Linear))
+            // ⭐ WL-4 W-12f (Weapon_Layers §5f L-6) — a grenadier with a reachable spot near the last sighting closes to THROW;
+            //   the position score's exponent 0.6 (a weighted product: v^0.6 > v) so, for an equally good spot, it outranks the
+            //   flank for him (a rifleman's CarriesThrowable is 0 ⇒ this option scores 0).
+            .Option((ushort)Approach.CloseToThrow, ScoringMode.WeightedProduct, o => o
+                .Consider(In.HaveLiveTarget(),                             1.0f, Curve.Step)
+                .Consider(In.ThreatInSight(),                              1.0f, Curve.InverseLinear)   // not in sight
+                .Consider(In.CarriesThrowable(),                           1.0f, Curve.Step)
+                .Consider(In.EqsTopScore(FindThrowingPosition.AssetId),    0.6f, Curve.Linear));
     }
 }

@@ -27,7 +27,7 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 /// </para>
 ///
 /// <para>
-/// ⭐ The real regression lock is <c>Assets/Blueprints/LibraryFunctionsDemo.bp.json</c> itself: it is an
+/// ⭐ The real regression lock is <c>Assets/Blueprints/Samples/LibraryFunctionsDemo.bp.json</c> itself: it is an
 /// <c>AdditionalFiles</c> entry of <c>Hrot.AI.Behaviors</c>, so a regression in the Library emit path
 /// fails the build outright, before any test runs. What this file adds is the other half — that the
 /// adapters do not merely <i>compile</i> but marshal correctly in both directions.

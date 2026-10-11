@@ -33,6 +33,7 @@ public static class T03_ParallelRegistrar
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T03_Parallel"), "T03_Parallel", new BehaviorDefinition
         {
             Name         = "T03_Parallel",
+            Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
             WritesChannels = global::System.Array.Empty<global::System.Type>(),

@@ -86,6 +86,12 @@ namespace Hrot.AI.Behaviors.Brains
         public const int FallBackSite  = 0x20930001;
         /// <summary>⭐ <c>CE-2108</c> — see <see cref="TakeCoverSite"/>.</summary>
         public const int FlankSite = 0x21080001, FiringPositionSite = 0x21080002;
+        /// <summary>⭐ WL-4 W-12f — see <see cref="TakeCoverSite"/>.</summary>
+        public const int CloseToThrowSite = 0x40120001;
+
+        /// <summary>⭐ WL-4 W-12f — how far from the last sighting a throwing spot may be (m): inside an M67's 22.9 m reach with
+        /// room for the lob (Weapon_Layers §5f).</summary>
+        public const float ThrowSearchRadius = 18f;
 
         /// <summary>⭐ <c>CE-2108</c> (§9.6 F4) — how the ONE body <see cref="Run"/> flies a manoeuvre.</summary>
         [System.Flags]
@@ -104,6 +110,12 @@ namespace Hrot.AI.Behaviors.Brains
             /// reference is slot 0 = self; the firing position prefers near self), so as the unit walks the best point walks
             /// with it — re-routing on every such answer would chase it round the target.</summary>
             RepositionOnThreatMove = 8,
+            /// <summary>⭐ WL-4 L-5 — the sensor is pointed at the threat's LAST-KNOWN point (its memory slot), never the live
+            /// entity: a hidden man's current position is not the unit's to know.</summary>
+            AtLastKnownPoint = 16,
+            /// <summary>⭐ WL-4 W-12f — fire (through the weapon brain, which throws at a hidden target) whenever there is a threat,
+            /// not only while moving: the spot is reached to THROW from.</summary>
+            FireAlways = 32,
         }
 
         /// <summary>The starter threat ranking (<see cref="ThreatRankingDecision"/>'s asset id).</summary>
@@ -149,6 +161,28 @@ namespace Hrot.AI.Behaviors.Brains
                    Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity);
 
         /// <summary>
+        /// ⭐⭐ <c>WL-4</c> W-12f (📄 docs/DESIGN_Weapon_Layers.md §5f) — closes to within a THROW of where the hidden top threat was
+        /// last seen (<see cref="FindThrowingPosition"/>, the sensor on the remembered point — L-5) and keeps firing at it from
+        /// there: the weapon brain (<c>AimAndFireExecutor</c> → <c>HiddenTargetThrow</c>) throws while the target stays hidden,
+        /// and the rifle takes over the moment it is seen. Never ends on its own: the approach decision moves the unit on.
+        /// Failure when no threat is identified or remembered, or the unit cannot move.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus CloseToThrow(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindThrowingPosition.BlueprintId, CloseToThrowSite,
+                   Mode.RepositionOnThreatMove | Mode.NeedsEntity | Mode.AtLastKnownPoint | Mode.FireAlways);
+
+        /// <summary>⭐ WL-4 L-5 — <paramref name="threat"/> as its LAST-KNOWN point (the memory slot's position, keyed by the entity's
+        /// id), so a sensor anchors there and not on the live entity. False when the memory has no slot for it.</summary>
+        internal static bool LastKnownAim(EntityRepository world, Entity self, Entity threat, out ThreatAim aim)
+        {
+            aim = default;
+            if (threat.IsNull || !ThreatPosition(world, self, new ThreatAim(threat, 0, default), out var at)) return false;
+            aim = new ThreatAim(Entity.Null, (long)threat.PackedValue, at);
+            return true;
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2108</c> (§9.6 F4) — the ONE body of the four manoeuvres: the top threat → the run's own sensor with
         /// <paramref name="template"/> pointed at it → on each NEW answer a pathed MoveTo to the best point; <paramref name="mode"/>
         /// says whether it ends on arrival, re-positions while moving and needs an identified threat. With
@@ -172,7 +206,7 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 if (status == NodeStatus.Running && !reposition)
                 {
-                    FireOnTheMove(ref p, ref ws, self, world);
+                    FireOnTheMove(ref p, ref ws, self, world, (mode & Mode.FireAlways) != 0);
                     return NodeStatus.Running;
                 }
                 if (status != NodeStatus.Running)
@@ -191,6 +225,11 @@ namespace Hrot.AI.Behaviors.Brains
                     return NodeStatus.Failure;   // nothing identified to flank / shoot at: the parent picks something else
                 }
                 threat = new ThreatAim(seen, 0, default);
+                if ((mode & Mode.AtLastKnownPoint) != 0 && !LastKnownAim(world, self, seen, out threat))
+                {
+                    Release(ref ws, self, world);
+                    return NodeStatus.Failure;
+                }
             }
             else if (!TopAim(world, self, new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), out threat))
             {
@@ -216,7 +255,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 ws.Moving = 0;   // the move failed (or was taken over): the next answer moves again
             }
-            FireOnTheMove(ref p, ref ws, self, world);
+            FireOnTheMove(ref p, ref ws, self, world, (mode & Mode.FireAlways) != 0);
             return NodeStatus.Running;
         }
 
@@ -237,11 +276,12 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ <c>CE-2108</c> (§9.6a) — while a move runs and the params ask for it, fire at the top threat through the
         /// posture's ONE fire step (the ROE gates every shot in the executor); otherwise the weapon this node aimed stops.</summary>
-        private static void FireOnTheMove(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+        private static void FireOnTheMove(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world, bool always = false)
         {
             if (p.FireWhileMoving == 0) return;
-            if (ws.Moving == 1 && LocomotionMoveTo.Status(world, self) == NodeStatus.Running)
-                PostureNodes.Fire(world, self, ref ws.Fire, p.FireCooldownSeconds > 0f ? p.FireCooldownSeconds : 1f);
+            if (always || (ws.Moving == 1 && LocomotionMoveTo.Status(world, self) == NodeStatus.Running))
+                // ⭐ AQ89 C — FireAlways (CloseToThrow) suppresses BLIND at the hidden target while it closes (R-269)
+                PostureNodes.Fire(world, self, ref ws.Fire, p.FireCooldownSeconds > 0f ? p.FireCooldownSeconds : 1f, blind: always);
             else
                 PostureNodes.StopFiring(world, self, ref ws.Fire);
         }
@@ -259,6 +299,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>See <see cref="Deactivate_TakeCover"/> (the weapon it aimed stops too).</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank")]
         public static void Deactivate_Flank(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Release(ref ws, self, world);
+
+        /// <summary>⭐ WL-4 — see <see cref="Deactivate_Flank"/>.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.CloseToThrow")]
+        public static void Deactivate_CloseToThrow(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
             => Release(ref ws, self, world);
 
         /// <summary>See <see cref="Deactivate_Flank"/>.</summary>

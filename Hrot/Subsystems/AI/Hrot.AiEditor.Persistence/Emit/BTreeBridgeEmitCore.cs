@@ -441,6 +441,8 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName(\"{name}\"), \"{name}\", new BehaviorDefinition");
         sb.AppendLine($"{pad2}{{");
         sb.AppendLine($"{pad2}{Indent}Name         = \"{name}\",");
+        if (!string.IsNullOrEmpty(dto.Group))   // ⭐ CE-3164 (R-268) — the picker folder, from the asset's folder
+            sb.AppendLine($"{pad2}{Indent}Group        = {BehaviorGroups.Literal(dto.Group!)},");
         sb.AppendLine($"{pad2}{Indent}BrainTier    = BehaviorConstants.BrainTierBTree,");
         sb.AppendLine($"{pad2}{Indent}BTreeInterpreter = interpreter,");
         EmitRootParamsMembers(sb, dto, packedFields, isManaged, hasParseParams, pad2);

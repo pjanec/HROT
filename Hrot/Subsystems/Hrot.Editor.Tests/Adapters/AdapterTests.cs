@@ -298,23 +298,63 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Contains("CombatPosture", behaviors);
         }
 
-        /// <summary>⭐ CE-3160 (L4, R-266) — a registered DEMO tree (its contract says <c>Demo</c>: the UrbanCombat example's
-        /// Ambush) runs when a scenario names it, but the picker does not offer it — neither curated nor appended.</summary>
+        /// <summary>⭐ CE-3164 (R-268) — nothing is hidden: a registered DEMO tree (the UrbanCombat example's Ambush) IS offered,
+        /// in the folder its registration declared; a behaviour with no group sits in "Other". 🔴 Red before: CE-3160's
+        /// <c>Demo</c> flag hid it (withdrawn by R-268), and choices carried no group.</summary>
         [Fact]
-        public void GetAvailableBehaviors_ARegisteredDemoTree_IsNotOffered()
+        public void CE3164_GetAvailableBehaviorChoices_ADemoTree_IsOffered_InItsFolder()
         {
             _registry.Register(1, "Ambush", new BehaviorDefinition
             {
                 Name       = "Ambush",
                 BrainTier  = BehaviorConstants.BrainTierBTree,
+                Group      = "Demos/UrbanCombat",
             });
+            _registry.Register(2, "Ungrouped", new BehaviorDefinition { Name = "Ungrouped", BrainTier = BehaviorConstants.BrainTierBTree });
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
-            var service = new ScenarioMissionService(_bus, _repo, _registry);
-            Assert.DoesNotContain("Ambush", service.GetAvailableBehaviors(NetIdFor(entity)));
+            var choices = new ScenarioMissionService(_bus, _repo, _registry).GetAvailableBehaviorChoices(NetIdFor(entity));
+            Assert.Equal("Demos/UrbanCombat", Assert.Single(choices, c => c.Name == "Ambush").Group);
+            Assert.Equal(BehaviorChoice.OtherGroup, Assert.Single(choices, c => c.Name == "Ungrouped").Group);
+        }
+
+        /// <summary>⭐ CE-3164 (R-268) — a hot reload (staging registry merged into the live one) whose staging registration carries
+        /// no group keeps the live group; one that declares a group moves it.</summary>
+        [Fact]
+        public void CE3164_AHotReloadWithoutAGroup_KeepsTheGroup()
+        {
+            _registry.Register(1, "Ambush", new BehaviorDefinition { Name = "Ambush", Group = "Demos/UrbanCombat" });
+            _registry.Register(2, "Flank", new BehaviorDefinition { Name = "Flank", Group = "Tactics" });
+            var staging = new BehaviorRegistry();
+            staging.Register(1, "Ambush", new BehaviorDefinition { Name = "Ambush" });
+            staging.Register(2, "Flank", new BehaviorDefinition { Name = "Flank", Group = "Library/Tactics" });
+            _registry.MergeFrom(staging);
+            Assert.Equal("Demos/UrbanCombat", _registry.GroupOf("Ambush"));
+            Assert.Equal("Library/Tactics", _registry.GroupOf("Flank"));
+        }
+
+        /// <summary>⭐ CE-3164 (R-268) — the picker tree: folders split on '/', Library first, Other last, names sorted.</summary>
+        [Fact]
+        public void CE3164_PickerTree_LibraryFirst_OtherLast_NestedFolders()
+        {
+            var root = Hrot.Presentation.Behavior.BehaviorPickerTree.Build(new[]
+            {
+                new BehaviorChoice("Zed", null),
+                new BehaviorChoice("Ambush", "BTree") { Group = "Demos/UrbanCombat" },
+                new BehaviorChoice("MoveToLocation", "BTree") { Group = "Library/Basic" },
+                new BehaviorChoice("CombatPosture", "BTree") { Group = "Library/Infantry" },
+                new BehaviorChoice("FireAtTarget", "BTree") { Group = "Library/Basic" },
+            });
+            Assert.Equal(new[] { "Library", "Demos", "Other" }, root.Folders.Select(f => f.Name));
+            var library = root.Folders[0];
+            Assert.Equal(new[] { "Basic", "Infantry" }, library.Folders.Select(f => f.Name));
+            Assert.Equal(new[] { "FireAtTarget", "MoveToLocation" }, library.Folders[0].Choices.Select(c => c.Name));
+            Assert.Equal("Library/Basic", library.Folders[0].Path);
+            Assert.Equal("Ambush", Assert.Single(root.Folders[1].Folders[0].Choices).Name);
+            Assert.Equal("Zed", Assert.Single(root.Folders[2].Choices).Name);
         }
 
         [Fact]

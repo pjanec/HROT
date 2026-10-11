@@ -1041,8 +1041,8 @@ ZERO `HsmGuard`.** The whole chain existed and nothing exercised it. ⇒ two new
 
 | asset | what it is |
 |---|---|
-| **`Assets/Blueprints/HsmGuardDemo.bp.json`** | ⭐ the FIRST AiPrimitive in the corpus hosted as an `HsmGuard`. `Intent: Condition`, one `bool` parameter `Open` wired into `Return`'s runtime `Success` pin (`BP-131`), so the verdict comes from the SEEDED parameter |
-| **`Assets/HSMs/HsmPolledGuardDemo.hsm.json`** | ⭐ `Waiting → Finished`, **POLLED**, guarded by that blueprint **by GUID**, with the source state's `ExpressionTargetField` (`CE-387`) seeding the guard's params from the blackboard. ⭐⭐ It is the user's whole acceptance description in one asset: a few states, a blueprint-programmed condition reading blackboard variables, and an exit state |
+| **`Assets/Blueprints/Tests/HsmGuardDemo.bp.json`** | ⭐ the FIRST AiPrimitive in the corpus hosted as an `HsmGuard`. `Intent: Condition`, one `bool` parameter `Open` wired into `Return`'s runtime `Success` pin (`BP-131`), so the verdict comes from the SEEDED parameter |
+| **`Assets/HSMs/Tests/Binding/HsmPolledGuardDemo.hsm.json`** | ⭐ `Waiting → Finished`, **POLLED**, guarded by that blueprint **by GUID**, with the source state's `ExpressionTargetField` (`CE-387`) seeding the guard's params from the blackboard. ⭐⭐ It is the user's whole acceptance description in one asset: a few states, a blueprint-programmed condition reading blackboard variables, and an exit state |
 
 ⭐ **Both compile through the REAL generators**: `waiting.On(0).GoTo("Finished", …).GuardId(36109).Polled();`
 and `RegisterGuard(unchecked((ushort)HsmGuardDemo_C2A38D0D_Bp.BlueprintId), &…HsmGuard)`.

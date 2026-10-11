@@ -148,7 +148,7 @@ The full loop now works end-to-end and there is a runnable demo:
   publishes a `[EventId]` event on the live bus, pumps one frame through the production
   `BlueprintTickSystem`, asserts the handler mirrored the payload: **LastValue == 42**. Proves type-id
   routing + per-slot dispatch + thunk payload marshalling + handler `SetVariable` write, end-to-end.
-- **Editor demo blueprints (committed):** `Assets/Blueprints/CustomEventPublisherDemo.bp.json`
+- **Editor demo blueprints (committed):** `Assets/Blueprints/Samples/CustomEventPublisherDemo.bp.json`
   (Tick → Publish PingEvent{Value=42}) + `CustomEventSubscriberDemo.bp.json` (OnPing Event graph →
   SetVariable(LastValue)). `Hrot.AI.Behaviors` builds clean; the real generator emits correctly-wired
   `_Bp` classes (verified in the .g.cs: `EventHandlers["Hrot.AI.Behaviors.PingEvent"]=Event_OnPing_Thunk`,

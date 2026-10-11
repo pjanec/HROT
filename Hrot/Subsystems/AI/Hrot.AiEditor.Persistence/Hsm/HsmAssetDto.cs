@@ -334,6 +334,11 @@ public sealed class HsmAssetDto
     public string TargetNamespace { get; set; } = string.Empty;
     public string BlackboardTypeName { get; set; } = string.Empty;
 
+    /// <summary>⭐ <c>CE-3164</c> (R-268) — the picker group, set by the generator from the file's FOLDER
+    /// (<see cref="Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath"/>). ⛔ Never persisted: the folder IS the data.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? Group { get; set; }
+
     // ── Topology ──────────────────────────────────────────────────────────────
     public List<StateNodeDto> States { get; set; } = new();
     public List<RegionNodeDto> Regions { get; set; } = new();

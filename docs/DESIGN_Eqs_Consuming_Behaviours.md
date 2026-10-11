@@ -315,7 +315,7 @@ composing small BTree actions that pass the threat between nodes — a node bind
 Built as §2 draws it: `EqsTacticsNodes.TakeCover` / `FallBack` (+ stateful deactivators), `EqsTacticsParams`,
 `EqsTacticsState`, `LocomotionMoveTo` (`MoveToOptimalCover` now writes the channel through it),
 `UtilityScorer.TopCandidate(…, out Entity, out float)` (`RankCandidates` routed through it — a separate name: an overload on the `out` type made every `out var` caller ambiguous, CS0121), and the trees
-`Assets/BTrees/Tactics/TakeCover.btree.json` / `FallBack.btree.json`. What the build found that §2 did not say:
+`Assets/BTrees/Library/Tactics/TakeCover.btree.json` / `FallBack.btree.json`. What the build found that §2 did not say:
 
 | # | as built | ⛔ §2 / §4.2 said |
 |---|---|---|

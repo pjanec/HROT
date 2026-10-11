@@ -13,7 +13,7 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// ⭐⭐ <c>CE-2080</c> — the SHIPPED SOP (<c>Assets/BTrees/Sop/BasicInfantrySop.btree.json</c>, also the BTree recipe) run
+    /// ⭐⭐ <c>CE-2080</c> — the SHIPPED SOP (<c>Assets/BTrees/Library/Sop/BasicInfantrySop.btree.json</c>, also the BTree recipe) run
     /// end to end from the PRODUCTION registry through the real ingress and brain: a hit pauses the task with a cover
     /// reaction, the task restarts when it ends, and the same hit does not fire it again. 📄 <c>docs/DESIGN_Decision_Layer.md</c>
     /// §4.7.

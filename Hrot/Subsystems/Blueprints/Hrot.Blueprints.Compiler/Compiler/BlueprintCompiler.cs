@@ -154,7 +154,7 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
 
         // Stage 7 -- Emit C# source
         var (generatedSource, debugMap) = Stage7_Emit.Run(
-            lowered, options.Mode, sink, options.SiblingSignatures);
+            lowered, options.Mode, sink, options.SiblingSignatures, options.BehaviorGroup);
         if (sink.HasErrors) return FailResult(sink, typed.Asset);
 
         byte[]? pe = null;

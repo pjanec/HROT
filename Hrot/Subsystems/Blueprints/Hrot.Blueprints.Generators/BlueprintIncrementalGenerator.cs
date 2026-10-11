@@ -128,7 +128,9 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
             //     BTree blackboard packer; injected as Func<string,int?> per the design mandate.
             // ⭐⭐ CE-2026 — through the shared catalogue, so a sibling-generated struct gets its EXACT size instead of the
             //     4-byte guess that dropped the whole block to runtime layout.
-            StructSizeOracle: generated.SizeResolver(compilation, fieldSizes: true));
+            StructSizeOracle: generated.SizeResolver(compilation, fieldSizes: true),
+            // ⭐ CE-3164 (R-268) — the picker group is the asset's FOLDER.
+            BehaviorGroup: Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath(path));
 
         try
         {

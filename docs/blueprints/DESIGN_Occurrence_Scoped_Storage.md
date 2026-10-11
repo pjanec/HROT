@@ -9912,7 +9912,7 @@ is the point of it.
 
 > 🔴🔴 **FALSE — MEASURED `2026-09-27` DURING THE BUILD, AND IT IS THE SECOND CLAIM IN THIS SECTION
 > THAT DID NOT SURVIVE CONTACT.** **3 of the 26 host a sub-tree:**
-> `Hrot.AI.Behaviors/Assets/BTrees/BTreeRenderShowcase.btree.json` *(hosts `SampleScout`)* ·
+> `Hrot.AI.Behaviors/Assets/BTrees/Samples/BTreeRenderShowcase.btree.json` *(hosts `SampleScout`)* ·
 > `CombatShowcase.btree.json` · `Authoring/T07_Subtree.btree.json`.
 > ⇒ ⭐ the gating clause still holds for the **other 23** — a non-hosting asset emits nothing and its
 > golden is untouched — ⛔ **but "every golden stays byte-identical" is wrong, and the BTree golden

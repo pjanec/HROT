@@ -136,7 +136,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
 }
 
 /// <summary>
-/// ⭐⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P, R-269) — <b>a vehicle that is destroyed burns:</b> when a VEHICLE's Health
+/// ⭐⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P, R-269 (ui)) — <b>a vehicle that is destroyed burns:</b> when a VEHICLE's Health
 /// crosses from above zero to zero, this makes two effect entities attached to its body (<see cref="EffectAnchorKind.Body"/>) —
 /// flames (<see cref="EffectTkbCatalog.Fire"/>, ≈ 60 s) and smoke (<see cref="EffectTkbCatalog.Smoke"/>, ≈ 180 s, fading) — each with a
 /// <see cref="Lifespan"/>, so <see cref="LifespanSystem"/> removes them. On every map host, like <see cref="EffectSpawnSystem"/>:

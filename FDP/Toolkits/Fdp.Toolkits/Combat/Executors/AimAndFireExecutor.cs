@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
@@ -90,8 +91,10 @@ namespace Fdp.Toolkit.Combat.Executors
 
             // ⭐ CE-3089 (G7) — the mount that fires: chosen per shot (Auto), a named mount, or the primary (0, the default). Its
             //   ammo and cooldown live on ITS WeaponState — the owner for mount 0, the mount child otherwise.
+            // ⭐ WL-4 W-12a (Weapon_Layers §5f L-4) — Auto chooses ONCE per engagement (a new target, or the chosen mount ran
+            //   dry), not per shot: a per-frame flip started a new turret epoch and lost a round the muscle had fired (§5e).
             Entity mountEntity = entity;
-            int mountIndex = p.Mount == AimAndFireParams.MountAuto ? WeaponChoice.Choose(world, entity, p.Target, out mountEntity)
+            int mountIndex = p.Mount == AimAndFireParams.MountAuto ? EngagementMount(world, entity, ref channel, p.Target, out mountEntity)
                            : p.Mount == 0 ? 0
                            : MountByIndex(world, entity, p.Mount, out mountEntity);
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
@@ -107,9 +110,11 @@ namespace Fdp.Toolkit.Combat.Executors
             //   weapon brain keeps the gates (target, rounds, ammo, magazine, ROE, seen-now) and GRANTS rounds; the weapon muscle
             //   aims, times and fires them. The profile decides (W-5); the per-shot path below is unchanged for the rest.
             var mountDto = CombatTkb.MountOf(world, entity, mountIndex);
-            if (WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown).UsesTurretTask(world, entity, mountDto))
+            var profile = WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown);   // ⭐ W-12b
+            if (profile.UsesTurretTask(world, entity, mountDto))
             {
-                TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, entity, mountDto!.TurretIndex), ref weapon);
+                TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, entity, mountDto!.TurretIndex), ref weapon,
+                           profile.RoundsInFlight, mountDto, dt);
                 return;
             }
 
@@ -119,13 +124,23 @@ namespace Fdp.Toolkit.Combat.Executors
             //   hold (Running, no round spent), like the ROE hold. Blind fire (FireAtPoint) has neither gate.
             ref var aim = ref AimTimer(ref channel);
             bool seen = Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
+            // ⭐⭐ WL-4 W-12e (Weapon_Layers §5f L-2) — not seen: the weapon brain may THROW at where the target was last seen (a
+            //   grenade over the cover it hides behind). It counts as a round of this action; nothing else changes.
+            if (!seen && HiddenTargetThrow.TryThrow(world, entity, p.Target))
+            {
+                aim = aim.Restarted(default, 0);
+                int thrown = ++RoundsFired(ref channel);
+                channel.Status = p.Rounds > 0 && thrown >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
+                Say(world, entity, ActionReason.Throwing, p.Target, thrown, p.Rounds);
+                return;
+            }
             if (!seen)
-                aim = default;
+                aim = aim.Restarted(default, 0);
             else
             {
                 byte stance = (byte)ShooterStance(world, entity);
                 if (aim.Target != p.Target || aim.Stance != stance)
-                    aim = new AimState { Target = p.Target, Stance = stance };
+                    aim = aim.Restarted(p.Target, stance);
                 if (aim.Ready == 0)
                 {
                     aim.Elapsed += dt;
@@ -138,8 +153,17 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 weapon.CooldownSecondsRemaining -= dt;
                 channel.Status = NodeStatus.Running;
-                if (!seen || aim.Ready == 0) SayAim(world, entity, p.Target, seen, in aim, mountIndex);
+                if (!seen && p.BlindFire != 0) Say(world, entity, ActionReason.BlindFire, p.Target, RoundsFired(ref channel), p.Rounds);
+                else if (!seen || aim.Ready == 0) SayAim(world, entity, p.Target, seen, in aim, mountIndex);
                 else Say(world, entity, ActionReason.Cooldown, p.Target, weapon.CooldownSecondsRemaining);
+                return;
+            }
+
+            // ⭐⭐ AQ89 A (R-269) — SUPPRESS: not seen and nothing thrown ⇒ slow rounds at where the memory last placed the target,
+            //   instead of holding. They strike the cover he hides behind and stamp UnderFire on him (a near miss — AQ85 E).
+            if (!seen && p.BlindFire != 0)
+            {
+                FireBlind(entity, ref channel, world, in p, mountIndex, mountDto, ref weapon);
                 return;
             }
 
@@ -194,6 +218,53 @@ namespace Fdp.Toolkit.Combat.Executors
             Say(world, entity, ActionReason.Firing, p.Target, fired, p.Rounds);
         }
 
+        /// <summary>⭐ AQ89 A — a blind round aims this far above the remembered ground point: a crouched man's middle, so it strikes
+        /// a wall he crouches behind (a near miss) rather than flying over it.</summary>
+        public const float BlindAimHeightMetres = 0.5f;
+
+        /// <summary>⭐ AQ89 A — blind rounds go this many times slower than aimed ones (bursts with pauses, not a magazine dump).</summary>
+        public const float BlindCooldownFactor = 2.5f;
+
+        /// <summary>
+        /// ⭐⭐ AQ89 A (R-269) — one suppressive round at the hidden target's last-known point: the at-point path a peek's blind burst
+        /// flies (<see cref="WeaponFireIntent.AtPoint"/>), with the aimed shot's gates — a live, identified memory slot
+        /// (<see cref="HiddenTargetThrow.LastKnown"/>), the magazine, the friendly line to the POINT, the ROE. An indirect mount
+        /// never fires blind (that is the throw's decision, W-12e). It counts as a round of this action.
+        /// </summary>
+        private static void FireBlind(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
+                                      int mountIndex, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto, ref WeaponState weapon)
+        {
+            channel.Status = NodeStatus.Running;
+            if (CombatTkb.WarheadOf(world, mountDto) is { Indirect: true } || !HiddenTargetThrow.LastKnown(world, entity, p.Target, out var point))
+            {
+                Say(world, entity, ActionReason.HoldNotSeen, p.Target);
+                return;
+            }
+            point.Z += BlindAimHeightMetres;
+            if (!Magazine.Ready(weapon))
+            {
+                Magazine.StartIfEmpty(ref weapon);
+                Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
+                return;
+            }
+            if (LineOfFire.BlockedByFriendly(world, entity, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
+            if (!RoePermitsFire(world, entity)) { Say(world, entity, ActionReason.HoldRoe, p.Target); return; }
+
+            world.Bus.Publish(new WeaponFireIntent
+            {
+                Shooter     = entity,
+                Target      = Entity.Null,
+                WeaponIndex = mountIndex,
+                AtPoint     = true,
+                TargetPoint = point,
+            });
+            Magazine.Spend(ref weapon);
+            weapon.CooldownSecondsRemaining = MathF.Max(p.CooldownSeconds, 0.1f) * BlindCooldownFactor;
+            int fired = ++RoundsFired(ref channel);
+            if (p.Rounds > 0 && fired >= p.Rounds) channel.Status = NodeStatus.Success;
+            Say(world, entity, ActionReason.BlindFire, p.Target, fired, p.Rounds);
+        }
+
         /// <summary>
         /// ⭐ WL-3 (§5e) — the turret path. The task's epoch moves only with a new target or mount, so a Track ↔ Engage switch keeps
         /// it and the muscle's <see cref="WeaponTaskStatus.RoundsFired"/> keeps counting; every round it reports is spent HERE once
@@ -201,8 +272,13 @@ namespace Fdp.Toolkit.Combat.Executors
         /// now (capped by the rounds asked), so it stays constant while rounds are in flight and drops to Track for a reload.
         /// </summary>
         private static void TurretPath(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
-                                       int mountIndex, Entity part, ref WeaponState weapon)
+                                       int mountIndex, Entity part, ref WeaponState weapon,
+                                       int roundsInFlight = 0, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto = null, float dt = 0f)
         {
+            // ⭐ W-12c (§5g G-2/G-3) — a guided mount's hold: the estimated flight of the last round it saw fired. The aim clock is
+            //   free on this path (the muscle aims), so it carries the hold.
+            ref var hold = ref AimTimer(ref channel).Elapsed;
+            if (hold > 0f) hold = MathF.Max(0f, hold - dt);
             var current = world.HasComponent<WeaponTask>(part) ? world.GetComponent<WeaponTask>(part) : default;
             bool fresh = current.Mode == WeaponTaskMode.Idle || current.Target != p.Target || current.MountIndex != (byte)mountIndex;
             uint epoch = fresh ? current.Epoch + 1 : current.Epoch;
@@ -218,6 +294,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 {
                     Magazine.Spend(ref weapon);
                     RoundsFired(ref channel)++;
+                    if (roundsInFlight > 0) hold = GuidedFlightSeconds(world, entity, p.Target, mountDto, weapon.MuzzleVelocity);
                 }
                 if (status.RoundsFired > accounted) accounted = status.RoundsFired;
                 if (status.State == WeaponTaskState.Failed)
@@ -245,6 +322,8 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 int inHand = weapon.MagazineSize > 0 ? weapon.MagazineRounds : weapon.Ammo;
                 if (p.Rounds > 0) inHand = System.Math.Min(inHand, p.Rounds - RoundsFired(ref channel));
+                // ⭐ W-12c — a guided weapon is granted its next round only once the last one's flight is over.
+                if (roundsInFlight > 0) inHand = hold > 0f ? 0 : System.Math.Min(inHand, roundsInFlight);
                 grant += System.Math.Max(0, inHand);
             }
 
@@ -264,7 +343,29 @@ namespace Fdp.Toolkit.Combat.Executors
             else if (!roe) Say(world, entity, ActionReason.HoldRoe, p.Target);
             else if (!loaded) Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
             else if (mine && status.State == WeaponTaskState.Slewing) Say(world, entity, ActionReason.Slewing, p.Target);
+            else if (roundsInFlight > 0 && hold > 0f) Say(world, entity, ActionReason.Guiding, p.Target, hold);
             else Say(world, entity, ActionReason.Firing, p.Target, RoundsFired(ref channel), p.Rounds);
+        }
+
+        /// <summary>⭐ W-12c (§5g G-2) — added to a guided round's flight estimate: launch and detonation are not instants.</summary>
+        public const float GuidedFlightMarginSeconds = 0.5f;
+
+        /// <summary>
+        /// ⭐ W-12c (§5g G-2) — how long a guided round just fired at <paramref name="target"/> flies: the flat distance over the mount's
+        /// muzzle velocity (the TKB's; else the mount state's; else the engine fallback), plus <see cref="GuidedFlightMarginSeconds"/>.
+        /// ⚠ An expected value, not the detonation (R-212): a round stopped early by cover still holds the launcher for the estimate.
+        /// </summary>
+        public static float GuidedFlightSeconds(EntityRepository world, Entity unit, Entity target,
+                                                Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, float stateMuzzleVelocity)
+        {
+            float speed = mount is { MuzzleVelocity: > 0f } ? mount.MuzzleVelocity
+                        : stateMuzzleVelocity > 0f ? stateMuzzleVelocity
+                        : Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocity;
+            if (!world.HasComponent<SimTransform>(unit) || !world.IsAlive(target) || !world.HasComponent<SimTransform>(target))
+                return GuidedFlightMarginSeconds;
+            var a = world.GetComponentRO<SimTransform>(unit).Position;
+            var b = world.GetComponentRO<SimTransform>(target).Position;
+            return new Vector2(b.X - a.X, b.Y - a.Y).Length() / speed + GuidedFlightMarginSeconds;
         }
 
         /// <summary>⭐ WL-3 — every turret of <paramref name="unit"/> with an order goes back to Idle (it holds its pose); the epoch is
@@ -307,6 +408,44 @@ namespace Fdp.Toolkit.Combat.Executors
             public float  Elapsed;
             public byte   Stance;
             public byte   Ready;
+            /// <summary>⭐ WL-4 W-12a — the mount chosen for this engagement (the struct's two former padding bytes: still 16).</summary>
+            public byte   ChosenMount;
+            /// <summary>1 when <see cref="ChosenMount"/> holds a choice.</summary>
+            public byte   HasChoice;
+
+            /// <summary>A fresh aim (timer and readiness reset) that KEEPS the engagement's mount choice.</summary>
+            public readonly AimState Restarted(Entity target, byte stance)
+                => new AimState { Target = target, Stance = stance, ChosenMount = ChosenMount, HasChoice = HasChoice };
+        }
+
+        /// <summary>
+        /// ⭐ WL-4 W-12a (L-4) — the mount for this engagement: the stored choice while the target is the one it was made for and
+        /// the mount still has ammunition; otherwise <see cref="WeaponChoice.Choose"/> once more. The engaged target is the
+        /// channel state's first field (written by <see cref="OnEnter"/>).
+        /// </summary>
+        private static unsafe int EngagementMount(EntityRepository world, Entity unit, ref WeaponChannel channel, Entity target, out Entity mountEntity)
+        {
+            ref var aim = ref AimTimer(ref channel);
+            ref Entity engaged = ref EngagedTarget(ref channel);
+            mountEntity = unit;
+            if (aim.HasChoice != 0 && engaged == target)
+            {
+                int kept = aim.ChosenMount == 0 ? 0 : MountByIndex(world, unit, aim.ChosenMount, out mountEntity);
+                if (kept == aim.ChosenMount && world.HasComponent<WeaponState>(mountEntity) && world.GetComponentRO<WeaponState>(mountEntity).Ammo > 0)
+                    return kept;
+            }
+            int chosen = WeaponChoice.Choose(world, unit, target, out mountEntity);
+            aim.ChosenMount = (byte)chosen;
+            aim.HasChoice = 1;
+            engaged = target;
+            return chosen;
+        }
+
+        /// <summary>The target this action engages (channel state bytes 0–7).</summary>
+        private static unsafe ref Entity EngagedTarget(ref WeaponChannel channel)
+        {
+            fixed (byte* s = channel.State)
+                return ref Unsafe.AsRef<Entity>(s);
         }
 
         /// <summary>⭐ <c>CE-3136</c> B7 — the rounds the CURRENT AimAndFire action has fired (valid once the dispatcher has entered it).</summary>

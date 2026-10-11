@@ -175,7 +175,7 @@ not observable (it only decides iteration order of the completion check), so out
 
 ## 6. As built `2026-09-30`
 
-**Where it lives:** `Hrot/Subsystems/Hrot.AI.Behaviors/Assets/Blueprints/PlatoonHillAttackBp.bp.json` (editor-loadable; 11 graphs:
+**Where it lives:** `Hrot/Subsystems/Hrot.AI.Behaviors/Assets/Blueprints/Demos/HillAttack/PlatoonHillAttackBp.bp.json` (editor-loadable; 11 graphs:
 Tick, Resolve, Setup, OrderAllToBaseline, AllAtBaseline, SlotT, PickFiringSlot, PickBaselineSlot, TargetNetId, DispatchWave,
 UpdateRunners). ⭐ It is AUTHORED by `Hrot.Blueprints.Tests/Authoring/PlatoonHillAttackBpAuthoring.cs` over the real asset model
 (pins from the editor's own `NodePinSchema`), and `PlatoonHillAttackBpAuthoringTests` pins the file to that output

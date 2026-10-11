@@ -157,6 +157,11 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>Human-readable name, e.g. "FleeToSafety" or "Patrol".</summary>
         public required string Name { get; init; }
 
+        /// <summary>⭐ <c>CE-3164</c> (R-268) — the picker folder this behaviour is shown in, <c>/</c>-separated
+        /// (<c>"Library/Tactics"</c>, <c>"Demos/UrbanCombat"</c>): the attribute's for a C# behaviour, the asset's folder for a JSON
+        /// one (📄 DESIGN_Behavior_Self_Registration.md §10c). <c>null</c> ⇒ the picker's <c>Other</c>. Display only — never a key.</summary>
+        public string? Group { get; init; }
+
         /// <summary>
         /// Brain tier for entities assigned this behavior.
         /// Use <see cref="BehaviorConstants.BrainTierBTree"/>, <see cref="BehaviorConstants.BrainTierHsm"/> or
@@ -395,6 +400,13 @@ namespace Fdp.Toolkit.Behavior
         private readonly Dictionary<string, HostedOccurrenceDemand> _hostedDemandByName
             = new(StringComparer.Ordinal);
 
+        /// <summary>⭐ <c>CE-3164</c> — the last picker group a registration of each name carried (see <see cref="GroupOf"/>).</summary>
+        private readonly Dictionary<string, string> _groupByName = new(StringComparer.Ordinal);
+
+        /// <summary>⭐ <c>CE-3164</c> (R-268) — the picker folder of <paramref name="name"/>: the group its registration declared
+        /// (kept across a hot-reload <see cref="MergeFrom"/> whose staging registration declares none), or <c>null</c> ⇒ the picker's "Other".</summary>
+        public string? GroupOf(string name) => _groupByName.TryGetValue(name, out var g) ? g : null;
+
         /// <summary>
         /// Register a behavior <b>by name</b> — the preferred, name-as-identity entry point.
         /// The integer id is derived from the name via <see cref="BehaviorHash.FromName"/>, so
@@ -411,6 +423,8 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public void Register(int id, string name, BehaviorDefinition definition)
         {
+            // ⭐ CE-3164 (R-268) — remember the picker group (see MergeFrom: a hot reload's staging registration carries none).
+            if (!string.IsNullOrEmpty(definition.Group)) _groupByName[name] = definition.Group!;
             // Startup-time firewall: ensure the params DTO can actually be STORED.
             // ⭐ CE-235: this guard is about the params REGION, so it reads the layout type, never the
             //   authored JSON contract — a JSON DTO is a heap class whose Marshal size means nothing here.
@@ -869,6 +883,7 @@ namespace Fdp.Toolkit.Behavior
             _jsonParamsDtoByName.Clear();
             // O7b-3: a stale demand outliving its behaviour would size the NEXT one's tier.
             _hostedDemandByName.Clear();
+            _groupByName.Clear();
         }
 
         /// <summary>
@@ -897,6 +912,11 @@ namespace Fdp.Toolkit.Behavior
             //   reintroduced at the staging→live boundary where nothing would look for it.
             foreach (var (name, demand) in source._hostedDemandByName)
                 _hostedDemandByName[name] = demand;
+
+            // ⭐ CE-3164 (R-268): a group the staging registration declared wins; one it did not declare (the editor's hot
+            //   reload compiles from a DTO with no file path) keeps the live group, so a save never moves a behaviour to "Other".
+            foreach (var (name, group) in source._groupByName)
+                _groupByName[name] = group;
 
             foreach (var (name, id) in source._nameToId)
             {

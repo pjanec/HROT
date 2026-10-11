@@ -202,7 +202,7 @@
        offered as the BTree RECIPE a designer starts their own SOP from (AssetRoots.RecipesRelative(BTree) = Recipes/BTrees).
        ONE file, two roles — a copy would drift. -->
   <ItemGroup>
-    <Content Include="Assets\BTrees\Sop\BasicInfantrySop.btree.json" Link="Recipes\BTrees\BasicInfantrySop.btree.json">
+    <Content Include="Assets\BTrees\Library\Sop\BasicInfantrySop.btree.json" Link="Recipes\BTrees\BasicInfantrySop.btree.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
