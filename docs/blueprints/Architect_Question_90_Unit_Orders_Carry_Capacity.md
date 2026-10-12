@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6, each with a lean (awaiting the user) · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), each with a lean (awaiting the user) · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -13,6 +13,7 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad runner and drills (§3.1 "order = AssignBehavior to the commander") and the unit commander (§7, R-272 (behaviors))
   - docs/DESIGN_Entity_Interactions.md — OWNS embarkation (§7); B and C extend it
   - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — OWNS the origin gate (R-188), the SOP slot (R-189); its "an order as a GOAL" idea (deferred) is A2's rejected alternative
+  - docs/blueprints/DESIGN_Parameter_Model.md — OWNS the behaviour start pipeline and the resolver (§P.2, R-152/R-154) that A7 puts one stage in front of
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS the injury states (D1 / R-263) C depends on, and the echelon gap (T6)
 -->
 
@@ -110,6 +111,52 @@ receiver's node, read from the receiver's own type, so adding a unit type touche
 
   The adapter is code next to the behaviour's params DTO, because it converts lat/lon with the node's geographic transform.
   Precedent: `DefendAreaMapper.PostureAt` already turns `DefendAreaIntentDto` into `CombatPosture`'s params.
+
+### 2.3a A7 — who converts the order's DTO into the behaviour's params *(added 2026-10-12, the user's follow-up; supersedes §2.3's "adapter is code" line)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a behaviour already has ONE optional conversion step at start (the resolver): the intent's JSON → its authored DTO → the resolver writes the block; with no resolver, a copy **by field name** | ✅ `BehaviorDefinition.ResolveStage` (CE-443, built) | ✅ Parameter Model §P.2; R-152 (one per behaviour, its job is conversion) |
+| a resolver may be hand-written C# (`[BehaviorResolver]`) or a **blueprint resolver asset** that names its behaviour | ✅ `T40Resolver.bp.json` (`ResolverSubject`) | ✅ R-149 (a region names its resolver), R-154 (looked up by behaviour name), CE-428 |
+| blueprints have typed To JSON / From JSON nodes for any `[BehaviorContract]` DTO | ✅ CE-472 built | ✅ DESIGN_Typed_Intent_And_Json_Nodes §3 |
+| the world-location TYPE is `PickableGeoPoint` (lat/lon) — the type alone makes a member map-pickable | ✅ `Behavior/Params/PickableGeoPoint.cs` | ✅ DESIGN_Map_Picking_Unification (supersedes `[MapPickableWorldLocation]`) |
+| ⛔ but no production behaviour DTO uses it: places are lat/lon doubles (`MoveToLocation`) or a local `Vector3 Objective` (`SquadMarch`, `AdvanceTo`, `CombatPosture.Advance`) | ✅ grep — only a test fixture uses `PickableGeoPoint` | ⛔ searched: no design says why |
+
+```mermaid
+sequenceDiagram
+  participant O as order DTO (MoveOrder: Location PickableGeoPoint · Speed · ArrivalRadius · RoadUse)
+  participant A as stage 0 (NEW): order → authored DTO
+  participant P as the existing start pipeline
+  O->>A: TKB OrderSet entry: behaviour name + default params JSON
+  alt the behaviour declares an order adapter for this kind
+    A->>A: adapter (C# or blueprint) computes the authored DTO
+  else none declared
+    A->>A: generic copy by field name (+ a declared rename per field)
+  end
+  A->>P: the behaviour's authored DTO as JSON, over the entry's defaults
+  P->>P: bake defaults → resolver (geo → local, as today) → block
+```
+
+*What the picture shows that prose hid: the order adds ONE stage in front of a pipeline that already converts. The existing
+pipeline is untouched, and the behaviour's authored DTO stays the one description of what it accepts, for the editor form, the
+mission task, the debug API and now the order.*
+
+| A7 | ⭐ lean |
+|---|---|
+| **generic case** (no code) | copy by field name and type. ⭐ It works for most orders once behaviour DTOs use the vocabulary types: `PickableGeoPoint` for a place, `EntityRef` for a target, floats for speed and radius. The lat/lon → local conversion then stays in the behaviour's own resolver, whose designed job it already is. A field whose name differs is declared on the behaviour's DTO (`[FromOrder("Move", "Location")] Objective`, or the same property on a blueprint parameter) |
+| **computed case** | an **order adapter**, one per behaviour per order kind, declared BY THE BEHAVIOUR, like its resolver: hand-written C#, or a **blueprint adapter asset** naming its behaviour and order kind (looked up by behaviour name, R-154). In a blueprint: From JSON the order DTO, compute, To JSON the authored DTO |
+| **the TKB entry** | names only order kind → behaviour + optional default params. ⛔ Not the adapter: it belongs to the behaviour, or every unit type that uses `SquadMarch` for Move would repeat it |
+| **validation** | at TKB load: an entry whose behaviour cannot be filled from the order (no adapter, and a required field matches nothing) is a load error, not a silent run with defaults |
+
+Rejected:
+- **The order carries the behaviour's DTO:** the sender must then know the behaviour (R-273).
+- **The behaviour's resolver takes the order directly:** the resolver would need one input type per order kind (against R-152's one source), and the authored DTO would stop describing what the behaviour accepts.
+- **The TKB entry names the adapter:** it repeats per unit type.
+- **Copy by name only:** it fails where the meaning differs (an area's radius vs. a posture's arrival radius).
+
+⛔ Not measured:
+- whether a blueprint asset can RETURN a whole DTO today (a resolver writes through `ref block`; an adapter needs an output). This may need a new dispatch kind beside `Library`.
+- how many behaviour DTOs would move to `PickableGeoPoint`.
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
