@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: BUILDING — S0 (§9.1), S3 (§9.2), S4 (§9.3) and S5 (§9.4) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
+build-state: BUILDING — S0 (§9.1), S3 (§9.2), S4 (§9.3) and S5 (§9.4) BUILT; §7.6b (CE-1023) BUILDING; the rest READY-TO-BUILD (decisions R-185 … R-189).
 current-answer: the whole file — §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
 stale-below: nothing — new document.
 known-rot: "doctrine" is RENAMED "SOP" (R-198, user 2026-10-04) — read every doctrine as SOP; planned identifiers become SopState / AssignSopEvent / ClearSopEvent / DefaultSop {Name, ParamsJson}; the SOP model (task · SOP · reaction, R-199) lives in docs/DESIGN_Decision_Layer.md §4. · §7.5's first version (an authored AiAssignment component, R-190) is SUPERSEDED by the snapshot concept (R-192) — the section was rewritten in place, 2026-10-04.
@@ -9,6 +9,7 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/blueprints/DESIGN_Map_Picking_Unification.md — OWNS the one pick service / context / broker; §7.6b here adds a SCOPED context so several params forms share one broker (CE-1023).
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §4 adds squad-level SensorChange kinds (SquadContact / SquadUnderFire / SquadAllClear) with Unit = the commander
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS S7 (CE-3055): thermal + acoustic templates, heat, sound emission, anonymous contacts (this file's G6).
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — the first consumer of §7.9 (a When TopChanged per answer).
@@ -1036,6 +1037,133 @@ unregistered bus is a refusal, never a silent drop). ⚠ The ImGui drawing itsel
 (`Hrot.Blueprints.Tests/Editor/EntityAiInstanceRowsTests`, red-proved: the paused write stubbed ⇒ red): a row carries its
 `Params` type (size = `ParamsSize`) and its non-default JSON · paused applies in place, publishes nothing · running publishes
 the replace (id → id, the JSON) and writes nothing.
+
+### 7.6b One params form EVERYWHERE, with map picks — `CE-1023` *(ui, `2026-10-12`; build-state: READY-TO-BUILD)*
+
+> 🔒 User-reported `2026-10-06`: *the Mission Editor's add-task shows a raw JSON box for many behaviours; the Details "AI" view
+> shows the structure but no route picker.* §7.6 built THE ONE PARAMS FORM for the AI section only; the mission panel kept its
+> own. ⇒ ruling 9 (one implementation per concept) and R-137 (unifying may not cost a feature).
+
+**INVENTORY** *(`search_graph` name patterns `.*ParamsForm.*` (1 class), `.*BehaviorUi.*` (3 classes: `BehaviorUiCompiler`,
+`BehaviorUiRegistry`, `BehaviorUiSetup`), `.*PickContext.*` (1 interface, `IMapPickContext`), `.*MapPickBroker.*` (1),
+`.*EditService.*` (builders: `ComponentReflector`'s private one, `AiFacetEditService`, the replay browser's search one); grep
+corroborates every call site. `check_index_coverage` is not reachable from the CLI.)*
+
+| measured | where |
+|---|---|
+| ⛔ **two forms for one concept**: `BehaviorUiCompiler` (expression-compiled ImGui per DTO; float/double/int/long/bool/`EntityRef`/`PickableGeoPoint` PROPERTIES only — no nested types, lists, enums, strings) drives the mission panel; `BehaviorParamsForm` (StructEdit over the params type, drawn by `ComponentEditDrawer` — every shape) drives the AI section | `MissionPanel.cs:479-488` · `EntityAiDetailsView.cs:303,332` |
+| ⛔ the mission panel falls to a raw JSON box for any behaviour its UI registry lacks | `MissionPanel.cs:487` → `DrawRawJsonEditor` |
+| ⛔ the AI section passes **no pick context** — the editor holds the map-pick adapter and did not pass it (the silent-default pattern) | `EntityAiDetailsView.cs:309,336` `pickerCtx: null` |
+| ⛔ the AI section's edit service (`AiFacetEditService`) does not register the standard leaves, so an `EntityRef` / `PickableGeoPoint` field is drawn as a struct (its `NetworkId` child), never as ONE pickable leaf; the list lives privately in `ComponentReflector.BuildEditService` | `BehaviorActionBindingFieldEditor.cs:29-34` · `ComponentReflector.cs:117-131` |
+| ⭐ the drawer already picks by TYPE (D5/P5) through `IMapPickContext`, keyed on the node's `JsonPath` (`$.Member`) | `ComponentEditDrawer.cs:296-365` |
+| ⭐ every declared behaviour names its params type (B2: 13 distinct DTOs, all containers — none needs `ScalarEditBox`) | `ParamsDtoRegistry.Default` · `[Behavior(Params = …)]` |
+| ⚠ ONE broker holds ONE pending pick keyed by path ⇒ two forms on one screen (task + SOP; N mission tasks) collide on `$.Member` without a scope | `MapPickBroker.cs:44-90` |
+
+```mermaid
+classDiagram
+  direction LR
+  class BehaviorParamsForm {
+    <<MOVED to Hrot.Presentation.Behavior — the one form>>
+    +ParamsTypeOf(name, registry) Type
+    +Open(svc, type, json) IEditSession
+    +DrawFields(session, picks)
+    +CommitToJson(session, type) string
+  }
+  class BehaviorParamsEditor {
+    <<NEW, no ImGui logic — one form bound to a live JSON>>
+    +Sync(type, json)
+    +Edited() string or null
+  }
+  class ComponentEditServices {
+    <<NEW, Fdp.Presentation — the standard leaves, ONE list>>
+    +CreateBuilder() ComponentEditServiceBuilder
+  }
+  class ScopedMapPickContext {
+    <<NEW, Fdp.Presentation — scope + path>>
+    +ctor(inner, scope)
+  }
+  class IMapPickContext { <<existing>> }
+  class MapPickBroker { <<existing>> one pending pick }
+  class ComponentEditDrawer { <<existing>> picks by TYPE }
+  class MissionPanel { <<existing>> one editor per task, scope $.tasks[i] }
+  class EntityAiDetailsView { <<existing>> scopes $.task, $.sop, $.bpN }
+  class ComponentReflector { <<existing>> }
+  class AiFacetEditService { <<existing>> }
+  class BehaviorUiCompiler { <<DELETED with BehaviorUiRegistry, BehaviorUiSetup>> }
+  IMapPickContext <|.. MapPickBroker
+  IMapPickContext <|.. ScopedMapPickContext
+  ScopedMapPickContext --> IMapPickContext : inner
+  BehaviorParamsForm ..> ComponentEditDrawer : DrawFields
+  BehaviorParamsEditor --> BehaviorParamsForm
+  MissionPanel *-- BehaviorParamsEditor : per task id
+  MissionPanel *-- MapPickBroker
+  EntityAiDetailsView --> BehaviorParamsForm
+  EntityAiDetailsView ..> MapPickBroker : the editor's, PASSED
+  ComponentReflector ..> ComponentEditServices
+  AiFacetEditService ..> ComponentEditServices
+  MissionPanel ..> ComponentEditServices
+```
+
+*What the picture shows that prose hid: the second form is not a second DRAWER — it is a second implementation of what
+`ComponentEditDrawer` already does by type, and both screens' missing halves (the JSON box; the absent pick) close on the same
+two seams: the standard leaves and a scoped pick context.*
+
+```mermaid
+sequenceDiagram
+  participant P as MissionPanel.Draw
+  participant E as BehaviorParamsEditor (task 2)
+  participant F as BehaviorParamsForm
+  participant D as ComponentEditDrawer
+  participant S as ScopedMapPickContext($.tasks[2])
+  participant B as MapPickBroker
+  P->>E: Sync(type of task.BehaviorId, task.BehaviorParams)
+  Note over E: reopens only when the JSON changed OUTSIDE this form
+  P->>F: DrawFields(session, S)
+  F->>D: DrawRoot
+  D->>S: RequestEntityPick("$.TargetNetworkId")
+  S->>B: RequestEntityPick("$.tasks[2].TargetNetworkId")
+  Note over B: the operator clicks the map, a later frame
+  D->>S: TryConsumeEntityPick("$.TargetNetworkId")
+  S->>B: TryConsumeEntityPick("$.tasks[2].TargetNetworkId")
+  B-->>D: EntityRef, written into the session
+  P->>E: Edited()
+  E->>F: CommitToJson
+  E-->>P: the new JSON (null when unchanged)
+  P->>P: HandleEditBehaviorParams(2, json) — the draft, as before
+```
+
+```mermaid
+graph TD
+  ED["EditorSubsystem"] -- "registry lookup" --> MP1["MissionPanel (mission window)"]
+  ED -- "registry lookup" --> MP2["MissionPanel (ScenarioMissionView)"]
+  ED -- "MapPickBroker over its adapter (NEW: passed)" --> AI["EntityAiDetailsView (details.ai)"]
+  CGF["CgfSubsystem"] -- "registry lookup" --> MP3["MissionPanel"]
+  EX["ExConSubsystem"] -- "no registry: ParamsDtoRegistry.Default" --> MP4["MissionPanel"]
+  MP1 --> F["BehaviorParamsForm"]
+  MP2 --> F
+  MP3 --> F
+  MP4 --> F
+  AI --> F
+  F --> D["ComponentEditDrawer"]
+  ED -. "held, not passed (before)" .-> AI
+```
+
+*Who draws each frame: every mission window's own `Draw`, and the Details panel for `details.ai`. ⚠ ExCon (a remote IG
+operator station) has no behaviour registry; it reads `ParamsDtoRegistry.Default` — exactly what `BehaviorUiSetup` read, so
+nothing it had is lost.*
+
+| # | decision | rejected — one line each |
+|---|---|---|
+| F1 | ⭐ **one list of standard leaves**: `ComponentEditServices.CreateBuilder()` (FixedString32/64/128, Quaternion, `EntityRef`, `PickableGeoPoint`, `UtilityDecisionRef`, Guid); `ComponentReflector` and `AiFacetEditService` start from it | a second list in the form — the AI section already shows what a missed copy costs |
+| F2 | ⭐ **`ScopedMapPickContext(inner, scope)`** rewrites `$.Member` to `scope + .Member`; the mission panel scopes `$.tasks[i]` (the path the compiler used, so the broker's tests keep their keys), the AI section `$.task` / `$.sop` / `$.bp<id>` | path keys without a scope — two forms on one screen race for one pending pick |
+| F3 | ⭐ **`BehaviorParamsForm` moves to `Hrot.Presentation.Behavior`** (beside the picker tree; the mission panel cannot reach `Hrot.Editor.AiShared`) and gains `DrawFields` and `ParamsTypeOf(name, registry)` — the registry's `JsonParamsDtoType`, else `ParamsDtoRegistry.Default`; `EntityAiEditModel.ParamsTypeOf` routes to it | an injected draw delegate per host — the non-editor hosts would keep the compiler |
+| F4 | ⭐ **`BehaviorParamsEditor`**: one session bound to a JSON the panel owns — reopened when that JSON changes from outside (snapshot sync, behaviour change), committed when the session is dirty and the JSON differs; opening never rewrites the draft | reopen every frame — loses ImGui text focus; commit every frame — a draft that "changes" by being looked at |
+| F5 | ⭐ **the mission panel draws `BehaviorParamsForm` for every behaviour with a params type**; the raw JSON box stays ONLY for a name with no known contract (honest: nothing to draw from). Its ctor takes `Func<string, Type?>` instead of `BehaviorUiRegistry`; the editor and CGF pass their registry lookup (they hold one — the silent-default rule) | keep the compiler for "simple" DTOs — two forms again |
+| F6 | ⭐ **the AI section gets the editor's picks** (`EntityAiDetailsViewDescriptor.For(…, picks)`, `new MapPickBroker(() => _mapPickAdapter)`) | — |
+| F7 | ⭐ **delete `BehaviorUiCompiler`, `BehaviorUiRegistry`, `BehaviorUiSetup`**; `BehaviorSchemaDiscovery.AutoRegister(remapper, behaviorRegistry)` keeps only the remap half. R-137 check: every type the compiler drew, the drawer draws (plus nested, lists, enums, strings); the entity pick's filter presets (`[MapPickableEntity]`) are read by the drawer too | keep them unused — dead duplicate code (duplicate CODE ⇒ route, here: delete, the design record names the keeper) |
+
+*Not in scope (fences, behaviors-lane handoff 2026-10-12):* the BTree/HSM binding-target picker and the emitters, the
+variables panel, the A2 assets. `OrderMenu.PickOf` (the right-click order's ONE pick, D4-E) is a gesture, not a form — unchanged.
 
 ### 7.7 A Brain hand-over keeps the unit's AI — `CE-3048` *(build-state: BUILT `2026-10-05` — as-built below the table)*
 

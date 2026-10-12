@@ -137,6 +137,8 @@ namespace Hrot.SimHost.Tests
             _goldRepo.RegisterComponent<EpisodeTag>();
             _goldRepo.RegisterManagedComponent<InitialPassengersIntent>();
             _goldRepo.RegisterManagedComponent<InitialUnitSubordinateIntent>();
+            // ⚠ Its rail passed only when another test had registered it first (red alone, measured with CE-1057).
+            _goldRepo.RegisterManagedComponent<InitialTargetsIntent>();
             // EditablePolyline must be registered so StagingEntityExtractor.RegisterAllGlobalTypesInRepo
             // can include it regardless of test-execution order (D-5 fixture gap fix).
             _goldRepo.RegisterManagedComponent<EditablePolyline>();
@@ -804,6 +806,67 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new EntityRef(3002L), entry.NetworkId);
             Assert.Equal(7.5f, entry.PosZ);
             Assert.Equal(0.25f, entry.Score);
+        }
+
+        /// <summary>Writes an <see cref="InitialBrainIntent"/> (the saved AI, CE-3042) whose task AND SOP slots name one target by
+        /// network id in their params JSON.</summary>
+        private sealed class StubBrainIntentTranslator : IEntityScenarioTranslator
+        {
+            private const string DomKey = "_stubBrain";
+            private readonly long _targetNetId;
+
+            public StubBrainIntentTranslator(long targetNetId) => _targetNetId = targetNetId;
+
+            public BitMask512 GetConsumedComponentsMask() => new BitMask512();
+            public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
+
+            public bool CanTranslate(EntityRepository repo, Entity entity)
+                => repo.GetEntityIndex().GetComponentMask(entity.Index).IsSet(GlobalComponentIds.SimTransform);
+
+            public Dictionary<string, object> Extract(EntityRepository repo, Entity entity, IGuidResolver guidResolver)
+                => new Dictionary<string, object> { [DomKey] = new JsonObject { ["TargetId"] = _targetNetId } };
+
+            public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
+            {
+                if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
+                var id = ((JsonObject)raw)["TargetId"]!.GetValue<long>();
+                string Params() => $"{{\"targetNetworkId\":{id},\"maxRounds\":3,\"cooldownSeconds\":1}}";
+                repo.SetManagedComponent(entity, new InitialBrainIntent
+                {
+                    Behavior = new SavedBrainSlot { Name = BehaviorNames.FireAtTarget, Params = Params() },
+                    Sop      = new SavedBrainSlot { Name = BehaviorNames.FireAtTarget, Params = Params(), Origin = BehaviorOrigin.Sop },
+                });
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1057</c> — a unit's saved AI names its target by the SAVED network id, and the load re-allocates every id:
+        /// the task and SOP params come back naming the target's NEW id, through the remapper every live load builds
+        /// (<see cref="Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper"/>). 🔴 Measured live on
+        /// <c>tt-convoy-ambush</c>: <c>FireAtTarget {targetNetworkId: 7300}</c> kept 7300, named nothing, and the behaviour
+        /// never ran — the params are a JSON string, which the <see cref="EntityRef"/> type plan cannot see.
+        /// </summary>
+        [Fact]
+        public void CE1057_ASavedBrainIntentsTarget_IsRemapped_InTheTaskAndTheSop()
+        {
+            _goldRepo.RegisterManagedComponent<InitialBrainIntent>();
+            var shooter = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(shooter, new SimTransform());
+            _goldRepo.SetComponent(shooter, new NetworkIdentity { Value = 1001L });
+            var target = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(target, new NetworkIdentity { Value = 7300L });
+
+            var serializer = BuildSerializer(new StubBrainIntentTranslator(7300L));
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, SerializeGoldRepo(_goldRepo, serializer), new StubIdAllocator(3001),
+                    behaviorRemapper: Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper());
+
+            var brain = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
+                .OfType<InitialBrainIntent>().Single();
+            Assert.Contains("\"targetNetworkId\":3002", brain.Behavior!.Params);
+            Assert.Contains("\"targetNetworkId\":3002", brain.Sop!.Params);
+            Assert.Contains("\"maxRounds\":3", brain.Behavior.Params);
+            Assert.Equal(BehaviorOrigin.Sop, brain.Sop.Origin);
         }
 
         // ── Test 14: Unknown passenger NetworkId preserved as-is ──────────────────────

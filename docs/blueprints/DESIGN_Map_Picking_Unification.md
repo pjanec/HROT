@@ -7,6 +7,7 @@ stale-below: nothing yet.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - ../DESIGN_Sensors_And_Doctrine.md — §7.6b (CE-1023) puts the ONE params form on every screen, retires BehaviorUiCompiler (the mission panel's second form) and adds ScopedMapPickContext over the one broker.
   - DESIGN_Entity_Reference.md — owns the EntityRef TYPE and the rule "the type makes a field pickable"; this document
     applies that rule to locations and collapses the picking machinery underneath it.
   - Architect_Question_55_Watch_Concrete_Entity_Picker.md — flagged two of the duplicates closed here (two

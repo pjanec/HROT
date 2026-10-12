@@ -426,7 +426,21 @@ namespace Hrot.CGF.Orchestration
                                 ?? task.BehaviorParams;
                         }
                     }
+                    // ⭐ CE-1057 — a unit's saved AI (CE-3042) carries each slot's params as a JSON string too, so the type
+                    //   plan below cannot see the EntityRefs inside it; the same by-name JSON pass rewrites them.
+                    //   🔴 Without it a scenario's `FireAtTarget {targetNetworkId}` kept the saved id and named nothing.
+                    else if (comp is InitialBrainIntent brain)
+                    {
+                        RemapSlot(brain.Behavior);
+                        RemapSlot(brain.Sop);
+                    }
                 }
+            }
+
+            void RemapSlot(SavedBrainSlot? slot)
+            {
+                if (slot == null) return;
+                slot.Params = behaviorRemapper!.RemapJson(slot.Name, slot.Params, oldToNewMap) ?? slot.Params;
             }
 
             // ⭐⭐ DESIGN_Entity_Reference.md D4 — every EntityRef inside every component (the Initial*Intent DTOs the
