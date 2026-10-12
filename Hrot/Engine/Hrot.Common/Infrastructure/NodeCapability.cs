@@ -69,6 +69,13 @@ public static class CapabilityKeys
     /// deliberately NOT bundled here.</para>
     /// </summary>
     public const string EqsResultUpdate = "cap:infra:eqs-result-update";
+
+    /// <summary>
+    /// ⭐ <c>CE-3110</c> (R-224) — embarkation: the vehicle owner's applier and every node's passenger-side derivation. Cross-role,
+    /// like <see cref="UnitHierarchy"/>: any node that can own a live entity may own a vehicle or a passenger, so no role pack may
+    /// carry it (🔒 user, <c>2026-10-12</c>: "any node that can own live entities … should be able to use the features").
+    /// </summary>
+    public const string Embarkation = "cap:infra:embarkation";
 }
 
 /// <summary>Keys for the one-per-world resources capabilities share.</summary>

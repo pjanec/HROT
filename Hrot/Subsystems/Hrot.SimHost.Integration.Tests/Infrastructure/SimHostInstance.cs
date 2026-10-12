@@ -397,6 +397,9 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             foreach (var s in brainPack.SimulationSystems)  simList.Add(s);
             foreach (var s in musclePack.SimulationSystems) simList.Add(s);
+            // ⭐ CE-3110 — embarkation left CgfLogicPack for the cross-role CoreInfrastructureCapabilities.Embarkation (every production
+            //   plan declares it); this harness wires packs by hand, so it takes the capability's systems the same way (CE-493's lesson).
+            new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Embarkation().PopulateSystems(context: null!, inputList, simList, postSimList);
             // ⛔ CE-453 (2026-09-30): a SECOND MissionAdapterSystem used to be added here. CgfLogicPack already schedules
             //   its own (CgfLogicPack.cs:187), so the harness ran two per frame — harmless only because both share the
             //   per-entity MissionAdapterState and the second always skipped. Production runs one.

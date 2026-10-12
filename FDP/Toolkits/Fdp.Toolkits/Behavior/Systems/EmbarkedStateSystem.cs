@@ -12,11 +12,12 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// at the CE-321 column (in leaving order, per vehicle, this frame). On the deciding node <c>EmbarkationSystem</c> has already done
     /// both, so this is a no-op there; elsewhere the list arrives by replication and the side follows. The body is placed only where its
     /// position is owned (inside <see cref="Embarkation.Leave"/>).
-    /// ⭐ Runs in Input, before <see cref="CognitiveInterruptSystem"/>, so a passenger's stripped CanMove is in place before that system
-    /// compares capabilities (it skips a tagged entity). 📄 docs/DESIGN_Entity_Interactions.md §7.1c.
+    /// ⭐ Order inside the phase is free: <see cref="Embarkation.Board"/> writes the tag and strips CanMove in one call, so
+    /// <see cref="CognitiveInterruptSystem"/> (which skips a tagged entity) sees the tag in whichever frame it notices the change.
+    /// ⭐ Composed on every node by the cross-role <c>CoreInfrastructureCapabilities.Embarkation</c> — never by a host or role pack.
+    /// 📄 docs/DESIGN_Entity_Interactions.md §7.1c, §7.1d.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
-    [UpdateBefore(typeof(CognitiveInterruptSystem))]
     public sealed class EmbarkedStateSystem : IEcsModuleSystem
     {
         private readonly List<(Entity passenger, Entity vehicle)> _boarders = new();

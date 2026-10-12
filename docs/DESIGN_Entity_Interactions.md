@@ -14,6 +14,7 @@ related-designs:
   - docs/DESIGN_Role_Affinity_Ownership.md §6 — OWNS which role writes embarkation state (PassengerBuffer, IsEmbarkedTag)
   - FDP/Docs/projects/behavior-control/Behavior Control Subsystem Design.json.md §3.A–B — OWNS the interaction channel and its executors (the actor side)
   - docs/DESIGN_Entity_Control.md — OWNS the Possess / Release / ControlFrame interaction cases (M-6)
+  - docs/DESIGN_Subsystem_Composition_Unification.md §4.1ad — OWNS cross-role infrastructure capabilities (CE-221); embarkation is one (§7.1d)
 -->
 
 # DESIGN — **entity interactions** *(one way for an actor to act on an entity it does not own)*
@@ -347,16 +348,18 @@ sequenceDiagram
 graph TD
   SP[SharedTranslatorPack - every networked host] --> EG[EntityPassengersEgress]
   SP --> IN[EntityPassengersIngress]
-  CLP["CgfLogicPack input list (CGF + editor)"] --> ES[EmbarkedStateSystem]
-  SNB["SimHostNodeBootstrapper global systems (beside genesis)"] --> ES
-  ES -->|before| CIS[CognitiveInterruptSystem - CGF Input]
-  ES -.->|"same phase, order free: reacts to CanAim / CanPlayAnimations only"| ACR[AnimationCapabilityChangeReactor - SimHost Input]
-  ES -->|before| DISP["dispatchers + animation (Simulation)"]
+  PLAN["every host's NodeCompositionPlan: CGF, SimHost, IG, editor (both arms), Stride"] --> CAP["CoreInfrastructureCapabilities.Embarkation (cross-role, Hrot.Common)"]
+  CAP -->|"input tail"| ES[EmbarkedStateSystem]
+  CAP -->|"simulation tail"| EA[EmbarkationSystem - gates itself on dtPassengerBuffer]
+  ES -.->|"same phase, order free: Board writes tag + strip together"| CIS[CognitiveInterruptSystem - skips a tagged entity]
+  HAR["hand-wired harnesses: EditorHarness, SimHostInstance"] -.->|"take the capability's systems"| CAP
 ```
 *What the pictures show that prose hid: the passenger's side has ONE writer function (`Embarkation.Board` / `Leave`) and two callers
-— the deciding node right away, every node from the list it holds — so no node ever writes it from a second rule; and the body is
-placed only where its position is owned (SimHost), because a CGF write to a soldier's `SimTransform` would be overwritten by SimHost's
-replicated position the next frame.*
+— the deciding node right away, every node from the list it holds — so no node ever writes it from a second rule; the body is placed
+only where its position is owned, because a write anywhere else would be overwritten by the owner's replicated position the next
+frame; and NO host or role pack composes embarkation — one cross-role capability does, on every node that can own a live entity.*
+*(⛔ SUPERSEDED `2026-10-12`: this graph first showed `CgfLogicPack` and `SimHostNodeBootstrapper` each registering the derivation,
+with an "ordered before `CognitiveInterruptSystem`" edge — see §7.1d.)*
 
 | claim the design rests on | code — how it IS | design — how it was MEANT |
 |---|---|---|
@@ -395,7 +398,8 @@ What the build settled that the design left open:
 | the ingress hold | the NEWEST sample per vehicle waits in `_pending`; a later sample replaces it; it applies when the vehicle and every passenger resolve | same |
 | a passenger moved straight to another vehicle | `EmbarkedStateSystem` re-tags it (boarding wins) — it does not leave and re-board | `EmbarkedStateSystem.cs` |
 | the vehicle already gone | a tagged passenger whose vehicle no longer exists leaves where it stands (I-2c will kill it instead, R-271) | same |
-| registration | CGF + editor: `CgfLogicPack` input list, before the cognitive module's systems · SimHost: a global system beside genesis · Stride: ⛔ not registered (🔒 *"Ignore stride host"*) | `CgfLogicPack.cs`, `SimHostNodeBootstrapper.cs` |
+| registration | ⭐ **one cross-role capability, `CoreInfrastructureCapabilities.Embarkation`** (`Hrot.Common`), declared in EVERY host's `NodeCompositionPlan` beside `UnitHierarchy` — CGF, SimHost, IG, the editor's two arms, Stride — and taken by the two hand-wired harnesses. It carries BOTH systems: the derivation (input tail) and I-2a's applier (simulation tail). 🔒 User, `2026-10-12`: *"any node that can own live entities (excluding ReplayBrowser …) should be able to use the features, so I hope you do no per-host initializations."* ⛔ SUPERSEDED the same day: the first build registered the derivation in `CgfLogicPack` and as a SimHost global system, and I-2a had the applier in `CgfLogicPack` only — per-host composition, which left IG and Stride unable to board | `CoreInfrastructureCapabilities.cs`, the six plans |
+| frame order | ⭐ free inside the phase: `Board` writes the tag and strips CanMove in one call, so `CognitiveInterruptSystem` sees the tag whichever frame it notices the loss. ⛔ The design's "before `CognitiveInterruptSystem`" edge was not needed — and a `[UpdateBefore]` does nothing inside a togglable group (it runs its list in order), so it was removed | `EmbarkedStateSystem.cs` |
 | ownership | `dtPassengerBuffer` ↔ `PassengerBuffer` in `NedOwnershipGroupBinding`; `PassengerBuffer` joins the BRAIN group | `NedOwnershipGroupBinding.cs`, `HrotOwnershipGroups.cs` |
 
 | rail | where |
@@ -406,6 +410,7 @@ What the build settled that the design left open:
 | a list that arrives tags + strips; an emptied list untags, gives caps back, places beside the hull ONLY where the position is owned; the deciding node is a no-op; a move re-tags; a dead passenger gets no caps back | `EmbarkedStateSystemTests` (FDP, 5) |
 | boarding is not `MobilityLost` | `CognitiveInterruptSystemTests.CE3110_I2b_BoardingStripsCanMove_ButIsNotMobilityLost` |
 | `dtPassengerBuffer` is in the Brain group's descriptor set | `RoleGroupOwnershipStrategyTests`, `TheDescriptorMapIsWiredTests` |
+| embarkation is NOT pack content and resolves exactly once on both editor arms (an injected tier declaring it too de-duplicates by key); the Stride plan resolves it | `EditorCapabilitiesTests.CE3110_EmbarkationIsCrossRoleInfrastructure_ResolvedOnceOnEveryArm`, `CgfLogicPackTests`, `StrideCapabilitiesTests.MuscleGroundResolves` |
 
 ### 7.2 What "inside" means *(✅ ruled `2026-10-11`, R-271 — I-2c)*
 

@@ -329,6 +329,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             //    a Brain+Muscle node register it ONCE instead of twice.
             .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
             .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.EqsResultUpdateCapability())
+            // ⭐ CE-3110 (R-224) — embarkation is cross-role too: any node that can own a live entity can own a vehicle or a passenger.
+            .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Embarkation())
             // ⭐ CE-2121 — the character body (stance) over the fake animation backend; module-only, appended last.
             .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.AnimationMuscleCapability());
 
@@ -594,8 +596,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         // GenesisMaterializationSystem - Input phase, registered after togglable groups
         context.Kernel.RegisterGlobalSystem(
             new GenesisMaterializationSystem(context.EntityMap));
-        // ⭐ CE-3110 I-2b (R-224) — SimHost owns a soldier's position, so it is where a leaving passenger is placed beside the hull.
-        context.Kernel.RegisterGlobalSystem(new Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem());
         // ⭐ CE-3042 — saved AI → the ingress; publishes only where the brain's events are registered, always drops the intent.
         context.Kernel.RegisterGlobalSystem(new InitialBrainMaterializationSystem());
     }

@@ -100,6 +100,8 @@ public static class EditorCapabilities
             .Capability(NodeRole.NavigationSolver, navigationSolver)
             .Capability(NodeRole.Brain,        new CoreInfrastructureCapabilities.UnitHierarchy())
             .Capability(NodeRole.Brain,        new EqsResultUpdateCapability())
+            // ⭐ CE-3110 (R-224) — embarkation is cross-role too: any node that can own a live entity can own a vehicle or a passenger.
+            .Capability(NodeRole.Brain,        new CoreInfrastructureCapabilities.Embarkation())
             // ⭐ CE-2121 — the character body (stance) over the fake animation backend; module-only, appended last so every
             //   pinned system sequence and module slot is unchanged. 📄 docs/DESIGN_Decision_Layer.md §3.3g.
             .Capability(NodeRole.MuscleGround, new AnimationMuscleCapability());
@@ -134,7 +136,9 @@ public static class EditorCapabilities
 
         return plan
             .Capability(NodeRole.Brain,      new CoreInfrastructureCapabilities.UnitHierarchy())
-            .Capability(NodeRole.Brain,      new EqsResultUpdateCapability());
+            .Capability(NodeRole.Brain,      new EqsResultUpdateCapability())
+            // ⭐ CE-3110 (R-224) — embarkation is cross-role too: any node that can own a live entity can own a vehicle or a passenger.
+            .Capability(NodeRole.Brain,      new CoreInfrastructureCapabilities.Embarkation());
     }
 
     /// <summary>The Brain tier — CGF's logic pack, contributed as systems, never as a module.</summary>

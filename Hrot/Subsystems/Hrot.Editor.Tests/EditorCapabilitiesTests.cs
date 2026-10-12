@@ -148,7 +148,9 @@ public class EditorCapabilitiesTests : IDisposable
             .DistinctByType(sim, Array.Empty<IEcsModuleSystem>()).Select(s => s.GetType()).ToArray();
         Type[] planPostSim = postSim.Select(s => s.GetType()).ToArray();
 
-        Assert.Equal(handInput, planInput);
+        // ⭐ CE-3110 (2026-10-12) — embarkation is cross-role infrastructure (CoreInfrastructureCapabilities.Embarkation): it left
+        //   CgfLogicPack, so the hand-written block no longer carries it, and the plan appends its derivation at the input tail.
+        Assert.Equal(handInput.Concat(new[] { typeof(Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem) }), planInput);
         Assert.Equal(handPostSim, planPostSim);
 
         // ⭐⭐⭐ CE-221 — THE EXPECTATION CHANGED DELIBERATELY, and this is the argued deviation.
@@ -170,7 +172,9 @@ public class EditorCapabilitiesTests : IDisposable
                             // ⭐ CE-3072 B3/B4 — the danger-area sensor's Brain half rides the EQS result capability
                             //   (EqsInfrastructureCapability.cs), right after EqsResultUpdateSystem. Added deliberately in
                             //   12021d5f5; this block was not updated then (a red found in the buildings Stage 0 gates).
-                            typeof(Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem) })
+                            typeof(Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem),
+                            // ⭐ CE-3110 — the embarkation applier, at the tail with the other cross-role infrastructure.
+                            typeof(Fdp.Toolkit.Behavior.Systems.EmbarkationSystem) })
             .ToArray();
         Assert.Equal(expectedSim, planSim);
 
@@ -241,8 +245,9 @@ public class EditorCapabilitiesTests : IDisposable
         foreach (INodeCapability c in resolved)
             c.PopulateSystems(context: null!, input, sim, postSim);
 
-        // Everything contributed as SYSTEMS on this arm comes from the Brain pack.
-        Assert.Equal(cgf.InputSystems.Select(s => s.GetType()), input.Select(s => s.GetType()));
+        // Everything contributed as SYSTEMS on this arm comes from the Brain pack — plus the embarkation derivation (CE-3110, infrastructure).
+        Assert.Equal(cgf.InputSystems.Select(s => s.GetType()).Concat(new[] { typeof(Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem) }),
+                     input.Select(s => s.GetType()));
         // ⭐ CE-221 — plus the cross-role infrastructure tail, which is NOT muscle: it is declared by
         //   this plan itself, once, and the supplying host's identical declaration de-duplicates
         //   against it by Key. That is what stopped the hosted Stride editor registering two
@@ -251,11 +256,39 @@ public class EditorCapabilitiesTests : IDisposable
             cgf.SimulationSystems.Select(s => s.GetType())
                .Concat(new[] { typeof(Hrot.Common.Systems.UnitHierarchySystem),
                                typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem),
-                               typeof(Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem) }),   // CE-3072 — same capability
+                               typeof(Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem),    // CE-3072 — same capability
+                               typeof(Fdp.Toolkit.Behavior.Systems.EmbarkationSystem) }),   // CE-3110 — embarkation infrastructure
             sim.Select(s => s.GetType()));
         // CgfLogicPack contributes no post-simulation systems, and on this arm nothing else does
         // either — the supplying host owns that tier.
         Assert.Empty(postSim);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3110</c> (R-224; 🔒 user, 2026-10-12: "any node that can own live entities … should be able to use the features, so I
+    /// hope you do no per-host initializations") — embarkation is ONE cross-role capability, never pack content: both editor arms resolve
+    /// it exactly once, and an injected muscle tier that declares it too (Stride does) de-duplicates against it by Key.
+    /// </summary>
+    [Fact]
+    public void CE3110_EmbarkationIsCrossRoleInfrastructure_ResolvedOnceOnEveryArm()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+
+        Assert.DoesNotContain(cgf.InputSystems, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
+        Assert.DoesNotContain(cgf.SimulationSystems, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
+
+        var injected = new INodeCapability[] { new CoreInfrastructureCapabilities.Embarkation() };
+        foreach (var plan in new[] { EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle)),
+                                     EditorCapabilities.BuildWithInjectedMuscle(cgf, injected) })
+        {
+            var resolved = plan.Resolve(EditorCapabilities.DefaultRole);
+            Assert.Single(resolved, c => c.Key == CapabilityKeys.Embarkation);
+            var input = new List<IEcsModuleSystem>(); var sim = new List<IEcsModuleSystem>(); var post = new List<IEcsModuleSystem>();
+            foreach (var c in resolved) c.PopulateSystems(context: null!, input, sim, post);
+            Assert.Single(input, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
+            Assert.Single(sim, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
+        }
     }
 
     /// <summary>

@@ -87,7 +87,9 @@ public static class StrideCapabilities
             //    ⚠ In MODE 2 there is no Brain in-process, so these are the only copy — which is why
             //    they are declared here and not simply deleted.
             .Capability(NodeRole.MuscleGround, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
-            .Capability(NodeRole.MuscleGround, new Hrot.SimHost.EqsResultUpdateCapability());
+            .Capability(NodeRole.MuscleGround, new Hrot.SimHost.EqsResultUpdateCapability())
+            // ⭐ CE-3110 (R-224) — embarkation is cross-role too: any node that can own a live entity can own a vehicle or a passenger.
+            .Capability(NodeRole.MuscleGround, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Embarkation());
     }
 
     /// <summary>

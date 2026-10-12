@@ -222,8 +222,6 @@ namespace Hrot.CGF
             inputList.Add(new Fdp.Toolkit.Behavior.Possession.PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl));
             inputList.Add(_missionExecutionSystem);
             foreach (var s in _missionControlModule.InputSystems) inputList.Add(s);
-            // ⭐ CE-3110 I-2b (R-224) — the passenger side follows the replicated list; before CognitiveInterruptSystem (it skips a passenger).
-            inputList.Add(new Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem());
             foreach (var s in _cognitiveRuntimeModule.InputSystems) inputList.Add(s);
 
             simList.Add(_missionAdapterSystem);
@@ -232,9 +230,8 @@ namespace Hrot.CGF
             simList.Add(_healthApplicationSystem);
             // ⭐ Buildings 5d — the door's OWNER applies door commands (an actor's, or one carried here from another node)
             simList.Add(new Fdp.Toolkit.Terrain.DoorCommandSystem());
-            // ⭐ CE-3110 I-2a (R-224) — the vehicle's OWNER applies embark / disembark / eject commands (raised here, or carried here
-            //   by the interaction transport) through the one set of rules. CGF and the editor both build this pack.
-            simList.Add(new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem());
+            // ⛔ CE-3110 — EmbarkationSystem / EmbarkedStateSystem are NOT pack content: any node that can own a live entity needs them,
+            //   so they are the cross-role CoreInfrastructureCapabilities.Embarkation, declared in every host's plan (like UnitHierarchy).
             simList.Add(_activeSensorTracksUpdateSystem);
             simList.Add(_cgfThreatEvaluationSystem);
             // ⭐ CE-3064 (R-206) — a near miss becomes the unit's SensorChange.NearMiss, beside Hit.
