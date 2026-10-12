@@ -1048,3 +1048,87 @@ and R-275 rules out the cheap fix (keep it in the CGF pack and add it per host e
 | C | accept the one-frame delay with no gate | the dead unit may fire once more |
 
 **User decision needed** before building (the blast radius is every host's Simulation order).
+
+## 12. CE-2136 B4 — the params DTO asset *(build-state: B4a READY-TO-BUILD `2026-10-12` · B4b DESIGN, awaits the user — behaviors, taking Track B overnight)*
+
+**Why:** AQ90 §2.3j / one-page row "authoring params DTOs" (approved in principle, R-277): a params DTO must be authorable without
+C# — a `*.params.json` asset (fields, types, defaults, an optional order name) that a BUILD-TIME generator turns into the DTO,
+the same Category-2 path the editor-managed blackboard takes (`Blackboard_Authoring_Detailed_Design.md` v2: *"the asset JSON is the
+source and the struct is generated at build"*). B3b needs it: the blueprint behaviours' Parameters move to a named DTO, ideally
+with no C# (§5c B3b row).
+
+**INVENTORY** *(read-only sweep + grep, 2026-10-12)*:
+
+| what | measured |
+|---|---|
+| an asset kind whose generator emits only a C# TYPE | ⛔ none. The enum design forbids an enum catalogue (`ENUM-DESIGN.md:3-45`); the closest are the per-asset blackboard structs (`BTreeEmitCore.EmitBlackboardStructSource:204`) and the blueprint's nested `Params` |
+| generator wiring | `Hrot.AiEditor.Generators` (netstandard2.0, `IsRoslynComponent`; sees only JSON text, `ENUM-DESIGN.md:79-84`); AdditionalFiles only in `Hrot.AI.Behaviors.csproj:177-191`; generated code lands in `Hrot.AI.Behaviors` |
+| does a generated struct reach `ParamsDtoRegistry` | ⛔ no — `Dtos` = `[Behavior(Params=…)]` types ∪ `[Order]` types (`ParamsDtoRegistry.cs:125-150`); generated code carries neither |
+| does it reach the editor's type list | ⛔ no — `BlackboardTypeChoiceBuilder` scans `[BlackboardDtoStruct]` (`:102-133`); generated code carries none |
+| editor kinds | `AssetKind {Blueprint, BTree, Hsm, Blackboard, Utility, Scenario}` (`AssetKind.cs:3-11`); per-kind switches in `AssetSavePath:59-65`, `AssetRoots:197-203`, `AssetBaseNameCollisionGuard:41-43`, `AssetSelectionValidator:157-161`, `CompanionFileDiscovery:179`, the browser filter (`AssetBrowserPanel:39-90`), icons, `AiDocumentViewStateBinder:123-150` (every document is a graph canvas) |
+| a field-list control | `VariablesPanelControl(IRefactorService, IEditableAsset, IReadOnlyList<VariableTypeChoice>)` (`:244`) over an `IVariablesSchemaSource` (~19 members; standalone stubs exist in tests) — rows need a CLR `Type`; its only production host is `BlackboardAuthoringWindow:553` |
+
+```mermaid
+classDiagram
+  direction LR
+  class ParamsDtoAsset { <<NEW, *.params.json>> Name · Namespace · OrderName · Gesture · Fields[] }
+  class ParamsDtoField { <<NEW>> Name · TypeId (FQN) · DefaultJson · Comment }
+  class ParamsDtoJsonGenerator { <<NEW, Hrot.AiEditor.Generators, IIncrementalGenerator>> *.params.json → struct source }
+  class GeneratedDto { <<GENERATED into Hrot.AI.Behaviors>> [ParamsDto] [Order]? sequential struct, one public field per row }
+  class ParamsDtoAttribute { <<NEW, Hrot.Core>> DefaultJson · Comment }
+  class ParamsDtoRegistry { <<existing, CHANGED>> Dtos also lists every [ParamsDto] type }
+  class OrderAttribute { <<existing>> }
+  class ParamsDtoDocument { <<B4b, NEW — awaits the user>> a form document hosting VariablesPanelControl over a ParamsDtoSchemaSource }
+  ParamsDtoAsset o-- ParamsDtoField
+  ParamsDtoJsonGenerator ..> ParamsDtoAsset : reads JSON text only
+  ParamsDtoJsonGenerator --> GeneratedDto : emits
+  GeneratedDto ..> ParamsDtoAttribute
+  GeneratedDto ..> OrderAttribute : when OrderName is set
+  ParamsDtoRegistry ..> ParamsDtoAttribute : one more scan arm
+  ParamsDtoDocument ..> ParamsDtoAsset : edits
+```
+
+*What the picture shows that prose hid: the generated DTO is an ordinary params DTO the moment it carries `[ParamsDto]` — every
+reader already goes through `ParamsDtoRegistry` (orders, menus, the palette, `GET /behaviors`), so nothing downstream changes; the
+new code is one generator, one attribute and one scan arm. The EDITOR is the separate, larger half.*
+
+```mermaid
+sequenceDiagram
+  participant A as Assets/Params/X.params.json
+  participant G as ParamsDtoJsonGenerator (build)
+  participant B as Hrot.AI.Behaviors.dll
+  participant R as ParamsDtoRegistry (runtime)
+  participant U as a behaviour asset naming ParamsDtoTypeId
+  A->>G: AdditionalFiles text
+  G->>B: struct X with ParamsDto and fields
+  R->>B: scan: ParamsDto types join Dtos
+  U->>B: Params of type X (B3a), bound fields (CE-3182)
+```
+
+```mermaid
+graph TD
+  CS[Hrot.AI.Behaviors.csproj AdditionalFiles Assets/Params/**/*.params.json] --> G[ParamsDtoJsonGenerator]
+  G --> DLL[Hrot.AI.Behaviors assembly]
+  DLL -->|loaded by name| R[ParamsDtoRegistry.Default]
+  R --> M[OrderMenu / BehaviorSchemaDiscovery / palette]
+```
+
+*The module view: no host registers anything new; the generator runs in the one project that already compiles every AI asset,
+and the registry already loads that assembly by name on every node (`ParamsDtoRegistry.cs:30`).*
+
+| decision | ⭐ lean | why |
+|---|---|---|
+| **B4a** the shape | a `[StructLayout(Sequential)]` **struct** with public fields | it can be a no-resolver `Params` (B3a needs unmanaged); the platform JSON options include fields |
+| **B4a** defaults | per field in the asset; the generator also emits the whole default as `[ParamsDto(DefaultJson = …)]` | `default(T)` ignores initialisers (R-237); one string a host or the editor can seed `ParamsDefaultJson` from |
+| **B4a** an order DTO | `OrderName` (+ `Gesture`) on the asset ⇒ the generator adds `[Order]` | the menu then offers it with no other change (§9) |
+| **B4a** the type of a field | an FQN string, emitted `global::FQN` | generators see only JSON text; an unknown type is a compile error in the generated file |
+| **B4b** the editor ⏸ | a new `AssetKind.Params`, a FORM document (the first non-graph one) hosting `VariablesPanelControl` over a new `ParamsDtoSchemaSource`, plus an order-name field | ⚠ touches ~10 per-kind switches and adds the first non-graph document — **the user decides the shape** |
+| **later** one params-DTO scan for the editor | `BlackboardTypeChoiceBuilder` also lists `[ParamsDto]` types (AQ90 row: one scan replaces `[BlackboardDtoStruct]`) | after B4b, so a generated DTO is selectable as a variable type |
+
+Rejected (one line each): **a class DTO** — cannot be a no-resolver `Params` (B3a stores unmanaged) · **listing generated DTOs by
+namespace** — a convention nothing checks; an attribute is checkable · **the editor first** — the generator is the part every later
+step needs, and it is additive.
+
+Design docs checked: AQ90 §2.3j + one-page row — *applies* (the asset, the generator, the editor); Blackboard Authoring DD v2/v2.1 —
+*applies* (Category-2: JSON is the source; discovery latency until reload); ENUM-DESIGN — *applies as a constraint* (JSON text only),
+*does not apply* as precedent (it forbids an enum catalogue, a different question).
