@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), each with a lean (awaiting the user) · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -157,6 +157,42 @@ Rejected:
 ⛔ Not measured:
 - whether a blueprint asset can RETURN a whole DTO today (a resolver writes through `ref block`; an adapter needs an output). This may need a new dispatch kind beside `Library`.
 - how many behaviour DTOs would move to `PickableGeoPoint`.
+
+### 2.3b A2′ — the user's alternative: a naming convention instead of the map *(2026-10-12)*
+
+> 🔒 *User: "would it make sense to avoid the order-to-behavior map and use some kind of simple convention instead, like that if
+> the Move order reaches the platoon commander virtual unit, the behavior to run would need to have name like
+> <UnitTypeName><OrderName>, i.e. "PlatoonMove", and the PlatoonMove will be expected to support the Move order parameters?
+> Native json to DTO translation will ensure the fields with same name are recognized."*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| TKB types are concrete MODELS: `Tank_M1Abrams` / `Tank_T72`, `Unit_TankPlatoon` / `Unit_TankPlatoon_Auto`, `Infantry_Rifleman` / `InfantrySoldier` / `Insurgent` | ✅ `TkbEntityTypes.cs:6-61` | — |
+| no TKB type declares a class or a parent; type → class is a hard-coded switch, and it misses `Infantry_Rifleman` (200 falls to the default list) | ✅ `BehaviorCatalog.cs:72-82` | ⛔ searched: no TKB inheritance design |
+| JSON → DTO matches by field name; a missing field keeps its default; unknown fields are skipped | ✅ Parameter Model §P.2 "applied by field name" | ✅ same |
+| the registry keys a behaviour by name → id; a second name for one definition is not a built feature | ✅ `BehaviorRegistry.Register(name, …)` | — |
+
+**Verdict: adopt it, with three guards.** The convention removes the TKB map AND A7's adapter stage. The behaviour IS the
+contract: it must accept the order's fields under the order's names and types, and anything computed happens inside it (its
+resolver, C# or blueprint, already exists for exactly that, §P.2).
+
+| guard | why |
+|---|---|
+| ① key on an **order class** declared once per TKB type (one field, e.g. `OrderClass = "Squad"`, `"Tank"`, `"Infantry"`), not on the concrete type name | ⛔ by type name, `Tank_M1Abrams` and `Tank_T72` each need their own `…Move`, and so does every new model. One class per doctrine (an insurgent is `Infantry`) makes sharing the normal case |
+| ② a **load-time contract check**: for every registered `<Class><Order>`, each order field exists in its params DTO with the same type; and every type that declares a class lists which orders it lacks | ⛔ name matching is silent: a field with the right name and the wrong type (lat/lon vs `Vector3`) fails or zeroes, and a missing one keeps its default — `Objective` (0,0,0) marches the squad to the map origin. A typo drops orders with no error |
+| ③ **no generic fallback** (`<Order>` alone) for a body-less unit | ⛔ that fallback is exactly today's defect: a soldier behaviour on a `UnitEntity` (R-272 (behaviors)) |
+
+**Cost:** existing names move. Today's fulfilling behaviours (`MoveToLocation`, `CombatPosture`, `Idle`, `SquadMarch`,
+`SquadHold`) are named by scenarios, mission tasks and tests (§2.4). The new names are `InfantryMove`, `SquadMove`, and so on;
+each is either a rename or a thin wrapper. ⛔ Not measured: whether the registry can register one definition under two
+names without side effects on name-keyed resolvers, params types and the replicated behaviour hash.
+
+What the convention does NOT lose:
+- A situational choice (march when quiet, bound under fire) lives inside `SquadMove`.
+- The menu lists a type's orders by asking which `<Class><Order>` names exist.
+- A blueprint behaviour joins by its name and its parameters.
+
+⇒ **A2 and A7 are superseded by this, if the user agrees.**
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
