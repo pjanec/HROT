@@ -211,11 +211,17 @@ What the convention does NOT lose:
 |---|---|
 | what class is an entity? | its TKB type declares it: `BehaviorProfile.Class` (a string: `Squad`, `TankPlatoon`, `Tank`, `Infantry`, `Civilian`, …). It **replaces the switch** and the fixed enum; an open set, so a new type or a user's new class needs no code |
 | which behaviours may it run? *(mission panel, AI section, debug API)* | a behaviour declares the classes it is valid for: the existing `[BehaviorContract]` with class NAMES instead of flags; a blueprint / BTree / HSM behaviour has the same property on its asset (closing the TODO). ⭐ A `<Class><Order>` behaviour is valid for its class without declaring it |
-| which orders does it accept? *(the menu)* | the order kinds K for which `<Class>K` is registered **on the unit's brain owner**. Computed there once at spawn and replicated as a small `AcceptedOrders` mask on the unit. Every station's menu reads the mask, including IG, which holds no registry. ExCon (offline, no live owner) computes it from its own registry the same way |
-| why a replicated mask and not a TKB list | a list in the TKB is a second copy of what the registry already knows and can drift from it; the mask is computed from what will actually run, on the node where it will run |
+| which orders does it accept? *(the menu)* | ⭐ **nothing is stored per entity.** It depends only on the CLASS: `orders(class)` = the order kinds K for which `<Class>K` is in the node's behaviour catalog, computed on first use and cached per class (a handful of classes, not thousands of entities). An entity's class comes from its TKB type, which every entity already carries (`TkbIdentity`) |
+| which node can answer? | every node: they are ONE executable (`ClusterRunner --mode` picks the roles) with the same behaviour assemblies. The registry is filled by one scan (`CgfBehaviorSetup.LoadFromAiAssembly`, `CgfSubsystem.cs:783-795`). IG's is null only because IG never runs that scan (`IgNodeBootstrapper.cs:191` → the base's `GetBehaviorRegistry() => null`, `SharedApplicationBootstrapper.cs:486`). ⇒ per R-275 (behaviors), every node runs the scan |
+| how a behaviour declares its classes | the params DTO's existing `[BehaviorContract(name, …)]` (Hrot.Core, readable without the AI assembly, so ExCon keeps working) takes class NAMES instead of the 5-flag enum: `[BehaviorContract(BehaviorNames.SquadHold, "Squad")]`. A blueprint / BTree / HSM asset gets the same `Classes` property, carried by its generated registrar. An order behaviour (`<Class><Order>`) needs no declaration; its name says it |
+| is the menu extensible with no code? | ✅ **a new behaviour for an existing order kind** — e.g. `TankPlatoonMove` — appears in that class's menu by being registered. **A new order KIND** is one order DTO with an `[Order("Ambush", Label = …)]` attribute. The menu builds its follow-up picks from the DTO's field TYPES (`PickableGeoPoint` ⇒ pick a point, `EntityRef` ⇒ pick an entity), which the map-picking unification already makes pickable by type. ⛔ Today the menu hard-codes Move ⇒ point, Engage ⇒ enemy (`MenuOrders.cs:47-71`); that becomes generic |
 
-⛔ Not measured: what IG's `WithBehaviorRegistry(GetBehaviorRegistry())` holds (`IgNodeBootstrapper.cs:191`) — if it holds the
-full registry, the mask is unnecessary there; and the descriptor cost of one more replicated component.
+⛔ SUPERSEDED same day (user: *"we can have thousands of entities, where the accepted orders would be stored?"*): an earlier lean
+here replicated an `AcceptedOrders` mask per unit, computed on the brain owner. Wrong shape: the answer is per class, and every
+node can compute it.
+
+⛔ Not measured: the time and memory the catalog scan costs on IG (CGF pays it at boot today); whether a lighter catalog (names,
+classes, params types, without compiled trees) should be split from the registry for nodes that never run a brain.
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
