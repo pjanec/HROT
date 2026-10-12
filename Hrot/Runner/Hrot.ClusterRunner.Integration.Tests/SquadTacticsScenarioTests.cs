@@ -346,8 +346,9 @@ public sealed class SquadTacticsScenarioTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-2141</c> (D2) — the MOVE order, live: <c>tt-squad-march</c> with the commander's authored march removed, then
-    /// <c>InfantrySquadMove</c> ordered at run time with a GEODETIC location (lat/lon from the node's own transform, as the map menu
+    /// ⭐⭐ <c>CE-2141</c> (D2) + <c>CE-2142</c> (D3) — the MOVE order, live: <c>tt-squad-march</c> with the commander's authored march
+    /// removed, then the order <c>Order.Move</c> sent at run time (the squad resolves it to its own <c>InfantrySquadMove</c> by its DIS
+    /// class) with a GEODETIC location (lat/lon from the node's own transform, as the map menu
     /// will send it). The squad marches there in its own shape (a Wedge off-road), and when the drill ends every member's drill
     /// order is RELEASED (AQ90 A5): no member is left running the AdvanceTo / CombatPosture it was given.
     /// 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §7.
@@ -407,7 +408,8 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             cgf.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
             {
-                Entity = leader, IntentId = Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadMove, Origin = BehaviorOrigin.Operator,
+                // ⭐ CE-2142 — the ORDER, not the behaviour: the squad resolves Order.Move to its own InfantrySquadMove by its class.
+                Entity = leader, IntentId = Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentFor(nameof(Hrot.AI.Behaviors.Orders.OrderKind.Move)), Origin = BehaviorOrigin.Operator,
                 JsonParams = "{\"Location\":[" + lat.ToString("R", inv) + "," + lon.ToString("R", inv) + "]}",
             });
             int moveHash = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadMove);

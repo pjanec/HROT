@@ -392,5 +392,115 @@ namespace Hrot.SimHost.Tests
                 new AssignTacticalIntentEvent { Entity = unit, Kind = TacticalIntentKind.Clear, Origin = BehaviorOrigin.Superior });
             Assert.Single(kept);
         }
+
+        // ── ⭐ CE-2142 (D3, rule O2, docs/DESIGN_Orders_Params_Entity_Classes.md §8) — the receiver resolves an order by its class ──
+
+        private static BehaviorRegistry Behaviours(params string[] names)
+        {
+            var r = new BehaviorRegistry();
+            foreach (var n in names) r.Register(n, new BehaviorDefinition { Name = n });
+            return r;
+        }
+
+        private static AssignBehaviorEvent[] Order(EntityRepository repo, TacticalIntentResolutionSystem system, Entity e, string order, string json = "{\"Speed\":2}")
+        {
+            repo.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = e, IntentId = "Order." + order, JsonParams = json, Origin = BehaviorOrigin.Operator });
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.016f);
+            repo.Bus.SwapBuffers();
+            return repo.Bus.ReadManaged<AssignBehaviorEvent>().ToArray();
+        }
+
+        private static Entity Typed(EntityRepository repo, ulong dis)
+        {
+            var e = CreateAuthorityEntity(repo);
+            repo.SetDisType(e, new DISEntityType { Value = dis });
+            return e;
+        }
+
+        private static ulong Dis(byte kind, byte domain, ushort country, byte category, byte sub = 0, byte specific = 0)
+            => ((ulong)kind << 56) | ((ulong)domain << 48) | ((ulong)country << 32) | ((ulong)category << 24) | ((ulong)sub << 16) | ((ulong)specific << 8);
+
+        /// <summary>⭐ The acceptance: an M1 (US) and a T-72 (Russia) are both class Tank, so the same order starts the same behaviour,
+        /// with the order's JSON and origin untouched.</summary>
+        [Fact]
+        public void CE2142_AnM1AndAT72_ResolveTheSameOrder_ToTheirClassesBehaviour()
+        {
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), Behaviours("TankMove", "MoveToLocation"));
+            var m1  = Typed(repo, Dis(1, 1, 225, 1, 1, 3));
+            var t72 = Typed(repo, Dis(1, 1, 222, 1, 2, 1));
+            foreach (var tank in new[] { m1, t72 })
+            {
+                var a = Assert.Single(Order(repo, system, tank, "Move"));
+                Assert.Equal("TankMove", a.BehaviorName);
+                Assert.Equal("{\"Speed\":2}", a.JsonParams);
+                Assert.Equal(BehaviorOrigin.Operator, a.Origin);
+            }
+        }
+
+        /// <summary>⭐ The acceptance: a squad resolves its OWN behaviour — the most specific class first (InfantrySquad), then broader
+        /// (a tank platoon with no TankPlatoonMove falls back to UnitMove).</summary>
+        [Fact]
+        public void CE2142_ASquadResolvesItsOwn_MostSpecificClassFirst_ThenBroader()
+        {
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), Behaviours("InfantrySquadMove", "UnitMove"));
+            var squad   = Typed(repo, Hrot.Core.Tkb.UnitDis.Land(Hrot.Core.Tkb.UnitArm.Infantry, Hrot.Core.Tkb.UnitEchelon.Squad, 225).Value);
+            var platoon = Typed(repo, Hrot.Core.Tkb.UnitDis.Land(Hrot.Core.Tkb.UnitArm.Armor, Hrot.Core.Tkb.UnitEchelon.Platoon, 225).Value);
+            Assert.Equal("InfantrySquadMove", Assert.Single(Order(repo, system, squad, "Move")).BehaviorName);
+            Assert.Equal("UnitMove", Assert.Single(Order(repo, system, platoon, "Move")).BehaviorName);
+        }
+
+        /// <summary>⭐ No class of the entity fulfils the order ⇒ nothing starts. ⛔ No fallback to a soldier behaviour or to the
+        /// intent id as a behaviour name (a body-less unit given a soldier's move stands still for ever).</summary>
+        [Fact]
+        public void CE2142_AnOrderNoClassFulfils_StartsNothing_NoFallback()
+        {
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), Behaviours("MoveToLocation", "Order.Move", "InfantrySquadMove"));
+            var squad = Typed(repo, Hrot.Core.Tkb.UnitDis.Land(Hrot.Core.Tkb.UnitArm.Infantry, Hrot.Core.Tkb.UnitEchelon.Squad, 225).Value);
+            Assert.Empty(Order(repo, system, squad, "Hold"));
+            var untyped = CreateAuthorityEntity(repo);                                   // DIS 0: no class at all
+            Assert.Empty(Order(repo, system, untyped, "Move"));
+        }
+
+        /// <summary>⭐ Rule O2 — two classes of the same specificity that both fulfil the order are a TIE: nothing is guessed.</summary>
+        [Fact]
+        public void CE2142_TwoClassesOfEqualSpecificity_BothFulfilling_AreATie_NotAGuess()
+        {
+            var table = new Hrot.Core.Tkb.EntityClassTable(new[]
+            {
+                new Hrot.Core.Tkb.EntityClass("Tracked", "Tracked", DisTypeMask.Parse("1.1.*.1,2")),
+                new Hrot.Core.Tkb.EntityClass("Armoured", "Armoured", DisTypeMask.Parse("1.1.*.1,3")),
+            });
+            var dis = new DISEntityType { Value = Dis(1, 1, 225, 1) };
+            var tie = Hrot.Core.Tkb.OrderResolver.Resolve(table, dis, "Move", n => n is "TrackedMove" or "ArmouredMove");
+            Assert.Equal(Hrot.Core.Tkb.OrderResolution.Tie, tie.Outcome);
+            var one = Hrot.Core.Tkb.OrderResolver.Resolve(table, dis, "Move", n => n is "TrackedMove");
+            Assert.Equal("TrackedMove", one.Behaviour);
+
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), Behaviours("TrackedMove", "ArmouredMove"), classes: table);
+            Assert.Empty(Order(repo, system, Typed(repo, dis.Value), "Move"));
+        }
+
+        /// <summary>⭐ The shipped squad (production registry, its TKB DIS type) resolves Move / Hold / Attack to its own CE-2141
+        /// behaviours.</summary>
+        [Fact]
+        public void CE2142_TheShippedSquad_ResolvesMoveHoldAttack_ToItsOwnBehaviours()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), registry);
+            var tkb = new Fdp.Toolkit.Tkb.TkbDatabase();
+            Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterAll(tkb);
+            Assert.True(((Fdp.Interfaces.ITkbDatabase)tkb).TryGetByType(Hrot.Map.Common.TkbEntityTypes.Unit_InfantrySquad, out var template));
+            var squad = Typed(repo, template!.DisType.Value);
+            Assert.Equal("InfantrySquadMove",   Assert.Single(Order(repo, system, squad, "Move", "{}")).BehaviorName);
+            Assert.Equal("InfantrySquadHold",   Assert.Single(Order(repo, system, squad, "Hold", "{}")).BehaviorName);
+            Assert.Equal("InfantrySquadAttack", Assert.Single(Order(repo, system, squad, "Attack", "{}")).BehaviorName);
+        }
     }
 }

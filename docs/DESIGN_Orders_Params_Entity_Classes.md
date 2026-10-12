@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-build-state: BUILDING — §5a records each task as built (CE-2130, CE-2133, CE-2140, CE-2141, CE-2137, CE-2138, CE-2139 ✅); §6 is the build plan
-current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release
+build-state: BUILDING — §5a records each task as built (CE-2130, CE-2133, CE-2140, CE-2141, CE-2142, CE-2137, CE-2138, CE-2139 ✅); §6 is the build plan
+current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class
 stale-below: nothing
 known-rot: none
 known-conflict: docs/blueprints/DESIGN_Parameter_Model.md §P.7 (a resolver asset's authored shape = its Parameters) and §1 (Role Input/State) are superseded HERE by R-276/R-277 (one params DTO, no roles); that doc is updated when B3 builds, not before. docs/DESIGN_Entity_Control.md §3.1/§10 (EntityOrders names soldier behaviours) is superseded by R-273; updated when D4 builds.
@@ -446,3 +446,28 @@ handlers** — they read two buses.
 | the named clear | `SopSlotTests` (the gate's suite) | running ⇒ cleared; paused under a reaction ⇒ the reaction runs on and nothing resumes; another behaviour ⇒ untouched; unnamed ⇒ unchanged |
 | the superseded clear | `TacticalIntentResolutionSystemTests` | Clear then Assign to one entity in one frame ⇒ only the assign; Assign then Clear ⇒ both, in order |
 | live | `SquadTacticsScenarioTests` (cluster): `tt-squad-march` with `InfantrySquadMove` ordered at run time; `tt-react-contact` unchanged | everyone arrives, and after the march no member still runs its drill order |
+
+## 8. D3 — the receiver resolves an order by its class *(CE-2142; build-state: BUILT `2026-10-12` — as-built §5a)*
+
+⭐ **In one line:** an intent `Order.<K>` reaching an entity's brain owner starts `<Class><K>` for the entity's most specific
+class (its DIS type through the one class table) that has such a behaviour, then broader classes; nothing else maps it (R-273).
+The classes and sequence are §2 (`OrderResolver`) and §3.1; nothing new beyond them.
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| every order path ends in TIR on the brain owner; it tried a mapper, then the intent id as a behaviour name | `TacticalIntentResolutionSystem.cs` (assign path) | AQ90 §3-A (the handoff's measurement) |
+| an entity's DIS type is in its header on every node: stamped at spawn (owner) and on ingress (replica) | `NetworkSpawningSystem.cs:160`; `EntityMasterIngressTranslator.cs:260`; read by `EntityRepository.GetDisType` | rule K1 |
+| `EntityClassTable.Chain(dis)` lists the matching classes general → specific (stable by table order) | `Hrot.Core/Tkb/EntityClassTable.cs:72` (CE-2138) | §2, rule O2 |
+| a squad is `InfantrySquad` (`11.1.*.1.2`), a tank platoon `TankPlatoon` (`11.1.*.2.4`) | `EntityClassTable.cs` units block; `UnitDis` (CE-2139) | rule K2 |
+
+| # | decision | ⭐ as built | why |
+|---|---|---|---|
+| **D3-A** | where the lookup lives | ONE pure function `Hrot.Core.Tkb.OrderResolver.Resolve(table, dis, order, isBehaviour)`; TIR calls it for an intent starting `Order.` (`OrderAttribute.IntentPrefix`) before any mapper | the menu that offers orders (D4) must ask the same question — one function, never two answers |
+| **D3-B** | the walk | most specific class first; within one specificity, two classes that both have the behaviour ⇒ **Tie** (logged as an error, nothing starts) | O2 — a tie is never guessed. The built-in table has no equal-specificity overlap (CE-2138's `Ties()` rail), so a tie can only come from a new class |
+| **D3-C** | no class fulfils it | **nothing starts** (a warning); ⛔ no fallback to the intent id as a behaviour name, nor to a soldier behaviour | a body-less unit given `MoveToLocation` stands still for ever (AQ90 §3-A) |
+| **D3-D** | the params | the order's JSON passes through unchanged | the order DTO IS the fulfilling behaviour's params DTO (P3); a rail checks every `<Class><Order>` behaviour takes its order's DTO |
+| **D3-E** | the table | the engine's `EntityClassTable.Default`; a test may pass its own | R-279: hard-coded, one table |
+
+Rejected: **unit-aware mappers** (Move → `SquadMarch`, the embark handoff's lean A) — R-273, the sender would own the mapping;
+**the unit's SOP slot as the decomposer** — the order would land in a slot that only reacts; **a cached name per DIS value** —
+orders are rare, the walk is a dozen mask matches.
