@@ -299,8 +299,8 @@
         "Entries": []
       },
       "Behavior": {
-        "Name": "FireAtTarget",
-        "Params": "{\"targetNetworkId\":7300,\"maxRounds\":2,\"cooldownSeconds\":4}",
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[338,306,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
       }
     },
@@ -334,6 +334,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[346,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Origin": "Superior"
       }
     }
   }
