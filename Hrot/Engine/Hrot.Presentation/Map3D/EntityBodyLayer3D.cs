@@ -93,6 +93,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             long type = world.GetComponentRO<TkbIdentity>(e).TkbType;
             var look = LookOf(type, tkb);
             if (look.Family == VisualFamily.Unit) continue;
+            // ⭐ CE-1058 — a passenger inside an ENCLOSED vehicle is not seen (the engine's one rule, R-271); an exposed rider is drawn.
+            if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(world, e)) continue;
 
             var size = SizeOf(world, e, look);
             var colour = ColourOf(world, e, look.Colour);
@@ -432,6 +434,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (!world.HasComponent<TkbIdentity>(e) || !world.HasComponent<SimTransform>(e)) return false;
         if (world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()
             && world.HasComponent<Fdp.Toolkit.Replication.Components.LightweightRound>(e)) return false;   // LR-3: a round has no box
+        if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(world, e)) return false;   // ⭐ CE-1058: nothing to pick or select
         var look = LookOf(world.GetComponentRO<TkbIdentity>(e).TkbType, tkb);
         if (look.Family == VisualFamily.Unit) return false;
         var size = SizeOf(world, e, look);
