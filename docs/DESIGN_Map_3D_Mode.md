@@ -345,6 +345,7 @@ overlay pass after the 3-D pass; the drawing code is the 2-D renderer's screen-s
 icons — `EntityTypeCatalog.FallbackIconName` (`EntityTypeCatalog.cs:128-143`) maps DIS kind / domain / category (or
 being a composite unit) to a family: person, tank, AFV, wheeled, unit. ⇒ that logic is **extracted** into one
 `VisualFamily.Of(TkbTemplate)`; the icon fallback and the 3-D kit choice both call it.
+⭐ **CE-2138 (2026-10-12):** that one function now reads the shared hard-coded entity class table (named DIS masks, R-279/R-280 (behaviors)) — the family is a property of a class, so the 3-D kit, the icon, the 2-D avatar, the picker folder and the behaviour lookup classify from ONE table ([DESIGN_Orders_Params_Entity_Classes.md](DESIGN_Orders_Params_Entity_Classes.md) §2). The table below still states which DIS values give which family.
 
 | family *(DIS)* | built-in types today | kit — parts, as fractions of the type's L × W × H |
 |---|---|---|
@@ -356,7 +357,7 @@ being a composite unit) to a family: person, tank, AFV, wheeled, unit. ⇒ that 
 | **helicopter** *(1.2, cat 20–25)* | ⛔ none in the built-in TKB | fuselage · cockpit glass · tail boom · swept fin · tail rotor · mast · two crossed main blades (spin: S4) · skids on struts — ✅ built |
 | **jet** *(1.2, cat 1, 2, 6, 7, 40, 47, 50)* | ⛔ none in the built-in TKB | fuselage + nose cone · canopy · swept wings and tailplanes · swept fin · nozzle · gear — ✅ built |
 | **cargo plane** *(1.2, cat 3, 4, 5, 8, 57)* | ⛔ none in the built-in TKB | round fuselage + nose · cockpit glass · straight high wing · four engines · raised tail, fin, tailplane · gear pods — ✅ built |
-| **unit** *(composite)* | tank platoon, infantry squad | **no body** — its members are entities and draw themselves; its symbol shows as a label |
+| **unit** *(kind 11 — ⭐ CE-2139; was: any composite)* | tank platoon, infantry squad | **no body** — its members are entities and draw themselves; its symbol shows as a label |
 | unknown | — | one box, the TKB size |
 
 ⭐ **Cost:** 6–12 parts per vehicle, each one draw of a shared unit mesh through the lit shader — hundreds of vehicles
@@ -806,7 +807,7 @@ grey) and one entity of every built-in kit — tanks, AFVs, utility truck, car, 
 | `HrotToRaylib` | `…/Vis3D/HrotToRaylib.cs` | M9, plus `ModelFromHrot` — a transform written in HROT terms, basis-changed and transposed for Raylib |
 | `TerrainLayer3D` | `…/Vis3D/TerrainLayer3D.cs` | draws `ITerrainRenderGeometry` (WQ-G), never `TerrainWorld`; flat-shaded by un-indexing; rebuilt when `Identity` changes |
 | `ITerrainRenderGeometry` + `TerrainWorldQuery.Build` | `FDP/Toolkits/Fdp.Toolkits/World/`, `…/Terrain/TerrainWorldQuery.cs` | the stand-in hands its navmesh soup unchanged, each triangle classed **wall** (steep), **roof** (> 0.3 m over the ground) or **ground** |
-| `VisualFamily` / `VisualFamilies` | `Hrot/Engine/Hrot.Presentation/Map3D/VisualFamily.cs` | extracted; `EntityTypeCatalog.FallbackIconName` now calls it — output unchanged for every built-in type (railed against the old body) |
+| `VisualFamily` / `VisualFamilies` | `Hrot/Engine/Hrot.Presentation/Map3D/VisualFamily.cs` | extracted; `EntityTypeCatalog.FallbackIconName` now calls it — output unchanged for every built-in type (railed against the old body). ⭐ **CE-2138 (2026-10-12):** the DIS switches are gone — `Of(dis)` walks the type's chain in the shared `EntityClassTable` (Hrot.Core) from the most specific class up and takes the first class in `FamilyOfClass` (`Tank`, `Afv`, `Car`, `WheeledUtility`, `Helicopter`, `Jet`, `CargoPlane`, `Person`); the composite check stays until C3. Railed: a sweep over the whole DIS space against the old switch, and the built-in golden |
 | `ShapeKits`, `KitPart`, `BlockFigure` | `…/Map3D/ShapeKit.cs` | §3.5 kits for tank, AFV, car, utility, unknown; the six-box person in three stance poses, rifle for soldiers |
 | `EntityBodyLayer3D` | `…/Map3D/EntityBodyLayer3D.cs` | every entity with `SimTransform` + `TkbIdentity`; size from `SimVehicleDef` → `VehicleParametersDto` → `ShapeHeight` → family default; colour from `VisualData.ColorHex` → the TKB visual → family default; units draw nothing |
 | canvas hooks | `MapCanvas.Draw3D`, `IMapLayer.Draw3D`/`Has3D`, `MapCamera.Is3D`/`ScreenDeltaToWorld`, `MapCanvas.LayersWithout3D` | as §4 planned — the 2-D path is byte-identical |

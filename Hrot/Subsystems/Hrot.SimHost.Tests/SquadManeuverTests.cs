@@ -38,6 +38,8 @@ namespace Hrot.SimHost.Tests
             private double _time;
             private long _frame;
             public readonly List<AssignTacticalIntentEvent> Orders = new();
+            /// <summary>⭐ CE-2141 — the CLEAR intents the commander's ended runs sent (the release, AQ90 A5).</summary>
+            public readonly List<AssignTacticalIntentEvent> Clears = new();
 
             public Squad(int members)
             {
@@ -49,6 +51,8 @@ namespace Hrot.SimHost.Tests
                 var geo = new WGS84Transform();
                 geo.SetOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(geo);
+                if (!Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+                if (!Repo.IsComponentTypeRegistered<UnitEntity>()) Repo.RegisterComponent<UnitEntity>();
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 Fdp.Toolkit.Utility.StandardInputs.RegisterAll();
                 Fdp.Toolkit.Utility.SquadInputs.RegisterAll();          // ⭐ CE-2123 S2 — the squad's contact response reads them
@@ -79,7 +83,7 @@ namespace Hrot.SimHost.Tests
                 Repo.SetSingleton(new GlobalTime { TotalTime = _time, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = ++_frame });
                 Repo.SetSimulationTime((float)_time);
                 Repo.Bus.SwapBuffers();
-                foreach (var o in Repo.Bus.ReadManaged<AssignTacticalIntentEvent>()) Orders.Add(o);
+                foreach (var o in Repo.Bus.ReadManaged<AssignTacticalIntentEvent>()) (o.Kind == TacticalIntentKind.Clear ? Clears : Orders).Add(o);
                 _senses.Execute(Repo, 0.016f);
                 _ingress.Execute(Repo, 0.016f);
                 _brain.Execute(Repo, 0.016f);
@@ -710,6 +714,155 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 6 && !done; i++) { s.Tick(); done = s.Finished(out result); }
             Assert.True(done, "the lead at the objective and the follower at its slot ⇒ the march ends");
             Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        // ── ⭐ CE-2141 (D2, docs/DESIGN_Orders_Params_Entity_Classes.md §7) — the orders a squad fulfils, and the release ──
+
+        private static string MoveJson(Squad s, Vector3 to, string roadUse = "Unspecified")
+        {
+            var (lat, lon, _) = s.Repo.GetSingletonManaged<IGeographicTransform>().ToGeodetic(to);
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "{\"Location\":[" + lat.ToString("R", inv) + "," + lon.ToString("R", inv) + "],\"RoadUse\":\"" + roadUse + "\"}";   // enums are names (strict)
+        }
+
+        private static void Ticks(Squad s, int n) { for (int i = 0; i < n; i++) s.Tick(); }
+
+        /// <summary>⭐ D2-E/F — MOVE: a geodetic Location becomes the march's local objective; the squad chooses its shape — a Wedge
+        /// (every follower goes to its slot at once), or File when the order prefers roads (followers wait for the lead's trail).</summary>
+        [Fact]
+        public void CE2141_InfantrySquadMove_AGeodeticPoint_TheSquadMarchesThere_InAWedge_OrInFileOnARoad()
+        {
+            var s = new Squad(members: 4);
+            s.Order(MoveJson(s, new Vector3(0f, 80f, 0f)), BehaviorNames.InfantrySquadMove);
+            Ticks(s, 2);
+            Assert.True(SquadMarchManeuver.ManeuverKind == s.Kind, $"task={s.TaskName} kind={s.Kind} orders={s.Orders.Count} json={MoveJson(s, new Vector3(0f, 80f, 0f))}");
+            var o = s.LastOrders();
+            Assert.Equal(BehaviorNames.AdvanceTo, o[s.Members[0]].Intent);                              // the lead: nearest the point
+            Assert.InRange(Vector2.Distance(new Vector2(o[s.Members[0]].Objective.X, o[s.Members[0]].Objective.Y), new Vector2(0f, 80f)), 0f, 0.5f);
+            Assert.All(s.Members.Skip(1), m => Assert.Equal(BehaviorNames.AdvanceTo, o[m].Intent));       // wedge slots
+
+            var road = new Squad(members: 4);
+            road.Order(MoveJson(road, new Vector3(0f, 80f, 0f), roadUse: nameof(Fdp.Toolkit.Navigation.RoadUse.Prefer)), BehaviorNames.InfantrySquadMove);
+            Ticks(road, 2);
+            var r = road.LastOrders();
+            Assert.Equal(BehaviorNames.AdvanceTo, r[road.Members[0]].Intent);
+            Assert.All(road.Members.Skip(1), m => Assert.Equal(BehaviorNames.CombatPosture, r[m].Intent)); // file: wait for the trail
+        }
+
+        /// <summary>⭐ HOLD: every member holds and fights where it stands, and the order never ends by itself.</summary>
+        [Fact]
+        public void CE2141_InfantrySquadHold_EveryoneHolds_AndItNeverEndsByItself()
+        {
+            var s = new Squad(members: 3);
+            s.Order("{}", BehaviorNames.InfantrySquadHold);
+            for (int i = 0; i < 300; i++) { s.Tick(); Assert.False(s.Finished(out _), "a hold order ends only when replaced or released"); }
+            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);
+            var o = s.LastOrders();
+            Assert.All(s.Members, m => Assert.Equal(BehaviorNames.CombatPosture, o[m].Intent));
+        }
+
+        /// <summary>⭐ D2-G — ATTACK on an enemy the squad never saw: the designation is the knowledge — the drill starts at once, the
+        /// leader's flank query is aimed at that enemy, and its death ends the drill.</summary>
+        [Fact]
+        public void CE2141_InfantrySquadAttack_ANamedTargetTheSquadNeverSaw_IsAttacked_ItsDeathEndsTheDrill()
+        {
+            var s = new Squad(members: 4);
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Repo.AddComponent(enemy, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 2141 });
+            s.Order("{\"Target\":2141}", BehaviorNames.InfantrySquadAttack);
+            Ticks(s, 2);
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
+            Assert.Equal(4, s.LastOrders().Count);
+            var query = s.FlankQuery();
+            Assert.False(query.IsNull, "the leader asks the terrain for a flank on the designated enemy");
+            Assert.Equal(enemy, s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(query).ContextSlot1);
+
+            s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(enemy).Current = 0f;
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done);
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐⭐ D2-B (AQ90 A5) — a drill that ENDS clears each member's order, naming what it was told (so a member's own
+        /// reaction or a newer order is left alone); a drill REPLACED from outside does the same.</summary>
+        [Fact]
+        public void CE2141_ADrillThatEnds_OrIsReplaced_ClearsTheOrdersItGave_NamingEach()
+        {
+            var s = new Squad(members: 3);
+            s.Order("{\"DurationSeconds\":0.5}", BehaviorNames.SquadHold);
+            bool done = false;
+            for (int i = 0; i < 60 && !done; i++) { s.Tick(); done = s.Finished(out _); }
+            Assert.True(done);
+            s.Tick();                                                                          // the release went out with the finish
+            Assert.Equal(s.Members.OrderBy(m => m.Index), s.Clears.Select(c => c.Entity).OrderBy(m => m.Index));
+            Assert.All(s.Clears, c => { Assert.Equal(BehaviorNames.CombatPosture, c.IntentId); Assert.Equal(BehaviorOrigin.Superior, c.Origin); });
+
+            var r = new Squad(members: 3);
+            r.Order("{}", BehaviorNames.InfantrySquadHold);
+            Ticks(r, 3);
+            Assert.Empty(r.Clears);
+            r.Order(MoveJson(r, new Vector3(0f, 80f, 0f)), BehaviorNames.InfantrySquadMove);   // a new order from outside
+            Ticks(r, 3);
+            Assert.Equal(3, r.Clears.Count);
+            Assert.All(r.Clears, c => Assert.Equal(BehaviorNames.CombatPosture, c.IntentId));
+        }
+
+        /// <summary>⭐ D2-B — a drill PAUSED under the leader's reaction releases nothing; the reaction's own orders are released when
+        /// it ends, and the resumed drill sends its orders again (S1-G).</summary>
+        [Fact]
+        public void CE2141_APausedDrill_ReleasesNothing_TheReactionsOrdersGoWhenItEnds()
+        {
+            var s = new Squad(members: 3);
+            s.Order("{}", BehaviorNames.InfantrySquadHold);
+            Ticks(s, 3);
+            s.React(BehaviorNames.SquadHold, "{\"DurationSeconds\":0.5}");
+            Ticks(s, 3);
+            Assert.Equal(BehaviorNames.SquadHold, s.TaskName);
+            Assert.Empty(s.Clears);
+            Ticks(s, 60);
+            Assert.Equal(BehaviorNames.InfantrySquadHold, s.TaskName);                       // resumed
+            Assert.Equal(3, s.Clears.Count);                                                  // the reaction's three orders
+            int before = s.Orders.Count;
+            Ticks(s, 2);
+            Assert.True(s.Orders.Count >= before, "the resumed drill's orders stand");
+        }
+
+        /// <summary>⭐ D2-H (AQ90 A4) — a member that is itself a UNIT gets an ORDER (<c>Order.Hold</c>), not a behaviour, and its
+        /// release is an unnamed clear (the commander cannot know what it resolved to).</summary>
+        [Fact]
+        public void CE2141_AMemberThatIsAUnit_GetsAnOrder_AndAnUnnamedRelease()
+        {
+            var s = new Squad(members: 3);
+            s.Repo.AddComponent(s.Members[1], new UnitEntity());
+            s.Order("{\"DurationSeconds\":0.5}", BehaviorNames.SquadHold);
+            bool done = false;
+            for (int i = 0; i < 60 && !done; i++) { s.Tick(); done = s.Finished(out _); }
+            Assert.True(done);
+            var toUnit = s.Orders.Where(o => o.Entity.Equals(s.Members[1])).ToList();
+            Assert.NotEmpty(toUnit);
+            Assert.All(toUnit, o => Assert.Equal(Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentFor("Hold"), o.IntentId));
+            Assert.All(s.Orders.Where(o => !o.Entity.Equals(s.Members[1])), o => Assert.Equal(BehaviorNames.CombatPosture, o.IntentId));
+
+            s.Tick(); s.Tick();
+            Assert.Equal(string.Empty, s.Clears.Single(c => c.Entity.Equals(s.Members[1])).IntentId);
+            Assert.Equal(BehaviorNames.CombatPosture, s.Clears.First(c => c.Entity.Equals(s.Members[0])).IntentId);
+        }
+
+        /// <summary>⭐ D2-H — a unit member told to MOVE gets <c>Order.Move</c> with the point as a geodetic Location.</summary>
+        [Fact]
+        public void CE2141_AUnitMemberToldToMove_GetsOrderMove_WithAGeodeticLocation()
+        {
+            var s = new Squad(members: 2);
+            s.Repo.AddComponent(s.Members[0], new UnitEntity());
+            SquadManeuverRunner.Move(s.Repo, s.Commander, s.Members[0], new Vector3(30f, 40f, 0f), 2f, 5f);
+            s.Tick();
+            var o = s.Orders.Single();
+            Assert.Equal("Order.Move", o.IntentId);
+            var move = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.MoveOrder>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            var back = s.Repo.GetSingletonManaged<IGeographicTransform>().ToCartesian(move.Location.Latitude, move.Location.Longitude, 0.0);
+            Assert.InRange(Vector2.Distance(new Vector2(back.X, back.Y), new Vector2(30f, 40f)), 0f, 0.1f);
+            Assert.Equal(2f, move.Speed);
         }
     }
 }

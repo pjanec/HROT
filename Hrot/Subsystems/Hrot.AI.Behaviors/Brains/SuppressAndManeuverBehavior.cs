@@ -24,6 +24,10 @@ namespace Hrot.AI.Behaviors.Brains
         public float Speed;
         public float ArrivalRadius;
         public float PhaseTimeoutSeconds;
+        /// <summary>⭐ <c>CE-2141</c> (D2-G) — the enemy to attack (a local entity's packed id), as an ATTACK order names it; 0 = the
+        /// squad's top identified contact. A target the squad has not pooled is attacked where it stands when ordered (the order's
+        /// designation is the knowledge), and followed once pooled.</summary>
+        public long TargetId;
     }
 
     /// <summary>
@@ -44,16 +48,19 @@ namespace Hrot.AI.Behaviors.Brains
         [BehaviorResolver(BehaviorNames.SuppressAndManeuver)]
         public static void Resolve(in SuppressAndManeuverParamsJsonDto authored, ref SuppressAndManeuverBlackboard block, EntityRepository world, Entity self)
         {
-            block.Order = new SuppressAndManeuverParams
-            {
-                FlankSearchRadius   = authored.FlankSearchRadius > 0f ? authored.FlankSearchRadius : 40f,
-                Speed               = authored.Speed > 0f ? authored.Speed : 3f,
-                ArrivalRadius       = authored.ArrivalRadius > 0f ? authored.ArrivalRadius : 8f,
-                PhaseTimeoutSeconds = authored.PhaseTimeoutSeconds > 0f ? authored.PhaseTimeoutSeconds : 90f,
-            };
+            block.Order = Defaults(authored.FlankSearchRadius, authored.Speed, authored.ArrivalRadius, authored.PhaseTimeoutSeconds);
             block.State = default;
         }
 [Behavior(BehaviorNames.SuppressAndManeuver, Params = typeof(global::Hrot.Map.Definitions.Behavior.SuppressAndManeuverParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
+
+        /// <summary>The authored values, a zero keeping its default (one place: the drill and the ATTACK order share them).</summary>
+        internal static SuppressAndManeuverParams Defaults(float radius, float speed, float arrival, float timeout) => new()
+        {
+            FlankSearchRadius   = radius > 0f ? radius : 40f,
+            Speed               = speed > 0f ? speed : 3f,
+            ArrivalRadius       = arrival > 0f ? arrival : 8f,
+            PhaseTimeoutSeconds = timeout > 0f ? timeout : 90f,
+        };
 
         [BTreeDefinition(BehaviorNames.SuppressAndManeuver, Curated = true, Group = "Library/Squad", ParamsType = typeof(SuppressAndManeuverBlackboard))]
         public static BTreeBuilder<SuppressAndManeuverBlackboard, BTreeContext> BuildTree()
@@ -96,7 +103,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ Ordered before contact, the commander WAITS (no orders) until the squad pools an identified enemy.</summary>
         public PlayStart Start(ref SuppressAndManeuverParams p, ref SquadPlayState ws, in SquadPlayContext ctx, Span<MemberPartitionInput> partition)
         {
-            if (!TopContact(in ctx, 0, out var contact)) return PlayStart.Wait;
+            if (!Threat(ref p, in ctx, out var contact)) return PlayStart.Wait;
             ws.ThreatId = contact.EntityId;
             ws.ThreatPoint = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);
 
@@ -179,6 +186,20 @@ namespace Hrot.AI.Behaviors.Brains
         private static void AskForFlank(ref SuppressAndManeuverParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
             => SquadManeuverRunner.AskTerrain(ref ws, in ctx, FindFlankingPosition.BlueprintId, FlankSite, p.FlankSearchRadius,
                 SquadManeuverRunner.FirstLive(in ctx, SuppressAndManeuverManeuver.ElementBaseOfFire), new Entity((ulong)ws.ThreatId));
+
+        /// <summary>⭐ <c>CE-2141</c> (D2-G) — what the drill attacks: the named target (pooled, or where it stands — the order's
+        /// designation), else the squad's top identified contact. False = nothing yet (wait).</summary>
+        private static bool Threat(ref SuppressAndManeuverParams p, in SquadPlayContext ctx, out SquadContact contact)
+        {
+            if (p.TargetId == 0) return TopContact(in ctx, 0, out contact);
+            if (TopContact(in ctx, p.TargetId, out contact) && contact.EntityId == p.TargetId) return true;
+            var target = new Entity((ulong)p.TargetId);
+            contact = new SquadContact { EntityId = p.TargetId };      // reported by nobody: the partition falls back to halves
+            if (!ctx.World.IsAlive(target) || !ctx.World.HasComponent<SimTransform>(target)) return true;   // gone: Outcome ends the drill
+            var at = ctx.World.GetComponentRO<SimTransform>(target).Position;
+            contact.PositionX = at.X; contact.PositionY = at.Y; contact.PositionZ = at.Z;
+            return true;
+        }
 
         private static bool TopContact(in SquadPlayContext ctx, long keep, out SquadContact contact)
             => SquadManeuverRunner.TopContact(in ctx, keep, out contact);

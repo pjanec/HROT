@@ -281,6 +281,111 @@ public sealed class Map3DTests
         Assert.True(MathF.Max(a.X, b.X) > size.X / 2f, "the barrel reaches past the hull front");
     }
 
+    /// <summary>⭐ CE-2138 (C2) — the family switch exactly as it was before the class table: the oracle the sweep compares to.</summary>
+    private static VisualFamily OldFamily(DISEntityType d)
+    {
+        if (d.Kind == 3) return VisualFamily.Person;
+        if (d.Kind == 1 && d.Domain == 1)
+            return d.Category switch
+            {
+                1 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,
+                3 or 6 or 7 => VisualFamily.WheeledUtility, _ => VisualFamily.Unknown,
+            };
+        if (d.Kind == 1 && d.Domain == 2)
+            return d.Category switch
+            {
+                >= 20 and <= 25 => VisualFamily.Helicopter,
+                1 or 2 or 6 or 7 or 40 or 47 or 50 => VisualFamily.Jet,
+                3 or 4 or 5 or 8 or 57 => VisualFamily.CargoPlane,
+                _ => VisualFamily.Unknown,
+            };
+        return VisualFamily.Unknown;
+    }
+
+    /// <summary>⭐ CE-2138 (C2) — <c>VisualFamilies.Of</c> rebuilt on the class table keeps the family of EVERY Kind × Domain ×
+    /// Category (countries and subcategories too), not just the built-in types.</summary>
+    [Fact]
+    public void CE2138_TheClassTable_KeepsEveryFamily_AcrossTheWholeDisSpace()
+    {
+        var moved = new List<string>();
+        foreach (byte kind in new byte[] { 0, 1, 2, 3, 4, 9, 10, 12 })
+            for (int domain = 0; domain <= 6; domain++)
+                for (int category = 0; category <= 255; category++)
+                    foreach (ushort country in new ushort[] { 0, 222, 225 })
+                    {
+                        var d = new DISEntityType { Kind = kind, Domain = (byte)domain, Category = (byte)category, Country = country, Subcategory = 3 };
+                        var now = VisualFamilies.Of(new TkbTemplate("sweep", 9999) { DisType = d });
+                        if (now != OldFamily(d)) moved.Add($"{d}: {OldFamily(d)} -> {now}");
+                    }
+        Assert.True(moved.Count == 0, string.Join(", ", moved.Take(20)));
+    }
+
+    /// <summary>⭐ CE-2138 — every class a family or a 2-D avatar is keyed on exists in the table (a rename cannot silently
+    /// turn a family into Unknown).</summary>
+    [Fact]
+    public void CE2138_EveryClassAFamilyOrAvatarNames_IsInTheTable()
+    {
+        foreach (var name in VisualFamilies.FamilyOfClass.Keys.Concat(Hrot.Presentation.Map.EntityClassShapeLibrary.ProfileOfClass.Keys))
+            Assert.True(EntityClassTable.Default.Find(name) is not null, $"no class '{name}'");
+    }
+
+    /// <summary>⭐ CE-2127 — the 2-D avatar reads Category from bits 24–31: a helicopter is rotary-wing, a jet / trainer / UAV /
+    /// airliner fixed-wing. 🔴 Before, Category came from Country's high byte (0 for US/RU), so every aircraft drew fixed-wing.</summary>
+    [Theory]
+    [InlineData(21, GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.RotaryWing)]
+    [InlineData(25, GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.RotaryWing)]
+    [InlineData(1, GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.FixedWing)]
+    [InlineData(40, GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.FixedWing)]
+    [InlineData(50, GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.FixedWing)]
+    [InlineData(57, GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.FixedWing)]
+    public void CE2127_TheAvatar_ReadsTheRealCategory(byte category, string expected)
+    {
+        var dis = new DISEntityType { Kind = 1, Domain = 2, Country = 225, Category = category }.Value;
+        Assert.Equal(expected, new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary().GetShape(null, dis).Name);
+        Assert.Equal(expected, new Hrot.Presentation.Map.EntityClassShapeLibrary().GetShape(null, dis).Name);
+    }
+
+    /// <summary>⭐ CE-2138 — the class-table avatar picks what the (fixed) GizmoMap switch picks over the whole DIS space, and a
+    /// named shape still wins.</summary>
+    [Fact]
+    public void CE2138_TheClassAvatar_AgreesWithTheDisSwitch_AcrossTheDisSpace()
+    {
+        var byClass = new Hrot.Presentation.Map.EntityClassShapeLibrary();
+        var bySwitch = new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary();
+        var moved = new List<string>();
+        foreach (byte kind in new byte[] { 0, 1, 2, 3, 4, 9, 11 })
+            for (int domain = 0; domain <= 6; domain++)
+                for (int category = 0; category <= 255; category++)
+                {
+                    var d = new DISEntityType { Kind = kind, Domain = (byte)domain, Category = (byte)category, Country = 225 };
+                    string a = byClass.GetShape(null, d.Value).Name, b = bySwitch.GetShape(null, d.Value).Name;
+                    if (a != b) moved.Add($"{d}: {b} -> {a}");
+                }
+        Assert.True(moved.Count == 0, string.Join(", ", moved.Take(20)));
+        Assert.Equal(GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.Humanoid,
+                     byClass.GetShape(GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.Humanoid, 0).Name);
+    }
+
+    /// <summary>⭐ CE-2139 (C3) — a unit is a unit by its DIS Kind: family Unit (no body), no 2-D avatar, in the ground-units map
+    /// layer but no longer in "vehicles" (it was, as 1.1.225); a composite with a PLATFORM DIS type is no longer special.</summary>
+    [Fact]
+    public void CE2139_AUnit_IsAUnitByItsDisKind_NoBodyNoAvatar_NotAVehicle()
+    {
+        var squad = BuiltIn().GetByType(TkbEntityTypes.Unit_InfantrySquad)!;
+        Assert.Equal(VisualFamily.Unit, VisualFamilies.Of(squad));
+        Assert.Equal(VisualFamily.Unit, VisualFamilies.Of(UnitDis.Land(UnitArm.Artillery, UnitEchelon.Battalion, 78)));
+        Assert.Equal(GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.Fallback,
+                     new Hrot.Presentation.Map.EntityClassShapeLibrary().GetShape(null, squad.DisType.Value).Name);
+
+        bool In(string layer) => Hrot.Presentation.Map.MapLayerRegistry.All.Single(l => l.Name == layer).IsMember(default, squad.DisType, null!);
+        Assert.True(In("units_ground"));     // the DIS-only layers; the others read components
+        Assert.False(In("vehicles"));
+
+        var platformComposite = new TkbTemplate("old", 9998) { DisType = new DISEntityType { Kind = 1, Domain = 1, Country = 225 } };
+        platformComposite.AddDescriptor(new TkbCompositionDef());
+        Assert.Equal(VisualFamily.Unknown, VisualFamilies.Of(platformComposite));   // the DIS type decides, not the composition
+    }
+
     // ── aircraft (SISO-REF-010 platform / air categories) ──
 
     [Theory]

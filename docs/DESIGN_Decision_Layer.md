@@ -8,6 +8,7 @@ known-rot: §3.3c/§3.3d HSM + blueprint posture PARITY is SUPERSEDED for the li
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — §7 (CE-2141) adds the clear that NAMES a behaviour to the §4.1 gate table (a commander's release; a member's own reaction runs on)
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad-level react-to-contact (§4): a commander SOP on squad-level sensor edges, using this file's slots and gate unchanged
   - docs/blueprints/Architect_Question_89_Suppress_And_Close.md — AQ89 (R-269): what §3.3's Suppress branch DOES at a hidden target (blind fire; a willing grenadier closes to throw)
   - REVIEW_Behaviour_Library_Genericity.md — L2 (TakeCover child = generalised PeekAndFire) and L6 (host parity: library vs three-host demo).
@@ -1233,6 +1234,7 @@ reaction ends. ⇒ restart, not resume (`CE-2081`).*
 | **reaction, urgency u** | start, pause nothing | ROE `StayOnTask` ⇒ refuse · else **pause the task**, start | u > r ⇒ replace (the paused task stays) · else refuse |
 | **SOP idle choice** | rank rule | rank rule (refused) | refuse (and wake the SOP) |
 | **an order** (assign or clear) | rank rule | rank rule | weighed against the PAUSED task's origin; admitted ⇒ the paused task is dropped |
+| ⭐ **a clear that NAMES a behaviour** *(`CE-2141`: a commander releasing its ended drill's order)* | nothing | ends it only when it IS that behaviour (rank rule) | the paused task is that behaviour ⇒ weighed against its origin; admitted ⇒ ONLY the paused task is dropped, the reaction runs on · else nothing |
 | **Self** | admit | admit | admit — a reaction restarting itself stays a reaction; a reaction clearing itself **restarts the task** |
 
 | as built | where |

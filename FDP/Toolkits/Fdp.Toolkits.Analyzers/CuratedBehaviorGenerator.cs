@@ -188,6 +188,9 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 IsValid     = valid,
                 DeclaredParams = DeclaredParams(symbol, name!),
                 AuthoredType = isBlock ? symbol.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
+                // ⭐ CE-2141 — the authored type is an ORDER's DTO ([Order], shared by every behaviour that fulfils the order, so it
+                //   can never carry one [BehaviorContract]): the resolver's own type IS the behaviour's params DTO (P1).
+                AuthoredIsOrder = isBlock && symbol.Parameters[0].Type.GetAttributes().Any(a => a.AttributeClass?.Name == "OrderAttribute"),
                 BlockType    = isBlock ? symbol.Parameters[1].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
             };
         }
@@ -370,6 +373,11 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         // S8 / CE-2022: with its SOURCE type, so a host knows what to bind (TryGetHostedInputType).
                         sb.AppendLine("                if (__src != null) beh.RegisterSourceResolver(" + Q(r.Name) + ", __src, typeof(" + r.AuthoredType + "));");
                         sb.AppendLine("            }");
+                        // ⭐ CE-2141 (D2) — an ORDER's DTO is published as the behaviour's params DTO (what GET /behaviors and the
+                        //   P1 rail read). Only for [Order] DTOs: every other curated contract still comes from [BehaviorContract]
+                        //   until CE-2134 (B2) moves the contract onto the behaviour for all of them.
+                        if (r.AuthoredIsOrder)
+                            sb.AppendLine("            beh.RegisterJsonParamsDtoType(" + Q(r.Name) + ", typeof(" + r.AuthoredType + "));");
                     }
                     else if (r.ParamCount == 5)
                     {
@@ -422,6 +430,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public string? AuthoredType { get; set; }
         /// <summary>CE-427: the typed block resolver's block type (FQN), or null for the byte-level shapes.</summary>
         public string? BlockType { get; set; }
+        /// <summary>⭐ CE-2141: the typed block resolver's authored type carries [Order] (an order DTO).</summary>
+        public bool AuthoredIsOrder { get; set; }
         public string? ParamsType { get; set; }
         public bool IsValid { get; set; }
         /// <summary>CE-2134: the <c>[Behavior(Params = …)]</c> on this method (global::), or null.</summary>

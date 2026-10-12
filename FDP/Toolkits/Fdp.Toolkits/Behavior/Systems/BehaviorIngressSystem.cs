@@ -124,6 +124,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var evt in clearEvents)
             {
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
+                if (evt.OnlyBehaviorHash != 0 && !NamedClearEndsTheRun(repo, evt)) continue;              // ⭐ CE-2141 — a clear that names a behaviour
                 if (!Admit(repo, evt.Entity, evt.Origin, ReactionUrgency.NotAReaction, out _)) continue;   // ⭐ CE-3034 — a clear is gated like an assign
                 var endingOrigin = repo.GetComponentRO<BehaviorState>(evt.Entity).Origin;
                 bool endsAReaction = endingOrigin == BehaviorOrigin.Reaction;
@@ -867,6 +868,24 @@ namespace Fdp.Toolkit.Behavior.Systems
                        ReactionUrgency.NotAReaction, paused)) return false;
             AfterAdmitted(repo, entity, origin, paused);
             return true;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2141</c> (D2-C) — a clear that NAMES a behaviour (a commander releasing the order its ended drill gave): true when
+        /// that behaviour RUNS (then the clear goes on as any other). When the unit's own REACTION runs over it (paused), only the
+        /// paused task is dropped — weighed against its origin, as an order is (R-199 ③) — and the reaction runs on; when it ends,
+        /// nothing resumes and the SOP picks. Anything else: a newer order replaced it, so nothing happens.
+        /// 📄 docs/DESIGN_Orders_Params_Entity_Classes.md §7.
+        /// </summary>
+        private bool NamedClearEndsTheRun(EntityRepository repo, in ClearBehaviorEvent evt)
+        {
+            ref readonly var running = ref repo.GetComponentRO<BehaviorState>(evt.Entity);
+            if (running.ActiveBehaviorHash == evt.OnlyBehaviorHash) return true;
+            if (running.Origin == BehaviorOrigin.Reaction && repo.TryGetTable(typeof(PausedTask), out _)
+                && PausedTaskOf(repo, evt.Entity) is { } paused && paused.Hash == evt.OnlyBehaviorHash
+                && BehaviorOriginRank.Of(evt.Origin) >= BehaviorOriginRank.Of(paused.Origin))
+                DropPausedTask(repo, evt.Entity, _registry);
+            return false;
         }
 
         /// <summary>What a <see cref="ClearBehaviorEvent"/> does, now.</summary>

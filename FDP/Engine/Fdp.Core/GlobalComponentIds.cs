@@ -546,6 +546,11 @@ namespace Fdp.Core
         /// commander is silent after its leader fell. Not saved, not sent.</summary>
         public const int SquadLeadership = 275;
 
+        /// <summary><c>SubordinateOrders</c> (managed) — ⭐ CE-2141 (AQ90 A5): on a commander, the orders its behaviour RUN gave
+        /// its members; released (each member's order cleared) when that run ends, like the run's sensors (CE-485 D4). Brain-local,
+        /// not saved, not sent.</summary>
+        public const int SubordinateOrders = 276;
+
         /// <summary><c>SquadCognitiveState</c> — ⭐ <b>the commander's squad state, as its OWN 1024-byte
         /// component</b> (`O1`, 2026-09-20). It used to be a PROJECTION over the commander's
         /// <c>Blackboard1024</c>, which made "has a blackboard" an accidental proxy for "is a commander
