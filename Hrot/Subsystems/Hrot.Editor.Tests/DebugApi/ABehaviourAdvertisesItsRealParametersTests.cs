@@ -216,4 +216,113 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         Assert.Contains(arms, arm =>
             PropertyNames((JsonObject)arm!["paramSchema"]!).Length > 0);
     }
+    /// <summary>
+    /// ⭐ CE-2131 (CE-2128 ①) — <c>FollowRoute</c> advertises every key its callers write: the route entity, the speed and the
+    /// loop flag (<c>MissionControlBehaviorParamsHelper</c> reads all three). ⚠ Red-proof: drop <c>Speed</c> from
+    /// <c>FollowRouteParamsJsonDto</c> → this fails naming it.
+    /// </summary>
+    [Fact]
+    public void CE2131_FollowRouteAdvertisesTheKeysItsCallersWrite()
+    {
+        var keys = PropertyNames(SchemaFor(LoadProductionRegistry(), "FollowRoute"));
+
+        Assert.Contains("RouteEntityId", keys);   // the schema lists C# member names; JSON matching is case-insensitive
+        Assert.Contains("Speed", keys);
+        Assert.Contains("Loop", keys);
+    }
+
+    // ── CE-2130 (docs/DESIGN_Orders_Params_Entity_Classes.md §1 P1–P2, §6 R0) ─────────────────────────────────────────────
+    //   The authoring rules as a conformance rail: every registered behaviour names exactly ONE params DTO (its public JSON
+    //   contract), and that DTO is a NAMED type — never a generator's mirror of the behaviour's own variables (which is what
+    //   makes the JSON nest under variable names, `{"sentry":{…}}`). Today's violators sit in an allow-list that may only
+    //   SHRINK: a new violator fails, and an entry that no longer violates fails too ("remove it").
+
+    /// <summary>⭐ CE-2130 — today's violators of P1 / P2, by behaviour name. ⛔ Never add to this list; the tasks of the
+    /// orders programme remove entries (CE-2131: the empty DTOs; CE-2132: the multi-Input assets; CE-2133: the named DTO).</summary>
+    internal static readonly string[] ParamsContractAllowList =
+    {
+        // measured 2026-10-12 at the first run of the rail: 48 behaviours
+        "BTreeCuratedBindingDemo", "BTreeRenderShowcase", "BasicInfantrySop", "BasicSquadSop",
+        "BlueprintBehaviourDemo", "CombatShowcase", "DangerCrossing", "DangerCrossingBp",
+        "Demo_Advance", "Demo_Engage", "Demo_MissionPlan", "Demo_Retreat",
+        "Demo_TakeCover", "Demo_TaskChain", "FallBack", "FiringPosition",
+        "Flank", "HsmOrthogonalRegions", "HsmResolverDemo", "HsmShowcase",
+        "HsmTwoChannelRegionsDemo", "HullDownAttackRun", "OperatorControl", "PlatoonHillAttack",
+        "PlatoonHillAttackBp", "SampleGuard", "SampleScout", "Sentry",
+        "T01_Sequence", "T02_Selector", "T03_Parallel", "T04_DecoratorRepeater",
+        "T05_DecoratorStack", "T06_ObserverSelector", "T07_Subtree", "T08_ActionLeaf",
+        "T09_BlackboardManaged", "T10_MultiAction", "T11_Aliasing", "T20_MultiStateful",
+        "T31_ComposedAiPrimitive", "T32_ComposedGeneratedBlueprint", "T33_ComposedParamBlueprint", "T34_ComposedAiPrimitiveCondition",
+        "T35_SharedWorkingState", "T39_TwoDistinctPrimitives", "T40_BehaviorResolverAsset", "TakeCover",
+    };
+
+    /// <summary>⭐ CE-2130 — true when <paramref name="t"/> is a generator's mirror of a behaviour's own variables rather
+    /// than a named params DTO: a BTree asset's Inputs struct (emitted into <c>Hrot.AI.Behaviors.Trees</c>) or a blueprint
+    /// behaviour's nested <c>Params</c> (inside its generated <c>*_Bp</c> class).</summary>
+    internal static bool IsGeneratedMirror(System.Type t)
+        => t.Namespace == "Hrot.AI.Behaviors.Trees"
+           || (t.Name == "Params" && t.DeclaringType is { } d && d.Name.EndsWith("_Bp", System.StringComparison.Ordinal));
+
+    /// <summary>⭐ CE-2130 — every behaviour in <paramref name="registry"/> that breaks P1 (no params DTO) or P2 (the DTO
+    /// is a generated mirror), with the reason.</summary>
+    internal static System.Collections.Generic.SortedDictionary<string, string> ParamsContractViolations(BehaviorRegistry registry)
+    {
+        var bad = new System.Collections.Generic.SortedDictionary<string, string>(System.StringComparer.Ordinal);
+        foreach (var name in registry.GetRegisteredNames())
+        {
+            if (!registry.TryGetId(name, out int id) || !registry.TryGetDefinition(id, out var def) || def is null) continue;
+            if (def.JsonParamsDtoType is null) bad[name] = "names no params DTO (P1; one that takes nothing names NoParams)";
+            else if (IsGeneratedMirror(def.JsonParamsDtoType))
+                bad[name] = $"its params DTO is a generated mirror of its variables, {def.JsonParamsDtoType.Name} (P2: name a DTO; the JSON must be flat)";
+        }
+        return bad;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-2130 — THE RAIL. Every shipped behaviour follows the params rules, except the allow-listed ones, and every
+    /// allow-listed one still breaks them (so the list can only shrink).
+    /// <para>⚠ Red-proof: delete any entry from <see cref="ParamsContractAllowList"/> → this fails naming it; add a name
+    /// that complies → this fails asking to remove it.</para>
+    /// </summary>
+    [Fact]
+    public void CE2130_EveryBehaviourNamesOneFlatParamsDto_ExceptTheShrinkingAllowList()
+    {
+        var registry = LoadProductionRegistry();
+        Assert.True(registry.GetRegisteredNames().Count > 20,
+            "the production loader registered almost nothing — this rail would pass vacuously");
+
+        var violations = ParamsContractViolations(registry);
+        var allowed = new System.Collections.Generic.HashSet<string>(ParamsContractAllowList, System.StringComparer.Ordinal);
+
+        var newViolators = violations.Keys.Where(n => !allowed.Contains(n)).Select(n => $"  {n}: {violations[n]}").ToArray();
+        Assert.True(newViolators.Length == 0,
+            "behaviours break the params rules (docs/DESIGN_Orders_Params_Entity_Classes.md §1) — fix them; never add them "
+            + "to the allow-list:\n" + string.Join("\n", newViolators));
+
+        var stale = ParamsContractAllowList.Where(n => !violations.ContainsKey(n)).ToArray();
+        Assert.True(stale.Length == 0,
+            "these allow-listed behaviours now comply (or are gone) — remove them from ParamsContractAllowList so the list "
+            + "keeps shrinking:\n  " + string.Join("\n  ", stale));
+    }
+
+    /// <summary>⭐ CE-2130 — the rule itself is not vacuous: a behaviour registered with no params DTO, and one whose DTO is
+    /// a generated mirror, are both caught (a permanent red-proof of <see cref="ParamsContractViolations"/>).</summary>
+    [Fact]
+    public void CE2130_TheRuleCatchesAMissingAndAMirroredParamsDto()
+    {
+        var registry = new BehaviorRegistry();
+        registry.Register("CE2130_NoDto", new BehaviorDefinition { Name = "CE2130_NoDto" });
+        var mirror = typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly.GetTypes().First(IsGeneratedMirror);
+        registry.Register("CE2130_Mirror", new BehaviorDefinition { Name = "CE2130_Mirror", JsonParamsDtoType = mirror });
+        registry.Register("CE2130_Named", new BehaviorDefinition
+        {
+            Name = "CE2130_Named", JsonParamsDtoType = typeof(Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto),
+        });
+
+        var violations = ParamsContractViolations(registry);
+
+        Assert.Contains("CE2130_NoDto", violations.Keys);
+        Assert.Contains("CE2130_Mirror", violations.Keys);
+        Assert.DoesNotContain("CE2130_Named", violations.Keys);
+    }
 }

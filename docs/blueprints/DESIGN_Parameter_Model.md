@@ -12,7 +12,7 @@ current-answer: ⭐⭐⭐ §P — the contract by kind (behaviour: inputs once a
   the root params occurrence slot, keyed OccurrenceSlotKey.ComputeRootParamsKey and computed
   rather than stored - so there is no shared blackboard params region left at all.
 known-rot: 4.1's params column is SUPERSEDED for HOSTED occurrences by 4.7 (E3a, 2026-09-21)
-known-rot: (2026-10-12, CE-2133 B1) where this document says the generated parse reads a wrapper object KEYED BY VARIABLE NAME (§3.2, DEBT-AIB-021): no longer for a BTree/HSM whose ONE Input is a struct, nor for an asset that names its params DTO (ParamsDtoTypeId, BTree/HSM/blueprint) — those parse FLAT, the JSON being the DTO's fields (docs/DESIGN_Orders_Params_Entity_Classes.md §5.1). §1 / §P.7 (roles, a resolver asset's authored shape) are rewritten when B3 (CE-2135) builds.
+known-rot: (2026-10-12, CE-2133 B1) where this document says the generated parse reads a wrapper object KEYED BY VARIABLE NAME (§3.2, DEBT-AIB-021): no longer for a BTree/HSM whose ONE Input is a struct, nor for an asset that names its params DTO (ParamsDtoTypeId, BTree/HSM/blueprint) — those parse FLAT, the JSON being the DTO's fields (docs/DESIGN_Orders_Params_Entity_Classes.md §5a.1). §1 / §P.7 (roles, a resolver asset's authored shape) are rewritten when B3 (CE-2135) builds.
 known-rot: (2026-10-12) §P.1's diagram labels "blueprint as a behaviour (O9, planned)" — STALE: 9 Dispatch=Behavior blueprints exist, registered at BrainTierBlueprint (CE-446). Measured in Architect_Question_90 §2.3i.
   and for ROOT occurrences by P4 (2026-09-22, DESIGN_Occurrence_Scoped_Storage.md §30.14): a
   root behaviour's params now live in the root params occurrence slot, same as a hosted
