@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-12
 build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch BUILT 2026-10-12 (as-built §6.1a) · embark §5 and formations §6 are MEASUREMENTS
-current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built
+current-answer: §5a the squad Dismount drill (I-2d, BUILDING 2026-10-12) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
@@ -642,6 +642,88 @@ vehicle — and boarding (`EmbarkExecutor`, red) is constructed only by its unit
 ⭐ **Verdict:** usable today only as "the vehicle ejects everyone, on CGF". A squad that dismounts under fire (S3) needs R-224's
 slice I-2a first (rules class + owner-applied commands + embark registered) and I-2b (replicate `PassengerBuffer`, derive the rest),
 plus a library node to request it. The behaviors lane builds that as S3's first step, against Entity Interactions §7.
+
+## 5a. Dismount — the squad gets out under fire *(build-state: BUILDING `2026-10-12`, ui lane; HANDOFF_Embark_I2d_And_Unit_Orders.md §2 items 1–2 + its STEER; catalogue §11 S3 / P1 / D8)*
+
+⭐ Built on Entity Interactions §7.3 (I-2d): a member leaves through the library `Disembark` (per passenger, the vehicle's owner
+applies it). The squad half is one more play on the S1 runner and one more row in the squad SOP.
+
+| claim the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a play may give a member any library behaviour at Superior, released when the commander's run ends | ✅ `SquadManeuverRunner.Publish` / `SubordinateOrders` (CE-2141) | ✅ orders design §7 (A5) |
+| the runner knows only Hold / Move | ✅ `MemberOrderKind` (`SquadManeuverRunner.cs:34-41`) | ⛔ searched: nothing plans a third kind ⇒ NEW `Disembark` |
+| "squad under fire" = a MEMBER's Hit / NearMiss edge | ✅ `SquadSensing.UnderFire` (`SquadSensing.cs:36-50`) | ✅ §4 S2 |
+| an enclosed passenger cannot be hit (the collider hash skips it) ⇒ an embarked squad never feels under fire | ✅ `PhysicalPresence.IsHidden` (I-2c) | ⛔ nothing says what an ambush on a carrier means to its passengers ⇒ NEW rule below |
+| a Hit edge needs the unit's own `Health` drop on its brain node (`ThreatEvaluationSystem.cs:183-189`) | ✅ | — ⚠ a vehicle whose armour stops a rifle gets no Hit edge; the NearMiss edge is the backstop (measured live) |
+| the squad SOP reacts to `SquadUnderFire` with `ReactToContact` | ✅ `BasicSquadSop.btree.json` | ✅ §4 S2 |
+| units board nothing (R-272) — a platoon's squads are units, their soldiers board | ✅ `Embarkation.TryEmbark` | ✅ §7 |
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadDismountBehavior { <<NEW library, Library/Squad>> resolver SquadDismountParamsJsonDto → SquadDismountPlay }
+  class SquadDismountPlay { <<NEW, ISquadPlay>> one phase: Out · Outcome Success when nobody aboard · Failure on TimeoutSeconds }
+  class SquadDismountManeuver { <<NEW, Fdp.Toolkits Squad>> ManeuverKind 10 · PhaseOut · PhaseAborted }
+  class MemberOrderKind { <<existing + NEW value>> Hold · Move · Disembark }
+  class SquadManeuverRunner { <<existing>> Issue: Disembark ⇒ Publish Disembark (a soldier) / SquadDismount (a unit member) }
+  class SquadSensing { <<existing>> UnderFire: + a carrier's Hit / NearMiss ⇒ SquadUnderFire on each carried member's commander }
+  class SquadNodes { <<NEW SharedAiAction condition>> AnyMemberAboard(commander) }
+  class BasicSquadSop { <<existing recipe + a FIRST row>> under fire AND aboard → React SquadDismount }
+  class DisembarkBehavior { <<NEW, §7.3 of Entity Interactions>> }
+  SquadDismountBehavior ..> SquadDismountPlay
+  SquadDismountPlay ..> SquadDismountManeuver
+  SquadDismountPlay ..> SquadManeuverRunner : Tick
+  SquadManeuverRunner ..> DisembarkBehavior : member order
+  BasicSquadSop ..> SquadNodes
+  BasicSquadSop ..> SquadDismountBehavior : React
+  SquadSensing ..> BasicSquadSop : SquadUnderFire
+```
+*What the picture shows that prose hid: the dismount is NOT a new fight — it ends the moment everyone is out, and the SAME squad SOP
+then picks `ReactToContact` (the members are now hittable and seeing). One drill, no copy of the battle drill inside it.*
+
+```mermaid
+sequenceDiagram
+  participant E as insurgent fire
+  participant V as the carrier (brain node)
+  participant S as SquadSensing (CGF)
+  participant SOP as BasicSquadSop (commander)
+  participant D as SquadDismount play
+  participant M as member (Disembark → DisembarkExecutor)
+  participant O as EmbarkationSystem (vehicle's owner)
+  E->>V: hit / near miss ⇒ Hit or NearMiss edge on the VEHICLE
+  V->>S: the edge (next frame)
+  S->>SOP: SquadUnderFire on each carried member's commander
+  SOP->>SOP: row 1: under fire AND AnyMemberAboard ⇒ React SquadDismount
+  SOP->>D: start (pauses the commander's task)
+  D->>M: Disembark (Superior) to every member aboard
+  M->>O: DisembarkEntityCommand ⇒ beside the hull, CanMove / CanShoot back
+  D-->>SOP: nobody aboard ⇒ Success (its orders released)
+  SOP->>SOP: next tick: under fire / contact ⇒ ReactToContact (the S2 drill)
+```
+
+```mermaid
+graph TD
+  CLP["CgfLogicPack (CGF + editor)"] -->|"interaction executors"| DX["DisembarkExecutor (action 2) NEW"]
+  CLP -->|"Simulation"| SC["SquadCoordinationSystem → SquadSensing.UnderFire (+ carriers) CHANGED"]
+  BT["BrainTickSystem (CGF, per brain)"] --> SOP["commander SOP: BasicSquadSop + row 1 NEW"]
+  BT --> PLAY["SquadDismount → SquadManeuverRunner.Tick"]
+  PLAY -->|"AssignTacticalIntentEvent, Superior"| TIR["TacticalIntentResolutionSystem → member Disembark"]
+  INF["cap:infra:interactions (every host)"] --> ES["EmbarkationSystem — applies on the vehicle's owner"]
+```
+*What the module picture shows: every new piece runs where the brains run (CGF and the editor's `CgfLogicPack`); the only applier is
+the existing cross-role `EmbarkationSystem`, so nothing is registered per host (trap ⑫).*
+
+| decision | ⭐ chosen | rejected (one line each) |
+|---|---|---|
+| the drill's length | ONE phase: everyone out ⇒ Success; the SOP then runs the battle drill | a "take cover" phase inside: a second `ReactToContact`; `CombatPosture` already takes cover from the vehicle sides (CE-3142) |
+| who triggers it | the squad SOP's FIRST row (under fire AND a member aboard) | the vehicle's brain ejecting: empties a mixed load and the vehicle cannot know the squad's state; inside `ReactToContact`: hides one drill in another |
+| what "under fire" means aboard | a Hit / NearMiss edge on the CARRIER of a member ⇒ `SquadUnderFire` on that member's commander | passengers sensing through the hull: hidden passengers are not hit by design (R-271) |
+| a unit member (a platoon's squad) | it gets `SquadDismount` itself (its soldiers board, not it) | `Order.Dismount`: no such order kind, and the orders design forbids new order DTOs outside Track D |
+| timeout | `TimeoutSeconds` (default 10 s) ⇒ Failure (someone could not get out) | waiting forever: a refused disembark (the owner gone) would hang the SOP |
+
+**Acceptance (catalogue P1, D8):** the shipped `tt-convoy-ambush` scenario on `test-town`: a squad aboard an APC, insurgents
+fire on the APC ⇒ the squad dismounts (nobody aboard), then reacts to contact (its members fire back). Live rail in
+`SquadTacticsScenarioTests` (the squad scenarios' suite, T-1).
 
 ## 6. Formations — as measured *(2026-10-11)*
 

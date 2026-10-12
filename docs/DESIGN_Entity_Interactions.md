@@ -2,13 +2,13 @@
 state: LIVE
 updated: 2026-10-12 (I-2a BUILT — §7.1b; I-2b BUILT — §7.1d)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.3 I-2d (the AI nodes, 2026-10-12, BUILDING) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
 related-designs:
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-274 (behaviors): carry capacity and seats per vehicle type (B) and the human-carrier profile (C); R-275 (behaviors): Health in the cross-role set (D)
-  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §5 the measured state of embark/disembark (2026-10-11) and why the squad dismount (S3) needs I-2a/I-2b first
+  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §5a OWNS the squad Dismount drill that uses I-2d's Disembark (and the convoy-ambush acceptance); §5 the measured state of embark/disembark (2026-10-11) and why the squad dismount (S3) needs I-2a/I-2b first
   - docs/DESIGN_Building_Interiors.md §3j "5d" — OWNS doors (DoorRules, the door actions, DoorCommandSystem); doors are this design's first kind
   - docs/designs/edit-1/DESIGN.md §3.A — OWNS the typed FDP domain commands EmbarkEntityCommand / DisembarkEntityCommand; this design carries such commands to the owner
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS who owns what (descriptor claims, F-10 edit requests to the owner); a handler's gate is that design's descriptor ownership
@@ -560,3 +560,77 @@ every host calls). The carry needs no new system and no cross-group ordering: th
 | rail | result |
 |---|---|
 | `PhysicalPresence` via `EmbarkedStateSystemTests.CE3110_I2c_BoardingAnOpenCabin_LeavesThePassengerExposed` · `LocalGridBuilderSystemTests.CE3110_I2c_…` (incl. the equal-count boarding) · `SpatialHashSystemTests.CE3110_I2c_…` · `AreaEffectSystemTests.CE3110_I2c_…` · `CarKinematicsSystemTests.CE3110_I2c_…` · `EmbarkedStateSystemTests` carry + kill · `VehicleKinematicsTkbTranslatorTests.CE3110_I2c_…` · `UnitCommanderTests.CE3110_I2c_…` (EQS area search) · `EmbarkationTests.CE3110_AUnitNeitherBoardsNorCarries` · `HrotSharedComponentRegistryTests.CE3110_…` | ✅ all green; red-proved by reverting each mechanism |
+
+### 7.3 I-2d — the AI can ask *(build-state: BUILDING `2026-10-12`, ui lane; HANDOFF_Embark_I2d_And_Unit_Orders.md §2 item 1, its STEER; R-282 (behaviors))*
+
+#### 7.3.0 INVENTORY *(graph CLI `search_graph` `.*Embark.*` · `.*Disembark.*` · `.*DoorNodes.*` · `.*SquadManeuverRunner.*` · `.*DoorLocksmith.*`, + grep)*
+
+| exists | where | role in I-2d |
+|---|---|---|
+| `EmbarkExecutor` (interaction action 1) — raises `EmbarkEntityCommand`, waits for the tag; **does not walk** (Running while out of range) | `Fdp.Toolkits/Behavior/Executors/EmbarkExecutor.cs:59-87` | reused unchanged; the node walks |
+| `EjectPassengersExecutor` (action 3, the VEHICLE's) | same folder | not used by I-2d (a squad dismount is per passenger) |
+| interaction action **2** reserved "for a per-passenger disembark action" | §7.1a, `BehaviorConstants.cs:111-126` | ⇒ `DisembarkExecutor` takes it |
+| `DoorNodes.MoveToDoor` / `OperateDoor` — the shape: walk on the locomotion channel, then one action on the interaction channel, forward its answer once | `Fdp.Toolkits/Terrain/DoorNodes.cs` | ⭐ the template for the two nodes |
+| `LocomotionMoveTo` — "THE one way a C# node moves its own unit" (CE-2092) | `Hrot.AI.Behaviors/Brains/LocomotionMoveTo.cs` | the nodes' walk ⇒ the nodes live in `Hrot.AI.Behaviors` |
+| `Embarkation.DismountPoint` — beside the hull (radius + 1.5 m) | `Embarkation.cs:139` | the boarding point (seat 0 of 1) |
+| boarding stays `CanInteract` (only CanMove / CanShoot stripped) | `Embarkation.cs:48` | ⇒ a passenger's interaction action runs aboard |
+| curated library behaviour pattern: `[BehaviorResolver]` from a `[BehaviorContract]` DTO into a blackboard of node params | `DoorLocksmithBehavior.cs` | the two library behaviours |
+| a JSON-authored entity reference: `EntityRef` (network id, remapped on load, picked by the editor) | `Fdp.Toolkits/Replication/EntityRef.cs` | the vehicle in the params |
+
+```mermaid
+classDiagram
+  direction LR
+  class EmbarkNodes { <<NEW, Hrot.AI.Behaviors, SharedAiAction>> +Embark(ref EmbarkNodeParams) · +Disembark(ref DisembarkNodeParams) }
+  class EmbarkNodeParams { <<NEW>> Entity Vehicle · float Speed · Walk · Started }
+  class DisembarkNodeParams { <<NEW>> Started }
+  class LocomotionMoveTo { <<existing>> Issue · Status · Stop }
+  class EmbarkExecutor { <<existing, action 1>> raise EmbarkEntityCommand · wait for the tag }
+  class DisembarkExecutor { <<NEW, Fdp.Toolkits, action 2>> raise DisembarkEntityCommand · wait for the tag to go · 5 s timeout }
+  class Embarkation { <<existing rules>> +BoardingPoint(vehicle) NEW · +BoardingRange(vehicle) NEW · DismountPoint }
+  class EmbarkBehavior { <<NEW library, Library/Basic>> resolver EmbarkParamsJsonDto → one Embark node }
+  class DisembarkBehavior { <<NEW library, Library/Basic>> resolver DisembarkParamsJsonDto → one Disembark node }
+  class EmbarkParamsJsonDto { <<NEW, Hrot.Core>> BehaviorContract Embark · EntityRef Vehicle · float Speed }
+  class DisembarkParamsJsonDto { <<NEW, Hrot.Core, empty>> BehaviorContract Disembark }
+  class CgfLogicPack { <<existing>> registers the interaction executors }
+  EmbarkNodes ..> LocomotionMoveTo : walk to the boarding point
+  EmbarkNodes ..> Embarkation : BoardingPoint / BoardingRange
+  EmbarkNodes ..> EmbarkExecutor : action 1 on InteractionChannel
+  EmbarkNodes ..> DisembarkExecutor : action 2 on InteractionChannel
+  EmbarkBehavior ..> EmbarkNodes
+  DisembarkBehavior ..> EmbarkNodes
+  EmbarkBehavior ..> EmbarkParamsJsonDto
+  DisembarkBehavior ..> DisembarkParamsJsonDto
+  CgfLogicPack ..> DisembarkExecutor : registers (beside 1 and 3)
+```
+*What the picture shows that prose hid: nothing new writes embarkation state — both nodes end in an EXISTING command applied by the
+EXISTING `EmbarkationSystem` on the vehicle's owner (§7.1b); the nodes only walk and ask, exactly as the door nodes do.*
+
+```mermaid
+sequenceDiagram
+  participant N as Embark node (soldier's brain, CGF)
+  participant L as LocomotionChannel (MoveTo)
+  participant I as InteractionChannel → EmbarkExecutor
+  participant V as EmbarkationSystem (vehicle's owner)
+  N->>N: resolve the vehicle · already aboard ⇒ Success
+  N->>L: out of BoardingRange ⇒ MoveTo BoardingPoint (Running)
+  L-->>N: arrived (or failed ⇒ Failure)
+  N->>I: action 1 {Vehicle, MaxBoardingRange = BoardingRange}
+  I->>V: EmbarkEntityCommand (local, or over the interaction topic)
+  V-->>I: the list replicates ⇒ IsEmbarkedTag on the soldier
+  I-->>N: Success (once) — the node frees the channel
+```
+
+| decision | ⭐ chosen | rejected (one line each) |
+|---|---|---|
+| where the nodes live | `Hrot.AI.Behaviors` beside `PostureNodes` (they move the unit through `LocomotionMoveTo`, CE-2092) | FDP beside `DoorNodes`: it would copy the channel write a second time (DoorNodes already carries one) |
+| how the node walks | to `Embarkation.BoardingPoint` (seat 0 beside the hull — the point a dismount stands on, so it is walkable when the road is) | to the vehicle's centre: inside the hull, off the navmesh ⇒ fails forever (S3 trap ③) |
+| the executor's range | the node passes `BoardingRange` = hull + clearance + 1 m, so the executor's distance test agrees with where the node stopped | the executor's 3 m default: shorter than the boarding point of any hull over 0.5 m (a 3.5 m APC would never board) |
+| per-passenger leaving | NEW `DisembarkExecutor` on the reserved action 2 (raise `DisembarkEntityCommand`, wait for the tag to go) | the node raising the command itself: §7's rule is "executors raise, the owner applies"; eject-all: the vehicle's action, and it empties a mixed load |
+| `Disembark`'s params | its own EMPTY `DisembarkParamsJsonDto` with `[BehaviorContract]` (so it is listed for infantry / insurgents) — becomes `NoParams` when B2 (CE-2134) moves the contract onto the behaviour, with the six A1 empties (CE-2131) | `NoParams` now: a curated non-order behaviour gets a params DTO only through `[BehaviorContract]` today (`CuratedBehaviorGenerator.cs:154-156`), so it would be a P1 violator and invisible to the mission panel (`BehaviorCatalog.cs:45-61`) |
+
+| rail | proves |
+|---|---|
+| `EmbarkNodesTests` (SimHost.Tests, one world, CGF pack's executors) | walk-then-board · already aboard ⇒ Success at once · a gone vehicle ⇒ Failure · disembark ⇒ beside the hull, capabilities back · not aboard ⇒ Success |
+| `DisembarkExecutorTests` (Fdp.Toolkits.Tests, beside `EmbarkExecutorTests`) | raise once → the owner applies → Success; no answer ⇒ timeout Failure |
+| `CgfLogicPackTests` | action 2 registered |
+| CE-2130 conformance | the two behaviours name a contract DTO (P1/P2) |
