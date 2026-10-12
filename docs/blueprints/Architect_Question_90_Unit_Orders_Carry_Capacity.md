@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -14,6 +14,7 @@ related-designs:
   - docs/DESIGN_Entity_Interactions.md — OWNS embarkation (§7); B and C extend it
   - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — OWNS the origin gate (R-188), the SOP slot (R-189); its "an order as a GOAL" idea (deferred) is A2's rejected alternative
   - docs/blueprints/DESIGN_Parameter_Model.md — OWNS the behaviour start pipeline and the resolver (§P.2, R-152/R-154) that A7 puts one stage in front of
+  - docs/UX/Architect_Question_25_Scenario_Authoring_Golden_Path.md — Q25-C: the asset declares its category mask + param schema (recommended, awaiting approval); §2.3e builds on it
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS the injury states (D1 / R-263) C depends on, and the echelon gap (T6)
 -->
 
@@ -247,6 +248,27 @@ Blast radius:
 Rejected:
 - **Keep the contract on the DTO with `AllowMultiple = true`:** the DTO would list every behaviour that uses it, so adding `TankPlatoonMove` edits the shared order DTO.
 - **Strings for classes:** typos and no completion; the user's ask.
+
+### 2.3e Measured: can behaviours share one params DTO, can an asset pick one, where entity classes are set *(2026-10-12; one docs sweep, one code sweep, key lines re-read)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| sharing a DTO was considered and deferred, not forbidden | — | ✅ Resolver design §3.1 (:133): *"No shared param-contract layer … If one ever appears it is an additive change (a behavior points at a shared named param-type)"* |
+| the runtime keys everything by behaviour NAME; no type → name map; two names on one type collide nowhere | ✅ `BehaviorRegistry.cs:370-404` (every dictionary), `RegisterJsonParamsDtoType` :571-584; `BehaviorUiRegistry` and `ScenarioBehaviorRemapper` by name; the curated generator emits nothing per type (`CuratedBehaviorGenerator.cs:246-285`); saved state is name + JSON (`BehaviorStartRecord`, `MissionTask`, `PausedTask`, `SopState`) | ✅ R-154: looked up by behaviour name |
+| the ONE blocker: `[BehaviorContract]` is one-per-DTO and names one behaviour | ✅ `BehaviorContractAttribute.cs:5,8` | — |
+| one small collision: the blueprint palette keys To / From JSON by the DTO's type (`Json.To.{Fqn}`), so a DTO with two behaviour ids would list twice | ✅ `IntentContractPaletteEntries.cs:106,115,124` | — |
+| no two behaviours share a DTO today | ✅ every `ParamsType` and every `BehaviorId` unique | — |
+| an ASSET declares its params field by field: BTree / HSM Input variables (`VariablesPanelControl`), blueprint Parameters (`ParameterRowsView`). The type pickers list primitives, `EntityRef` and `[BlackboardDtoStruct]` structs; order / `[BehaviorContract]` DTOs are NOT offered | ✅ `BlackboardTypeChoiceBuilder.cs:40-128`, `BlueprintTypeSystem.SelectableTypeIds :289-335` | ✅ Parameter Model §P.7: *"the authored contract IS the block's `In` struct"* (BTree), the asset's Parameters (blueprint) |
+| a whole hand-written struct as the blackboard ("Category-1", `Managed = false`) exists in the asset model, but no editor UI sets it | ✅ `BehaviorTreeAssetDto.cs:54-57`; set only by the new-asset services | ✅ Blackboard Authoring design (Category-1 / Category-2) |
+| no asset model (BTree, HSM, blueprint) has an entity type / class field, and no editor has an asset-level properties panel; the asset-level surfaces are the blackboard window (BTree / HSM) and the graph signature window (blueprint) | ✅ `BehaviorTreeAssetDto.cs:386-440`, `HsmAssetDto.cs:335-376`, `BlueprintAsset.cs`; `BlackboardAuthoringWindow`, `GraphSignatureWindow` | ✅ AQ25 Q25-C recommended *"the asset declares its category mask + param schema, authored in the editor"* (awaiting approval); the code's own TODO |
+
+**Leans:**
+
+| question | ⭐ lean |
+|---|---|
+| sharing | ✅ allowed. It is the *"additive change"* the resolver design anticipated, and it needs only two changes: the contract moves onto the behaviour (§2.3d), and the palette de-duplicates by DTO type |
+| an ASSET implementing an order | the asset declares **"implements order: Move"** (asset property). The editor adds the order DTO's fields as Input variables / Parameters, with the same names and types, and locks their name and type. The asset's own generated struct is then a superset, and the load check (§2.3b ②) catches drift when the order DTO later changes. ⛔ Rejected: picking the order DTO as ONE struct-typed variable (the JSON nests as `"Order": {…}` and stops matching by name), and Category-1 for the whole blackboard (loses the asset's own extra knobs and state; no UI) |
+| entity classes on an asset | a new asset property **`Classes: EntityClass[]`** on all three asset models, persisted in the asset JSON and emitted by each generator into the registrar (beside the name). Edited in a small **"Behaviour" section** at the top of the two existing asset-level windows: the blackboard window (BTree / HSM) and the graph signature window (blueprint), since no asset-properties panel exists. For an order behaviour, class and order are shown read-only, derived from its `<Class><Order>` name |
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 

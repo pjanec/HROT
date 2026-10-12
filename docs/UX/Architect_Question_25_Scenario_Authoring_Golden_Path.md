@@ -9,6 +9,8 @@ design-basis: PROGRAMME_Unification_And_Harness.md (editor = one-node cluster) �
   mooted Q25-F/F′) · AI_Editor_Shared_Infrastructure.md §17 (hot-reload Cosmetic/Soft/Hard classification).
 known-conflict: Q26 supersedes Q25-D and moots Q25-F/F′ — the "new editor exe" lean (F5/UXD-08) is
   WITHDRAWN (2026-08-10). Read §F/§F′ as historical.
+related-designs:
+  - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — §2.3c–§2.3e: entity CLASSES (an enum, from the TKB) replace the category mask; assets carry Classes, edited in the editor (Q25-C C1)
 -->
 # Architect question #25 — Scenario-authoring UX: the five structural decisions
 
