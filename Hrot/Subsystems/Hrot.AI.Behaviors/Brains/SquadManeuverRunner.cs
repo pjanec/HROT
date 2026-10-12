@@ -14,6 +14,8 @@ using FDP.Eqs;
 using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Squad.Primitives;
 using Hrot.Map.Definitions.Behavior;
+using Hrot.Map.Definitions.Behavior.Orders;
+using Hrot.AI.Behaviors.Orders;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -374,8 +376,8 @@ namespace Hrot.AI.Behaviors.Brains
                 squad.Roles[i].RoleId = order.RoleId;
                 var point = order.Kind == MemberOrderKind.Hold ? at : order.Point;
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
-                if (order.Kind == MemberOrderKind.Hold) Hold(ctx.World, m, point, order.Speed);
-                else Move(ctx.World, m, point, order.Speed, order.ArrivalRadius);
+                if (order.Kind == MemberOrderKind.Hold) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
+                else Move(ctx.World, ctx.Commander, m, point, order.Speed, order.ArrivalRadius);
             }
             ws.IssuedPhase = squad.PhaseId;
             ws.IssuedAt = ctx.Now;
@@ -384,25 +386,60 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>HOLD: the library CombatPosture at the member's own position — with the enemy in sight it suppresses (or lies prone)
-        /// and stays (measured, §2). From the commander; the intent id IS the behaviour (no mapper).</summary>
-        public static void Hold(EntityRepository world, Entity member, Vector3 at, float speed)
-            => Publish(world, member, BehaviorNames.CombatPosture, JsonSerializer.Serialize(new CombatPostureParamsJsonDto
+        /// and stays (measured, §2). From the commander; the intent id IS the behaviour (no mapper). ⭐ <c>CE-2141</c> (A4): a member
+        /// that is itself a UNIT gets the order <c>Order.Hold</c> and decides for itself how to hold.</summary>
+        public static void Hold(EntityRepository world, Entity commander, Entity member, Vector3 at, float speed)
+        {
+            if (IsUnit(world, member)) { Order(world, commander, member, nameof(OrderKind.Hold), "{}"); return; }
+            Publish(world, commander, member, BehaviorNames.CombatPosture, JsonSerializer.Serialize(new CombatPostureParamsJsonDto
             {
                 Advance = new CombatPostureAdvanceJsonDto { Objective = at, Speed = speed, ArrivalRadius = 1f },
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+        }
 
-        /// <summary>MOVE: the library AdvanceTo — there, firing on the way, whatever the posture decision would say.</summary>
-        public static void Move(EntityRepository world, Entity member, Vector3 point, float speed, float arrival)
-            => Publish(world, member, BehaviorNames.AdvanceTo, JsonSerializer.Serialize(new AdvanceToParamsJsonDto
+        /// <summary>MOVE: the library AdvanceTo — there, firing on the way, whatever the posture decision would say. ⭐ <c>CE-2141</c>
+        /// (A4): a member that is a UNIT gets <c>Order.Move</c> to the same point (geodetic) and moves itself.</summary>
+        public static void Move(EntityRepository world, Entity commander, Entity member, Vector3 point, float speed, float arrival)
+        {
+            if (IsUnit(world, member))
+            {
+                Order(world, commander, member, nameof(OrderKind.Move), JsonSerializer.Serialize(new MoveOrder
+                {
+                    Location = OrderGeo.ToGeo(world, point), Speed = speed, ArrivalRadius = arrival,
+                }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+                return;
+            }
+            Publish(world, commander, member, BehaviorNames.AdvanceTo, JsonSerializer.Serialize(new AdvanceToParamsJsonDto
             {
                 Objective = point, Speed = speed, ArrivalRadius = arrival,
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+        }
 
-        private static void Publish(EntityRepository world, Entity member, string behaviour, string json)
-            => world.Bus.PublishManaged(new AssignTacticalIntentEvent
+        /// <summary>⭐ <c>CE-2141</c> (A4) — a member that is itself a unit (a platoon's squad): it receives ORDERS, not behaviours.</summary>
+        public static bool IsUnit(EntityRepository world, Entity member)
+            => world.IsComponentTypeRegistered<UnitEntity>() && world.HasComponent<UnitEntity>(member);
+
+        /// <summary>The order the COMMANDER's run gives a member: recorded on the commander (released when that run ends —
+        /// <see cref="SubordinateOrders"/>, A5), then published at Superior.</summary>
+        private static void Publish(EntityRepository world, Entity commander, Entity member, string behaviour, string json)
+        {
+            SubordinateOrders.Record(world, commander, member, behaviour, BehaviorOrigin.Superior);
+            world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
                 Entity = member, IntentId = behaviour, JsonParams = json, Origin = BehaviorOrigin.Superior,
             });
+        }
+
+        /// <summary>⭐ <c>CE-2141</c> — an ORDER to a unit member (<c>Order.&lt;name&gt;</c>, resolved by the member itself — D3). Its
+        /// release is an unnamed clear: the commander cannot know which behaviour it resolved to.</summary>
+        private static void Order(EntityRepository world, Entity commander, Entity member, string orderName, string json)
+        {
+            SubordinateOrders.Record(world, commander, member, string.Empty, BehaviorOrigin.Superior);
+            world.Bus.PublishManaged(new AssignTacticalIntentEvent
+            {
+                Entity = member, IntentId = OrderAttribute.IntentFor(orderName), JsonParams = json, Origin = BehaviorOrigin.Superior,
+            });
+        }
 
         /// <summary>Every live member of <paramref name="element"/> is within <see cref="MoverArrivalMetres"/> of its point.</summary>
         public static unsafe bool ElementArrived(in SquadPlayState ws, in SquadPlayContext ctx, byte element)

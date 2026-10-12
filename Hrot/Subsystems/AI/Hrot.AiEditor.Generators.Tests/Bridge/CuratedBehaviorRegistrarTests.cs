@@ -76,6 +76,9 @@ public sealed class CuratedBehaviorRegistrarTests
         beh.GroupOf("SuppressAndManeuver").Should().Be("Library/Squad");   // CE-2123
         beh.GroupOf("AdvanceTo").Should().Be("Library/Infantry");          // CE-2123
         beh.GroupOf("SquadMarch").Should().Be("Library/Squad");            // CE-2123 S3
+        beh.GroupOf("InfantrySquadMove").Should().Be("Library/Squad");     // CE-2141
+        beh.GroupOf("InfantrySquadHold").Should().Be("Library/Squad");     // CE-2141
+        beh.GroupOf("InfantrySquadAttack").Should().Be("Library/Squad");   // CE-2141
         beh.GroupOf("MoveToLocation").Should().Be("Library/Basic");
         beh.GroupOf("Idle").Should().Be("Library/Basic");
         beh.GroupOf("WindowDuel").Should().Be("Demos/PeekAndFire");
@@ -112,6 +115,9 @@ public sealed class CuratedBehaviorRegistrarTests
             Hrot.Map.Definitions.Behavior.BehaviorNames.SuppressAndManeuver,   // CE-2123
             Hrot.Map.Definitions.Behavior.BehaviorNames.AdvanceTo,             // CE-2123
             Hrot.Map.Definitions.Behavior.BehaviorNames.SquadMarch,            // CE-2123 S3
+            Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadMove,     // CE-2141
+            Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadHold,     // CE-2141
+            Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadAttack,   // CE-2141
         };
 
         foreach (var name in curated)

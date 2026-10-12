@@ -57,6 +57,15 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2123</c> S3 — the squad marches to a point in File / Wedge / Line, falling back to file on the lead's trail.</summary>
         public const string SquadMarch = "SquadMarch";
 
+        /// <summary>⭐ <c>CE-2141</c> (D2) — an infantry squad fulfils the MOVE order: it marches there (Wedge, or File on a road).</summary>
+        public const string InfantrySquadMove = "InfantrySquadMove";
+
+        /// <summary>⭐ <c>CE-2141</c> (D2) — an infantry squad fulfils the HOLD order: it holds where it stands and fights, until told otherwise.</summary>
+        public const string InfantrySquadHold = "InfantrySquadHold";
+
+        /// <summary>⭐ <c>CE-2141</c> (D2) — an infantry squad fulfils the ATTACK order: suppress and manoeuvre on the named target.</summary>
+        public const string InfantrySquadAttack = "InfantrySquadAttack";
+
         /// <summary>⭐ CE-3172 (R-270, M-7) — what a POSSESSED unit runs: the station's controls drive its body
         /// (DESIGN_Entity_Control §8b). Assigned by <c>PossessionSystem</c> at origin Possession only.</summary>
         public const string OperatorControl = "OperatorControl";

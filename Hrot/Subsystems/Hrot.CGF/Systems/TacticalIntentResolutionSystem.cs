@@ -94,8 +94,9 @@ namespace Hrot.CGF.Systems
 
             var events = repo.Bus.ReadManaged<AssignTacticalIntentEvent>();
 
-            foreach (var evt in events)
+            for (int i = 0; i < events.Count; i++)
             {
+                var evt = events[i];
                 if (evt == null) continue;
 
                 // Authority gate (CQRS boundary): skip when this node does not own the
@@ -113,7 +114,14 @@ namespace Hrot.CGF.Systems
                 //   cannot end a higher one); the SOP picks next. The one wire path for assign AND clear (Sensors §7.7).
                 if (evt.Kind == TacticalIntentKind.Clear)
                 {
-                    repo.Bus.Publish(new ClearBehaviorEvent { Entity = evt.Entity, Origin = evt.Origin });
+                    // ⭐ CE-2141 (D2-D) — a clear followed by an order to the same entity in this frame is SUPERSEDED: the ingress applies
+                    //   a frame's assigns before its clears (two buses), so passing both on would end the new order. The last word wins.
+                    if (AssignedLater(events, i, evt.Entity)) continue;
+                    // ⭐ CE-2141 (D2-C) — a clear that NAMES a behaviour ends only that one (a commander releasing its ended drill's
+                    //   order); a name this node does not know cannot be running here.
+                    int only = 0;
+                    if (!string.IsNullOrEmpty(evt.IntentId) && !_behaviorRegistry.TryGetId(evt.IntentId, out only)) continue;
+                    repo.Bus.Publish(new ClearBehaviorEvent { Entity = evt.Entity, Origin = evt.Origin, OnlyBehaviorHash = only });
                     continue;
                 }
 
@@ -151,6 +159,14 @@ namespace Hrot.CGF.Systems
                 behaviorEvent.Origin = evt.Origin;
                 repo.Bus.PublishManaged(behaviorEvent);
             }
+        }
+
+        /// <summary>⭐ <c>CE-2141</c> — an ASSIGN to <paramref name="entity"/> follows event <paramref name="index"/> in this frame.</summary>
+        private static bool AssignedLater(System.Collections.Generic.IReadOnlyList<AssignTacticalIntentEvent> events, int index, Entity entity)
+        {
+            for (int j = index + 1; j < events.Count; j++)
+                if (events[j] is { Kind: TacticalIntentKind.Assign } later && later.Entity.Equals(entity)) return true;
+            return false;
         }
     }
 }

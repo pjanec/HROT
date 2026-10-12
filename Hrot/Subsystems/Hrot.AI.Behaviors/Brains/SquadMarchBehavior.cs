@@ -162,7 +162,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (lag > SquadManeuverRunner.MoverArrivalMetres) allAtSlots = false;
                 if (!silent && Flat(slot - ordered) >= ReorderMetres)
                 {
-                    SquadManeuverRunner.Move(ctx.World, m, slot, p.Speed, SquadManeuverRunner.MoverArrivalMetres);
+                    SquadManeuverRunner.Move(ctx.World, ctx.Commander, m, slot, p.Speed, SquadManeuverRunner.MoverArrivalMetres);
                     Aim(ref ws, i, slot, at, t);
                     march.Reorders++;
                 }
@@ -174,7 +174,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (march.LeadHalted == 0 && worstLag > p.MaxLagMetres && t >= march.HaltsAllowedAt && march.LeadWalked >= p.MaxLagMetres)
             {
                 march.LeadHalted = 1; march.HaltSince = t;
-                SquadManeuverRunner.Hold(ctx.World, leadEntity, leadAt, p.Speed);
+                SquadManeuverRunner.Hold(ctx.World, ctx.Commander, leadEntity, leadAt, p.Speed);
                 Aim(ref ws, lead, leadAt, leadAt, t);
                 march.Reorders++;
             }
@@ -183,7 +183,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (t - march.HaltSince > HaltMaxSeconds) march.HaltsAllowedAt = t + HaltMaxSeconds;
                 march.LeadHalted = 0;
                 march.LeadProgressAt = t;
-                SquadManeuverRunner.Move(ctx.World, leadEntity, p.Objective, p.Speed, p.ArrivalRadius);
+                SquadManeuverRunner.Move(ctx.World, ctx.Commander, leadEntity, p.Objective, p.Speed, p.ArrivalRadius);
                 Aim(ref ws, lead, p.Objective, leadAt, t);
                 march.Reorders++;
             }
@@ -230,6 +230,8 @@ namespace Hrot.AI.Behaviors.Brains
             };
         }
 
+        /// <summary>⭐ CE-2141 — nothing of its own to drop; the members' orders are released when the commander's RUN ends
+        /// (<c>SubordinateOrders</c>), not here: a play inside <c>ReactToContact</c> ends and the next starts in one tick.</summary>
         public void Release(ref SquadPlayState ws, EntityRepository world) { }
 
         /// <summary>

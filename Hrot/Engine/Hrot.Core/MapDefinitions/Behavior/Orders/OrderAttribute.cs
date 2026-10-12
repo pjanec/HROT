@@ -19,6 +19,13 @@ namespace Hrot.Map.Definitions.Behavior.Orders
 
         /// <summary>The map gesture that issues this order with no menu (an RTS click), if any.</summary>
         public OrderGesture Gesture { get; set; }
+
+        /// <summary>⭐ <c>CE-2141</c> — the tactical-intent id of an ORDER (§3.1): <c>Order.&lt;Name&gt;</c>; the receiver resolves it
+        /// to its own behaviour (D3). A behaviour name never starts with it.</summary>
+        public const string IntentPrefix = "Order.";
+
+        /// <summary>The intent id of order <paramref name="orderName"/>.</summary>
+        public static string IntentFor(string orderName) => IntentPrefix + orderName;
     }
 
     /// <summary>⭐ <c>CE-2140</c> — the map gestures an order DTO may claim, so no order name is written in UI code (AQ90 §2.3k ①).</summary>

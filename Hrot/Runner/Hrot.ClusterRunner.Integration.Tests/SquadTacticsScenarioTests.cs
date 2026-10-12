@@ -343,5 +343,92 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             Assert.True(cost / Math.Max(seconds, 1e-3) <= 5.0, $"the march must cost at most 5 move orders a sim second: {cost} in {seconds:F1} s");
         }
         finally { NasScenarioStaging.Remove(scenarioId); }
+    
+    /// <summary>
+    /// ⭐⭐ <c>CE-2141</c> (D2) — the MOVE order, live: <c>tt-squad-march</c> with the commander's authored march removed, then
+    /// <c>InfantrySquadMove</c> ordered at run time with a GEODETIC location (lat/lon from the node's own transform, as the map menu
+    /// will send it). The squad marches there in its own shape (a Wedge off-road), and when the drill ends every member's drill
+    /// order is RELEASED (AQ90 A5): no member is left running the AdvanceTo / CombatPosture it was given.
+    /// 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §7.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2141_AMoveOrder_WithAGeodeticPoint_MarchesTheSquadThere_AndReleasesItsMembersAtTheEnd()
+    {
+        var root = RepoRoot();
+        var scenarioId = "tt_squad_move_" + Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
+        try
+        {
+            var doc = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(
+                Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-squad-march", "scenario.json")))!;
+            foreach (var (_, e) in doc["entities"]!.AsObject())
+                if ((string?)e!["EntityInfo"]?["Name"] == "Squad") e.AsObject().Remove("Behavior");   // the order comes at run time
+            File.WriteAllText(Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), doc.ToJsonString());
+
+            using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+            var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+            var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+            while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
+            {
+                harness.PumpFrames(1);
+                Thread.Sleep(10);
+            }
+            await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = ClusterOpType.TransitionState,
+                PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive), ScenarioId = scenarioId }),
+            }).ConfigureAwait(false);
+            Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000),
+                $"cluster must reach OperatingLive; at {(int)master.CurrentClusterState}");
+
+            var cgf = harness.Cgf!.World!;
+            var sim = harness.SimHost.World!;
+            Assert.True(harness.PumpUntil(() => !ByName(cgf, "Squad").IsNull && cgf.HasComponent<UnitRoster>(ByName(cgf, "Squad"))
+                                             && cgf.GetComponent<UnitRoster>(ByName(cgf, "Squad")).Count == 5, timeoutFrames: 3000),
+                "the squad's commander and its five men must spawn");
+            var leader = ByName(cgf, "Squad");
+            var objective = new Vector2(340f, 300f);
+            double SimNow() => cgf.HasSingleton<GlobalTime>() ? cgf.GetSingleton<GlobalTime>().TotalTime : -1;
+            Entity[] Members() { var r = cgf.GetComponent<UnitRoster>(leader); return Enumerable.Range(0, r.Count).Select(i => r.SubordinateEntities[i]).ToArray(); }
+            Vector3[] Bodies() => Members().Select(m =>
+            {
+                var body = ByName(sim, cgf.GetComponent<EntityInfo>(m).Name.ToString());
+                return body.IsNull ? new Vector3(float.NaN) : sim.GetComponent<SimTransform>(body).Position;
+            }).ToArray();
+            int Running(Entity e) => cgf.HasComponent<BehaviorState>(e) ? cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash : 0;
+            string State() => $"t={SimNow():F1}s kind={cgf.GetComponent<SquadCognitiveState>(leader).ManeuverKind} task={Running(leader)} | "
+                             + string.Join(" | ", Bodies().Select((p, i) => $"m{i} at={p.ToString("F0", null)} d={Vector2.Distance(new Vector2(p.X, p.Y), objective):F0} runs={Running(Members()[i])}"));
+
+            // ① the order, as the map menu sends it: a geodetic point, through the one tactical-intent path.
+            var geo = cgf.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>();
+            var (lat, lon, _) = geo.ToGeodetic(new Vector3(objective, 0f));
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            cgf.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
+            {
+                Entity = leader, IntentId = Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadMove, Origin = BehaviorOrigin.Operator,
+                JsonParams = "{\"Location\":[" + lat.ToString("R", inv) + "," + lon.ToString("R", inv) + "]}",
+            });
+            int moveHash = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadMove);
+            Assert.True(harness.PumpUntil(() => cgf.GetComponent<SquadCognitiveState>(leader).ManeuverKind == SquadMarchManeuver.ManeuverKind
+                                             && Running(leader) == moveHash, timeoutFrames: 3000),
+                $"the commander must take the order and march; {State()}");
+            _out.WriteLine("start: " + State());
+
+            // ② everyone arrives (the same bar as the authored march).
+            Assert.True(harness.PumpUntil(() => Bodies().All(p => Vector2.Distance(new Vector2(p.X, p.Y), objective) < 15f), timeoutFrames: 30000),
+                $"every member must reach the ordered point; {State()}");
+            _out.WriteLine("arrived: " + State());
+
+            // ③ the drill ends by itself, and its members' orders are released (A5).
+            Assert.True(harness.PumpUntil(() => Running(leader) != moveHash, timeoutFrames: 6000), $"the march must end; {State()}");
+            int advance = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.AdvanceTo);
+            int hold    = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.CombatPosture);
+            bool released = harness.PumpUntil(() => Members().All(m => Running(m) != advance && Running(m) != hold), timeoutFrames: 900);
+            _out.WriteLine("end: " + State());
+            Assert.True(released, $"no member may still run the drill's order after the drill ended; {State()}");
+        }
+        finally { NasScenarioStaging.Remove(scenarioId); }
     }
+}
 }
