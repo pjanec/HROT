@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-build-state: BUILDING — §5a records each task as built (CE-2130 ✅); §6 is the build plan
+build-state: BUILDING — §5a records each task as built (CE-2130, CE-2140, CE-2137, CE-2138 ✅); §6 is the build plan
 current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance)
 stale-below: nothing
 known-rot: none
@@ -73,12 +73,14 @@ classDiagram
   class ParamsDtoRegistry { <<NEW, Hrot.Core>> one scan of loaded assemblies · DTO type → order name (or none) · field schema }
   class BehaviorDefinition { <<existing, Fdp.Toolkits>> +JsonParamsDtoType · +ParseParams · +ResolveStage }
   class BehaviorBlock { <<existing block, AQ76 B>> +Params : TDto (reserved, no resolver only) · variables (one kind, no roles) }
-  class DisTypeMask { <<NEW, Fdp.Core>> per segment a set of ranges: * · n · a-b · a,b,c · +Matches(DISEntityType) · +Specificity }
-  class EntityClassTable { <<NEW, Hrot.Core, hard-coded>> +Classes · +MostSpecific(dis) · +Chain(dis) }
-  class EntityClass { <<NEW>> +string Name · +DisTypeMask Mask }
-  class CountryTable { <<NEW, Hrot.Core, hard-coded>> SISO-REF-010 code → name }
-  class DisNameTable { <<existing API, rebuilt>> Path(dis) from the class chain · CountryName }
-  class VisualFamilies { <<existing, Hrot.Presentation>> Of(template) = family of the most specific class }
+  class DisTypeMask { <<BUILT CE-2137, Fdp.Core>> per segment a set of ranges: * · n · a-b · a,b,c · +Matches(DISEntityType) · +Overlaps · +Specificity · +DeepestPinned }
+  class EntityClassTable { <<BUILT CE-2138, Hrot.Core, hard-coded>> +Classes · +Find(name) · +MostSpecific(dis) · +Chain(dis) · +Ties() }
+  class EntityClass { <<BUILT CE-2138>> +string Name · +string DisplayName · +DisTypeMask Mask · +NamesALevel }
+  class CountryTable { <<BUILT CE-2138, Hrot.Core, hard-coded>> SISO-REF-010 code → name }
+  class DisNameTable { <<existing API, rebuilt CE-2138>> level names = the classes that NamesALevel · Path(dis) · CountryName }
+  class VisualFamilies { <<existing, rebuilt CE-2138, Hrot.Presentation>> Of(dis) = the family of the most specific class in FamilyOfClass }
+  class EntityClassShapeLibrary { <<BUILT CE-2138, Hrot.Presentation>> the 2-D avatar: ProfileOfClass over the chain }
+  class DefaultEntityShapeLibrary { <<existing, GizmoMap ext dep>> the outlines · its own DIS switch for non-HROT hosts (cannot see Hrot.Core) }
   class OrderResolver { <<NEW, inside TacticalIntentResolutionSystem>> order name → class chain → ClassName + OrderName }
   class EntityOrders { <<existing, made generic>> +Order(unit, name, json) · Release · Possess }
   OrderKind ..> OrderAttribute
@@ -93,6 +95,8 @@ classDiagram
   DisNameTable ..> EntityClassTable
   DisNameTable ..> CountryTable
   VisualFamilies ..> EntityClassTable
+  EntityClassShapeLibrary ..> EntityClassTable
+  EntityClassShapeLibrary ..> DefaultEntityShapeLibrary : outlines by name
   OrderResolver ..> EntityClassTable
   EntityOrders ..> ParamsDtoRegistry
 ```
@@ -157,7 +161,8 @@ graph TD
   TK["Fdp.Toolkits: BehaviorRegistry · BehaviorIngressSystem (Input phase, every brain node)"]
   CGF["Hrot.CGF: CgfLogicPack registers TacticalIntentResolutionSystem (Simulation phase) — the order lookup runs HERE, on the brain owner"]
   COM["Hrot.Common: EntityOrders (called by menu, RTS, HTTP)"]
-  PRES["Hrot.Presentation: MenuOrders · RtsCommands · VisualFamilies · Add-Entity picker"]
+  PRES["Hrot.Presentation: MenuOrders · RtsCommands · VisualFamilies · EntityClassShapeLibrary (2-D avatar) · Add-Entity picker"]
+  GZ["GizmoMap.Presentation (ext dep): DefaultEntityShapeLibrary outlines"]
   GEN["generators (netstandard2.0): BTree · HSM · blueprint — emit JsonParamsDtoType + flat parse"]
   CORE --> FCORE
   AIB --> CORE
@@ -166,12 +171,15 @@ graph TD
   CGF --> TK
   COM --> CORE
   PRES --> CORE
+  PRES --> GZ
   GEN -.->|"see only JSON text: the DTO by FQN string"| AIB
 ```
 
 *What the picture shows that prose hid: `Hrot.Common` and `Hrot.Presentation` cannot see `Hrot.AI.Behaviors` (measured,
 their `.csproj`), so they reach orders ONLY through `ParamsDtoRegistry` in `Hrot.Core`, which scans the loaded assemblies at
-run time; the order lookup itself runs only where `CgfLogicPack` is registered — the brain owner.*
+run time; the order lookup itself runs only where `CgfLogicPack` is registered — the brain owner. `GizmoMap` (an external
+dependency) cannot see `Hrot.Core` either, so the 2-D avatar is CHOSEN in `Hrot.Presentation` from the class table and only the
+outlines are GizmoMap's (CE-2138).*
 
 ## 5. What changes, by area
 
@@ -191,6 +199,8 @@ run time; the order lookup itself runs only where `CgfLogicPack` is registered �
 |---|---|---|
 | **CE-2130** R0 ✅ 2026-10-12 | the rail lives in the params-contract feature suite, `Hrot.Editor.Tests/DebugApi/ABehaviourAdvertisesItsRealParametersTests` (T-1: the suite that already guards `GET /behaviors` publishing the authored DTO, CE-224/CE-235). It loads the PRODUCTION registry (`CgfBehaviorSetup.LoadFromAiAssembly`). Checks: **P1**, a behaviour names a params DTO (`JsonParamsDtoType != null`); **P2**, that DTO is not a generator's mirror of the behaviour's variables (a BTree asset's Inputs struct in `Hrot.AI.Behaviors.Trees`, or a blueprint behaviour's nested `*_Bp.Params`). `ParamsContractAllowList` holds the **48** violators measured at the first run; the rail fails on a NEW violator and on a STALE entry, so the list only shrinks. A second test registers a missing, a mirrored and a named DTO and proves the predicate catches the first two (a permanent red-proof). **Red-proved both ways:** `TakeCover` removed from the list ⇒ fails naming it as a new violator; a compliant `Idle` added ⇒ fails asking to remove it. Suite 10/10 | ⚠ the rule "a published contract ≠ the parsed type" (CE-2128 ①, `FollowRoute`) is **not** checkable by reflection: a curated resolver deserializes inside its body. It stays a manual item of CE-2131. CE-2128 ② (`PlatoonHillAttack`) IS caught: its generated mirror outranks its contract |
 | **CE-2140** D1 ✅ 2026-10-12 | `OrderAttribute` (name string + `OrderGesture`) and `NoParams` in `Hrot.Core` (`MapDefinitions/Behavior/Orders`, `MapDefinitions/Behavior/NoParams.cs`); `OrderKind` + `MoveOrder` (`PickableGeoPoint Location`, `Speed`, `ArrivalRadius`, `RoadUse`; GroundClick) / `AttackOrder` (`EntityRef Target`; EnemyClick) / `HoldOrder` (empty) in `Hrot.AI.Behaviors/Orders`, each `[BlackboardDtoStruct]` so a variable can be typed with it before B3. Rail: `OrderVocabularyTests` (every `OrderKind` has exactly one `[Order]` DTO, every `[Order]` names a kind; order DTOs are structs) | the attribute takes `nameof(OrderKind.X)`, not the enum: `Hrot.Core` cannot see the AI assembly's enum |
+| **CE-2137** C1 ✅ 2026-10-12 (ui) | `FDP/Engine/Fdp.Core/DisTypeMask.cs`: an immutable class; per segment `null` = `*` or sorted, MERGED ranges (`1,2,6,7` → `1-2,6-7`), so equal masks have one text and `Equals` compares it. Missing trailing segments are `*` (unlike `DISEntityType.TryParse`, where they are 0). `Specificity` = 2 bits per segment (Any 0 · Set 1 · Exact 2), Kind most significant, so an int compare is the §1 rule. Also `Overlaps` (some type matches both — the tie test) and `DeepestPinned`. Rail `DisTypeMaskTests` (Fdp.Core.Tests, 5 tests + theory rows) | none. `QueryBuilder.WithDisType` untouched |
+| **CE-2138** C2 ✅ 2026-10-12 (ui) | `Hrot.Core/Tkb/EntityClassTable.cs`: `EntityClass(Name, DisplayName, Mask)`, the table (53 classes: kinds, domains, categories as DisNames.json held them, plus the grouping classes `Armor`, `WheeledUtility`, `Helicopter`, `Jet`, `CargoPlane` that were `VisualFamilies`' switches), `CountryTable` (the five codes). `DisNameTable` names exactly the classes that pin one level (`NamesALevel`); `VisualFamilies.Of(dis)` and the new `EntityClassShapeLibrary` (2-D avatar, wired in `MapInteractionPack.BuildRenderLayer`) walk the chain from the most specific class to the first one in their own small map (`FamilyOfClass`, `ProfileOfClass`). `DisNames.json` + `EmbeddedResource` deleted. **Golden:** `EntityTypeCatalogTests.CE2138_*` (25 built-in types: family, folder, icon; 52 names) taken on the pre-C2 code (commit `79a0f8bf8`) and unchanged after; sweeps over the DIS space for the family (`Map3DTests.CE2138_TheClassTable_KeepsEveryFamily_…`, vs the old switch) and the avatar (vs GizmoMap's fixed switch). Table rails: `EntityClassTableTests` (no ties, duplicate refused, every built-in type named, chain order). **CE-2127** fixed in the same commit | ⚠ **the picker path is NOT the whole chain**: it is the chain filtered to the classes that name ONE level (an exact Kind / Domain / Category), with the country between Domain and Category. The whole chain would insert grouping classes (`Armor`, `Helicopter`) as folders and move every built-in type's folder, which §3 of the handoff forbids. ⚠ the **class name ≠ the display name** (`Person` reads "Life Form", `Afv` reads "Armored Fighting Vehicle"): names are identifiers for `<Class><Order>`, display names are what the picker always showed. ⚠ `VisualFamilies.IsSoldier` (rifle on the figure) still reads Kind 3 / Category 1 directly — not a classification surface the table was asked to own. ⚠ GizmoMap keeps its own DIS switch for non-HROT hosts (it cannot see `Hrot.Core`); every HROT host passes `EntityClassShapeLibrary`. 🔴 Found: GizmoMap's `BuildRotaryWing` returned the fixed-wing outline under the fixed-wing name, so no helicopter could ever draw as one; it now has its own outline |
 
 ## 6. ⭐ THE TASK LIST — the build plan
 

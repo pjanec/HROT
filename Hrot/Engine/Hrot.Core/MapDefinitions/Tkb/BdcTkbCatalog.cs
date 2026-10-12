@@ -9,12 +9,13 @@ namespace Hrot.Map.Definitions.Tkb
 {
     public static class NedTkbCatalog
     {
-        /// <summary>⭐ CE-1017 S0 — SISO-REF-010 country codes used by the built-in types (names: <c>DisNameTable</c>).</summary>
         /// <summary>⭐ AQ85 C (R-216) — the rifle's aim dispersion, mils (same as UrbanCombat's).</summary>
         public const float RifleDispersionMils = 6f;
-        public const ushort UnitedStates = 225;
+        /// <summary>⭐ CE-1017 S0 — SISO-REF-010 country codes used by the built-in types; ⭐ CE-2138 — the codes and names live
+        /// in <see cref="Hrot.Core.Tkb.CountryTable"/>.</summary>
+        public const ushort UnitedStates = Hrot.Core.Tkb.CountryTable.UnitedStates;
         /// <summary>⭐ CE-1017 S0 — SISO-REF-010 Russia.</summary>
-        public const ushort Russia = 222;
+        public const ushort Russia = Hrot.Core.Tkb.CountryTable.Russia;
 
         public static void RegisterAll(TkbDatabase tkbDb)
         {

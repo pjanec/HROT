@@ -33,7 +33,8 @@ public sealed record EntityTypeEntry(
 /// <c>ScenarioSpawnerCatalog</c> and ExCon's list (S4).</para>
 ///
 /// <para>⭐ D2 grouping: composites (a <see cref="TkbCompositionDef"/>) under <c>Units</c>; map graphics under
-/// <c>Map Graphics</c>; everything else by its named DIS path (<see cref="DisNameTable.Path"/>, 0 levels skipped);
+/// <c>Map Graphics</c>; everything else by its named DIS path (<see cref="DisNameTable.Path"/> — ⭐ CE-2138: the level names of
+/// the type's class chain in <see cref="EntityClassTable"/>, 0 levels skipped);
 /// no DIS ⇒ the template's own <c>CategoryPath</c> ⇒ <c>Other</c>. Single-child chains are folded by the picker
 /// (<see cref="PickerRequest.FoldSingleChildFolders"/>), not here.</para>
 /// </summary>

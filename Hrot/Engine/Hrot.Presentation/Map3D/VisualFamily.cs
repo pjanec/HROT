@@ -1,4 +1,6 @@
+using Fdp.Core;
 using Fdp.Interfaces;
+using Hrot.Core.Tkb;
 using Hrot.Map.Definitions.Tkb;
 
 namespace Hrot.UI.Common.Map3D;
@@ -26,32 +28,39 @@ public enum VisualFamily : byte
 /// ⭐ CE-1033 S1 — THE one answer to "what kind of thing is this type" (<c>docs/DESIGN_Map_3D_Mode.md</c> §3.5, M7), extracted
 /// from <c>EntityTypeCatalog.FallbackIconName</c> so the Add Entity icons and the 3-D shape kits cannot disagree. Keyed on
 /// what the type IS — its DIS type, or being a composite — so a TKB without art still gets a meaningful picture.
+/// <para>⭐ CE-2138 (C2, rule K1, R-279 / R-280 (behaviors)) — the DIS half is now <see cref="EntityClassTable"/>: the family is
+/// that of the MOST SPECIFIC class in the type's chain that has one (<see cref="FamilyOfClass"/>), so the 3-D model, the
+/// picker and the behaviours read one table. ⛔ The composite check stays until C3 (CE-2139) gives units a DIS Kind.</para>
 /// </summary>
 public static class VisualFamilies
 {
+    /// <summary>⭐ CE-2138 — the classes that decide a family; a type takes the first one found walking its chain from the
+    /// most specific class up. Every name here is a class of <see cref="EntityClassTable.Default"/> (rail).</summary>
+    public static IReadOnlyDictionary<string, VisualFamily> FamilyOfClass { get; } = new Dictionary<string, VisualFamily>
+    {
+        ["Person"] = VisualFamily.Person,
+        ["Tank"] = VisualFamily.Tank,
+        ["Afv"] = VisualFamily.Afv,
+        ["Car"] = VisualFamily.WheeledCar,
+        ["WheeledUtility"] = VisualFamily.WheeledUtility,
+        ["Helicopter"] = VisualFamily.Helicopter,
+        ["Jet"] = VisualFamily.Jet,
+        ["CargoPlane"] = VisualFamily.CargoPlane,
+    };
+
     /// <summary>The family of <paramref name="t"/>.</summary>
     public static VisualFamily Of(TkbTemplate t)
     {
         if (t.GetDescriptor<TkbCompositionDef>() is not null) return VisualFamily.Unit;
-        var d = t.DisType;
-        if (d.Kind == 3) return VisualFamily.Person;                 // Life Form
-        if (d.Kind == 1 && d.Domain == 1)                            // Platform / Land
-            return d.Category switch
-            {
-                1 => VisualFamily.Tank,
-                2 => VisualFamily.Afv,
-                81 => VisualFamily.WheeledCar,                         // car
-                3 or 6 or 7 => VisualFamily.WheeledUtility,            // utility vehicles
-                _ => VisualFamily.Unknown,
-            };
-        if (d.Kind == 1 && d.Domain == 2)                            // Platform / Air — SISO-REF-010 categories (§3.5)
-            return d.Category switch
-            {
-                >= 20 and <= 25 => VisualFamily.Helicopter,            // attack, utility, ASW, cargo, observation, special ops
-                1 or 2 or 6 or 7 or 40 or 47 or 50 => VisualFamily.Jet, // fighter, attack, EW, recce, trainer, light, UAV
-                3 or 4 or 5 or 8 or 57 => VisualFamily.CargoPlane,      // bomber, cargo/tanker, patrol, AEW/C2, commercial
-                _ => VisualFamily.Unknown,
-            };
+        return Of(t.DisType);
+    }
+
+    /// <summary>The family of a DIS type, from its class chain (<see cref="VisualFamily.Unknown"/> when no class decides one).</summary>
+    public static VisualFamily Of(DISEntityType dis)
+    {
+        var chain = EntityClassTable.Default.Chain(dis);
+        for (int i = chain.Count - 1; i >= 0; i--)
+            if (FamilyOfClass.TryGetValue(chain[i].Name, out var family)) return family;
         return VisualFamily.Unknown;
     }
 

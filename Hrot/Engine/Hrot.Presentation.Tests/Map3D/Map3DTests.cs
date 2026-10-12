@@ -320,6 +320,52 @@ public sealed class Map3DTests
         Assert.True(moved.Count == 0, string.Join(", ", moved.Take(20)));
     }
 
+    /// <summary>⭐ CE-2138 — every class a family or a 2-D avatar is keyed on exists in the table (a rename cannot silently
+    /// turn a family into Unknown).</summary>
+    [Fact]
+    public void CE2138_EveryClassAFamilyOrAvatarNames_IsInTheTable()
+    {
+        foreach (var name in VisualFamilies.FamilyOfClass.Keys.Concat(Hrot.Presentation.Map.EntityClassShapeLibrary.ProfileOfClass.Keys))
+            Assert.True(EntityClassTable.Default.Find(name) is not null, $"no class '{name}'");
+    }
+
+    /// <summary>⭐ CE-2127 — the 2-D avatar reads Category from bits 24–31: a helicopter is rotary-wing, a jet / trainer / UAV /
+    /// airliner fixed-wing. 🔴 Before, Category came from Country's high byte (0 for US/RU), so every aircraft drew fixed-wing.</summary>
+    [Theory]
+    [InlineData(21, GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.RotaryWing)]
+    [InlineData(25, GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.RotaryWing)]
+    [InlineData(1, GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.FixedWing)]
+    [InlineData(40, GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.FixedWing)]
+    [InlineData(50, GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.FixedWing)]
+    [InlineData(57, GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.FixedWing)]
+    public void CE2127_TheAvatar_ReadsTheRealCategory(byte category, string expected)
+    {
+        var dis = new DISEntityType { Kind = 1, Domain = 2, Country = 225, Category = category }.Value;
+        Assert.Equal(expected, new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary().GetShape(null, dis).Name);
+        Assert.Equal(expected, new Hrot.Presentation.Map.EntityClassShapeLibrary().GetShape(null, dis).Name);
+    }
+
+    /// <summary>⭐ CE-2138 — the class-table avatar picks what the (fixed) GizmoMap switch picks over the whole DIS space, and a
+    /// named shape still wins.</summary>
+    [Fact]
+    public void CE2138_TheClassAvatar_AgreesWithTheDisSwitch_AcrossTheDisSpace()
+    {
+        var byClass = new Hrot.Presentation.Map.EntityClassShapeLibrary();
+        var bySwitch = new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary();
+        var moved = new List<string>();
+        foreach (byte kind in new byte[] { 0, 1, 2, 3, 4, 9, 11 })
+            for (int domain = 0; domain <= 6; domain++)
+                for (int category = 0; category <= 255; category++)
+                {
+                    var d = new DISEntityType { Kind = kind, Domain = (byte)domain, Category = (byte)category, Country = 225 };
+                    string a = byClass.GetShape(null, d.Value).Name, b = bySwitch.GetShape(null, d.Value).Name;
+                    if (a != b) moved.Add($"{d}: {b} -> {a}");
+                }
+        Assert.True(moved.Count == 0, string.Join(", ", moved.Take(20)));
+        Assert.Equal(GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.Humanoid,
+                     byClass.GetShape(GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.Humanoid, 0).Name);
+    }
+
     // ── aircraft (SISO-REF-010 platform / air categories) ──
 
     [Theory]

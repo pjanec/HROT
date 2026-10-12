@@ -378,7 +378,7 @@ namespace Hrot.ScenarioEditor.Map
             return new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(
                 layerBitIndex, buffer, bus,
                 camera: camera,
-                shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+                shapeLibrary: new Hrot.Presentation.Map.EntityClassShapeLibrary(),   // ⭐ CE-2138 — the class table picks the avatar
                 schemaRegistry: schemas,
                 worldProvider: worldProvider);
         }
