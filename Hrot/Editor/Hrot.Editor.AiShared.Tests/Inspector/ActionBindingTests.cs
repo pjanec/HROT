@@ -125,6 +125,22 @@ public sealed class ActionBindingTests
         ActionBindingCompatibility.CompatibleVariables(typeof(double), vars).Should().BeEmpty();
     }
 
+    public struct FieldCfgInner { public float Rush; }
+    public struct FieldCfg { public float Walk; public int Count; public FieldCfgInner Sub; }
+
+    /// <summary>⭐ <c>CE-3182</c> — the picker offers a FIELD of a struct variable that has the parameter's type, as a path
+    /// (<c>Params.Walk</c>, nested <c>Params.Sub.Rush</c>), beside the variables of that type; an unknown type lists variables only.</summary>
+    [Fact]
+    public void CE3182_CompatibleVariables_ListTheFieldsOfAStructVariableThatHaveTheType()
+    {
+        var vars = new[] { Var("Params", typeof(FieldCfg)), Var("speed", typeof(float)) };
+
+        ActionBindingCompatibility.CompatibleVariables(typeof(float), vars).Should().Equal("Params.Sub.Rush", "Params.Walk", "speed");
+        ActionBindingCompatibility.CompatibleVariables(typeof(int), vars).Should().Equal("Params.Count");
+        ActionBindingCompatibility.CompatibleVariables(typeof(FieldCfg), vars).Should().Equal("Params");
+        ActionBindingCompatibility.CompatibleVariables(null, vars).Should().Equal("Params", "speed");
+    }
+
     [Fact]
     public void ABlueprintBinding_ListsTheVariablesOfItsParamsType()
     {

@@ -132,6 +132,36 @@ internal static class StructSizeResolver
         return size >= 0 ? (size, global::Fdp.Toolkit.Behavior.Shared.RoslynStructLayout.TypeAlign(symbol)) : ((int, int)?)null;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3182</c> — <paramref name="field"/> of the struct <paramref name="structTypeId"/>: its CLR offset
+    /// (<c>RoslynStructLayout.FieldOffset</c>), size and type id (metadata name, <c>+</c> for nested types — what
+    /// <c>GetTypeByMetadataName</c> takes, so a path can walk on). <c>null</c> when the struct is not in the compilation (a type
+    /// another generator emits in this same pass), is not a struct, or has no such instance field.
+    /// </summary>
+    internal static (int Offset, int Size, string TypeId)? ResolveFieldOf(string structTypeId, string field, Compilation compilation)
+    {
+        if (string.IsNullOrEmpty(structTypeId) || string.IsNullOrEmpty(field)) return null;
+        string id = structTypeId.StartsWith("global::", StringComparison.Ordinal) ? structTypeId.Substring("global::".Length) : structTypeId;
+        INamedTypeSymbol? symbol = compilation.GetTypeByMetadataName(id);
+        if (symbol == null || symbol.TypeKind != TypeKind.Struct) return null;
+
+        int? offset = global::Fdp.Toolkit.Behavior.Shared.RoslynStructLayout.FieldOffset(symbol, field, out var fieldType);
+        if (offset == null || fieldType == null) return null;
+        int size = global::Fdp.Toolkit.Behavior.Shared.RoslynStructLayout.TypeSize(fieldType);
+        return size < 0 ? null : (offset.Value, size, MetadataName(fieldType));
+    }
+
+    /// <summary>The metadata name of <paramref name="type"/> (<c>Ns.Outer+Inner</c>; <c>System.Single</c> for <c>float</c>).</summary>
+    private static string MetadataName(ITypeSymbol type)
+    {
+        if (type is not INamedTypeSymbol named) return type.ToDisplayString();
+        string name = named.MetadataName;
+        for (var outer = named.ContainingType; outer != null; outer = outer.ContainingType)
+            name = outer.MetadataName + "+" + name;
+        var ns = named.ContainingNamespace;
+        return ns == null || ns.IsGlobalNamespace ? name : ns.ToDisplayString() + "." + name;
+    }
+
     // ── Struct layout: ⭐ CE-2027 — the ONE algorithm is FDP/Toolkits/Fdp.Toolkits.Analyzers/Shared/RoslynStructLayout.cs,
     //    linked into this assembly (and so into Hrot.Blueprints.Generators, which links this file) beside the three FDP
     //    analyzers that used to carry their own copies. This class keeps only the STRING front door (type ids, aliases).

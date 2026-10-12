@@ -145,7 +145,7 @@ public sealed class HsmReferenceContributor : IReferenceCatalogContributor
         if (string.IsNullOrEmpty(expressionTargetField)) return;
         list.Add(new AssetReference(
             asset.AssetId, AssetKind.Hsm, elementId, path,
-            BlackboardVariableSubElement.KeyFor(asset.AssetId, expressionTargetField),
+            BlackboardVariableSubElement.KeyFor(asset.AssetId, Hrot.AiEditor.Persistence.BindingPath.Root(expressionTargetField)!),   // ⭐ CE-3182 — the variable a path names
             SubElementKind.BlackboardVariable));
     }
 }

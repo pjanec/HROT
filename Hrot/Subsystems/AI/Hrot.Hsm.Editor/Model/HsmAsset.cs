@@ -342,9 +342,13 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     /// <paramref name="newName"/>, using the ONE definition of "targets" (<see cref="IsExpressionTargetOf"/>).</summary>
     private static void RetargetBindings(string oldName, string newName, params BehaviorActionBinding?[] bindings)
     {
+        // ⭐ CE-3182 — a path keeps its field part (Params.walk → Cfg.walk), and the working-state target moves too.
         foreach (var b in bindings)
-            if (b is not null && IsExpressionTargetOf(b.ExpressionTargetField, oldName))
-                b.ExpressionTargetField = newName;
+        {
+            if (b is null) continue;
+            b.ExpressionTargetField   = Hrot.AiEditor.Persistence.BindingPath.Retarget(b.ExpressionTargetField, oldName, newName);
+            b.WorkingStateTargetField = Hrot.AiEditor.Persistence.BindingPath.Retarget(b.WorkingStateTargetField, oldName, newName);
+        }
     }
 
     /// <summary>
@@ -411,9 +415,10 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         return false;
     }
 
+    /// <summary>⭐ <c>CE-3182</c> — true when the target is the variable or a field of it (<c>Params.walk</c> targets
+    /// <c>Params</c>): <see cref="Hrot.AiEditor.Persistence.BindingPath.Targets"/>.</summary>
     public static bool IsExpressionTargetOf(string? expressionTargetField, string variableName)
-        => !string.IsNullOrEmpty(expressionTargetField)
-        && string.Equals(expressionTargetField, variableName, StringComparison.OrdinalIgnoreCase);
+        => Hrot.AiEditor.Persistence.BindingPath.Targets(expressionTargetField, variableName);
 
     /// <summary>Returns all alias bindings recorded against the named variable. Empty list if none.</summary>
     public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string variableName) =>

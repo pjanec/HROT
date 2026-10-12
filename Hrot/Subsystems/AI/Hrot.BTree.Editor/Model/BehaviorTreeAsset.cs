@@ -435,17 +435,27 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
             _aliases.Remove(oldName);
             _aliases[newName] = list;
         }
+        // ⭐ CE-3182 — the bindings follow the rename (they dangled: BTREE0002 on the next build), a path keeping its field
+        //   part (Params.walk → Cfg.walk); the working-state target too. HSM's RenameVariable does the same.
+        foreach (var node in _nodes)
+            foreach (var b in new[] { node.Action, node.Condition })
+            {
+                if (b is null) continue;
+                b.ExpressionTargetField   = Hrot.AiEditor.Persistence.BindingPath.Retarget(b.ExpressionTargetField, oldName, newName);
+                b.WorkingStateTargetField = Hrot.AiEditor.Persistence.BindingPath.Retarget(b.WorkingStateTargetField, oldName, newName);
+            }
         MarkDirty();
     }
 
-    /// <summary>Returns the count of action/condition nodes that reference variableName via ExpressionTargetField.</summary>
+    /// <summary>Returns the count of action/condition nodes whose ExpressionTargetField targets variableName or a field of it
+    /// (⭐ <c>CE-3182</c>, <see cref="Hrot.AiEditor.Persistence.BindingPath.Targets"/>).</summary>
     public int CountNodesReferencingVariable(string name)
     {
         int count = 0;
         foreach (var node in _nodes)
         {
-            if (node.Action?.ExpressionTargetField == name) count++;
-            else if (node.Condition?.ExpressionTargetField == name) count++;
+            if (Hrot.AiEditor.Persistence.BindingPath.Targets(node.Action?.ExpressionTargetField, name)) count++;
+            else if (Hrot.AiEditor.Persistence.BindingPath.Targets(node.Condition?.ExpressionTargetField, name)) count++;
         }
         return count;
     }

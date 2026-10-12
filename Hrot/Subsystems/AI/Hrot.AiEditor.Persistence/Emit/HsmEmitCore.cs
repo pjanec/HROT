@@ -130,10 +130,12 @@ public static class HsmEmitCore
         // ⭐ HSM-020 — "what CommandLane does this action FQN write to?", answered by the caller from the Roslyn
         //   compilation (the attribute lives on the method symbol and Fhsm.Compiler does no reflection).
         //   Optional: absent ⇒ no .OutputLanes(...) is emitted and the mask stays 0, exactly as before.
-        System.Func<string, byte?>? laneOf = null)
+        System.Func<string, byte?>? laneOf = null,
+        // ⭐ CE-3182 — the field layouts a binding path (Variable.Field) walks; null ⇒ bindings name whole variables only.
+        FieldLayoutResolver? fields = null)
     {
         return EmitInternal(dto, includeLayout: false, sizeResolver, blueprintIdResolver,
-                            blueprintClassNameResolver, csharpWritesChannel, sharedAi, laneOf);
+                            blueprintClassNameResolver, csharpWritesChannel, sharedAi, laneOf, fields);
     }
 
     /// <summary>Core emitter: shared implementation for both <see cref="Emit"/> and <see cref="EmitTopologyCore"/>.</summary>
@@ -148,7 +150,8 @@ public static class HsmEmitCore
         //   Roslyn compilation by the caller. Optional: absent ⇒ no C# auto-bind.
         System.Func<string, bool>? csharpWritesChannel = null,
         System.Func<string, SharedAiMethodInfo?>? sharedAi = null,
-        System.Func<string, byte?>? laneOf = null)          // ⭐ HSM-020
+        System.Func<string, byte?>? laneOf = null,          // ⭐ HSM-020
+        FieldLayoutResolver? fields = null)                 // ⭐ CE-3182
     {
         // ⭐ Q84 C1/D1 — an old file's childless History pseudo-state becomes its parent's flag BEFORE emit, so the
         //    generator and the editor build the same machine (idempotent; a migrated asset is untouched).
@@ -181,7 +184,7 @@ public static class HsmEmitCore
         sb.AppendLine($"public static class {className}");
         sb.AppendLine("{");
 
-        EmitCreateBuilder(sb, dto, sizeResolver, bpId, bpClassName, csharpWritesChannel, sharedAi, laneOf);
+        EmitCreateBuilder(sb, dto, sizeResolver, bpId, bpClassName, csharpWritesChannel, sharedAi, laneOf, fields);
         sb.AppendLine();
         EmitCompile(sb, dto);
 
@@ -303,12 +306,13 @@ public static class HsmEmitCore
         System.Func<string, bool>? csharpWritesChannel = null,
         // ⭐ CE-417 B-2 — "is this FQN a [SharedAi*] method, and what does it take?", from the Roslyn compilation.
         System.Func<string, SharedAiMethodInfo?>? sharedAi = null,
-        System.Func<string, byte?>? laneOf = null)          // ⭐ HSM-020
+        System.Func<string, byte?>? laneOf = null,          // ⭐ HSM-020
+        FieldLayoutResolver? fields = null)                 // ⭐ CE-3182
     {
         // ⭐⭐ E7b — the packed offsets of the managed blackboard's inline params, computed once for
         //    the whole asset. An unbound transition never touches this map, so an asset with no
         //    ExpressionTargetField emits byte-identically.
-        var paramOffsets = HsmParamOffsets(dto, sizeResolver);
+        var paramOffsets = HsmParamOffsets(dto, sizeResolver, fields);
         var namer = new BindingNamer(paramOffsets, sharedAi, dto.AssetId);   // ⭐ CE-417: ONE naming rule for every binding (S8: stateful keys are per asset)
         var regions = RegionPlan.For(dto);   // ⭐ CE-1003: the editor's declared regions reach the builder as STRUCTURE
 
@@ -1061,13 +1065,9 @@ public static class HsmEmitCore
     /// blackboard, for <c>State</c>-role-only variables, or when a type cannot be sized.
     /// </summary>
     private static IReadOnlyDictionary<string, int> HsmParamOffsets(
-        HsmAssetDto dto, System.Func<string, int?>? sizeResolver)
-    {
-        var map = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var f in HsmBridgeEmitCore.PackParamsFor(dto, sizeResolver))
-            map[f.Name] = f.ByteOffset;
-        return map;
-    }
+        HsmAssetDto dto, System.Func<string, int?>? sizeResolver, FieldLayoutResolver? fields = null)
+        // ⭐ CE-3182 — the ONE target resolver: every packed variable, plus each Variable.Field path a binding names.
+        => BindingTargets.For(HsmBridgeEmitCore.PackParamsFor(dto, sizeResolver), fields).Offsets(SharedAiBindings.BoundTargets(dto));
 
     private static List<string> CollectGuards(HsmAssetDto dto, BindingNamer namer)
     {

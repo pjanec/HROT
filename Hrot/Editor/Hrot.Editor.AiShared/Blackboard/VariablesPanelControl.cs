@@ -746,6 +746,9 @@ public sealed class VariablesPanelControl
         string newName = Fdp.Presentation.Utils.ImGuiBufferText.DecodeTrimmed(_renameBuf);
         _renameActiveVarName = null;
         if (string.IsNullOrEmpty(newName) || newName == oldName) return;
+        // ⭐ CE-3182 — a rename obeys the Add rule (an identifier, not a keyword, unique): a '.' would make every binding path
+        //   (Var.Field) ambiguous, and a non-identifier cannot be the block struct's field name anyway.
+        if (BlackboardNameValidator.Validate(newName) != null || schema.Variables.Any(v => v.Name == newName)) return;
 
         var fromKey = schema.GetRefactorKey(oldName) ?? $"{_assetBase.AssetId:D}::{oldName}";
         var toKey   = schema.GetRefactorKey(newName) ?? $"{_assetBase.AssetId:D}::{newName}";

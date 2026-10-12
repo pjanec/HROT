@@ -43,7 +43,7 @@ public static class HsmBridgeEmitCore
     /// so a managed HSM blackboard can carry the same struct-typed variables a managed BTree one can.
     /// </summary>
     public static string EmitBridge(HsmAssetDto dto, Func<string, int?>? sizeResolver,
-        Func<string, SharedAiMethodInfo?>? sharedAi = null)
+        Func<string, SharedAiMethodInfo?>? sharedAi = null, FieldLayoutResolver? fields = null)   // ⭐ CE-3182 — Variable.Field paths
     {
         var sb = new StringBuilder();
 
@@ -127,12 +127,12 @@ public static class HsmBridgeEmitCore
         }
 
         // ⭐⭐⭐ CE-417 B-2 (a′) — one generated call per bound C# [SharedAi*] binding (SharedAiBindings).
-        var sharedAiEntries = SharedAiBindings.Collect(dto, packedFields, sharedAi, sizeResolver);
+        var sharedAiEntries = SharedAiBindings.Collect(dto, packedFields, sharedAi, sizeResolver, fields);
 
         // ⭐ CE-2083 — one SopActions call per distinct state SOP order key (§4.10).
         var sopOrders = CollectSopOrders(dto, packedFields);
 
-        EmitHsmRegisterMethod(sb, dto, coreClass, packedFields, owner, owned, isManaged, sharedAiEntries, sopOrders);
+        EmitHsmRegisterMethod(sb, dto, coreClass, packedFields, owner, owned, isManaged, sharedAiEntries, sopOrders, fields);
 
         for (int i = 0; i < sharedAiEntries.Count; i++)
             SharedAiBindings.EmitThunk(sb, sharedAiEntries[i], SharedAiThunkName(i), Indent);
@@ -151,7 +151,8 @@ public static class HsmBridgeEmitCore
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields,
         BehaviorTreeAssetDto owner, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? owned, bool isManaged,
         IReadOnlyList<SharedAiBindings.Entry> sharedAiEntries,
-        IReadOnlyList<SopOrderEntry> sopOrders)
+        IReadOnlyList<SopOrderEntry> sopOrders,
+        FieldLayoutResolver? fields)
     {
         string pad  = Indent;
         string pad2 = Indent + Indent;
@@ -204,7 +205,7 @@ public static class HsmBridgeEmitCore
         sb.AppendLine($"{pad2}}});");
 
         // ⭐⭐⭐ E3b-0 — which variable does each STATE's occurrence seed its params from.
-        EmitStateParamBindings(sb, dto, packedFields, pad2);
+        EmitStateParamBindings(sb, dto, packedFields, pad2, BindingTargets.For(packedFields, fields));
 
         // ⭐⭐⭐ E5 — which STATES host a child behaviour. 📄 DESIGN §32.8 item 4.
         EmitHostedSubtrees(sb, dto, pad2, owned);
@@ -334,13 +335,10 @@ public static class HsmBridgeEmitCore
         StringBuilder sb,
         HsmAssetDto dto,
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields,
-        string pad2)
+        string pad2,
+        BindingTargets targets)
     {
         if (packedFields.Count == 0) return;
-
-        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
-        foreach (var f in packedFields)
-            offsetMap[f.Name] = f;
 
         // (state StableId, SITE, offset). ⭐⭐⭐ CE-414: the SITE is the hosted blueprint's asset Guid,
         //   or Guid.Empty for the state's own field — the default every unmatched site falls back to.
@@ -355,7 +353,7 @@ public static class HsmBridgeEmitCore
             if (string.IsNullOrEmpty(stateField)) continue;
             // ⚠ A target naming a variable that is not packed (State-role, or renamed away) is
             //   skipped rather than emitted as a guess — the same "fails closed" rule §3.4 states.
-            if (!offsetMap.TryGetValue(stateField!, out var field)) continue;
+            if (!targets.TryResolve(stateField, out var field)) continue;
 
             // ⭐ Guid.Empty, not the activity blueprint's id: ONE entry then serves the activity
             //   blueprint AND all four C# action slots, which is what keeps this purely additive.
@@ -380,7 +378,7 @@ public static class HsmBridgeEmitCore
             var guard = tr.Guard;
             if (guard == null || string.IsNullOrEmpty(guard.ExpressionTargetField)) continue;
             if (guard.BlueprintAssetId == Guid.Empty) continue;
-            if (!offsetMap.TryGetValue(guard.ExpressionTargetField!, out var field)) continue;
+            if (!targets.TryResolve(guard.ExpressionTargetField, out var field)) continue;
             bound.Add((tr.SourceStableId, guard.BlueprintAssetId, field.ByteOffset));
         }
 

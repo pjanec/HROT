@@ -172,9 +172,9 @@ internal static class BTreeDeactivatorScanner
         if (!hasParams)
             return $"deactivator '{d.DeactivatorFqn}' takes params, but '{b.MethodFqn}' is bound as {shape}; use (Entity, EntityRepository) (CE-504)";
 
-        string varType = string.Empty;
-        foreach (var v in dto.Blackboard.Variables)
-            if (string.Equals(v.Name, b.ExpressionTargetField, StringComparison.Ordinal)) { varType = v.Type?.TypeId ?? string.Empty; break; }
+        // ⭐ CE-3182 — a variable or a Variable.Field path, resolved as the validator and the emitter resolve it.
+        string varType = string.IsNullOrEmpty(b.ExpressionTargetField) ? string.Empty
+            : BTreeMethodCompatibilityValidator.ResolveTarget(dto.Blackboard, b.ExpressionTargetField!, compilation)?.Type?.TypeId ?? string.Empty;
         if (!SameType(d.ParamsTypeFqn, varType))
             return $"deactivator '{d.DeactivatorFqn}' takes 'ref {d.ParamsTypeFqn}' but '{b.MethodFqn}' is bound to '{b.ExpressionTargetField}' of type '{varType}' (CE-504)";
 

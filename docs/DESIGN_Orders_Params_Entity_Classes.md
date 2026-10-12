@@ -419,6 +419,156 @@ Design docs checked: AQ90 §2.3i/§2.3j — *applies* (the target: one kind, res
 optional, block from the DTO); Parameter Model §P.2/§P.7 — *applies*, §P.7 is superseded only in B3b; §5.1 "sections are the
 classification" — *applies*: one Variables section is that rule with one section.
 
+## 5d. CE-3182 — a binding targets a FIELD of a block variable *(2026-10-12, backend lane; build-state: BUILT — as-built at the end of this section)*
+
+> 🔒 *User, 2026-10-12: "A binding's target may be Variable.Field (at least Params.<field>), with the offset = the variable's offset
+> + the field's offset from the build-time layout. Fold the ~10 duplicated offsetMap builds … into one target resolver. Make the
+> editor's binding picker, IsExpressionTargetOf and rename understand the path."* Basis: AQ90 §2.3j, *"an ACTION binds a field of
+> any block variable, `Params` included"*. Why now: A2 found DangerCrossing can take its flat contract only through a resolver that
+> fills a config struct in its block, with nodes bound to `<var>.sensor`, `<var>.walk`; until then it stays on the CE-2130 list and
+> B3b cannot empty it.
+
+**INVENTORY** *(`search_graph` + grep + one read-only sweep, 2026-10-12)* — every place that turns a binding's
+`ExpressionTargetField` into bytes or answers "does it target X":
+
+| where | what | count |
+|---|---|---|
+| `BTreeBridgeEmitCore` | `offsetMap` name → `PackedField`: plain / condition / stateful / blueprint action / blueprint condition thunks, ParseParams, deactivators (`:483,541,634,1031,1115,1568,2019`) | 7 |
+| `HsmBridgeEmitCore.EmitStateParamBindings:341` · `SharedAiBindings.Collect:164` | the same map, HSM | 2 |
+| `BTreeEmitCore.BuildVariableOffsets:507` · `HsmEmitCore.HsmParamOffsets:1063` (→ `EffectiveActionName`, `SharedAiBindings.NameFor`) | name → offset, for the blob key | 2 |
+| `BTreeMethodCompatibilityValidator:179-210,235-244,284` · `BTreeDeactivatorScanner:177` | exists + type check (BTREE0002); HSM has none (`SharedAiBindings:183` skips silently) | 2 |
+| `ActionBindingCompatibility.CompatibleVariables` (`ActionBindingSources.cs:151`) | THE picker filter, BTree + HSM, `v.FieldType == parameterType` | 1 |
+| `HsmAsset.IsExpressionTargetOf:414` + ~10 `==` sites (`BehaviorTreeAsset.CountNodesReferencingVariable:447`, `BTreeCommandSink:344`, `AutoManagedVariables:94`, `NodePropertiesDetailsView:260`, the two reference contributors, …) | "does this binding target variable X" | ~11 |
+| `HsmAsset.RetargetBindings:343` (ETF only) · `BehaviorTreeAsset.RenameVariable:428` (**touches no binding**) · `VariablesPanelControl.CommitRename:744` (**no name validation**) | rename | 3 |
+
+```mermaid
+classDiagram
+  class BindingPath {
+    <<NEW, Hrot.AiEditor.Persistence, static>>
+    +Root(path) string
+    +Field(path) string
+    +Targets(path, variable) bool
+    +Retarget(path, from, to) string
+    +Compose(variable, field) string
+  }
+  class FieldLayout {
+    <<NEW struct>> Offset · Size · TypeId
+  }
+  class FieldLayoutResolver {
+    <<NEW delegate>> (structTypeId, field) → FieldLayout?
+  }
+  class BindingTargets {
+    <<NEW, Persistence/Emit>>
+    +For(packed, fields) BindingTargets
+    +TryResolve(path, out PackedField) bool
+    +Offsets(boundPaths) IReadOnlyDictionary
+    +Variables
+  }
+  class PackedField {
+    <<existing, BTreeBlackboardPackHelper>> Name · TypeId · ByteOffset · ByteSize
+  }
+  class StructSizeResolver {
+    <<existing, Generators>> +FieldResolver(compilation) NEW
+  }
+  class RoslynStructLayout {
+    <<existing>> +FieldOffset(type, field, out fieldType)
+  }
+  class Emitters {
+    <<existing>> BTreeBridgeEmitCore · BTreeEmitCore · HsmBridgeEmitCore · HsmEmitCore · SharedAiBindings
+  }
+  class ActionBindingCompatibility {
+    <<existing, AiShared>> +CompatibleVariables(type, vars) adds Var.Field paths
+  }
+  class EditorModels {
+    <<existing>> HsmAsset.IsExpressionTargetOf · RetargetBindings · BehaviorTreeAsset.RenameVariable · CountNodesReferencingVariable
+  }
+  BindingTargets o-- PackedField : one per packed variable
+  BindingTargets ..> FieldLayoutResolver : walks the path
+  BindingTargets ..> BindingPath : splits
+  BindingTargets --> PackedField : resolves a path to (named by the path, leaf type)
+  FieldLayoutResolver ..> FieldLayout
+  StructSizeResolver ..> RoslynStructLayout : FieldOffset
+  StructSizeResolver ..> FieldLayoutResolver : supplies
+  Emitters ..> BindingTargets : one per asset, replaces 11 maps
+  ActionBindingCompatibility ..> BindingPath : Compose
+  EditorModels ..> BindingPath : Targets · Retarget
+```
+
+*What the picture shows that prose hid: the ONLY new layout knowledge is `FieldLayoutResolver`, and its one producer is the
+Roslyn layout that already sizes struct variables (`RoslynStructLayout`, pinned to the CLR by the CE-2027 rails). Every emitter
+and the validator read targets through ONE `BindingTargets`, and the editor never needs an offset: it reasons about names
+(`BindingPath`) and CLR types (reflection), so nothing on the editor side can disagree with the bytes.*
+
+```mermaid
+sequenceDiagram
+  participant G as BTreeJsonGenerator / HsmJsonGenerator
+  participant S as StructSizeResolver
+  participant E as emit core (bridge / topology)
+  participant T as BindingTargets
+  participant R as runtime thunk
+  G->>S: SizeResolver(compilation), FieldResolver(compilation)
+  G->>E: EmitBridge(dto, sizes, …, fields)
+  E->>T: For(Pack(variables), fields)
+  E->>T: TryResolve("Cfg.walk")
+  T->>T: root "Cfg" → PackedField(offset 16, CrossingConfig)
+  T->>S: fields("CrossingConfig", "walk")
+  S-->>T: FieldLayout(offset 8, size 12, WalkParams)
+  T-->>E: BindingTarget(offset 24, WalkParams)
+  E->>E: key = CompoundKeyName(fqn, 24) — blob AND thunk
+  Note over R: unchanged: projects TParams at block + 24
+```
+
+*What it shows: the key `fqn@24` is computed once, by the same call, for the blob and the thunk — so a field binding cannot
+drift between them, exactly as a variable binding cannot today. The runtime is untouched.*
+
+```mermaid
+graph TD
+  GEN["Hrot.AiEditor.Generators (Roslyn): StructSizeResolver.FieldResolver"] --> PER["Hrot.AiEditor.Persistence (netstandard2.0): BindingPath · BindingTargets · emit cores · validator"]
+  PER --> OUT["generated registrar in Hrot.AI.Behaviors (baked keys)"]
+  ED["Hrot.Editor.AiShared · BTree.Editor · Hsm.Editor: picker, rename, references"] --> BP["BindingPath (names only)"]
+  BP --> PER
+  RT["Fdp.Toolkits runtime"] -.->|"unchanged: reads baked keys"| OUT
+```
+
+*What it shows: the runtime has no edge to anything new — a field binding is a baked offset like any other. ⚠ A path into a type
+Roslyn cannot see (a sibling's GENERATED Inputs struct, a blueprint's generated `Params`) has no field layout and fails CLOSED with
+a diagnostic, never a guessed offset.*
+
+| decision | ⭐ chosen | rejected (one line each) |
+|---|---|---|
+| **D1 syntax** | dotted `Var.Field[.Sub…]`; a variable name is an identifier (`BlackboardNameValidator`), so the first `.` ends the root | a separate `TargetFieldPath` property — two fields to keep in step in every DTO, mapper and migrator |
+| **D2 which variables** | any PACKED block variable of a struct type, `Params` included; nested fields to any depth | `Params` only — the user's "at least"; one resolver costs the same for every root |
+| **D3 type rule** | the leaf field's type == the method's params type (as a variable's is today) | an assignable/convertible match — the thunk reinterprets bytes; only identity is safe |
+| **D4 offset** | root `ByteOffset` + `RoslynStructLayout.FieldOffset` per segment, at build time | `Marshal.OffsetOf` at registration — the blob key is a compile-time string; a runtime offset cannot be baked into it |
+| **D5 the fold** | `BindingTargets` built ONCE per asset in each entry point; the private helpers take it instead of `packedFields` | a shared static `BuildOffsetMap` helper — still 11 maps, and no place to hang the path walk |
+| **D6 editor** | `CompatibleVariables` adds `Var.Field` candidates by reflection (public instance fields, `FieldType == parameterType`); every "targets X" test goes through `BindingPath.Targets` (root equality); rename rewrites the root of `ExpressionTargetField` AND `WorkingStateTargetField` in BOTH editors and is validated as an identifier | leave BTree rename as is — it already dangles plain bindings (`BehaviorTreeAsset.cs:428`); a path would only add to it |
+| **D7 fail closed** | an unresolvable path (no such root, no field, no layout) emits NO key: BTREE0002 on BTree, a new generator warning on HSM (it skipped silently) | guess `offset = root` — binds the wrong bytes with no error |
+
+**Not in scope:** the blueprint tier (no AI binding picker there); the stateful WORKING-STATE target (`WorkingStateTargetField` stays a
+variable name); variable DELETE leaving bindings in place (pre-existing, unchanged). **Rails:** a generator rail binding
+`Cfg.walk` (key = root + field offset, blob and registrar agree, the CLR's `Marshal.OffsetOf` the oracle); a fail-closed rail
+(unknown field ⇒ diagnostic, no key); `BindingTargets` unit rails; editor rails: picker lists `Params.<field>`, rename rewrites a path
+root (BTree and HSM), `IsExpressionTargetOf` matches by root. **Goldens:** must not move (no shipped asset binds a path yet).
+
+**As built (2026-10-12).** ⚠ One deviation from the class diagram's first draft, now drawn: `TryResolve` returns the existing
+`PackedField` (named by the path, typed by the leaf) rather than a new `BindingTarget` struct — so every emitter helper swapped
+`offsetMap.TryGetValue(etf, out var field)` for `targets.TryResolve(etf, out var field)` and kept the rest of its body. The two
+name → offset builders (`BTreeEmitCore.BuildVariableOffsets`, `HsmEmitCore.HsmParamOffsets`) now return
+`BindingTargets.Offsets(boundPaths)`: every variable plus each path a binding names, so the blob-key sites downstream resolve a path
+with no change. `fields` is an optional trailing parameter on the full entry overloads (`BTreeEmitCore.EmitTopologyCore`,
+`BTreeBridgeEmitCore.EmitBridge`, `HsmEmitCore.EmitTopologyCore`, `HsmBridgeEmitCore.EmitBridge`, `SharedAiBindings.Collect` /
+`UnbindableBindings`); the generators pass `GeneratedTypeCatalog.FieldResolver(compilation)` (over
+`StructSizeResolver.ResolveFieldOf`, which stays project-free for its link into the blueprint generators). The BTree validator
+(`BTreeMethodCompatibilityValidator.ResolveTarget`, used by BTREE0002's two checks and `BTreeDeactivatorScanner`) type-checks the LEAF
+field. HSM: an unresolvable FIELD path is HSM0003 (a plain variable name that is not packed keeps its old silent skip — shipped
+assets rely on it). Editor: the picker (`ActionBindingCompatibility.CompatibleVariables`, depth ≤ 3), `HsmAsset.IsExpressionTargetOf`,
+both `RenameVariable`s (ETF + WSTF), `BehaviorTreeAsset.CountNodesReferencingVariable`, node-delete auto-variable cleanup
+(`BTreeCommandSink`, `AutoManagedVariables.RemoveIfAutoManaged`), both reference contributors and the details view's default editor
+go by `BindingPath`; `VariablesPanelControl.CommitRename` now validates the new name (`BlackboardNameValidator`, plus a duplicate check).
+Rails: `BindingTargetsTests` ×4, `SharedAiBindingCompilesTests.CE3182_*` ×4 (BTree and HSM, oracle `Marshal.OffsetOf` on the compiled
+probe; fail-closed on both hosts), `ActionBindingTests.CE3182_*`, `BlackboardRenameTests.CE3182_*`,
+`ExpressionTargetFieldCountTests.CE3182_*`.
+
 ## 6. ⭐ THE TASK LIST — the build plan
 
 Tracker ids are from the behaviors block. ⛔ Each task: extend the UML here first if it deviates, red-prove its rails, fold the
@@ -477,6 +627,7 @@ graph TD
 | **CE-2135** B3 | drop Input / State: one variable kind, reserved `Params` (no resolver only), `NoParams` stores nothing (fix the `InputBytes`=1 vs 0 trap); editor sections merged; Parameter Model §1 / §P.7 updated | B1 | Track B | AQ76 rails; hosted-child rails; the size pre-check still skips unsizable types |
 | **CE-2136** B4 | `*.params.json` asset + build-time generator + editor (variables-panel rows, an order-name field); appears in `ParamsDtoRegistry` | B2 | Track B | a generated DTO used by a behaviour end to end |
 | **CE-2129** B5 | stateful slots salted by behaviour and detached on every change except a paused task's | — | Track B | A(slots) → B(none) → C(same key) starts clean |
+| **CE-3182** | a binding targets `Variable.Field` (`Params.<field>`): one target resolver for every emitter, the editor picker / rename / targets understand the path (§5d) | — | backend (user, 2026-10-12) | a field binding is keyed at the CLR offset on BTree and HSM; DangerCrossing can bind `<var>.<field>` |
 | **CE-2137** C1 | `DisTypeMask` in `Fdp.Core`: parse (`*`, `n`, `a-b`, `a,b,c`), `Matches`, `Specificity` (segment by segment from Kind: exact > list/range > `*`) | R0 | Track C | parse / match / specificity rails |
 | **CE-2138** C2 | the hard-coded `EntityClassTable` grown from `VisualFamilies` + `CountryTable`; `VisualFamilies.Of` and `DisNameTable` built from it; `DisNames.json` deleted; picker path = class chain; CE-2127 fixed | C1 | Track C | a golden: every built-in type keeps its 3-D family and picker folder; no two classes share a name or mask |
 | **CE-2139** C3 | units: Kind 11, Category = arm, Subcategory = echelon (the `TkbCompositionDef.Echelon` string becomes the code); composite special cases → DIS; scenario load prefers the template's DIS type; CE-1017 rail updated | C2 | Track C | a unit is in its own class; no tank mask matches a unit |

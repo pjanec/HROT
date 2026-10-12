@@ -133,6 +133,16 @@ internal sealed class GeneratedTypeCatalog
         return self;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3182</c> — the field layouts a binding path (<c>Variable.Field</c>) walks, beside <see cref="SizeResolver"/>: Roslyn's
+    /// CLR layout of a struct that already exists. ⛔ A sibling's GENERATED struct (an Inputs struct, a blueprint's <c>Params</c>)
+    /// answers null — its fields are laid out in this same pass — so a path into it fails closed with a diagnostic.
+    /// </summary>
+    public Hrot.AiEditor.Persistence.Emit.FieldLayoutResolver FieldResolver(Compilation compilation)
+        => (structTypeId, field) => StructSizeResolver.ResolveFieldOf(structTypeId, field, compilation) is { } f
+            ? new Hrot.AiEditor.Persistence.Emit.FieldLayout(f.Offset, f.Size, f.TypeId)
+            : null;
+
     private int? TryResolveInputsSize(string typeId, Func<string, int?> resolver, HashSet<string> visiting)
     {
         foreach (var b in Behaviors)
