@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: ⭐ "THE PROPOSAL IN ONE PAGE" (above §1) is the consolidated answer, ✅ approved in principle (R-277 (behaviors)) with §2.3k's amendments; the sections below are how it was reached. §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), ⭐ the reserved Params variable + params DTO assets + registry (§2.3j, refines §2.3i), the missing measurements + leans (§2.3m), ⭐ classes as named DIS masks, R-278 (§2.3n), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: ⭐ "THE PROPOSAL IN ONE PAGE" (above §1) is the consolidated answer, ✅ approved in principle (R-277 (behaviors)) with §2.3k's amendments; the sections below are how it was reached. §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), ⭐ the reserved Params variable + params DTO assets + registry (§2.3j, refines §2.3i), the missing measurements + leans (§2.3m), ⭐ classes as named DIS masks, R-278 (§2.3n), the hard-coded class table = VisualFamilies grown, R-279 (§2.3o), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -38,7 +38,7 @@ related-designs:
 |---|---|---|
 | **who decides** | the receiver picks the behaviour that fulfils an order; senders and UI name only WHAT is ordered | ✅ R-273 (behaviors) |
 | **orders** | `enum OrderKind` in `Hrot.AI.Behaviors` (users add orders there); each kind has ONE order DTO marked `[Order(kind)]` (`Hold` → empty `HoldOrder`). Outside the AI assembly everything is generic over the discovered order catalogue; RTS gestures are declared on the DTO (§2.3k ①) | ✅ R-277 |
-| **entity classes** | ⭐ a class = a NAMED DIS mask in a data table; an entity's class = the most specific matching mask (also shown in the UI). Replaces `BehaviorCategory` and the hard-coded switch. Units get their own DIS Kind (Category = arm, Subcategory = echelon) | ✅ R-278 + lean (§2.3n) |
+| **entity classes** | ⭐ a class = a NAMED DIS mask in a hard-coded table grown out of `VisualFamilies` (R-279); an entity's class = the most specific matching mask (also shown in the UI). Replaces `BehaviorCategory` and the hard-coded switch. Units get their own DIS Kind (Category = arm, Subcategory = echelon) | ✅ R-278 + lean (§2.3n) |
 | **which behaviour runs** | `<Class><Order>` for the entity's most specific matching class, then broader matching classes; a behaviour serving several classes is named after a class covering them (lists / ranges in its mask); a tie is a load error; no map table; no soldier fallback for a body-less unit | ✅ R-278 + lean (§2.3n) |
 | **echelons** | a unit's drill orders member UNITS by order kind (each decides for itself, recursively) and directs its own soldiers by behaviour. A drill that ends releases its members to their SOPs | lean |
 | **which orders a unit accepts / the menu** | per CLASS, computed on demand from the node's behaviour catalogue: the K for which `<Class>K` is registered. Nothing is stored per entity. Every node runs the catalogue scan (they are one executable; R-275 (behaviors)). The menu builds its follow-up picks from the order DTO's field types (`PickableGeoPoint` → point, `EntityRef` → entity), so a new order kind is one DTO and a new class's behaviour is just registered | lean |
@@ -606,7 +606,7 @@ consumers, the rename radius, ExCon's channel to a node, IG and the catalogue sc
 
 | piece | lean |
 |---|---|
-| the class table | data, next to `DisNames.json` (`Hrot.Core/Tkb`): one row per class = a name + a DIS mask (§2.3l syntax), e.g. `Tank = 1.1.*.1`, `Armor = 1.1.*.1,2`, `Infantry = 3.1.*.1`, `InfantrySquad = 11.1.*.1.<squad>`. Users add rows |
+| the class table | ⛔ *(superseded by §2.3o / R-279: hard-coded C#, grown out of `VisualFamilies`)* data, next to `DisNames.json` (`Hrot.Core/Tkb`): one row per class = a name + a DIS mask (§2.3l syntax), e.g. `Tank = 1.1.*.1`, `Armor = 1.1.*.1,2`, `Infantry = 3.1.*.1`, `InfantrySquad = 11.1.*.1.<squad>`. Users add rows |
 | an entity's class | the MOST SPECIFIC class whose mask matches its DIS type. The same answer feeds the UI ("what is this?", today only the map symbol says it) |
 | which behaviour fulfils order K | `<Class><K>` for the entity's most specific matching class, then the next most specific matching class, and so on. The first one registered wins (`T72` → `TankMove`, else `ArmorMove`, else `LandPlatformMove`) |
 | **a behaviour serving several classes** | it is named after a class that COVERS them all, and since masks take lists and ranges such a class is one row: `Armor = 1.1.*.1,2` makes `ArmorMove` serve tanks and IFVs. The more specific `TankMove`, when it exists, still wins for tanks |
@@ -622,6 +622,32 @@ Rejected:
 - ⛔ **Unintended:** a curated node's stateful working slot. Its key is not salted by behaviour (`BehaviorIngressSystem.cs:310`), and the previous behaviour's slots are detached only when the NEW behaviour declares slots of its own (`:589-598`). So a slot can outlive its behaviour, and a later behaviour with the same unsalted key can pick up its contents. Filed as **CE-2129**. AQ76's approved direction (A, C: no cross-entity shared memory, no scopes) means nothing should survive except the block a paused task owns.
 
 **A composite type:** a TKB type that carries a `TkbCompositionDef`, a list of subordinate slots (`Hrot.Core/MapDefinitions/Tkb/TkbCompositionDef.cs:29-35`; *"Tank Platoon has 4x Tank slots"*). Spawning it creates the body-less unit entity (`UnitEntity`, R-272 (behaviors)) and one child per slot. `Unit_TankPlatoon`, `Unit_InfantrySquad` and `Unit_TankPlatoon_Auto` are the three today. The 3-D view and the Add-Entity picker recognise units by this, not by DIS.
+
+### 2.3o The class table is hard-coded, and it already half-exists as `VisualFamilies` *(2026-10-12; user: "Class table to be hardcoded, no data files for now. Pls explain 'The 3-D view, icons and Add-Entity picker key on the composite type instead'")*
+
+✅ **Ruled (R-279 (behaviors)):** the class table is hard-coded C#, with no data file for now. This replaces §2.3n's "data next to `DisNames.json`".
+
+**What "key on the composite type" means, measured:**
+
+| surface | what it does today | file |
+|---|---|---|
+| **3-D view + Add-Entity icons** | ONE hard-coded classifier, `VisualFamilies.Of(template)`, *"THE one answer to 'what kind of thing is this type'"* (CE-1033). It asks **first** whether the template has a `TkbCompositionDef` ⇒ `Unit` (no body; the members draw themselves). Only otherwise does it read DIS: Kind 3 ⇒ `Person`; Kind 1 Domain 1 by Category ⇒ `Tank` (1), `Afv` (2), `WheeledCar` (81), `WheeledUtility` (3/6/7); Kind 1 Domain 2 by Category ⇒ `Helicopter` (20–25), `Jet`, `CargoPlane`; else `Unknown` | `Hrot.Presentation/Map3D/VisualFamily.cs:30-56`; the icon fallback is the same function (`EntityTypeCatalog.cs:128-130`) |
+| **Add-Entity picker folders** | `CategoryOf`: a composite goes to `Units/<country name>`, reading ONLY the DIS Country. Every other type goes to its DIS name path (Kind / Domain / Category names from `DisNames.json`) | `EntityTypeCatalog.cs:88-97` |
+
+⇒ they look at the composite descriptor and not at DIS because **DIS cannot tell a unit apart today**: all three units carry
+`1.1.US` with Category 0, the same as "any US land platform" (§2.3k ⑤).
+
+⇒ ⭐ **Lean: the hard-coded class table IS `VisualFamilies`, grown, not a second classifier beside it** (seam law: *"a shared X
+already exists and is under-adopted"*). One table of named DIS masks, from general to specific:
+- **platforms:** `LandPlatform 1.1.*`, `Armor 1.1.*.1,2`, `Tank 1.1.*.1`, `Afv 1.1.*.2`, `WheeledUtility 1.1.*.3,6,7`, `Helicopter 1.2.*.20-25`, …
+- **people:** `Person 3.*`;
+- **units, under their own Kind:** `Unit 11.*`, `InfantrySquad 11.1.*.1.<squad>`, `TankPlatoon 11.1.*.2.<platoon>`, ….
+
+`VisualFamilies.Of` becomes "the most specific matching class → its visual family", and the behaviour lookup uses the same
+answer. Once units have their own Kind:
+- the `TkbCompositionDef` special case in both places becomes a plain DIS match;
+- the picker's `Units/<country>` folder becomes the units' DIS name path (`DisNames.json` gains the Kind-11 names).
+⚠ Not measured: whether anything besides these two sites special-cases composites for display.
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
