@@ -62,11 +62,15 @@ namespace Hrot.Presentation.Behavior
         /// <paramref name="behaviorRegistry"/>, for callers that build the runtime registry and have
         /// no ImGui form or scenario remapper to populate (headless hosts, tests, the CGF loader).
         /// </summary>
-        public static void BindJsonParamsDtoTypes(BehaviorRegistry behaviorRegistry)
+        /// <param name="declarations">
+        /// The declarations to bind; <c>null</c> means <see cref="ParamsDtoRegistry.Default"/>. ⛔ A caller that built the
+        /// definitions from one copy of a hot-reloadable assembly passes <see cref="ParamsDtoRegistry.Pinning"/> of it.
+        /// </param>
+        public static void BindJsonParamsDtoTypes(BehaviorRegistry behaviorRegistry, ParamsDtoRegistry? declarations = null)
         {
             if (behaviorRegistry is null) throw new System.ArgumentNullException(nameof(behaviorRegistry));
 
-            foreach (var (behaviorName, type) in AuthoredContracts())
+            foreach (var (behaviorName, type) in AuthoredContracts(declarations))
                 behaviorRegistry.RegisterJsonParamsDtoType(behaviorName, type);
         }
 
@@ -75,7 +79,7 @@ namespace Hrot.Presentation.Behavior
         /// <c>[Behavior(Params = …)]</c>, wherever it sits (a curated topology or resolver, an intent mapper, an assembly).
         /// ⛔ HISTORY: it scanned <c>Hrot.Core</c> for <c>[BehaviorContract]</c> on the DTOs, so a DTO could serve one behaviour.
         /// </summary>
-        private static IEnumerable<(string BehaviorName, System.Type DtoType)> AuthoredContracts()
-            => ParamsDtoRegistry.Default.Behaviors.Select(d => (d.Name, d.ParamsType));
+        private static IEnumerable<(string BehaviorName, System.Type DtoType)> AuthoredContracts(ParamsDtoRegistry? declarations = null)
+            => (declarations ?? ParamsDtoRegistry.Default).Behaviors.Select(d => (d.Name, d.ParamsType));
     }
 }

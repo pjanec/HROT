@@ -341,7 +341,8 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     public void CE2134_EveryDeclaredBehaviour_PublishesItsDeclaredDto()
     {
         var registry = LoadProductionRegistry();
-        var declared = Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default;
+        // ⛔ The copy the loader scanned, not the last-loaded one: the hot-reload rails load other copies into this process.
+        var declared = Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Pinning(typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly);
         var wrong = new System.Collections.Generic.List<string>();
         int checkedCount = 0;
         foreach (var d in declared.Behaviors)

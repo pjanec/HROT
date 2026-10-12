@@ -74,6 +74,23 @@ namespace Hrot.Map.Definitions.Behavior
             }
         }
 
+        /// <summary>
+        /// ⭐ <see cref="Default"/>, but with <paramref name="pinned"/> standing for its assembly name instead of the last-loaded
+        /// copy. ⛔ A caller that registers definitions from ONE copy of a hot-reloadable assembly must bind contracts from that
+        /// same copy — otherwise <c>MoveOrder</c> from the newer copy is not the <c>MoveOrder</c> its definitions were built
+        /// with (measured: <c>CE2142_EveryClassOrderBehaviour_TakesItsOrdersDto</c> red 3/3 after the hot-reload rails).
+        /// Returns <see cref="Default"/> itself when it already holds <paramref name="pinned"/> — the production case.
+        /// </summary>
+        public static ParamsDtoRegistry Pinning(Assembly pinned)
+        {
+            if (pinned is null) throw new ArgumentNullException(nameof(pinned));
+            var all = Default;   // also loads the known behaviour assemblies on first use
+            string name = pinned.GetName().Name ?? pinned.FullName ?? "";
+            var live = LatestPerName(AppDomain.CurrentDomain.GetAssemblies()).ToList();
+            if (live.Contains(pinned)) return all;
+            return Scan(live.Select(a => (a.GetName().Name ?? a.FullName ?? "") == name ? pinned : a));
+        }
+
         /// <summary>Scans exactly <paramref name="assemblies"/> (a rail scans a known set).</summary>
         public static ParamsDtoRegistry Scan(IEnumerable<Assembly> assemblies)
         {

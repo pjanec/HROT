@@ -59,7 +59,10 @@ namespace Hrot.CGF.Configuration
             //   Deliberately here and not in the registrars: [Behavior(Params = …)] on the behaviours (CE-2134,
             //   read by ParamsDtoRegistry) is the one producer (R-132), and this is the one loader every host and test
             //   goes through, so no caller can forget it. Order-independent, so it is safe after Scan.
-            Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindJsonParamsDtoTypes(behaviorRegistry);
+            //   ⛔ Pinned to the copy just scanned: a process that also holds a hot-reloaded copy would otherwise bind that
+            //   copy's DTO types to definitions built from this one.
+            Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindJsonParamsDtoTypes(behaviorRegistry,
+                Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Pinning(aiAssembly));
         }
 
         /// <summary>
