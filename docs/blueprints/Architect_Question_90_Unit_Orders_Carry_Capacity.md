@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), ⭐ the reserved Params variable + params DTO assets + registry (§2.3j, refines §2.3i), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -397,7 +397,7 @@ planned)"*, which is stale. Measured: **9** `.bp.json` assets with `Dispatch: "B
 |---|---|
 | a behaviour has ONE block of variables; **no `Input` / `State` role** | every variable is the behaviour's own memory |
 | a behaviour names its params DTO (R-276 (behaviors)), or none | the public contract; flat JSON |
-| **no resolver:** the JSON lands in the ONE variable whose type is the params DTO (the params target) | the default copy, as today, but into a named variable instead of an "Input region" |
+| ⛔ *(refined in §2.3j: a reserved `Params` variable, never chosen by type)* **no resolver:** the JSON lands in the ONE variable whose type is the params DTO (the params target) | the default copy, as today, but into a named variable instead of an "Input region" |
 | **a resolver:** it receives the DTO and writes ANY variables of the block | AQ76 §12.3's grant, unchanged |
 | everything else starts at its baked default | AQ76's bake stage (which also closes CE-420) |
 
@@ -419,6 +419,59 @@ What the `Input` role does today, each re-homed:
 - the four Parameter-declaring behaviour blueprints and the five multi-Input library assets each get one C# params DTO;
 - Parameter Model §P.7 (approved 2026-09-30, a resolver asset's authored shape = its Parameters) is superseded;
 - the user said params DTOs are C#-only, and this makes that true.
+
+### 2.3j Refined: a reserved `Params` variable, editor-authored params DTO assets, and block variables as params for others *(2026-10-12)*
+
+> 🔒 *User: "the json needs to land in what used to be the input variable, not just by variable type as the behavior can contain
+> multiple vars of the same type. That input one can be called specifically as it is no longer authored in the blackboard variable
+> editor. The inability to define in editor could be easily fixed by adding editor capability to define parameter dto assets (with
+> generator that produces the csharp dto). Editor would have param dto registry filled from reflection scan for param dto structs.
+> Note that vars in the blackboard are often serving as params for actions and sub behaviors."*
+
+```mermaid
+classDiagram
+  class BehaviorBlock {
+    <<one per running behaviour, AQ76 B>>
+    +Params : TParamsDto  (RESERVED, present iff a params DTO is named; not authored in the variable editor)
+    +any number of variables  (one kind; no Input / State role)
+  }
+  class ParamsDto {
+    <<C# struct: hand-written, or generated from a params DTO asset>>
+    flat fields = the JSON
+  }
+  class ParamsDtoAsset {
+    <<NEW, *.params.json>> fields · types · defaults
+  }
+  class ParamsDtoRegistry {
+    <<NEW, editor>> reflection scan of the params-DTO attribute
+  }
+  class Resolver {
+    <<optional, C# or blueprint>> reads Params, writes any block variable
+  }
+  ParamsDtoAsset ..> ParamsDto : generator (build time)
+  ParamsDtoRegistry ..> ParamsDto : finds hand-written and generated alike
+  BehaviorBlock *-- ParamsDto : Params
+  Resolver ..> BehaviorBlock : writes derived variables
+```
+
+*What the picture shows that prose hid: `Params` is a fixed slot of the block, not a variable the author creates, so "which
+variable gets the JSON" has one answer regardless of how many variables share its type. Every other variable, `Params`
+included, is equally available to the behaviour's actions and to the sub-behaviours it hosts.*
+
+| rule | ⭐ lean |
+|---|---|
+| **where the JSON lands** | the reserved variable **`Params`**, present exactly when the behaviour names a params DTO, typed as that DTO, and **always holding the DTO as received**. ⛔ Not chosen by type: a block may hold several variables of the same type |
+| **the resolver** | optional; it runs after the copy, reads `Params`, and writes any OTHER variables (geo → local, a resolved `Entity`, a derived direction). ⇒ there is no identity-versus-conversion branch: the copy always happens and the resolver only adds. `PlatoonHillAttack` keeps its geo DTO in `Params` beside the Cartesian values its resolver writes (bytes are not a concern: blocks go up to 16 096 B) |
+| **block variables as params for others** | unchanged and central. An ACTION binds a field of any block variable, `Params` included, and reads it live (R-155). A hosted SUB-BEHAVIOUR names a host variable typed as the child's params DTO (`ParamsVariable`, AQ76 §12.28e); at the child's start that variable is copied into the child's own `Params` |
+| **editor-authored params DTOs** | a **params DTO asset** (`*.params.json`: fields, types, defaults) with a build-time generator that emits the C# struct. It uses the path the editor-managed blackboard already takes: the asset JSON is the source and the C# struct is generated at build (Category-2; Blackboard Authoring design, Enum design §"netstandard2.0 generators see only JSON text") |
+| **the editor's params DTO registry** | ONE reflection scan for one params-DTO attribute, which finds hand-written and generated DTOs alike. It replaces today's two scans: `[BlackboardDtoStruct]` (`BlackboardTypeChoiceBuilder`) and `[BehaviorContract]` (`BehaviorSchemaDiscovery`). Order DTOs are params DTOs that also carry `[Order]` |
+
+⛔ Measured constraint: `Params` lives in the blittable block, so a params DTO must be an **unmanaged struct**. Of today's 25
+contract DTOs, **15 are structs and 10 are classes** (`DefendAreaIntentDto`, `HullDownAttackIntentDto`, `FollowRouteParamsJsonDto`,
+`IdleParamsJsonDto`, `AmbushParamsJsonDto`, `InfantryCombatParamsJsonDto`, `JoinFormationParamsJsonDto`,
+`PlatoonHillAttackParamsJsonDto`, `WanderMilitaryParamsJsonDto`, `ConvoyEscortParamsJsonDto`); those become structs.
+⛔ Not measured: which of the 10 hold a collection or a string, which would need a fixed-size form (the type system has
+`FixedLength`).
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
