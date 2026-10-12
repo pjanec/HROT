@@ -47,6 +47,10 @@ internal sealed class GeneratedTypeCatalog
     /// <summary>Every <c>*.btree.json</c> / <c>*.hsm.json</c> sibling that publishes an Inputs struct.</summary>
     public IReadOnlyList<BehaviorInputs> Behaviors { get; }
 
+    /// <summary>⭐ <c>CE-2136</c> — every <c>*.params.json</c> sibling (a params DTO asset), by its generated type id.</summary>
+    public IReadOnlyDictionary<string, Hrot.AiEditor.Persistence.Params.ParamsDtoAssetDto> ParamsDtos { get; private set; }
+        = new Dictionary<string, Hrot.AiEditor.Persistence.Params.ParamsDtoAssetDto>(StringComparer.Ordinal);
+
     /// <summary>
     /// ⭐ The ONE wiring every generator uses: every <c>*.bp.json</c>, <c>*.btree.json</c> and <c>*.hsm.json</c> of the compilation,
     /// parsed once per change (not once per asset).
@@ -59,8 +63,8 @@ internal sealed class GeneratedTypeCatalog
                 .Select(static (at, ct) => (at.Path, at.GetText(ct)?.ToString() ?? string.Empty))
                 .Collect();
 
-        return Collect(".bp.json").Combine(Collect(".btree.json")).Combine(Collect(".hsm.json"))
-            .Select(static (files, _) => Parse(files.Left.Left, files.Left.Right, files.Right));
+        return Collect(".bp.json").Combine(Collect(".btree.json")).Combine(Collect(".hsm.json")).Combine(Collect(".params.json"))
+            .Select(static (files, _) => Parse(files.Left.Left.Left, files.Left.Left.Right, files.Left.Right, files.Right));
     }
 
     /// <summary>Parses every sibling asset. Unparseable files are skipped — their own generator run reports them.</summary>
@@ -68,6 +72,15 @@ internal sealed class GeneratedTypeCatalog
         ImmutableArray<(string Path, string Text)> bpJsonFiles,
         ImmutableArray<(string Path, string Text)> btreeJsonFiles,
         ImmutableArray<(string Path, string Text)> hsmJsonFiles)
+        => Parse(bpJsonFiles, btreeJsonFiles, hsmJsonFiles, ImmutableArray<(string Path, string Text)>.Empty);
+
+    /// <summary>⭐ <c>CE-2136</c> — <see cref="Parse(ImmutableArray{ValueTuple{string,string}},ImmutableArray{ValueTuple{string,string}},ImmutableArray{ValueTuple{string,string}})"/>
+    /// plus the params DTO assets.</summary>
+    public static GeneratedTypeCatalog Parse(
+        ImmutableArray<(string Path, string Text)> bpJsonFiles,
+        ImmutableArray<(string Path, string Text)> btreeJsonFiles,
+        ImmutableArray<(string Path, string Text)> hsmJsonFiles,
+        ImmutableArray<(string Path, string Text)> paramsJsonFiles)
     {
         var behaviors = new List<BehaviorInputs>();
         foreach (var (_, text) in btreeJsonFiles)
@@ -84,7 +97,16 @@ internal sealed class GeneratedTypeCatalog
             catch { continue; }
             if (dto != null) Add(HsmBridgeEmitCore.BlackboardOwner(dto), behaviors);
         }
-        return new GeneratedTypeCatalog(GeneratedBlueprintSchemaCatalog.Parse(bpJsonFiles), behaviors);
+        var paramsDtos = new Dictionary<string, Hrot.AiEditor.Persistence.Params.ParamsDtoAssetDto>(StringComparer.Ordinal);
+        foreach (var (_, text) in paramsJsonFiles)
+        {
+            Hrot.AiEditor.Persistence.Params.ParamsDtoAssetDto dto;
+            try { dto = Hrot.AiEditor.Persistence.Params.ParamsDtoJson.Deserialize(text); }
+            catch { continue; }   // its own generator reports it
+            if (Hrot.AiEditor.Persistence.Params.ParamsDtoEmitCore.Validate(dto).Count == 0)
+                paramsDtos[Hrot.AiEditor.Persistence.Params.ParamsDtoEmitCore.TypeIdOf(dto)] = dto;
+        }
+        return new GeneratedTypeCatalog(GeneratedBlueprintSchemaCatalog.Parse(bpJsonFiles), behaviors) { ParamsDtos = paramsDtos };
     }
 
     private static void Add(BehaviorTreeAssetDto owner, List<BehaviorInputs> into)
@@ -103,6 +125,7 @@ internal sealed class GeneratedTypeCatalog
         if (id.Length == 0) return false;
         foreach (var b in Behaviors)
             if (string.Equals(b.InputsTypeId, id, StringComparison.Ordinal)) return true;
+        if (ParamsDtos.ContainsKey(id)) return true;   // ⭐ CE-2136
         int nested = id.IndexOf('+');
         string classFqn = nested >= 0 ? id.Substring(0, nested) : id;
         return GeneratedBlueprintSchemaCatalog.TryParseGeneratedClassRef(classFqn, out string name, out int blueprintId)
@@ -126,9 +149,12 @@ internal sealed class GeneratedTypeCatalog
         self = typeId =>
         {
             string id = Strip(typeId);
-            return roslyn(typeId)
+            int? known = roslyn(typeId)
                 ?? GeneratedBlueprintSchemaCatalog.TryResolveParamsSize(id, Blueprints, compilation)
                 ?? TryResolveInputsSize(id, self!, visiting);
+            if (known != null) return known;
+            TryLayoutParamsDto(id, compilation, out _, out int dtoSize);   // ⭐ CE-2136 — a params DTO asset's struct
+            return dtoSize >= 0 ? dtoSize : (int?)null;
         };
         return self;
     }
@@ -139,9 +165,32 @@ internal sealed class GeneratedTypeCatalog
     /// answers null — its fields are laid out in this same pass — so a path into it fails closed with a diagnostic.
     /// </summary>
     public Hrot.AiEditor.Persistence.Emit.FieldLayoutResolver FieldResolver(Compilation compilation)
-        => (structTypeId, field) => StructSizeResolver.ResolveFieldOf(structTypeId, field, compilation) is { } f
-            ? new Hrot.AiEditor.Persistence.Emit.FieldLayout(f.Offset, f.Size, f.TypeId)
-            : null;
+        => (structTypeId, field) =>
+        {
+            if (StructSizeResolver.ResolveFieldOf(structTypeId, field, compilation) is { } f)
+                return new Hrot.AiEditor.Persistence.Emit.FieldLayout(f.Offset, f.Size, f.TypeId);
+            // ⭐ CE-2136 — a field of a params DTO asset's struct, laid out from its JSON (it is generated in this same pass).
+            TryLayoutParamsDto(Strip(structTypeId), compilation, out var fields, out _);
+            if (fields != null)
+                foreach (var lf in fields)
+                    if (string.Equals(lf.Name, field, StringComparison.Ordinal))
+                        return new Hrot.AiEditor.Persistence.Emit.FieldLayout(lf.Offset, lf.Size, lf.TypeId);
+            return null;
+        };
+
+    /// <summary>⭐ <c>CE-2136</c> — a params DTO asset's CLR layout (sequential), its field types laid out by Roslyn / the known-type
+    /// table; null (and <paramref name="size"/> −1) when <paramref name="typeId"/> is no such asset or a field cannot be laid out.
+    /// Returns null always, so it chains after <c>??</c> for the size and hands the size back through the out value.</summary>
+    private int? TryLayoutParamsDto(string typeId, Compilation compilation,
+        out IReadOnlyList<Hrot.AiEditor.Persistence.Params.ParamsDtoEmitCore.LaidOutField>? fields, out int size)
+    {
+        fields = null; size = -1;
+        if (!ParamsDtos.TryGetValue(typeId, out var dto)) return null;
+        if (Hrot.AiEditor.Persistence.Params.ParamsDtoEmitCore.TryLayout(dto, t => StructSizeResolver.ResolveFieldLayout(Strip(t), compilation),
+                out var laid, out int bytes))
+        { fields = laid; size = bytes; }
+        return null;
+    }
 
     private int? TryResolveInputsSize(string typeId, Func<string, int?> resolver, HashSet<string> visiting)
     {

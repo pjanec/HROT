@@ -96,6 +96,7 @@ namespace Hrot.Map.Definitions.Behavior
         {
             var declarations = new List<(BehaviorAttribute, string)>();
             var orderDtos = new List<Type>();
+            var markedDtos = new List<Type>();   // ⭐ CE-2136 — [ParamsDto] (a generated params DTO asset)
             foreach (var asm in assemblies.Distinct())
             {
                 if (asm.IsDynamic || !CanDeclare(asm)) continue;
@@ -105,6 +106,7 @@ namespace Hrot.Map.Definitions.Behavior
                 {
                     foreach (var a in t.GetCustomAttributes<BehaviorAttribute>(inherit: false)) declarations.Add((a, t.FullName ?? t.Name));
                     if (t.IsDefined(typeof(OrderAttribute), inherit: false)) orderDtos.Add(t);
+                    if (t.IsDefined(typeof(ParamsDtoAttribute), inherit: false)) markedDtos.Add(t);
                     foreach (var m in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static
                                                    | BindingFlags.Instance | BindingFlags.DeclaredOnly))
                     {
@@ -115,7 +117,7 @@ namespace Hrot.Map.Definitions.Behavior
                     }
                 }
             }
-            return FromDeclarations(declarations, orderDtos);
+            return FromDeclarations(declarations, orderDtos, markedDtos);
         }
 
         /// <summary>
@@ -123,7 +125,7 @@ namespace Hrot.Map.Definitions.Behavior
         /// <see cref="Scan"/> builds from reflection; a rail builds one by hand. ⛔ Throws on the load-check failures.
         /// </summary>
         public static ParamsDtoRegistry FromDeclarations(IEnumerable<(BehaviorAttribute Declaration, string DeclaredOn)> declarations,
-            IEnumerable<Type> orderDtos)
+            IEnumerable<Type> orderDtos, IEnumerable<Type>? markedDtos = null)
         {
             var byName = new Dictionary<string, BehaviorDeclaration>(StringComparer.Ordinal);
             foreach (var (a, on) in declarations)
@@ -142,7 +144,7 @@ namespace Hrot.Map.Definitions.Behavior
             foreach (var t in orderDtos)
                 if (t.GetCustomAttribute<OrderAttribute>(inherit: false) is { } order) orders[t] = order.Name;
 
-            var dtos = byName.Values.Select(d => d.ParamsType).Concat(orders.Keys).Distinct()
+            var dtos = byName.Values.Select(d => d.ParamsType).Concat(orders.Keys).Concat(markedDtos ?? Type.EmptyTypes).Distinct()
                 .Select(t => new ParamsDtoInfo(t, orders.TryGetValue(t, out var o) ? o : null,
                     byName.Values.Where(d => d.ParamsType == t).Select(d => d.Name).OrderBy(n => n, StringComparer.Ordinal).ToList()))
                 .OrderBy(i => i.Type.FullName, StringComparer.Ordinal)

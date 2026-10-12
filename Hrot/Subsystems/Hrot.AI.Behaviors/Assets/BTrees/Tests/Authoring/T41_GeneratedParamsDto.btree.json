@@ -1,0 +1,95 @@
+{
+	"$meta": {
+		"docType": "Hrot.BTree",
+		"schemaVersion": 2
+	},
+	"AssetId": "bb000041-0000-0000-0000-000000000000",
+	"Name": "T41_GeneratedParamsDto",
+	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
+	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+	"Nodes": [
+		{
+			"kind": "Root",
+			"VisualId": "b4110000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"b4120000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Root",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 0,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Sequence",
+			"VisualId": "b4120000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"b4130000-0000-0000-0000-000000000001",
+				"b4140000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Sequence",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 130,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Wait",
+			"Wait": {
+				"Duration": 1
+			},
+			"VisualId": "b4130000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wait(1s)",
+			"EditorMetadata": {
+				"X": 100,
+				"Y": 260,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Wait",
+			"Wait": {
+				"Duration": 2
+			},
+			"VisualId": "b4140000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wait(2s)",
+			"EditorMetadata": {
+				"X": 300,
+				"Y": 260,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		}
+	],
+	"ParamsDtoTypeId": "Hrot.AI.Behaviors.Params.T41Params",
+	"ParamsDefaultJson": "{\"Range\":25,\"Home\":[10,20,0],\"Loops\":2}",
+	"Pills": [],
+	"Canvas": {
+		"PanX": 0,
+		"PanY": 0,
+		"Zoom": 1
+	},
+	"SubtreeSyncBindings": {},
+	"Suppressions": {
+		"Conflict": [],
+		"Unused": []
+	},
+	"Blackboard": {
+		"Managed": true,
+		"TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+		"HeavyDtoType": null,
+		"Variables": []
+	}
+}

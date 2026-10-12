@@ -188,6 +188,9 @@
   <ItemGroup>
     <AdditionalFiles Include="Assets\BTrees\**\*.btree.json" />
     <AdditionalFiles Include="Assets\HSMs\**\*.hsm.json" />
+    <!-- ⭐ CE-2136 (B4a) — params DTO assets: ParamsDtoJsonGenerator emits each as a [ParamsDto] struct. -->
+    <AdditionalFiles Include="Assets\Params\**\*.params.json" />
+    <UpToDateCheckInput Include="Assets\Params\**\*.params.json" />
   </ItemGroup>
 
   <!-- Recipe blueprint files: bundled as content for editor discovery.

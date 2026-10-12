@@ -1049,7 +1049,7 @@ and R-275 rules out the cheap fix (keep it in the CGF pack and add it per host e
 
 **User decision needed** before building (the blast radius is every host's Simulation order).
 
-## 12. CE-2136 B4 — the params DTO asset *(build-state: B4a READY-TO-BUILD `2026-10-12` · B4b DESIGN, awaits the user — behaviors, taking Track B overnight)*
+## 12. CE-2136 B4 — the params DTO asset *(build-state: B4a BUILT `2026-10-12` — as-built §12.1 · B4b DESIGN, awaits the user — behaviors, taking Track B overnight)*
 
 **Why:** AQ90 §2.3j / one-page row "authoring params DTOs" (approved in principle, R-277): a params DTO must be authorable without
 C# — a `*.params.json` asset (fields, types, defaults, an optional order name) that a BUILD-TIME generator turns into the DTO,
@@ -1132,3 +1132,17 @@ step needs, and it is additive.
 Design docs checked: AQ90 §2.3j + one-page row — *applies* (the asset, the generator, the editor); Blackboard Authoring DD v2/v2.1 —
 *applies* (Category-2: JSON is the source; discovery latency until reload); ENUM-DESIGN — *applies as a constraint* (JSON text only),
 *does not apply* as precedent (it forbids an enum catalogue, a different question).
+
+### 12.1 B4a as built *(2026-10-12)*
+
+| piece | where |
+|---|---|
+| the asset model, validation, emitter, sequential layout | `Hrot.AiEditor.Persistence/Params/ParamsDtoAsset.cs` (`ParamsDtoAssetDto`, `ParamsDtoJson`, `ParamsDtoEmitCore.Validate / Emit / DefaultJsonOf / TryLayout`) |
+| the generator | `Hrot.AiEditor.Generators/ParamsDtoJsonGenerator.cs` — `PARAMS0001` on a bad asset (descriptor inline: RS2008, the siblings' rule) |
+| the attribute and the registry arm | `Hrot.Core/MapDefinitions/Behavior/ParamsDtoAttribute.cs` (`DefaultJson`); `ParamsDtoRegistry.Scan` lists `[ParamsDto]` types (`FromDeclarations(…, markedDtos)`) |
+| sibling sizing / field binding | `GeneratedTypeCatalog` collects `*.params.json`: `Declares`, `SizeResolver` and `FieldResolver` lay a generated DTO out from its JSON (fail closed on an unknown field type) |
+| wiring | `Hrot.AI.Behaviors.csproj`: `AdditionalFiles` / `UpToDateCheckInput` `Assets\Params\**\*.params.json` |
+| the end-to-end fixture | `Assets/Params/Tests/T41Params.params.json` + `Assets/BTrees/Tests/Authoring/T41_GeneratedParamsDto.btree.json` (names it, bakes `ParamsDefaultJson`) |
+| rails | `ParamsDtoJsonGeneratorTests` (valid → struct + `[ParamsDto]` + `[Order]`; six invalid cases → a diagnostic; the sequential layout) · `ParamsDtoAssetTests` (listed by the registry with its default; the CLR layout equals the computed one, 24 bytes; the behaviour publishes it and parses flat over the bake) · the corpus count 33 → 34 |
+
+⚠ Deviation from the lean: none. ⚠ Not yet: the editor (B4b) and `BlackboardTypeChoiceBuilder` listing `[ParamsDto]` types.

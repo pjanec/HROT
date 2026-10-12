@@ -1,0 +1,10 @@
+{
+  "Name": "T41Params",
+  "Comment": "CE-2136 test fixture: an editor-authored params DTO (T41_GeneratedParamsDto takes it).",
+  "Fields": [
+    { "Name": "Range", "TypeId": "System.Single", "DefaultJson": "25", "Comment": "How far it looks (m)." },
+    { "Name": "Home", "TypeId": "System.Numerics.Vector3", "DefaultJson": "[10,20,0]", "Comment": "Where it returns." },
+    { "Name": "Loops", "TypeId": "System.Int32", "DefaultJson": "2" },
+    { "Name": "Alerted", "TypeId": "System.Boolean" }
+  ]
+}
