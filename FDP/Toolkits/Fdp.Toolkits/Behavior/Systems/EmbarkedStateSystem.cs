@@ -14,8 +14,12 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// position is owned (inside <see cref="Embarkation.Leave"/>).
     /// ⭐ Order inside the phase is free: <see cref="Embarkation.Board"/> writes the tag and strips CanMove in one call, so
     /// <see cref="CognitiveInterruptSystem"/> (which skips a tagged entity) sees the tag in whichever frame it notices the change.
-    /// ⭐ Composed on every node by the cross-role <c>CoreInfrastructureCapabilities.Embarkation</c> — never by a host or role pack.
-    /// 📄 docs/DESIGN_Entity_Interactions.md §7.1c, §7.1d.
+    /// ⭐⭐ I-2c (R-271) — for every passenger still aboard: CARRIED (position, rotation and velocity = the vehicle's) where its position is
+    /// owned, and KILLED where its Health is owned once the vehicle is destroyed — a lethal <c>DamageAssessedEvent</c> into the one Health
+    /// writer, <c>HealthApplicationSystem</c>; the body stays aboard the wreck. ⚠ The carry is ≤ one frame behind the vehicle (this runs in
+    /// Input, kinematics in PostSimulation) — the passenger is hidden, or rides an open cabin where that is invisible at frame rate.
+    /// ⭐ Composed on every node by the cross-role <c>CoreInfrastructureCapabilities.Interactions</c> — never by a host or role pack.
+    /// 📄 docs/DESIGN_Entity_Interactions.md §7.1c, §7.1d, §7.2a.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     public sealed class EmbarkedStateSystem : IEcsModuleSystem
@@ -24,11 +28,14 @@ namespace Fdp.Toolkit.Behavior.Systems
         private readonly List<(Entity passenger, Entity vehicle)> _leavers = new();
         private readonly Dictionary<Entity, int> _leaving = new();
         private readonly Dictionary<Entity, int> _order = new();
+        private readonly HashSet<Entity> _killSent = new();
 
         /// <summary>Passengers this node boarded from a list (a rail reads it).</summary>
         public long Boarded { get; private set; }
         /// <summary>Passengers this node took off because their vehicle no longer lists them.</summary>
         public long Left { get; private set; }
+        /// <summary>Passengers this node killed because their vehicle was destroyed (lethal damage events published).</summary>
+        public long Killed { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -66,10 +73,47 @@ namespace Fdp.Toolkit.Behavior.Systems
                 Left++;
             }
 
+            CarryAndKill(repo);
+
             _boarders.Clear();
             _leavers.Clear();
             _leaving.Clear();
             _order.Clear();
+        }
+
+        /// <summary>⭐ I-2c — every passenger still aboard: carried where its position is owned, killed where its Health is owned once the
+        /// vehicle is destroyed (CombatLife.IsDestroyed — a wreck, not a deleted entity).</summary>
+        private void CarryAndKill(EntityRepository repo)
+        {
+            bool transforms = repo.IsComponentTypeRegistered<SimTransform>();
+            bool velocities = repo.IsComponentTypeRegistered<SimVelocity>();
+            bool damage = repo.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
+            foreach (var p in repo.Query().With<IsEmbarkedTag>().Build())
+            {
+                var vehicle = repo.GetComponentRO<IsEmbarkedTag>(p).VehicleEntity;
+                if (!repo.IsAlive(vehicle)) continue;
+
+                if (transforms && repo.HasComponent<SimTransform>(vehicle) && repo.HasComponent<SimTransform>(p) && Embarkation.OwnsPosition(repo, p))
+                {
+                    ref readonly var v = ref repo.GetComponentRO<SimTransform>(vehicle);
+                    ref var t = ref repo.GetComponentRW<SimTransform>(p);
+                    t.Position = v.Position;
+                    t.Rotation = v.Rotation;
+                    if (velocities && repo.HasComponent<SimVelocity>(vehicle) && repo.HasComponent<SimVelocity>(p))
+                        repo.GetComponentRW<SimVelocity>(p) = repo.GetComponentRO<SimVelocity>(vehicle);   // dead reckoning elsewhere
+                }
+
+                if (!Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, p)) { _killSent.Remove(p); continue; }
+                if (damage && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(repo, vehicle) && Embarkation.OwnsHealth(repo, p) && _killSent.Add(p))
+                {
+                    repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.DamageAssessedEvent
+                    {
+                        HitEntity = p,
+                        TotalDamage = repo.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(p).Current,
+                    });
+                    Killed++;
+                }
+            }
         }
 
         private bool Listed(Entity p)

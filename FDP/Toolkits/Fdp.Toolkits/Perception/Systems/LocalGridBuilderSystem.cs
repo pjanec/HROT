@@ -103,7 +103,10 @@ namespace Fdp.Toolkit.Perception.Systems
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
-            var query = view.Query().With<SimTransform>().ExcludeHidden().Build();   // ⭐ CE-2125 (R-272) — a unit is not a body
+            // ⭐ CE-2125 (R-272) / CE-3110 I-2c (R-271) — a unit is not a body and an enclosed passenger is not visible: every pass skips
+            //   PhysicalPresence.IsHidden, and the incremental pass EVICTS an entity that became hidden (a boarding cancelled by a spawn
+            //   keeps the count equal, so the count check alone would leave it in the grid).
+            var query = view.Query().With<SimTransform>().Build();
 
             // ⭐ CE-3018 — a new terrain REBASES the grid (same memory: the visual template's copy sees the shared
             //    geometry) and invalidates every remembered position, which was hashed with the old geometry.
@@ -125,7 +128,7 @@ namespace Fdp.Toolkit.Perception.Systems
             // Count entities and detect whether the entity set has changed.
             int newCount = 0;
             foreach (var entity in query)
-                newCount++;
+                if (!PhysicalPresence.IsHidden(view, entity)) newCount++;
 
             if (newCount != _lastEntityCount)
             {
@@ -141,6 +144,15 @@ namespace Fdp.Toolkit.Perception.Systems
             // at the new cell.  Unchanged entities stay in the grid as-is.
             foreach (var entity in query)
             {
+                if (PhysicalPresence.IsHidden(view, entity))
+                {
+                    if (_prevPositions.TryGetValue(entity, out var hiddenAt))
+                    {
+                        _grid.Remove(entity, hiddenAt);
+                        _prevPositions.Remove(entity);
+                    }
+                    continue;
+                }
                 ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
                 var newPos = new Vector2(tf.Position.X, tf.Position.Y);
 
@@ -189,6 +201,7 @@ namespace Fdp.Toolkit.Perception.Systems
 
             foreach (var entity in query)
             {
+                if (PhysicalPresence.IsHidden(view, entity)) continue;
                 ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
                 var pos = new Vector2(tf.Position.X, tf.Position.Y);
                 _prevPositions[entity] = pos;

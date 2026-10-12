@@ -312,5 +312,22 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(1, _w.GetSingletonUnmanaged<ShotTraces>().Count);
             Assert.Equal(1L, _w.GetSingletonUnmanaged<ShotTraces>().NextSeq);
         }
+
+        /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — a passenger inside an ENCLOSED vehicle at the burst takes no blast (the hull takes it,
+        /// and if the vehicle dies the passenger dies with it); one on an OPEN cabin is hit like anyone. 📄 DESIGN_Entity_Interactions §7.2a.</summary>
+        [Fact]
+        public void CE3110_I2c_ABlast_SparesAnEnclosedPassenger_NotAnExposedOne()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var enclosed = Soldier(10f, 10f);
+            _w.AddComponent(enclosed, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { Exposed = 0 });
+            var exposed = Soldier(10.5f, 10f);
+            _w.AddComponent(exposed, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { Exposed = 1 });
+
+            var (_, damage) = Burst(Grenade, new Vector3(10f, 11f, 0f), enclosed, exposed);
+
+            Assert.Equal(0f, damage[0]);
+            Assert.True(damage[1] > 0f, "an exposed passenger is hit like anyone");
+        }
     }
 }

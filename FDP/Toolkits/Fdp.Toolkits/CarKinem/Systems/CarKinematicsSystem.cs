@@ -84,6 +84,9 @@ namespace CarKinem.Systems
                 .With<SimVelocity>()
                 .With<VehicleParams>()
                 .With<NavState>()
+                // ⭐ CE-3110 I-2c (R-271) — a passenger is CARRIED (EmbarkedStateSystem writes its transform from the vehicle's on the
+                //   position owner); driving it here would fight the carry every frame and let a possessed passenger walk out of the hull.
+                .Without<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
                 .Build();
             
             // We use FDP Kernel's optimized ForEachParallel which handles load balancing
@@ -571,16 +574,20 @@ namespace CarKinem.Systems
             
             // Convert to (pos, vel) format for RVO
             Span<(Vector2 pos, Vector2 vel)> neighborData = stackalloc (Vector2, Vector2)[count];
+            // ⭐ CE-3110 I-2c (R-271) — an EMBARKED neighbour rides inside some hull (an exposed passenger stays in the collider hash so it
+            //   can be seen and hit): avoiding the hull covers it, and avoiding it too would make a vehicle swerve around its own riders.
+            int k = 0;
             for (int i = 0; i < count; i++)
             {
                 var (neighborEntity, pos) = neighbors[i];
+                if (!neighborEntity.IsNull && repo.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(neighborEntity)) continue;
                 
                 // neighborEntity is a full Entity handle (Index + Generation) — no reconstruction needed.
                 // Check if entity is valid and has SimVelocity (universal)
                 if (!neighborEntity.IsNull && repo.HasComponent<SimVelocity>(neighborEntity))
                 {
                     var neighborVel3D = repo.GetComponent<SimVelocity>(neighborEntity).Linear;
-                    neighborData[i] = (pos, new Vector2(neighborVel3D.X, neighborVel3D.Y));
+                    neighborData[k++] = (pos, new Vector2(neighborVel3D.X, neighborVel3D.Y));
                 }
                 else if (!neighborEntity.IsNull && repo.HasComponent<VehicleState>(neighborEntity))
                 {
@@ -588,17 +595,18 @@ namespace CarKinem.Systems
                     // But VehicleState no longer has Forward/Speed combined vector easily available?
                     // Ideally we rely on SimVelocity.
                     // If no SimVelocity, assume static.
-                    neighborData[i] = (pos, Vector2.Zero);
+                    neighborData[k++] = (pos, Vector2.Zero);
                 }
                 else
                 {
                     // Fallback to stationary if entity is invalid
-                    neighborData[i] = (pos, Vector2.Zero);
+                    neighborData[k++] = (pos, Vector2.Zero);
                 }
             }
             
+            if (k == 0) return preferredVel;
             return RVOAvoidance.ApplyAvoidance(
-                preferredVel, selfPos, selfVel, neighborData,
+                preferredVel, selfPos, selfVel, neighborData.Slice(0, k),
                 @params.AvoidanceRadius, @params.MaxSpeedFwd);
         }
     }

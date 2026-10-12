@@ -65,6 +65,12 @@ namespace Fdp.Toolkit.Behavior
         public static bool OwnsPosition(EntityRepository repo, Entity passenger)
             => Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(repo, passenger, PositionKey);
 
+        /// <summary>⭐ I-2c (R-271) — true when this node owns <paramref name="passenger"/>'s <c>Health</c> (Brain group): the node that applies
+        /// its death. The same gate as <c>HealthApplicationSystem</c> (no <see cref="NetworkAuthority"/> ⇒ ours).</summary>
+        public static bool OwnsHealth(EntityRepository repo, Entity passenger)
+            => Has<Fdp.Toolkit.Combat.Components.Health>(repo, passenger)
+               && !(Has<NetworkAuthority>(repo, passenger) && !repo.HasAuthority<Fdp.Toolkit.Combat.Components.Health>(passenger));
+
         /// <summary>Is <paramref name="passenger"/> in <paramref name="vehicle"/>'s list?</summary>
         public static bool IsAboard(EntityRepository repo, Entity passenger, Entity vehicle)
             => SlotOf(repo, passenger, vehicle) >= 0;
@@ -161,7 +167,8 @@ namespace Fdp.Toolkit.Behavior
         {
             if (Has<ActorCapabilityState>(repo, passenger))
                 repo.GetComponentRW<ActorCapabilityState>(passenger).Capabilities &= ~StrippedAboard;
-            repo.SetComponent(passenger, new IsEmbarkedTag { VehicleEntity = vehicle });
+            // ⭐ I-2c (R-271): an OPEN cabin leaves the passenger exposed (seen, targeted, hit); enclosed hides it (PhysicalPresence).
+            repo.SetComponent(passenger, new IsEmbarkedTag { VehicleEntity = vehicle, Exposed = (byte)(Has<OpenPassengerCabin>(repo, vehicle) ? 1 : 0) });
         }
 
         /// <summary>

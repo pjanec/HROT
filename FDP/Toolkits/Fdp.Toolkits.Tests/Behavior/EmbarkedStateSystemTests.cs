@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
@@ -157,6 +158,92 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             Assert.False(_world.HasComponent<IsEmbarkedTag>(a));
             Assert.Equal(ActorCapabilities.None, Caps(a) & Embarkation.StrippedAboard);
+        }
+
+        // ── I-2c (R-271) — carried, killed with the vehicle, exposure ──────────────────────────────────────────────
+
+        private void RegisterCombat()
+        {
+            _world.RegisterComponent<SimVelocity>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            _world.RegisterComponent<OpenPassengerCabin>();
+            _world.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
+        }
+
+        /// <summary>⭐ <c>CE-3110</c> I-2c — a passenger is CARRIED: where this node owns its position it takes the vehicle's position,
+        /// rotation and velocity every frame; where another node owns it, it is left for that node's replicated position.</summary>
+        [Fact]
+        public void CE3110_I2c_APassenger_IsCarried_WhereItsPositionIsOwned()
+        {
+            RegisterCombat();
+            var apc = Vehicle(new Vector3(100, 50, 0));
+            _world.AddComponent(apc, new SimVelocity { Linear = new Vector3(8, 0, 0) });
+            var ours = Soldier(new Vector3(90, 50, 0), positionOwner: Here);
+            _world.AddComponent(ours, new SimVelocity());
+            var theirs = Soldier(new Vector3(91, 50, 0), positionOwner: Elsewhere);
+            ListArrives(apc, ours, theirs);
+            _system.Execute(_world, 0f);
+
+            var heading = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.5f);
+            _world.SetComponent(apc, new SimTransform { Position = new Vector3(140, 60, 0), Rotation = heading });
+            _system.Execute(_world, 0f);
+
+            Assert.Equal(new Vector3(140, 60, 0), _world.GetComponentRO<SimTransform>(ours).Position);
+            Assert.Equal(heading, _world.GetComponentRO<SimTransform>(ours).Rotation);
+            Assert.Equal(new Vector3(8, 0, 0), _world.GetComponentRO<SimVelocity>(ours).Linear);   // dead reckoning on the other nodes
+            Assert.Equal(new Vector3(91, 50, 0), _world.GetComponentRO<SimTransform>(theirs).Position);
+        }
+
+        /// <summary>⭐ <c>CE-3110</c> I-2c (R-271: "if vehicle gets destroyed, all inside die") — the vehicle's Health reaching 0 makes the node
+        /// that owns a passenger's Health publish ONE lethal damage event for it (into the one Health writer); a passenger whose Health
+        /// another node owns gets none from here; the body stays aboard.</summary>
+        [Fact]
+        public void CE3110_I2c_AVehicleDestroyed_KillsThePassengers_OnTheNodeOwningTheirHealth()
+        {
+            RegisterCombat();
+            var apc = Vehicle(new Vector3(100, 50, 0));
+            _world.AddComponent(apc, new Fdp.Toolkit.Combat.Components.Health { Current = 300f, Max = 300f });
+            var ours = Soldier(new Vector3(90, 50, 0));
+            _world.AddComponent(ours, new Fdp.Toolkit.Combat.Components.Health { Current = 80f, Max = 100f });
+            _world.SetAuthority<Fdp.Toolkit.Combat.Components.Health>(ours, true);
+            var theirs = Soldier(new Vector3(91, 50, 0));
+            _world.AddComponent(theirs, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            _world.SetAuthority<Fdp.Toolkit.Combat.Components.Health>(theirs, false);
+            ListArrives(apc, ours, theirs);
+            _system.Execute(_world, 0f);
+            _world.Bus.SwapBuffers();
+            Assert.Empty(_world.Bus.Read<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>().ToArray());   // an intact vehicle kills nobody
+
+            _world.SetComponent(apc, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 300f });
+            _system.Execute(_world, 0f);
+            _system.Execute(_world, 0f);   // said once, not every frame
+            _world.Bus.SwapBuffers();
+
+            var kill = Assert.Single(_world.Bus.Read<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>().ToArray());
+            Assert.Equal(ours, kill.HitEntity);
+            Assert.Equal(80f, kill.TotalDamage);   // exactly lethal
+            Assert.Equal(1, _system.Killed);
+            Assert.Equal(apc, _world.GetComponentRO<IsEmbarkedTag>(ours).VehicleEntity);   // the body stays aboard the wreck
+        }
+
+        /// <summary>⭐ <c>CE-3110</c> I-2c — boarding an OPEN-cabin vehicle leaves the passenger exposed; an enclosed one hides it.</summary>
+        [Fact]
+        public void CE3110_I2c_BoardingAnOpenCabin_LeavesThePassengerExposed()
+        {
+            RegisterCombat();
+            var heli = Vehicle(new Vector3(100, 50, 0));
+            _world.AddComponent(heli, new OpenPassengerCabin());
+            var apc = Vehicle(new Vector3(200, 50, 0));
+            var a = Soldier(new Vector3(90, 50, 0));
+            var b = Soldier(new Vector3(190, 50, 0));
+            ListArrives(heli, a);
+            ListArrives(apc, b);
+            _system.Execute(_world, 0f);
+
+            Assert.Equal(1, _world.GetComponentRO<IsEmbarkedTag>(a).Exposed);
+            Assert.Equal(0, _world.GetComponentRO<IsEmbarkedTag>(b).Exposed);
+            Assert.False(Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(_world, a));
+            Assert.True(Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(_world, b));
         }
     }
 }

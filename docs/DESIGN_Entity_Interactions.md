@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-12 (I-2a BUILT — §7.1b; I-2b BUILT — §7.1d)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
@@ -439,3 +439,122 @@ a tag with `Exposed = 0` and never read a passenger list.*
 | may an exposed passenger fire? *(lean)* | ⛔ not in I-2c: CanShoot stays stripped; a later `PassengersMayFire` type field (door gunners) | keeps I-2c small; firing from a moving platform needs its own aim model |
 | vehicle destroyed | ✅ ruled: every passenger dies, enclosed or open | — |
 | finer than per vehicle *(later)* | per-seat exposure (a gunner's hatch open, the cabin closed) once seats exist | rejected now: there are no seats (capacity is a fixed 8) |
+
+#### 7.2a I-2c — carried, hidden, dies with the vehicle *(build-state: BUILT `2026-10-12`, behaviors lane; R-271 — as built: §7.2b)*
+
+📐 Measured `2026-10-12` (three sweeps + reads). ⚠ It **corrects §7.2's five-system list**: the hit is chosen in `RaycastSolverSystem` from the
+**collider hash**, not in `HitResolutionSystem` (filtering there would hide the vehicle behind its own passenger); and the list missed the
+line-of-sight occluders and the radius search, which also read the collider hash.
+
+```mermaid
+classDiagram
+  class IsEmbarkedTag { <<existing, + Exposed>> VehicleEntity · byte Exposed }
+  class OpenPassengerCabin { <<NEW, vehicle, id 366>> present only on an Open type (MobilityKill precedent) }
+  class VehicleParametersDto { <<existing TKB, + field>> PassengerExposure Enclosed | Open (absent = Enclosed) }
+  class VehicleKinematicsTkbTranslator { <<existing, + stamp>> Open ⇒ OpenPassengerCabin }
+  class Embarkation { <<existing>> Board: Exposed = vehicle has OpenPassengerCabin }
+  class EmbarkedStateSystem { <<existing, + carry + kill>> owner of the position: carry · owner of the health: lethal DamageAssessedEvent when the vehicle is destroyed }
+  class PhysicalPresence { <<existing, widened>> IsHidden = UnitEntity OR enclosed passenger · ExcludeHidden REMOVED }
+  class SpatialHashSystem { <<existing, + door>> collider hash skips IsHidden }
+  class CarKinematicsSystem { <<existing>> skips embarked · avoidance ignores embarked neighbours }
+  class AreaEffectSystem { <<existing, + door>> blast skips IsHidden }
+  class LosStrategies { <<existing, + door>> occluder lists skip IsHidden }
+  class HealthApplicationSystem { <<existing, the one Health writer>> }
+  VehicleKinematicsTkbTranslator ..> VehicleParametersDto : reads
+  VehicleKinematicsTkbTranslator ..> OpenPassengerCabin : stamps
+  Embarkation ..> OpenPassengerCabin : reads at boarding
+  Embarkation ..> IsEmbarkedTag : writes
+  PhysicalPresence ..> IsEmbarkedTag : reads Exposed
+  SpatialHashSystem ..> PhysicalPresence
+  AreaEffectSystem ..> PhysicalPresence
+  LosStrategies ..> PhysicalPresence
+  EmbarkedStateSystem ..> HealthApplicationSystem : DamageAssessedEvent
+```
+*What the picture shows that prose hid: "hidden" has ONE definition (`PhysicalPresence.IsHidden`) and every door that gathers candidates
+calls it — the perception grid and the EQS area search (as before) plus three new doors: the collider hash (bullets, near misses, the radius
+search, network raycasts, vehicle avoidance), the blast query and the line-of-sight occluder lists. And no new writer of `Health` appears: the
+kill rides the existing damage event into the one writer.*
+
+```mermaid
+sequenceDiagram
+  participant V as vehicle Health (replicated, dtEntityDamage)
+  participant ES as EmbarkedStateSystem (every node)
+  participant HA as HealthApplicationSystem (passenger's Health owner)
+  participant K as CarKinematicsSystem (passenger's position owner)
+  Note over ES: each frame, for every tagged passenger
+  ES->>ES: position owner: SimTransform/SimVelocity = the vehicle's
+  K--xK: skips the passenger (Without IsEmbarkedTag)
+  V-->>ES: vehicle Health <= 0
+  ES->>HA: Health owner only: DamageAssessedEvent{passenger, lethal}
+  HA->>HA: Health = 0, CanMove/CanShoot stripped (CE-3092 rule)
+  Note over ES: the body stays aboard the wreck, tagged and hidden
+```
+
+```mermaid
+graph TD
+  ICAP["CoreInfrastructureCapabilities.Interactions (every host's plan)"] --> ES[EmbarkedStateSystem - Input: derive, carry, kill]
+  GKM["GroundKinematicsModule (MuscleGround packs)"] --> SH[SpatialHashSystem - collider hash]
+  GKM --> CK[CarKinematicsSystem - PostSimulation]
+  EQS["EqsModule (Perception capability)"] --> LGB[LocalGridBuilderSystem - perception grid]
+  DAM["DamageAssessmentModule (MuscleGround)"] --> AE[AreaEffectSystem]
+  SH --> PP[PhysicalPresence.IsHidden]
+  LGB --> PP
+  AE --> PP
+  EIA[EntitiesInAreaGenerator] --> PP
+  LOS[LosStrategies occluders] --> PP
+  SHR["HrotSharedComponentRegistry (every host)"] --> REG["PassengerBuffer · IsEmbarkedTag · OpenPassengerCabin registered"]
+```
+*What the picture shows that prose hid: the embarkation components were registered only by the CGF and SimHost registries, so IG — which runs
+I-2b's passenger-list ingress — would apply an unregistered component (a latent I-2b defect, fixed here by moving them to the shared registry
+every host calls). The carry needs no new system and no cross-group ordering: the derivation already visits every passenger each frame.*
+
+| claim the build rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| perception + EQS area search already share ONE hidden check | ✅ `LocalGridBuilderSystem.cs:106`, `EntitiesInAreaGenerator.cs:66` via `PhysicalPresence` | ✅ `PhysicalPresence.cs:9-12` reserves I-2c's passenger there; Squad_Tactics §7.1 C-2 |
+| bullets, near misses, radius search, avoidance read the collider hash | ✅ `SpatialHashSystem.cs:73-82`; `RaycastSolverSystem.cs:99-130`; `BallisticsSystem.cs:252`; `EntitiesInRadiusGenerator.cs:27`; `CarKinematicsSystem.cs:567` | ⚠ §7.2 named `HitResolutionSystem` — corrected here |
+| the blast does not use any index | ✅ `AreaEffectSystem.cs:101` plain query | ✅ Building_Interiors §3k ("one query over live Health entities") |
+| a boarded soldier keeps its collider and kinematics keeps writing it | ✅ `CombatTkbTranslator.cs:66-81`; `CarKinematicsSystem.cs:80-87` (no CanMove check) | ⛔ searched `docs/`, none — the carry is new |
+| no parent-follow mechanism exists | ✅ swept (PartMetadata, turret parts, NetworkTransform): none writes a child's transform | ⛔ searched, none |
+| Health has one writer, gated on owning Health | ✅ `HealthApplicationSystem.cs:87`; Health in the Brain group (`HrotOwnershipGroups.cs:53`) | ✅ Ownership_Groups §5.6 S8 |
+| the vehicle's Health reaches every node | ✅ `EntityDamageEgress/IngressTranslator` (`dtEntityDamage`, SharedTranslatorPack) | ✅ |
+| a per-type opt-in is a component present only when non-default | ✅ `MobilityKill` (`CombatTkbTranslator.cs:61`) | ✅ packs-1 §2.B |
+| `HasComponent` of an unregistered type is false, double registration is harmless | ✅ `PhysicalPresence.IsHidden` / `AuthorityExtensions` call it unguarded; IG registers `Health` twice | — |
+
+| decision | ⭐ lean (built) | rejected (one line each) |
+|---|---|---|
+| where "hidden" is decided | widen `PhysicalPresence.IsHidden`; every candidate door calls it per entity; `ExcludeHidden` (a query filter that cannot read `Exposed`) is removed | a second tag for enclosed passengers: two facts for one state · a check in `HitResolutionSystem`: the ray already chose the passenger |
+| the collider hash | hidden passengers are not inserted — one door covers bullets, near misses, radius search, network raycasts and avoidance | five per-consumer skips |
+| an exposed passenger in avoidance | stays in the hash (it can be seen and shot) but `CarKinematicsSystem` ignores embarked neighbours | removing it from the hash: it could not be hit |
+| the carry | in `EmbarkedStateSystem`, on the passenger's position owner: position, rotation and velocity = the vehicle's (≤ one frame behind; the passenger is hidden or rides an open cabin) + `CarKinematicsSystem` skips embarked entities | a PostSimulation follow system: needs ordering across a togglable group and a kinematics module, which nothing provides |
+| the kill | the passenger's Health owner publishes a lethal `DamageAssessedEvent` when the vehicle `IsDestroyed`; `HealthApplicationSystem` applies it (the death capabilities follow); the body stays aboard | writing Health directly: a second writer · removing the body: the `2026-09-13` user ruling, dead bodies stay in the world (`HealthApplicationSystem.cs`) |
+| exposure | `VehicleParametersDto.PassengerExposure` (absent = Enclosed) → `OpenPassengerCabin` on the vehicle → `IsEmbarkedTag.Exposed` at boarding | reading the TKB at every boarding: the toolkit has no TKB access there |
+| stale enemy memory of a passenger | left to decay (`ThreatEvaluationSystem` decays tracks) | purging on boarding: a sensor fact, not an embarkation one |
+
+| rail (I-2c acceptance) | where |
+|---|---|
+| hidden = unit or ENCLOSED passenger; an exposed passenger is not hidden | `PhysicalPresenceTests` (FDP) |
+| an enclosed passenger is not in the perception grid nor the collider hash; an exposed one is in both | `LocalGridBuilderSystemTests`, `SpatialHashSystem` rail (FDP) |
+| a blast spares an enclosed passenger at the burst | `AreaEffectSystem` rail (FDP) |
+| carried where the position is owned (position + velocity = the vehicle's), untouched elsewhere; kinematics leaves it alone | `EmbarkedStateSystemTests`, `CarKinematicsSystem` rail (FDP) |
+| the vehicle destroyed ⇒ a lethal damage event for each live passenger whose Health this node owns, none for one it does not own | `EmbarkedStateSystemTests` (FDP) |
+| an Open type stamps `OpenPassengerCabin`; boarding it sets `Exposed` | `VehicleKinematicsTkbTranslatorTests`, `EmbarkationTests` (FDP) |
+| every host registers the embarkation components | `HrotSharedComponentRegistry` rail (SimHost.Tests) |
+
+#### 7.2b I-2c as built *(`2026-10-12`)*
+
+⭐ Built to §7.2a's three diagrams; no structural deviation. What the build settled:
+
+| detail | as built | file |
+|---|---|---|
+| the perception grid is INCREMENTAL | the count pass and the full rebuild skip hidden entities, and the incremental pass EVICTS one that became hidden — a boarding cancelled by a spawn keeps the visible count equal, so the count check alone would have left it in the grid | `LocalGridBuilderSystem.cs` |
+| `ExcludeHidden` | removed; its two callers (grid builder, `EntitiesInAreaGenerator`) call `IsHidden` per entity | `PhysicalPresence.cs` |
+| avoidance | the neighbour span is compacted (embarked neighbours dropped) before `RVOAvoidance` | `CarKinematicsSystem.cs` |
+| the kill is said once | a per-system set keeps one lethal event per passenger (a duplicate would only re-floor Health at 0, but the damage egress would ship it twice); the TotalDamage is the passenger's current Health | `EmbarkedStateSystem.cs` |
+| an unregistered component | `HasComponent` of a type a world never registered is false (precedent: `PhysicalPresence`, `AuthorityExtensions`), so the hidden check needs no guard | — |
+| the TKB field | `PassengerExposure` is a `byte` enum whose 0 is `Enclosed`, so an absent field in older JSON / zips means enclosed (the `VehicleParametersDto` absent-safe rule) | `VehicleParametersDto.cs`, `InteractionComponents.cs` |
+| ⭐ the latent I-2b defect | fixed: `PassengerBuffer` / `IsEmbarkedTag` / `OpenPassengerCabin` now in `HrotSharedComponentRegistry` (every host); `EmbarkationComponentRegistry` still registers them (idempotent) | `HrotSharedComponentRegistry.cs` |
+| not covered, recorded | ⚠ the Stride host's crowd kinematics (`CrowdAgentUpdateSystem`) is not taught to skip an embarked body (Stride not exercised here) · enemy `TargetMemory` of a passenger decays rather than purges · `HiddenTargetThrow.FriendlyInBurst` still counts a friend inside a vehicle (conservative: no grenade near a friendly APC) | — |
+
+| rail | result |
+|---|---|
+| `PhysicalPresence` via `EmbarkedStateSystemTests.CE3110_I2c_BoardingAnOpenCabin_LeavesThePassengerExposed` · `LocalGridBuilderSystemTests.CE3110_I2c_…` (incl. the equal-count boarding) · `SpatialHashSystemTests.CE3110_I2c_…` · `AreaEffectSystemTests.CE3110_I2c_…` · `CarKinematicsSystemTests.CE3110_I2c_…` · `EmbarkedStateSystemTests` carry + kill · `VehicleKinematicsTkbTranslatorTests.CE3110_I2c_…` · `UnitCommanderTests.CE3110_I2c_…` (EQS area search) · `HrotSharedComponentRegistryTests.CE3110_…` | ✅ all green; red-proved by reverting each mechanism |

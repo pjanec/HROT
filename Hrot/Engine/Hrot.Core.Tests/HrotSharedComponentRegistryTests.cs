@@ -52,5 +52,21 @@ namespace Hrot.Map.Common.Tests
             world.AddComponent(entity, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
             Assert.True(world.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(entity));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3110</c> I-2c — the embarkation STATE is registered on every host (any node that can own a live entity can own a
+        /// vehicle or a passenger, and every node applies I-2b's passenger list). 🔴 It was registered only by the CGF and SimHost
+        /// registries, so IG — which runs the passenger-list ingress — would have applied an unregistered <c>PassengerBuffer</c>.
+        /// </summary>
+        [Fact]
+        public void CE3110_RegisterAll_TheEmbarkationState_IsRegisteredOnEveryHost()
+        {
+            using var world = new EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(world);
+
+            Assert.True(world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PassengerBuffer>());
+            Assert.True(world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>());
+            Assert.True(world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>());
+        }
     }
 }

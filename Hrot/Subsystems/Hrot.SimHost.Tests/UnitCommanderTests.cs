@@ -67,5 +67,32 @@ namespace Hrot.SimHost.Tests
             Assert.Contains((long)soldier.PackedValue, found);
             Assert.DoesNotContain((long)unit.PackedValue, found);
         }
+
+        /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — the same area search never finds a passenger inside an ENCLOSED vehicle, and does find one
+        /// riding an open cabin (the one hidden rule, <c>PhysicalPresence.IsHidden</c>). 📄 DESIGN_Entity_Interactions §7.2a.</summary>
+        [Fact]
+        public void CE3110_I2c_AnAreaSearch_NeverFindsAnEnclosedPassenger()
+        {
+            var (world, _) = World();
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>())
+                world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var area = world.CreateEntity();
+            world.AddComponent(area, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            world.SetManagedComponent(area, new EditablePolyline { Points = new List<Vector2> { new(-50, -50), new(50, -50), new(50, 50), new(-50, 50) } });
+            Entity At(float x) { var e = world.CreateEntity(); world.AddComponent(e, new SimTransform { Position = new Vector3(x, 5, 0), Rotation = Quaternion.Identity }); return e; }
+            var enclosed = At(5);
+            world.AddComponent(enclosed, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { Exposed = 0 });
+            var exposed = At(6);
+            world.AddComponent(exposed, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { Exposed = 1 });
+
+            var sensor = new EqsSensor { ContextSlot1 = area };
+            var results = new EqsResult[16];
+            int n = new EntitiesInAreaGenerator().Generate(Entity.Null, ref sensor, world, results);
+
+            var found = new List<long>();
+            for (int i = 0; i < n; i++) found.Add(results[i].EntityId);
+            Assert.Contains((long)exposed.PackedValue, found);
+            Assert.DoesNotContain((long)enclosed.PackedValue, found);
+        }
     }
 }

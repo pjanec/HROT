@@ -807,5 +807,9 @@ namespace Fdp.Core
         /// brain from its WeaponState(s) and replicated (dtWeaponAmmo), so a HUD on any station can show it. Never saved.
         /// ⚠ 365 measured free on backend, ui and behaviors 2026-10-11.</summary>
         public const int WeaponAmmo = 365;
+
+        /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — <c>OpenPassengerCabin</c>: a vehicle TYPE whose passengers are seen and hit (a
+        /// door-less helicopter, a pickup bed); absent = enclosed. 📄 docs/DESIGN_Entity_Interactions.md §7.2a.</summary>
+        public const int OpenPassengerCabin = 366;
     }
 }

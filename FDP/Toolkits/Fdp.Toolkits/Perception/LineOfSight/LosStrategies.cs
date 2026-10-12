@@ -47,6 +47,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             foreach (var c in view.Query().With<SimTransform>().WithComponentId(GlobalComponentIds.PhysicsCollider).Build())
             {
                 if (!view.IsAlive(c)) continue;
+                if (PhysicalPresence.IsHidden(view, c)) continue;   // ⭐ CE-3110 I-2c (R-271) — an enclosed passenger is no cover
                 var p = view.GetComponentRO<SimTransform>(c).Position;
                 _colliders.Add((c, new Vector2(p.X, p.Y), _radius?.Invoke(view, c) ?? 0f));
             }
@@ -310,6 +311,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             foreach (var c in view.Query().With<SimTransform>().WithComponentId(GlobalComponentIds.PhysicsCollider).Build())
             {
                 if (!view.IsAlive(c)) continue;
+                if (PhysicalPresence.IsHidden(view, c)) continue;   // ⭐ CE-3110 I-2c (R-271) — an enclosed passenger is no cover
                 if (Fdp.Toolkit.Terrain.TerrainObstacles.IsObstacle(view, c)) continue;   // ⭐ CE-3136 P-7a — terrain now (R-243), by its material
                 if (include != null && !include(view, c)) continue;
                 _colliders.Add((c, view.GetComponentRO<SimTransform>(c).Position,

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using CarKinem.Core;
 using CarKinem.Spatial;
@@ -117,6 +118,34 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(1, Hits());
             Assert.Equal(dflt.OriginX, sys.Geometry.OriginX);          // only the side the terrain leaves moved
             Assert.True(sys.Geometry.CellSize > dflt.CellSize);
+            repo.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — the collider hash (the door for bullets, near misses, the radius search, network raycasts
+        /// and avoidance) leaves out a passenger inside an ENCLOSED vehicle and keeps one on an OPEN cabin. 📄 DESIGN_Entity_Interactions §7.2a.</summary>
+        [Fact]
+        public void CE3110_I2c_AnEnclosedPassenger_IsNotInTheColliderHash_AnExposedOneIs()
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.RegisterComponent<PhysicsCollider>();
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            Entity At(float x) { var e = repo.CreateEntity(); repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 100f, 0f), Rotation = Quaternion.Identity }); repo.AddComponent(e, new PhysicsCollider { Radius = 0.5f }); return e; }
+            var apc = At(100f);
+            var enclosed = At(100.2f);
+            repo.AddComponent(enclosed, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = apc, Exposed = 0 });
+            var exposed = At(100.4f);
+            repo.AddComponent(exposed, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = apc, Exposed = 1 });
+
+            new SpatialHashSystem().Execute(repo, 0.016f);
+
+            Span<(Entity foundEntity, Vector2 pos)> results = stackalloc (Entity, Vector2)[10];
+            int count = repo.GetSingleton<SpatialGridData>().Grid.QueryNeighbors(new Vector2(100f, 100f), 2f, results);
+            var found = results.Slice(0, count).ToArray().Select(r => r.foundEntity).ToList();
+            Assert.Contains(apc, found);
+            Assert.Contains(exposed, found);
+            Assert.DoesNotContain(enclosed, found);
             repo.Dispose();
         }
     }

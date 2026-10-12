@@ -30,6 +30,7 @@ public static class EmbarkationComponentRegistry
     {
         world.RegisterComponent<PassengerBuffer>();
         world.RegisterComponent<IsEmbarkedTag>();
+        world.RegisterComponent<OpenPassengerCabin>();   // ⭐ CE-3110 I-2c (R-271) — the open-cabin vehicle type (also in HrotSharedComponentRegistry)
 
         // ⚠ The commands travel WITH the components deliberately. FdpConfig.EnforceExplicitEventRegistration
         //   makes an unregistered publish THROW, so splitting the event from the state it mutates would

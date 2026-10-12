@@ -77,6 +77,9 @@ namespace CarKinem.Systems
 
             foreach (var entity in query)
             {
+                // ⭐ CE-3110 I-2c (R-271) — the collider hash is the door for bullets (RaycastSolverSystem), near misses, the radius search,
+                //   network raycasts and avoidance: an enclosed passenger is not in it, so none of them can find, hit or avoid it.
+                if (Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(repo, entity)) continue;
                 var tf = repo.GetComponent<SimTransform>(entity);
                 _grid.Add(entity, new Vector2(tf.Position.X, tf.Position.Y));
             }
