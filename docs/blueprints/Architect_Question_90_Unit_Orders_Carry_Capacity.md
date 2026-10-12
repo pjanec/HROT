@@ -516,6 +516,17 @@ embarkation until we finish this order/param/unit stuff."* ⇒ CE-3110 I-2d and 
 | 5 | *"Could the entity class be derived from its tkb dis entity type … so no new extra class for orders is necessary?"* | ⭐ yes, and it removes `EntityClass`. `DISEntityType` is hierarchical (`Kind · Domain · Country · Category · Subcategory · Specific`, packed in one `ulong`, `FDP/Engine/Fdp.Core/DISEntityType.cs`). A behaviour declares the DIS PATTERN it serves (0 = any), e.g. tanks = `{Kind 1, Domain 1, Category 1}` covering M1 and T-72 across countries. **Lookup:** among the behaviours whose params DTO is the order's DTO, take those whose pattern matches the entity's DIS type; the most specific wins; a tie is a load error. ⇒ the `<Class><Order>` NAME stops being the key and becomes only a naming guideline. ⛔ **Measured blocker:** the unit types are not distinguishable by DIS today. `Unit_TankPlatoon`, `Unit_InfantrySquad` and `Unit_TankPlatoon_Auto` all carry `{Kind 1, Domain 1, US}` with Category 0, i.e. "any US land platform" (`BdcTkbCatalog.cs:236,257,277`), which also matches every tank. ⇒ units need real aggregate types (SISO-REF-010 aggregate / echelon codes). ⛔ Not measured: who else reads a unit's DIS type (scenario translator `DisEntityTypeTranslator`, IG `SetDisType` at `IgApplication.cs:2235`) |
 | 6 | *"Can we enforce no param == empty param dto to eliminate the no param dto case?"* | ✅ yes. Every behaviour has exactly one params DTO; a behaviour that takes nothing names the shared empty `NoParams`. An order with no fields gets its OWN empty DTO (`HoldOrder`), because the type is what identifies the order. An empty DTO stores nothing: AQ76 already omits an empty half (*"an empty C# struct is one byte"*, :1811) |
 
+### 2.3l Two more user decisions *(2026-10-12)*
+
+| 🔒 user | consequence |
+|---|---|
+| *"Param dtos including the order params are in registry where the order name can be string with no reference to order kind enum, for the purpose of building menus."* | the params-DTO registry (one reflection scan) lists every params DTO; an order DTO's entry carries its order NAME as a string. Menus, HTTP and RTS read the registry and never reference `OrderKind`. That settles §2.3k ① from the UI side |
+| *"Dis entity type mask needs to support number ranged and number list and wildcard for each segment, not just single number … Of course units need specific dis type different from ordinary ones."* | a behaviour's DIS mask has, PER SEGMENT (Kind, Domain, Country, Category, Subcategory, Specific, Extra), one of: `*` (any) · a number · a range `a-b` · a list `a,b,c` (and lists of ranges). "Most specific wins" must be defined over these, e.g. compare segment by segment from Kind down: an exact number beats a list/range, which beats `*`. Units get their own aggregate DIS types |
+
+Measurements requested next (*"Do the missing measurements, no building yet"*) run as three read-only sweeps: DIS readers / mask
+prior art / aggregate types; the params pipeline (carry-over, empty DTO, generator precedence, class DTOs); the catalogue's
+consumers, the rename radius, ExCon's channel to a node, IG and the catalogue scan, the menu's pick wiring. Results land in §2.3m.
+
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
 | site | who names the behaviour | lean |
