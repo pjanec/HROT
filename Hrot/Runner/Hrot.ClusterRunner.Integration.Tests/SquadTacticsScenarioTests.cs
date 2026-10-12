@@ -343,7 +343,8 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             Assert.True(cost / Math.Max(seconds, 1e-3) <= 5.0, $"the march must cost at most 5 move orders a sim second: {cost} in {seconds:F1} s");
         }
         finally { NasScenarioStaging.Remove(scenarioId); }
-    
+    }
+
     /// <summary>
     /// ⭐⭐ <c>CE-2141</c> (D2) — the MOVE order, live: <c>tt-squad-march</c> with the commander's authored march removed, then
     /// <c>InfantrySquadMove</c> ordered at run time with a GEODETIC location (lat/lon from the node's own transform, as the map menu
@@ -430,5 +431,4 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         }
         finally { NasScenarioStaging.Remove(scenarioId); }
     }
-}
 }
