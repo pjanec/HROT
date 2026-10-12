@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-11
-build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch READY-TO-BUILD 2026-10-12 · embark §5 and formations §6 are MEASUREMENTS
-current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built
+updated: 2026-10-12
+build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch BUILT 2026-10-12 (as-built §6.1a) · embark §5 and formations §6 are MEASUREMENTS
+current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
@@ -667,7 +667,7 @@ AI decision to it is broken, and on Stride infantry nothing reads a slot at all.
 is its own programme — filed as `CE-2124`, not started. ⛔ Repairing `JoinFormation` for infantry is rejected: seven broken hops, a new
 DDS command, and followers that still steer straight at a slot with no path finding.
 
-### 6.1 A simple squad formation for now — `SquadMarch`, one more play on the S1 runner *(build-state: READY-TO-BUILD `2026-10-12`; 🔒 user: "Pls pull and follow the handoff" — HANDOFF_Squad_Tactics_S3 item 1; infantry only)*
+### 6.1 A simple squad formation for now — `SquadMarch`, one more play on the S1 runner *(build-state: BUILT `2026-10-12` — as-built §6.1a; 🔒 user: "Pls pull and follow the handoff" — HANDOFF_Squad_Tactics_S3 item 1; infantry only)*
 
 ```mermaid
 classDiagram
@@ -731,5 +731,34 @@ changes — so the path-request cost scales with how much each slot moves, not w
 | the lead waits for stragglers | per-member gaits and spacing by visibility |
 | infantry only | vehicles, convoys, mounted ↔ dismounted transitions |
 
-⛔ **Not measured** (measured in the build, on the live rail): how many path requests a squad's re-orders cost on SimHost (estimate:
-8 members × one re-order per ~2 s ≈ 4 a second per squad) against the solver's per-frame budget.
+✅ **Measured** (live, `tt-squad-march`, `2026-10-12`): a re-order is one `AdvanceTo` → one `MoveTo` → one new PathToPoint intent,
+which SimHost's `NavigationIntentBridgeSystem` turns into one `RequestPath` (an infantry move is a crowd path; it never appears as
+a `PathRequestBatch`). **52 move orders while 5 men marched ~50 m in ~40 sim-seconds ≈ 1.3 a second, then none at rest** — under the
+handoff's 4/s-per-8-men estimate. ⛔ ~~not measured: the path-request cost~~
+
+#### 6.1a As built *(behaviors, `2026-10-12`; build-state: BUILT — live rail result below)*
+
+| file | what |
+|---|---|
+| `Fdp.Toolkits/Squad/Maneuvers/SquadMarchManeuver.cs` | kind 9 · Marching / Aborted · roles Lead / Follower · shapes File 0 / Wedge 1 / Line 2 |
+| `Hrot.Core/…/SquadMarchParamsJsonDto.cs` | the Commander contract (defaults Spacing 5 · Speed 1.5 · ArrivalRadius 5 · MaxLagMetres 10) |
+| `Brains/SquadManeuverRunner.cs` | `SquadTrail` (40 crumbs, 2 m) and `MarchMemory` inside `SquadPlayState` |
+| `Brains/SquadMarchBehavior.cs` | `SquadMarch` (Library/Squad) + `SquadMarchPlay` |
+| `Recipes/Scenarios/tt-squad-march` | the S1 layout, no enemy, a Wedge march to (340, 300) |
+
+**Deviations from §6.1's lean — each measured on the first live run, none silent:**
+
+| planned | built | why (📐 live) |
+|---|---|---|
+| the lead = the first live member in roster order | the lead = the live member **nearest the objective** (a point man, not the leader), handed on after **5 s without 0.5 m of progress** | run 1: the first roster member (the leader soldier) stood at z 9 at (285, 268) — a spot no move works from (S2 found the same) — and the whole squad waited behind it for 349 sim-seconds |
+| a shape slot at the lead's height | a shape slot at the **member's own** height; a file slot at the trail's | run 1: the lead's z 9 put every slot 9 m above the ground the others stood on — off the walkable area |
+| the lead waits for stragglers from the start | only after it has walked `MaxLagMetres` | at the start every follower is "far from its slot" (they have not formed up yet) — the lead halted before anyone moved |
+| scenario: the S1 layout as is | the leader soldier moved into the riflemen's line (293, 277) | its S1/S2 spawn is the unmovable z 9 spot — ⚠ **a finding for `tt-react-contact` / `tt-suppress-flank` too**: their leader soldier never moves; those rails pass because they assert on the riflemen |
+
+| rail | proves | red-proof |
+|---|---|---|
+| `SquadManeuverTests.CE2123_SquadMarch_Wedge_…` | wedge slots turned to the heading; a follower re-ordered once per 3 m its slot moved, never the whole squad | re-order through issue-all ⇒ red |
+| `…_File_FollowersWalkOnTheLeadsTrail_RoundItsCorner` | a file slot lies ON the walked path, round its corner | — |
+| `…_AStuckFollowerFallsBackToFile_AndTheLeadWaitsForStragglers` | stuck 3 s ⇒ trail point; the lead holds, then goes on | no stuck fallback ⇒ red |
+| `…_TheLeadFalls_TheNextMemberLeads_ThenEveryoneArrives` | lead hand-off on death; Success | — |
+| `SquadTacticsScenarioTests.CE2123_ASquadMarchesInAWedge_…` (live) | everyone within 15 m of the objective, no two closer than 2.5 m, ≤ 5 move orders a sim-second | run 2 (lead hand-off + own height): the four riflemen arrived in a wedge (6–11 m round the point man) and stopped re-ordering; only the leader soldier on the z 9 spot stayed |

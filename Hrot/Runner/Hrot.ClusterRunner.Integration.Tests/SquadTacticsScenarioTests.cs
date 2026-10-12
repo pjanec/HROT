@@ -249,7 +249,8 @@ public sealed class SquadTacticsScenarioTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-2123</c> (S3) — the shipped <c>tt-squad-march</c> scenario: the squad's commander orders a WEDGE march to a point
+    /// ⭐⭐ <c>CE-2123</c> (S3) — the shipped <c>tt-squad-march</c> scenario (📐 its leader soldier stands in the riflemen's line:
+    /// at the S1/S2 layout's (285, 268) it stands at z 9 and no move ever works from there — measured on the first live run): the squad's commander orders a WEDGE march to a point
     /// ~50 m away on the S1 layout. Every member arrives (a slot that does not work falls back to the lead's trail), and the run
     /// MEASURES what the handoff left open: what the march's re-orders cost — every move order is one SimHost path request. 📄 <c>docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md</c> §6.1.
     /// </summary>
@@ -328,6 +329,15 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             int cost = moves - before;
             _out.WriteLine($"end: {State()} · move orders (= SimHost path requests) {cost} in {seconds:F1} sim s = {cost / Math.Max(seconds, 1e-3):F2}/s for 5 men");
             Assert.True(arrived, $"every member must reach the objective; {State()}");
+
+            // ④ they arrive as a formation, not a crowd: no two closer than half the spacing (the wedge keeps 5 m).
+            var at = Bodies();
+            float closest = float.MaxValue;
+            for (int i = 0; i < at.Length; i++)
+                for (int j = i + 1; j < at.Length; j++)
+                    closest = MathF.Min(closest, Vector2.Distance(new Vector2(at[i].X, at[i].Y), new Vector2(at[j].X, at[j].Y)));
+            _out.WriteLine($"closest pair at arrival: {closest:F1} m");
+            Assert.True(closest >= 2.5f, $"the squad must keep its spacing (closest pair {closest:F1} m); {State()}");
 
             // ③ the measured cost stays bounded: re-orders go per moved slot, not per tick (the handoff's estimate was ≈ 4/s per 8 men).
             Assert.True(cost / Math.Max(seconds, 1e-3) <= 5.0, $"the march must cost at most 5 move orders a sim second: {cost} in {seconds:F1} s");
