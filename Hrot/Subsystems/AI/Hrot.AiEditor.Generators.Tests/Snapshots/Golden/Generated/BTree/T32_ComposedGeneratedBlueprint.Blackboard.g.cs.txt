@@ -17,5 +17,5 @@ public struct T32_ComposedGeneratedBlueprint_FdpToolkitBehaviorComponentsBrainBl
 public struct T32_ComposedGeneratedBlueprint_Block
 {
     [FieldOffset(0)]
-    public T32_ComposedGeneratedBlueprint_FdpToolkitBehaviorComponentsBrainBlackboard In;
+    public global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.Params In;
 }

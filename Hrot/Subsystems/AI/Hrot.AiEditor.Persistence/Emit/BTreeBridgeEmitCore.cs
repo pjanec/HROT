@@ -1605,6 +1605,15 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad4}// Step 2 — CE-443: the bound resolver, handed the parsed authored DTO (no copy onto In).");
             sb.AppendLine($"{pad4}__ResolveRoot(json, memory, capacity, world, self);");
         }
+        else if (packedFields.Count == 1 && BTreeEmitCore.FlatParamsVariable(dto) is { } flat
+                 && string.Equals(flat.Name, packedFields[0].Name, StringComparison.Ordinal))
+        {
+            // ⭐⭐ CE-2133 (B1, DESIGN_Orders_Params_Entity_Classes §1 P2) — the one Input IS the params DTO: the JSON is its
+            //   fields, FLAT, overlaid field by field onto the baked default (an absent key keeps it). Never {"<variable>":{…}}.
+            string flatFqn = DtoTypeToGlobal(packedFields[0].TypeId);
+            sb.AppendLine($"{pad4}// Step 2 — CE-2133: the one Input '{EscapeCSharpStringLiteral(flat.Name)}' IS the params DTO; the JSON is its fields, flat.");
+            sb.AppendLine($"{pad4}global::Fdp.Toolkit.Behavior.BehaviorParams.OverlayFlat(ref global::System.Runtime.CompilerServices.Unsafe.AsRef<{flatFqn}>(memory + {packedFields[0].ByteOffset}), json, __paramJsonOpts);");
+        }
         else
         {
         sb.AppendLine($"{pad4}// Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each");
@@ -1673,9 +1682,13 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}// 4a. CE-429: a block with no Role=Input variable — nothing to overlay, but it must be allocated (and its State baked).");
             EmitBakeDefaultsFunction(sb, dto, packedFields,
                 System.Array.Empty<(BTreeBlackboardPackHelper.PackedField, string)>(), pad2);
+            string? named = NamedParamsFqn(dto);
             sb.AppendLine(HasResolver(dto)
                 ? $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => {{ __BakeDefaults(memory, capacity); __ResolveRoot(json, memory, capacity, world, self); }};"
-                : $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => __BakeDefaults(memory, capacity);");
+                : named != null
+                    // ⭐ CE-2133 — a named params DTO with no Input stores nothing: fields in the JSON are an error, never dropped.
+                    ? $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => {{ __BakeDefaults(memory, capacity); global::Fdp.Toolkit.Behavior.BehaviorParams.RequireNoStoredFields(json, \"{EscapeCSharpStringLiteral(dto.Name)}\", \"{EscapeCSharpStringLiteral(dto.ParamsDtoTypeId!)}\"); }};"
+                    : $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => __BakeDefaults(memory, capacity);");
             sb.AppendLine($"{pad2}}}");
             hasParseParams = true;
         }
@@ -1729,7 +1742,10 @@ public static class BTreeBridgeEmitCore
             //   and RootParamsAccess.RootParamsBytes sizes the root slot from it. 📄 Q76 §12.2b.
             // ⭐⭐ CE-443 — with a bound resolver asset the AUTHORED contract is the resolver's own Params
             //   (its declared Parameters, DESIGN_Parameter_Model §P.7): the resolver owns the shape it converts from.
-            string bbStructFqn = HasResolver(dto) ? ResolverParamsFqn(dto) : BTreeEmitCore.BlackboardStructFqn(dto);
+            // ⭐⭐ CE-2133 (B1, R-276) — otherwise the NAMED params DTO, else the one struct Input (flat), else the mirror.
+            string bbStructFqn = HasResolver(dto) ? ResolverParamsFqn(dto)
+                : NamedParamsFqn(dto)
+                  ?? (BTreeEmitCore.FlatParamsVariable(dto) is { } flatInput ? DtoTypeToGlobal(flatInput.Type.TypeId) : BTreeEmitCore.BlackboardStructFqn(dto));
             sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({bbStructFqn}),");
             sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
         }
@@ -1744,7 +1760,16 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
             if (HasResolver(dto))   // CE-443: the resolver's Parameters are the authored contract even with no Input half
                 sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({ResolverParamsFqn(dto)}),");
+            else if (NamedParamsFqn(dto) is { } namedOnly)   // CE-2133: a named DTO with no Input — published, nothing stored
+                sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({namedOnly}),");
         }
+        else if (NamedParamsFqn(dto) is { } namedNoBlock)
+        {
+            // ⭐ CE-2133 — no block at all (no variables): the named DTO is still the published contract (an empty order DTO).
+            sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({namedNoBlock}),");
+        }
+        if (BTreeEmitCore.ParamsDtoTypeIdError(dto) is { } paramsDtoError)   // ⛔ CE-2133 — loud, at compile
+            sb.AppendLine($"#error CE-2133: {paramsDtoError.Replace('\n', ' ')}.");
         if (hasParseParams)
         {
             sb.AppendLine($"{pad2}{Indent}ParseParams  = __parseParams,");
@@ -1834,6 +1859,10 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad3}__resolveStage = __ResolveStage;");
         }
     }
+
+    /// <summary>⭐ <c>CE-2133</c> — the <c>global::</c> FQN of the asset's NAMED params DTO, or <c>null</c> when it names none.</summary>
+    internal static string? NamedParamsFqn(BehaviorTreeAssetDto dto)
+        => string.IsNullOrWhiteSpace(dto.ParamsDtoTypeId) ? null : DtoTypeToGlobal(dto.ParamsDtoTypeId!.Trim());
 
     /// <summary>⭐ <c>CE-443</c> — the resolver asset's authored <c>Params</c> struct (from its declared Parameters).</summary>
     private static string ResolverParamsFqn(BehaviorTreeAssetDto dto)

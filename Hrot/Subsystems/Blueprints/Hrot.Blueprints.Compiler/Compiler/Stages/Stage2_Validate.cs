@@ -63,6 +63,7 @@ internal static class Stage2_Validate
         new V_ExecOutFanOut(),
         new V_FormatStringRules(),   // BP-108 (BP2072)
         new V_SopOrderRules(),       // CE-2083 (BP1688)
+        new V_ParamsDtoRules(),      // CE-2133 (BP1689)
         new V_DeclarationNameUniqueness(),  // U-12: BP1673
     };
 
@@ -2811,6 +2812,35 @@ internal sealed class V_SopOrderRules : IValidator
                     $"SOP order node '{node.Id}' is in a Library function, which has no unit to give the order to.",
                     asset.AssetId, graph.Id, node.Id));
         }
+    }
+}
+
+/// <summary>
+/// ⭐ <c>CE-2133</c> (<c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §1 P2) — a named params DTO is a BEHAVIOUR's, and its JSON
+/// lands in its ONE Parameter of that type (flat) or nowhere (no Parameters: published, nothing stored). Otherwise <c>BP1689</c>.
+/// </summary>
+internal sealed class V_ParamsDtoRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        string? named = asset.ParamsDtoTypeId?.Trim();
+        if (string.IsNullOrEmpty(named)) return;
+        if (asset.Dispatch != BlueprintDispatchKind.Behavior)
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1689,
+                $"'{asset.Name}' names params DTO '{named}' but is a {asset.Dispatch}, not a behaviour — only a behaviour has params JSON.",
+                asset.AssetId, null, null));
+            return;
+        }
+        var ps = asset.Parameters.ToList();
+        if (ps.Count > 1)
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1689,
+                $"'{asset.Name}' names params DTO '{named}' and declares {ps.Count} Parameters — the params DTO is ONE Parameter of that type.",
+                asset.AssetId, null, null));
+        else if (ps.Count == 1 && !string.Equals(ps[0].Type?.TypeId?.Replace('+', '.'), named!.Replace('+', '.'), StringComparison.Ordinal))
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1689,
+                $"'{asset.Name}' names params DTO '{named}' but its one Parameter '{ps[0].Name}' is '{ps[0].Type?.TypeId}' — the JSON lands in it, so they must be the same type.",
+                asset.AssetId, null, null));
     }
 }
 

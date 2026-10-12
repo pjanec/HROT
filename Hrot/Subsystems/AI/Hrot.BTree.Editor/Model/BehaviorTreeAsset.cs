@@ -236,6 +236,10 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     /// </summary>
     public BehaviorResolverRef? Resolver { get; set; }
 
+    /// <summary>⭐ <c>CE-2133</c> — the behaviour's NAMED params DTO (type id), or <c>null</c> (derived). ⚠ Must round-trip through
+    /// the mapper: an editor save that dropped it would silently change the behaviour's published contract.</summary>
+    public string? ParamsDtoTypeId { get; set; }
+
     private bool _isDirty;
     private readonly List<BTreeEditorNode> _nodes = new();
     private readonly List<BTreeEditorPill> _pills  = new();

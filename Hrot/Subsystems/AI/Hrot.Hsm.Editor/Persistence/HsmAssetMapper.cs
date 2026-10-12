@@ -205,6 +205,7 @@ public static class HsmAssetMapper
         dto.Resolver = asset.Resolver is { } resolver
             ? new Hrot.AiEditor.Persistence.BTree.BehaviorResolverRefDto { AssetId = resolver.AssetId, Name = resolver.Name, ShapeHash = resolver.ShapeHash }
             : null;
+        dto.ParamsDtoTypeId = asset.ParamsDtoTypeId;   // ⭐ CE-2133 — must round-trip like the resolver
 
         return dto;
     }
@@ -440,6 +441,7 @@ public static class HsmAssetMapper
         // (BlackboardTypeName has a setter)
         asset.BlackboardTypeName = dto.BlackboardTypeName;
         if (dto.Resolver is { } rr) asset.Resolver = new BehaviorResolverRef(rr.AssetId, rr.Name, rr.ShapeHash);   // ⭐ CE-503
+        asset.ParamsDtoTypeId = dto.ParamsDtoTypeId;   // ⭐ CE-2133
 
         asset.CanvasPanOffset = new Vector2(dto.Canvas.PanX, dto.Canvas.PanY);
         asset.CanvasZoomLevel = dto.Canvas.Zoom;

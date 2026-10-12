@@ -116,6 +116,7 @@ internal static class Stage5_Schedule
             StructureHash = 0,  // assigned in Stage 6 after layout finalization
             Dispatch      = asset.Dispatch,
             ResolverSubject = asset.ResolverSubject,
+            ParamsDtoTypeId = string.IsNullOrWhiteSpace(asset.ParamsDtoTypeId) ? null : asset.ParamsDtoTypeId!.Trim(),   // ⭐ CE-2133
             // BP-82: macro graphs are skipped above, so the count is the only trace of them left for
             // lowering to see (BP5001 must not call a macro library "empty").
             DeclaredMacroCount = asset.Graphs.Count(g => g.Kind == GraphKind.Macro),

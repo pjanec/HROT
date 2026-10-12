@@ -640,7 +640,10 @@ internal sealed class CSharpEmitter
         // ⭐ S3 — the same two descriptions a BTree/HSM registrar publishes: the authored JSON contract (the Params
         //   struct IS the authored input, Q77 §5.11) and the Input manifest. ⇒ the watch pane, GET /behaviors and the
         //   inspector need no blueprint branch.
-        if (asset.Parameters.Count > 0)
+        // ⭐ CE-2133 (B1, R-276) — a NAMED params DTO is the published contract (its one Parameter, flat — or nothing stored).
+        if (asset.ParamsDtoTypeId is { } namedDto)
+            WriteLine($"JsonParamsDtoType = typeof(global::{namedDto.Replace('+', '.')}),");
+        else if (asset.Parameters.Count > 0)
             WriteLine($"JsonParamsDtoType = typeof({className}.Params),");
         WriteLine($"ManagedBlackboardVariables = {className}.InputManifest(),");
         WriteLine($"ParseParams = {className}.BehaviorParseParams,");

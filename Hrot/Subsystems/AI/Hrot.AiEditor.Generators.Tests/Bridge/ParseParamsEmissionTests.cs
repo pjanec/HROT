@@ -464,4 +464,101 @@ public sealed class ParseParamsEmissionTests
         bridge.Should().NotContain("catch",
             "the emitted lambda must not swallow a parse failure -- parse-before-commit depends on it");
     }
+
+    // ── ⭐⭐ CE-2133 (B1) — a single struct-typed Input parses FLAT; an asset may NAME its params DTO ───────────────────────
+    //    📄 docs/DESIGN_Orders_Params_Entity_Classes.md §1 P2: "the params JSON is that DTO's fields, flat — never wrapped in a
+    //    variable name". The runtime half (the JSON really lands, defaults overlaid) is TacticsTreesTests' Sentry rail.
+
+    private const string DtoTypeId = "Test.Ns.SentryLikeParams";
+
+    private static BehaviorTreeAssetDto MakeStructInputDto(string? paramsDtoTypeId = null, string inputType = DtoTypeId,
+        bool withState = false, bool withInput = true, string? resolver = null)
+    {
+        var dto = MakeSingleVarDto();
+        dto.Name = "TestFlatParams";
+        dto.ParamsDtoTypeId = paramsDtoTypeId;
+        dto.Blackboard.Variables.Clear();
+        if (withInput)
+            dto.Blackboard.Variables.Add(new BlackboardVariableDto
+            {
+                Name = "sentry", Type = new BlackboardTypeRefDto { TypeId = inputType }, DefaultValueJson = "{\"Count\":1}",
+            });
+        if (withState)
+            dto.Blackboard.Variables.Add(new BlackboardVariableDto
+            {
+                Name = "seen", Type = new BlackboardTypeRefDto { TypeId = "System.Int32" }, Role = BlackboardVariableRole.State,
+                Scope = WorkingStateScope.Behavior,   // a block variable (Node-scoped State is not in the block)
+            });
+        if (resolver != null)
+            dto.Resolver = new BehaviorResolverRefDto { AssetId = Guid.Parse("dddddddd-0000-0000-0000-000000000001"), Name = resolver };
+        return dto;
+    }
+
+    private static string Emit(BehaviorTreeAssetDto dto)
+        => BTreeBridgeEmitCore.EmitBridge(dto, typeId => typeId.Contains("SentryLike") || typeId.Contains("OtherParams") ? 16 : (int?)null);
+
+    [Fact]
+    public void CE2133_OneStructInput_ParsesFlat_AndPublishesItsOwnType()
+    {
+        var bridge = Emit(MakeStructInputDto());
+
+        bridge.Should().Contain(
+            "global::Fdp.Toolkit.Behavior.BehaviorParams.OverlayFlat(ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Test.Ns.SentryLikeParams>(memory + 0), json, __paramJsonOpts);",
+            "the JSON is the DTO's fields, overlaid onto the baked default -- never keyed by the variable name");
+        bridge.Should().NotContain("case \"sentry\":", "no wrapper object keyed by variable name");
+        bridge.Should().Contain("JsonParamsDtoType    = typeof(global::Test.Ns.SentryLikeParams),",
+            "the published contract is the DTO itself, not the generated one-field mirror");
+        bridge.Should().NotContain("#error CE-2133");
+    }
+
+    [Fact]
+    public void CE2133_ScalarOrSeveralInputs_KeepTheKeyedOverlay()
+    {
+        Emit(MakeSingleVarDto()).Should().Contain("case \"only\":", "a scalar Input is not a params DTO");
+        Emit(MakeTwoVarDto()).Should().Contain("case \"alpha\":", "several Inputs keep the mirror (A2 converts them)");
+        BTreeEmitCore.FlatParamsVariable(MakeTwoVarDto()).Should().BeNull();
+    }
+
+    [Fact]
+    public void CE2133_AParamsDtoTypeId_EqualToTheInput_IsTheSameFlatContract()
+    {
+        var bridge = Emit(MakeStructInputDto(paramsDtoTypeId: DtoTypeId));
+
+        bridge.Should().Contain("BehaviorParams.OverlayFlat(");
+        bridge.Should().Contain("JsonParamsDtoType    = typeof(global::Test.Ns.SentryLikeParams),");
+        bridge.Should().NotContain("#error CE-2133");
+    }
+
+    [Fact]
+    public void CE2133_ANamedDto_WithNoInput_IsPublished_AndStoresNothing()
+    {
+        var bridge = Emit(MakeStructInputDto(paramsDtoTypeId: "Test.Ns.HoldLikeOrder", withInput: false, withState: true));
+
+        bridge.Should().Contain("JsonParamsDtoType    = typeof(global::Test.Ns.HoldLikeOrder),");
+        bridge.Should().Contain("BehaviorParams.RequireNoStoredFields(json, \"TestFlatParams\", \"Test.Ns.HoldLikeOrder\")",
+            "fields sent to a behaviour that stores none must throw, never vanish");
+        bridge.Should().NotContain("#error CE-2133");
+
+        var noBlock = Emit(MakeStructInputDto(paramsDtoTypeId: "Test.Ns.HoldLikeOrder", withInput: false));
+        noBlock.Should().Contain("JsonParamsDtoType    = typeof(global::Test.Ns.HoldLikeOrder),",
+            "a behaviour with no variables at all still publishes the DTO it names");
+    }
+
+    [Fact]
+    public void CE2133_ANamedDto_ThatIsNotTheInput_OrBesideAResolver_IsACompileError()
+    {
+        Emit(MakeStructInputDto(paramsDtoTypeId: "Test.Ns.OtherParams")).Should().Contain("#error CE-2133:",
+            "the JSON lands in the one Input, so a different named type has nowhere to go");
+        Emit(MakeStructInputDto(paramsDtoTypeId: DtoTypeId, resolver: "SomeResolver")).Should().Contain("#error CE-2133:",
+            "a resolver asset names its own contract (R-149)");
+    }
+
+    [Fact]
+    public void CE2133_TheSiblingCatalogue_StillNamesOnlyGeneratedStructs()
+    {
+        // ⚠ InputsStructTypeId answers "which struct does this asset GENERATE" (GeneratedTypeCatalog sizes siblings by it). A flat
+        //   behaviour's contract is a hand-written DTO, sized by Roslyn — naming it here made a host its own child's generator.
+        BTreeEmitCore.InputsStructTypeId(MakeStructInputDto()).Should().StartWith("Test.Ns.TestFlatParams_");
+        BTreeEmitCore.FlatParamsVariable(MakeStructInputDto())!.Type.TypeId.Should().Be(DtoTypeId);
+    }
 }

@@ -319,8 +319,11 @@ public static unsafe class RootParamsAccess
     public static int InputBytes(BehaviorDefinition def)
     {
         if (def is null) return 0;
+        // ⭐ CE-2133 — an EMPTY manifest is the authority for "0 Input bytes" (CE-429), whatever contract the behaviour
+        //   publishes: a named params DTO it does not store (an empty HoldOrder, or a resolver's own Params) is not its In.
+        //   ⛔ Sizing that type here made InputBytes 1 for an empty DTO while the block holds no In (AQ90 §2.3m B).
         if (def.ManagedBlackboardVariables != null)
-            return def.JsonParamsDtoType is { IsValueType: true } inputs
+            return def.ManagedBlackboardVariables.Count > 0 && def.JsonParamsDtoType is { IsValueType: true } inputs
                 ? Fdp.Core.TypeLayout.SizeOf(inputs)
                 : ManifestExtent(def.ManagedBlackboardVariables);
         return def.BlackboardLayoutType != null

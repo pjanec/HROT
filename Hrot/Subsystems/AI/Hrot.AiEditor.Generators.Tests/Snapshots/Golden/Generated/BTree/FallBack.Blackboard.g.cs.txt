@@ -17,5 +17,5 @@ public struct FallBack_FdpToolkitBehaviorComponentsBrainBlackboard
 public struct FallBack_Block
 {
     [FieldOffset(0)]
-    public FallBack_FdpToolkitBehaviorComponentsBrainBlackboard In;
+    public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams In;
 }

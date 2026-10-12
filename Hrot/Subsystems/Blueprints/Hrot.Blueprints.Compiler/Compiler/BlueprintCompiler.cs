@@ -67,6 +67,7 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
             IsWorldSingleton   = asset.IsWorldSingleton,
             Primitive          = asset.Primitive,
             ResolverSubject    = asset.ResolverSubject,   // ⭐ CE-428 — measured: omitting it silently turned a resolver asset into a plain Library
+            ParamsDtoTypeId    = asset.ParamsDtoTypeId,   // ⭐ CE-2133 — the named params DTO
             ParameterOrder     = asset.ParameterOrder,
             WorkingStateOrder  = asset.WorkingStateOrder,
             VariableOrder      = asset.VariableOrder,

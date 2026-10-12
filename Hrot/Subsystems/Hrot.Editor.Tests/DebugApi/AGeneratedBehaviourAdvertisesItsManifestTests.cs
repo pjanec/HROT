@@ -138,10 +138,15 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
 
         foreach (BehaviorDefinition def in generated)
         {
-            Assert.Equal(
-                def.ManagedBlackboardVariables!.Select(v => v.Name).ToArray(),
-                PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));
+            // ⭐ CE-2133 (B1) — a FLAT behaviour (its one Input IS the params DTO) advertises that DTO's fields, which are
+            //   exactly the keys its ParseParams reads (BehaviorParams.OverlayFlat); every other one, its variables.
+            var manifest = def.ManagedBlackboardVariables!;
+            string[] expected = manifest.Count == 1 && manifest[0].Type == def.JsonParamsDtoType
+                ? PropertyNames(DtoJsonSchemaExtractor.ExtractParams(manifest[0].Type)).ToArray()
+                : manifest.Select(v => v.Name).ToArray();
+            Assert.Equal(expected, PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));
         }
+        Assert.Contains(generated, d => d.Name == "Sentry");   // a flat one is in the set (anti-vacuity for the CE-2133 arm)
     }
 
     /// <summary>
