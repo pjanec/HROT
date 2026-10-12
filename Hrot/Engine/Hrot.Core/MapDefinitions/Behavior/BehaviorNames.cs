@@ -45,6 +45,18 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ CE-2123 — go to a point firing at the top threat, no posture decision: a superior's MOVE order (DESIGN_Squad_Tactics §3.6).</summary>
         public const string AdvanceTo = "AdvanceTo";
 
+        /// <summary>⭐ <c>CE-2123</c> S2 — the squad leader's reaction to contact: hold and return fire, decide once, run a drill.</summary>
+        public const string ReactToContact = "ReactToContact";
+
+        /// <summary>⭐ <c>CE-2123</c> S2 — the squad gets out of the enemy's sight, element covering element.</summary>
+        public const string BreakContact = "BreakContact";
+
+        /// <summary>⭐ <c>CE-2123</c> S2 — the squad holds where it stands and fights.</summary>
+        public const string SquadHold = "SquadHold";
+
+        /// <summary>⭐ <c>CE-2123</c> S3 — the squad marches to a point in File / Wedge / Line, falling back to file on the lead's trail.</summary>
+        public const string SquadMarch = "SquadMarch";
+
         /// <summary>⭐ CE-3172 (R-270, M-7) — what a POSSESSED unit runs: the station's controls drive its body
         /// (DESIGN_Entity_Control §8b). Assigned by <c>PossessionSystem</c> at origin Possession only.</summary>
         public const string OperatorControl = "OperatorControl";

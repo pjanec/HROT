@@ -246,6 +246,7 @@ namespace Hrot.Map.Definitions.Tkb
                     v.Scale = 1.2f;
                 })
                 .WithFaction(TkbEntityTypes.Unit_InfantrySquad, 1)
+                .WithBehavior(TkbEntityTypes.Unit_InfantrySquad)   // ⭐ CE-2125 (R-272) — the squad's body-less commander runs the squad SOP and drills
                 .AsComposite(TkbEntityTypes.Unit_InfantrySquad, comp =>
                 {
                     comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Infantry_Officer, Count = 1, Designation = TacticalDesignation.SquadLeader });

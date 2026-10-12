@@ -12,6 +12,7 @@ current-answer: ⭐⭐⭐ §P — the contract by kind (behaviour: inputs once a
   the root params occurrence slot, keyed OccurrenceSlotKey.ComputeRootParamsKey and computed
   rather than stored - so there is no shared blackboard params region left at all.
 known-rot: 4.1's params column is SUPERSEDED for HOSTED occurrences by 4.7 (E3a, 2026-09-21)
+known-rot: (2026-10-12) §P.1's diagram labels "blueprint as a behaviour (O9, planned)" — STALE: 9 Dispatch=Behavior blueprints exist, registered at BrainTierBlueprint (CE-446). Measured in Architect_Question_90 §2.3i.
   and for ROOT occurrences by P4 (2026-09-22, DESIGN_Occurrence_Scoped_Storage.md §30.14): a
   root behaviour's params now live in the root params occurrence slot, same as a hosted
   occurrence's. Do not quote 4.1's params column as the whole live state; quote 4.7 for
@@ -28,6 +29,8 @@ known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rule
   - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — a NEW variable owner for behaviour-only unit data, overriding ":386"'s "no new variable owner" (user 2026-10-09); engine-read data stays a component
 known-rot-87: ⚠ 2026-10-09 — ":386" "No new variable owner is needed" is overridden for BEHAVIOUR-ONLY unit data: the user requires unit-scoped shared blackboard structs (Architect_Question_87_Unit_Memory.md). "Entity-wide data an engine system reads is an ECS component" still holds.
 related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — supersedes §1 roles and §P.7 when B3 (CE-2135) lands; one params DTO per behaviour, reserved Params
+  - Architect_Question_90_Unit_Orders_Carry_Capacity.md — A7 (lean): an ORDER adds one stage before this pipeline (order DTO → the behaviour's authored DTO, by name or by a behaviour-declared adapter, C# or blueprint)
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
     ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the
     action-binding carrier. It is DESIGN, not built; it depends on this document's model and

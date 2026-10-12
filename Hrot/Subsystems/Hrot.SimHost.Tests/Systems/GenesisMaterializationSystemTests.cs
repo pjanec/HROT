@@ -30,6 +30,7 @@ namespace Hrot.SimHost.Tests
             _repo.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();   // O1: GenesisMaterializationSystem provisions it for commanders
             _repo.RegisterComponent<PassengerBuffer>();
             _repo.RegisterComponent<IsEmbarkedTag>();
+            _repo.RegisterComponent<ActorCapabilityState>();   // ⭐ CE-3110 I-2a — boarding strips CanMove / CanShoot
             _repo.RegisterComponent<VisHierarchyNode>();
             _repo.RegisterComponent<PersonalRouteRef>();
             _repo.RegisterComponent<NetworkIdentity>();
@@ -119,6 +120,33 @@ namespace Hrot.SimHost.Tests
             Assert.False(_repo.HasManagedComponent<InitialVehicleIntent>(soldier));
             Assert.True(_repo.HasComponent<IsEmbarkedTag>(soldier));
             Assert.Equal(vehicle, _repo.GetComponent<IsEmbarkedTag>(soldier).VehicleEntity);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3110</c> I-2a — a soldier LOADED aboard boards through the one set of rules: it is on the vehicle's list, tagged,
+        /// and CANNOT walk away or shoot. 🔴 Red before: genesis wrote the list and the tag itself and never stripped a capability.
+        /// </summary>
+        [Fact]
+        public void CE3110_APassengerLoadedAboard_IsOnTheList_Tagged_AndCannotMoveOrShoot()
+        {
+            var vehicle = CreateNetworkedEntity(77L);
+            var soldier = CreateNetworkedEntity(42L);
+            _repo.AddComponent(soldier, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
+            var intent = new InitialPassengersIntent();
+            intent.PassengerNetworkIds.Add(new EntityRef(42L));
+            _repo.SetManagedComponent(vehicle, intent);
+            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77L) });   // both sides say so
+
+            var sys = CreateAndStartSystem();
+            sys.Execute(_repo, 0.016f);
+
+            var buf = _repo.GetComponent<PassengerBuffer>(vehicle);
+            Assert.Equal(1, buf.Count);                                       // once, though two intents named it
+            Assert.Equal(soldier, buf.Passengers[0]);
+            Assert.Equal(vehicle, _repo.GetComponent<IsEmbarkedTag>(soldier).VehicleEntity);
+            var caps = _repo.GetComponent<ActorCapabilityState>(soldier).Capabilities;
+            Assert.False(caps.HasFlag(ActorCapabilities.CanMove), "a passenger loaded aboard cannot walk away");
+            Assert.False(caps.HasFlag(ActorCapabilities.CanShoot), "nor shoot from inside");
         }
 
         // â”€â”€ Test 4: VisHierarchyNode written from InitialHierarchyIntent â”€â”€â”€â”€â”€â”€â”€

@@ -103,6 +103,8 @@ namespace Hrot.Core.Tkb
             // Writes VisualData (SymbolCode = the MIL-STD-2525 SIDC, ColorHex, MapShapeName) and
             // derives EntityInfo.ForceId from the SIDC's affiliation character.
             new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator(),
+            // ⭐ CE-2125 (R-272) — a composite type is a unit, not a body (never sensed; placed at its members' centroid).
+            new Hrot.Map.Definitions.Tkb.CompositeUnitTkbTranslator(),
         }.AsReadOnly();
 
         /// <summary>

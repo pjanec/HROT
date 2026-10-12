@@ -84,6 +84,9 @@ namespace Hrot.NED.Descriptors
         dtPossessedBy                 = 129,
         // ⭐ CE-3174 (C-7) — a unit's ammunition per mount (the Brain group → every node, for the FPS HUD). 📄 docs/DESIGN_Entity_Control.md §8d
         dtWeaponAmmo                  = 130,
+        // ⭐ CE-3110 I-2b (R-224) — a vehicle's passenger list, the vehicle's owner (Brain group) → every node, which derives the
+        //   passenger's side from it. 📄 docs/DESIGN_Entity_Interactions.md §7.1c
+        dtPassengerBuffer             = 131,
         // etc., all known descriptor types here
     }
 

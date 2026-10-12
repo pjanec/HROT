@@ -45,5 +45,32 @@ namespace Fdp.Toolkit.Behavior.Components
     {
         /// <summary>The vehicle entity this soldier is currently aboard.</summary>
         public Entity VehicleEntity;
+
+        /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — 1 when the vehicle's cabin is OPEN (<see cref="OpenPassengerCabin"/>): the passenger
+        /// is carried but still seen, targeted and hit; 0 (enclosed) hides it (<c>PhysicalPresence.IsHidden</c>). Set at boarding.</summary>
+        public byte Exposed;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3110</c> I-2c (R-271) — a vehicle TYPE whose passengers stay exposed (a door-less helicopter, a pickup bed, a motorcycle).
+    /// Stamped by <c>VehicleKinematicsTkbTranslator</c> from <c>VehicleParametersDto.PassengerExposure == Open</c>; ⭐ ABSENT means
+    /// enclosed (the <c>MobilityKill</c> precedent: a per-type opt-in exists only when it is not the default). Read once, at boarding.
+    /// 📄 docs/DESIGN_Entity_Interactions.md §7.2a.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.OpenPassengerCabin)]
+    public struct OpenPassengerCabin
+    {
+        /// <summary>Unused; FDP components carry at least one field.</summary>
+        public byte Reserved;
+    }
+
+    /// <summary>⭐ <c>CE-3110</c> I-2c — a vehicle type's passenger exposure in the TKB (<c>VehicleParametersDto.PassengerExposure</c>).</summary>
+    public enum PassengerExposure : byte
+    {
+        /// <summary>The default (and what an absent field means): passengers are hidden inside.</summary>
+        Enclosed = 0,
+        /// <summary>Passengers ride exposed: seen, targeted and hit like anyone.</summary>
+        Open = 1,
     }
 }

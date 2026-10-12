@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-08 (I-1 as built; §7 split off to CE-3110 by the user)
+updated: 2026-10-12 (I-2a BUILT — §7.1b; I-2b BUILT — §7.1d)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.1 embarkation measured status + build plan (2026-10-11) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
 related-designs:
+  - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-274 (behaviors): carry capacity and seats per vehicle type (B) and the human-carrier profile (C); R-275 (behaviors): Health in the cross-role set (D)
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §5 the measured state of embark/disembark (2026-10-11) and why the squad dismount (S3) needs I-2a/I-2b first
   - docs/DESIGN_Building_Interiors.md §3j "5d" — OWNS doors (DoorRules, the door actions, DoorCommandSystem); doors are this design's first kind
   - docs/designs/edit-1/DESIGN.md §3.A — OWNS the typed FDP domain commands EmbarkEntityCommand / DisembarkEntityCommand; this design carries such commands to the owner
@@ -14,6 +15,7 @@ related-designs:
   - docs/DESIGN_Role_Affinity_Ownership.md §6 — OWNS which role writes embarkation state (PassengerBuffer, IsEmbarkedTag)
   - FDP/Docs/projects/behavior-control/Behavior Control Subsystem Design.json.md §3.A–B — OWNS the interaction channel and its executors (the actor side)
   - docs/DESIGN_Entity_Control.md — OWNS the Possess / Release / ControlFrame interaction cases (M-6)
+  - docs/DESIGN_Subsystem_Composition_Unification.md §4.1ad — OWNS cross-role infrastructure capabilities (CE-221); embarkation is one (§7.1d)
 -->
 
 # DESIGN — **entity interactions** *(one way for an actor to act on an entity it does not own)*
@@ -243,6 +245,175 @@ before I-2b is built.
 
 ⭐ Order: I-2a → I-2b → I-2c → I-2d. Stride is out of scope (user).
 
+#### 7.1a I-2a — the details the build needs *(build-state: BUILT `2026-10-12` — as-built §7.1b; behaviors lane; HANDOFF_Squad_Tactics_S3 item 2)*
+
+```mermaid
+graph TD
+  CLP["CgfLogicPack (CGF + editor)"] -->|Simulation, after DoorCommandSystem| ES["EmbarkationSystem (NEW)"]
+  CLP -->|interaction executors| EX["EmbarkExecutor (ActionId 1) · EjectPassengersExecutor (3)"]
+  EX -->|raise| CMD["Embark / Disembark / EjectPassengers commands"]
+  CMD --> ES
+  ES --> R["Embarkation (NEW static rules)"]
+  GEN["GenesisMaterializationSystem (SimHost + CGF, Input)"] --> R
+  ORB["ScenarioOrbatAdapter (editor ORBAT drag)"] -->|raise| CMD
+  ECS["EditorCargoSystem"]:::dead
+  NED["NedReplicationModule tick"] -->|each frame| IT["InteractionEgress / Ingress: 3 NEW codecs"]
+  IT --> CMD
+  classDef dead fill:#fdd,stroke:#c00,color:#600
+```
+*What the picture shows that prose hid: the editor already builds `CgfLogicPack`, so registering `EmbarkationSystem` there serves CGF
+AND the editor — `EditorCargoSystem` (red) is then a second applier for the same command and goes; and genesis is the only caller
+that does not go through a command.*
+
+| decision | ⭐ lean | measured |
+|---|---|---|
+| the owner gate before I-2b | `Embarkation.OwnsVehicle`: no `NetworkAuthority` ⇒ ours (one node, the editor) except a GHOST; else the vehicle's PRIMARY authority. I-2b swaps it for the `PassengerBuffer` descriptor key, as doors use `DoorStateKey` | `DoorCommandSystem.OwnsDoor` (`DoorCommands.cs:156`) is the shape; no `PassengerBuffer` descriptor exists yet |
+| `DisembarkEntityCommand` has no vehicle | ⭐ add `Vehicle` (the raiser fills it; the system falls back to the passenger's tag when null) + `IsRemote` | the codec's target accessor sees only the event (`InteractionCodec<T>.EntityOf(in TEvent)`), and the wire's target must be the vehicle |
+| eject | NEW `EjectPassengersCommand { Vehicle, IsRemote }` (event 3203) | ids 3201/3202 taken (`BehaviorConstants.cs:155-158`) |
+| what the executors wait for | Embark: its own `IsEmbarkedTag` ⇒ Success; a full vehicle (seen locally) ⇒ Failure; no answer in 5 s ⇒ Failure. Eject: the vehicle's `PassengerBuffer.Count == 0` | §5 "the answer is the target's own state" |
+| per-passenger disembark placement | beside the hull, the CE-321 column at the passenger's old slot | today the editor's disembark leaves the soldier where it was (`EditorCargoSystem.cs:68-88`) — inside the hull |
+| genesis | `Embarkation.TryEmbark` per passenger, idempotent (an already-aboard passenger is a no-op), so the vehicle's list and the passenger's own intent both resolve through it | ⚠ today genesis writes the list and the tag but never strips `CanMove`/`CanShoot` (`GenesisMaterializationSystem.cs:65-99`) — a soldier loaded aboard could walk away |
+| the embark ActionId | 1 (`ActionIdEmbark`, the executor's own documented value); 2 left for a per-passenger disembark action | action ids are PER CHANNEL (Combat and Navigation both start at 1); the interaction channel uses 3–8 (`BehaviorConstants.cs:111-122`) |
+| the three wire cases | `Embark`/`Disembark`/`EjectPassengers` payloads carry one reserved byte; target = the vehicle, actor = the passenger (none for eject) | union cases 2–4 reserved by I-1 (`InteractionMessages.cs:15-17`) |
+
+| rail (I-2a acceptance) | where |
+|---|---|
+| board · refuse when full · disembark one beside the hull · eject all beside the hull (CE-321) · a non-owner never applies · genesis strips capabilities | `EmbarkationTests` (`Fdp.Toolkits.Tests`), the re-homed `EditorCargoSystemTests` claims |
+| the executors raise commands and wait for the state | `EmbarkExecutorTests` · `EjectPassengersExecutorTests` |
+| the three kinds cross the one interaction topic | `InteractionTransportTests` |
+| CGF registers both executors and the system | `CgfLogicPackTests` |
+
+#### 7.1b I-2a as built *(behaviors, `2026-10-12`)*
+
+| file | what |
+|---|---|
+| `Fdp.Toolkits/Behavior/Embarkation.cs` | the rules: `TryEmbark` (idempotent) · `Disembark` (beside the hull at its seat) · `EjectAll` · `DismountPoint` (CE-321, moved here from the executor) · `OwnsVehicle` |
+| `Fdp.Toolkits/Behavior/Systems/EmbarkationSystem.cs` | the one applier, gated on `OwnsVehicle`; counts `Applied` / `Refused` |
+| `Behavior/Events/EjectPassengersCommand.cs` (3203) · `IsRemote` on all three · `Vehicle` on `DisembarkEntityCommand` | — |
+| `EmbarkExecutor` / `EjectPassengersExecutor` | raise once, wait for the state (5 s timeout); `ActionIdEmbark = 1` registered in `CgfLogicPack` |
+| `GenesisMaterializationSystem` | both intents through `TryEmbark` (+ an empty `PassengerBuffer` when the vehicle has none) |
+| `Hrot.Network.NED` `InteractionMessages` / `InteractionTransport` | three union cases + three codecs on the one topic |
+| ⛔ `EditorCargoSystem` | deleted; the editor's ORBAT commands reach `EmbarkationSystem` through `CgfLogicPack` |
+
+**Deviations from §7.1a — none in the design; two in the hosts, both measured:**
+
+| found | done |
+|---|---|
+| the FDP `UrbanCombatNew` fixture swaps the bus after its Stage A and Stage B, so a command raised in Stage C is readable only in the next tick's Stage B — with the applier in Stage C the eject was swapped out unread (📐 `hit=False killed=False`) | the applier sits in Stage B there (`UrbanCombatNewScenario.cs`); hosts that swap once per frame (CGF, editor, `HeadlessDemoApp`) need nothing |
+| the transport rail used `Embark` (2) as its "unknown kind" | it uses 999; `Embark` is known now |
+| `EditorAuthoringIntegrationTests.ZoneAuthoring_ObstaclePlacement_*` red (2) | pre-existing: red at `c5281a5bb` too; unrelated to embarkation |
+
+| rail | proves |
+|---|---|
+| `EmbarkationTests` (5, FDP) | the rules + the applier: board · a full vehicle refuses · disembark one beside the hull · a non-owner applies nothing · eject through the applier (re-homes `EditorCargoSystemTests`' three claims) |
+| `EmbarkExecutorTests` (7) · `EjectPassengersExecutorTests` (5) | raise → owner applies → the executor reads the answer; full ⇒ Failure without raising; no answer ⇒ timeout |
+| `GenesisMaterializationSystemTests.CE3110_APassengerLoadedAboard_…` | a passenger loaded aboard cannot move or shoot (🔴 red before: genesis never stripped) |
+| `InteractionTransportTests.CE3110_…` | the three kinds cross the one topic; the owner applies; a remote command is never sent back |
+| `CgfLogicPackTests` | 22 simulation systems (+ `EmbarkationSystem`) |
+| `EditorAuthoringIntegrationTests.Embarkation_*` / `Disembark_*` (the real editor) | the editor still boards and leaves through the ORBAT — now via `CgfLogicPack` |
+| ⛔ `UrbanCombatNewScenarioTests` (FDP) | end to end: the APC is hit, ejects, the squad kills the insurgent — 🔴 **cannot gate yet: red at the base commit too** (`hit=False`, with the ballistics suite; `CE-2126`). Identical 7/45/12 before and after I-2a |
+
+#### 7.1c I-2b — the passenger list on every node *(build-state: BUILT `2026-10-12`, behaviors lane; R-224 / Q-1 approved — as built: §7.1d)*
+
+```mermaid
+classDiagram
+  class PassengerBuffer { <<existing, now BRAIN group>> Count · Passengers[8] }
+  class EntityPassengers { <<NEW DDS, dtPassengerBuffer 131>> EntityId key · Count · Passenger0..7 network ids }
+  class EntityPassengersEgressTranslator { <<NEW>> owner of PackKey(131) · on change · never an untouched empty list }
+  class EntityPassengersIngressTranslator { <<NEW>> ids → entities · holds a sample until every passenger is known · never its own }
+  class EmbarkedStateSystem { <<NEW, Input, before CognitiveInterruptSystem>> list ⇒ tag + caps · left ⇒ untag + caps back + place (position owner) }
+  class Embarkation { <<I-2a>> list rules · Board / Leave = THE passenger-side helpers · OwnsVehicle on PackKey(131) }
+  class CognitiveInterruptSystem { <<existing, CHANGED>> no MobilityLost for a passenger }
+  EntityPassengersEgressTranslator ..> PassengerBuffer : reads (owner)
+  EntityPassengersIngressTranslator ..> PassengerBuffer : writes (others)
+  EmbarkedStateSystem ..> Embarkation : Board / Leave
+  EmbarkedStateSystem ..> PassengerBuffer : reads
+```
+
+```mermaid
+sequenceDiagram
+  participant O as CGF (vehicle's brain owner)
+  participant W as wire (dtPassengerBuffer)
+  participant S as SimHost (soldier's position owner)
+  O->>O: EmbarkationSystem: TryEmbark ⇒ list += soldier (tag + caps locally)
+  O->>W: EntityPassengers {APC, [soldier]}
+  W->>S: ingress ⇒ PassengerBuffer (once the soldier is known)
+  S->>S: EmbarkedStateSystem: soldier listed, no tag ⇒ tag + CanMove/CanShoot off
+  O->>O: EjectAll ⇒ list empty (locally: untag, caps back)
+  O->>W: EntityPassengers {APC, []}
+  W->>S: list empty
+  S->>S: EmbarkedStateSystem: tagged, not listed ⇒ untag, caps back, PLACE beside the hull (S owns the soldier's position)
+```
+
+```mermaid
+graph TD
+  SP[SharedTranslatorPack - every networked host] --> EG[EntityPassengersEgress]
+  SP --> IN[EntityPassengersIngress]
+  PLAN["every host's NodeCompositionPlan: CGF, SimHost, IG, editor (both arms), Stride"] --> CAP["CoreInfrastructureCapabilities.Interactions (cross-role, Hrot.Common)"]
+  CAP -->|"input tail"| ES[EmbarkedStateSystem]
+  CAP -->|"simulation tail"| EA[EmbarkationSystem - gates itself on dtPassengerBuffer]
+  CAP -->|"simulation tail"| DC[DoorCommandSystem - gates itself on dtDoorState]
+  ES -.->|"same phase, order free: Board writes tag + strip together"| CIS[CognitiveInterruptSystem - skips a tagged entity]
+  HAR["hand-wired harnesses: EditorHarness, SimHostInstance"] -.->|"take the capability's systems"| CAP
+```
+*What the pictures show that prose hid: the passenger's side has ONE writer function (`Embarkation.Board` / `Leave`) and two callers
+— the deciding node right away, every node from the list it holds — so no node ever writes it from a second rule; the body is placed
+only where its position is owned, because a write anywhere else would be overwritten by the owner's replicated position the next
+frame; and NO host or role pack composes an interaction applier — one cross-role capability does, on every node that can own a live entity.*
+*(⛔ SUPERSEDED `2026-10-12`: this graph first showed `CgfLogicPack` and `SimHostNodeBootstrapper` each registering the derivation,
+with an "ordered before `CognitiveInterruptSystem`" edge — see §7.1d.)*
+
+| claim the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| `ActorCapabilityState` never crosses the wire | ✅ Brain group (`HrotOwnershipGroups.cs:54`), but no translator names it (grep `Hrot/Network`, `Replication/`: 0) | ✅ Q-1: each node derives the passenger's side |
+| a soldier's position is SimHost's | ✅ `SimTransform` in the MuscleGround group (`HrotOwnershipGroups.cs`, dtWorldPos) | ✅ R-170 |
+| every brained entity carries an empty `PassengerBuffer` | ✅ `BehaviorTkbTranslator.cs:161` | — ⇒ the egress sends nothing for a list never filled |
+| boarding fires `MobilityLost` | 🔴 ✅ `CognitiveInterruptSystem.cs` Pass B: any CanMove→cleared, no exception (true before I-2a too: the old `EmbarkExecutor` stripped it) | ⛔ "mobility lost" means damage, not a seat ⇒ fixed here |
+| the animation reactor is unaffected | ✅ reacts to `CanPlayAnimations` / `CanAim` loss only | — |
+| ordinal 131 is free | ✅ `AllDescriptors.cs` on `behaviors`, `origin/backend`, `origin/ui` (`2026-10-12`): last is 130 | — |
+
+| decision | ⭐ lean | rejected (one line each) |
+|---|---|---|
+| the wire shape | `EntityPassengers` with eight scalar network-id fields (the `EntityWeaponAmmo` shape), keyed by the vehicle, Reliable + TransientLocal + KeepLast 1 | a sequence: no descriptor here carries one · entity handles: node-local |
+| the owner gate | `PackKey(dtPassengerBuffer = 131)` in the BRAIN group (`Embarkation.OwnsVehicle` and the egress); a vehicle with no brain falls back to its creator | the vehicle's primary owner: the group exists so a role, not a node, owns it |
+| a passenger the ingress does not know yet | hold the newest sample per vehicle and apply it once every id resolves | drop it: TransientLocal sends once, so a dropped sample would leave the list wrong until it next changed |
+| restoring capabilities | CanMove/CanShoot back unless the passenger is dead | remembering exactly what was stripped: no reader needs it yet (I-2c can add it with its own field) |
+| who places a leaving body | the node owning the passenger's POSITION (`PackKey(dtWorldPos = 2)`), at the hull column in leaving order | the vehicle's owner: its write is overwritten (above) |
+| `MobilityLost` | `CognitiveInterruptSystem` skips an entity carrying `IsEmbarkedTag` | a separate "boarded" interrupt: nothing would read it |
+
+| rail (I-2b acceptance) | where |
+|---|---|
+| a list published by the owner arrives on another node; a passenger not yet known holds the sample; the owner never takes its own back; an untouched empty list is never sent | `PassengerReplicationTests` (SimHost.Tests) |
+| derived on a node that did not decide: tag + caps on boarding; untag + caps back + placed beside the hull on leaving, only where the position is owned | `EmbarkedStateSystemTests` (FDP) |
+| boarding is not `MobilityLost` | `CognitiveInterruptSystem` suite |
+| the two ordinals pinned to NED | a rail beside the door's |
+
+#### 7.1d I-2b as built *(`2026-10-12`, behaviors lane)*
+
+⭐ Built to §7.1c's three diagrams with no structural deviation: the classes, the sequence and the module graph above are the as-built.
+What the build settled that the design left open:
+
+| detail | as built | file |
+|---|---|---|
+| the wire sample | `EntityPassengers` — `EntityId` key, `Count`, `Passenger0..7` network ids; a passenger with no `NetworkIdentity` is left out | `SimDescriptors.cs`, `AllDescriptors.cs` (`dtPassengerBuffer = 131`) |
+| the egress's "never filled" rule | skips a vehicle whose list it has never sent **and** whose list is empty; after that, any change (including to empty) is sent once | `EntityPassengersTranslators.cs` |
+| the ingress hold | the NEWEST sample per vehicle waits in `_pending`; a later sample replaces it; it applies when the vehicle and every passenger resolve | same |
+| a passenger moved straight to another vehicle | `EmbarkedStateSystem` re-tags it (boarding wins) — it does not leave and re-board | `EmbarkedStateSystem.cs` |
+| the vehicle already gone | a tagged passenger whose vehicle no longer exists leaves where it stands (I-2c will kill it instead, R-271) | same |
+| registration | ⭐ **one cross-role capability, `CoreInfrastructureCapabilities.Interactions`** (`Hrot.Common`, key `cap:infra:interactions`), declared in EVERY host's `NodeCompositionPlan` beside `UnitHierarchy` — CGF, SimHost, IG, the editor's two arms, Stride — and taken by the two hand-wired harnesses. It carries every interaction kind's OWNER-side system: the passenger derivation (input tail), and the appliers `DoorCommandSystem` (5d-1, moved out of `CgfLogicPack` on the user's "yes please") and I-2a's `EmbarkationSystem` (simulation tail). ⭐ A new interaction kind adds its owner-side system there — one place, never a host. (First built the same day as `…Embarkation`; renamed with Roslyn when doors joined.) 🔒 User, `2026-10-12`: *"any node that can own live entities (excluding ReplayBrowser …) should be able to use the features, so I hope you do no per-host initializations."* ⛔ SUPERSEDED the same day: the first build registered the derivation in `CgfLogicPack` and as a SimHost global system, and I-2a had the applier in `CgfLogicPack` only — per-host composition, which left IG and Stride unable to board | `CoreInfrastructureCapabilities.cs`, the six plans |
+| frame order | ⭐ free inside the phase: `Board` writes the tag and strips CanMove in one call, so `CognitiveInterruptSystem` sees the tag whichever frame it notices the loss. ⛔ The design's "before `CognitiveInterruptSystem`" edge was not needed — and a `[UpdateBefore]` does nothing inside a togglable group (it runs its list in order), so it was removed | `EmbarkedStateSystem.cs` |
+| ownership | `dtPassengerBuffer` ↔ `PassengerBuffer` in `NedOwnershipGroupBinding`; `PassengerBuffer` joins the BRAIN group | `NedOwnershipGroupBinding.cs`, `HrotOwnershipGroups.cs` |
+
+| rail | where |
+|---|---|
+| the owner's list reaches the other node once every passenger is known (held before); an empty list empties it there; an untouched empty list is never sent; unchanged ⇒ said once | `PassengerReplicationTests.CE3110_I2b_TheOwnersList_…` (SimHost.Tests) |
+| only the `dtPassengerBuffer` owner publishes / arbitrates; the owner drops its own sample | `PassengerReplicationTests.CE3110_I2b_OnlyTheDescriptorOwner…` |
+| the toolkit's two ordinals are NED's descriptors | `PassengerReplicationTests.CE3110_I2b_TheToolkitsOrdinals_…` |
+| a list that arrives tags + strips; an emptied list untags, gives caps back, places beside the hull ONLY where the position is owned; the deciding node is a no-op; a move re-tags; a dead passenger gets no caps back | `EmbarkedStateSystemTests` (FDP, 5) |
+| boarding is not `MobilityLost` | `CognitiveInterruptSystemTests.CE3110_I2b_BoardingStripsCanMove_ButIsNotMobilityLost` |
+| `dtPassengerBuffer` is in the Brain group's descriptor set | `RoleGroupOwnershipStrategyTests`, `TheDescriptorMapIsWiredTests` |
+| the interaction appliers (doors, embarkation) are NOT pack content and resolve exactly once on both editor arms (an injected tier declaring it too de-duplicates by key); the Stride plan resolves it | `EditorCapabilitiesTests.CE3110_EmbarkationIsCrossRoleInfrastructure_ResolvedOnceOnEveryArm`, `CgfLogicPackTests`, `StrideCapabilitiesTests.MuscleGroundResolves` |
+
 ### 7.2 What "inside" means *(✅ ruled `2026-10-11`, R-271 — I-2c)*
 
 🔒 *User: "Accepted the lean of what inside a vehicle mean. If vehicle gets destroyed, all inside die. Passenger needs a flag (carrier entity id,) on itself to be ignored by visibility queries so they do not need to check the passenger list. Some vehicles are open (like a helicopter without side doors), those are not hiding entities from being seen or shot, how to solve those?"*
@@ -269,3 +440,123 @@ a tag with `Exposed = 0` and never read a passenger list.*
 | may an exposed passenger fire? *(lean)* | ⛔ not in I-2c: CanShoot stays stripped; a later `PassengersMayFire` type field (door gunners) | keeps I-2c small; firing from a moving platform needs its own aim model |
 | vehicle destroyed | ✅ ruled: every passenger dies, enclosed or open | — |
 | finer than per vehicle *(later)* | per-seat exposure (a gunner's hatch open, the cabin closed) once seats exist | rejected now: there are no seats (capacity is a fixed 8) |
+
+#### 7.2a I-2c — carried, hidden, dies with the vehicle *(build-state: BUILT `2026-10-12`, behaviors lane; R-271 — as built: §7.2b)*
+
+📐 Measured `2026-10-12` (three sweeps + reads). ⚠ It **corrects §7.2's five-system list**: the hit is chosen in `RaycastSolverSystem` from the
+**collider hash**, not in `HitResolutionSystem` (filtering there would hide the vehicle behind its own passenger); and the list missed the
+line-of-sight occluders and the radius search, which also read the collider hash.
+
+```mermaid
+classDiagram
+  class IsEmbarkedTag { <<existing, + Exposed>> VehicleEntity · byte Exposed }
+  class OpenPassengerCabin { <<NEW, vehicle, id 366>> present only on an Open type (MobilityKill precedent) }
+  class VehicleParametersDto { <<existing TKB, + field>> PassengerExposure Enclosed | Open (absent = Enclosed) }
+  class VehicleKinematicsTkbTranslator { <<existing, + stamp>> Open ⇒ OpenPassengerCabin }
+  class Embarkation { <<existing>> Board: Exposed = vehicle has OpenPassengerCabin }
+  class EmbarkedStateSystem { <<existing, + carry + kill>> owner of the position: carry · owner of the health: lethal DamageAssessedEvent when the vehicle is destroyed }
+  class PhysicalPresence { <<existing, widened>> IsHidden = UnitEntity OR enclosed passenger · ExcludeHidden REMOVED }
+  class SpatialHashSystem { <<existing, + door>> collider hash skips IsHidden }
+  class CarKinematicsSystem { <<existing>> skips embarked · avoidance ignores embarked neighbours }
+  class AreaEffectSystem { <<existing, + door>> blast skips IsHidden }
+  class LosStrategies { <<existing, + door>> occluder lists skip IsHidden }
+  class HealthApplicationSystem { <<existing, the one Health writer>> }
+  VehicleKinematicsTkbTranslator ..> VehicleParametersDto : reads
+  VehicleKinematicsTkbTranslator ..> OpenPassengerCabin : stamps
+  Embarkation ..> OpenPassengerCabin : reads at boarding
+  Embarkation ..> IsEmbarkedTag : writes
+  PhysicalPresence ..> IsEmbarkedTag : reads Exposed
+  SpatialHashSystem ..> PhysicalPresence
+  AreaEffectSystem ..> PhysicalPresence
+  LosStrategies ..> PhysicalPresence
+  EmbarkedStateSystem ..> HealthApplicationSystem : DamageAssessedEvent
+```
+*What the picture shows that prose hid: "hidden" has ONE definition (`PhysicalPresence.IsHidden`) and every door that gathers candidates
+calls it — the perception grid and the EQS area search (as before) plus three new doors: the collider hash (bullets, near misses, the radius
+search, network raycasts, vehicle avoidance), the blast query and the line-of-sight occluder lists. And no new writer of `Health` appears: the
+kill rides the existing damage event into the one writer.*
+
+```mermaid
+sequenceDiagram
+  participant V as vehicle Health (replicated, dtEntityDamage)
+  participant ES as EmbarkedStateSystem (every node)
+  participant HA as HealthApplicationSystem (passenger's Health owner)
+  participant K as CarKinematicsSystem (passenger's position owner)
+  Note over ES: each frame, for every tagged passenger
+  ES->>ES: position owner: SimTransform/SimVelocity = the vehicle's
+  K--xK: skips the passenger (Without IsEmbarkedTag)
+  V-->>ES: vehicle Health <= 0
+  ES->>HA: Health owner only: DamageAssessedEvent{passenger, lethal}
+  HA->>HA: Health = 0, CanMove/CanShoot stripped (CE-3092 rule)
+  Note over ES: the body stays aboard the wreck, tagged and hidden
+```
+
+```mermaid
+graph TD
+  ICAP["CoreInfrastructureCapabilities.Interactions (every host's plan)"] --> ES[EmbarkedStateSystem - Input: derive, carry, kill]
+  GKM["GroundKinematicsModule (MuscleGround packs)"] --> SH[SpatialHashSystem - collider hash]
+  GKM --> CK[CarKinematicsSystem - PostSimulation]
+  EQS["EqsModule (Perception capability)"] --> LGB[LocalGridBuilderSystem - perception grid]
+  DAM["DamageAssessmentModule (MuscleGround)"] --> AE[AreaEffectSystem]
+  SH --> PP[PhysicalPresence.IsHidden]
+  LGB --> PP
+  AE --> PP
+  EIA[EntitiesInAreaGenerator] --> PP
+  LOS[LosStrategies occluders] --> PP
+  SHR["HrotSharedComponentRegistry (every host)"] --> REG["PassengerBuffer · IsEmbarkedTag · OpenPassengerCabin registered"]
+```
+*What the picture shows that prose hid: the embarkation components were registered only by the CGF and SimHost registries, so IG — which runs
+I-2b's passenger-list ingress — would apply an unregistered component (a latent I-2b defect, fixed here by moving them to the shared registry
+every host calls). The carry needs no new system and no cross-group ordering: the derivation already visits every passenger each frame.*
+
+| claim the build rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| perception + EQS area search already share ONE hidden check | ✅ `LocalGridBuilderSystem.cs:106`, `EntitiesInAreaGenerator.cs:66` via `PhysicalPresence` | ✅ `PhysicalPresence.cs:9-12` reserves I-2c's passenger there; Squad_Tactics §7.1 C-2 |
+| bullets, near misses, radius search, avoidance read the collider hash | ✅ `SpatialHashSystem.cs:73-82`; `RaycastSolverSystem.cs:99-130`; `BallisticsSystem.cs:252`; `EntitiesInRadiusGenerator.cs:27`; `CarKinematicsSystem.cs:567` | ⚠ §7.2 named `HitResolutionSystem` — corrected here |
+| the blast does not use any index | ✅ `AreaEffectSystem.cs:101` plain query | ✅ Building_Interiors §3k ("one query over live Health entities") |
+| a boarded soldier keeps its collider and kinematics keeps writing it | ✅ `CombatTkbTranslator.cs:66-81`; `CarKinematicsSystem.cs:80-87` (no CanMove check) | ⛔ searched `docs/`, none — the carry is new |
+| no parent-follow mechanism exists | ✅ swept (PartMetadata, turret parts, NetworkTransform): none writes a child's transform | ⛔ searched, none |
+| Health has one writer, gated on owning Health | ✅ `HealthApplicationSystem.cs:87`; Health in the Brain group (`HrotOwnershipGroups.cs:53`) | ✅ Ownership_Groups §5.6 S8 |
+| the vehicle's Health reaches every node | ✅ `EntityDamageEgress/IngressTranslator` (`dtEntityDamage`, SharedTranslatorPack) | ✅ |
+| a per-type opt-in is a component present only when non-default | ✅ `MobilityKill` (`CombatTkbTranslator.cs:61`) | ✅ packs-1 §2.B |
+| `HasComponent` of an unregistered type is false, double registration is harmless | ✅ `PhysicalPresence.IsHidden` / `AuthorityExtensions` call it unguarded; IG registers `Health` twice | — |
+
+| decision | ⭐ lean (built) | rejected (one line each) |
+|---|---|---|
+| where "hidden" is decided | widen `PhysicalPresence.IsHidden`; every candidate door calls it per entity; `ExcludeHidden` (a query filter that cannot read `Exposed`) is removed | a second tag for enclosed passengers: two facts for one state · a check in `HitResolutionSystem`: the ray already chose the passenger |
+| the collider hash | hidden passengers are not inserted — one door covers bullets, near misses, radius search, network raycasts and avoidance | five per-consumer skips |
+| an exposed passenger in avoidance | stays in the hash (it can be seen and shot) but `CarKinematicsSystem` ignores embarked neighbours | removing it from the hash: it could not be hit |
+| the carry | in `EmbarkedStateSystem`, on the passenger's position owner: position, rotation and velocity = the vehicle's (≤ one frame behind; the passenger is hidden or rides an open cabin) + `CarKinematicsSystem` skips embarked entities | a PostSimulation follow system: needs ordering across a togglable group and a kinematics module, which nothing provides |
+| the kill | the passenger's Health owner publishes a lethal `DamageAssessedEvent` when the vehicle `IsDestroyed`; `HealthApplicationSystem` applies it (the death capabilities follow); the body stays aboard | writing Health directly: a second writer · removing the body: the `2026-09-13` user ruling, dead bodies stay in the world (`HealthApplicationSystem.cs`) |
+| exposure | `VehicleParametersDto.PassengerExposure` (absent = Enclosed) → `OpenPassengerCabin` on the vehicle → `IsEmbarkedTag.Exposed` at boarding | reading the TKB at every boarding: the toolkit has no TKB access there |
+| stale enemy memory of a passenger | left to decay (`ThreatEvaluationSystem` decays tracks) | purging on boarding: a sensor fact, not an embarkation one |
+
+| rail (I-2c acceptance) | where |
+|---|---|
+| hidden = unit or ENCLOSED passenger; an exposed passenger is not hidden | `PhysicalPresenceTests` (FDP) |
+| an enclosed passenger is not in the perception grid nor the collider hash; an exposed one is in both | `LocalGridBuilderSystemTests`, `SpatialHashSystem` rail (FDP) |
+| a blast spares an enclosed passenger at the burst | `AreaEffectSystem` rail (FDP) |
+| carried where the position is owned (position + velocity = the vehicle's), untouched elsewhere; kinematics leaves it alone | `EmbarkedStateSystemTests`, `CarKinematicsSystem` rail (FDP) |
+| the vehicle destroyed ⇒ a lethal damage event for each live passenger whose Health this node owns, none for one it does not own | `EmbarkedStateSystemTests` (FDP) |
+| an Open type stamps `OpenPassengerCabin`; boarding it sets `Exposed` | `VehicleKinematicsTkbTranslatorTests`, `EmbarkationTests` (FDP) |
+| every host registers the embarkation components | `HrotSharedComponentRegistry` rail (SimHost.Tests) |
+
+#### 7.2b I-2c as built *(`2026-10-12`)*
+
+⭐ Built to §7.2a's three diagrams; no structural deviation. What the build settled:
+
+| detail | as built | file |
+|---|---|---|
+| the perception grid is INCREMENTAL | the count pass and the full rebuild skip hidden entities, and the incremental pass EVICTS one that became hidden — a boarding cancelled by a spawn keeps the visible count equal, so the count check alone would have left it in the grid | `LocalGridBuilderSystem.cs` |
+| `ExcludeHidden` | removed; its two callers (grid builder, `EntitiesInAreaGenerator`) call `IsHidden` per entity | `PhysicalPresence.cs` |
+| avoidance | the neighbour span is compacted (embarked neighbours dropped) before `RVOAvoidance` | `CarKinematicsSystem.cs` |
+| the kill is said once | a per-system set keeps one lethal event per passenger (a duplicate would only re-floor Health at 0, but the damage egress would ship it twice); the TotalDamage is the passenger's current Health | `EmbarkedStateSystem.cs` |
+| an unregistered component | `HasComponent` of a type a world never registered is false (precedent: `PhysicalPresence`, `AuthorityExtensions`), so the hidden check needs no guard | — |
+| the TKB field | `PassengerExposure` is a `byte` enum whose 0 is `Enclosed`, so an absent field in older JSON / zips means enclosed (the `VehicleParametersDto` absent-safe rule) | `VehicleParametersDto.cs`, `InteractionComponents.cs` |
+| ⭐ the latent I-2b defect | fixed: `PassengerBuffer` / `IsEmbarkedTag` / `OpenPassengerCabin` now in `HrotSharedComponentRegistry` (every host); `EmbarkationComponentRegistry` still registers them (idempotent) | `HrotSharedComponentRegistry.cs` |
+| ⭐ a UNIT never boards or carries *(user, `2026-10-12`: "squad body-less commander … does not take any passengers slot, can not be carried" → "sounds good")* | `TryEmbark` refuses (`Invalid`) when the passenger OR the vehicle carries `UnitEntity` (R-272) — every brained entity, units included, gets an empty `PassengerBuffer` (`BehaviorTkbTranslator`), so without it a unit could be named as a vehicle. One check covers the applier and genesis (both go through `TryEmbark`); its members board, not it | `Embarkation.cs` |
+| not covered, recorded | ⚠ the Stride host's crowd kinematics (`CrowdAgentUpdateSystem`) is not taught to skip an embarked body (Stride not exercised here) · enemy `TargetMemory` of a passenger decays rather than purges · `HiddenTargetThrow.FriendlyInBurst` still counts a friend inside a vehicle (conservative: no grenade near a friendly APC) | — |
+
+| rail | result |
+|---|---|
+| `PhysicalPresence` via `EmbarkedStateSystemTests.CE3110_I2c_BoardingAnOpenCabin_LeavesThePassengerExposed` · `LocalGridBuilderSystemTests.CE3110_I2c_…` (incl. the equal-count boarding) · `SpatialHashSystemTests.CE3110_I2c_…` · `AreaEffectSystemTests.CE3110_I2c_…` · `CarKinematicsSystemTests.CE3110_I2c_…` · `EmbarkedStateSystemTests` carry + kill · `VehicleKinematicsTkbTranslatorTests.CE3110_I2c_…` · `UnitCommanderTests.CE3110_I2c_…` (EQS area search) · `EmbarkationTests.CE3110_AUnitNeitherBoardsNorCarries` · `HrotSharedComponentRegistryTests.CE3110_…` | ✅ all green; red-proved by reverting each mechanism |

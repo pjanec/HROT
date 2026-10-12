@@ -221,6 +221,9 @@ known-conflict: ⛔ the dispatched frame handoff is stale on TWO points — its 
   prerequisite (AQ63 §3.3: obsolete by measurement) and its phase-0 rail wording (AQ63 §10.4: would encode
   a ruling violation). ⚠ The handoff is deliberately NOT edited — rule 1 forbids amending a dispatched
   handoff; the divergence is declared here and in the report instead.
+related-designs:
+  - docs/DESIGN_Entity_Interactions.md §7.1d — OWNS entity interactions; its CoreInfrastructureCapabilities.Interactions (doors + embarkation) is the third cross-role infrastructure capability (§4.1ad)
+  - docs/DESIGN_Node_Roles_And_Policies.md §3.1–§3.2 — OWNS what a role means and loads; a role never denies a capability
 -->
 # ⭐⭐⭐ DESIGN — **Subsystem composition unification**
 
@@ -6259,6 +6262,12 @@ them. They became **cross-role infrastructure capabilities**, declared once per 
 `NodeCompositionPlanRails` pins — so the editor's declaration and the injected muscle tier's identical
 declaration resolve to **one**, Brain-side winning. ⛔ **No new mechanism was added**; the seam was
 already able to do this.
+
+⭐ **`2026-10-12` — a third member: `CoreInfrastructureCapabilities.Interactions`** *(`CE-3110`, `cap:infra:interactions`)* — every
+interaction kind's owner-side system (`DoorCommandSystem`, `EmbarkationSystem`) and the passenger-side derivation, declared in all six
+plans. ⭐ A new interaction kind joins it there, never a host. 🔒 User: *"any node that can own live entities
+(excluding ReplayBrowser) should be able to use the features … no per-host initializations."* ⚠ Unlike the first two it contributes
+to **Input** as well (the derivation, at the input tail). 📄 `DESIGN_Entity_Interactions.md` §7.1d.
 
 | ⭐ three measurements that made it a mis-assignment rather than a design | |
 |---|---|

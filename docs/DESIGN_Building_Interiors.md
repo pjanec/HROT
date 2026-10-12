@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-09 (§3l Stage 7a BUILT — §3l.7 as built · §3k Stage 6 warheads BUILT — as-built table; CE-3116 body profile · designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
+updated: 2026-10-12 (DoorCommandSystem moved to the cross-role Interactions capability, §3j 5d graph · §3l Stage 7a BUILT — §3l.7 as built · §3k Stage 6 warheads BUILT — as-built table; CE-3116 body profile · designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
 current-answer: §3l Stage 7a cover per storey + window firing positions (APPROVED, R-232 — BUILT, §3l.7 as built; §3l.2 diagram updated) · §3k Stage 6 warheads (BUILT — "Stage 6 as built") · §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
@@ -837,13 +837,19 @@ sequenceDiagram
 ```mermaid
 graph TD
     CGF[CgfLogicPack - CGF and editor] --> DIS[InteractionDispatcher: DoorActionExecutor x5]
-    CGF --> DCS[DoorCommandSystem - Simulation phase]
+    PLAN["every host's NodeCompositionPlan"] --> ICAP["CoreInfrastructureCapabilities.Interactions (cross-role)"]
+    ICAP --> DCS[DoorCommandSystem - Simulation tail, gates itself on OwnsDoor]
     STP[SharedTranslatorPack - every networked host] --> EG[Interaction egress + ingress - R-221]
     STP --> DSE[EntityDoorState egress + ingress]
     REG[HrotSharedComponentRegistry - every host] --> EV[DoorCommandEvent registered]
     SIM[SimHost - Muscle] -->|5d-3 raises commands at a door waypoint; applies none| EG
 ```
-*What it shows that prose hid:* only the Brain tier applies commands (it is where doors are created and owned). A SimHost raises a
+*What it shows that prose hid:* only the door's OWNER applies commands — today that is the Brain node, because the load step (Brain
+role only) creates the doors and `dtDoorState` is in no group, so the creator keeps it. ⭐ `2026-10-12` (CE-3110): the applier is no
+longer Brain-pack content but the cross-role `CoreInfrastructureCapabilities.Interactions`, on every host's plan — 🔒 user: *"any node
+that can own live entities … should be able to use the features, so I hope you do no per-host initializations."* ⛔ SUPERSEDED: this
+graph first had `CgfLogicPack` register `DoorCommandSystem`, so a door owned by any non-Brain node would never have applied a command.
+📄 [`DESIGN_Entity_Interactions.md`](DESIGN_Entity_Interactions.md) §7.1d. A SimHost raises a
 command (5d-3, the mover at a door waypoint) but never applies one, so its commands always travel through the translators, even in
 `--mode all`, where each host keeps its own world. The SimHost edge was dashed (not built) until 5d-3; it is built now.
 
@@ -931,7 +937,7 @@ graph TD
     NSM[NavigationSolverModule - SimHost] --> PSS[PathfindingSolverSystem]
     PSS -->|same process: trajectory pool| DPS
     DPS -->|DoorCommandEvent| EG[Interaction egress - SharedTranslatorPack]
-    EG -->|EntityInteractionRequest| DCS[DoorCommandSystem - CgfLogicPack, door owner]
+    EG -->|EntityInteractionRequest| DCS[DoorCommandSystem - Interactions capability, door owner]
     CREP[DtCrowd hosts]:::dead -.->|no door marks: not covered| DPS
     classDef dead stroke:#c00,stroke-dasharray:4
 ```

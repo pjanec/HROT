@@ -71,6 +71,8 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.PossessedBy);
         // ⭐ CE-3174 (C-7) — the ammunition per mount, mirrored by the brain from its WeaponStates (dtWeaponAmmo).
         brain.SetBit(GlobalComponentIds.WeaponAmmo);
+        // ⭐ CE-3110 I-2b (R-224) — the vehicle's passenger list: its brain's EmbarkationSystem is the one writer (dtPassengerBuffer).
+        brain.SetBit(GlobalComponentIds.PassengerBuffer);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);

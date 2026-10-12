@@ -69,6 +69,15 @@ public static class CapabilityKeys
     /// deliberately NOT bundled here.</para>
     /// </summary>
     public const string EqsResultUpdate = "cap:infra:eqs-result-update";
+
+    /// <summary>
+    /// ⭐ <c>CE-3110</c> (R-221 / R-224) — entity interactions, the OWNER side: every kind's applier (doors, embarkation) and the
+    /// passenger-side derivation. Cross-role, like <see cref="UnitHierarchy"/>: any node that can own a live entity may own a door, a
+    /// vehicle or a passenger, so no role pack may carry it (🔒 user, <c>2026-10-12</c>: "any node that can own live entities … should
+    /// be able to use the features, so I hope you do no per-host initializations"). A new interaction kind adds its owner-side system
+    /// to <c>CoreInfrastructureCapabilities.Interactions</c> — one place, never a host.
+    /// </summary>
+    public const string Interactions = "cap:infra:interactions";
 }
 
 /// <summary>Keys for the one-per-world resources capabilities share.</summary>

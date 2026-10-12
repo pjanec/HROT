@@ -11,8 +11,8 @@ namespace Hrot.SimHost;
 ///
 /// <para>⛔⛔ <b>Why this is its own registry rather than a line added to an existing one.</b> Embarkation
 /// spans TWO roles and an editor: SimHost's <c>GenesisMaterializationSystem</c> materialises the state,
-/// the Brain's <c>EmbarkExecutor</c> / <c>EjectPassengersExecutor</c> drive it, and the Editor's
-/// <c>EditorCargoSystem</c> authors it. ⇒ it belongs to no single role, and it had been parked in
+/// the Brain's <c>EmbarkExecutor</c> / <c>EjectPassengersExecutor</c> raise its commands, and <c>EmbarkationSystem</c> applies
+/// them on the vehicle's owner (CGF and the editor — ⭐ <c>CE-3110</c> I-2a retired the editor's own <c>EditorCargoSystem</c>). ⇒ it belongs to no single role, and it had been parked in
 /// <c>CognitiveComponentRegistry</c> — the BRAIN's set — which is one of the reasons SimHost had to call
 /// the Brain's registry at all.</para>
 ///
@@ -30,11 +30,13 @@ public static class EmbarkationComponentRegistry
     {
         world.RegisterComponent<PassengerBuffer>();
         world.RegisterComponent<IsEmbarkedTag>();
+        world.RegisterComponent<OpenPassengerCabin>();   // ⭐ CE-3110 I-2c (R-271) — the open-cabin vehicle type (also in HrotSharedComponentRegistry)
 
         // ⚠ The commands travel WITH the components deliberately. FdpConfig.EnforceExplicitEventRegistration
         //   makes an unregistered publish THROW, so splitting the event from the state it mutates would
         //   turn a registry omission into a runtime crash on whichever host publishes first.
         world.RegisterEvent<EmbarkEntityCommand>();
         world.RegisterEvent<DisembarkEntityCommand>();
+        world.RegisterEvent<EjectPassengersCommand>();   // ⭐ CE-3110 I-2a
     }
 }

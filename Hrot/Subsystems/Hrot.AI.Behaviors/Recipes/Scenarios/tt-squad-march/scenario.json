@@ -1,0 +1,223 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "2b123300-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          296.2,
+          280.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 7450
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SquadMarch",
+        "Params": "{\"Objective\":[340,300,0],\"Shape\":1}",
+        "Origin": "Superior"
+      }
+    },
+    "2b123300-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          293,
+          277,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7441
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b123300-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      }
+    },
+    "2b123300-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          290,
+          280,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7442
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b123300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "2b123300-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          296,
+          282,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7443
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b123300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "2b123300-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          302,
+          284,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7444
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b123300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "2b123300-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          308,
+          286,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7445
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b123300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    }
+  }
+}

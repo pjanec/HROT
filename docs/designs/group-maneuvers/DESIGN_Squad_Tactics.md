@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-11
-build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 READY-TO-BUILD 2026-10-11 (§4) · embark §5 and formations §6 are MEASUREMENTS, not plans
-current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch)
+updated: 2026-10-12
+build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch BUILT 2026-10-12 (as-built §6.1a) · embark §5 and formations §6 are MEASUREMENTS
+current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — D2 (CE-2141): the squad drills become order behaviours (InfantrySquadMove …)
+  - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-273 (behaviors) — an order to a squad is resolved by the squad (A2), drills order member UNITS by kind (A4), an ended drill clears its members (A5)
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS which operations need squads (§3 taxonomy, §11 the review and S1–S3 order this file builds)
   - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — OWNS what the squad layer is (5 primitives, the 6 manoeuvre tables, the perception merge); this file only RUNS them
   - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — OWNS where the squad layer runs on CGF and the first runner (§6 BoundingOverwatch, CE-3162) this file generalises
@@ -14,6 +16,7 @@ related-designs:
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS SensorChange and the SOP wake (§7.3) S2 extends with squad-level edges
   - docs/DESIGN_Entity_Interactions.md — OWNS embarkation (§7, R-224, CE-3110); §5 here is its measured state
   - docs/designs/navig-2/Navigation_Design_v2_0.md — names a "formations" design that was never written (:1040, :1666); §6 here is the measured state
+  - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS who owns a composite unit's position (R-175, §4 D-8) and CE-514 (derive it from the members), which §7 builds
   - docs/designs/commander-subordinates/DESIGN.md — OWNS UnitRoster / UnitSubordinate and the FormationController/Follower refactor (Phase 2) §6 measures
 -->
 
@@ -228,7 +231,7 @@ member never saw (§2); **a flank point computed on CGF** — it can land off th
 | `SquadTacticsScenarioTests` (cluster, `tt-suppress-flank`) | live: contact ⇒ start, the flank ≥ 45° round the enemy from the base, the base fires and holds (horizontally — a standing member's height followed the ground, z 0 → 9), the assault goes through | ✅ green `2026-10-11` (33 s): the flank came out **75°** round the enemy, the assault covered ~60 m, the base fired 150 → 113 rounds and held. The run before `AdvanceTo` failed at **2°**: the assault fired in place under `CombatPosture` |
 | `CuratedBehaviorRegistrarTests` (CE3164 group, SR_R2 names) | `AdvanceTo` and `SuppressAndManeuver` are registered and sit in their picker folders | — |
 
-## 4. S2 — react to contact *(build-state: READY-TO-BUILD — `2026-10-11`; 🔒 user: "go to S2")*
+## 4. S2 — react to contact *(build-state: BUILT `2026-10-11` — as-built §4.7; 🔒 user: "go to S2")*
 
 ⭐ **What S2 is, in one line:** when the squad meets the enemy, its LEADER notices (a squad-level sensing edge), its own
 standing orders react (a squad SOP), it holds and returns fire for a moment, decides once — assault, break contact or hold —
@@ -241,7 +244,7 @@ runs that drill on the S1 runner, and when the drill ends the leader's interrupt
 | a `SensorChangedEvent` lives one frame; published in frame N it is READ in N+1 | `FdpEventBus.cs:30` ("visible in the next frame (after SwapBuffers)") | Decision Layer §4.3 (R-195: the SOP wakes the next frame) |
 | the SOP wake, `RecentSenses` and the HSM reserved events key on `evt.Unit` only — a commander's SOP works unchanged | `RecentSensesSystem.cs:21-26`; `BrainTickSystem.cs:227` | Sensors & Doctrine §7.3 |
 | ⛔ `RecentSenses` records kinds 1–7 only, in a BYTE mask — a kind ≥ 8 is dropped (`default: return`), so the danger-area kinds 8–10 are never recorded today | `RecentSenses.cs:31-42` | Decision Layer §4.3 — "when each kind last happened": ALL kinds ⇒ the record is incomplete, not intended |
-| adding a kind touches: the enum, the HSM name table (pinned by `BuiltInHsmEventsParityTests`), `RecentSenses` | `SensorChangedEvent.cs:12`; `BuiltInHsmEvents.cs:19-23` | Sensors & Doctrine §7.3b ("the ids are ABI: 0xFF00 + SensorChange") |
+| adding a kind touches: the enum, the HSM name table (pinned by `BrainTickSystemHsmArmTests.CE3040_TheBuiltInNames_MatchTheRuntimeEnum`), `RecentSenses` | `SensorChangedEvent.cs:12`; `BuiltInHsmEvents.cs:19-23` | Sensors & Doctrine §7.3b ("the ids are ABI: 0xFF00 + SensorChange") |
 | `SensorChangedEvent` is NOT replicated (no translator; its IDL is only generated) ⇒ new kinds change no wire contract in use | grep `Hrot/Network`: no `SensorChangedEvent` | R-134 (network kept apart from internal events) |
 | producers publish through the command buffer | `ThreatEvaluationSystem.cs:178-188`, `NearMissSensingSystem.cs:24` | — |
 | `SquadCoordinationSystem` is the one squad driver on CGF; the pool changes only on a merge (≈ 10 Hz, or at once on a member epoch change) | `SquadCoordinationSystem.cs:63-70`; `SquadPerceptionMergeSystem.cs:56-61` | Squad_Wiring §3; Squad_Coordination v1.1 |
@@ -289,13 +292,13 @@ classDiagram
   class SquadCoordinationSystem { <<existing, EXTENDED>> + squad edges after the merge }
   class SquadSensing { <<NEW static, Fdp.Toolkits/Squad>> Edges(repo, commander, countBefore) · UnderFire(repo, gate) }
   class SquadInputs { <<existing, EXTENDED>> + SquadEnemyStrengthRatio }
-  class SquadContactResponseDecision { <<NEW [UtilityDecision], ManeuverSelect>> Assault 1 · BreakContact 2 · Hold 3 }
+  class SquadContactResponseDecision { <<NEW [UtilityDecision], PostureSelect>> Assault 1 · BreakContact 2 · Hold 3 }
   class UtilityNodes { <<existing, EXTENDED>> + ChooseOptionOnce }
   class SquadManeuverRunner { <<existing, FIXED>> re-takes the squad when another drill used it (S2-G) }
   class SquadHoldPlay { <<NEW play>> all Hold · ends on time or no contact }
   class BreakContactPlay { <<NEW play over BoundingOverwatchManeuver>> leader's FindSafeRetreatPoint · bounds straight to the answer }
   class SuppressAndManeuverPlay { <<existing S1 play>> }
-  class ReactToContactBehavior { <<NEW [BTreeDefinition ReactToContact, Library/Squad]>> hold · decide once · drill }
+  class ReactToContactBehavior { <<NEW [BTreeDefinition ReactToContact, Library/Squad]>> one stateful action: hold · decide once · drill · hold until clear }
   class BreakContactBehavior { <<NEW [BTreeDefinition BreakContact, Library/Squad]>> }
   class SquadHoldBehavior { <<NEW [BTreeDefinition SquadHold, Library/Squad]>> }
   class BasicSquadSop { <<NEW asset Library/Sop>> UnderFire → React · Contact → React }
@@ -368,7 +371,7 @@ sequenceDiagram
 | **S2-A** | the trigger | three NEW kinds `SquadContact` 11 · `SquadUnderFire` 12 · `SquadAllClear` 13, `Unit` = commander, from `SquadCoordinationSystem` after its merge | a soldier-leader's OWN `FirstThreat` and its squad's must stay distinguishable; the driver already knows the pool changed |
 | **S2-B** | `RecentSenses` | record EVERY kind (8–13 too) in a `ushort` mask | the byte mask cannot hold ≥ 8; the area kinds were silently dropped — round-out, same fix |
 | **S2-C** | the leader's standing orders | `BasicSquadSop`, a JSON SOP asset (the twin of `BasicInfantrySop`): UnderFire fresh → React `ReactToContact` (UnderFire); Contact fresh → React `ReactToContact` (Contact); no idle row | SOPs are recipes an author copies and edits in the editor, as `BasicInfantrySop` is. ⚠ ONE SOP slot per entity ⇒ a soldier-leader given the squad SOP no longer runs its own soldier reactions — it is the squad's brain; splitting body and command is out of S2's scope |
-| **S2-D** | the choice | NEW `SquadContactResponseDecision` (`ManeuverSelect` kind): Assault = our strength high × their share low; BreakContact = their share high; Hold = a floor | the existing `ManeuverSelectStarterDecision` answers another question, reads a dead provider and cannot be named by a tree |
+| **S2-D** | the choice | NEW `SquadContactResponseDecision` (the option kind `PostureSelect` — as built, §4.7): Assault = our strength high × their share low; BreakContact = their share high; Hold = a floor | the existing `ManeuverSelectStarterDecision` answers another question, reads a dead provider and cannot be named by a tree |
 | **S2-E** | when to decide | ONCE, after `DecideAfterSeconds` (3 s) of holding and returning fire — NEW shared node `ChooseOptionOnce` (keeps the first winner) | `ChooseOption` re-scores every tick; a flip mid-drill would restart the drill (new partition, new query) |
 | **S2-F** | breaking contact | `BreakContactPlay` over `BoundingOverwatchManeuver`: the leader's own `FindSafeRetreatPoint` query (slot 0 = a live member, slot 1 = the top threat); each bound goes STRAIGHT to the answer; ends when both elements are within `ArrivalRadius`; no answer ⇒ Failure (the tree falls back to Hold) | bounding's geometric steps can land off the walkable area (S1 measured: such moves fail forever); the answer is walkable and hidden from the threat |
 | **S2-G** | two drills on one squad | the runner remembers its own manoeuvre kind; on a tick where the squad's `ManeuverKind` is NOT its own (another drill ran while it was paused) it RE-TAKES the squad: re-partitions, restores its own kind and its last phase, re-issues | measured defect (§4.0): the resumed drill otherwise reads the other drill's phase — `Aborted` collides with its own abort id |
@@ -386,7 +389,7 @@ a body-less commander is the clean model and needs nothing new.
 |---|---|---|
 | the edges | `SquadCoordinationSystemTests` (the driver's suite) | pool 0→1 ⇒ one `SquadContact` on the commander; 1→0 ⇒ `SquadAllClear`; a member `Hit` ⇒ `SquadUnderFire`; a commander this node does not own ⇒ nothing; still allocation-free |
 | the record | `RoeAndRecentSensesTests` | every kind 1–13 is recorded and read back |
-| the HSM names | `BuiltInHsmEventsParityTests` | the three names, ids `0xFF0B`–`0xFF0D` |
+| the HSM names | `BrainTickSystemHsmArmTests.CE3040_TheBuiltInNames_MatchTheRuntimeEnum` (iterates the enum — covers the new kinds unchanged) | the three names, ids `0xFF0B`–`0xFF0D` |
 | the input | `SquadInputs` rail | 1 armed enemy vs 4 healthy armed members = 0.2; empty pool = 0 |
 | the choice | `SquadContactResponseDecision` rail | strong ⇒ Assault; outmatched ⇒ BreakContact |
 | `ChooseOptionOnce` | `UtilityNodes` rail | keeps its first winner when the scores change |
@@ -394,6 +397,223 @@ a body-less commander is the clean model and needs nothing new.
 | the reaction | `SquadManeuverTests` | `ReactToContact`: holds for `DecideAfterSeconds`, then a strong squad assaults, an outmatched one breaks contact to the leader's retreat answer; `BreakContact` with no answer falls back to hold |
 | the SOP | `BasicSquadSop` rail | a fresh `SquadContact` on the commander ⇒ React `ReactToContact` pausing its task |
 | live: `tt-react-contact` on `test-town` | `SquadTacticsScenarioTests` (cluster) | a squad bounding toward an objective meets an enemy ⇒ the leader's SOP pauses the bound, the squad holds, then runs a drill; when it ends, bounding resumes (`ManeuverKind` 2 → 3 → 2) |
+
+### 4.7 As built *(behaviors, `2026-10-11`)*
+
+| file | what |
+|---|---|
+| `Fdp.Toolkits/Perception/Events/SensorChangedEvent.cs` | `SquadContact` 11 · `SquadUnderFire` 12 · `SquadAllClear` 13 |
+| `Fdp.Toolkits/Behavior/Shared/BuiltInHsmEvents.cs` | `Sensor.SquadContact` … — ids `0xFF0B`–`0xFF0D` |
+| `Fdp.Toolkits/Behavior/Components/RecentSenses.cs` | records EVERY kind (8–13 added), `SeenMask` is a `ushort` |
+| `Fdp.Toolkits/Squad/Systems/SquadSensing.cs` (NEW) + `SquadCoordinationSystem.cs` | the three edges on the commander, after the merge |
+| `Fdp.Toolkits/Utility/Inputs/SquadInputs.cs` | `SquadEnemyStrengthRatio` |
+| `Fdp.Toolkits/Utility/StarterPack/SquadContactResponseDecision.cs` (NEW) | Assault · BreakContact · Hold |
+| `Fdp.Toolkits/Utility/Integration/UtilityNodes.cs` | `ChooseOptionOnce` |
+| `Fdp.Toolkits/Squad/Maneuvers/SquadHoldManeuver.cs` (NEW) | `SquadHoldManeuver` (kind 7) · `BreakContactManeuver` (kind 8, the bounding phases) |
+| `Brains/SquadManeuverRunner.cs` | S2-G re-take; `StartedAt`; the shared `AskTerrain` / `TopContact` / `FirstLive` (the S1 flank play now uses them) |
+| `Brains/SquadContactBehaviors.cs` (NEW) | `SquadHold`, `BreakContact`, `ReactToContact` (Library/Squad) and their plays |
+| `Hrot.Core/…/{SquadHold,BreakContact,ReactToContact}ParamsJsonDto.cs` (NEW) | the three Commander contracts |
+| `Assets/BTrees/Library/Sop/BasicSquadSop.btree.json` (NEW) | the leader's standing orders; also offered as a recipe |
+| `Recipes/Scenarios/tt-react-contact` (NEW) | a leader bounding its four riflemen toward an armed enemy, with `BasicSquadSop` |
+
+**Deviations from §4.2–§4.5 — each measured, none silent:**
+
+| planned | built | why |
+|---|---|---|
+| decision kind `ManeuverSelect` | `PostureSelect` | 📐 `UtilityScorer.ChooseOption` scores ONLY `PostureSelect` (the option-decision kind) and returns 0 for anything else — the first rail read winner 0 |
+| `ReactToContact` as a tree of composites (hold → `ChooseOptionOnce` → selector of drills) | ONE stateful action stepping through its stages, calling `ChooseOptionOnce` and the runner | the interpreter keeps one running-node index and one Parallel register (`Interpreter.cs:84-131`, `:349`); a Sequence → Parallel → Selector nest is exactly where that bites. One action is one play at a time — one play state |
+| the drill's own `Wait` (an assault ordered on a heard-only contact) | the reaction treats a drill that has not started as failed and holds until clear | a reaction must not wait for ever on a contact it cannot aim at |
+| — | the flank query code moved into the runner (`AskTerrain`) and is shared by the flank and retreat plays | one implementation (ruling 9) |
+
+📐 **Measured on the live runs — durable facts, not S2 defects:**
+
+| fact | evidence | consequence |
+|---|---|---|
+| `BoundingOverwatch`'s GEOMETRIC bound steps can lead a squad onto a spot no move works from | the first `tt-react-contact` layout (squad 145 m south-west of the enemy): after its bounds all four riflemen stood at z = 9 near (274, 251) and NONE moved for 27 sim-seconds, although the leader's flank query had answered | the S2-F choice (break contact moves only to walkable EQS answers) is right; bounding's own steps share the S1 off-mesh hazard — its fix belongs with the formations/march work (`CE-2124`, §6.1), not here. The scenario now uses the S1 layout, proven walkable live |
+| the cluster harness runs ~150 frames per sim-second | live probe: 500 frames ≈ 3.3 sim-s | a frame budget for a sim-time limit (a 90 s phase timeout) needs ~150 frames per second of it |
+
+
+| rail | proves | red-proof |
+|---|---|---|
+| `SquadCoordinationSystemTests.CE2123_ThePoolCrossingZero_…` · `…_AMemberHitOrShotAt_…` · `…_WithTheGate_…` | the three edges, on the commander, gated | `PoolEdges` call removed ⇒ red |
+| `RoeAndRecentSensesTests.CE2123_EveryKind_IsRecorded_AndReadBack` | kinds 1–13 recorded | — |
+| `BrainTickSystemHsmArmTests.CE3040_TheBuiltInNames_MatchTheRuntimeEnum` (unchanged) | the HSM names follow the enum | — |
+| `SquadInputsTests.CE2123_SquadEnemyStrengthRatio_…` · `…_SquadContactResponse_…` · `…_ChooseOptionOnce_…` | the input, the choice, deciding once | `ChooseOptionOnce` re-scoring ⇒ red |
+| `SquadManeuverTests.CE2123_S2G_…` | a resumed drill re-takes the squad | re-take skipped ⇒ red |
+| `SquadManeuverTests.CE2123_ReactToContact_…` (3) | hold → assault; outmatched → break contact element by element; no retreat point → hold until clear | — |
+| `SquadManeuverTests.CE2123_ABoundingSquadReactsToContact_ThenResumesItsBound` | pause → react → drill → resume, on the commander | — |
+| `SquadManeuverTests.CE2123_BasicSquadSop_…` | the shipped SOP reacts on a squad edge and is not restarted by the next one | — |
+| `SquadTacticsScenarioTests.CE2123_ABoundingSquadMeetsTheEnemy_…` (cluster, `tt-react-contact`) | live: bound → hold → assault → bound resumes | ✅ green `2026-10-11` (38 s): drill kinds on the leader went 2 → 7 → 3 → 2, the bound paused under the reaction and resumed after it |
+
+## 7. The unit commander — a body-less entity at the unit's centre; the leader is a member *(R-272 (behaviors), `2026-10-11`; build-state: BUILT — as-built §7.3)*
+
+🔒 *User, `2026-10-11`: "each military unit in this engine needs its virtual commander entity intended to run the leader's logic like
+coordination etc; while the leader soldier can still exist as the member of the squad and fighting as usual … The virtual commander has
+no body and places himself into geomtric average of his unit members"* — and, on the two sub-questions (excluded from sight and
+targeting; the centre over every live member, the leader included): *"yes to both"*.
+
+```mermaid
+graph TD
+  CMD["unit commander (body-less, TKB composite e.g. Unit_InfantrySquad 302)<br/>UnitRoster · SquadCognitiveState · squad SOP · drills<br/>SimTransform = centroid of LIVE members"]
+  LDR["leader soldier (Infantry_Officer, Designation SquadLeader)<br/>own soldier SOP · fights"]
+  M1["rifleman"]
+  M2["rifleman"]
+  CMD -->|"roster"| LDR
+  CMD -->|"roster"| M1
+  CMD -->|"roster"| M2
+  PHY["one predicate: is this a PHYSICAL actor?<br/>false for a body-less commander and for a hidden passenger (R-271)"]
+  PHY -.->|"honoured by"| CH["sight broadphase · EQS EntitiesInRadius / InArea · hit and damage · near-miss"]
+```
+
+*What the picture shows that prose hid: command and body are two entities, so the one-SOP-per-entity conflict (S2-C) disappears; and the
+commander's position is real (map symbol, editor overlay, danger-area route) yet it is never seen, hit or shot at — by the SAME check
+that hides a passenger.*
+
+| measured, `2026-10-11` | where |
+|---|---|
+| the TKB already models it: `Unit_InfantrySquad` is a composite of one `Infantry_Officer` (`SquadLeader`) + nine riflemen | `BdcTkbCatalog.cs:244-247` |
+| a body-less commander already runs on the cluster (hill-attack "Tank Platoon", TKB 303: no Health, collider or weapon); it needs `NetworkIdentity` + `TkbIdentity` | `EntityMasterEgressTranslator.cs:62-67`, `GhostPromotionSystem.cs:196` |
+| nothing writes a commander's position today | searched centroid / average writers: none |
+| a positioned commander would be SEEN (`EntityInfo` is the only sight filter), found by EQS area searches (`SimTransform`), near-missed (`EntityInfo`), and never die (no Health) | `VisionBroadphase.cs:182`, `EntitiesInAreaGenerator.cs:66`, `BallisticsSystem.cs:256`, `CombatLife.cs:21-24` |
+
+### 7.1 The build *(CE-2125 + CE-514; build-state: READY-TO-BUILD `2026-10-11`; 🔒 user: "approved, build them together with CE-2125")*
+
+| measured, `2026-10-11` (both columns) | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a composite unit's position is the CREATOR's (CGF on a scenario load) and a CGF write replicates to SimHost / IG | no kinematics ⇒ no MuscleGround grant (`HrotOwnershipGroups.cs:68-73,113`); `GeoSpatialEgressTranslator.cs:136,174-182`; ingress skips an owned `SimTransform` (`GeoSpatialIngressTranslator.cs:90-94`) | ✅ R-175; ✅ CE-514 (user): *"the platoon position needs to be derived from the position of their members (averaging …), likely the platoon entity owner would be doing that"* |
+| nothing writes a composite's position today | searched writers: none (CE-514) | CE-514 DEFERRED — built here |
+| the composite description reaches NO component today; a TKB translator runs on the creator AND on every ghost promotion (all nodes) | `TkbTranslatorSet.cs:90-106`; `NetworkSpawningSystem.cs:141`; `GhostPromotionSystem.cs:271` | tkb-1 §6.6a (translators derive components per node) |
+| who can be SEEN or found by an area search enters through the perception grid (visual, thermal, acoustic) and `EntitiesInAreaGenerator`; hit, near-miss and `EntitiesInRadius` read the COLLIDER hash, which a body-less unit is never in | `LocalGridBuilderSystem.cs:106`, `EqsModule.cs:56-80`; `EntitiesInAreaGenerator.cs:66`; `SpatialHashSystem.cs:73`, `BallisticsSystem.cs:64` | R-271 §7.2 names the same choke points for the passenger |
+| a member's `Designation` written on CGF stays CGF-local unless marked dirty; a re-sent `CmdAssignSubordinate` appends a duplicate roster entry | `UnitSubordinate.cs:21,24`; `EntityInfoEgressTranslator.cs:116-121`; `UnitHierarchySystem.cs:117-149` | ⛔ searched: no design for succession ⇒ new here |
+| `Unit_InfantrySquad` (302) has no `.WithBehavior` ⇒ no brain on it; `Infantry_Officer` (201) has no template | `BdcTkbCatalog.cs:234-251` | the TKB composite's own slot list (officer = `SquadLeader`) |
+
+```mermaid
+classDiagram
+  class UnitEntity { <<NEW component, Fdp.Core.CommandHierarchy, NoScenario>> CommandDisruptionSeconds — "a unit, not a body" }
+  class TkbCompositionDef { <<existing TKB descriptor, EXTENDED>> + CommandDisruptionSeconds = 6 }
+  class CompositeUnitTkbTranslator { <<NEW, Hrot.Core>> TkbCompositionDef ⇒ UnitEntity (every node) }
+  class PhysicalPresence { <<NEW static, Fdp.Toolkits>> IsHidden(view, e) — a UnitEntity (R-272 (behaviors)); I-2c adds the enclosed passenger (R-271) }
+  class LocalGridBuilderSystem { <<existing, FILTERED>> skips IsHidden }
+  class EntitiesInAreaGenerator { <<existing, FILTERED>> skips IsHidden }
+  class UnitCentroidSystem { <<NEW, Fdp.Toolkits/Squad>> owned SimTransform of a UnitEntity = mean of LIVE members }
+  class SquadLeadership { <<NEW component, CGF-only>> Leader · SilentUntil }
+  class SquadSensing { <<existing, EXTENDED>> + Succession: leader dead ⇒ next by precedence, SquadLeaderDown edge, lull }
+  class TacticalDesignation { <<existing enum, EXTENDED>> + TeamLeader 5 }
+  class SensorChange { <<existing, EXTENDED>> + SquadLeaderDown 14 }
+  class SquadManeuverRunner { <<existing, EXTENDED>> issues nothing while SilentUntil > now, re-sends after }
+  class ReactToContactBehavior { <<existing, EXTENDED>> SquadLeaderDown during the drill ⇒ back to return fire + decide again }
+  class BasicSquadSop { <<existing asset, EXTENDED>> + leader down ⇒ React ReactToContact }
+  TkbCompositionDef <.. CompositeUnitTkbTranslator
+  CompositeUnitTkbTranslator ..> UnitEntity
+  PhysicalPresence ..> UnitEntity
+  LocalGridBuilderSystem ..> PhysicalPresence
+  EntitiesInAreaGenerator ..> PhysicalPresence
+  UnitCentroidSystem ..> UnitEntity
+  SquadSensing ..> SquadLeadership
+  SquadSensing ..> TacticalDesignation
+  SquadSensing ..> SensorChange
+  SquadManeuverRunner ..> SquadLeadership
+```
+
+```mermaid
+graph TD
+  TKB["TKB composite type"] --> TR["CompositeUnitTkbTranslator — creator + every ghost promotion"]
+  TR --> UE["UnitEntity on the commander (all nodes)"]
+  UE --> SH["SimHost: LocalGridBuilderSystem / EntitiesInAreaGenerator skip it ⇒ never seen, heard, area-found"]
+  UE --> CGF["CGF (owner): UnitCentroidSystem writes its SimTransform each frame"]
+  CGF -->|"GeoSpatialEgress"| REP["SimHost / IG / editor: the unit symbol at the centre"]
+  SCS["CGF: SquadCoordinationSystem → SquadSensing"] --> SUC["leader dead ⇒ successor · SquadLeaderDown · SilentUntil"]
+  SUC --> RUN["SquadManeuverRunner: silent until then, then re-sends"]
+```
+
+*What the pictures show that prose hid: ONE TKB fact (a composite) reaches every node as one component, and the two
+consequences — "never sensed" on SimHost, "positioned at the centre" by the owner — key on it; succession and the lull live
+entirely on CGF, next to the merge that already watches the members.*
+
+```mermaid
+sequenceDiagram
+  participant M as leader soldier (member)
+  participant SCS as SquadCoordinationSystem (CGF)
+  participant C as commander (SquadLeadership)
+  participant R as SquadManeuverRunner (any drill)
+  M->>M: Health 0 (stays in the world, CE-272)
+  SCS->>SCS: the remembered leader is dead ⇒ successor = first live TeamLeader, else first live member (roster order)
+  SCS->>C: Designation SquadLeader → successor (CGF-local) · SilentUntil = now + CommandDisruptionSeconds
+  SCS->>C: SensorChangedEvent{Unit = commander, SquadLeaderDown}
+  R->>R: each tick while silent: no orders (members keep theirs and their own SOP), Reissue = 1
+  R->>R: after the lull: every order re-sent (S1-G path)
+  C->>C: SOP: leader down fresh ⇒ React ReactToContact · a running ReactToContact goes back to return fire and decides again
+```
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **C-1** | the marker | ONE component `UnitEntity` from the TKB composite description, carrying the per-type tunable — not a tag beside a profile |
+| **C-2** | the predicate's home | `PhysicalPresence.IsHidden` (Fdp.Toolkits); the two entry points call it; R-271's I-2c adds the passenger case in the same method |
+| **C-3** | the centroid | owner-side `UnitCentroidSystem` (CE-514's direction): live members only, X/Y/Z mean; none alive ⇒ unchanged; registered in the CGF pack (the creator of scenario units) |
+| **C-4** | succession precedence | `SquadLeader` → the first live `TeamLeader` (NEW designation 5) → the first live member, in roster order; CGF-local (no replication — avoids the duplicate-roster path; only CGF reads it) |
+| **C-5** | the lull | `SquadLeadership.SilentUntil` on the commander; the RUNNER honours it (every squad drill goes through it) |
+| **C-6** | the squad type | `Unit_InfantrySquad` (302) gains `.WithBehavior`; scenarios use it for the commander and a rifleman with `Designation SquadLeader` for the leader (the officer template stays a gap) |
+
+Rejected: **a tag derived from `UnitRoster`** — the roster is CGF-built and not replicated, SimHost may not have it; **filtering at
+every consumer (vision, thermal, acoustic, EQS)** — the grid is their one door; **replicating the new designation** — the re-sent
+EntityInfo path appends duplicate roster entries (measured), and nothing off CGF reads it yet.
+
+| rail | asserts |
+|---|---|
+| `CompositeUnitTkbTranslator` rail | a composite type ⇒ `UnitEntity` with its seconds; a soldier type ⇒ none |
+| `PhysicalPresence` + grid / area rails | a `UnitEntity` with a position is not in the perception grid nor in an area search; a soldier is |
+| `UnitCentroidSystem` rail | the owned commander sits at the live members' mean; a dead member does not count; a non-owned one is untouched |
+| succession rails (`SquadCoordinationSystemTests`) | leader dies ⇒ TeamLeader promoted (else first live), one `SquadLeaderDown`, `SilentUntil` set |
+| runner rail (`SquadManeuverTests`) | no orders while silent, all re-sent after |
+| `ReactToContact` rail | leader down during the drill ⇒ holds, decides again |
+| live (`tt-react-contact`, migrated) | the commander's position on SimHost is the members' centre; no member's memory holds it; the S2 chain still runs |
+
+### 7.2 When the leader soldier is killed *(✅ APPROVED `2026-10-11` — 🔒 user: "approved, build them together with CE-2125")*
+
+📖 **Doctrine (infantry squad drills, general knowledge — no source in the corpus):** the succession is fixed in advance (squad
+leader → senior team leader → the other team leader → senior rifleman) and taking over is IMMEDIATE; the fight goes on — return fire
+and fire superiority first, the casualty is treated only when the situation allows; the new leader moves where he can control, checks
+his men, ammunition and casualties, reports, and reorganises (a new team leader for the team he left, key kit such as the radio
+cross-loaded). **What an observer would see:** a short lull in COORDINATED movement (men keep firing from where they are), one man
+crawling to the casualty, the new leader moving and shouting, and afterwards a more cautious squad.
+
+| # | lean | why |
+|---|---|---|
+| **L1** | **succession**: the `SquadLeader` designation passes at once to the next live member by an authored precedence (fallback: roster order) | cheap; the march's lead member, a future radio and the leader's place in a drill read it |
+| **L2** | **command disruption**: for `CommandDisruptionSeconds` (≈ 5–10 s, TKB-tunable) the COMMANDER issues no new orders; members keep their current orders and their own SOP; then every order is re-sent (the S1-G resume path) | ⭐ the visible part — the lull; the brain survives (it is the commander) but the voice that carries it was lost |
+| **L3** | a squad edge **`SquadLeaderDown`** on the commander, so its SOP / HSM can react — e.g. re-decide the running reaction with the weaker squad | the same machinery as S2's edges; an author decides what a squad does, not the engine |
+| **L4** | casualty care (buddy aid, moving the casualty) waits for R-263's injury states (wounded / incapacitated) | a dead man needs no aid; the states that make it matter are decided but not built |
+
+Rejected: **the commander dies with its leader** (the brain is the unit, not the man — and R-272 (behaviors) separated them); **re-forming the
+whole squad on a leader loss** (doctrine keeps the teams and fills the gap; formation shape is `CE-2124`'s).
+
+### 7.3 As built *(behaviors, `2026-10-11`)*
+
+| file | what |
+|---|---|
+| `Fdp.Core/CommandHierarchy/UnitEntity.cs` (NEW, id 274) · `TacticalDesignation.TeamLeader = 5` | the unit marker + its command lull; the second in line |
+| `Hrot.Core/…/Tkb/CompositeUnitTkbTranslator.cs` (NEW, in `TkbTranslatorSet.Base`) · `TkbCompositionDef.CommandDisruptionSeconds` (6) | a composite type ⇒ `UnitEntity` on every node |
+| `Fdp.Toolkits/Perception/PhysicalPresence.cs` (NEW) · `LocalGridBuilderSystem` · `EntitiesInAreaGenerator` | the one hidden check, at the two doors |
+| `Fdp.Toolkits/Squad/Systems/UnitCentroidSystem.cs` (NEW, in `CgfLogicPack`) | CE-514: the owned unit at its live members' mean |
+| `Fdp.Toolkits/Squad/SquadLeadership.cs` (NEW, id 275) · `SquadSensing.Succession` (called by `SquadCoordinationSystem` each frame) | L1 successor · L2 `SilentUntil` · L3 `SquadLeaderDown` (14, HSM `Sensor.SquadLeaderDown`) |
+| `SquadManeuverRunner` · `ReactToContactBehavior` · `BasicSquadSop` (third row) | silent ⇒ no orders, re-sent after · the leader lost mid-drill ⇒ hold and decide again · leader down ⇒ React |
+| `SquadSensing.UnderFire` | the commander's own Hit / NearMiss no longer counts (it is body-less) |
+| `BdcTkbCatalog` 302 `.WithBehavior` | the squad commander can run the squad SOP and drills |
+| scenarios `tt-suppress-flank`, `tt-react-contact`, `ua-fire-distribution` | a body-less "Squad" (302) holds the task and SOP; "Leader" is a member designated `SquadLeader` (in `ua-fire-distribution` it keeps fighting with its own `CombatPosture`) |
+
+**Deviations from §7.1 — none in structure.** Two things measured while building: near-miss reads the COLLIDER hash
+(`BallisticsSystem.cs:64`), so a body-less unit is never near-missed without any filter (an earlier sweep had said otherwise);
+and ids 356–364 are the backend lane's — ours come from the squad block (274, 275).
+
+| rail | proves | red-proof |
+|---|---|---|
+| `UnitCommanderTests.CE2125_ACompositeType_IsAUnit_ASoldierIsNot` | the translator, and that it is in the base set | — |
+| `UnitCommanderTests.CE2125_AnAreaSearch_NeverFindsAUnitsCommander` · `LocalGridBuilderSystemTests.CE2125_AUnitsCommander_IsNeverInThePerceptionGrid` | the two doors | ✅ each filter removed ⇒ its rail red |
+| `SquadCoordinationSystemTests.CE2125_TheLeaderFalls_…` · `…_NoTeamLeader_…` | succession, lull, one edge | ✅ `Succession` call removed ⇒ both red |
+| `SquadCoordinationSystemTests.CE2125_AUnitStandsAtItsLiveMembersCentre_OnItsOwner` | CE-514 | ✅ liveness check removed ⇒ red |
+| `SquadManeuverTests.CE2125_TheSilentCommander_…` · `…_TheLeaderFallsDuringTheDrill_…` · `…_BasicSquadSop_TheLeaderDown_…` | L2, L3, the SOP row | ✅ silence check removed ⇒ the silence rail red |
+| `CgfLogicPackTests` (count 20 + contains `UnitCentroidSystem`) | the pack really runs it | — |
+| live `SquadTacticsScenarioTests` ×2 + `FireDistributionScenarioTests` | the migrated scenarios; on SimHost the commander stands at its men's centre and the enemy never remembers it | ✅ live green `2026-10-11`: fire distribution 9 s (five members, the leader among them), S2 45 s, S1 41 s |
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 
@@ -449,41 +669,61 @@ AI decision to it is broken, and on Stride infantry nothing reads a slot at all.
 is its own programme — filed as `CE-2124`, not started. ⛔ Repairing `JoinFormation` for infantry is rejected: seven broken hops, a new
 DDS command, and followers that still steer straight at a slot with no path finding.
 
-### 6.1 A simple squad formation for now — `SquadMarch`, one more play on the S1 runner *(lean; infantry only)*
+### 6.1 A simple squad formation for now — `SquadMarch`, one more play on the S1 runner *(build-state: BUILT `2026-10-12` — as-built §6.1a; 🔒 user: "Pls pull and follow the handoff" — HANDOFF_Squad_Tactics_S3 item 1; infantry only)*
 
 ```mermaid
 classDiagram
-  class SquadMarchPlay { <<NEW, ISquadPlay>> one phase · re-issue policy }
-  class SquadMarchParamsJsonDto { <<NEW, Hrot.Core>> Objective · Shape File / Wedge / Line · Spacing 5 m · Speed 1.5 · MaxLagMetres 10 }
-  class MarchState { <<NEW, inside SquadPlayState>> lead's breadcrumbs (last ~60 m, a point per metre) · last ordered slot per member · stuck timer per member }
-  class FormationTemplateManager { <<existing, reused read-only>> Column / Wedge / Line offsets }
-  class SquadManeuverRunner { <<S1>> }
-  class CombatPosture { <<existing>> what every member runs }
-  SquadMarchPlay ..> FormationTemplateManager : slot offsets × Spacing
-  SquadMarchPlay *-- MarchState
-  SquadManeuverRunner ..> SquadMarchPlay
-  SquadMarchPlay ..> CombatPosture : lead to objective, others to slots
+  class SquadMarchPlay { <<NEW, ISquadPlay>> one phase · Update re-orders ONE member at a time }
+  class SquadMarchBehavior { <<NEW, Library/Squad>> resolver + tree + Run }
+  class SquadMarchParamsJsonDto { <<NEW, Hrot.Core, Commander>> Objective · Shape 0 File 1 Wedge 2 Line · Spacing 5 · Speed 1.5 · ArrivalRadius 5 · MaxLagMetres 10 }
+  class SquadMarchManeuver { <<NEW, Fdp.Toolkits Squad>> ManeuverKind 9 · Marching / Aborted · roles Lead / Follower }
+  class MarchMemory { <<NEW, inside SquadPlayState>> Trail · Lead · halt state · per member progress, best distance, file-until }
+  class SquadTrail { <<NEW>> 40 crumbs, one per 2 m (80 m) · Record · PointBehind · Heading }
+  class SquadPlayState { <<S1, gains March>> }
+  class FormationTemplate { <<existing CarKinem, reused read-only>> GetSlotPosition }
+  class SquadManeuverRunner { <<S1>> Tick · Move · Hold }
+  class AdvanceTo { <<S1>> every MOVE order }
+  class CombatPosture { <<existing>> every HOLD order }
+  SquadPlayState *-- MarchMemory
+  MarchMemory *-- SquadTrail
+  SquadMarchBehavior ..> SquadManeuverRunner : Tick of SquadMarchPlay
+  SquadMarchPlay ..> SquadMarchManeuver : table, kind, roles
+  SquadMarchPlay ..> FormationTemplate : Wedge / Line offsets x Spacing/5
+  SquadMarchPlay ..> SquadManeuverRunner : Move / Hold one member
+  SquadManeuverRunner ..> AdvanceTo
+  SquadManeuverRunner ..> CombatPosture
 ```
 
 ```mermaid
 sequenceDiagram
-  participant R as runner: SquadMarch
-  participant L as lead member
-  participant M as other members
-  R->>L: CombatPosture advance to the objective (Speed)
-  loop every tick
-    R->>R: record the lead's breadcrumb each metre · heading = the lead's last 5 m of travel
-    R->>R: slot i = lead + heading-rotated template offset × Spacing (File: the breadcrumb i×Spacing behind the lead)
-    R->>M: re-order a member when its slot moved ≥ 3 m since its last order
-    R->>R: a member making no progress for 3 s ⇒ it falls back to its FILE slot (a breadcrumb — walkable, the lead walked it)
-    R->>L: anyone more than MaxLagMetres behind ⇒ the lead halts until they close up
+  participant R as runner + SquadMarchPlay
+  participant L as lead (first live member)
+  participant M as each follower
+  R->>L: AdvanceTo the objective (Speed, ArrivalRadius)
+  R->>M: AdvanceTo its slot, or Hold where it stands (File, trail not yet long enough)
+  loop every tick (Update)
+    R->>R: Trail.Record(lead) every 2 m · heading = the lead's last 5 m (before that: lead to objective)
+    R->>R: slot k = lead + rotated template offset x Spacing/5 (File, or a member on file: Trail.PointBehind((k+1) x Spacing))
+    R->>M: a slot that moved 3 m or more since that member's order ⇒ re-order THAT member only
+    R->>R: no progress (0.5 m closer) for 3 s ⇒ that member walks on file for 10 s (its breadcrumb: the lead walked it)
+    R->>L: a follower more than MaxLagMetres from its slot ⇒ the lead Holds (at most 15 s, then 15 s without halting)
   end
-  R->>R: the lead within 5 m of the objective and the others at their slots ⇒ Success
+  R->>R: lead within ArrivalRadius and every follower within 3 m of its slot (or 20 s after the lead arrived) ⇒ Success
 ```
 
 *What the pictures show that prose hid: every point a member is sent to is either a breadcrumb the lead actually walked (always
 reachable) or a shape slot that is DROPPED for the breadcrumb the moment it does not work — so the walls, doorways and narrow streets
-that make real formations hard collapse into "walk in file behind the lead", which is what a squad in a street does anyway.*
+that make real formations hard collapse into "walk in file behind the lead", which is what a squad in a street does anyway. And the
+re-orders go from `Update` to one member at a time — the runner's issue-all is used only at start, after a pause and when the lead
+changes — so the path-request cost scales with how much each slot moves, not with squad size × ticks.*
+
+| decision | ⭐ lean | why |
+|---|---|---|
+| where the march memory lives | `MarchMemory` inside `SquadPlayState` (≈ 680 bytes more for every play) | `ISquadPlay` hands a play only `ref SquadPlayState`; a second state parameter changes all five plays. Commander blocks are few and the 16 KB tier holds it |
+| who is the lead | the first live member in roster order; it changes when the lead dies (the trail is kept — it is still walkable) | doctrine puts a point man in front, not the leader; roster order is what the author controls |
+| slot index | the follower's RANK among live followers | a casualty closes the gap instead of leaving a hole |
+| shapes | Wedge / Line from `FormationTemplate.GetSlotPosition` (reused), File from the trail | ⛔ no new shape table; Column is File done properly (on the walked path, not a straight line behind) |
+| re-order threshold | 3 m | ≈ one order per member per 2 s at 1.5 m/s — the handoff's ≈ 4/s per 8-man squad estimate |
 
 | simplified now | left to the formations programme (`CE-2124`) |
 |---|---|
@@ -493,5 +733,34 @@ that make real formations hard collapse into "walk in file behind the lead", whi
 | the lead waits for stragglers | per-member gaits and spacing by visibility |
 | infantry only | vehicles, convoys, mounted ↔ dismounted transitions |
 
-⛔ **Not measured** (measured in the build, on the live rail): how many path requests a squad's re-orders cost on SimHost (estimate:
-8 members × one re-order per ~2 s ≈ 4 a second per squad) against the solver's per-frame budget.
+✅ **Measured** (live, `tt-squad-march`, `2026-10-12`): a re-order is one `AdvanceTo` → one `MoveTo` → one new PathToPoint intent,
+which SimHost's `NavigationIntentBridgeSystem` turns into one `RequestPath` (an infantry move is a crowd path; it never appears as
+a `PathRequestBatch`). **52 move orders while 5 men marched ~50 m in ~40 sim-seconds ≈ 1.3 a second, then none at rest** — under the
+handoff's 4/s-per-8-men estimate. ⛔ ~~not measured: the path-request cost~~
+
+#### 6.1a As built *(behaviors, `2026-10-12`; build-state: BUILT — live rail result below)*
+
+| file | what |
+|---|---|
+| `Fdp.Toolkits/Squad/Maneuvers/SquadMarchManeuver.cs` | kind 9 · Marching / Aborted · roles Lead / Follower · shapes File 0 / Wedge 1 / Line 2 |
+| `Hrot.Core/…/SquadMarchParamsJsonDto.cs` | the Commander contract (defaults Spacing 5 · Speed 1.5 · ArrivalRadius 5 · MaxLagMetres 10) |
+| `Brains/SquadManeuverRunner.cs` | `SquadTrail` (40 crumbs, 2 m) and `MarchMemory` inside `SquadPlayState` |
+| `Brains/SquadMarchBehavior.cs` | `SquadMarch` (Library/Squad) + `SquadMarchPlay` |
+| `Recipes/Scenarios/tt-squad-march` | the S1 layout, no enemy, a Wedge march to (340, 300) |
+
+**Deviations from §6.1's lean — each measured on the first live run, none silent:**
+
+| planned | built | why (📐 live) |
+|---|---|---|
+| the lead = the first live member in roster order | the lead = the live member **nearest the objective** (a point man, not the leader), handed on after **5 s without 0.5 m of progress** | run 1: the first roster member (the leader soldier) stood at z 9 at (285, 268) — a spot no move works from (S2 found the same) — and the whole squad waited behind it for 349 sim-seconds |
+| a shape slot at the lead's height | a shape slot at the **member's own** height; a file slot at the trail's | run 1: the lead's z 9 put every slot 9 m above the ground the others stood on — off the walkable area |
+| the lead waits for stragglers from the start | only after it has walked `MaxLagMetres` | at the start every follower is "far from its slot" (they have not formed up yet) — the lead halted before anyone moved |
+| scenario: the S1 layout as is | the leader soldier moved into the riflemen's line (293, 277) | its S1/S2 spawn is the unmovable z 9 spot — ⚠ **a finding for `tt-react-contact` / `tt-suppress-flank` too**: their leader soldier never moves; those rails pass because they assert on the riflemen |
+
+| rail | proves | red-proof |
+|---|---|---|
+| `SquadManeuverTests.CE2123_SquadMarch_Wedge_…` | wedge slots turned to the heading; a follower re-ordered once per 3 m its slot moved, never the whole squad | re-order through issue-all ⇒ red |
+| `…_File_FollowersWalkOnTheLeadsTrail_RoundItsCorner` | a file slot lies ON the walked path, round its corner | — |
+| `…_AStuckFollowerFallsBackToFile_AndTheLeadWaitsForStragglers` | stuck 3 s ⇒ trail point; the lead holds, then goes on | no stuck fallback ⇒ red |
+| `…_TheLeadFalls_TheNextMemberLeads_ThenEveryoneArrives` | lead hand-off on death; Success | — |
+| `SquadTacticsScenarioTests.CE2123_ASquadMarchesInAWedge_…` (live) | everyone within 15 m of the objective, no two closer than 2.5 m, ≤ 5 move orders a sim-second | ✅ **run 3 green** (leader soldier moved into the line): all five arrived in **30 sim-seconds**, closest pair 4.4 m, **50 move orders = 1.65/s for 5 men**. Run 2 (lead hand-off + own height): the four riflemen arrived in a wedge (6–11 m round the point man) and stopped re-ordering; only the leader soldier on the z 9 spot stayed |

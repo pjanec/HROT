@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Toolkit.Perception.Systems;
@@ -53,6 +54,30 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(1, count);
             Assert.Equal(e, results[0].entity);
 
+            grid.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-2125</c> (R-272) — a unit's body-less commander, standing among its men, is never put in the perception
+        /// grid (so never seen, heard or found by a grid search); the soldier next to it is. ✅ Red-proof: drop <c>ExcludeHidden</c> ⇒ red.</summary>
+        [Fact]
+        public void CE2125_AUnitsCommander_IsNeverInThePerceptionGrid()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+            var grid  = CreateTestGrid();
+            var sys   = new LocalGridBuilderSystem(grid);
+            var soldier = world.CreateEntity();
+            world.AddComponent(soldier, new SimTransform { Position = new Vector3(50f, 50f, 0f) });
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new SimTransform { Position = new Vector3(50.5f, 50f, 0f) });
+            world.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitEntity { CommandDisruptionSeconds = 6f });
+
+            sys.Execute(world, 0f);
+
+            Span<(Entity entity, Vector2 pos)> results = stackalloc (Entity, Vector2)[10];
+            int count = grid.QueryNeighbors(new Vector2(50f, 50f), 5f, results);
+            Assert.Equal(1, count);
+            Assert.Equal(soldier, results[0].entity);
             grid.Dispose();
         }
 
@@ -331,6 +356,41 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(1, broadphaseCopy.QueryNeighbors(new Vector2(900f, 900f), 1f, hits));
             Assert.Equal(far, hits[0].entity);
             Assert.Equal(1, broadphaseCopy.QueryNeighbors(new Vector2(50f, 50f), 1f, hits));   // the rest re-inserted
+            grid.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — a passenger inside an ENCLOSED vehicle is never in the perception grid (never seen,
+        /// heard or found); one on an OPEN cabin is. And one that boards on the same frame another entity spawns (equal count ⇒ the
+        /// incremental pass) is EVICTED. 📄 docs/DESIGN_Entity_Interactions.md §7.2a.</summary>
+        [Fact]
+        public void CE3110_I2c_AnEnclosedPassenger_IsNeverInThePerceptionGrid_AnExposedOneIs()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var grid  = CreateTestGrid();
+            var sys   = new LocalGridBuilderSystem(grid);
+            Entity At(float x) { var e = world.CreateEntity(); world.AddComponent(e, new SimTransform { Position = new Vector3(x, 50f, 0f) }); return e; }
+            var apc = At(50f);
+            var enclosed = At(50.2f);
+            world.AddComponent(enclosed, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = apc, Exposed = 0 });
+            var exposed = At(50.4f);
+            world.AddComponent(exposed, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = apc, Exposed = 1 });
+            var walker = At(50.6f);
+
+            sys.Execute(world, 0f);
+            Span<(Entity entity, Vector2 pos)> results = stackalloc (Entity, Vector2)[10];
+            int count = grid.QueryNeighbors(new Vector2(50f, 50f), 5f, results);
+            var found = results.Slice(0, count).ToArray().Select(r => r.entity).ToList();
+            Assert.DoesNotContain(enclosed, found);
+            Assert.Contains(exposed, found);
+            Assert.Contains(apc, found);
+
+            // the walker boards an enclosed vehicle while a new entity appears: the visible count stays equal
+            world.AddComponent(walker, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = apc, Exposed = 0 });
+            At(70f);
+            sys.Execute(world, 0f);
+            count = grid.QueryNeighbors(new Vector2(50f, 50f), 5f, results);
+            Assert.DoesNotContain(walker, results.Slice(0, count).ToArray().Select(r => r.entity));
             grid.Dispose();
         }
     }

@@ -22,6 +22,8 @@ namespace Fdp.Toolkit.Utility
         public const ushort SquadContactThreatLevel  = 0x2457;
         // FNV-1a-32("SquadStrengthRatio") & 0xFFFF
         public const ushort SquadStrengthRatio       = 0x6EDF;
+        // FNV-1a-32("SquadEnemyStrengthRatio") & 0xFFFF — ⭐ CE-2123 S2
+        public const ushort SquadEnemyStrengthRatio  = 0x1349;
         // FNV-1a-32("SquadAmmoRollup") & 0xFFFF
         public const ushort SquadAmmoRollup          = 0x8501;
         // FNV-1a-32("ActiveFeatureThreatRating") & 0xFFFF
@@ -51,6 +53,7 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(SquadInputIds.SquadKnowsContact,      &SquadKnowsContact);
             UtilityInputReaderStore.Register(SquadInputIds.SquadContactThreatLevel, &SquadContactThreatLevel);
             UtilityInputReaderStore.Register(SquadInputIds.SquadStrengthRatio,      &SquadStrengthRatio);
+            UtilityInputReaderStore.Register(SquadInputIds.SquadEnemyStrengthRatio, &SquadEnemyStrengthRatio);
             UtilityInputReaderStore.Register(SquadInputIds.SquadAmmoRollup,         &SquadAmmoRollup);
             UtilityInputReaderStore.Register(SquadInputIds.ActiveFeatureThreatRating, &ActiveFeatureThreatRating);
             UtilityInputReaderStore.Register(SquadInputIds.ActiveFeatureKindIs,     &ActiveFeatureKindIs);
@@ -148,6 +151,40 @@ namespace Fdp.Toolkit.Utility
 
             if (sumMax <= 0f) return 1f;
             return Math.Clamp(sumCurrent / sumMax, 0f, 1f);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2123</c> S2 — the ENEMY's share of the strength in play, for the SQUAD: Σ danger of every pooled contact ÷ (that
+        /// sum + Σ the live members' own strength). The squad twin of <c>EnemyStrengthRatio</c> (same <c>ThreatDanger</c> scale; a
+        /// HEARD pooled contact counts as armed — the pool keeps no sound class). One armed enemy vs four healthy armed members =
+        /// 0.2. 0 with an empty pool. ctx.Self is the COMMANDER. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §4.5 S2-D.
+        /// </summary>
+        [UtilityInput("SquadEnemyStrengthRatio")]
+        public static float SquadEnemyStrengthRatio(in UtilityInputCtx ctx)
+        {
+            if (!ctx.Repo.HasComponent<SquadCognitiveState>(ctx.Self) || !ctx.Repo.HasComponent<UnitRoster>(ctx.Self)) return 0f;
+            ref readonly var state = ref ctx.Repo.GetComponentRO<SquadCognitiveState>(ctx.Self);
+            if (state.Contacts.Count == 0) return 0f;
+            var span = MemoryMarshal.CreateReadOnlySpan(
+                ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref Unsafe.AsRef(in state.Contacts.Contacts)), 16);
+
+            float enemy = 0f;
+            for (int i = 0; i < state.Contacts.Count; i++)
+                enemy += (span[i].Flags & SquadContact.AnonymousFlag) != 0
+                    ? 1f
+                    : Fdp.Toolkit.Perception.ThreatDanger.Of(ctx.Repo, ctx.Self, new Entity((ulong)span[i].EntityId));
+
+            float own = 0f;
+            ref readonly var roster = ref ctx.Repo.GetComponentRO<UnitRoster>(ctx.Self);
+            for (int m = 0; m < roster.Count; m++)
+            {
+                var member = roster.SubordinateEntities[m];
+                if (!ctx.Repo.IsAlive(member) || Fdp.Toolkit.Perception.ThreatDanger.IsDead(ctx.Repo, member)) continue;
+                own += Fdp.Toolkit.Perception.ThreatDanger.OwnStrength(ctx.Repo, member);
+            }
+
+            float total = enemy + own;
+            return total <= 0f ? 0f : Math.Clamp(enemy / total, 0f, 1f);
         }
 
         /// <summary>

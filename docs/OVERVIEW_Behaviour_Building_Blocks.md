@@ -5,6 +5,7 @@ current-answer: the whole file — an EXPLAINER (map of what exists), not a desi
 stale-below: none
 known-rot: §1–§8 colours are a 2026-10-06 snapshot (§5a, §9, §10 measured 2026-10-11) — re-check the tracker before relying on a red or amber box
 related-designs:
+  - DESIGN_Orders_Params_Entity_Classes.md — OWNS orders, params DTOs and entity classes (designed 2026-10-12; the §9 order box changes when it builds)
   - DESIGN_Peek_And_Fire.md — OWNS the library's fight-from-cover node (§10, CE-3158) that CombatPosture's TakeCover runs.
   - REVIEW_Behaviour_Library_Genericity.md — OWNS the genericity verdict on these blocks (library vs demo-local vs legacy) and the leans L1–L7.
   - docs/TUTORIAL_Behaviour_Composition.md — the GUIDE to choosing between blocks (host, decision, starter, sensing) and composing them
@@ -83,7 +84,7 @@ graph LR
   subgraph SOPNODES["SOP authoring"]
     O1["SOP order node<br/>DoWhenIdle / React"]
     C1["Conditions<br/>SensedWithin · SensedFresh · InContact · RoeFire≥ / ≤"]
-    E1["HSM events<br/>Sensor.Acquired · Lost · Hit · NearMiss · AllClear …"]
+    E1["HSM events<br/>Sensor.Acquired · Lost · Hit · NearMiss · AllClear …<br/>Sensor.SquadContact · SquadUnderFire · SquadAllClear (on the leader)"]
   end
 ```
 
@@ -208,6 +209,7 @@ graph TD
   end
   subgraph SOPB["SOP"]
     c1["BasicInfantrySop<br/>Hit→TakeCover · HoldFire contact→FallBack<br/>contact→TakeCover · else Idle"]
+    c2["BasicSquadSop (leader)<br/>SquadUnderFire / SquadContact → ReactToContact"]
   end
   subgraph BASIC["Basic orders"]
     d1["MoveToLocation · AdvanceTo · FollowRoute · FireAtTarget · FireAtPoint<br/>TrackTarget · HoldStance · DoorLocksmith · Wander · Idle<br/>JoinFormation ⛔ broken — §10"]
@@ -234,14 +236,14 @@ graph TD
     PF["PeekAndFireNodes: fight from cover (CE-3158)"]
     ET["EqsTacticsNodes: FallBack · Flank · FiringPosition · TakeCover (hide only)"]
     FP["FireAtPoint · DoorNodes · DangerArea · Sensor · SOP nodes"]
-    UT["Utility decisions: CombatPosture · AttackApproach · ThreatRanking · WeaponSelection"]
+    UT["Utility decisions: CombatPosture · AttackApproach · ThreatRanking · WeaponSelection · SquadContactResponse<br/>ChooseOption (re-scores) · ChooseOptionOnce (keeps its first winner)"]
   end
   subgraph L2["② LIBRARY BEHAVIOURS — BTrees (R-258), assets an author assigns"]
     CP["CombatPosture"]
     TK["FallBack (THE retreat, R-259) · Flank · FiringPosition · TakeCover · Sentry · DangerCrossing"]
-    SOP["BasicInfantrySop"]
+    SOP["BasicInfantrySop · BasicSquadSop (the leader, §9)"]
     ORD["MoveToLocation · AdvanceTo · FollowRoute · FireAtTarget · FireAtPoint · TrackTarget · HoldStance · DoorLocksmith (JoinFormation: broken, §10)"]
-    SQ["Library/Squad: BoundingOverwatch · SuppressAndManeuver (on the commander, §9)"]
+    SQ["Library/Squad: BoundingOverwatch · SuppressAndManeuver · ReactToContact · BreakContact · SquadHold (on the commander, §9)"]
   end
   subgraph L3["③ NOT LIBRARY — never offered as a building block"]
     DM["demo-local: hill attack (PlatoonHillAttack, HullDownAttackRun, SlotOps) · WindowDuel · insurgent"]
@@ -344,21 +346,32 @@ it (only through utility inputs no shipped decision uses) ⇒ a soldier knows on
 | know a member arrived | poll its position (the arrival events of `SquadEventIngressSystem` are dead — they key on intent ids the per-entity counter breaks) |
 | what the squad knows | `SquadCognitiveState.Contacts` on the commander (entity, position, threat, last seen, `SourceMembersMask`, heard flag) — CGF only, not saved, not replicated |
 | ask the terrain for the squad | the commander owns an EQS query (§5a), slot 0 = the member to measure from |
-| commander-level reaction ("the squad is under fire") | ⛔ none yet — no squad-level sensor edge exists; designed as S2 in `DESIGN_Squad_Tactics.md` §4 |
+| commander-level reaction ("the squad is under fire") | ✅ (CE-2123 S2) `SquadCoordinationSystem` publishes `SensorChangedEvent{Unit = commander}` with `SquadContact` (pool 0 → >0) · `SquadUnderFire` (a member's or the leader's Hit / NearMiss) · `SquadAllClear` (pool → 0); the leader's SOP, `RecentSenses` and HSM events (`Sensor.SquadContact` …) take them exactly as a soldier's own. Give the leader the SOP `BasicSquadSop` ⇒ contact pauses its task with `ReactToContact` |
+| what a squad does on contact | `ReactToContact` (Library/Squad): every member holds and returns fire for `DecideAfterSeconds`, the leader decides ONCE (`SquadContactResponseDecision` over `SquadStrengthRatio` / `SquadEnemyStrengthRatio`): assault (`SuppressAndManeuver`), `BreakContact` (its own `FindSafeRetreatPoint` query, element by element) or `SquadHold`; a drill that cannot start falls back to holding until clear. When it ends the paused task resumes — the runner re-takes the squad state another drill used (S2-G) |
+| the unit's commander (R-272 (behaviors)) | ✅ `CE-2125`: a body-less entity — a TKB COMPOSITE type (e.g. `Unit_InfantrySquad` 302) gets `UnitEntity` on every node; the perception grid and the EQS area search skip it (`PhysicalPresence.IsHidden`, the one hidden check — since I-2c it also hides an enclosed passenger and guards the collider hash, the blast and the line-of-sight occluders); its owner (CGF) places it at its LIVE members' centroid (`UnitCentroidSystem`, CE-514). It never boards and carries nobody (`Embarkation.TryEmbark` refuses either way — its members board). It runs the squad SOP and drills; the leader soldier is a member designated `SquadLeader` with his own soldier SOP |
+| the leader soldier falls | ✅ `CE-2125`: the first live `TeamLeader`, else the first live member, becomes `SquadLeader` (CGF-local); the commander is SILENT for its type's `CommandDisruptionSeconds` (6 s — the squad runner sends no orders, members keep theirs), then re-sends every order; `SquadLeaderDown` on the commander — `BasicSquadSop` reacts with `ReactToContact`, and a running `ReactToContact` holds and decides again |
 | a commander is a soldier or a body-less entity | both exist: `ua-fire-distribution`'s Leader is a rifleman; `hill-attack-close`'s platoon has no body |
 
 *Owners:* [Squad_Coordination_Design_v1_1](designs/group-maneuvers/Squad_Coordination_Design_v1_1.md) (what) ·
 [DESIGN_Squad_Wiring](designs/group-maneuvers/DESIGN_Squad_Wiring.md) (where it runs) ·
 [DESIGN_Squad_Tactics](designs/group-maneuvers/DESIGN_Squad_Tactics.md) (the runner, react to contact, the march).
 
-## 10. Vehicles — passengers and formations *(measured 2026-10-11)*
+> ⭐ **Orders, params DTOs and entity classes — DESIGNED, not built (2026-10-12).**
+> [DESIGN_Orders_Params_Entity_Classes.md](DESIGN_Orders_Params_Entity_Classes.md) §1 holds the rules every NEW behaviour already follows:
+> - exactly one params DTO, with flat JSON (an empty `NoParams` when it takes nothing);
+> - an order behaviour named `<Class><Order>`, with the class taken from the entity's DIS type;
+> - the receiving unit decides how its members act.
+>
+> Today `EntityOrders` still names soldier behaviours, and the menu is hard-coded; §6 of that design is the task list
+> (CE-2130 … CE-2144) that changes it.
+
+## 10. Vehicles — passengers and formations *(measured 2026-10-11; passengers updated 2026-10-12)*
 
 | mechanism | state | detail |
 |---|---|---|
-| **eject everyone** (`EjectPassengersExecutor`) | 🟨 runs on CGF + Editor only; NOT replicated — SimHost and viewers never see the soldiers leave | triggered only by the example APC HSM or a blueprint `EjectPassengers` node |
-| **board** (`EmbarkExecutor`) | 🟥 constructed only by its unit test; no host registers it | — |
-| **one soldier gets out** | 🟥 only the editor's authoring path (`EditorCargoSystem`) | — |
-| what "inside" means today | 🟥 only CanMove / CanShoot stripped: not carried, not hidden, still seen and shot | `IsEmbarkedTag { VehicleEntity }` exists on the passenger; nothing reads it |
-| ⭐ the plan (user-approved) | I-2a one applier → I-2b `PassengerBuffer` replicated, passenger side derived on CGF and SimHost → I-2c inside = carried, hidden, unseen, dies with the vehicle → I-2d AI nodes + the squad dismount | [`DESIGN_Entity_Interactions.md`](DESIGN_Entity_Interactions.md) §7.1 · `CE-3110` |
+| ⭐ **board / get out / eject** | ✅ `2026-10-12` (CE-3110 I-2a/I-2b): ONE rules class `Embarkation` and ONE applier `EmbarkationSystem`, which runs only where the vehicle's passenger list (`dtPassengerBuffer`, Brain group) is owned; the AI executors (`EmbarkExecutor`, `EjectPassengersExecutor`) raise commands that the interaction transport carries to that owner. The list replicates; `EmbarkedStateSystem` derives the passenger side on every node | [`DESIGN_Entity_Interactions.md`](DESIGN_Entity_Interactions.md) §7.1b, §7.1d |
+| ⭐ where it runs | ✅ every node that can own a live entity: the cross-role `CoreInfrastructureCapabilities.Interactions` (doors + embarkation) in every host's plan — never a host or a role pack | §7.1d |
+| ⭐ what "inside" means | ✅ `2026-10-12` (I-2c, R-271): CARRIED (the passenger's position owner copies the vehicle's transform; kinematics skips an embarked body), HIDDEN when the cabin is enclosed (`PhysicalPresence.IsHidden` — the perception grid, the EQS area search, the collider hash for bullets / near misses / radius search / avoidance, the blast and line-of-sight occluders all ask it), DIES when the vehicle is destroyed (a lethal damage event on the node owning its Health). An OPEN cabin type (TKB `VehicleParametersDto.PassengerExposure = Open` → `OpenPassengerCabin`) carries without hiding. CanMove / CanShoot are stripped aboard; boarding is not "mobility lost" | §7.2, §7.2a |
+| ⭐ the plan (user-approved) | I-2a ✅ → I-2b ✅ → I-2c ✅ → I-2d AI nodes + the squad dismount | §7.1 · `CE-3110` |
 | **formations** (`FormationController` / `FormationFollower` / `FormationTargetSystem`, CarKinem) | 🟥 for AI: works only in the standalone CarKinem example. `JoinFormation`'s params are empty, `VehicleAPI` is never built in production, nothing carries a join from CGF to SimHost; followers steer straight at a slot with no path finding | proper formations = their own programme, `CE-2124` |
-| ⭐ squad formation **for now** | a `SquadMarch` play: members ordered to slot points behind the lead, falling back to single file on the lead's breadcrumbs | [`DESIGN_Squad_Tactics.md`](designs/group-maneuvers/DESIGN_Squad_Tactics.md) §6.1 |
+| ⭐ squad formation **for now** | ✅ BUILT `2026-10-12`: Library/Squad `SquadMarch` (File / Wedge / Line) — the point man nearest the objective leads, the others keep slots on it and fall back to file on his trail; live on `tt-squad-march` | [`DESIGN_Squad_Tactics.md`](designs/group-maneuvers/DESIGN_Squad_Tactics.md) §6.1, §6.1a |

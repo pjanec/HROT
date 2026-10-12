@@ -26,11 +26,26 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<PassengerBuffer>();
             _world.RegisterComponent<IsEmbarkedTag>();
             _world.RegisterComponent<InteractionChannel>();
+            _world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+            _world.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+            _world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
 
             _executor = new EjectPassengersExecutor();
         }
 
         public void Dispose() => _world.Dispose();
+
+        private readonly Fdp.Toolkit.Behavior.Systems.EmbarkationSystem _owner = new();
+
+        /// <summary>⭐ <c>CE-3110</c> I-2a — the executor RAISES the command; the vehicle's owner (<c>EmbarkationSystem</c>, here the same
+        /// world) applies it next frame; the executor then reads the answer from the state. (It used to write everything itself.)</summary>
+        private void Drive(Entity e, ref InteractionChannel channel)
+        {
+            _executor.Execute(e, ref channel, _world, 0f);
+            _world.Bus.SwapBuffers();
+            _owner.Execute(_world, 0f);
+            if (channel.Status == NodeStatus.Running) _executor.Execute(e, ref channel, _world, 0f);
+        }
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -78,7 +93,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var channel = _world.GetComponent<InteractionChannel>(vehicle);
             _executor.OnEnter(vehicle, ref channel, _world);
-            _executor.Execute(vehicle, ref channel, _world, 0f);
+            Drive(vehicle, ref channel);
 
             var caps = _world.GetComponent<ActorCapabilityState>(soldier).Capabilities;
             Assert.True(caps.HasFlag(ActorCapabilities.CanMove),  "CanMove should be restored");
@@ -100,7 +115,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var channel = _world.GetComponent<InteractionChannel>(vehicle);
             _executor.OnEnter(vehicle, ref channel, _world);
-            _executor.Execute(vehicle, ref channel, _world, 0f);
+            Drive(vehicle, ref channel);
 
             Assert.False(_world.HasComponent<IsEmbarkedTag>(soldier));
         }
@@ -123,7 +138,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var channel = _world.GetComponent<InteractionChannel>(vehicle);
             _executor.OnEnter(vehicle, ref channel, _world);
-            _executor.Execute(vehicle, ref channel, _world, 0f);
+            Drive(vehicle, ref channel);
 
             Assert.Equal(0, _world.GetComponent<PassengerBuffer>(vehicle).Count);
 
@@ -152,7 +167,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Must not throw.
             _executor.OnEnter(vehicle, ref channel, _world);
-            _executor.Execute(vehicle, ref channel, _world, 0f);
+            Drive(vehicle, ref channel);
 
             // Buffer must be cleared and live passenger must have capabilities restored.
             Assert.Equal(0, _world.GetComponent<PassengerBuffer>(vehicle).Count);
@@ -177,7 +192,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var channel = _world.GetComponent<InteractionChannel>(vehicle);
             _executor.OnEnter(vehicle, ref channel, _world);
-            _executor.Execute(vehicle, ref channel, _world, 0f);
+            Drive(vehicle, ref channel);
 
             float expectedSide = 3.5f + EjectPassengersExecutor.DismountClearance;
             float lastY = float.NegativeInfinity;

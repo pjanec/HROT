@@ -81,7 +81,7 @@ namespace Hrot.AI.Behaviors.Brains
         public const float ThreatMovedMetres = 10f;
 
         /// <summary><see cref="SquadPlayState.HasAnswer"/> when the flank query found no point: the assault goes straight through.</summary>
-        public const byte NoFlank = 2;
+        public const byte NoFlank = SquadManeuverRunner.NoAnswer;
 
         private static readonly SquadHsmShell s_shell = new(
             SuppressAndManeuverManeuver.BuildTransitionTable(), SuppressAndManeuverManeuver.PhaseAborted);
@@ -176,70 +176,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ S1-C — the COMMANDER asks the terrain: its own flank query, measured from a base-of-fire member (slot 0), aimed
         /// at the enemy (slot 1). Solved on SimHost; the first answer is the flank, and the query goes.</summary>
         private static void AskForFlank(ref SuppressAndManeuverParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
-        {
-            var world = ctx.World;
-            var child = ws.Sensor.IsValid && world.IsAlive(ws.Sensor.ChildId) ? ws.Sensor.ChildId : Entity.Null;
-            if (child.IsNull)
-            {
-                var from = MeasureFrom(in ctx);
-                if (from.IsNull) { ws.HasAnswer = NoFlank; return; }
-                var config = new EqsSensor
-                {
-                    BlueprintId         = FindFlankingPosition.BlueprintId,
-                    Epoch               = 1,
-                    SearchRadius        = p.FlankSearchRadius,
-                    PublishPolicy       = (byte)EqsPublishPolicy.ScoreDelta,
-                    ScoreDeltaThreshold = 0.05f,
-                    ContextSlot0        = from,
-                    ContextSlot1        = new Entity((ulong)ws.ThreatId),
-                };
-                child = EqsChildSensor.Ensure(world, ctx.Commander, FlankSite, in config);
-                if (child.IsNull) return;
-                ws.Sensor = new EqsSensorHandle(child);
-                ws.LastAnswerTick = 0;
-            }
-            if (!world.HasComponent<EqsCognitiveBuffer>(child)) return;
-            ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(child);
-            if (!buffer.IsReady || buffer.LastUpdateTick == ws.LastAnswerTick) return;
-            ws.LastAnswerTick = buffer.LastUpdateTick;
-            if (buffer.Count == 0) ws.HasAnswer = NoFlank;
-            else
-            {
-                var top = buffer.GetTop();
-                ws.Answer = new Vector3(top.PositionX, top.PositionY, top.PositionZ);
-                ws.HasAnswer = 1;
-                ws.Reissue = 1;
-            }
-            SquadManeuverRunner.DropSensor(ref ws, world);
-        }
+            => SquadManeuverRunner.AskTerrain(ref ws, in ctx, FindFlankingPosition.BlueprintId, FlankSite, p.FlankSearchRadius,
+                SquadManeuverRunner.FirstLive(in ctx, SuppressAndManeuverManeuver.ElementBaseOfFire), new Entity((ulong)ws.ThreatId));
 
-        /// <summary>The member the flank is measured from: the first live base-of-fire member (it sees the enemy).</summary>
-        private static Entity MeasureFrom(in SquadPlayContext ctx)
-        {
-            ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
-            for (int i = 0; i < ctx.Roster.Count; i++)
-                if (squad.Elements.MemberElements[i] == SuppressAndManeuverManeuver.ElementBaseOfFire && ctx.Live(i, out var m)) return m;
-            return Entity.Null;
-        }
-
-        /// <summary>The squad's top IDENTIFIED pooled contact (highest threat), preferring <paramref name="keep"/> while it is pooled.</summary>
         private static bool TopContact(in SquadPlayContext ctx, long keep, out SquadContact contact)
-        {
-            contact = default;
-            ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
-            var pool = MemoryMarshal.CreateReadOnlySpan(
-                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
-                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
-            bool found = false;
-            for (int i = 0; i < squad.Contacts.Count && i < 16; i++)
-            {
-                var c = pool[i];
-                if ((c.Flags & SquadContact.AnonymousFlag) != 0 || c.EntityId <= 0) continue;
-                if (keep != 0 && c.EntityId == keep) { contact = c; return true; }
-                if (!found || c.ThreatScore > contact.ThreatScore) { contact = c; found = true; }
-            }
-            return found;
-        }
+            => SquadManeuverRunner.TopContact(in ctx, keep, out contact);
 
         private static float Flat(Vector3 d) { d.Z = 0f; return d.Length(); }
     }

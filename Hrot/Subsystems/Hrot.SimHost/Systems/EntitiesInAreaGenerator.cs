@@ -66,6 +66,7 @@ namespace Hrot.SimHost.Systems
             foreach (var candidate in view.Query().With<SimTransform>().Build())
             {
                 if (count >= candidates.Length) break;
+                if (Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(view, candidate)) continue;   // ⭐ CE-2125 (R-272) · CE-3110 I-2c (R-271)
 
                 ref readonly var tf = ref view.GetComponentRO<SimTransform>(candidate);
                 var local = new Vector2(tf.Position.X, tf.Position.Y) - origin;

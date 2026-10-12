@@ -279,7 +279,8 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponPosture),   // ⭐ WL-6 (W-13, R-272) — the weapon brain's posture
                     D(Hrot.NED.Descriptors.EDescriptorType.dtManualDrive),     // ⭐ CE-3173 S4e — an operator's motion axes
                     D(Hrot.NED.Descriptors.EDescriptorType.dtPossessedBy),     // ⭐ CE-3172 S4e — who holds the unit
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponAmmo) },    // ⭐ CE-3174 — the ammunition per mount
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponAmmo),     // ⭐ CE-3174 — the ammunition per mount
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtPassengerBuffer) },   // ⭐ CE-3110 I-2b — a vehicle's passenger list
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),

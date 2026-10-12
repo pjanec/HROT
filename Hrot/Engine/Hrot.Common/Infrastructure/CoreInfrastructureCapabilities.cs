@@ -69,4 +69,46 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_system);
         }
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3110</c> (R-221 / R-224) — entity interactions, the OWNER side, on EVERY node that can own a live entity:
+    /// <c>DoorCommandSystem</c> (a door command applied where the door's <c>dtDoorState</c> is owned — 📄 DESIGN_Building_Interiors.md
+    /// §3j 5d), <c>EmbarkationSystem</c> (a boarding applied where the vehicle's <c>dtPassengerBuffer</c> is owned) and
+    /// <c>EmbarkedStateSystem</c> (the passenger side derived from the list each node holds). 📄 docs/DESIGN_Entity_Interactions.md §7.1d.
+    /// </summary>
+    /// <remarks>
+    /// <para>⛔ <b>Why not in a role pack.</b> Ownership is per descriptor and push-only (the creator claims everything), so a door, a
+    /// vehicle or a passenger can be owned by a node of any role — a role pack leaves every other host unable to apply the command it
+    /// receives. Every system here gates itself on what this node owns or holds, so running everywhere costs nothing where there is
+    /// nothing to do. ⭐ A new interaction kind adds its owner-side system HERE, never in a host or a pack.</para>
+    /// <para>⭐ <b>Order inside its phase is free.</b> The appliers read commands published the frame before; <c>Embarkation.Board</c>
+    /// writes the passenger's tag and strips its capabilities in one call, so <c>CognitiveInterruptSystem</c> sees the tag in whichever
+    /// frame it notices the lost <c>CanMove</c>. ⇒ declared at the tail like <see cref="UnitHierarchy"/>.</para>
+    /// </remarks>
+    public sealed class Interactions : INodeCapability
+    {
+        private readonly Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem _passengerSide = new();
+        private readonly Fdp.Toolkit.Terrain.DoorCommandSystem            _doors         = new();
+        private readonly Fdp.Toolkit.Behavior.Systems.EmbarkationSystem   _embarkation   = new();
+
+        public string Key => CapabilityKeys.Interactions;
+
+        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
+
+        /// <summary>The systems, for a hand-wired harness that must match production (CE-493).</summary>
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation };
+
+        public void PopulateSystems(
+            HrotNodeContext context,
+            List<IEcsModuleSystem> input,
+            List<IEcsModuleSystem> simulation,
+            List<IEcsModuleSystem> postSimulation)
+        {
+            if (input is null) throw new ArgumentNullException(nameof(input));
+            if (simulation is null) throw new ArgumentNullException(nameof(simulation));
+            input.Add(_passengerSide);
+            simulation.Add(_doors);
+            simulation.Add(_embarkation);
+        }
+    }
 }

@@ -227,6 +227,26 @@ namespace Hrot.NED.Descriptors
         public int Mag3;
     }
 
+    // ⭐ CE-3110 I-2b (R-224, 📄 docs/DESIGN_Entity_Interactions.md §7.1c) — a vehicle's passengers, the vehicle's owner (Brain group) →
+    //   every node, keyed by the vehicle. Eight scalar network ids (the EntityWeaponAmmo shape; PassengerBuffer.Capacity = 8).
+    //   Reliable + TransientLocal + KeepLast 1: a late joiner must know who is aboard.
+    [DdsTopic("EntityPassengers")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityPassengers
+    {
+        [DdsKey] public long EntityId;
+        public byte Count;
+        public long Passenger0;
+        public long Passenger1;
+        public long Passenger2;
+        public long Passenger3;
+        public long Passenger4;
+        public long Passenger5;
+        public long Passenger6;
+        public long Passenger7;
+    }
+
     // ⭐ CE-3136 P-7a (O3, R-242/R-243) — a static obstacle's box (the TKB's size or a scenario's per-instance one), published by the
     //   obstacle's creator, applied on every other node BEFORE its ghost promotes ([PerInstanceValue] ObstacleShape), so every node bakes
     //   the same box into its terrain. TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every obstacle.

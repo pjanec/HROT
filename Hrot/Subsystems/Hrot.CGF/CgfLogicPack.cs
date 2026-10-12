@@ -189,6 +189,7 @@ namespace Hrot.CGF
                     new (ushort, IActionExecutor<InteractionChannel>)[]
                     {
                         (BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor()),
+                        (BehaviorConstants.ActionIdEmbark,          new EmbarkExecutor()),   // ⭐ CE-3110 I-2a — boarding was constructed only by its unit test
                     },
                     // ⭐ Buildings 5d — Open/Close/Lock/Unlock/Breach door, one list so no host forgets a verb
                     System.Linq.Enumerable.Select(BehaviorConstants.DoorActionExecutors(),
@@ -227,8 +228,9 @@ namespace Hrot.CGF
             simList.Add(_tacticalIntentResolutionSystem);
             foreach (var s in _missionControlModule.SimulationSystems) simList.Add(s);
             simList.Add(_healthApplicationSystem);
-            // ⭐ Buildings 5d — the door's OWNER applies door commands (an actor's, or one carried here from another node)
-            simList.Add(new Fdp.Toolkit.Terrain.DoorCommandSystem());
+            // ⛔ CE-3110 — the interaction APPLIERS (DoorCommandSystem, EmbarkationSystem) and EmbarkedStateSystem are NOT pack content:
+            //   any node that can own a live entity needs them, so they are the cross-role CoreInfrastructureCapabilities.Interactions,
+            //   declared in every host's plan (like UnitHierarchy).
             simList.Add(_activeSensorTracksUpdateSystem);
             simList.Add(_cgfThreatEvaluationSystem);
             // ⭐ CE-3064 (R-206) — a near miss becomes the unit's SensorChange.NearMiss, beside Hit.
@@ -236,6 +238,7 @@ namespace Hrot.CGF
             // ⭐ CE-3174 (C-7, docs/DESIGN_Entity_Control.md §8d) — the ammunition per mount, mirrored for every station's HUD (dtWeaponAmmo).
             simList.Add(new Fdp.Toolkit.Combat.Systems.WeaponAmmoMirrorSystem());
             simList.Add(_squadCoordinationSystem);   // CE-454: after TargetMemory is boosted, before behaviours read the pool
+            simList.Add(new Fdp.Toolkit.Squad.Systems.UnitCentroidSystem());   // ⭐ CE-2125 / CE-514 (R-272) — the owner places a unit at its members' centre
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);
             simList.Add(_routeContextSystem);

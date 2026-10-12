@@ -386,6 +386,9 @@ namespace Fdp.Examples.Scenarios.Integrated
             world.RegisterComponent<InteractionChannel>();
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();
+            world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();      // ⭐ CE-3110 I-2a
+            world.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+            world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
             world.RegisterComponent<MissionPlanQueue>();
 
             // FDP.Toolkit.Perception
@@ -588,6 +591,10 @@ namespace Fdp.Examples.Scenarios.Integrated
             var stageB = new IEcsModuleSystem[]
             {
                 new HitResolutionSystem(),   // reads RaycastResultEvent; direct: HitEvent; ECB: bullet TearDown
+                // ⭐ CE-3110 I-2a — the vehicle's owner applies embark / eject commands. HERE, not in Stage C where the executor
+                //   raises them: this fixture swaps the bus after Stage A and after Stage B, so a command raised in Stage C is
+                //   readable only in the NEXT tick's Stage B (📐 measured: in Stage C the eject was swapped out unread — hit=False).
+                new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem(),
             };
 
             var stageC = new IEcsModuleSystem[]

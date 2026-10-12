@@ -29,7 +29,8 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtWeaponPosture),   // ⭐ WL-6 (W-13, R-272) — the weapon brain's posture (ui lane; pinned here at the backend merge)
         D(EDescriptorType.dtManualDrive),     // ⭐ CE-3173 S4e — an operator's motion axes
         D(EDescriptorType.dtPossessedBy),     // ⭐ CE-3172 S4e — who holds the unit
-        D(EDescriptorType.dtWeaponAmmo) };    // ⭐ CE-3174 — the ammunition per mount
+        D(EDescriptorType.dtWeaponAmmo),     // ⭐ CE-3174 — the ammunition per mount
+        D(EDescriptorType.dtPassengerBuffer) };   // ⭐ CE-3110 I-2b — a vehicle's passenger list (the brain arbitrates boarding, R-224)
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),
         D(EDescriptorType.dtStanceStatus),    // ⭐ CE-2121 — the body's stance report
         D(EDescriptorType.dtTurretPose),      // ⭐ CE-1049 WL-1b — the turret pose, Muscle-owned

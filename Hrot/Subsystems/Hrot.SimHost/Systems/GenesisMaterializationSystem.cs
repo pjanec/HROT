@@ -62,12 +62,15 @@ namespace Hrot.SimHost.Systems
 
         // ── Materialization helpers ────────────────────────────────────────────
 
+        // ⭐ CE-3110 I-2a — both embarkation intents resolve through THE rules (Embarkation.TryEmbark), so a soldier loaded aboard
+        //   gets the list entry, the tag AND the stripped CanMove/CanShoot — 🔴 genesis used to write the list and the tag itself and
+        //   never strip anything, so a passenger loaded aboard could walk away. TryEmbark is idempotent: the vehicle's intent and the
+        //   passenger's own intent may both name the same boarding.
         private void MaterializePassengers(ISimulationView view, EntityCommandBuffer cmd, EntityRepository repo)
         {
             foreach (var entity in view.Query().WithManaged<InitialPassengersIntent>().Build())
             {
                 var intent = view.GetManagedComponentRO<InitialPassengersIntent>(entity);
-                var buffer = new PassengerBuffer();
                 bool allResolved = true;
                 foreach (var netId in intent.PassengerNetworkIds)
                 {
@@ -76,14 +79,12 @@ namespace Hrot.SimHost.Systems
                         allResolved = false;
                         break;
                     }
-                    if (buffer.Count < PassengerBuffer.Capacity)
-                    {
-                        buffer.Passengers[buffer.Count] = passenger;
-                        buffer.Count++;
-                    }
                 }
                 if (!allResolved) continue;
-                repo.SetComponent(entity, buffer);
+                EnsureBuffer(repo, entity);
+                foreach (var netId in intent.PassengerNetworkIds)
+                    if (_entityMap.TryGetEntity(netId.NetworkId, out var passenger))
+                        Fdp.Toolkit.Behavior.Embarkation.TryEmbark(repo, passenger, entity);
                 cmd.RemoveManagedComponent<InitialPassengersIntent>(entity);
             }
         }
@@ -95,9 +96,15 @@ namespace Hrot.SimHost.Systems
                 var intent = view.GetManagedComponentRO<InitialVehicleIntent>(entity);
                 if (!_entityMap.TryGetEntity(intent.VehicleNetworkId.NetworkId, out var vehicle) || !view.IsAlive(vehicle))
                     continue;
-                repo.SetComponent(entity, new IsEmbarkedTag { VehicleEntity = vehicle });
+                EnsureBuffer(repo, vehicle);
+                Fdp.Toolkit.Behavior.Embarkation.TryEmbark(repo, entity, vehicle);
                 cmd.RemoveManagedComponent<InitialVehicleIntent>(entity);
             }
+        }
+
+        private static void EnsureBuffer(EntityRepository repo, Entity vehicle)
+        {
+            if (!repo.HasComponent<PassengerBuffer>(vehicle)) repo.SetComponent(vehicle, new PassengerBuffer());
         }
 
         private void MaterializeHierarchy(ISimulationView view, EntityCommandBuffer cmd, EntityRepository repo)

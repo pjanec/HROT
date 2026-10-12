@@ -67,6 +67,17 @@ namespace Fdp.Toolkit.Utility
             return NodeStatus.Running;
         }
 
+        /// <summary>⭐ <c>CE-2123</c> S2 — <see cref="ChooseOption"/> that DECIDES ONCE: it scores until there is a winner and then
+        /// keeps it for the rest of the run (Running, like <see cref="ChooseOption"/>). For a choice that starts something costly
+        /// to restart — a squad drill re-partitions and re-asks the terrain — where a mid-run flip would throw the work away.
+        /// The run's state is fresh at each start, so the next run decides again.</summary>
+        [SharedAiAction]
+        public static NodeStatus ChooseOptionOnce(ref ChooseOptionParams p, ref UtilityChoice ws, Entity self, EntityRepository world)
+        {
+            if (ws.Winner == 0) ws.Winner = Scorer.ChooseOption(world, self, p.Decision.Id, 0);
+            return NodeStatus.Running;
+        }
+
         /// <summary>True while the shared winner is this branch's option. Reads only (an HSM guard may be evaluated more
         /// than once per event).</summary>
         [SharedAiCondition]

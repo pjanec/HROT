@@ -990,5 +990,21 @@ namespace CarKinem.Tests.Systems
             Assert.True(repo.GetComponent<SimTransform>(e).Position.X > 10.5f, "not trapped where it already stood");
             repo.Dispose();
         }
+
+        /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — kinematics does not drive an EMBARKED entity (the carry owns its transform): the same
+        /// moving body that advances when free stays exactly where the carry left it once it carries <c>IsEmbarkedTag</c>.</summary>
+        [Fact]
+        public void CE3110_I2c_AnEmbarkedBody_IsNotDrivenByKinematics()
+        {
+            var (free, f) = OnTheSlope(new Vector3(10, 2, 0), new Vector3(0, 10, 0));
+            Drive(free, 10);
+            Assert.True(free.GetComponent<SimTransform>(f).Position.Y > 2.5f, "control: a free body moves");
+
+            var (aboard, a) = OnTheSlope(new Vector3(10, 2, 0), new Vector3(0, 10, 0));
+            aboard.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            aboard.AddComponent(a, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag());
+            Drive(aboard, 10);
+            Assert.Equal(new Vector3(10, 2, 0), aboard.GetComponent<SimTransform>(a).Position);
+        }
     }
 }

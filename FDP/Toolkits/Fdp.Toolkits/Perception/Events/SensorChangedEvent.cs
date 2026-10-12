@@ -34,12 +34,27 @@ namespace Fdp.Toolkit.Perception.Events
 
         /// <summary>⭐ <c>CE-3072</c> B0 — the threat on the next area ahead fell below it again.</summary>
         AreaCleared    = 10,
+
+        /// <summary>⭐ <c>CE-2123</c> S2 — the SQUAD's shared contacts went from empty to holding one. Published on the COMMANDER by
+        /// <c>SquadCoordinationSystem</c> after its merge (a soldier-leader's own <see cref="FirstThreat"/> stays its own).</summary>
+        SquadContact   = 11,
+
+        /// <summary>⭐ <c>CE-2123</c> S2 — a squad member (or the commander itself) was hit or near-missed: the SQUAD is under fire.
+        /// Published on the COMMANDER.</summary>
+        SquadUnderFire = 12,
+
+        /// <summary>⭐ <c>CE-2123</c> S2 — the squad's shared contacts went from holding contacts to empty. Published on the COMMANDER.</summary>
+        SquadAllClear  = 13,
+
+        /// <summary>⭐ <c>CE-2125</c> (§7.2 L3) — the squad's leader soldier fell; the next man took over. Published on the COMMANDER.</summary>
+        SquadLeaderDown = 14,
     }
 
     /// <summary>
     /// ⭐⭐ <b>An EDGE in what a unit senses</b> (docs/DESIGN_Sensors_And_Doctrine.md §7.3, <c>CE-3039</c>) — published on the
     /// unit's BRAIN node by the system that already holds the fact (one producer per fact): <c>ActiveSensorTracksUpdateSystem</c>
-    /// (Acquired / Lost), <c>EqsResultUpdateSystem</c> (TopChanged), <c>ThreatEvaluationSystem</c> (FirstThreat / AllClear / Hit).
+    /// (Acquired / Lost), <c>EqsResultUpdateSystem</c> (TopChanged), <c>ThreatEvaluationSystem</c> (FirstThreat / AllClear / Hit),
+    /// <c>SquadCoordinationSystem</c> (SquadContact / SquadUnderFire / SquadAllClear — on the commander, CE-2123 S2).
     /// <para>⭐ Consumers react to it the way each tier already reacts to anything: a blueprint with <c>When EventFired</c>,
     /// an HSM through the runner's event bridge (<c>CE-3040</c>, behaviors lane), a doctrine by waking on it (R-195). A BTree
     /// polls instead (§7.3). Bus events live one frame.</para>

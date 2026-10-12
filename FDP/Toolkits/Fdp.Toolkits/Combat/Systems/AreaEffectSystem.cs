@@ -101,6 +101,7 @@ namespace Fdp.Toolkit.Combat.Systems
             foreach (var e in repo.Query().With<Health>().With<SimTransform>().Build())
             {
                 if (!repo.IsAlive(e)) continue;   // ⚠ the STRUCK entity is included: it is at the burst (its direct hit is extra)
+                if (Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(repo, e)) continue;   // ⭐ CE-3110 I-2c (R-271) — inside an enclosed hull
                 if (repo.GetComponentRO<Health>(e).Current <= 0f) continue;
                 var tf = repo.GetComponentRO<SimTransform>(e);
                 if (Vector2.Distance(new Vector2(burst.X, burst.Y), new Vector2(tf.Position.X, tf.Position.Y)) > reach + 2f) continue;

@@ -95,6 +95,18 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.DoorCommandEvent>();   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
+        // ⭐ CE-3110 I-2a — the embarkation interaction kinds: raised on any node, carried to the vehicle's owner (R-221 needs each
+        //   kind's event on EVERY host — the ingress republishes it wherever a request lands).
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
+        // ⭐⭐ CE-3110 I-2c — the embarkation STATE too, on every host: any node that can own a live entity can own a vehicle or a
+        //   passenger, and every node receives the passenger list (I-2b's ingress) and derives the passenger side. 🔴 They were
+        //   registered only by the CGF and SimHost registries, so IG — which runs I-2b's ingress — would have applied an
+        //   unregistered PassengerBuffer. (EmbarkationComponentRegistry still registers them too; registration is idempotent.)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();   // I-2c (R-271) — the open-cabin vehicle type
         // ⭐⭐ The transient-spawn tag (R-140 D2): NetworkSpawningSystem.ProcessSpawn stamps it on EVERY node that materialises a
         //   transient entity — a door entity (5b, transient: the terrain recreates it), an IG sketch. 🔴 It was registered by no
         //   host, only by the rails (each registers it itself), so the first door spawned in a cluster threw "ScenarioIgnoreTag is
@@ -220,6 +232,9 @@ public static class HrotSharedComponentRegistry
         // ⚠ Registration is not allocation: it creates table metadata, and the 1024 bytes only
         //    materialise on an entity that actually becomes a commander.
         world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+        // ⭐ CE-2125 (R-272) — a unit is not a body (the TKB translator stamps it on every node) and its leadership (CGF).
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        world.RegisterComponent<Fdp.Toolkit.Squad.SquadLeadership>();
 
         // ── Brain interrupts (O2, 2026-09-20) ─────────────────────────────────
         // ⭐ The entity-fact half of the BrainBlackboard split. Registered on the same Hrot-wide path

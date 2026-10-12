@@ -12,5 +12,12 @@ namespace Fdp.Toolkit.Behavior.Events
     {
         /// <summary>The entity that should exit its current vehicle.</summary>
         public Entity Passenger;
+
+        /// <summary>⭐ <c>CE-3110</c> I-2a — the vehicle it leaves (the interaction's TARGET, carried to that vehicle's owner). Null ⇒
+        /// the one the passenger's <c>IsEmbarkedTag</c> names.</summary>
+        public Entity Vehicle;
+
+        /// <summary>⭐ <c>CE-3110</c> I-2a (R-221) — set by the interaction ingress: this command came off the network.</summary>
+        public bool IsRemote;
     }
 }

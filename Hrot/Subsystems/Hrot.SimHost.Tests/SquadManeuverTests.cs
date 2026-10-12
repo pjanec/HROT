@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -33,6 +34,7 @@ namespace Hrot.SimHost.Tests
             public readonly Entity[] Members;
             private readonly BehaviorIngressSystem _ingress;
             private readonly BrainTickSystem _brain;
+            private readonly RecentSensesSystem _senses = new();   // ⭐ CE-2123 S2 — the squad edges reach the leader's SOP
             private double _time;
             private long _frame;
             public readonly List<AssignTacticalIntentEvent> Orders = new();
@@ -42,11 +44,15 @@ namespace Hrot.SimHost.Tests
                 SimHostComponentRegistry.RegisterAll(Repo);
                 CognitiveComponentRegistry.RegisterAll(Repo);
                 BlueprintTierTable.RegisterAll(Repo);
+                if (!Repo.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SensorChangedEvent>())
+                    Repo.Bus.Register<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();
                 var geo = new WGS84Transform();
                 geo.SetOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(geo);
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 Fdp.Toolkit.Utility.StandardInputs.RegisterAll();
+                Fdp.Toolkit.Utility.SquadInputs.RegisterAll();          // ⭐ CE-2123 S2 — the squad's contact response reads them
+                Fdp.Toolkit.Utility.UtilityDecisionCatalog.EnsureRegistered();
                 _ingress = new BehaviorIngressSystem(Registry);
                 _brain   = new BrainTickSystem(Registry);
 
@@ -74,6 +80,7 @@ namespace Hrot.SimHost.Tests
                 Repo.SetSimulationTime((float)_time);
                 Repo.Bus.SwapBuffers();
                 foreach (var o in Repo.Bus.ReadManaged<AssignTacticalIntentEvent>()) Orders.Add(o);
+                _senses.Execute(Repo, 0.016f);
                 _ingress.Execute(Repo, 0.016f);
                 _brain.Execute(Repo, 0.016f);
                 Repo.FlushCommandBuffers();
@@ -114,6 +121,41 @@ namespace Hrot.SimHost.Tests
                                              ThreatScore = 1f, SourceMembersMask = reporters };
                 squad.Contacts.Count = 1;
             }
+
+            /// <summary>⭐ CE-2123 S2 — <paramref name="enemies"/> pooled contacts, all reported by slot 0.</summary>
+            public Entity[] PoolMany(int enemies, Vector3 at)
+            {
+                var es = new Entity[enemies];
+                ref var squad = ref Repo.GetComponentRW<SquadCognitiveState>(Commander);
+                var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                    ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref squad.Contacts.Contacts), 16);
+                for (int i = 0; i < enemies; i++)
+                {
+                    es[i] = Repo.CreateEntity();
+                    Repo.AddComponent(es[i], new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                    span[i] = new SquadContact { EntityId = (long)es[i].PackedValue, PositionX = at.X, PositionY = at.Y, PositionZ = at.Z,
+                                                 ThreatScore = 1f - i * 0.01f, SourceMembersMask = 1 };
+                }
+                Repo.GetComponentRW<SquadCognitiveState>(Commander).Contacts.Count = enemies;
+                return es;
+            }
+
+            public void ClearPool() => Repo.GetComponentRW<SquadCognitiveState>(Commander).Contacts.Count = 0;
+
+            /// <summary>⭐ CE-2123 S2 — what the commander's standing orders do on a squad edge: a REACTION (it pauses the task).</summary>
+            public void React(string behaviour, string json = "{}")
+                => Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Commander, BehaviorName = behaviour, JsonParams = json,
+                                                                     Origin = BehaviorOrigin.Reaction, Urgency = ReactionUrgency.Contact });
+
+            /// <summary>⭐ CE-2123 S2 — the leader's standing orders, and a squad edge on the leader.</summary>
+            public void StartSop(string sop)
+                => Repo.Bus.PublishManaged(new AssignSopEvent { Entity = Commander, BehaviorName = sop, JsonParams = "{}", Origin = BehaviorOrigin.Superior });
+            public void Sense(Fdp.Toolkit.Perception.Events.SensorChange what)
+                => Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = Commander, What = what });
+            public string? TaskName => Registry.TryGetName(Repo.GetComponent<BehaviorState>(Commander).ActiveBehaviorHash, out var n) ? n : null;
+
+            public ushort Kind => Repo.GetComponentRO<SquadCognitiveState>(Commander).ManeuverKind;
+            public Entity RetreatQuery() => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, BreakContactPlay.RetreatSite);
 
             /// <summary>⭐ CE-2123 — the commander's flank query, and SimHost's answer to it.</summary>
             public Entity FlankQuery() => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, SuppressAndManeuverPlay.FlankSite);
@@ -309,6 +351,365 @@ namespace Hrot.SimHost.Tests
             s.Pause(1.0);
             s.Tick(); s.Tick();
             Assert.Equal(4, s.LastOrders().Count);                                   // back from the pause: every order again
+        }
+
+        // ── ⭐ CE-2123 (S2) — react to contact ─────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>⭐ S2-G — a drill paused under a reaction finds the squad state ANOTHER drill left (here a suppress drill that
+        /// ended Aborted, whose id 2 is bounding's own abort id, and a swapped partition): it restores its own kind, phase and
+        /// partition, re-sends every order and carries on. ✅ Red-proof: skip the re-take ⇒ the bounding ends in Failure.</summary>
+        [Fact]
+        public void CE2123_S2G_ADrillResumedAfterAnotherDrill_RestoresItsOwnSquadState_AndCarriesOn()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.ManeuverKind, s.Kind);
+            var alpha = s.Members.Take(2).ToArray();
+
+            ref var squad = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);   // another drill ran meanwhile
+            squad.ManeuverKind = SuppressAndManeuverManeuver.ManeuverKind;
+            squad.PhaseId = SuppressAndManeuverManeuver.PhaseAborted;
+            for (int i = 0; i < 4; i++) squad.Elements.MemberElements[i] = (byte)(i < 2 ? 1 : 0);
+            s.Pause(1.0);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+
+            Assert.False(s.Finished(out _), "the bounding keeps going");
+            Assert.Equal(BoundingOverwatchManeuver.ManeuverKind, s.Kind);
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
+            var orders = s.LastOrders();
+            Assert.Equal(4, orders.Count);                                            // every order sent again
+            foreach (var m in alpha) Assert.Equal(BehaviorNames.AdvanceTo, orders[m].Intent);   // its OWN movers move
+        }
+
+        /// <summary>⭐ S2 §4.3 — the reaction holds and returns fire (every member CombatPosture where it stands), then a squad that
+        /// outmatches the enemy ASSAULTS: the suppress-and-manoeuvre drill starts and the leader asks for a flank.</summary>
+        [Fact]
+        public void CE2123_ReactToContact_HoldsAndReturnsFire_ThenAStrongSquadAssaults()
+        {
+            var s = new Squad(members: 4);
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            s.Tick(); s.Tick();
+
+            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);
+            var hold = s.LastOrders();
+            Assert.Equal(4, hold.Count);
+            foreach (var m in s.Members) Assert.Equal((BehaviorNames.CombatPosture, s.At(m)), hold[m]);
+
+            for (int i = 0; i < 10; i++) s.Tick();                                   // past DecideAfterSeconds
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
+            Assert.False(s.FlankQuery().IsNull, "the leader asks the terrain for a flank");
+        }
+
+        /// <summary>⭐ S2-F — an outmatched squad BREAKS CONTACT: the leader asks for a point the enemy cannot see; element 0 goes there
+        /// while element 1 holds and fires, then element 1 goes; both there ⇒ Success.</summary>
+        [Fact]
+        public void CE2123_ReactToContact_AnOutmatchedSquadBreaksContact_ElementByElement_ToTheLeadersRetreatPoint()
+        {
+            var s = new Squad(members: 2);
+            s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            var query = s.RetreatQuery();
+            Assert.False(query.IsNull, "the leader asks the terrain for a hidden point");
+            var cfg = s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(query);
+            Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, cfg.BlueprintId);
+
+            var hidden = new Vector3(-40f, -30f, 0f);
+            s.Answer(query, hidden);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            var first = s.LastOrders();
+            Assert.Equal((BehaviorNames.AdvanceTo, hidden), first[s.Members[0]]);
+            Assert.Equal(BehaviorNames.CombatPosture, first[s.Members[1]].Intent);   // covering
+
+            s.Teleport(s.Members[0], hidden);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.Equal((BehaviorNames.AdvanceTo, hidden), s.LastOrders()[s.Members[1]]);
+
+            s.Teleport(s.Members[1], hidden);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done);
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐ S2-F — no hidden point anywhere ⇒ break contact fails and the reaction HOLDS until the squad knows no contact.</summary>
+        [Fact]
+        public void CE2123_ReactToContact_NoRetreatPoint_HoldsUntilClear()
+        {
+            var s = new Squad(members: 2);
+            s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            s.Answer(s.RetreatQuery(), null);
+            s.Tick(); s.Tick();
+            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);
+            Assert.False(s.Finished(out _));
+
+            s.ClearPool();
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done, "no contact left ⇒ the reaction ends");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐⭐ S2 end to end on the commander: bounding (its task) → contact ⇒ the reaction PAUSES it, holds, assaults → the
+        /// enemy is down ⇒ the reaction ends ⇒ the bounding RESUMES with its own squad state and re-sends its orders (S1-G + S2-G).</summary>
+        [Fact]
+        public void CE2123_ABoundingSquadReactsToContact_ThenResumesItsBound()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.ManeuverKind, s.Kind);
+
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.React(BehaviorNames.ReactToContact, "{\"DecideAfterSeconds\":0.1}");
+            s.Tick(); s.Tick();
+            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);                   // the bound is paused, the squad holds
+            for (int i = 0; i < 10; i++) s.Tick();
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);         // decided: assault
+
+            s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(enemy).Current = 0f;
+            s.Orders.Clear();
+            for (int i = 0; i < 6; i++) s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.ManeuverKind, s.Kind);           // the bound resumed, its own squad state back
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
+            var orders = s.LastOrders();
+            foreach (var m in s.Members.Take(2)) Assert.Equal(BehaviorNames.AdvanceTo, orders[m].Intent);
+        }
+
+        /// <summary>⭐ S2-C — the shipped leader SOP (<c>BasicSquadSop</c>, compiled from its asset): a fresh <c>SquadContact</c> on the
+        /// leader ⇒ React <c>ReactToContact</c>, which PAUSES the leader's task (here a bound); a <c>SquadUnderFire</c> while it runs
+        /// does not restart it (<c>SopActions.React</c>: already running as a reaction ⇒ nothing published).</summary>
+        [Fact]
+        public void CE2123_BasicSquadSop_ASquadContact_PausesTheLeadersTask_WithReactToContact()
+        {
+            var s = new Squad(members: 4);
+            Assert.True(s.Registry.TryGetId("BasicSquadSop", out _), "the shipped squad SOP must be compiled and registered");
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 20; i++) s.Tick();
+            Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < 4; i++) s.Tick();
+
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            var task = s.Repo.GetComponent<BehaviorState>(s.Commander);
+            Assert.Equal(BehaviorOrigin.Reaction, task.Origin);
+            Assert.Equal(ReactionUrgency.Contact, task.Urgency);
+            Assert.Equal(BehaviorNames.BoundingOverwatch, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
+            uint run = task.InstanceId;
+
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            for (int i = 0; i < 20; i++) s.Tick();
+            Assert.Equal(run, s.Repo.GetComponent<BehaviorState>(s.Commander).InstanceId);   // not restarted
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
+        // ── ⭐ CE-2125 — the leader falls: a lull, then the squad goes on ─────────────────────────────────────────────────
+
+        private static void Silence(Squad s, double seconds)
+        {
+            var now = s.Repo.GetSingleton<GlobalTime>().TotalTime;
+            var lead = new Fdp.Toolkit.Squad.SquadLeadership { SilentUntil = now + seconds };
+            if (s.Repo.HasComponent<Fdp.Toolkit.Squad.SquadLeadership>(s.Commander)) s.Repo.SetComponent(s.Commander, lead);
+            else s.Repo.AddComponent(s.Commander, lead);
+        }
+
+        /// <summary>⭐ §7.2 L2 — while the commander is silent it sends NO order (members keep theirs); when the lull ends every order goes
+        /// out again. ✅ Red-proof: drop the silence check in the runner ⇒ red.</summary>
+        [Fact]
+        public void CE2125_TheSilentCommander_SendsNoOrders_ThenReSendsThemAll()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.Tick(); s.Tick();
+            Assert.Equal(4, s.LastOrders().Count);
+
+            Silence(s, 0.2);
+            s.Orders.Clear();
+            foreach (var m in s.Members.Take(2)) s.Teleport(m, new Vector3(s.At(m).X, 30f, 0f));   // a phase would complete …
+            for (int i = 0; i < 6; i++) s.Tick();
+            Assert.Empty(s.Orders);                                                               // … but nobody gives the order
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
+
+            for (int i = 0; i < 12; i++) s.Tick();                                               // the lull is over
+            Assert.Equal(4, s.LastOrders().Count);
+        }
+
+        /// <summary>⭐ §7.2 L3 — the leader falls during the reaction's drill ⇒ the squad holds and the commander decides again.</summary>
+        [Fact]
+        public void CE2125_TheLeaderFallsDuringTheDrill_TheSquadHoldsAndDecidesAgain()
+        {
+            var s = new Squad(members: 4);
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
+
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadLeaderDown);
+            s.Tick(); s.Tick();
+            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);                                 // back to holding …
+            for (int i = 0; i < 12; i++) s.Tick();
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);                       // … and decided again
+        }
+
+        /// <summary>⭐ L3 — the shipped leader SOP reacts to <c>SquadLeaderDown</c> even with no contact (an unseen sniper).</summary>
+        [Fact]
+        public void CE2125_BasicSquadSop_TheLeaderDown_PausesTheTask_WithReactToContact()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 20; i++) s.Tick();
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadLeaderDown);
+            for (int i = 0; i < 4; i++) s.Tick();
+
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            Assert.Equal(ReactionUrgency.UnderFire, s.Repo.GetComponent<BehaviorState>(s.Commander).Urgency);
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
+        // ── ⭐ CE-2123 (S3) — the squad march (DESIGN_Squad_Tactics §6.1) ─────────────────────────────────────────────────────────────
+
+        private static void Walk(Squad s, Entity m, Vector3 to, float step = 2f)
+        {
+            while (true)
+            {
+                var d = to - s.At(m);
+                if (d.Length() <= step) { s.Teleport(m, to); s.Tick(); return; }
+                s.Teleport(m, s.At(m) + Vector3.Normalize(d) * step);
+                s.Tick();
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2123</c> S3 — a WEDGE march: the lead (the first member) goes to the objective; the others go to their wedge slots
+        /// turned to the lead's heading; when the lead walks on, each follower is re-ordered ONCE per 3 m its slot moved — never every
+        /// tick, and never the whole squad for one member's slot. 🔴 Red-proved: re-ordering through the runner's issue-all (Reissue)
+        /// sends the lead again and fails the per-member count.
+        /// </summary>
+        [Fact]
+        public void CE2123_SquadMarch_Wedge_TheLeadGoesToTheObjective_TheOthersToTheirSlots_ReorderedOnlyWhenTheirSlotMoves()
+        {
+            var s = new Squad(members: 4);
+            foreach (var (m, i) in s.Members.Select((m, i) => (m, i))) s.Teleport(m, new Vector3(i * 2f, -i * 2f, 0f));
+            s.Order("{\"Objective\":[0,100,0],\"Shape\":1,\"MaxLagMetres\":50}", BehaviorNames.SquadMarch);   // no halting in this rail
+            s.Tick(); s.Tick();
+
+            Assert.Equal(SquadMarchManeuver.ManeuverKind, s.Kind);
+            var first = s.LastOrders();
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(0f, 100f, 0f)), first[s.Members[0]]);
+            // heading north (lead → objective): forward (0,1), right (1,0); the wedge's rows 4 m back, 3 m out (× Spacing 5 / 5)
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(3f, -4f, 0f)), first[s.Members[1]]);
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(-3f, -4f, 0f)), first[s.Members[2]]);
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(6f, -8f, 0f)), first[s.Members[3]]);
+
+            s.Orders.Clear();
+            Walk(s, s.Members[0], new Vector3(0f, 10f, 0f), step: 1f);
+            var perMember = s.Orders.GroupBy(o => o.Entity).ToDictionary(g => g.Key, g => g.Count());
+            Assert.False(perMember.ContainsKey(s.Members[0]), "the lead keeps its order to the objective");
+            foreach (var m in s.Members.Skip(1))
+                Assert.Equal(3, perMember.GetValueOrDefault(m));                                      // 10 m walked ⇒ one order per 3 m (at 3, 6, 9)
+            var now = s.LastOrders();
+            Assert.Equal(new Vector3(3f, 5f, 0f), now[s.Members[1]].Objective);                    // the slot rides on the lead (ordered at y 9)
+
+            s.Orders.Clear();
+            s.Teleport(s.Members[0], new Vector3(0f, 11f, 0f));
+            s.Tick(); s.Tick();
+            Assert.Empty(s.Orders);                                                                // a 1 m step re-orders nobody
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2123</c> S3 — a FILE march walks on the lead's own trail: a follower holds until the lead has walked its distance,
+        /// then goes to the point (rank+1) × Spacing behind the lead ON THE PATH the lead took — round the corner it turned, not a
+        /// straight line behind it.
+        /// </summary>
+        [Fact]
+        public void CE2123_SquadMarch_File_FollowersWalkOnTheLeadsTrail_RoundItsCorner()
+        {
+            var s = new Squad(members: 3);
+            s.Order("{\"Objective\":[0,100,0],\"Shape\":0}", BehaviorNames.SquadMarch);   // member 0 is nearest: it leads
+            s.Tick(); s.Tick();
+            var first = s.LastOrders();
+            Assert.Equal((BehaviorNames.CombatPosture, s.At(s.Members[1])), first[s.Members[1]]);      // the trail is not 5 m long yet: hold
+
+            Walk(s, s.Members[0], new Vector3(0f, 20f, 0f));                                            // north 20 m …
+            Walk(s, s.Members[0], new Vector3(8f, 20f, 0f));                                            // … then east 8 m
+            // the walked path: (0,0) → (0,20) → (8,20). 5 m behind the lead is (3,20) on the east leg; 10 m is (0,18), round the corner.
+            static bool OnTrail(Vector3 p) => (MathF.Abs(p.X) < 0.1f && p.Y is >= -0.1f and <= 20.1f) || (MathF.Abs(p.Y - 20f) < 0.1f && p.X is >= -0.1f and <= 8.1f);
+            var orders = s.LastOrders();
+            foreach (var (m, behind) in new[] { (s.Members[1], new Vector3(3f, 20f, 0f)), (s.Members[2], new Vector3(0f, 18f, 0f)) })
+            {
+                Assert.Equal(BehaviorNames.AdvanceTo, orders[m].Intent);
+                Assert.True(OnTrail(orders[m].Objective), $"a file slot lies on the lead's trail: {orders[m].Objective}");
+                Assert.True(Vector3.Distance(orders[m].Objective, behind) < SquadMarchPlay.ReorderMetres, $"{orders[m].Objective} vs {behind}");
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2123</c> S3 — a slot that does not work: followers that make no progress for 3 s walk ON FILE on the lead's trail
+        /// (a point the lead stood on — walkable); and while they lag more than MaxLagMetres the lead HALTS (a hold), going on once they
+        /// close up. 🔴 Red-proved: without the stuck fallback the followers' orders stay on their wedge slots.
+        /// </summary>
+        [Fact]
+        public void CE2123_SquadMarch_AStuckFollowerFallsBackToFile_AndTheLeadWaitsForStragglers()
+        {
+            var s = new Squad(members: 3);
+            s.Order("{\"Objective\":[0,200,0],\"Shape\":2,\"MaxLagMetres\":10}", BehaviorNames.SquadMarch);
+            s.Tick(); s.Tick();
+            Walk(s, s.Members[0], new Vector3(0f, 16f, 0f));                                           // the followers never move
+            for (int i = 0; i < 220; i++) s.Tick();                                                   // > 3 s with no progress
+
+            var orders = s.LastOrders();
+            Assert.Equal(BehaviorNames.CombatPosture, orders[s.Members[0]].Intent);                    // the lead waits …
+            foreach (var m in s.Members.Skip(1))
+            {
+                var o = orders[m].Objective;
+                Assert.Equal(BehaviorNames.AdvanceTo, orders[m].Intent);
+                Assert.Equal(0f, o.X, 1);                                                             // … and they walk on the trail (x = 0)
+            }
+
+            s.Orders.Clear();
+            foreach (var m in s.Members.Skip(1)) s.Teleport(m, orders[m].Objective);                   // they close up
+            s.Tick(); s.Tick();
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(0f, 200f, 0f)), s.LastOrders()[s.Members[0]]);   // the lead goes on
+        }
+
+        /// <summary>⭐ <c>CE-2123</c> S3 — the lead falls: the next live member leads (to the objective), and the march ends in Success
+        /// when the lead is there and everyone stands at its slot.</summary>
+        [Fact]
+        public void CE2123_SquadMarch_TheLeadFalls_TheNextMemberLeads_ThenEveryoneArrives()
+        {
+            var s = new Squad(members: 3);
+            foreach (var m in s.Members) s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            s.Order("{\"Objective\":[0,30,0],\"Shape\":1}", BehaviorNames.SquadMarch);
+            s.Tick(); s.Tick();
+            s.Orders.Clear();
+            s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(s.Members[0]).Current = 0f;
+            s.Tick(); s.Tick();
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(0f, 30f, 0f)), s.LastOrders()[s.Members[1]]);
+
+            Walk(s, s.Members[1], new Vector3(0f, 30f, 0f));
+            var slot = s.LastOrders()[s.Members[2]].Objective;
+            s.Teleport(s.Members[2], slot);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 6 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done, "the lead at the objective and the follower at its slot ⇒ the march ends");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
         }
     }
 }
