@@ -129,6 +129,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             //   (a road-graph order from the Brain stopped the vehicle), and PathToPoint is new.
             ENavigationMode.NAV_ROAD_GRAPH     => EcsNavMode.RoadGraph,
             ENavigationMode.NAV_PATH_TO_POINT  => EcsNavMode.PathToPoint,
+            ENavigationMode.NAV_MANUAL         => EcsNavMode.Manual,   // ⭐ CE-3173
             _                                  => EcsNavMode.None,
         };
     }

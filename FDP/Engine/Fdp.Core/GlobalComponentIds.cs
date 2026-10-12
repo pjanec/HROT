@@ -339,7 +339,8 @@ namespace Fdp.Core
         /// <summary><c>IgMissionHolder</c> â€” managed component caching decoded EntityMission for rendering.</summary>
         public const int IgMissionHolder             = 123;
 
-        /// <summary><c>EffectLifetime</c> — ⭐ CE-1042 E2: the age of a realism effect entity (muzzle flash, explosion, decal, tracer).</summary>
+        /// <summary><c>EffectLifetime</c> — ⛔ RETIRED (W1, docs/DESIGN_Visual_Effects.md §7 VE-Q): the effects' timer moved onto the
+        /// generic <c>Lifespan</c> (<see cref="Lifespan"/>). The struct is gone; ⛔ the id stays RESERVED — never reuse 124.</summary>
         public const int EffectLifetime          = 124;
 
         /// <summary><c>EffectAnchor</c> — ⭐ CE-1042 E2: the shooter and weapon a muzzle flash / tracer is attached to.</summary>
@@ -760,5 +761,51 @@ namespace Fdp.Core
         /// <summary><c>CombatTemperament</c> — a soldier's bravery and obedience (AQ89 B, R-269), read through <c>TemperamentOf</c> with
         /// defaults so it never reads zero; saved in the scenario by its own translator.</summary>
         public const int CombatTemperament = 355;
+
+        /// <summary><c>Lifespan</c> — ⭐ W1 (docs/DESIGN_Visual_Effects.md §7 VE-Q, R-269 (ui)): when an entity was made (sim time) and how long
+        /// it lives; <c>LifespanSystem</c> removes it after. ⚠ 355 is the backend lane's <c>CombatTemperament</c>, so this takes 356.</summary>
+        public const int Lifespan = 356;
+
+        /// <summary><c>LightweightRound</c> — ⭐ LR-2 (docs/DESIGN_Visual_Effects.md §8.5, R-271): a round replicated WITHOUT any lifecycle —
+        /// EntityMaster (Lightweight) + WorldPos only, no ghost promotion, no ELM, no acks.</summary>
+        public const int LightweightRound = 357;
+
+        /// <summary><c>OperatorOrderOutcome</c> — ⭐ CE-3167 (docs/DESIGN_Entity_Control.md §7 S1): how the unit's last OPERATOR order
+        /// ended (succeeded / failed / faulted), written on the brain node when the run finishes; read by <c>GET /entities/{id}/order</c>.
+        /// Never saved, never sent. ⚠ 358 measured free on backend, ui and behaviors 2026-10-11.</summary>
+        public const int OperatorOrderOutcome = 358;
+
+        /// <summary><c>WeaponPosture</c> — ⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13, R-272): the weapon brain's at ease / ready / aimed
+        /// state of a unit's weapon, Brain-owned, replicated as <c>dtWeaponPosture</c> to every node, drawn by the 3-D figure.</summary>
+        public const int WeaponPosture = 359;
+
+        /// <summary><c>DesignatedTarget</c> — ⭐ CE-3170 (docs/DESIGN_Entity_Control.md §7 S2, C-5): the enemy an ATTACK order named,
+        /// keyed to the run that carries it; the threat ranking's one reader (<c>SquadAssignment.TargetOf</c>) puts it first. Brain
+        /// node only; never saved, never sent. ⚠ 360: ⚠ 359 was taken twice the same evening (ui's WeaponPosture, 5 min apart); backend's three moved up one at the merge, 2026-10-11.</summary>
+        public const int DesignatedTarget = 360;
+
+        /// <summary><c>OrdersOffered</c> — ⭐ CE-3169 (docs/DESIGN_Entity_Control.md §11): a managed world singleton the map pack sets on every
+        /// LIVE map host; the unit menu offers Move Here · Engage · Stop only where it is set (never in a replay). Never saved, never sent.
+        /// ⚠ 361 (moved from 360 at the ui merge).</summary>
+        public const int OrdersOffered = 361;
+
+        /// <summary><c>ManualDrive</c> — ⭐ CE-3173 (docs/DESIGN_Entity_Control.md §8b, M-1): an operator's motion axes for a body in
+        /// <c>KinematicsMode.Manual</c>; Brain group (written by the possessing behaviour, read by the muscle). Never saved.
+        /// ⚠ 362 (moved from 361 at the ui merge).</summary>
+        public const int ManualDrive = 362;
+
+        /// <summary><c>PossessedBy</c> — ⭐ CE-3172 (docs/DESIGN_Entity_Control.md §8b, C-3): WHICH STATION holds a unit (station node id, mode,
+        /// epoch); Brain group, the one writer is <c>PossessionSystem</c>. Never saved. ⚠ 363 measured free on backend, ui and behaviors
+        /// 2026-10-11 (after the ui merge).</summary>
+        public const int PossessedBy = 363;
+
+        /// <summary><c>OperatorInput</c> — ⭐ CE-3172 (§8b, M-6): the possessing station's newest control frame, on the brain only (the
+        /// <c>OperatorControl</c> behaviour reads it). Never saved, never sent. ⚠ 364 measured free 2026-10-11.</summary>
+        public const int OperatorInput = 364;
+
+        /// <summary><c>WeaponAmmo</c> — ⭐ CE-3174 (docs/DESIGN_Entity_Control.md §8d, C-7): a unit's ammunition per mount, mirrored on the
+        /// brain from its WeaponState(s) and replicated (dtWeaponAmmo), so a HUD on any station can show it. Never saved.
+        /// ⚠ 365 measured free on backend, ui and behaviors 2026-10-11.</summary>
+        public const int WeaponAmmo = 365;
     }
 }

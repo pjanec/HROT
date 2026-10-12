@@ -23,7 +23,14 @@ public sealed class NedIgTranslators : IIgTranslators
         long localNodeId,
         bool headless)
     {
-        var translators = new List<INetworkTranslator>();
+        var translators = new List<INetworkTranslator>
+        {
+            // ⭐ CE-3169 (DESIGN_Entity_Control §2.3, §9) — an order given on THIS station (the map menu, the RTS tool, HTTP) is an
+            //   AssignTacticalIntentEvent on the IG's bus; the brain owner is elsewhere, so it must leave as TacticalIntentRequest.
+            //   📐 Every other node gets this egress from SimHostAuxiliaryTranslatorPack, which the IG never builds (no host builds
+            //   both packs, so it is never doubled).
+            new TacticalIntentEgressTranslator(participant, entityMap),
+        };
 
         if (ghostCreationSystem != null)
         {

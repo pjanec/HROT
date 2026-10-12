@@ -533,6 +533,10 @@ namespace GizmoMap.Presentation
                         // scale up; divide by zoom so the on-screen stroke stays 1 px).
                         float strokePx = zoom > 0f ? 1f / zoom : 1f;
                         Raylib.DrawRectangleLinesEx(rect, strokePx, new Color((byte)255, (byte)0, (byte)255, color.A));
+                        // ⭐ W2 (VE-O) — a wreck with no profile still gets its X.
+                        if ((prim.ConditionMask & (uint)EntityShapeCondition.Destroyed) != 0)
+                            PerspectiveShapeRenderer.DrawDestroyedCross(new Vector2(worldX, worldY), Quaternion.Identity,
+                                len * geomScale, wid * geomScale, color, zoom);
                     }
                     break;
                 }

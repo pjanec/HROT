@@ -62,6 +62,8 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly Dictionary<long, long> _ownerUnresolved = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
         private readonly List<long> _resolvedScratch = new();
+        private readonly HashSet<long> _lightweight = new();   // ⭐ LR-2 — the replicated rounds this node holds, destroyed on dispose
+        private EntityRepository? _world;
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
@@ -96,7 +98,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _ownerUnresolved.Clear();   // CE-2101
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _ownerUnresolved.Clear(); _lightweight.Clear(); }   // CE-2101
             if (_reader is null) return; // test mode — no DDS participant supplied
             RetryUnresolvedOwners(cmd, view);
             using var loan = _reader.Take();
@@ -147,6 +149,13 @@ namespace Hrot.Map.Common.Replication.Ingress
         internal void ProcessDispose(long networkEntityId)
         {
             _ownerUnresolved.Remove(networkEntityId);
+            // ⭐ LR-2 (R-271) — a lightweight round has no lifecycle to tear down: it simply goes (the map prunes it as dead).
+            if (_lightweight.Remove(networkEntityId) && _entityMap.TryGetEntity(networkEntityId, out var round) && _world is { } world
+                && world.IsAlive(round))
+            {
+                world.DestroyEntity(round);
+                return;
+            }
             _eventBus.PublishManaged(new DestroyEntityCommand
             {
                 NetworkId = networkEntityId,
@@ -177,6 +186,23 @@ namespace Hrot.Map.Common.Replication.Ingress
                 FdpLog<EntityMasterIngressTranslator>.Debug(
                     "[Node-{0}] Ingress: EntityMaster NetID={1} -> Ghost spawn", _localNodeId, master.EntityId);
                 entity = _ghostCreationSystem.CreateGhost(repo, netId, view.Tick);
+            }
+
+            // ⭐⭐ LR-2 (DESIGN_Visual_Effects.md §8.5, R-271) — a LIGHTWEIGHT entity (a replicated round) is ACTIVE from this sample:
+            //   no ghost, no promotion, no lifecycle, no acks; WorldPos keeps it current; the master's dispose destroys it.
+            //   ⚠ It may already exist as a GHOST — a WorldPos sample can arrive before its master — so the ghost is converted here.
+            if ((master.Flags & (ulong)EntityMasterFlags.Lightweight) != 0 && view is EntityRepository lightRepo
+                && !(lightRepo.HasComponent<NetworkAuthority>(entity) && lightRepo.GetComponentRO<NetworkAuthority>(entity).HasAuthority))   // ⛔ not our own round, seen via loopback
+            {
+                _world = lightRepo;
+                if (lightRepo.GetLifecycleState(entity) != EntityLifecycle.Active) lightRepo.SetLifecycleState(entity, EntityLifecycle.Active);
+                if (lightRepo.HasComponent<GhostStateTracker>(entity)) lightRepo.RemoveComponent<GhostStateTracker>(entity);
+                if (lightRepo.IsComponentTypeRegistered<LightweightRound>() && !lightRepo.HasComponent<LightweightRound>(entity))
+                    lightRepo.AddComponent(entity, default(LightweightRound));
+                if (lightRepo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>()
+                    && !lightRepo.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(entity))
+                    lightRepo.AddComponent(entity, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+                _lightweight.Add(netId);
             }
 
             // Permanent identity component — drives GhostPromotionSystem.

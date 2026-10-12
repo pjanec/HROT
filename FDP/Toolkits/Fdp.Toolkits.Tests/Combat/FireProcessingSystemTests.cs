@@ -582,6 +582,61 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(CombatConstants.DefaultBulletDamage, bullets[plain].Damage);
         }
 
+        /// <summary>⭐ LR-1 + LR-2 (Hrot docs/DESIGN_Visual_Effects.md §8.5, R-271) — a mount with a tracer MIX fires its tracer munition
+        /// one shot in <c>TracerEvery</c>; the tracer round (its munition has a look) becomes a lightweight replicated entity —
+        /// <c>TkbIdentity</c> = the munition + <c>LightweightRound</c>; an ordinary ball round gets neither. The mix changes WHAT the round
+        /// is, never its damage or penetration (both stay the mount's).</summary>
+        [Fact]
+        public void LR1_ATracerMixedOneInFive_IsALightweightRound_BallStaysLocal_DamageUnchanged()
+        {
+            _world.RegisterComponent<TkbIdentity>();
+            _world.RegisterComponent<LightweightRound>();
+            _world.RegisterComponent<ShotOrdinal>();
+            const long Ball = 6003, Tracer = 6004;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var rifleman = new Fdp.Interfaces.TkbTemplate("Rifleman", 101);
+            rifleman.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Penetration = 5, DamagePerHit = 25, AmmoGuid = Ball, TracerAmmoGuid = Tracer, TracerEvery = 5 },
+            } });
+            db.Register(rifleman);
+            db.Register(new Fdp.Interfaces.TkbTemplate("5.56x45 ball", Ball));
+            var tracer = new Fdp.Interfaces.TkbTemplate("5.56x45 tracer", Tracer) { DisType = new DISEntityType { Kind = 2, Domain = 8 } };
+            tracer.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.MunitionVisualDto { Shape = Fdp.Toolkit.Tkb.Domain.MunitionShape.Bullet, Tracer = true });
+            db.Register(tracer);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var shooter = SpawnShooter(Vector3.Zero);
+            _world.AddComponent(shooter, new TkbIdentity { TkbType = 101 });
+            var target = SpawnTarget(new Vector3(100, 0, 0));
+            var types = new System.Collections.Generic.List<long>();
+            for (int i = 0; i < 10; i++)
+            {
+                PublishIntent(shooter, target);
+                _sys.Execute(_world, 0.016f);
+            }
+            int lightweight = 0;
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build())
+            {
+                var bp = _world.GetComponent<BallisticProjectile>(e);
+                types.Add(bp.Ammo);
+                Assert.Equal(25f, bp.Damage);
+                Assert.Equal(5f, bp.Penetration);
+                bool isTracer = bp.Ammo == Tracer;
+                Assert.Equal(isTracer, _world.HasComponent<LightweightRound>(e));
+                Assert.Equal(isTracer, _world.HasComponent<TkbIdentity>(e));
+                if (isTracer)
+                {
+                    lightweight++;
+                    Assert.Equal(Tracer, _world.GetComponent<TkbIdentity>(e).TkbType);
+                    Assert.Equal(2, _world.GetDisType(e).Kind);
+                }
+            }
+            Assert.Equal(10, types.Count);
+            Assert.Equal(2, lightweight);                                            // shots 5 and 10
+            Assert.Equal(8, types.FindAll(t => t == Ball).Count);
+        }
+
         /// <summary>⭐ <c>CE-3089</c> (G7, W5) — the bullet flies at the FIRED mount's muzzle velocity (TKB); mount 0, or a mount that
         /// declares none, keeps the shooter's WeaponState velocity. ✅ Red-proof: read <c>weapon.MuzzleVelocity</c> only ⇒ 800, red.</summary>
         [Fact]

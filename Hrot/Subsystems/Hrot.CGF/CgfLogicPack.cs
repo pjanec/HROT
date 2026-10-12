@@ -100,6 +100,9 @@ namespace Hrot.CGF
 
         // ── Constructor ───────────────────────────────────────────────────────
 
+        /// <summary>⭐ <c>CE-3167</c> — the providers an order with <c>ClearsPriorIntent</c> runs on this brain (the mission plan).</summary>
+        public IntentClearRegistry IntentClears { get; }
+
         /// <summary>
         /// Creates the Brain-tier CGF logic pack with the standard Brain executor set
         /// (MoveToExecutor, FollowRouteExecutor, JoinFormationExecutor, AimAndFireExecutor).
@@ -160,7 +163,11 @@ namespace Hrot.CGF
             _cognitiveRuntimeModule = new CognitiveRuntimeModule(behaviorRegistry, gateOnAuthority);
             _missionExecutionSystem              = new MissionControlExecutionSystem(entityMap, behaviorRegistry, mapperRegistry);
             _missionAdapterSystem                = new MissionAdapterSystem();
-            _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry, behaviorRegistry);
+            // ⭐ CE-3167 (Entity Commanding §2.5d) — what an order with ClearsPriorIntent clears, registered once here: the
+            //   mission plan, by the system that owns it (one clear, shared with CMD_ABORT_ALL).
+            IntentClears = new IntentClearRegistry();
+            IntentClears.Register(_missionExecutionSystem);
+            _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry, behaviorRegistry, IntentClears);
             _actionDispatchModule   = new ActionDispatchModule(
                 locoExecutors: new (ushort, IActionExecutor<LocomotionChannel>)[]
                 {
@@ -208,6 +215,10 @@ namespace Hrot.CGF
             var inputList     = new List<IEcsModuleSystem>();
             var simList       = new List<IEcsModuleSystem>();
 
+            // ⭐ CE-3172 (docs/DESIGN_Entity_Control.md §8b) — the brain owner's side of possession: a station's request starts
+            //   OperatorControl at origin Possession (pausing the task), its frames become OperatorInput, a release resumes the task.
+            //   First, so the assignment it publishes is on the bus before the behaviour ingress reads it.
+            inputList.Add(new Fdp.Toolkit.Behavior.Possession.PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl));
             inputList.Add(_missionExecutionSystem);
             foreach (var s in _missionControlModule.InputSystems) inputList.Add(s);
             foreach (var s in _cognitiveRuntimeModule.InputSystems) inputList.Add(s);
@@ -222,6 +233,8 @@ namespace Hrot.CGF
             simList.Add(_cgfThreatEvaluationSystem);
             // ⭐ CE-3064 (R-206) — a near miss becomes the unit's SensorChange.NearMiss, beside Hit.
             simList.Add(new Fdp.Toolkit.Perception.Systems.NearMissSensingSystem());
+            // ⭐ CE-3174 (C-7, docs/DESIGN_Entity_Control.md §8d) — the ammunition per mount, mirrored for every station's HUD (dtWeaponAmmo).
+            simList.Add(new Fdp.Toolkit.Combat.Systems.WeaponAmmoMirrorSystem());
             simList.Add(_squadCoordinationSystem);   // CE-454: after TargetMemory is boosted, before behaviours read the pool
             simList.Add(new Fdp.Toolkit.Squad.Systems.UnitCentroidSystem());   // ⭐ CE-2125 / CE-514 (R-272) — the owner places a unit at its members' centre
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);

@@ -32,7 +32,16 @@ public sealed class MotionTracker
     /// <summary>The swing amplitude (radians) at a full walk and a full run.</summary>
     public const float WalkSwing = 0.45f, RunSwing = 0.75f;
 
-    private struct State { public Vector3 Last; public float Roll, Gait; public double SimTime; public bool Seen; }
+    /// <summary>⭐ WL-6 (W-13e) — how far the upper body leans forward (radians) at a full walk and a full run (about 2° and 12°).</summary>
+    public const float WalkLean = 0.035f, RunLean = 0.21f;
+
+    /// <summary>⭐ WL-6d — one crawl cycle (left and right elbow), in metres crawled.</summary>
+    public const float CrawlMetres = 0.7f;
+
+    /// <summary>⭐ WL-6d — the speed (m/s) at which a figure counts as fully moving (a crawl is ~0.3–1 m/s).</summary>
+    public const float MovingSpeed = 0.3f;
+
+    private struct State { public Vector3 Last; public float Roll, Gait, Crawl; public double SimTime; public bool Seen; }
 
     private readonly Dictionary<Entity, State> _states = new();
     private int _sweep;
@@ -54,7 +63,7 @@ public sealed class MotionTracker
         float along = Vector3.Dot(new Vector3(delta.X, delta.Y, 0f), new Vector3(forward.X, forward.Y, 0f));
         float planar = new Vector2(delta.X, delta.Y).Length();
 
-        float swing = 0f, rotor = 0f;
+        float swing = 0f, rotor = 0f, lean = 0f, stride = 0f, moving = 0f;
         switch (family)
         {
             case VisualFamily.WheeledCar or VisualFamily.WheeledUtility:
@@ -69,6 +78,10 @@ public sealed class MotionTracker
                 var gait = LocomotionBlend.FromSpeed(speed);
                 st.Gait = Wrap(st.Gait + planar / StrideMetres * MathF.PI * 2f);
                 swing = (gait.Walk * WalkSwing + gait.Run * RunSwing) * MathF.Sin(st.Gait);
+                lean = gait.Walk * WalkLean + gait.Run * RunLean;
+                stride = Math.Clamp(gait.Walk + gait.Run, 0f, 1f);   // ⭐ WL-6c — how much he is walking (knees, the glide)
+                moving = Math.Clamp((speed - 0.05f) / MovingSpeed, 0f, 1f);   // ⭐ WL-6d — how much he is moving at all (the crawl)
+                st.Crawl = Wrap(st.Crawl + planar / CrawlMetres * MathF.PI * 2f);
                 break;
             }
             case VisualFamily.Helicopter when rotorTurning:
@@ -79,7 +92,7 @@ public sealed class MotionTracker
         st.Last = position;
         st.SimTime = simTime;
         _states[e] = st;
-        return new MotionPose(rotor, st.Roll, swing);
+        return new MotionPose(rotor, st.Roll, swing, lean, Stride: stride, GaitPhase: st.Gait, Moving: moving, CrawlPhase: st.Crawl);
     }
 
     /// <summary>Forgets entities not seen for a while — called once per frame with the set drawn this frame.</summary>

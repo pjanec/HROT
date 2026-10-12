@@ -702,6 +702,63 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(2f, Row().Needed, 3);
         }
 
+        // ── WL-6 (docs/DESIGN_Weapon_Layers.md W-13, R-272) — the weapon brain's posture ───────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ WL-6 (W-13b) — the weapon brain writes the unit's <see cref="WeaponPosture"/> where it decides: hidden ⇒ Ready (raised,
+        /// not aimed); seen and aiming ⇒ Aimed at the target; firing stays Aimed; then, with no weapon action running, Aimed drops to
+        /// Ready at once and Ready to AtEase after <see cref="Fdp.Toolkit.Combat.WeaponPostureOf.LowerAfterSeconds"/>.
+        /// </summary>
+        [Fact]
+        public void WL6_TheWeaponBrainWritesThePosture_ReadyWhenHidden_AimedWhenAiming_AtEaseAfterIdle()
+        {
+            RegisterSight();
+            _world.RegisterComponent<WeaponPosture>();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 60, 0f, target, cooldownSeconds: 0.2f);
+            _world.AddComponent(shooter, new WeaponPosture());
+            WeaponPosture Posture() => _world.GetComponent<WeaponPosture>(shooter);
+            Assert.Equal(WeaponPostureKind.AtEase, Posture().Kind);
+
+            SetSight(shooter, target, visual: false);
+            _executor.OnEnter(shooter, ref channel, _world);
+            Step(shooter, ref channel, 0.1f);
+            Assert.Equal(WeaponPostureKind.Ready, Posture().Kind);
+
+            SetSight(shooter, target, visual: true);
+            Step(shooter, ref channel, 0.1f);
+            Assert.Equal(WeaponPostureKind.Aimed, Posture().Kind);
+            Assert.Equal(target, Posture().Target);
+            int fired = 0;
+            for (int i = 0; i < 10 && fired == 0; i++) fired += Step(shooter, ref channel, 0.1f);
+            Assert.Equal(1, fired);
+            Assert.Equal(WeaponPostureKind.Aimed, Posture().Kind);
+
+            // the action ends: no weapon action runs — the dispatcher's idle branch
+            Fdp.Toolkit.Combat.WeaponPostureOf.Idle(_world, shooter, 0.1f);
+            Assert.Equal(WeaponPostureKind.Ready, Posture().Kind);
+            for (int i = 0; i < 45; i++) Fdp.Toolkit.Combat.WeaponPostureOf.Idle(_world, shooter, 0.1f);   // 4.6 s
+            Assert.Equal(WeaponPostureKind.Ready, Posture().Kind);
+            for (int i = 0; i < 5; i++) Fdp.Toolkit.Combat.WeaponPostureOf.Idle(_world, shooter, 0.1f);
+            Assert.Equal(WeaponPostureKind.AtEase, Posture().Kind);
+            Assert.True(Posture().Target.IsNull);
+        }
+
+        /// <summary>⭐ WL-6 (W-13b) — every weapon-brain status maps to a posture (or explicitly to none), so a new status cannot be
+        /// silently drawn as "at ease" in the middle of a fight.</summary>
+        [Fact]
+        public void WL6_EveryWeaponStatusHasAPosture()
+        {
+            foreach (Fdp.Toolkit.Behavior.Diagnostics.ActionReason r in System.Enum.GetValues(typeof(Fdp.Toolkit.Behavior.Diagnostics.ActionReason)))
+            {
+                var kind = Fdp.Toolkit.Combat.WeaponPostureOf.For(r);
+                bool says = r is not (Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None or Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Moving);
+                Assert.True(says == kind.HasValue, $"{r}: {(kind?.ToString() ?? "none")}");
+            }
+            Assert.Equal(WeaponPostureKind.Aimed, Fdp.Toolkit.Combat.WeaponPostureOf.For(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.BlindFire));
+            Assert.Equal(WeaponPostureKind.Ready, Fdp.Toolkit.Combat.WeaponPostureOf.For(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Reloading));
+        }
+
         // ── WL-3 (docs/DESIGN_Weapon_Layers.md §5e) — a turreted mount is fought through its turret ────────────────────────────
 
         /// <summary>A shooter whose type has a turret and a mount on it, with the turret part built (one world = the editor's one
@@ -1126,5 +1183,98 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(30, _world.GetComponent<WeaponState>(unit).Ammo);
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
-}
+
+        // ── CE-3172 S4d (docs/DESIGN_Entity_Control.md §8b M-8, C-2) — operator fire ─────────────────────────────────────────
+
+        private static unsafe void AskOperator(ref WeaponChannel channel, Vector3 point, byte trigger, float cooldown = 0.2f)
+            => Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]),
+                   new AimAndFireParams { Operator = 1, Trigger = trigger, Point = point, CooldownSeconds = cooldown });
+
+        /// <summary>⭐ <c>CE-3172</c> S4d — a per-shot mount fires at the operator's POINT while the trigger is held: no target, no
+        /// sight, no aim time, and HoldFire does not hold it (C-2); the cooldown still spaces the rounds; released ⇒ no round.</summary>
+        [Fact]
+        public void CE3172_OperatorFire_PerShot_FiresAtThePoint_OverridingRoe_OnlyWhileTheTriggerIsHeld()
+        {
+            _world.RegisterComponent<Roe>();
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 10, 0f, Entity.Null, 0.2f);
+            _world.AddComponent(shooter, new Roe { Fire = RoeFire.HoldFire });
+            var point = new Vector3(40f, 5f, 1f);
+
+            AskOperator(ref channel, point, trigger: 0);
+            _executor.OnEnter(shooter, ref channel, _world);
+            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            _world.Bus.SwapBuffers();
+            Assert.Empty(_world.Bus.Read<WeaponFireIntent>().ToArray());
+            Assert.Equal(NodeStatus.Running, channel.Status);
+
+            AskOperator(ref channel, point, trigger: 1);
+            int shots = 0;
+            for (int f = 0; f < 30; f++)   // 0.5 s at 60 Hz, a 0.2 s cooldown ⇒ three rounds
+            {
+                _executor.Execute(shooter, ref channel, _world, 1f / 60f);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
+                {
+                    Assert.True(shot.AtPoint);
+                    Assert.Equal(point, shot.TargetPoint);
+                    Assert.True(shot.Target.IsNull);
+                    shots++;
+                }
+            }
+            Assert.Equal(3, shots);
+            Assert.Equal(7, _world.GetComponent<WeaponState>(shooter).Ammo);
+            Assert.Equal(NodeStatus.Running, channel.Status);   // never ends on its own
+        }
+
+        /// <summary>⭐ <c>CE-3172</c> S4d — the AI's aimed fire is untouched: Operator = 0 still obeys HoldFire.</summary>
+        [Fact]
+        public void CE3172_AiFire_StillObeysHoldFire()
+        {
+            _world.RegisterComponent<Roe>();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+            _world.AddComponent(shooter, new Roe { Fire = RoeFire.HoldFire });
+            EnterAimed(shooter, ref channel);
+            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            _world.Bus.SwapBuffers();
+            Assert.Empty(_world.Bus.Read<WeaponFireIntent>().ToArray());
+        }
+
+        /// <summary>⭐ <c>CE-3172</c> S4d — a turreted mount: released, the turret TRACKS the operator's point; held, the brain grants
+        /// rounds and the muscle fires them AT the point; a moved point re-aims without a new epoch (rounds in flight keep counting).</summary>
+        [Fact]
+        public void CE3172_OperatorFire_Turret_TracksThePoint_AndFiresWhileHeld()
+        {
+            var (shooter, turret, channel, _) = TurretedTank(rounds: 0, cooldown: 0.2f, ammo: 10);
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            var point = new Vector3(60f, 0f, 1f);   // dead ahead: no slew
+
+            AskOperator(ref channel, point, trigger: 0);
+            _executor.OnEnter(shooter, ref channel, _world);
+            _executor.Execute(shooter, ref channel, _world, 1f / 60f);
+            var task = _world.GetComponent<WeaponTask>(turret);
+            Assert.Equal(WeaponTaskMode.Track, task.Mode);
+            Assert.True(task.Target.IsNull);
+            Assert.Equal(point, task.Point);
+            uint epoch = task.Epoch;
+
+            AskOperator(ref channel, point, trigger: 1);
+            int shots = 0;
+            for (int f = 0; f < 120; f++)
+            {
+                if (f == 60) AskOperator(ref channel, point + new Vector3(0f, 3f, 0f), trigger: 1);   // the operator sweeps
+                _executor.Execute(shooter, ref channel, _world, 1f / 60f);
+                muscle.Execute(_world, 1f / 60f);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>()) { Assert.True(shot.AtPoint); shots++; }
+            }
+            Assert.True(shots >= 5, $"fired {shots} rounds in 2 s at a 0.2 s cooldown");
+            task = _world.GetComponent<WeaponTask>(turret);
+            Assert.Equal(epoch, task.Epoch);
+            Assert.Equal(point + new Vector3(0f, 3f, 0f), task.Point);
+            _executor.Execute(shooter, ref channel, _world, 1f / 60f);   // account the last reported round
+            Assert.Equal(10 - shots, _world.GetComponent<WeaponState>(shooter).Ammo);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+    }
 }

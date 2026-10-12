@@ -384,4 +384,40 @@ public class MissionControlExecutionSystemTests
         var queue = repo.GetComponent<MissionPlanQueue>(entity);
         Assert.Equal(0, queue.PhaseCount);
     }
+
+    // ── CE-3167: an immediate order clears the plan through IIntentClearProvider ─────────────────
+
+    /// <summary>
+    /// ⭐ CE-3167 (Entity Commanding §2.5d) — the system is the mission plan's clear provider: ClearFor empties the queue and the
+    /// plan exactly as CMD_ABORT_ALL does, but publishes NO ClearBehaviorEvent (the order's assign replaces the behaviour), and a
+    /// second call on the cleared unit changes nothing.
+    /// </summary>
+    [Fact]
+    public void CE3167_ClearFor_EmptiesThePlan_WithoutClearingTheBehaviour_AndIsIdempotent()
+    {
+        var entityMap = new NetworkEntityMap();
+        using var repo = CreateWorld();
+        repo.RegisterEvent<Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent>();
+        var entity = repo.CreateEntity();
+        entityMap.Register(1L, entity);
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
+        system.TestHook_ProcessIntent(repo, new MissionControlIntent
+        {
+            RequestId = Guid.NewGuid(), TargetEntityId = 1L, BaseVersion = 0,
+            Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(Guid.NewGuid(), Guid.NewGuid()) },
+        });
+        Assert.Equal(2, repo.GetComponentRO<MissionPlanQueue>(entity).PhaseCount);
+        repo.Bus.SwapBuffers();
+
+        IIntentClearProvider provider = system;
+        provider.ClearFor(entity, repo);
+
+        Assert.Equal(0, repo.GetComponentRO<MissionPlanQueue>(entity).PhaseCount);
+        Assert.False(repo.HasManagedComponent<ActiveMissionPlan>(entity));
+        repo.Bus.SwapBuffers();
+        Assert.Empty(repo.Bus.Read<Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent>().ToArray());
+
+        provider.ClearFor(entity, repo);   // idempotent: no plan, nothing to do
+        Assert.Equal(0, repo.GetComponentRO<MissionPlanQueue>(entity).PhaseCount);
+    }
 }

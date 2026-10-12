@@ -614,7 +614,7 @@ from `ActiveSensorTracksUpdateSystem` (it holds the unit's track set), not from 
 the buffer writer sees one sensor's answer, not the unit's union.
 ⭐ **`2026-10-11` (`CE-2123` S2):** three SQUAD kinds, published on the COMMANDER by `SquadCoordinationSystem` after its merge —
 `SquadContact` (pool empty → contact), `SquadUnderFire` (a member's or the leader's own Hit / NearMiss), `SquadAllClear` (pool →
-empty) — and since `CE-2125` `SquadLeaderDown` (the leader soldier fell, the next man took over; R-272) — so a leader's SOP, `RecentSenses` and HSM events react to the squad as a soldier does to itself (`Unit` is the key).
+empty) — and since `CE-2125` `SquadLeaderDown` (the leader soldier fell, the next man took over; R-272 (behaviors)) — so a leader's SOP, `RecentSenses` and HSM events react to the squad as a soldier does to itself (`Unit` is the key).
 `RecentSenses` now records EVERY kind (the area kinds 8–10 had been silently dropped by a byte mask). 📄
 `docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md` §4.
 

@@ -125,10 +125,14 @@ namespace Fdp.Toolkit.Behavior.Systems
             {
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
                 if (!Admit(repo, evt.Entity, evt.Origin, ReactionUrgency.NotAReaction, out _)) continue;   // ⭐ CE-3034 — a clear is gated like an assign
-                bool endsAReaction = repo.GetComponentRO<BehaviorState>(evt.Entity).Origin == BehaviorOrigin.Reaction;
+                var endingOrigin = repo.GetComponentRO<BehaviorState>(evt.Entity).Origin;
+                bool endsAReaction = endingOrigin == BehaviorOrigin.Reaction;
                 Clear(repo, evt.Entity, _registry);
                 // ⭐ CE-2078 — a reaction ending ITSELF resumes the task it paused; an order's clear drops it.
-                if (evt.Origin == BehaviorOrigin.Self && endsAReaction) ResumePausedTask(repo, evt.Entity);
+                // ⭐ CE-3172 (C-4) — so does a RELEASED possession (its station's clear, at origin Possession).
+                if ((evt.Origin == BehaviorOrigin.Self && endsAReaction)
+                    || (evt.Origin == BehaviorOrigin.Possession && endingOrigin == BehaviorOrigin.Possession))
+                    ResumePausedTask(repo, evt.Entity);
                 else AfterAdmitted(repo, evt.Entity, evt.Origin, null);
             }
 
@@ -240,6 +244,16 @@ namespace Fdp.Toolkit.Behavior.Systems
         {
             pause = false;
             bool slotEmpty = running.ActiveBehaviorHash == BehaviorIds.None;
+            // ⭐ CE-3172 (M-7) — a possessed unit is the operator's: no reaction interrupts it.
+            if (origin == BehaviorOrigin.Reaction && !slotEmpty && running.Origin == BehaviorOrigin.Possession) return false;
+            if (origin == BehaviorOrigin.Possession)
+            {
+                // It outranks everything; it keeps the task: pauses a running order, keeps what a running reaction paused, and a
+                // re-possession (another station) pauses nothing new. The SOP's idle choice simply re-picks after the release.
+                pause = !slotEmpty && running.Origin != BehaviorOrigin.Sop && !BehaviorOriginRank.Pauses(running.Origin)
+                        && running.Origin != BehaviorOrigin.Unmarked;
+                return true;
+            }
             if (origin == BehaviorOrigin.Reaction)
             {
                 if (slotEmpty || running.Origin == BehaviorOrigin.Sop) return true;              // ② nothing to pause
@@ -397,7 +411,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 repo.SetManagedComponent(entity, paused);
                 return;
             }
-            if (origin != BehaviorOrigin.Self && origin != BehaviorOrigin.Reaction) DropPausedTask(repo, entity, _registry);
+            if (origin != BehaviorOrigin.Self && !BehaviorOriginRank.Pauses(origin)) DropPausedTask(repo, entity, _registry);   // ⭐ CE-3172
         }
 
         private EntityRepository? _pausedRegisteredOn;

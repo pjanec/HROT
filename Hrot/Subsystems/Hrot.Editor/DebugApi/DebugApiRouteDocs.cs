@@ -985,7 +985,7 @@ namespace Hrot.Editor.DebugApi
             Group:   "F — Commands, discovery, spawn",
             Summary: "Publish an FDP event by type name.",
             Returns: "ok:true envelope. awaited:false if sim not running (not an error).",
-            Hint:    "Req: eventType (string from list_commands). Optional: payload (object), wait (bool). Example: send_entity_command({eventType:\"MissionControlIntent\",payload:{}})",
+            Hint:    "Req: eventType (string from list_commands). Optional: payload (object — the event's field names, any case; an entity field takes the unit's network id), wait (bool). Example: send_entity_command({eventType:\"CenterOnEntityCommand\",payload:{networkId:1000}})",
             Params: new RouteParam[]
             {
                 new("eventType", "string", true, "FDP event type name (e.g. MissionControlIntent)"),
@@ -996,9 +996,11 @@ namespace Hrot.Editor.DebugApi
             {
                 "Set wait:true to attempt correlated-ack wait — only effective while time advances, else awaited:false.",
                 "awaited:false is NOT an error — it means time was not advancing.",
+                "CE-3168: a payload key that names no field of the event is a 400 (it used to be dropped silently, and the event published with defaults).",
+                "To ORDER a unit use order_entity — it addresses units by network id and reaches the unit's brain node from any node.",
             },
-            ExampleArgsJson: "{\"eventType\":\"MissionControlIntent\",\"payload\":{\"targetId\":1000},\"wait\":false}",
-            ExampleGist: "publish MissionControlIntent event"),
+            ExampleArgsJson: "{\"eventType\":\"CenterOnEntityCommand\",\"payload\":{\"networkId\":1000},\"wait\":false}",
+            ExampleGist: "publish CenterOnEntityCommand event"),
 
         [("POST", "/entities/spawn")] = new RouteDoc(
             Tool:    "spawn_entity",
@@ -1781,6 +1783,143 @@ namespace Hrot.Editor.DebugApi
             },
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "read what a unit remembers — seen and heard contacts, how fresh, and where"),
+
+        // ⭐⭐ CE-3167 — orders and the situation report (docs/DESIGN_Entity_Control.md §4.1, R-270): the AI player's API.
+        [("POST", "/entities/{networkId}/order")] = new RouteDoc(
+            Tool:    "order_entity",
+            Group:   "Z — Entity control (orders)",
+            Summary: "Order a unit, as an operator: move to a point, attack an enemy, hold (stop), run any behaviour, or release it to its own SOP. The unit works out HOW (route, cover, weapon). The order outranks its SOP and mission and clears its mission plan; works from any node (forwarded to the unit's brain owner).",
+            Returns: "{ networkId, accepted:true, detail, behavior?, params?, note } — 404 unknown unit, 409 killed / other side (side lock), 400 malformed.",
+            Hint:    "Req: networkId, kind. Move: {kind:'move', lat,lon} or {x,y} (+ speed, arrivalRadius, roadUse). Attack: {kind:'attack', targetId}. Any behaviour: {kind:'behavior', behavior, params} — discover with list_behaviors({entityId}). Then poll get_entity_order. Example: order_entity({networkId:1000, kind:'move', x:120, y:-40})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "integer", true, "Network id of the unit"),
+                new("kind", "string", true, "move · attack · hold · stop (= hold) · behavior · release", EnumJson: "[\"move\",\"attack\",\"hold\",\"stop\",\"behavior\",\"release\"]"),
+                new("lat", "number", false, "move: target latitude (degrees) — the portable form"),
+                new("lon", "number", false, "move: target longitude (degrees)"),
+                new("x", "number", false, "move: target easting in THIS node's local metres (converted to lat/lon when the node can)"),
+                new("y", "number", false, "move: target northing in this node's local metres"),
+                new("speed", "number", false, "move: speed in m/s (default: the unit's)"),
+                new("arrivalRadius", "number", false, "move: arrival radius in metres"),
+                new("roadUse", "string", false, "move: Never · Neutral · Prefer · StronglyPrefer"),
+                new("targetId", "integer", false, "attack: the enemy's network id (get_sitrep lists the contacts your side knows)"),
+                new("behavior", "string", false, "behavior: the behaviour name (list_behaviors)"),
+                new("params", "object", false, "behavior: its parameters, matching its paramSchema"),
+            },
+            Notes: new[]
+            {
+                "An order is origin Operator: the unit's SOP and its mission cannot replace it; a reaction (under fire) may pause it unless its ROE says StayOnTask.",
+                "kind 'attack' runs CombatPosture with the target designated and assault: the unit closes in and fights THAT enemy (a nearer threat does not take over) and the order SUCCEEDS when it is down. ROE still applies — on HoldFire it closes in without firing.",
+                "The order is resolved on the unit's brain node a frame or two later; get_entity_order reads the result there.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000,\"kind\":\"move\",\"x\":120,\"y\":-40,\"speed\":3}",
+            ExampleGist: "send unit 1000 to a point"),
+
+        [("GET", "/entities/{networkId}/order")] = new RouteDoc(
+            Tool:    "get_entity_order",
+            Group:   "Z — Entity control (orders)",
+            Summary: "A unit's operator order: running · paused (a reaction interrupted it) · succeeded · failed · faulted · none — and what it runs now.",
+            Returns: "{ networkId, onBrainNode, state, behavior?, params?, since?, interruptedBy?, finishedAt?, fault?, current:{behavior, origin} }",
+            Hint:    "Req: networkId. Read on the unit's brain node (the Scenario perspective on a cluster). Example: get_entity_order({networkId:1000})",
+            Params: new RouteParam[] { new("networkId", "integer", true, "Network id of the unit") },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "has unit 1000 arrived?"),
+
+        [("DELETE", "/entities/{networkId}/order")] = new RouteDoc(
+            Tool:    "release_entity",
+            Group:   "Z — Entity control (orders)",
+            Summary: "Release a unit: the operator's order ends and the unit's own SOP decides again.",
+            Returns: "{ networkId, accepted:true, detail:'released' }",
+            Hint:    "Req: networkId. Example: release_entity({networkId:1000})",
+            Params: new RouteParam[] { new("networkId", "integer", true, "Network id of the unit") },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "hand unit 1000 back to its AI"),
+
+        // ⭐ CE-3172 — possession (docs/DESIGN_Entity_Control.md §8b): one station drives one unit, first person.
+        [("POST", "/entities/{networkId}/possess")] = new RouteDoc(
+            Tool:    "possess_entity",
+            Group:   "Z — Entity control (orders)",
+            Summary: "Possess a unit as this node's station (first person): its current task pauses and control_entity frames drive its body until release_possession, or until it dies; the paused task then resumes. Another station's hold is taken over.",
+            Returns: "{ networkId, accepted:true, detail:'possessing' } — 404 unknown unit, 409 killed / other side.",
+            Hint:    "Req: networkId. Then send control_entity frames; read who holds it with get_entity_order (current.origin = Possession). Example: possess_entity({networkId:1000})",
+            Params: new RouteParam[] { new("networkId", "integer", true, "Network id of the unit") },
+            Notes: new[]
+            {
+                "While possessed, ordinary orders to the unit are refused (409 Possessed) — release it first.",
+                "Possession is a behaviour (OperatorControl) at origin Possession, above Operator: no reaction interrupts it (R-270).",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "take unit 1000 in first person"),
+
+        [("DELETE", "/entities/{networkId}/possess")] = new RouteDoc(
+            Tool:    "release_possession",
+            Group:   "Z — Entity control (orders)",
+            Summary: "Let a possessed unit go: it stops, and the task it was doing before resumes.",
+            Returns: "{ networkId, accepted:true, detail:'released' } — 409 when another station (or none) holds it.",
+            Hint:    "Req: networkId. Example: release_possession({networkId:1000})",
+            Params: new RouteParam[] { new("networkId", "integer", true, "Network id of the unit") },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "hand unit 1000 back to its task"),
+
+        [("POST", "/entities/{networkId}/control")] = new RouteDoc(
+            Tool:    "control_entity",
+            Group:   "Z — Entity control (orders)",
+            Summary: "One control frame for the unit this station possesses — a person: forward/back + strafe in its body frame, facing an absolute yaw; a vehicle: throttle (forward; negative brakes, then reverses) + steer. The newest seq wins; keep sending while the controls are held.",
+            Returns: "{ networkId, accepted:true, detail:'control' } — 409 when this station does not hold the unit.",
+            Hint:    "Req: networkId, seq (rising). Example: control_entity({networkId:1000, seq:1, forward:1, yaw:0})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "integer", true, "Network id of the unit"),
+                new("seq", "integer", true, "Frame number, rising — an older frame is ignored"),
+                new("forward", "number", false, "-1..1: a person's forward (+) / back (-, at 60 %); a vehicle's throttle (- brakes, then reverses)"),
+                new("lateral", "number", false, "-1..1: a person's strafe, + = left (at 60 %)"),
+                new("steer", "number", false, "-1..1: a vehicle's steer, + = left"),
+                new("yaw", "number", false, "a person's facing — ABSOLUTE world yaw in radians (0 = +X, counter-clockwise)"),
+                new("gait", "integer", false, "a person's pace: 0 = run, 1 = walk (half speed)"),
+                new("trigger", "boolean", false, "the trigger is held (operator fire — S4d)"),
+                new("aim", "array", false, "[x,y,z] where the station aims, world metres (S4d)"),
+            },
+            Notes: new[] { "Frames only drive a unit possessed by THIS node's station (possess_entity first)." },
+            ExampleArgsJson: "{\"networkId\":1000,\"seq\":1,\"forward\":1,\"yaw\":0}",
+            ExampleGist: "walk unit 1000 forward, facing east"),
+
+        [("POST", "/orders")] = new RouteDoc(
+            Tool:    "order_entities",
+            Group:   "Z — Entity control (orders)",
+            Summary: "Several orders in one call (a squad, a turn's worth of moves). Each is answered on its own; a refusal does not stop the rest.",
+            Returns: "{ results:[ { networkId, accepted, detail, behavior?, params? } ] }",
+            Hint:    "Req: orders — an array of order_entity bodies, each with its networkId.",
+            Params: new RouteParam[]
+            {
+                new("orders", "array", true, "[{ networkId, kind, … }] — the order_entity fields per unit",
+                    ItemsJson: "{\"type\":\"object\",\"properties\":{\"networkId\":{\"type\":\"integer\"},\"kind\":{\"type\":\"string\"}}}"),
+            },
+            ExampleArgsJson: "{\"orders\":[{\"networkId\":1000,\"kind\":\"hold\"},{\"networkId\":1001,\"kind\":\"move\",\"x\":50,\"y\":10}]}",
+            ExampleGist: "hold one unit, move another"),
+
+        [("POST", "/orders/side-lock")] = new RouteDoc(
+            Tool:    "lock_side",
+            Group:   "Z — Entity control (orders)",
+            Summary: "Lock this API session to one side: orders to any other side's units are refused, and the sitrep defaults to it. side:null unlocks.",
+            Returns: "{ side }",
+            Hint:    "Req: side (Friend · Hostile · Neutral …, or null). Example: lock_side({side:'Friend'})",
+            Params: new RouteParam[] { new("side", "string", false, "The side to play, or null to unlock") },
+            ExampleArgsJson: "{\"side\":\"Friend\"}",
+            ExampleGist: "play the Friend side"),
+
+        [("GET", "/sitrep")] = new RouteDoc(
+            Tool:    "get_sitrep",
+            Group:   "Z — Entity control (orders)",
+            Summary: "The situation as ONE side knows it: its units (position, health, ammo, what each is doing) and the contacts its units remember (fog of war; a heard contact has no id). truth=true lists every other unit instead.",
+            Returns: "{ side, truth, units:[{networkId, name?, position, health, killed, ammo?, doing}], contacts:[{networkId?, heard?, position, freshness, radius?, by, alive?}] }",
+            Hint:    "Opt: side (defaults to the locked side), truth. Read on the brain node (memory lives there). Example: get_sitrep({side:'Friend'})",
+            Params: new RouteParam[]
+            {
+                new("side", "string", false, "Friend · Hostile · Neutral … (defaults to the side lock)"),
+                new("truth", "boolean", false, "true = every other unit, not only the known ones (debugging)"),
+            },
+            ExampleArgsJson: "{\"side\":\"Friend\"}",
+            ExampleGist: "what does the Friend side see?"),
 
         [("GET", "/attributes/schema")] = new RouteDoc(
             Tool:    "get_attributes_schema",

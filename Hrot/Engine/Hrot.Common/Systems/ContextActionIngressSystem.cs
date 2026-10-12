@@ -20,10 +20,22 @@ namespace Hrot.Common.Systems
     [UpdateBefore(typeof(GlobalActionDispatchSystem))]
     public sealed class ContextActionIngressSystem : IEcsModuleSystem
     {
-        private readonly NetworkEntityMap _entityMap;
+        private readonly System.Func<NetworkEntityMap?> _entityMap;
         private readonly FdpEventBus _interactionBus;
 
         public ContextActionIngressSystem(NetworkEntityMap entityMap, FdpEventBus interactionBus)
+        {
+            if (entityMap == null) throw new System.ArgumentNullException(nameof(entityMap));
+            _entityMap      = () => entityMap;
+            _interactionBus = interactionBus ?? throw new System.ArgumentNullException(nameof(interactionBus));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3179</c> — for a host whose world CHANGES (the ReplayBrowser rebinds to the active recording's world, each with
+        /// its own <see cref="NetworkEntityMap"/>): the map is read each frame. A null map leaves every target <see cref="Entity.Null"/>
+        /// — the action still runs (a main-menu item has no target).
+        /// </summary>
+        public ContextActionIngressSystem(System.Func<NetworkEntityMap?> entityMap, FdpEventBus interactionBus)
         {
             _entityMap      = entityMap      ?? throw new System.ArgumentNullException(nameof(entityMap));
             _interactionBus = interactionBus ?? throw new System.ArgumentNullException(nameof(interactionBus));
@@ -31,6 +43,7 @@ namespace Hrot.Common.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            var entityMap = _entityMap();
             // Read from the isolated interaction bus, NOT the global world view.
             foreach (var evt in _interactionBus.ReadManaged<ContextActionTriggered>())
             {
@@ -46,12 +59,13 @@ namespace Hrot.Common.Systems
 
                 Entity target = Entity.Null;
                 if (evt.EntityNetworkId != 0)
-                    _entityMap.TryGetEntity((long)evt.EntityNetworkId, out target);
+                    entityMap?.TryGetEntity((long)evt.EntityNetworkId, out target);
 
                 _interactionBus.Publish(new GlobalActionRequestedEvent
                 {
                     ActionId = actionId,
                     Target   = target,
+                    Relayed  = evt.Relayed ? (byte)1 : (byte)0,
                 });
             }
 
@@ -61,7 +75,7 @@ namespace Hrot.Common.Systems
             {
                 Entity target = Entity.Null;
                 if (evt.AnchorId > 0)
-                    _entityMap.TryGetEntity(evt.AnchorId, out target);
+                    entityMap?.TryGetEntity(evt.AnchorId, out target);
 
                 _interactionBus.Publish(new GlobalActionRequestedEvent
                 {

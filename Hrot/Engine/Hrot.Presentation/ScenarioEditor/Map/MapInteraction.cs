@@ -238,15 +238,39 @@ namespace Hrot.ScenarioEditor.Map
             typeof(Hrot.Common.Systems.GlobalActionDispatchSystem),
             typeof(Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem),   // ⭐ CE-3123 — pins and AI-trace toggles
             typeof(Hrot.UI.Common.Effects.EffectSpawnSystem),                  // ⭐ CE-1042 E2 — realism effects on every host
-            typeof(Hrot.UI.Common.Effects.EffectLifetimeSystem),
+            typeof(Hrot.UI.Common.Effects.WreckSpawnSystem),                   // ⭐ W3 — a destroyed vehicle burns and smokes
+            typeof(Fdp.Toolkit.Time.LifespanSystem),                           // ⭐ W1 — removes timed entities (effects) on sim time
+            typeof(MenuOrders),                                                // ⭐ CE-3169 — a menu order's follow-up pick becomes the order
         };
 
         /// <summary>⭐ CE-1042 E2 — makes muzzle flashes, tracers, explosions and decals from the fire / hit events
         /// (docs/DESIGN_Visual_Effects.md VE-A). Scheduled through <see cref="InteractionSystems"/>.</summary>
         public Hrot.UI.Common.Effects.EffectSpawnSystem EffectSpawn { get; } = new();
 
-        /// <summary>⭐ CE-1042 E2 — ages and removes the effects on simulation time; caps the decals (VE-G, VE-H).</summary>
-        public Hrot.UI.Common.Effects.EffectLifetimeSystem EffectLifetime { get; } = new();
+        /// <summary>⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P) — flames and smoke on a vehicle whose Health crosses to zero.</summary>
+        public Hrot.UI.Common.Effects.WreckSpawnSystem WreckSpawn { get; } = new();
+
+        /// <summary>⭐ W1 (docs/DESIGN_Visual_Effects.md §7 VE-Q) — the ONE collector for timed entities: removes each one once sim time
+        /// passes its <see cref="Fdp.Toolkit.Time.Lifespan"/> (it replaced the effects' own <c>EffectLifetimeSystem</c>).</summary>
+        public Fdp.Toolkit.Time.LifespanSystem Lifespan { get; } = new();
+
+        /// <summary>
+        /// ⭐ W1 (VE-R) — true while this host's world is driven by a REPLAY: the effect spawner and the lifespan collector then stand
+        /// down, because the recording already holds every effect and when it went. Set once from
+        /// <see cref="MapInteractionContext.IsReplayActive"/>; read late, so a host may build its replay controller after the map.
+        /// </summary>
+        public Func<bool>? IsReplayActive
+        {
+            get => EffectSpawn.IsReplayActive;
+            set { EffectSpawn.IsReplayActive = value; WreckSpawn.IsReplayActive = value; Lifespan.IsReplayActive = value; }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3169</c> — the unit menu's Move Here · Engage · Stop and their follow-up picks (registered on <see cref="Actions"/>
+        /// by the pack on every live host). ⚠ The host passes its map pick: <c>MenuOrders.PickService = () =&gt; myAdapter</c>.
+        /// Scheduled through <see cref="InteractionSystems"/>.
+        /// </summary>
+        public MenuOrders MenuOrders { get; internal init; } = null!;
 
         /// <summary>
         /// ⭐ What a host schedules for map INTERACTION, in order: the action dispatcher, the debug-state patch (⭐ CE-3123 — so a
@@ -254,7 +278,7 @@ namespace Hrot.ScenarioEditor.Map
         /// <see cref="Unserviceable"/>, so the two cannot disagree.
         /// </summary>
         public Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] InteractionSystems
-            => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] { ActionDispatch, DebugStatePatch, GizmoGroup, EffectSpawn, EffectLifetime };
+            => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] { ActionDispatch, DebugStatePatch, GizmoGroup, EffectSpawn, WreckSpawn, Lifespan, MenuOrders };
 
         /// <summary>
         /// ⭐⭐ Returns one message per required system the host did not schedule — empty when the host
@@ -324,8 +348,12 @@ namespace Hrot.ScenarioEditor.Map
                 ? "gizmo pins and AI-trace toggles from the map menu are published and never applied"
              : system == typeof(Hrot.UI.Common.Effects.EffectSpawnSystem)
                 ? "no muzzle flashes, tracers, explosions or impact marks appear when units fire"
-             : system == typeof(Hrot.UI.Common.Effects.EffectLifetimeSystem)
+             : system == typeof(Hrot.UI.Common.Effects.WreckSpawnSystem)
+                ? "destroyed vehicles never burn or smoke"
+             : system == typeof(Fdp.Toolkit.Time.LifespanSystem)
                 ? "effects never expire — they pile up and never leave the map"
+             : system == typeof(MenuOrders)
+                ? "Move Here and Engage open their pick, and the picked point or enemy is never ordered"
              : "part of the map will be silently absent";
     }
 }

@@ -149,6 +149,16 @@ Three key invariants this pipeline preserves:
 > ⭐ **The STOP crosses the wire too.** `MoveToExecutor.OnExit` writes `Mode None` with a new `IntentId` (BD1-DESIGN §1.1);
 > the egress used to skip every `Mode None`, so on a cluster the vehicle kept driving after the Brain finished or aborted.
 > It now skips only the never-commanded default (`IntentId 0`).
+>
+> ⭐ **AS-BUILT `2026-10-11` (`CE-3176`): the wait HOLDS.** `KinematicsMode.None` alone never meant "wait":
+> `CarKinematicsSystem` drives None like Direct whenever `TargetSpeed > 0` (the legacy "idle with a goal" meaning
+> that examples, benchmarks and `VehicleCommandSystem` rely on). The bridge kept the speed while the path was
+> pending, so a vehicle drove straight at its goal until the solver answered, and a goal inside the arrival radius
+> was marked `HasArrived` before any path existed. ⇒ the bridge now parks the pending state at **speed 0**;
+> `EngineBackedPathResponseSystem` restores the speed from the replicated `NavigationIntent` (PathToPoint only) when
+> it starts the trajectory. ⛔ Rejected: re-meaning `None` as hold everywhere (wide blast radius, see above) and a
+> new `Pending` kinematics mode (every `switch` default-branches into Direct). Rail:
+> `NavigationIntentBridgePipelineTests.CE3176_*` (still for 30 muscle frames, then drives at the requested speed).
 
 ```mermaid
 sequenceDiagram
@@ -164,11 +174,11 @@ sequenceDiagram
     EX->>W: NavigationIntent{PathToPoint, IntentId++, LayerMask, BackendForce}
     Note over W: DDS on a cluster (TransientLocal, R-136) · same world in the editor
     W->>BR: NavigationIntent (delta query)
-    BR->>BR: NavState.Mode=None (wait, no straight start) · infantry joins the crowd
+    BR->>BR: NavState.Mode=None, speed 0 (wait, no straight start) · infantry joins the crowd
     BR->>SO: PathfindingRequestEvent{NavLayerMask=NavLayerSelection.For}
     SO-->>RS: PathfindingResultEvent
     alt reachable
-        RS->>RS: NavState=CustomTrajectory
+        RS->>RS: NavState=CustomTrajectory, speed = intent's
         SO-->>MZ: corridor + Following
     else unreachable
         SO-->>MZ: NavState.Mode=None, Status{IntentId, FailedUnreachable}
@@ -218,7 +228,7 @@ sequenceDiagram
   participant SO as PathfindingSolverSystem
   participant TP as TrajectoryPoolManager
   participant CK as CarKinematicsSystem
-  BR->>BR: NavState.TargetSpeed = intent.TargetSpeed (PathToPoint and FollowRoute)
+  BR->>BR: NavState.TargetSpeed = intent.TargetSpeed (FollowRoute, and PathToPoint once its path is in - CE-3176)
   BR->>SO: PathfindingRequestEvent{Start, End}
   SO->>SO: Dijkstra nearest node to nearest node
   SO->>TP: waypoints = road nodes + End when End is off the last node

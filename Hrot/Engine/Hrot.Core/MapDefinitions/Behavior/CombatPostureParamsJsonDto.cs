@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json.Serialization;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Behavior.Attributes;
 
 namespace Hrot.Map.Definitions.Behavior
@@ -23,6 +24,12 @@ namespace Hrot.Map.Definitions.Behavior
         /// its OBEDIENCE allows (an ordinary soldier's does), instead of its own bravery deciding. Default false.</summary>
         [JsonPropertyName("assault")]
         public bool Assault { get; set; }
+
+        /// <summary>⭐ <c>CE-3170</c> (<c>docs/DESIGN_Entity_Control.md</c> C-5) — an ATTACK order's target: the unit fights THIS enemy
+        /// (a nearer threat does not take over) and the posture succeeds when it is down. With no objective the advance closes on
+        /// it. An <see cref="EntityRef"/>: picked on the map, remapped at scenario load; JSON is the bare network id. Default none.</summary>
+        [JsonPropertyName("target")]
+        public EntityRef Target { get; set; }
     }
 
     /// <summary>⭐ <c>CE-3160</c> — the advance of <see cref="CombatPostureParamsJsonDto"/>.</summary>

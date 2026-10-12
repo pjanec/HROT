@@ -96,6 +96,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 ulong flags = view.HasComponent<PendingNetworkAck>(entity)
                     ? (ulong)EntityMasterFlags.WaitForAcks
                     : 0UL;
+                // ⭐ LR-2 (R-271) — a replicated round: receivers create it Active, with no lifecycle and no acks.
+                if (view.HasComponent<LightweightRound>(entity)) flags |= (ulong)EntityMasterFlags.Lightweight;
 
                 _writer.Write(new EntityMaster
                 {

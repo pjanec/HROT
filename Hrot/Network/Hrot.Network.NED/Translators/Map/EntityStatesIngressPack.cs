@@ -58,6 +58,11 @@ public class EntityStatesIngressPack : IEcsModule
             new EntityDoorStateIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId),   // ⭐ Stage 5b — doors
             new EntityObstacleShapeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId),   // ⭐ CE-3136 P-7a — obstacles
             new EntityTurretPoseIngressTranslator(participant, entityMap),   // ⭐ WL-1b (CE-1049) — turret poses
+            // ⭐ WL-6 (W-13d, R-272) — the weapon brain's posture: a pure IG skips the shared pack's ingress (NedReplicationModule's
+            //   !pureIg guard), so the figure would never leave "at ease" — measured on the cluster rail, 2026-10-11.
+            new EntityWeaponPostureIngressTranslator(participant, entityMap),
+            new EntityPossessedByIngressTranslator(participant, entityMap),   // ⭐ CE-3172 S4e — a station sees who holds a unit
+            new EntityWeaponAmmoIngressTranslator(participant, entityMap),    // ⭐ CE-3174 — and the ammunition its HUD shows
         };
     }
 

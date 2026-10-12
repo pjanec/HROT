@@ -55,14 +55,19 @@ public static class SimHostAuxiliaryTranslatorPack
     {
         var translators = new List<IDescriptorTranslator>();
 
+        // ⭐⭐ CE-3167 (docs/DESIGN_Entity_Control.md §2.3, R-271 (backend)) — an ORDER may be issued on ANY node (an operator on a
+        //   map host, the AI player over HTTP), so the tactical-intent egress runs on every node, not only a Brain: it forwards
+        //   exactly the intents for units this node does not own (HasAuthority<BehaviorState> gate). 🔴 It was Brain-only, so an
+        //   order published on a SimHost / map node reached nobody. A Brain node's egress still carries a commander's intents.
+        translators.Add(new TacticalIntentEgressTranslator(participant, entityMap));
+
         // ── Mission control CQRS ───────────────────────────────────────────
         if (role.HasFlag(NodeRole.Brain))
         {
             // PACK-P001: mission control ingress polls DDS, egress writes ACKs.
             translators.Add(new MissionControlIngressTranslator(participant));
             translators.Add(new MissionControlAckEgressTranslator(participant));
-            // Tactical intent: egress from Commander Brain, ingress on subordinate Brain.
-            translators.Add(new TacticalIntentEgressTranslator(participant, entityMap));
+            // Tactical intent: ingress on the brain that owns the unit (the egress is below, on every node).
             translators.Add(new TacticalIntentIngressTranslator(participant, entityMap));
             // EQS pipeline — Brain side.
             translators.Add(new EqsSensorConfigEgressTranslator(participant, entityMap, clusterCache, localNodeId));

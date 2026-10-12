@@ -72,7 +72,10 @@ namespace Fdp.Toolkit.Combat.Executors
         public void OnExit(Entity entity, ref WeaponChannel channel, EntityRepository world) => AimAndFireExecutor.ReleaseTurrets(world, entity);
 
         private static void Say(EntityRepository world, Entity unit, ActionReason reason, Entity target)
-            => ActionStatusOf.Weapon(world, unit, CombatConstants.ActionIdTrackTarget, reason, target, 0f, 0f);
+        {
+            ActionStatusOf.Weapon(world, unit, CombatConstants.ActionIdTrackTarget, reason, target, 0f, 0f);
+            WeaponPostureOf.Report(world, unit, reason, target);   // ⭐ WL-6 (W-13b) — the weapon posture
+        }
     }
 }
 

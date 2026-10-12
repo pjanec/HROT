@@ -1204,19 +1204,21 @@ export const TOOLS_CATALOG = [
     "returns": "ok:true envelope. awaited:false if sim not running (not an error).",
     "notes": [
       "Set wait:true to attempt correlated-ack wait — only effective while time advances, else awaited:false.",
-      "awaited:false is NOT an error — it means time was not advancing."
+      "awaited:false is NOT an error — it means time was not advancing.",
+      "CE-3168: a payload key that names no field of the event is a 400 (it used to be dropped silently, and the event published with defaults).",
+      "To ORDER a unit use order_entity — it addresses units by network id and reaches the unit's brain node from any node."
     ],
     "example": {
       "args": {
-        "eventType": "MissionControlIntent",
+        "eventType": "CenterOnEntityCommand",
         "payload": {
-          "targetId": 1000
+          "networkId": 1000
         },
         "wait": false
       },
-      "gist": "publish MissionControlIntent event"
+      "gist": "publish CenterOnEntityCommand event"
     },
-    "hint": "Req: eventType (string from list_commands). Optional: payload (object), wait (bool). Example: send_entity_command({eventType:\"MissionControlIntent\",payload:{}})",
+    "hint": "Req: eventType (string from list_commands). Optional: payload (object — the event's field names, any case; an entity field takes the unit's network id), wait (bool). Example: send_entity_command({eventType:\"CenterOnEntityCommand\",payload:{networkId:1000}})",
     "manualVerify": false
   },
 
@@ -4171,6 +4173,420 @@ export const TOOLS_CATALOG = [
       "gist": "see what modules and translators this node is running"
     },
     "hint": "Optional: subsystem (filter). Example: get_architecture_diagnostics({subsystem:\"SimHost\"})",
+    "manualVerify": false
+  },
+
+  // ── Group Z — Entity control (orders) ───────────────────────────────────────
+
+  {
+    "name": "control_entity",
+    "group": "Z — Entity control (orders)",
+    "summary": "One control frame for the unit this station possesses — a person: forward/back + strafe in its body frame, facing an absolute yaw; a vehicle: throttle (forward; negative brakes, then reverses) + steer. The newest seq wins; keep sending while the controls are held.",
+    "http": {
+      "method": "POST",
+      "path": "/entities/{networkId}/control"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the unit"
+      },
+      {
+        "name": "seq",
+        "type": "integer",
+        "required": true,
+        "description": "Frame number, rising — an older frame is ignored"
+      },
+      {
+        "name": "forward",
+        "type": "number",
+        "required": false,
+        "description": "-1..1: a person's forward (+) / back (-, at 60 %); a vehicle's throttle (- brakes, then reverses)"
+      },
+      {
+        "name": "lateral",
+        "type": "number",
+        "required": false,
+        "description": "-1..1: a person's strafe, + = left (at 60 %)"
+      },
+      {
+        "name": "steer",
+        "type": "number",
+        "required": false,
+        "description": "-1..1: a vehicle's steer, + = left"
+      },
+      {
+        "name": "yaw",
+        "type": "number",
+        "required": false,
+        "description": "a person's facing — ABSOLUTE world yaw in radians (0 = +X, counter-clockwise)"
+      },
+      {
+        "name": "gait",
+        "type": "integer",
+        "required": false,
+        "description": "a person's pace: 0 = run, 1 = walk (half speed)"
+      },
+      {
+        "name": "trigger",
+        "type": "boolean",
+        "required": false,
+        "description": "the trigger is held (operator fire — S4d)"
+      },
+      {
+        "name": "aim",
+        "type": "array",
+        "required": false,
+        "description": "[x,y,z] where the station aims, world metres (S4d)"
+      }
+    ],
+    "returns": "{ networkId, accepted:true, detail:'control' } — 409 when this station does not hold the unit.",
+    "notes": [
+      "Frames only drive a unit possessed by THIS node's station (possess_entity first)."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000,
+        "seq": 1,
+        "forward": 1,
+        "yaw": 0
+      },
+      "gist": "walk unit 1000 forward, facing east"
+    },
+    "hint": "Req: networkId, seq (rising). Example: control_entity({networkId:1000, seq:1, forward:1, yaw:0})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "release_entity",
+    "group": "Z — Entity control (orders)",
+    "summary": "Release a unit: the operator's order ends and the unit's own SOP decides again.",
+    "http": {
+      "method": "DELETE",
+      "path": "/entities/{networkId}/order"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the unit"
+      }
+    ],
+    "returns": "{ networkId, accepted:true, detail:'released' }",
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "hand unit 1000 back to its AI"
+    },
+    "hint": "Req: networkId. Example: release_entity({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_entity_order",
+    "group": "Z — Entity control (orders)",
+    "summary": "A unit's operator order: running · paused (a reaction interrupted it) · succeeded · failed · faulted · none — and what it runs now.",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/order"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the unit"
+      }
+    ],
+    "returns": "{ networkId, onBrainNode, state, behavior?, params?, since?, interruptedBy?, finishedAt?, fault?, current:{behavior, origin} }",
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "has unit 1000 arrived?"
+    },
+    "hint": "Req: networkId. Read on the unit's brain node (the Scenario perspective on a cluster). Example: get_entity_order({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "order_entity",
+    "group": "Z — Entity control (orders)",
+    "summary": "Order a unit, as an operator: move to a point, attack an enemy, hold (stop), run any behaviour, or release it to its own SOP. The unit works out HOW (route, cover, weapon). The order outranks its SOP and mission and clears its mission plan; works from any node (forwarded to the unit's brain owner).",
+    "http": {
+      "method": "POST",
+      "path": "/entities/{networkId}/order"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the unit"
+      },
+      {
+        "name": "kind",
+        "type": "string",
+        "required": true,
+        "description": "move · attack · hold · stop (= hold) · behavior · release",
+        "enum": [
+          "move",
+          "attack",
+          "hold",
+          "stop",
+          "behavior",
+          "release"
+        ]
+      },
+      {
+        "name": "lat",
+        "type": "number",
+        "required": false,
+        "description": "move: target latitude (degrees) — the portable form"
+      },
+      {
+        "name": "lon",
+        "type": "number",
+        "required": false,
+        "description": "move: target longitude (degrees)"
+      },
+      {
+        "name": "x",
+        "type": "number",
+        "required": false,
+        "description": "move: target easting in THIS node's local metres (converted to lat/lon when the node can)"
+      },
+      {
+        "name": "y",
+        "type": "number",
+        "required": false,
+        "description": "move: target northing in this node's local metres"
+      },
+      {
+        "name": "speed",
+        "type": "number",
+        "required": false,
+        "description": "move: speed in m/s (default: the unit's)"
+      },
+      {
+        "name": "arrivalRadius",
+        "type": "number",
+        "required": false,
+        "description": "move: arrival radius in metres"
+      },
+      {
+        "name": "roadUse",
+        "type": "string",
+        "required": false,
+        "description": "move: Never · Neutral · Prefer · StronglyPrefer"
+      },
+      {
+        "name": "targetId",
+        "type": "integer",
+        "required": false,
+        "description": "attack: the enemy's network id (get_sitrep lists the contacts your side knows)"
+      },
+      {
+        "name": "behavior",
+        "type": "string",
+        "required": false,
+        "description": "behavior: the behaviour name (list_behaviors)"
+      },
+      {
+        "name": "params",
+        "type": "object",
+        "required": false,
+        "description": "behavior: its parameters, matching its paramSchema"
+      }
+    ],
+    "returns": "{ networkId, accepted:true, detail, behavior?, params?, note } — 404 unknown unit, 409 killed / other side (side lock), 400 malformed.",
+    "notes": [
+      "An order is origin Operator: the unit's SOP and its mission cannot replace it; a reaction (under fire) may pause it unless its ROE says StayOnTask.",
+      "kind 'attack' runs CombatPosture with the target designated and assault: the unit closes in and fights THAT enemy (a nearer threat does not take over) and the order SUCCEEDS when it is down. ROE still applies — on HoldFire it closes in without firing.",
+      "The order is resolved on the unit's brain node a frame or two later; get_entity_order reads the result there."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000,
+        "kind": "move",
+        "x": 120,
+        "y": -40,
+        "speed": 3
+      },
+      "gist": "send unit 1000 to a point"
+    },
+    "hint": "Req: networkId, kind. Move: {kind:'move', lat,lon} or {x,y} (+ speed, arrivalRadius, roadUse). Attack: {kind:'attack', targetId}. Any behaviour: {kind:'behavior', behavior, params} — discover with list_behaviors({entityId}). Then poll get_entity_order. Example: order_entity({networkId:1000, kind:'move', x:120, y:-40})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "release_possession",
+    "group": "Z — Entity control (orders)",
+    "summary": "Let a possessed unit go: it stops, and the task it was doing before resumes.",
+    "http": {
+      "method": "DELETE",
+      "path": "/entities/{networkId}/possess"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the unit"
+      }
+    ],
+    "returns": "{ networkId, accepted:true, detail:'released' } — 409 when another station (or none) holds it.",
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "hand unit 1000 back to its task"
+    },
+    "hint": "Req: networkId. Example: release_possession({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "possess_entity",
+    "group": "Z — Entity control (orders)",
+    "summary": "Possess a unit as this node's station (first person): its current task pauses and control_entity frames drive its body until release_possession, or until it dies; the paused task then resumes. Another station's hold is taken over.",
+    "http": {
+      "method": "POST",
+      "path": "/entities/{networkId}/possess"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the unit"
+      }
+    ],
+    "returns": "{ networkId, accepted:true, detail:'possessing' } — 404 unknown unit, 409 killed / other side.",
+    "notes": [
+      "While possessed, ordinary orders to the unit are refused (409 Possessed) — release it first.",
+      "Possession is a behaviour (OperatorControl) at origin Possession, above Operator: no reaction interrupts it (R-270)."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "take unit 1000 in first person"
+    },
+    "hint": "Req: networkId. Then send control_entity frames; read who holds it with get_entity_order (current.origin = Possession). Example: possess_entity({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "order_entities",
+    "group": "Z — Entity control (orders)",
+    "summary": "Several orders in one call (a squad, a turn's worth of moves). Each is answered on its own; a refusal does not stop the rest.",
+    "http": {
+      "method": "POST",
+      "path": "/orders"
+    },
+    "params": [
+      {
+        "name": "orders",
+        "type": "array",
+        "required": true,
+        "description": "[{ networkId, kind, … }] — the order_entity fields per unit",
+        "items": {
+          "type": "object",
+          "properties": {
+            "networkId": {
+              "type": "integer"
+            },
+            "kind": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    ],
+    "returns": "{ results:[ { networkId, accepted, detail, behavior?, params? } ] }",
+    "example": {
+      "args": {
+        "orders": [
+          {
+            "networkId": 1000,
+            "kind": "hold"
+          },
+          {
+            "networkId": 1001,
+            "kind": "move",
+            "x": 50,
+            "y": 10
+          }
+        ]
+      },
+      "gist": "hold one unit, move another"
+    },
+    "hint": "Req: orders — an array of order_entity bodies, each with its networkId.",
+    "manualVerify": false
+  },
+
+  {
+    "name": "lock_side",
+    "group": "Z — Entity control (orders)",
+    "summary": "Lock this API session to one side: orders to any other side's units are refused, and the sitrep defaults to it. side:null unlocks.",
+    "http": {
+      "method": "POST",
+      "path": "/orders/side-lock"
+    },
+    "params": [
+      {
+        "name": "side",
+        "type": "string",
+        "required": false,
+        "description": "The side to play, or null to unlock"
+      }
+    ],
+    "returns": "{ side }",
+    "example": {
+      "args": {
+        "side": "Friend"
+      },
+      "gist": "play the Friend side"
+    },
+    "hint": "Req: side (Friend · Hostile · Neutral …, or null). Example: lock_side({side:'Friend'})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_sitrep",
+    "group": "Z — Entity control (orders)",
+    "summary": "The situation as ONE side knows it: its units (position, health, ammo, what each is doing) and the contacts its units remember (fog of war; a heard contact has no id). truth=true lists every other unit instead.",
+    "http": {
+      "method": "GET",
+      "path": "/sitrep"
+    },
+    "params": [
+      {
+        "name": "side",
+        "type": "string",
+        "required": false,
+        "description": "Friend · Hostile · Neutral … (defaults to the side lock)"
+      },
+      {
+        "name": "truth",
+        "type": "boolean",
+        "required": false,
+        "description": "true = every other unit, not only the known ones (debugging)"
+      }
+    ],
+    "returns": "{ side, truth, units:[{networkId, name?, position, health, killed, ammo?, doing}], contacts:[{networkId?, heard?, position, freshness, radius?, by, alive?}] }",
+    "example": {
+      "args": {
+        "side": "Friend"
+      },
+      "gist": "what does the Friend side see?"
+    },
+    "hint": "Opt: side (defaults to the locked side), truth. Read on the brain node (memory lives there). Example: get_sitrep({side:'Friend'})",
     "manualVerify": false
   },
 

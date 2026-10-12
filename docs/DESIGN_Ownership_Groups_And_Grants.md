@@ -7,7 +7,7 @@ stale-below: nothing yet.
 known-rot: none.
 known-conflict: docs/DESIGN_Role_Affinity_Ownership.md §3.9/§3.9a role tables (brainOnly) — §1 measures that brainOnly misses most brain-written components (tiers, BrainInterrupts, WeaponState, TargetMemory, ActiveMissionPlan, EqsSensor, …). Push-only (Q79 §0.7) retires the role tables as the source of ownership; this doc's §2 replaces them.
 related-designs:
-  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §7 BUILDS CE-514: the owner-side centroid of a composite unit (R-272), and the body-less unit's exclusion from sensing
+  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §7 BUILDS CE-514: the owner-side centroid of a composite unit (R-272 (behaviors)), and the body-less unit's exclusion from sensing
   - docs/DESIGN_Entity_Interactions.md — an actor's ACTION on an entity it does not own (open a door, board a vehicle) travels to the owner as a typed command; each handler gates on this design's descriptor ownership
   - docs/DESIGN_Sensors_And_Doctrine.md — §7.7 OWNS dtBrainIntent (CE-3048): the Brain group's AI-intent descriptor (SopState, Roe) and the hand-over that starts it on the gaining node — the declarative projection that keeps R-165's 'never sent' intact.
   - docs/DESIGN_Map_3D_Mode.md — §3.11 asks for a TURRET PART (PartMetadata child + a turret pose descriptor per instance, M23–M26) so the 3-D map can draw an articulated turret; its ownership follows this design
@@ -21,6 +21,7 @@ related-designs:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md — owns the EQS solve, the child-sensor wire and its lifecycle; §5.8 here decides only WHICH node solves (R-179).
   - docs/DESIGN_Subsystem_Composition_Unification.md — owns role-based composition; its B5 (not started) is what composes NavigationSolverModule and the Muscle executor set, which §5.9/§5.10 here wait on.
   - docs/designs/navig-2/Navigation_Design_v2_0.md — owns the navigation topologies (collocated in-process answer, scale-out batch pair) that §5.9 keeps.
+  - docs/DESIGN_Entity_Control.md — adds ManualDrive, PossessedBy and WeaponAmmo to the Brain group
 -->
 
 # Ownership groups and grants — the build design

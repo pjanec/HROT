@@ -14,6 +14,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         Decal = 2,
         /// <summary>A short glowing streak along the shot's line.</summary>
         Tracer = 3,
+
+        /// <summary>⭐ W3 (Hrot docs/DESIGN_Visual_Effects.md §7 VE-P) — flames on a wreck: flickering tongues rising off its top.</summary>
+        Fire = 4,
+
+        /// <summary>⭐ W3 (VE-P) — a smoke column: puffs rising, growing and drifting off a wreck, fading out.</summary>
+        Smoke = 5,
     }
 
     /// <summary>

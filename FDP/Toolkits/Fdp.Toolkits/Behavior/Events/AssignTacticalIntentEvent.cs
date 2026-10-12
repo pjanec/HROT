@@ -42,5 +42,24 @@ namespace Fdp.Toolkit.Behavior.Events
         public string JsonParams = string.Empty;
         /// <summary>⭐ <c>CE-3034</c> — who asks; carried onto the behaviour the intent resolves to and over DDS.</summary>
         public Fdp.Toolkit.Behavior.Components.BehaviorOrigin Origin;
+
+        /// <summary>⭐ <c>CE-3167</c> — assign (default) or clear. 📄 <c>DESIGN_Sensors_And_Doctrine.md</c> §7.7: <i>"the ONE wire
+        /// path is the intent topic, which gains a <c>Kind</c> beside <c>Origin</c>"</i> — so releasing a unit travels exactly as
+        /// an order does, from any node.</summary>
+        public TacticalIntentKind Kind;
+
+        /// <summary>⭐ <c>CE-3167</c> (Entity Commanding §2.5b) — before the behaviour starts, the owner runs every registered
+        /// <see cref="TacticalOrderMapper.IIntentClearProvider"/> (today: the mission plan) in the same system call, so an
+        /// immediate order cannot be undone by a plan resuming at its next phase.</summary>
+        public bool ClearsPriorIntent;
+    }
+
+    /// <summary>⭐ <c>CE-3167</c> — what an <see cref="AssignTacticalIntentEvent"/> asks for (a byte on the wire).</summary>
+    public enum TacticalIntentKind : byte
+    {
+        /// <summary>Start the behaviour <see cref="AssignTacticalIntentEvent.IntentId"/> names.</summary>
+        Assign = 0,
+        /// <summary>End the running behaviour (a <see cref="ClearBehaviorEvent"/> at the intent's origin) — the SOP picks next.</summary>
+        Clear = 1,
     }
 }

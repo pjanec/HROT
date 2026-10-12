@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b) — all slices done. Programme index: PLAN_3D_World_And_Realism.md.
+build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E DECIDED (R-271) — §8.5 lightweight replicated rounds, LR-1..LR-4 BUILT 2026-10-11 (§8.5.5). Programme index: PLAN_3D_World_And_Realism.md.
 updated: 2026-10-11
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`).
+current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5).
 stale-below: nothing.
-known-rot: none.
+known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
 related-designs:
   - DESIGN_Weapon_Layers.md — the weapon muscle owns TurretPose (W-9), which Muzzle.Of poses the barrel from.
@@ -15,6 +15,10 @@ related-designs:
     MapInteractionPack.AttachMapLayers.
   - DESIGN_Building_Interiors.md — owns warheads (§3k, CE-1032): the detonation that an explosion and a decal visualise.
   - DESIGN_Body_Geometry_And_Ground_Contact.md — the same "the TKB type defines it" pattern for bodies; decals drape on the ground.
+  - designs/replay-and-modules/DESIGN.md — §2.1m: the replay gate IN PLACE (a late-read Func<bool> IsReplayActive) that W1's effect
+    systems reuse; it links mgmt-1 §8.5/§8.10, the ruling that state-deriving systems stand down during replay.
+  - DESIGN_Operations_Behaviour_Catalogue.md — §10.1 D1: vehicle damage states (destroyed / mobility / firepower kill) and human injury
+    states; §7's "destroyed" reads Health ≤ 0 until those land, then only `WreckState.IsDestroyed` changes.
 -->
 
 # DESIGN — visual effects: muzzle fire, explosions, impact decals
@@ -143,7 +147,7 @@ sequenceDiagram
 | # | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **VE-A** | where effects are made | ⭐ **on every map host, locally, from the fire / detonation events** (which already reach every node); the pack BUILDS the two systems, every host schedules them, `RequiredSystems` declares them so `Unserviceable` reports a host that does not (R-254) | replicating effect entities — the events already cross the wire; an effect is presentation · keeping it an IG/Editor module — the measured "not on all hosts" |
-| **VE-B** | what an effect entity is (U1) | ⭐ `TkbIdentity` (the effect type) + `SimTransform` + `EffectLifetime { Age, Duration }`; not saved, not recorded | the current `VisualEffectState` enum + colours on the entity — the look would live in code, not the TKB |
+| **VE-B** | what an effect entity is (U1) — ⚠ *"not recorded" and `EffectLifetime` SUPERSEDED by §7 VE-Q/VE-R (U7/U8)* | ⭐ `TkbIdentity` (the effect type) + `SimTransform` + `EffectLifetime { Age, Duration }`; not saved, not recorded | the current `VisualEffectState` enum + colours on the entity — the look would live in code, not the TKB |
 | **VE-C** | what an effect looks like | ⭐ TKB `Effect.Visual { Kind, Duration, Size, ColorHex, FadeSeconds }` on built-in effect types: muzzle flash, explosion and decal in **small / medium / large** (nine), plus the tracer | one effect type with a scale parameter — the decal art and durations differ by size, not just scale |
 | **VE-D** | which effect an ammo makes (U2: "multiple sizes based on ammo type") | ⭐ TKB `Effect.Set { MuzzleFlash, Explosion, Decal }` on the AMMO type (references to effect types); an ammo with none uses a default by its calibre class | sizing from damage or penetration — a HEAT round and an APFSDS of the same gun look different |
 | **VE-E** | where a muzzle flash is | ⭐ `EffectAnchor { Shooter, WeaponIndex }`: the RENDERER finds the muzzle each frame from the shooter's posed kit (§3.11 turret pose, M23–M26) — the flash follows the barrel; until the pose exists, the kit's neutral barrel | a fixed spawn position — wrong as soon as the vehicle or turret moves during the flash |
@@ -307,4 +311,424 @@ reader keeps its present behaviour — a rifleman's round still starts at his ey
 every reader keeps its old answer for it (riflemen, unknown types). The kit draws the barrel of the FIRST mount on turret 0 with a
 forward offset (mount 0 on a tank, the 25 mm on the Bradley); the TOW is not drawn, but its rounds and flashes leave from its own
 offset. Gates: `FireProcessingSystemTests.E4_*` (2), `Map3DTests.E4b_TheDrawnBarrelTip_IsTheMuzzle_Within5cm` (3 types).
+
+## 7. Wrecks, dead bodies, flames and smoke — and one generic `Lifespan` *(✅ APPROVED `2026-10-11`, U6–U8, R-269 (ui); W1–W4 built — §7.5)*
+
+| # | verbatim |
+|---|---|
+| **U6** | *"The destroyed entities (vehicle wrecks, soldier bodies) should be rendered differently — vehicles could become fully black and we could add a time limited (auto removal) flames/smoke entity attached to them, generating some simple particle effect. Dead soldiers could take special dead laying pose."* · on the leans: *"Durations ok. X symbol OK in 2d."* |
+| **U7** | *"Timed effect could have component stating its lifespan and time of creation (simtime) so some garbage collection system removes those. Maybe this could be a generic component and maybe it already exists?"* |
+| **U8** | *"Why not recorded? If recorded, replay will show effects properly after jump in time."* · *"Approved. Local effect entities not significant in recording, no need to measure."* |
+
+### 7.1 INVENTORY — measured `2026-10-11`
+
+Graph `search_graph` `.*(Lifetime|Lifespan|Expir|TimeToLive|Ttl|Despawn|AutoRemov|Corpse|Timed).*` (Struct 0, Class 7 — only
+`EffectLifetime` / `EffectLifetimeSystem` are entity lifetimes) + grep; corpus sweep of `docs/` and `.dev/` by topic.
+
+| what exists | where | what §7 does with it |
+|---|---|---|
+| dead entities STAY in the world (Health 0, capabilities stripped) | `HealthApplicationSystem.cs:90-104`, `DamageSystem.cs:74-83` · ruling 2026-09-13 (`RUNBOOK_Cluster_Debugging_Over_Http.md:360`), CE-272 | the wreck / body is that entity, drawn differently |
+| "destroyed" = `Health.Current ≤ 0`, Health received on EVERY node | `CombatLife.cs:21`, `ThreatDanger.cs:32`; `EntityDamage` in `SharedTranslatorPack.cs:82` | `WreckState.IsDestroyed` — the one test |
+| vehicle damage states / human injury states | ⛔ not built — D1 decided (`DESIGN_Operations_Behaviour_Catalogue.md:290-296`) | later the source of "destroyed"; only `IsDestroyed` changes |
+| `EffectLifetime { Age, Duration }` (age summed per frame, effects only) + `EffectLifetimeSystem` | `EffectComponents.cs:16`, `EffectSystems.cs:96` | ⭐ replaced by the generic `Lifespan` (VE-Q) |
+| bullet timeout `BallisticProjectile.SpawnTick` | `BallisticsSystem.cs:134` | left (combat code); named as the next `Lifespan` user |
+| effect kinds MuzzleFlash / Explosion / Decal / Tracer; no smoke, fire, particles | `EffectDtos.cs:7`; `EffectLayer.cs:157-219` | + `Fire` and `Smoke` kinds, a stateless particle draw |
+| `EffectAnchor { Shooter, WeaponIndex, Toward }` — muzzle only | `EffectComponents.cs`, `EffectLayer.cs:77-82` | + a BODY anchor (the wreck's top) |
+| person figure per stance (Standing / Crouched / Prone), blended | `ShapeKit.cs:318-346` (`BlockFigure`), `EntityBodyLayer3D.cs:147` | + a `Dead` figure posture |
+| 2-D condition bits Damaged / Immobile from Health | `EntityPresentationGizmo.cs:120-130` | + Destroyed → the 2525 X |
+| the replay browser re-spawns effects from replayed events by hand | `ReplayBrowserSubsystem.cs:458-466` | ⭐ stops: the recording holds the effects (VE-R) |
+| `DataPolicy` keeps "not recorded" (`NoReplay`) and "not saved" (`NoScenario`) apart | `DataPolicyAttribute.cs` | effect components: `NoScenario` (+ `NoPreview`), RECORDED |
+
+### 7.2 Diagrams
+
+```mermaid
+graph TD
+  subgraph Every["every map host — MapInteraction.InteractionSystems (editor, CGF, SimHost, IG, Stride; the replay browser draws only)"]
+    WS["WreckSpawnSystem<br/>Health crosses to 0 on a vehicle ⇒ Fire + Smoke effect entities"]
+    ES["EffectSpawnSystem (exists)<br/>fire / hit events ⇒ flash, explosion, decal, tracer"]
+    LS["LifespanSystem<br/>sim time past BornAt + Seconds ⇒ destroy"]
+  end
+  REC[("recording<br/>effect entities + Lifespan are recorded")]
+  REP["Replay run-state / replay browser<br/>spawners OFF, the recorded effects are drawn"]
+  LAY["EffectLayer + EntityBodyLayer3D + EntityPresentationGizmo<br/>black wreck, Dead figure, X, flames and smoke"]
+  WS --> LAY
+  ES --> LAY
+  LS --> LAY
+  WS --> REC
+  ES --> REC
+  REC --> REP
+  REP --> LAY
+  style REP stroke-dasharray: 5 5
+```
+
+*What the picture shows that prose hid:* the spawners run where the map's systems already run on every host — and are OFF in replay,
+where the recording already holds the effects (U8); running them there too would draw every effect twice. The garbage collector is
+one system for every timed entity, not a per-feature timer.
+
+```mermaid
+classDiagram
+  class Lifespan { <<BUILT W1, Fdp.Toolkit.Time, id 356, NoScenario + NoPreview, RECORDED>> double BornAtSimSeconds; float Seconds; Age(now); Phase(now); IsOver(now) }
+  class LifespanSystem { <<BUILT W1, Fdp.Toolkit.Time>> destroys an entity once now ≥ BornAt + Seconds, or now < BornAt after a jump back; IsReplayActive ⇒ stands down }
+  class EffectLifetime { <<RETIRED W1 — struct and system gone, id 124 reserved>> }
+  class EffectSpawnSystem { <<exists, W1>> stamps Lifespan.Starting(now, Duration); IsReplayActive ⇒ stands down; Housekeep: orphaned anchor, decal cap 256 }
+  class MapInteractionContext { <<exists, W1>> + IsReplayActive — SimHost: the ELM's gate · CGF: rrController · replay browser: always · editor, IG: null }
+  class WreckState { <<BUILT W2 as CombatLife.IsDestroyed — exists, has Health, Current ≤ 0 (later D1's destroyed state)>> }
+  class WreckSpawnSystem { <<BUILT W3, Hrot.Presentation Effects>> a vehicle's Health crossing to 0 ⇒ Fire + Smoke anchored to its body; IsReplayActive ⇒ off, forgets }
+  class EffectAnchor { <<exists, W3>> + Kind: Muzzle or Body (the body's top centre, every frame) }
+  class EffectKind { <<exists TKB, W3>> + Fire = 4; + Smoke = 5 }
+  class EffectTkbCatalog { <<exists, W3>> + Fire 7141 (60 s, fades 15 s), Smoke 7151 (180 s, fades 60 s); sized for a tank, scaled by the wreck }
+  class EffectLayer { <<exists, W3>> + BodyTopOf; + Puffs(r): puff i of n from (entity seed, age), stateless }
+  class EntityBodyLayer3D { <<exists, W2/W4>> PartColour: a destroyed vehicle near-black on every part and its gear; a dead person the Dead figure via DeathFall }
+  class BlockFigure { <<exists, W4>> + Dead(soldier) (on the back, limbs spread, rifle dropped); + Fall(from, t) }
+  class DeathFall { <<BUILT W4, Map3D>> when each dead man fell (sim time); a body first seen dead just lies }
+  class EntityPresentationGizmo { <<exists, W2>> + Destroyed condition bit ⇒ PerspectiveShapeRenderer draws the MIL-STD-2525 X }
+  LifespanSystem ..> Lifespan
+  EffectLifetime ..> Lifespan : replaced by
+  EffectSpawnSystem ..> Lifespan
+  MapInteractionContext ..> EffectSpawnSystem : IsReplayActive
+  MapInteractionContext ..> LifespanSystem : IsReplayActive
+  WreckSpawnSystem ..> WreckState
+  WreckSpawnSystem ..> EffectAnchor
+  WreckSpawnSystem ..> Lifespan
+  EffectLayer ..> EffectKind
+  EntityBodyLayer3D ..> WreckState
+  EntityBodyLayer3D ..> BlockFigure
+  EntityBodyLayer3D ..> DeathFall
+  EntityPresentationGizmo ..> WreckState
+```
+
+```mermaid
+sequenceDiagram
+  participant H as Health (replicated, every node)
+  participant W as WreckSpawnSystem (each map host)
+  participant L as LifespanSystem
+  participant D as layers (2-D and 3-D)
+  H->>W: a vehicle's Health crosses from > 0 to 0
+  W->>W: Fire (Lifespan 60 s) + Smoke (Lifespan 180 s), anchored to the wreck's body, BornAt = sim now
+  loop every frame
+    D->>D: wreck near-black, flames and smoke puffs from (seed, now − BornAt), the X on the 2-D symbol
+    L->>L: now ≥ BornAt + Seconds ⇒ destroy the effect entity
+  end
+  Note over D: a dead soldier: the Dead figure, fallen into from his last stance
+```
+
+### 7.3 Decisions — ✅ approved (U6–U8)
+
+| # | decision | ⭐ approved | rejected — one line each |
+|---|---|---|---|
+| **VE-N** | what "destroyed" is | `Health.Current ≤ 0` through ONE helper, `WreckState.IsDestroyed` — D1's damage states replace its body later | a new replicated destroyed flag — Health already reaches every node |
+| **VE-O** | the wreck's look | the whole 3-D body near-black (every part, the Dark / Glass / Metal roles too), the turret where it last pointed; 2-D: the MIL-STD-2525 destroyed condition — an X through the symbol (U6: *"X symbol OK"*) | a darkened 2-D symbol — not the standard marking |
+| **VE-P** | flames and smoke | effect entities of two new kinds, `Fire` (≈ 60 s) and `Smoke` (≈ 180 s, fading) (U6: *"Durations ok"*), made by each map host when a VEHICLE's Health crosses to 0, anchored to the wreck's body; a stateless particle draw (each puff from the entity's seed and its age — no particle entities); a 2-D smoke/flame mark; soldiers do not burn; a wreck loaded already dead does not burn | a particle entity per puff — thousands of entities; a burn decal on the wreck — VE-M |
+| **VE-Q** | timed removal | ⭐ ONE generic `Lifespan { BornAtSimSeconds, Seconds }` + ONE `LifespanSystem` (U7); every effect uses it, `EffectLifetime` retires, the phase comes from the sim clock (VE-G kept) | a timer per feature (today's `EffectLifetime` and the bullets' `SpawnTick`) — the bullets move later, in the combat code's lane |
+| **VE-R** | recording | ⭐ effect entities ARE RECORDED (U8), never saved to a scenario (`NoScenario`); in replay the spawners are OFF and the recorded effects are drawn — a jump lands on the right fire and smoke | ⛔ SUPERSEDED: VE-B "not recorded" — a jump lost every long effect |
+| **VE-S** | the dead soldier | a `Dead` figure posture in `BlockFigure` (on the back, limbs spread), fallen into over ~0.6 s from his last stance; drawn because he is destroyed, NOT a stance | a `Dead` value in `StanceId` — the stance is the animation contract shared with the Muscle; death is a health fact |
+
+### 7.4 Slices
+
+| slice | builds | shows |
+|---|---|---|
+| **W1** | `Lifespan` + `LifespanSystem`; effects moved onto it; `EffectLifetime` retired; effect components `NoScenario` + recorded; spawners off in replay, the replay browser's hand-spawning removed | today's effects unchanged live; correct after a replay jump |
+| **W2** | `WreckState`; black wrecks in 3-D; the 2-D X | a killed tank is a black hull with an X |
+| **W3** | `Fire` / `Smoke` kinds + catalog types; `WreckSpawnSystem`; body anchor; stateless particles; the 2-D mark | the wreck burns ~60 s and smokes ~3 min, then they are gone |
+| **W4** | the `Dead` figure + the fall | a killed soldier lies on his back |
+
+### 7.5 W1 — AS-BUILT `2026-10-11`
+
+| what | where | ⚠ vs §7.2–7.4 |
+|---|---|---|
+| `Lifespan` (id **356**) + `LifespanSystem`, generic | `FDP/Toolkits/Fdp.Toolkits/Time/Lifespan.cs`, `LifespanSystem.cs` | as drawn. ⚠ 355 is the backend lane's `CombatTemperament` |
+| every effect stamped `Lifespan.Starting(sim now, Duration)`; the layer's phase and fade read `SimClock` | `EffectSystems.cs` `Spawn`, `EffectLayer.Resolve` | as drawn — VE-G now holds by construction (no stored age to forget to freeze) |
+| `EffectLifetime` + `EffectLifetimeSystem` retired | `EffectComponents.cs`, `EffectSystems.cs` (tombstones) | as drawn; ⭐ **deviation:** its orphan-anchor (VE-J) and decal-cap (VE-H) rules moved into `EffectSpawnSystem.Housekeep`, so `LifespanSystem` stays effect-blind |
+| `EffectAnchor` and `Lifespan` recorded, `NoScenario` + `NoPreview` | `EffectComponents.cs`, `Lifespan.cs` | as drawn (VE-R) |
+| ⭐ **the replay gate** — `MapInteractionContext.IsReplayActive` → `MapInteraction.IsReplayActive` → both systems, read each frame | `MapInteractionContext.cs`, `MapInteraction.cs`, `MapInteractionPack.cs` | ⭐ not drawn before: §7.2 said "spawners OFF in replay" without the WHO. The mechanism is replay-and-modules §2.1m's (gate in place). **SimHost** passes the ELM's gate (`HrotNodeContext.BaseModules[0]`, wired by `NodeBootstrapper` to the record/replay controller); **CGF** passes `rrController`; the **replay browser** passes `() => true`; the **editor** passes nothing (its replay is an isolated sandbox, `ReplayBrowserContext`); **IG** passes nothing (listen-only: it holds no recording, so it keeps making its own from the events it receives) |
+| the replay browser's hand-spawning and its private replayed-dt clock removed | `ReplayBrowserSubsystem.cs` | ⭐ **deviation:** it still TICKS both systems (gated off) so its declared run-set stays the map's whole set and `Unserviceable` raises no false alarm |
+| rails | `EffectTests.W1_*`, `E2_*` moved onto sim time | — |
+
+*NOT verified:* a real record → replay → seek round trip that shows a recorded decal after a jump (the rails pin the policy flags and the
+gates, not the recorder). ⚠ The recorder must see `Lifespan`/`EffectAnchor` registered on the recorded world — `RegisterEffects` does it
+on every map host's world.
+
+### 7.6 W2–W4 — AS-BUILT `2026-10-11`
+
+| slice | what | where | ⚠ vs §7.2–7.4 |
+|---|---|---|---|
+| W2 | "destroyed" = `CombatLife.IsDestroyed` (exists, has `Health`, `Current ≤ 0`) | `FDP/Toolkits/Fdp.Toolkits/Combat/CombatLife.cs` | ⭐ **deviation:** no new `WreckState` class — `CombatLife` already owns *"is this unit still in the fight"* (CE-466), so the one test lives beside `IsAlive` (seam law: one home per rule) |
+| W2 | 2-D X: `EntityShapeCondition.Destroyed` (bit 4), set by `EntityPresentationGizmo`; drawn by `PerspectiveShapeRenderer.DrawDestroyedCross` for ANY profile, and on the no-profile fallback box | GizmoMap `Shapes/`, `Rendering/DebugPrimitiveRenderer2D.cs` | ⚠ measured: no shape profile uses the condition elements (`ShowWhen` has zero data users), so the renderer draws the X itself. ⚠ A dead SOLDIER's symbol gets the X too — he is destroyed by the same test |
+| W2 | 3-D wreck: `EntityBodyLayer3D.PartColour` near-black for every role and the aircraft gear; a wrecked helicopter's rotor stands | `Map3D/EntityBodyLayer3D.cs` | as drawn; the turret keeps its last `TurretPose` (nothing drives it once dead) |
+| W3 | `EffectKind.Fire` / `Smoke`; catalog `Fire 7141` (60 s), `Smoke 7151` (180 s) | `EffectDtos.cs`, `EffectTkbCatalog.cs` | ⚠ "default per vehicle family" became ONE pair for every vehicle, **scaled by the wreck's drawn footprint** (0.4–2 × a 7 m tank) — no per-family TKB descriptor (new vocabulary not needed yet) |
+| W3 | `WreckSpawnSystem` — only a CROSSING burns (memory per entity, dropped on a world change and while replaying); a person / bodiless unit / unknown type never burns | `EffectSystems.cs`; scheduled through `MapInteraction.InteractionSystems` on every host, declared in `RequiredSystems` | as drawn |
+| W3 | `EffectAnchor.Kind` (`Muzzle` / `Body`); the layer puts a body-anchored effect at the top of the drawn box (`EffectLayer.BodyTopOf`) | `EffectComponents.cs`, `EffectLayer.cs` | as drawn; the wreck deleted ⇒ the flames end (the spawner's orphan rule, W1) |
+| W3 | stateless particles `EffectLayer.Puffs` — fire tongues (0.8 s loop, dying down over the last 30 %), smoke puffs (6 s loop, rising 6 sizes, drifting on a fixed breeze); 2-D draws the same puffs from above | `EffectLayer.cs` | ⚠ the breeze is a constant until weather exists |
+| W4 | `BlockFigure.Dead` (on the back, legs apart, arms flung out, rifle dropped) + `BlockFigure.Fall`; `DeathFall` remembers when each death was SEEN (sim time) — a body first seen dead, or a death found across a jump (> 0.5 s since last seen alive), just lies | `Map3D/ShapeKit.cs`, `EntityBodyLayer3D.FigurePose` | as drawn; `Blend` and `Fall` share one interpolation (now with yaw/pitch) |
+| rails | `EffectTests.W2_*`, `W3_*`; `EntityPresentationGizmoTests.Draw_WhenDestroyed_*`; `Map3DTests.W4_*`; `MapSelfCheckTests` pinned counts | | — |
+
+⭐ **Verified on GL `2026-10-11`** — `Map3DFrameRail.W_DestroyedEntities_*` renders the story under Xvfb (Mesa) and writes six
+screenshots (`wreck-1…6-*.png`): three wrecks killed through the production `WreckSpawnSystem`, the riflemen dead / falling / alive,
+the fire dying at 52 s, smoke alone at 150 s, and the 2-D symbols with the X. ⚠ **Tuned from those shots:** the first flames were
+ADDITIVE yellow puffs that saturated to a white ball ⇒ now ALPHA-blended orange → red → soot tongues spread over the hull (16 puffs,
+Fire size 3.2 m); the first X was heavier than the outline and overshot the corners ⇒ now corner to corner at the outline's weight;
+in 2-D the smoke hid the flames ⇒ flames draw last there, at least 3 px. Run it:
+`HROT_RAIL_SHOTS=<dir> xvfb-run -a -s "-screen 0 1280x800x24" dotnet test Hrot/Engine/Hrot.Presentation.Tests --filter "FullyQualifiedName~Map3DFrameRail"`.
+
+
+## 8. Projectiles in flight and on the ground — grenades, bombs, rockets, missiles *(P1 + P2 built `2026-10-11`; PR-D/PR-E decided by R-271 — §8.5 LR built `2026-10-11`)*
+
+| # | verbatim |
+|---|---|
+| **U9** | *"Backend lane allowed throwing grenades today, i need you render the grenade when it flies and when it lays on ground before exploding. You can render basically any other projectile which is represented by its own entity, like missiles and rockets and bombs. If they have no entity and ballistic/flight model and no 3d model, lets think how to solve that."* |
+
+| **U11** | 🔒 *"Every ammo needs its tkb type, always. Big stuff like arty shells, grenades, mortar rounds, bombs, rockets as well as small bullets with tracers need to be network replicated from the muscle node who is the only one knowing the flight trajectory, no local simulation, so any dumb viewer knows about them. Projectiles need to be lightweight so their entiries should not use any lifecycle management and acks. they need just entity master and worldposition."* (R-271) |
+| **U10** | *"Rifle bullets if they have tracers (special tkb type switch) migh deserve its own entity to be visualizable, otherwise ordinary bullets does not need entity."* |
+
+### 8.1 INVENTORY — measured `2026-10-11`
+
+Graph `search_graph` `.*(Projectile|Grenade|Munition|Missile|Rocket|Ballistic).*`, Class — **26, `has_more: false`**; production hits:
+`BallisticProjectile`, `BallisticsSystem`, `BallisticAim`, `AmmoWeaponBallisticsDto`, `MunitionEffectsDto`, `MunitionTkbCatalog`,
+`MunitionDetonation` (+ its two translators), `ProjectilePresentationGizmo`. Corpus sweep of `docs/` + `.dev/` by topic.
+
+| what exists | where | what §8 does with it |
+|---|---|---|
+| every round is its OWN entity: `SimTransform` + `SimVelocity` + `BallisticProjectile` + `PhysicsCollider`; no `TkbIdentity`, no `NetworkIdentity` | `FireProcessingSystem.cs:186-243`; `designs/dds-to-ecs/DESIGN.md:864` | drawn from those components |
+| the round knows its MUNITION type (`Ammo`) and warhead bits — `Arc`, `TimeFuze`, `Landed` (lying, fuze burning), `Spent` — and `FuzeRemaining` | `CombatComponents.cs:73-148`; `DESIGN_Building_Interiors.md` §3k (W-4, W-8) | the look comes from the munition type; `Landed` + `FuzeRemaining` draw the lying grenade |
+| rounds live ONLY on the node running combat (the Muscle, or the editor as one node) — never on the wire; only the fire / detonation EVENTS cross | `designs/brain-split/BS-1-DESIGN.md` §2.1, §5.4a; `DESIGN_Weapon_Layers.md:641` | ⚠ the open question PR-D |
+| the `WeaponFire` wire event carries ONLY shooter, target, weapon index — no launch point, velocity or munition; `MunitionDetonation` carries the munition type and hit point | `FireInteractionMessages.cs:55-64, 93-115` | PR-D's lean extends it |
+| munition types: only `M67` (6001) and `81 mm HE` (6002) — warhead + `Effect.Set`, no look; every other mount fires `Ammo = 0` | `MunitionTkbCatalog.cs`; `UrbanCombatTkbCatalog.cs:183,199` | + `Munition.Visual` on the two; ⚠ PR-E for the rest |
+| `ProjectilePresentationGizmo` — a 1-frame yellow streak (previous → current position) per round on the 2-D map | `Gizmos/ProjectilePresentationGizmo.cs` | ⭐ extended, not duplicated: a lying grenade (zero-length streak, invisible today) gets a marker and its fuze countdown |
+| no flight model for rockets / missiles: straight line at muzzle velocity, gravity only on arc rounds; ATGM "guidance" is the brain holding fire for the estimated flight | `DESIGN_Building_Interiors.md:1138,1286`; `DESIGN_Weapon_Layers.md` W-12c | drawn as flown (straight), smoke trail from the muzzle |
+
+### 8.2 Diagrams
+
+```mermaid
+graph TD
+  subgraph Combat["the node that runs combat (Muscle; the editor as one node)"]
+    FP["FireProcessingSystem<br/>spawns the round entity"]
+    BS["BallisticsSystem<br/>flies it; lands a time fuze; bursts it"]
+    R[("round entity<br/>BallisticProjectile + SimTransform + SimVelocity")]
+    PL["ProjectileLayer (3-D)<br/>body from Munition.Visual"]
+    PG["ProjectilePresentationGizmo (2-D)<br/>streak / marker / fuze countdown"]
+  end
+  subgraph Remote["IG · CGF · editor in a cluster"]
+    EV["WeaponFire / MunitionDetonation events only"]
+    NO["no round entity ⇒ nothing to draw"]
+  end
+  FP --> R
+  BS --> R
+  R --> PL
+  R --> PG
+  FP -. "WeaponFire (shooter, target, weapon)" .-> EV
+  EV --> NO
+  style NO stroke-dasharray: 5 5
+  style EV stroke-dasharray: 5 5
+```
+
+*What the picture shows that the prose hid:* a round can be drawn only where it EXISTS. On every other host the dashed path ends in
+nothing — the events that do cross carry no launch point or velocity, so no host can fly a copy. That is PR-D, not a renderer gap.
+
+```mermaid
+classDiagram
+  class BallisticProjectile { <<exists, combat>> Ammo; Warhead bits Arc / TimeFuze / Landed / Spent; FuzeRemaining; Muzzle }
+  class MunitionVisualDto { <<new TKB descriptor "Munition.Visual", Fdp.Toolkits>> Shape; Length; Diameter; ColorHex; SmokeTrail }
+  class MunitionShape { <<new enum>> Grenade; Bomb; Shell; Rocket; Missile }
+  class MunitionTkbCatalog { <<exists>> + M67 Grenade 0.11 m olive; + 81 mm Bomb 0.5 m; VisualOf(tkb, ammo) with built-in fallback }
+  class ProjectileLayer { <<new, Hrot.Presentation Effects>> Resolve(): body pose per round; Draw3D; min on-screen size }
+  class ProjectilePresentationGizmo { <<exists, extended>> bullet: streak; munition: marker; lying: marker + fuze seconds }
+  class MapInteractionPack { <<exists>> AttachMapLayers adds ProjectileLayer on every host }
+  ProjectileLayer ..> BallisticProjectile
+  ProjectileLayer ..> MunitionTkbCatalog
+  ProjectilePresentationGizmo ..> BallisticProjectile
+  ProjectilePresentationGizmo ..> MunitionTkbCatalog
+  MunitionTkbCatalog ..> MunitionVisualDto
+  MunitionVisualDto ..> MunitionShape
+  MapInteractionPack ..> ProjectileLayer
+```
+
+```mermaid
+sequenceDiagram
+  participant F as FireProcessingSystem
+  participant B as BallisticsSystem
+  participant L as ProjectileLayer / gizmo
+  F->>F: spawn round (Ammo = M67, Arc + TimeFuze + Area, FuzeRemaining 4.5 s)
+  loop flying
+    B->>B: gravity arc, fuze counting
+    L->>L: 3-D: grenade body at the round, tumbling, 2-D: streak + marker
+  end
+  B->>B: terrain stop ⇒ Landed (lying), fuze still counting
+  loop lying
+    L->>L: 3-D: grenade on the ground, 2-D: marker + "2.7 s"
+  end
+  B->>B: fuze out ⇒ burst (DetonationNotification), round destroyed
+  Note over L: the explosion and decal are §6's effects, unchanged
+```
+
+### 8.3 Decisions
+
+| # | decision | lean | rejected — one line each |
+|---|---|---|---|
+| **PR-A** | where a round's look comes from | ⭐ its MUNITION type: a new optional `Munition.Visual` descriptor (shape, length, diameter, colour, smoke trail), the "the TKB type defines it" pattern of VE-C; built-in looks for M67 and 81 mm, so a host with no TKB (the replay browser) still draws them. A round with no munition look (`Ammo = 0`, every bullet) draws no body — its tracer is the effect | a look per weapon CATEGORY — the round does not carry its mount, and a category is not a munition |
+| **PR-B** | the 3-D body | ⭐ one `ProjectileLayer` on every host (`AttachMapLayers`): the body at the round, long axis along its velocity, a grenade tumbling (stateless spin from seed and sim time), a lying round flat on the ground; drawn at least ~6 px so a 6 cm grenade is visible at map distance; a rocket / missile trails stateless smoke back to its muzzle | drawing it in `EffectLayer` — a round is not an effect and has its own lifetime owner (combat) |
+| **PR-C** | the 2-D mark | ⭐ EXTEND `ProjectilePresentationGizmo` (the one 2-D projector of rounds): bullets keep the streak; a munition round adds a small filled marker in its colour; a LYING time-fuzed round adds its fuze countdown in seconds | a second 2-D projector — two implementations of one concept (ruling 9) |
+| **PR-D** | ✅ **DECIDED by U11 (R-271) — option (a): the muscle REPLICATES the visible rounds as LIGHTWEIGHT network entities** — `EntityMaster` + `WorldPos` only, no lifecycle, no acks; no local simulation on the viewers. Design: §8.5. ⛔ SUPERSEDED lean below — kept for the record | ⛔ **SUPERSEDED lean (b): extend `WeaponFire` with the launch point, launch velocity and munition type; every host flies a local VISUAL copy** (gravity for arc rounds, straight otherwise), lands it on its own terrain, and ends it on `MunitionDetonation` (which already carries the munition and the burst point). ~28 bytes per shot on an existing reliable topic; exact for unguided rounds | (a) replicate rounds as network entities — exact, but a new descriptor per round at fire rate, and the brain-split design keeps rounds muscle state · (c) nothing remote — IG is the operator's view, and grenades would be invisible there |
+| **PR-F** | ⭐ **tracers** (U10) | ⭐ **a TRACER is a switch on the munition's look** (`Munition.Visual.Tracer`, + `TracerColorHex`; shape `Bullet` = no body): the layer burns a streak along the round's REAL flight (the last 0.03 s, ≤ 25 m, never past its muzzle) — a miss shows where it went. ⚠ **Measured: every bullet is ALREADY an entity — on the combat node only** (`FireProcessingSystem.cs:186`), because its hit is a swept raycast per round (`BallisticsSystem`); so U10's *"ordinary bullets do not need an entity"* holds for **every other host**: ⇒ the rule becomes **PR-D's filter** — only rounds whose munition has a look (tracers included) are drawn or sent; an ordinary bullet never crosses the wire. ⚠ The decorative effect tracer (7131, muzzle → target in 0.25 s, VE-C) is a SECOND tracer concept: it retires once PR-D lands and tracer munitions exist (until then remote hosts have only it); a mount's tracer MIX (*"1 in 5"*) is the combat lane's, with PR-E's munition types | ⛔ one entity per tracer on every host — that IS PR-D (a), rejected there · a tracer flag on the MOUNT — a belt is a munition, and the look already lives on the munition |
+| **PR-E** | ✅ **DECIDED by U11 (R-271) — EVERY ammo has its TKB type, always** (rifle ball, tracer, shells, rockets, missiles, bombs). ⚠ The penetration caution below stands: the combat lane sets the numbers when it adds the types | ⭐ **was the lean: the combat lane gives those mounts munition types** (RPG rocket, ATGM missile, 125 mm round…) with a `Munition.Visual` — ⚠ NOT neutral: measured `ParameterResolver.MountPenetration` (`ParameterResolver.cs:226-250`) looks the AMMO NAME up in the reference library when the mount's own penetration is 0, so a new type can change armour penetration — the combat lane must set/verify the numbers. No flight model is needed to DRAW them: they fly straight, and the layer draws what flies. A guided flight model is a separate combat feature (and makes PR-D (a) necessary for that munition) | infer "missile" from speed / damage — a guess the TKB should state |
+
+### 8.4 P1 — AS-BUILT `2026-10-11`
+
+| what | where |
+|---|---|
+| `MunitionVisualDto` (`Munition.Visual`) + `MunitionShape` | `FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/MunitionVisualDto.cs` |
+| looks for M67 (grenade, 0.11 m × 0.06 m, olive) and 81 mm (bomb, 0.5 m × 0.081 m); `MunitionTkbCatalog.VisualOf` with built-in fallback | `Hrot/Engine/Hrot.Core/Tkb/MunitionTkbCatalog.cs` |
+| `ProjectileLayer` (3-D), attached on every host by `AttachMapLayers` | `Hrot/Engine/Hrot.Presentation/Effects/ProjectileLayer.cs` |
+| `ProjectilePresentationGizmo` extended (marker, fuze countdown) | `Hrot/Engine/Hrot.Presentation/Gizmos/ProjectilePresentationGizmo.cs` |
+| rails + GL frame rail `P_Projectiles_*` (grenade flying, grenade lying, mortar bomb, a test missile type) | `EffectTests.P1_*`, `Map3DFrameRail` |
+
+| ⭐ **P2 (PR-F)** — `Munition.Visual.Tracer` / `TracerColorHex`, `MunitionShape.Bullet`; `ProjectileLayer.TracerOf` (additive streak, ≥ 2.5 px wide); the 2-D projector draws a tracer bullet's streak wider in its glow, no marker; an ordinary bullet still draws only the 1-frame streak (2-D) and nothing in 3-D | `MunitionVisualDto.cs`, `ProjectileLayer.cs`, `ProjectilePresentationGizmo.cs`; rails `EffectTests.P2_*`, the frame rail's tracer burst |
+
+⚠ **Tuned from the Xvfb shots (`rounds-1…3`):** at 7 px the bodies read as specks ⇒ `MinPixels` 10; the 2-D marker first took the
+munition's PAINT (olive) and vanished on the grey/green map ⇒ it shows STATE — bright yellow flying, red-orange armed (lying, fuze
+burning); the fuze text "2.7 s" rendered as "27 s" (the map's default font drops the decimal point at that size) ⇒ whole seconds
+rounded up, "3 s"; the smoke trail of evenly spaced equal puffs read as beads ⇒ denser (0.9 m), jittered and spreading.
+
+### 8.5 Lightweight replicated rounds (LR) — the R-271 design *(✅ LR-1..LR-4 BUILT `2026-10-11` — as-built in §8.5.5; the diagrams below are the AS-BUILT)*
+
+⭐ U11: every ammo has a TKB type; the visible rounds — artillery, mortar, grenades, bombs, rockets, missiles, tracer bullets — are
+REPLICATED by the muscle (the only node that knows the trajectory); viewers simulate nothing; a round is LIGHTWEIGHT: `EntityMaster` +
+`WorldPos`, no lifecycle, no acks.
+
+#### 8.5.1 INVENTORY — measured `2026-10-11`
+
+Graph `.*(EntityMaster|GhostCreation|Geo.*Translator|NetworkTransform|Ghost.*System).*`, Class — **24, `has_more: false`**; corpus sweep.
+
+| what exists | where | LR does |
+|---|---|---|
+| `EntityMaster { EntityId, TkbType, DisType, Flags }`; `Flags` has ONE bit, `WaitForAcks` | `GenericDescriptors.cs:16-20, 89-121` | + a `Lightweight` bit |
+| `WorldPos { Time (sim stamp), Pos, Ori, Vel, Acc, RotVel }`, BestEffort / TransientLocal / KeepLast(1); egress on a 1 cm / 0.5° change, 10 s heartbeat | `GeoSpatialEgressTranslator.cs:121-240`; `Hrot.Network.NED.md:616` | reused as is: a flying round moves every tick ⇒ a sample every tick |
+| every node DEAD-RECKONS a remote entity from the last sample: `LastPosition + Vel × (simNow − stamp)` — a pure function of replicated data, not a simulation | `DESIGN_Dead_Reckoning.md` Headline, R2/R4/R7 | ⭐ applies unchanged — it is the muscle's state extrapolated, which U11's *"no local simulation"* does not forbid |
+| ingress: ANY descriptor with an unknown id makes a GHOST (`GhostCreationSystem.CreateGhost` ⇒ lifecycle `Ghost`), promoted by `GhostPromotionSystem` through the ELM (Constructing → local module acks → Active); `WaitForAcks` adds the cross-node barrier | `GhostCreationSystem.cs`; `EntityMasterIngressTranslator.cs:80-110`; `DESIGN_Cross_Node_Construction_Barrier.md:45-58` | ⭐ a `Lightweight` master skips ALL of it: the entity is created `Active` on the first sample |
+| ⛔ no ELM-free path is built: `GhostCreationSystem.BypassLifecycle` is set by 3 sites and read by none (the replay intent) | `replay-and-modules/DESIGN.md` §2.1k; `mgmt-1/DESIGN.md` §8.10 | the per-entity bypass LR needs is NEW (per entity, by the master's flag — not the global replay switch) |
+| BDC replicates with `BDC_EntityMaster` + `BDC_WorldPos` only — a precedent for the shape (still through the ghost path) | `Hrot.Network.BDC.md:73-74`; `BdcEntityMasterTranslator.cs` | the precedent for "master + world position" |
+| network ids: pooled allocator, chunks of 100, a LOCAL dequeue per id | `DESIGN_Deterministic_Network_Ids.md:197-199` | cheap enough per round |
+| ⚠ `NetworkEntityMap` grows with ephemeral entities unless disposals are processed | `REPL-DESIGN.md` §3, §3.3 | a round's dispose MUST unmap it on every node |
+| a viewer's position ingress writes `SimTransform` + `SimVelocity` (heading-only rotation) | `GeoSpatialIngressTranslator.cs:73-100` | the viewer orients the round by its VELOCITY, not the rotation |
+
+#### 8.5.2 Diagrams
+
+```mermaid
+graph TD
+  subgraph Muscle["the muscle (runs combat)"]
+    FP["FireProcessingSystem<br/>round + TkbIdentity(ammo) + LightweightRound if VISIBLE"]
+    ID["LightweightRoundIdentitySystem<br/>pooled id + local NetworkAuthority + map"]
+    BS["BallisticsSystem<br/>flies / lands / bursts it"]
+    EM["EntityMaster egress<br/>Flags = Lightweight"]
+    WP["WorldPos egress (exists)"]
+    CL["CycloneNetworkCleanupSystem<br/>round gone ⇒ dispose"]
+    PK["EntityCreationPack.NetworkSystems<br/>ticked by IG, Stride, CGF, SimHost"]
+  end
+  ED["standalone editor<br/>no network systems"]
+  subgraph Viewer["any viewer: IG, CGF, editor, replay of the muscle"]
+    IN["EntityMaster ingress<br/>Lightweight ⇒ create ACTIVE, no ghost, no ELM"]
+    GI["WorldPos ingress (exists)<br/>SimTransform + SimVelocity"]
+    DR["dead reckoning (exists)"]
+    PL["ProjectileLayer + 2-D projector<br/>draw by the munition look"]
+  end
+  PK --> ID
+  FP --> ID
+  ID --> EM
+  BS --> WP
+  BS --> CL
+  ED -.-x ID
+  EM -- "EntityMaster (Lightweight)" --> IN
+  WP -- "WorldPos every tick" --> GI
+  GI --> DR
+  IN --> PL
+  DR --> PL
+  CL -. "dispose EntityMaster + WorldPos" .-> IN
+  style ED stroke-dasharray: 5 5
+```
+
+*What the picture shows that prose hid:* nothing on the viewer side reaches the ELM or the ghost promotion — the `Lightweight` flag
+is the only fork, at the one place an entity is born on a viewer; position and dead reckoning are the existing paths, unchanged.
+⭐ As-built: the identity is given by a NETWORK system (`LightweightRoundIdentitySystem`, registered by `EntityCreationPack` and ticked
+only by the four networked hosts' `NetworkSystems` loops) — so the combat code knows nothing of the network (R-134), and on the
+**standalone editor** (dashed — never reached) a round is tagged but never identified: it stays local, which is right, there is no
+viewer to send it to. The dispose is not the ELM's `DestructionOrder` (a round has none): the cleanup system notices the round is gone.
+
+```mermaid
+classDiagram
+  class EntityMasterFlags { <<exists, NED>> WaitForAcks; + Lightweight }
+  class MunitionTkb { <<LR-1, combat lane>> a munition type for EVERY mount; Munition.Visual on the visible ones }
+  class FireProcessingSystem { <<exists, combat>> + tracer mix (every Nth round) + MarkIfVisible: TkbIdentity(ammo) + LightweightRound }
+  class LightweightRound { <<LR-2, tag id 357, Fdp.Toolkits Replication>> replicated without lifecycle; never saved, never previewed }
+  class LightweightRoundIdentitySystem { <<LR-2, new, PostSimulation>> pooled id + NetworkAuthority(local) + NetworkEntityMap }
+  class EntityMasterEgressTranslator { <<exists>> + Flags Lightweight for a LightweightRound }
+  class EntityMasterIngressTranslator { <<exists>> + Lightweight: Active, drop GhostStateTracker, LightweightRound; dispose: destroy }
+  class CycloneNetworkCleanupSystem { <<exists>> + a tracked LightweightRound no longer alive ⇒ dispose its samples + unmap }
+  class ProjectileLayer { <<exists, LR-3>> + draws a LightweightRound by TkbIdentity's look, oriented by SimVelocity }
+  class LightweightRoundGizmo { <<LR-3, new 2-D projector>> ProjectilePresentationGizmo.DrawRound }
+  class EffectSpawnSystem { <<exists, LR-4>> the decorative tracer retires (the real tracer round replaces it) }
+  FireProcessingSystem ..> LightweightRound
+  LightweightRoundIdentitySystem ..> LightweightRound
+  EntityMasterEgressTranslator ..> EntityMasterFlags
+  EntityMasterIngressTranslator ..> EntityMasterFlags
+  EntityMasterIngressTranslator ..> LightweightRound
+  CycloneNetworkCleanupSystem ..> LightweightRound
+  ProjectileLayer ..> LightweightRound
+  LightweightRoundGizmo ..> LightweightRound
+  FireProcessingSystem ..> MunitionTkb
+```
+
+```mermaid
+sequenceDiagram
+  participant M as muscle
+  participant D as DDS
+  participant V as viewer
+  M->>M: fire a VISIBLE round: entity + TkbIdentity(ammo) + LightweightRound
+  M->>M: LightweightRoundIdentitySystem: pooled id + local NetworkAuthority + map entry
+  M->>D: EntityMaster (TkbType = ammo, DIS kind 2, Flags = Lightweight)
+  D->>V: create the entity ACTIVE at once (no ghost, no ELM, no acks), or convert the ghost an early WorldPos made
+  loop every tick while it flies or lies
+    M->>D: WorldPos (pos, vel, sim stamp)
+    D->>V: SimTransform + SimVelocity, dead-reckoned between samples
+  end
+  M->>M: burst (or a bullet stops) ⇒ round destroyed
+  M->>M: CycloneNetworkCleanupSystem sees it gone (no DestructionOrder)
+  M->>D: dispose EntityMaster + WorldPos, unmap
+  D->>V: destroy (DisposalMonitoringSystem prunes the map entry)
+```
+
+#### 8.5.3 Decisions inside LR
+
+| # | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **LR-A** | which rounds replicate | ⭐ every round whose munition has a `Munition.Visual` (U11's list: shells, mortar, grenades, bombs, rockets, missiles, TRACER bullets); an ordinary bullet stays an entity on the muscle only (it IS the hit test) | every round — a rifle burst would put ~10 entities/s per rifleman on the wire for nothing a viewer draws |
+| **LR-B** | where "no lifecycle" lives | ⭐ a `Lightweight` bit on `EntityMaster.Flags` (the field built for "entity-type specific flags") + a local `LightweightRound` tag; the ingress creates the entity `Active` and `GhostPromotionSystem` skips it | honouring the global `BypassLifecycle` — that is the replay switch and would bypass every entity |
+| **LR-C** | what a viewer knows of a lying grenade | ⭐ only what `WorldPos` says (U11: master + position): it lies still; the FUZE countdown stays on the muscle's 2-D map. A later tiny "munition state" descriptor is possible if wanted | adding fuze state to `WorldPos` — not U11's shape |
+| **LR-D** | send rate | ⭐ the existing egress rule — a moving round sends every tick, a lying one only its heartbeat; dead reckoning smooths between; measure an MG burst before tuning | a dedicated rate limiter now — no measurement yet |
+| **LR-E** | the fire-event extension (old PR-D lean) and the decorative effect tracer | ⭐ both retire: the round itself crosses the wire; the effect tracer is replaced by the real tracer round (LR-4) | keeping both — two tracers per shot |
+
+#### 8.5.4 Slices
+
+| slice | builds | owner (lean) |
+|---|---|---|
+| **LR-1** | a munition TKB type for EVERY mount (rifle ball + tracer, MG, autocannon, tank gun, RPG, ATGM, mortar, grenade); `Munition.Visual` on the visible ones; ⚠ penetration numbers stated explicitly (the name lookup, PR-E) | combat lane (backend) |
+| **LR-2** | `EntityMasterFlags.Lightweight`; `LightweightRound`; muscle egress (id from the pooled allocator, master + `WorldPos`, dispose on burst); viewer ingress `Active` with no ghost / ELM, destroy + unmap on dispose; `GhostPromotionSystem` skips it | network lane (backend) |
+| **LR-3** | viewers draw it: `ProjectileLayer` and the 2-D projector read a `LightweightRound` (look from `TkbIdentity`, nose from `SimVelocity`, lying = at rest); body layer and unit-symbol gizmo ignore munition types | ui lane |
+| **LR-4** | the decorative effect tracer retires once tracer munitions replicate | ui lane |
+
+⭐ Built end to end by the ui lane (user `2026-10-11`: *"you will [do] it end to end, no handoffs"*), not split across the combat and
+network lanes as the owner column leaned.
+
+#### 8.5.5 LR-1..LR-4 — AS-BUILT `2026-10-11`
+
+| slice | as built | where |
+|---|---|---|
+| **LR-1** | seven new munition types `6003`–`6009` (5.56 ball, 5.56 tracer, 25 mm APDS-T, 120 / 125 mm APFSDS, TOW, RPG-7), DIS kind 2; a look on all but the ball. Every built-in mount loads one (`WeaponMount.AmmoTkb` in the BDC catalog, `AmmoGuid` in the urban one). ⭐ The rifles MIX tracers: `WeaponMountDto.TracerAmmoGuid` + `TracerEvery` (5), counted by a new `ShotOrdinal.Fired` — ⚠ kept apart from `ShotOrdinal.Count`, which drives the hit model's deflection sequence and so must not move | `MunitionTkbCatalog.cs`; `WeaponSuiteDto.cs`; `FireProcessingSystem.cs` |
+| **LR-1 neutrality** | ⭐ no combat number moved, by construction AND by rail: every mount states its penetration (it wins before the by-name library pair) and no new name matches an explosive reference entry — RPG / TOW deliberately do NOT carry the library names "PG-7V HEAT" / "TOW-2 HEAT" (a real HEAT warhead is the combat lane's call). Pinned by `EffectTests.LR1_EveryBuiltInMountLoadsAMunitionType_AndNoCombatNumberMoved` | — |
+| **LR-2 muscle** | `FireProcessingSystem.MarkIfVisible` tags a round whose munition has a `Munition.Visual` (`TkbIdentity` + `LightweightRound` + DIS type + `ScenarioIgnoreTag`); ⭐ DEVIATION: the network identity is NOT given by the fire path (the class diagram's first draft) but by a new network system, `LightweightRoundIdentitySystem`, in `EntityCreationPack`'s network systems — the combat code stays network-free (R-134). Egress sets `EntityMasterFlags.Lightweight` (`1 << 1`) | `LightweightRoundIdentitySystem.cs`; `EntityCreationPack.cs`; `EntityMasterEgressTranslator.cs` |
+| **LR-2 dispose** | ⭐ DEVIATION: a round has no ELM `DestructionOrder`, which is the only thing `CycloneNetworkCleanupSystem` disposed on — so it now also TRACKS `LightweightRound` entities and disposes the samples of one that is no longer alive | `CycloneNetworkCleanupSystem.cs` |
+| **LR-2 viewer** | the ingress makes a `Lightweight` master's entity `Active` at once, removes the `GhostStateTracker` (⭐ DEVIATION: no change in `GhostPromotionSystem` was needed — it queries lifecycle `Ghost` only, `GhostPromotionSystem.cs:296`, so an `Active` round is never seen), adds `LightweightRound` + `ScenarioIgnoreTag`; an early-`WorldPos` ghost is converted; its own round seen through loopback (local authority) is left alone. Its dispose DESTROYS the entity directly instead of publishing a teardown command | `EntityMasterIngressTranslator.cs` |
+| **LR-3** | `ProjectileLayer` resolves a `LightweightRound` without `BallisticProjectile` (look from `TkbIdentity`, nose from `SimVelocity`, at rest = lying, the trail / tracer run back along the flight); the 2-D drawing became `ProjectilePresentationGizmo.DrawRound`, shared with a new `LightweightRoundGizmo`; the body layer never draws a `LightweightRound` (query + pick box) nor a munition type — also a built-in one on a host whose TKB lacks it (`MunitionTkbCatalog.IsBuiltIn`; ⚠ found by the Xvfb frame rail `LR_AViewerDrawsReplicatedRounds…`: every replicated round drew as an unknown purple box) — and the unit marker skips a `LightweightRound` | `ProjectileLayer.cs`; `ProjectilePresentationGizmo.cs`; `EntityBodyLayer3D.cs`; `EntityPresentationGizmo.cs` |
+| **LR-4** | `EffectSpawnSystem` spawns no tracer effect; type `7131` stays registered so older recordings still draw theirs | `EffectSystems.cs` |
+
+⚠ **Known limits, not built:** a viewer knows no fuze (LR-C — a lying grenade is drawn lying, not counting); a `WorldPos` sample that
+arrives AFTER the dispose makes a ghost the 60 s ghost timeout removes; the send rate is unmeasured for an MG burst (LR-D).
 

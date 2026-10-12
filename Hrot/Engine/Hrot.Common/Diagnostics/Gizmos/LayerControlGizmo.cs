@@ -158,6 +158,17 @@ namespace Hrot.Common.Diagnostics.Gizmos
             + GlobalActionIds.ToggleMap3D            // ⭐ CE-1033 — the map's 2-D / 3-D switch, on every map host
             + ",\"label\":\"2-D / 3-D Map\"}]}]";
 
+        /// <summary>⭐ CE-3171 — the same View menu plus "RTS command mode", where the map can order units
+        /// (<see cref="Hrot.Common.Orders.OrdersOffered"/>; never in a replay).</summary>
+        private static readonly string MainMenuJsonWithOrders =
+            "[{\"label\":\"View\",\"priority\":30,\"children\":[{\"id\":"
+            + GlobalActionIds.OpenLayerControl
+            + ",\"label\":\"Tactical Map Layers...\"},{\"id\":"
+            + GlobalActionIds.ToggleMap3D
+            + ",\"label\":\"2-D / 3-D Map\"},{\"id\":"
+            + GlobalActionIds.ToggleRtsCommand
+            + ",\"label\":\"RTS Command Mode\"}]}]";
+
         private readonly long _anchorId;
         private readonly FdpEventBus _interactionBus;
         private readonly StructInspectorProjector<LayerControlDto> _projector;
@@ -201,7 +212,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
             draw.EmitRaw(in maskPrim);
 
             // Inject "View > Tactical Map Layers..." into the host main menu bar.
-            draw.DrawMainMenuBinding(MainMenuJson);
+            draw.DrawMainMenuBinding(
+                view is EntityRepository repo && repo.HasSingletonManaged<Hrot.Common.Orders.OrdersOffered>()
+                    ? MainMenuJsonWithOrders : MainMenuJson);   // ⭐ CE-3171
 
             // Emit StructInspector panel when editing is active.
             if (_isEditing)

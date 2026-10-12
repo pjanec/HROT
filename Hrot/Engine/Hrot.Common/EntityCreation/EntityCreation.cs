@@ -318,6 +318,8 @@ namespace Hrot.Common.EntityCreation
                     missing.Add($"{nameof(NetworkSystems)} ({sys.GetType().Name}) — " +
                                 (sys is NetworkPollingSystem
                                     ? "the ownership strategy's cluster cache is never fed, so created entities grant nothing"
+                                    : sys is Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem
+                                    ? "visible rounds (shells, grenades, rockets, tracers) never get a network id, so no viewer sees them (R-271)"
                                     : "delete requests addressed to this node are never processed"));
 
             if (missing.Count == 0) return string.Empty;

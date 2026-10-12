@@ -434,17 +434,21 @@ namespace Fdp.Toolkit.Behavior.Systems
             var fault = BehaviorFault.Take(repo, entity, behavior.InstanceId);
             if (fault != BehaviorFaultCode.None) result = NodeStatus.Failure;
             var origin = behavior.Origin;   // ⚠ `behavior` may alias the component Clear rewrites — read it first
-            repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = result, FaultCode = fault, Origin = origin });
+            var finished = new BehaviorFinishedEvent { Entity = entity, Result = result, FaultCode = fault, Origin = origin };
+            repo.Bus.Publish(finished);
+            // ⭐ CE-3167 — an operator's order keeps its outcome after the clear below, for GET /entities/{id}/order.
+            if (origin == BehaviorOrigin.Operator)
+                OperatorOrderOutcome.Record(repo, entity, behavior.ActiveBehaviorHash, behavior.InstanceId, finished.Outcome, fault);
             _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
             BehaviorIngressSystem.Clear(repo, entity, _registry);
             // ⭐ CE-2078 (R-199 ②) — a reaction ended ⇒ the task it paused restarts, through the gate, next frame.
-            if (origin == BehaviorOrigin.Reaction) BehaviorIngressSystem.ResumePausedTask(repo, entity);
+            if (BehaviorOriginRank.Pauses(origin)) BehaviorIngressSystem.ResumePausedTask(repo, entity);   // ⭐ CE-3172 — or a possession
         }
 
         /// <summary>⭐ <c>CE-2078</c> — a run that cannot go on is cleared; if it was a reaction, the task it paused restarts.</summary>
         private void ClearResumingAPausedTask(EntityRepository repo, Entity entity)
         {
-            bool reaction = repo.GetComponentRO<BehaviorState>(entity).Origin == BehaviorOrigin.Reaction;
+            bool reaction = BehaviorOriginRank.Pauses(repo.GetComponentRO<BehaviorState>(entity).Origin);   // ⭐ CE-3172
             BehaviorIngressSystem.Clear(repo, entity, _registry);
             if (reaction) BehaviorIngressSystem.ResumePausedTask(repo, entity);
         }

@@ -111,11 +111,14 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem? _statelessGizmoSystem;
     // ⭐ CE-1042 E2 — the realism effects, driven here like the other map systems (this host runs them from Update).
     private Hrot.UI.Common.Effects.EffectSpawnSystem? _effectSpawn;
-    private Hrot.UI.Common.Effects.EffectLifetimeSystem? _effectLifetime;
-    private float _replayAdvanceSeconds;
+    private Fdp.Toolkit.Time.LifespanSystem? _lifespan;
+    private Hrot.UI.Common.Effects.WreckSpawnSystem? _wreckSpawn;
     private Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer? _gizmoLayer;
     private Fdp.Core.FdpEventBus? _interactionBus;
     private Hrot.Common.Systems.GlobalActionDispatchSystem? _actionDispatchSystem;
+    /// <summary>⭐ <c>CE-3179</c> — the map-menu clicks (GizmoMenuActionEvent) become GlobalActionRequestedEvent here, as on every
+    /// other map host; it follows the ACTIVE world's entity map, which changes when a recording is rebound.</summary>
+    private Hrot.Common.Systems.ContextActionIngressSystem? _contextIngress;
     // ⭐ CE-3123 — applies the map menu's pin / AI-trace patches; the pack constructs it, this host ticks it (no kernel).
     private Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem? _debugStatePatchSystem;
     private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
@@ -208,6 +211,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                     RubberBand = rubberBandState,
                     // The replay browser is an interactive window: it has a viewer from startup.
                     StartEnabled = true,
+                    // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — this host only ever shows a recording, and effects are recorded:
+                    //   the spawner and the lifespan collector stand down; the recorded effects are drawn as they were.
+                    IsReplayActive = static () => true,
                     ContributeExtras = regs =>
                     {
                         // ⭐ CE-3123 — the label gizmo is reflected now (BehaviorRegistry via Services); the retired
@@ -226,7 +232,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             _dataDrivenGizmoSystem = mapInteraction.DataDrivenSystem;
             _statelessGizmoSystem  = mapInteraction.StatelessSystem;
             _effectSpawn           = mapInteraction.EffectSpawn;
-            _effectLifetime        = mapInteraction.EffectLifetime;
+            _lifespan              = mapInteraction.Lifespan;
+            _wreckSpawn            = mapInteraction.WreckSpawn;
             var gizmoRegistry      = mapInteraction.GizmoRegistry;
             var statelessRegistry  = mapInteraction.StatelessRegistry;
             var settingsRegistry   = mapInteraction.Settings;
@@ -234,7 +241,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             // scheduling the group, so it declares exactly those three. §3.2e.
             foreach (string problem in mapInteraction.Unserviceable(
                          new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem, mapInteraction.ActionDispatch,
-                                        _effectSpawn, _effectLifetime }))
+                                        _effectSpawn, _wreckSpawn, _lifespan }))
                 Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
 
             // ⭐⭐⭐ UXI-11 — ALL FOUR COME FROM THE PACK NOW. 📐 This host used to construct the gesture
@@ -262,6 +269,11 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             });
 
             _actionDispatchSystem = mapInteraction.ActionDispatch;
+            // ⭐ CE-3179 — the dispatcher above was ticked here with nothing feeding it: no ingress turned a map-menu click (Center
+            //   View, the pins, the main menu's layer control) into a request, so none of them ran in the replay browser.
+            _contextIngress = new Hrot.Common.Systems.ContextActionIngressSystem(
+                () => _activeRepo is { } r && r.HasSingletonManaged<NetworkEntityMap>() ? r.GetSingletonManaged<NetworkEntityMap>() : null,
+                _interactionBus!);
             _debugStatePatchSystem = mapInteraction.DebugStatePatch;
             // ⭐⭐ CE-259am — a DELEGATE, not `_canvas.Camera`: the canvas is replaced on a view-mode
             //    switch, and the system's own param doc gives that as the reason it takes a Func.
@@ -382,7 +394,6 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 while (_playbackAccumulator >= frameTime)
                 {
                     _playbackAccumulator -= frameTime;
-                    _replayAdvanceSeconds += frameTime;   // ⭐ CE-1042 E2 — the effects' clock is the REPLAYED time (VE-G)
                     if (!TryStepForwardViaManager())
                     {
                         _timelinePanel.IsPlaying = false;
@@ -436,6 +447,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 //    land in one frame (the order ScenarioEditorModule registers them in).
                 _selectionRequests?.Execute(_activeRepo, deltaTime);
                 _selectionNotifications?.Execute(_activeRepo, deltaTime);
+                _contextIngress?.Execute(_activeRepo, deltaTime);   // ⭐ CE-3179 — before the dispatch, the order every host keeps
                 _actionDispatchSystem?.Execute(_activeRepo, deltaTime);
                 // ⭐ CE-3123 — the order InteractionSystems gives: dispatch, patch, then the gizmos below.
                 _debugStatePatchSystem?.Execute(_activeRepo, deltaTime);
@@ -457,14 +469,13 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 _dataDrivenGizmoSystem?.Execute(_activeRepo, deltaTime);
                 _globalGizmoManager?.Execute(_activeRepo, deltaTime);
                 _statelessGizmoSystem?.Execute(_activeRepo, deltaTime);
-                // ⭐ CE-1042 E2 — effects from the replayed fire / hit events, aged by the replayed time (paused ⇒ frozen, VE-G).
-                //   ⚠ This host has no kernel, so the systems' command buffer is played back here — nothing else would.
-                float effectDt = _replayAdvanceSeconds;
-                _replayAdvanceSeconds = 0f;
-                _effectSpawn?.Execute(_activeRepo, effectDt);
-                _effectLifetime?.Execute(_activeRepo, effectDt);
-                if (((Fdp.ModuleHost.Abstractions.ISimulationView)_activeRepo).GetCommandBuffer() is Fdp.Core.EntityCommandBuffer effectCommands)
-                    effectCommands.Playback(_activeRepo);
+                // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — the effects are IN the recording (with their Lifespan), so the layer draws
+                //   them at the recording's own sim time and a jump lands on the right ones. ⛔ The hand-spawning from the replayed
+                //   fire / hit events is gone (it lost every long effect on a jump). Both systems are still ticked so this host's
+                //   run-set is the map's whole set; IsReplayActive keeps them standing down.
+                _effectSpawn?.Execute(_activeRepo, deltaTime);
+                _wreckSpawn?.Execute(_activeRepo, deltaTime);
+                _lifespan?.Execute(_activeRepo, deltaTime);
             }
 
             // Swap the interaction bus so intent events are visible on the next frame

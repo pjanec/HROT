@@ -46,7 +46,7 @@ namespace Hrot.Common.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
-    public class MissionControlExecutionSystem : IEcsModuleSystem
+    public class MissionControlExecutionSystem : IEcsModuleSystem, IIntentClearProvider
     {
         private const string EntityNotFoundMessage = "ERR_ENTITY_NOT_FOUND";
         private const string VersionConflictMessage = "ERR_VERSION_CONFLICT";
@@ -81,6 +81,37 @@ namespace Hrot.Common.Systems
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _behaviorRegistry = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
             _mapperRegistry = mapperRegistry ?? throw new ArgumentNullException(nameof(mapperRegistry));
+        }
+
+        /// <inheritdoc/>
+        public string Name => "MissionPlan";
+
+        /// <summary>
+        /// ⭐ <c>CE-3167</c> (Entity Commanding §2.5d, ruling 52) — an immediate order clears the unit's mission plan before it
+        /// starts, so the plan cannot resume at its next phase (ruling 50: discarded, not paused). The same clear as
+        /// <c>CMD_ABORT_ALL</c> WITHOUT the behaviour clear — the order's assign replaces the behaviour. A unit with no plan is
+        /// left untouched (no version bump).
+        /// </summary>
+        public void ClearFor(Entity entity, EntityRepository repo)
+        {
+            bool hasQueue = repo.IsComponentTypeRegistered<MissionPlanQueue>() && repo.HasComponent<MissionPlanQueue>(entity)
+                && repo.GetComponentRO<MissionPlanQueue>(entity).PhaseCount > 0;
+            bool hasPlan = repo.HasManagedComponent<ActiveMissionPlan>(entity);
+            if (!hasQueue && !hasPlan) return;
+            if (!_entityMap.TryGetNetworkId(entity, out long networkId)) networkId = 0;
+
+            EmptyPlan(repo, entity, networkId);
+            if (networkId != 0)
+                _missionVersions[networkId] = (_missionVersions.TryGetValue(networkId, out var v) ? v : 0) + 1;
+        }
+
+        /// <summary>⭐ <c>CE-3167</c> — the plan emptied, replicated, and this system's task order forgotten.</summary>
+        private void EmptyPlan(EntityRepository repo, Entity entity, long networkId)
+        {
+            repo.SetComponent(entity, new MissionPlanQueue { PhaseCount = 0, CurrentPhase = 0, PhaseElapsedSeconds = 0f });
+            repo.SetManagedComponent<ActiveMissionPlan>(entity, null!);
+            SmartEgressUtil.MarkDirty(repo, entity, EntityMissionDescriptorOrdinal);
+            if (networkId != 0) _taskOrder[networkId] = new List<Guid>();
         }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -238,17 +269,7 @@ namespace Hrot.Common.Systems
 
                 case eMissionCommandType.CMD_ABORT_ALL:
                 {
-                    var abortQueue = new MissionPlanQueue
-                    {
-                        PhaseCount = 0,
-                        CurrentPhase = 0,
-                        PhaseElapsedSeconds = 0f
-                    };
-                    repo.SetComponent(entity, abortQueue);
-                    repo.SetManagedComponent<ActiveMissionPlan>(entity, null!);
-                    SmartEgressUtil.MarkDirty(repo, entity, EntityMissionDescriptorOrdinal);
-
-                    _taskOrder[intent.TargetEntityId] = new List<Guid>();
+                    EmptyPlan(repo, entity, intent.TargetEntityId);   // ⭐ CE-3167 — the one plan clear, shared with ClearFor
 
                     repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator });   // ⭐ CE-3034 — mission-control abort (R-193)
 

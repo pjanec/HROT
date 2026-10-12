@@ -62,6 +62,10 @@ namespace Hrot.Network.NED.SimHost
             if (view is not EntityRepository repo) return;
 
             var events = repo.Bus.ReadManaged<AssignTacticalIntentEvent>();
+            // ⭐ CE-3167 — the egress now runs on EVERY node (an order may be issued anywhere); a node with no brain state
+            //   registered owns no brain, so it forwards everything. 🔴 HasAuthority on an unregistered type THROWS — that is
+            //   what the cross-node rail (EntityOrdersAcrossNodesTests) caught on SimHost.
+            bool brainHere = repo.IsComponentTypeRegistered<BehaviorState>();
 
             foreach (var evt in events)
             {
@@ -69,7 +73,7 @@ namespace Hrot.Network.NED.SimHost
 
                 // Authority gate: locally-owned entities are resolved by
                 // TacticalIntentResolutionSystem in the same frame.
-                if (repo.HasAuthority<BehaviorState>(evt.Entity)) continue;
+                if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;
 
                 if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
                 {
@@ -85,6 +89,8 @@ namespace Hrot.Network.NED.SimHost
                     IntentId       = evt.IntentId,
                     JsonParams     = evt.JsonParams,
                     Origin         = (byte)evt.Origin,   // ⭐ CE-3034 — the origin crosses the wire
+                    Kind           = (byte)evt.Kind,     // ⭐ CE-3167 — assign or clear
+                    Flags          = evt.ClearsPriorIntent ? TacticalIntentFlags.ClearsPriorIntent : (byte)0,
                 });
                 SentSampleCount++;
             }

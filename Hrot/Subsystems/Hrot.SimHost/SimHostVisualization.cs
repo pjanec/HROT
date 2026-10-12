@@ -128,6 +128,9 @@ namespace Hrot.SimHost
         public FdpInspectorState         FdpInspectorState  => _fdpInspectorState;
         /// <summary>Map-pick bridge for component-editor map picking (available after Initialize).</summary>
         public MapPickBroker?     GetMapPickBroker()  => _mapPickBroker;
+
+        /// <summary>⭐ CE-3169 — the pick under <see cref="GetMapPickBroker"/>, also the map menu orders' follow-up picks.</summary>
+        public Hrot.UI.Common.Facades.IMapPickService? MapPick { get; private set; }
         /// <summary>Gizmo primitive buffer (non-null after Initialize). Exposed for sharing with SimHostApp kernel systems.</summary>
         public DebugPrimitiveBuffer?     GizmoBuffer         => _gizmoBuffer;
 
@@ -362,7 +365,7 @@ namespace Hrot.SimHost
 
             // 🔒 UXI-07 step 4b — a pick SUSPENDS the active tool instead of arming beside it.
             _mapPickBroker = new MapPickBroker(
-                new CanvasMapPickAdapter(
+                MapPick = new CanvasMapPickAdapter(
                     _map, repo,
                     globalGizmoManager: _globalGizmoManager,
                     tools: () => _toolController));

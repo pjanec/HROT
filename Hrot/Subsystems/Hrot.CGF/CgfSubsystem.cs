@@ -1404,6 +1404,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 {
                     HostPickers = () => _shellPickers,
                 },
+                // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — effects are recorded; in a replay the effect systems stand down.
+                //   The SAME source the ELM's gate reads (rrController, above).
+                IsReplayActive = () => rrController.IsReplayActive,
             });
 
         _cgfGizmoBuffer           = _cgfMapInteraction.Buffer;
@@ -1441,7 +1444,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _cgfGizmoController = _cgfMapInteraction.Gate;
         _context.Kernel.RegisterModule(new GizmoInteractionModule(
             _cgfInteractionBus,
-            contextIngress: null,
+            // ⭐ CE-3169 — a map-menu click (this window's, or one relayed from a station over the gizmo topic) arrives as a
+            //   GizmoMenuActionEvent; without the ingress it never became a GlobalActionRequestedEvent, so EVERY map-menu action
+            //   (pins, AI trace, layer control, the orders) did nothing on CGF despite the dispatcher being scheduled.
+            contextIngress: _entityMap != null ? new Hrot.Common.Systems.ContextActionIngressSystem(_entityMap, _cgfInteractionBus!) : null,
             // ⭐ InteractionSystems = the action dispatcher + the group: CGF now RUNS map-menu actions
             //   (it had no dispatcher, so e.g. View ▸ Tactical Map Layers… did nothing here).
             interactionSystems: _cgfMapInteraction.InteractionSystems,
@@ -1894,6 +1900,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                   geoTransform: _context.GeoTransform)   // ⭐ P2 — a location pick is geodetic
             : null;
         _cgfMapPick = cgfCanvasAdapter;   // ⭐ also the Watch's entity picker (BuildAiShell)
+        if (_cgfMapInteraction != null) _cgfMapInteraction.MenuOrders.PickService = () => _cgfMapPick;   // ⭐ CE-3169 — the menu orders' follow-up picks
         MapPickBroker? cgfPickBroker = cgfCanvasAdapter != null
             ? new MapPickBroker(cgfCanvasAdapter)
             : null;

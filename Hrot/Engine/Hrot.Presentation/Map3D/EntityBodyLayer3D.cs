@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Physics.Components;
@@ -70,7 +71,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (!ReferenceEquals(world, _queryWorld))
         {
             _queryWorld = world;
-            _query = world.Query().With<SimTransform>().With<TkbIdentity>().WithLifecycle(EntityLifecycle.All).Build();
+            var q = world.Query().With<SimTransform>().With<TkbIdentity>().WithLifecycle(EntityLifecycle.All);
+            // ⭐ LR-3 (DESIGN_Visual_Effects.md §8.5, R-271) — a replicated ROUND is never a body: ProjectileLayer draws it
+            _query = (world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()
+                ? q.Without<Fdp.Toolkit.Replication.Components.LightweightRound>() : q).Build();
         }
         EnsureMeshes();
         var shader = LitShader.Shared;
@@ -92,23 +96,30 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
             var size = SizeOf(world, e, look);
             var colour = ColourOf(world, e, look.Colour);
+            // ⭐ W2 (docs/DESIGN_Visual_Effects.md §7 VE-N/VE-O) — a destroyed VEHICLE is a near-black wreck, every part; the turret
+            //   stays where it last pointed (its pose is no longer driven). A dead person is drawn by the Dead figure instead (VE-S).
+            bool wreck = look.Family != VisualFamily.Person && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
+            ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
+            var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
+            // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
+            bool rotorTurning = look.Family == VisualFamily.Helicopter && !wreck && IsAirborne(world, tf.Position, look.Geometry);
+            var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning);
+
             KitPart[] parts;
             KitPivots pivots = default;
             var pose = ArticulationPose.Neutral;
             if (look.Family == VisualFamily.Person)
-                parts = FigurePose(world, e, look.Soldier);
+            {
+                // ⭐ WL-6c — the posture first (how AIMED he is), then the gait and the upper body from it
+                (parts, float aimed) = FigurePose(world, e, look.Soldier, simTime, motion);
+                motion = FigureMotion(world, e, motion, look.Soldier, tf, size, simTime, aimed);
+            }
             else
             {
                 var kit = ShapeKits.For(look.Family);
                 (parts, pivots) = PlacedKit(kit, type, tkb, size);   // ⭐ E4b — the turret and barrel from the TKB (VE-L)
                 if (_poseOf != null && kit.IsArticulated) pose = _poseOf(world, e);
             }
-
-            ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
-            var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
-            // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
-            bool rotorTurning = look.Family == VisualFamily.Helicopter && IsAirborne(world, tf.Position, look.Geometry);
-            var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning);
             _drawn.Add(e);
             // ⭐ CE-1041 — a type with Body.Geometry: the kit's box sits where the TKB puts it relative to the reference point
             //   (an aircraft's CG), and the gear is drawn AT the TKB's contact points instead of the kit's generic gear.
@@ -121,10 +132,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 if (geometry != null && part.Role == PartRole.Gear) continue;
                 var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size, pivots, pose, motion) * kitToBody * body);
                 var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
-                Raylib.DrawMesh(mesh, shader.Tinted(Shade(part.Colour, colour)), model);
+                Raylib.DrawMesh(mesh, shader.Tinted(PartColour(part.Colour, colour, wreck)), model);
                 PartsDrawn++;
             }
-            if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader);
+            if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
             // ⭐ CE-1033 S3 — where this body's labels sit: the top of the drawn box above the reference point.
             if (hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0)
                 _tops[net] = geometry != null ? geometry.BodyCentreZ + size.Z / 2f : size.Z;
@@ -140,23 +151,129 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             BodiesDrawn++;
         }
         _motion.EndFrame(_drawn);
+        _fall.EndFrame(_drawn);
+        _postures.EndFrame(_drawn);
     }
 
     /// <summary>⭐ CE-1033 S4 — the figure's parts: the logical stance (the shared rule), BLENDED from the stance it is leaving while
     /// the muscle reports a transition in progress (<see cref="StanceStatus"/> — replicated, so every host shows the same blend).</summary>
-    private static KitPart[] FigurePose(EntityRepository world, Entity e, bool soldier)
+    /// <summary>⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13) — the weapon brain's posture of <paramref name="e"/>'s weapon (replicated,
+    /// R-272); at ease where the world or the unit has none.</summary>
+    public static WeaponPostureKind PostureOf(EntityRepository world, Entity e)
+        => world.IsComponentTypeRegistered<WeaponPosture>() && world.HasComponent<WeaponPosture>(e)
+            ? world.GetComponentRO<WeaponPosture>(e).Kind : WeaponPostureKind.AtEase;
+
+    /// <summary>⭐ WL-6c — the athletic stance's forward lean (about 10°), how much shorter the glide's steps are than a walk's, and
+    /// how far a shin bends back as its leg swings through (radians, at a full stride).</summary>
+    public const float AthleticLean = 0.17f, GlideStepCut = 0.45f, KneeLift = 0.55f;
+
+    /// <summary>The most an aimed upper body turns toward its target, and pitches (radians).</summary>
+    public const float MaxAimTwist = 75f * MathF.PI / 180f, MaxAimPitch = 35f * MathF.PI / 180f;
+
+    /// <summary>
+    /// ⭐ WL-6 (W-13e) — the figure's upper body: it leans from the hip at a stance's height; an AIMED soldier turns and pitches it
+    /// toward his target or aim point (a soldier's body does not turn to face what he shoots at — nothing writes his heading for it),
+    /// within <see cref="MaxAimTwist"/> / <see cref="MaxAimPitch"/>. Prone and dead figures do not lean or turn.
+    /// </summary>
+    /// ⭐ WL-6b — the turn and pitch EASE toward the aim (<see cref="PostureBlend.Aim"/>), and back to 0 when it is no longer aimed.
+    /// ⭐ WL-6c — the GAIT: each shin bends back as its leg swings through (both feet lift); an AIMED soldier (<paramref name="aimed"/>
+    /// 0..1, the posture blend) stands in the athletic stance — hips <see cref="BlockFigure.AthleticDrop"/> lower, the upper body leaning
+    /// <see cref="AthleticLean"/> forward — and on the move GLIDES: shorter steps, knees always bent.
+    private MotionPose FigureMotion(EntityRepository world, Entity e, MotionPose motion, bool soldier, in SimTransform tf, Vector3 size, double simTime,
+                                    float aimed)
     {
+        var stance = LogicalStance.Of(world, e);
+        if (stance == StanceId.Prone || Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e))
+        {
+            if (soldier) _postures.Aim(e, 0f, 0f, simTime);
+            return motion with { Lean = 0f, Twist = 0f, KneeFlexL = 0f, KneeFlexR = 0f };
+        }
+        float swingThrough = MathF.Cos(motion.GaitPhase);   // > 0: the left leg is coming forward, < 0: the right one
+        float lift = motion.Stride * KneeLift;
+        motion = motion with
+        {
+            HipZ = BlockFigure.HipFraction(stance),
+            KneeFlexL = lift * MathF.Max(0f, swingThrough),
+            KneeFlexR = lift * MathF.Max(0f, -swingThrough),
+        };
+        if (!soldier) return motion;
+        if (stance == StanceId.Standing && aimed > 0f)
+            motion = motion with
+            {
+                HipZ = (0.90f - BlockFigure.AthleticDrop * aimed) / 1.8f,
+                Lean = motion.Lean + AthleticLean * aimed,
+                Swing = motion.Swing * (1f - GlideStepCut * aimed),
+            };
+        if (!TryAim(world, e, tf, size, stance, out float twist, out float pitch)) twist = pitch = 0f;
+        var (t, p) = _postures.Aim(e, twist, pitch, simTime);
+        return motion with { Twist = t, Lean = motion.Lean - p };
+    }
+
+    /// <summary>The aim of an AIMED unit relative to its body: turn (counter-clockwise) and pitch (up), both clamped. False when it is
+    /// not aimed or aims at nothing it can place.</summary>
+    public static bool TryAim(EntityRepository world, Entity e, in SimTransform tf, Vector3 size, StanceId stance, out float twist, out float pitch)
+    {
+        twist = pitch = 0f;
+        if (!world.IsComponentTypeRegistered<WeaponPosture>() || !world.HasComponent<WeaponPosture>(e)) return false;
+        ref readonly var posture = ref world.GetComponentRO<WeaponPosture>(e);
+        if (posture.Kind != WeaponPostureKind.Aimed) return false;
+        Vector3 at;
+        if (!posture.Target.IsNull && world.IsAlive(posture.Target) && world.HasComponent<SimTransform>(posture.Target))
+            at = world.GetComponentRO<SimTransform>(posture.Target).Position + new Vector3(0f, 0f, 1.0f);
+        else if (posture.Target.IsNull && posture.Point != Vector3.Zero) at = posture.Point;
+        else return false;
+        float shoulder = (stance == StanceId.Crouched ? 0.98f : 1.41f - BlockFigure.AthleticDrop) / 1.8f * size.Z;   // aimed: the athletic stance
+        var toward = at - (tf.Position + new Vector3(0f, 0f, shoulder));
+        var local = Vector3.Transform(toward, Quaternion.Inverse(tf.Rotation));
+        float horizontal = MathF.Sqrt(local.X * local.X + local.Y * local.Y);
+        if (horizontal < 0.1f) return false;
+        twist = Math.Clamp(MathF.Atan2(local.Y, local.X), -MaxAimTwist, MaxAimTwist);
+        pitch = Math.Clamp(MathF.Atan2(local.Z, horizontal), -MaxAimPitch, MaxAimPitch);
+        return true;
+    }
+
+    /// <returns>The parts, and how AIMED he is (0..1, the posture blend) — the athletic stance and the glide follow it.</returns>
+    private (KitPart[] Parts, float Aimed) FigurePose(EntityRepository world, Entity e, bool soldier, double simTime, in MotionPose motion)
+    {
+        float stride = motion.Stride;
         var target = LogicalStance.Of(world, e);
+        var posture = soldier ? PostureOf(world, e) : WeaponPostureKind.AtEase;   // ⭐ WL-6 — the rifle in the weapon brain's posture
+        // ⭐ WL-6b — moved there over PostureBlend.Seconds of sim time, not snapped
+        var (postureFrom, postureTo, postureT) = soldier ? _postures.Posture(e, posture, simTime) : (posture, posture, 1f);
+        float eased = postureT * postureT * (3f - 2f * postureT);
+        float aimed = (postureTo == WeaponPostureKind.Aimed ? eased : 0f) + (postureFrom == WeaponPostureKind.Aimed ? 1f - eased : 0f);
+        if (postureFrom == postureTo) aimed = postureTo == WeaponPostureKind.Aimed ? 1f : 0f;
+        // ⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — a dead man lies on his back, fallen into it over 0.6 s of sim time from the
+        //   stance he died in; a body first seen already dead just lies there (DeathFall).
+        if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e))
+        {
+            var (t, from) = _fall.Dead(e, simTime);
+            return (BlockFigure.Fall(BlockFigure.Parts(from, soldier, posture), t, soldier), 0f);
+        }
+        _fall.Alive(e, target, simTime);
         if (world.IsComponentTypeRegistered<StanceStatus>() && world.HasComponent<StanceStatus>(e))
         {
             ref readonly var status = ref world.GetComponentRO<StanceStatus>(e);
             if (status.Phase == StanceTransitionPhase.Transitioning && status.CurrentStance != target)
-                return BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier);
+                return (BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier, postureFrom, postureTo, postureT), 0f);
         }
-        return BlockFigure.Parts(target, soldier);
+        var parts = BlockFigure.Parts(target, soldier, postureFrom, postureTo, postureT);
+        // ⭐ WL-6d — prone and moving: the crawl (never aimed), blended in by how much he moves
+        if (target == StanceId.Prone && motion.Moving > 0f) return (BlockFigure.Crawl(parts, soldier, motion.CrawlPhase, motion.Moving), 0f);
+        // ⭐ WL-6c — aimed and on the move: the combat glide (feet under the lowered hips, knees bent)
+        if (soldier && target == StanceId.Standing && aimed > 0f && stride > 0f) parts = BlockFigure.Glide(parts, aimed * stride);
+        return (parts, target == StanceId.Standing ? aimed : 0f);
     }
 
     private readonly MotionTracker _motion = new();
+    private readonly DeathFall _fall = new();
+    private readonly PostureBlend _postures = new();
+
+    /// <summary>⭐ WL-6b — the posture changes' timing (the rail's seam).</summary>
+    public PostureBlend Postures => _postures;
+
+    /// <summary>The dead men's falls (W4) — read by rails.</summary>
+    public DeathFall Falls => _fall;
     private readonly HashSet<Entity> _drawn = new();
     private float _wallFallback;
 
@@ -173,8 +290,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     /// <summary>Gear legs and wheels / skids drawn at the TKB's contact points. ⚠ Retractable gear is hidden when the body is
     /// clearly airborne — a PRESENTATION guess until a gear-state component exists (docs/DESIGN_Body_Geometry_And_Ground_Contact.md §5).</summary>
-    private void DrawGear(EntityRepository world, BodyGeometryDto geometry, Vector3 position, Matrix4x4 body, LitShader shader)
+    private void DrawGear(EntityRepository world, BodyGeometryDto geometry, Vector3 position, Matrix4x4 body, LitShader shader, bool wreck = false)
     {
+        var metal = PartColour(ColourRole.Metal, Metal, wreck);
+        var dark = PartColour(ColourRole.Dark, Dark, wreck);
         bool airborne = IsAirborne(world, position, geometry);
         float skidLeftMin = float.MaxValue, skidLeftMax = float.MinValue, skidRightMin = float.MaxValue, skidRightMax = float.MinValue;
         float skidZ = 0f, skidLeftY = 0f, skidRightY = 0f;
@@ -183,12 +302,12 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             if (c.Retractable && airborne) continue;
             float strut = c.StrutLength > 0f ? c.StrutLength : 1f;
             float hub = c.Z + c.WheelRadius;
-            DrawPart(_cube, Matrix4x4.CreateScale(0.14f, 0.14f, strut) * Matrix4x4.CreateTranslation(c.X, c.Y, hub + strut / 2f), Metal, body, shader);
+            DrawPart(_cube, Matrix4x4.CreateScale(0.14f, 0.14f, strut) * Matrix4x4.CreateTranslation(c.X, c.Y, hub + strut / 2f), metal, body, shader);
             if (c.Kind == GroundContactKind.Wheel && c.WheelRadius > 0f)
             {
                 float d = 2f * c.WheelRadius;
                 DrawPart(_cylinder, Matrix4x4.CreateTranslation(0, 0, -0.5f) * Matrix4x4.CreateScale(d, d, MathF.Max(0.12f, 0.6f * c.WheelRadius))
-                                    * Matrix4x4.CreateRotationX(-MathF.PI / 2f) * Matrix4x4.CreateTranslation(c.X, c.Y, hub), Dark, body, shader);
+                                    * Matrix4x4.CreateRotationX(-MathF.PI / 2f) * Matrix4x4.CreateTranslation(c.X, c.Y, hub), dark, body, shader);
             }
             else if (c.Kind == GroundContactKind.Skid)
             {
@@ -197,12 +316,12 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 else { skidRightMin = MathF.Min(skidRightMin, c.X); skidRightMax = MathF.Max(skidRightMax, c.X); skidRightY = c.Y; }
             }
         }
-        if (skidLeftMax > skidLeftMin) DrawSkid(skidLeftMin, skidLeftMax, skidLeftY, skidZ, body, shader);
-        if (skidRightMax > skidRightMin) DrawSkid(skidRightMin, skidRightMax, skidRightY, skidZ, body, shader);
+        if (skidLeftMax > skidLeftMin) DrawSkid(skidLeftMin, skidLeftMax, skidLeftY, skidZ, body, shader, dark);
+        if (skidRightMax > skidRightMin) DrawSkid(skidRightMin, skidRightMax, skidRightY, skidZ, body, shader, dark);
     }
 
-    private void DrawSkid(float x0, float x1, float y, float z, Matrix4x4 body, LitShader shader)
-        => DrawPart(_cube, Matrix4x4.CreateScale(x1 - x0 + 0.6f, 0.12f, 0.1f) * Matrix4x4.CreateTranslation((x0 + x1) / 2f, y, z + 0.05f), Dark, body, shader);
+    private void DrawSkid(float x0, float x1, float y, float z, Matrix4x4 body, LitShader shader, Color colour)
+        => DrawPart(_cube, Matrix4x4.CreateScale(x1 - x0 + 0.6f, 0.12f, 0.1f) * Matrix4x4.CreateTranslation((x0 + x1) / 2f, y, z + 0.05f), colour, body, shader);
 
     private void DrawPart(Mesh mesh, Matrix4x4 local, Color colour, Matrix4x4 body, LitShader shader)
     {
@@ -260,7 +379,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         // ⭐ CE-1042 — an EFFECT type (muzzle flash, explosion, decal, tracer) has no body: the effect layer draws it. Checked by
         //   the catalog too, so a host with no TKB (the replay browser) does not draw a recorded effect as an unknown box.
         // ⭐ CE-1033 S5 — nor has the map CAMERA entity (R-260): it is the view, not a thing in it.
-        if (Hrot.Core.Tkb.EffectTkbCatalog.BuiltIn.ContainsKey(tkbType) || Hrot.Core.Tkb.MapCameraTkb.Is(tkbType))
+        // ⭐ LR-3 — nor has a built-in MUNITION type (a round), on a host whose TKB lacks it (the replay browser).
+        if (Hrot.Core.Tkb.EffectTkbCatalog.BuiltIn.ContainsKey(tkbType) || Hrot.Core.Tkb.MapCameraTkb.Is(tkbType)
+            || Hrot.Core.Tkb.MunitionTkbCatalog.IsBuiltIn(tkbType))
             return _looks[tkbType] = new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         look = Resolve(tkb != null && tkb.TryGetByType(tkbType, out var t) ? t : null);
         _looks[tkbType] = look;
@@ -272,6 +393,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     {
         if (t == null) return new TypeLook(VisualFamily.Unknown, ShapeKits.DefaultSize(VisualFamily.Unknown), DefaultColour(VisualFamily.Unknown), false);
         if (t.GetDescriptor<EffectVisualDto>() != null)   // ⭐ CE-1042 — an effect type has no body
+            return new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
+        // ⭐ LR-3 (DESIGN_Visual_Effects.md §8.5, R-271) — a MUNITION type (DIS kind 2, or one with a Munition.Visual) is a round, not a body:
+        //   ProjectileLayer draws it. ⛔ Without this a replicated round (TkbIdentity = its munition) drew as an unknown purple box.
+        if (t.DisType.Kind == 2 || t.GetDescriptor<MunitionVisualDto>() != null)
             return new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         var family = VisualFamilies.Of(t);
         var size = ShapeKits.DefaultSize(family);
@@ -305,6 +430,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     {
         centre = default; rotation = Quaternion.Identity; half = default;
         if (!world.HasComponent<TkbIdentity>(e) || !world.HasComponent<SimTransform>(e)) return false;
+        if (world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()
+            && world.HasComponent<Fdp.Toolkit.Replication.Components.LightweightRound>(e)) return false;   // LR-3: a round has no box
         var look = LookOf(world.GetComponentRO<TkbIdentity>(e).TkbType, tkb);
         if (look.Family == VisualFamily.Unit) return false;
         var size = SizeOf(world, e, look);
@@ -342,6 +469,18 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         string hex = world.GetComponentRO<VisualData>(e).ColorHex;
         return ParseHex(hex) ?? fallback;
     }
+
+    /// <summary>⭐ W2 (VE-O) — the colour a part is drawn: its role's shade of the body colour, or, on a WRECK, near-black for every
+    /// role — the roles keep a few steps apart so the burnt-out shape still reads.</summary>
+    public static Color PartColour(ColourRole role, Color body, bool wreck) => wreck
+        ? role switch
+        {
+            ColourRole.Dark => new Color(12, 12, 11, 255),
+            ColourRole.Glass => new Color(20, 22, 24, 255),
+            ColourRole.Metal => new Color(26, 25, 24, 255),
+            _ => new Color(32, 30, 28, 255),
+        }
+        : Shade(role, body);
 
     private static Color Shade(ColourRole role, Color body) => role switch
     {

@@ -25,6 +25,10 @@ namespace Fdp.Toolkit.Behavior.Components
         /// the ROE says <c>StayOnTask</c>), the task restarts when it ends; it yields only to a more urgent reaction or a new
         /// order. Not a rank — <see cref="BehaviorOriginRank"/> and the ingress apply the reaction rules.</summary>
         Reaction = 4,
+        /// <summary>⭐ <c>CE-3172</c> (M-7, <c>docs/DESIGN_Entity_Control.md</c> §8b) — a station POSSESSES the unit (FPS): ranked above
+        /// every order, it PAUSES what runs (as a reaction does — never drops it), no reaction may interrupt it, and its own clear
+        /// RESUMES the paused task (C-4). Possession is a behaviour of this origin, never a switch that turns the brain off (R-270).</summary>
+        Possession = 5,
         /// <summary>A behaviour replacing or ending ITSELF (hot-reload restart, a chained re-assign) — keeps the running origin.</summary>
         Self = 255,
     }
@@ -53,8 +57,14 @@ namespace Fdp.Toolkit.Behavior.Components
         {
             BehaviorOrigin.Sop      => 1,
             BehaviorOrigin.Superior => 2,
+            BehaviorOrigin.Possession => 4,   // ⭐ CE-3172 — above every order
             _                       => 3,   // Operator, Unmarked (and Self, which never reaches a comparison)
         };
+
+        /// <summary>⭐ <c>CE-3172</c> — does a behaviour of this origin PAUSE the task it replaces (keeping it to resume) rather than
+        /// replace it? A reaction (R-199) and a possession (M-7). Every reader that treats the running behaviour as transient
+        /// asks this, ⛔ never compares to one origin.</summary>
+        public static bool Pauses(BehaviorOrigin origin) => origin is BehaviorOrigin.Reaction or BehaviorOrigin.Possession;
 
         /// <summary>
         /// May an assignment / clear of <paramref name="incoming"/> origin replace the running behaviour?

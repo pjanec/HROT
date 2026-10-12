@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Events;
@@ -174,6 +175,18 @@ namespace Fdp.Toolkit.Combat.Systems
                     }
                 }
 
+                // ⭐ LR-1 (DESIGN_Visual_Effects.md §8.5, R-271) — the round's munition TYPE: the mount's ammo, or, one shot in
+                //   TracerEvery, its tracer. Only WHAT the round is changes (drawn + replicated, PR-F) — damage, penetration and
+                //   warhead stay the mount's, computed above and below from the mount.
+                long roundType = ammo;
+                if (firedMount != null && firedMount.TracerEvery > 0 && firedMount.TracerAmmoGuid != 0 && repo.IsComponentTypeRegistered<ShotOrdinal>())
+                {
+                    if (!repo.HasComponent<ShotOrdinal>(shooter)) repo.AddComponent(shooter, default(ShotOrdinal));
+                    ref var shots = ref repo.GetComponentRW<ShotOrdinal>(shooter);
+                    shots.Fired++;
+                    if (shots.Fired % (uint)firedMount.TracerEvery == 0) roundType = unchecked((long)firedMount.TracerAmmoGuid);
+                }
+
                 // ⭐ CE-3059 — the shot starts MuzzleOffsetMeters along the aim line (never past half way to the target), so a
                 //   bullet does not spawn inside a squad-mate standing on the shooter's spot. 📐 Measured on the split cluster:
                 //   four dismounted soldiers on one point, 90 rounds, every hit on the squad.
@@ -218,10 +231,16 @@ namespace Fdp.Toolkit.Combat.Systems
                     FrontDamage      = damage,
                     FrontPenetration = penetration,
                     TerrainFlags     = 1,
-                    Ammo             = ammo,   // ⭐ CE-1032 W-2 — what the round IS
+                    Ammo             = roundType,   // ⭐ CE-1032 W-2 — what the round IS (⭐ LR-1: the tracer, one in N)
                     Warhead          = warheadBits,
                     FuzeRemaining    = fuze,
                 });
+
+                // ⭐⭐ LR-2 (§8.5, R-271) — a VISIBLE round (its munition has a look: a shell, a bomb, a grenade, a rocket, a missile, a
+                //   tracer) becomes a LIGHTWEIGHT REPLICATED entity: its munition type as TkbIdentity + the LightweightRound tag. The
+                //   network side gives it an id and publishes EntityMaster (Lightweight) + WorldPos — no lifecycle, no acks. An
+                //   ordinary bullet stays local: it is the hit test, nothing a viewer draws.
+                MarkIfVisible(repo, bullet, roundType);
 
                 // ⭐ T-4 — the shot's record, with the inputs it was fired with (GET /combat/shots)
                 ShotLog.For(repo).Add(new ShotRecord
@@ -248,6 +267,24 @@ namespace Fdp.Toolkit.Combat.Systems
                     WeaponIndex = evt.WeaponIndex,
                 });
             }
+        }
+
+        /// <summary>⭐ LR-2 (§8.5, R-271) — tags a round whose munition type has a <c>Munition.Visual</c>: <see cref="TkbIdentity"/>
+        /// (the munition), <see cref="Fdp.Toolkit.Replication.Components.LightweightRound"/>, its DIS type, and never-saved.</summary>
+        public static bool MarkIfVisible(EntityRepository repo, Entity round, long munitionType)
+        {
+            if (munitionType == 0 || !repo.HasSingletonManaged<ITkbDatabase>()
+                || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()
+                || !repo.IsComponentTypeRegistered<TkbIdentity>()) return false;
+            var db = repo.GetSingletonManaged<ITkbDatabase>();
+            if (db == null || !db.TryGetByType(munitionType, out var type) || type == null
+                || type.GetDescriptor<Fdp.Toolkit.Tkb.Domain.MunitionVisualDto>() == null) return false;
+            repo.AddComponent(round, new TkbIdentity { TkbType = munitionType });
+            repo.AddComponent(round, default(Fdp.Toolkit.Replication.Components.LightweightRound));
+            repo.SetDisType(round, type.DisType);
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>())
+                repo.AddComponent(round, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+            return true;
         }
 
         /// <summary>

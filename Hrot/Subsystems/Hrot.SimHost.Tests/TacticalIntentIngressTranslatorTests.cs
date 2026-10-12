@@ -71,5 +71,26 @@ namespace Hrot.SimHost.Tests
             var events = _world.Bus.ReadManaged<AssignTacticalIntentEvent>();
             Assert.Empty(events);
         }
+
+        /// <summary>⭐ CE-3167 — the wire's Kind and Flags come back as the event's Kind and ClearsPriorIntent.</summary>
+        [Fact]
+        public void CE3167_KindAndFlags_BecomeTheEventsKindAndClearsPriorIntent()
+        {
+            var translator = new TacticalIntentIngressTranslator(null, _entityMap);
+            var entity = _world.CreateEntity();
+            _entityMap.Register(42L, entity);
+
+            var sample = new TacticalIntentRequest
+            {
+                TargetEntityId = 42L, IntentId = "Idle", JsonParams = "{}",
+                Kind = (byte)TacticalIntentKind.Clear, Flags = TacticalIntentFlags.ClearsPriorIntent,
+            };
+            translator.ProcessSample(in sample, _world);
+            _world.Bus.SwapBuffers();
+
+            var evt = Assert.Single(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            Assert.Equal(TacticalIntentKind.Clear, evt.Kind);
+            Assert.True(evt.ClearsPriorIntent);
+        }
     }
 }

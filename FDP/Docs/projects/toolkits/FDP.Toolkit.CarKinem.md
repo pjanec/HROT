@@ -7,6 +7,7 @@ known-rot: written as a vehicle toolkit; SimHost infantry has always been moved 
 related-designs:
   - ../../../../docs/DESIGN_Peek_And_Fire.md — OWNS the window duel that found the pedestrian defect (D17)
   - ../../../../docs/designs/navig-2/Navigation_Design_v2_0.md — OWNS the path a mover follows; this file owns how it moves along it
+  - ../../../../docs/DESIGN_Entity_Control.md — OWNS manual drive: KinematicsMode.Manual, person strafe + yaw, vehicle throttle + steer + reverse (M-1..M-5)
 -->
 
 # FDP.Toolkit.CarKinem

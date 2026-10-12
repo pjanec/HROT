@@ -86,7 +86,8 @@ public sealed class CanvasMapPickAdapter : IMapPickService
             Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickLocation,
             (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
                 onPicked: worldPos => tcs.TrySetResult(ToGeoPoint(worldPos)),
-                onRemove: remove),
+                onRemove: remove,
+                onCancelled: () => tcs.TrySetCanceled()),   // ⭐ CE-3169 — Esc / right-click completes the task (it hung)
             ct);
 
     /// <inheritdoc/>
@@ -113,6 +114,16 @@ public sealed class CanvasMapPickAdapter : IMapPickService
                 onCancelled: () => tcs.TrySetCanceled(),
                 onRemove:    remove),
             ct);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ CE-3171 — the same hit test the entity picker uses (<c>MapCanvas.PickTopmostEntity</c>); in the 3-D view the
+    /// gizmo's world point already lands on a picked entity's position, so it resolves there too.</remarks>
+    public int EntityAt(System.Numerics.Vector2 worldXY)
+    {
+        var entity = _canvas.PickTopmostEntity(worldXY) ?? Fdp.Core.Entity.Null;
+        if (_repo == null || entity.IsNull || !_repo.IsAlive(entity) || !_repo.HasComponent<NetworkIdentity>(entity)) return -1;
+        return (int)_repo.GetComponentRO<NetworkIdentity>(entity).Value;
     }
 
     /// <summary>The clicked world position as a <see cref="GeoPoint"/> — geodetic through the host's transform.

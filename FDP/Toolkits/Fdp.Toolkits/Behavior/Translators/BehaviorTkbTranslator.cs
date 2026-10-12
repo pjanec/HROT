@@ -141,6 +141,11 @@ namespace Fdp.Toolkit.Behavior.Translators
             if (repo.IsComponentTypeRegistered<WeaponChannel>() && !repo.HasComponent<WeaponChannel>(entity))
                 repo.AddComponent(entity, new WeaponChannel());
 
+            // ⭐ WL-6 (DESIGN_Weapon_Layers W-13c) — the weapon posture beside the weapon channel, at ease until the weapon brain says
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponPosture>()
+                && !repo.HasComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>(entity))
+                repo.AddComponent(entity, new Fdp.Toolkit.Combat.Components.WeaponPosture());
+
             if (repo.IsComponentTypeRegistered<InteractionChannel>() && !repo.HasComponent<InteractionChannel>(entity))
                 repo.AddComponent(entity, new InteractionChannel());
 

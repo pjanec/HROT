@@ -47,7 +47,8 @@ namespace Fdp.Toolkit.Vis2D.Tests
         public bool IsKeyPressed(MapKeyboardKey key) => false;
         public bool IsKeyDown(MapKeyboardKey key) => false;
         public bool IsKeyReleased(MapKeyboardKey key) => false;
-        public int GetKeyPressed() => 0;
+        public System.Collections.Generic.Queue<int> Keys { get; } = new();
+        public int GetKeyPressed() => Keys.Count > 0 ? Keys.Dequeue() : 0;
     }
 
     public class TestableMapCameraForCanvas : MapCamera
@@ -174,5 +175,51 @@ namespace Fdp.Toolkit.Vis2D.Tests
              // Bottom layer should NOT be called
              bottomLayer.Verify(l => l.HandleInput(It.IsAny<Vector2>(), It.IsAny<MapMouseButton>(), It.IsAny<bool>()), Times.Never);
          }
+
+        /// <summary>⭐ CE-3175 — the canvas drains the key queue to offer each key to its layers; the gizmo layer (which declines
+        /// it, so every other layer still sees it) keeps it for its terminal. Before, the terminal read the queue AFTER the canvas
+        /// had emptied it, so no key press — Escape on a backend tool included — reached a gizmo.</summary>
+        [Fact]
+        public void CE3175_TheCanvasDrainsTheKeys_AndTheGizmoLayerKeepsThemForItsTerminal_InOrder()
+        {
+            var canvas = new TestableMapCanvas();
+            canvas.Camera = new TestableMapCameraForCanvas();
+            var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31);
+            var below = new Mock<IMapLayer>();
+            below.Setup(x => x.HandleKeyInput(It.IsAny<MapKeyboardKey>())).Returns(false);
+            canvas.AddLayer(below.Object);
+            canvas.AddLayer(gizmos);   // top: offered each key first
+            canvas.InputProvider.Keys.Enqueue((int)MapKeyboardKey.Escape);
+            canvas.InputProvider.Keys.Enqueue(82);   // 'R'
+
+            canvas.HandleInput();
+
+            Assert.Empty(canvas.InputProvider.Keys);                        // the one drain
+            Assert.Equal((int)MapKeyboardKey.Escape, gizmos.NextTypedKey());
+            Assert.Equal(82, gizmos.NextTypedKey());
+            Assert.Equal(0, gizmos.NextTypedKey());
+            below.Verify(x => x.HandleKeyInput(MapKeyboardKey.Escape), Times.Once);   // declined, so still routed on
+            Assert.False(canvas.KeyboardConsumedByTool);
+        }
+
+        /// <summary>⭐ CE-3175 — the terminal streams every key it is handed with this frame's modifiers; a captured keyboard (a text
+        /// field) still drains the source, so nothing leaks into the next frame, but sends nothing.</summary>
+        [Fact]
+        public void CE3175_TheTerminal_StreamsEachKeyWithItsModifiers_AndDrainsButSendsNothingWhileTyping()
+        {
+            var keys = new System.Collections.Generic.Queue<int>(new[] { (int)MapKeyboardKey.Escape, 82 });
+            var sent = new System.Collections.Generic.List<int>();
+            int n = GizmoMap.Presentation.DebugGizmoLayer.StreamTypedKeys(
+                () => keys.Count > 0 ? keys.Dequeue() : 0, isKeyboardCaptured: false, modifiers: (int)Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.ShiftMask, sent.Add);
+            Assert.Equal(2, n);
+            Assert.Equal(new[] { (int)MapKeyboardKey.Escape | (int)Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.ShiftMask, 82 | (int)Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.ShiftMask }, sent);
+
+            keys.Enqueue(82);
+            sent.Clear();
+            Assert.Equal(0, GizmoMap.Presentation.DebugGizmoLayer.StreamTypedKeys(
+                () => keys.Count > 0 ? keys.Dequeue() : 0, isKeyboardCaptured: true, modifiers: 0, sent.Add));
+            Assert.Empty(sent);
+            Assert.Empty(keys);
+        }
     }
 }

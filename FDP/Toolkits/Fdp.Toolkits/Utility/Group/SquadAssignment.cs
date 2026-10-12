@@ -9,6 +9,7 @@ namespace Fdp.Toolkit.Utility
     /// member's commander (<see cref="UnitSubordinate.Commander"/>) holds <see cref="SquadCognitiveState.Assignment"/>, indexed by the
     /// member's place in the commander's <see cref="UnitRoster"/>. ONE reader — the utility input <c>IsAssignedTarget</c> (a bias
     /// in the threat ranking) and the fire-from-cover node's locked target both ask here.
+    /// <para>⭐ <c>CE-3170</c> — an attack order's <see cref="Fdp.Toolkit.Behavior.Components.DesignatedTarget"/> answers first.</para>
     /// </summary>
     public static class SquadAssignment
     {
@@ -17,6 +18,14 @@ namespace Fdp.Toolkit.Utility
         public static bool TargetOf(EntityRepository repo, Entity self, out long handle)
         {
             handle = 0L;
+            // ⭐ CE-3170 (docs/DESIGN_Entity_Control.md C-5) — an ATTACK order's target comes first: the operator above the squad
+            //   named it. Only while it is still in the fight; a downed one leaves the squad's distribution in charge again.
+            if (Fdp.Toolkit.Behavior.Components.DesignatedTarget.Of(repo, self, out var designated)
+                && Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, designated))
+            {
+                handle = (long)designated.PackedValue;
+                return true;
+            }
             if (!repo.IsComponentTypeRegistered<UnitSubordinate>() || !repo.IsComponentTypeRegistered<SquadCognitiveState>()
                 || !repo.IsComponentTypeRegistered<UnitRoster>()) return false;
             if (!repo.HasComponent<UnitSubordinate>(self)) return false;

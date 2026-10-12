@@ -234,7 +234,7 @@ public sealed class Map3DFrameRail
                 world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
                 world.AddComponent(e, new TkbIdentity { TkbType = type });
                 var look = Hrot.Core.Tkb.EffectTkbCatalog.VisualOf(tkb, type)!;
-                world.AddComponent(e, new Hrot.Map.Common.Components.EffectLifetime { Age = age, Duration = look.Duration });
+                world.AddComponent(e, Fdp.Toolkit.Time.Lifespan.Starting(-age, look.Duration));   // W1: sim time 0 here ⇒ `age` seconds old
                 if (shooter != default) world.AddComponent(e, new Hrot.Map.Common.Components.EffectAnchor { Shooter = shooter });
             }
             var blast = new Vector2(spot.X + 25f, spot.Y + 25f);
@@ -256,6 +256,484 @@ public sealed class Map3DFrameRail
 
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-2-tilted.png"));
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-3-close.png"));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1050 W2–W4 (docs/DESIGN_Visual_Effects.md §7) — the destroyed-entity story on a real GL: three vehicles killed at sim 0
+    /// (an M1, a Bradley, a civilian car) beside a living T-72 — near-black wrecks, flames and smoke made by the production
+    /// <c>WreckSpawnSystem</c>; three riflemen — one found dead (lying), one falling mid-way, one alive; later frames with the fire
+    /// dying down (52 s) and only fading smoke left (150 s); and the 2-D map with the MIL-STD X on the wrecks' symbols.
+    /// </summary>
+    [SkippableFact]
+    public void W_DestroyedEntities_BlackWrecksBurnAndSmoke_DeadMenLie_AndThe2DSymbolsCarryTheX()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(world);
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        void At(double t) => world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        long net = 500;
+        Entity Put(long type, float dx, float dy, float hp, StanceId stance = StanceId.Standing, float yaw = 0.35f)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, query.GroundHeightAt(x, y)),
+                                                     Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new StanceIntent { TargetStance = stance });
+            world.AddComponent(e, new NetworkIdentity { Value = ++net });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = hp, Max = 100f });
+            return e;
+        }
+        void Kill(Entity e) => world.SetComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+        var m1 = Put(TkbEntityTypes.Tank_M1Abrams, -22f, 0f, 100f);
+        var bradley = Put(TkbEntityTypes.IFV_Bradley, -10f, 1f, 100f, yaw: 1.2f);
+        var car = Put(UrbanCombatTkbCatalog.TkbCivilianCar, 2f, 0f, 100f, yaw: -0.4f);
+        Put(TkbEntityTypes.Tank_T72, 14f, 0f, 100f);                                       // alive, for comparison
+        Put(TkbEntityTypes.Infantry_Rifleman, -6f, -9f, 0f, StanceId.Standing, 0.9f);      // found dead: lying
+        var falling = Put(TkbEntityTypes.Infantry_Rifleman, -3f, -9f, 100f, StanceId.Crouched, 0.9f);
+        Put(TkbEntityTypes.Infantry_Rifleman, 0f, -9f, 100f, StanceId.Standing, 0.9f);     // alive
+
+        // the kills happen at sim 0, through the production spawner (a crossing makes flames and smoke)
+        At(0.0);
+        var wrecks = new Hrot.UI.Common.Effects.WreckSpawnSystem();
+        void Tick()
+        {
+            wrecks.Execute(world, 0f);
+            ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetCommandBuffer()).Playback(world);
+        }
+        Tick();
+        Kill(m1); Kill(bradley); Kill(car);
+        Tick();
+        Assert.Equal(6, wrecks.Spawned);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();   // a new window: the shared shader compiles in THIS context
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var effects = new Hrot.UI.Common.Effects.EffectLayer(() => world, () => tkb, bodies) { GroundHeight = query.GroundHeightAt };
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        canvas.AddLayer(effects);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        sw.Set(true, animate: false);
+        var close = new CameraPose(new Vector3(spot.X - 6f, spot.Y - 2f, query.GroundHeightAt(spot.X, spot.Y)), 46f, MathF.PI * 0.72f, -0.30f);
+        sw.Camera3D.Pose = close;
+
+        // the falling man: seen alive at 7.7 s, dead from 8.0 s, drawn at 8.3 s — half-way down
+        At(7.7);
+        frame.Step(canvas.Draw);
+        Kill(falling);
+        At(8.0);
+        frame.Step(canvas.Draw);
+        At(8.3);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "wreck-1-burning-8s.png"));
+        Assert.Equal(6, effects.Drawn);
+        Assert.Equal(7, bodies.BodiesDrawn);
+        Assert.Equal(0.5f, bodies.Falls.Dead(falling, 8.3).T, 2);
+
+        // the riflemen up close: dead (lying, rifle dropped), falling, alive
+        var men = new Vector2(spot.X - 3f, spot.Y - 9f);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(men, query.GroundHeightAt(men.X, men.Y)), 9f, MathF.PI * 0.62f, -0.45f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "wreck-2-riflemen-8s.png"));
+
+        // a wreck up close, from the side
+        var tank = world.GetComponentRO<SimTransform>(m1).Position;
+        sw.Camera3D.Pose = new CameraPose(tank, 22f, MathF.PI * 0.85f, -0.22f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "wreck-3-m1-closeup-8s.png"));
+
+        // later: the fire dying down at 52 s; at 150 s the flames are gone and the smoke is fading
+        sw.Camera3D.Pose = close;
+        At(52.0);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "wreck-4-dying-fire-52s.png"));
+        Assert.Equal(6, effects.Drawn);
+        At(150.0);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "wreck-5-fading-smoke-150s.png"));
+        Assert.Equal(3, effects.Drawn);
+
+        // the 2-D map at 8.3 s: the symbols (the production EntityPresentationGizmo) with the X on the three wrecks, the puffs from above
+        At(8.3);
+        var canvas2 = new MapCanvas(input: null);
+        var cam2 = new MapCamera();
+        const float zoom = 9f;
+        var target = new Vector2(spot.X - 4f - 1280f / 2f / zoom, spot.Y - 3f + 800f / 2f / zoom);
+        cam2.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas2.Camera = cam2;
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus(), camera: cam2);
+        canvas2.AddLayer(effects);
+        canvas2.AddLayer(gizmos);
+        var symbol = new Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo();
+        foreach (var e in world.Query().With<NetworkIdentity>().With<SimTransform>().Build())
+            symbol.Draw(world, e, buffer);
+        gizmos.Update(0.016f);
+        frame.Step(canvas2.Draw);
+        frame.Step(canvas2.Draw);
+        frame.Screenshot(Path.Combine(shots, "wreck-6-map2d-x-8s.png"));
+    }
+
+    /// <summary>
+    /// ⭐ P1 (docs/DESIGN_Visual_Effects.md §8) — rounds on a real GL: a grenade mid-throw from a rifleman, a grenade LYING by a living
+    /// soldier with its fuze burning, an 81 mm bomb on its way down, and a test MISSILE type (Munition.Visual Missile + smoke trail) —
+    /// the bodies at least <see cref="Hrot.UI.Common.Effects.ProjectileLayer.MinPixels"/> tall; then the 2-D map with the projector's
+    /// markers and the lying grenade's fuze seconds.
+    /// </summary>
+    [SkippableFact]
+    public void P_Projectiles_AGrenadeFliesAndLies_ABombFalls_AMissileTrailsSmoke()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<SimVelocity>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+        var tkb = Map3DTests.BuiltIn();
+        const long TestMissile = 6999;
+        var missileType = new Fdp.Interfaces.TkbTemplate("Test ATGM", TestMissile);
+        missileType.AddDescriptor(new MunitionVisualDto { Shape = MunitionShape.Missile, Length = 1.2f, Diameter = 0.14f, ColorHex = "#6B6E4A", SmokeTrail = true });
+        tkb.Register(missileType);
+        const long TestTracer = 6998;   // ⭐ P2 — a tracer bullet type (the TKB switch, PR-F)
+        var tracerType = new Fdp.Interfaces.TkbTemplate("Test 7.62 tracer", TestTracer);
+        tracerType.AddDescriptor(new MunitionVisualDto { Shape = MunitionShape.Bullet, Tracer = true });
+        tkb.Register(tracerType);
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 3.3 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        void Soldier(float dx, float dy, StanceId stance, float yaw)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new StanceIntent { TargetStance = stance });
+        }
+        Entity Round(long ammo, Vector3 at, Vector3 velocity, byte warhead, float fuze = 0f, Vector3 muzzle = default)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            world.AddComponent(e, new SimVelocity { Linear = velocity });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.BallisticProjectile
+            {
+                Ammo = ammo, Warhead = warhead, FuzeRemaining = fuze, PreviousPosition = at - velocity * 0.05f, Muzzle = muzzle,
+            });
+            return e;
+        }
+        const byte Grenade = Fdp.Toolkit.Combat.Components.WarheadRound.Arc | Fdp.Toolkit.Combat.Components.WarheadRound.TimeFuze
+                           | Fdp.Toolkit.Combat.Components.WarheadRound.Area;
+        Soldier(-8f, 0f, StanceId.Standing, 0f);       // the thrower
+        Soldier(6f, 2f, StanceId.Crouched, MathF.PI);   // the one the grenade landed by
+        var throwPoint = new Vector3(spot.X - 2f, spot.Y + 0.3f, G(spot.X - 2f, spot.Y) + 3.4f);
+        Round(MunitionTkbCatalog.TkbM67Grenade, throwPoint, new Vector3(9f, 0.5f, 1.5f), Grenade, 3.6f);
+        Round(MunitionTkbCatalog.TkbM67Grenade, new Vector3(spot.X + 4.5f, spot.Y + 0.5f, G(spot.X + 4.5f, spot.Y + 0.5f)), Vector3.Zero,
+              (byte)(Grenade | Fdp.Toolkit.Combat.Components.WarheadRound.Landed), 2.7f);
+        Round(MunitionTkbCatalog.Tkb81mmMortarHe, new Vector3(spot.X + 10f, spot.Y + 12f, G(spot.X, spot.Y) + 14f), new Vector3(20f, 4f, -45f),
+              Fdp.Toolkit.Combat.Components.WarheadRound.Arc | Fdp.Toolkit.Combat.Components.WarheadRound.Area);
+        // a machine-gun burst of tracers from the thrower toward the north-east, three rounds in the air, one slightly off (a miss)
+        var mg = new Vector3(spot.X - 8f, spot.Y, G(spot.X - 8f, spot.Y) + 1.4f);
+        foreach (var (range, off) in new[] { (60f, 0f), (110f, 0f), (160f, 4f) })
+        {
+            var dir = Vector3.Normalize(new Vector3(0.55f, 1f, 0.02f) + new Vector3(off * 0.004f, 0, 0));
+            Round(TestTracer, mg + dir * range, dir * 850f, 0, muzzle: mg);
+        }
+        var missileAt = new Vector3(spot.X - 6f, spot.Y + 22f, G(spot.X, spot.Y) + 5f);
+        Round(TestMissile, missileAt, new Vector3(160f, -10f, 0f), 0, muzzle: missileAt + new Vector3(-50f, 3f, -1f));
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        var rounds = new Hrot.UI.Common.Effects.ProjectileLayer(() => world, () => tkb, () => sw.Camera3D) { GroundHeight = G };
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        canvas.AddLayer(rounds);
+        sw.Set(true, animate: false);
+
+        // from the south, looking north: the soldiers in front, the bomb falling above them, the missile crossing behind
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 2f, spot.Y + 10f, G(spot.X, spot.Y) + 5f), 36f, MathF.PI * 0.5f, -0.12f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "rounds-1-overview.png"));
+        Assert.Equal(7, rounds.Drawn);
+
+        // close on the throw and the lying grenade, at the soldiers' height
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 1f, spot.Y + 0.5f, G(spot.X, spot.Y) + 1.6f), 9f, MathF.PI * 0.5f, -0.12f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "rounds-2-grenade-close.png"));
+
+        // 2-D: the projector's streaks, markers and the lying grenade's fuze seconds
+        var canvas2 = new MapCanvas(input: null);
+        var cam2 = new MapCamera();
+        const float zoom = 14f;
+        var target = new Vector2(spot.X + 2f - 1280f / 2f / zoom, spot.Y + 8f + 800f / 2f / zoom);
+        cam2.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas2.Camera = cam2;
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus(), camera: cam2);
+        canvas2.AddLayer(gizmos);
+        var projector = new Hrot.ScenarioEditor.Gizmos.ProjectilePresentationGizmo();
+        foreach (var e in world.Query().With<Fdp.Toolkit.Combat.Components.BallisticProjectile>().With<SimTransform>().Build())
+            projector.Draw(world, e, buffer);
+        gizmos.Update(0.016f);
+        frame.Step(canvas2.Draw);
+        frame.Step(canvas2.Draw);
+        frame.Screenshot(Path.Combine(shots, "rounds-3-map2d.png"));
+    }
+
+    /// <summary>
+    /// ⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13, R-272) — soldiers in the weapon brain's postures on a real GL: at ease (rifle low),
+    /// ready (at the chest), aimed (shouldered; one turned toward a target off to his left, the other straight ahead), crouched aimed,
+    /// prone; a soldier RUNNING (leaning forward, arms on the rifle) and a civilian walking (arms swinging).
+    /// </summary>
+    [SkippableFact]
+    public void WL6_SoldiersHoldTheirRiflesInTheWeaponBrainsPosture()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        double now = 1.0;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        var foe = world.CreateEntity();   // what the turned soldier aims at — off to his left, not drawn (no TKB identity)
+        world.AddComponent(foe, new SimTransform { Position = new Vector3(spot.X + 6f, spot.Y + 30f, G(spot.X, spot.Y)), Rotation = Quaternion.Identity });
+        Entity Person(float dx, float dy, long type, StanceId stance, Fdp.Toolkit.Combat.Components.WeaponPostureKind posture, Entity aimAt = default)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // all face +x (east)
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new StanceIntent { TargetStance = stance });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = posture, Target = aimAt });
+            return e;
+        }
+        const long Rifleman = TkbEntityTypes.Infantry_Rifleman;
+        Person(0f, 6f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+        Person(0f, 3f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        Person(0f, 0f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);   // aimed, at nothing placed: straight ahead
+        Person(0f, -3f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, foe);
+        Person(0f, -6f, Rifleman, StanceId.Crouched, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
+        Person(1.5f, -9f, Rifleman, StanceId.Prone, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
+        var runner = Person(-5f, 1.5f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        var glider = Person(-5f, -1.5f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);   // ⭐ WL-6c — the glide
+        var walker = Person(-5f, -4.5f, UrbanCombatTkbCatalog.TkbCivilianPedestrian, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        // from the south-east, a little above them: they face east, so this is a front three-quarter view — the rifles and arms read
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 1f, spot.Y - 1.5f, G(spot.X, spot.Y) + 1.0f), 12f, MathF.PI * 0.80f, -0.10f);
+
+        // the runner at 6 m/s and the walker at 1.4 m/s, over a few frames of sim time, so the gait and the lean are live
+        void Move(Entity e, float speed, double dt)
+        {
+            var tf = world.GetComponent<SimTransform>(e);
+            tf.Position += new Vector3(speed * (float)dt, 0f, 0f);
+            tf.Position = tf.Position with { Z = G(tf.Position.X, tf.Position.Y) };
+            world.SetComponent(e, tf);
+        }
+        for (int i = 0; i < 9; i++)
+        {
+            now += 1.0 / 30.0;
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+            Move(runner, 6f, 1.0 / 30.0);
+            Move(walker, 1.4f, 1.0 / 30.0);
+            Move(glider, 1.2f, 1.0 / 30.0);
+            frame.Step(canvas.Draw);
+        }
+        frame.Screenshot(Path.Combine(shots, "posture-1-side.png"));
+        Assert.Equal(9, bodies.BodiesDrawn);
+
+        // closer, side-on from the south, on the aimed pair (the one turned toward the target on his left) and the crouched one
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 0.3f, spot.Y - 3f, G(spot.X, spot.Y) + 1.1f), 6.5f, MathF.PI * 0.62f, -0.08f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "posture-2-aimed-close.png"));
+
+        // ⭐ WL-6c — side-on, low: the athletic stance (knees bent, feet staggered) and the glide (aimed, walking, short steps)
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 2.5f, spot.Y - 1f, G(spot.X, spot.Y) + 0.8f), 7.5f, MathF.PI * 0.5f, -0.04f);
+        for (int i = 0; i < 4; i++)
+        {
+            now += 1.0 / 30.0;
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+            Move(glider, 1.2f, 1.0 / 30.0);
+            Move(runner, 6f, 1.0 / 30.0);
+            Move(walker, 1.4f, 1.0 / 30.0);
+            frame.Step(canvas.Draw);
+        }
+        frame.Screenshot(Path.Combine(shots, "posture-3-athletic-and-glide.png"));
+
+        // the prone soldier, close: side-on, then from the front-left (the arms and the rifle)
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 2.0f, spot.Y - 9f, G(spot.X, spot.Y) + 0.15f), 2.6f, MathF.PI * 0.5f, -0.18f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "posture-4-prone-side.png"));
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 2.0f, spot.Y - 9f, G(spot.X, spot.Y) + 0.15f), 2.4f, MathF.PI * 0.85f, -0.30f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "posture-5-prone-front.png"));
+
+        // ⭐ WL-6d — a crawling soldier (0.6 m/s), side-on, at two points of the cycle: left elbow forward, then right
+        var crawler = Person(4f, -12f, Rifleman, StanceId.Prone, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        // from above and behind-left: a crawl reads by its limbs spreading and drawing in, which a low camera hides behind the body
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 4.4f, spot.Y - 12f, G(spot.X, spot.Y) + 0.1f), 3.2f, MathF.PI * 0.20f, -0.95f);
+        void CrawlFrames(int n)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                now += 1.0 / 60.0;
+                world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+                Move(crawler, 0.6f, 1.0 / 60.0);
+                frame.Step(canvas.Draw);
+            }
+        }
+        CrawlFrames(18);   // 0.18 m: about a quarter of a cycle
+        frame.Screenshot(Path.Combine(shots, "posture-6-crawl-a.png"));
+        CrawlFrames(35);   // half a cycle on
+        frame.Screenshot(Path.Combine(shots, "posture-7-crawl-b.png"));
+    }
+
+    /// <summary>
+    /// ⭐ LR-3 (docs/DESIGN_Visual_Effects.md §8.5, R-271) — what a DUMB VIEWER draws: no combat state at all (BallisticProjectile is not
+    /// even registered), only replicated rounds — <c>LightweightRound</c> + the munition type + position + velocity, as the
+    /// EntityMaster / WorldPos ingress leaves them. The built-in types: a 5.56 tracer burst, a 120 mm APFSDS-T, an RPG-7 and a TOW with
+    /// their smoke, an 81 mm bomb falling and an M67 lying (a viewer knows no fuze); then the 2-D map's <c>LightweightRoundGizmo</c>.
+    /// </summary>
+    [SkippableFact]
+    public void LR_AViewerDrawsReplicatedRounds_FromMasterAndPositionOnly()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<SimVelocity>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.LightweightRound>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 3.3 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        void Soldier(float dx, float dy, StanceId stance, float yaw)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new StanceIntent { TargetStance = stance });
+        }
+        int sent = 0;
+        void Replicated(long type, Vector3 at, Vector3 velocity)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            world.AddComponent(e, new SimVelocity { Linear = velocity });
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, default(Fdp.Toolkit.Replication.Components.LightweightRound));
+            sent++;
+        }
+        Soldier(-8f, 0f, StanceId.Standing, 0f);
+        Soldier(6f, 2f, StanceId.Crouched, MathF.PI);
+        var mg = new Vector3(spot.X - 8f, spot.Y, G(spot.X - 8f, spot.Y) + 1.4f);
+        foreach (var range in new[] { 40f, 75f, 110f })
+        {
+            var dir = Vector3.Normalize(new Vector3(0.55f, 1f, 0.02f));
+            Replicated(MunitionTkbCatalog.Tkb556Tracer, mg + dir * range, dir * 900f);
+        }
+        Replicated(MunitionTkbCatalog.Tkb120mmApfsds, new Vector3(spot.X - 30f, spot.Y + 30f, G(spot.X, spot.Y) + 2.5f), new Vector3(1650f, 0f, 0f));
+        Replicated(MunitionTkbCatalog.TkbRpg7Rocket, new Vector3(spot.X + 2f, spot.Y + 16f, G(spot.X, spot.Y) + 3f), new Vector3(-110f, 8f, 1f));
+        Replicated(MunitionTkbCatalog.TkbTowMissile, new Vector3(spot.X - 8f, spot.Y + 24f, G(spot.X, spot.Y) + 6f), new Vector3(180f, -6f, 0f));
+        Replicated(MunitionTkbCatalog.Tkb81mmMortarHe, new Vector3(spot.X + 10f, spot.Y + 12f, G(spot.X, spot.Y) + 14f), new Vector3(20f, 4f, -45f));
+        Replicated(MunitionTkbCatalog.TkbM67Grenade, new Vector3(spot.X + 4.5f, spot.Y + 0.5f, G(spot.X + 4.5f, spot.Y + 0.5f)), Vector3.Zero);
+        Replicated(MunitionTkbCatalog.Tkb556Ball, mg + new Vector3(0, 30, 0), new Vector3(0, 900, 0));   // never sent for real; drawn as nothing
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        var rounds = new Hrot.UI.Common.Effects.ProjectileLayer(() => world, () => tkb, () => sw.Camera3D) { GroundHeight = G };
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        canvas.AddLayer(rounds);
+        sw.Set(true, animate: false);
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 2f, spot.Y + 10f, G(spot.X, spot.Y) + 5f), 40f, MathF.PI * 0.5f, -0.12f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "lr-1-viewer-overview.png"));
+        Assert.Equal(sent - 1, rounds.Drawn);                                    // all but the ball
+        Assert.Equal(2, bodies.BodiesDrawn);                                        // ⛔ the two soldiers only — no round as a purple box
+
+        var canvas2 = new MapCanvas(input: null);
+        var cam2 = new MapCamera();
+        const float zoom = 12f;
+        var target = new Vector2(spot.X + 2f - 1280f / 2f / zoom, spot.Y + 12f + 800f / 2f / zoom);
+        cam2.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas2.Camera = cam2;
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus(), camera: cam2);
+        canvas2.AddLayer(gizmos);
+        var projector = new Hrot.ScenarioEditor.Gizmos.LightweightRoundGizmo();
+        foreach (var e in world.Query().With<Fdp.Toolkit.Replication.Components.LightweightRound>().With<SimTransform>().Build())
+            projector.Draw(world, e, buffer);
+        gizmos.Update(0.016f);
+        frame.Step(canvas2.Draw);
+        frame.Step(canvas2.Draw);
+        frame.Screenshot(Path.Combine(shots, "lr-2-viewer-map2d.png"));
     }
 
     /// <summary>
@@ -409,6 +887,90 @@ public sealed class Map3DFrameRail
             Assert.True(bestRow < top + (bottom - top) / 3, $"the T's crossbar (row {bestRow}) must be its TOP ({top}..{bottom}) — text upright");
         }
         finally { Raylib.UnloadImage(image); }
+    }
+
+    /// <summary>
+    /// ⭐ CE-3174 (V) — the FPS STATION, in a real window: a rifleman this station holds (<see cref="Fdp.Toolkit.Behavior.Possession.PossessedBy"/>)
+    /// on test-town's ground, looking at a tank across the street. The production canvas + switch + <see cref="PossessionStation"/>
+    /// put the map into first person on him (the <see cref="FpsCameraDriver"/> on the 3-D camera), and the overlay draws the crosshair
+    /// and the HUD — health and ammunition per mount. 📄 docs/DESIGN_Entity_Control.md §8d, §13.3. Screenshot: <c>fps-1-station.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE3174_V_TheFpsStation_DrawsTheFirstPersonView_AndTheHud()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        var tkb = Map3DTests.BuiltIn();
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+
+        var tank = world.CreateEntity();
+        world.AddComponent(tank, new SimTransform { Position = new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y)),
+                                                    Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.2f) });
+        world.AddComponent(tank, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+
+        var stand = FindOpenArea(query, spot - new Vector2(22f, 0f), 2f);
+        float yaw = MathF.Atan2(spot.Y - stand.Y, spot.X - stand.X);   // facing the tank
+        var me = world.CreateEntity();
+        world.AddComponent(me, new SimTransform { Position = new Vector3(stand.X, stand.Y, query.GroundHeightAt(stand.X, stand.Y)),
+                                                  Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+        world.AddComponent(me, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        world.AddComponent(me, new StanceIntent { TargetStance = StanceId.Standing });
+        world.AddComponent(me, new Fdp.Toolkit.Combat.Components.Health { Current = 74f, Max = 100f });
+        var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 2 };
+        ammo.Set(0, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 112, MaxAmmo = 150, MagazineSize = 30, MagazineRounds = 22 });
+        ammo.Set(1, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 3, MaxAmmo = 4 });
+        world.AddComponent(me, ammo);
+        var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+        map.Register(1001L, me);
+        map.Register(1002L, tank);
+        world.SetSingletonManaged(map);
+        world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.PossessedBy
+        {
+            StationNodeId = 0, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1,   // this node (no authority data ⇒ 0)
+        });
+
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        var target = new Vector2(spot.X - 1280f / 2f / 4f, spot.Y + 800f / 2f / 4f);
+        two.ApplyCameraView(new MapCameraView { Target = target, Zoom = 4f, SmoothTarget = target, SmoothZoom = 4f });
+        canvas.Camera = two;
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb, (w, e) => ArticulationPose.Neutral);
+        canvas.AddLayer(bodies);
+        var sw = new MapViewSwitch(canvas, two, new MapCamera3D { ViewportOverride = new Vector2(1280, 800) });
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        var station = new PossessionStation(sw, () => world);
+        canvas.AddLayer(station);
+
+        station.Update(1f / 30f);
+        Assert.True(station.InFps, "the station follows PossessedBy into first person");
+        Assert.True(sw.Is3D);
+        sw.Camera3D.Update(1f / 30f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        string png = Path.Combine(shots, "fps-1-station.png");
+        frame.Screenshot(png);
+
+        var eye = sw.Camera3D.Eye;
+        Assert.InRange(Vector2.Distance(new Vector2(eye.X, eye.Y), stand), 0f, 0.05f);                 // the eye is on the rifleman
+        Assert.InRange(eye.Z - query.GroundHeightAt(stand.X, stand.Y), 1.2f, 2.0f);                       // at a standing eye height
+        Assert.True(bodies.BodiesDrawn >= 1, "the tank across the street is drawn");
+        var lines = PossessionStation.Hud.Lines(world, me, mount: 0, vehicle: false, hullLocked: false);
+        Assert.Equal(new[] { "HEALTH 74/100", "> WEAPON 0  112/150  [22]", "  WEAPON 1  3/4" }, lines[..3]);
     }
 
     /// <summary>The point nearest <paramref name="from"/> with a clear square of ground ±<paramref name="half"/> metres around it.</summary>
