@@ -231,6 +231,26 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         Assert.Contains("Loop", keys);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-2132</c> (A2, docs/DESIGN_Orders_Params_Entity_Classes.md §6) — the four multi-variable library trees that no
+    /// caller sends JSON (measured: no scenario, test or asset params string names their variables) name <c>NoParams</c>: their
+    /// variables are baked tuning for their own nodes, not a contract. 🔴 Red-proof: drop <c>ParamsDtoTypeId</c> from one asset
+    /// → it publishes its generated mirror again and this fails naming it.
+    /// </summary>
+    [Theory]
+    [InlineData("BasicInfantrySop")]
+    [InlineData("BasicSquadSop")]
+    [InlineData("FiringPosition")]
+    [InlineData("Flank")]
+    public void CE2132_ALibraryTreeNoCallerParameterises_NamesNoParams(string behaviour)
+    {
+        var registry = LoadProductionRegistry();
+        Assert.True(registry.TryGetId(behaviour, out int id) && registry.TryGetDefinition(id, out var def) && def is not null,
+            $"{behaviour} must be registered");
+        registry.TryGetDefinition(id, out var d);
+        Assert.Equal(typeof(Hrot.Map.Definitions.Behavior.NoParams), d!.JsonParamsDtoType);
+    }
+
     // ── CE-2130 (docs/DESIGN_Orders_Params_Entity_Classes.md §1 P1–P2, §6 R0) ─────────────────────────────────────────────
     //   The authoring rules as a conformance rail: every registered behaviour names exactly ONE params DTO (its public JSON
     //   contract), and that DTO is a NAMED type — never a generator's mirror of the behaviour's own variables (which is what
@@ -245,10 +265,12 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         // CE-2133 (B1, 2026-10-12) removed 8: one struct Input now IS the params DTO (FallBack, HullDownAttackRun,
         //   PlatoonHillAttack, Sentry, T11_Aliasing, T31_ComposedAiPrimitive, T34_ComposedAiPrimitiveCondition, TakeCover)
         // CE-2135 (B3a, 2026-10-12) removed 2: T32_ComposedGeneratedBlueprint, T33_ComposedParamBlueprint now name NoParams
-        "BTreeCuratedBindingDemo", "BTreeRenderShowcase", "BasicInfantrySop", "BasicSquadSop",
+        // CE-2132 (A2, 2026-10-12) removed 4: BasicInfantrySop, BasicSquadSop, FiringPosition, Flank now name NoParams (no
+        //   caller sends them JSON; their variables are baked tuning). DangerCrossing waits for field binding (orders design §6)
+        "BTreeCuratedBindingDemo", "BTreeRenderShowcase",
         "BlueprintBehaviourDemo", "CombatShowcase", "DangerCrossing", "DangerCrossingBp",
         "Demo_Advance", "Demo_Engage", "Demo_MissionPlan", "Demo_Retreat",
-        "Demo_TakeCover", "Demo_TaskChain", "FiringPosition", "Flank",
+        "Demo_TakeCover", "Demo_TaskChain",
         "HsmOrthogonalRegions", "HsmResolverDemo", "HsmShowcase", "HsmTwoChannelRegionsDemo",
         "OperatorControl", "PlatoonHillAttackBp", "SampleGuard", "SampleScout",
         "T01_Sequence", "T02_Selector", "T03_Parallel", "T04_DecoratorRepeater",

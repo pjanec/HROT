@@ -231,6 +231,7 @@
       }
     }
   ],
+  "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams",
   "Pills": [],
   "Canvas": {
     "PanX": 0,
