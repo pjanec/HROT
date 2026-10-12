@@ -1128,7 +1128,7 @@ namespace Fdp.Examples.Scenarios.Tests
             int code = ScenarioTestHarness.Run(scenario, maxTicks: 600);
 
             Assert.True(scenario.LatchInsurgentKilled,
-                "Latch 4 (InsurgentKilled) must be set: Insurgent entity destroyed " +
+                "Latch 4 (InsurgentKilled) must be set: Insurgent combat-dead (Health <= 0; the body stays, CE-267 revert) " +
                 "by combined soldier fire within tick budget.");
             // Exit code 0 is sufficient to prove latch 4 since EvaluateTick returns true
             // only after _latchInsurgentKilled is set.

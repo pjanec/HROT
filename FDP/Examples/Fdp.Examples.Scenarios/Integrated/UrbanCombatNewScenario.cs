@@ -583,6 +583,11 @@ namespace Fdp.Examples.Scenarios.Integrated
 
             var stageA = new IEcsModuleSystem[]
             {
+                // ⭐ CE-3110 I-2a — the vehicle's owner applies embark / eject commands. ⭐ CE-2126: HERE, at the head of Stage A —
+                //   the executor raises them in Stage C, the KERNEL swaps the bus after the tick (ModuleHostKernel's SwapBuffers), so
+                //   they are readable in the next tick's Stage A only; this fixture's own swap after Stage A drops them. (I-2a put it
+                //   in Stage B, which looked right only while the ambush never hit — 📐 measured: eject issued, 4 aboard, timed out.)
+                new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem(),
                 new BehaviorIngressSystem(_behaviorRegistry),
                 new FireProcessingSystem(),
                 new RaycastSolverSystem(),   // ECB: RaycastResultEvent
@@ -591,10 +596,6 @@ namespace Fdp.Examples.Scenarios.Integrated
             var stageB = new IEcsModuleSystem[]
             {
                 new HitResolutionSystem(),   // reads RaycastResultEvent; direct: HitEvent; ECB: bullet TearDown
-                // ⭐ CE-3110 I-2a — the vehicle's owner applies embark / eject commands. HERE, not in Stage C where the executor
-                //   raises them: this fixture swaps the bus after Stage A and after Stage B, so a command raised in Stage C is
-                //   readable only in the NEXT tick's Stage B (📐 measured: in Stage C the eject was swapped out unread — hit=False).
-                new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem(),
             };
 
             var stageC = new IEcsModuleSystem[]
@@ -797,6 +798,10 @@ namespace Fdp.Examples.Scenarios.Integrated
                     unchecked { channel.ActionInstanceId++; }
 
                 channel.ActiveAction = CombatConstants.ActionIdAimAndFire;
+                // ⭐ CE-2126 — stamp the owning behaviour, as Activity_Cruise does: ChannelArbitrationSystem clears an action whose
+                //   BehaviorInstanceId is not the unit's, so an unstamped one was cleared and re-issued EVERY tick (+2/tick) and
+                //   OnEnter restarted the aim clock (CE-3136 P-3) before it ever reached AimSeconds — nobody fired.
+                channel.BehaviorInstanceId = ctx.World.GetComponent<BehaviorState>(ctx.Self).InstanceId;
                 return NodeStatus.Running;
             }
 

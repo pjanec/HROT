@@ -4,7 +4,7 @@ updated: 2026-10-12 (I-2a BUILT — §7.1b; I-2b BUILT — §7.1d)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
 current-answer: §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
-known-rot: nothing yet
+known-rot: §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
 related-designs:
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-274 (behaviors): carry capacity and seats per vehicle type (B) and the human-carrier profile (C); R-275 (behaviors): Health in the cross-role set (D)
@@ -299,7 +299,7 @@ that does not go through a command.*
 
 | found | done |
 |---|---|
-| the FDP `UrbanCombatNew` fixture swaps the bus after its Stage A and Stage B, so a command raised in Stage C is readable only in the next tick's Stage B — with the applier in Stage C the eject was swapped out unread (📐 `hit=False killed=False`) | the applier sits in Stage B there (`UrbanCombatNewScenario.cs`); hosts that swap once per frame (CGF, editor, `HeadlessDemoApp`) need nothing |
+| the FDP `UrbanCombatNew` fixture swaps the bus after its Stage A and Stage B, **and the kernel swaps it again after the tick** (`ModuleHostKernel` `SwapBuffers`) — so a command raised in Stage C is readable in the next tick's **Stage A only** | ⭐ **CE-2126 (`2026-10-12`): the applier sits at the HEAD of Stage A** (`UrbanCombatNewScenario.cs`). ⛔ SUPERSEDED: I-2a put it in Stage B, reasoning without the kernel's swap — it *looked* right only because the ambush never hit (the scenario's `Action_AimAndFire` never stamped `BehaviorInstanceId`, so `ChannelArbitrationSystem` cleared it every tick and the aim clock never finished); 📐 once the shot landed, the eject was issued and timed out with 4 aboard. Hosts that swap once per frame (CGF, editor, `HeadlessDemoApp`) need nothing |
 | the transport rail used `Embark` (2) as its "unknown kind" | it uses 999; `Embark` is known now |
 | `EditorAuthoringIntegrationTests.ZoneAuthoring_ObstaclePlacement_*` red (2) | pre-existing: red at `c5281a5bb` too; unrelated to embarkation |
 

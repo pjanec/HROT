@@ -53,7 +53,7 @@ namespace Fdp.Examples.Scenarios.Integrated
 
         /// <summary>True once the Insurgent's WeaponChannel.ActiveAction == AimAndFire.</summary>
         public bool LatchAmbushFired     => _latchAmbushFired;
-        /// <summary>True once the APC's LocomotionChannel.ActiveAction == 0 (MobilityLost processed).</summary>
+        /// <summary>True once the APC's LocomotionChannel.ActiveAction == 0 AND it lost CanMove (MobilityLost processed, CE-2126).</summary>
         public bool LatchApcHalted       => _latchApcHalted;
         /// <summary>True once the Insurgent's health dropped below maximum.</summary>
         public bool LatchInsurgentHit    => _latchInsurgentHit;
@@ -125,8 +125,12 @@ namespace Fdp.Examples.Scenarios.Integrated
             // ── Latch 2: APC halted (LocomotionChannel.ActiveAction == 0 after MobilityLost) ──
             if (!_latchApcHalted && _latchAmbushFired && apcFound)
             {
+                // ⭐ CE-2126 — halted means MobilityLost took the APC's CanMove, not just an idle channel: the channel is 0 on
+                //   tick 2, before Cruising first writes it, so the old test latched here while the ambush had not hit at all.
                 bool halted = !world.IsAlive(apc)
-                              || world.GetComponent<LocomotionChannel>(apc).ActiveAction == 0;
+                              || (world.GetComponent<LocomotionChannel>(apc).ActiveAction == 0
+                                  && world.HasComponent<ActorCapabilityState>(apc)
+                                  && (world.GetComponent<ActorCapabilityState>(apc).Capabilities & ActorCapabilities.CanMove) == 0);
                 if (halted)
                     _latchApcHalted = true;
             }
