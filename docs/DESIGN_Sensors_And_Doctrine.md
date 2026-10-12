@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: BUILDING — S0 (§9.1), S3 (§9.2), S4 (§9.3) and S5 (§9.4) BUILT; §7.6b (CE-1023) BUILDING; the rest READY-TO-BUILD (decisions R-185 … R-189).
+build-state: BUILDING — S0 (§9.1), S3 (§9.2), S4 (§9.3) and S5 (§9.4) BUILT; §7.6b (CE-1023) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
 current-answer: the whole file — §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
 stale-below: nothing — new document.
 known-rot: "doctrine" is RENAMED "SOP" (R-198, user 2026-10-04) — read every doctrine as SOP; planned identifiers become SopState / AssignSopEvent / ClearSopEvent / DefaultSop {Name, ParamsJson}; the SOP model (task · SOP · reaction, R-199) lives in docs/DESIGN_Decision_Layer.md §4. · §7.5's first version (an authored AiAssignment component, R-190) is SUPERSEDED by the snapshot concept (R-192) — the section was rewritten in place, 2026-10-04.
@@ -1038,7 +1038,7 @@ unregistered bus is a refusal, never a silent drop). ⚠ The ImGui drawing itsel
 `Params` type (size = `ParamsSize`) and its non-default JSON · paused applies in place, publishes nothing · running publishes
 the replace (id → id, the JSON) and writes nothing.
 
-### 7.6b One params form EVERYWHERE, with map picks — `CE-1023` *(ui, `2026-10-12`; build-state: READY-TO-BUILD)*
+### 7.6b One params form EVERYWHERE, with map picks — `CE-1023` *(ui, `2026-10-12`; build-state: BUILT — as-built at the end)*
 
 > 🔒 User-reported `2026-10-06`: *the Mission Editor's add-task shows a raw JSON box for many behaviours; the Details "AI" view
 > shows the structure but no route picker.* §7.6 built THE ONE PARAMS FORM for the AI section only; the mission panel kept its
@@ -1164,6 +1164,29 @@ nothing it had is lost.*
 
 *Not in scope (fences, behaviors-lane handoff 2026-10-12):* the BTree/HSM binding-target picker and the emitters, the
 variables panel, the A2 assets. `OrderMenu.PickOf` (the right-click order's ONE pick, D4-E) is a gesture, not a form — unchanged.
+
+⭐ **AS-BUILT (`2026-10-12`)** — F1–F7 as drawn, plus ONE deviation the diagrams did not foresee:
+
+| as built | where / why |
+|---|---|
+| F1 | `Fdp.Presentation/ImGui/Editing/ComponentEditServices.cs` — `CreateBuilder()`; `ComponentReflector.BuildEditService` and `AiFacetEditService.CreateBuilder` start from it |
+| F2 | `ScopedMapPickContext` (same file) — `Path("$.X") = scope + ".X"` |
+| F3 | `Hrot.Presentation/Behavior/BehaviorParamsForm.cs` (moved; namespace `Hrot.Presentation.Behavior`) — `ParamsTypeOf`, `Open` (refuses a leaf type; no scalar box), `DrawFields`, `CommitToJson`; `EntityAiEditModel.ParamsTypeOf` routes to it |
+| F4 | `BehaviorParamsEditor` (same file) — `Sync(type, json)` keeps the session while the JSON is the source or its own last commit; `Edited()` returns new JSON once |
+| F5 | `MissionPanel(localNodeId, Func<string, Type?> paramsTypeOf)`; `ParamsFormFor(taskId, behaviour, json)` (one editor per task id); `PickScope(i) = "$.tasks[i]"`; the raw box only for an unknown type. Editor (both panels) and CGF pass `ParamsTypeOf(name, _behaviorRegistry)`; ExCon passes none (declared contracts) |
+| F6 | `EntityAiDetailsView(model, editService, picks)` + `PicksFor(scope)`; the descriptor's `picks`; `EditorSubsystem` passes `new MapPickBroker(() => _mapPickAdapter)` |
+| F7 | `BehaviorUiCompiler.cs`, `BehaviorUiSetup.cs` deleted (`BehaviorUiRegistry` with them); `AutoRegister(remapper, behaviorRegistry)` |
+| 🔴 **deviation — StructEdit** | ⛔ **A blittable struct of AUTO-PROPERTIES opened as an EMPTY document**: `ReflectionEditDocumentBuilder` skipped properties on a native buffer, and every behaviour params DTO is such a struct (`FireAtTarget`, `MoveToLocation`, …). ⇒ the AI section's form had shown NO fields for them (the user's "no route picker" in part). Fixed at the root (`FDP/ExtDeps/StructEdit`): a native buffer edits an auto-property through its compiler-generated backing field (offset + binding; the PROPERTY's name, path and attributes — `ReadMetadata` now prefers the property), and a COMPUTED property on the ROOT struct (`MoveToLocation.PickableLocation`, the point facade over two doubles) is read-modify-written through the root binding (`NestedMemberBinding`). A computed property deeper than the root stays unsupported |
+
+Rails: `Hrot.Presentation.Tests/Behavior/BehaviorParamsFormTests` (an entity pick and a location pick land in the task's JSON
+through `$.tasks[0]`; opening never rewrites the draft, an outside change reopens, its own commit does not; EVERY declared
+behaviour's params type opens and draws one ImGui frame; the scoped path) · `MissionPanelRegistryTests.CE1023_…` (the host's
+lookup, an unknown behaviour gets none, the default is the declared contracts) · `EntityAiSectionTests.CE1023_…` (the editor's
+CONSTRUCTED view has scoped picks; the AI service draws an `EntityRef` param as one leaf) · `StructEdit.Tests`
+`DocumentBuilderTests.CE1023_…` (auto-properties are nodes writing their backing field; a computed root property writes
+through the struct). Re-homed: `BehaviorUiCompilerTests`' two pick claims → `BehaviorParamsFormTests`; `CgfBehaviorSetupTests`
+C011 SC3 → "the three behaviours have a params form". 🔴 The first run of the form rails was RED on the StructEdit gap
+(empty document ⇒ no pick could land) — that is how the deviation was found.
 
 ### 7.7 A Brain hand-over keeps the unit's AI — `CE-3048` *(build-state: BUILT `2026-10-05` — as-built below the table)*
 

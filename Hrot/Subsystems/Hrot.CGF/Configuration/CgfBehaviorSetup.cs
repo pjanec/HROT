@@ -79,7 +79,7 @@ namespace Hrot.CGF.Configuration
         public static ScenarioBehaviorRemapper CreateBehaviorRemapper(BehaviorRegistry? behaviorRegistry = null)
         {
             var remapper = new ScenarioBehaviorRemapper(behaviorRegistry);
-            BehaviorSchemaDiscovery.AutoRegister(new BehaviorUiRegistry(), remapper);
+            BehaviorSchemaDiscovery.AutoRegister(remapper);
             return remapper;
         }
     }

@@ -43,7 +43,7 @@ The rulings are R-273 … R-281 (behaviors), argued in
 | `VisualFamilies.Of` (the one "what kind of thing is this type") | `Hrot.Presentation/Map3D/VisualFamily.cs` | grown into the class table (C2) |
 | `DisNameTable` + `DisNames.json` | `Hrot.Core/Tkb` | rebuilt from the class table; JSON deleted (C2) |
 | `DISEntityType`, `QueryBuilder.WithDisType` (value + byte mask) | `Fdp.Core` | `DisTypeMask` generalises it (C1) |
-| the "type makes it pickable" pick (`EntityRef`, `PickableGeoPoint`) + `MapPickBroker` | `BehaviorUiCompiler`, `Hrot.Presentation/Facades` | the generic order menu's picks (D4) |
+| the "type makes it pickable" pick (`EntityRef`, `PickableGeoPoint`) + `MapPickBroker` | `BehaviorUiCompiler` (⛔ deleted by `CE-1023`, 2026-10-12 — the form is `ComponentEditDrawer` via `BehaviorParamsForm`), `Hrot.Presentation/Facades` | the generic order menu's picks (D4) |
 | `SquadManeuverRunner` + the squad drills | `Hrot.AI.Behaviors/Brains` | become order behaviours (D2) |
 
 ## 1. The rules every behaviour follows *(R-276, R-277, R-278)*

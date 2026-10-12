@@ -156,8 +156,7 @@ public sealed class VariableDialogRailsTests
         Assert.Equal(
             new[]
             {
-                "BehaviorParamsForm.Open",                   // 📌 CE-3043 — a behaviour's PARAMS session (the assignment's JSON,
-                                                             //    the parse side's options) — a different concept, named here
+                // 📌 CE-1023 — BehaviorParamsForm.Open (a behaviour's PARAMS session) moved to Hrot.Presentation, out of this scan
                 "DefaultValueAuthoring.OpenSession",         // ⭐ THE variable edit session, both scopes
                 "NodePropertiesDetailsView.DrawFacetArm",   // 📌 the FACET session -- a different concept
             },

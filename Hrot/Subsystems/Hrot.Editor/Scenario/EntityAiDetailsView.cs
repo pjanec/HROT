@@ -9,6 +9,7 @@ using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
 using System.Runtime.CompilerServices;
 using Hrot.Editor.AiShared.Inspector;
+using Hrot.Presentation.Behavior;
 using Hrot.Editor.AiShared.Shell;
 using Hrot.Editor.AiShared.Variables;
 using ImGuiNET;
@@ -157,8 +158,8 @@ public sealed class EntityAiEditModel
     }
 
     /// <summary>The behaviour's authored params type — what the params form edits; <c>null</c> = it takes none.</summary>
-    public Type? ParamsTypeOf(string behaviour)
-        => _registry() is { } r && r.TryGetId(behaviour, out int id) && r.TryGetDefinition(id, out var d) ? d.JsonParamsDtoType : null;
+    /// <summary>⭐ CE-1023 — the one lookup (<see cref="BehaviorParamsForm.ParamsTypeOf"/>), the mission panel's too.</summary>
+    public Type? ParamsTypeOf(string behaviour) => BehaviorParamsForm.ParamsTypeOf(behaviour, _registry());
 
     public bool ApplyTask(Entity entity, string behaviour, string json, bool running)
         => running
@@ -219,6 +220,7 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
 {
     private readonly EntityAiEditModel _model;
     private readonly Func<IComponentEditService?> _editService;
+    private readonly Func<Fdp.Presentation.Editing.IMapPickContext?> _picks;   // ⭐ CE-1023 — the editor's broker
     private Entity _entity = Entity.Null;
     private string _taskPick = "", _sopPick = "";
     private IEditSession? _taskForm, _sopForm;
@@ -226,11 +228,19 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
     private readonly Dictionary<int, IEditSession> _instanceForms = new();   // CE-2086: one form per instance row
     private string _status = "";
 
-    public EntityAiDetailsView(EntityAiEditModel model, Func<IComponentEditService?> editService)
+    /// <param name="picks">⭐ CE-1023 — the map picks a param field of type <c>EntityRef</c> / <c>PickableGeoPoint</c> asks;
+    /// ⛔ a host that holds a pick service must pass it (the silent-default rule); null ⇒ no Pick buttons.</param>
+    public EntityAiDetailsView(EntityAiEditModel model, Func<IComponentEditService?> editService,
+                               Func<Fdp.Presentation.Editing.IMapPickContext?>? picks = null)
     {
         _model       = model ?? throw new ArgumentNullException(nameof(model));
         _editService = editService ?? throw new ArgumentNullException(nameof(editService));
+        _picks       = picks ?? (() => null);
     }
+
+    /// <summary>⭐ CE-1023 — the pick context of one row's form: the editor's broker, scoped to the row (null ⇒ none).</summary>
+    public Fdp.Presentation.Editing.IMapPickContext? PicksFor(string scope)
+        => _picks() is { } p ? new Fdp.Presentation.Editing.ScopedMapPickContext(p, scope) : null;
 
     public EntityAiEditModel Model => _model;
 
@@ -303,12 +313,7 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
             form = BehaviorParamsForm.Open(svc, type, pick == current ? currentParams : "{}");
             formType = type;
         }
-        if (type != null && form != null && ImGui.BeginTable("params", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
-        {
-            if (form.RebuildState == EditRebuildState.RebuildRequired) form.RebuildDocument();
-            new Fdp.Presentation.Editing.ComponentEditDrawer(form, pickerCtx: null).DrawRoot(form.Document.Root);
-            ImGui.EndTable();
-        }
+        if (type != null && form != null) BehaviorParamsForm.DrawFields(form, PicksFor("$." + id));
 
         if (ImGui.Button("Apply") && pick.Length > 0)
         {
@@ -330,12 +335,7 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
         {
             if (!_instanceForms.TryGetValue(row.BlueprintId, out var form) && _editService() is { } svc)
                 _instanceForms[row.BlueprintId] = form = BehaviorParamsForm.Open(svc, type, row.ParamsJson);
-            if (form != null && ImGui.BeginTable("params", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
-            {
-                if (form.RebuildState == EditRebuildState.RebuildRequired) form.RebuildDocument();
-                new Fdp.Presentation.Editing.ComponentEditDrawer(form, pickerCtx: null).DrawRoot(form.Document.Root);
-                ImGui.EndTable();
-            }
+            if (form != null) BehaviorParamsForm.DrawFields(form, PicksFor("$.bp" + row.BlueprintId));
             if (form != null && ImGui.Button("Apply"))
             {
                 string json = BehaviorParamsForm.CommitToJson(form, type);
@@ -359,9 +359,10 @@ public static class EntityAiDetailsViewDescriptor
 
     public static DetailsViewDescriptor For(Func<EntityRepository?> world, Func<BehaviorRegistry?> registry,
                                             Func<IComponentEditService?> editService,
-                                            Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null)
+                                            Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null,
+                                            Func<Fdp.Presentation.Editing.IMapPickContext?>? picks = null)
     {
-        var instance = new EntityAiDetailsView(new EntityAiEditModel(world, registry, blueprints), editService);
+        var instance = new EntityAiDetailsView(new EntityAiEditModel(world, registry, blueprints), editService, picks);
         return new DetailsViewDescriptor(
             Id:        ViewId,
             Title:     "AI",

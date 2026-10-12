@@ -89,7 +89,12 @@ public sealed class MissionPanel
     // ── Construction ─────────────────────────────────────────────────────────
 
     private readonly long _localNodeId;
-    private readonly BehaviorUiRegistry _behaviorUiRegistry;
+    // ⭐ CE-1023 (§7.6b F5) — the ONE params form for every task whose behaviour has a params type; the panel's own compiled
+    //   form (BehaviorUiCompiler) is deleted. The lookup is the host's (its registry also knows blueprint behaviours).
+    private readonly Func<string, Type?> _paramsTypeOf;
+    private readonly StructEdit.Core.IComponentEditService _paramsEditService =
+        Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build();
+    private readonly Dictionary<Guid, BehaviorParamsEditor> _paramForms = new();
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -100,11 +105,31 @@ public sealed class MissionPanel
     private IMapPickService? _framePickService;
 
     /// <summary>Creates a new mission panel.</summary>
-    public MissionPanel(long localNodeId = 0, BehaviorUiRegistry? behaviorUiRegistry = null)
+    /// <param name="localNodeId">This node's id (the editor passes 0).</param>
+    /// <param name="paramsTypeOf">⭐ CE-1023 — a behaviour name's params type. ⛔ A host that holds a behaviour registry must pass
+    /// its lookup (<see cref="BehaviorParamsForm.ParamsTypeOf"/> over it — the silent-default rule); null ⇒ the declared
+    /// contracts only (<c>ParamsDtoRegistry.Default</c>), which is all a host with no registry (ExCon) can know.</param>
+    public MissionPanel(long localNodeId = 0, Func<string, Type?>? paramsTypeOf = null)
     {
-        _localNodeId        = localNodeId;
-        _behaviorUiRegistry = behaviorUiRegistry ?? new BehaviorUiRegistry();
-        _picks              = new Hrot.Presentation.Facades.MapPickBroker(() => _framePickService);
+        _localNodeId  = localNodeId;
+        _paramsTypeOf = paramsTypeOf ?? (name => BehaviorParamsForm.ParamsTypeOf(name, null));
+        _picks        = new Hrot.Presentation.Facades.MapPickBroker(() => _framePickService);
+    }
+
+    /// <summary>⭐ CE-1023 — the pick scope of task <paramref name="taskIndex"/>'s params form: a field <c>X</c> picks at
+    /// <c>$.tasks[i].X</c> on <see cref="Picks"/>.</summary>
+    public static string PickScope(int taskIndex) => $"$.tasks[{taskIndex}]";
+
+    /// <summary>⭐ CE-1023 — the params form of the task <paramref name="taskId"/>, bound to its draft JSON (null when its behaviour
+    /// has no params type: the raw JSON box). Kept per task so an edit in progress survives frames.</summary>
+    public BehaviorParamsEditor? ParamsFormFor(Guid taskId, string? behaviorId, string? behaviorParams)
+    {
+        var type = _paramsTypeOf(behaviorId ?? string.Empty);
+        if (type == null) { _paramForms.Remove(taskId); return null; }
+        if (!_paramForms.TryGetValue(taskId, out var form))
+            _paramForms[taskId] = form = new BehaviorParamsEditor(_paramsEditService);
+        form.Sync(type, behaviorParams);
+        return form;
     }
 
     // ── Public state accessors ────────────────────────────────────────────────
@@ -476,11 +501,13 @@ public sealed class MissionPanel
 
                 string paramsBuffer = task.BehaviorParams ?? string.Empty;
 
-                if (_behaviorUiRegistry.TryGet(task.BehaviorId ?? string.Empty, out var drawDelegate))
+                // ⭐ CE-1023 — THE params form, picks scoped to this task; the raw box only when no params type is known.
+                if (ParamsFormFor(task.TaskId, task.BehaviorId, paramsBuffer) is { Session: { } session } form)
                 {
-                    var newJson = drawDelegate!(paramsBuffer, i, _picks);
-                    if (!ReferenceEquals(newJson, paramsBuffer))
-                        HandleEditBehaviorParams(i, newJson);
+                    ImGui.PushID($"params{i}");
+                    BehaviorParamsForm.DrawFields(session, new Fdp.Presentation.Editing.ScopedMapPickContext(_picks, PickScope(i)));
+                    ImGui.PopID();
+                    if (form.Edited() is { } newJson) HandleEditBehaviorParams(i, newJson);
                 }
                 else
                 {

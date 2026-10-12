@@ -523,7 +523,7 @@ namespace Hrot.ExCon
                 logic:            logic,
                 configPanel:      new ConfigPanel(iosNodeId),
                 orbatPanel:       new OrbatPanel(orbatCatalog),
-                missionPanel:     new MissionPanel(iosNodeId, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry()),
+                missionPanel:     new MissionPanel(iosNodeId),
                 interactionPanel: interactionPanel,
                 spawnerPanel:     new SpawnerPanel(tkbCatalog)
                 {

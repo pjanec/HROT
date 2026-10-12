@@ -4,7 +4,7 @@ updated: 2026-10-03
 build-state: BUILT (2026-10-03 — §5)
 current-answer: §2 (diagrams) and §3 (decisions). §1 is the measured inventory; §5 is the as-built.
 stale-below: nothing yet.
-known-rot: none.
+known-rot: §2's BehaviorUiCompiler box and its sequence participant are DELETED (CE-1023, 2026-10-12) — the mission panel draws THE one params form (BehaviorParamsForm + ComponentEditDrawer) through a ScopedMapPickContext($.tasks[i]) over the same broker, so the paths and the broker are unchanged; see ../DESIGN_Sensors_And_Doctrine.md §7.6b.
 known-conflict: none.
 related-designs:
   - ../DESIGN_Sensors_And_Doctrine.md — §7.6b (CE-1023) puts the ONE params form on every screen, retires BehaviorUiCompiler (the mission panel's second form) and adds ScopedMapPickContext over the one broker.

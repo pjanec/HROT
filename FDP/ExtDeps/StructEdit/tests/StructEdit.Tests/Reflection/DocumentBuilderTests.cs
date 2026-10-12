@@ -39,6 +39,13 @@ file struct SeqIdStruct { public int A; public int B; public int C; }
 
 file struct Vector3Struct { public float X; public float Y; public float Z; }
 file struct NestedStruct { public Vector3Struct Pos; }
+// ⭐ CE-1023 — a blittable struct of AUTO-properties plus one COMPUTED property (a facade over the stored ones).
+file struct AutoPropStruct
+{
+    public int A { get; set; }
+    public float B { get; set; }
+    public double Facade { get => A * 10 + B; set { A = (int)(value / 10); B = (float)(value % 10); } }
+}
 
 file class CircularClass { public CircularClass? Next { get; set; } }
 
@@ -347,5 +354,37 @@ public class DocumentBuilderTests
         var child = Assert.Single(doc.Root.Children);
         Assert.Equal(0.0, child.Metadata.Min);
         Assert.Equal(10.0, child.Metadata.Max);
+    }
+
+    // ⭐ CE-1023 — a native buffer edits an AUTO-property through its backing field. 🔴 It skipped properties, so a blittable
+    //   struct of auto-properties (every behaviour params DTO) opened as an EMPTY document.
+    [Fact]
+    public void CE1023_ANativeStructsAutoProperties_AreNodes_AndWriteTheirBackingField()
+    {
+        using var buf = BufferHelper.NativeFor(new AutoPropStruct { A = 1, B = 2f });
+        var doc = Builder.Build(buf, typeof(AutoPropStruct), EditScope.WholeComponent, null);
+        var a = doc.Root.Children.Single(c => c.Name == nameof(AutoPropStruct.A));
+        Assert.Equal("$.A", a.JsonPath);
+        Assert.Equal(1, a.Binding!.GetBoxed());
+
+        a.Binding.SetBoxed(7);
+        var boxed = (AutoPropStruct)buf.Box();
+        Assert.Equal(7, boxed.A);
+        Assert.Equal(2f, boxed.B);
+    }
+
+    // ⭐ CE-1023 — a COMPUTED property on the root struct is read-modify-written through the whole struct.
+    [Fact]
+    public void CE1023_ANativeRootStructsComputedProperty_WritesThroughTheWholeStruct()
+    {
+        using var buf = BufferHelper.NativeFor(new AutoPropStruct { A = 1, B = 2f });
+        var doc = Builder.Build(buf, typeof(AutoPropStruct), EditScope.WholeComponent, null);
+        var facade = doc.Root.Children.Single(c => c.Name == nameof(AutoPropStruct.Facade));
+        Assert.Equal(12.0, facade.Binding!.GetBoxed());
+
+        facade.Binding.SetBoxed(45.0);
+        var boxed = (AutoPropStruct)buf.Box();
+        Assert.Equal(4, boxed.A);
+        Assert.Equal(5f, boxed.B);
     }
 }

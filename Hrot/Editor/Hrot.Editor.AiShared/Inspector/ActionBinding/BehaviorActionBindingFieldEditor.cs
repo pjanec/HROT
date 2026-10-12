@@ -26,8 +26,10 @@ public sealed class BehaviorActionBindingFieldEditor : ICustomFieldEditor
 public static class AiFacetEditService
 {
     /// <summary>A builder with every AI-facet field editor registered — for a host that adds its own registrations.</summary>
+    /// <remarks>⭐ <c>CE-1023</c> — starts from the standard leaves (<c>ComponentEditServices</c>), so a behaviour param of type
+    /// <c>EntityRef</c> / <c>PickableGeoPoint</c> is ONE pickable leaf here too; ⛔ it was a read-only container.</remarks>
     public static ComponentEditServiceBuilder CreateBuilder()
-        => new ComponentEditServiceBuilder()
+        => Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder()
                .RegisterFieldEditor<BehaviorActionBindingFacet>(new BehaviorActionBindingFieldEditor());
 
     /// <summary>The facet edit service.</summary>

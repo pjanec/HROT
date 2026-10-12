@@ -47,8 +47,9 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
         //   Details view (§7.6 ②). ⚠ Still TWO drawer calls in one file, both in tables.
         "Hrot/Editor/Hrot.Editor.AiShared/Shell/NodePropertiesDetailsView.cs",
         "Hrot/Editor/Hrot.Editor.AiShared/Variables/VariableEditModal.cs",
-        // ⭐ CE-3043 — the Scenario Details "AI" section draws a behaviour's params form (inside a "params" table).
-        "Hrot/Subsystems/Hrot.Editor/Scenario/EntityAiDetailsView.cs",
+        // ⭐ CE-1023 — THE params form draws itself (inside its "params" table) for the AI section AND the mission panel; the
+        //   AI section's own two calls (CE-3043) moved here.
+        "Hrot/Engine/Hrot.Presentation/Behavior/BehaviorParamsForm.cs",
     };
 
     /// <summary>⭐ How far a <c>BeginTable</c>/<c>EndTable</c> may sit from the call it wraps. ⚠ Every
