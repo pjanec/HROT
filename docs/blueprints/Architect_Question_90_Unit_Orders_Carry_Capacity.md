@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: ⭐ "THE PROPOSAL IN ONE PAGE" (above §1) is the consolidated answer, ✅ approved in principle (R-277 (behaviors)) with §2.3k's amendments; the sections below are how it was reached. §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), ⭐ the reserved Params variable + params DTO assets + registry (§2.3j, refines §2.3i), the missing measurements + leans (§2.3m), ⭐ classes as named DIS masks, R-278 (§2.3n), the hard-coded class table = VisualFamilies grown, R-279 (§2.3o), one shared class table + DIS names hard-coded, R-280 (§2.3p), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: ⭐ "THE PROPOSAL IN ONE PAGE" (above §1) is the consolidated answer and "THE BUILD PLAN" (below it) the task breakdown, ✅ approved in principle (R-277 (behaviors)) with §2.3k's amendments; the sections below are how it was reached. §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), ⭐ the reserved Params variable + params DTO assets + registry (§2.3j, refines §2.3i), the missing measurements + leans (§2.3m), ⭐ classes as named DIS masks, R-278 (§2.3n), the hard-coded class table = VisualFamilies grown, R-279 (§2.3o), one shared class table + DIS names hard-coded, R-280 (§2.3p), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -53,6 +53,86 @@ related-designs:
 ⛔ Main costs: behaviour renames to `<Class><Order>`; the 25 `[BehaviorContract]` uses move to their behaviours; multi-Input assets
 and the four Parameter-declaring blueprints get C# (or generated) params DTOs; three saved scenario params strings are rewritten.
 ⛔ Not measured: the generator changes (named DTO, `Params`), the carry-over manifest, the catalogue scan's cost on IG, an empty struct.
+
+## ⭐ THE BUILD PLAN — four tracks, parallel where the arrows allow *(lean, 2026-10-12; user: "how could we break this big stuff into tasks and enable some parallel development? … define the rules … and convert the behaviors early … while other session can deal with fixing the internals")*
+
+✅ §2.3p's lean (the class table subsumes the DIS names) is approved (R-281 (behaviors)).
+
+```mermaid
+graph TD
+  R0["R0 the design doc with UML (DESIGN_Orders_Params_Entity_Classes) + the authoring RULES + a conformance rail with a shrinking allow-list"]
+  subgraph A["Track A: behaviours conform (behaviors lane, no infrastructure change)"]
+    A1["A1 empty params → NoParams; fix CE-2128 contracts"]
+    A2["A2 multi-Input assets → ONE Input of one C# DTO (after B1)"]
+    A3["A3 new behaviours written to the rules"]
+  end
+  subgraph B["Track B: params internals (second session)"]
+    B1["B1 a single DTO-typed Input parses FLAT (unwrap) + an asset can NAME its DTO"]
+    B2["B2 the contract moves onto the behaviour; one params-DTO registry (one scan); palette dedupe"]
+    B3["B3 drop Input/State: one variable kind, reserved Params; NoParams stores nothing"]
+    B4["B4 params DTO asset + generator + editor"]
+    B5["B5 CE-2129 stateful slots salted + detached"]
+  end
+  subgraph C["Track C: classes and DIS (third session, display-heavy)"]
+    C1["C1 DisTypeMask: wildcard / range / list, specificity"]
+    C2["C2 hard-coded class table (VisualFamilies grown) + countries; DisNameTable from C#; DisNames.json deleted; CE-2127"]
+    C3["C3 units get Kind 11 (arm, echelon); composite special cases → DIS; load prefers the template"]
+  end
+  subgraph D["Track D: orders (behaviors lane)"]
+    D1["D1 order DTOs + [Order] (name, gesture) in the AI assembly"]
+    D2["D2 unit behaviours: SquadMove / SquadHold / attack; a drill releases its members; unit members get orders"]
+    D3["D3 receiver resolves an order: class chain → <Class><Order>"]
+    D4["D4 generic menu / RTS / HTTP over the registry; picks from field types"]
+  end
+  R0 --> A1
+  R0 --> A3
+  R0 --> B1
+  R0 --> C1
+  R0 --> D1
+  B1 --> A2
+  B1 --> B3
+  B2 --> B4
+  B2 --> D4
+  C1 --> C2
+  C2 --> C3
+  C2 --> D3
+  D1 --> D2
+  D1 --> D3
+  D3 --> D4
+```
+
+*What the picture shows that prose hid: after R0 there are FOUR independent starts (A1/A3, B1, C1, D1); only three joins
+exist (A2 waits for B1, D3 needs the class table, D4 needs the registry). The behaviour conversions the user proposed can run
+at once, except the multi-Input ones.*
+
+**The one trap in "convert behaviours early, internals later":** today a single DTO-typed Input variable parses as
+`{"<variableName>": {…}}`, so converting a multi-Input asset BEFORE B1 changes every scenario's params twice: first to
+`{"Params": {…}}`, then to flat. ⇒ B1 is small (the generator unwraps a single struct-typed Input) and goes FIRST in Track B;
+A2 converts after it, straight to the final flat JSON. A1 and A3 do not touch the JSON shape and start at once.
+
+| task | what | depends on | rails / acceptance |
+|---|---|---|---|
+| **R0** | write `docs/DESIGN_Orders_Params_Entity_Classes.md` (class, sequence and module diagrams) from the one-page proposal; the **authoring rules** (one params DTO, flat JSON, no reliance on carried-over state, order behaviours named `<Class><Order>`); a **conformance rail** over every registered behaviour, with an allow-list of today's violators that may only shrink | — | the rail is green with the allow-list; any NEW behaviour that breaks a rule fails |
+| **A1** | the six empty DTOs → `NoParams`; correct `FollowRoute` / `PlatoonHillAttack` contracts (CE-2128) | R0 | their entries leave the allow-list |
+| **A2** | `FiringPosition`, `Flank`, `BasicInfantrySop`, `BasicSquadSop`, `DangerCrossing` → one Input of one C# DTO; 3 scenario params strings rewritten flat | B1 | feature rails of each; live `ua-danger-crossing` |
+| **A3** | every behaviour written from now on follows the rules | R0 | the conformance rail |
+| **B1** | a single struct-typed Input parses flat; an asset may name its params DTO (`ParamsDtoTypeId`) | R0 | generator goldens; a round-trip rail per tier (BTree / HSM / blueprint) |
+| **B2** | `[Behavior(Params = …)]` on the behaviour replaces `[BehaviorContract]` on the DTO; one params-DTO registry from one scan (order DTOs carry their order name); palette de-duplicated by type | B1 | `GET /behaviors` publishes the named DTO; CE-2128 cannot recur |
+| **B3** | drop the Input / State roles: one variable kind, the reserved `Params`, `NoParams` stores nothing; editor sections merged | B1 | AQ76 rails; hosted-child rails (the `InputBytes` trap) |
+| **B4** | `*.params.json` asset + generator + editor (variables-panel rows) | B2 | a generated DTO appears in the registry |
+| **B5** | CE-2129 | — | A(slots) → B(none) → C(same key) starts clean |
+| **C1** | `DisTypeMask` (per segment: `*`, number, range, list) + specificity | R0 | parse / match / specificity rails |
+| **C2** | the hard-coded class table (grown from `VisualFamilies`) + country table; `DisNameTable` built from it; `DisNames.json` deleted; the picker's folder path = the class chain; CE-2127 fixed | C1 | 3-D families and picker folders unchanged for every built-in type (a golden) |
+| **C3** | units: Kind 11, Category = arm, Subcategory = echelon; composite special cases → DIS; scenario load prefers the template's DIS type; CE-1017 rail updated | C2 | units in their own class; tanks never match a unit |
+| **D1** | `OrderKind` + `MoveOrder` / `AttackOrder` / `HoldOrder` with `[Order(name, gesture)]` in `Hrot.AI.Behaviors` | R0 | — |
+| **D2** | `SquadMove` (today's `SquadMarch`), `SquadHold`, the squad attack drill, taking the order DTOs; a drill that ends releases its members; a unit member receives an order | D1 | the live squad rails (`tt-squad-march`, `tt-react-contact`) |
+| **D3** | the receiver resolves `Order.<name>`: the entity's class chain → the first registered `<Class><Order>`; a tie is a load error | C2, D1 | per-class lookup rails; a T-72 and an M1 resolve the same |
+| **D4** | `EntityOrders` / HTTP `order {kind, params}` / menu / RTS generic over the registry; follow-up picks from field types via `MapPickBroker` | D3, B2 | the menu lists exactly the orders a unit's class fulfils |
+
+**Who takes what (lean):**
+- **behaviors lane (this one):** R0, then A1 / A3 / D1 / D2 (the behaviours side), then D3 / D4 once C2 lands.
+- **a second session:** Track B. It is internal to the params pipeline (generators, ingress, editor), and its only joins are B1 → A2 and B2 → D4.
+- **a third session:** Track C. It touches display code (3-D families, picker, 2-D map) as much as behaviours.
 
 ## 1. INVENTORY *(graph CLI — the MCP server failed to connect this session; index refreshed 2026-10-12 — plus grep and one corpus sweep over `docs/` and `.dev/`)*
 
