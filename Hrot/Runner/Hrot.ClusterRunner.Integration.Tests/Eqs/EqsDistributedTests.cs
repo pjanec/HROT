@@ -480,6 +480,13 @@ public sealed class EqsDistributedTests
             w.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();   // idempotent
             w.SetSingletonManaged(town);
         }
+        // ⭐ CE-1036 — since CE-3128 the danger classifier plans on the road GRAPH (the world's RoadNetworkHolder), not on
+        //   terrain polygons: without test-town's roads.json the solver answered 0 areas. Loaded the way TerrainResidency does.
+        var roads = CarKinem.Road.RoadNetworkLoader.LoadFromJson(System.IO.Path.Combine(dir.FullName,
+            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town", "roads.json"));
+        sim.RegisterManagedComponent<CarKinem.Road.RoadNetworkHolder>();   // idempotent
+        if (sim.HasSingletonManaged<CarKinem.Road.RoadNetworkHolder>()) sim.GetSingletonManaged<CarKinem.Road.RoadNetworkHolder>()!.Publish(roads);
+        else sim.SetSingletonManaged(new CarKinem.Road.RoadNetworkHolder(roads, takeOwnership: true));
 
         long unitNet    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);
         long watcherNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
