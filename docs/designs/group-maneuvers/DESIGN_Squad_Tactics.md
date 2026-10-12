@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-12
 build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch BUILT 2026-10-12 (as-built §6.1a) · embark §5 and formations §6 are MEASUREMENTS
-current-answer: §5a the squad Dismount drill (I-2d, BUILDING 2026-10-12) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built
+current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
@@ -643,7 +643,7 @@ vehicle — and boarding (`EmbarkExecutor`, red) is constructed only by its unit
 slice I-2a first (rules class + owner-applied commands + embark registered) and I-2b (replicate `PassengerBuffer`, derive the rest),
 plus a library node to request it. The behaviors lane builds that as S3's first step, against Entity Interactions §7.
 
-## 5a. Dismount — the squad gets out under fire *(build-state: BUILDING `2026-10-12`, ui lane; HANDOFF_Embark_I2d_And_Unit_Orders.md §2 items 1–2 + its STEER; catalogue §11 S3 / P1 / D8)*
+## 5a. Dismount — the squad gets out under fire *(build-state: BUILT `2026-10-12` — as built §5a.1, ui lane; HANDOFF_Embark_I2d_And_Unit_Orders.md §2 items 1–2 + its STEER; catalogue §11 S3 / P1 / D8)*
 
 ⭐ Built on Entity Interactions §7.3 (I-2d): a member leaves through the library `Disembark` (per passenger, the vehicle's owner
 applies it). The squad half is one more play on the S1 runner and one more row in the squad SOP.
@@ -724,6 +724,32 @@ the existing cross-role `EmbarkationSystem`, so nothing is registered per host (
 **Acceptance (catalogue P1, D8):** the shipped `tt-convoy-ambush` scenario on `test-town`: a squad aboard an APC, insurgents
 fire on the APC ⇒ the squad dismounts (nobody aboard), then reacts to contact (its members fire back). Live rail in
 `SquadTacticsScenarioTests` (the squad scenarios' suite, T-1).
+
+### 5a.1 As built *(`2026-10-12`, ui lane, `CE-1056`)*
+
+| file | what |
+|---|---|
+| `Hrot.AI.Behaviors/Brains/SquadDismountBehavior.cs` | `SquadDismount` (Library/Squad) + `SquadDismountPlay` + `SquadSopConditions.SensedFreshAboard`; `Aboard` recurses into a unit member's roster (depth ≤ 4) |
+| `Fdp.Toolkits/Squad/Maneuvers/SquadDismountManeuver.cs` | ManeuverKind 10, one phase |
+| `SquadManeuverRunner` | `MemberOrderKind.Disembark` → `Dismount` (a soldier: `Disembark`; a unit member: `SquadDismount`) |
+| `SquadSensing.UnderFire` | a carrier's Hit / NearMiss ⇒ `SquadUnderFire` once per carried member's commander (a carrier may also be a member: its own rule still runs) |
+| `BasicSquadSop.btree.json` | row 1 (before "under fire"): `SensedFreshAboard(underFire)` → React `SquadDismount` |
+| `Recipes/Scenarios/tt-convoy-ambush` | APC 2001 at (300, 276) heading east with an authored empty `TargetMemory` (a Hit edge needs one); squad 302 + five soldiers aboard (`IsEmbarkedTag`); an RPG insurgent and a rifleman to the north-east, `CombatPosture` with the convoy as objective |
+
+| rail | result |
+|---|---|
+| `SquadManeuverTests.CE1056_*` (3) | the drill orders and its end · a stuck passenger ⇒ Failure on the timeout · the SOP: mounted ⇒ `SquadDismount`, out ⇒ `ReactToContact` |
+| `SquadCoordinationSystemTests.CE1056_*` | a carrier's near miss ⇒ ONE `SquadUnderFire`; an empty carrier ⇒ none — red-proved (rule removed ⇒ red) |
+| ⭐ live `SquadTacticsScenarioTests.CE1056_AConvoyIsAmbushed_…` (`tt-convoy-ambush`) | ✅ green `2026-10-12`: hit at t = 2.6 s (APC 500 → 475; the RPG fired), everyone out by t = 2.8 s on CGF AND SimHost (`SquadDismount`, kind 10), a contact reaction paused the task by t = 5.2 s (kinds 7 → 10 → 7) |
+
+**Deviations from §5a:** none in the classes, the sequence or the modules. Found while making the live rail pass (scenario
+authoring, not the drill):
+
+| found | done |
+|---|---|
+| a `CombatPosture` whose objective is where the unit stands ENDS at once when nothing is seen yet (it "advances", arrives, succeeds — R-208); the hostiles then ran nothing and never fired | their objective is the convoy; ⚠ a static ambusher has no library form today (`Sentry` never shoots) |
+| a hostile given `FireAtTarget {targetNetworkId}` from the scenario also ran nothing (`run = 0`) although it saw the APC with its round loaded | not used; ⛔ the cause is NOT established (no shipped scenario uses `FireAtTarget`) |
+| a unit Hit edge needs a `TargetMemory` on the hit unit (`ThreatEvaluationSystem.cs:76`); the APC type gets none by default | authored in the scenario; a vehicle type with no sensors never feels hits |
 
 ## 6. Formations — as measured *(2026-10-11)*
 

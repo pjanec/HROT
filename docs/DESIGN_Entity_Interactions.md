@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-12 (I-2a BUILT — §7.1b; I-2b BUILT — §7.1d)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.3 I-2d (the AI nodes, 2026-10-12, BUILDING) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
@@ -561,7 +561,7 @@ every host calls). The carry needs no new system and no cross-group ordering: th
 |---|---|
 | `PhysicalPresence` via `EmbarkedStateSystemTests.CE3110_I2c_BoardingAnOpenCabin_LeavesThePassengerExposed` · `LocalGridBuilderSystemTests.CE3110_I2c_…` (incl. the equal-count boarding) · `SpatialHashSystemTests.CE3110_I2c_…` · `AreaEffectSystemTests.CE3110_I2c_…` · `CarKinematicsSystemTests.CE3110_I2c_…` · `EmbarkedStateSystemTests` carry + kill · `VehicleKinematicsTkbTranslatorTests.CE3110_I2c_…` · `UnitCommanderTests.CE3110_I2c_…` (EQS area search) · `EmbarkationTests.CE3110_AUnitNeitherBoardsNorCarries` · `HrotSharedComponentRegistryTests.CE3110_…` | ✅ all green; red-proved by reverting each mechanism |
 
-### 7.3 I-2d — the AI can ask *(build-state: BUILDING `2026-10-12`, ui lane; HANDOFF_Embark_I2d_And_Unit_Orders.md §2 item 1, its STEER; R-282 (behaviors))*
+### 7.3 I-2d — the AI can ask *(build-state: BUILT `2026-10-12` — as built §7.3a; live acceptance: Squad Tactics §5a.1, ui lane; HANDOFF_Embark_I2d_And_Unit_Orders.md §2 item 1, its STEER; R-282 (behaviors))*
 
 #### 7.3.0 INVENTORY *(graph CLI `search_graph` `.*Embark.*` · `.*Disembark.*` · `.*DoorNodes.*` · `.*SquadManeuverRunner.*` · `.*DoorLocksmith.*`, + grep)*
 
