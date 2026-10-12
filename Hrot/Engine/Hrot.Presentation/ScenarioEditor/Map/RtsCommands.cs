@@ -12,6 +12,8 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using MapMouseButton = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton;
 using MapKeyboardKey = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey;
 using Hrot.Common.Orders;
+using Hrot.Map.Definitions.Behavior.Orders;
+using System.Text.Json.Nodes;
 using Hrot.UI.Common.Facades;
 
 namespace Hrot.ScenarioEditor.Map
@@ -62,9 +64,11 @@ namespace Hrot.ScenarioEditor.Map
             foreach (var unit in _selected())
             {
                 if (unit.IsNull || unit.Equals(hit) || !map.TryGetNetworkId(unit, out long id)) continue;
+                // ⭐ CE-2143 (D4-F) — the order a GESTURE issues ([Order(Gesture = …)]), never a behaviour name: a hostile under the
+                //   cursor is the EnemyClick order (Attack), anything else the GroundClick order (Move) to the point.
                 OrderResult r = !hit.IsNull && IsHostile(unit, hit) && map.TryGetNetworkId(hit, out long target)
-                    ? orders.Attack(id, target)
-                    : Move(orders, id, worldXY);
+                    ? Gesture(orders, id, OrderGesture.EnemyClick, JsonValue.Create(target))
+                    : Gesture(orders, id, OrderGesture.GroundClick, Point(worldXY));
                 if (r.Accepted) accepted++;
                 else FdpLog<RtsCommands>.Warn("[Orders] RTS order refused: {0}", r.Detail);
             }
@@ -81,8 +85,19 @@ namespace Hrot.ScenarioEditor.Map
             return theirs != mine && theirs != ForceId.Neutral;
         }
 
-        private OrderResult Move(EntityOrders orders, long id, Vector2 at)
-            => orders.Move(id, x: at.X, y: at.Y);   // local metres; converted to geodetic by the service when the node can
+        private static OrderResult Gesture(EntityOrders orders, long id, OrderGesture gesture, JsonNode picked)
+            => OrderMenu.ByGesture(gesture) is { } order
+                ? orders.Order(id, order.Name, OrderMenu.Json(order, picked))
+                : new OrderResult(OrderRefusal.BadRequest, $"No order is issued by a {gesture}.", string.Empty, string.Empty);
+
+        /// <summary>The clicked point as an order's geodetic point (without a transform, [y, x] — OrderGeo's fallback).</summary>
+        private JsonArray Point(Vector2 at)
+        {
+            var geo = Geo();
+            if (geo == null) return new JsonArray((double)at.Y, (double)at.X);
+            var (lat, lon, _) = geo.ToGeodetic(new Vector3(at.X, at.Y, 0f));
+            return new JsonArray(lat, lon);
+        }
 
         private Entity EntityAt(Vector2 worldXY)
         {

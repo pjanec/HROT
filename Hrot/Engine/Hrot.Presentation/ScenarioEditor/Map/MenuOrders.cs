@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Core.Logging;
@@ -12,7 +13,8 @@ using Hrot.UI.Common.Facades;
 namespace Hrot.ScenarioEditor.Map
 {
     /// <summary>
-    /// ⭐⭐ <c>CE-3169</c> (<c>docs/DESIGN_Entity_Control.md</c> §4.2, §7 S2) — the unit menu's <b>Move Here · Engage · Stop</b>, ONE
+    /// ⭐⭐ <c>CE-3169</c> (<c>docs/DESIGN_Entity_Control.md</c> §4.2, §7 S2) — the unit menu's ORDERS (⭐ <c>CE-2143</c>: every order the
+    /// unit's class fulfils, from <see cref="OrderMenu"/> — was a fixed Move Here · Engage · Stop), ONE
     /// implementation registered by <see cref="MapInteractionPack"/> on every live map host. Move and Engage ask the operator for a
     /// follow-up pick (a point / an enemy) through the host's <see cref="IMapPickService"/>; Stop holds at once. Every order goes
     /// through <see cref="EntityOrders"/> — the same publish the HTTP order route makes, so a menu order and an AI player's order
@@ -24,12 +26,11 @@ namespace Hrot.ScenarioEditor.Map
     /// </summary>
     public sealed class MenuOrders : IEcsModuleSystem
     {
-        private enum Kind : byte { Move, Attack }
-
         private readonly EntityRepository _world;
         private Task<Hrot.Core.Mission.GeoPoint>? _location;
         private Task<int>? _enemy;
         private long _unit;
+        private OrderInfo? _order;
 
         public MenuOrders(EntityRepository world) => _world = world ?? throw new ArgumentNullException(nameof(world));
 
@@ -39,18 +40,20 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>True while a follow-up pick is waiting for the operator.</summary>
         public bool IsPicking => _location is { IsCompleted: false } || _enemy is { IsCompleted: false };
 
-        /// <summary>Registers the menu ids on <paramref name="actions"/>: the three orders and Possess (FPS).</summary>
+        /// <summary>Registers the menu ids on <paramref name="actions"/>: ⭐ CE-2143 one per ORDER (<see cref="OrderMenu"/> ids, looked up
+        /// at click time, so a reloaded vocabulary needs no re-registration) and Possess (FPS).</summary>
         public void RegisterOn(Hrot.Common.Interactions.GlobalActionRegistry actions)
         {
             // ⭐ CE-3178 — LOCAL clicks only: a station's click relayed to another windowed node (every node holding the unit
             //   accepts the relay) would issue the order a second time there and open a pick on a window nobody clicked.
-            actions.RegisterLocal(GlobalActionIds.MoveHere, (_, unit) => Begin(Kind.Move, unit));
-            actions.RegisterLocal(GlobalActionIds.Engage,   (_, unit) => Begin(Kind.Attack, unit));
-            actions.RegisterLocal(GlobalActionIds.Stop,     (_, unit) =>
+            for (int id = OrderMenu.ActionBase; id < OrderMenu.ActionBase + OrderMenu.MaxOrders; id++)
             {
-                if (PickService?.Invoke() is null || !TryNetworkId(unit, out long id)) return;
-                Report(Orders()?.Hold(id));
-            });
+                int actionId = id;
+                actions.RegisterLocal(actionId, (_, unit) =>
+                {
+                    if (OrderMenu.TryGetById(actionId, out var order)) Begin(order, unit);
+                });
+            }
             // ⭐ CE-3174 (§8d) — Possess (FPS): this station takes the unit; the map follows PossessedBy into first person
             //   (PossessionStation). Like the orders, only where a pick exists — a windowed station, never a relayed headless node.
             actions.RegisterLocal(GlobalActionIds.Possess,  (_, unit) =>
@@ -60,15 +63,21 @@ namespace Hrot.ScenarioEditor.Map
             });
         }
 
-        private void Begin(Kind kind, Entity unit)
+        /// <summary>⭐ CE-2143 (D4-E) — the order's pick comes from its DTO's field type: a point, an entity, or none (issue now).</summary>
+        private void Begin(OrderInfo order, Entity unit)
         {
             var pick = PickService?.Invoke();
             if (pick is null || !TryNetworkId(unit, out long id)) return;
             _unit = id;
+            _order = order;
             _location = null;
             _enemy = null;
-            if (kind == Kind.Move) _location = pick.PickLocationAsync();
-            else _enemy = pick.PickEntityAsync();
+            switch (order.Pick)
+            {
+                case OrderPick.None:  Report(Orders()?.Order(id, order.Name, "{}")); break;
+                case OrderPick.Point: _location = pick.PickLocationAsync(); break;
+                case OrderPick.Entity: _enemy = pick.PickEntityAsync(); break;
+            }
         }
 
         /// <summary>Turns a completed pick into its order; a cancelled or failed pick issues nothing.</summary>
@@ -77,21 +86,20 @@ namespace Hrot.ScenarioEditor.Map
             if (_location is { IsCompleted: true } location)
             {
                 _location = null;
-                if (location.Status == TaskStatus.RanToCompletion)
+                if (location.Status == TaskStatus.RanToCompletion && _order is { } order)
                 {
                     var at = location.Result;
-                    var orders = Orders();
-                    // The adapter answers geodetic when the node has a transform, else world metres in the same fields.
-                    Report(Geo() != null
-                        ? orders?.Move(_unit, lat: at.Latitude, lon: at.Longitude)
-                        : orders?.Move(_unit, x: (float)at.Latitude, y: (float)at.Longitude));
+                    // The adapter answers geodetic when the node has a transform, else world metres in the same fields (x, y):
+                    // without a transform an order's point travels as [y, x] (OrderGeo's fallback).
+                    var point = Geo() != null ? new JsonArray(at.Latitude, at.Longitude) : new JsonArray(at.Longitude, at.Latitude);
+                    Report(Orders()?.Order(_unit, order.Name, OrderMenu.Json(order, point)));
                 }
             }
             if (_enemy is { IsCompleted: true } enemy)
             {
                 _enemy = null;
-                if (enemy.Status == TaskStatus.RanToCompletion && enemy.Result > 0)
-                    Report(Orders()?.Attack(_unit, enemy.Result));
+                if (enemy.Status == TaskStatus.RanToCompletion && enemy.Result > 0 && enemy.Result != _unit && _order is { } order)
+                    Report(Orders()?.Order(_unit, order.Name, OrderMenu.Json(order, JsonValue.Create((long)enemy.Result))));
             }
         }
 

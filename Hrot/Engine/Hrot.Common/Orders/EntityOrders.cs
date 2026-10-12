@@ -9,6 +9,7 @@ using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Map.Definitions.Behavior;
+using Hrot.Map.Definitions.Behavior.Orders;
 
 namespace Hrot.Common.Orders
 {
@@ -26,6 +27,9 @@ namespace Hrot.Common.Orders
         BadRequest,
         /// <summary>⭐ <c>CE-3172</c> (C-3) — a station possesses the unit: no order reaches it until it is released.</summary>
         Possessed,
+        /// <summary>⭐ <c>CE-2143</c> — no class of the unit fulfils the order (§8: no <c>&lt;Class&gt;&lt;Order&gt;</c> behaviour), or two
+        /// classes tie. The receiver would start nothing; the sender says why.</summary>
+        NotFulfilled,
     }
 
     /// <summary>The outcome of one <see cref="EntityOrders"/> call: the refusal, or what was published.</summary>
@@ -70,32 +74,26 @@ namespace Hrot.Common.Orders
         public OrderResult Move(long unit, double? lat = null, double? lon = null, float? x = null, float? y = null,
             float? speed = null, float? arrivalRadius = null, string? roadUse = null)
         {
-            var p = new JsonObject();
-            if (lat is double la && lon is double lo)
-            {
-                p["targetLat"] = la;
-                p["targetLon"] = lo;
-            }
+            // ⭐ CE-2143 (D4-A) — the MOVE order's DTO (MoveOrder: Location [lat, lon], Speed, ArrivalRadius, RoadUse), never a
+            //   behaviour: the unit picks how it moves (§8). Without a transform, x/y travel as [y, x] (OrderGeo's fallback).
+            JsonArray location;
+            if (lat is double la && lon is double lo) location = new JsonArray(la, lo);
             else if (x is float px && y is float py)
             {
                 if (_geo != null)
                 {
                     var (gLat, gLon, _) = _geo.ToGeodetic(new System.Numerics.Vector3(px, py, 0f));
-                    p["targetLat"] = gLat;
-                    p["targetLon"] = gLon;
+                    location = new JsonArray(gLat, gLon);
                 }
-                else
-                {
-                    p["x"] = px;
-                    p["y"] = py;
-                }
+                else location = new JsonArray((double)py, (double)px);
             }
             else return OrderResult.Refused(OrderRefusal.BadRequest, "A move needs lat+lon or x+y.");
 
-            if (speed is float s) p["speed"] = s;
-            if (arrivalRadius is float r) p["arrivalRadius"] = r;
-            if (!string.IsNullOrWhiteSpace(roadUse)) p["roadUse"] = roadUse;
-            return Assign(unit, BehaviorNames.MoveToLocation, p.ToJsonString());
+            var p = new JsonObject { ["Location"] = location };
+            if (speed is float s) p["Speed"] = s;
+            if (arrivalRadius is float r) p["ArrivalRadius"] = r;
+            if (!string.IsNullOrWhiteSpace(roadUse)) p["RoadUse"] = roadUse;
+            return Order(unit, "Move", p.ToJsonString());
         }
 
         /// <summary>⭐ <c>CE-3170</c> (C-5) — ATTACK a unit: <c>CombatPosture</c> with that target designated and <c>assault</c> — the unit
@@ -109,12 +107,28 @@ namespace Hrot.Common.Orders
             if (_world.IsComponentTypeRegistered<Health>() && _world.HasComponent<Health>(victim)
                 && _world.GetComponentRO<Health>(victim).Current <= 0)
                 return OrderResult.Refused(OrderRefusal.BadRequest, $"Target {target} is already killed.");
-            var p = new JsonObject { ["target"] = target, ["assault"] = true };
-            return Assign(unit, BehaviorNames.CombatPosture, p.ToJsonString());
+            return Order(unit, "Attack", new JsonObject { ["Target"] = target }.ToJsonString());   // ⭐ CE-2143 — the ATTACK order's DTO
         }
 
-        /// <summary>Hold where it stands — the operator orders <c>Idle</c>, which never ends (AQ83 E). The menu's "Stop".</summary>
-        public OrderResult Hold(long unit) => Assign(unit, BehaviorNames.Idle, "{}");
+        /// <summary>Hold where it stands — the HOLD order; the unit picks how (a person or a vehicle: stay, as <c>Idle</c>; a squad:
+        /// hold and fight). The menu's "Stop".</summary>
+        public OrderResult Hold(long unit) => Order(unit, "Hold", "{}");
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2143</c> (D4-A, R-273) — an ORDER by name (<c>Move</c>, <c>Attack</c>, <c>Hold</c> … — the <c>[Order]</c> DTOs) with
+        /// its DTO's JSON: published as <c>Order.&lt;name&gt;</c>, resolved by the unit itself to its own behaviour (§8). Refused here,
+        /// with the reason, when no class of the unit fulfils it — the same question the receiver asks (<see cref="OrderMenu"/>).
+        /// </summary>
+        public OrderResult Order(long unit, string orderName, string? jsonParams)
+        {
+            if (!OrderMenu.TryGetByName(orderName ?? "", out var order))
+                return OrderResult.Refused(OrderRefusal.BadRequest,
+                    $"No order '{orderName}'. Orders: {string.Join(", ", System.Linq.Enumerable.Select(OrderMenu.Orders, o => o.Name))}.");
+            if (!TryAddress(unit, out var entity, out var refused)) return refused;
+            var r = OrderMenu.Resolve(_world.GetDisType(entity), order.Name);
+            if (r.Outcome != Hrot.Core.Tkb.OrderResolution.Resolved) return OrderResult.Refused(OrderRefusal.NotFulfilled, r.Detail);
+            return Publish(entity, OrderAttribute.IntentFor(order.Name), string.IsNullOrWhiteSpace(jsonParams) ? "{}" : jsonParams!);
+        }
 
         /// <summary>Any behaviour by name, with its parameter JSON (discover them with <c>GET /behaviors?entityId=</c>).</summary>
         public OrderResult Behavior(long unit, string behaviorName, string? jsonParams)
@@ -199,6 +213,11 @@ namespace Hrot.Common.Orders
         private OrderResult Assign(long unit, string intentId, string json)
         {
             if (!TryAddress(unit, out var entity, out var refused)) return refused;
+            return Publish(entity, intentId, json);
+        }
+
+        private OrderResult Publish(Entity entity, string intentId, string json)
+        {
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
                 Entity = entity, IntentId = intentId, JsonParams = json,

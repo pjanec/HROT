@@ -64,6 +64,10 @@ namespace Hrot.Editor.DebugApi
         {
             var orders = Orders();
             string kind = (body?["kind"]?.GetValue<string>() ?? "").Trim().ToLowerInvariant();
+            // ⭐ CE-2143 (D4-G) — an order with its DTO in `params` takes the generic path even when its name is also a legacy kind
+            //   ({kind:"move", params:{Location:[lat,lon]}}); the legacy fields (lat, lon, targetId …) stay for callers without params.
+            if (kind != "behavior" && body?["params"] is JsonNode orderParams && Hrot.Common.Orders.OrderMenu.TryGetByName(kind, out var named))
+                return orders.Order(networkId, named.Name, orderParams is JsonValue ov && ov.TryGetValue<string>(out var os) ? os : orderParams.ToJsonString());
             switch (kind)
             {
                 case "move":
@@ -94,8 +98,16 @@ namespace Hrot.Editor.DebugApi
                     return orders.Attack(networkId, targetId);
                 }
                 default:
-                    return new OrderResult(OrderRefusal.BadRequest,
-                        "kind must be one of: move, attack, hold (stop), behavior, release.", "", "");
+                {
+                    // ⭐ CE-2143 (D4-G) — any ORDER by name (case-insensitive), its DTO JSON in `params`; the unit picks how (§8).
+                    if (!Hrot.Common.Orders.OrderMenu.TryGetByName(kind, out var order))
+                        return new OrderResult(OrderRefusal.BadRequest,
+                            "kind must be an order (" + string.Join(", ", System.Linq.Enumerable.Select(Hrot.Common.Orders.OrderMenu.Orders, o => o.Name))
+                            + ") or one of: move, attack, hold (stop), behavior, release.", "", "");
+                    var p = body?["params"];
+                    string json = p is null ? "{}" : p is JsonValue v && v.TryGetValue<string>(out var s) ? s : p.ToJsonString();
+                    return orders.Order(networkId, order.Name, json);
+                }
             }
         }
 

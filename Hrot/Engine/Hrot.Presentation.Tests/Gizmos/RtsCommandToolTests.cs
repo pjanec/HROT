@@ -60,6 +60,7 @@ public sealed class RtsCommandToolTests : IDisposable
         _w.AddComponent(e, new EntityInfo { ForceId = side });
         _map.Register(id, e);
         _pick.Under[at] = (int)id;
+        _w.SetDisType(e, new DISEntityType { Value = (3UL << 56) | (1UL << 48) | (225UL << 32) | (1UL << 24) });   // ⭐ CE-2143 — a soldier
         return e;
     }
 
@@ -101,8 +102,8 @@ public sealed class RtsCommandToolTests : IDisposable
         Assert.Equal(2, Commands(a, b).Command(new Vector2(40, 0)));
         var orders = Read<AssignTacticalIntentEvent>();
         Assert.Equal(2, orders.Length);
-        Assert.All(orders, o => Assert.Equal("CombatPosture", o.IntentId));
-        Assert.All(orders, o => Assert.Contains("\"target\":20", o.JsonParams));
+        Assert.All(orders, o => Assert.Equal("Order.Attack", o.IntentId));     // ⭐ CE-2143 — the EnemyClick order; the unit picks how
+        Assert.All(orders, o => Assert.Contains("\"Target\":20", o.JsonParams));
         Assert.Equal(new[] { a, b }, orders.Select(o => o.Entity).ToArray());
     }
 
@@ -118,8 +119,8 @@ public sealed class RtsCommandToolTests : IDisposable
         {
             Assert.Equal(1, rts.Command(at));
             var move = Assert.Single(Read<AssignTacticalIntentEvent>());
-            Assert.Equal("MoveToLocation", move.IntentId);
-            Assert.Contains($"\"x\":{at.X}", move.JsonParams);
+            Assert.Equal("Order.Move", move.IntentId);                            // ⭐ CE-2143 — the GroundClick order
+            Assert.Contains($"\"Location\":[{at.Y},{at.X}]", move.JsonParams);   // no transform: [y, x]
         }
     }
 
@@ -138,7 +139,7 @@ public sealed class RtsCommandToolTests : IDisposable
         Assert.Equal(SelectionChangeMode.Add, Assert.Single(Read<SelectionChangeRequest>()).Mode);
 
         gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: true, new Vector3(40, 0, 0));
-        Assert.Equal("CombatPosture", Assert.Single(Read<AssignTacticalIntentEvent>()).IntentId);
+        Assert.Equal("Order.Attack", Assert.Single(Read<AssignTacticalIntentEvent>()).IntentId);
         Assert.False(removed, "RMB commands; it does not cancel the tool");
 
         gizmo.OnKeyEvent(MapKeyboardKey.Escape, isPressed: true);

@@ -66,6 +66,15 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2141</c> (D2) — an infantry squad fulfils the ATTACK order: suppress and manoeuvre on the named target.</summary>
         public const string InfantrySquadAttack = "InfantrySquadAttack";
 
+        // ⭐ CE-2143 (D4-B) — the broad classes' order behaviours, so every entity the menu ordered before keeps its orders:
+        //   Person (DIS Kind 3) and Platform (Kind 1), each over the behaviour the sender used to name directly.
+        public const string PersonMove = "PersonMove";
+        public const string PersonAttack = "PersonAttack";
+        public const string PersonHold = "PersonHold";
+        public const string PlatformMove = "PlatformMove";
+        public const string PlatformAttack = "PlatformAttack";
+        public const string PlatformHold = "PlatformHold";
+
         /// <summary>⭐ CE-3172 (R-270, M-7) — what a POSSESSED unit runs: the station's controls drive its body
         /// (DESIGN_Entity_Control §8b). Assigned by <c>PossessionSystem</c> at origin Possession only.</summary>
         public const string OperatorControl = "OperatorControl";

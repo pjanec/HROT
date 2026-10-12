@@ -118,6 +118,12 @@ public sealed class CuratedBehaviorRegistrarTests
             Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadMove,     // CE-2141
             Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadHold,     // CE-2141
             Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadAttack,   // CE-2141
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PersonMove,            // CE-2143
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PersonAttack,          // CE-2143
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PersonHold,            // CE-2143
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PlatformMove,          // CE-2143
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PlatformAttack,        // CE-2143
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PlatformHold,          // CE-2143
         };
 
         foreach (var name in curated)

@@ -39,34 +39,43 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
             };
 
-        /// <summary>The unit menu's permutations: health (degraded or not) × brain (the AI trace submenu, ⭐ <c>CE-3123</c>) × ⭐
-        /// <c>CE-3169</c> orders (Move Here · Engage · Stop, only where <see cref="Hrot.Common.Orders.OrdersOffered"/> is set).</summary>
-        private static readonly string[] UnitMenus = BuildUnitMenus();
+        /// <summary>The unit menus already built: health (degraded or not) × brain (the AI trace submenu, ⭐ <c>CE-3123</c>) × ⭐
+        /// <c>CE-3169</c> orders offered (only where <see cref="Hrot.Common.Orders.OrdersOffered"/> is set) × ⭐ <c>CE-2143</c> the
+        /// entity's DIS type (which orders its class fulfils) × a body-less unit (no Possess). Built on first use; rebuilt when the
+        /// order vocabulary changes (a hot-reloaded behaviour assembly).</summary>
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<(int Flags, ulong Dis, bool Unit), string> UnitMenus = new();
+        private static object? _menusBuiltFor;
 
-        private static string[] BuildUnitMenus()
+        private static string UnitMenuFor(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit)
         {
-            var menus = new string[8];
-            for (int i = 0; i < 8; i++) menus[i] = UnitMenu(degraded: (i & 1) != 0, brain: (i & 2) != 0, orders: (i & 4) != 0);
-            return menus;
+            var vocabulary = Hrot.Common.Orders.OrderMenu.Orders;
+            if (!ReferenceEquals(vocabulary, System.Threading.Volatile.Read(ref _menusBuiltFor)))
+            {
+                UnitMenus.Clear();
+                System.Threading.Volatile.Write(ref _menusBuiltFor, vocabulary);
+            }
+            int flags = (degraded ? 1 : 0) | (brain ? 2 : 0) | (orders ? 4 : 0);
+            return UnitMenus.GetOrAdd((flags, orders ? dis.Value : 0UL, orders && isUnit), _ => UnitMenu(degraded, brain, orders, dis, isUnit));
         }
 
-        private static string UnitMenu(bool degraded, bool brain, bool orders)
+        private static string UnitMenu(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit)
         {
             var items = new System.Collections.Generic.List<ContextMenuItemDto>();
-            if (orders) items.AddRange(new[]
+            if (orders)
             {
-                degraded
-                    ? new ContextMenuItemDto { Id = GlobalActionIds.MoveHere, Label = "Move Here", Enabled = false,
-                        Tooltip = "Cannot move: Unit is heavily damaged" }
-                    : new ContextMenuItemDto { Id = GlobalActionIds.MoveHere, Label = "Move Here", Shortcut = "M" },
-                degraded
-                    ? new ContextMenuItemDto { Id = GlobalActionIds.Engage,   Label = "Engage",    Enabled = false,
-                        Tooltip = "Cannot engage: Unit is heavily damaged" }
-                    : new ContextMenuItemDto { Id = GlobalActionIds.Engage,   Label = "Engage",    Shortcut = "E" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Stop,           Label = "Stop",        Shortcut = "S" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Possess,        Label = "Possess (FPS)", Shortcut = "P" },   // ⭐ CE-3174
-                new ContextMenuItemDto { IsSeparator = true },
-            });
+                // ⭐⭐ CE-2143 (D4-D) — the orders THIS entity's class fulfils (the receiver's own answer, §8), not a fixed three.
+                //   An order that needs the operator to point at something is disabled on a heavily damaged unit, as Move / Engage were.
+                foreach (var o in Hrot.Common.Orders.OrderMenu.OfferedFor(dis))
+                {
+                    if (o.Pick == Hrot.Common.Orders.OrderPick.Several) continue;   // more than one pick: HTTP only
+                    items.Add(degraded && o.Pick != Hrot.Common.Orders.OrderPick.None
+                        ? new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Enabled = false, Tooltip = "Cannot " + o.Name.ToLowerInvariant() + ": unit is heavily damaged" }
+                        : new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Shortcut = o.Name.Substring(0, 1) });
+                }
+                // ⭐ CE-2143 (D4-H) — no Possess on a body-less unit: there is nothing to drive.
+                if (!isUnit) items.Add(new ContextMenuItemDto { Id = GlobalActionIds.Possess, Label = "Possess (FPS)", Shortcut = "P" });   // ⭐ CE-3174
+                if (items.Count > 0) items.Add(new ContextMenuItemDto { IsSeparator = true });
+            }
             items.AddRange(new[]
             {
                 new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View", Shortcut = "C" },
@@ -164,8 +173,11 @@ namespace Hrot.Common.Diagnostics.Gizmos
                     degraded = health.Max > 0f && health.Current / health.Max <= 0.5f;
                 }
                 bool brain = AiTraceActions.HasBrain(view, entity);   // ⭐ CE-3123 — has a brain = can be traced
-                bool orders = view is EntityRepository repo && repo.HasSingletonManaged<Hrot.Common.Orders.OrdersOffered>();   // ⭐ CE-3169
-                menuJson = UnitMenus[(degraded ? 1 : 0) | (brain ? 2 : 0) | (orders ? 4 : 0)];
+                var repo = view as EntityRepository;
+                bool orders = repo != null && repo.HasSingletonManaged<Hrot.Common.Orders.OrdersOffered>();   // ⭐ CE-3169
+                var dis = repo != null ? repo.GetDisType(entity) : default;                                 // ⭐ CE-2143 — its class
+                bool isUnit = view.HasComponent<Fdp.Core.CommandHierarchy.UnitEntity>(entity);
+                menuJson = UnitMenuFor(degraded, brain, orders, dis, isUnit);
             }
 
             return menuJson;

@@ -31,6 +31,8 @@ public sealed class DebugApiOrdersTests
         h.Repo.AddComponent(e, new EntityInfo { ForceId = side });
         h.Repo.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
         h.EntityMap.Register(id, e);
+        // ⭐ CE-2143 — a SOLDIER (DIS 3.1.225.1, class Person): an order resolves to its class's behaviour (PersonHold …).
+        h.Repo.SetDisType(e, new DISEntityType { Value = (3UL << 56) | (1UL << 48) | (225UL << 32) | (1UL << 24) });
         return e;
     }
 
@@ -51,12 +53,12 @@ public sealed class DebugApiOrdersTests
 
         h.PumpFrames(4);
         var bs = h.Repo.GetComponentRO<BehaviorState>(unit);
-        Assert.Equal(IdOf(h, BehaviorNames.Idle), bs.ActiveBehaviorHash);
+        Assert.Equal(IdOf(h, BehaviorNames.PersonHold), bs.ActiveBehaviorHash);   // ⭐ CE-2143 — the soldier's HOLD
         Assert.Equal(BehaviorOrigin.Operator, bs.Origin);
 
         var order = svc.GetOrder(UnitId);
         Assert.Equal("running", order["state"]!.GetValue<string>());
-        Assert.Equal(BehaviorNames.Idle, order["behavior"]!.GetValue<string>());
+        Assert.Equal(BehaviorNames.PersonHold, order["behavior"]!.GetValue<string>());
     }
 
     [Fact]
@@ -74,7 +76,7 @@ public sealed class DebugApiOrdersTests
         // The move ran as the operator's order — still running, or already ended (this world drives no navigation), and then
         // its outcome is the recorded one (OperatorOrderOutcome).
         var order = svc.GetOrder(UnitId);
-        Assert.Equal(BehaviorNames.MoveToLocation, order["behavior"]!.GetValue<string>());
+        Assert.Equal(BehaviorNames.PersonMove, order["behavior"]!.GetValue<string>());   // ⭐ CE-2143 — the soldier's MOVE
         Assert.Contains(order["state"]!.GetValue<string>(), new[] { "running", "succeeded", "failed" });
     }
 
@@ -151,11 +153,11 @@ public sealed class DebugApiOrdersTests
         var (result, status, error, _) = svc.PostOrder(UnitId, new JsonObject { ["kind"] = "attack", ["targetId"] = 2000L });
         Assert.Null(error);
         Assert.Equal(200, status);
-        Assert.Equal(BehaviorNames.CombatPosture, result!["behavior"]!.GetValue<string>());
+        Assert.Equal("Order.Attack", result!["behavior"]!.GetValue<string>());   // ⭐ CE-2143 — what was SENT is the order
 
         h.PumpFrames(4);
         var bs = h.Repo.GetComponentRO<BehaviorState>(unit);
-        Assert.Equal(IdOf(h, BehaviorNames.CombatPosture), bs.ActiveBehaviorHash);
+        Assert.Equal(IdOf(h, BehaviorNames.PersonAttack), bs.ActiveBehaviorHash);   // ⭐ CE-2143 — what RUNS is the class's ATTACK
         Assert.Equal(BehaviorOrigin.Operator, bs.Origin);
         Assert.True(DesignatedTarget.Of(h.Repo, unit, out var designated));
         Assert.Equal(enemy, designated);
@@ -266,7 +268,7 @@ public sealed class DebugApiOrdersTests
         Assert.Equal(BehaviorOrigin.Possession, bs.Origin);
         var order = svc.GetOrder(UnitId);
         Assert.Equal("paused", order["state"]!.GetValue<string>());
-        Assert.Equal(BehaviorNames.Idle, order["behavior"]!.GetValue<string>());
+        Assert.Equal(BehaviorNames.PersonHold, order["behavior"]!.GetValue<string>());
 
         // a possessed unit takes no order (C-3) — it says why
         var refused = svc.PostOrder(UnitId, new JsonObject { ["kind"] = "move", ["x"] = 10f, ["y"] = 0f });
@@ -296,7 +298,7 @@ public sealed class DebugApiOrdersTests
         Assert.Null(error);
         h.PumpFrames(4);
         bs = h.Repo.GetComponentRO<BehaviorState>(unit);
-        Assert.Equal(IdOf(h, BehaviorNames.Idle), bs.ActiveBehaviorHash);
+        Assert.Equal(IdOf(h, BehaviorNames.PersonHold), bs.ActiveBehaviorHash);   // ⭐ CE-2143 — the soldier's HOLD
         Assert.Equal(BehaviorOrigin.Operator, bs.Origin);
         Assert.Equal(0f, h.Repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(unit).Forward);
         Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationMode.Manual, h.Repo.GetComponentRO<Fdp.Toolkit.Navigation.NavigationIntent>(unit).Mode);

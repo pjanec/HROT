@@ -87,7 +87,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         var result = new EntityOrders(sim, simMap, geo: null).Hold(id);
         Assert.True(result.Accepted, result.Detail);
 
-        int idle = BehaviorHash.FromName("Idle");
+        int idle = BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.PersonHold);   // ⭐ CE-2143 — the Rifleman's class runs ITS hold
         bool ran = harness.PumpUntil(() =>
         {
             var bs = cgf.GetComponentRO<BehaviorState>(onBrain);

@@ -19,7 +19,7 @@ using Xunit;
 namespace Hrot.Presentation.Tests.Gizmos;
 
 /// <summary>
-/// ⭐⭐ <c>CE-3169</c> (docs/DESIGN_Entity_Control.md §4.2, §7 S2) — the unit menu's Move Here · Engage · Stop, registered ONCE by the
+/// ⭐⭐ <c>CE-3169</c> (docs/DESIGN_Entity_Control.md §4.2, §7 S2) — the unit menu's orders (⭐ CE-2143: the ones the unit's class fulfils), registered ONCE by the
 /// map pack on every live host: Move and Engage take a follow-up pick and become the same order the HTTP route publishes; a
 /// cancelled pick orders nothing; a replay offers and registers none of them.
 /// </summary>
@@ -37,7 +37,12 @@ public sealed class MenuOrdersTests : IDisposable
         _w.SetSingletonManaged(_map);
         _unit = Add(UnitId);
         Add(EnemyId);
+        // ⭐ CE-2143 — a SOLDIER (DIS 3.1.225.1: class Person → Infantry): its class fulfils Move / Attack / Hold (PersonMove …).
+        _w.SetDisType(_unit, new DISEntityType { Value = (3UL << 56) | (1UL << 48) | (225UL << 32) | (1UL << 24) });
     }
+
+    /// <summary>⭐ CE-2143 — the unit-menu action id of an order (the menu offers orders, not a fixed three).</summary>
+    private static int Id(string order) { Assert.True(OrderMenu.TryGetByName(order, out var o), order); return o.ActionId; }
 
     public void Dispose() => _w.Dispose();
 
@@ -85,40 +90,39 @@ public sealed class MenuOrdersTests : IDisposable
     public void CE3169_MoveHere_PicksAPoint_ThenOrdersTheMove()
     {
         var (mi, pick) = Live();
-        Click(mi, GlobalActionIds.MoveHere);
+        Click(mi, Id("Move"));
         Assert.True(mi.MenuOrders.IsPicking);
         Assert.Empty(Published(mi));                                  // nothing until the operator picks
 
         pick.Location!.SetResult(new GeoPoint(120, -40, 0));          // no geo transform here: world metres
         var order = Assert.Single(Published(mi));
         Assert.Equal(_unit, order.Entity);
-        Assert.Equal("MoveToLocation", order.IntentId);
+        Assert.Equal("Order.Move", order.IntentId);                    // ⭐ CE-2143 — the ORDER; the unit picks how
         Assert.Equal(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator, order.Origin);
-        Assert.Contains("\"x\":120", order.JsonParams);
+        Assert.Contains("\"Location\":[-40,120]", order.JsonParams);    // no transform: [y, x] (OrderGeo's fallback)
     }
 
     [Fact]
     public void CE3169_Engage_PicksAnEnemy_ThenOrdersTheAttack()
     {
         var (mi, pick) = Live();
-        Click(mi, GlobalActionIds.Engage);
+        Click(mi, Id("Attack"));
         pick.Enemy!.SetResult((int)EnemyId);
         var order = Assert.Single(Published(mi));
-        Assert.Equal("CombatPosture", order.IntentId);
-        Assert.Contains($"\"target\":{EnemyId}", order.JsonParams);
-        Assert.Contains("\"assault\":true", order.JsonParams);
+        Assert.Equal("Order.Attack", order.IntentId);
+        Assert.Contains($"\"Target\":{EnemyId}", order.JsonParams);
     }
 
     [Fact]
     public void CE3169_ACancelledPick_OrdersNothing()
     {
         var (mi, pick) = Live();
-        Click(mi, GlobalActionIds.MoveHere);
+        Click(mi, Id("Move"));
         pick.Location!.SetCanceled();
         Assert.Empty(Published(mi));
         Assert.False(mi.MenuOrders.IsPicking);
 
-        Click(mi, GlobalActionIds.Engage);
+        Click(mi, Id("Attack"));
         pick.Enemy!.SetResult(-1);                                     // the adapter's "nothing valid picked"
         Assert.Empty(Published(mi));
     }
@@ -127,10 +131,10 @@ public sealed class MenuOrdersTests : IDisposable
     public void CE3169_Stop_HoldsAtOnce()
     {
         var (mi, _) = Live();
-        Click(mi, GlobalActionIds.Stop);
+        Click(mi, Id("Hold"));
         _w.Bus.SwapBuffers();
         var order = Assert.Single(_w.Bus.ReadManaged<AssignTacticalIntentEvent>().ToArray());
-        Assert.Equal("Idle", order.IntentId);
+        Assert.Equal("Order.Hold", order.IntentId);
     }
 
     /// <summary>⭐ CE-3174 (§8d) — the unit menu's Possess (FPS) asks to possess the unit for THIS station; the station's map then
@@ -151,8 +155,8 @@ public sealed class MenuOrdersTests : IDisposable
     public void CE3169_AHostWithNoPick_IssuesNothing_SoARelayedMenuActionIsNotOrderedTwice()
     {
         var mi = MapInteractionPack.Build(new MapInteractionContext { World = _w });   // headless: nobody set PickService
-        Click(mi, GlobalActionIds.Stop);
-        Click(mi, GlobalActionIds.MoveHere);
+        Click(mi, Id("Hold"));
+        Click(mi, Id("Move"));
         Assert.Empty(Published(mi));
     }
 
@@ -160,22 +164,22 @@ public sealed class MenuOrdersTests : IDisposable
     public void CE3169_TheUnitMenu_OffersOrders_OnALiveMap_AndNotInAReplay()
     {
         var unit = _unit;
-        Assert.DoesNotContain("Move Here", ContextMenuProjectorGizmo.MenuJsonFor(_w, unit));   // no map built yet
+        Assert.DoesNotContain("\"Move\"", ContextMenuProjectorGizmo.MenuJsonFor(_w, unit));   // no map built yet
 
         using var replayWorld = new EntityRepository();
         replayWorld.RegisterComponent<SimTransform>();
         replayWorld.RegisterComponent<NetworkIdentity>();
         var replay = MapInteractionPack.Build(new MapInteractionContext { World = replayWorld, IsReplayActive = static () => true });
-        Assert.False(replay.Actions.TryGetHandler(GlobalActionIds.MoveHere, out _), "a replay registers no orders");
+        Assert.False(replay.Actions.TryGetHandler(Id("Move"), out _), "a replay registers no orders");
         var ghost = replayWorld.CreateEntity();
         replayWorld.AddComponent(ghost, new NetworkIdentity(5));
-        Assert.DoesNotContain("Move Here", ContextMenuProjectorGizmo.MenuJsonFor(replayWorld, ghost));
+        Assert.DoesNotContain("\"Move\"", ContextMenuProjectorGizmo.MenuJsonFor(replayWorld, ghost));
 
         var (live, _) = Live();
         var menu = ContextMenuProjectorGizmo.MenuJsonFor(_w, unit);
-        Assert.Contains("Move Here", menu);
-        Assert.Contains("Engage", menu);
-        Assert.Contains($"\"id\":{GlobalActionIds.Stop},", menu);
+        Assert.Contains("\"Move\"", menu);                                  // ⭐ CE-2143 — the orders a soldier's class fulfils
+        Assert.Contains("\"Attack\"", menu);
+        Assert.Contains($"\"id\":{Id("Hold")},", menu);
         Assert.Contains(typeof(MenuOrders), live.RequiredSystems);
         Assert.Contains(live.MenuOrders, live.InteractionSystems);   // scheduled wherever the map's interaction runs
     }
@@ -195,5 +199,30 @@ public sealed class MenuOrdersTests : IDisposable
         var click = new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(_ => picked++, () => removed++, () => cancelled++);
         click.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, isPressed: false, Vector3.One);
         Assert.Equal((2, 3, 1), (cancelled, removed, picked));
+    }
+
+    /// <summary>⭐ CE-2143 (D4-D, D4-H) — the menu lists EXACTLY the orders the unit's class fulfils: a soldier gets Move / Attack /
+    /// Hold and Possess; a squad (a body-less unit, DIS Kind 11) gets its own three and no Possess; an entity no class of which has
+    /// an order behaviour gets no orders at all.</summary>
+    [Fact]
+    public void CE2143_TheMenu_ListsExactlyTheOrdersTheUnitsClassFulfils()
+    {
+        var (_, _) = Live();
+        var soldier = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
+        foreach (var o in new[] { "Move", "Attack", "Hold" }) Assert.Contains($"\"id\":{Id(o)},", soldier);
+        Assert.Contains("Possess (FPS)", soldier);
+
+        _w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        var squad = Add(99);
+        _w.AddComponent(squad, new Fdp.Core.CommandHierarchy.UnitEntity());
+        _w.SetDisType(squad, Hrot.Core.Tkb.UnitDis.Land(Hrot.Core.Tkb.UnitArm.Infantry, Hrot.Core.Tkb.UnitEchelon.Squad, 225));
+        var squadMenu = ContextMenuProjectorGizmo.MenuJsonFor(_w, squad);
+        foreach (var o in new[] { "Move", "Attack", "Hold" }) Assert.Contains($"\"id\":{Id(o)},", squadMenu);
+        Assert.DoesNotContain("Possess (FPS)", squadMenu);
+
+        var munition = Add(100);
+        _w.SetDisType(munition, new DISEntityType { Value = 2UL << 56 });            // a munition: no class has an order behaviour
+        var none = ContextMenuProjectorGizmo.MenuJsonFor(_w, munition);
+        foreach (var o in OrderMenu.Orders) Assert.DoesNotContain($"\"id\":{o.ActionId},", none);
     }
 }
