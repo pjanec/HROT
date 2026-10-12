@@ -6,6 +6,7 @@ stale-below: nothing yet
 known-rot: "doctrine" is RENAMED "SOP" (R-198, user 2026-10-04) — read every doctrine as SOP; planned identifiers become SopState / AssignSopEvent / ClearSopEvent / DefaultSop {Name, ParamsJson}; the SOP model (task · SOP · reaction, R-199) lives in docs/DESIGN_Decision_Layer.md §4.
 known-conflict: none
 related-designs:
+  - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-273 (behaviors): who picks the behaviour for an order (the receiver); rejects the SOP as the decoder
   - docs/DESIGN_Sensors_And_Doctrine.md — the DESIGN (UML, build plan) that builds these rulings.
   - docs/blueprints/Architect_Question_82_One_Sensor_Form.md — OWNS the sensors and their results the doctrine reads (L: `Sensors.Of`, read-sensor node; N′: sensors default ON because a threat is what starts a behaviour).
   - docs/designs/brain-death/BD1-DESIGN.md — OWNS brain death: a finished behaviour resets the channels; this adds WHO picks the next one.

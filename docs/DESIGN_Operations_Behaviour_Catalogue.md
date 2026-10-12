@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-273..275 (behaviors): orders to units and echelons (A4 answers T6 in part), the person-carry profile (C, after R-263)
   - DESIGN_Visual_Effects.md — §7 (R-269): how a destroyed vehicle and a dead soldier LOOK (black wreck, 2-D X, flames and smoke, the Dead figure); it reads Health ≤ 0 until this catalogue's D1 damage states exist, then `WreckState.IsDestroyed` reads those.
   - designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad-tactics build (§11.3 S1 runner, S2 react to contact) and the measured embark / formation state
   - REVIEW_Behaviour_Library_Genericity.md — OWNS the library line (②/③), the promotion rule and the existing-block audit this catalogue extends
