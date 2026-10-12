@@ -602,7 +602,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the WanderMilitary BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [Behavior(BehaviorNames.WanderMilitary, Params = typeof(global::Hrot.Map.Definitions.Behavior.WanderMilitaryParamsJsonDto), Categories = BehaviorCategory.MilitaryApc)]   // ⭐ CE-2134
+        [Behavior(BehaviorNames.WanderMilitary, Params = typeof(global::Hrot.Map.Definitions.Behavior.NoParams), Categories = BehaviorCategory.MilitaryApc)]   // ⭐ CE-2134
         [BTreeDefinition("WanderMilitary", Curated = true, Group = "Library/Basic")]
         // ⭐ P4-②: `byte` here, and it is the RAW-DELEGATE case so nothing is lost. A selector-form
         //   builder still needs a struct with fields (which is why the wrapper structs stay — §30.18);

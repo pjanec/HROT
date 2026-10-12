@@ -496,11 +496,6 @@ EntityRepository (world)
 | `MapDefinitions/Behavior/JoinFormationParamsJsonDto.cs` | DTO | DTO | `JoinFormation` behavior: parameterless; anchors ID and Infantry category |
 | `MapDefinitions/Behavior/FireAtTargetParamsJsonDto.cs` | DTO | DTO | `FireAtTarget` behavior: target network ID, max rounds, cooldown seconds |
 | `MapDefinitions/Behavior/PlatoonHillAttackParamsJsonDto.cs` | DTO | DTO | `PlatoonHillAttack` commander behavior: firing-line segment, baseline segment, tank spacing, target area |
-| `MapDefinitions/Behavior/AmbushParamsJsonDto.cs` | DTO | DTO | `Ambush` behavior: parameterless; Insurgent category |
-| `MapDefinitions/Behavior/ConvoyEscortParamsJsonDto.cs` | DTO | DTO | `ConvoyEscort` behavior: parameterless; MilitaryApc category |
-| `MapDefinitions/Behavior/InfantryCombatParamsJsonDto.cs` | DTO | DTO | `InfantryCombat` behavior: parameterless; Infantry category |
-| `MapDefinitions/Behavior/IdleParamsJsonDto.cs` | DTO | DTO | `Idle` behavior: parameterless; AllMilitary category |
-| `MapDefinitions/Behavior/WanderMilitaryParamsJsonDto.cs` | DTO | DTO | `WanderMilitary` behavior: parameterless; MilitaryApc category |
 | `MapDefinitions/Behavior/Intents/DefendAreaIntentDto.cs` | DTO | DTO | `DefendArea` tactical intent: center lat/lon, radius in metres |
 
 #### Components/Map/

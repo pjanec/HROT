@@ -70,7 +70,7 @@ public class ParamsDtoRegistryTests
     {
         var r = ParamsDtoRegistry.Scan(new[] { typeof(ParamsDtoRegistryTests).Assembly });
         Assert.True(r.TryGetBehavior(BehaviorNames.Ambush, out var ambush));
-        Assert.Equal(typeof(AmbushParamsJsonDto), ambush.ParamsType);
+        Assert.Equal(typeof(NoParams), ambush.ParamsType);
         Assert.Equal(BehaviorCategory.Insurgent, ambush.Categories);
     }
 }

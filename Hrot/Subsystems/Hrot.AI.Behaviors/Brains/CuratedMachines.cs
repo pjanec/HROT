@@ -32,7 +32,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// ⚠ It declares no params, so <c>ParamsType</c> is deliberately absent: the entity gets no
         /// root params slot, which is the legitimate <c>RootParamsBytes == 0</c> case.
         /// </summary>
-        [Behavior(BehaviorNames.Idle, Params = typeof(global::Hrot.Map.Definitions.Behavior.IdleParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134
+        [Behavior(BehaviorNames.Idle, Params = typeof(global::Hrot.Map.Definitions.Behavior.NoParams), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134
         [HsmDefinition("Idle", Curated = true, Group = "Library/Basic")]
         public static StateMachineGraph BuildIdleMachine()
         {

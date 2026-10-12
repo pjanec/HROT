@@ -123,6 +123,8 @@ Both structs intentionally use a local `int TrajectoryId` — an ephemeral `Traj
 
 ### 2.1 FollowRoute Mission: Translate Network ID at Ingress Boundary  *(OC1-S001)*
 
+> ⛔ **SUPERSEDED `2026-10-12` by CE-2145** ([`DESIGN_Orders_Params_Entity_Classes.md`](../../DESIGN_Orders_Params_Entity_Classes.md) §10, R-273 (behaviors): the receiver converts). The route → trajectory lookup moved into FollowRoute's own resolver and action, so every sender — not only the mission ingress — may send `{routeEntityId, Speed, Loop}`; "not compiled yet" is a wait inside the behaviour, not a retry of the assignment. The reason below (FDP stays network-agnostic) still holds: the lookup lives in `Hrot.AI.Behaviors`, not FDP. The text below is HISTORY.
+
 **The bug:** When the IOS (or the OC1-G003 IG orchestration) sends a `MissionControlRequest` with a `FollowRoute` task, the `BehaviorParams` JSON contains `{"routeEntityId": 123}` — a network entity ID.  `MissionControlRequestSystem.BuildQueue()` stores this raw JSON string directly into `MissionPlanQueue.Tasks[n].BehaviorParams` without any translation.
 
 Later, when the BTree engine spawns the `FollowRoute` node, `SimHostNodes.ParseFollowRouteParams` deserialises `BehaviorParams` looking for a field named `trajectoryId`.  The JSON contains `routeEntityId` instead, so the deserialiser writes `TrajectoryId = 0` into the blackboard.  `Action_WriteFollowRouteChannel` silently forwards a zero trajectory index into the FDP navigation struct, and the vehicle never moves.

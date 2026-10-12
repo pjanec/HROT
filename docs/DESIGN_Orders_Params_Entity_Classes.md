@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-build-state: BUILDING — §5a records each task as built (CE-2132 🟡 four of five, CE-2130, CE-2133, CE-2134, CE-2140, CE-2141, CE-2142, CE-2143, CE-2137, CE-2138, CE-2139 ✅); §6 is the build plan
+build-state: BUILDING — §5a records each task as built (CE-2131 ✅, CE-2132 🟡 four of five, CE-2130, CE-2133, CE-2134, CE-2140, CE-2141, CE-2142, CE-2143, CE-2137, CE-2138, CE-2139 ✅); §6 is the build plan
 current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class · §9 D4 (CE-2143) one generic order path: menu, RTS, HTTP
 stale-below: nothing
 known-rot: none
@@ -22,6 +22,7 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad drills D2 turns into order behaviours
   - docs/blueprints/HANDOFF_Orders_Track_B_Params_Internals.md — the dispatch for Track B
   - docs/blueprints/HANDOFF_Orders_Track_C_Classes_And_Dis.md — the dispatch for Track C
+  - docs/designs/orbat-context-menu/OC1-DESIGN.md — its §2.1 (OC1-S001, the sender-side FollowRoute translation) is superseded by §10 (CE-2145)
 -->
 
 # Orders, params DTOs and entity classes
@@ -202,7 +203,7 @@ outlines are GizmoMap's (CE-2138).*
 | task | as built | deviation from the design |
 |---|---|---|
 | **CE-2130** R0 ✅ 2026-10-12 | the rail lives in the params-contract feature suite, `Hrot.Editor.Tests/DebugApi/ABehaviourAdvertisesItsRealParametersTests` (T-1: the suite that already guards `GET /behaviors` publishing the authored DTO, CE-224/CE-235). It loads the PRODUCTION registry (`CgfBehaviorSetup.LoadFromAiAssembly`). Checks: **P1**, a behaviour names a params DTO (`JsonParamsDtoType != null`); **P2**, that DTO is not a generator's mirror of the behaviour's variables (a BTree asset's Inputs struct in `Hrot.AI.Behaviors.Trees`, or a blueprint behaviour's nested `*_Bp.Params`). `ParamsContractAllowList` holds the **48** violators measured at the first run; the rail fails on a NEW violator and on a STALE entry, so the list only shrinks. A second test registers a missing, a mirrored and a named DTO and proves the predicate catches the first two (a permanent red-proof). **Red-proved both ways:** `TakeCover` removed from the list ⇒ fails naming it as a new violator; a compliant `Idle` added ⇒ fails asking to remove it. Suite 10/10 | ⚠ the rule "a published contract ≠ the parsed type" (CE-2128 ①, `FollowRoute`) is **not** checkable by reflection: a curated resolver deserializes inside its body. It stays a manual item of CE-2131. CE-2128 ② (`PlatoonHillAttack`) IS caught: its generated mirror outranks its contract |
-| **CE-2131** A1 🟡 2026-10-12 | `FollowRouteParamsJsonDto` gained `Speed` and `Loop`, so the published contract now lists every key callers write (rail `CE2131_FollowRouteAdvertisesTheKeysItsCallersWrite`) | ⚠ three parts moved: the `NoParams` switch needs a SHARED DTO, i.e. the contract on the behaviour (CE-2134); measured, today's empty DTOs already satisfy P1. `PlatoonHillAttack`'s contract is fixed by CE-2133 (the asset names its DTO). FollowRoute's route→trajectory conversion runs on the SENDING side (`MissionControlBehaviorParamsHelper`), filed as CE-2145 |
+| **CE-2131** A1 ✅ 2026-10-12 | `FollowRouteParamsJsonDto` gained `Speed` and `Loop`, so the published contract now lists every key callers write (rail `CE2131_FollowRouteAdvertisesTheKeysItsCallersWrite`). ⭐ After CE-2134: `Idle`, `WanderMilitary` (curated) and the three FDP examples `Ambush`, `InfantryCombat`, `ConvoyEscort` (`Hrot.Editor/ExampleBehaviorDeclarations.cs`) declare `NoParams`; their five empty `*ParamsJsonDto` classes are deleted (rail `CE2131_ABehaviourThatTakesNothing_NamesNoParams`; `ParamsDtoRegistryTests` for the examples). `JoinFormation` was done by CE-2134 (it names `CgfNodes.JoinFormationParams`) | ⚠ three parts moved: the `NoParams` switch needed a SHARED DTO, i.e. the contract on the behaviour (CE-2134). `PlatoonHillAttack`'s contract is fixed by CE-2133/CE-2134 (a declaration outranks the generated contract). FollowRoute's route→trajectory conversion runs on the SENDING side (`MissionControlBehaviorParamsHelper`), filed as CE-2145 |
 | **CE-2141** D2 ✅ 2026-10-12 | per §7. `InfantrySquadMove` / `InfantrySquadHold` / `InfantrySquadAttack` (`Brains/SquadOrderBehaviors.cs`) over the existing plays; `SuppressAndManeuverParams.TargetId` (named target, D2-G); `OrderGeo` (lat/lon ↔ local); the runner's `Hold`/`Move` take the commander, record each order (`SubordinateOrders`, new, id 276) and send a UNIT member `Order.Hold` / `Order.Move` (`OrderAttribute.IntentPrefix`); `BehaviorOwnedParts.Release` releases a run's orders; `ClearBehaviorEvent.OnlyBehaviorHash` + the ingress's named clear (D2-C, folded into Decision Layer §4.1's table); TIR drops a superseded clear and names the hash (D2-D). Rails: `SquadManeuverTests.CE2141_*` (7), `SopSlotTests.CE2141_*` (3), `TacticalIntentResolutionSystemTests.CE2141_*` (2), the registrar names, the CE-2130 rail (the three comply). ✅ **Live** (`SquadTacticsScenarioTests`, cluster, on the merged ui + backend tree): `CE2141_AMoveOrder_…` green (42 s) — a lat/lon `InfantrySquadMove` ordered at run time marches all five men to the point, and when the drill ends no member still runs its AdvanceTo / CombatPosture; the march, react-to-contact and suppress-flank runs stay green with the release in place | ⚠ one gap the design did not see: a curated behaviour's params DTO reaches the registry ONLY through a `[BehaviorContract]` in `Hrot.Core` (`BehaviorSchemaDiscovery`), which a shared order DTO cannot carry — the CE-2130 rail caught all three. Bridged in `CuratedBehaviorGenerator`: a typed resolver whose DTO carries `[Order]` also emits `RegisterJsonParamsDtoType` (no other behaviour changes); CE-2134 (B2) generalises it. ⚠ Not built here: the mission editor's per-type list (`BehaviorCatalog`) still cannot list them (§7.0) |
 | **CE-2142** D3 ✅ 2026-10-12 | per §8. `Hrot.Core/Tkb/OrderResolver.cs` (`Resolve` → Resolved / NoBehaviour / Tie); `TacticalIntentResolutionSystem` resolves an `Order.*` intent through it before any mapper, by the entity's header DIS type (`GetDisType`), and starts nothing when no class fulfils it (warning) or on a tie (error); optional `classes` ctor parameter (default `EntityClassTable.Default`). Rails, red-proved (the `Order.` branch and the tie check disabled ⇒ all 5 red): `TacticalIntentResolutionSystemTests.CE2142_*` (M1 and T-72 resolve the same · a squad its own, most specific first, a platoon falls back to `UnitMove` · no class ⇒ nothing · equal-specificity tie · the shipped squad's Move / Hold / Attack); `OrderVocabularyTests.CE2142_EveryClassOrderBehaviour_TakesItsOrdersDto` (production registry). ✅ **Live:** `SquadTacticsScenarioTests.CE2141_AMoveOrder_…` now sends `Order.Move`, not the behaviour name — the squad resolves it to `InfantrySquadMove` on CGF, marches, and releases its members (41 s) | none from §2 / §3.1 / §8 |
 | **CE-2143** D4 ✅ 2026-10-12 | per §9. `Hrot.Common/Orders/OrderMenu.cs` (the vocabulary from `ParamsDtoRegistry`, action ids 400+, the pick from the DTO's field type, `OfferedFor(dis)` through `OrderResolver`); `EntityOrders.Order(unit, name, json)` → `Order.<name>`, refusing `NotFulfilled` (HTTP 409) when no class of the unit fulfils it; `Move` / `Attack` / `Hold` build `MoveOrder` / `AttackOrder` / `HoldOrder` JSON; `ContextMenuProjectorGizmo` lists the orders the unit's class fulfils (cached per DIS type), no Possess on a `UnitEntity`; `MenuOrders` one handler per order id; `RtsCommands` by `OrderGesture`; HTTP `kind` = any order + `params`. Parity behaviours `Brains/ClassOrderBehaviors.cs`: `PersonMove/Attack/Hold`, `PlatformMove/Attack/Hold` over `MoveToLocation` / `CombatPosture` (target, assault) / an `Idle`-shaped HSM. Rails, red-proved: `MenuOrdersTests.CE2143_TheMenu_ListsExactlyTheOrdersTheUnitsClassFulfils` (all orders offered / Possess always ⇒ red); `DebugApiOrdersTests.CE2143_AnyOrderByName_…` (no NotFulfilled check ⇒ red); the menu / RTS / HTTP / across-nodes rails moved from behaviour names to orders. ✅ **Live:** `EntityOrdersAcrossNodesTests` (an order issued on SimHost runs the Rifleman's `PersonHold` on CGF; possession across nodes) and the squad `Order.Move` run, green | ⚠ measured while building: a module diagram claim held — `ParamsDtoRegistry.Default` loads `Hrot.AI.Behaviors` by name, so every host whose process carries it (the cluster runner, editor, CGF, IG, ExCon) offers orders; a standalone SimHost process would offer none (§9.3). ⚠ `Hrot.Presentation.Tests` had a stale restore (2026-10-03) that left it uncompilable; `dotnet restore` fixed it — a green run before that was a STALE binary |
@@ -752,3 +753,81 @@ rather than wrong ones (measured per host as part of the build).*
 Rejected: **keep the soldier mapping in `EntityOrders`** — R-273 (the sender would own the mapping); **one generic `EntityMove`
 class covering everything** — not a class in the table (R-279); **label orders from a new display attribute** — the order name
 is the label until someone asks otherwise.
+
+## 10. CE-2145 — FollowRoute converts its route on the RECEIVING side *(build-state: READY-TO-BUILD `2026-10-12`, behaviors)*
+
+**Why:** R-273 (behaviors) — the receiver converts. Today the authored contract `{routeEntityId, Speed, Loop}`
+(`FollowRouteParamsJsonDto`) is turned into `{trajectoryId, Speed, Loop}` by `MissionControlBehaviorParamsHelper` inside
+`MissionControlExecutionSystem` (CGF), and the curated resolver parses only that converted shape (`CgfNodes.cs:227`). ⇒ a
+FollowRoute assigned any other way — HTTP, an order, an SOP row, a blueprint, a scenario's saved AI — with the published contract
+gets trajectory 0 and does nothing. This is CE-2128 ①'s remaining half.
+
+**INVENTORY** *(2026-10-12; grep + the graph's file list)*: the conversion exists twice — `Hrot.Core/Systems/Common/MissionControlBehaviorParamsHelper.cs`
+(called once, `MissionControlExecutionSystem.cs:331`) and a dead copy in `Hrot.SimHost/Systems/MissionControlBehaviorParamsHelper.cs`
+(called only by its own test). `RouteTrajectoryCache` is written by `RouteTrajectorySyncSystem` and read on CGF by
+`RouteContextSystem`; the mission path, the FollowRoute brain and the trajectory pool are on the same node (CGF), so moving the
+lookup into the behaviour does not move it across a node.
+
+```mermaid
+classDiagram
+  direction LR
+  class FollowRouteParamsJsonDto { <<existing, Hrot.Core — the authored contract>> EntityRef RouteEntityId · float Speed · bool Loop }
+  class FollowRouteParams { <<existing, CHANGED>> int TrajectoryId (0 = not resolved yet) · float Speed · bool Loop · long RouteNetworkId NEW }
+  class ResolveFollowRoute { <<NEW typed resolver, CgfNodes>> in FollowRouteParamsJsonDto → ref FollowRouteParams }
+  class RouteTrajectoryLookup { <<NEW, CgfNodes — the ONE lookup, moved from the helper>> TryFind(world, routeNetworkId, out trajectoryId) }
+  class Action_WriteFollowRouteChannel { <<existing, CHANGED>> TrajectoryId 0 ⇒ look up again ⇒ still 0 ⇒ Running, writes nothing }
+  class MissionControlBehaviorParamsHelper { <<DELETED, both copies>> }
+  class MissionControlExecutionSystem { <<existing, CHANGED>> passes a FollowRoute task's params through unchanged }
+  ResolveFollowRoute ..> FollowRouteParamsJsonDto
+  ResolveFollowRoute ..> RouteTrajectoryLookup
+  Action_WriteFollowRouteChannel ..> RouteTrajectoryLookup
+  ResolveFollowRoute --> FollowRouteParams : writes
+  Action_WriteFollowRouteChannel --> FollowRouteParams : caches TrajectoryId
+```
+
+*What the picture shows that prose hid: one lookup with two callers — the resolver at start and the action while the route is not
+compiled yet — replacing two helper copies on the sending side; and the resolver is TYPED, so the generator checks
+`TAuthored == Params` (BEH002), which the raw resolver it replaces could not.*
+
+```mermaid
+sequenceDiagram
+  participant S as any sender (mission, HTTP, order, SOP, scenario)
+  participant I as BehaviorIngressSystem
+  participant R as ResolveFollowRoute
+  participant L as RouteTrajectoryLookup
+  participant A as Action_WriteFollowRouteChannel
+  S->>I: Assign FollowRoute with routeEntityId, Speed, Loop
+  I->>R: authored DTO
+  R->>L: TryFind(routeNetworkId)
+  L-->>R: trajectoryId, or 0 when not compiled yet
+  R-->>I: FollowRouteParams with RouteNetworkId and TrajectoryId
+  loop every tick
+    alt TrajectoryId is 0
+      A->>L: TryFind(routeNetworkId)
+      L-->>A: still 0
+      A-->>A: Running, channel untouched
+    else resolved
+      A-->>A: write FollowRoute to the locomotion channel
+    end
+  end
+```
+
+*What the picture shows that prose hid: "not compiled yet" was a RETRY of the whole assignment on the sending side (the mission
+system's 10-frame queue); now the behaviour starts at once and WAITS — the same outcome for the mission path, and the first one
+that exists for every other path.*
+
+| claim | code | design |
+|---|---|---|
+| the conversion runs only on the mission path | ✅ one caller, `MissionControlExecutionSystem.cs:331` | ✅ OC1-S001 (`docs/designs/orbat-context-menu/OC1-DESIGN.md` §2.1) put it at the mission ingress |
+| the receiver should convert | ✅ FireAtTarget already does (`CgfNodes.ResolveFireAtTarget`) | ✅ R-273 (behaviors) |
+| the mission, the brain and the trajectory pool share a node | ✅ `CgfLogicPack.cs:164` builds the mission system; the helper reads `RouteTrajectoryCache` there | ⛔ searched, no record — the measurement stands |
+| an action may cache into its params block | ✅ `ref FollowRouteParams p`, the root slot; R-153: a re-assign starts from empty | ✅ R-153 |
+
+Rejected (one line each): **keep the sender conversion and add one per path** — five copies of a lookup the receiver can do once ·
+**resolve in the resolver only** — a route not compiled at start would leave trajectory 0 forever (the helper's retry existed for
+exactly that) · **look the route up through `NetworkEntityMap`** — the helper's proven query also finds routes the map may not
+hold (`WithLifecycle(All)`); one lookup, moved as is.
+
+Design docs checked: OC1-DESIGN §2.1 (OC1-S001) — *superseded here*: its reason, *"the FDP engine and the BTree layer remain
+network-agnostic"*, still holds, because the lookup lives in `Hrot.AI.Behaviors` (HROT), not FDP; its §2.1 gets a superseded
+note. Parameter Model §P.2 (bake → overlay → resolve) — *applies*: the typed resolver is its resolve stage.

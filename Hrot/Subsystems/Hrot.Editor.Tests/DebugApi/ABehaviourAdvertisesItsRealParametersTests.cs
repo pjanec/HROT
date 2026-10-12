@@ -238,6 +238,23 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     /// → it publishes its generated mirror again and this fails naming it.
     /// </summary>
     [Theory]
+    [InlineData("Idle")]
+    [InlineData("WanderMilitary")]
+    [InlineData("JoinFormation", false)]
+    public void CE2131_ABehaviourThatTakesNothing_NamesNoParams(string behaviour, bool takesNothing = true)
+    {
+        // ⭐ CE-2131 (A1, §6) — the empty anchor DTOs are gone: a behaviour that takes nothing names NoParams (rule P1).
+        //   JoinFormation is the control: it takes params and names the struct its identity parse fills (CE-2134 BEH003).
+        //   (Ambush / InfantryCombat / ConvoyEscort are FDP examples the Editor host declares; ParamsDtoRegistryTests covers them.)
+        //   🔴 Red-proof: point Idle's [Behavior(Params=…)] back at a DTO → this fails naming Idle.
+        var registry = LoadProductionRegistry();
+        Assert.True(registry.TryGetId(behaviour, out int id) && registry.TryGetDefinition(id, out var d) && d is not null,
+            $"{behaviour} must be registered");
+        registry.TryGetDefinition(id, out var def);
+        Assert.Equal(takesNothing, def!.JsonParamsDtoType == typeof(Hrot.Map.Definitions.Behavior.NoParams));
+    }
+
+    [Theory]
     [InlineData("BasicInfantrySop")]
     [InlineData("BasicSquadSop")]
     [InlineData("FiringPosition")]
