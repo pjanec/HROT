@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-08 (I-1 as built; §7 split off to CE-3110 by the user)
+updated: 2026-10-12 (I-2a BUILT — §7.1b)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.1 embarkation measured status + build plan (2026-10-11) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
@@ -243,7 +243,7 @@ before I-2b is built.
 
 ⭐ Order: I-2a → I-2b → I-2c → I-2d. Stride is out of scope (user).
 
-#### 7.1a I-2a — the details the build needs *(build-state: READY-TO-BUILD `2026-10-12`, behaviors lane; HANDOFF_Squad_Tactics_S3 item 2)*
+#### 7.1a I-2a — the details the build needs *(build-state: BUILT `2026-10-12` — as-built §7.1b; behaviors lane; HANDOFF_Squad_Tactics_S3 item 2)*
 
 ```mermaid
 graph TD
@@ -280,6 +280,36 @@ that does not go through a command.*
 | the executors raise commands and wait for the state | `EmbarkExecutorTests` · `EjectPassengersExecutorTests` |
 | the three kinds cross the one interaction topic | `InteractionTransportTests` |
 | CGF registers both executors and the system | `CgfLogicPackTests` |
+
+#### 7.1b I-2a as built *(behaviors, `2026-10-12`)*
+
+| file | what |
+|---|---|
+| `Fdp.Toolkits/Behavior/Embarkation.cs` | the rules: `TryEmbark` (idempotent) · `Disembark` (beside the hull at its seat) · `EjectAll` · `DismountPoint` (CE-321, moved here from the executor) · `OwnsVehicle` |
+| `Fdp.Toolkits/Behavior/Systems/EmbarkationSystem.cs` | the one applier, gated on `OwnsVehicle`; counts `Applied` / `Refused` |
+| `Behavior/Events/EjectPassengersCommand.cs` (3203) · `IsRemote` on all three · `Vehicle` on `DisembarkEntityCommand` | — |
+| `EmbarkExecutor` / `EjectPassengersExecutor` | raise once, wait for the state (5 s timeout); `ActionIdEmbark = 1` registered in `CgfLogicPack` |
+| `GenesisMaterializationSystem` | both intents through `TryEmbark` (+ an empty `PassengerBuffer` when the vehicle has none) |
+| `Hrot.Network.NED` `InteractionMessages` / `InteractionTransport` | three union cases + three codecs on the one topic |
+| ⛔ `EditorCargoSystem` | deleted; the editor's ORBAT commands reach `EmbarkationSystem` through `CgfLogicPack` |
+
+**Deviations from §7.1a — none in the design; two in the hosts, both measured:**
+
+| found | done |
+|---|---|
+| the FDP `UrbanCombatNew` fixture swaps the bus after its Stage A and Stage B, so a command raised in Stage C is readable only in the next tick's Stage B — with the applier in Stage C the eject was swapped out unread (📐 `hit=False killed=False`) | the applier sits in Stage B there (`UrbanCombatNewScenario.cs`); hosts that swap once per frame (CGF, editor, `HeadlessDemoApp`) need nothing |
+| the transport rail used `Embark` (2) as its "unknown kind" | it uses 999; `Embark` is known now |
+| `EditorAuthoringIntegrationTests.ZoneAuthoring_ObstaclePlacement_*` red (2) | pre-existing: red at `c5281a5bb` too; unrelated to embarkation |
+
+| rail | proves |
+|---|---|
+| `EmbarkationTests` (5, FDP) | the rules + the applier: board · a full vehicle refuses · disembark one beside the hull · a non-owner applies nothing · eject through the applier (re-homes `EditorCargoSystemTests`' three claims) |
+| `EmbarkExecutorTests` (7) · `EjectPassengersExecutorTests` (5) | raise → owner applies → the executor reads the answer; full ⇒ Failure without raising; no answer ⇒ timeout |
+| `GenesisMaterializationSystemTests.CE3110_APassengerLoadedAboard_…` | a passenger loaded aboard cannot move or shoot (🔴 red before: genesis never stripped) |
+| `InteractionTransportTests.CE3110_…` | the three kinds cross the one topic; the owner applies; a remote command is never sent back |
+| `CgfLogicPackTests` | 22 simulation systems (+ `EmbarkationSystem`) |
+| `EditorAuthoringIntegrationTests.Embarkation_*` / `Disembark_*` (the real editor) | the editor still boards and leaves through the ORBAT — now via `CgfLogicPack` |
+| ⛔ `UrbanCombatNewScenarioTests` (FDP) | end to end: the APC is hit, ejects, the squad kills the insurgent — 🔴 **cannot gate yet: red at the base commit too** (`hit=False`, with the ballistics suite; `CE-2126`). Identical 7/45/12 before and after I-2a |
 
 ### 7.2 What "inside" means *(✅ ruled `2026-10-11`, R-271 — I-2c)*
 

@@ -591,6 +591,10 @@ namespace Fdp.Examples.Scenarios.Integrated
             var stageB = new IEcsModuleSystem[]
             {
                 new HitResolutionSystem(),   // reads RaycastResultEvent; direct: HitEvent; ECB: bullet TearDown
+                // ⭐ CE-3110 I-2a — the vehicle's owner applies embark / eject commands. HERE, not in Stage C where the executor
+                //   raises them: this fixture swaps the bus after Stage A and after Stage B, so a command raised in Stage C is
+                //   readable only in the NEXT tick's Stage B (📐 measured: in Stage C the eject was swapped out unread — hit=False).
+                new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem(),
             };
 
             var stageC = new IEcsModuleSystem[]
@@ -603,7 +607,6 @@ namespace Fdp.Examples.Scenarios.Integrated
                 new BrainTickSystem(_behaviorRegistry),
                 weaponSys,
                 interactSys,
-                new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem(),   // ⭐ CE-3110 I-2a — applies the commands the executors raise
                 new LocomotionDispatcherSystem(),
                 new SpatialHashSystem(),
                 new CarKinematicsSystem(_trajectoryPool!),
