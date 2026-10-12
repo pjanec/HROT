@@ -38,6 +38,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static byte ShapeFor(RoadUse roads)
             => roads is RoadUse.Prefer or RoadUse.StronglyPrefer ? SquadMarchManeuver.ShapeFile : SquadMarchManeuver.ShapeWedge;
 
+        [Behavior(BehaviorNames.InfantrySquadMove, Params = typeof(MoveOrder), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134 — the contract on the behaviour
         [BTreeDefinition(BehaviorNames.InfantrySquadMove, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadMarchBehavior.SquadMarchBlackboard))]
         public static BTreeBuilder<SquadMarchBehavior.SquadMarchBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadMarchBehavior.SquadMarchBlackboard, BTreeContext>()
@@ -54,6 +55,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
+        [Behavior(BehaviorNames.InfantrySquadHold, Params = typeof(HoldOrder), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134 — the contract on the behaviour
         [BTreeDefinition(BehaviorNames.InfantrySquadHold, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadHoldBehavior.SquadHoldBlackboard))]
         public static BTreeBuilder<SquadHoldBehavior.SquadHoldBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadHoldBehavior.SquadHoldBlackboard, BTreeContext>()
@@ -72,6 +74,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
+        [Behavior(BehaviorNames.InfantrySquadAttack, Params = typeof(AttackOrder), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134 — the contract on the behaviour
         [BTreeDefinition(BehaviorNames.InfantrySquadAttack, Curated = true, Group = "Library/Squad", ParamsType = typeof(SuppressAndManeuverBehavior.SuppressAndManeuverBlackboard))]
         public static BTreeBuilder<SuppressAndManeuverBehavior.SuppressAndManeuverBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SuppressAndManeuverBehavior.SuppressAndManeuverBlackboard, BTreeContext>()

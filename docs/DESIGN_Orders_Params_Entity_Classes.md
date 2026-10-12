@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-12
 build-state: BUILDING — §5a records each task as built (CE-2130, CE-2133, CE-2134, CE-2140, CE-2141, CE-2142, CE-2137, CE-2138, CE-2139 ✅); §6 is the build plan
-current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class
+current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class · §9 D4 (CE-2143) one generic order path: menu, RTS, HTTP
 stale-below: nothing
 known-rot: none
 known-conflict: docs/blueprints/DESIGN_Parameter_Model.md §P.7 (a resolver asset's authored shape = its Parameters) and §1 (Role Input/State) are superseded HERE by R-276/R-277 (one params DTO, no roles); that doc is updated when B3 builds, not before. docs/DESIGN_Entity_Control.md §3.1/§10 (EntityOrders names soldier behaviours) is superseded by R-273; updated when D4 builds.
@@ -620,3 +620,106 @@ The classes and sequence are §2 (`OrderResolver`) and §3.1; nothing new beyond
 Rejected: **unit-aware mappers** (Move → `SquadMarch`, the embark handoff's lean A) — R-273, the sender would own the mapping;
 **the unit's SOP slot as the decomposer** — the order would land in a slot that only reacts; **a cached name per DIS value** —
 orders are rare, the walk is a dozen mask matches.
+
+## 9. D4 — one generic order path: menu, RTS, HTTP *(CE-2143; build-state: READY-TO-BUILD `2026-10-12`)*
+
+⭐ **In one line:** the sender names an ORDER (a DTO marked `[Order]`), never a behaviour; what a unit is offered and what it
+runs both come from the same question — `OrderResolver.Resolve(its class, the order)` (§8). Supersedes Entity Control §3.1 /
+§10 / §11's sender-side mapping (Move → `MoveToLocation`, Engage → `CombatPosture`, Stop → `Idle`; R-273).
+
+### 9.0 Claims *(measured `2026-10-12`)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the HTTP route, the menu and the RTS tool all call `EntityOrders`, which publishes ONE intent per order (Operator, `ClearsPriorIntent`) | `EntityOrders.cs:199-208`; `MenuOrders.cs`; `RtsCommands.cs:59-67`; `DebugApiService.Orders.cs:66-104` | Entity Control §3.1 (one service) |
+| ⚠ `EntityOrders` maps orders to SOLDIER behaviours by name: Move → `MoveToLocation`, Attack → `CombatPosture`(target, assault), Hold → `Idle` | `EntityOrders.cs:70-117` | ⛔ overruled by R-273 (AQ90 A1) |
+| the unit menu is fixed pre-serialised permutations (degraded × brain × orders), ids `MoveHere 1 · Engage 2 · Stop 3 · Possess 255` | `ContextMenuProjectorGizmo.cs:46-79`; `GlobalActionIds.cs` | Entity Control §11 |
+| every behaviour declares its params DTO, and order DTOs carry their order name, in ONE registry readable by any host | `ParamsDtoRegistry` (CE-2134: `Dtos[].OrderName`, `TryGetBehavior`) | §2 (ParamsDtoRegistry) |
+| an entity's class is answerable on EVERY node (DIS type in the header) | §8 claims | K1 |
+| a pick is chosen by the field TYPE: `PickableGeoPoint` = a point, `EntityRef` = an entity | `MoveOrder.Location`, `AttackOrder.Target`; `DtoJsonSchemaExtractor.cs:193` | DESIGN_Map_Picking_Unification P5 |
+
+### 9.1 Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityOrders { <<existing, CHANGED>> +Order(unit, orderName, json) publishes Order.name · Move / Attack / Hold build the order DTO JSON and call Order · +Offered(unit) orders this unit's class fulfils }
+  class OrderMenu { <<NEW, Hrot.Common>> order vocabulary from ParamsDtoRegistry · action id per order · menu items for a DIS type (cached) · the pick a DTO needs }
+  class OrderResolver { <<CE-2142, Hrot.Core>> Resolve(table, dis, order, isBehaviour) }
+  class ParamsDtoRegistry { <<CE-2134, Hrot.Core>> Dtos with OrderName · TryGetBehavior }
+  class ContextMenuProjectorGizmo { <<existing, CHANGED>> order items from OrderMenu for the unit's DIS · no Possess on a UnitEntity }
+  class MenuOrders { <<existing, CHANGED>> one handler per order id · pick by the DTO's pick field · then EntityOrders.Order }
+  class RtsCommands { <<existing, CHANGED>> RMB ground = the GroundClick order · RMB hostile = the EnemyClick order (OrderGesture) }
+  class OrderRoutes { <<existing, CHANGED>> kind = any order name, params = its DTO JSON · move / attack / hold / stop kept as builders }
+  class PersonOrders { <<NEW behaviours, Hrot.AI.Behaviors>> PersonMove · PersonAttack · PersonHold over MoveToLocation / CombatPosture / Idle }
+  class PlatformOrders { <<NEW behaviours>> PlatformMove · PlatformAttack · PlatformHold, the same three }
+  EntityOrders ..> OrderResolver : Offered and refusal
+  OrderMenu ..> ParamsDtoRegistry
+  OrderMenu ..> OrderResolver
+  ContextMenuProjectorGizmo ..> OrderMenu
+  MenuOrders ..> OrderMenu
+  MenuOrders ..> EntityOrders
+  RtsCommands ..> OrderMenu : gesture order
+  RtsCommands ..> EntityOrders
+  OrderRoutes ..> EntityOrders
+```
+
+*What the picture shows that prose hid: three front-ends, one question. The menu's items, the RTS click, the HTTP refusal and
+the receiver's own choice all go through `OrderResolver` over the same registry — so a menu can never offer an order the unit
+then ignores, and no front-end names a behaviour.*
+
+### 9.2 A menu order, end to end
+
+```mermaid
+sequenceDiagram
+  participant CM as ContextMenuProjectorGizmo
+  participant OM as OrderMenu
+  participant MO as MenuOrders
+  participant EO as EntityOrders
+  participant TIR as TacticalIntentResolutionSystem (owner)
+  CM->>OM: items for this unit's DIS type
+  OM-->>CM: Move, Attack, Hold (those its class fulfils) with action ids
+  MO->>OM: the order for the clicked id: its DTO and its pick field
+  MO->>MO: pick a point (PickableGeoPoint) or an entity (EntityRef), or none
+  MO->>EO: Order(unit, "Move", {"Location":[lat,lon]})
+  EO->>EO: resolvable for this unit? else refuse with the reason
+  EO->>TIR: Order.Move, Operator, ClearsPriorIntent
+  TIR->>TIR: Resolve → PersonMove / InfantrySquadMove / … (§8)
+```
+
+### 9.3 Modules
+
+```mermaid
+graph TD
+  CORE["Hrot.Core: ParamsDtoRegistry · OrderResolver · EntityClassTable"]
+  COM["Hrot.Common: EntityOrders · OrderMenu · ContextMenuProjectorGizmo"]
+  PRES["Hrot.Presentation: MenuOrders (MapInteractionPack, live map hosts) · RtsCommands"]
+  ED["Hrot.Editor DebugApi: OrderRoutes (the editor and every cluster node's HTTP)"]
+  AIB["Hrot.AI.Behaviors: Person* / Platform* / InfantrySquad* order behaviours (brain owners register them)"]
+  COM --> CORE
+  PRES --> COM
+  ED --> COM
+  AIB --> CORE
+  REG["ParamsDtoRegistry.Default scans Hrot.AI.Behaviors BY NAME"] -.->|"a host without that assembly offers NO orders"| COM
+```
+
+*What the picture shows that prose hid: the menu and the HTTP refusal read the behaviour declarations through
+`ParamsDtoRegistry.Default`, which finds them only where `Hrot.AI.Behaviors` is loadable — a host without it offers no orders
+rather than wrong ones (measured per host as part of the build).*
+
+### 9.4 Decisions *(leans)*
+
+| # | decision | ⭐ lean | why |
+|---|---|---|---|
+| **D4-A** | the service | `EntityOrders.Order(unit, orderName, json)` publishes `Order.<name>`; `Move` / `Attack` / `Hold` stay as builders of `MoveOrder` / `AttackOrder` / `HoldOrder` JSON | one publish; the builders keep the menu, RTS and HTTP callers' shapes |
+| **D4-B** | soldiers and vehicles keep their orders | NEW order behaviours on the broad classes: `PersonMove/Attack/Hold` and `PlatformMove/Attack/Hold`, thin resolvers over today's `MoveToLocation` / `CombatPosture` (target, assault) / `Idle` | ⭐ parity: today every brained entity gets Move / Engage / Stop; without these the menu would offer them nothing. A more specific class overrides later (`TankMove`) |
+| **D4-C** | refusal at the sender | `EntityOrders` refuses an order the unit's class does not fulfil (same resolver, `ParamsDtoRegistry.Default` as the behaviour list) | the operator / AI player learns WHY now, not by a silent receiver |
+| **D4-D** | the menu | order items = the vocabulary filtered by the resolver for the unit's DIS type; label = the order name, shortcut its first letter; ids `OrderActionBase + index` (orders sorted by name); cached per DIS type × the existing permutations | a menu that lists exactly what the unit's class fulfils (the D4 acceptance) |
+| **D4-E** | follow-up pick | from the DTO's fields: one `PickableGeoPoint` ⇒ a point, one `EntityRef` ⇒ an entity, none ⇒ issue at once; an order needing more than one pick is HTTP-only | the type is the pick (P5); no per-order code |
+| **D4-F** | RTS | RMB ground ⇒ the order whose `Gesture = GroundClick`, RMB hostile ⇒ `EnemyClick`, each only if the unit's class fulfils it | no order name in UI code (AQ90 §2.3k ①) |
+| **D4-G** | HTTP | `kind` = any order name (case-insensitive) + `params` = its DTO JSON; `move` / `attack` / `hold` / `stop` keep their old fields (built by D4-A); `behavior` / `release` unchanged | AI players keep working; new orders need no route change |
+| **D4-H** | Possess | not offered on a `UnitEntity` (no body to drive) | AQ90 §6 D4 |
+
+Rejected: **keep the soldier mapping in `EntityOrders`** — R-273 (the sender would own the mapping); **one generic `EntityMove`
+class covering everything** — not a class in the table (R-279); **label orders from a new display attribute** — the order name
+is the label until someone asks otherwise.
