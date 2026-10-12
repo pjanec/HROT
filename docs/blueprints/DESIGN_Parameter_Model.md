@@ -29,6 +29,7 @@ known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rule
   - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — a NEW variable owner for behaviour-only unit data, overriding ":386"'s "no new variable owner" (user 2026-10-09); engine-read data stays a component
 known-rot-87: ⚠ 2026-10-09 — ":386" "No new variable owner is needed" is overridden for BEHAVIOUR-ONLY unit data: the user requires unit-scoped shared blackboard structs (Architect_Question_87_Unit_Memory.md). "Entity-wide data an engine system reads is an ECS component" still holds.
 related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — supersedes §1 roles and §P.7 when B3 (CE-2135) lands; one params DTO per behaviour, reserved Params
   - Architect_Question_90_Unit_Orders_Carry_Capacity.md — A7 (lean): an ORDER adds one stage before this pipeline (order DTO → the behaviour's authored DTO, by name or by a behaviour-declared adapter, C# or blueprint)
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
     ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the

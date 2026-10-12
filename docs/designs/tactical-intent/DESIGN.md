@@ -4,6 +4,7 @@ updated: 2026-09-30
 current-answer: whole document (the intent pipeline); §4.2 is the contract rule
 stale-below: nothing marked
 related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — D3 (CE-2142): the receiver resolves Order.<name> through the entity class chain
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-273 (behaviors): the receiver decides; A1–A6 re-aim the sender (EntityOrders) and the mapper registry at a per-type OrderSet
   - docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md — owns the blueprint Send Intent node that publishes AssignTacticalIntentEvent from a graph, keyed by the §4.2 contract; it added the missing HullDownAttackIntentDto (CE-472)
   - docs/DESIGN_Entity_Control.md — OWNS EntityOrders, the one service HTTP, menu and RTS orders publish AssignTacticalIntentEvent through

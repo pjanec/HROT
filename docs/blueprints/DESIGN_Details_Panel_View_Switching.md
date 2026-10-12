@@ -23,6 +23,7 @@ known-rot: ⭐ RESOLVED 2026-09-21 — §4's closed question Q-iii ("RuntimeInsp
   IRuntimeInspectorPane.Draw a DetailsContext — which is what lets a pinned runtime view honour
   its frozen entity. As-built in DESIGN_Editor_Entity_Selection_Source.md §12.
 related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — a possible asset-level view for params DTO / classes
   - Architect_Question_90_Unit_Orders_Carry_Capacity.md — §2.3e (lean): a shared asset-level view details.behaviour (HasAsset) for the params type (own / an order DTO) and the asset's entity Classes, registered by the BTree, HSM and blueprint editors
   - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — names WHAT FILLS the Live arm of
     IDetailsContextSource (the unified entity selection) and carries the ruling that two more

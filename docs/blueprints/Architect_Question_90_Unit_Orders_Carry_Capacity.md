@@ -6,6 +6,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
 related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — the DESIGN this question produced: rules, UML, the task list CE-2130..CE-2144
   - docs/designs/tactical-intent/DESIGN.md — OWNS the receiver-side resolution (TacticalIntentResolutionSystem + mapper registry); its stated goal "senders fully agnostic of the recipient's unit type" is what R-273 (behaviors) re-affirms
   - docs/DESIGN_Entity_Control.md — OWNS EntityOrders, the one order service for HTTP, menu and RTS (R-270); A1 changes what it publishes
   - docs/UX/Architect_Question_29_Entity_Commanding.md — §H (an order to a formation is an order to its commander) and §I (the command set comes from the TKB) — ruled 2026-08-13, not built
@@ -54,7 +55,7 @@ related-designs:
 and the four Parameter-declaring blueprints get C# (or generated) params DTOs; three saved scenario params strings are rewritten.
 ⛔ Not measured: the generator changes (named DTO, `Params`), the carry-over manifest, the catalogue scan's cost on IG, an empty struct.
 
-## ⭐ THE BUILD PLAN — four tracks, parallel where the arrows allow *(lean, 2026-10-12; user: "how could we break this big stuff into tasks and enable some parallel development? … define the rules … and convert the behaviors early … while other session can deal with fixing the internals")*
+## ⭐ THE BUILD PLAN — four tracks *(⭐ the authoritative task list with tracker ids CE-2130 … CE-2144 is now [DESIGN_Orders_Params_Entity_Classes.md](../DESIGN_Orders_Params_Entity_Classes.md) §6; this section is how it was reached)* —, parallel where the arrows allow *(lean, 2026-10-12; user: "how could we break this big stuff into tasks and enable some parallel development? … define the rules … and convert the behaviors early … while other session can deal with fixing the internals")*
 
 ✅ §2.3p's lean (the class table subsumes the DIS names) is approved (R-281 (behaviors)).
 

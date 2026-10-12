@@ -18,6 +18,7 @@ known-conflict: none. ⛔ This document records how storage IS. How it is meant 
   Architect_Question_76_One_Blackboard_Block_Per_Primitive.md, which is PARKED awaiting one
   decision; where they differ, this one is the present tense and Q76 is the future one.
 related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — the target model for params and roles (one DTO, reserved Params)
   - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): how it is
     MEANT to be; this file is how it IS.
   - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — the proposed simplification this

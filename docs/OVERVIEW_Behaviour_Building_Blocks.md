@@ -5,6 +5,7 @@ current-answer: the whole file — an EXPLAINER (map of what exists), not a desi
 stale-below: none
 known-rot: §1–§8 colours are a 2026-10-06 snapshot (§5a, §9, §10 measured 2026-10-11) — re-check the tracker before relying on a red or amber box
 related-designs:
+  - DESIGN_Orders_Params_Entity_Classes.md — OWNS orders, params DTOs and entity classes (designed 2026-10-12; the §9 order box changes when it builds)
   - DESIGN_Peek_And_Fire.md — OWNS the library's fight-from-cover node (§10, CE-3158) that CombatPosture's TakeCover runs.
   - REVIEW_Behaviour_Library_Genericity.md — OWNS the genericity verdict on these blocks (library vs demo-local vs legacy) and the leans L1–L7.
   - docs/TUTORIAL_Behaviour_Composition.md — the GUIDE to choosing between blocks (host, decision, starter, sensing) and composing them
@@ -354,6 +355,15 @@ it (only through utility inputs no shipped decision uses) ⇒ a soldier knows on
 *Owners:* [Squad_Coordination_Design_v1_1](designs/group-maneuvers/Squad_Coordination_Design_v1_1.md) (what) ·
 [DESIGN_Squad_Wiring](designs/group-maneuvers/DESIGN_Squad_Wiring.md) (where it runs) ·
 [DESIGN_Squad_Tactics](designs/group-maneuvers/DESIGN_Squad_Tactics.md) (the runner, react to contact, the march).
+
+> ⭐ **Orders, params DTOs and entity classes — DESIGNED, not built (2026-10-12).**
+> [DESIGN_Orders_Params_Entity_Classes.md](DESIGN_Orders_Params_Entity_Classes.md) §1 holds the rules every NEW behaviour already follows:
+> - exactly one params DTO, with flat JSON (an empty `NoParams` when it takes nothing);
+> - an order behaviour named `<Class><Order>`, with the class taken from the entity's DIS type;
+> - the receiving unit decides how its members act.
+>
+> Today `EntityOrders` still names soldier behaviours, and the menu is hard-coded; §6 of that design is the task list
+> (CE-2130 … CE-2144) that changes it.
 
 ## 10. Vehicles — passengers and formations *(measured 2026-10-11; passengers updated 2026-10-12)*
 

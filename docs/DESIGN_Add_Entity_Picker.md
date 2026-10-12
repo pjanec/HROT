@@ -10,6 +10,7 @@ known-rot: (2026-10-12) D2b (DIS names in a data table, DisNames.json) is SUPERS
 known-conflict: none — rev 1's conflict with canvas-context-menu-design.md §5.6 (no clicked point) is gone: rev 2 always
   arms a placement tool, so the menu action needs no position.
 related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — C2 (CE-2138): the picker path from the class chain; DisNames.json deleted
   - DESIGN_Building_Interiors.md — resolves CE-1031 (ground inside buildings); storeys become levels through SurfacesAt
   - designs/gizmos-1/canvas-context-menu-design.md — owns HOW the empty-map menu is built (JSON in
     CanvasContextMenuState, per-subsystem CanvasMenuUpdateSystem). This doc adds the "Add Entity" submenu.
