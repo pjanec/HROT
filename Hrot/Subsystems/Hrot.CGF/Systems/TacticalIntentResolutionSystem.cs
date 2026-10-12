@@ -6,6 +6,8 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
+using Hrot.Core.Tkb;
+using Hrot.Map.Definitions.Behavior.Orders;
 
 namespace Hrot.CGF.Systems
 {
@@ -57,6 +59,7 @@ namespace Hrot.CGF.Systems
         private readonly TacticalIntentMapperRegistry _mapperRegistry;
         private readonly BehaviorRegistry _behaviorRegistry;
         private readonly IntentClearRegistry? _clearRegistry;
+        private readonly EntityClassTable _classes;
 
         /// <summary>⭐ <c>CE-3167</c> — the providers a <c>ClearsPriorIntent</c> order runs (null when built without any; a
         /// production host passes <c>CgfLogicPack</c>'s registry — <c>CgfLogicPackIntentClearTests</c> rails it).</summary>
@@ -69,14 +72,17 @@ namespace Hrot.CGF.Systems
         /// Registry of intent-to-behavior mappers.  May be empty (all intents fall
         /// through to the pass-through path).  Must not be <c>null</c>.
         /// </param>
+        /// <param name="classes">⭐ <c>CE-2142</c> — the entity classes an order resolves through; null = the engine's one table.</param>
         /// <param name="clearRegistry">⭐ <c>CE-3167</c> — the providers an order with
         /// <see cref="AssignTacticalIntentEvent.ClearsPriorIntent"/> runs before it starts; null clears nothing.</param>
         public TacticalIntentResolutionSystem(
             TacticalIntentMapperRegistry mapperRegistry,
             BehaviorRegistry behaviorRegistry,
-            IntentClearRegistry? clearRegistry = null)
+            IntentClearRegistry? clearRegistry = null,
+            EntityClassTable? classes = null)
         {
             _clearRegistry = clearRegistry;
+            _classes = classes ?? EntityClassTable.Default;   // ⭐ CE-2142 — THE class table; a test may pass its own
             _mapperRegistry = mapperRegistry
                 ?? throw new ArgumentNullException(nameof(mapperRegistry));
             _behaviorRegistry = behaviorRegistry
@@ -125,10 +131,26 @@ namespace Hrot.CGF.Systems
                     continue;
                 }
 
-                // Try mapper path first.
+                // ⭐⭐ CE-2142 (D3, R-273) — an ORDER (`Order.<name>`): the receiver picks <Class><Order> by its OWN class (its DIS
+                //   type through the one class table), most specific first. No mapper, no soldier fallback: an order no class of
+                //   this entity fulfils starts nothing (a body-less unit given a soldier's behaviour would stand still for ever).
                 AssignBehaviorEvent? behaviorEvent = null;
+                if (evt.IntentId.StartsWith(OrderAttribute.IntentPrefix, StringComparison.Ordinal))
+                {
+                    string order = evt.IntentId.Substring(OrderAttribute.IntentPrefix.Length);
+                    var r = OrderResolver.Resolve(_classes, repo.GetDisType(evt.Entity), order, n => _behaviorRegistry.TryGetId(n, out _));
+                    if (r.Outcome != OrderResolution.Resolved)
+                    {
+                        if (r.Outcome == OrderResolution.Tie) s_aiLog.Error("Entity:[{EntityId}] Node:[TacticalIntentResolutionSystem] | {Detail}", evt.Entity.Index, r.Detail);
+                        else s_aiLog.Warn("Entity:[{EntityId}] Node:[TacticalIntentResolutionSystem] | refused: {Detail}", evt.Entity.Index, r.Detail);
+                        continue;
+                    }
+                    behaviorEvent = new AssignBehaviorEvent { Entity = evt.Entity, BehaviorName = r.Behaviour, JsonParams = evt.JsonParams };
+                }
 
-                if (_mapperRegistry.TryGetMapper(evt.IntentId, out var mapper))
+                // Try mapper path first.
+
+                if (behaviorEvent == null && _mapperRegistry.TryGetMapper(evt.IntentId, out var mapper))
                 {
                     if (mapper.TryMap(evt.Entity, repo, evt.JsonParams, out var mapped))
                         behaviorEvent = mapped;
