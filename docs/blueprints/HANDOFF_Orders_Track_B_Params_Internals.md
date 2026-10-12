@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-doc-type: HANDOFF — behaviors lane → a second session (Track B of the orders programme). Dispatched at DISPATCH_SHA (branch `behaviors`).
+doc-type: HANDOFF — behaviors lane → a second session (Track B of the orders programme). Dispatched at 7dca4d807 (branch `behaviors`).
 current-answer: §1 the scope · §2 the tasks in order · §3 traps · §4 gates
 stale-below: nothing
 known-rot: none
