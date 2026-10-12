@@ -217,6 +217,8 @@ public static class DiagnosticCodes
     public const string BP1687 = "BP1687";  // S7b: a Started task's chains read a value or a graph-local of the graph that starts it
     // ⭐ CE-2083 (DESIGN_Decision_Layer §4.10 D6) — an SOP order node that cannot issue: no behaviour, or no unit in scope.
     public const string BP1688 = "BP1688";  // SOP order node with no behaviour, or in a Library function
+    // ⭐ CE-2133 (DESIGN_Orders_Params_Entity_Classes §1 P2) — a named params DTO that is not the behaviour's one Parameter.
+    public const string BP1689 = "BP1689";  // ParamsDtoTypeId on a non-behaviour, or not the one Parameter's type
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch

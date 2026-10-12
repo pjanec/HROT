@@ -38,6 +38,7 @@ public static class BehaviorTreeAssetMapper
             },
             // ⭐ CE-428 — the bound resolver asset.
             Resolver = asset.Resolver is { } r ? new BehaviorResolverRefDto { AssetId = r.AssetId, Name = r.Name, ShapeHash = r.ShapeHash } : null,
+            ParamsDtoTypeId = asset.ParamsDtoTypeId,   // ⭐ CE-2133
         };
 
         // Topology — nodes
@@ -154,6 +155,7 @@ public static class BehaviorTreeAssetMapper
             dto.TargetNamespace);
 
         if (dto.Resolver is { } rr) asset.Resolver = new BehaviorResolverRef(rr.AssetId, rr.Name, rr.ShapeHash);   // ⭐ CE-428/434
+        asset.ParamsDtoTypeId = dto.ParamsDtoTypeId;   // ⭐ CE-2133
         asset.CanvasPanOffset = new Vector2(dto.Canvas.PanX, dto.Canvas.PanY);
         asset.CanvasZoomLevel = dto.Canvas.Zoom;
 

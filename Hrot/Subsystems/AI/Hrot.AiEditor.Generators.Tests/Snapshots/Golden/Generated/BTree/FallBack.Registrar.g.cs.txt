@@ -110,31 +110,8 @@ public static class FallBackRegistrar
                 // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
                 __BakeDefaults(memory, capacity);
 
-                // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
-                // variable's deserializer (DEBT-AIB-021 names this shape).
-                // ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and
-                //    commits only on success, so a throw leaves the entity on its old behaviour.
-                if (!string.IsNullOrWhiteSpace(json))
-                {
-                    using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
-                    if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)
-                    {
-                        foreach (var __prop in __doc.RootElement.EnumerateObject())
-                        {
-                            switch (__prop.Name)
-                            {
-                                case "tactics":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __o);
-                                    break;
-                                }
-                                // ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.
-                                default: break;
-                            }
-                        }
-                    }
-                }
+                // Step 2 — CE-2133: the one Input 'tactics' IS the params DTO; the JSON is its fields, flat.
+                global::Fdp.Toolkit.Behavior.BehaviorParams.OverlayFlat(ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(memory + 0), json, __paramJsonOpts);
             };
         }
 
@@ -150,7 +127,7 @@ public static class FallBackRegistrar
             {
                 new("tactics", typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsParams), 0),
             },
-            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.FallBack_FdpToolkitBehaviorComponentsBrainBlackboard),
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsParams),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.FallBack_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,

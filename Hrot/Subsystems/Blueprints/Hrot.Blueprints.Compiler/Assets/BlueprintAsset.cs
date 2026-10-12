@@ -25,6 +25,17 @@ public sealed class BlueprintAsset
     public ResolverSubjectDecl? ResolverSubject { get; set; }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-2133</c> (B1, R-276) — a BEHAVIOUR's named params DTO (type id, no <c>global::</c>): what its JSON params
+    /// deserialize into and <c>GET /behaviors</c> publishes. Set, the asset declares exactly one Parameter of that type (the
+    /// JSON is its fields, FLAT) or none (published, nothing stored — an empty order DTO); anything else is <c>BP1689</c>.
+    /// <c>null</c> = the generated <c>Params</c> of its Parameters, keyed by name. ⚠ Unlike a BTree, one struct Parameter does
+    /// NOT turn flat by itself: the compiler cannot tell a struct from an enum, so a blueprint opts in by naming it.
+    /// 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §1 P2. Written only when present (the corpus stays byte-identical).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsDtoTypeId { get; set; }
+
+    /// <summary>
     /// ⭐⭐ <b>U-12 / D4 — THE STORE.</b> One list of tagged declarations. <c>Parameters</c>,
     /// <c>WorkingState</c> and <c>Variables</c> below are <b>windows onto it</b>, not storage.
     ///

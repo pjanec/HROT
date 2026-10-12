@@ -17,5 +17,5 @@ public struct Sentry_FdpToolkitBehaviorComponentsBrainBlackboard
 public struct Sentry_Block
 {
     [FieldOffset(0)]
-    public Sentry_FdpToolkitBehaviorComponentsBrainBlackboard In;
+    public global::Fdp.Toolkit.Behavior.ThreatCountParams In;
 }

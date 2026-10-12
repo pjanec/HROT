@@ -17,5 +17,5 @@ public struct T34_ComposedAiPrimitiveCondition_FdpToolkitBehaviorComponentsBrain
 public struct T34_ComposedAiPrimitiveCondition_Block
 {
     [FieldOffset(0)]
-    public T34_ComposedAiPrimitiveCondition_FdpToolkitBehaviorComponentsBrainBlackboard In;
+    public global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params In;
 }

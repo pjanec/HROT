@@ -356,7 +356,8 @@ public sealed class HsmJsonGeneratorTests
         string registrar = result.GeneratedTrees.First(t => t.FilePath.Contains("SampleGuard.Registrar")).ToString();
         registrar.Should().Contain($"[new global::System.Guid(\"{state.StableId:D}\")] = new(0, 8)",
             "the binding is the host variable's (offset, size), and its size came from the sibling's own packing");
-        registrar.Should().Contain("case \"PatrolTreeParams\":", "the host's params path is emitted — Pack did not throw");
+        // ⭐ CE-2133: the host's ONE Input is a struct, so its params parse FLAT (OverlayFlat), not keyed by "PatrolTreeParams".
+        registrar.Should().Contain("BehaviorParams.OverlayFlat(", "the host's params path is emitted — Pack did not throw");
     }
 
     /// <summary>
@@ -394,7 +395,8 @@ public sealed class HsmJsonGeneratorTests
         string registrar = result.GeneratedTrees.First(t => t.FilePath.Contains("SampleGuard.Registrar")).ToString();
         registrar.Should().Contain($"[new global::System.Guid(\"{state.StableId:D}\")] = new(0, 8)",
             "the binding's size came from the sibling HSM's own packing");
-        registrar.Should().Contain("case \"PatrolMachineParams\":", "the host's params path is emitted — Pack did not throw");
+        // ⭐ CE-2133: the host's ONE Input is a struct, so its params parse FLAT (OverlayFlat), not keyed by "PatrolMachineParams".
+        registrar.Should().Contain("BehaviorParams.OverlayFlat(", "the host's params path is emitted — Pack did not throw");
     }
 
     // ── ⭐ CE-2039 (S8g G4/G5) — an HSM's class, registrar and structs come from ONE name ─────────────────────────────

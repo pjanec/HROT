@@ -591,6 +591,80 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.Equal(0, RootParamsAccess.InputBytes(def));
     }
 
+    // ── ⭐⭐ CE-2133 (B1, docs/DESIGN_Orders_Params_Entity_Classes.md §1 P2): a blueprint NAMES its params DTO ─────────────
+
+    private const string ThreatDto = "Fdp.Toolkit.Behavior.ThreatCountParams";
+
+    private static BlueprintAsset NamedDtoBehaviour(string name, bool withParameter = true, string paramsDto = ThreatDto)
+    {
+        var b = BlueprintAssetBuilder.Behavior(name).WithVariable("Count", typeof(int));
+        if (withParameter) b = b.WithParameter("Watch", typeof(Fdp.Toolkit.Behavior.ThreatCountParams));
+        var asset = b.WithGraph("Tick", g => g.Entry().Return(Hrot.Blueprints.Core.Assets.NodeStatus.Success)).Build();
+        asset.ParamsDtoTypeId = paramsDto;
+        return asset;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2133</c> — a behaviour whose one Parameter IS its named params DTO publishes that DTO and parses its JSON FLAT
+    /// into the Parameter: the JSON is the DTO's fields, never <c>{"Watch":{…}}</c>.
+    /// <para>✅ Red-proof: emit the keyed <c>ParseParams</c> call instead (InstanceEmitter) and <c>WithinMetres</c> reads 0.</para>
+    /// </summary>
+    [Fact]
+    public unsafe void CE2133_ANamedParamsDto_IsPublished_AndItsJsonLandsFlat()
+    {
+        const string Name = "CE2133Named";
+        _fixture.CompileAndLoad(NamedDtoBehaviour(Name), GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Name, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        Assert.Equal(typeof(Fdp.Toolkit.Behavior.ThreatCountParams), def!.JsonParamsDtoType);
+        Assert.Equal(Fdp.Core.TypeLayout.SizeOf(def.JsonParamsDtoType!), RootParamsAccess.InputBytes(def));
+
+        var block = new byte[RootParamsAccess.RootParamsBytes(def)];
+        var e = _fixture.CreateEntity();
+        fixed (byte* p = block) def.ParseParams!("{\"WithinMetres\":145,\"Count\":3}", p, block.Length, _fixture.World, e);
+        var watch = System.Runtime.CompilerServices.Unsafe.ReadUnaligned<Fdp.Toolkit.Behavior.ThreatCountParams>(ref block[0]);
+        Assert.Equal(145f, watch.WithinMetres);
+        Assert.Equal(3, watch.Count);
+    }
+
+    /// <summary>⭐ <c>CE-2133</c> — a named DTO with no Parameter (an empty order DTO) is published and stores nothing; params
+    /// WITH fields sent to it throw rather than vanish.</summary>
+    [Fact]
+    public unsafe void CE2133_ANamedParamsDto_WithNoParameter_StoresNothing_AndRefusesFields()
+    {
+        const string Name = "CE2133NamedOnly";
+        _fixture.CompileAndLoad(NamedDtoBehaviour(Name, withParameter: false), GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Name, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        Assert.Equal(typeof(Fdp.Toolkit.Behavior.ThreatCountParams), def!.JsonParamsDtoType);
+        Assert.Equal(0, RootParamsAccess.InputBytes(def));   // the empty manifest is the authority (the AQ90 §2.3m B trap)
+
+        var block = new byte[RootParamsAccess.RootParamsBytes(def)];
+        var e = _fixture.CreateEntity();
+        fixed (byte* p = block) def.ParseParams!("{}", p, block.Length, _fixture.World, e);
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            fixed (byte* p = block) def.ParseParams!("{\"Count\":3}", p, block.Length, _fixture.World, e);
+        });
+    }
+
+    /// <summary>⛔ <c>CE-2133</c> — a named params DTO that is not the behaviour's one Parameter, beside several Parameters, or
+    /// on an asset that is not a behaviour, is <c>BP1689</c>.</summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1689")]
+    public void CE2133_AMisplacedParamsDto_IsBP1689()
+    {
+        Assert.Contains(Diagnose(NamedDtoBehaviour("CE2133Mismatch", paramsDto: "Fdp.Toolkit.Behavior.SopRoeParams")),
+            d => d.Code == "BP1689" && d.Message.Contains("same type"));
+        var two = NamedDtoBehaviour("CE2133Two");
+        two.Parameters.Add(new ParameterDecl { Id = Guid.NewGuid(), Name = "Extra", Type = new BlueprintTypeRef { TypeId = "System.Single" } });
+        Assert.Contains(Diagnose(two), d => d.Code == "BP1689" && d.Message.Contains("ONE Parameter"));
+        var instance = BlueprintAssetBuilder.Instance("CE2133Instance").Build();
+        instance.ParamsDtoTypeId = ThreatDto;
+        Assert.Contains(Diagnose(instance), d => d.Code == "BP1689");
+        Assert.DoesNotContain(Diagnose(NamedDtoBehaviour("CE2133Ok")), d => d.Code == "BP1689");
+    }
+
     // ── S5d (DESIGN_Unified_Behaviour_Run §4): a blueprint behaviour HOSTS a behaviour ──────────────────────
 
     private static int _childTicks;

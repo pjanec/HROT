@@ -83,10 +83,58 @@ public static class BTreeEmitCore
     public static string? InputsStructTypeId(BehaviorTreeAssetDto dto)
     {
         if (dto?.Blackboard == null || !dto.Blackboard.Managed) return null;
+        // ⚠ CE-2133: for a FLAT behaviour (FlatParamsVariable) this is still the generated mirror, which nothing binds any more —
+        //   a host binds the flat DTO itself, a real type Roslyn sizes. ⛔ Answering the DTO here registered the host as the
+        //   GENERATOR of that type in GeneratedTypeCatalog, which then sized it from the host's own variables (a cycle).
+
         bool hasInput = false;
         foreach (var v in dto.Blackboard.Variables)
             if (v.Role == BlackboardVariableRole.Input && !string.IsNullOrEmpty(v.Type?.TypeId)) { hasInput = true; break; }
         return hasInput ? BlackboardStructNamespace(dto) + "." + BlackboardStructName(dto) : null;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2133</c> (B1, <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §1 P2) — the ONE Input variable that IS the
+    /// behaviour's params DTO, or <c>null</c>. True when the managed blackboard has exactly one <c>Role=Input</c> variable, it is a
+    /// STRUCT (not a scalar or vector in <c>KnownTypeLayouts</c>, not an array) and no resolver asset is bound (then the resolver's
+    /// Parameters are the contract). ⇒ its JSON params are that struct's fields, FLAT — never <c>{"&lt;variable&gt;":{…}}</c>.
+    /// </summary>
+    public static BlackboardVariableDto? FlatParamsVariable(BehaviorTreeAssetDto dto)
+    {
+        if (dto?.Blackboard == null || !dto.Blackboard.Managed || dto.Resolver != null) return null;
+        BlackboardVariableDto? only = null;
+        foreach (var v in dto.Blackboard.Variables)
+        {
+            if (v.Role != BlackboardVariableRole.Input || string.IsNullOrEmpty(v.Type?.TypeId)) continue;
+            if (only != null) return null;
+            only = v;
+        }
+        if (only == null || only.Type!.IsArray) return null;
+        return global::Fdp.Toolkit.Behavior.Shared.KnownTypeLayouts.TryGetSize(only.Type.TypeId, out _) ? null : only;
+    }
+
+    /// <summary>⭐ <c>CE-2133</c> — type ids compare with a nested type's <c>+</c> and <c>.</c> spellings as one.</summary>
+    internal static bool SameTypeId(string? a, string? b)
+        => string.Equals(a?.Replace('+', '.'), b?.Replace('+', '.'), StringComparison.Ordinal);
+
+    /// <summary>
+    /// ⭐ <c>CE-2133</c> — why <see cref="BehaviorTreeAssetDto.ParamsDtoTypeId"/> cannot hold for <paramref name="dto"/>, or
+    /// <c>null</c> when it is unset or valid: set, it must equal the one Input variable's (flat) type, or the asset declares
+    /// no Input at all; and a resolver asset names its own contract (R-149), so the two are exclusive.
+    /// </summary>
+    public static string? ParamsDtoTypeIdError(BehaviorTreeAssetDto dto)
+    {
+        string? named = dto?.ParamsDtoTypeId;
+        if (string.IsNullOrWhiteSpace(named)) return null;
+        if (dto!.Resolver != null)
+            return $"behaviour '{dto.Name}' names params DTO '{named}' and resolver asset '{dto.Resolver.Name}'; the resolver's Parameters are its contract — name one (R-149)";
+        if (FlatParamsVariable(dto) is { } flat)
+            return SameTypeId(flat.Type.TypeId, named) ? null
+                : $"behaviour '{dto.Name}' names params DTO '{named}' but its one Input '{flat.Name}' is '{flat.Type.TypeId}'; the JSON lands in that Input, so they must be the same type (a different shape needs a resolver)";
+        bool hasInput = dto.Blackboard?.Variables?.Any(v => v.Role == BlackboardVariableRole.Input && !string.IsNullOrEmpty(v.Type?.TypeId)) == true;
+        return hasInput
+            ? $"behaviour '{dto.Name}' names params DTO '{named}' but declares several (or non-struct) Inputs; the params DTO is ONE Input variable of that type"
+            : null;
     }
 
     internal static string BlackboardStructFqn(BehaviorTreeAssetDto dto)
@@ -193,7 +241,10 @@ public static class BTreeEmitCore
 
         sb.AppendLine("}");
 
-        EmitBlockStructs(sb, dto, structName, fields.Count > 0, packedBytes);
+        // ⭐ CE-2133 — a FLAT behaviour's In IS its params DTO (the one Input's own type, same bytes as the one-field mirror),
+        //   so CE-425's "block.In is the published contract" stays true by construction.
+        string inType = FlatParamsVariable(dto) is { } flatIn && fields.Count == 1 ? ToCsTypeName(flatIn.Type.TypeId) : structName;
+        EmitBlockStructs(sb, dto, inType, fields.Count > 0, packedBytes);
         return sb.ToString();
     }
 

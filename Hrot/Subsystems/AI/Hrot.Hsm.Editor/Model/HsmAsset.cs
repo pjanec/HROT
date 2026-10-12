@@ -38,6 +38,10 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     /// </summary>
     public BehaviorResolverRef? Resolver { get; set; }
 
+    /// <summary>⭐ <c>CE-2133</c> — the behaviour's NAMED params DTO (type id), or <c>null</c> (derived). ⚠ Must round-trip through
+    /// the mapper: an editor save that dropped it would silently change the behaviour's published contract.</summary>
+    public string? ParamsDtoTypeId { get; set; }
+
     // Kernel-side data (mutable via UpdateBlob for PU-302 stitch; read-only otherwise)
     private HsmDefinitionBlob _blob;
     private MachineMetadata _metadata;

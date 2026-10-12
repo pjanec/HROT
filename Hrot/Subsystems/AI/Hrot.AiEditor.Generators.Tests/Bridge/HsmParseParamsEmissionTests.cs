@@ -249,6 +249,38 @@ public sealed class HsmParseParamsEmissionTests
                 $"'{f.Name}' must be written at the shared packer's offset");
     }
 
+    // ══ ⭐⭐ CE-2133 (B1) — one struct Input IS the params DTO: the JSON is its fields, FLAT ══════════════
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2133</c> — the REAL emitted parse of an HSM whose one Input is a struct: the JSON is that struct's fields
+    /// (📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §1 P2), overlaid onto the baked default field by field — a
+    /// sent key wins, an absent key keeps its default, and the retired <c>{"limit":{…}}</c> wrapper is an unknown key.
+    /// </summary>
+    [Fact]
+    public unsafe void CE2133_OneStructInput_ParsesFlat_OverItsBakedDefault()
+    {
+        var dto = MakeDto(true, new Var("limit", typeof(FlatProbeParams).FullName!, "{\"Count\":2,\"Range\":40}"));
+        int size = sizeof(FlatProbeParams);
+        var parse = CompileEmittedParseParams(dto, id => id == typeof(FlatProbeParams).FullName ? size : null);
+
+        FlatProbeParams Run(string json)
+        {
+            byte* memory = stackalloc byte[32];
+            for (int i = 0; i < 32; i++) memory[i] = 0xEE;
+            parse(json, memory, 32, null!, default);
+            return *(FlatProbeParams*)memory;
+        }
+
+        Run("").Should().Be(new FlatProbeParams { Count = 2, Range = 40 }, "no JSON: the baked default");
+        Run("{\"Range\":75}").Should().Be(new FlatProbeParams { Count = 2, Range = 75 },
+            "a sent field wins; an absent one keeps its default");
+        Run("{\"limit\":{\"Range\":75}}").Should().Be(new FlatProbeParams { Count = 2, Range = 40 },
+            "the retired variable-name wrapper is an unknown key");
+        HsmBridgeEmitCore.EmitBridge(dto, id => id == typeof(FlatProbeParams).FullName ? size : null)
+            .Should().Contain($"JsonParamsDtoType    = typeof(global::{typeof(FlatProbeParams).FullName}),",
+                "the HSM publishes the DTO itself, like the BTree");
+    }
+
     // ══ the harness ══════════════════════════════════════════════════════════
 
     /// <summary>
@@ -268,9 +300,10 @@ public sealed class HsmParseParamsEmissionTests
     /// the Fhsm kernel — none of which the params supply touches.
     /// </para>
     /// </summary>
-    private static Fdp.Toolkit.Behavior.ParseParamsDelegate CompileEmittedParseParams(HsmAssetDto dto)
+    private static Fdp.Toolkit.Behavior.ParseParamsDelegate CompileEmittedParseParams(HsmAssetDto dto,
+        Func<string, int?>? sizeResolver = null)
     {
-        string bridge = HsmBridgeEmitCore.EmitBridge(dto);
+        string bridge = HsmBridgeEmitCore.EmitBridge(dto, sizeResolver);
 
         // ⭐⭐ BOTH halves come from the emitter: the options FIELD and the ParseParams LOCAL.
         // ⛔ Supplying a hand-written options field here would hide DEBT-AIB-021's defect (c)
@@ -354,4 +387,11 @@ public static unsafe class __ParseParamsHost
         }
         return refs;
     }
+}
+
+/// <summary>⭐ <c>CE-2133</c> — a params DTO the compiled probe can bind (public, in an assembly the test host has loaded).</summary>
+public struct FlatProbeParams
+{
+    public int Count;
+    public float Range;
 }

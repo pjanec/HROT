@@ -31,6 +31,9 @@ public sealed record IrAsset
     /// <summary>⭐ <c>CE-428</c> — set only on a behaviour resolver asset (<c>Q76</c> §12.20).</summary>
     public Hrot.Blueprints.Core.Assets.ResolverSubjectDecl? ResolverSubject { get; init; }
 
+    /// <summary>⭐ <c>CE-2133</c> — a behaviour's named params DTO (<c>BlueprintAsset.ParamsDtoTypeId</c>), or <c>null</c>.</summary>
+    public string? ParamsDtoTypeId { get; init; }
+
     /// <summary>
     /// BP-82 / Q25-C2 — how many <c>GraphKind.Macro</c> graphs the SOURCE asset declared.
     ///

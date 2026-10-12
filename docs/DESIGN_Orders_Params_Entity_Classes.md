@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-build-state: READY-TO-BUILD (the task list in §6 is the build plan; nothing built yet)
-current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §6 THE TASK LIST (ids, order, dependencies, acceptance)
+build-state: BUILDING (the task list in §6 is the build plan; CE-2133 B1 built 2026-10-12, as-built in §5.1)
+current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file (§5.1 as-built per task) · §6 THE TASK LIST (ids, order, dependencies, acceptance)
 stale-below: nothing
 known-rot: none
 known-conflict: docs/blueprints/DESIGN_Parameter_Model.md §P.7 (a resolver asset's authored shape = its Parameters) and §1 (Role Input/State) are superseded HERE by R-276/R-277 (one params DTO, no roles); that doc is updated when B3 builds, not before. docs/DESIGN_Entity_Control.md §3.1/§10 (EntityOrders names soldier behaviours) is superseded by R-273; updated when D4 builds.
@@ -184,6 +184,43 @@ run time; the order lookup itself runs only where `CgfLogicPack` is registered �
 | unit DIS type | `1.1.US` Category 0 — same as any land platform | Kind 11; arm / echelon / variant |
 | display classification | `VisualFamilies` with a composite special case; picker names from `DisNames.json` | one hard-coded class table; picker path = class chain; no JSON |
 | orders | `EntityOrders` maps Move / Attack / Hold to soldier behaviours; hard-coded menu entries | order DTOs in the AI assembly; generic `Order(name, json)`; menu from the registry; receiver resolves |
+
+### 5.1 As built
+
+**CE-2133 B1** *(2026-10-12, backend lane)*
+
+```mermaid
+flowchart TD
+  J["JSON params"] --> Q{"which contract?"}
+  Q -->|"resolver asset bound"| R["resolver's Params (CE-443, unchanged)"]
+  Q -->|"ParamsDtoTypeId = X, one Input of type X"| F["flat: BehaviorParams.OverlayFlat onto that Input"]
+  Q -->|"ParamsDtoTypeId = X, no Input"| N["X published · nothing stored · fields in the JSON throw"]
+  Q -->|"BTree/HSM: one Input, a struct (not in KnownTypeLayouts)"| F
+  Q -->|"otherwise"| K["keyed by variable name, the generated mirror (A2 converts the five multi-Input assets)"]
+  X["ParamsDtoTypeId = X and a different Input, or a resolver asset"] -.->|"#error CE-2133 (BTree/HSM) · BP1689 (blueprint)"| E["compile error"]
+```
+
+*What the picture shows that prose hid: there is still exactly one place the JSON lands per behaviour, and naming a DTO
+never creates a second one; a name that cannot land is a compile error, and a DTO that is not stored refuses fields at run
+time instead of dropping them.*
+
+| piece | where |
+|---|---|
+| `ParamsDtoTypeId` (FQN string, written only when set) on `BehaviorTreeAssetDto`, `HsmAssetDto`, `BlueprintAsset` → `IrAsset`; the two editor models and mappers carry it | `Hrot.AiEditor.Persistence`, `Hrot.BTree.Editor`, `Hrot.Hsm.Editor`, `Hrot.Blueprints.Compiler` |
+| flat-target rule `BTreeEmitCore.FlatParamsVariable`; `ParamsDtoTypeIdError`. A host binds a flat child with a variable of the child's DTO (what `TryGetHostedInputType` answers); ⛔ `InputsStructTypeId` stays the GENERATED mirror — it tells `GeneratedTypeCatalog` which struct an asset generates, and answering the DTO there made a host its own child's generator (a sizing cycle, caught by `HsmJsonGeneratorTests.S8c_*`) | `BTreeEmitCore.cs` |
+| a flat behaviour's block types `In` as the DTO itself (`{Asset}_Block.In : ThreatCountParams`, same bytes as the one-field mirror), so CE-425's "block.In is the published contract" holds by construction (`AGeneratedBehaviourAdvertisesItsManifestTests`) | `BTreeEmitCore.EmitBlockStructs` |
+| emitted parse: `BehaviorParams.OverlayFlat` (a sent key wins, an absent key keeps the baked default, unknown keys ignored, case-insensitive, malformed JSON throws); `BehaviorParams.RequireNoStoredFields` for a named DTO stored nowhere | `BehaviorParams.cs`, `BTreeBridgeEmitCore.cs` (BTree and HSM share it), `InstanceEmitter.cs` / `CSharpEmitter.cs` (blueprint) |
+| `RootParamsAccess.InputBytes`: an EMPTY manifest means 0 Input bytes even when a contract type is published (the AQ90 §2.3m B trap, for a named DTO stored nowhere) | `RootParamsAccess.cs` |
+| the two saved Sentry params strings rewritten flat | `scenarios/ua-danger-crossing{,-bp}/scenario.json` |
+
+⚠ **Deviation — blueprints opt in by naming.** A blueprint with one struct Parameter does NOT turn flat by itself: the
+blueprint compiler sees only type ids and cannot tell a struct from an enum, and an enum Parameter must stay keyed. It
+parses flat when `ParamsDtoTypeId` names its one Parameter's type. (No shipped blueprint behaviour has a single struct
+Parameter; AQ90 §2.3m.) BTree / HSM variables are offered only as primitives or DTO structs, so the struct test there is
+"not a known scalar/vector".
+⚠ **Not closed here:** a curated resolver on a generated asset (`PlatoonHillAttack`, `HullDownAttackRun`) still publishes the
+asset's Input type, not the resolver's source DTO; that is CE-2128 (A1) / B2's `[Behavior(Params=…)]`. A named DTO on an asset
+with NO variables at all has no `ParseParams`, so fields sent to it are not refused (B3's reserved `Params` closes this).
 
 ## 6. ⭐ THE TASK LIST — the build plan
 
