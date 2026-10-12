@@ -1,4 +1,3 @@
-using System.Reflection;
 using Hrot.Map.Common;
 using Hrot.Map.Definitions.Behavior;
 
@@ -10,14 +9,14 @@ namespace Hrot.Map.Definitions.Tkb;
 /// behavior drop-down lists filtered to the selected entity's capabilities.
 ///
 /// <para>
-/// The military and insurgent lists are built once at type initialisation from
-/// <see cref="BehaviorContractAttribute"/> attributes on DTOs in this assembly,
-/// so they stay in sync automatically as new behaviors are added.
+/// ⭐ <c>CE-2134</c> — the military, insurgent and commander lists come from each behaviour's declared categories
+/// (<see cref="BehaviorAttribute.Categories"/>), read through the ONE scan (<see cref="ParamsDtoRegistry"/>), so they follow
+/// what this host can actually run. ⛔ HISTORY: built from <c>[BehaviorContract]</c> on the DTOs in this assembly, which listed
+/// the editor's example behaviours on every node, CGF and ExCon included.
 /// </para>
 /// <para>
-/// The civilian list and the default fallback list remain hardcoded because
-/// <c>WanderCivil</c> and <c>PanicFlee</c> have no <see cref="BehaviorContractAttribute"/>
-/// DTO (they are out of scope for the current phase).
+/// The civilian list and the default fallback list remain hardcoded because <c>WanderCivil</c> and <c>PanicFlee</c> declare
+/// no params contract (they are out of scope for the current phase). The class table replaces the categories (CE-2142).
 /// </para>
 /// </summary>
 public static class BehaviorCatalog
@@ -25,60 +24,42 @@ public static class BehaviorCatalog
     private static readonly IReadOnlyList<string> s_civilianBehaviors =
         ["WanderCivil", "PanicFlee"];
 
-    private static readonly IReadOnlyList<string> s_militaryApcBehaviors;
-    private static readonly IReadOnlyList<string> s_infantryBehaviors;
-    private static readonly IReadOnlyList<string> s_insurgentBehaviors;
-    private static readonly IReadOnlyList<string> s_commanderBehaviors;
-
     private static readonly IReadOnlyList<string> s_defaultBehaviors =
         ["MoveToLocation", "FollowRoute", "JoinFormation", "Idle", "FireAtTarget"];
 
-    static BehaviorCatalog()
-    {
-        var map = BuildMap();
-        s_militaryApcBehaviors = map.GetValueOrDefault(BehaviorCategory.MilitaryApc, s_defaultBehaviors);
-        s_infantryBehaviors    = map.GetValueOrDefault(BehaviorCategory.Infantry,    s_defaultBehaviors);
-        s_insurgentBehaviors   = map.GetValueOrDefault(BehaviorCategory.Insurgent,   s_defaultBehaviors);
-        s_commanderBehaviors   = map.GetValueOrDefault(BehaviorCategory.Commander,   s_defaultBehaviors);
-    }
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ParamsDtoRegistry, Dictionary<BehaviorCategory, IReadOnlyList<string>>> s_maps = new();
 
-    private static Dictionary<BehaviorCategory, IReadOnlyList<string>> BuildMap()
-    {
-        var categories = new[] { BehaviorCategory.MilitaryApc, BehaviorCategory.Infantry, BehaviorCategory.Insurgent, BehaviorCategory.Commander };
-        var lists = categories.ToDictionary(c => c, _ => new List<string>());
-
-        foreach (var type in typeof(BehaviorContractAttribute).Assembly.GetTypes())
+    private static Dictionary<BehaviorCategory, IReadOnlyList<string>> MapFor(ParamsDtoRegistry registry)
+        => s_maps.GetValue(registry, r =>
         {
-            var attr = type.GetCustomAttribute<BehaviorContractAttribute>();
-            if (attr == null) continue;
-            foreach (var cat in categories)
+            var map = new Dictionary<BehaviorCategory, IReadOnlyList<string>>();
+            foreach (var cat in new[] { BehaviorCategory.MilitaryApc, BehaviorCategory.Infantry, BehaviorCategory.Insurgent, BehaviorCategory.Commander })
             {
-                if (attr.ValidCategories.HasFlag(cat))
-                    lists[cat].Add(attr.BehaviorName);
+                var names = r.NamesWithCategory(cat);
+                map[cat] = names.Count > 0 ? names : s_defaultBehaviors;
             }
-        }
-
-        return lists.ToDictionary(
-            kv => kv.Key,
-            kv => (IReadOnlyList<string>)kv.Value.AsReadOnly());
-    }
+            return map;
+        });
 
     /// <summary>
-    /// Returns the list of behavior names valid for the given TKB entity type.
-    /// Military and insurgent lists are built from <see cref="BehaviorContractAttribute"/>
-    /// reflection at type initialisation.  Civilian and unknown types use static lists.
+    /// Returns the list of behavior names valid for the given TKB entity type, from this host's declared behaviours
+    /// (<see cref="ParamsDtoRegistry.Default"/>). Civilian and unknown types use static lists. The same list instance is
+    /// returned until another assembly loads.
     /// </summary>
     /// <param name="tkbType">A TKB entity type constant (see <see cref="TkbEntityTypes"/>).</param>
-    public static IReadOnlyList<string> GetValidBehaviors(long tkbType) => tkbType switch
+    public static IReadOnlyList<string> GetValidBehaviors(long tkbType) => GetValidBehaviors(tkbType, ParamsDtoRegistry.Default);
+
+    /// <summary>As <see cref="GetValidBehaviors(long)"/>, over <paramref name="registry"/> (a rail scans a known set).</summary>
+    public static IReadOnlyList<string> GetValidBehaviors(long tkbType, ParamsDtoRegistry registry) => tkbType switch
     {
         TkbEntityTypes.CivilianPedestrian => s_civilianBehaviors,
         TkbEntityTypes.CivilianCar        => s_civilianBehaviors,
-        TkbEntityTypes.MilitaryApc        => s_militaryApcBehaviors,
-        TkbEntityTypes.InfantrySoldier    => s_infantryBehaviors,
-        TkbEntityTypes.Insurgent          => s_insurgentBehaviors,
-        TkbEntityTypes.Unit_TankPlatoon      => s_commanderBehaviors,
-        TkbEntityTypes.Unit_TankPlatoon_Auto => s_commanderBehaviors,
-        TkbEntityTypes.Unit_InfantrySquad    => s_commanderBehaviors,
+        TkbEntityTypes.MilitaryApc        => MapFor(registry)[BehaviorCategory.MilitaryApc],
+        TkbEntityTypes.InfantrySoldier    => MapFor(registry)[BehaviorCategory.Infantry],
+        TkbEntityTypes.Insurgent          => MapFor(registry)[BehaviorCategory.Insurgent],
+        TkbEntityTypes.Unit_TankPlatoon      => MapFor(registry)[BehaviorCategory.Commander],
+        TkbEntityTypes.Unit_TankPlatoon_Auto => MapFor(registry)[BehaviorCategory.Commander],
+        TkbEntityTypes.Unit_InfantrySquad    => MapFor(registry)[BehaviorCategory.Commander],
         _                                 => s_defaultBehaviors,
     };
 }

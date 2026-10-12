@@ -35,7 +35,7 @@ namespace Fhsm.Kernel.Attributes
         // Null means the behaviour takes no params (RootParamsBytes == 0), which is legitimate --
         // the Idle machine is exactly that case.
         // NOTE this is the LAYOUT type, not the authored JSON contract: the JSON contract is declared
-        // by [BehaviorContract] on the DTO and bound by BehaviorSchemaDiscovery.AutoRegister.
+        // by [Behavior(Params = …)] on the behaviour (CE-2134) and bound by BehaviorSchemaDiscovery.AutoRegister.
         // Setting JsonParamsDtoType from here would be a SECOND producer for one slot (R-132, CE-235).
         public Type? ParamsType { get; set; }
 

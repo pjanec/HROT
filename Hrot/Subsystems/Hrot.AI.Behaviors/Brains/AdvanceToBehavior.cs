@@ -34,6 +34,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
             block.State = default;
         }
+[Behavior(BehaviorNames.AdvanceTo, Params = typeof(global::Hrot.Map.Definitions.Behavior.AdvanceToParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.AdvanceTo, Curated = true, Group = "Library/Infantry", ParamsType = typeof(AdvanceToBlackboard))]
         public static BTreeBuilder<AdvanceToBlackboard, BTreeContext> BuildTree()

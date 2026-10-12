@@ -9,7 +9,6 @@ namespace Hrot.Map.Definitions.Behavior
     /// behaviour <c>HoldStance</c>: take <see cref="Stance"/> and hold it, doing nothing else — the passive targets of
     /// <c>bt-grenade-posture</c> and <c>bt-mortar-roof</c>.
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]
     public struct HoldStanceParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.HoldStance;

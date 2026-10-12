@@ -1373,7 +1373,7 @@ public sealed class GetTimeNode : Node
 // ──────────────────────────────────────────────────────────────────────────
 // ⭐ CE-472 — typed Send Intent + To JSON / From JSON.
 // 📄 docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md (§3 diagrams, §4 decisions A–F).
-// All three carry the DTO's FQN + its baked members (the editor reflects the [BehaviorContract] class; the
+// All three carry the DTO's FQN + its baked members (the editor reflects the [Behavior(Params = …)] class; the
 // compiler only reads these strings). The DTO value never appears on a wire — decision B.
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -1384,9 +1384,9 @@ public sealed class GetTimeNode : Node
 /// </summary>
 public sealed class SendIntentNode : Node
 {
-    /// <summary>The intent id published as <c>AssignTacticalIntentEvent.IntentId</c> (== the DTO's <c>[BehaviorContract]</c> id).</summary>
+    /// <summary>The intent id published as <c>AssignTacticalIntentEvent.IntentId</c> (== the DTO's <c>[Behavior(Params = …)]</c> id).</summary>
     public string IntentId { get; set; } = "";
-    /// <summary>FQN of the <c>[BehaviorContract]</c> parameter DTO.</summary>
+    /// <summary>FQN of the <c>[Behavior(Params = …)]</c> parameter DTO.</summary>
     public string DtoTypeFqn { get; set; } = "";
     /// <summary>The DTO members exposed as pins (name + pin TypeId).</summary>
     public List<StructFieldDecl> Fields { get; set; } = new();

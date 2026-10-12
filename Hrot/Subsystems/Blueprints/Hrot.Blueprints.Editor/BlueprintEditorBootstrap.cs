@@ -182,7 +182,7 @@ public static class BlueprintEditorBootstrap
         foreach (var descriptor in MakeBreakStructPaletteEntries.Entries(new ReflectionSharedStructTypeProvider()))
             registry.Register(descriptor);
 
-        // ⭐ CE-472: one "Send Intent: {id}" / "To JSON" / "From JSON" row per [BehaviorContract] parameter DTO.
+        // ⭐ CE-472: one "Send Intent: {id}" / "To JSON" / "From JSON" row per [Behavior(Params = …)] parameter DTO.
         foreach (var descriptor in IntentContractPaletteEntries.Entries(new ReflectionIntentContractProvider()))
             registry.Register(descriptor);
 

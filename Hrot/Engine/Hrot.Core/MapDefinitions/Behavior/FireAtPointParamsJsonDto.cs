@@ -8,7 +8,6 @@ namespace Hrot.Map.Definitions.Behavior
     /// <c>FireAtPoint</c> behaviour: fire mount <see cref="Mount"/> at the ground point (<see cref="X"/>, <see cref="Y"/>, <see cref="Z"/>)
     /// — a thrown grenade, a mortar. A STRUCT of unmanaged fields, so a host can also bind it by bytes.
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary)]
     public struct FireAtPointParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.FireAtPoint;

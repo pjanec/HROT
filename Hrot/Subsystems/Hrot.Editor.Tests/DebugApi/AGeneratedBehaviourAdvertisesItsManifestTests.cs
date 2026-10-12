@@ -262,7 +262,8 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
             //   type as its JSON DTO — the source the resolver receives — and the block's In is what the resolver WRITES.
             //   ⇒ the two are deliberately different types there. (This rail was missed when CE-443 landed: only the
             //   resolver-filtered Editor tests were run; found by CE-449's full-suite gate.)
-            bool resolverBound = def.ResolveStage is not null;
+            // ⭐ CE-2134: a CURATED resolver likewise (PlatoonHillAttack declares its resolver's JSON DTO; its In is the struct it stores).
+            bool resolverBound = def.ResolveStage is not null || registry.HasCuratedResolver(def.Name);
             if (inField is null)
                 problems.Add($"{def.Name}: block.In is missing");
             else if (!resolverBound && inField.FieldType != layout)
@@ -358,7 +359,7 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
     /// their generators knew every key.
     ///
     /// <para>
-    /// ⚠ The <c>JoinFormation</c> carve-out is REAL, not a weakening: its <c>[BehaviorContract]</c> DTO
+    /// ⚠ The <c>JoinFormation</c> carve-out is REAL, not a weakening: its <c>[Behavior(Params = …)]</c> DTO
     /// is deliberately memberless — <i>"currently parameterless; the contract exists to anchor the
     /// behavior ID and category"</i> — so <c>{}</c> is the truthful answer. The predicate below keys on
     /// whether the description carries NAMES, which is the property that actually matters.

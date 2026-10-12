@@ -1730,7 +1730,7 @@ public static class BTreeBridgeEmitCore
             //
             // ⛔ The two members still hold DIFFERENT types for the curated behaviours that DO
             //   diverge (a geo point vs a Cartesian pair; a network id vs a resolved Entity) — those
-            //   get their authored DTO from [BehaviorContract] via BehaviorSchemaDiscovery.
+            //   get their authored DTO from [Behavior(Params = …)] via BehaviorSchemaDiscovery.
             //
             // ⚠ Guarded by `packedFields.Count > 0` because that is the exact condition under which
             //   BTreeEmitCore.EmitBlackboardStructSource emits the struct at all; naming it otherwise

@@ -33,6 +33,7 @@ namespace Hrot.AI.Behaviors.Brains
             p.Target = threat;
             return TrackTargetNodes.TrackTarget(ref p, self, world);
         }
+[Behavior(BehaviorNames.TrackTarget, Params = typeof(global::Hrot.Map.Definitions.Behavior.TrackTargetParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.TrackTarget, Curated = true, Group = "Library/Basic", ParamsType = typeof(TrackTargetBlackboard))]
         public static BTreeBuilder<TrackTargetBlackboard, BTreeContext> BuildTrackTargetTree()

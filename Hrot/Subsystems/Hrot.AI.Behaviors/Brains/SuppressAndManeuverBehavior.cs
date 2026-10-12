@@ -53,6 +53,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
             block.State = default;
         }
+[Behavior(BehaviorNames.SuppressAndManeuver, Params = typeof(global::Hrot.Map.Definitions.Behavior.SuppressAndManeuverParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.SuppressAndManeuver, Curated = true, Group = "Library/Squad", ParamsType = typeof(SuppressAndManeuverBlackboard))]
         public static BTreeBuilder<SuppressAndManeuverBlackboard, BTreeContext> BuildTree()

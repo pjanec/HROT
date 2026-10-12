@@ -1,5 +1,14 @@
 using Hrot.Map.Common;
+using Hrot.Map.Definitions.Behavior;
 using Hrot.Map.Definitions.Tkb;
+
+// ⭐ CE-2134 — the catalogue lists what the HOST declares ([Behavior] on its behaviours, read by ParamsDtoRegistry). This test
+//   host runs no behaviour, so it declares the ones the category rails below need (the production set is railed in
+//   Hrot.Editor.Tests' params-contract suite, over the real registry).
+[assembly: Behavior(BehaviorNames.Ambush, Params = typeof(AmbushParamsJsonDto), Categories = BehaviorCategory.Insurgent)]
+[assembly: Behavior(BehaviorNames.ConvoyEscort, Params = typeof(ConvoyEscortParamsJsonDto), Categories = BehaviorCategory.MilitaryApc)]
+[assembly: Behavior(BehaviorNames.DefendArea, Params = typeof(Hrot.Map.Definitions.Behavior.Intents.DefendAreaIntentDto), Categories = BehaviorCategory.AllMilitary)]
+[assembly: Behavior(BehaviorNames.CombatPosture, Params = typeof(CombatPostureParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
 
 namespace Hrot.Map.Common.Tests;
 

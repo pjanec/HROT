@@ -2,7 +2,7 @@ namespace Hrot.Map.Definitions.Behavior.Intents
 {
     /// <summary>
     /// Intent DTO for the "DefendArea" tactical intent.
-    /// Decorated with <see cref="BehaviorContractAttribute"/> so it is
+    /// Decorated with <see cref="BehaviorAttribute"/> (on the behaviour) so it is
     /// auto-discovered by <c>BehaviorSchemaDiscovery.AutoRegister</c> and
     /// <c>BehaviorCatalog</c>.
     ///
@@ -11,7 +11,6 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     /// <c>TargetIntentId</c> of the <c>DefendAreaMapper</c> (TASK-TI011).
     /// </para>
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary)]
     public sealed class DefendAreaIntentDto
     {
         public const string BehaviorId = BehaviorNames.DefendArea;

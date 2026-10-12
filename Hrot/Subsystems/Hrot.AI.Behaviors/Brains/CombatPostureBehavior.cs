@@ -105,6 +105,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>📄 §3.3b: decide, sense and act in one Parallel (RequireOne — the posture ends when its winner ends); the winner runs
         /// under an ObserverSelector so a changed decision switches branch at once (the old branch's deactivators run).</summary>
+        [Behavior(BehaviorNames.CombatPosture, Params = typeof(global::Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]   // ⭐ CE-2134
         [BTreeDefinition(BehaviorNames.CombatPosture, Curated = true, Group = "Library/Infantry", ParamsType = typeof(CombatPostureBlackboard))]
         public static BTreeBuilder<CombatPostureBlackboard, BTreeContext> BuildCombatPostureTree()
         {

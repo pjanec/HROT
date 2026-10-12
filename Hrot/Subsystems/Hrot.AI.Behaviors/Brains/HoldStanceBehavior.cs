@@ -34,6 +34,7 @@ namespace Hrot.AI.Behaviors.Brains
             Hrot.MuscleCharacter.Animation.Stance.StanceRequest.Set(world, self, p.Stance, BlendSeconds);
             return NodeStatus.Running;
         }
+[Behavior(BehaviorNames.HoldStance, Params = typeof(global::Hrot.Map.Definitions.Behavior.HoldStanceParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.HoldStance, Curated = true, Group = "Library/Basic", ParamsType = typeof(HoldStanceBlackboard))]
         public static BTreeBuilder<HoldStanceBlackboard, BTreeContext> BuildHoldStanceTree()

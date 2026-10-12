@@ -36,7 +36,7 @@ namespace Fbt
         /// is exactly that case.
         /// <para>
         /// NOTE this is the LAYOUT type, not the authored JSON contract: the JSON contract is
-        /// declared by <c>[BehaviorContract]</c> on the DTO and bound by
+        /// declared by <c>[Behavior(Params = …)]</c> on the behaviour (CE-2134) and bound by
         /// <c>BehaviorSchemaDiscovery.AutoRegister</c>. Setting <c>JsonParamsDtoType</c> from here
         /// would be a SECOND producer for one slot (R-132, CE-235).
         /// </para>

@@ -56,8 +56,8 @@ namespace Hrot.CGF.Configuration
 
             // ⭐⭐ CE-235 — bind each behaviour's AUTHORED JSON CONTRACT, so GET /behaviors publishes
             //   the shape a scenario or an agent actually writes rather than the blackboard layout.
-            //   Deliberately here and not in the registrars: [BehaviorContract] on the DTOs in
-            //   Hrot.Core is the one producer (R-132), and this is the one loader every host and test
+            //   Deliberately here and not in the registrars: [Behavior(Params = …)] on the behaviours (CE-2134,
+            //   read by ParamsDtoRegistry) is the one producer (R-132), and this is the one loader every host and test
             //   goes through, so no caller can forget it. Order-independent, so it is safe after Scan.
             Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindJsonParamsDtoTypes(behaviorRegistry);
         }
@@ -70,7 +70,7 @@ namespace Hrot.CGF.Configuration
         /// </summary>
         /// <param name="behaviorRegistry">
         /// ⭐ <c>CE-2054</c> — the node's behaviour registry, so a behaviour whose contract is not a
-        /// <c>[BehaviorContract]</c> DTO (a blueprint behaviour's generated <c>Params</c>) is remapped by its own
+        /// <c>[Behavior(Params = …)]</c> DTO (a blueprint behaviour's generated <c>Params</c>) is remapped by its own
         /// type. ⛔ A host that HAS one must pass it; <c>null</c> leaves only the curated contracts.
         /// </param>
         public static ScenarioBehaviorRemapper CreateBehaviorRemapper(BehaviorRegistry? behaviorRegistry = null)

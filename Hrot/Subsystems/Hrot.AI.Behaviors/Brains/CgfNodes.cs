@@ -13,6 +13,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Navigation;
 using Hrot.AI.Behaviors.Logging;
 using Fbt.Kernel;
+using Hrot.Map.Definitions.Behavior;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -95,15 +96,14 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>
         /// Blackboard DTO for the JoinFormation behavior.
-        /// Currently parameterless (the contract exists to satisfy the
-        /// ReusableActionDelegate signature pattern). Populated to defaults
-        /// by JoinFormationParamsJsonDto which carries no JSON fields.
+        /// ⭐ CE-2134 — also JoinFormation's declared params DTO: the curated registrar parses the
+        /// JSON straight into it (identity, no resolver), so it IS what the behaviour reads
+        /// (the empty JoinFormationParamsJsonDto that anchored the old contract is deleted).
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
         public struct JoinFormationParams
         {
-            // Reserved for future extension; both fields are zero-initialised
-            // because JoinFormationParamsJsonDto is currently parameterless.
+            // Reserved for future extension: nothing reads them yet, and a caller sending {} leaves both zero.
             public int  LeaderNetworkId;
             public byte FormationTypeId;
         }
@@ -129,7 +129,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         // ⭐ CE-447 (2026-09-30): no private parse DTOs — the resolvers deserialise into the ONE authored contract,
-        //   Hrot.Core's [BehaviorContract] classes (the paramSchema a scenario is authored against). ⛔ The private
+        //   Hrot.Core's [Behavior(Params = …)] classes (the paramSchema a scenario is authored against). ⛔ The private
         //   copies here had drifted (float vs double, R-132: one producer per slot).
 
         /// <summary>
@@ -569,6 +569,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the MoveToLocation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
+        [Behavior(BehaviorNames.MoveToLocation, Params = typeof(global::Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]   // ⭐ CE-2134
         [BTreeDefinition("MoveToLocation", Curated = true, Group = "Library/Basic", ParamsType = typeof(MoveToLocationParams))]
         public static BTreeBuilder<MoveToBlackboard, BTreeContext> BuildMoveToLocationTree()
         {
@@ -579,6 +580,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the FollowRoute BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
+        [Behavior(BehaviorNames.FollowRoute, Params = typeof(global::Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134
         [BTreeDefinition("FollowRoute", Curated = true, Group = "Library/Basic", ParamsType = typeof(FollowRouteParams))]
         public static BTreeBuilder<FollowRouteBlackboard, BTreeContext> BuildFollowRouteTree()
         {
@@ -589,6 +591,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the JoinFormation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
+        [Behavior(BehaviorNames.JoinFormation, Params = typeof(global::Hrot.AI.Behaviors.Brains.CgfNodes.JoinFormationParams), Categories = BehaviorCategory.Infantry)]   // ⭐ CE-2134 — what the identity parse fills (BEH003)
         [BTreeDefinition("JoinFormation", Curated = true, Group = "Library/Basic", ParamsType = typeof(JoinFormationParams))]
         public static BTreeBuilder<JoinFormationBlackboard, BTreeContext> BuildJoinFormationTree()
         {
@@ -599,6 +602,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the WanderMilitary BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
+        [Behavior(BehaviorNames.WanderMilitary, Params = typeof(global::Hrot.Map.Definitions.Behavior.WanderMilitaryParamsJsonDto), Categories = BehaviorCategory.MilitaryApc)]   // ⭐ CE-2134
         [BTreeDefinition("WanderMilitary", Curated = true, Group = "Library/Basic")]
         // ⭐ P4-②: `byte` here, and it is the RAW-DELEGATE case so nothing is lost. A selector-form
         //   builder still needs a struct with fields (which is why the wrapper structs stay — §30.18);
@@ -614,6 +618,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the FireAtTarget BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
+        [Behavior(BehaviorNames.FireAtTarget, Params = typeof(global::Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134
         [BTreeDefinition("FireAtTarget", Curated = true, Group = "Library/Basic", ParamsType = typeof(FireAtTargetParams))]
         public static BTreeBuilder<FireAtTargetBlackboard, BTreeContext> BuildFireAtTargetTree()
         {

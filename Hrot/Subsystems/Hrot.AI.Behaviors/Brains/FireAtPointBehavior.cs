@@ -33,6 +33,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Mount = (byte)authored.Mount,
             };
         }
+[Behavior(BehaviorNames.FireAtPoint, Params = typeof(global::Hrot.Map.Definitions.Behavior.FireAtPointParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.FireAtPoint, Curated = true, Group = "Library/Basic", ParamsType = typeof(FireAtPointBlackboard))]
         public static BTreeBuilder<FireAtPointBlackboard, BTreeContext> BuildFireAtPointTree()

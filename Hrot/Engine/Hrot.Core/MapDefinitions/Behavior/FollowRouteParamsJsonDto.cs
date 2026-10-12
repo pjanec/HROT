@@ -10,7 +10,6 @@ namespace Hrot.Map.Definitions.Behavior
     /// converted to a trajectory id on the SENDING side (<c>MissionControlBehaviorParamsHelper</c>), and the curated resolver
     /// parses that converted <c>{trajectoryId, Speed, Loop}</c>; moving the conversion into the behaviour is <c>CE-2145</c>.</para>
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary)]
     public sealed class FollowRouteParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.FollowRoute;

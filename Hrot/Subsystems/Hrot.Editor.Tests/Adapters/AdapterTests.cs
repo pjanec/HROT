@@ -453,7 +453,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void GetAvailableBehaviors_DoesNotDuplicateCuratedEntries()
         {
             // Arrange: register a behavior that also exists in the BehaviorCatalog curated list
-            // (e.g., "CombatPosture" appears for Insurgent via [BehaviorContract], CE-3160).  Registering it with
+            // (e.g., "CombatPosture" appears for Insurgent via [Behavior(Params = …)], CE-3160).  Registering it with
             // BrainTierBTree must NOT cause it to appear twice.
             _registry.Register(1, "CombatPosture", new BehaviorDefinition
             {

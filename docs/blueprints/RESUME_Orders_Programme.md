@@ -21,9 +21,9 @@ related-designs:
 | | |
 |---|---|
 | design | ✅ [DESIGN_Orders_Params_Entity_Classes.md](../DESIGN_Orders_Params_Entity_Classes.md), READY-TO-BUILD; rulings R-273..R-281 (behaviors) |
-| built | ✅ CE-2130 (rules rail, 48 allow-listed) · ✅ CE-2140 (order DTOs) — behaviors lane · ✅ **CE-2133 B1** (backend lane): a BTree/HSM with ONE struct Input parses flat; any tier may name its params DTO (`ParamsDtoTypeId`) — design §5.1 ⇒ **A2 (CE-2132) is unblocked** |
+| built | ✅ CE-2130 (rules rail, 48 allow-listed) · ✅ CE-2140 (order DTOs) — behaviors lane · ✅ **CE-2133 B1** + ✅ **CE-2134 B2** (backend lane): a BTree/HSM with ONE struct Input parses flat; any tier may name its params DTO (`ParamsDtoTypeId`) — design §5.1 ⇒ **A2 (CE-2132) is unblocked** |
 | embarkation (CE-3110 I-2d, the S3 dismount) and the other behaviour work planned before | ▶ **NOT deferred any more** — 🔒 user, 2026-10-12: *"if the embarkation and other behavior stuff … can continue in some session, it does not need to stay deferred anymore"* (R-282 (behaviors), superseding R-277's postponement). Hand a session [HANDOFF_Embark_I2d_And_Unit_Orders.md](HANDOFF_Embark_I2d_And_Unit_Orders.md) §2 items 1–2 (its item 0 / AQ90 and item 3 are done or absorbed here) plus the note below |
-| Track B / Track C | ✅ assigned 2026-10-12 by the user: **Track B → the `backend` lane** (B1 done; B2 next) · **Track C → the `ui` lane** |
+| Track B / Track C | ✅ assigned 2026-10-12 by the user: **Track B → the `backend` lane** (B1, B2 done; B3 next) — ⇒ the behaviors lane's NoParams switch (CE-2131) and D4 (CE-2143, needs B2) are unblocked · **Track C → the `ui` lane** |
 
 ### 1a. A note for a session doing embarkation or other behaviour work in parallel
 

@@ -8,7 +8,6 @@ namespace Hrot.Map.Definitions.Behavior
     /// to <see cref="Objective"/>; the others keep a slot of <see cref="Shape"/> on it, and walk in file on the lead's own trail where a
     /// slot does not work. A zero field keeps its default. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §6.1.
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.Commander)]
     public struct SquadMarchParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.SquadMarch;

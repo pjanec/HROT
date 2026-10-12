@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-build-state: BUILDING — §5a records each task as built (CE-2130 ✅ · CE-2133 ✅ · CE-2140 ✅); §6 is the build plan
+build-state: BUILDING — §5a records each task as built (CE-2130 ✅ · CE-2133 ✅ · CE-2134 ✅ · CE-2140 ✅); §6 is the build plan
 current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance)
 stale-below: nothing
 known-rot: none
@@ -193,6 +193,7 @@ run time; the order lookup itself runs only where `CgfLogicPack` is registered �
 | **CE-2131** A1 🟡 2026-10-12 | `FollowRouteParamsJsonDto` gained `Speed` and `Loop`, so the published contract now lists every key callers write (rail `CE2131_FollowRouteAdvertisesTheKeysItsCallersWrite`) | ⚠ three parts moved: the `NoParams` switch needs a SHARED DTO, i.e. the contract on the behaviour (CE-2134); measured, today's empty DTOs already satisfy P1. `PlatoonHillAttack`'s contract is fixed by CE-2133 (the asset names its DTO). FollowRoute's route→trajectory conversion runs on the SENDING side (`MissionControlBehaviorParamsHelper`), filed as CE-2145 |
 | **CE-2140** D1 ✅ 2026-10-12 | `OrderAttribute` (name string + `OrderGesture`) and `NoParams` in `Hrot.Core` (`MapDefinitions/Behavior/Orders`, `MapDefinitions/Behavior/NoParams.cs`); `OrderKind` + `MoveOrder` (`PickableGeoPoint Location`, `Speed`, `ArrivalRadius`, `RoadUse`; GroundClick) / `AttackOrder` (`EntityRef Target`; EnemyClick) / `HoldOrder` (empty) in `Hrot.AI.Behaviors/Orders`, each `[BlackboardDtoStruct]` so a variable can be typed with it before B3. Rail: `OrderVocabularyTests` (every `OrderKind` has exactly one `[Order]` DTO, every `[Order]` names a kind; order DTOs are structs) | the attribute takes `nameof(OrderKind.X)`, not the enum: `Hrot.Core` cannot see the AI assembly's enum |
 | **CE-2133** B1 ✅ 2026-10-12 (backend) | a BTree/HSM with ONE struct Input parses flat; `ParamsDtoTypeId` on BTree/HSM/blueprint assets; details §5a.1 | ⚠ blueprints parse flat only when they NAME the DTO (§5a.1) |
+| **CE-2134** B2 ✅ 2026-10-12 (backend) | `[Behavior(name, Params, Categories)]` + `ParamsDtoRegistry` in `Hrot.Core`; 25 declarations moved off the DTOs (placement and classes/sequences/modules in §5b); `[BehaviorContract]` and `BehaviorTestHelper` deleted; readers moved: `BehaviorSchemaDiscovery`, `BehaviorCatalog` (now per host), the blueprint palette (To/From JSON once per DTO type); a declaration OUTRANKS a generated contract (PlatoonHillAttack publishes `PlatoonHillAttackParamsJsonDto`, CE-2128 ②); curated generator BEH002/BEH003; `RootParamsAccess.InputBytes` reads the block's `In`. Rails: `ParamsDtoRegistryTests` ×5, `ABehaviourAdvertisesItsRealParametersTests.CE2134_*` ×2, `CuratedBehaviorGeneratorResolverShapeTests.CE2134_*` ×2, `CE472_IntentAndJsonNodeTests.Palette_ListsASharedDtosJsonRowsOnce` | ⚠ JoinFormation now declares `CgfNodes.JoinFormationParams` (what its identity parse fills; BEH003), and the empty `JoinFormationParamsJsonDto` is deleted. ⚠ The example behaviours (Ambush, InfantryCombat, ConvoyEscort) are declared in `Hrot.Editor` (`[assembly: Behavior]`), so CGF / ExCon no longer offer them. ⚠ ExCon gained a ProjectReference to `Hrot.AI.Behaviors` (catalogue only). ⚠ Found in the build: the editor loads the AI assembly twice (hot reload) — the scan takes the LAST instance of each assembly name |
 
 ### 5a.1 CE-2133 B1 in detail *(2026-10-12, backend lane)*
 
@@ -228,6 +229,99 @@ Parameter; AQ90 §2.3m.) BTree / HSM variables are offered only as primitives or
 ⚠ **Not closed here:** a curated resolver on a generated asset (`PlatoonHillAttack`, `HullDownAttackRun`) still publishes the
 asset's Input type, not the resolver's source DTO; that is CE-2128 (A1) / B2's `[Behavior(Params=…)]`. A named DTO on an asset
 with NO variables at all has no `ParseParams`, so fields sent to it are not refused (B3's reserved `Params` closes this).
+
+## 5b. CE-2134 B2 — the contract on the behaviour *(2026-10-12, backend lane; BUILT — as-built row in §5a)*
+
+**INVENTORY** *(graph CLI index + grep + one read-only sweep; file:line in the task row)*: 25 `[BehaviorContract]` DTOs, all in
+`Hrot.Core`; 4 readers — `BehaviorSchemaDiscovery` (UI registry, scenario remapper, `RegisterJsonParamsDtoType`;
+Hrot.Core-only scan), `BehaviorCatalog` (per-category picker lists; Hrot.Core-only scan; 3 callers incl. ExCon),
+`ReflectionIntentContractProvider` (blueprint Send Intent / To / From JSON palette; AppDomain scan by attribute NAME),
+`BehaviorTestHelper` (no callers). Where each behaviour is implemented: 18 curated topologies in `Hrot.AI.Behaviors`
+(`[BTreeDefinition(Curated)]` / one `[HsmDefinition(Curated)]`), 15 of them with a TYPED resolver whose `TAuthored` IS the
+DTO; `PlatoonHillAttack` = a JSON asset + a raw resolver; `DefendArea` / `HullDownAttack` = intent ids handled by mappers;
+`ConvoyEscort` / `InfantryCombat` / `Ambush` = FDP examples the EDITOR registers (`EditorSubsystem.cs:1246`), nothing on CGF.
+`Hrot.AI.Behaviors` → `Hrot.Core` (one way); standalone ExCon reaches neither the AI assembly nor CGF.
+
+```mermaid
+classDiagram
+  direction LR
+  class BehaviorAttribute { <<NEW Hrot.Core>> +Name string · +Params Type · +Categories BehaviorCategory }
+  class ParamsDtoRegistry { <<NEW Hrot.Core>> +Default · +Scan(assemblies) · +Behaviors · +Dtos · +TryGetBehavior(name) · +NamesWithCategory(cat) }
+  class BehaviorDeclaration { +Name · +ParamsType · +Categories · +DeclaredOn }
+  class ParamsDtoInfo { +Type · +OrderName or null · +BehaviorNames }
+  class OrderAttribute { <<existing CE-2140>> +Name · +Gesture }
+  class BehaviorSchemaDiscovery { <<existing Presentation>> AutoRegister · BindJsonParamsDtoTypes }
+  class BehaviorCatalog { <<existing Hrot.Core>> GetValidBehaviors(tkbType) }
+  class ReflectionIntentContractProvider { <<existing Blueprints.Editor>> Send Intent per behaviour · To/From JSON per DTO }
+  class BehaviorRegistry { <<existing Fdp.Toolkits>> RegisterJsonParamsDtoType: a DECLARATION outranks a generated contract }
+  class CuratedBehaviorGenerator { <<existing analyzer>> BEH002 Params != typed resolver TAuthored · BEH003 Params != identity-parsed ParamsType }
+  class BehaviorContractAttribute { <<DELETED>> }
+  ParamsDtoRegistry *-- BehaviorDeclaration
+  ParamsDtoRegistry *-- ParamsDtoInfo
+  ParamsDtoRegistry ..> BehaviorAttribute : scans
+  ParamsDtoRegistry ..> OrderAttribute : order name
+  BehaviorSchemaDiscovery ..> ParamsDtoRegistry
+  BehaviorCatalog ..> ParamsDtoRegistry
+  ReflectionIntentContractProvider ..> ParamsDtoRegistry
+  BehaviorSchemaDiscovery ..> BehaviorRegistry : binds Params
+  CuratedBehaviorGenerator ..> BehaviorAttribute : validates (compile time)
+```
+
+*What the picture shows that prose hid: the four readers stop owning a scan each — one registry is the only reflection over
+the attribute, and the generator only CHECKS it; and the DTO no longer points anywhere, so one DTO can serve many behaviours.*
+
+```mermaid
+sequenceDiagram
+  participant H as host start (CGF / editor / ExCon / blueprint editor)
+  participant L as CgfBehaviorSetup.LoadFromAiAssembly
+  participant BR as BehaviorRegistry
+  participant PR as ParamsDtoRegistry.Default
+  participant D as BehaviorSchemaDiscovery
+  H->>L: load
+  L->>BR: generated + curated registrars (topologies, resolvers, generated contracts)
+  L->>D: BindJsonParamsDtoTypes(BR)
+  D->>PR: Behaviors (first use: scan loaded assemblies + try-load Hrot.AI.Behaviors)
+  D->>BR: RegisterJsonParamsDtoType(name, Params) — overrides a generated contract
+  H->>PR: catalogue / palette / UI form read the same declarations
+```
+
+```mermaid
+graph TD
+  CORE["Hrot.Core: BehaviorAttribute · ParamsDtoRegistry · BehaviorCatalog"]
+  AIB["Hrot.AI.Behaviors: [Behavior] on 18 curated topology methods, the PlatoonHillAttack resolver, the 2 intent mappers"]
+  ED["Hrot.Editor: [assembly: Behavior] for the 3 example behaviours it registers"]
+  CGF["Hrot.CGF CgfBehaviorSetup — binds at load (every CGF node, every test using the production loader)"]
+  PRES["Hrot.Presentation: BehaviorSchemaDiscovery · ScenarioMissionService"]
+  EXC["Hrot.ExCon MissionEditorService — gains a ProjectReference to Hrot.AI.Behaviors (catalogue only)"]
+  BPE["Hrot.Blueprints.Editor palette — via AiShared → Hrot.Core (already transitive)"]
+  GEN["Fdp.Toolkits.Analyzers CuratedBehaviorGenerator — compile-time BEH002/BEH003"]
+  AIB --> CORE
+  ED --> CORE
+  CGF --> PRES --> CORE
+  EXC --> CORE
+  EXC -.->|"new"| AIB
+  BPE --> CORE
+  GEN -.->|"reads attributes by name"| AIB
+```
+
+*What the module picture shows: the registry sees a declaration only if its assembly is LOADED — `Hrot.Core` cannot reference
+the AI assembly (it would be a cycle), so the registry tries to load it by name, and standalone ExCon must ship it (the new
+reference). The editor's example behaviours are declared in the editor, so CGF and ExCon stop listing behaviours they cannot run.*
+
+| where `[Behavior]` goes | behaviours |
+|---|---|
+| the curated topology method (`[BTreeDefinition(Curated)]` / `[HsmDefinition(Curated)]`) | AdvanceTo, BoundingOverwatch, BreakContact, CombatPosture, DoorLocksmith, FireAtPoint, FireAtTarget, FollowRoute, HoldStance, Idle, JoinFormation, MoveToLocation, ReactToContact, SquadHold, SquadMarch, SuppressAndManeuver, TrackTarget, WanderMilitary, WindowDuel |
+| the curated resolver method (the asset owns the topology) | PlatoonHillAttack (`PlatoonHillAttackParamsJsonDto`) |
+| the tactical-intent mapper class (an intent id is fulfilled by its mapper) | DefendArea (`DefendAreaMapper`), HullDownAttack (`HullDownAttackMapper`) |
+| `[assembly: Behavior]` in `Hrot.Editor`, beside the registration of the FDP examples | ConvoyEscort, InfantryCombat, Ambush |
+
+| decision | why · rejected |
+|---|---|
+| a declaration OUTRANKS a generated contract in `BehaviorRegistry` | R-132 (curated outranks generated); it is what fixes CE-2128 ② for PlatoonHillAttack (its generated contract is the Input struct, its resolver parses the JSON DTO). ⛔ rejected: B1's `ParamsDtoTypeId` on the asset for this — a NAMED DTO there must be the Input's type (B1 rule), and the resolver is the code that knows what it parses |
+| BEH002 / BEH003 are compile ERRORS in the curated generator | CE-2128 "cannot recur": a typed resolver states `TAuthored`, and a resolver-less topology parses its `ParamsType` by identity; both are visible at compile time. ⚠ a RAW resolver (FollowRoute, PlatoonHillAttack) deserializes inside its body and stays unverifiable. ⛔ rejected: a runtime-only check (it would fire on every host, after the build) |
+| JoinFormation declares `CgfNodes.JoinFormationParams` | it is what the identity parse fills (BEH003); the empty `JoinFormationParamsJsonDto` was an anchor only and is deleted |
+| P3 (stored ⇒ unmanaged struct) is enforced at generate time | BEH003 makes a resolver-less curated behaviour's Params its `ParamsType` (a struct by construction); B1 makes a generated asset's stored params its Input (a struct). ⇒ no runtime P3 check is needed |
+| the registry refuses two declarations of one name, and a declaration with no `Params` | the load check: one producer per behaviour (R-132), P1 (a behaviour that takes nothing names `NoParams`) |
 
 ## 6. ⭐ THE TASK LIST — the build plan
 

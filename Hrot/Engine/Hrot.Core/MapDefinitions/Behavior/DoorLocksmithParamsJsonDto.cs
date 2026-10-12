@@ -10,7 +10,6 @@ namespace Hrot.Map.Definitions.Behavior
     /// — through it. ⭐ A STRUCT of unmanaged fields (the door is a <see cref="TerrainObjectRef"/>, JSON its key string), so a host
     /// can also bind it by bytes.
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]
     public struct DoorLocksmithParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.DoorLocksmith;

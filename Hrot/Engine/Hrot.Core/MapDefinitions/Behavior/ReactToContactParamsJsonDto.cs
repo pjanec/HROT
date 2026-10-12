@@ -5,7 +5,6 @@ namespace Hrot.Map.Definitions.Behavior
     /// <summary>
     /// ⭐ <c>CE-2123</c> S2 — the authored contract of a squad commander's <c>ReactToContact</c> (usually started by its standing orders, <c>BasicSquadSop</c>): every member holds and returns fire for <c>DecideAfterSeconds</c>, then the commander decides ONCE — assault (suppress and manoeuvre), break contact, or hold until clear. A zero field keeps its default. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §4.
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.Commander)]
     public struct ReactToContactParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.ReactToContact;
