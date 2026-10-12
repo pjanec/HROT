@@ -497,7 +497,10 @@ public sealed class SquadTacticsScenarioTests : IDisposable
                 }
                 string weapon = cgf.HasComponent<WeaponState>(rpg) ? JsonSerializer.Serialize(cgf.GetComponent<WeaponState>(rpg), new JsonSerializerOptions { IncludeFields = true }) : "none";
                 float simHp = ByName(sim, "Convoy APC") is var sa && !sa.IsNull && sim.HasComponent<Health>(sa) ? sim.GetComponent<Health>(sa).Current : -1f;
-                return $"rpg run={run} (fire={Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.FireAtTarget)}) mem={mem} seesApc={seesApc} weapon={weapon} simApcHp={simHp:F0}";
+                string Bs(Entity e) => e.IsNull ? "?" : !cgf.HasComponent<BehaviorState>(e) ? "noBehaviorState"
+                    : $"inst={cgf.GetComponent<BehaviorState>(e).InstanceId} tier={cgf.GetComponent<BehaviorState>(e).BrainTier} origin={cgf.GetComponent<BehaviorState>(e).Origin} since={cgf.GetComponent<BehaviorState>(e).RunSince:F1} auth={cgf.HasAuthority<BehaviorState>(e)}";
+                var rifle = ByName(cgf, "Insurgent rifleman");
+                return $"rpg[{Bs(rpg)}] rifle[run={(rifle.IsNull || !cgf.HasComponent<BehaviorState>(rifle) ? 0 : cgf.GetComponent<BehaviorState>(rifle).ActiveBehaviorHash)} {Bs(rifle)}] rpg run={run} (posture={Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.CombatPosture)} fire={Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.FireAtTarget)}) mem={mem} seesApc={seesApc} weapon={weapon} simApcHp={simHp:F0}";
             }
             string State() => $"t={SimNow():F1}s kinds=[{string.Join(",", kinds)}] paused={Paused()} aboard cgf={Aboard(cgf)} sim={Aboard(sim)} apcHp={ApcHealth():F0} | {Insurgent()}";
 
