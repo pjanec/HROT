@@ -9,7 +9,7 @@ namespace Hrot.AI.Behaviors.Trees;
 public struct Sentry_FdpToolkitBehaviorComponentsBrainBlackboard
 {
     [FieldOffset(0)]
-    public global::Fdp.Toolkit.Behavior.ThreatCountParams sentry;
+    public global::Fdp.Toolkit.Behavior.ThreatCountParams Params;
 }
 
 /// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>

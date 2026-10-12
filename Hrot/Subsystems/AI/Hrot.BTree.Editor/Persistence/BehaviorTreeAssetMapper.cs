@@ -39,6 +39,9 @@ public static class BehaviorTreeAssetMapper
             // ⭐ CE-428 — the bound resolver asset.
             Resolver = asset.Resolver is { } r ? new BehaviorResolverRefDto { AssetId = r.AssetId, Name = r.Name, ShapeHash = r.ShapeHash } : null,
             ParamsDtoTypeId = asset.ParamsDtoTypeId,   // ⭐ CE-2133
+            // ⭐ CE-2135 — the reserved Params' default lives on its editor entry while open; on disk it is this asset field.
+            ParamsDefaultJson = Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.Find(asset.BlackboardVariables)?.DefaultValueJson
+                                ?? asset.ParamsDefaultJson,
         };
 
         // Topology — nodes
@@ -156,6 +159,7 @@ public static class BehaviorTreeAssetMapper
 
         if (dto.Resolver is { } rr) asset.Resolver = new BehaviorResolverRef(rr.AssetId, rr.Name, rr.ShapeHash);   // ⭐ CE-428/434
         asset.ParamsDtoTypeId = dto.ParamsDtoTypeId;   // ⭐ CE-2133
+        asset.ParamsDefaultJson = dto.ParamsDefaultJson;   // ⭐ CE-2135
         asset.CanvasPanOffset = new Vector2(dto.Canvas.PanX, dto.Canvas.PanY);
         asset.CanvasZoomLevel = dto.Canvas.Zoom;
 
@@ -228,6 +232,9 @@ public static class BehaviorTreeAssetMapper
         // set it back, so a Managed asset always opened as "not managed".
         asset.IsBlackboardEditorManaged = dto.Blackboard.Managed;
         var vars = BlackboardFromDto(dto.Blackboard);
+        // ⭐ CE-2135 (B3a) — a named params DTO with no Input variable appears as the reserved Params entry.
+        Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.AddTo(vars, dto.ParamsDtoTypeId, dto.ParamsDefaultJson,
+            dto.Blackboard.Managed, dto.Resolver != null);
         if (vars.Count > 0)
             asset.SetBlackboardVariables(vars);
 
@@ -449,6 +456,7 @@ public static class BehaviorTreeAssetMapper
 
         foreach (var v in asset.BlackboardVariables)
         {
+            if (v.IsReservedParams) continue;   // ⭐ CE-2135 — saved as ParamsDtoTypeId / ParamsDefaultJson, never as a variable
             var typeId = v.FieldType.FullName ?? v.FieldType.Name;
             block.Variables.Add(new BlackboardVariableDto
             {

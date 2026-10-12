@@ -446,7 +446,7 @@ public static class HsmBridgeEmitCore
     /// the bound resolver asset; no nodes. ⭐ The namespace is the HSM's own (<c>Hrot.AI.Behaviors.Machines</c>
     /// by default), so <c>{Asset}_Blackboard</c> / <c>_Block</c> land beside the registrar that names them.
     /// </summary>
-    public static BehaviorTreeAssetDto BlackboardOwner(HsmAssetDto dto) => new()
+    public static BehaviorTreeAssetDto BlackboardOwner(HsmAssetDto dto) => new BehaviorTreeAssetDto
     {
         Name            = dto.Name,
         AssetId         = dto.AssetId,
@@ -461,7 +461,31 @@ public static class HsmBridgeEmitCore
         //   the HSM unchanged: bake → the resolver INSTEAD of the default copy, published as ResolveStage + ResolverName.
         Resolver        = dto.Resolver,
         ParamsDtoTypeId = dto.ParamsDtoTypeId,   // ⭐ CE-2133 — the named params DTO rides the view too
-    };
+        ParamsDefaultJson = dto.ParamsDefaultJson,   // ⭐ CE-2135 — and the reserved Params' default
+    }.WithParamsVariable();
+
+    /// <summary>
+    /// ⭐ <c>CE-2135</c> (B3a) — the HSM twin of <see cref="BTreeEmitCore.WithParamsVariable"/>: adds the reserved <c>Params</c>
+    /// variable to an HSM that names its params DTO and declares no Input variable. Idempotent, in place; the generator calls it
+    /// right after parsing, and <see cref="BlackboardOwner"/> applies the BTree rule to its view as well.
+    /// </summary>
+    public static HsmAssetDto WithParamsVariable(HsmAssetDto dto)
+    {
+        if (dto?.Blackboard == null || !dto.Blackboard.Managed || dto.Resolver != null) return dto!;
+        string? named = dto.ParamsDtoTypeId?.Trim();
+        if (string.IsNullOrEmpty(named) || BTreeEmitCore.SameTypeId(named, BTreeEmitCore.NoParamsTypeId)) return dto;
+        foreach (var v in dto.Blackboard.Variables)
+            if (v.Name == BTreeEmitCore.ReservedParamsName) return dto;
+        dto.Blackboard.Variables.Insert(0, new HsmBlackboardVariableDto
+        {
+            Name             = BTreeEmitCore.ReservedParamsName,
+            Type             = new HsmBlackboardTypeRefDto { TypeId = named! },
+            DefaultValueJson = dto.ParamsDefaultJson,
+            Comment          = "CE-2135: the behaviour's params (its named DTO, ParamsDtoTypeId) — reserved, not authored",
+            Role             = BlackboardVariableRole.Input,
+        });
+        return dto;
+    }
 
     /// <summary>
     /// ⭐ Projects HSM blackboard variables onto the shape <see cref="BTreeBlackboardPackHelper.Pack"/>

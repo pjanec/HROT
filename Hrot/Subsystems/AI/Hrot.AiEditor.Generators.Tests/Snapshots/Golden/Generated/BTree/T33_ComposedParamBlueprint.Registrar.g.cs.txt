@@ -85,8 +85,8 @@ public static class T33_ComposedParamBlueprintRegistrar
                 // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
                 __BakeDefaults(memory, capacity);
 
-                // Step 2 — CE-2133: the one Input 'bpParams' IS the params DTO; the JSON is its fields, flat.
-                global::Fdp.Toolkit.Behavior.BehaviorParams.OverlayFlat(ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>(memory + 0), json, __paramJsonOpts);
+                // Step 2 — CE-2135: 'Hrot.Map.Definitions.Behavior.NoParams' is stored nowhere; the variables are not JSON.
+                global::Fdp.Toolkit.Behavior.BehaviorParams.RequireNoStoredFields(json, "T33_ComposedParamBlueprint", "Hrot.Map.Definitions.Behavior.NoParams");
             };
         }
 
@@ -102,7 +102,7 @@ public static class T33_ComposedParamBlueprintRegistrar
             {
                 new("bpParams", typeof(global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params), 0),
             },
-            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params),
+            JsonParamsDtoType    = typeof(global::Hrot.Map.Definitions.Behavior.NoParams),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T33_ComposedParamBlueprint_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,

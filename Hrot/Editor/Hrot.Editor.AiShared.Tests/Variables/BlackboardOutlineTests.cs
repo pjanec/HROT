@@ -45,7 +45,7 @@ public sealed class BlackboardOutlineTests
     {
         var sections = Model(host).Sections;
 
-        Assert.Equal(new[] { "Inputs", "Working State", "Asset Globals" },
+        Assert.Equal(new[] { "Variables", "Working State", "Asset Globals" },   // CE-2135 (B3a): "Inputs" became "Variables"
                      sections.OrderBy(s => s.SortOrder).Select(s => s.DisplayName));
 
         // ⚠ Host-qualified, so two open perspectives cannot pick up each other's commands.

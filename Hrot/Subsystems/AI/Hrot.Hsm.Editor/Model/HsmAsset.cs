@@ -42,6 +42,10 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     /// the mapper: an editor save that dropped it would silently change the behaviour's published contract.</summary>
     public string? ParamsDtoTypeId { get; set; }
 
+    /// <summary>⭐ <c>CE-2135</c> — the reserved Params' default as last loaded; the open document edits it on the reserved
+    /// variable entry (<c>ReservedParamsVariable</c>), and a save writes that back here.</summary>
+    public string? ParamsDefaultJson { get; set; }
+
     // Kernel-side data (mutable via UpdateBlob for PU-302 stitch; read-only otherwise)
     private HsmDefinitionBlob _blob;
     private MachineMetadata _metadata;

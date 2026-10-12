@@ -75,7 +75,7 @@ internal sealed class GeneratedTypeCatalog
             BehaviorTreeAssetDto? dto;
             try { dto = BTreeJsonServices.Deserialize(text); }
             catch { continue; }
-            if (dto != null) Add(dto, behaviors);
+            if (dto != null) Add(dto.WithParamsVariable(), behaviors);   // CE-2135: the reserved Params
         }
         foreach (var (_, text) in hsmJsonFiles)
         {

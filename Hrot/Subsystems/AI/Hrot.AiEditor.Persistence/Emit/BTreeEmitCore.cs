@@ -113,6 +113,40 @@ public static class BTreeEmitCore
         return global::Fdp.Toolkit.Behavior.Shared.KnownTypeLayouts.TryGetSize(only.Type.TypeId, out _) ? null : only;
     }
 
+    /// <summary>⭐ <c>CE-2135</c> (B3a) — the reserved name of the variable that holds a behaviour's named params DTO.</summary>
+    public const string ReservedParamsName = "Params";
+
+    /// <summary>⭐ <c>CE-2135</c> — the shared empty params DTO: a behaviour that takes nothing names it, and it is never stored.</summary>
+    public const string NoParamsTypeId = "Hrot.Map.Definitions.Behavior.NoParams";
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-2135</c> (B3a, R-3000; <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §5c) — an asset that NAMES its params
+    /// DTO and declares no Input variable stores its params in the reserved <see cref="ReservedParamsName"/> variable: this adds
+    /// it (the named type, <see cref="BehaviorTreeAssetDto.ParamsDefaultJson"/> as its default) at the head of the managed
+    /// blackboard — offset 0 of the packed (bindable) region — so the packer, the block's <c>In</c>, the manifest, the flat
+    /// parse and every binding by name see it like any variable. ⭐ The JSON lands ONLY there; the asset's other packed variables
+    /// are plain variables (baked defaults, bindable, never JSON). Idempotent, in place; every generator entry calls it.
+    /// <para>⛔ Not added: with a resolver asset (its Parameters are the contract until B3b), on an unmanaged blackboard, for
+    /// <c>NoParams</c> (it stores nothing), or when a variable named <c>Params</c> already exists.</para>
+    /// </summary>
+    public static BehaviorTreeAssetDto WithParamsVariable(this BehaviorTreeAssetDto dto)
+    {
+        if (dto?.Blackboard == null || !dto.Blackboard.Managed || dto.Resolver != null) return dto!;
+        string? named = dto.ParamsDtoTypeId?.Trim();
+        if (string.IsNullOrEmpty(named) || SameTypeId(named, NoParamsTypeId)) return dto;
+        foreach (var v in dto.Blackboard.Variables)
+            if (v.Name == ReservedParamsName) return dto;   // already applied (or authored — ParamsDtoTypeIdError says if wrongly)
+        dto.Blackboard.Variables.Insert(0, new BlackboardVariableDto
+        {
+            Name             = ReservedParamsName,
+            Type             = new BlackboardTypeRefDto { TypeId = named! },
+            DefaultValueJson = dto.ParamsDefaultJson,
+            Comment          = "CE-2135: the behaviour's params (its named DTO, ParamsDtoTypeId) — reserved, not authored",
+            Role             = BlackboardVariableRole.Input,
+        });
+        return dto;
+    }
+
     /// <summary>⭐ <c>CE-2133</c> — type ids compare with a nested type's <c>+</c> and <c>.</c> spellings as one.</summary>
     internal static bool SameTypeId(string? a, string? b)
         => string.Equals(a?.Replace('+', '.'), b?.Replace('+', '.'), StringComparison.Ordinal);
@@ -128,13 +162,23 @@ public static class BTreeEmitCore
         if (string.IsNullOrWhiteSpace(named)) return null;
         if (dto!.Resolver != null)
             return $"behaviour '{dto.Name}' names params DTO '{named}' and resolver asset '{dto.Resolver.Name}'; the resolver's Parameters are its contract — name one (R-149)";
-        if (FlatParamsVariable(dto) is { } flat)
-            return SameTypeId(flat.Type.TypeId, named) ? null
-                : $"behaviour '{dto.Name}' names params DTO '{named}' but its one Input '{flat.Name}' is '{flat.Type.TypeId}'; the JSON lands in that Input, so they must be the same type (a different shape needs a resolver)";
-        bool hasInput = dto.Blackboard?.Variables?.Any(v => v.Role == BlackboardVariableRole.Input && !string.IsNullOrEmpty(v.Type?.TypeId)) == true;
-        return hasInput
-            ? $"behaviour '{dto.Name}' names params DTO '{named}' but declares several (or non-struct) Inputs; the params DTO is ONE Input variable of that type"
-            : null;
+        // ⭐ CE-2135 (B3a) — "Params" is reserved for the named DTO: a variable that takes the name must be that DTO, packed.
+        var p = dto.Blackboard?.Variables?.FirstOrDefault(v => v.Name == ReservedParamsName);
+        if (p != null && (p.Role != BlackboardVariableRole.Input || !SameTypeId(p.Type?.TypeId, named)))
+            return $"behaviour '{dto.Name}' names params DTO '{named}' but its variable '{ReservedParamsName}' is '{p.Type?.TypeId}' ({p.Role}); the name is reserved for the params";
+        return null;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2135</c> — the variable the JSON params land in, or <c>null</c> (keyed legacy overlay): with a named DTO the
+    /// reserved <c>Params</c> (after <see cref="WithParamsVariable"/>); without one, B1's single struct Input (<see cref="FlatParamsVariable"/>).
+    /// </summary>
+    public static BlackboardVariableDto? ParamsTarget(BehaviorTreeAssetDto dto)
+    {
+        if (dto?.Blackboard == null || dto.Resolver != null) return null;
+        if (!string.IsNullOrWhiteSpace(dto.ParamsDtoTypeId))
+            return dto.Blackboard.Variables.FirstOrDefault(v => v.Name == ReservedParamsName && v.Role == BlackboardVariableRole.Input);
+        return FlatParamsVariable(dto);
     }
 
     internal static string BlackboardStructFqn(BehaviorTreeAssetDto dto)
@@ -163,6 +207,7 @@ public static class BTreeEmitCore
         out IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields)
     {
         packedFields = Array.Empty<BTreeBlackboardPackHelper.PackedField>();
+        dto.WithParamsVariable();   // ⭐ CE-2135 — the reserved Params, when the asset names its DTO (idempotent)
 
         if (!dto.Blackboard.Managed || dto.Blackboard.Variables.Count == 0)
             return null;
@@ -243,7 +288,7 @@ public static class BTreeEmitCore
 
         // ⭐ CE-2133 — a FLAT behaviour's In IS its params DTO (the one Input's own type, same bytes as the one-field mirror),
         //   so CE-425's "block.In is the published contract" stays true by construction.
-        string inType = FlatParamsVariable(dto) is { } flatIn && fields.Count == 1 ? ToCsTypeName(flatIn.Type.TypeId) : structName;
+        string inType = ParamsTarget(dto) is { } flatIn && fields.Count == 1 ? ToCsTypeName(flatIn.Type.TypeId) : structName;
         EmitBlockStructs(sb, dto, inType, fields.Count > 0, packedBytes);
         return sb.ToString();
     }
@@ -400,6 +445,7 @@ public static class BTreeEmitCore
     private static string EmitInternal(BehaviorTreeAssetDto dto, bool includeLayout,
         SizeResolverDelegate? sizeResolver = null)
     {
+        dto.WithParamsVariable();   // ⭐ CE-2135 — the reserved Params, when the asset names its DTO (idempotent)
         var sb = new StringBuilder();
         var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
 

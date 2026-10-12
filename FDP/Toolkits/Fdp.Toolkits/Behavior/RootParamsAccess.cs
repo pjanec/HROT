@@ -324,6 +324,13 @@ public static unsafe class RootParamsAccess
         //   ⛔ Sizing that type here made InputBytes 1 for an empty DTO while the block holds no In (AQ90 §2.3m B).
         // ⭐ CE-2134 — the Input region is the BLOCK's In field (offset 0, CE-425) whatever contract is published: a declared
         //   contract may now differ from it (PlatoonHillAttack publishes its resolver's JSON DTO, its In is the struct it stores).
+        // ⭐ CE-2135 (B3a) — when the first packed variable IS the published DTO (the reserved Params, or B1's one struct Input)
+        //   the params region is that DTO alone: the asset's other packed variables are plain variables, not params.
+        // ⭐ CE-2135 — a behaviour that names the shared empty NoParams stores no params at all (its variables are plain).
+        if (IsNoParams(def.JsonParamsDtoType)) return 0;
+        if (def.ManagedBlackboardVariables is { Count: > 0 } m && m[0].ByteOffset == 0
+            && def.JsonParamsDtoType is { IsValueType: true } dto && m[0].Type == dto)
+            return Fdp.Core.TypeLayout.SizeOf(dto);
         if (def.ManagedBlackboardVariables != null)
             return def.ManagedBlackboardVariables.Count == 0 ? 0
                 : def.BlackboardLayoutType?.GetField("In")?.FieldType is { } inField ? Fdp.Core.TypeLayout.SizeOf(inField)
@@ -333,6 +340,10 @@ public static unsafe class RootParamsAccess
             ? Fdp.Core.TypeLayout.SizeOf(def.BlackboardLayoutType)
             : 0;
     }
+
+    /// <summary>⭐ <c>CE-2135</c> — the shared empty params DTO (<c>Hrot.Map.Definitions.Behavior.NoParams</c>, in an assembly this
+    /// one cannot reference — matched by name): a behaviour that names it takes nothing.</summary>
+    public static bool IsNoParams(Type? t) => t?.FullName == "Hrot.Map.Definitions.Behavior.NoParams";
 
     private static int ManifestExtent(System.Collections.Generic.IReadOnlyList<ManagedBlackboardVariable>? manifest)
     {

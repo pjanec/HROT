@@ -90,8 +90,8 @@ public static class T31_ComposedAiPrimitiveRegistrar
                 // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
                 __BakeDefaults(memory, capacity);
 
-                // Step 2 — CE-2133: the one Input 'bpParams' IS the params DTO; the JSON is its fields, flat.
-                global::Fdp.Toolkit.Behavior.BehaviorParams.OverlayFlat(ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>(memory + 0), json, __paramJsonOpts);
+                // Step 2 — CE-2135: 'Hrot.Map.Definitions.Behavior.NoParams' is stored nowhere; the variables are not JSON.
+                global::Fdp.Toolkit.Behavior.BehaviorParams.RequireNoStoredFields(json, "T31_ComposedAiPrimitive", "Hrot.Map.Definitions.Behavior.NoParams");
             };
         }
 
@@ -107,7 +107,7 @@ public static class T31_ComposedAiPrimitiveRegistrar
             {
                 new("bpParams", typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params), 0),
             },
-            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params),
+            JsonParamsDtoType    = typeof(global::Hrot.Map.Definitions.Behavior.NoParams),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T31_ComposedAiPrimitive_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,

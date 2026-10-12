@@ -9,7 +9,7 @@ namespace Hrot.AI.Behaviors.Trees;
 public struct TakeCover_FdpToolkitBehaviorComponentsBrainBlackboard
 {
     [FieldOffset(0)]
-    public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams tactics;
+    public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams Params;
 }
 
 /// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>

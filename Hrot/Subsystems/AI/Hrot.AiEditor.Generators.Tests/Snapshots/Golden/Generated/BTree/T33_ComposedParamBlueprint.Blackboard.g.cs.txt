@@ -17,5 +17,5 @@ public struct T33_ComposedParamBlueprint_FdpToolkitBehaviorComponentsBrainBlackb
 public struct T33_ComposedParamBlueprint_Block
 {
     [FieldOffset(0)]
-    public global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params In;
+    public T33_ComposedParamBlueprint_FdpToolkitBehaviorComponentsBrainBlackboard In;
 }

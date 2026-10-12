@@ -143,6 +143,8 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
         // from CurrentDomain.GetAssemblies(), so the reference resolver omits it and compilation
         // fails with CS0234. Forcing the type load makes the compile order-independent.
         GC.KeepAlive(typeof(System.Text.Json.JsonSerializer));
+        // ⭐ CE-2135 — likewise Hrot.Core: an asset that names NoParams emits typeof(Hrot.Map.Definitions.Behavior.NoParams).
+        GC.KeepAlive(typeof(Hrot.Map.Definitions.Behavior.NoParams));
 
         var resolver = RoslynMRR.ForRuntimeAssemblies(AppDomain.CurrentDomain.GetAssemblies());
         var refs     = resolver.Resolve();

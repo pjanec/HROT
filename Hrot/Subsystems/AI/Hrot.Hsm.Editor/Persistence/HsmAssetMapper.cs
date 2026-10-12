@@ -206,6 +206,8 @@ public static class HsmAssetMapper
             ? new Hrot.AiEditor.Persistence.BTree.BehaviorResolverRefDto { AssetId = resolver.AssetId, Name = resolver.Name, ShapeHash = resolver.ShapeHash }
             : null;
         dto.ParamsDtoTypeId = asset.ParamsDtoTypeId;   // ⭐ CE-2133 — must round-trip like the resolver
+        dto.ParamsDefaultJson = Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.Find(asset.BlackboardVariables)?.DefaultValueJson
+                                ?? asset.ParamsDefaultJson;   // ⭐ CE-2135
 
         return dto;
     }
@@ -442,6 +444,7 @@ public static class HsmAssetMapper
         asset.BlackboardTypeName = dto.BlackboardTypeName;
         if (dto.Resolver is { } rr) asset.Resolver = new BehaviorResolverRef(rr.AssetId, rr.Name, rr.ShapeHash);   // ⭐ CE-503
         asset.ParamsDtoTypeId = dto.ParamsDtoTypeId;   // ⭐ CE-2133
+        asset.ParamsDefaultJson = dto.ParamsDefaultJson;   // ⭐ CE-2135
 
         asset.CanvasPanOffset = new Vector2(dto.Canvas.PanX, dto.Canvas.PanY);
         asset.CanvasZoomLevel = dto.Canvas.Zoom;
@@ -484,6 +487,9 @@ public static class HsmAssetMapper
         // never read back, so a Managed asset always opened as "not managed".
         asset.IsBlackboardEditorManaged = dto.Blackboard.Managed;
         var vars = BlackboardFromDto(dto.Blackboard);
+        // ⭐ CE-2135 (B3a) — a named params DTO with no Input variable appears as the reserved Params entry.
+        Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.AddTo(vars, dto.ParamsDtoTypeId, dto.ParamsDefaultJson,
+            dto.Blackboard.Managed, dto.Resolver != null);
         if (vars.Count > 0)
             asset.SetBlackboardVariables(vars);
 
@@ -516,6 +522,7 @@ public static class HsmAssetMapper
 
         foreach (var v in asset.BlackboardVariables)
         {
+            if (v.IsReservedParams) continue;   // ⭐ CE-2135 — saved as ParamsDtoTypeId / ParamsDefaultJson, never as a variable
             var typeId = v.FieldType.FullName ?? v.FieldType.Name;
             block.Variables.Add(new HsmBlackboardVariableDto
             {

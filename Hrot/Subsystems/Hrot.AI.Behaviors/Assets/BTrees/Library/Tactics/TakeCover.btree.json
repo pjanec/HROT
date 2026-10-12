@@ -28,7 +28,7 @@
       "kind": "Action",
       "Action": {
         "MethodFqn": "Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover",
-        "ExpressionTargetField": "tactics",
+        "ExpressionTargetField": "Params",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState"
       },
       "VisualId": "c2092000-0000-0000-0000-000000000002",
@@ -43,6 +43,8 @@
       }
     }
   ],
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsParams",
+  "ParamsDefaultJson": "{\"SearchRadius\":60,\"MinRepositionMetres\":5,\"Speed\":2.5,\"ArrivalRadius\":1,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
   "Pills": [],
   "Canvas": {
     "PanX": 0,
@@ -59,16 +61,6 @@
     "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
     "HeavyDtoType": null,
     "Variables": [
-      {
-        "Name": "tactics",
-        "Type": {
-          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsParams",
-          "IsArray": false,
-          "FixedLength": null
-        },
-        "DefaultValueJson": "{\"SearchRadius\":60,\"MinRepositionMetres\":5,\"Speed\":2.5,\"ArrivalRadius\":1,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
-        "Comment": "The tunables: query radius, re-position distance, speed, arrival radius, the sensor's ScoreDelta threshold, which forces count as threats (0 = all)."
-      }
     ]
   }
 }

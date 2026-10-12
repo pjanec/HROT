@@ -169,7 +169,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionInputs);
 
         Assert.True(reg.Details!.ShowingVariables);
-        Assert.Equal("Inputs", reg.Details.Heading);
+        Assert.Equal("Variables", reg.Details.Heading);   // CE-2135 (B3a): "Inputs" became "Variables"
         Assert.Equal(new[] { "Ammo", "Health" }, DetailsRowNames(reg));
 
         reg.MyBlueprint.SelectSection(BlackboardMyBlueprintModel.SectionWorkingState);

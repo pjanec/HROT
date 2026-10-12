@@ -17,5 +17,5 @@ public struct T11_Aliasing_Blackboard
 public struct T11_Aliasing_Block
 {
     [FieldOffset(0)]
-    public global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams In;
+    public T11_Aliasing_Blackboard In;
 }
