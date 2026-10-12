@@ -5,16 +5,15 @@ namespace Hrot.NED.Messages
     /// <summary>
     /// ⭐ R-221 (📄 docs/DESIGN_Entity_Interactions.md) — the kinds of interaction an actor can request of an entity it does not own.
     /// The discriminator of <see cref="InteractionPayload"/>. ⛔ Values are wire format: append only, never renumber or reuse.
-    /// <para>Embark/Disembark/EjectPassengers are RESERVED here so that their slot cannot collide with another kind; their union cases
-    /// arrive with the embarkation task (§7).</para>
+    /// <para>⭐ CE-3110 I-2a — Embark/Disembark/EjectPassengers (reserved by I-1) now have their union cases (§7).</para>
     /// </summary>
     public enum EInteractionKind : int
     {
         None            = 0,
         Door            = 1,
-        Embark          = 2,   // reserved — §7
-        Disembark       = 3,   // reserved — §7
-        EjectPassengers = 4,   // reserved — §7
+        Embark          = 2,   // ⭐ CE-3110 I-2a — target = the vehicle, actor = the passenger
+        Disembark       = 3,   // ⭐ CE-3110 I-2a — target = the vehicle, actor = the passenger
+        EjectPassengers = 4,   // ⭐ CE-3110 I-2a — target = the vehicle
         // ⭐ CE-3172 S4e (docs/DESIGN_Entity_Control.md §8c) — possession: a station's request, release and control frames, applied by
         //   the unit's brain owner.
         Possess         = 5,
@@ -68,6 +67,31 @@ namespace Hrot.NED.Messages
         public float AimZ;
     }
 
+    /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Embark"/> case. Nothing beyond the header (target = the vehicle, actor =
+    /// the passenger); one reserved byte so the case is never an empty struct.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct EmbarkInteractionPayload
+    {
+        public byte Reserved;
+    }
+
+    /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Disembark"/> case (target = the vehicle, actor = the passenger).</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct DisembarkInteractionPayload
+    {
+        public byte Reserved;
+    }
+
+    /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.EjectPassengers"/> case (target = the vehicle).</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct EjectPassengersInteractionPayload
+    {
+        public byte Reserved;
+    }
+
     /// <summary>
     /// ⭐ R-221 — the kind-specific part of an interaction: one case per <see cref="EInteractionKind"/>. A new kind is a new case
     /// (the data model grows; the topic and the translators do not). ⛔ No entity handles in a case: target and actor ride the header
@@ -82,6 +106,15 @@ namespace Hrot.NED.Messages
 
         [DdsCase(EInteractionKind.Door)]
         public DoorInteractionPayload Door;
+
+        [DdsCase(EInteractionKind.Embark)]
+        public EmbarkInteractionPayload Embark;
+
+        [DdsCase(EInteractionKind.Disembark)]
+        public DisembarkInteractionPayload Disembark;
+
+        [DdsCase(EInteractionKind.EjectPassengers)]
+        public EjectPassengersInteractionPayload EjectPassengers;
 
         [DdsCase(EInteractionKind.Possess)]
         public PossessInteractionPayload Possess;

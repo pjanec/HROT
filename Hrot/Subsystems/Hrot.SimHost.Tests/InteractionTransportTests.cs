@@ -163,6 +163,84 @@ namespace Hrot.SimHost.Tests
             Assert.True(release.IsRemote);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3110</c> I-2a (R-224) — embarkation crosses as three union cases: a node that does not own the vehicle sends the
+        /// soldier's embark and disembark and the vehicle's eject (target = the vehicle, actor = the passenger); the vehicle's owner
+        /// receives the same typed commands marked remote — and its <c>EmbarkationSystem</c> applies them (the loop guard keeps a
+        /// remote one from being sent again).
+        /// </summary>
+        [Fact]
+        public void CE3110_EmbarkDisembarkEject_CrossAsTheirUnionCases_AndTheVehiclesOwnerAppliesThem()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterComponent<NetworkAuthority>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
+                return w;
+            }
+
+            using var soldiersNode = Node();
+            var map = new NetworkEntityMap();
+            var apc = soldiersNode.CreateEntity();
+            soldiersNode.AddComponent(apc, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+            soldiersNode.AddComponent(apc, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // node 2's vehicle
+            var soldier = soldiersNode.CreateEntity();
+            map.Register(800L, apc);
+            map.Register(43L, soldier);
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+
+            soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand { Passenger = soldier, Vehicle = apc });
+            soldiersNode.Bus.SwapBuffers();
+            egress.ScanAndPublish(soldiersNode);
+            var embark = Assert.Single(writer.Written);
+            Assert.Equal((800L, 43L, EInteractionKind.Embark), (embark.TargetId, embark.ActorId, embark.Payload.Kind));
+
+            // the vehicle's owner: the command arrives remote and its applier boards the soldier
+            using var owner = Node();
+            var ownerMap = new NetworkEntityMap();
+            var ownersApc = owner.CreateEntity();
+            owner.AddComponent(ownersApc, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+            var ownersSoldier = owner.CreateEntity();
+            ownerMap.Register(800L, ownersApc);
+            ownerMap.Register(43L, ownersSoldier);
+            var ingress = new InteractionIngressTranslator(participant: null, ownerMap);
+            var applier = new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem();
+            void Deliver(EntityInteractionRequest sample)
+            {
+                using var cmd = new EntityCommandBuffer();
+                ingress.ProcessSample(in sample, cmd);
+                cmd.Playback(owner);
+                owner.Bus.SwapBuffers();
+                applier.Execute(owner, 0f);
+            }
+            Deliver(embark);
+            Assert.True(Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().ToArray()).IsRemote);
+            Assert.Equal(ownersSoldier, owner.GetComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(ownersApc).Passengers[0]);
+            var ownersEgress = new InteractionEgressTranslator(new CapturingWriter<EntityInteractionRequest>(), ownerMap);
+            ownersEgress.ScanAndPublish(owner);
+            Assert.Equal(0, ownersEgress.SentSampleCount);                                             // remote ⇒ never sent back
+
+            // disembark (names its vehicle) and eject cross the same way
+            writer.Written.Clear();
+            soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand { Passenger = soldier, Vehicle = apc });
+            soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.EjectPassengersCommand { Vehicle = apc });
+            soldiersNode.Bus.SwapBuffers();
+            egress.ScanAndPublish(soldiersNode);
+            Assert.Equal(2, writer.Written.Count);
+            var disembark = Assert.Single(writer.Written, w => w.Payload.Kind == EInteractionKind.Disembark);
+            Assert.Equal((800L, 43L), (disembark.TargetId, disembark.ActorId));
+            Assert.Contains(writer.Written, w => w.Payload.Kind == EInteractionKind.EjectPassengers && w.TargetId == 800L);
+            Deliver(disembark);
+            Assert.Equal(0, owner.GetComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(ownersApc).Count);
+            Assert.False(owner.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(ownersSoldier));
+        }
+
         [Fact]
         public void R221_AKindThisBuildDoesNotKnow_IsDroppedAndCounted()
         {
@@ -172,7 +250,7 @@ namespace Hrot.SimHost.Tests
             var ingress = new InteractionIngressTranslator(participant: null, map);
             using var cmd = new EntityCommandBuffer();
 
-            var unknown = new EntityInteractionRequest { TargetId = 700L, Payload = new InteractionPayload { Kind = EInteractionKind.Embark } };
+            var unknown = new EntityInteractionRequest { TargetId = 700L, Payload = new InteractionPayload { Kind = (EInteractionKind)999 } };   // ⭐ CE-3110 — Embark (2) is known now; 999 is not
             ingress.ProcessSample(in unknown, cmd);
             cmd.Playback(w);
             w.Bus.SwapBuffers();

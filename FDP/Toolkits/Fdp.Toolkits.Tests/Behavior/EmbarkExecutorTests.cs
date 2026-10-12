@@ -27,11 +27,26 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<PassengerBuffer>();
             _world.RegisterComponent<IsEmbarkedTag>();
             _world.RegisterComponent<InteractionChannel>();
+            _world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+            _world.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+            _world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
 
             _executor = new EmbarkExecutor();
         }
 
         public void Dispose() => _world.Dispose();
+
+        private readonly Fdp.Toolkit.Behavior.Systems.EmbarkationSystem _owner = new();
+
+        /// <summary>⭐ <c>CE-3110</c> I-2a — the executor RAISES the command; the vehicle's owner (<c>EmbarkationSystem</c>, here the same
+        /// world) applies it next frame; the executor then reads the answer from the state. (It used to write everything itself.)</summary>
+        private void Drive(Entity e, ref InteractionChannel channel)
+        {
+            _executor.Execute(e, ref channel, _world, 0f);
+            _world.Bus.SwapBuffers();
+            _owner.Execute(_world, 0f);
+            if (channel.Status == NodeStatus.Running) _executor.Execute(e, ref channel, _world, 0f);
+        }
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -84,7 +99,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var (soldier, channel) = CreateSoldier(Vector3.Zero, vehicle, 3f);
 
             _executor.OnEnter(soldier, ref channel, _world);
-            _executor.Execute(soldier, ref channel, _world, 0f);
+            Drive(soldier, ref channel);
 
             var buffer = _world.GetComponent<PassengerBuffer>(vehicle);
             Assert.Equal(1, buffer.Count);
@@ -106,7 +121,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var (soldier, channel) = CreateSoldier(Vector3.Zero, vehicle, 3f);
 
             _executor.OnEnter(soldier, ref channel, _world);
-            _executor.Execute(soldier, ref channel, _world, 0f);
+            Drive(soldier, ref channel);
 
             Assert.Equal(NodeStatus.Running, channel.Status);
             var buffer = _world.GetComponent<PassengerBuffer>(vehicle);
@@ -127,7 +142,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var (soldier, channel) = CreateSoldier(Vector3.Zero, vehicle, 3f);
 
             _executor.OnEnter(soldier, ref channel, _world);
-            _executor.Execute(soldier, ref channel, _world, 0f);
+            Drive(soldier, ref channel);
 
             var caps = _world.GetComponent<ActorCapabilityState>(soldier).Capabilities;
             Assert.False(caps.HasFlag(ActorCapabilities.CanMove),  "CanMove should be stripped");
@@ -147,7 +162,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var (soldier, channel) = CreateSoldier(Vector3.Zero, vehicle, 3f);
 
             _executor.OnEnter(soldier, ref channel, _world);
-            _executor.Execute(soldier, ref channel, _world, 0f);
+            Drive(soldier, ref channel);
 
             Assert.True(_world.HasComponent<IsEmbarkedTag>(soldier));
             var tag = _world.GetComponent<IsEmbarkedTag>(soldier);
@@ -170,8 +185,44 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.DestroyEntity(vehicle);
 
             _executor.OnEnter(soldier, ref channel, _world);
-            _executor.Execute(soldier, ref channel, _world, 0f);
+            Drive(soldier, ref channel);
 
+            Assert.Equal(NodeStatus.Failure, channel.Status);
+        }
+    
+        /// <summary>⭐ <c>CE-3110</c> I-2a — a vehicle with no free seat: Failure at once, and no command is raised.</summary>
+        [Fact]
+        public void CE3110_Embark_FailsAtOnce_WhenTheVehicleIsFull_AndRaisesNothing()
+        {
+            var vehicle = CreateVehicle(new Vector3(0f, 0f, 0f));
+            _world.GetComponentRW<PassengerBuffer>(vehicle).Count = PassengerBuffer.Capacity;
+            var (soldier, channel) = CreateSoldier(new Vector3(1f, 0f, 0f), vehicle, 3f);
+
+            _executor.Execute(soldier, ref channel, _world, 0f);
+            _world.Bus.SwapBuffers();
+
+            Assert.Equal(NodeStatus.Failure, channel.Status);
+            Assert.Equal(0, _world.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().Length);
+        }
+
+        /// <summary>⭐ <c>CE-3110</c> I-2a — the command is raised ONCE; with no answer (the owner refused, or never got it) the soldier
+        /// gives up after <see cref="EmbarkExecutor.ResultTimeoutSeconds"/>.</summary>
+        [Fact]
+        public void CE3110_Embark_RaisesTheCommandOnce_ThenFails_WhenNoAnswerComes()
+        {
+            var vehicle = CreateVehicle(new Vector3(0f, 0f, 0f));
+            var (soldier, channel) = CreateSoldier(new Vector3(1f, 0f, 0f), vehicle, 3f);
+
+            _executor.Execute(soldier, ref channel, _world, 0f);
+            _world.Bus.SwapBuffers();
+            Assert.Equal(1, _world.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().Length);
+
+            _executor.Execute(soldier, ref channel, _world, 1f);
+            _world.Bus.SwapBuffers();
+            Assert.Equal(0, _world.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().Length);   // not raised again
+            Assert.Equal(NodeStatus.Running, channel.Status);
+
+            _executor.Execute(soldier, ref channel, _world, EmbarkExecutor.ResultTimeoutSeconds);
             Assert.Equal(NodeStatus.Failure, channel.Status);
         }
     }

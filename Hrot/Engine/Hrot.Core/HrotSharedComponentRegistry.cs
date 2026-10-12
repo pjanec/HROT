@@ -95,6 +95,11 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.DoorCommandEvent>();   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
+        // ⭐ CE-3110 I-2a — the embarkation interaction kinds: raised on any node, carried to the vehicle's owner (R-221 needs each
+        //   kind's event on EVERY host — the ingress republishes it wherever a request lands).
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
         // ⭐⭐ The transient-spawn tag (R-140 D2): NetworkSpawningSystem.ProcessSpawn stamps it on EVERY node that materialises a
         //   transient entity — a door entity (5b, transient: the terrain recreates it), an IG sketch. 🔴 It was registered by no
         //   host, only by the rails (each registers it itself), so the first door spawned in a cluster threw "ScenarioIgnoreTag is

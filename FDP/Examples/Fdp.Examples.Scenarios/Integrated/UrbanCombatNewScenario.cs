@@ -386,6 +386,9 @@ namespace Fdp.Examples.Scenarios.Integrated
             world.RegisterComponent<InteractionChannel>();
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();
+            world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();      // ⭐ CE-3110 I-2a
+            world.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+            world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
             world.RegisterComponent<MissionPlanQueue>();
 
             // FDP.Toolkit.Perception
@@ -600,6 +603,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 new BrainTickSystem(_behaviorRegistry),
                 weaponSys,
                 interactSys,
+                new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem(),   // ⭐ CE-3110 I-2a — applies the commands the executors raise
                 new LocomotionDispatcherSystem(),
                 new SpatialHashSystem(),
                 new CarKinematicsSystem(_trajectoryPool!),

@@ -15,5 +15,8 @@ namespace Fdp.Toolkit.Behavior.Events
 
         /// <summary>The vehicle entity that <see cref="Passenger"/> will board.</summary>
         public Entity Vehicle;
+
+        /// <summary>⭐ <c>CE-3110</c> I-2a (R-221) — set by the interaction ingress: this command came off the network (never sent again).</summary>
+        public bool IsRemote;
     }
 }

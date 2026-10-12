@@ -27,7 +27,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// <summary>
 /// EDIT1-T001/T002/T003/T004 — Headless integration tests for editor authoring systems.
 /// Uses <see cref="EditorHarness"/> (no DDS, no Raylib) to exercise
-/// <c>EditorCargoSystem</c>, <c>EditorPerceptionSetupSystem</c>, and
+/// embarkation (⭐ CE-3110 I-2a: <c>EmbarkationSystem</c> from <c>CgfLogicPack</c>, which retired <c>EditorCargoSystem</c>), <c>EditorPerceptionSetupSystem</c>, and
 /// <c>EditorZoneAuthoringSystem</c>.
 /// </summary>
 [Collection("EditorOfflineTests")]

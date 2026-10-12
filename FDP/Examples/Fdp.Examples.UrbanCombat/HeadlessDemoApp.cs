@@ -259,6 +259,9 @@ namespace Fdp.Examples.UrbanCombat
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            World.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();      // ⭐ CE-3110 I-2a
+            World.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+            World.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>();
 
@@ -362,6 +365,8 @@ namespace Fdp.Examples.UrbanCombat
             interactSys.RegisterExecutor(BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor());
             interactSys.RegisterExecutor(BehaviorConstants.ActionIdOpenDoor, new DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Open));
             _simModuleSystems.Add(interactSys);
+            // ⭐ CE-3110 I-2a — the executors RAISE embark / eject commands; the vehicle's owner applies them (one world: here).
+            _simModuleSystems.Add(new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem());
 
             _simModuleSystems.Add(new LocomotionDispatcherSystem());
 

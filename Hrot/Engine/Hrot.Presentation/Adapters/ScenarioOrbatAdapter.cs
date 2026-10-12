@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Core.Logging;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Hrot.Common.Events;
 using Hrot.UI.Common.Facades;
@@ -197,9 +198,14 @@ namespace Hrot.UI.Common.Adapters
             if (!_indexCache.TryGetValue(passengerEntityId, out var passenger))
                 return;
 
+            // ⭐ CE-3110 I-2a — name the vehicle: it is the interaction's TARGET (the command goes to that vehicle's owner).
+            var vehicle = _world.IsComponentTypeRegistered<IsEmbarkedTag>() && _world.HasComponent<IsEmbarkedTag>(passenger)
+                ? _world.GetComponentRO<IsEmbarkedTag>(passenger).VehicleEntity
+                : Entity.Null;
             _bus.Publish(new DisembarkEntityCommand
             {
                 Passenger = passenger,
+                Vehicle   = vehicle,
             });
         }
 

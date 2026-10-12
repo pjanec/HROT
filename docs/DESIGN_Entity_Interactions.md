@@ -243,6 +243,44 @@ before I-2b is built.
 
 ⭐ Order: I-2a → I-2b → I-2c → I-2d. Stride is out of scope (user).
 
+#### 7.1a I-2a — the details the build needs *(build-state: READY-TO-BUILD `2026-10-12`, behaviors lane; HANDOFF_Squad_Tactics_S3 item 2)*
+
+```mermaid
+graph TD
+  CLP["CgfLogicPack (CGF + editor)"] -->|Simulation, after DoorCommandSystem| ES["EmbarkationSystem (NEW)"]
+  CLP -->|interaction executors| EX["EmbarkExecutor (ActionId 1) · EjectPassengersExecutor (3)"]
+  EX -->|raise| CMD["Embark / Disembark / EjectPassengers commands"]
+  CMD --> ES
+  ES --> R["Embarkation (NEW static rules)"]
+  GEN["GenesisMaterializationSystem (SimHost + CGF, Input)"] --> R
+  ORB["ScenarioOrbatAdapter (editor ORBAT drag)"] -->|raise| CMD
+  ECS["EditorCargoSystem"]:::dead
+  NED["NedReplicationModule tick"] -->|each frame| IT["InteractionEgress / Ingress: 3 NEW codecs"]
+  IT --> CMD
+  classDef dead fill:#fdd,stroke:#c00,color:#600
+```
+*What the picture shows that prose hid: the editor already builds `CgfLogicPack`, so registering `EmbarkationSystem` there serves CGF
+AND the editor — `EditorCargoSystem` (red) is then a second applier for the same command and goes; and genesis is the only caller
+that does not go through a command.*
+
+| decision | ⭐ lean | measured |
+|---|---|---|
+| the owner gate before I-2b | `Embarkation.OwnsVehicle`: no `NetworkAuthority` ⇒ ours (one node, the editor) except a GHOST; else the vehicle's PRIMARY authority. I-2b swaps it for the `PassengerBuffer` descriptor key, as doors use `DoorStateKey` | `DoorCommandSystem.OwnsDoor` (`DoorCommands.cs:156`) is the shape; no `PassengerBuffer` descriptor exists yet |
+| `DisembarkEntityCommand` has no vehicle | ⭐ add `Vehicle` (the raiser fills it; the system falls back to the passenger's tag when null) + `IsRemote` | the codec's target accessor sees only the event (`InteractionCodec<T>.EntityOf(in TEvent)`), and the wire's target must be the vehicle |
+| eject | NEW `EjectPassengersCommand { Vehicle, IsRemote }` (event 3203) | ids 3201/3202 taken (`BehaviorConstants.cs:155-158`) |
+| what the executors wait for | Embark: its own `IsEmbarkedTag` ⇒ Success; a full vehicle (seen locally) ⇒ Failure; no answer in 5 s ⇒ Failure. Eject: the vehicle's `PassengerBuffer.Count == 0` | §5 "the answer is the target's own state" |
+| per-passenger disembark placement | beside the hull, the CE-321 column at the passenger's old slot | today the editor's disembark leaves the soldier where it was (`EditorCargoSystem.cs:68-88`) — inside the hull |
+| genesis | `Embarkation.TryEmbark` per passenger, idempotent (an already-aboard passenger is a no-op), so the vehicle's list and the passenger's own intent both resolve through it | ⚠ today genesis writes the list and the tag but never strips `CanMove`/`CanShoot` (`GenesisMaterializationSystem.cs:65-99`) — a soldier loaded aboard could walk away |
+| the embark ActionId | 1 (`ActionIdEmbark`, the executor's own documented value); 2 left for a per-passenger disembark action | action ids are PER CHANNEL (Combat and Navigation both start at 1); the interaction channel uses 3–8 (`BehaviorConstants.cs:111-122`) |
+| the three wire cases | `Embark`/`Disembark`/`EjectPassengers` payloads carry one reserved byte; target = the vehicle, actor = the passenger (none for eject) | union cases 2–4 reserved by I-1 (`InteractionMessages.cs:15-17`) |
+
+| rail (I-2a acceptance) | where |
+|---|---|
+| board · refuse when full · disembark one beside the hull · eject all beside the hull (CE-321) · a non-owner never applies · genesis strips capabilities | `EmbarkationTests` (`Fdp.Toolkits.Tests`), the re-homed `EditorCargoSystemTests` claims |
+| the executors raise commands and wait for the state | `EmbarkExecutorTests` · `EjectPassengersExecutorTests` |
+| the three kinds cross the one interaction topic | `InteractionTransportTests` |
+| CGF registers both executors and the system | `CgfLogicPackTests` |
+
 ### 7.2 What "inside" means *(✅ ruled `2026-10-11`, R-271 — I-2c)*
 
 🔒 *User: "Accepted the lean of what inside a vehicle mean. If vehicle gets destroyed, all inside die. Passenger needs a flag (carrier entity id,) on itself to be ignored by visibility queries so they do not need to check the passenger list. Some vehicles are open (like a helicopter without side doors), those are not hiding entities from being seen or shot, how to solve those?"*

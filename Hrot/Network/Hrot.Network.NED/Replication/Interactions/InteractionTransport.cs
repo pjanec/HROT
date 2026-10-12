@@ -5,6 +5,8 @@ using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Terrain;
 using Hrot.Map.Common.Dds;
@@ -142,7 +144,41 @@ namespace Hrot.Map.Common.Replication.Interactions
                 AimPoint = new System.Numerics.Vector3(p.ControlFrame.AimX, p.ControlFrame.AimY, p.ControlFrame.AimZ), IsRemote = true,
             });
 
-        public static IReadOnlyList<IInteractionCodec> All { get; } = new[] { Door, Possess, ReleasePossession, ControlFrame };
+        /// <summary>⭐ CE-3110 I-2a (R-224, 📄 docs/DESIGN_Entity_Interactions.md §7) — a passenger boards; the VEHICLE's owner applies it.</summary>
+        public static readonly IInteractionCodec Embark = new InteractionCodec<EmbarkEntityCommand>(
+            EInteractionKind.Embark,
+            target:      static (in EmbarkEntityCommand e) => e.Vehicle,
+            actor:       static (in EmbarkEntityCommand e) => e.Passenger,
+            isRemote:    static (in EmbarkEntityCommand e) => e.IsRemote,
+            ownsTarget:  static (repo, vehicle) => Embarkation.OwnsVehicle(repo, vehicle),
+            toPayload:   static (in EmbarkEntityCommand e) => new InteractionPayload { Embark = default },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new EmbarkEntityCommand { Vehicle = target, Passenger = actor, IsRemote = true });
+
+        /// <summary>⭐ CE-3110 I-2a — a passenger leaves its vehicle (the raiser names the vehicle: the wire's target).</summary>
+        public static readonly IInteractionCodec Disembark = new InteractionCodec<DisembarkEntityCommand>(
+            EInteractionKind.Disembark,
+            target:      static (in DisembarkEntityCommand e) => e.Vehicle,
+            actor:       static (in DisembarkEntityCommand e) => e.Passenger,
+            isRemote:    static (in DisembarkEntityCommand e) => e.IsRemote,
+            ownsTarget:  static (repo, vehicle) => Embarkation.OwnsVehicle(repo, vehicle),
+            toPayload:   static (in DisembarkEntityCommand e) => new InteractionPayload { Disembark = default },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new DisembarkEntityCommand { Vehicle = target, Passenger = actor, IsRemote = true });
+
+        /// <summary>⭐ CE-3110 I-2a — everyone out of the vehicle.</summary>
+        public static readonly IInteractionCodec EjectPassengers = new InteractionCodec<EjectPassengersCommand>(
+            EInteractionKind.EjectPassengers,
+            target:      static (in EjectPassengersCommand e) => e.Vehicle,
+            actor:       static (in EjectPassengersCommand e) => Entity.Null,
+            isRemote:    static (in EjectPassengersCommand e) => e.IsRemote,
+            ownsTarget:  static (repo, vehicle) => Embarkation.OwnsVehicle(repo, vehicle),
+            toPayload:   static (in EjectPassengersCommand e) => new InteractionPayload { EjectPassengers = default },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new EjectPassengersCommand { Vehicle = target, IsRemote = true });
+
+        public static IReadOnlyList<IInteractionCodec> All { get; } =
+            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame };
     }
 
     /// <summary>
