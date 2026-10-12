@@ -21,7 +21,7 @@ related-designs:
 | | |
 |---|---|
 | design | ✅ [DESIGN_Orders_Params_Entity_Classes.md](../DESIGN_Orders_Params_Entity_Classes.md), READY-TO-BUILD; rulings R-273..R-281 (behaviors) |
-| built | nothing |
+| built | ✅ CE-2130 (rules rail, 48 allow-listed) · ✅ CE-2140 (order DTOs) — behaviors lane; ⏳ Track B started CE-2133 (backend lane) |
 | embarkation (CE-3110 I-2d, the S3 dismount) and the other behaviour work planned before | ▶ **NOT deferred any more** — 🔒 user, 2026-10-12: *"if the embarkation and other behavior stuff … can continue in some session, it does not need to stay deferred anymore"* (R-282 (behaviors), superseding R-277's postponement). Hand a session [HANDOFF_Embark_I2d_And_Unit_Orders.md](HANDOFF_Embark_I2d_And_Unit_Orders.md) §2 items 1–2 (its item 0 / AQ90 and item 3 are done or absorbed here) plus the note below |
 | Track B / Track C | handoffs written; ⏳ not yet assigned to a session (the user assigns) |
 
