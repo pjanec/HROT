@@ -13,6 +13,7 @@ known-rot: ⛔ 2026-09-30 (CE-448) — "what ParamResolverDemo ships": that asse
   an empty body copies nothing (DESIGN_Parameter_Model.md §P.2, CE-443). Resolvers exist only for
   behaviours, never for actions/conditions (§P.4).
 related-designs:
+  - Architect_Question_90_Unit_Orders_Carry_Capacity.md — §2.3f: orders are the first concrete use of §3.1's foreseen "shared named param-type" (a behaviour points at a shared order DTO as its authored contract)
   - DESIGN_Entity_Reference.md — ⭐ SUPERSEDES §4.2's "Entity reference → long + [RemapNetworkId] + [MapPickableEntity]": an authored reference is the `EntityRef` TYPE (2026-10-03).
   - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): owns the target
     start pipeline and the behaviour-vs-action split; this document keeps the resolver authoring model.

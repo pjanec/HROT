@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -13,6 +13,7 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad runner and drills (§3.1 "order = AssignBehavior to the commander") and the unit commander (§7, R-272 (behaviors))
   - docs/DESIGN_Entity_Interactions.md — OWNS embarkation (§7); B and C extend it
   - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — OWNS the origin gate (R-188), the SOP slot (R-189); its "an order as a GOAL" idea (deferred) is A2's rejected alternative
+  - docs/blueprints/Behavior_Parameter_Resolver_Detailed_Design.md — OWNS the three shapes and "one shape by default" (§3.2) and foresaw a shared param-type as an additive change (§3.1); §2.3f maps orders onto it
   - docs/blueprints/DESIGN_Parameter_Model.md — OWNS the behaviour start pipeline and the resolver (§P.2, R-152/R-154) that A7 puts one stage in front of
   - docs/UX/Architect_Question_25_Scenario_Authoring_Golden_Path.md — Q25-C: the asset declares its category mask + param schema (recommended, awaiting approval); §2.3e builds on it
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS the injury states (D1 / R-263) C depends on, and the echelon gap (T6)
@@ -273,6 +274,31 @@ Rejected:
 
 ⛔ Not measured: the generator change to unwrap a single order-typed Input (`EmitParseParamsLocal`, the JSON schema publisher), and
 whether an empty struct (`HoldOrder {}`) passes the blackboard layout code.
+
+### 2.3f What the parameter design MEANS — read end to end *(2026-10-12; user: "You might also read the docs to find out what it is meant to be")*
+
+| the design says | where |
+|---|---|
+| the behaviour's PUBLIC description is a JSON/DTO only; the blackboard is internal. 🔒 *"the behavior spec from scenario or from mcp server or from wherever always comes with json/dto only … the blackboard DTO should never appear in any public behavior description"* | Parameter Model §3.1 "AS BUILT CE-235" |
+| a behaviour has up to THREE shapes: the **authored DTO** (the public contract, a transient parse buffer), the **usable params** (`Role = Input` variables), the **working state** (`Role = State`). *"There is no 'Param' role — Input IS the parameter role"* | Resolver design §3.2; Parameter Model §1, §3.1 |
+| **one shape by default:** the author declares the Input variables in the variables panel, and the authored DTO is *"an attached mirror of them — same field names and types, auto-generated, not separately editable"* | Resolver design §3.2, §4.1 |
+| **two shapes only on divergence** (geo point vs Cartesian, network id vs `Entity`, a derived field): the authored shape is declared separately and a resolver bridges. Hand-written C# declares it with a `[BehaviorContract]` DTO; a resolver asset declares it with its Parameters (✅ approved 2026-09-30) | Resolver design §3.2, §4.2; Parameter Model §P.7 |
+| the behaviour IS the contract, keyed by its name; one public DTO per behaviour (`JsonParamsDtoType`) | Resolver design §3.1; Parameter Model §3.1 table |
+| **a shared contract was foreseen:** *"If one ever appears it is an additive change (a behavior points at a shared named param-type) that does not break the behavior-owns-it model"* | Resolver design §3.1 |
+
+⇒ **Both statements are true, at different layers.** *"A behaviour's params are one DTO"* is true of the PUBLIC contract
+(`JsonParamsDtoType`). For curated behaviours that DTO is C#. For editor assets it is GENERATED from the Input variables, which
+the author edits field by field in the variables panel. That generated mirror is what I wrongly called "own".
+
+⇒ **The order case is exactly the foreseen additive change:** the behaviour POINTS at a shared named param-type (`MoveOrder`)
+as its authored contract. Mapped onto the design:
+- **Authored DTO:** the shared order DTO, pointed at instead of mirrored.
+- **Usable params:** the Input variables. Identical to the DTO, they are filled by the default copy (§P.2, which needs identical shapes). Divergent (geo → local), the behaviour's own resolver bridges, exactly as today.
+- **The pointer, with no new picker:** the existing type combo. An asset whose Inputs are ONE variable typed as an `[Order]` DTO points at that DTO; the generator publishes it as the `JsonParamsDtoType` and unwraps it (§2.3e). A curated C# behaviour points with its behaviour attribute (§2.3d).
+
+⛔ Where this deviates from the written design, and is therefore a decision for the user:
+- §3.2 says the default authored shape is a mirror keyed by VARIABLE name. Treating a single order-typed Input as "this DTO is my contract" is a special case of that rule.
+- The alternative that stays inside the rule: the asset declares the order's fields as separate Inputs with the same names, and the check is structural. It is more work for the author and drifts when the DTO changes.
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
