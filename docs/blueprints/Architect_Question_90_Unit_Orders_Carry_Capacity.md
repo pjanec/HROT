@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), ⭐ the reserved Params variable + params DTO assets + registry (§2.3j, refines §2.3i), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: ⭐ "THE PROPOSAL IN ONE PAGE" (above §1) is the consolidated answer; the sections below are how it was reached. §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), ⭐ the reserved Params variable + params DTO assets + registry (§2.3j, refines §2.3i), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -31,6 +31,28 @@ related-designs:
 | **C** | *"a soldier carrying or dragging a wounded comrade is the same embark mechanism with a 'human carrier' profile" — yes* | ✅ **R-274 (behaviors)**, second half |
 | **D** | *"every ECS node participating in a live exercise capable of owning live entities should be equal regarding the capabilities, so i guess yes, every usual host"* | ✅ **R-275 (behaviors)**: `HealthApplicationSystem` joins the cross-role set; the principle generalises the I-2 *"no per-host initialisations"* |
 | — | *"no building, we are still discussing features and designs"* | nothing here is dispatched |
+
+## ⭐ THE PROPOSAL IN ONE PAGE *(consolidated 2026-10-12 — this supersedes the step-by-step leans in §2.2–§2.3j where they differ)*
+
+| area | proposal | status |
+|---|---|---|
+| **who decides** | the receiver picks the behaviour that fulfils an order; senders and UI name only WHAT is ordered | ✅ R-273 (behaviors) |
+| **orders** | a fixed vocabulary `enum OrderKind` (Move, Attack, Hold, …); each kind has ONE order DTO marked `[Order(kind)]` (`Hold` → empty `HoldOrder`). `EntityOrders`, the menu, RTS and HTTP publish the order kind, never a behaviour name | lean |
+| **entity classes** | `enum EntityClass` (Squad, TankPlatoon, Tank, Infantry, …); each TKB type declares exactly one. It replaces `BehaviorCategory` and the hard-coded type → category switch | lean |
+| **which behaviour runs** | convention `<Class><Order>` (`SquadMove`, `InfantryMove`). The name is the lookup key, built by one helper from the two enums; no map table. No fallback for a body-less unit | lean |
+| **echelons** | a unit's drill orders member UNITS by order kind (each decides for itself, recursively) and directs its own soldiers by behaviour. A drill that ends releases its members to their SOPs | lean |
+| **which orders a unit accepts / the menu** | per CLASS, computed on demand from the node's behaviour catalogue: the K for which `<Class>K` is registered. Nothing is stored per entity. Every node runs the catalogue scan (they are one executable; R-275 (behaviors)). The menu builds its follow-up picks from the order DTO's field types (`PickableGeoPoint` → point, `EntityRef` → entity), so a new order kind is one DTO and a new class's behaviour is just registered | lean |
+| **validity of a behaviour for a class** | declared on the BEHAVIOUR, not its DTO: C# attribute `[Behavior(Params = typeof(…), Classes = …)]`; on assets a `Classes` property edited in a new shared asset-level Details view `details.behaviour` (`HasAsset`) | lean |
+| **params DTO** | each behaviour names 0 or 1 params DTO, its public contract; several behaviours may share one (all `<Class>Move` share `MoveOrder`). JSON params are always that DTO's fields, flat, never wrapped. It may be a class: params travel only as JSON | ✅ R-276 (behaviors) + lean |
+| **blackboard variables** | ONE block per running behaviour with ONE kind of variable (no Input / State role). **No resolver:** the JSON lands in the reserved `Params` variable (typed as the DTO; not authored in the variable editor; then the DTO must be an unmanaged struct, checked at load). **With a resolver:** the resolver receives the DTO and writes any variables; there is no `Params` | lean (extends AQ76 B) |
+| **variables as params for others** | unchanged: an action binds a field of any variable and reads it live (R-155); a hosted sub-behaviour is given a host variable typed as its params DTO, copied into its `Params` at start | unchanged |
+| **authoring params DTOs** | a new `*.params.json` asset with a build-time generator emitting the C# DTO; one editor registry from one reflection scan finds hand-written and generated DTOs | lean |
+| **carrying** | vehicle type declares capacity and seats (driver, gunner, passenger); a person carrying or dragging a wounded comrade is embark with a human-carrier profile | ✅ R-274 (behaviors) |
+| **node equality** | every node able to own live entities has the same capabilities; `HealthApplicationSystem` joins the cross-role set | ✅ R-275 (behaviors) |
+
+⛔ Main costs: behaviour renames to `<Class><Order>`; the 25 `[BehaviorContract]` uses move to their behaviours; multi-Input assets
+and the four Parameter-declaring blueprints get C# (or generated) params DTOs; three saved scenario params strings are rewritten.
+⛔ Not measured: the generator changes (named DTO, `Params`), the carry-over manifest, the catalogue scan's cost on IG, an empty struct.
 
 ## 1. INVENTORY *(graph CLI — the MCP server failed to connect this session; index refreshed 2026-10-12 — plus grep and one corpus sweep over `docs/` and `.dev/`)*
 
