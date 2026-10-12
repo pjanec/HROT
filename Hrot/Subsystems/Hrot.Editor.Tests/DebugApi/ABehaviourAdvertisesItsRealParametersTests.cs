@@ -218,7 +218,7 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     }
     /// <summary>
     /// ⭐ CE-2131 (CE-2128 ①) — <c>FollowRoute</c> advertises every key its callers write: the route entity, the speed and the
-    /// loop flag (<c>MissionControlBehaviorParamsHelper</c> reads all three). ⚠ Red-proof: drop <c>Speed</c> from
+    /// loop flag (the behaviour's typed resolver reads all three, CE-2145). ⚠ Red-proof: drop <c>Speed</c> from
     /// <c>FollowRouteParamsJsonDto</c> → this fails naming it.
     /// </summary>
     [Fact]

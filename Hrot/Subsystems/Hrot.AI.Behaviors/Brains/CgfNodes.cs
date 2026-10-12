@@ -85,13 +85,15 @@ namespace Hrot.AI.Behaviors.Brains
         public struct FollowRouteParams
         {
             /// <summary>
-            /// ID of the registered trajectory in the <see cref="TrajectoryPoolManager"/> to follow.
-            /// Written into <c>the root params slot</c> at spawn time and read by
-            /// <see cref="Action_WriteFollowRouteChannel"/> to populate the locomotion channel.
+            /// ID of the registered trajectory in the <see cref="TrajectoryPoolManager"/> to follow; 0 = not resolved yet.
+            /// ⭐ CE-2145 — resolved from <see cref="RouteNetworkId"/> by <see cref="ResolveFollowRoute"/> at start, and again by
+            /// <see cref="Action_WriteFollowRouteChannel"/> while the route is not compiled (the action caches it here).
             /// </summary>
             public int   TrajectoryId;
             public float Speed;
             public bool  Loop;
+            /// <summary>⭐ CE-2145 — the route entity's network id, as the authored contract named it.</summary>
+            public long  RouteNetworkId;
         }
 
         /// <summary>
@@ -222,15 +224,41 @@ namespace Hrot.AI.Behaviors.Brains
             };
         }
 
-        // 3-param shape: the generator emits the (json, memory, capacity, world, self, host)
-        // adapter the hand-written registrar used to spell out by hand.
+        /// <summary>
+        /// ⭐⭐ <c>CE-2145</c> (docs/DESIGN_Orders_Params_Entity_Classes.md §10, R-273) — the TYPED resolver for <c>FollowRoute</c>:
+        /// the RECEIVER converts the authored route entity to its compiled trajectory, so any sender (mission, HTTP, order, SOP,
+        /// scenario) may send the published <c>{routeEntityId, Speed, Loop}</c>. A route not compiled yet leaves
+        /// <c>TrajectoryId = 0</c>; the action looks again each tick (it replaces the mission system's assignment retry).
+        /// </summary>
         [Fdp.Toolkit.Behavior.BehaviorResolver("FollowRoute")]
-        public static unsafe void ParseFollowRouteParams(string json, byte* ptr, int capacity)
+        public static void ResolveFollowRoute(in Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto authored,
+            ref FollowRouteParams block, EntityRepository world, Entity self)
         {
-            var p = string.IsNullOrWhiteSpace(json)
-                ? default
-                : JsonSerializer.Deserialize<FollowRouteParams>(json, JsonOptions);
-            Unsafe.Write(ptr, p);
+            long route = authored.RouteEntityId.IsNone ? 0 : authored.RouteEntityId.NetworkId;
+            block = new FollowRouteParams
+            {
+                RouteNetworkId = route,
+                Speed          = authored.Speed,
+                Loop           = authored.Loop,
+                TrajectoryId   = TryFindRouteTrajectory(world, route, out int trajectory) ? trajectory : 0,
+            };
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2145</c> — THE lookup from a route entity's network id to its compiled trajectory (moved from the deleted
+        /// sender-side <c>MissionControlBehaviorParamsHelper</c>): the entity through the one network-id resolver
+        /// (<see cref="Fdp.Toolkit.Replication.Services.NetworkIdResolver"/>, BP-508), then its <c>RouteTrajectoryCache</c>.
+        /// False while the route is unknown or not compiled (<c>TrajectoryId == 0</c>).
+        /// </summary>
+        public static bool TryFindRouteTrajectory(EntityRepository? world, long routeNetworkId, out int trajectoryId)
+        {
+            trajectoryId = 0;
+            if (world is null || routeNetworkId <= 0 || !world.IsComponentTypeRegistered<Hrot.Map.Common.Components.RouteTrajectoryCache>())
+                return false;
+            var route = Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(world, routeNetworkId);
+            if (route == Entity.Null || !world.HasComponent<Hrot.Map.Common.Components.RouteTrajectoryCache>(route)) return false;
+            trajectoryId = world.GetComponentRO<Hrot.Map.Common.Components.RouteTrajectoryCache>(route).TrajectoryId;
+            return trajectoryId != 0;
         }
 
         // -- Action / Condition delegates --
@@ -296,6 +324,13 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 BehaviorLog.Error(self, world, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
+            }
+
+            // ⭐ CE-2145 — the route is not compiled yet: look again, and WAIT (Running) without touching the channel.
+            if (p.TrajectoryId == 0)
+            {
+                if (!TryFindRouteTrajectory(world, p.RouteNetworkId, out int trajectory)) return NodeStatus.Running;
+                p.TrajectoryId = trajectory;
             }
 
             ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);

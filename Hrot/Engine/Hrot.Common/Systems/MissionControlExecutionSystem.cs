@@ -31,8 +31,8 @@ namespace Hrot.Common.Systems
     /// <b>Constraints met by this file (auditable via grep):</b>
     /// <list type="bullet">
     ///   <item>Zero <c>DdsReader</c> / <c>DdsWriter</c> / <c>DdsParticipant</c> references.</item>
-    ///   <item>Zero <c>System.Text.Json</c> references —
-    ///         JSON parsing lives in <see cref="MissionControlBehaviorParamsHelper"/>.</item>
+    ///   <item>Zero <c>System.Text.Json</c> references — a task's params JSON passes through to the
+    ///         behaviour, which converts it (CE-2145: FollowRoute's route lookup is the behaviour's own).</item>
     ///   <item>Zero <c>EntityMission</c> DDS-writer references —
     ///         replication is handled automatically by <c>EntityMissionEgressTranslator</c>.</item>
     /// </list>
@@ -326,15 +326,8 @@ namespace Hrot.Common.Systems
                 var task = tasks[i];
                 orderedTaskIds.Add(task.TaskId);
 
-                if (task.BehaviorId == "FollowRoute")
-                {
-                    if (!MissionControlBehaviorParamsHelper.TryTranslateFollowRouteBehaviorParams(
-                            repo, task.BehaviorParams, out string translated))
-                        return false;
-
-                    task.BehaviorParams = translated;
-                    tasks[i] = task;
-                }
+                // ⭐ CE-2145 — a FollowRoute task's params pass through unchanged: the behaviour converts its own route
+                //   (CgfNodes.ResolveFollowRoute) and waits while it is not compiled. OC1-S001's sender-side rewrite is gone.
 
                 int behaviorId = ResolveBehaviorId(task.BehaviorId);
                 var (trigger, param) = ResolveTrigger(task.Triggers);

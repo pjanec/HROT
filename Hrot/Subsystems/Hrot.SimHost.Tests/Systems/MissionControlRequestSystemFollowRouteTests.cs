@@ -18,8 +18,9 @@ using Fdp.ModuleHost.Abstractions;
 namespace Hrot.SimHost.Tests.Systems;
 
 /// <summary>
-/// Unit tests for the FollowRoute network-ID translation in
-/// <see cref="MissionControlExecutionSystem"/> â€” OC1-S001.
+/// FollowRoute on the mission path. ⭐ CE-2145 (docs/DESIGN_Orders_Params_Entity_Classes.md §10, R-273) — the mission system
+/// passes a FollowRoute task's params through unchanged; the BEHAVIOUR converts the route entity to its trajectory
+/// (CgfNodes.ResolveFollowRoute) and waits while it is not compiled. ⛔ OC1-S001's sender-side rewrite + retry are gone.
 /// These tests use the internal test constructor to avoid DDS setup.
 /// </summary>
 public class MissionControlRequestSystemFollowRouteTests
@@ -94,107 +95,99 @@ public class MissionControlRequestSystemFollowRouteTests
         };
     }
 
-    /// <summary>
-    /// OC1-S001 Scenario 1 â€” route entity found with compiled trajectory:
-    /// BehaviorParams must be rewritten to contain trajectoryId instead of routeEntityId.
-    /// </summary>
+    /// <summary>⭐ CE-2145 (was OC1-S001 Scenario 1) — a FollowRoute task's params are stored as sent: the published contract,
+    /// not a rewritten {trajectoryId}. 🔴 Red-proof: restore the sender-side rewrite → the stored JSON names trajectoryId.</summary>
     [Fact]
-    public void FollowRoute_RouteEntityFound_RewritesBehaviorParams()
+    public void CE2145_FollowRoute_TheMissionStoresTheAuthoredParams_Unchanged()
     {
         using var repo = CreateWorld();
         var entityMap  = new NetworkEntityMap();
-        var registry   = CreateBehaviorRegistry();
-        var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry, new TacticalIntentMapperRegistry());
-
+        var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
         var (vehicle, _) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 5);
 
         var request = MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L, speed: 12.0, loop: true);
+        string sent = request.Payload.FullMissionData!.Tasks[0].BehaviorParams;
         system.TestHook_ProcessIntent(repo, request);
 
-        // Verify rewritten BehaviorParams stored in ActiveMissionPlan.
-        var activePlan = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(vehicle);
-        var storedTask = activePlan.Plan.Tasks[0];
-
-        using var doc = JsonDocument.Parse(storedTask.BehaviorParams);
-        Assert.True(doc.RootElement.TryGetProperty("trajectoryId", out var tidEl));
-        Assert.Equal(5, tidEl.GetInt32());
-        Assert.True(doc.RootElement.TryGetProperty("Speed", out var speedEl));
-        Assert.Equal(12.0, speedEl.GetDouble(), precision: 3);
-        Assert.True(doc.RootElement.TryGetProperty("Loop", out var loopEl));
-        Assert.True(loopEl.GetBoolean());
+        var stored = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(vehicle).Plan.Tasks[0].BehaviorParams;
+        Assert.Equal(sent, stored);
+        Assert.Equal(0, system.TestHook_RetryQueueCount);
     }
 
-    /// <summary>
-    /// OC1-S001 Scenario 2 â€” route entity not found: request must be placed in the retry queue.
-    /// </summary>
-    [Fact]
-    public void FollowRoute_RouteEntityNotFound_EnqueuesForRetry()
+    /// <summary>⭐ CE-2145 (was OC1-S001 Scenarios 2–3) — an unknown or not-yet-compiled route no longer holds the MISSION back:
+    /// it commits at once, and the behaviour waits instead (rail below).</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CE2145_FollowRoute_ARouteNotReady_DoesNotHoldTheMission(bool routeExists)
     {
         using var repo = CreateWorld();
         var entityMap  = new NetworkEntityMap();
-        var registry   = CreateBehaviorRegistry();
-        var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry, new TacticalIntentMapperRegistry());
+        var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
+        Entity vehicle;
+        if (routeExists)
+            (vehicle, _) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
+        else
+        {
+            vehicle = repo.CreateEntity();
+            repo.AddComponent(vehicle, new MissionPlanQueue());
+            repo.SetManagedComponent(vehicle, new ActiveMissionPlan());
+            entityMap.Register(1L, vehicle);
+        }
 
-        // Register only the vehicle; no route entity.
-        var vehicle = repo.CreateEntity();
-        repo.AddComponent(vehicle, new MissionPlanQueue());
-        repo.SetManagedComponent(vehicle, new ActiveMissionPlan());
-        entityMap.Register(1L, vehicle);
+        system.TestHook_ProcessIntent(repo, MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L));
 
-        var request = MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L);
-        system.TestHook_ProcessIntent(repo, request);
-
-        Assert.True(system.TestHook_RetryQueueCount > 0, "Expected request in retry queue.");
+        Assert.Equal(0, system.TestHook_RetryQueueCount);
+        Assert.Single(((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(vehicle).Plan.Tasks);
     }
 
-    /// <summary>
-    /// OC1-S001 Scenario 3 â€” route entity present but TrajectoryId == 0: retry.
-    /// </summary>
+    /// <summary>⭐ CE-2145 (was OC1-S001 Scenario 6) — the behaviour's typed resolver turns the authored contract into the
+    /// block: the route's compiled trajectory, the speed and the loop flag, and the route id kept for a later look-up.</summary>
     [Fact]
-    public void FollowRoute_TrajectoryIdZero_EnqueuesForRetry()
+    public void CE2145_TheResolver_FindsTheCompiledTrajectory_AndKeepsSpeedAndLoop()
     {
         using var repo = CreateWorld();
-        var entityMap  = new NetworkEntityMap();
-        var registry   = CreateBehaviorRegistry();
-        var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry, new TacticalIntentMapperRegistry());
+        var route = repo.CreateEntity();
+        repo.AddComponent(route, new NetworkIdentity { Value = 42L });
+        repo.AddComponent(route, new RouteTrajectoryCache { TrajectoryId = 5, CompiledVersion = 1 });
 
-        var (_, routeEntity) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
+        var authored = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto>(
+            "{\"routeEntityId\":42,\"Speed\":12.0,\"Loop\":true}")!;
+        var block = default(Hrot.AI.Behaviors.Brains.CgfNodes.FollowRouteParams);
+        Hrot.AI.Behaviors.Brains.CgfNodes.ResolveFollowRoute(authored, ref block, repo, Entity.Null);
 
-        var request = MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L);
-        system.TestHook_ProcessIntent(repo, request);
-
-        Assert.True(system.TestHook_RetryQueueCount > 0, "Expected request in retry queue.");
+        Assert.Equal(5, block.TrajectoryId);
+        Assert.Equal(42L, block.RouteNetworkId);
+        Assert.Equal(12f, block.Speed);
+        Assert.True(block.Loop);
     }
 
-    /// <summary>
-    /// OC1-S001 Scenario 4 â€” route compiles between retries: mission committed on second cycle.
-    /// </summary>
+    /// <summary>⭐ CE-2145 (was OC1-S001 Scenario 4) — a route compiled AFTER the start: the action waits (Running, the
+    /// locomotion channel untouched) and follows the trajectory once it exists. 🔴 Red-proof: drop the action's look-up →
+    /// the second tick writes trajectory 0.</summary>
     [Fact]
-    public void FollowRoute_RouteCompilesOnRetry_CommitsOnSecondCycle()
+    public unsafe void CE2145_TheAction_WaitsForTheRoute_ThenFollowsIt()
     {
         using var repo = CreateWorld();
-        var entityMap  = new NetworkEntityMap();
-        var registry   = CreateBehaviorRegistry();
-        var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry, new TacticalIntentMapperRegistry());
+        repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>();
+        var (vehicle, route) = SetupEntities(repo, new NetworkEntityMap(), vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
+        repo.AddComponent(vehicle, new Fdp.Toolkit.Behavior.Components.LocomotionChannel());
 
-        var (vehicle, routeEntity) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
+        var authored = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto>("{\"routeEntityId\":99}")!;
+        var p = default(Hrot.AI.Behaviors.Brains.CgfNodes.FollowRouteParams);
+        Hrot.AI.Behaviors.Brains.CgfNodes.ResolveFollowRoute(authored, ref p, repo, vehicle);
+        Assert.Equal(0, p.TrajectoryId);
 
-        // First cycle â€” should retry.
-        var request = MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L, speed: 5.0, loop: false);
-        system.TestHook_ProcessIntent(repo, request);
-        Assert.True(system.TestHook_RetryQueueCount > 0);
+        Assert.Equal(Fbt.NodeStatus.Running, Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteFollowRouteChannel(ref p, vehicle, repo));
+        Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdFollowRoute,
+            repo.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(vehicle).ActiveAction);
 
-        // Route compiles â€” update TrajectoryId.
-        repo.SetComponent(routeEntity, new RouteTrajectoryCache { TrajectoryId = 7, CompiledVersion = 1 });
+        repo.SetComponent(route, new RouteTrajectoryCache { TrajectoryId = 7, CompiledVersion = 1 });
+        Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteFollowRouteChannel(ref p, vehicle, repo);
 
-        // Second cycle (drain retry queue).
-        system.TestHook_DrainRetryQueue(repo);
-
-        // Mission should now be committed.
-        var activePlan = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(vehicle);
-        var storedTask = activePlan.Plan.Tasks[0];
-        using var doc  = JsonDocument.Parse(storedTask.BehaviorParams);
-        Assert.Equal(7, doc.RootElement.GetProperty("trajectoryId").GetInt32());
+        var ch = repo.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(vehicle);
+        Assert.Equal(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdFollowRoute, ch.ActiveAction);
+        Assert.Equal(7, (*(Fdp.Toolkit.Navigation.FollowRouteParams*)ch.Params).TrajectoryId);
     }
 
     /// <summary>
@@ -249,29 +242,5 @@ public class MissionControlRequestSystemFollowRouteTests
         var activePlan = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(vehicle);
         Assert.Equal(originalParams, activePlan.Plan.Tasks[0].BehaviorParams);
         Assert.Equal(0, system.TestHook_RetryQueueCount);
-    }
-
-    /// <summary>
-    /// OC1-S001 Scenario 6 â€” ParseFollowRouteParams roundtrip:
-    /// Verifies <see cref="MissionControlRequestSystem.TryTranslateFollowRouteBehaviorParams"/>
-    /// produces JSON consumable by the existing <c>ParseFollowRouteParams</c> logic.
-    /// </summary>
-    [Fact]
-    public void TryTranslateFollowRouteBehaviorParams_ProducesCorrectJson()
-    {
-        using var repo = CreateWorld();
-
-        var routeEntity = repo.CreateEntity();
-        repo.AddComponent(routeEntity, new NetworkIdentity { Value = 42L });
-        repo.AddComponent(routeEntity, new RouteTrajectoryCache { TrajectoryId = 5, CompiledVersion = 1 });
-
-        const string input = "{\"routeEntityId\":42,\"Speed\":12.0,\"Loop\":true}";
-        bool ok = MissionControlBehaviorParamsHelper.TryTranslateFollowRouteBehaviorParams(repo, input, out var translated);
-
-        Assert.True(ok);
-        using var doc = JsonDocument.Parse(translated);
-        Assert.Equal(5, doc.RootElement.GetProperty("trajectoryId").GetInt32());
-        Assert.Equal(12.0, doc.RootElement.GetProperty("Speed").GetDouble(), precision: 3);
-        Assert.True(doc.RootElement.GetProperty("Loop").GetBoolean());
     }
 }

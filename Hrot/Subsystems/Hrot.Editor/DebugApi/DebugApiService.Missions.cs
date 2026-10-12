@@ -17,8 +17,7 @@ namespace Hrot.Editor.DebugApi
     /// replace with optimistic concurrency, exactly as <see cref="Hrot.UI.Common.Panels.MissionPanel"/>
     /// does it (compare <c>HandleAddTask</c>/<c>HandleCommit</c>). ⛔ There is NO parallel write API and
     /// NO behaviour-name mapper: a task carries the behaviour name pass-through, and its params ride as the
-    /// raw JSON string the engine parses (<c>MissionControlBehaviorParamsHelper</c> reads it with plain
-    /// <c>System.Text.Json</c>) — the SAME string the panel's params editor stores in
+    /// raw JSON string the behaviour's own resolver parses (CE-2145: no sender-side rewrite) — the SAME string the panel's params editor stores in
     /// <see cref="MissionTask.BehaviorParams"/>.</para>
     ///
     /// <para><b>The commit is asynchronous and resolves across frames.</b>

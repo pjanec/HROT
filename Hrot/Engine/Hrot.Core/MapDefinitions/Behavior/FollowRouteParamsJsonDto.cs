@@ -6,9 +6,9 @@ namespace Hrot.Map.Definitions.Behavior
 {
     /// <summary>
     /// JSON serialization DTO for the <c>FollowRoute</c> behavior parameter block.
-    /// <para>⚠ <c>CE-2131</c> — this is the AUTHORED contract (what a scenario, mission or agent writes). Today the route entity is
-    /// converted to a trajectory id on the SENDING side (<c>MissionControlBehaviorParamsHelper</c>), and the curated resolver
-    /// parses that converted <c>{trajectoryId, Speed, Loop}</c>; moving the conversion into the behaviour is <c>CE-2145</c>.</para>
+    /// <para>⭐ <c>CE-2131</c> / <c>CE-2145</c> — this is the AUTHORED contract (what a scenario, mission, order or agent writes),
+    /// and it is also what the behaviour parses: its typed resolver (<c>CgfNodes.ResolveFollowRoute</c>) turns the route entity
+    /// into its compiled trajectory on the RECEIVING side (R-273).</para>
     /// </summary>
     public sealed class FollowRouteParamsJsonDto
     {
@@ -22,8 +22,8 @@ namespace Hrot.Map.Definitions.Behavior
         [MapPickableEntity("road_graphs")]   // ⭐ narrows the picker; the TYPE makes it pickable and remapped
         public EntityRef RouteEntityId { get; set; }
 
-        /// <summary>⭐ <c>CE-2131</c> (CE-2128 ①) — the asked speed (m/s); 0 = the trajectory's own. The mission path already sends
-        /// it (<c>MissionControlBehaviorParamsHelper</c> reads <c>"Speed"</c>); the published contract left it out.</summary>
+        /// <summary>⭐ <c>CE-2131</c> (CE-2128 ①) — the asked speed (m/s); 0 = the trajectory's own. The mission path always sent
+        /// it; the published contract left it out until CE-2131.</summary>
         [JsonPropertyName("Speed")]
         public float Speed { get; set; }
 

@@ -144,12 +144,8 @@ public sealed class ThereIsOneNetworkIdResolverTests
         //   EqsResultUpdateSystem and EqsResultIngressTranslator — now route through ONE seam, EqsSensorKey
         //   (Fdp.Toolkits), which compares through its own Resolve and so carries no inline shape. Entries removed.
 
-        // ⚠ These two are the SAME FILE NAME in two assemblies — a ruling-9 duplicate in its own right,
-        //   and both are outside the UI lane. Routing one and not the other would make them diverge.
-        ["Hrot/Subsystems/Hrot.SimHost/Systems/MissionControlBehaviorParamsHelper.cs"] =
-            "out of lane; duplicated with the Hrot.Core copy — reconcile both together",
-        ["Hrot/Engine/Hrot.Core/Systems/Common/MissionControlBehaviorParamsHelper.cs"] =
-            "out of lane; duplicated with the Hrot.SimHost copy — reconcile both together",
+        // ⭐ CE-2145 (2026-10-12): the two MissionControlBehaviorParamsHelper copies (Hrot.Core, Hrot.SimHost) are deleted —
+        //   FollowRoute's route lookup moved into the behaviour (CgfNodes.TryFindRouteTrajectory), through NetworkIdResolver.
     };
 
     /// <summary>⭐ Walks up to the checkout root, the same probe <c>CuratedScenarios</c> and
