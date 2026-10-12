@@ -95,6 +95,10 @@ namespace Fdp.Toolkit.Squad.Systems
                 }
             }
 
+            // ⭐ CE-2107 — a member's HEARD contact that another member SEES is one contact, as it is in each member's own memory
+            //   (TargetMemory.AbsorbBySighting): fold it into the sighting, or the squad counts one enemy twice (SquadEnemyStrengthRatio).
+            AbsorbHeardBySightings(repo, ref localPool, heardRadius, heardClass);
+
             // 6. Sort pool contacts descending by ThreatScore (insertion sort; at most 16 entries).
             var sortSpan = MemoryMarshal.CreateSpan(
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref localPool.Contacts), 16);
@@ -130,6 +134,50 @@ namespace Fdp.Toolkit.Squad.Systems
         /// mean, the radius shrinks); else a new pooled contact flagged <see cref="SquadContact.AnonymousFlag"/>. Two members
         /// hearing one shot are ONE squad contact. 📄 <c>docs/DESIGN_Thermal_And_Acoustic_Sensing.md</c> §8.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-2107</c> — the squad twin of <see cref="TargetMemory.AbsorbBySighting"/>: a pooled heard contact whose circle
+        /// holds an identified pooled contact that can sound like it (<c>ThreatEvaluationSystem.ClassesOf</c>, any match; an
+        /// unknown class on either side matches) is folded into that contact — the higher score, both members' bits, the heard
+        /// modalities — and leaves the pool. The sighting keeps its position. The nearest sighting wins.
+        /// 📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md §8.
+        /// </summary>
+        private static void AbsorbHeardBySightings(EntityRepository repo, ref SquadContactPool pool, float* radii, byte* classes)
+        {
+            var span = MemoryMarshal.CreateSpan(
+                ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref pool.Contacts), 16);
+            System.Span<byte> soundClasses = stackalloc byte[3];
+            bool emitters = repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();   // none ⇒ class unknown
+            for (int i = pool.Count - 1; i >= 0; i--)   // downward: the slot swapped into i was already visited
+            {
+                if ((span[i].Flags & SquadContact.AnonymousFlag) == 0) continue;
+                float r = radii[i];
+                int best = -1; float bestD2 = float.MaxValue;
+                for (int j = 0; j < pool.Count; j++)
+                {
+                    if ((span[j].Flags & SquadContact.AnonymousFlag) != 0 || span[j].EntityId <= 0) continue;
+                    float dx = span[j].PositionX - span[i].PositionX, dy = span[j].PositionY - span[i].PositionY, d2 = dx * dx + dy * dy;
+                    if (d2 > r * r || d2 >= bestD2) continue;
+                    var canSound = emitters
+                        ? Fdp.Toolkit.Perception.Systems.ThreatEvaluationSystem.ClassesOf(repo, new Entity((ulong)span[j].EntityId), soundClasses)
+                        : System.ReadOnlySpan<byte>.Empty;
+                    bool compatible = classes[i] == 0 || canSound.Length == 0;
+                    for (int k = 0; !compatible && k < canSound.Length; k++) compatible = TargetMemory.ClassesCompatible(classes[i], canSound[k]);
+                    if (!compatible) continue;
+                    best = j; bestD2 = d2;
+                }
+                if (best < 0) continue;
+
+                ref var seen = ref span[best];
+                if (span[i].ThreatScore > seen.ThreatScore) seen.ThreatScore = span[i].ThreatScore;
+                seen.SourceMembersMask = (ushort)(seen.SourceMembersMask | span[i].SourceMembersMask);
+                seen.Flags             = (ushort)(seen.Flags | (span[i].Flags & ~SquadContact.AnonymousFlag));
+
+                int last = --pool.Count;
+                span[i] = span[last]; radii[i] = radii[last]; classes[i] = classes[last];
+                span[last] = default;
+            }
+        }
+
         private static void MergeHeard(
             ref SquadContactPool pool, float* radii, byte* classes,
             long id, float x, float y, float z, float radius, byte sourceClass,

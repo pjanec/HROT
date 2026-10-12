@@ -194,7 +194,7 @@ namespace Fdp.Toolkit.Perception.Systems
 
         /// <summary>What <paramref name="target"/> can sound like on this node (its <c>AcousticEmitter</c> classes); empty =
         /// unknown, compatible with any heard class.</summary>
-        private static System.ReadOnlySpan<byte> ClassesOf(ISimulationView view, Entity target, System.Span<byte> buffer)
+        internal static System.ReadOnlySpan<byte> ClassesOf(ISimulationView view, Entity target, System.Span<byte> buffer)   // ⭐ CE-2107 — the squad merge asks it too
         {
             if (!view.IsAlive(target) || !view.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(target))
                 return System.ReadOnlySpan<byte>.Empty;

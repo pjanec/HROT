@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-05
+updated: 2026-10-12 (CE-2107 built — §8)
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
@@ -445,7 +445,7 @@ classDiagram
   class EqsContext { <<existing, grows>> AnchorPosition: slot entity, else the slot's point · TryPoint NEW }
   class CheapLineOfSightTest { <<existing>> reads AnchorPosition, not the slot's SimTransform }
   class EqsSensorConfig { <<existing DDS, grows>> ContextPoint1X/Y/Z · ContextPointMask }
-  class SquadPerceptionMergeSystem { <<existing>> MergeAnonymous by position }
+  class SquadPerceptionMergeSystem { <<existing>> MergeAnonymous by position · AbsorbHeardBySightings (CE-2107) }
   EqsTacticsNodes --> ThreatAim
   PostureNodes --> ThreatAim
   EqsTacticsNodes ..> TargetMemory
@@ -506,7 +506,7 @@ graph TD
 | the node states keep `Threat` and gain `HeardId` + `HeardPoint`; the point stored is the one the sensor was POINTED at | `EqsTacticsState`, `PostureSensorsState` | a slowly drifting heard contact re-points once it has moved `RepointMetres` (2 m) in all; ⛔ no field rename (a Roslyn-only operation here) |
 | the generated goldens do not move | `*.Registrar.g.cs.txt` take `Unsafe.SizeOf<…State>()` | — |
 
-⚠ **Not built, recorded:** a member's HEARD contact is not absorbed by another member's SIGHTING in the squad pool (each member's own memory already absorbs, ①) — filed `CE-2107` · the live acceptance (a rifleman on `test-town` hiding from a heard shot) waits for shipped TKB data to author acoustic signatures (§7 finding — today every shipped unit is silent) → `CE-2106`.
+✅ **CE-2107 BUILT `2026-10-12` (was "not built"):** a member's HEARD contact IS absorbed by another member's SIGHTING in the squad pool — `SquadPerceptionMergeSystem.AbsorbHeardBySightings`, after the members are merged and before the sort, the squad twin of `TargetMemory.AbsorbBySighting` (①): a pooled heard contact whose circle holds an identified pooled contact that can sound like it (`ThreatEvaluationSystem.ClassesOf`, now `internal` and shared — no copy; an unknown class on either side matches) folds into it (higher score, both members' bits, the heard modalities; the sighting keeps its position; the nearest wins). ⭐ Demand: S2's `SquadEnemyStrengthRatio` counts a heard pooled contact as one armed enemy, so the duplicate counted one enemy twice. Rails `SquadPerceptionMergeSystemTests.CE2107_AShotOneMemberHears_AndAnotherSees_IsOnePooledContact` (red-proved: the pass removed ⇒ 2 contacts) · `CE2107_AHeardContactStays_WhenTheSightingCannotMakeIt_OrLiesOutsideTheCircle`. ⚠ **Still recorded:** the live acceptance (a rifleman on `test-town` hiding from a heard shot) waits for shipped TKB data to author acoustic signatures (§7 finding — today every shipped unit is silent) → `CE-2106`.
 
 Rails (each feature's own suite; each red-proved by removing its mechanism): `CoverGeneratorAndLosTests.CE3063_CheapLineOfSight_JudgesFromTheContextPoint_WhenSlotOneIsEmpty` ·
 `StandardInputReaderTests.CE3063_AHeardContact_CountsAsStrength_ButIsNotALiveTarget` · `SensorNodesTests.CE3063_ThreatsAtLeast_CountsAHeardContactByItsClass` ·

@@ -285,5 +285,62 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             Assert.InRange(fused.PositionX, 100f, 110f);   // between the two estimates
             Assert.True((GetContact(commander, 1).Flags & SquadContact.AnonymousFlag) != 0);
         }
+
+        /// <summary>⭐ CE-2107 — one member SEES the enemy, another HEARS his shot inside the sound's circle: the pool holds ONE
+        /// contact, the sighting (its position, both members' bits, the higher score), not the sighting plus an anonymous point
+        /// that <c>SquadEnemyStrengthRatio</c> would count as a second armed enemy.</summary>
+        [Fact]
+        public void CE2107_AShotOneMemberHears_AndAnotherSees_IsOnePooledContact()
+        {
+            var (repo, commander, members) = CreateSquadWorld(2);
+            const byte smallArms = 4;
+            repo.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
+            var enemy = repo.CreateEntity();
+            repo.AddComponent(enemy, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter { FiringClass = smallArms });
+
+            ref var mem0 = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.AddOrUpdateTarget(ref mem0, (long)enemy.PackedValue, 100f, 0f, 50f, tick: 1);
+            ref var mem1 = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref mem1, 105f, 3f, 0f, 20f, smallArms, 60f, 1);
+
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+
+            Assert.Equal(1, GetState(commander).Contacts.Count);
+            ref var c = ref GetContact(commander, 0);
+            Assert.Equal((long)enemy.PackedValue, c.EntityId);
+            Assert.True((c.Flags & SquadContact.AnonymousFlag) == 0, "the sighting absorbs the sound — the contact is identified");
+            Assert.Equal((ushort)0b0011, c.SourceMembersMask);
+            Assert.Equal(60f, c.ThreatScore);
+            Assert.Equal(100f, c.PositionX);   // the sighting's position, not the sound's estimate
+        }
+
+        /// <summary>⭐ CE-2107 — the guard: a sound the seen entity cannot make (a rifle shot by a tracked engine), or a sound whose
+        /// circle does not hold the sighting, stays its own heard contact.</summary>
+        [Fact]
+        public void CE2107_AHeardContactStays_WhenTheSightingCannotMakeIt_OrLiesOutsideTheCircle()
+        {
+            var (repo, commander, members) = CreateSquadWorld(3);
+            const byte smallArms = 4, trackedEngine = 3;
+            repo.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
+            var tank = repo.CreateEntity();
+            repo.AddComponent(tank, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter { MovingClass = trackedEngine });
+            var rifleman = repo.CreateEntity();
+            repo.AddComponent(rifleman, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter { FiringClass = smallArms });
+
+            ref var mem0 = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.AddOrUpdateTarget(ref mem0, (long)tank.PackedValue, 100f, 0f, 50f, tick: 1);
+            TargetMemory.AddOrUpdateTarget(ref mem0, (long)rifleman.PackedValue, 300f, 0f, 40f, tick: 1);
+            ref var mem1 = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref mem1, 102f, 0f, 0f, 20f, smallArms, 60f, 1);   // over the tank: wrong class
+            ref var mem2 = ref repo.GetComponentRW<TargetMemory>(members[2]);
+            TargetMemory.HearContact(ref mem2, 340f, 0f, 0f, 20f, smallArms, 30f, 1);   // the rifleman's class, 40 m off: outside 20
+
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+
+            Assert.Equal(4, GetState(commander).Contacts.Count);
+            int heard = 0;
+            for (int i = 0; i < 4; i++) if ((GetContact(commander, i).Flags & SquadContact.AnonymousFlag) != 0) heard++;
+            Assert.Equal(2, heard);
+        }
     }
 }
