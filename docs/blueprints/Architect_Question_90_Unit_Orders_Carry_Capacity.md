@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -222,6 +222,31 @@ node can compute it.
 
 ⛔ Not measured: the time and memory the catalog scan costs on IG (CGF pays it at boot today); whether a lighter catalog (names,
 classes, params types, without compiled trees) should be split from the registry for nodes that never run a brain.
+
+### 2.3d The shared order DTO, where the contract lives, enums *(2026-10-12; user follow-up)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| `[BehaviorContract(name, categories)]` sits on the params DTO, ONE per DTO (`AllowMultiple = false`), so a DTO can serve only one behaviour | ✅ `BehaviorContractAttribute.cs` | — |
+| it does three jobs: binds behaviour name → authored DTO for every host (`BindJsonParamsDtoTypes`, CE-235); the category filter; the blueprint Send Intent palette and the UI schema / remapper | ✅ `CgfBehaviorSetup.cs:57-62`, `BehaviorCatalog.cs:45-64`, `IntentContractPaletteEntries.cs:50`, `BehaviorSchemaDiscovery` | ✅ CE-235: *"[BehaviorContract] on the DTOs in Hrot.Core is the one producer"* |
+| it sits in Hrot.Core so readers without the AI assembly can see it; ExCon is the one such reader (it references Presentation / Common, not `Hrot.AI.Behaviors`) | ✅ `Hrot.ExCon.csproj`, `MissionEditorService.cs:73` | — |
+| the behaviour's own attribute `[BTreeDefinition]` lives in the generic FastBTree kernel (`FDP/ExtDeps`), BTree only | ✅ `BTreeDefinitionAttribute.cs` | — |
+| entity TYPES are already C# constants (`TkbEntityTypes`) and the TKB catalog is C# (`BdcTkbCatalog`) | ✅ | — |
+
+| question | ⭐ lean |
+|---|---|
+| **a shared order DTO** | ✅ yes: the order DTO (`MoveOrder`) IS the shared contract of every `<Class>Move`. A behaviour's params are that DTO, or a SUPERSET with the same field names and types (`SquadMove` adds `Shape`, `Spacing`; they keep their baked defaults when started by an order). The load-time check (§2.3b ②) asserts the superset. A blueprint behaviour that implements Move gets the order's fields added to its Parameters by the editor |
+| **where the contract lives** | ⭐ **on the behaviour, not the DTO.** With shared DTOs the DTO can no longer name its behaviour, so the binding inverts: the behaviour names its DTO and its classes. C#: one engine-level attribute on the behaviour class, in Hrot.Core (not `BTreeDefinition`, which is the generic BTree kernel's): `[Behavior(Params = typeof(MoveOrder), Classes = new[] { EntityClass.Squad })]`. HSM / blueprint / BTree assets: the same two properties, carried by their generated registrar. The DTO becomes pure data, with `[Order(OrderKind.Move)]` when it is an order's DTO. One producer still (the behaviour), so CE-235's rule holds |
+| **entity classes as an enum** | ✅ yes: `enum EntityClass` (one per TKB type, declared in its profile), replacing the 5-flag `BehaviorCategory`. Order kinds likewise: `enum OrderKind`. The only place a `<Class><Order>` name is composed is one helper (`OrderBehaviors.NameOf(EntityClass, OrderKind)`), and the load check compares it with what is registered. Cost: a new class is a code change and a rebuild. That is consistent with how TKB types are defined today, and a blueprint author picks a class from a dropdown |
+
+Blast radius:
+- the 25 `[BehaviorContract]` uses move onto their behaviours;
+- `BehaviorCatalog`, `BehaviorSchemaDiscovery` (bind, UI schema, remapper), the blueprint Send Intent palette (it becomes "Send Order: Move" from the order DTOs), and `BTreeBridgeEmitCore.cs:1720`;
+- ExCon: it can no longer see behaviours without the AI assembly. Lean: it asks a live node through the existing `GET /behaviors?entityId=`. ⛔ Not measured: whether ExCon already holds an HTTP route to a node.
+
+Rejected:
+- **Keep the contract on the DTO with `AllowMultiple = true`:** the DTO would list every behaviour that uses it, so adding `TankPlatoonMove` edits the shared order DTO.
+- **Strings for classes:** typos and no completion; the user's ask.
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
