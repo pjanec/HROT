@@ -8,7 +8,6 @@ namespace Hrot.Map.Definitions.Behavior
     /// top identified contact hold and fire on it; the rest go to a flank the commander asks the terrain for, then assault through
     /// the enemy's position. A zero field keeps its default. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §3.
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.Commander)]
     public struct SuppressAndManeuverParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.SuppressAndManeuver;

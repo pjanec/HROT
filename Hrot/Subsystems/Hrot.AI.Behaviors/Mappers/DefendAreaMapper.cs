@@ -24,6 +24,7 @@ namespace Hrot.AI.Behaviors.Mappers
     /// contract with the node's geographic transform.
     /// </para>
     /// </summary>
+    [Behavior(BehaviorNames.DefendArea, Params = typeof(global::Hrot.Map.Definitions.Behavior.Intents.DefendAreaIntentDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134 — an intent id is fulfilled by its mapper
     public sealed class DefendAreaMapper : ITacticalOrderMapper
     {
         public string TargetIntentId => "DefendArea";

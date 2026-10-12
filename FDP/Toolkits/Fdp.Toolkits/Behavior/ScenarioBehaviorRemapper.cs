@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Behavior
     /// behaviour's contract TYPE comes from the registry</b> (<see cref="BehaviorDefinition.JsonParamsDtoType"/>, which
     /// already settles a curated contract against a generated one, <c>CE-235</c>), looked up LAZILY so a blueprint
     /// authored or hot-reloaded after startup is covered too. ⛔ Without it a blueprint behaviour — whose contract is its
-    /// generated <c>Params</c> struct, never a <c>[BehaviorContract]</c> — was looked up by name, found nothing, and kept
+    /// generated <c>Params</c> struct, never a <c>[Behavior(Params = …)]</c> — was looked up by name, found nothing, and kept
     /// the scenario file's ids. The <see cref="Register{TDto}"/> table is the fallback for a host with no registry.
     /// </para>
     /// </summary>

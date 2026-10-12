@@ -284,7 +284,7 @@ namespace Fdp.Toolkit.Behavior
         /// </para>
         ///
         /// <para>
-        /// Populated by <c>BehaviorSchemaDiscovery</c> from <c>[BehaviorContract]</c> for curated
+        /// Populated by <c>BehaviorSchemaDiscovery</c> from <c>[Behavior(Params = …)]</c> for curated
         /// behaviors, and by the JSON generators for authored assets. Settable (not <c>init</c>-only)
         /// for the same reason as <see cref="ParseParams"/> — a curated registrar can bind it by name
         /// through <see cref="BehaviorRegistry.RegisterResolver"/> after a generated registrar has
@@ -383,7 +383,7 @@ namespace Fdp.Toolkit.Behavior
         private readonly Dictionary<string, Type> _sourceTypesByName = new(StringComparer.Ordinal);   // S8 / CE-2022
 
         // CE-235: authored JSON contracts keyed by behavior name, supplied by BehaviorSchemaDiscovery
-        // from [BehaviorContract]. Same order-independent reconciliation as _resolversByName, and for
+        // from [Behavior(Params = …)]. Same order-independent reconciliation as _resolversByName, and for
         // the same reason: discovery scans the Hrot.Core assembly at editor/CGF setup time, which may
         // run before or after the [BlueprintRegistrar] scan that registers the topologies.
         private readonly Dictionary<string, Type> _jsonParamsDtoByName = new(StringComparer.Ordinal);
@@ -540,11 +540,12 @@ namespace Fdp.Toolkit.Behavior
                 ApplyResolverOverlay(definition, overlay);
 
             // CE-235: same, for an authored JSON contract discovered before the topology registered.
-            // ⭐ The definition WINS if it already carries one — a generated asset emits its own
-            //   JsonParamsDtoType and that is the asset's own authored shape, not something discovery
-            //   should overwrite.
-            if (definition.JsonParamsDtoType == null
-                && _jsonParamsDtoByName.TryGetValue(name, out var jsonDto))
+            // ⭐⭐ CE-2134 — a DECLARED contract ([Behavior(Params = …)] on the behaviour) WINS over a generated one: the
+            //   declaration is the behaviour's own statement (R-132: curated outranks generated). It is what makes a
+            //   generated asset with a curated resolver (PlatoonHillAttack) publish what its resolver parses (CE-2128 ②).
+            //   ⛔ HISTORY: the generated contract won, because [BehaviorContract] sat on a DTO and could not be trusted
+            //   to know which asset it described.
+            if (_jsonParamsDtoByName.TryGetValue(name, out var jsonDto))
                 definition.JsonParamsDtoType = jsonDto;
 
             // ⭐⭐ S5c (U-9) — this DEFINITION may be the one that closes a hosting cycle (its edges, or edges into it,
@@ -556,16 +557,15 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>
         /// <c>CE-235</c> — binds a behavior's <b>authored JSON contract</b> by name, the shape a
         /// scenario or an agent writes when assigning it. Called by <c>BehaviorSchemaDiscovery</c> for
-        /// every <c>[BehaviorContract]</c>-tagged DTO.
+        /// every declared (<c>[Behavior(Params = …)]</c>) DTO.
         ///
         /// <para>
         /// Order-independent, exactly like <see cref="RegisterResolver"/>: applied immediately when the
         /// topology is already registered, stored and applied on registration otherwise.
         /// </para>
         /// <para>
-        /// ⛔ A definition that already carries a <see cref="BehaviorDefinition.JsonParamsDtoType"/>
-        /// keeps it — a JSON-authored asset emits its own and outranks a curated overlay for the same
-        /// name, because there the emitted struct <i>is</i> the authored shape.
+        /// ⭐⭐ <c>CE-2134</c> — this is the DECLARED contract and it OVERRIDES a generated one (R-132). ⛔ HISTORY: a definition
+        /// that already carried a <see cref="BehaviorDefinition.JsonParamsDtoType"/> kept it.
         /// </para>
         /// </summary>
         public void RegisterJsonParamsDtoType(string name, Type jsonParamsDtoType)
@@ -575,12 +575,8 @@ namespace Fdp.Toolkit.Behavior
 
             _jsonParamsDtoByName[name] = jsonParamsDtoType;
 
-            if (_nameToId.TryGetValue(name, out var id)
-                && _definitions.TryGetValue(id, out var def)
-                && def.JsonParamsDtoType == null)
-            {
+            if (_nameToId.TryGetValue(name, out var id) && _definitions.TryGetValue(id, out var def))
                 def.JsonParamsDtoType = jsonParamsDtoType;
-            }
         }
 
         /// <summary>
@@ -625,7 +621,7 @@ namespace Fdp.Toolkit.Behavior
         /// <para>
         /// ⛔ <c>CE-235</c>: the optional type is <see cref="BehaviorDefinition.BlackboardLayoutType"/>,
         /// <b>never</b> <see cref="BehaviorDefinition.JsonParamsDtoType"/>. The authored JSON contract
-        /// comes from <c>[BehaviorContract]</c> via <c>BehaviorSchemaDiscovery</c>, not from here — a
+        /// comes from <c>[Behavior(Params = …)]</c> via <c>BehaviorSchemaDiscovery</c>, not from here — a
         /// resolver overlay describes how bytes are laid out, not what a caller may write.
         /// </para>
         /// <para>
@@ -925,8 +921,7 @@ namespace Fdp.Toolkit.Behavior
                 {
                     if (_resolversByName.TryGetValue(name, out var overlay))
                         ApplyResolverOverlay(def, overlay);
-                    if (def.JsonParamsDtoType == null
-                        && _jsonParamsDtoByName.TryGetValue(name, out var jsonDto))
+                    if (_jsonParamsDtoByName.TryGetValue(name, out var jsonDto))   // CE-2134: the declaration wins
                         def.JsonParamsDtoType = jsonDto;
                     _definitions[id] = def;
                 }

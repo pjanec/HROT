@@ -6,11 +6,11 @@ using Hrot.Blueprints.Core.Assets;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
-/// <summary>One discovered <c>[BehaviorContract]</c> parameter DTO: its id, FQN and the members a pin can carry.</summary>
+/// <summary>One declared behaviour params contract (<c>[Behavior(Params = …)]</c>, CE-2134): its id, DTO FQN and the members a pin can carry.</summary>
 public sealed record IntentContract(string Id, string DtoTypeFqn, IReadOnlyList<StructFieldDecl> Members);
 
 /// <summary>
-/// ⭐ <c>CE-472</c> — discovers the <c>[BehaviorContract]</c> parameter DTOs the Send Intent / To JSON / From JSON palette
+/// ⭐ <c>CE-472</c> — discovers the <c>[Behavior(Params = …)]</c> parameter DTOs the Send Intent / To JSON / From JSON palette
 /// offers. Mirrors <see cref="ISharedStructTypeProvider"/>. 📄 <c>docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md</c>.
 /// </summary>
 public interface IIntentContractProvider
@@ -19,44 +19,35 @@ public interface IIntentContractProvider
 }
 
 /// <summary>
-/// Default <see cref="IIntentContractProvider"/>: scans loaded assemblies for classes carrying an attribute NAMED
-/// <c>BehaviorContractAttribute</c> and reads its first constructor argument (the id). ⚠ Matched by name, not by
-/// type: the blueprint editor does not reference <c>Hrot.Core</c>, which defines it — the same reason
-/// <see cref="ReflectionSharedStructTypeProvider"/> scans rather than links.
+/// Default <see cref="IIntentContractProvider"/>: every behaviour's declared params DTO from the ONE scan,
+/// <c>Hrot.Map.Definitions.Behavior.ParamsDtoRegistry</c> (<c>CE-2134</c>). ⛔ HISTORY: it scanned the loaded assemblies itself
+/// for an attribute NAMED <c>BehaviorContractAttribute</c>, believing <c>Hrot.Core</c> unreachable — it is reachable through
+/// <c>Hrot.Editor.AiShared</c>, and a second scan of one attribute is what ruling 9 forbids.
 /// </summary>
 public sealed class ReflectionIntentContractProvider : IIntentContractProvider
 {
     private IReadOnlyList<IntentContract>? _cached;
 
-    public IReadOnlyList<IntentContract> GetContracts() => _cached ??= Compute(AppDomain.CurrentDomain.GetAssemblies());
+    public IReadOnlyList<IntentContract> GetContracts() => _cached ??= FromRegistry(Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default);
 
     /// <summary>Scans <paramref name="assemblies"/> (exposed so a rail can scan a known assembly set).</summary>
     public static IReadOnlyList<IntentContract> Compute(IEnumerable<Assembly> assemblies)
+        => FromRegistry(Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Scan(assemblies));
+
+    /// <summary>The contracts <paramref name="registry"/> declares, by behaviour id.</summary>
+    public static IReadOnlyList<IntentContract> FromRegistry(Hrot.Map.Definitions.Behavior.ParamsDtoRegistry registry)
     {
         var result = new List<IntentContract>();
-        foreach (var asm in assemblies)
+        foreach (var d in registry.Behaviors)
         {
-            Type[] types;
-            try { types = asm.GetTypes(); }
-            catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t != null).Cast<Type>().ToArray(); }
-            catch { continue; }
-
-            foreach (var t in types)
-            {
-                // ⭐ CE-2023 ③ ("S8n") — a STRUCT contract too (MoveToLocation / FireAtTarget are structs so a host can bind them).
-                if (!(t.IsClass || (t.IsValueType && !t.IsEnum && !t.IsPrimitive)) || t.IsAbstract
-                    || t.FullName is not { Length: > 0 } fqn) continue;
-                if (t.IsClass && t.GetConstructor(Type.EmptyTypes) is null) continue;   // From JSON / new T() need one (a struct always has it)
-                var attr = t.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "BehaviorContractAttribute");
-                if (attr is null || attr.ConstructorArguments.Count == 0 || attr.ConstructorArguments[0].Value is not string id
-                    || id.Length == 0) continue;
-                result.Add(new IntentContract(id, fqn.Replace('+', '.'), PinnableMembers(t)));
-            }
+            var t = d.ParamsType;
+            // ⭐ CE-2023 ③ ("S8n") — a STRUCT contract too (MoveToLocation / FireAtTarget are structs so a host can bind them).
+            if (!(t.IsClass || (t.IsValueType && !t.IsEnum && !t.IsPrimitive)) || t.IsAbstract
+                || t.FullName is not { Length: > 0 } fqn) continue;
+            if (t.IsClass && t.GetConstructor(Type.EmptyTypes) is null) continue;   // From JSON / new T() need one (a struct always has it)
+            result.Add(new IntentContract(d.Name, fqn.Replace('+', '.'), PinnableMembers(t)));
         }
-        return result
-            .GroupBy(c => c.Id, StringComparer.Ordinal).Select(g => g.First())
-            .OrderBy(c => c.Id, StringComparer.Ordinal)
-            .ToList();
+        return result.OrderBy(c => c.Id, StringComparer.Ordinal).ToList();
     }
 
     /// <summary>
@@ -92,12 +83,14 @@ public sealed class ReflectionIntentContractProvider : IIntentContractProvider
         => type.IsEnum ? "global::" + (type.FullName ?? type.Name).Replace('+', '.') : type.FullName ?? type.Name;
 }
 
-/// <summary>⭐ <c>CE-472</c> — one Send Intent / To JSON / From JSON palette row per discovered contract.</summary>
+/// <summary>⭐ <c>CE-472</c> — one Send Intent row per declared behaviour, and ONE To JSON / From JSON pair per DTO TYPE
+/// (<c>CE-2134</c>: several behaviours may share a DTO, and its JSON rows are keyed by the type, so they are listed once).</summary>
 public static class IntentContractPaletteEntries
 {
     public static IEnumerable<NodeKindDescriptor> Entries(IIntentContractProvider provider)
     {
         if (provider is null) yield break;
+        var jsonRowsFor = new HashSet<string>(StringComparer.Ordinal);
         foreach (var c in provider.GetContracts())
         {
             var shortName = c.DtoTypeFqn.Substring(c.DtoTypeFqn.LastIndexOf('.') + 1);
@@ -110,6 +103,7 @@ public static class IntentContractPaletteEntries
                 Icon        = "bp/function",
                 CreateInstance = () => new SendIntentNode { Id = Guid.NewGuid(), IntentId = c.Id, DtoTypeFqn = c.DtoTypeFqn, Fields = Copy(c) },
             };
+            if (!jsonRowsFor.Add(c.DtoTypeFqn)) continue;   // a shared DTO: its To / From JSON rows are already listed
             yield return new NodeKindDescriptor
             {
                 Kind        = $"Json.To.{c.DtoTypeFqn}",

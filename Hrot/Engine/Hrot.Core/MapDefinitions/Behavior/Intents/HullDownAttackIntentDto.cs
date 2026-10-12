@@ -5,7 +5,7 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     /// ⭐ <c>CE-472</c> (decision D) — the parameter contract of the <c>"HullDownAttack"</c> tactical intent, which
     /// <c>HullDownAttackMapper</c> forwards unchanged to the <c>"HullDownAttackRun"</c> behaviour. Until now the intent
     /// had NO contract: the C# helper serialised the internal <c>HullDownAttackParams</c> struct, contradicting
-    /// <c>docs/designs/tactical-intent/DESIGN.md</c> §4.2 (every intent has a <c>[BehaviorContract]</c> DTO).
+    /// <c>docs/designs/tactical-intent/DESIGN.md</c> §4.2 (every intent has a <c>[Behavior(Params = …)]</c> DTO).
     /// <para>
     /// The member names match <c>HullDownAttackParams</c>'s fields, so the receiver's parse
     /// (<c>HillAttackTankNodes.ParseHullDownAttackParams</c>, case-insensitive <c>DefaultRelaxed</c>) reads it as-is.
@@ -14,7 +14,6 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     /// </para>
     /// 📄 <c>docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md</c> §4 D.
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary)]
     public sealed class HullDownAttackIntentDto
     {
         public const string BehaviorId = BehaviorNames.HullDownAttack;

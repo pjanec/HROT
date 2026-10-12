@@ -51,6 +51,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Order = Defaults(authored.FlankSearchRadius, authored.Speed, authored.ArrivalRadius, authored.PhaseTimeoutSeconds);
             block.State = default;
         }
+[Behavior(BehaviorNames.SuppressAndManeuver, Params = typeof(global::Hrot.Map.Definitions.Behavior.SuppressAndManeuverParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
         /// <summary>The authored values, a zero keeping its default (one place: the drill and the ATTACK order share them).</summary>
         internal static SuppressAndManeuverParams Defaults(float radius, float speed, float arrival, float timeout) => new()

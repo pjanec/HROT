@@ -5,7 +5,6 @@ namespace Hrot.Map.Definitions.Behavior
     /// <summary>
     /// ⭐ <c>CE-2123</c> S2 — the authored contract of a squad commander's <c>SquadHold</c>: every member holds where it stands and fights (the library <c>CombatPosture</c> at its own position). A zero field keeps its default. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §4.
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.Commander)]
     public struct SquadHoldParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.SquadHold;

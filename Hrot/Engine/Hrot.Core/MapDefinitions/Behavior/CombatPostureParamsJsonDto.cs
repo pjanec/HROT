@@ -11,7 +11,6 @@ namespace Hrot.Map.Definitions.Behavior
     /// scenario already writes — <c>{"advance":{"Objective":[x,y,z],"Speed":3,"ArrivalRadius":5,"CooldownSeconds":1}}</c> — so the
     /// retired JSON tree's payloads load unchanged. A zero field keeps the default.
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
     public struct CombatPostureParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.CombatPosture;

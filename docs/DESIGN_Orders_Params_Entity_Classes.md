@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-build-state: BUILDING — §5a records each task as built (CE-2130, CE-2133, CE-2140, CE-2141, CE-2142, CE-2137, CE-2138, CE-2139 ✅); §6 is the build plan
+build-state: BUILDING — §5a records each task as built (CE-2130, CE-2133, CE-2134, CE-2140, CE-2141, CE-2142, CE-2137, CE-2138, CE-2139 ✅); §6 is the build plan
 current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class
 stale-below: nothing
 known-rot: none
@@ -210,6 +210,7 @@ outlines are GizmoMap's (CE-2138).*
 | **CE-2138** C2 ✅ 2026-10-12 (ui) | `Hrot.Core/Tkb/EntityClassTable.cs`: `EntityClass(Name, DisplayName, Mask)`, the table (53 classes: kinds, domains, categories as DisNames.json held them, plus the grouping classes `Armor`, `WheeledUtility`, `Helicopter`, `Jet`, `CargoPlane` that were `VisualFamilies`' switches), `CountryTable` (the five codes). `DisNameTable` names exactly the classes that pin one level (`NamesALevel`); `VisualFamilies.Of(dis)` and the new `EntityClassShapeLibrary` (2-D avatar, wired in `MapInteractionPack.BuildRenderLayer`) walk the chain from the most specific class to the first one in their own small map (`FamilyOfClass`, `ProfileOfClass`). `DisNames.json` + `EmbeddedResource` deleted. **Golden:** `EntityTypeCatalogTests.CE2138_*` (25 built-in types: family, folder, icon; 52 names) taken on the pre-C2 code (commit `79a0f8bf8`) and unchanged after; sweeps over the DIS space for the family (`Map3DTests.CE2138_TheClassTable_KeepsEveryFamily_…`, vs the old switch) and the avatar (vs GizmoMap's fixed switch). Table rails: `EntityClassTableTests` (no ties, duplicate refused, every built-in type named, chain order). **CE-2127** fixed in the same commit | ⚠ **the picker path is NOT the whole chain**: it is the chain filtered to the classes that name ONE level (an exact Kind / Domain / Category), with the country between Domain and Category. The whole chain would insert grouping classes (`Armor`, `Helicopter`) as folders and move every built-in type's folder, which §3 of the handoff forbids. ⚠ the **class name ≠ the display name** (`Person` reads "Life Form", `Afv` reads "Armored Fighting Vehicle"): names are identifiers for `<Class><Order>`, display names are what the picker always showed. ⚠ `VisualFamilies.IsSoldier` (rifle on the figure) still reads Kind 3 / Category 1 directly — not a classification surface the table was asked to own. ⚠ GizmoMap keeps its own DIS switch for non-HROT hosts (it cannot see `Hrot.Core`); every HROT host passes `EntityClassShapeLibrary`. 🔴 Found: GizmoMap's `BuildRotaryWing` returned the fixed-wing outline under the fixed-wing name, so no helicopter could ever draw as one; it now has its own outline |
 | **CE-2139** C3 ✅ 2026-10-12 (ui) | `Hrot.Core/Tkb/UnitDis.cs`: `Kind = 11`, `UnitArm` (Infantry 1 · Armor 2 · MechanizedInfantry 3 · Artillery 4 · Reconnaissance 5), `UnitEchelon` (the MIL-STD-2525 order: Team 1 · Squad 2 · Section 3 · Platoon 4 · Company 5 · Battalion 6 · Regiment 7 · Brigade 8 · Division 9), `Land(arm, echelon, country, variant)`, `EchelonOf(string)` (throws on an unknown name). `NedTkbBuilder.AsLandUnit(type, arm, country, variant)` reads the echelon from the template's `TkbCompositionDef.Echelon`, so the string stays the ONE source. Built-in units: Tank Platoon `11.1.225.2.4.1`, its auto-spawn variant `…2.4.2`, Infantry Squad `11.1.225.1.2.1`. Classes added: `Unit` ("Units") · `LandUnit` · five arm classes · `InfantrySquad` · `TankPlatoon`. Both composite special cases are gone (`VisualFamilies.Of` = `Of(dis)`, `FamilyOfClass["Unit"]`; `EntityTypeCatalog.CategoryOf` has no branch). Picker folder `Units/United States` → `Units/Land/United States/<arm>` (ExCon's ORBAT still keys on the `Units` prefix; railed). Map layers: a unit stays in `units_ground`, leaves `vehicles`; 2-D avatar: none. **The load rule** lives in `CreateEntityRequestSystem.UnitTakesItsTemplatesDisType`: a composite always spawns with its template's DIS type. Rails: `EntityClassTableTests.CE2139_*` (Hrot.Core.Tests), `BdcTkbBuilderVisualTests.CE1017_*` (composite ⇔ unit Kind), `Map3DTests.CE2139_*`, `EntityTypeCatalogTests` (the golden moved on exactly the 3 unit lines + 7 Kind-11 names), `CreateEntityRequestSystemTests.CE2139_*` (SimHost.Tests) | ⚠ **the load rule is NOT in `DisEntityTypeTranslator` / `StagingEntityExtractor`** (the handoff's pointers): translators inject BEFORE the auto-serializer adds `TkbIdentity` (`ScenarioSerializer.cs:458-484`), so the translator cannot tell a composite, and the extractor holds no TKB. `CreateEntityRequestSystem` is the one funnel every creation path passes that holds the TKB, and it already special-cases composites (child spawn). ⚠ a composite whose TKB still carries a PLATFORM DIS type (a user TKB file written before C3) now draws as its DIS says (unknown box) — no such file is checked in. ⚠ arm and echelon codes are HROT's (no SISO aggregate table in the repo) |
 | **CE-2133** B1 ✅ 2026-10-12 (backend) | a BTree/HSM with ONE struct Input parses flat; `ParamsDtoTypeId` on BTree/HSM/blueprint assets; details §5a.1 | ⚠ blueprints parse flat only when they NAME the DTO (§5a.1) |
+| **CE-2134** B2 ✅ 2026-10-12 (backend) | `[Behavior(name, Params, Categories)]` + `ParamsDtoRegistry` in `Hrot.Core`; 25 declarations moved off the DTOs (placement and classes/sequences/modules in §5b); `[BehaviorContract]` and `BehaviorTestHelper` deleted; readers moved: `BehaviorSchemaDiscovery`, `BehaviorCatalog` (now per host), the blueprint palette (To/From JSON once per DTO type); a declaration OUTRANKS a generated contract (PlatoonHillAttack publishes `PlatoonHillAttackParamsJsonDto`, CE-2128 ②); curated generator BEH002/BEH003; `RootParamsAccess.InputBytes` reads the block's `In`. Rails: `ParamsDtoRegistryTests` ×5, `ABehaviourAdvertisesItsRealParametersTests.CE2134_*` ×2, `CuratedBehaviorGeneratorResolverShapeTests.CE2134_*` ×2, `CE472_IntentAndJsonNodeTests.Palette_ListsASharedDtosJsonRowsOnce` | ⚠ JoinFormation now declares `CgfNodes.JoinFormationParams` (what its identity parse fills; BEH003), and the empty `JoinFormationParamsJsonDto` is deleted. ⚠ The example behaviours (Ambush, InfantryCombat, ConvoyEscort) are declared in `Hrot.Editor` (`[assembly: Behavior]`), so CGF / ExCon no longer offer them. ⚠ ExCon gained a ProjectReference to `Hrot.AI.Behaviors` (catalogue only). ⚠ Found in the build: the editor loads the AI assembly twice (hot reload) — the scan takes the LAST instance of each assembly name |
 
 ### 5a.1 CE-2133 B1 in detail *(2026-10-12, backend lane)*
 
@@ -245,6 +246,153 @@ Parameter; AQ90 §2.3m.) BTree / HSM variables are offered only as primitives or
 ⚠ **Not closed here:** a curated resolver on a generated asset (`PlatoonHillAttack`, `HullDownAttackRun`) still publishes the
 asset's Input type, not the resolver's source DTO; that is CE-2128 (A1) / B2's `[Behavior(Params=…)]`. A named DTO on an asset
 with NO variables at all has no `ParseParams`, so fields sent to it are not refused (B3's reserved `Params` closes this).
+
+## 5b. CE-2134 B2 — the contract on the behaviour *(2026-10-12, backend lane; BUILT — as-built row in §5a)*
+
+**INVENTORY** *(graph CLI index + grep + one read-only sweep; file:line in the task row)*: 25 `[BehaviorContract]` DTOs, all in
+`Hrot.Core`; 4 readers — `BehaviorSchemaDiscovery` (UI registry, scenario remapper, `RegisterJsonParamsDtoType`;
+Hrot.Core-only scan), `BehaviorCatalog` (per-category picker lists; Hrot.Core-only scan; 3 callers incl. ExCon),
+`ReflectionIntentContractProvider` (blueprint Send Intent / To / From JSON palette; AppDomain scan by attribute NAME),
+`BehaviorTestHelper` (no callers). Where each behaviour is implemented: 18 curated topologies in `Hrot.AI.Behaviors`
+(`[BTreeDefinition(Curated)]` / one `[HsmDefinition(Curated)]`), 15 of them with a TYPED resolver whose `TAuthored` IS the
+DTO; `PlatoonHillAttack` = a JSON asset + a raw resolver; `DefendArea` / `HullDownAttack` = intent ids handled by mappers;
+`ConvoyEscort` / `InfantryCombat` / `Ambush` = FDP examples the EDITOR registers (`EditorSubsystem.cs:1246`), nothing on CGF.
+`Hrot.AI.Behaviors` → `Hrot.Core` (one way); standalone ExCon reaches neither the AI assembly nor CGF.
+
+```mermaid
+classDiagram
+  direction LR
+  class BehaviorAttribute { <<NEW Hrot.Core>> +Name string · +Params Type · +Categories BehaviorCategory }
+  class ParamsDtoRegistry { <<NEW Hrot.Core>> +Default · +Scan(assemblies) · +Behaviors · +Dtos · +TryGetBehavior(name) · +NamesWithCategory(cat) }
+  class BehaviorDeclaration { +Name · +ParamsType · +Categories · +DeclaredOn }
+  class ParamsDtoInfo { +Type · +OrderName or null · +BehaviorNames }
+  class OrderAttribute { <<existing CE-2140>> +Name · +Gesture }
+  class BehaviorSchemaDiscovery { <<existing Presentation>> AutoRegister · BindJsonParamsDtoTypes }
+  class BehaviorCatalog { <<existing Hrot.Core>> GetValidBehaviors(tkbType) }
+  class ReflectionIntentContractProvider { <<existing Blueprints.Editor>> Send Intent per behaviour · To/From JSON per DTO }
+  class BehaviorRegistry { <<existing Fdp.Toolkits>> RegisterJsonParamsDtoType: a DECLARATION outranks a generated contract }
+  class CuratedBehaviorGenerator { <<existing analyzer>> BEH002 Params != typed resolver TAuthored · BEH003 Params != identity-parsed ParamsType }
+  class BehaviorContractAttribute { <<DELETED>> }
+  ParamsDtoRegistry *-- BehaviorDeclaration
+  ParamsDtoRegistry *-- ParamsDtoInfo
+  ParamsDtoRegistry ..> BehaviorAttribute : scans
+  ParamsDtoRegistry ..> OrderAttribute : order name
+  BehaviorSchemaDiscovery ..> ParamsDtoRegistry
+  BehaviorCatalog ..> ParamsDtoRegistry
+  ReflectionIntentContractProvider ..> ParamsDtoRegistry
+  BehaviorSchemaDiscovery ..> BehaviorRegistry : binds Params
+  CuratedBehaviorGenerator ..> BehaviorAttribute : validates (compile time)
+```
+
+*What the picture shows that prose hid: the four readers stop owning a scan each — one registry is the only reflection over
+the attribute, and the generator only CHECKS it; and the DTO no longer points anywhere, so one DTO can serve many behaviours.*
+
+```mermaid
+sequenceDiagram
+  participant H as host start (CGF / editor / ExCon / blueprint editor)
+  participant L as CgfBehaviorSetup.LoadFromAiAssembly
+  participant BR as BehaviorRegistry
+  participant PR as ParamsDtoRegistry.Default
+  participant D as BehaviorSchemaDiscovery
+  H->>L: load
+  L->>BR: generated + curated registrars (topologies, resolvers, generated contracts)
+  L->>D: BindJsonParamsDtoTypes(BR)
+  D->>PR: Behaviors (first use: scan loaded assemblies + try-load Hrot.AI.Behaviors)
+  D->>BR: RegisterJsonParamsDtoType(name, Params) — overrides a generated contract
+  H->>PR: catalogue / palette / UI form read the same declarations
+```
+
+```mermaid
+graph TD
+  CORE["Hrot.Core: BehaviorAttribute · ParamsDtoRegistry · BehaviorCatalog"]
+  AIB["Hrot.AI.Behaviors: [Behavior] on 18 curated topology methods, the PlatoonHillAttack resolver, the 2 intent mappers"]
+  ED["Hrot.Editor: [assembly: Behavior] for the 3 example behaviours it registers"]
+  CGF["Hrot.CGF CgfBehaviorSetup — binds at load (every CGF node, every test using the production loader)"]
+  PRES["Hrot.Presentation: BehaviorSchemaDiscovery · ScenarioMissionService"]
+  EXC["Hrot.ExCon MissionEditorService — gains a ProjectReference to Hrot.AI.Behaviors (catalogue only)"]
+  BPE["Hrot.Blueprints.Editor palette — via AiShared → Hrot.Core (already transitive)"]
+  GEN["Fdp.Toolkits.Analyzers CuratedBehaviorGenerator — compile-time BEH002/BEH003"]
+  AIB --> CORE
+  ED --> CORE
+  CGF --> PRES --> CORE
+  EXC --> CORE
+  EXC -.->|"new"| AIB
+  BPE --> CORE
+  GEN -.->|"reads attributes by name"| AIB
+```
+
+*What the module picture shows: the registry sees a declaration only if its assembly is LOADED — `Hrot.Core` cannot reference
+the AI assembly (it would be a cycle), so the registry tries to load it by name, and standalone ExCon must ship it (the new
+reference). The editor's example behaviours are declared in the editor, so CGF and ExCon stop listing behaviours they cannot run.*
+
+| where `[Behavior]` goes | behaviours |
+|---|---|
+| the curated topology method (`[BTreeDefinition(Curated)]` / `[HsmDefinition(Curated)]`) | AdvanceTo, BoundingOverwatch, BreakContact, CombatPosture, DoorLocksmith, FireAtPoint, FireAtTarget, FollowRoute, HoldStance, Idle, JoinFormation, MoveToLocation, ReactToContact, SquadHold, SquadMarch, SuppressAndManeuver, TrackTarget, WanderMilitary, WindowDuel |
+| the curated resolver method (the asset owns the topology) | PlatoonHillAttack (`PlatoonHillAttackParamsJsonDto`) |
+| the tactical-intent mapper class (an intent id is fulfilled by its mapper) | DefendArea (`DefendAreaMapper`), HullDownAttack (`HullDownAttackMapper`) |
+| `[assembly: Behavior]` in `Hrot.Editor`, beside the registration of the FDP examples | ConvoyEscort, InfantryCombat, Ambush |
+
+| decision | why · rejected |
+|---|---|
+| a declaration OUTRANKS a generated contract in `BehaviorRegistry` | R-132 (curated outranks generated); it is what fixes CE-2128 ② for PlatoonHillAttack (its generated contract is the Input struct, its resolver parses the JSON DTO). ⛔ rejected: B1's `ParamsDtoTypeId` on the asset for this — a NAMED DTO there must be the Input's type (B1 rule), and the resolver is the code that knows what it parses |
+| BEH002 / BEH003 are compile ERRORS in the curated generator | CE-2128 "cannot recur": a typed resolver states `TAuthored`, and a resolver-less topology parses its `ParamsType` by identity; both are visible at compile time. ⚠ a RAW resolver (FollowRoute, PlatoonHillAttack) deserializes inside its body and stays unverifiable. ⛔ rejected: a runtime-only check (it would fire on every host, after the build) |
+| JoinFormation declares `CgfNodes.JoinFormationParams` | it is what the identity parse fills (BEH003); the empty `JoinFormationParamsJsonDto` was an anchor only and is deleted |
+| P3 (stored ⇒ unmanaged struct) is enforced at generate time | BEH003 makes a resolver-less curated behaviour's Params its `ParamsType` (a struct by construction); B1 makes a generated asset's stored params its Input (a struct). ⇒ no runtime P3 check is needed |
+| the registry refuses two declarations of one name, and a declaration with no `Params` | the load check: one producer per behaviour (R-132), P1 (a behaviour that takes nothing names `NoParams`) |
+
+## 5c. CE-2135 B3 — no Input / State roles *(design 2026-10-12, backend lane; build-state: DESIGN — awaiting the user on the split below)*
+
+**INVENTORY** *(two read-only sweeps, 2026-10-12; graph CLI index + grep)*:
+- **Code:** ~200 production lines read Role/Scope or the `In`/`St` split: persistence (10), BTree/HSM emitters + generators (~43),
+  blueprint compiler `Parameter`/`Variable` (~45 lines / 20 files), runtime (5 + 4 structural), editors (~60: the AiShared
+  variables panel's Role column and its "Inputs" / "Working State" sections, the BTree / HSM models, the blueprint MyBlueprint
+  "Inputs" section), validators (~9). 43 test files (234 hits). ⭐ **No runtime code reads `Role`** — only the block layout.
+- **Assets** (52 behaviours): class A no Input 20 · **B one struct Input 11** (shipped: Sentry, TakeCover, FallBack,
+  HullDownAttackRun, PlatoonHillAttack) · C one scalar Input 4 (tests + HsmVariableShowcase) · **D several Inputs 17**
+  (shipped BTree: BasicInfantrySop, BasicSquadSop, DangerCrossing, FiringPosition, Flank = A2 CE-2132, behaviors lane;
+  shipped blueprints with Parameters: PlatoonHillAttackBp, Demo_MissionPlan, Demo_TaskChain, DangerCrossingBp). Keyed (nested)
+  JSON in data: `ua-danger-crossing`, `hsm-channel-e2e` (×2), `mission-demo-bp`, `T20` test.
+- ⭐ **`Scope` is NOT the same question:** `Node`-scoped working state (an action's private memory, auto-managed) is separate
+  storage keyed by node; it survives B3. Only `Role` goes.
+
+```mermaid
+classDiagram
+  direction LR
+  class Block_today { <<Asset_Block today>> In @0 = the Role=Input variables, or the flat DTO (B1) · St = Role=State + Scope=Behavior }
+  class Block_B3 { <<Asset_Block after B3>> In @0 = Params, the NAMED DTO (ParamsDtoTypeId), absent with a resolver · St = EVERY authored variable }
+  class Asset_B3 { <<asset JSON after B3>> ParamsDtoTypeId · ParamsDefaultJson NEW · Variables without Role }
+  class NodeMemory { <<unchanged>> Scope=Node working state = an action's private memory, its own slot }
+  Asset_B3 ..> Block_B3 : generator
+  Block_today ..> Block_B3 : same layout shape, In now always the named DTO
+```
+
+*What the picture shows that prose hid: the runtime layout does NOT change shape — `In` at 0, `St` after — so the runtime,
+`RootParamsAccess` and the hosted-child copy stay as they are; only what the AUTHOR declares changes (a named DTO instead of
+Input variables), which is why the cost is in the editors, the generators and the assets, not the engine.*
+
+| claim the lean rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the runtime reads only the block shape, never `Role` | ✅ sweep: `StatefulSlotInfo.Role` written, never read; `InputBytes` reads `In` (`RootParamsAccess.cs:319`) | ✅ AQ76 §12.3b: *"Role=Input becomes optional"* |
+| a named DTO already lands in `In` flat | ✅ B1 (`BTreeEmitCore.cs:246`, `OverlayFlat`) | ✅ AQ90 §2.3j: *"the JSON lands in the reserved variable Params"* |
+| a class-B asset's default lives on its Input variable (`DefaultValueJson`, e.g. Sentry `WithinMetres 90`) | ✅ `Sentry.btree.json:110` | ⛔ AQ90 is silent on where a named DTO's default lives ⇒ lean below |
+| several shipped multi-Input assets are A2's (behaviors lane) | ✅ tracker CE-2132 | ✅ design §6 (A2 depends on B1 only) |
+| removing `Role` outright breaks every class C/D asset not yet converted | ✅ their JSON is keyed by variable (sweep §3) | ⛔ the §6 graph shows B3 depending on B1 only — **it misses this dependency** |
+
+**The decision (lean ⭐ B3a now, B3b later):**
+
+| | what | when |
+|---|---|---|
+| ⭐ **B3a** | an asset that names its params DTO has NO Input variable: `In` = the DTO, called `Params`, its default `ParamsDefaultJson` on the asset; every authored variable is what `State`+`Behavior` is today (`St`). Convert the 11 class-B assets (5 shipped, 6 tests) to it. Editor: one "Variables" section + a read-only "Params" row; new variables are plain (no Role column). A host binds a child with an ordinary variable (`St` offsets measured on the struct, like the blueprint emitter). The legacy Input path stays ONLY for unconverted assets, listed by the CE-2130 allow-list | now (backend) |
+| **B3b** | delete `Role` (`BlackboardVariableRole`, the panel's legacy path, the mirror emission); blueprint behaviours' Parameters → a named DTO; resolver assets' Parameters → the DTO (supersedes §P.7) | when A2 (CE-2132) + the test / blueprint conversions empty the allow-list; blueprint Parameters ideally after B4 (an editor-made DTO) so no C# is needed |
+
+Rejected (one line each): **remove `Role` in one step now** — breaks the 17 class-D and 4 class-C assets and 5 keyed scenario strings
+the behaviors lane is converting (A2) · **give the named DTO its default from C# initialisers** — `default(T)` ignores them
+(measured for R-237) and B4's editor-made DTOs would need a second mechanism · **put `Params` in `St`** — moves every class-B
+asset's bytes and the hosted-child copy for nothing.
+
+Design docs checked: AQ90 §2.3i/§2.3j — *applies* (the target: one kind, reserved `Params`); AQ76 §12.3b — *applies* (Role
+optional, block from the DTO); Parameter Model §P.2/§P.7 — *applies*, §P.7 is superseded only in B3b; §5.1 "sections are the
+classification" — *applies*: one Variables section is that rule with one section.
 
 ## 6. ⭐ THE TASK LIST — the build plan
 

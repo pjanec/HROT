@@ -50,6 +50,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
             block.State = default;
         }
+[Behavior(BehaviorNames.SquadHold, Params = typeof(global::Hrot.Map.Definitions.Behavior.SquadHoldParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.SquadHold, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadHoldBlackboard))]
         public static BTreeBuilder<SquadHoldBlackboard, BTreeContext> BuildTree()
@@ -142,6 +143,7 @@ namespace Hrot.AI.Behaviors.Brains
             ArrivalRadius       = arrival > 0f ? arrival : 8f,
             BoundTimeoutSeconds = timeout > 0f ? timeout : 60f,
         };
+[Behavior(BehaviorNames.BreakContact, Params = typeof(global::Hrot.Map.Definitions.Behavior.BreakContactParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.BreakContact, Curated = true, Group = "Library/Squad", ParamsType = typeof(BreakContactBlackboard))]
         public static BTreeBuilder<BreakContactBlackboard, BTreeContext> BuildTree()
@@ -293,6 +295,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
             block.State = default;
         }
+[Behavior(BehaviorNames.ReactToContact, Params = typeof(global::Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.ReactToContact, Curated = true, Group = "Library/Squad", ParamsType = typeof(ReactToContactBlackboard))]
         public static BTreeBuilder<ReactToContactBlackboard, BTreeContext> BuildTree()

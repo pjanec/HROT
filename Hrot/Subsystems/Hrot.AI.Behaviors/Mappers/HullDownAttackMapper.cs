@@ -3,6 +3,7 @@ using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common;
+using Hrot.Map.Definitions.Behavior;
 
 namespace Hrot.AI.Behaviors.Mappers
 {
@@ -19,6 +20,7 @@ namespace Hrot.AI.Behaviors.Mappers
     /// <para>The <c>JsonParams</c> from the original intent are forwarded unchanged
     /// to <c>BehaviorIngressSystem</c> for parsing into <c>HullDownAttackParams</c>.</para>
     /// </summary>
+    [Behavior(BehaviorNames.HullDownAttack, Params = typeof(global::Hrot.Map.Definitions.Behavior.Intents.HullDownAttackIntentDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134 — an intent id is fulfilled by its mapper
     public sealed class HullDownAttackMapper : ITacticalOrderMapper
     {
         /// <inheritdoc/>

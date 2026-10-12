@@ -45,6 +45,39 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
 
+        // ⭐⭐ CE-2134 (docs/DESIGN_Orders_Params_Entity_Classes.md §5b) — a behaviour's DECLARED params DTO ([Behavior(Params =
+        //   …)]) must be what it really parses, so a published contract can never again differ from the parsed type (CE-2128).
+        //   Checkable here for two shapes; a raw (string, byte*, …) resolver deserializes inside its body and stays unverifiable.
+        private static readonly DiagnosticDescriptor DeclaredParamsNotResolverSource = new DiagnosticDescriptor(
+            id: "BEH002",
+            title: "Declared params DTO is not what the resolver takes",
+            messageFormat: "Behaviour '{0}' declares Params = {1} but its typed resolver takes {2}; the published contract must be what the behaviour parses (CE-2128)",
+            category: "BehaviorSourceGen",
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        private static readonly DiagnosticDescriptor DeclaredParamsNotIdentityParsed = new DiagnosticDescriptor(
+            id: "BEH003",
+            title: "Declared params DTO is not the type the curated registrar parses",
+            messageFormat: "Behaviour '{0}' declares Params = {1} but has no resolver, so its JSON is parsed straight into its ParamsType {2}; declare that type (P3: a stored params DTO is that unmanaged struct)",
+            category: "BehaviorSourceGen",
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        /// <summary>⭐ CE-2134 — the <c>[Behavior(name, Params = …)]</c> on <paramref name="symbol"/> for <paramref name="name"/>, as a
+        /// fully-qualified type name, or null. Matched by the attribute's simple name, like the others here.</summary>
+        private static string? DeclaredParams(IMethodSymbol symbol, string name)
+        {
+            foreach (var a in symbol.GetAttributes())
+            {
+                if (a.AttributeClass?.Name != "BehaviorAttribute") continue;
+                if (a.ConstructorArguments.Length == 0 || a.ConstructorArguments[0].Value as string != name) continue;
+                var p = a.NamedArguments.FirstOrDefault(kv => kv.Key == "Params");
+                if (p.Key != null && p.Value.Value is ITypeSymbol t) return t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            }
+            return null;
+        }
+
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
             var topologies = context.SyntaxProvider
@@ -105,6 +138,9 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     Name       = name!,
                     IsHsm      = isHsm,
                     ParamsType = paramsType,
+                    ParamsTypeFq = paramsArg.Key != null && paramsArg.Value.Value is INamedTypeSymbol ptq
+                        ? ptq.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
+                    DeclaredParams = DeclaredParams(symbol, name!),
                     Group      = string.IsNullOrEmpty(group) ? null : group,
                 };
             }
@@ -150,6 +186,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 ParamCount  = argc,
                 ParamsType  = paramsType,
                 IsValid     = valid,
+                DeclaredParams = DeclaredParams(symbol, name!),
                 AuthoredType = isBlock ? symbol.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
                 // ⭐ CE-2141 — the authored type is an ORDER's DTO ([Order], shared by every behaviour that fulfils the order, so it
                 //   can never carry one [BehaviorContract]): the resolver's own type IS the behaviour's params DTO (P1).
@@ -181,6 +218,21 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 }
                 res.Add(r);
             }
+
+            // ⭐ CE-2134 — the declared params DTO against what each curated behaviour really parses.
+            foreach (var t in tops)
+            {
+                var r = res.FirstOrDefault(x => x.Name == t.Name);
+                string? declared = t.DeclaredParams ?? r?.DeclaredParams;
+                if (declared == null) continue;
+                if (r?.AuthoredType != null && declared != r.AuthoredType)
+                    context.ReportDiagnostic(Diagnostic.Create(DeclaredParamsNotResolverSource, Location.None, t.Name, declared, r.AuthoredType));
+                else if (r == null && t.ParamsTypeFq != null && declared != t.ParamsTypeFq)
+                    context.ReportDiagnostic(Diagnostic.Create(DeclaredParamsNotIdentityParsed, Location.None, t.Name, declared, t.ParamsTypeFq));
+            }
+            foreach (var r in res)
+                if (r.DeclaredParams != null && r.AuthoredType != null && r.DeclaredParams != r.AuthoredType && !tops.Any(t => t.Name == r.Name))
+                    context.ReportDiagnostic(Diagnostic.Create(DeclaredParamsNotResolverSource, Location.None, r.Name, r.DeclaredParams, r.AuthoredType));
 
             // Nothing curated in this assembly => emit nothing at all, so an assembly that has no
             // curated behaviour keeps byte-identical generated output.
@@ -362,6 +414,10 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public string? ParamsType { get; set; }
         /// <summary>CE-3164 (R-268): the attribute's <c>Group</c> — the pickers' folder — or null.</summary>
         public string? Group { get; set; }
+        /// <summary>CE-2134: <see cref="ParamsType"/> fully qualified (global::), for the BEH003 comparison.</summary>
+        public string? ParamsTypeFq { get; set; }
+        /// <summary>CE-2134: the <c>[Behavior(Params = …)]</c> on this method (global::), or null.</summary>
+        public string? DeclaredParams { get; set; }
     }
 
     internal class CuratedResolver
@@ -378,5 +434,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public bool AuthoredIsOrder { get; set; }
         public string? ParamsType { get; set; }
         public bool IsValid { get; set; }
+        /// <summary>CE-2134: the <c>[Behavior(Params = …)]</c> on this method (global::), or null.</summary>
+        public string? DeclaredParams { get; set; }
     }
 }

@@ -51,6 +51,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (authored.BlindRounds > 0) p.BlindRounds = authored.BlindRounds;
             block.Peek = p;
         }
+[Behavior(BehaviorNames.WindowDuel, Params = typeof(global::Hrot.Map.Definitions.Behavior.WindowDuelParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.WindowDuel, Curated = true, Group = "Demos/PeekAndFire", ParamsType = typeof(WindowDuelBlackboard))]
         public static BTreeBuilder<WindowDuelBlackboard, BTreeContext> BuildWindowDuelTree()

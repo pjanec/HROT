@@ -709,6 +709,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="ParsePlatoonHillAttackParams"/>. This is what the behavior registers as its
         /// resolver — no registration-time closure over geo/entity-map is needed.
         /// </summary>
+        [Behavior(BehaviorNames.PlatoonHillAttack, Params = typeof(global::Hrot.Map.Definitions.Behavior.PlatoonHillAttackParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134 — the resolver is this behaviour's C#; the asset owns its topology
         [Fdp.Toolkit.Behavior.BehaviorResolver("PlatoonHillAttack",
             ParamsType = typeof(Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams))]
         public static unsafe void ResolvePlatoonHillAttackParams(

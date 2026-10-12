@@ -274,7 +274,9 @@ public class CE472_IntentAndJsonNodeTests
     [Fact]
     public void Palette_OffersEachContract_WithPinnableMembersOnly()
     {
-        var contracts = ReflectionIntentContractProvider.Compute(new[] { typeof(HullDownAttackIntentDto).Assembly });
+        // ⭐ CE-2134: the declarations sit on the behaviours (the AI assembly), the DTOs stay in Hrot.Core — scan both.
+        var contracts = ReflectionIntentContractProvider.Compute(new[]
+            { typeof(HullDownAttackIntentDto).Assembly, typeof(Hrot.AI.Behaviors.Mappers.HullDownAttackMapper).Assembly });
         var hull = Assert.Single(contracts, c => c.Id == "HullDownAttack");
         Assert.Equal(DtoFqn, hull.DtoTypeFqn);
         Assert.Contains(hull.Members, m => m.Name == "TargetNetworkId" && m.TypeId == "Fdp.Toolkit.Replication.EntityRef");
@@ -287,6 +289,22 @@ public class CE472_IntentAndJsonNodeTests
         Assert.Contains("Intent.Send.HullDownAttack", kinds);
         Assert.Contains($"Json.To.{DtoFqn}", kinds);
         Assert.Contains($"Json.From.{DtoFqn}", kinds);
+    }
+
+    /// <summary>⭐ <c>CE-2134</c> — two behaviours sharing ONE params DTO get a Send Intent row each, and the DTO's To / From
+    /// JSON rows once (they are keyed by the type, so a second copy would be a duplicate palette entry).</summary>
+    [Fact]
+    public void Palette_ListsASharedDtosJsonRowsOnce()
+    {
+        var members = ReflectionIntentContractProvider.PinnableMembers(typeof(HullDownAttackIntentDto));
+        var shared = new[] { new IntentContract("TankMove", DtoFqn, members), new IntentContract("SquadMove", DtoFqn, members) };
+
+        var kinds = IntentContractPaletteEntries.Entries(new FixedProvider(shared)).Select(d => d.Kind).ToList();
+
+        Assert.Contains("Intent.Send.TankMove", kinds);
+        Assert.Contains("Intent.Send.SquadMove", kinds);
+        Assert.Single(kinds, k => k == $"Json.To.{DtoFqn}");
+        Assert.Single(kinds, k => k == $"Json.From.{DtoFqn}");
     }
 
     private sealed class FixedProvider(IReadOnlyList<IntentContract> contracts) : IIntentContractProvider

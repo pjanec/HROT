@@ -7,8 +7,8 @@ using Hrot.Map.Definitions.Behavior;
 namespace Hrot.Presentation.Behavior
 {
     /// <summary>
-    /// Scans the <c>Hrot.Core</c> assembly for types decorated with
-    /// <see cref="BehaviorContractAttribute"/> and registers each one with
+    /// Reads every behaviour's declared params DTO (<see cref="BehaviorAttribute"/>, via the one scan
+    /// <see cref="ParamsDtoRegistry"/> — <c>CE-2134</c>) and registers each one with
     /// <see cref="BehaviorUiRegistry"/>, <see cref="ScenarioBehaviorRemapper"/> and — since
     /// <c>CE-235</c> — the <see cref="BehaviorRegistry"/> itself.
     ///
@@ -17,7 +17,7 @@ namespace Hrot.Presentation.Behavior
     ///
     /// <para>
     /// ⭐⭐⭐ <b><c>CE-235</c> — this is the ONE producer of the authored JSON contract.</b> A
-    /// <c>[BehaviorContract]</c>-tagged DTO already drove the editor's parameter form
+    /// declared params DTO (<c>[Behavior(Params = …)]</c> since <c>CE-2134</c>; <c>[BehaviorContract]</c> on the DTO before) already drove the editor's parameter form
     /// (<see cref="BehaviorUiCompiler"/>) and scenario network-id remapping; it is the same shape a
     /// scenario writes and the resolver deserializes. The only consumer it was missing was the
     /// runtime <see cref="BehaviorDefinition"/>, which is what <c>GET /behaviors</c> reads — so the
@@ -71,13 +71,11 @@ namespace Hrot.Presentation.Behavior
         }
 
         /// <summary>
-        /// The one enumeration of <c>[BehaviorContract]</c>-tagged DTOs in <c>Hrot.Core</c>, shared by
-        /// both entry points so they can never disagree about what the authored set is.
+        /// ⭐ <c>CE-2134</c> — the declared contracts, from the ONE scan (<see cref="ParamsDtoRegistry"/>): each behaviour's
+        /// <c>[Behavior(Params = …)]</c>, wherever it sits (a curated topology or resolver, an intent mapper, an assembly).
+        /// ⛔ HISTORY: it scanned <c>Hrot.Core</c> for <c>[BehaviorContract]</c> on the DTOs, so a DTO could serve one behaviour.
         /// </summary>
         private static IEnumerable<(string BehaviorName, System.Type DtoType)> AuthoredContracts()
-            => typeof(BehaviorContractAttribute).Assembly.GetTypes()
-                .Select(t => (Type: t, Attr: t.GetCustomAttribute<BehaviorContractAttribute>()))
-                .Where(x => x.Attr is not null)
-                .Select(x => (x.Attr!.BehaviorName, x.Type));
+            => ParamsDtoRegistry.Default.Behaviors.Select(d => (d.Name, d.ParamsType));
     }
 }

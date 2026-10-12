@@ -322,9 +322,12 @@ public static unsafe class RootParamsAccess
         // ⭐ CE-2133 — an EMPTY manifest is the authority for "0 Input bytes" (CE-429), whatever contract the behaviour
         //   publishes: a named params DTO it does not store (an empty HoldOrder, or a resolver's own Params) is not its In.
         //   ⛔ Sizing that type here made InputBytes 1 for an empty DTO while the block holds no In (AQ90 §2.3m B).
+        // ⭐ CE-2134 — the Input region is the BLOCK's In field (offset 0, CE-425) whatever contract is published: a declared
+        //   contract may now differ from it (PlatoonHillAttack publishes its resolver's JSON DTO, its In is the struct it stores).
         if (def.ManagedBlackboardVariables != null)
-            return def.ManagedBlackboardVariables.Count > 0 && def.JsonParamsDtoType is { IsValueType: true } inputs
-                ? Fdp.Core.TypeLayout.SizeOf(inputs)
+            return def.ManagedBlackboardVariables.Count == 0 ? 0
+                : def.BlackboardLayoutType?.GetField("In")?.FieldType is { } inField ? Fdp.Core.TypeLayout.SizeOf(inField)
+                : def.JsonParamsDtoType is { IsValueType: true } inputs ? Fdp.Core.TypeLayout.SizeOf(inputs)
                 : ManifestExtent(def.ManagedBlackboardVariables);
         return def.BlackboardLayoutType != null
             ? Fdp.Core.TypeLayout.SizeOf(def.BlackboardLayoutType)

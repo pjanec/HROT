@@ -31,9 +31,29 @@ namespace Fdp.Toolkit.Behavior
         public System.Type ParamsType { get; set; }
     }
 }
+namespace Hrot.Map.Definitions.Behavior
+{
+    [System.AttributeUsage(System.AttributeTargets.Method | System.AttributeTargets.Class, AllowMultiple = true)]
+    public sealed class BehaviorAttribute : System.Attribute
+    {
+        public BehaviorAttribute(string name) { }
+        public System.Type Params { get; set; }
+    }
+}
+namespace Fbt
+{
+    [System.AttributeUsage(System.AttributeTargets.Method)]
+    public sealed class BTreeDefinitionAttribute : System.Attribute
+    {
+        public BTreeDefinitionAttribute(string treeName) { }
+        public bool Curated { get; set; }
+        public System.Type ParamsType { get; set; }
+    }
+}
 namespace Demo
 {
     public sealed class GeoIntent { public double Lat; public double Lon; }
+    public struct OtherIntent { public int N; }
     public struct DemoBlock { public float X; public float Y; public int Ticks; }
 }
 ";
@@ -128,6 +148,45 @@ namespace Demo
             Assert.DoesNotContain(diags, d => d.Id == "BEH001");
             Assert.Contains("beh.RegisterResolver(\"Six\", global::Demo.Resolvers.Six);", gen);
             Assert.DoesNotContain("FromBlockResolver", gen);
+        }
+            // ── ⭐⭐ CE-2134 (docs/DESIGN_Orders_Params_Entity_Classes.md §5b) — a declared params DTO must be what the behaviour parses ──
+
+        /// <summary>⛔ BEH002 — <c>[Behavior(Params = X)]</c> on a behaviour whose TYPED resolver takes a different <c>TAuthored</c>:
+        /// the published contract would not be what it parses (CE-2128). ✅ The same declaration naming the resolver's type is clean.</summary>
+        [Fact]
+        public void CE2134_ADeclaredDtoThatIsNotTheResolversSource_IsBEH002()
+        {
+            const string Resolver = @"
+namespace Demo
+{
+    public static class Resolvers
+    {
+        [Hrot.Map.Definitions.Behavior.Behavior(""GeoMove"", Params = typeof(DTO))]
+        [Fdp.Toolkit.Behavior.BehaviorResolver(""GeoMove"")]
+        public static void ResolveGeoMove(in GeoIntent authored, ref DemoBlock block, Fdp.Core.EntityRepository world, Fdp.Core.Entity self) { }
+    }
+}";
+            Assert.Contains(Run(Resolver.Replace("DTO", "OtherIntent")).Diagnostics, d => d.Id == "BEH002");
+            Assert.DoesNotContain(Run(Resolver.Replace("DTO", "GeoIntent")).Diagnostics, d => d.Id == "BEH002");
+        }
+
+        /// <summary>⛔ BEH003 — a curated topology with NO resolver has its JSON parsed straight into its <c>ParamsType</c>, so that is
+        /// the only honest declaration (and, stored, P3's unmanaged struct). ✅ Declaring the <c>ParamsType</c> itself is clean.</summary>
+        [Fact]
+        public void CE2134_ADeclaredDtoThatIsNotTheIdentityParsedType_IsBEH003()
+        {
+            const string Topology = @"
+namespace Demo
+{
+    public static class Trees
+    {
+        [Hrot.Map.Definitions.Behavior.Behavior(""Patrol"", Params = typeof(DTO))]
+        [Fbt.BTreeDefinition(""Patrol"", Curated = true, ParamsType = typeof(DemoBlock))]
+        public static object BuildPatrol() => null;
+    }
+}";
+            Assert.Contains(Run(Topology.Replace("DTO", "GeoIntent")).Diagnostics, d => d.Id == "BEH003");
+            Assert.DoesNotContain(Run(Topology.Replace("DTO", "DemoBlock")).Diagnostics, d => d.Id == "BEH003");
         }
     }
 }

@@ -23,7 +23,10 @@
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <!-- ExConSubsystem dependencies (moved from ClusterRunner) -->
     <ProjectReference Include="..\..\Network\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
-    <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
+    <!-- ⭐ CE-2134: the behaviours' params declarations ([Behavior]) live in the AI assembly; ParamsDtoRegistry loads it by name so
+         the mission picker (BehaviorCatalog) lists what a CGF node runs. Catalogue only: ExCon runs no behaviour. -->
+    <ProjectReference Include="..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">

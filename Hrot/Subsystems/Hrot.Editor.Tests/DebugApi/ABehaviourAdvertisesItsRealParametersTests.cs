@@ -39,7 +39,7 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     /// The production loader, verbatim — <c>CgfSubsystem</c>'s <c>behavior-registry</c> boot step calls
     /// exactly this. It scans the compile-time <c>Hrot.AI.Behaviors</c> assembly through
     /// <c>BlueprintRegistrarScanner</c> (which invokes the generated <c>CuratedBehaviorRegistrar</c> reflectively),
-    /// and since <c>CE-235</c> also binds each <c>[BehaviorContract]</c> DTO as the authored contract.
+    /// and since <c>CE-235</c> also binds each <c>[Behavior(Params = …)]</c> DTO as the authored contract.
     /// ⭐ Using the real loader is the point: a fake registry proves the precedence rules work IF USED,
     /// never that they ARE used — which is how <c>CE-224</c> stayed hidden.
     /// </summary>
@@ -130,7 +130,7 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     ///
     /// <para>
     /// ⚠ <b>Correspondence, deliberately, not "at least one".</b> 📐 The first draft asserted
-    /// non-emptiness and reddened on <c>JoinFormation</c>, whose <c>[BehaviorContract]</c> DTO is
+    /// non-emptiness and reddened on <c>JoinFormation</c>, whose <c>[Behavior(Params = …)]</c> DTO is
     /// <i>deliberately</i> empty — its own doc says <i>"currently parameterless; the contract exists to
     /// anchor the behavior ID and category."</i> ⭐ So an empty schema is the TRUTH there, and the rail
     /// was wrong rather than the code. Equality is both stronger (it catches a wrong non-empty answer,
@@ -324,5 +324,57 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         Assert.Contains("CE2130_NoDto", violations.Keys);
         Assert.Contains("CE2130_Mirror", violations.Keys);
         Assert.DoesNotContain("CE2130_Named", violations.Keys);
+    }
+
+    // ── CE-2134 (docs/DESIGN_Orders_Params_Entity_Classes.md §5b) — the contract is declared ON THE BEHAVIOUR ───────────
+
+    /// <summary>
+    /// ⭐⭐ CE-2134 — every behaviour this host registers that DECLARES a params DTO (<c>[Behavior(Params = …)]</c>, read by the
+    /// one scan <see cref="Hrot.Map.Definitions.Behavior.ParamsDtoRegistry"/>) publishes exactly that DTO: the declaration
+    /// outranks a generated contract. ⭐ The case it was built for: <c>PlatoonHillAttack</c> (a JSON asset whose curated resolver
+    /// parses <c>PlatoonHillAttackParamsJsonDto</c>) published its asset's Input struct (CE-2128 ②).
+    /// <para>⚠ Red-proof: restore "a generated contract keeps its type" in <c>BehaviorRegistry.RegisterJsonParamsDtoType</c> ⇒
+    /// PlatoonHillAttack publishes <c>PlatoonHillAttackParams</c> and this fails naming it.</para>
+    /// </summary>
+    [Fact]
+    public void CE2134_EveryDeclaredBehaviour_PublishesItsDeclaredDto()
+    {
+        var registry = LoadProductionRegistry();
+        var declared = Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default;
+        var wrong = new System.Collections.Generic.List<string>();
+        int checkedCount = 0;
+        foreach (var d in declared.Behaviors)
+        {
+            if (!registry.TryGetId(d.Name, out int id) || !registry.TryGetDefinition(id, out var def) || def is null) continue;
+            checkedCount++;
+            if (def.JsonParamsDtoType != d.ParamsType)
+                wrong.Add($"{d.Name}: declares {d.ParamsType.Name} on {d.DeclaredOn}, publishes {def.JsonParamsDtoType?.Name ?? "nothing"}");
+        }
+        Assert.True(checkedCount >= 19, $"only {checkedCount} declared behaviours are registered — the scan or the loader changed");
+        Assert.True(wrong.Count == 0, string.Join("\n", wrong));
+        Assert.Equal(typeof(Hrot.Map.Definitions.Behavior.PlatoonHillAttackParamsJsonDto), Definition(registry, "PlatoonHillAttack").JsonParamsDtoType);
+    }
+
+    /// <summary>⭐ CE-2134 — the 25 contracts the DTOs used to carry are all declared on behaviours now (19 curated topologies,
+    /// the PlatoonHillAttack resolver, two intent mappers, and the editor's three example behaviours), and the retired
+    /// attribute is gone from every loaded assembly.</summary>
+    [Fact]
+    public void CE2134_TheFormerContractsAreDeclaredOnTheirBehaviours()
+    {
+        _ = typeof(Hrot.Editor.EditorSubsystem);   // load the editor assembly: it declares the three example behaviours
+        var declared = Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default;
+        string[] expected =
+        {
+            "AdvanceTo", "Ambush", "BoundingOverwatch", "BreakContact", "CombatPosture", "ConvoyEscort", "DefendArea",
+            "DoorLocksmith", "FireAtPoint", "FireAtTarget", "FollowRoute", "HoldStance", "HullDownAttack", "Idle",
+            "InfantryCombat", "JoinFormation", "MoveToLocation", "PlatoonHillAttack", "ReactToContact", "SquadHold",
+            "SquadMarch", "SuppressAndManeuver", "TrackTarget", "WanderMilitary", "WindowDuel",
+        };
+        var missing = expected.Where(n => !declared.TryGetBehavior(n, out _)).ToArray();
+        Assert.True(missing.Length == 0, "not declared: " + string.Join(", ", missing));
+        Assert.True(declared.TryGetBehavior("Ambush", out var ambush) && ambush.DeclaredOn.Contains("Hrot.Editor"),
+            "the example behaviours are declared beside the host that registers them");
+        Assert.DoesNotContain(System.AppDomain.CurrentDomain.GetAssemblies().Where(a => !a.IsDynamic),
+            a => a.GetType("Hrot.Map.Definitions.Behavior.BehaviorContractAttribute") != null);
     }
 }
