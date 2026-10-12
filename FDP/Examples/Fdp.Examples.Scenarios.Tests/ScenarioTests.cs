@@ -552,8 +552,10 @@ namespace Fdp.Examples.Scenarios.Tests
 
             Assert.NotEqual(1, code);
 
-            Assert.True(MathF.Abs(scenario.BulletVelocityXAtTick2 - BallisticsAndHitScenario.MuzzleVelocity) < 0.1f,
-                $"BulletVelocity.X={scenario.BulletVelocityXAtTick2:F1} expected {BallisticsAndHitScenario.MuzzleVelocity:F1} m/s");
+            // ⭐ CE-2126 — the speed is the muzzle velocity; X alone is 2000·cos θ since shots fly the eye → mid-silhouette line (R-217).
+            Assert.True(MathF.Abs(scenario.BulletSpeedAtTick2 - BallisticsAndHitScenario.MuzzleVelocity) < 0.1f,
+                $"|BulletVelocity|={scenario.BulletSpeedAtTick2:F1} expected {BallisticsAndHitScenario.MuzzleVelocity:F1} m/s");
+            Assert.True(scenario.BulletVelocityXAtTick2 > 0f, "the bullet flies toward the target (+X)");
         }
 
         /// <summary>
