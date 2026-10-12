@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -336,6 +336,46 @@ single DTO-typed Input yields a GENERATED ② with one field, `{ Params: MoveOrd
 
 ⛔ Not measured: the generator change to publish a named ② and parse ① into it before the copy or resolver (the curated path
 already does this, so it is a reuse, not a new mechanism).
+
+### 2.3h The user's model: at most ONE Input variable, and the JSON never nests *(2026-10-12)*
+
+> 🔒 *User: "Yes we must be able to specify authored param dto per behavior. I am still not getting if we need to generate one
+> from input variables. I thought there is at most one input variable of the dto struct type which can be either identical to
+> authored dto or different if resolver needs to do some conversion. Params json should never needs to nest Params subfield."*
+
+✅ **Ruled:** the authored params DTO (②) is specifiable per behaviour (R-276 (behaviors)).
+
+The rest is a model the user STATED; measured against the corpus and the written design, it is a NEW rule, not the as-built:
+
+| claim | measured / written |
+|---|---|
+| the design treats several Inputs as the general case: the authored DTO is *"an attached mirror of them"*, and *"'a single struct-typed input' is the degenerate case of the multi-field model, not a rival to it"* | resolver design §3.2; EXPLAINER §3 |
+| shipped assets (non-test) by Input count: **0 → 6 · 1 → 6 · 2 → 2 · 3 → 2 · 6 → 1**. Multi-Input: `FiringPosition`, `Flank` (2), `BasicInfantrySop`, `BasicSquadSop` (3), `DangerCrossing` (6) | parse of every `.btree.json` / `.hsm.json` under `Assets/` |
+| ⛔ the JSON DOES nest today, by variable name: `{"sentry":{"Count":1,…}}` for `Sentry` (one Input!) and `{"sensor":{…},"walk":{…}}` for `DangerCrossing` | `scenarios/ua-danger-crossing/scenario.json:51,102`, `ua-danger-crossing-bp/scenario.json:102` |
+| the user's model already exists ONCE: `PlatoonHillAttack` has one Input `Params : PlatoonHillAttackParams`, a separate authored DTO, and a resolver; its JSON is flat | `PlatoonHillAttack.btree.json`; `scenarios/hill-attack/scenario.json:21` |
+
+**Lean: adopt the user's model as the rule** (R-277 (behaviors), awaiting approval):
+
+| rule | consequence |
+|---|---|
+| a behaviour has **0 or 1 Input variable**, typed as a C# DTO struct | no generated mirror any more; params structs are C# (the user: *"for now editable only in csharp"*) |
+| its authored DTO (②) is **picked per behaviour**; default = the Input variable's own type | identity ⇒ the default copy; different ⇒ the behaviour's resolver converts (§P.2, unchanged) |
+| the JSON (①) is **always ②'s fields, flat** | `Sentry`'s JSON becomes `{"Count":1,…}` |
+| an order behaviour picks the order DTO as ② | §2.3g, unchanged |
+
+Blast radius:
+- the five multi-Input library assets each get ONE C# params struct holding their current Inputs (e.g. `FlankParams { tactics; engage }`); their JSON keeps those fields, which are now the DTO's own fields, not a wrapper;
+- the six single-Input assets drop the variable-name wrapper;
+- 3 saved `behaviorParams` in 2 scenarios are rewritten;
+- the test assets with several Inputs follow;
+- the generator emits `JsonParamsDtoType` = ② and parses ① straight into it.
+
+Blueprints:
+- a blueprint as a behaviour is still planned (§P.1 "O9, planned"), so it can start under this rule. ⚠ It conflicts with §P.7 (approved 2026-09-30), which declares a resolver asset's authored shape as several Parameters; under this rule that shape is one picked DTO;
+- blueprint ACTIONS are untouched: they read the host live and take no params copy (R-155).
+
+What would change the lean: if authoring params WITHOUT writing C# matters now. The generated mirror is what lets an
+editor-only author do that today.
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
