@@ -10,8 +10,8 @@ using Xunit;
 namespace Hrot.Presentation.Tests.Behavior
 {
     /// <summary>
-    /// Unit tests for <see cref="MissionPanel"/> integration with
-    /// <see cref="BehaviorUiRegistry"/> — TASK-C010.
+    /// Unit tests for <see cref="MissionPanel"/>'s behaviour params — TASK-C010; since <c>CE-1023</c> the panel draws THE one
+    /// params form (<see cref="BehaviorParamsForm"/>) from a params-TYPE lookup, not a UI registry.
     /// </summary>
     public sealed class MissionPanelRegistryTests
     {
@@ -28,21 +28,26 @@ namespace Hrot.Presentation.Tests.Behavior
             Assert.IsType<Hrot.Presentation.Facades.MapPickBroker>(new MissionPanel().Picks);
         }
 
-        // ── C010 SC2: Constructor accepts a pre-populated BehaviorUiRegistry ──
+        // ── CE-1023: the params form per task, from the host's type lookup ──
 
         /// <summary>
-        /// C010 SC2: <see cref="MissionPanel"/> can be constructed with an
-        /// externally-created <see cref="BehaviorUiRegistry"/> without throwing.
+        /// ⭐ <c>CE-1023</c> — a task whose behaviour has a params type gets THE form (bound to its JSON); one with no known
+        /// type gets none (the raw JSON box). The lookup is the host's — a passed one wins over the declared contracts.
         /// </summary>
         [Fact]
-        public void C010_MissionPanel_Constructor_WithRegistryArg_Succeeds()
+        public void CE1023_ATaskGetsTheOneForm_FromTheHostsLookup_AndAnUnknownBehaviourGetsNone()
         {
-            var registry = new BehaviorUiRegistry();
-            registry.Register<Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto>(Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto.BehaviorId);
+            var panel = new MissionPanel(paramsTypeOf: name => name == "Mine" ? typeof(FireAtTargetParamsJsonDto) : null);
+            var id = System.Guid.NewGuid();
 
-            var panel = new MissionPanel(behaviorUiRegistry: registry);
+            var form = panel.ParamsFormFor(id, "Mine", "{\"targetNetworkId\":42}");
+            Assert.NotNull(form);
+            Assert.Equal(typeof(FireAtTargetParamsJsonDto), form!.Type);
+            Assert.Same(form, panel.ParamsFormFor(id, "Mine", "{\"targetNetworkId\":42}"));   // kept across frames
+            Assert.Null(panel.ParamsFormFor(id, "NoSuchBehaviour", "{}"));
 
-            Assert.NotNull(panel);
+            // ⭐ the default lookup is the declared contracts (what a host with no registry — ExCon — can know)
+            Assert.NotNull(new MissionPanel().ParamsFormFor(id, FireAtTargetParamsJsonDto.BehaviorId, "{}"));
         }
 
         // ── C010 SC3: MissionPanel is defined in Hrot.Presentation assembly ──
@@ -60,8 +65,8 @@ namespace Hrot.Presentation.Tests.Behavior
 
         // ── TryConsume through the panel's broker, keyed $.tasks[i].Prop ──────────────
 
-        private static readonly string EntityPath   = BehaviorUiCompiler.PickPath(0, "TargetNetworkId");
-        private static readonly string LocationPath = BehaviorUiCompiler.PickPath(0, "PickableLocation");
+        private static readonly string EntityPath   = MissionPanel.PickScope(0) + ".TargetNetworkId";
+        private static readonly string LocationPath = MissionPanel.PickScope(0) + ".PickableLocation";
 
         [Fact]
         public void TryConsumeEntityPick_NoResolvedPick_ReturnsFalse()

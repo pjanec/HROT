@@ -37,7 +37,7 @@ public sealed class ScenarioMissionViewDumpsItsPanelTests : IDisposable
 
     private static string Addr(string idScope) => $"{idScope}/{ScenarioMissionViewDescriptor.ViewId}";
 
-    private static MissionPanel NewPanel() => new(0, BehaviorUiSetup.CreateRegistry());
+    private static MissionPanel NewPanel() => new(0);
 
     private static readonly Entity One = new(41, 1);
 

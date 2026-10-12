@@ -1721,7 +1721,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⚠ MissionPanel's first argument is the node id the editor passes as a literal 0; this host
             //   has a REAL one, and passing it is the point of "the editor is a one-node cluster".
             _missionPanel      = new MissionPanel(
-                _context.NodeId, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry());
+                _context.NodeId, name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry));
             _configPanel       = new ConfigPanel();
             _sharedOrbatPanel  = new SharedOrbatPanel();
 

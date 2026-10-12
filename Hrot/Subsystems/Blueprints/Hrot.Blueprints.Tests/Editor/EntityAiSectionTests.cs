@@ -12,6 +12,7 @@ using Fdp.Toolkit.Blueprints.Partitioning;
 using Hrot.CGF.Configuration;
 using Hrot.Editor;
 using Hrot.Editor.AiShared.Inspector;
+using Hrot.Presentation.Behavior;
 using Hrot.Editor.Scenario;
 using Hrot.SimHost;
 using Xunit;
@@ -141,4 +142,40 @@ public sealed class EntityAiSectionTests
         editor.RegisterWindows(new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f)));
         Assert.Contains(EntityAiDetailsViewDescriptor.ViewId, editor.ScenarioWorkspace!.DetailsViews.All.Select(d => d.Id));
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1023</c> — the forwarding rail, on the CONSTRUCTED view: the editor holds the map-pick adapter, so the AI section's
+    /// params forms get picks, each row in its own scope. 🔴 It passed <c>pickerCtx: null</c> — no Pick button on any field.
+    /// </summary>
+    [Fact]
+    public void CE1023_TheEditorsAiSection_GetsThePicks_ScopedPerRow()
+    {
+        var editor = new EditorSubsystem();
+        editor.RegisterWindows(new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f)));
+        var view = (EntityAiDetailsView)editor.ScenarioWorkspace!.DetailsViews.All
+            .Single(d => d.Id == EntityAiDetailsViewDescriptor.ViewId).Create();
+
+        var task = Assert.IsType<Fdp.Presentation.Editing.ScopedMapPickContext>(view.PicksFor("$.task"));
+        Assert.Equal("$.task.Vehicle", task.Path("$.Vehicle"));
+        Assert.Equal("$.sop.Vehicle", ((Fdp.Presentation.Editing.ScopedMapPickContext)view.PicksFor("$.sop")!).Path("$.Vehicle"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1023</c> F1 — the AI section's edit service draws an <c>EntityRef</c> param as ONE leaf (the pickable kind), not a
+    /// container. 🔴 <c>AiFacetEditService</c> lacked the standard leaves, so the field was a read-only struct with a
+    /// <c>NetworkId</c> child — no pick could ever land.
+    /// </summary>
+    [Fact]
+    public void CE1023_TheAiSectionsEditService_DrawsAnEntityRefParamAsOneLeaf()
+    {
+        var svc = Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();
+        var session = BehaviorParamsForm.Open(svc, typeof(Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto), "{\"targetNetworkId\":5}");
+        var node = Find(session.Document.Root, "$.TargetNetworkId");
+        Assert.NotNull(node);
+        Assert.Empty(node!.Children);
+        Assert.NotEqual(StructEdit.Core.EditNodeKind.Struct, node.Kind);
+    }
+
+    private static StructEdit.Core.EditNode? Find(StructEdit.Core.EditNode n, string path)
+        => n.JsonPath == path ? n : n.Children.Select(c => Find(c, path)).FirstOrDefault(x => x != null);
 }

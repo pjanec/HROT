@@ -16,7 +16,7 @@ namespace Hrot.Editor.Scenario;
 /// <c>_fdpEntityInspector</c> after constructing it *(reflector, buffer-view providers, serializer,
 /// mutation interceptor, edit-context factory)*, so a fresh entity-inspector panel would be a
 /// crippled one. ⚠ <c>_missionPanel</c> gets <b>nothing</b> after
-/// <c>new MissionPanel(0, BehaviorUiSetup.CreateRegistry())</c> ⇒ ⭐ a fresh instance is fully
+/// <c>new MissionPanel(0, lookup)</c> ⇒ ⭐ a fresh instance is fully
 /// equivalent, and it is the <c>R-120</c>-clean choice.</para>
 ///
 /// <para>⭐⭐⭐ <b>And owning it avoids a real conflict, not a theoretical one.</b> 📐 Measured:

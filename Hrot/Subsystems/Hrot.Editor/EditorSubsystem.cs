@@ -2584,7 +2584,7 @@ namespace Hrot.Editor
                     Tkb        = () => _tkbDatabase,
                     OpenPicker = () => _shellPickers is { } pickers ? pickers.OpenPicker : null,
                 };
-                _missionPanel     = new MissionPanel(0, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry());
+                _missionPanel     = new MissionPanel(0, name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry));
                 _configPanel      = new ConfigPanel();
                 _sharedOrbatPanel = new SharedOrbatPanel();
                 _previewPanel     = new PreviewPanel();
@@ -3478,7 +3478,7 @@ namespace Hrot.Editor
             //    construction, so a fresh one is fully equivalent (see the type's remarks).
             _scenarioWorkspace.DetailsViews.Add(
                 Hrot.Editor.Scenario.ScenarioMissionViewDescriptor.For(
-                    panel:       new MissionPanel(0, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry()),
+                    panel:       new MissionPanel(0, name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry)),
                     service:     () => _missionService,
                     pick:        () => _mapPickAdapter,
                     networkIdOf: NetworkIdOf,
@@ -3494,12 +3494,16 @@ namespace Hrot.Editor
             //   ingress's own pipeline at once; running: the events). 📄 DESIGN_Sensors_And_Doctrine.md §7.6.
             //   ⚠ Its own StructEdit service: the facet service is built later in RegisterWindows' AI half.
             var aiParamsEditService = Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();
+            var aiParamPicks = new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter);
             _scenarioWorkspace.DetailsViews.Add(
                 Hrot.Editor.Scenario.EntityAiDetailsViewDescriptor.For(
                     world:       () => _world,
                     registry:    () => _behaviorRegistry,
                     editService: () => aiParamsEditService,
-                    blueprints:  () => _blueprintRegistry));   // ⭐ CE-2086: the instance params rows
+                    blueprints:  () => _blueprintRegistry,     // ⭐ CE-2086: the instance params rows
+                    // ⭐ CE-1023 — the editor HOLDS the pick adapter, so the params form's EntityRef / point fields get it
+                    //   (⛔ it was not passed: no Pick button). Read at request time — the adapter is built later.
+                    picks:       () => aiParamPicks));
 
             // ⭐⭐ L6.4's Entity → NETWORK id translation, in ONE place (R-13).
             // 📐 MissionPanel.SelectedEntityId is an int NETWORK id, not an Entity (MissionPanel.cs:103),

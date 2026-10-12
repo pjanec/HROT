@@ -116,16 +116,8 @@ public class ComponentReflector
 
     private IComponentEditService BuildEditService()
     {
-        var builder = new ComponentEditServiceBuilder()
-            .RegisterFieldEditor<FixedString32>(new FixedString32FieldEditor())
-            .RegisterFieldEditor<FixedString64>(new FixedString64FieldEditor())
-            .RegisterFieldEditor<FixedString128>(new FixedString128FieldEditor())
-            .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
-            .RegisterFieldEditor<Fdp.Toolkit.Replication.EntityRef>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.EntityRef)))
-            .RegisterFieldEditor<Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint)))
-            // ⭐ CE-2068 — a utility decision reference is pickable by its TYPE (R-184): one leaf, drawn as a catalog combo.
-            .RegisterFieldEditor<Fdp.Toolkit.Utility.UtilityDecisionRef>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Utility.UtilityDecisionRef)))
-            .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor());
+        // ⭐ CE-1023 — the standard leaves are ONE list, shared with the behaviour params form (§7.6b F1).
+        var builder = ComponentEditServices.CreateBuilder();
         foreach (var p in _bufferViewProviders)
             builder = builder.RegisterBufferViewProvider(p);
         return builder.Build();

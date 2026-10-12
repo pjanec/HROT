@@ -73,21 +73,19 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("\"routeEntityId\":1888", result);
         }
 
-        // ── C011 SC3: BehaviorUiSetup.CreateRegistry has all three behaviors ──
+        // ── C011 SC3 (re-homed by CE-1023): the three behaviours have a params form ──
 
         /// <summary>
-        /// C011 SC3: <see cref="BehaviorUiSetup.CreateRegistry"/> returns
-        /// a registry that has draw delegates registered for FireAtTarget, FollowRoute,
-        /// and MoveToLocation.
+        /// C011 SC3 — FireAtTarget, FollowRoute and MoveToLocation each have a params TYPE the one form draws
+        /// (<see cref="BehaviorParamsForm.ParamsTypeOf"/>, no registry ⇒ the declared contracts). ⛔ It asserted a UI registry's
+        /// draw delegates; that registry and its compiled form were deleted by <c>CE-1023</c>.
         /// </summary>
         [Fact]
-        public void C011_CreateBehaviorUiRegistry_HasAllThreeBehaviors()
+        public void C011_TheThreeBehaviours_HaveAParamsForm()
         {
-            BehaviorUiRegistry registry = BehaviorUiSetup.CreateRegistry();
-
-            Assert.True(registry.TryGet("FireAtTarget",   out _), "FireAtTarget should be registered");
-            Assert.True(registry.TryGet("FollowRoute",    out _), "FollowRoute should be registered");
-            Assert.True(registry.TryGet("MoveToLocation", out _), "MoveToLocation should be registered");
+            Assert.NotNull(BehaviorParamsForm.ParamsTypeOf("FireAtTarget", null));
+            Assert.NotNull(BehaviorParamsForm.ParamsTypeOf("FollowRoute", null));
+            Assert.NotNull(BehaviorParamsForm.ParamsTypeOf("MoveToLocation", null));
         }
 
         /// <summary>

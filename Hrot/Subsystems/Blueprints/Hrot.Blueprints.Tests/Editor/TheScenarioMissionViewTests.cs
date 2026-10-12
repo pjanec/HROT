@@ -87,7 +87,7 @@ public sealed class TheScenarioMissionViewTests
             => throw new NotSupportedException();
     }
 
-    private static MissionPanel NewPanel() => new(0, BehaviorUiSetup.CreateRegistry());
+    private static MissionPanel NewPanel() => new(0);
 
     private static readonly Entity One = new(21, 1);
     private static readonly Entity Two = new(22, 1);

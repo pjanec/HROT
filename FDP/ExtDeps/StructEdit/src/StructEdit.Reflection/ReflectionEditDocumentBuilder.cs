@@ -250,6 +250,32 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                 parentBinding: parentBinding));
         }
 
+        // ⭐ CE-1023 — a NATIVE buffer edits an AUTO-property through its compiler-generated backing field (the offset and the
+        //   binding), keeping the property's name, path and attributes. ⛔ It skipped properties outright, so a blittable struct
+        //   of auto-properties (every behaviour params DTO: FireAtTarget, MoveToLocation, …) opened as an EMPTY document.
+        if (buffer.IsNative && parentType.IsValueType)
+        {
+            foreach (var pi in parentType.GetProperties(flags))
+            {
+                if (pi.GetIndexParameters().Length > 0 || pi.GetSetMethod(nonPublic: false) == null) continue;
+                var backing = parentType.GetField($"<{pi.Name}>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (backing == null)
+                {
+                    // A COMPUTED property (no storage of its own — e.g. a PickableGeoPoint facade over two doubles) on the ROOT
+                    // struct: read-modify-write the whole struct through the root binding. ⛔ Deeper ones stay unsupported.
+                    if (parentType == buffer.ComponentType && pi.GetMethod != null)
+                        result.Add(BuildNode(buffer, $"{parentPath}.{pi.Name}", pi.Name, pi.PropertyType,
+                            0, null, pi, idAlloc, visited, providers, fieldEditors, context));   // bound by CreateLeafBinding
+                    continue;
+                }
+                int childOffset = parentNativeOffset
+                    + global::Fdp.Core.Layout.ManagedLayout.OffsetOf(parentType, backing.Name);
+                result.Add(BuildNode(buffer, $"{parentPath}.{pi.Name}", pi.Name, pi.PropertyType,
+                    childOffset, backing, pi, idAlloc, visited, providers, fieldEditors, context,
+                    parentBinding: parentBinding));
+            }
+        }
+
         // public instance properties with getter — skip indexers and compiler-generated
         if (!buffer.IsNative)
         {
@@ -378,6 +404,11 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
             return null;
         }
 
+        // ⭐ CE-1023 — a COMPUTED property on a NATIVE root struct: read-modify-write the whole struct through the root binding.
+        //   ⛔ A ManagedPropertyBinding over buffer.Box() would set the property on a throwaway copy — every write lost.
+        if (buffer.IsNative && fi == null && pi != null)
+            return new NestedMemberBinding(pi, buffer.CreateRootBinding());
+
         var owner = buffer.Box();
         if (fi != null) return new ManagedFieldBinding(fi, owner, buffer.MarkDirty);
         if (pi != null) return new ManagedPropertyBinding(pi, owner, buffer.MarkDirty);
@@ -410,7 +441,8 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
     private static EditNodeMetadata ReadMetadata(FieldInfo? fi, PropertyInfo? pi)
     {
         if (fi == null && pi == null) return EditNodeMetadata.Empty;
-        var provider = (ICustomAttributeProvider?)fi ?? pi!;
+        // ⭐ CE-1023 — an auto-property's attributes live on the PROPERTY, not its backing field (both are passed then).
+        var provider = (ICustomAttributeProvider?)pi ?? fi!;
 
         T? GetAttr<T>() where T : Attribute
             => provider.GetCustomAttributes(typeof(T), false).FirstOrDefault() as T;
