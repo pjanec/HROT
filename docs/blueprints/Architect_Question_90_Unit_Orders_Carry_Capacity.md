@@ -89,6 +89,41 @@ receiver's node, read from the receiver's own type, so adding a unit type touche
 | **A5** | stop and release | `Order.Hold` resolves per type (squad → `SquadHold`). Releasing a unit (Clear) ends its drill, and **a drill that ends, for any reason, clears the Superior orders it gave its members**, so each member's own SOP picks next | `SquadManeuverRunner` end/abort path; fixes `SquadMarchBehavior.cs:233` (release recalls nobody) | if you want members to HOLD where they are rather than return to their SOP, the runner issues `Order.Hold` instead of a clear |
 | **A6** | the two paths that name a behaviour on purpose | keep `EntityOrders.Behavior(name)` for the **debug API / MCP only** (a test tool that scripts a unit), never on the menu or RTS. A mission task may name an **order kind** as well as a behaviour (both arrive as the same intent string, so it costs nothing) | none for the debug API; mission authoring gains an option | if you want no path at all to name a behaviour from outside, the debug route is removed and tests author behaviours through mission tasks |
 
+### 2.3 Terms and the parameter hand-over *(added 2026-10-12, answering the user's follow-up)*
+
+- **A drill:** a group behaviour that runs on a unit's commander entity through `SquadManeuverRunner`. Its body is a play
+  (`ISquadPlay`): a phase table saying which members do what and when the phase changes. Each tick the runner sends each live
+  member what it should do now (today a soldier behaviour, origin Superior). The built drills are `SquadMarch`,
+  `BoundingOverwatch`, `SuppressAndManeuver`, `SquadHold`, `BreakContact` and `ReactToContact`. A drill is an ordinary
+  registered behaviour, so an `OrderSet` entry can name one.
+- **A platoon (A4):**
+  1. The platoon's commander receives `Order.Move`. Its type's `OrderSet` names a platoon drill (e.g. `PlatoonMarch`), which starts on the platoon commander.
+  2. That drill decides each squad's part (lead squad to the point, the others following at an interval) and sends each squad commander `Order.Move(its point)`. It never names `SquadMarch`.
+  3. Each squad commander resolves that order through its own type and starts `SquadMarch`, which directs its soldiers.
+
+  Not built: there is no platoon-of-squads type (`BdcTkbCatalog.cs:230-235`), and the tank platoon's members are vehicles,
+  ordered by behaviour (`HillAttackCommanderNodes.cs:161-164,484-487`).
+- **Parameters (A2):** the order does NOT carry the behaviour's params DTO, because that would force the sender to know which
+  behaviour runs. Each order kind has its own small DTO. The behaviour's params are built on the receiver in two layers:
+  1. the TKB `OrderSet` entry's default params (e.g. the squad's march shape, Wedge);
+  2. overlaid with what the fulfilling behaviour's **adapter** takes from the order (`MoveOrder.Target` → `SquadMarch.Objective`).
+
+  The adapter is code next to the behaviour's params DTO, because it converts lat/lon with the node's geographic transform.
+  Precedent: `DefendAreaMapper.PostureAt` already turns `DefendAreaIntentDto` into `CombatPosture`'s params.
+
+### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
+
+| site | who names the behaviour | lean |
+|---|---|---|
+| `EntityOrders.Move/Attack/Hold` (`EntityOrders.cs:98,113,117`) ← the menu, the RTS tool, HTTP `move` / `attack` / `hold` | the order service | ⛔ **loses it**: publishes `Order.*` (A1) |
+| `SimHostVisualization.cs:442` → `NedSimHostMissionSender.cs:49` (a click in the SimHost debug window sends a `MoveToLocation` mission over DDS) | a UI | ⛔ **loses it**: becomes `Order.Move` |
+| HTTP `kind:"behavior"` → `EntityOrders.Behavior(name)` (`DebugApiService.Orders.cs:80-87`); the MCP tools use it | a test tool | ✅ keeps it (A6) |
+| the editor's AI section, Task row (`EntityAiDetailsView.ApplyTask`, `:163-166`), in Edit and while running | the author / operator in the inspector | ✅ keeps it, as the AI-debugging inspector (A6; the user may rule otherwise) |
+| scenario mission tasks (`MissionAdapterSystem.cs:108-111`) and a scenario entity's authored behaviour / SOP (`InitialBrainMaterializationSystem.cs:42`) | the scenario author | ✅ keeps it; a task may also name an `Order.*` (A6) |
+| the blueprint Send Intent node (`Nodes.cs:1385`, intent id = a `[BehaviorContract]` id) | a blueprint author | ✅ keeps it; it also offers the order kinds |
+| commanders ordering members: `SquadManeuverRunner.cs:402` (soldiers), `HillAttackCommanderNodes.cs:161,484` (tanks), `CommanderNodes.cs:80` (stub, `"DefendArea"`) | the unit's own drill | ✅ keeps it for soldier and vehicle members; ⭐ a **unit** member gets `Order.*` (A4) |
+| the unit's own sources: TKB `DefaultBehavior` / `DefaultSop`, `SopActions.React`, a possession resume, a brain restart | the unit itself | ✅ unchanged: this IS the unit deciding |
+
 **Rejected (one line each):**
 - **One C# mapper per order kind switching on the TKB type** (the `DefendAreaMapper` shape): it puts every unit type's choice in central code, so a new type edits shared code. That is the coupling R-273 (behaviors) forbids.
 - **The unit's SOP slot (R-189) decodes the order**: the order would compete with reactions under the origin gate, and every type would need an authored SOP just to accept a Move. AQ83 already deferred "an order as a goal".
