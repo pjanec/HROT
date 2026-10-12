@@ -90,9 +90,7 @@ namespace Fdp.Toolkit.Perception.Sensors
     public sealed class AcousticSensorGenerator : IEqsGenerator
     {
         private readonly SpatialHashGrid _grid;
-        private readonly VisionBroadphase _broadphase = new();
-        private ISimulationView? _builtFor;
-        private uint _builtTick;
+        private readonly BroadphaseCache _broadphase = new();   // ⭐ CE-1055 — one per calling thread (the solver, the map's gizmo)
 
         public AcousticSensorGenerator(SpatialHashGrid grid) => _grid = grid;
 
@@ -101,16 +99,11 @@ namespace Fdp.Toolkit.Perception.Sensors
             var unit = EqsContext.Self(view, observer, sensor);
             if (unit.IsNull || !view.IsAlive(unit) || !view.HasComponent<SimTransform>(unit)) return 0;
             if (!AcousticPerception.Ears(view, observer, out float range, out float perMeter)) return 0;
-            if (!ReferenceEquals(view, _builtFor) || view.Tick != _builtTick)
-            {
-                _broadphase.Rebuild(view, _grid);
-                _builtFor  = view;
-                _builtTick = view.Tick;
-            }
+            var broadphase = _broadphase.For(view, _grid);
 
             var ear = view.GetComponentRO<SimTransform>(unit).Position;
             int n = 0;
-            foreach (var (_, source) in _broadphase.Select(view, unit, range, fovCos: -1f))
+            foreach (var (_, source) in broadphase.Select(view, unit, range, fovCos: -1f))
             {
                 if (!view.HasComponent<AcousticEmitter>(source)) continue;
                 var a  = view.GetComponentRO<AcousticEmitter>(source);

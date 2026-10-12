@@ -441,5 +441,88 @@ namespace Fdp.Toolkit.Perception.Tests
                 grid.Dispose();
             }
         }
+
+        // ── CE-1055 — one broadphase per calling thread ─────────────────────────────
+
+        /// <summary>A world with a Blue observer at the origin facing east and a Red target 100 m east — the same entity
+        /// handles in every world built by it, so one grid serves all of them.</summary>
+        private static (EntityRepository World, Entity Observer, Entity Target) DuelWorld()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            world.AddComponent(observer, new EntityInfo { ForceId = ForceId.Friend });
+            var target = world.CreateEntity();
+            world.AddComponent(target, new SimTransform { Position = new Vector3(100f, 0f, 0f), Rotation = Quaternion.Identity });
+            world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
+            return (world, observer, target);
+        }
+
+        /// <summary>⭐ CE-1055 — the map's gizmo asks the AI's generator with ITS view on ITS thread: that must not rebuild the
+        /// solver's broadphase. Owner (view 1) → a second thread (view 2) → owner again, same tick: the owner's index is
+        /// reused (2 rebuilds in all, not 3) and the second thread got its own.</summary>
+        [Fact]
+        public void CE1055_ASecondThreadWithItsOwnView_NeverRebuildsTheOwnersBroadphase()
+        {
+            var (w1, _, target) = DuelWorld();
+            var (w2, _, _) = DuelWorld();
+            var grid = CreateTestGrid();
+            try
+            {
+                grid.Clear();
+                grid.Add(target, new Vector2(100f, 0f));
+                var cache = new BroadphaseCache();
+
+                var owner = cache.For(w1, grid);
+                VisionBroadphase? other = null;
+                var t = new System.Threading.Thread(() => other = cache.For(w2, grid));
+                t.Start(); t.Join();
+                var ownerAgain = cache.For(w1, grid);
+
+                Assert.Equal(2, cache.Rebuilds);
+                Assert.Same(owner, ownerAgain);
+                Assert.NotSame(owner, other);
+            }
+            finally { grid.Dispose(); w1.Dispose(); w2.Dispose(); }
+        }
+
+        /// <summary>⭐ CE-1055 — the measured fault's shape: two threads, two views, one cache, rebuilding and selecting at
+        /// once. Every select finds the target and nothing throws (before: "a concurrent update … corrupted its state").</summary>
+        [Fact]
+        public void CE1055_TwoThreadsRebuildingAndSelectingAtOnce_NeverCorruptEachOther()
+        {
+            var (w1, o1, target) = DuelWorld();
+            var (w2, o2, _) = DuelWorld();
+            var grid = CreateTestGrid();
+            try
+            {
+                grid.Clear();
+                grid.Add(target, new Vector2(100f, 0f));
+                var cache = new BroadphaseCache();
+                Exception? fault = null;
+                int misses = 0;
+                void Loop(EntityRepository w, Entity observer)
+                {
+                    try
+                    {
+                        for (int i = 0; i < 2000; i++)
+                        {
+                            w.Tick();   // a new tick each pass ⇒ a rebuild each pass, like a solver run per frame
+                            int n = 0;
+                            foreach (var _ in cache.For(w, grid).Select(w, observer, 200f, -1f)) n++;
+                            if (n != 1) System.Threading.Interlocked.Increment(ref misses);
+                        }
+                    }
+                    catch (Exception ex) { fault ??= ex; }
+                }
+                var a = new System.Threading.Thread(() => Loop(w1, o1));
+                var b = new System.Threading.Thread(() => Loop(w2, o2));
+                a.Start(); b.Start(); a.Join(); b.Join();
+
+                Assert.Null(fault);
+                Assert.Equal(0, misses);
+            }
+            finally { grid.Dispose(); w1.Dispose(); w2.Dispose(); }
+        }
     }
 }

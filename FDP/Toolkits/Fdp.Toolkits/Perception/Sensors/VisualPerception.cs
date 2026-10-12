@@ -92,9 +92,7 @@ namespace Fdp.Toolkit.Perception.Sensors
 
         private readonly SpatialHashGrid _grid;
         private readonly OpticsFn _optics;
-        private readonly VisionBroadphase _broadphase = new();
-        private ISimulationView? _builtFor;
-        private uint _builtTick;
+        private readonly BroadphaseCache _broadphase = new();   // ⭐ CE-1055 — one per calling thread (the solver, the map's gizmo)
 
         public VisualSensorGenerator(SpatialHashGrid grid, OpticsFn? optics = null)
         {
@@ -108,15 +106,10 @@ namespace Fdp.Toolkit.Perception.Sensors
             if (unit.IsNull || !view.IsAlive(unit)) return 0;
             if (!_optics(view, observer, unit, out float range, out float fovCos)) return 0;
 
-            if (!ReferenceEquals(view, _builtFor) || view.Tick != _builtTick)
-            {
-                _broadphase.Rebuild(view, _grid);
-                _builtFor  = view;
-                _builtTick = view.Tick;
-            }
+            var broadphase = _broadphase.For(view, _grid);
 
             int n = 0;
-            foreach (var (_, target) in _broadphase.Select(view, unit, range, fovCos))
+            foreach (var (_, target) in broadphase.Select(view, unit, range, fovCos))
             {
                 if (n == candidates.Length) break;
                 var p = view.GetComponentRO<SimTransform>(target).Position;

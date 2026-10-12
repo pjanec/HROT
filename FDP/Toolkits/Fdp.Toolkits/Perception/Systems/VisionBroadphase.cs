@@ -197,4 +197,46 @@ namespace Fdp.Toolkit.Perception.Systems
         private static int Cell(float v) => (int)MathF.Floor(v / CoarseCellSize);
         private static long Key(int x, int y) => ((long)x << 32) | (uint)y;
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1055</c> — a sensor generator's broadphase, rebuilt once per (view, tick), ONE PER CALLING THREAD.
+    /// 🔴 A generator has two callers on two threads: the EQS module's solver (its background run) and the map's
+    /// <c>EqsSensorGizmo</c> verdict (the draw thread, DESIGN_Peek_And_Fire §9.8 — the AI's own generator on purpose, so the
+    /// map cannot show another answer). Each passes its OWN view, so one shared broadphase was rebuilt (Clear + refill)
+    /// by the gizmo while the solver read it — measured: <c>Dictionary.TryGetValue</c> "concurrent update … corrupted its
+    /// state" in <see cref="VisionBroadphase.Select"/>, five <c>Module Eqs failed</c>. Per thread, neither caller touches
+    /// the other's index; within one solver run (one thread) every sensor still shares one rebuild.
+    /// ⚠ The FINE grid the rebuild reads stays the module's: an off-thread reader may see it mid-rebuild — bounded by the
+    /// <c>CE-3146</c> chain guard, it can only mis-draw a gizmo frame, never corrupt the solver.
+    /// </summary>
+    public sealed class BroadphaseCache
+    {
+        private sealed class Slot
+        {
+            public readonly VisionBroadphase Broadphase = new();
+            public ISimulationView? BuiltFor;
+            public uint BuiltTick;
+        }
+
+        private readonly System.Threading.ThreadLocal<Slot> _slots = new(() => new Slot());
+        private long _rebuilds;
+
+        /// <summary>How many rebuilds this cache has made, over every thread (rails).</summary>
+        public long Rebuilds => System.Threading.Interlocked.Read(ref _rebuilds);
+
+        /// <summary>This thread's broadphase, rebuilt from <paramref name="grid"/> when <paramref name="view"/> or its tick
+        /// changed since this thread last asked.</summary>
+        public VisionBroadphase For(ISimulationView view, SpatialHashGrid grid)
+        {
+            var slot = _slots.Value!;
+            if (!ReferenceEquals(view, slot.BuiltFor) || view.Tick != slot.BuiltTick)
+            {
+                slot.Broadphase.Rebuild(view, grid);
+                slot.BuiltFor  = view;
+                slot.BuiltTick = view.Tick;
+                System.Threading.Interlocked.Increment(ref _rebuilds);
+            }
+            return slot.Broadphase;
+        }
+    }
 }
