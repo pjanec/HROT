@@ -281,6 +281,45 @@ public sealed class Map3DTests
         Assert.True(MathF.Max(a.X, b.X) > size.X / 2f, "the barrel reaches past the hull front");
     }
 
+    /// <summary>⭐ CE-2138 (C2) — the family switch exactly as it was before the class table: the oracle the sweep compares to.</summary>
+    private static VisualFamily OldFamily(DISEntityType d)
+    {
+        if (d.Kind == 3) return VisualFamily.Person;
+        if (d.Kind == 1 && d.Domain == 1)
+            return d.Category switch
+            {
+                1 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,
+                3 or 6 or 7 => VisualFamily.WheeledUtility, _ => VisualFamily.Unknown,
+            };
+        if (d.Kind == 1 && d.Domain == 2)
+            return d.Category switch
+            {
+                >= 20 and <= 25 => VisualFamily.Helicopter,
+                1 or 2 or 6 or 7 or 40 or 47 or 50 => VisualFamily.Jet,
+                3 or 4 or 5 or 8 or 57 => VisualFamily.CargoPlane,
+                _ => VisualFamily.Unknown,
+            };
+        return VisualFamily.Unknown;
+    }
+
+    /// <summary>⭐ CE-2138 (C2) — <c>VisualFamilies.Of</c> rebuilt on the class table keeps the family of EVERY Kind × Domain ×
+    /// Category (countries and subcategories too), not just the built-in types.</summary>
+    [Fact]
+    public void CE2138_TheClassTable_KeepsEveryFamily_AcrossTheWholeDisSpace()
+    {
+        var moved = new List<string>();
+        foreach (byte kind in new byte[] { 0, 1, 2, 3, 4, 9, 10, 12 })
+            for (int domain = 0; domain <= 6; domain++)
+                for (int category = 0; category <= 255; category++)
+                    foreach (ushort country in new ushort[] { 0, 222, 225 })
+                    {
+                        var d = new DISEntityType { Kind = kind, Domain = (byte)domain, Category = (byte)category, Country = country, Subcategory = 3 };
+                        var now = VisualFamilies.Of(new TkbTemplate("sweep", 9999) { DisType = d });
+                        if (now != OldFamily(d)) moved.Add($"{d}: {OldFamily(d)} -> {now}");
+                    }
+        Assert.True(moved.Count == 0, string.Join(", ", moved.Take(20)));
+    }
+
     // ── aircraft (SISO-REF-010 platform / air categories) ──
 
     [Theory]
