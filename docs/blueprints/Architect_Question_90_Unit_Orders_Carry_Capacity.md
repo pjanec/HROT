@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: ⭐ "THE PROPOSAL IN ONE PAGE" (above §1) is the consolidated answer, ✅ approved in principle (R-277 (behaviors)) with §2.3k's amendments; the sections below are how it was reached. §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), ⭐ the reserved Params variable + params DTO assets + registry (§2.3j, refines §2.3i), the missing measurements + leans (§2.3m), ⭐ classes as named DIS masks, R-278 (§2.3n), the hard-coded class table = VisualFamilies grown, R-279 (§2.3o), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: ⭐ "THE PROPOSAL IN ONE PAGE" (above §1) is the consolidated answer, ✅ approved in principle (R-277 (behaviors)) with §2.3k's amendments; the sections below are how it was reached. §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), ⭐ the reserved Params variable + params DTO assets + registry (§2.3j, refines §2.3i), the missing measurements + leans (§2.3m), ⭐ classes as named DIS masks, R-278 (§2.3n), the hard-coded class table = VisualFamilies grown, R-279 (§2.3o), one shared class table + DIS names hard-coded, R-280 (§2.3p), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -38,7 +38,7 @@ related-designs:
 |---|---|---|
 | **who decides** | the receiver picks the behaviour that fulfils an order; senders and UI name only WHAT is ordered | ✅ R-273 (behaviors) |
 | **orders** | `enum OrderKind` in `Hrot.AI.Behaviors` (users add orders there); each kind has ONE order DTO marked `[Order(kind)]` (`Hold` → empty `HoldOrder`). Outside the AI assembly everything is generic over the discovered order catalogue; RTS gestures are declared on the DTO (§2.3k ①) | ✅ R-277 |
-| **entity classes** | ⭐ a class = a NAMED DIS mask in a hard-coded table grown out of `VisualFamilies` (R-279); an entity's class = the most specific matching mask (also shown in the UI). Replaces `BehaviorCategory` and the hard-coded switch. Units get their own DIS Kind (Category = arm, Subcategory = echelon) | ✅ R-278 + lean (§2.3n) |
+| **entity classes** | ⭐ a class = a NAMED DIS mask in ONE hard-coded table grown out of `VisualFamilies` (R-279), shared by the 3-D model, the 2-D symbol, the picker's DIS names and the behaviour lookup (R-280); an entity's class = the most specific matching mask (also shown in the UI). Replaces `BehaviorCategory` and the hard-coded switch. Units get their own DIS Kind (Category = arm, Subcategory = echelon) | ✅ R-278 + lean (§2.3n) |
 | **which behaviour runs** | `<Class><Order>` for the entity's most specific matching class, then broader matching classes; a behaviour serving several classes is named after a class covering them (lists / ranges in its mask); a tie is a load error; no map table; no soldier fallback for a body-less unit | ✅ R-278 + lean (§2.3n) |
 | **echelons** | a unit's drill orders member UNITS by order kind (each decides for itself, recursively) and directs its own soldiers by behaviour. A drill that ends releases its members to their SOPs | lean |
 | **which orders a unit accepts / the menu** | per CLASS, computed on demand from the node's behaviour catalogue: the K for which `<Class>K` is registered. Nothing is stored per entity. Every node runs the catalogue scan (they are one executable; R-275 (behaviors)). The menu builds its follow-up picks from the order DTO's field types (`PickableGeoPoint` → point, `EntityRef` → entity), so a new order kind is one DTO and a new class's behaviour is just registered | lean |
@@ -648,6 +648,25 @@ answer. Once units have their own Kind:
 - the `TkbCompositionDef` special case in both places becomes a plain DIS match;
 - the picker's `Units/<country>` folder becomes the units' DIS name path (`DisNames.json` gains the Kind-11 names).
 ⚠ Not measured: whether anything besides these two sites special-cases composites for display.
+
+### 2.3p One shared class table; no DIS names in a data file *(2026-10-12; user: "accepted sharing the class table across 3d model, 2d symbol and behaviors (and any future entity display)" · "what is DisNames.json? I do not want any names in json data file, it needs to be hardcoded.")*
+
+✅ **Ruled (R-280 (behaviors)):**
+- ONE class table is shared by the 3-D model, the 2-D symbol, the behaviour lookup and any future entity display;
+- DIS names are hard-coded, with no JSON.
+
+**What `DisNames.json` is** (measured):
+- a 29-line embedded resource, `Hrot.Core/Tkb/DisNames.json` (`Hrot.Core.csproj:54`), parsed by `DisNameTable` (`Hrot.Core/Tkb/DisNameTable.cs`);
+- it names the DIS levels: Kinds 1–9; Domains for Kinds 1 and 3; five countries (France 71, Germany 78, Russia 222, UK 224, US 225); Categories for land platforms (1.1), air platforms (1.2) and infantry (3.1);
+- its ONE production reader is the Add-Entity picker, which builds each type's folder path from it (`EntityTypeCatalog.cs:52-97`);
+- it was a deliberate lean, Add Entity Picker design D2b: *"a data table … — names in code `switch`es rot silently"* (⭐ lean, not a user ruling). R-280 overrules D2b, which is marked superseded there.
+
+**Lean — the class table subsumes the DIS names:**
+- A name for a DIS level IS a class: `Platform = 1.*`, `LandPlatform = 1.1.*`, `Tank = 1.1.*.1`, `AttackHelicopter = 1.2.*.20`, `Person = 3.*`, `Infantry = 3.1.*.1`, and the units under Kind 11.
+- So the picker's folder path is the chain of matching classes from general to specific (`Platform / Land / Tank`), drawn from the SAME hard-coded table as the 3-D shape, the 2-D symbol and the behaviour.
+- Countries are not classes; they get a small hard-coded table beside it (SISO-REF-010 codes; `BdcTkbCatalog` already holds the five as constants, `BdcTkbCatalog.cs:12`).
+- `DisNameTable` keeps its API (`Path`, `CountryName`, the `"Category 7"` fallback for an unknown number) but is built from the C# table; the JSON resource is deleted.
+- D2b's worry (names in code rot silently) gets a rail instead: every built-in TKB type resolves to a named class path, and no two classes share a name or an identical mask.
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
