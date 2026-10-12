@@ -983,3 +983,68 @@ hold (`WithLifecycle(All)`); one lookup, moved as is.
 Design docs checked: OC1-DESIGN §2.1 (OC1-S001) — *superseded here*: its reason, *"the FDP engine and the BTree layer remain
 network-agnostic"*, still holds, because the lookup lives in `Hrot.AI.Behaviors` (HROT), not FDP; its §2.1 gets a superseded
 note. Parameter Model §P.2 (bake → overlay → resolve) — *applies*: the typed resolver is its resolve stage.
+
+## 11. CE-2144 E1 — health application is cross-role *(build-state: ⏸ STOPPED `2026-10-12` on a measured ordering question — see "Found before building"; behaviors)*
+
+**Why:** R-275 (behaviors) — every node that can own live entities is equal in capability. `HealthApplicationSystem` (the owner
+side of damage: it applies a `DamageAssessedEvent` where this node holds the entity's Health claim) is built only by
+`CgfLogicPack` (`CgfLogicPack.cs:199,231`). A passenger, door or soldier owned by SimHost or IG therefore never dies there: the
+damage is assessed (`DamageCalculationSystem` / `AreaEffectSystem`, and `EmbarkedStateSystem` for an enclosed passenger) and
+nothing applies it.
+
+**INVENTORY** *(grep + the graph's file list, 2026-10-12)*: `CoreInfrastructureCapabilities` already holds the cross-role owner
+side (`UnitHierarchy`, `Interactions`); `Interactions` is declared by SimHost (`SimHostNodeBootstrapper.cs:333`), IG
+(`IgNodeBootstrapper.cs:283`), CGF (`CgfSubsystem.cs:984`), both editor arms (`EditorCapabilities.cs:104,141`), and wired by hand in
+two harnesses (`EditorHarness.cs:326`, `SimHostInstance.cs:402`). `DamageSystem` (the old local path) has no production
+registration, so there is no second applier to double-count.
+
+```mermaid
+graph TD
+  subgraph every host plan
+    SH[SimHostNodeBootstrapper]
+    IG[IgNodeBootstrapper]
+    CGF[CgfSubsystem]
+    ED[EditorCapabilities x2 arms]
+  end
+  HA[CoreInfrastructureCapabilities.HealthApplication NEW]
+  INT[CoreInfrastructureCapabilities.Interactions existing]
+  HAS[HealthApplicationSystem - Simulation tail]
+  PACK[CgfLogicPack]
+  SH --> HA
+  IG --> HA
+  CGF --> HA
+  ED --> HA
+  SH --> INT
+  HA --> HAS
+  PACK -. no longer builds it .-> HAS
+  K[ModuleHost kernel Simulation phase] -->|calls each frame| HAS
+```
+
+*What the picture shows that prose hid: the system moves from ONE role pack (Brain) to a capability every plan declares, and
+the kernel's Simulation phase ticks it on SimHost and IG too; a fused Brain+Muscle node resolves it once (de-duplicated by Key),
+exactly like `Interactions`.*
+
+| claim | code | design |
+|---|---|---|
+| it gates itself on ownership, so it costs nothing where nothing is owned | ✅ `HealthApplicationSystem` authority check (the Health claim) | ✅ BS-1 (`docs/designs/brain-split/BS-1-DESIGN.md`) |
+| no second applier exists in production | ✅ `DamageSystem` has no registration; `DamageAssessmentModule` runs only `DamageCalculationSystem` + `AreaEffectSystem` | ⛔ searched, no record |
+| its position in CGF's list does not matter | ⛔ **FALSE, measured:** it runs at `CgfLogicPack.cs:231`, BEFORE the cognitive runtime (`:243`, `CognitiveInterruptSystem` reads `CanMove`) and the action dispatch (`:244`, `Locomotion`/`WeaponDispatcherSystem` read the capabilities) | ⛔ searched, no record |
+
+Rejected (one line each): **put it in `Interactions`** — damage is not an interaction; the key would lie · **register it in
+SimHost's pack too** — a fused node would run it twice (the CE-221 disease).
+
+### 11.1 ⏸ Found before building — the position is load-bearing *(2026-10-12)*
+
+Events are read from the PREVIOUS frame (`FdpEventBus.Read`), and module systems are scheduled by their `[UpdateInPhase]`
+attribute in registration order (`SystemScheduler.GetPhaseAttribute`). A cross-role capability lands at the TAIL of Simulation
+(that is how `UnitHierarchy` / `Interactions` are placed). ⇒ on CGF a unit killed this frame would still be dispatched a move or a
+shot this frame, and its cognitive interrupt would fire one frame later than today. Small, but a behaviour change on the main path,
+and R-275 rules out the cheap fix (keep it in the CGF pack and add it per host elsewhere — *"no per-host initializations"*).
+
+| option | what | cost |
+|---|---|---|
+| ⭐ **A (lean)** | the capability at the Simulation tail on every host, AND the action dispatchers gate on `Health.Current > 0` as well as on the capabilities | one frame later interrupt on CGF; the extra-shot window closed where it matters. Small, all in owner-side code |
+| B | the capability declares a scheduling anchor so it runs before the cognitive runtime on hosts that have one | needs an ordering seam the node plan does not have (`NodeCompositionPlan` orders by declaration only) |
+| C | accept the one-frame delay with no gate | the dead unit may fire once more |
+
+**User decision needed** before building (the blast radius is every host's Simulation order).
