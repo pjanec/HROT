@@ -39,6 +39,38 @@ public sealed class DebugApiOrdersTests
     private static int IdOf(EditorHarness h, string behaviour)
         => h.Behaviors.TryGetId(behaviour, out var id) ? id : throw new InvalidOperationException($"{behaviour} not registered");
 
+    /// <summary>⭐ CE-2143 (D4-G, D4-C) — ANY order by name with its DTO in <c>params</c> (here Move with a Location), resolved by the
+    /// unit to its class's behaviour; an order the unit's class does not fulfil is refused (409) naming why; an unknown order is a
+    /// bad request listing the orders.</summary>
+    [Fact]
+    public void CE2143_AnyOrderByName_WithItsParams_ARefusalSaysWhy_AnUnknownOrderListsTheOrders()
+    {
+        using var h = new EditorHarness(productionBehaviors: true);
+        var svc = h.BuildDebugApiService();
+        var unit = Unit(h, UnitId, ForceId.Friend, Vector3.Zero);
+
+        var (result, status, error, _) = svc.PostOrder(UnitId, new JsonObject
+        {
+            ["kind"] = "Move", ["params"] = new JsonObject { ["Location"] = new JsonArray(0.0, 30.0), ["Speed"] = 2f },
+        });
+        Assert.Null(error);
+        Assert.Equal(200, status);
+        Assert.Equal("Order.Move", result!["behavior"]!.GetValue<string>());
+        h.PumpFrames(4);
+        Assert.Equal(IdOf(h, BehaviorNames.PersonMove), h.Repo.GetComponentRO<BehaviorState>(unit).ActiveBehaviorHash);
+
+        var munition = Unit(h, 3000, ForceId.Friend, Vector3.Zero);
+        h.Repo.SetDisType(munition, new DISEntityType { Value = 2UL << 56 });   // no class of a munition has an order behaviour
+        (_, status, error, _) = svc.PostOrder(3000, new JsonObject { ["kind"] = "hold" });
+        Assert.Equal(409, status);
+        Assert.StartsWith("NotFulfilled", error);
+        Assert.Contains("Munition", error);
+
+        (_, status, error, _) = svc.PostOrder(UnitId, new JsonObject { ["kind"] = "dance" });
+        Assert.Equal(400, status);
+        Assert.Contains("Move", error);
+    }
+
     [Fact]
     public void CE3167_AHoldOrder_RunsIdleAtOperatorOrigin_AndReadsBackRunning()
     {
