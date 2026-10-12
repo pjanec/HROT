@@ -432,7 +432,7 @@ What the `Input` role does today, each re-homed:
 classDiagram
   class BehaviorBlock {
     <<one per running behaviour, AQ76 B>>
-    +Params : TParamsDto  (RESERVED, present iff a params DTO is named; not authored in the variable editor)
+    +Params : TParamsDto  (RESERVED, present iff a params DTO is named AND there is no resolver)
     +any number of variables  (one kind; no Input / State role)
   }
   class ParamsDto {
@@ -446,7 +446,7 @@ classDiagram
     <<NEW, editor>> reflection scan of the params-DTO attribute
   }
   class Resolver {
-    <<optional, C# or blueprint>> reads Params, writes any block variable
+    <<optional, C# or blueprint>> receives the DTO, writes any block variable
   }
   ParamsDtoAsset ..> ParamsDto : generator (build time)
   ParamsDtoRegistry ..> ParamsDto : finds hand-written and generated alike
@@ -460,18 +460,25 @@ included, is equally available to the behaviour's actions and to the sub-behavio
 
 | rule | ⭐ lean |
 |---|---|
-| **where the JSON lands** | the reserved variable **`Params`**, present exactly when the behaviour names a params DTO, typed as that DTO, and **always holding the DTO as received**. ⛔ Not chosen by type: a block may hold several variables of the same type |
-| **the resolver** | optional; it runs after the copy, reads `Params`, and writes any OTHER variables (geo → local, a resolved `Entity`, a derived direction). ⇒ there is no identity-versus-conversion branch: the copy always happens and the resolver only adds. `PlatoonHillAttack` keeps its geo DTO in `Params` beside the Cartesian values its resolver writes (bytes are not a concern: blocks go up to 16 096 B) |
+| **where the JSON lands** *(revised 2026-10-12, user: "Storing param dto as state var in blackboard is only necessary if there is no resolver")* | **no resolver:** in the reserved variable **`Params`**, typed as the params DTO. It is not authored in the variable editor and is never chosen by type. **With a resolver:** the DTO is only the transient parse buffer it always was (Parameter Model §3.1 row 1); the resolver receives it and writes any block variables, and there is no `Params` variable. ⛔ The earlier lean (`Params` always holds the DTO, the resolver only adds) is withdrawn: it forced every DTO to be blittable for nothing |
+| **the resolver** | optional; it receives the DTO and writes any block variables (geo → local, a resolved `Entity`, a derived direction), exactly as the curated resolvers do today (`PlatoonHillAttack`) |
 | **block variables as params for others** | unchanged and central. An ACTION binds a field of any block variable, `Params` included, and reads it live (R-155). A hosted SUB-BEHAVIOUR names a host variable typed as the child's params DTO (`ParamsVariable`, AQ76 §12.28e); at the child's start that variable is copied into the child's own `Params` |
 | **editor-authored params DTOs** | a **params DTO asset** (`*.params.json`: fields, types, defaults) with a build-time generator that emits the C# struct. It uses the path the editor-managed blackboard already takes: the asset JSON is the source and the C# struct is generated at build (Category-2; Blackboard Authoring design, Enum design §"netstandard2.0 generators see only JSON text") |
 | **the editor's params DTO registry** | ONE reflection scan for one params-DTO attribute, which finds hand-written and generated DTOs alike. It replaces today's two scans: `[BlackboardDtoStruct]` (`BlackboardTypeChoiceBuilder`) and `[BehaviorContract]` (`BehaviorSchemaDiscovery`). Order DTOs are params DTOs that also carry `[Order]` |
 
-⛔ Measured constraint: `Params` lives in the blittable block, so a params DTO must be an **unmanaged struct**. Of today's 25
-contract DTOs, **15 are structs and 10 are classes** (`DefendAreaIntentDto`, `HullDownAttackIntentDto`, `FollowRouteParamsJsonDto`,
-`IdleParamsJsonDto`, `AmbushParamsJsonDto`, `InfantryCombatParamsJsonDto`, `JoinFormationParamsJsonDto`,
-`PlatoonHillAttackParamsJsonDto`, `WanderMilitaryParamsJsonDto`, `ConvoyEscortParamsJsonDto`); those become structs.
-⛔ Not measured: which of the 10 hold a collection or a string, which would need a fixed-size form (the type system has
-`FixedLength`).
+⭐ **The DTO may be a class** *(revised 2026-10-12, user)*. Params are persisted and carried only as JSON text, never as the
+struct, so the DTO's own shape is unconstrained:
+
+| where params travel | form |
+|---|---|
+| scenario mission task, `BehaviorStartRecord`, `PausedTask`, `SopState` | name + JSON string |
+| the bus (`AssignTacticalIntentEvent`, `AssignBehaviorEvent`) | `JsonParams` string (`AssignBehaviorEvent.cs:29`) |
+| the wire (`TacticalIntentRequest`) | `JsonParams` string (`TacticalIntentMessages.cs`) |
+
+⇒ the one place the DTO's shape matters is the `Params` variable, which exists only WITHOUT a resolver. **Validation (load
+time):** a behaviour with a params DTO and no resolver requires the DTO to be an unmanaged struct; a class there is an error
+that names the behaviour. Today's 10 class DTOs (`PlatoonHillAttackParamsJsonDto` and the others) all sit on behaviours with
+a curated resolver or with no asset, so they stay classes. ⛔ Not measured per DTO; the load check will list any exception.
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
