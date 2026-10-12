@@ -39,6 +39,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             if (!view.HasComponent<SimTransform>(entity))      return;
             if (!view.HasComponent<NetworkIdentity>(entity))   return;
+            if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(view, entity)) return;   // ⭐ CE-1058: no card for an unseen passenger
 
             long net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0) return;   // a card is keyed by the network id

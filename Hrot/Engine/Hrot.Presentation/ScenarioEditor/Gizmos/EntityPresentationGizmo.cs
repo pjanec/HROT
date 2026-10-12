@@ -101,6 +101,9 @@ namespace Hrot.ScenarioEditor.Gizmos
             // ⭐ LR-3 (DESIGN_Visual_Effects.md §8.5, R-271) — a replicated ROUND is not a unit: no symbol, no anchor, no pick box
             //   (its projector draws it).
             if (view.HasComponent<Fdp.Toolkit.Replication.Components.LightweightRound>(entity)) return;
+            // ⭐ CE-1058 — a passenger inside an ENCLOSED vehicle has no symbol, anchor or pick box of its own (the vehicle's is
+            //   the one on the map); an exposed rider keeps them. The engine's one rule (PhysicalPresence, R-271).
+            if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(view, entity)) return;
 
             // ⭐ SimTransform is the single source on every host. CGF's copy preferred NetworkTransform on
             // the grounds that it is "fresher on a host that does not own the entity" — measured false:

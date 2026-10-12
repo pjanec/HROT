@@ -541,6 +541,8 @@ every host calls). The carry needs no new system and no cross-group ordering: th
 | an Open type stamps `OpenPassengerCabin`; boarding it sets `Exposed` | `VehicleKinematicsTkbTranslatorTests`, `EmbarkationTests` (FDP) |
 | every host registers the embarkation components | `HrotSharedComponentRegistry` rail (SimHost.Tests) |
 
+> ⭐ **CE-1058 (2026-10-12, ui):** the MAPS follow the same rule — a hidden passenger has no 3-D body, box, 2-D symbol or card (`PhysicalPresence.IsEnclosedPassenger`); an exposed rider is drawn. 📄 DESIGN_Map_3D_Mode.md §3.5 as-built (`EntityBodyLayer3D` row).
+
 #### 7.2b I-2c as built *(`2026-10-12`)*
 
 ⭐ Built to §7.2a's three diagrams; no structural deviation. What the build settled:

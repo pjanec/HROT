@@ -95,6 +95,32 @@ namespace Hrot.Presentation.Tests.Gizmos
             Assert.Equal(2, attr!.RequiredComponents.Length);
         }
 
+        // ── CE-1058 — a carried passenger ───────────────────────────────────────────────────────
+
+        /// <summary>⭐ <c>CE-1058</c> — a passenger inside an ENCLOSED vehicle draws nothing on the 2-D map (no anchor, no pick box, no
+        /// symbol, no card); an exposed rider (a motorcycle, a bike, an open-door helicopter) draws as anyone. The engine's one rule:
+        /// <c>PhysicalPresence.IsEnclosedPassenger</c> (R-271).</summary>
+        [Fact]
+        public void CE1058_AnEnclosedPassenger_DrawsNothing_AnExposedRiderDraws()
+        {
+            if (!_repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>())
+                _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var vehicle = Spawn(10L, new Vector3(50f, 50f, 0f));
+            var inside = Spawn(11L, new Vector3(50f, 50f, 0f));
+            _repo.AddComponent(inside, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = vehicle, Exposed = 0 });
+            var rider = Spawn(12L, new Vector3(50f, 50f, 0f));
+            _repo.AddComponent(rider, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = vehicle, Exposed = 1 });
+
+            var hidden = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, inside, hidden);
+            new EntityEditorLabelGizmo().Draw(_repo, inside, hidden);
+            Assert.Equal(0, hidden.GetFrame().Length);
+
+            var shown = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, rider, shown);
+            Assert.Contains(shown.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.SpatialAnchor && p.NetworkId == 12L);
+        }
+
         // ── ② the emitted frame — re-homed from SimHost ────────────────────────────────────────
 
         /// <summary>⭐ Re-homed from <c>SC_GZ057_2</c>.</summary>

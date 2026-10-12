@@ -386,6 +386,30 @@ public sealed class Map3DTests
         Assert.Equal(VisualFamily.Unknown, VisualFamilies.Of(platformComposite));   // the DIS type decides, not the composition
     }
 
+    /// <summary>⭐ <c>CE-1058</c> — the 3-D map: a passenger inside an ENCLOSED vehicle has no body box (so nothing to pick, no
+    /// selection cube — and the body loop skips it by the same rule); an exposed rider keeps its box, carried at the vehicle.</summary>
+    [Fact]
+    public void CE1058_AnEnclosedPassenger_HasNoBody_AnExposedRiderHasOne()
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        var db = BuiltIn();
+        Entity Soldier(byte exposed, bool aboard)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(5f, 5f, 0f), Rotation = Quaternion.Identity });
+            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            if (aboard) world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { Exposed = exposed });
+            return e;
+        }
+        var layer = new EntityBodyLayer3D(() => world, () => db);
+        Assert.True(layer.TryGetBox(world, Soldier(0, aboard: false), db, out _, out _, out _));
+        Assert.False(layer.TryGetBox(world, Soldier(0, aboard: true), db, out _, out _, out _));    // inside an APC
+        Assert.True(layer.TryGetBox(world, Soldier(1, aboard: true), db, out _, out _, out _));     // on a motorcycle
+    }
+
     // ── aircraft (SISO-REF-010 platform / air categories) ──
 
     [Theory]

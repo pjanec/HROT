@@ -19,7 +19,13 @@ namespace Fdp.Toolkit.Perception
     {
         /// <summary>True when <paramref name="entity"/> must not be sensed, found, targeted or hit.</summary>
         public static bool IsHidden(ISimulationView view, Entity entity)
-            => view.HasComponent<UnitEntity>(entity)
-               || (view.HasComponent<IsEmbarkedTag>(entity) && view.GetComponentRO<IsEmbarkedTag>(entity).Exposed == 0);
+            => view.HasComponent<UnitEntity>(entity) || IsEnclosedPassenger(view, entity);
+
+        /// <summary>⭐ <c>CE-1058</c> — the passenger half of <see cref="IsHidden"/>: aboard a vehicle whose cabin is ENCLOSED (its own
+        /// <see cref="IsEmbarkedTag"/> with <c>Exposed = 0</c>). An exposed rider (a motorcycle, a bike, a helicopter with its side door
+        /// off — the TKB's <c>PassengerExposure = Open</c>) is not. ⭐ The maps (2-D symbol and card, 3-D body, pick and selection box)
+        /// draw nothing for it, by this one rule, while a body-less unit keeps its 2-D unit symbol.</summary>
+        public static bool IsEnclosedPassenger(ISimulationView view, Entity entity)
+            => view.HasComponent<IsEmbarkedTag>(entity) && view.GetComponentRO<IsEmbarkedTag>(entity).Exposed == 0;
     }
 }
