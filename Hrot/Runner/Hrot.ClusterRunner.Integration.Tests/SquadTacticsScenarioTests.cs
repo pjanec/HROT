@@ -247,4 +247,91 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         }
         finally { NasScenarioStaging.Remove(scenarioId); }
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2123</c> (S3) — the shipped <c>tt-squad-march</c> scenario: the squad's commander orders a WEDGE march to a point
+    /// ~50 m away on the S1 layout. Every member arrives (a slot that does not work falls back to the lead's trail), and the run
+    /// MEASURES what the handoff left open: what the march's re-orders cost — every move order is one SimHost path request. 📄 <c>docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md</c> §6.1.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2123_ASquadMarchesInAWedge_EveryoneArrives_AndThePathRequestCostIsBounded()
+    {
+        var root = RepoRoot();
+        var scenarioId = "tt_squad_march_" + Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
+        try
+        {
+            File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-squad-march", "scenario.json"),
+                Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
+
+            using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+            var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+            var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+            while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
+            {
+                harness.PumpFrames(1);
+                Thread.Sleep(10);
+            }
+            await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = ClusterOpType.TransitionState,
+                PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive), ScenarioId = scenarioId }),
+            }).ConfigureAwait(false);
+            Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000),
+                $"cluster must reach OperatingLive; at {(int)master.CurrentClusterState}");
+
+            var cgf = harness.Cgf!.World!;
+            var sim = harness.SimHost.World!;
+            Assert.True(harness.PumpUntil(() => !ByName(cgf, "Squad").IsNull && cgf.HasComponent<UnitRoster>(ByName(cgf, "Squad"))
+                                             && cgf.GetComponent<UnitRoster>(ByName(cgf, "Squad")).Count == 5, timeoutFrames: 3000),
+                "the squad's commander and its five men must spawn");
+            var leader = ByName(cgf, "Squad");
+            var objective = new Vector2(340f, 300f);
+            double SimNow() => cgf.HasSingleton<GlobalTime>() ? cgf.GetSingleton<GlobalTime>().TotalTime : -1;
+            Vector3[] Bodies()
+            {
+                var roster = cgf.GetComponent<UnitRoster>(leader);
+                var r = new Vector3[roster.Count];
+                for (int i = 0; i < roster.Count; i++)
+                {
+                    var body = ByName(sim, cgf.GetComponent<EntityInfo>(roster.SubordinateEntities[i]).Name.ToString());
+                    r[i] = body.IsNull ? new Vector3(float.NaN) : sim.GetComponent<SimTransform>(body).Position;
+                }
+                return r;
+            }
+            string State() => $"t={SimNow():F1}s kind={cgf.GetComponent<SquadCognitiveState>(leader).ManeuverKind} | "
+                             + string.Join(" | ", Bodies().Select((p, i) => $"m{i} at={p.ToString("F0", null)} d={Vector2.Distance(new Vector2(p.X, p.Y), objective):F0}"));
+
+            // ⭐ the cost: every MOVE order is one AdvanceTo → one MoveTo → one new PathToPoint intent, which SimHost's
+            //   NavigationIntentBridgeSystem turns into one RequestPath (an infantry move is a crowd path, not a PathRequestBatch).
+            int moves = 0;
+            double lastLog = 0;
+            void Count()
+            {
+                foreach (var o in cgf.Bus.ReadManaged<Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent>())
+                    if (o.IntentId == Hrot.Map.Definitions.Behavior.BehaviorNames.AdvanceTo) moves++;
+                if (SimNow() - lastLog >= 20) { lastLog = SimNow(); _out.WriteLine($"  {State()} · moves so far {moves}"); }
+            }
+
+            // ① the commander's task marches the squad.
+            Assert.True(harness.PumpUntil(() => { Count(); return cgf.GetComponent<SquadCognitiveState>(leader).ManeuverKind == SquadMarchManeuver.ManeuverKind; }, timeoutFrames: 3000),
+                $"the commander must start the march; {State()}");
+            double t0 = SimNow();
+            int before = moves;
+            _out.WriteLine("start: " + State());
+
+            // ② every member arrives near the objective (a wedge slot is at most ~10 m from the lead).
+            bool arrived = harness.PumpUntil(() => { Count(); return Bodies().All(p => Vector2.Distance(new Vector2(p.X, p.Y), objective) < 15f); },
+                timeoutFrames: 30000);   // ⚠ ~150 frames per sim second here
+            double seconds = SimNow() - t0;
+            int cost = moves - before;
+            _out.WriteLine($"end: {State()} · move orders (= SimHost path requests) {cost} in {seconds:F1} sim s = {cost / Math.Max(seconds, 1e-3):F2}/s for 5 men");
+            Assert.True(arrived, $"every member must reach the objective; {State()}");
+
+            // ③ the measured cost stays bounded: re-orders go per moved slot, not per tick (the handoff's estimate was ≈ 4/s per 8 men).
+            Assert.True(cost / Math.Max(seconds, 1e-3) <= 5.0, $"the march must cost at most 5 move orders a sim second: {cost} in {seconds:F1} s");
+        }
+        finally { NasScenarioStaging.Remove(scenarioId); }
+    }
 }

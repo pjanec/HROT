@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -580,6 +581,135 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
             Assert.Equal(ReactionUrgency.UnderFire, s.Repo.GetComponent<BehaviorState>(s.Commander).Urgency);
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
+        // ── ⭐ CE-2123 (S3) — the squad march (DESIGN_Squad_Tactics §6.1) ─────────────────────────────────────────────────────────────
+
+        private static void Walk(Squad s, Entity m, Vector3 to, float step = 2f)
+        {
+            while (true)
+            {
+                var d = to - s.At(m);
+                if (d.Length() <= step) { s.Teleport(m, to); s.Tick(); return; }
+                s.Teleport(m, s.At(m) + Vector3.Normalize(d) * step);
+                s.Tick();
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2123</c> S3 — a WEDGE march: the lead (the first member) goes to the objective; the others go to their wedge slots
+        /// turned to the lead's heading; when the lead walks on, each follower is re-ordered ONCE per 3 m its slot moved — never every
+        /// tick, and never the whole squad for one member's slot. 🔴 Red-proved: re-ordering through the runner's issue-all (Reissue)
+        /// sends the lead again and fails the per-member count.
+        /// </summary>
+        [Fact]
+        public void CE2123_SquadMarch_Wedge_TheLeadGoesToTheObjective_TheOthersToTheirSlots_ReorderedOnlyWhenTheirSlotMoves()
+        {
+            var s = new Squad(members: 4);
+            foreach (var (m, i) in s.Members.Select((m, i) => (m, i))) s.Teleport(m, new Vector3(i * 2f, -i * 2f, 0f));
+            s.Order("{\"Objective\":[0,100,0],\"Shape\":1,\"MaxLagMetres\":50}", BehaviorNames.SquadMarch);   // no halting in this rail
+            s.Tick(); s.Tick();
+
+            Assert.Equal(SquadMarchManeuver.ManeuverKind, s.Kind);
+            var first = s.LastOrders();
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(0f, 100f, 0f)), first[s.Members[0]]);
+            // heading north (lead → objective): forward (0,1), right (1,0); the wedge's rows 4 m back, 3 m out (× Spacing 5 / 5)
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(3f, -4f, 0f)), first[s.Members[1]]);
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(-3f, -4f, 0f)), first[s.Members[2]]);
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(6f, -8f, 0f)), first[s.Members[3]]);
+
+            s.Orders.Clear();
+            Walk(s, s.Members[0], new Vector3(0f, 10f, 0f), step: 1f);
+            var perMember = s.Orders.GroupBy(o => o.Entity).ToDictionary(g => g.Key, g => g.Count());
+            Assert.False(perMember.ContainsKey(s.Members[0]), "the lead keeps its order to the objective");
+            foreach (var m in s.Members.Skip(1))
+                Assert.Equal(3, perMember.GetValueOrDefault(m));                                      // 10 m walked ⇒ one order per 3 m (at 3, 6, 9)
+            var now = s.LastOrders();
+            Assert.Equal(new Vector3(3f, 5f, 0f), now[s.Members[1]].Objective);                    // the slot rides on the lead (ordered at y 9)
+
+            s.Orders.Clear();
+            s.Teleport(s.Members[0], new Vector3(0f, 11f, 0f));
+            s.Tick(); s.Tick();
+            Assert.Empty(s.Orders);                                                                // a 1 m step re-orders nobody
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2123</c> S3 — a FILE march walks on the lead's own trail: a follower holds until the lead has walked its distance,
+        /// then goes to the point (rank+1) × Spacing behind the lead ON THE PATH the lead took — round the corner it turned, not a
+        /// straight line behind it.
+        /// </summary>
+        [Fact]
+        public void CE2123_SquadMarch_File_FollowersWalkOnTheLeadsTrail_RoundItsCorner()
+        {
+            var s = new Squad(members: 3);
+            s.Order("{\"Objective\":[0,100,0],\"Shape\":0}", BehaviorNames.SquadMarch);   // member 0 is nearest: it leads
+            s.Tick(); s.Tick();
+            var first = s.LastOrders();
+            Assert.Equal((BehaviorNames.CombatPosture, s.At(s.Members[1])), first[s.Members[1]]);      // the trail is not 5 m long yet: hold
+
+            Walk(s, s.Members[0], new Vector3(0f, 20f, 0f));                                            // north 20 m …
+            Walk(s, s.Members[0], new Vector3(8f, 20f, 0f));                                            // … then east 8 m
+            // the walked path: (0,0) → (0,20) → (8,20). 5 m behind the lead is (3,20) on the east leg; 10 m is (0,18), round the corner.
+            static bool OnTrail(Vector3 p) => (MathF.Abs(p.X) < 0.1f && p.Y is >= -0.1f and <= 20.1f) || (MathF.Abs(p.Y - 20f) < 0.1f && p.X is >= -0.1f and <= 8.1f);
+            var orders = s.LastOrders();
+            foreach (var (m, behind) in new[] { (s.Members[1], new Vector3(3f, 20f, 0f)), (s.Members[2], new Vector3(0f, 18f, 0f)) })
+            {
+                Assert.Equal(BehaviorNames.AdvanceTo, orders[m].Intent);
+                Assert.True(OnTrail(orders[m].Objective), $"a file slot lies on the lead's trail: {orders[m].Objective}");
+                Assert.True(Vector3.Distance(orders[m].Objective, behind) < SquadMarchPlay.ReorderMetres, $"{orders[m].Objective} vs {behind}");
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2123</c> S3 — a slot that does not work: followers that make no progress for 3 s walk ON FILE on the lead's trail
+        /// (a point the lead stood on — walkable); and while they lag more than MaxLagMetres the lead HALTS (a hold), going on once they
+        /// close up. 🔴 Red-proved: without the stuck fallback the followers' orders stay on their wedge slots.
+        /// </summary>
+        [Fact]
+        public void CE2123_SquadMarch_AStuckFollowerFallsBackToFile_AndTheLeadWaitsForStragglers()
+        {
+            var s = new Squad(members: 3);
+            s.Order("{\"Objective\":[0,200,0],\"Shape\":2,\"MaxLagMetres\":10}", BehaviorNames.SquadMarch);
+            s.Tick(); s.Tick();
+            Walk(s, s.Members[0], new Vector3(0f, 16f, 0f));                                           // the followers never move
+            for (int i = 0; i < 220; i++) s.Tick();                                                   // > 3 s with no progress
+
+            var orders = s.LastOrders();
+            Assert.Equal(BehaviorNames.CombatPosture, orders[s.Members[0]].Intent);                    // the lead waits …
+            foreach (var m in s.Members.Skip(1))
+            {
+                var o = orders[m].Objective;
+                Assert.Equal(BehaviorNames.AdvanceTo, orders[m].Intent);
+                Assert.Equal(0f, o.X, 1);                                                             // … and they walk on the trail (x = 0)
+            }
+
+            s.Orders.Clear();
+            foreach (var m in s.Members.Skip(1)) s.Teleport(m, orders[m].Objective);                   // they close up
+            s.Tick(); s.Tick();
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(0f, 200f, 0f)), s.LastOrders()[s.Members[0]]);   // the lead goes on
+        }
+
+        /// <summary>⭐ <c>CE-2123</c> S3 — the lead falls: the next live member leads (to the objective), and the march ends in Success
+        /// when the lead is there and everyone stands at its slot.</summary>
+        [Fact]
+        public void CE2123_SquadMarch_TheLeadFalls_TheNextMemberLeads_ThenEveryoneArrives()
+        {
+            var s = new Squad(members: 3);
+            foreach (var m in s.Members) s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            s.Order("{\"Objective\":[0,30,0],\"Shape\":1}", BehaviorNames.SquadMarch);
+            s.Tick(); s.Tick();
+            s.Orders.Clear();
+            s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(s.Members[0]).Current = 0f;
+            s.Tick(); s.Tick();
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(0f, 30f, 0f)), s.LastOrders()[s.Members[1]]);
+
+            Walk(s, s.Members[1], new Vector3(0f, 30f, 0f));
+            var slot = s.LastOrders()[s.Members[2]].Objective;
+            s.Teleport(s.Members[2], slot);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 6 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done, "the lead at the objective and the follower at its slot ⇒ the march ends");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
         }
     }
 }

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-11
-build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · embark §5 and formations §6 are MEASUREMENTS, not plans
+build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch READY-TO-BUILD 2026-10-12 · embark §5 and formations §6 are MEASUREMENTS
 current-answer: §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
@@ -667,41 +667,61 @@ AI decision to it is broken, and on Stride infantry nothing reads a slot at all.
 is its own programme — filed as `CE-2124`, not started. ⛔ Repairing `JoinFormation` for infantry is rejected: seven broken hops, a new
 DDS command, and followers that still steer straight at a slot with no path finding.
 
-### 6.1 A simple squad formation for now — `SquadMarch`, one more play on the S1 runner *(lean; infantry only)*
+### 6.1 A simple squad formation for now — `SquadMarch`, one more play on the S1 runner *(build-state: READY-TO-BUILD `2026-10-12`; 🔒 user: "Pls pull and follow the handoff" — HANDOFF_Squad_Tactics_S3 item 1; infantry only)*
 
 ```mermaid
 classDiagram
-  class SquadMarchPlay { <<NEW, ISquadPlay>> one phase · re-issue policy }
-  class SquadMarchParamsJsonDto { <<NEW, Hrot.Core>> Objective · Shape File / Wedge / Line · Spacing 5 m · Speed 1.5 · MaxLagMetres 10 }
-  class MarchState { <<NEW, inside SquadPlayState>> lead's breadcrumbs (last ~60 m, a point per metre) · last ordered slot per member · stuck timer per member }
-  class FormationTemplateManager { <<existing, reused read-only>> Column / Wedge / Line offsets }
-  class SquadManeuverRunner { <<S1>> }
-  class CombatPosture { <<existing>> what every member runs }
-  SquadMarchPlay ..> FormationTemplateManager : slot offsets × Spacing
-  SquadMarchPlay *-- MarchState
-  SquadManeuverRunner ..> SquadMarchPlay
-  SquadMarchPlay ..> CombatPosture : lead to objective, others to slots
+  class SquadMarchPlay { <<NEW, ISquadPlay>> one phase · Update re-orders ONE member at a time }
+  class SquadMarchBehavior { <<NEW, Library/Squad>> resolver + tree + Run }
+  class SquadMarchParamsJsonDto { <<NEW, Hrot.Core, Commander>> Objective · Shape 0 File 1 Wedge 2 Line · Spacing 5 · Speed 1.5 · ArrivalRadius 5 · MaxLagMetres 10 }
+  class SquadMarchManeuver { <<NEW, Fdp.Toolkits Squad>> ManeuverKind 9 · Marching / Aborted · roles Lead / Follower }
+  class MarchMemory { <<NEW, inside SquadPlayState>> Trail · Lead · halt state · per member progress, best distance, file-until }
+  class SquadTrail { <<NEW>> 40 crumbs, one per 2 m (80 m) · Record · PointBehind · Heading }
+  class SquadPlayState { <<S1, gains March>> }
+  class FormationTemplate { <<existing CarKinem, reused read-only>> GetSlotPosition }
+  class SquadManeuverRunner { <<S1>> Tick · Move · Hold }
+  class AdvanceTo { <<S1>> every MOVE order }
+  class CombatPosture { <<existing>> every HOLD order }
+  SquadPlayState *-- MarchMemory
+  MarchMemory *-- SquadTrail
+  SquadMarchBehavior ..> SquadManeuverRunner : Tick of SquadMarchPlay
+  SquadMarchPlay ..> SquadMarchManeuver : table, kind, roles
+  SquadMarchPlay ..> FormationTemplate : Wedge / Line offsets x Spacing/5
+  SquadMarchPlay ..> SquadManeuverRunner : Move / Hold one member
+  SquadManeuverRunner ..> AdvanceTo
+  SquadManeuverRunner ..> CombatPosture
 ```
 
 ```mermaid
 sequenceDiagram
-  participant R as runner: SquadMarch
-  participant L as lead member
-  participant M as other members
-  R->>L: CombatPosture advance to the objective (Speed)
-  loop every tick
-    R->>R: record the lead's breadcrumb each metre · heading = the lead's last 5 m of travel
-    R->>R: slot i = lead + heading-rotated template offset × Spacing (File: the breadcrumb i×Spacing behind the lead)
-    R->>M: re-order a member when its slot moved ≥ 3 m since its last order
-    R->>R: a member making no progress for 3 s ⇒ it falls back to its FILE slot (a breadcrumb — walkable, the lead walked it)
-    R->>L: anyone more than MaxLagMetres behind ⇒ the lead halts until they close up
+  participant R as runner + SquadMarchPlay
+  participant L as lead (first live member)
+  participant M as each follower
+  R->>L: AdvanceTo the objective (Speed, ArrivalRadius)
+  R->>M: AdvanceTo its slot, or Hold where it stands (File, trail not yet long enough)
+  loop every tick (Update)
+    R->>R: Trail.Record(lead) every 2 m · heading = the lead's last 5 m (before that: lead to objective)
+    R->>R: slot k = lead + rotated template offset x Spacing/5 (File, or a member on file: Trail.PointBehind((k+1) x Spacing))
+    R->>M: a slot that moved 3 m or more since that member's order ⇒ re-order THAT member only
+    R->>R: no progress (0.5 m closer) for 3 s ⇒ that member walks on file for 10 s (its breadcrumb: the lead walked it)
+    R->>L: a follower more than MaxLagMetres from its slot ⇒ the lead Holds (at most 15 s, then 15 s without halting)
   end
-  R->>R: the lead within 5 m of the objective and the others at their slots ⇒ Success
+  R->>R: lead within ArrivalRadius and every follower within 3 m of its slot (or 20 s after the lead arrived) ⇒ Success
 ```
 
 *What the pictures show that prose hid: every point a member is sent to is either a breadcrumb the lead actually walked (always
 reachable) or a shape slot that is DROPPED for the breadcrumb the moment it does not work — so the walls, doorways and narrow streets
-that make real formations hard collapse into "walk in file behind the lead", which is what a squad in a street does anyway.*
+that make real formations hard collapse into "walk in file behind the lead", which is what a squad in a street does anyway. And the
+re-orders go from `Update` to one member at a time — the runner's issue-all is used only at start, after a pause and when the lead
+changes — so the path-request cost scales with how much each slot moves, not with squad size × ticks.*
+
+| decision | ⭐ lean | why |
+|---|---|---|
+| where the march memory lives | `MarchMemory` inside `SquadPlayState` (≈ 680 bytes more for every play) | `ISquadPlay` hands a play only `ref SquadPlayState`; a second state parameter changes all five plays. Commander blocks are few and the 16 KB tier holds it |
+| who is the lead | the first live member in roster order; it changes when the lead dies (the trail is kept — it is still walkable) | doctrine puts a point man in front, not the leader; roster order is what the author controls |
+| slot index | the follower's RANK among live followers | a casualty closes the gap instead of leaving a hole |
+| shapes | Wedge / Line from `FormationTemplate.GetSlotPosition` (reused), File from the trail | ⛔ no new shape table; Column is File done properly (on the walked path, not a straight line behind) |
+| re-order threshold | 3 m | ≈ one order per member per 2 s at 1.5 m/s — the handoff's ≈ 4/s per 8-man squad estimate |
 
 | simplified now | left to the formations programme (`CE-2124`) |
 |---|---|

@@ -84,6 +84,117 @@ namespace Hrot.AI.Behaviors.Brains
         /// the runner restores it and re-sends every order.</summary>
         public ushort OwnKind, OwnPhase;
         public ElementPartition OwnElements;
+        /// <summary>⭐ <c>CE-2123</c> S3 — the march's memory (the lead's trail, per-member progress); zero for every other play.</summary>
+        public MarchMemory March;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2123</c> S3 — the lead's breadcrumbs: a crumb every <see cref="CrumbMetres"/> it walks, the newest
+    /// <see cref="Capacity"/> kept (80 m). Every point on it is a point the lead stood on — walkable by construction.
+    /// 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §6.1.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct SquadTrail
+    {
+        public const int Capacity = 40;
+        public const float CrumbMetres = 2f;
+
+        public fixed float X[Capacity];
+        public fixed float Y[Capacity];
+        public fixed float Z[Capacity];
+        /// <summary>Crumbs held (≤ <see cref="Capacity"/>).</summary>
+        public byte Count;
+        /// <summary>The newest crumb's index.</summary>
+        public byte Head;
+
+        public void Reset(Vector3 at)
+        {
+            Count = 1; Head = 0;
+            X[0] = at.X; Y[0] = at.Y; Z[0] = at.Z;
+        }
+
+        /// <summary>The crumb <paramref name="age"/> steps older than the newest (0 = the newest).</summary>
+        public Vector3 Crumb(int age)
+        {
+            int i = (Head - age + Capacity) % Capacity;
+            return new Vector3(X[i], Y[i], Z[i]);
+        }
+
+        /// <summary>Drops a crumb when the lead has walked <see cref="CrumbMetres"/> from the newest; true when it did.</summary>
+        public bool Record(Vector3 at)
+        {
+            if (Count == 0) { Reset(at); return false; }
+            if (Flat(at - Crumb(0)) < CrumbMetres) return false;
+            Head = (byte)((Head + 1) % Capacity);
+            X[Head] = at.X; Y[Head] = at.Y; Z[Head] = at.Z;
+            if (Count < Capacity) Count++;
+            return true;
+        }
+
+        /// <summary>The point <paramref name="metres"/> behind <paramref name="lead"/> along the walked path (lead → newest crumb →
+        /// older ones); false while the trail is shorter than that.</summary>
+        public bool PointBehind(Vector3 lead, float metres, out Vector3 point)
+        {
+            point = lead;
+            if (Count == 0) return false;
+            var from = lead;
+            float left = metres;
+            for (int age = 0; age < Count; age++)
+            {
+                var to = Crumb(age);
+                float seg = Flat(to - from);
+                if (seg >= left && seg > 1e-4f) { point = Vector3.Lerp(from, to, left / seg); return true; }
+                left -= seg;
+                from = to;
+            }
+            return false;
+        }
+
+        /// <summary>The direction of travel over the lead's last <paramref name="lookback"/> metres (unit, flat); false before it has
+        /// walked that far.</summary>
+        public bool Heading(Vector3 lead, float lookback, out Vector2 forward)
+        {
+            forward = default;
+            if (!PointBehind(lead, lookback, out var back)) return false;
+            var d = new Vector2(lead.X - back.X, lead.Y - back.Y);
+            if (d.LengthSquared() < 1e-4f) return false;
+            forward = Vector2.Normalize(d);
+            return true;
+        }
+
+        private static float Flat(Vector3 d) { d.Z = 0f; return d.Length(); }
+    }
+
+    /// <summary>⭐ <c>CE-2123</c> S3 — what <c>SquadMarchPlay</c> keeps between ticks (inside <see cref="SquadPlayState"/>, because a
+    /// play is handed only that). Times are seconds since the play went.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct MarchMemory
+    {
+        public SquadTrail Trail;
+        /// <summary>The lead's roster slot + 1 (0 = pick one).</summary>
+        public byte LeadPlusOne;
+        public byte LeadHalted;
+        /// <summary>Roster slots that failed as lead (no progress) — skipped when the next lead is picked.</summary>
+        public ushort FailedLeads;
+        /// <summary>How far the current lead has walked (m) — it waits for stragglers only after <c>MaxLagMetres</c>.</summary>
+        public float LeadWalked;
+        /// <summary>The current lead's best distance to the objective, and when it last got 0.5 m closer.</summary>
+        public float LeadBest;
+        public float LeadProgressAt;
+        /// <summary>1 = at the last tick every follower stood within 3 m of its slot.</summary>
+        public byte AllAtSlots;
+        public float HaltSince;
+        public float HaltsAllowedAt;
+        /// <summary>When the lead arrived (−1 = not yet).</summary>
+        public float LeadArrivedAt;
+        /// <summary>When member i last got 0.5 m closer to its point.</summary>
+        public fixed float ProgressAt[UnitRoster.Capacity];
+        /// <summary>Member i's best distance to its current point.</summary>
+        public fixed float Best[UnitRoster.Capacity];
+        /// <summary>Member i walks on file (its breadcrumb) until then.</summary>
+        public fixed float FileUntil[UnitRoster.Capacity];
+        /// <summary>Re-orders sent from <c>Update</c> (a diagnostic: the path-request cost).</summary>
+        public uint Reorders;
     }
 
     /// <summary>⭐ <c>CE-2123</c> — what a play sees each tick.</summary>
