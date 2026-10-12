@@ -46,7 +46,9 @@ public sealed class EntityTypeCatalogTests
     {
         var c = EntityTypeCatalog.Build(BuiltIn());
 
-        Assert.Equal("Units/United States", Of(c, TkbEntityTypes.Unit_TankPlatoon).Category);
+        Assert.Equal("Units/Land/United States/Armor", Of(c, TkbEntityTypes.Unit_TankPlatoon).Category);   // ⭐ CE-2139: the units' DIS path
+        Assert.StartsWith(EntityTypeCatalog.UnitsFolder + "/", Of(c, TkbEntityTypes.Unit_InfantrySquad).Category);   // ExCon's ORBAT keys on it
+        Assert.Equal(EntityTypeCatalog.UnitsFolder, DisNameTable.Default.KindName(UnitDis.Kind));
     }
 
     [Fact]
@@ -145,4 +147,147 @@ public sealed class EntityTypeCatalogTests
 
         Assert.Empty(spawn.Calls);
     }
+    // ── CE-2138 C2 — the class table must not move a built-in type (handoff Track C §3: a golden taken BEFORE C2) ─────────
+
+    /// <summary>Every built-in type's 3-D family, picker folder and fallback icon, one line each, ordered by type.</summary>
+    internal static string BuiltInSnapshot(ITkbDatabase db)
+    {
+        var lines = new List<string>();
+        foreach (var t in db.GetAll().OrderBy(t => t.TkbType))
+            lines.Add($"{t.TkbType} {t.Name} | dis {(t.DisType.Value != 0 ? t.DisType.ToString() : "-")} | " +
+                      $"family {Hrot.UI.Common.Map3D.VisualFamilies.Of(t)} | folder {EntityTypeCatalog.CategoryOf(t, DisNameTable.Default)} | " +
+                      $"icon {EntityTypeCatalog.FallbackIconName(t) ?? "-"}");
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>Every DIS level the names table names (a number it does not name reads "Category 7" and is left out).</summary>
+    internal static string DisNamesSnapshot(DisNameTable names)
+    {
+        var lines = new List<string>();
+        for (int k = 1; k <= 255; k++)
+        {
+            string kn = names.KindName((byte)k);
+            if (kn != $"Kind {k}") lines.Add($"{k} {kn}");
+            for (int d = 1; d <= 255; d++)
+            {
+                string dn = names.DomainName((byte)k, (byte)d);
+                if (dn != $"Domain {d}") lines.Add($"{k}.{d} {dn}");
+                for (int c = 1; c <= 255; c++)
+                {
+                    string cn = names.CategoryName((byte)k, (byte)d, (byte)c);
+                    if (cn != $"Category {c}") lines.Add($"{k}.{d}.*.{c} {cn}");
+                }
+            }
+        }
+        for (int c = 1; c <= ushort.MaxValue; c++)
+        {
+            string n = names.CountryName((ushort)c);
+            if (n != $"Country {c}") lines.Add($"country {c} {n}");
+        }
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>⭐ The golden, taken on the pre-C2 code (<c>VisualFamilies</c>' switches + <c>DisNames.json</c>). C2 (CE-2138)
+    /// must keep every line; C3 (CE-2139) moves only the three units, on purpose: DIS 1.1.225 → 11.1.225.&lt;arm&gt;.&lt;echelon&gt;.&lt;variant&gt;,
+    /// folder Units/United States → Units/Land/United States/&lt;arm&gt; (family and icon unchanged).</summary>
+    private const string BuiltInGolden = """
+        100 M1 Abrams | dis 1.1.225.1.0.0.0 | family Tank | folder Platform/Land/United States/Tank | icon _tank
+        101 M2 Bradley IFV | dis 1.1.225.2.0.0.0 | family Afv | folder Platform/Land/United States/Armored Fighting Vehicle | icon _afv
+        102 HMMWV | dis 1.1.225.6.0.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
+        103 T-72 | dis 1.1.222.1.0.0.0 | family Tank | folder Platform/Land/Russia/Tank | icon _tank
+        200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        301 Tank Platoon | dis 11.1.225.2.4.1.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
+        302 Infantry Squad | dis 11.1.225.1.2.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
+        303 Tank Platoon (Auto Spawn) | dis 11.1.225.2.4.2.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
+        400 UH-60A Black Hawk | dis 1.2.225.21.0.0.0 | family Helicopter | folder Platform/Air/United States/Utility Helicopter | icon -
+        401 F-16C Fighting Falcon | dis 1.2.225.1.0.0.0 | family Jet | folder Platform/Air/United States/Fighter/Air Defense | icon -
+        402 C-130H Hercules | dis 1.2.225.4.0.0.0 | family CargoPlane | folder Platform/Air/United States/Cargo/Tanker | icon -
+        1001 CivilianPedestrian | dis 3.1.0.0.0.0.0 | family Person | folder Life Form/Land | icon _person
+        1002 CivilianCar | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        2001 MilitaryAPC | dis 1.1.0.2.0.0.0 | family Afv | folder Platform/Land/Armored Fighting Vehicle | icon _afv
+        2002 InfantrySoldier | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2003 Insurgent | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2004 Grenadier | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2005 MortarTeam | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        8802 TacGraphic_Route | dis - | family Unknown | folder Other | icon -
+        8803 TacGraphic_Area | dis - | family Unknown | folder Other | icon -
+        8805 Door | dis - | family Unknown | folder Other | icon -
+        8806 Car | dis - | family Unknown | folder Other | icon -
+        8807 Sandbag wall | dis - | family Unknown | folder Other | icon -
+        8808 Concrete block | dis - | family Unknown | folder Other | icon -
+        8809 Crate | dis - | family Unknown | folder Other | icon -
+        """;
+
+    /// <summary>⭐ The DIS names as <c>DisNames.json</c> held them — the class table must name exactly these levels; ⭐ C3 adds the
+    /// unit Kind (11) and its arms, nothing else.</summary>
+    private const string DisNamesGolden = """
+        1 Platform
+        1.1 Land
+        1.1.*.1 Tank
+        1.1.*.2 Armored Fighting Vehicle
+        1.1.*.3 Armored Utility Vehicle
+        1.1.*.4 Self-Propelled Artillery
+        1.1.*.5 Towed Artillery
+        1.1.*.6 Small Wheeled Utility Vehicle
+        1.1.*.7 Large Wheeled Utility Vehicle
+        1.1.*.8 Small Tracked Utility Vehicle
+        1.1.*.9 Large Tracked Utility Vehicle
+        1.1.*.10 Mortar
+        1.1.*.81 Car
+        1.2 Air
+        1.2.*.1 Fighter/Air Defense
+        1.2.*.2 Attack/Strike
+        1.2.*.3 Bomber
+        1.2.*.4 Cargo/Tanker
+        1.2.*.5 ASW/Patrol/Observation
+        1.2.*.6 Electronic Warfare
+        1.2.*.7 Reconnaissance
+        1.2.*.8 Surveillance/C2 (AEW)
+        1.2.*.20 Attack Helicopter
+        1.2.*.21 Utility Helicopter
+        1.2.*.22 ASW/Patrol Helicopter
+        1.2.*.23 Cargo Helicopter
+        1.2.*.24 Observation Helicopter
+        1.2.*.25 Special Operations Helicopter
+        1.2.*.40 Trainer
+        1.2.*.47 Light/Patrol Craft
+        1.2.*.50 Unmanned Air Vehicle
+        1.2.*.57 Non-Combatant Commercial Aircraft
+        1.3 Surface
+        1.4 Subsurface
+        1.5 Space
+        2 Munition
+        3 Life Form
+        3.1 Land
+        3.1.*.1 Infantry (HROT)
+        3.2 Air
+        3.3 Surface
+        3.4 Subsurface
+        4 Environmental
+        5 Cultural Feature
+        6 Supply
+        7 Radio
+        8 Expendable
+        9 Sensor/Emitter
+        11 Units
+        11.1 Land
+        11.1.*.1 Infantry
+        11.1.*.2 Armor
+        11.1.*.3 Mechanized Infantry
+        11.1.*.4 Artillery
+        11.1.*.5 Reconnaissance
+        country 71 France
+        country 78 Germany
+        country 222 Russia
+        country 224 United Kingdom
+        country 225 United States
+        """;
+
+    [Fact]
+    public void CE2138_EveryBuiltInType_KeepsIts3dFamily_PickerFolder_AndIcon()
+        => Assert.Equal(BuiltInGolden, BuiltInSnapshot(BuiltIn()));
+
+    [Fact]
+    public void CE2138_TheDisNames_AreUnchanged_ByTheMoveIntoCode()
+        => Assert.Equal(DisNamesGolden, DisNamesSnapshot(DisNameTable.Default));
 }

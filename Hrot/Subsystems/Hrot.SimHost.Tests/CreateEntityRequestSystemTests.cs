@@ -324,6 +324,38 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>⭐ <c>CE-1017</c> S2 — the request's birth-height request REACHES the spawn order (resolved by
         /// <c>NetworkSpawningSystem</c>); absent stays absent. 📄 docs/DESIGN_Add_Entity_Picker.md §2e.</summary>
+        /// <summary>
+        /// ⭐ <c>CE-2139</c> (C3, rule K2) — a scenario saved before C3 stores a unit as <c>1.1.225</c> (a land platform). A
+        /// COMPOSITE therefore always spawns with its TEMPLATE's DIS type; any other type keeps what its request carries.
+        /// </summary>
+        [Fact]
+        public void CE2139_AComposite_SpawnsWithItsTemplatesDisType_NotTheRequests()
+        {
+            const long unitType = 43L;
+            var unitDis = Hrot.Core.Tkb.UnitDis.Land(Hrot.Core.Tkb.UnitArm.Armor, Hrot.Core.Tkb.UnitEchelon.Platoon, 225);
+            var tkb = CreateTkb();
+            var unit = new TkbTemplate("Platoon", unitType) { DisType = unitDis };
+            unit.AddDescriptor(new Hrot.Map.Definitions.Tkb.TkbCompositionDef { Echelon = "Platoon" });
+            tkb.Register(unit);
+
+            var stale = new DISEntityType { Kind = 1, Domain = 1, Country = 225 }.Value;   // what a pre-C3 save holds
+            var repo = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = unitType, DisType = stale,
+            });
+            source.Enqueue(MakeValidRequest());
+            var (system, _, _) = BuildSystem(tkb, source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Equal(unitDis.Value, commands.Single(c => c.TkbType == unitType).DisType);
+            Assert.Equal(ValidDisType, commands.Single(c => c.TkbType == ValidTkbType).DisType);   // a non-composite: unchanged
+        }
+
         [Fact]
         public void CE1017_SpawnHeight_WhenTheRequestCarriesOne_ThePublishedCommandCarriesIt()
         {

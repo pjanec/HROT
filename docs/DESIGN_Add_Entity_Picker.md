@@ -486,7 +486,7 @@ ghost/replica ingress sets `SpawnEntityCommand.SpawnHeight`.
 | ⚠ side effect: map layers | the 5 urban types now have a non-zero DIS ⇒ `MapLayerRegistry` puts them in the **Ground** layer (and the car/APC in **Vehicles**) — before, DIS 0 kept them out of every DIS layer. Intended: they are land entities |
 | icons | `VisualDefinitionDto.IconName` / `IgVisualDef.IconName`, copied by `WithVisual`; built-in names `m1_abrams`, `m2_bradley`, `hmmwv`, `t72`, `rifleman`, `tank_platoon`, `infantry_squad` (S5 draws the PNGs) |
 | palette | `TkbMasterDto.HideFromPalette` (default false) |
-| names | `Hrot.Core.Tkb.DisNameTable` reads the embedded data file `Hrot/Engine/Hrot.Core/Tkb/DisNames.json`; `Path(dis)` = named `Kind › Domain › Country › Category`, 0 levels skipped, unknown numbers read `Category 7` |
+| names | ⛔ *(superseded 2026-10-12 by CE-2138, R-280)* ~~`DisNameTable` reads the embedded data file `DisNames.json`~~ ⭐ `Hrot.Core.Tkb.DisNameTable` is built from the hard-coded `EntityClassTable` (a level name IS a class pinning exactly that level, e.g. `Tank = 1.1.*.1`) and `CountryTable`; the JSON and its `EmbeddedResource` are deleted. `Path(dis)` unchanged = named `Kind › Domain › Country › Category`, 0 levels skipped, unknown numbers read `Category 7`; a golden (`EntityTypeCatalogTests.CE2138_*`) pins every built-in type's folder and every name the JSON held |
 | rails | `TkbDeserializerTests.CE1017_*` (3) · `DisFilterTests.CE1017_DisText_*` · `BdcTkbBuilderVisualTests.CE1017_*` (2) |
 
 ### ✅ S2 engine half as built *(backend, `2026-10-07`)* — the UI half (the tool, the ghost) is the ui lane's

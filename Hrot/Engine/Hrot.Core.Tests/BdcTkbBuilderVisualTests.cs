@@ -172,6 +172,8 @@ namespace Hrot.Map.Common.Tests
                 var t = db.GetByType(type)!;
                 Assert.Equal(country, t.DisType.Country);
                 Assert.NotEqual((byte)0, t.DisType.Kind);
+                // ⭐ CE-2139 (C3) — a composite (unit) carries the unit Kind, never a platform's 1.1.<country>.
+                Assert.Equal(t.GetDescriptor<TkbCompositionDef>() is not null, t.DisType.Kind == Hrot.Core.Tkb.UnitDis.Kind);
                 Assert.Equal(t.DisType.ToString(), t.GetDescriptor<TkbMasterDto>()!.DisType);
                 Assert.False(string.IsNullOrEmpty(t.GetDescriptor<VisualDefinitionDto>()!.IconName), $"TKB type {type} names no icon");
                 Assert.False(t.GetDescriptor<TkbMasterDto>()!.HideFromPalette);

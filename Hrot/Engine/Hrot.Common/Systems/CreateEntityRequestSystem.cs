@@ -195,7 +195,7 @@ namespace Hrot.Common.Systems
                 }
 
                 // Validate TkbType exists in the database.
-                if (!_tkbDb.TryGetByType(request.TkbType, out _))
+                if (!_tkbDb.TryGetByType(request.TkbType, out var requestedTemplate))
                 {
                     FdpLog<CreateEntityRequestSystem>.Warn(
                         $"[Node-{_localNodeId}] CreateEntity {request.RequestId}: TkbType={request.TkbType} not found. Rejecting.");
@@ -218,7 +218,7 @@ namespace Hrot.Common.Systems
                     Request   = request,
                     NetworkId = newNetworkId,
                     TkbType   = request.TkbType,
-                    DisType   = request.DisType,
+                    DisType   = UnitTakesItsTemplatesDisType(requestedTemplate!, request.DisType),
                 });
             }
             catch (Exception ex)
@@ -498,6 +498,18 @@ namespace Hrot.Common.Systems
                     $"{pending.Request.RequestId}: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2139</c> (C3, rule K2) — a COMPOSITE (a unit) always gets its template's DIS type, whatever the request
+        /// carries. ⚠ A scenario saved before C3 stores a unit as <c>1.1.&lt;country&gt;</c> (a land platform, which every tank
+        /// mask matches); <c>DisEntityTypeTranslator</c> injects that saved value and the staging extractor forwards it. ⭐ This
+        /// is the one funnel every creation path passes that also holds the TKB — the translator runs before
+        /// <c>TkbIdentity</c> is injected and the extractor holds no TKB.
+        /// </summary>
+        internal static ulong UnitTakesItsTemplatesDisType(TkbTemplate template, ulong requested)
+            => template.GetDescriptor<Hrot.Map.Definitions.Tkb.TkbCompositionDef>() is not null && template.DisType.Value != 0
+                ? template.DisType.Value
+                : requested;
 
         /// <summary>
         /// Builds the list of descriptor grants that should be delegated to non-local

@@ -32,14 +32,15 @@ public sealed record EntityTypeEntry(
 /// plus <see cref="PlacementToolRegistry.Graphics"/> (they carry no master). It replaces the hand-written
 /// <c>ScenarioSpawnerCatalog</c> and ExCon's list (S4).</para>
 ///
-/// <para>⭐ D2 grouping: composites (a <see cref="TkbCompositionDef"/>) under <c>Units</c>; map graphics under
-/// <c>Map Graphics</c>; everything else by its named DIS path (<see cref="DisNameTable.Path"/>, 0 levels skipped);
+/// <para>⭐ D2 grouping: units (DIS Kind 11 since CE-2139, formerly any <see cref="TkbCompositionDef"/>) under <c>Units</c>; map graphics under
+/// <c>Map Graphics</c>; everything else by its named DIS path (<see cref="DisNameTable.Path"/> — ⭐ CE-2138: the level names of
+/// the type's class chain in <see cref="EntityClassTable"/>, 0 levels skipped);
 /// no DIS ⇒ the template's own <c>CategoryPath</c> ⇒ <c>Other</c>. Single-child chains are folded by the picker
 /// (<see cref="PickerRequest.FoldSingleChildFolders"/>), not here.</para>
 /// </summary>
 public static class EntityTypeCatalog
 {
-    /// <summary>Folder for composite units.</summary>
+    /// <summary>Folder for composite units — ⭐ CE-2139: the display name of the unit DIS Kind in the class table (railed).</summary>
     public const string UnitsFolder = "Units";
     /// <summary>Folder for the side-less map graphics.</summary>
     public const string MapGraphicsFolder = "Map Graphics";
@@ -85,9 +86,8 @@ public static class EntityTypeCatalog
     /// <summary>The D2 folder path of a template.</summary>
     public static string CategoryOf(TkbTemplate t, DisNameTable names)
     {
-        if (t.GetDescriptor<TkbCompositionDef>() is not null)
-            return t.DisType.Country != 0 ? UnitsFolder + "/" + names.CountryName(t.DisType.Country) : UnitsFolder;
-
+        // ⭐ CE-2139 (C3) — a composite is no longer special-cased: a unit's DIS Kind (11) is named "Units", so its path is
+        //   Units/Land/<country>/<arm> like any other type's.
         var path = names.Path(t.DisType);
         if (path.Count > 0) return string.Join("/", path);
 
