@@ -131,6 +131,37 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             Assert.Equal(new[] { (commander, SensorChange.SquadUnderFire) }, edges.Select(e => (e.Unit, e.What)));
         }
 
+        /// <summary>⭐ <c>CE-1056</c> I-2d (Squad Tactics §5a) — a CARRIER's Hit or NearMiss edge raises <c>SquadUnderFire</c> on the
+        /// commander of the members it carries, once per commander (an enclosed passenger is never hit itself, R-271); an empty
+        /// carrier raises nothing.</summary>
+        [Fact]
+        public void CE1056_ACarrierUnderFire_PutsTheSquadItCarries_UnderFire_Once()
+        {
+            if (!_repo.IsComponentTypeRegistered<PassengerBuffer>()) _repo.RegisterComponent<PassengerBuffer>();
+            if (!_repo.IsComponentTypeRegistered<IsEmbarkedTag>()) _repo.RegisterComponent<IsEmbarkedTag>();
+            var commander = Squad(owned: true);
+            var system = new SquadCoordinationSystem();
+            EdgesAfter(() => system.Execute(_repo, 0.016f));   // the first merge's SquadContact
+            var second = _repo.CreateEntity();
+            _repo.AddComponent(second, new UnitSubordinate { Commander = commander });
+            UnitRoster.Add(ref _repo.GetComponentRW<UnitRoster>(commander), second);
+            var roster = _repo.GetComponentRO<UnitRoster>(commander);
+            var apc = _repo.CreateEntity();
+            _repo.AddComponent(apc, new PassengerBuffer());
+            var empty = _repo.CreateEntity();
+            _repo.AddComponent(empty, new PassengerBuffer());
+            for (int i = 0; i < roster.Count; i++)
+                Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_repo, roster.SubordinateEntities[i], apc);
+            Assert.Equal(2, _repo.GetComponentRO<PassengerBuffer>(apc).Count);   // two members aboard ⇒ still ONE edge
+
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = apc, What = SensorChange.NearMiss });
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = empty, What = SensorChange.Hit });
+            _repo.Bus.SwapBuffers();
+            var edges = EdgesAfter(() => system.Execute(_repo, 0.016f));
+
+            Assert.Equal(new[] { (commander, SensorChange.SquadUnderFire) }, edges.Select(e => (e.Unit, e.What)));
+        }
+
         /// <summary>⭐ <c>CE-2123</c> S2 — with the pack's gate, a commander this node does not own gets no squad edge.</summary>
         [Fact]
         public void CE2123_WithTheGate_ACommanderThisNodeDoesNotOwn_GetsNoSquadEdges()

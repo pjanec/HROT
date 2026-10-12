@@ -431,4 +431,77 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         }
         finally { NasScenarioStaging.Remove(scenarioId); }
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1056</c> I-2d — the shipped <c>tt-convoy-ambush</c> scenario (catalogue P1 / D8): a squad rides an APC; an insurgent
+    /// fires an RPG at the APC ⇒ the carrier's hit puts the squad under fire ⇒ the squad SOP's first row dismounts it (nobody aboard,
+    /// on CGF AND SimHost) ⇒ the next row reacts to contact. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §5a.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE1056_AConvoyIsAmbushed_TheSquadDismounts_ThenReactsToContact()
+    {
+        var root = RepoRoot();
+        var scenarioId = "tt_convoy_ambush_" + Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
+        try
+        {
+            File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-convoy-ambush", "scenario.json"),
+                Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
+
+            using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+            var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+            var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+            while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
+            {
+                harness.PumpFrames(1);
+                Thread.Sleep(10);
+            }
+            await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = ClusterOpType.TransitionState,
+                PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive), ScenarioId = scenarioId }),
+            }).ConfigureAwait(false);
+            Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000),
+                $"cluster must reach OperatingLive; at {(int)master.CurrentClusterState}");
+
+            var cgf = harness.Cgf!.World!;
+            var sim = harness.SimHost.World!;
+            Assert.True(harness.PumpUntil(() => !ByName(cgf, "Squad").IsNull && cgf.HasComponent<UnitRoster>(ByName(cgf, "Squad"))
+                                             && cgf.GetComponent<UnitRoster>(ByName(cgf, "Squad")).Count == 5
+                                             && !ByName(cgf, "Convoy APC").IsNull, timeoutFrames: 3000),
+                "the squad's commander, its five men and the APC must spawn");
+            var commander = ByName(cgf, "Squad");
+            var apc = ByName(cgf, "Convoy APC");
+            int Aboard(EntityRepository w)
+            {
+                var v = ByName(w, "Convoy APC");
+                return v.IsNull || !w.HasComponent<PassengerBuffer>(v) ? -1 : w.GetComponent<PassengerBuffer>(v).Count;
+            }
+            bool Paused() => Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem.PausedTaskOf(cgf, commander) != null;
+            var kinds = new System.Collections.Generic.List<ushort>();
+            void Note() { var k = cgf.GetComponent<SquadCognitiveState>(commander).ManeuverKind; if (kinds.Count == 0 || kinds[^1] != k) kinds.Add(k); }
+            float ApcHealth() => cgf.HasComponent<Health>(apc) ? cgf.GetComponent<Health>(apc).Current : -1f;
+            double SimNow() => cgf.HasSingleton<GlobalTime>() ? cgf.GetSingleton<GlobalTime>().TotalTime : -1;
+            string State() => $"t={SimNow():F1}s kinds=[{string.Join(",", kinds)}] paused={Paused()} aboard cgf={Aboard(cgf)} sim={Aboard(sim)} apcHp={ApcHealth():F0}";
+
+            // ① the squad rides the APC (loaded aboard by the scenario).
+            Assert.True(harness.PumpUntil(() => Aboard(cgf) == 5 && Aboard(sim) == 5, timeoutFrames: 3000), $"all five must start aboard; {State()}");
+            float hp0 = ApcHealth();
+            // ② the ambush: the APC is hit …
+            Assert.True(harness.PumpUntil(() => { Note(); return ApcHealth() < hp0; }, timeoutFrames: 15000), $"the insurgent must hit the APC; {State()}");
+            _out.WriteLine("hit: " + State());
+            // ③ … the squad dismounts — nobody aboard, on the brain node and on SimHost …
+            Assert.True(harness.PumpUntil(() => { Note(); return kinds.Contains(SquadDismountManeuver.ManeuverKind) && Aboard(cgf) == 0 && Aboard(sim) == 0; },
+                                          timeoutFrames: 9000),
+                $"the squad must dismount; {State()}");
+            _out.WriteLine("out: " + State());
+            // ④ … then fights: a contact reaction (hold / assault / break contact) pauses the task after the dismount.
+            Assert.True(harness.PumpUntil(() => { Note(); return Paused() && cgf.GetComponent<SquadCognitiveState>(commander).ManeuverKind != SquadDismountManeuver.ManeuverKind
+                                                              && kinds.LastIndexOf(SquadDismountManeuver.ManeuverKind) < kinds.Count - 1; }, timeoutFrames: 15000),
+                $"after the dismount the squad must react to contact; {State()}");
+            _out.WriteLine("react: " + State());
+        }
+        finally { NasScenarioStaging.Remove(scenarioId); }
+    }
 }

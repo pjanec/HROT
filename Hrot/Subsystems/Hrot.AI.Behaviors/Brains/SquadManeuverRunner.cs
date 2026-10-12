@@ -38,6 +38,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Go to <see cref="MemberOrder.Point"/>, firing on the way (the library <c>AdvanceTo</c> — no posture decision: 📐 a
         /// CombatPosture with the enemy in sight chooses Suppress and stays put, measured live on <c>tt-suppress-flank</c>).</summary>
         AdvanceTo = 1,
+        /// <summary>⭐ <c>CE-1056</c> I-2d — get out of the vehicle it is aboard (the library <c>Disembark</c>; a unit member gets
+        /// <c>SquadDismount</c> — its soldiers board, not it).</summary>
+        Disembark = 2,
     }
 
     /// <summary>⭐ <c>CE-2123</c> — one member's order, as a play computes it. The runner turns a hold into the library CombatPosture at
@@ -374,9 +377,10 @@ namespace Hrot.AI.Behaviors.Brains
                 var at = ctx.At(m);
                 var order = play.OrderFor(ref p, ref ws, in ctx, i, squad.Elements.MemberElements[i], at);
                 squad.Roles[i].RoleId = order.RoleId;
-                var point = order.Kind == MemberOrderKind.Hold ? at : order.Point;
+                var point = order.Kind is MemberOrderKind.Hold or MemberOrderKind.Disembark ? at : order.Point;
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
                 if (order.Kind == MemberOrderKind.Hold) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
+                else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m);
                 else Move(ctx.World, ctx.Commander, m, point, order.Speed, order.ArrivalRadius);
             }
             ws.IssuedPhase = squad.PhaseId;
@@ -414,6 +418,11 @@ namespace Hrot.AI.Behaviors.Brains
                 Objective = point, Speed = speed, ArrivalRadius = arrival,
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
         }
+
+        /// <summary>⭐ <c>CE-1056</c> I-2d — DISMOUNT: a soldier gets the library <c>Disembark</c>; a member that is a UNIT gets the squad
+        /// <c>SquadDismount</c> (a unit never boards — its soldiers do, R-272). From the commander, released when its run ends.</summary>
+        public static void Dismount(EntityRepository world, Entity commander, Entity member)
+            => Publish(world, commander, member, IsUnit(world, member) ? BehaviorNames.SquadDismount : BehaviorNames.Disembark, "{}");
 
         /// <summary>⭐ <c>CE-2141</c> (A4) — a member that is itself a unit (a platoon's squad): it receives ORDERS, not behaviours.</summary>
         public static bool IsUnit(EntityRepository world, Entity member)

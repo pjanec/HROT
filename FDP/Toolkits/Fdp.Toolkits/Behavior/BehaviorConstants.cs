@@ -111,8 +111,12 @@ namespace Fdp.Toolkit.Behavior
         public const ushort ActionIdEjectPassengers = 3;
 
         /// <summary>⭐ <c>CE-3110</c> I-2a — the interaction action of <see cref="Executors.EmbarkExecutor"/> (action ids are per channel;
-        /// 2 is left for a per-passenger disembark action).</summary>
+        /// 2 is the per-passenger disembark, <see cref="ActionIdDisembark"/>).</summary>
         public const ushort ActionIdEmbark = 1;
+
+        /// <summary>⭐ <c>CE-1056</c> I-2d — the interaction action of <see cref="Executors.DisembarkExecutor"/>: ONE passenger leaves
+        /// (3 is the vehicle's eject-all). 📄 docs/DESIGN_Entity_Interactions.md §7.3.</summary>
+        public const ushort ActionIdDisembark = 2;
 
         /// <summary>⭐ Buildings 5d — the door actions on the interaction channel (<see cref="Executors.DoorActionExecutor"/>, one per verb).</summary>
         public const ushort ActionIdOpenDoor = 4;

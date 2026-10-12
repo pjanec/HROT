@@ -209,7 +209,7 @@ graph TD
   end
   subgraph SOPB["SOP"]
     c1["BasicInfantrySop<br/>Hit→TakeCover · HoldFire contact→FallBack<br/>contact→TakeCover · else Idle"]
-    c2["BasicSquadSop (leader)<br/>SquadUnderFire / SquadContact → ReactToContact"]
+    c2["BasicSquadSop (commander)<br/>under fire while mounted → SquadDismount<br/>SquadUnderFire / SquadContact → ReactToContact"]
   end
   subgraph BASIC["Basic orders"]
     d1["MoveToLocation · AdvanceTo · FollowRoute · FireAtTarget · FireAtPoint<br/>TrackTarget · HoldStance · DoorLocksmith · Wander · Idle<br/>JoinFormation ⛔ broken — §10"]
@@ -235,15 +235,15 @@ graph TD
     PS["PostureNodes: Sensors · Fire (aimed, ONE step) · Advance · Hold · HoldProne"]
     PF["PeekAndFireNodes: fight from cover (CE-3158)"]
     ET["EqsTacticsNodes: FallBack · Flank · FiringPosition · TakeCover (hide only)"]
-    FP["FireAtPoint · DoorNodes · DangerArea · Sensor · SOP nodes"]
+    FP["FireAtPoint · DoorNodes · EmbarkNodes (Embark, Disembark) · DangerArea · Sensor · SOP nodes"]
     UT["Utility decisions: CombatPosture · AttackApproach · ThreatRanking · WeaponSelection · SquadContactResponse<br/>ChooseOption (re-scores) · ChooseOptionOnce (keeps its first winner)"]
   end
   subgraph L2["② LIBRARY BEHAVIOURS — BTrees (R-258), assets an author assigns"]
     CP["CombatPosture"]
     TK["FallBack (THE retreat, R-259) · Flank · FiringPosition · TakeCover · Sentry · DangerCrossing"]
     SOP["BasicInfantrySop · BasicSquadSop (the leader, §9)"]
-    ORD["MoveToLocation · AdvanceTo · FollowRoute · FireAtTarget · FireAtPoint · TrackTarget · HoldStance · DoorLocksmith (JoinFormation: broken, §10)"]
-    SQ["Library/Squad: BoundingOverwatch · SuppressAndManeuver · ReactToContact · BreakContact · SquadHold (on the commander, §9)"]
+    ORD["MoveToLocation · AdvanceTo · FollowRoute · FireAtTarget · FireAtPoint · TrackTarget · HoldStance · DoorLocksmith · Embark · Disembark (JoinFormation: broken, §10)"]
+    SQ["Library/Squad: BoundingOverwatch · SuppressAndManeuver · ReactToContact · BreakContact · SquadHold · SquadDismount (on the commander, §9)"]
   end
   subgraph L3["③ NOT LIBRARY — never offered as a building block"]
     DM["demo-local: hill attack (PlatoonHillAttack, HullDownAttackRun, SlotOps) · WindowDuel · insurgent"]
@@ -372,6 +372,6 @@ it (only through utility inputs no shipped decision uses) ⇒ a soldier knows on
 | ⭐ **board / get out / eject** | ✅ `2026-10-12` (CE-3110 I-2a/I-2b): ONE rules class `Embarkation` and ONE applier `EmbarkationSystem`, which runs only where the vehicle's passenger list (`dtPassengerBuffer`, Brain group) is owned; the AI executors (`EmbarkExecutor`, `EjectPassengersExecutor`) raise commands that the interaction transport carries to that owner. The list replicates; `EmbarkedStateSystem` derives the passenger side on every node | [`DESIGN_Entity_Interactions.md`](DESIGN_Entity_Interactions.md) §7.1b, §7.1d |
 | ⭐ where it runs | ✅ every node that can own a live entity: the cross-role `CoreInfrastructureCapabilities.Interactions` (doors + embarkation) in every host's plan — never a host or a role pack | §7.1d |
 | ⭐ what "inside" means | ✅ `2026-10-12` (I-2c, R-271): CARRIED (the passenger's position owner copies the vehicle's transform; kinematics skips an embarked body), HIDDEN when the cabin is enclosed (`PhysicalPresence.IsHidden` — the perception grid, the EQS area search, the collider hash for bullets / near misses / radius search / avoidance, the blast and line-of-sight occluders all ask it), DIES when the vehicle is destroyed (a lethal damage event on the node owning its Health). An OPEN cabin type (TKB `VehicleParametersDto.PassengerExposure = Open` → `OpenPassengerCabin`) carries without hiding. CanMove / CanShoot are stripped aboard; boarding is not "mobility lost" | §7.2, §7.2a |
-| ⭐ the plan (user-approved) | I-2a ✅ → I-2b ✅ → I-2c ✅ → I-2d AI nodes + the squad dismount | §7.1 · `CE-3110` |
+| ⭐ the plan (user-approved) | I-2a ✅ → I-2b ✅ → I-2c ✅ → I-2d ✅ `2026-10-12` (`CE-1056`): the AI asks — `Embark` (walks to the boarding point beside the hull, then the embark action) / `Disembark` (one passenger, interaction action 2, `DisembarkExecutor`), library behaviours of the same names; the squad `SquadDismount` drill (everyone out, done when nobody is aboard); a CARRIER's hit / near miss puts the squad it carries under fire, and `BasicSquadSop`'s first row is "under fire while mounted → SquadDismount" | §7.1 / §7.3 · Squad Tactics §5a · `CE-3110` · `CE-1056` |
 | **formations** (`FormationController` / `FormationFollower` / `FormationTargetSystem`, CarKinem) | 🟥 for AI: works only in the standalone CarKinem example. `JoinFormation`'s params are empty, `VehicleAPI` is never built in production, nothing carries a join from CGF to SimHost; followers steer straight at a slot with no path finding | proper formations = their own programme, `CE-2124` |
 | ⭐ squad formation **for now** | ✅ BUILT `2026-10-12`: Library/Squad `SquadMarch` (File / Wedge / Line) — the point man nearest the objective leads, the others keep slots on it and fall back to file on his trail; live on `tt-squad-march` | [`DESIGN_Squad_Tactics.md`](designs/group-maneuvers/DESIGN_Squad_Tactics.md) §6.1, §6.1a |

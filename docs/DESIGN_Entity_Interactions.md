@@ -634,3 +634,19 @@ sequenceDiagram
 | `DisembarkExecutorTests` (Fdp.Toolkits.Tests, beside `EmbarkExecutorTests`) | raise once → the owner applies → Success; no answer ⇒ timeout Failure |
 | `CgfLogicPackTests` | action 2 registered |
 | CE-2130 conformance | the two behaviours name a contract DTO (P1/P2) |
+
+#### 7.3a I-2d as built *(`2026-10-12`, ui lane, `CE-1056`)*
+
+| file | what |
+|---|---|
+| `Hrot.AI.Behaviors/Brains/EmbarkNodes.cs` | the two shared nodes, as §7.3's class diagram: `Embark` walks with `LocomotionMoveTo` (re-issued when the boarding point moved > 2 m), then action 1; `Disembark` action 2; both forward the executor's answer once and hand the channel back |
+| `Fdp.Toolkits/Behavior/Executors/DisembarkExecutor.cs` · `BehaviorConstants.ActionIdDisembark = 2` · registered in `CgfLogicPack` | raise `DisembarkEntityCommand` (vehicle from the passenger's own tag) once; Success when the tag is gone; 5 s timeout |
+| `Embarkation.BoardingPoint` / `BoardingRange` (+ `BoardingSlack` 1 m; `HullRadius` factored out of `DismountPoint`) | where the walk stops and the matching executor range |
+| `Hrot.AI.Behaviors/Brains/EmbarkBehaviors.cs` · `EmbarkParamsJsonDto` / `DisembarkParamsJsonDto` (`Hrot.Core`) · `BehaviorNames.Embark` / `Disembark` | the library behaviours, `Library/Basic`, listed for infantry / insurgent / civilian |
+
+| rail | result |
+|---|---|
+| `EmbarkNodesTests` (SimHost, 3) | walk → board through the owner · leave beside the hull · not aboard ⇒ Success · gone vehicle ⇒ Failure · the boarding point lies inside the boarding range |
+| `EmbarkExecutorTests.CE1056_*` (FDP, 2) | the Disembark executor raises once, the owner applies, Success; not aboard ⇒ Success; no answer ⇒ timeout |
+
+**Deviations from §7.3:** none in the classes or the sequence.
