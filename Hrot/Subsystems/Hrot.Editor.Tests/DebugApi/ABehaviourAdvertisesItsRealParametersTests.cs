@@ -242,18 +242,18 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     internal static readonly string[] ParamsContractAllowList =
     {
         // measured 2026-10-12 at the first run of the rail: 48 behaviours
+        // CE-2133 (B1, 2026-10-12) removed 8: one struct Input now IS the params DTO (FallBack, HullDownAttackRun,
+        //   PlatoonHillAttack, Sentry, T11_Aliasing, T31_ComposedAiPrimitive, T34_ComposedAiPrimitiveCondition, TakeCover)
         "BTreeCuratedBindingDemo", "BTreeRenderShowcase", "BasicInfantrySop", "BasicSquadSop",
         "BlueprintBehaviourDemo", "CombatShowcase", "DangerCrossing", "DangerCrossingBp",
         "Demo_Advance", "Demo_Engage", "Demo_MissionPlan", "Demo_Retreat",
-        "Demo_TakeCover", "Demo_TaskChain", "FallBack", "FiringPosition",
-        "Flank", "HsmOrthogonalRegions", "HsmResolverDemo", "HsmShowcase",
-        "HsmTwoChannelRegionsDemo", "HullDownAttackRun", "OperatorControl", "PlatoonHillAttack",
-        "PlatoonHillAttackBp", "SampleGuard", "SampleScout", "Sentry",
+        "Demo_TakeCover", "Demo_TaskChain", "FiringPosition", "Flank",
+        "HsmOrthogonalRegions", "HsmResolverDemo", "HsmShowcase", "HsmTwoChannelRegionsDemo",
+        "OperatorControl", "PlatoonHillAttackBp", "SampleGuard", "SampleScout",
         "T01_Sequence", "T02_Selector", "T03_Parallel", "T04_DecoratorRepeater",
         "T05_DecoratorStack", "T06_ObserverSelector", "T07_Subtree", "T08_ActionLeaf",
-        "T09_BlackboardManaged", "T10_MultiAction", "T11_Aliasing", "T20_MultiStateful",
-        "T31_ComposedAiPrimitive", "T32_ComposedGeneratedBlueprint", "T33_ComposedParamBlueprint", "T34_ComposedAiPrimitiveCondition",
-        "T35_SharedWorkingState", "T39_TwoDistinctPrimitives", "T40_BehaviorResolverAsset", "TakeCover",
+        "T09_BlackboardManaged", "T10_MultiAction", "T20_MultiStateful", "T32_ComposedGeneratedBlueprint",
+        "T33_ComposedParamBlueprint", "T35_SharedWorkingState", "T39_TwoDistinctPrimitives", "T40_BehaviorResolverAsset",
     };
 
     /// <summary>⭐ CE-2130 — true when <paramref name="t"/> is a generator's mirror of a behaviour's own variables rather
