@@ -380,4 +380,47 @@ public sealed unsafe class BehaviorIngressStatefulTests
 
         world.Dispose();
     }
+
+    /// <summary>
+    /// ⭐ CE-2129 — nothing carries over between behaviours (R-277 (behaviors)): A (slots) → B (NO slots) → A must start A
+    /// clean. ⛔ The detach ran only when the NEW behaviour declared slots, so B left A's slots attached and A's second start
+    /// kept their bytes (AttachManifestSlots keeps a slot whose key, size and hash match).
+    /// </summary>
+    [Fact]
+    public void CE2129_ASwitchToABehaviourWithNoSlots_DetachesThePreviousSlots_SoNothingCarriesOver()
+    {
+        var (world, sys, registry) = CreateFixture();
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        RootStateAccess.EnsureRootState(world, entity);
+
+        var assetA = Guid.NewGuid();
+        int a1 = MakeSlotKey(assetA, Guid.NewGuid());
+        const string nameA = "CarryOverA"; const int idA = 8204;
+        const string nameB = "CarryOverNoSlotsB"; const int idB = 8205;
+        registry.Register(idA, nameA, MakeStatefulDefinition(nameA, idA, new StatefulSlotInfo[] { new StatefulSlotInfo(a1, 4, 0u) }));
+        registry.Register(idB, nameB, MakeStatefulDefinition(nameB, idB, Array.Empty<StatefulSlotInfo>()));
+
+        Assign(world, sys, entity, nameA);
+        Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, a1, out _, out _, out _), "A's slot provisioned");
+        *(int*)SlotPayload(world, entity, a1) = 0x5EED;   // A's working state, mid-run
+
+        Assign(world, sys, entity, nameB);
+        Assert.False(HasSlot(world, entity, a1), "B takes no slots, yet A's slot must be detached on the switch");
+
+        Assign(world, sys, entity, nameA);
+        Assert.True(HasSlot(world, entity, a1), "A's slot provisioned again");
+        Assert.Equal(0, *(int*)SlotPayload(world, entity, a1));   // a fresh start, not A's previous run
+
+        world.Dispose();
+    }
+
+    private static byte* SlotPayload(EntityRepository world, Entity entity, int key)
+    {
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        Assert.True(mem != null && BlueprintBlackboardPartitions.TryGetSlotOffset(mem, key, out int off), $"slot {key} missing");
+        BlueprintBlackboardPartitions.TryGetSlotOffset(mem, key, out int offset);
+        return mem + offset;
+    }
 }

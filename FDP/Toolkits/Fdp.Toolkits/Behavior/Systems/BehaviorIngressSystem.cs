@@ -308,8 +308,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                 Hash = running.ActiveBehaviorHash, InstanceId = running.InstanceId, BrainTier = running.BrainTier,
                 HeldKeys = HeldKeysNow(repo, entity, _registry),
             };
-            // ⚠ A curated stateful node's slot key is NOT salted by behaviour (OccurrenceSlotKey P2) ⇒ the reaction may name
-            //   one of the task's keys. Then the task cannot be kept beside it: this pause is a RESTART (today's behaviour).
+            // ⚠ Every stateful slot key folds its owning asset or host (generated: the asset id; curated: AssetIdFromName of the
+            //   host; blueprints: the asset id — CE-2129, measured; the unsalted P2 curated key went with S8). ⇒ the reaction
+            //   names one of the task's keys only when it runs the same behaviour. Then the task cannot be kept beside it:
+            //   this pause is a RESTART.
             if (Overlaps(KeysOf(incomingId, incoming), paused.HeldKeys))
             {
                 paused.HeldKeys = Array.Empty<int>();
@@ -587,17 +589,22 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ⭐ CE-431 + S5b — the manifest as provisioned: hosted slots sized from their child, and every nested
             //   descendant under its own key. The sweep below must see the SAME list, or it detaches the nested slots.
             var effectiveSlots = def.StatefulWorkingSlots is { Count: > 0 } ? HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots) : null;
+
+            // Detach the previous behaviour's slots on EVERY change, so nothing carries over (R-277 (behaviors)).
+            //   ⭐ CE-2081: not when this start pauses that behaviour, and never a key a paused task holds.
+            //   ⛔ CE-2129: this ran only when the NEW behaviour declared slots of its own ⇒ A(slots) → B(none) left A's
+            //   slots attached, and a later start of A kept their contents (AttachManifestSlots keeps a matching slot).
+            if (!keepsTask &&
+                previousBehaviorId != BehaviorIds.None &&
+                previousBehaviorId != behaviorId &&
+                _registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
+                prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
+            {
+                DetachStatefulSlots(repo, entity, HostedSubtree.EffectiveSlots(prevDef.StatefulWorkingSlots), pausing);   // ⭐ S5b — nested slots too
+            }
+
             if (def.StatefulWorkingSlots != null && def.StatefulWorkingSlots.Count > 0)
             {
-                // Detach previous behavior's slots to avoid leaking them. ⭐ CE-2081: not the paused task's.
-                if (!keepsTask &&
-                    previousBehaviorId != BehaviorIds.None &&
-                    previousBehaviorId != behaviorId &&
-                    _registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
-                    prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
-                {
-                    DetachStatefulSlots(repo, entity, HostedSubtree.EffectiveSlots(prevDef.StatefulWorkingSlots));   // ⭐ S5b — nested slots too
-                }
 
                 // A3/D1': declare WHAT these occurrences are, so O0's walker can filter on a
                 // declared Kind instead of on a BlueprintRegistry miss (F7 -- an accident, not
@@ -1679,13 +1686,16 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private static unsafe void DetachStatefulSlots(
             EntityRepository repo, Entity entity,
-            IReadOnlyList<StatefulSlotInfo> slots)
+            IReadOnlyList<StatefulSlotInfo> slots, PausedTask? pausing = null)
         {
             // A2: the three-tier ladder, once, in OccurrenceStoreAccess.
             // ⛔ The pointer is valid for THIS CALL only — see the seam's LIFETIME RULE.
             // ⭐ CE-3137 U-0: whichever block holds each.
             foreach (var s in slots)
+            {
+                if (IsHeldByPausedTask(repo, entity, s.SlotKey, pausing)) continue;   // ⭐ CE-2129 / CE-2081
                 OccurrenceStoreAccess.TryDetachSlot(repo, entity, s.SlotKey);
+            }
         }
 
         /// <summary>Returns the TotalSize constant of the entity's active tier, or 0 if none.</summary>
