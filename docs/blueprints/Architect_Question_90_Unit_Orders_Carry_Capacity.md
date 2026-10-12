@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -14,6 +14,7 @@ related-designs:
   - docs/DESIGN_Entity_Interactions.md — OWNS embarkation (§7); B and C extend it
   - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — OWNS the origin gate (R-188), the SOP slot (R-189); its "an order as a GOAL" idea (deferred) is A2's rejected alternative
   - docs/blueprints/Behavior_Parameter_Resolver_Detailed_Design.md — OWNS the three shapes and "one shape by default" (§3.2) and foresaw a shared param-type as an additive change (§3.1); §2.3f maps orders onto it
+  - docs/blueprints/Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — OWNS one block per running behaviour (B approved) and "Role=Input optional" (§12.3b); §2.3i takes it to no Input role
   - docs/blueprints/DESIGN_Parameter_Model.md — OWNS the behaviour start pipeline and the resolver (§P.2, R-152/R-154) that A7 puts one stage in front of
   - docs/UX/Architect_Question_25_Scenario_Authoring_Golden_Path.md — Q25-C: the asset declares its category mask + param schema (recommended, awaiting approval); §2.3e builds on it
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS the injury states (D1 / R-263) C depends on, and the echelon gap (T6)
@@ -371,11 +372,53 @@ Blast radius:
 - the generator emits `JsonParamsDtoType` = ② and parses ① straight into it.
 
 Blueprints:
-- a blueprint as a behaviour is still planned (§P.1 "O9, planned"), so it can start under this rule. ⚠ It conflicts with §P.7 (approved 2026-09-30), which declares a resolver asset's authored shape as several Parameters; under this rule that shape is one picked DTO;
+- ⛔ *(wrong — corrected in §2.3i: blueprint behaviours exist, 9 assets)* a blueprint as a behaviour is still planned (§P.1 "O9, planned"), so it can start under this rule. ⚠ It conflicts with §P.7 (approved 2026-09-30), which declares a resolver asset's authored shape as several Parameters; under this rule that shape is one picked DTO;
 - blueprint ACTIONS are untouched: they read the host live and take no params copy (R-155).
 
 What would change the lean: if authoring params WITHOUT writing C# matters now. The generated mirror is what lets an
 editor-only author do that today.
+
+### 2.3i No Input role at all — one block, one params target *(2026-10-12; user: "Maybe by adopting the single input param dto approach the input variables go away completely and all become just state, where one of them happens to be filled from params (if there is no resolver) or any can be touched by resolver?")*
+
+⛔ **Correction to §2.3h:** blueprint behaviours EXIST. §2.3h quoted Parameter Model §P.1's *"blueprint as a behaviour (O9,
+planned)"*, which is stale. Measured: **9** `.bp.json` assets with `Dispatch: "Behavior"`, registered at `BrainTierBlueprint`
+(CE-446; `BehaviorIngressSystem.cs:1120,1396`). §P.1's line is now marked known-rot there.
+
+| claim | measured / written |
+|---|---|
+| params ARE authorable without C# today, two ways: BTree / HSM Input variables (generated mirror) and blueprint **Parameters**. 4 of the 9 behaviour blueprints declare Parameters field by field: `DangerCrossingBp` (Vector3, floats), `PlatoonHillAttackBp` (6, `PickableGeoPoint`…), `Demo_TaskChain` / `Demo_MissionPlan` (Parameters typed as C# contract DTOs) | parse of every `Dispatch: "Behavior"` asset |
+| the approved storage design already heads here: ONE block per running behaviour (decision B, ✅ 2026-09-29), the resolver may write **the whole block**, and *"`Role=Input` becomes optional"*. 🔒 *"in case of custom resolver there does not even need to be any role=Input variable defined"* | AQ76 §4 B, §12.3b |
+| the Input / State split's original reason (a 100-byte inline budget) is gone (now 16 096 B) | EXPLAINER §7.9a |
+| *"the 'custom resolver can do whatever' case is the SHIPPED curated case, and the generated case is the degenerate one where the authored DTO equals the Input region and the resolver is a memcpy"* | AQ76 §12.3b |
+
+⇒ ⭐ **The user's model is the endpoint AQ76 stopped short of, and the lean is to take it:**
+
+| rule | |
+|---|---|
+| a behaviour has ONE block of variables; **no `Input` / `State` role** | every variable is the behaviour's own memory |
+| a behaviour names its params DTO (R-276 (behaviors)), or none | the public contract; flat JSON |
+| **no resolver:** the JSON lands in the ONE variable whose type is the params DTO (the params target) | the default copy, as today, but into a named variable instead of an "Input region" |
+| **a resolver:** it receives the DTO and writes ANY variables of the block | AQ76 §12.3's grant, unchanged |
+| everything else starts at its baked default | AQ76's bake stage (which also closes CE-420) |
+
+What the `Input` role does today, each re-homed:
+
+| job | re-homed to |
+|---|---|
+| sizes the copy (`InputBytes`, CE-429) | the params target's size and offset |
+| defines the generated authored mirror | gone: the DTO is named |
+| the default copy's target region | the params target variable |
+| bake applies to Input only (CE-420) | the whole block (AQ76 already) |
+| editor sections "Inputs" / "State" (Parameter Model §5.1) | ONE "Variables" section; the params target is marked |
+| a hosted child's input: a host variable typed as the child's Inputs struct (AQ76 §12.28e) | a host variable typed as the child's params DTO |
+| the curated `[SharedAiAction(typeof(Dto),"Field")]` binding to a field of THE params struct | a field of the block (AQ76's block DTO) |
+| ⛔ not measured | the carry-over manifest across a behaviour change (AQ76 :1896, *"an EMPTY manifest is an authority"*) |
+
+**What it costs, stated plainly:**
+- params can no longer be authored without C#. Today's two editor ways go: BTree / HSM Inputs, and blueprint Parameters;
+- the four Parameter-declaring behaviour blueprints and the five multi-Input library assets each get one C# params DTO;
+- Parameter Model §P.7 (approved 2026-09-30, a resolver asset's authored shape = its Parameters) is superseded;
+- the user said params DTOs are C#-only, and this makes that true.
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 

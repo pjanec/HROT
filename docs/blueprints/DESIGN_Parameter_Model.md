@@ -12,6 +12,7 @@ current-answer: ⭐⭐⭐ §P — the contract by kind (behaviour: inputs once a
   the root params occurrence slot, keyed OccurrenceSlotKey.ComputeRootParamsKey and computed
   rather than stored - so there is no shared blackboard params region left at all.
 known-rot: 4.1's params column is SUPERSEDED for HOSTED occurrences by 4.7 (E3a, 2026-09-21)
+known-rot: (2026-10-12) §P.1's diagram labels "blueprint as a behaviour (O9, planned)" — STALE: 9 Dispatch=Behavior blueprints exist, registered at BrainTierBlueprint (CE-446). Measured in Architect_Question_90 §2.3i.
   and for ROOT occurrences by P4 (2026-09-22, DESIGN_Occurrence_Scoped_Storage.md §30.14): a
   root behaviour's params now live in the root params occurrence slot, same as a hosted
   occurrence's. Do not quote 4.1's params column as the whole live state; quote 4.7 for
