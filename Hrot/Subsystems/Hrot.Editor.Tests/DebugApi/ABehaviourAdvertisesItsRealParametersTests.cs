@@ -216,6 +216,21 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         Assert.Contains(arms, arm =>
             PropertyNames((JsonObject)arm!["paramSchema"]!).Length > 0);
     }
+    /// <summary>
+    /// ⭐ CE-2131 (CE-2128 ①) — <c>FollowRoute</c> advertises every key its callers write: the route entity, the speed and the
+    /// loop flag (<c>MissionControlBehaviorParamsHelper</c> reads all three). ⚠ Red-proof: drop <c>Speed</c> from
+    /// <c>FollowRouteParamsJsonDto</c> → this fails naming it.
+    /// </summary>
+    [Fact]
+    public void CE2131_FollowRouteAdvertisesTheKeysItsCallersWrite()
+    {
+        var keys = PropertyNames(SchemaFor(LoadProductionRegistry(), "FollowRoute"));
+
+        Assert.Contains("RouteEntityId", keys);   // the schema lists C# member names; JSON matching is case-insensitive
+        Assert.Contains("Speed", keys);
+        Assert.Contains("Loop", keys);
+    }
+
     // ── CE-2130 (docs/DESIGN_Orders_Params_Entity_Classes.md §1 P1–P2, §6 R0) ─────────────────────────────────────────────
     //   The authoring rules as a conformance rail: every registered behaviour names exactly ONE params DTO (its public JSON
     //   contract), and that DTO is a NAMED type — never a generator's mirror of the behaviour's own variables (which is what
