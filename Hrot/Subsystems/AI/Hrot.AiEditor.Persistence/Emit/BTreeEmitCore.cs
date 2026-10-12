@@ -437,13 +437,15 @@ public static class BTreeEmitCore
     /// EXCLUDING the <c>[BTreeLayout]</c> method, using an optional size resolver for struct-DTO types.
     /// </summary>
     public static string EmitTopologyCore(BehaviorTreeAssetDto dto, SizeResolverDelegate? sizeResolver)
-    {
-        return EmitInternal(dto, includeLayout: false, sizeResolver: sizeResolver);
-    }
+        => EmitTopologyCore(dto, sizeResolver, fields: null);
+
+    /// <summary>⭐ <c>CE-3182</c> — as above, with the field layouts a binding path (<c>Variable.Field</c>) walks.</summary>
+    public static string EmitTopologyCore(BehaviorTreeAssetDto dto, SizeResolverDelegate? sizeResolver, FieldLayoutResolver? fields)
+        => EmitInternal(dto, includeLayout: false, sizeResolver: sizeResolver, fields: fields);
 
     /// <summary>Core emitter: shared implementation for both <see cref="Emit"/> and <see cref="EmitTopologyCore"/>.</summary>
     private static string EmitInternal(BehaviorTreeAssetDto dto, bool includeLayout,
-        SizeResolverDelegate? sizeResolver = null)
+        SizeResolverDelegate? sizeResolver = null, FieldLayoutResolver? fields = null)
     {
         dto.WithParamsVariable();   // ⭐ CE-2135 — the reserved Params, when the asset names its DTO (idempotent)
         var sb = new StringBuilder();
@@ -452,7 +454,7 @@ public static class BTreeEmitCore
         // Pre-compute variable offsets for managed blackboard assets (S1-2 / S1-2b).
         // For unmanaged assets this is empty — EmitAction/EmitCondition fall back to the
         // legacy field-selector form which is byte-identical to the pre-BATCH-02 output.
-        IReadOnlyDictionary<string, int> variableOffsets = BuildVariableOffsets(dto, sizeResolver);
+        IReadOnlyDictionary<string, int> variableOffsets = BuildVariableOffsets(dto, sizeResolver, fields);
 
         // Header
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
@@ -506,23 +508,32 @@ public static class BTreeEmitCore
     /// </summary>
     private static IReadOnlyDictionary<string, int> BuildVariableOffsets(
         BehaviorTreeAssetDto dto,
-        SizeResolverDelegate? sizeResolver = null)
+        SizeResolverDelegate? sizeResolver = null,
+        FieldLayoutResolver? fields = null)
     {
         if (!dto.Blackboard.Managed || dto.Blackboard.Variables.Count == 0)
             return new Dictionary<string, int>();
 
         try
         {
-            var fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
-            var map = new Dictionary<string, int>(fields.Count, StringComparer.Ordinal);
-            foreach (var f in fields)
-                map[f.Name] = f.ByteOffset;
-            return map;
+            // ⭐ CE-3182 — the ONE target resolver: every variable, plus each Variable.Field path a node binds.
+            var packed = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
+            return BindingTargets.For(packed, fields).Offsets(BoundTargets(dto));
         }
         catch
         {
             // Unknown type — fall back to empty (unmanaged path)
             return new Dictionary<string, int>();
+        }
+    }
+
+    /// <summary>⭐ <c>CE-3182</c> — every node binding's <c>ExpressionTargetField</c> (a variable or a field path).</summary>
+    internal static IEnumerable<string?> BoundTargets(BehaviorTreeAssetDto dto)
+    {
+        foreach (var node in dto.Nodes)
+        {
+            if (node is BTreeActionNodeDto a) yield return a.Action?.ExpressionTargetField;
+            else if (node is BTreeConditionNodeDto c) yield return c.Condition?.ExpressionTargetField;
         }
     }
 

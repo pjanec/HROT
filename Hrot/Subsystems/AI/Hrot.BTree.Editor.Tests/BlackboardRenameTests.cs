@@ -52,6 +52,42 @@ public sealed class BlackboardRenameTests
         asset.BlackboardVariables.Single().Name.Should().Be("velocity");
     }
 
+    /// <summary>⭐ <c>CE-3182</c> — a rename moves the bindings (they dangled before), a path keeping its field part, and the
+    /// working-state target too; the reference count and the reference key go by the path's VARIABLE.</summary>
+    [Fact]
+    public void CE3182_RenameVariable_RetargetsBindings_KeepingAFieldPath()
+    {
+        var asset = MakeAsset();
+        asset.IsBlackboardEditorManaged = true;
+        asset.SetBlackboardVariables(new[] { new BlackboardVariableEntry("cfg", typeof(float), null) });
+        var nodes = new List<BTreeEditorNode>
+        {
+            new BTreeEditorNode
+            {
+                VisualId = Guid.NewGuid(), KernelType = NodeType.Action, DisplayLabel = "Walk",
+                Action = new BehaviorActionBinding { MethodFqn = "X.Walk", ExpressionTargetField = "cfg.walk", WorkingStateTargetField = "cfg" },
+                DelegateShape = BTreeActionDelegateShape.Plain,
+            },
+            new BTreeEditorNode
+            {
+                VisualId = Guid.NewGuid(), KernelType = NodeType.Condition, DisplayLabel = "Other",
+                Condition = new BehaviorActionBinding { MethodFqn = "X.Check", ExpressionTargetField = "cfgOther" },
+            },
+        };
+        asset.ReplaceAll(nodes, new List<BTreeEditorPill>(), EmptyBlob());
+        asset.CountNodesReferencingVariable("cfg").Should().Be(1, "a field path references its variable; 'cfgOther' does not");
+
+        asset.RenameVariable("cfg", "conf");
+
+        var walk = asset.Nodes.Single(n => n.DisplayLabel == "Walk").Action!;
+        walk.ExpressionTargetField.Should().Be("conf.walk");
+        walk.WorkingStateTargetField.Should().Be("conf");
+        asset.Nodes.Single(n => n.DisplayLabel == "Other").Condition!.ExpressionTargetField.Should().Be("cfgOther");
+        asset.CountNodesReferencingVariable("conf").Should().Be(1);
+        new BTreeBlackboardVariableContributor().EnumerateReferences(asset)
+            .Select(r => r.TargetKey).Should().Contain($"{asset.AssetId:D}::conf");
+    }
+
     [Fact]
     public void RenameVariable_fires_Changed()
     {

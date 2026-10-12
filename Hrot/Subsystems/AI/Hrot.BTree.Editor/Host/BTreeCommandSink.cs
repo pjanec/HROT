@@ -325,10 +325,11 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
         {
             var node = _asset.FindNode(id.Value);
             if (node is null) continue;
-            CollectAutoVarCandidate(candidateVars, node.Action?.ExpressionTargetField);
-            CollectAutoVarCandidate(candidateVars, node.Action?.WorkingStateTargetField);
-            CollectAutoVarCandidate(candidateVars, node.Condition?.ExpressionTargetField);
-            CollectAutoVarCandidate(candidateVars, node.Condition?.WorkingStateTargetField);
+            // ⭐ CE-3182 — the VARIABLE a target names (Params.walk → Params), never the path string.
+            CollectAutoVarCandidate(candidateVars, Hrot.AiEditor.Persistence.BindingPath.Root(node.Action?.ExpressionTargetField));
+            CollectAutoVarCandidate(candidateVars, Hrot.AiEditor.Persistence.BindingPath.Root(node.Action?.WorkingStateTargetField));
+            CollectAutoVarCandidate(candidateVars, Hrot.AiEditor.Persistence.BindingPath.Root(node.Condition?.ExpressionTargetField));
+            CollectAutoVarCandidate(candidateVars, Hrot.AiEditor.Persistence.BindingPath.Root(node.Condition?.WorkingStateTargetField));
         }
 
         foreach (var id in nodeIds)
@@ -341,10 +342,10 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
             //   deleting one node must not take a variable another still binds. ⛔ An HSM hosting site
             //   is 1:1 with its composed variable, which is why its caller needs no such check.
             bool stillReferenced = _asset.Nodes.Any(n =>
-                n.Action?.ExpressionTargetField      == varName ||
-                n.Action?.WorkingStateTargetField    == varName ||
-                n.Condition?.ExpressionTargetField   == varName ||
-                n.Condition?.WorkingStateTargetField == varName);
+                Hrot.AiEditor.Persistence.BindingPath.Targets(n.Action?.ExpressionTargetField,      varName) ||
+                Hrot.AiEditor.Persistence.BindingPath.Targets(n.Action?.WorkingStateTargetField,    varName) ||
+                Hrot.AiEditor.Persistence.BindingPath.Targets(n.Condition?.ExpressionTargetField,   varName) ||
+                Hrot.AiEditor.Persistence.BindingPath.Targets(n.Condition?.WorkingStateTargetField, varName));
 
             // ⭐ The IsAutoManaged test itself is SHARED — one rule for "may the editor delete this?".
             if (!stillReferenced)

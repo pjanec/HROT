@@ -69,6 +69,26 @@ public sealed class ExpressionTargetFieldCountTests
         return (asset, t, g);
     }
 
+    /// <summary>⭐ <c>CE-3182</c> — a FIELD path targets its variable (<c>Result.Value</c> → <c>Result</c>); a rename keeps the field
+    /// part and moves the working-state target too.</summary>
+    [Fact]
+    public void CE3182_AFieldPath_TargetsItsVariable_AndARenameKeepsTheField()
+    {
+        var (asset, t, _) = MakeAsset();
+        var b = t.Action ??= new BehaviorActionBinding();
+        b.ExpressionTargetField   = "Result.Value";
+        b.WorkingStateTargetField = "Result";
+
+        Assert.True(HsmAsset.IsExpressionTargetOf("Result.Value", "Result"));
+        Assert.False(HsmAsset.IsExpressionTargetOf("ResultX.Value", "Result"));
+        Assert.Equal(1, asset.CountNodesReferencingVariable("Result"));
+
+        asset.RenameVariable("Result", "Out");
+
+        Assert.Equal("Out.Value", b.ExpressionTargetField);
+        Assert.Equal("Out", b.WorkingStateTargetField);
+    }
+
     /// <summary>⛔ Nothing bound ⇒ zero. The shipped answer, kept true for the case it was true for.</summary>
     [Fact]
     public void AnUnboundVariable_CountsZero()

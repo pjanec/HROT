@@ -47,6 +47,10 @@ namespace Probe
     [StructLayout(LayoutKind.Sequential)]
     public struct ProbeSlot { public ProbeParams Params; }
 
+    // ⭐ CE-3182 — a struct VARIABLE whose FIELD a binding targets (cfg.Walk): Walk sits behind a long and an 8-byte struct.
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ProbeConfig { public long Head; public OtherParams Other; public ProbeParams Walk; }
+
     public static class ProbeNodes
     {
         // A 4-param [BTreeAction] — without one the analyzer creates no group and emits nothing at all.
@@ -702,6 +706,110 @@ namespace Probe
                 "\"WorkingStateTargetField\": \"choice\", \"WorkingStateTypeId\": \"Probe.Choice\"", "\"WorkingStateTargetField\": null"));
             string all = string.Join("\n", generated.Select(t => t.ToString()));
             all.Should().NotContain(".OnExit(", "nothing to clean up ⇒ the slot stays empty (shipped assets' goldens do not move)");
+        }
+
+        // ---- ⭐ CE-3182: a binding targets a FIELD of a block variable (docs/DESIGN_Orders_Params_Entity_Classes.md §5d) ----
+
+        private static string FieldPathAsset(string target) => $$"""
+            { "$meta": { "docType": "Hrot.BTree", "schemaVersion": 2 },
+              "AssetId": "bb003182-0000-0000-0000-0000000000aa", "Name": "FieldBindingProbeTree",
+              "TargetNamespace": "Probe.Trees",
+              "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+              "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+              "Nodes": [
+                { "kind": "Root", "VisualId": "bb003182-0000-0000-0000-000000000001", "ChildVisualIds": [ "bb003182-0000-0000-0000-000000000002" ] },
+                { "kind": "Sequence", "VisualId": "bb003182-0000-0000-0000-000000000002",
+                  "ChildVisualIds": [ "bb003182-0000-0000-0000-000000000003", "bb003182-0000-0000-0000-000000000004" ] },
+                { "kind": "Condition", "VisualId": "bb003182-0000-0000-0000-000000000003", "ChildVisualIds": [], "DelegateShape": "ThreeParamReusable",
+                  "Condition": { "MethodFqn": "Probe.ProbeNodes.SharedCheck", "ExpressionTargetField": "{{target}}" } },
+                { "kind": "Action", "VisualId": "bb003182-0000-0000-0000-000000000004", "ChildVisualIds": [], "DelegateShape": "ThreeParamReusable",
+                  "Action": { "MethodFqn": "Probe.ProbeNodes.SharedAction", "ExpressionTargetField": "{{target}}" } } ],
+              "Blackboard": { "Managed": true, "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard", "Variables": [
+                { "Name": "sentinel", "Type": { "TypeId": "Probe.ProbeParams" } },
+                { "Name": "cfg",      "Type": { "TypeId": "Probe.ProbeConfig" } } ] } }
+            """;
+
+        private static string FieldPathHsm(string target) => $$"""
+            { "$meta": { "docType": "Hrot.Hsm", "schemaVersion": 2 },
+              "AssetId": "00003182-0000-0000-0000-0000000000aa", "Name": "FieldBindingProbeMachine",
+              "TargetNamespace": "Probe.Machines", "BlackboardTypeName": "FieldBindingProbeMachine_Blackboard",
+              "States": [
+                { "StableId": "31820000-0000-0000-0000-000000000000", "Name": "__Root",
+                  "ChildStableIds": [ "31820000-0000-0000-0000-00000000000a" ], "ParentStableId": null, "IsInitial": false, "RegionIndex": 0 },
+                { "StableId": "31820000-0000-0000-0000-00000000000a", "Name": "Working",
+                  "ChildStableIds": [], "ParentStableId": "31820000-0000-0000-0000-000000000000", "IsInitial": true, "RegionIndex": 0,
+                  "Activity": { "MethodFqn": "Probe.ProbeNodes.SharedAction", "ExpressionTargetField": "{{target}}" } } ],
+              "Regions": [], "Transitions": [], "GlobalTransitions": [], "Events": [],
+              "Blackboard": { "Managed": true, "TypeName": "FieldBindingProbeMachine_Blackboard", "Variables": [
+                { "Name": "sentinel", "Type": { "TypeId": "Probe.ProbeParams" } },
+                { "Name": "cfg",      "Type": { "TypeId": "Probe.ProbeConfig" } } ] } }
+            """;
+
+        /// <summary>The CLR's own offset of <c>ProbeConfig.Walk</c>, from the COMPILED probe — the oracle the baked key must equal
+        /// (after <c>cfg</c>'s packed offset: 8, behind the 8-byte sentinel).</summary>
+        private static int ClrWalkOffset(Compilation compilation)
+        {
+            using var pe = new MemoryStream();
+            var emit = compilation.Emit(pe);
+            emit.Success.Should().BeTrue(string.Join(Environment.NewLine, emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+            var asm = System.Reflection.Assembly.Load(pe.ToArray());
+            return (int)System.Runtime.InteropServices.Marshal.OffsetOf(asm.GetType("Probe.ProbeConfig", throwOnError: true)!, "Walk");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3182</c> — a BTree binding to <c>cfg.Walk</c> is keyed, in the blob AND the registrar, at cfg's packed offset
+        /// plus Walk's offset inside <c>ProbeConfig</c> — the CLR's, read from the compiled probe — and the per-binding calls compile.
+        /// ✅ Red-proof: resolve paths without a field resolver (<c>fields: null</c>) ⇒ BTREE0002, the asset is not emitted.
+        /// </summary>
+        [Fact]
+        public void CE3182_ABTreeBindsAFieldOfAStructVariable_AtTheVariablesOffsetPlusTheFieldsOffset()
+        {
+            var (compilation, generated, diagnostics) = Run(ProbeSource, FieldPathAsset("cfg.Walk"));
+            diagnostics.Where(d => d.Id == "BTREE0002").Select(d => d.GetMessage(null)).Should().BeEmpty();
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+
+            int expected = 8 + ClrWalkOffset(compilation);
+            expected.Should().Be(24, "Walk sits after a long and an 8-byte struct");
+            var keys = Regex.Matches(all, @"""Probe\.ProbeNodes\.Shared\w+@(\d+)""").Select(m => m.Groups[1].Value).Distinct().ToList();
+            keys.Should().Equal(expected.ToString());
+            all.Should().Contain($".Action(\"Probe.ProbeNodes.SharedAction@{expected}\"", "the topology's blob key");
+            all.Should().Contain("Probe.ProbeNodes.SharedAction(ref dto, ctx.Self, ctx.World);");
+        }
+
+        /// <summary>⛔ <c>CE-3182</c> D7 — a field that does not exist fails CLOSED: BTREE0002 naming the path, the asset not emitted,
+        /// never a guessed offset.</summary>
+        [Fact]
+        public void CE3182_ABTreeBindingToAMissingField_IsRefused_NotGuessed()
+        {
+            var (_, generated, diagnostics) = Run(ProbeSource, FieldPathAsset("cfg.Missing"));
+            diagnostics.Where(d => d.Id == "BTREE0002").Select(d => d.GetMessage(null))
+                .Should().Contain(m => m.Contains("cfg.Missing") && m.Contains("CE-3182"));
+            generated.Select(t => t.FilePath).Should().NotContain(f => f.Contains("FieldBindingProbeTree"));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3182</c> — the HSM binds the same path at the same offset (one resolver for both hosts), and the call compiles.
+        /// </summary>
+        [Fact]
+        public void CE3182_AnHsmBindsAFieldOfAStructVariable_AtTheVariablesOffsetPlusTheFieldsOffset()
+        {
+            var (compilation, generated, diagnostics) = RunHsm(ProbeSource, FieldPathHsm("cfg.Walk"));
+            diagnostics.Where(d => d.Id.StartsWith("HSM")).Select(d => d.GetMessage(null)).Should().BeEmpty();
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+
+            int expected = 8 + ClrWalkOffset(compilation);
+            all.Should().Contain($"global::Probe.ProbeNodes.SharedAction(ref *(global::Probe.ProbeParams*)(__root + {expected}), __bridge->Self, __repo)");
+            all.Should().Contain($"Probe.ProbeNodes.SharedAction@{expected}", "the blob key and the dispatcher key agree");
+        }
+
+        /// <summary>⛔ <c>CE-3182</c> D7 — on the HSM an unresolvable field path is HSM0003 (it used to be skipped silently).</summary>
+        [Fact]
+        public void CE3182_AnHsmBindingToAMissingField_IsHsm0003()
+        {
+            var (_, generated, diagnostics) = RunHsm(ProbeSource, FieldPathHsm("cfg.Missing"));
+            diagnostics.Where(d => d.Id == "HSM0003").Select(d => d.GetMessage(null))
+                .Should().ContainSingle(m => m.Contains("cfg.Missing"));
+            generated.Should().BeEmpty();
         }
 
         // ---- S8: the HSM binds the same shared forms -----------------------------------------------

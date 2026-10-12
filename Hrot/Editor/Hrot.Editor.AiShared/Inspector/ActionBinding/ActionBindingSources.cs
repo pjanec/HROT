@@ -144,12 +144,35 @@ public static class ActionBindingCompatibility
         return AiPrimitiveNaming.TryFindAiPrimitiveByName(exporter, blueprintName, out var entry) ? entry.DtoType : null;
     }
 
-    /// <summary>The names of the variables of <paramref name="parameterType"/>, sorted; every name when it is null.</summary>
+    /// <summary>
+    /// The targets of <paramref name="parameterType"/>, sorted: every variable of that type, and ⭐ <c>CE-3182</c> every FIELD of a
+    /// struct variable that has it, as a path (<c>Params.walk</c>, <c>Cfg.sensor.Range</c> — <see cref="BindingPath"/>); every
+    /// variable name when the type is unknown (no paths then: an unknown type is not a reason to list every field).
+    /// </summary>
     public static IReadOnlyList<string> CompatibleVariables(
         Type? parameterType, IEnumerable<BlackboardVariableEntry> variables)
-        => variables
-               .Where(v => parameterType is null || v.FieldType == parameterType)
-               .Select(v => v.Name)
-               .OrderBy(n => n, StringComparer.Ordinal)
-               .ToList();
+    {
+        var result = new List<string>();
+        foreach (var v in variables)
+        {
+            if (parameterType is null || v.FieldType == parameterType) result.Add(v.Name);
+            if (parameterType is not null && v.FieldType is not null) AddFieldPaths(v.Name, v.FieldType, parameterType, result, depth: 0);
+        }
+        result.Sort(StringComparer.Ordinal);
+        return result;
+    }
+
+    /// <summary>How deep a field path may go (<c>Var.a.b.c</c>).</summary>
+    public const int MaxFieldDepth = 3;
+
+    private static void AddFieldPaths(string path, Type owner, Type parameterType, List<string> into, int depth)
+    {
+        if (depth >= MaxFieldDepth || !owner.IsValueType || owner.IsPrimitive || owner.IsEnum) return;
+        foreach (var f in owner.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+        {
+            string fieldPath = BindingPath.Compose(path, f.Name);
+            if (f.FieldType == parameterType) into.Add(fieldPath);
+            AddFieldPaths(fieldPath, f.FieldType, parameterType, into, depth + 1);
+        }
+    }
 }

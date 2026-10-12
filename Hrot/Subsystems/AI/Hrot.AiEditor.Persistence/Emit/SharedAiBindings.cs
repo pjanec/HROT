@@ -115,6 +115,14 @@ public static class SharedAiBindings
         }
     }
 
+    /// <summary>⭐ <c>CE-3182</c> — every binding's <c>ExpressionTargetField</c> (a variable or a field path).</summary>
+    internal static IEnumerable<string?> BoundTargets(HsmAssetDto dto)
+    {
+        var all = new List<string?>();
+        ForEachBinding(dto, (b, _) => all.Add(b?.ExpressionTargetField));
+        return all;
+    }
+
     // ⭐ S8 — the HSM's block St, through the BTree-shaped view the HSM already is (CE-416): (block FQN, slot key → member).
     private static (string BlockFqn, Func<int, string?> Member)? BlockState(HsmAssetDto dto, Func<string, int?>? sizeResolver)
     {
@@ -156,13 +164,13 @@ public static class SharedAiBindings
         HsmAssetDto dto,
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packed,
         Func<string, SharedAiMethodInfo?>? sharedAi,
-        Func<string, int?>? sizeResolver = null)
+        Func<string, int?>? sizeResolver = null,
+        FieldLayoutResolver? fields = null)
     {
         var result = new List<Entry>();
         if (sharedAi == null) return result;
 
-        var byName = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
-        foreach (var f in packed) byName[f.Name] = f;
+        var targets = BindingTargets.For(packed, fields);   // ⭐ CE-3182 — a variable or a Variable.Field path
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var block = BlockState(dto, sizeResolver);
 
@@ -182,7 +190,7 @@ public static class SharedAiBindings
             }
 
             if (string.IsNullOrEmpty(b.ExpressionTargetField)) return;
-            if (!byName.TryGetValue(b.ExpressionTargetField!, out var field)) return;
+            if (!targets.TryResolve(b.ExpressionTargetField, out var field)) return;
             string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(b.MethodFqn, field.ByteOffset);   // ⭐ CE-2032 — the one spelling
             var entry = new Entry
             {
@@ -211,15 +219,25 @@ public static class SharedAiBindings
     /// before <c>S8</c> this reported every non-plain method.)
     /// </summary>
     public static IReadOnlyList<(string Site, string MethodFqn, string Problem)> UnbindableBindings(
-        HsmAssetDto dto, Func<string, SharedAiMethodInfo?>? sharedAi, Func<string, int?>? sizeResolver = null)
+        HsmAssetDto dto, Func<string, SharedAiMethodInfo?>? sharedAi, Func<string, int?>? sizeResolver = null,
+        FieldLayoutResolver? fields = null)
     {
         var result = new List<(string, string, string)>();
         if (sharedAi == null) return result;
         var block = BlockState(dto, sizeResolver);
+        var targets = BindingTargets.For(HsmBridgeEmitCore.PackParamsFor(dto, sizeResolver), fields);
         ForEachBinding(dto, (b, site) =>
         {
             if (b == null || string.IsNullOrEmpty(b.MethodFqn)) return;
             var info = sharedAi(b.MethodFqn!);
+            // ⭐ CE-3182 — a FIELD path that does not resolve is an error, never a silently unbound node (a plain variable name
+            //   that is not packed keeps its old silent skip: pre-existing assets rely on it).
+            if (FormOf(info) is Form.Plain or Form.Stateful && BindingPath.Field(b.ExpressionTargetField) != null
+                && !targets.TryResolve(b.ExpressionTargetField, out _))
+            {
+                result.Add((site, b.MethodFqn!, $"targets '{b.ExpressionTargetField}', which is not a field of a packed variable whose layout is known"));
+                return;
+            }
             if (FormOf(info) != Form.Stateful) return;
             if (StatefulProblem(dto, b, info!, block, out _) is string problem) result.Add((site, b.MethodFqn!, problem));
         });

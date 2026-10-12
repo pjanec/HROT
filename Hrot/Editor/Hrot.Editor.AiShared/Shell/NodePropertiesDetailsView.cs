@@ -255,9 +255,10 @@ public sealed class NodePropertiesDetailsView : IDetailsViewInstance
         }
 
         BlackboardVariableEntry? varEntry = null;
+        string? boundRoot = Hrot.AiEditor.Persistence.BindingPath.Root(boundVarName);   // ⭐ CE-3182 — a field path edits its variable
         foreach (var v in bbAsset.BlackboardVariables)
         {
-            if (v.Name == boundVarName) { varEntry = v; break; }
+            if (v.Name == boundRoot) { varEntry = v; break; }
         }
 
         if (varEntry is null)

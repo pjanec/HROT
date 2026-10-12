@@ -212,12 +212,14 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         // The resolver handles struct-DTO types not in BTreeBlackboardPackHelper.KnownSizes.
         // Guarded by Managed flag — non-managed assets get a null resolver (no change).
         System.Func<string, int?>? structSizeResolver = null;
+        Hrot.AiEditor.Persistence.Emit.FieldLayoutResolver? fieldResolver = null;   // ⭐ CE-3182 — Variable.Field binding paths
         if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
         {
             // Option A, CE-439, CE-2026: Roslyn first; a type it cannot see because a SIBLING generator emits it in this
             // run (a blueprint's `{Name}_{Id:X8}_Bp+Params`, a BTree's or an HSM's Inputs struct) is sized from that
             // sibling's JSON with the same math its own generator uses — the ONE resolver every generator injects.
             structSizeResolver = siblings.SizeResolver(compilation);
+            fieldResolver = siblings.FieldResolver(compilation);
 
             // Check for any unresolvable managed variable BEFORE emitting anything.
             // An unresolvable type means we cannot guarantee the struct layout, so skip
@@ -281,7 +283,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         string source;
         try
         {
-            source = BTreeEmitCore.EmitTopologyCore(dto, structSizeResolver);
+            source = BTreeEmitCore.EmitTopologyCore(dto, structSizeResolver, fieldResolver);
         }
         catch (Exception ex)
         {
@@ -324,7 +326,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         try
         {
             // ⭐ CE-417 B-2 (a′), F8 — a bound [SharedAi*] method is called per binding with its own signature.
-            bridge = BTreeBridgeEmitCore.EmitBridge(dto, structSizeResolver, deactivators, sharedAiInfo);
+            bridge = BTreeBridgeEmitCore.EmitBridge(dto, structSizeResolver, deactivators, sharedAiInfo, fieldResolver);
         }
         catch (Exception ex)
         {

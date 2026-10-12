@@ -88,6 +88,7 @@ public static class AutoManagedVariables
     public static bool RemoveIfAutoManaged(IBlackboardManagedAsset asset, string? name)
     {
         if (asset is null) throw new ArgumentNullException(nameof(asset));
+        name = Hrot.AiEditor.Persistence.BindingPath.Root(name);   // ⭐ CE-3182 — a target may be a field path (Var.Field)
         if (string.IsNullOrEmpty(name)) return false;
 
         var entry = asset.BlackboardVariables.FirstOrDefault(v => v.Name == name);

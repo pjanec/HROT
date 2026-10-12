@@ -105,6 +105,12 @@ public static class BTreeBridgeEmitCore
     /// </summary>
     public static string EmitBridge(BehaviorTreeAssetDto dto, SizeResolverDelegate? sizeResolver,
         IReadOnlyList<DeactivatorEntry>? deactivators, Func<string, SharedAiMethodInfo?>? sharedAi)
+        => EmitBridge(dto, sizeResolver, deactivators, sharedAi, fields: null);
+
+    /// <summary>⭐ <c>CE-3182</c> — as above, with the field layouts a binding path (<c>Variable.Field</c>) walks
+    /// (<see cref="BindingTargets"/>; the generator passes Roslyn's). Null ⇒ bindings resolve whole variables only.</summary>
+    public static string EmitBridge(BehaviorTreeAssetDto dto, SizeResolverDelegate? sizeResolver,
+        IReadOnlyList<DeactivatorEntry>? deactivators, Func<string, SharedAiMethodInfo?>? sharedAi, FieldLayoutResolver? fields)
     {
         dto.WithParamsVariable();   // ⭐ CE-2135 — the reserved Params, when the asset names its DTO (idempotent)
         var sb = new StringBuilder();
@@ -165,7 +171,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine();
         }
 
-        EmitBTreeRegisterMethod(sb, dto, coreClass, sizeResolver, deactivators, sharedAi);
+        EmitBTreeRegisterMethod(sb, dto, coreClass, sizeResolver, deactivators, sharedAi, fields);
 
         sb.AppendLine("}");
 
@@ -288,7 +294,8 @@ public static class BTreeBridgeEmitCore
         StringBuilder sb, BehaviorTreeAssetDto dto, string coreClass,
         SizeResolverDelegate? sizeResolver = null,
         IReadOnlyList<DeactivatorEntry>? deactivators = null,
-        Func<string, SharedAiMethodInfo?>? sharedAi = null)
+        Func<string, SharedAiMethodInfo?>? sharedAi = null,
+        FieldLayoutResolver? fields = null)
     {
         string pad = Indent;
         string pad2 = Indent + Indent;
@@ -357,15 +364,17 @@ public static class BTreeBridgeEmitCore
             try { packedFields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _); }
             catch { packedFields = null; }
         }
+        // ⭐ CE-3182 — THE binding-target resolver for this asset (variables and Variable.Field paths), shared by every thunk.
+        var targets = BindingTargets.For(packedFields, fields);
 
         if (isManaged)
         {
             sb.AppendLine($"{pad2}// 2. Register baked-offset action/condition thunks before Interpreter construction.");
-            EmitManagedActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, sharedAi);
-            EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, sharedAi);
-            EmitStatefulActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, sharedAi);
-            EmitBlueprintActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
-            EmitBlueprintConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
+            EmitManagedActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, targets, sharedAi);
+            EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, targets, sharedAi);
+            EmitStatefulActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, targets, sharedAi);
+            EmitBlueprintActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, targets);
+            EmitBlueprintConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, targets);
         }
         else
         {
@@ -388,7 +397,7 @@ public static class BTreeBridgeEmitCore
         // Must be registered BEFORE Interpreter construction (same ordering rule as thunks).
         if (hasDeactivators)
         {
-            EmitDeactivatorRegistrations(sb, dto, packedFields, deactivators!, pad2, bbShort, ctxShort);
+            EmitDeactivatorRegistrations(sb, dto, packedFields, deactivators!, pad2, bbShort, ctxShort, targets);
 
             // HAJSON-B: compile the blob now that the deactivators are in the registry, so the
             // resource-owning bit is baked for every node whose method has a paired deactivator.
@@ -476,13 +485,11 @@ public static class BTreeBridgeEmitCore
         StringBuilder sb, BehaviorTreeAssetDto dto,
         string pad2, string bbShort, string ctxShort,
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        BindingTargets targets,
         Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         if (packedFields == null) return;
 
-        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
-        foreach (var f in packedFields)
-            offsetMap[f.Name] = f;
 
         // Collect unique (key, MethodFqn, dtoTypeFqn, offset) tuples for actions.
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -496,7 +503,7 @@ public static class BTreeBridgeEmitCore
             if (actNode.DelegateShape != BTreeDelegateShapeDto.Plain) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
-            if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
+            if (!targets.TryResolve(targetField!, out var field)) continue;
 
             string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
@@ -534,13 +541,11 @@ public static class BTreeBridgeEmitCore
         StringBuilder sb, BehaviorTreeAssetDto dto,
         string pad2, string bbShort, string ctxShort,
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        BindingTargets targets,
         Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         if (packedFields == null) return;
 
-        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
-        foreach (var f in packedFields)
-            offsetMap[f.Name] = f;
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var entries = new List<(string Key, string MethodFqn, string DtoTypeId, int Offset)>();
@@ -553,7 +558,7 @@ public static class BTreeBridgeEmitCore
             if (condNode.DelegateShape != BTreeDelegateShapeDto.Plain) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
-            if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
+            if (!targets.TryResolve(targetField!, out var field)) continue;
 
             string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
@@ -627,13 +632,11 @@ public static class BTreeBridgeEmitCore
         StringBuilder sb, BehaviorTreeAssetDto dto,
         string pad2, string bbShort, string ctxShort,
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        BindingTargets targets,
         Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         if (packedFields == null) return;
 
-        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
-        foreach (var f in packedFields)
-            offsetMap[f.Name] = f;
 
         // Collect unique (key, MethodFqn, dtoTypeFqn, paramOffset, slotKey, wsTypeFqn) tuples.
         // Two nodes with the same method + param variable but different VisualIds → distinct slot keys.
@@ -655,7 +658,7 @@ public static class BTreeBridgeEmitCore
             if (shape != BTreeDelegateShapeDto.Stateful) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
-            if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
+            if (!targets.TryResolve(targetField!, out var field)) continue;
 
             // S3-3: scope-aware baked const — Behavior-scoped co-bound nodes bake the same key
             // (and dedup via `seen` below), so they dispatch to one thunk over one shared slot.
@@ -1024,13 +1027,11 @@ public static class BTreeBridgeEmitCore
     private static void EmitBlueprintActionThunks(
         StringBuilder sb, BehaviorTreeAssetDto dto,
         string pad2, string bbShort, string ctxShort,
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        BindingTargets targets)
     {
         if (packedFields == null) return;
 
-        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
-        foreach (var f in packedFields)
-            offsetMap[f.Name] = f;
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var entries = new List<(string Key, string MethodFqn, string DtoTypeId, int Offset, int SlotKey, string WsTypeId, int PredictedSize)>();
@@ -1043,7 +1044,7 @@ public static class BTreeBridgeEmitCore
             if (actNode.DelegateShape != BTreeDelegateShapeDto.AiPrimitiveTickCore) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
-            if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
+            if (!targets.TryResolve(targetField!, out var field)) continue;
 
             int slotKey = ResolveStatefulSlotKey(dto, StatefulScopeVariable(p), actNode.VisualId);
             // WorkingState type is the blueprint's generated WorkingState struct FQN (authored on the node).
@@ -1108,13 +1109,11 @@ public static class BTreeBridgeEmitCore
     private static void EmitBlueprintConditionThunks(
         StringBuilder sb, BehaviorTreeAssetDto dto,
         string pad2, string bbShort, string ctxShort,
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        BindingTargets targets)
     {
         if (packedFields == null) return;
 
-        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
-        foreach (var f in packedFields)
-            offsetMap[f.Name] = f;
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var entries = new List<(string Key, string MethodFqn, string DtoTypeId, int Offset, int SlotKey, string WsTypeId, int PredictedSize)>();
@@ -1127,7 +1126,7 @@ public static class BTreeBridgeEmitCore
             if (condNode.DelegateShape != BTreeDelegateShapeDto.AiPrimitiveTickCore) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
-            if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
+            if (!targets.TryResolve(targetField!, out var field)) continue;
 
             // Slice 1: scope is governed by the working-state variable when distinct from params
             // (mirrors the action path via the BTreeConditionPayloadDto StatefulScopeVariable
@@ -1562,19 +1561,17 @@ public static class BTreeBridgeEmitCore
         StringBuilder sb,
         BehaviorTreeAssetDto dto,
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields,
-        string pad2)
+        string pad2,
+        BindingTargets targets)
     {
         // Build offset map by variable name for quick lookup.
-        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
-        foreach (var f in packedFields)
-            offsetMap[f.Name] = f;
 
         // Baked defaults: variables carrying a non-null DefaultValueJson that are also packed.
         var defaults = new List<(BTreeBlackboardPackHelper.PackedField Field, string DefaultJson)>();
         foreach (var v in dto.Blackboard.Variables)
         {
             if (v.DefaultValueJson == null) continue;
-            if (!offsetMap.TryGetValue(v.Name, out var field)) continue;
+            if (!targets.Variables.TryGetValue(v.Name, out var field)) continue;
             defaults.Add((field, v.DefaultValueJson));
         }
 
@@ -1680,7 +1677,7 @@ public static class BTreeBridgeEmitCore
         //     BehaviorDefinition initializer below. Only emitted when ≥1 variable has a default.
         bool hasParseParams = false;
         if (isManaged && packedFields != null)
-            hasParseParams = EmitParseParamsLocal(sb, dto, packedFields, pad2);
+            hasParseParams = EmitParseParamsLocal(sb, dto, packedFields, pad2, BindingTargets.For(packedFields));
 
         // ⭐⭐ CE-429 — ingress allocates the root block only for a behaviour with a ParseParams
         //   (BehaviorIngressSystem: `def.ParseParams != null`). A block with a State half and no
@@ -2010,14 +2007,13 @@ public static class BTreeBridgeEmitCore
         IReadOnlyList<DeactivatorEntry> deactivators,
         string pad2,
         string bbShort,
-        string ctxShort)
+        string ctxShort,
+        BindingTargets targets)
     {
         if (deactivators.Count == 0) return;
 
         var byMethod = new Dictionary<string, DeactivatorEntry>(StringComparer.Ordinal);
         foreach (var d in deactivators) byMethod[d.TargetMethodFqn] = d;
-        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
-        if (packedFields != null) foreach (var f in packedFields) offsetMap[f.Name] = f;
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         sb.AppendLine();
@@ -2037,7 +2033,7 @@ public static class BTreeBridgeEmitCore
             if (shape == BTreeDelegateShapeDto.NoParams)
                 key = b.MethodFqn!;
             else if ((shape == BTreeDelegateShapeDto.Plain || shape == BTreeDelegateShapeDto.Stateful)
-                     && !string.IsNullOrEmpty(b.ExpressionTargetField) && offsetMap.TryGetValue(b.ExpressionTargetField!, out var field))
+                     && !string.IsNullOrEmpty(b.ExpressionTargetField) && targets.TryResolve(b.ExpressionTargetField!, out var field))
             {
                 offset = field.ByteOffset;
                 key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(b.MethodFqn, offset);   // ⭐ CE-2032

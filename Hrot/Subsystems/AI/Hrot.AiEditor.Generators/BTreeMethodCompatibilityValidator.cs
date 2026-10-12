@@ -162,6 +162,29 @@ internal static class BTreeMethodCompatibilityValidator
     /// variable as that type, so a mismatch would be a silent type-pun). ⛔ The retired BTree-only forms
     /// (<c>ref BehaviorTreeState, ref TCtx</c>) are reported here by name.
     /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-3182</c> — the binding's target: the variable it names, or — for a <c>Variable.Field[.Sub…]</c> path — a stand-in
+    /// variable carrying the LEAF field's type, laid out by the same Roslyn layout the emitter bakes the offset from
+    /// (<c>StructSizeResolver.ResolveFieldOf</c>). <c>null</c> when the root is not a variable or a segment cannot be laid out.
+    /// </summary>
+    internal static BlackboardVariableDto? ResolveTarget(BlackboardBlockDto blackboard, string path, Compilation compilation)
+    {
+        string? root = Hrot.AiEditor.Persistence.BindingPath.Root(path);
+        BlackboardVariableDto? variable = null;
+        foreach (var v in blackboard.Variables)
+            if (string.Equals(v.Name, root, StringComparison.Ordinal)) { variable = v; break; }
+        string? rest = Hrot.AiEditor.Persistence.BindingPath.Field(path);
+        if (variable == null || rest == null) return variable;
+
+        string typeId = variable.Type?.TypeId ?? string.Empty;
+        foreach (var segment in rest.Split(Hrot.AiEditor.Persistence.BindingPath.Separator))
+        {
+            if (StructSizeResolver.ResolveFieldOf(typeId, segment, compilation) is not { } f) return null;
+            typeId = f.TypeId;
+        }
+        return new BlackboardVariableDto { Name = path, Type = new BlackboardTypeRefDto { TypeId = typeId } };
+    }
+
     private static string? CheckSharedWithParams(
         string methodFqn,
         BTreeDelegateShapeDto shape,
@@ -175,17 +198,10 @@ internal static class BTreeMethodCompatibilityValidator
         if (!blackboard.Managed)
             return $"{shape} binding requires a managed blackboard (Managed=true); got Managed=false";
 
-        BlackboardVariableDto? targetVar = null;
-        foreach (var v in blackboard.Variables)
-        {
-            if (string.Equals(v.Name, expressionTargetField, StringComparison.Ordinal))
-            {
-                targetVar = v;
-                break;
-            }
-        }
+        BlackboardVariableDto? targetVar = ResolveTarget(blackboard, expressionTargetField!, compilation);
         if (targetVar == null)
-            return $"{shape}: variable '{expressionTargetField}' not found in the managed blackboard block";
+            return $"{shape}: '{expressionTargetField}' is not a variable of the managed blackboard block, nor a field of one " +
+                   "whose layout is known (CE-3182)";
 
         IMethodSymbol? method = ResolveMethod(compilation, methodFqn);
         if (method == null)
@@ -231,17 +247,10 @@ internal static class BTreeMethodCompatibilityValidator
         if (!blackboard.Managed)
             return "AiPrimitiveTickCore binding requires a managed blackboard (Managed=true); got Managed=false";
 
-        BlackboardVariableDto? targetVar = null;
-        foreach (var v in blackboard.Variables)
-        {
-            if (string.Equals(v.Name, expressionTargetField, StringComparison.Ordinal))
-            {
-                targetVar = v;
-                break;
-            }
-        }
+        BlackboardVariableDto? targetVar = ResolveTarget(blackboard, expressionTargetField!, compilation);
         if (targetVar == null)
-            return $"AiPrimitiveTickCore: variable '{expressionTargetField}' not found in the managed blackboard block";
+            return $"AiPrimitiveTickCore: '{expressionTargetField}' is not a variable of the managed blackboard block, nor a field " +
+                   "of one whose layout is known (CE-3182)";
 
         IMethodSymbol? method = ResolveMethod(compilation, methodFqn);
         if (method == null)

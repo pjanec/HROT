@@ -134,11 +134,13 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         //   EMPTY, and the asset emits no ParseParams and no param bindings AT ALL. ⛔ Silent, and
         //   the symptom is a hosted blueprint whose params are always zero.
         System.Func<string, int?>? sizeResolver = null;
+        Hrot.AiEditor.Persistence.Emit.FieldLayoutResolver? fieldResolver = null;   // ⭐ CE-3182 — Variable.Field binding paths
         if (dto.Blackboard != null && dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
         {
             // ⭐ CE-439, CE-2026 — and a SIBLING behaviour's Inputs struct (BTree or HSM: a hosted subtree's bound params
             //   variable). The ONE resolver every generator injects (GeneratedTypeCatalog.SizeResolver).
             sizeResolver = siblings.SizeResolver(compilation);
+            fieldResolver = siblings.FieldResolver(compilation);
         }
 
         System.Func<System.Guid, ushort?> blueprintIdResolver = assetId =>
@@ -233,11 +235,11 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         bool sharedAiOk = true;
         // ⭐ S8 — the HSM binds every shared form; only a stateful binding whose working state is not a block St member of the
         //   method's WS type is unbindable, and that is an error, never a silent skip.
-        foreach (var (site, fqn, problem) in Hrot.AiEditor.Persistence.Emit.SharedAiBindings.UnbindableBindings(dto, sharedAi, sizeResolver))
+        foreach (var (site, fqn, problem) in Hrot.AiEditor.Persistence.Emit.SharedAiBindings.UnbindableBindings(dto, sharedAi, sizeResolver, fieldResolver))
         {
             spc.ReportDiagnostic(MakeSharedAiTypeDiagnostic(path,
-                $"{site} binds the stateful shared method '{fqn}', but it {problem} (design S8: an HSM stateful method's working " +
-                "state lives in the HSM's block St)."));
+                $"{site} binds the shared method '{fqn}', but it {problem} (design S8: an HSM stateful method's working " +
+                "state lives in the HSM's block St; CE-3182: a field path must name a field of a packed variable)."));
             sharedAiOk = false;
         }
         // ⭐ CE-506 — a global transition binds methods only (the facet offers no blueprint there): reported, never dropped.
@@ -256,7 +258,7 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
             }
         }
         foreach (var e in Hrot.AiEditor.Persistence.Emit.SharedAiBindings.Collect(
-                     dto, HsmBridgeEmitCore.PackParamsFor(dto, sizeResolver), sharedAi, sizeResolver))
+                     dto, HsmBridgeEmitCore.PackParamsFor(dto, sizeResolver), sharedAi, sizeResolver, fieldResolver))
         {
             if (e.Form == Hrot.AiEditor.Persistence.Emit.SharedAiBindings.Form.NoParams) continue;   // S8: binds no variable
             if (string.Equals(e.VariableTypeId, e.Method.ParamTypeId, StringComparison.Ordinal)) continue;
@@ -273,7 +275,7 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
             //   [HsmAction(Lane = …)]; Fhsm.Compiler takes actions as names and does no reflection.
             source = HsmEmitCore.EmitTopologyCore(dto, sizeResolver, blueprintIdResolver,
                                                  blueprintClassNameResolver, csharpWritesChannel, sharedAi,
-                                                 HsmActionLaneResolver.Make(compilation));
+                                                 HsmActionLaneResolver.Make(compilation), fieldResolver);
         }
         catch (Exception ex)
         {
@@ -292,7 +294,7 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         string bridge;
         try
         {
-            bridge = HsmBridgeEmitCore.EmitBridge(dto, sizeResolver, sharedAi);
+            bridge = HsmBridgeEmitCore.EmitBridge(dto, sizeResolver, sharedAi, fieldResolver);
         }
         catch (Exception ex)
         {

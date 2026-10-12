@@ -43,7 +43,7 @@ public sealed class BTreeBlackboardVariableContributor : IReferenceCatalogContri
                 HostKind:        AssetKind.BTree,
                 HostElementId:   node.VisualId,
                 HostDisplayPath: node.DisplayLabel,
-                TargetKey:       BlackboardVariableSubElement.KeyFor(btAsset.AssetId, etf),
+                TargetKey:       BlackboardVariableSubElement.KeyFor(btAsset.AssetId, Hrot.AiEditor.Persistence.BindingPath.Root(etf)!),   // ⭐ CE-3182 — the variable a path names
                 TargetKind:      SubElementKind.BlackboardVariable));
         }
         return result;

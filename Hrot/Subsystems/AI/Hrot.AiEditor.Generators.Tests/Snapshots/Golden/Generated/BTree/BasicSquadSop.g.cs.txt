@@ -8,6 +8,7 @@ using Fbt;
 using Fbt.Compiler;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Brains;
 
 namespace Hrot.AI.Behaviors.Trees;
 
@@ -17,6 +18,14 @@ public static class BasicSquadSop
         new BTreeBuilder<byte, BTreeContext>()
             .Selector(sel =>
             {
+                sel.Sequence(seq =>
+                {
+                    seq.Condition("Hrot.AI.Behaviors.Brains.SquadSopConditions.SensedFreshAboard@0",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000041"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:SquadDismount:UnderFire@-1",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000042"));
+                },
+                    visualId: new Guid("c2123000-0000-0000-0000-000000000040"));
                 sel.Sequence(seq =>
                 {
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@0",
