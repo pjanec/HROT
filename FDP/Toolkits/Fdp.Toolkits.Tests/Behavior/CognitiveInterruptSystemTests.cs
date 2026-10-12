@@ -59,6 +59,20 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(1, bb.Interrupt_MobilityLost);
         }
 
+        /// <summary>⭐ <c>CE-3110</c> I-2b — a seat is not damage: boarding strips CanMove, but a passenger (it carries
+        /// <see cref="IsEmbarkedTag"/>) gets no <c>MobilityLost</c>. 📄 docs/DESIGN_Entity_Interactions.md §7.1c.</summary>
+        [Fact]
+        public void CE3110_I2b_BoardingStripsCanMove_ButIsNotMobilityLost()
+        {
+            var e = CreateEntity(current: ActorCapabilities.None, previous: ActorCapabilities.CanMove);
+            _world.AddComponent(e, new IsEmbarkedTag { VehicleEntity = _world.CreateEntity() });
+
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Equal(0, _world.GetComponent<BrainInterrupts>(e).Interrupt_MobilityLost);
+            Assert.Equal(ActorCapabilities.None, _world.GetComponent<PreviousCapabilities>(e).Capabilities);   // the shadow still follows
+        }
+
         [Fact]
         public void CognitiveInterrupt_StaysNoCanMove_DoesNotSetByteAgain()
         {

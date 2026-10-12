@@ -92,6 +92,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 .WithOwnedWhen<BrainInterrupts>(_gateOnAuthority)
                 .Build();
 
+            bool embarkedRegistered = repo.IsComponentTypeRegistered<IsEmbarkedTag>();
             foreach (var entity in q)
             {
                 var curr = repo.GetComponent<ActorCapabilityState>(entity);
@@ -100,7 +101,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 bool wasAbleToMove = (prev.Capabilities & ActorCapabilities.CanMove) != 0;
                 bool canMoveNow    = (curr.Capabilities & ActorCapabilities.CanMove) != 0;
 
-                if (wasAbleToMove && !canMoveNow)
+                // ⭐ CE-3110 I-2b: a seat is not "mobility lost" (that means damage) — boarding strips CanMove, no interrupt.
+                if (wasAbleToMove && !canMoveNow && !(embarkedRegistered && repo.HasComponent<IsEmbarkedTag>(entity)))
                 {
                     ref var bb = ref repo.GetComponentRW<BrainInterrupts>(entity);
                     bb.Interrupt_MobilityLost = 1;

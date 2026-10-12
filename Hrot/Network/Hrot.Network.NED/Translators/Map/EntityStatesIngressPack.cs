@@ -63,6 +63,7 @@ public class EntityStatesIngressPack : IEcsModule
             new EntityWeaponPostureIngressTranslator(participant, entityMap),
             new EntityPossessedByIngressTranslator(participant, entityMap),   // ⭐ CE-3172 S4e — a station sees who holds a unit
             new EntityWeaponAmmoIngressTranslator(participant, entityMap),    // ⭐ CE-3174 — and the ammunition its HUD shows
+            new EntityPassengersIngressTranslator(participant, entityMap),    // ⭐ CE-3110 I-2b — who rides in what (I-2c hides them)
         };
     }
 

@@ -114,6 +114,7 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtManualDrive, GlobalComponentIds.ManualDrive);
         map.RegisterMapping((long)EDescriptorType.dtPossessedBy, GlobalComponentIds.PossessedBy);
         map.RegisterMapping((long)EDescriptorType.dtWeaponAmmo, GlobalComponentIds.WeaponAmmo);   // ⭐ CE-3174 — the HUD's ammunition
+        map.RegisterMapping((long)EDescriptorType.dtPassengerBuffer, GlobalComponentIds.PassengerBuffer);   // ⭐ CE-3110 I-2b — the vehicle's passengers (Brain group)
 
         map.BindGroups(HrotOwnershipGroups.Table, Anchors);
 

@@ -185,7 +185,8 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-2074 / CE-2076 (2026-10-04) — 2 MORE: RoeSystem (MissionControlModule) and RecentSensesSystem
             //   (CognitiveRuntimeModule's input phase).
             // ⭐ CE-3172 (2026-10-11) — 1 MORE: PossessionSystem (the brain owner's side of possession), first.
-            Assert.Equal(5,  pack.InputSystems.Count);
+            // ⭐ CE-3110 I-2b (2026-10-12) — 1 MORE: EmbarkedStateSystem (the passenger side from the replicated list).
+            Assert.Equal(6,  pack.InputSystems.Count);
             // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
             //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
             //   📌 A hard-coded count is a tripwire for exactly this, and it fired; nobody read it.
@@ -403,7 +404,8 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-2074 / CE-2076 (2026-10-04) — 2 MORE: RoeSystem (MissionControlModule) and RecentSensesSystem
             //   (CognitiveRuntimeModule's input phase).
             // ⭐ CE-3172 (2026-10-11) — 1 MORE: PossessionSystem (the brain owner's side of possession), first.
-            Assert.Equal(5,  pack.InputSystems.Count);
+            // ⭐ CE-3110 I-2b (2026-10-12) — 1 MORE: EmbarkedStateSystem (the passenger side from the replicated list).
+            Assert.Equal(6,  pack.InputSystems.Count);
             // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
             //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
             //   📌 A hard-coded count is a tripwire for exactly this, and it fired; nobody read it.
@@ -463,7 +465,7 @@ namespace Hrot.SimHost.Tests
             // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
             // ⛔ O7c-④b (2026-09-23): 19 → 18 — the two brain ticks merged (§31.14 / §31.16).
             // ⭐ CE-454 (2026-10-02): 18 → 19 — SquadCoordinationSystem (DESIGN_Squad_Wiring.md §3 W2).
-            Assert.Equal(27, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-3110 I-2a: +1 (EmbarkationSystem) · CE-2125: +1 (UnitCentroidSystem) · CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · 5d-1: +1 (DoorCommandSystem) · CE-3172: +1 (PossessionSystem) · CE-3174: +1 (WeaponAmmoMirrorSystem)
+            Assert.Equal(28, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-3110 I-2b: +1 (EmbarkedStateSystem) · CE-3110 I-2a: +1 (EmbarkationSystem) · CE-2125: +1 (UnitCentroidSystem) · CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · 5d-1: +1 (DoorCommandSystem) · CE-3172: +1 (PossessionSystem) · CE-3174: +1 (WeaponAmmoMirrorSystem)
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────

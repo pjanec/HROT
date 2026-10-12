@@ -106,6 +106,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3174 (C-7) — the ammunition per mount (Brain → every node), for the FPS HUD on any station.
             yield return new EntityWeaponAmmoEgressTranslator(participant);
             yield return new EntityWeaponAmmoIngressTranslator(participant, entityMap);
+            // ⭐ CE-3110 I-2b (R-224) — a vehicle's passenger list (its owner → every node; each derives the passenger's side).
+            yield return new EntityPassengersEgressTranslator(participant);
+            yield return new EntityPassengersIngressTranslator(participant, entityMap);
             // ⭐ R-221 — every interaction kind (doors first) travels to the target's owner on ONE topic; the kind's handler applies it there.
             yield return new Hrot.Map.Common.Replication.Interactions.InteractionEgressTranslator(participant, entityMap);
             yield return new Hrot.Map.Common.Replication.Interactions.InteractionIngressTranslator(participant, entityMap);

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-12 (I-2a BUILT — §7.1b)
+updated: 2026-10-12 (I-2a BUILT — §7.1b; I-2b BUILT — §7.1d)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: nothing yet
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
@@ -310,6 +310,102 @@ that does not go through a command.*
 | `CgfLogicPackTests` | 22 simulation systems (+ `EmbarkationSystem`) |
 | `EditorAuthoringIntegrationTests.Embarkation_*` / `Disembark_*` (the real editor) | the editor still boards and leaves through the ORBAT — now via `CgfLogicPack` |
 | ⛔ `UrbanCombatNewScenarioTests` (FDP) | end to end: the APC is hit, ejects, the squad kills the insurgent — 🔴 **cannot gate yet: red at the base commit too** (`hit=False`, with the ballistics suite; `CE-2126`). Identical 7/45/12 before and after I-2a |
+
+#### 7.1c I-2b — the passenger list on every node *(build-state: BUILT `2026-10-12`, behaviors lane; R-224 / Q-1 approved — as built: §7.1d)*
+
+```mermaid
+classDiagram
+  class PassengerBuffer { <<existing, now BRAIN group>> Count · Passengers[8] }
+  class EntityPassengers { <<NEW DDS, dtPassengerBuffer 131>> EntityId key · Count · Passenger0..7 network ids }
+  class EntityPassengersEgressTranslator { <<NEW>> owner of PackKey(131) · on change · never an untouched empty list }
+  class EntityPassengersIngressTranslator { <<NEW>> ids → entities · holds a sample until every passenger is known · never its own }
+  class EmbarkedStateSystem { <<NEW, Input, before CognitiveInterruptSystem>> list ⇒ tag + caps · left ⇒ untag + caps back + place (position owner) }
+  class Embarkation { <<I-2a>> list rules · Board / Leave = THE passenger-side helpers · OwnsVehicle on PackKey(131) }
+  class CognitiveInterruptSystem { <<existing, CHANGED>> no MobilityLost for a passenger }
+  EntityPassengersEgressTranslator ..> PassengerBuffer : reads (owner)
+  EntityPassengersIngressTranslator ..> PassengerBuffer : writes (others)
+  EmbarkedStateSystem ..> Embarkation : Board / Leave
+  EmbarkedStateSystem ..> PassengerBuffer : reads
+```
+
+```mermaid
+sequenceDiagram
+  participant O as CGF (vehicle's brain owner)
+  participant W as wire (dtPassengerBuffer)
+  participant S as SimHost (soldier's position owner)
+  O->>O: EmbarkationSystem: TryEmbark ⇒ list += soldier (tag + caps locally)
+  O->>W: EntityPassengers {APC, [soldier]}
+  W->>S: ingress ⇒ PassengerBuffer (once the soldier is known)
+  S->>S: EmbarkedStateSystem: soldier listed, no tag ⇒ tag + CanMove/CanShoot off
+  O->>O: EjectAll ⇒ list empty (locally: untag, caps back)
+  O->>W: EntityPassengers {APC, []}
+  W->>S: list empty
+  S->>S: EmbarkedStateSystem: tagged, not listed ⇒ untag, caps back, PLACE beside the hull (S owns the soldier's position)
+```
+
+```mermaid
+graph TD
+  SP[SharedTranslatorPack - every networked host] --> EG[EntityPassengersEgress]
+  SP --> IN[EntityPassengersIngress]
+  CLP["CgfLogicPack input list (CGF + editor)"] --> ES[EmbarkedStateSystem]
+  SNB["SimHostNodeBootstrapper global systems (beside genesis)"] --> ES
+  ES -->|before| CIS[CognitiveInterruptSystem - CGF Input]
+  ES -.->|"same phase, order free: reacts to CanAim / CanPlayAnimations only"| ACR[AnimationCapabilityChangeReactor - SimHost Input]
+  ES -->|before| DISP["dispatchers + animation (Simulation)"]
+```
+*What the pictures show that prose hid: the passenger's side has ONE writer function (`Embarkation.Board` / `Leave`) and two callers
+— the deciding node right away, every node from the list it holds — so no node ever writes it from a second rule; and the body is
+placed only where its position is owned (SimHost), because a CGF write to a soldier's `SimTransform` would be overwritten by SimHost's
+replicated position the next frame.*
+
+| claim the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| `ActorCapabilityState` never crosses the wire | ✅ Brain group (`HrotOwnershipGroups.cs:54`), but no translator names it (grep `Hrot/Network`, `Replication/`: 0) | ✅ Q-1: each node derives the passenger's side |
+| a soldier's position is SimHost's | ✅ `SimTransform` in the MuscleGround group (`HrotOwnershipGroups.cs`, dtWorldPos) | ✅ R-170 |
+| every brained entity carries an empty `PassengerBuffer` | ✅ `BehaviorTkbTranslator.cs:161` | — ⇒ the egress sends nothing for a list never filled |
+| boarding fires `MobilityLost` | 🔴 ✅ `CognitiveInterruptSystem.cs` Pass B: any CanMove→cleared, no exception (true before I-2a too: the old `EmbarkExecutor` stripped it) | ⛔ "mobility lost" means damage, not a seat ⇒ fixed here |
+| the animation reactor is unaffected | ✅ reacts to `CanPlayAnimations` / `CanAim` loss only | — |
+| ordinal 131 is free | ✅ `AllDescriptors.cs` on `behaviors`, `origin/backend`, `origin/ui` (`2026-10-12`): last is 130 | — |
+
+| decision | ⭐ lean | rejected (one line each) |
+|---|---|---|
+| the wire shape | `EntityPassengers` with eight scalar network-id fields (the `EntityWeaponAmmo` shape), keyed by the vehicle, Reliable + TransientLocal + KeepLast 1 | a sequence: no descriptor here carries one · entity handles: node-local |
+| the owner gate | `PackKey(dtPassengerBuffer = 131)` in the BRAIN group (`Embarkation.OwnsVehicle` and the egress); a vehicle with no brain falls back to its creator | the vehicle's primary owner: the group exists so a role, not a node, owns it |
+| a passenger the ingress does not know yet | hold the newest sample per vehicle and apply it once every id resolves | drop it: TransientLocal sends once, so a dropped sample would leave the list wrong until it next changed |
+| restoring capabilities | CanMove/CanShoot back unless the passenger is dead | remembering exactly what was stripped: no reader needs it yet (I-2c can add it with its own field) |
+| who places a leaving body | the node owning the passenger's POSITION (`PackKey(dtWorldPos = 2)`), at the hull column in leaving order | the vehicle's owner: its write is overwritten (above) |
+| `MobilityLost` | `CognitiveInterruptSystem` skips an entity carrying `IsEmbarkedTag` | a separate "boarded" interrupt: nothing would read it |
+
+| rail (I-2b acceptance) | where |
+|---|---|
+| a list published by the owner arrives on another node; a passenger not yet known holds the sample; the owner never takes its own back; an untouched empty list is never sent | `PassengerReplicationTests` (SimHost.Tests) |
+| derived on a node that did not decide: tag + caps on boarding; untag + caps back + placed beside the hull on leaving, only where the position is owned | `EmbarkedStateSystemTests` (FDP) |
+| boarding is not `MobilityLost` | `CognitiveInterruptSystem` suite |
+| the two ordinals pinned to NED | a rail beside the door's |
+
+#### 7.1d I-2b as built *(`2026-10-12`, behaviors lane)*
+
+⭐ Built to §7.1c's three diagrams with no structural deviation: the classes, the sequence and the module graph above are the as-built.
+What the build settled that the design left open:
+
+| detail | as built | file |
+|---|---|---|
+| the wire sample | `EntityPassengers` — `EntityId` key, `Count`, `Passenger0..7` network ids; a passenger with no `NetworkIdentity` is left out | `SimDescriptors.cs`, `AllDescriptors.cs` (`dtPassengerBuffer = 131`) |
+| the egress's "never filled" rule | skips a vehicle whose list it has never sent **and** whose list is empty; after that, any change (including to empty) is sent once | `EntityPassengersTranslators.cs` |
+| the ingress hold | the NEWEST sample per vehicle waits in `_pending`; a later sample replaces it; it applies when the vehicle and every passenger resolve | same |
+| a passenger moved straight to another vehicle | `EmbarkedStateSystem` re-tags it (boarding wins) — it does not leave and re-board | `EmbarkedStateSystem.cs` |
+| the vehicle already gone | a tagged passenger whose vehicle no longer exists leaves where it stands (I-2c will kill it instead, R-271) | same |
+| registration | CGF + editor: `CgfLogicPack` input list, before the cognitive module's systems · SimHost: a global system beside genesis · Stride: ⛔ not registered (🔒 *"Ignore stride host"*) | `CgfLogicPack.cs`, `SimHostNodeBootstrapper.cs` |
+| ownership | `dtPassengerBuffer` ↔ `PassengerBuffer` in `NedOwnershipGroupBinding`; `PassengerBuffer` joins the BRAIN group | `NedOwnershipGroupBinding.cs`, `HrotOwnershipGroups.cs` |
+
+| rail | where |
+|---|---|
+| the owner's list reaches the other node once every passenger is known (held before); an empty list empties it there; an untouched empty list is never sent; unchanged ⇒ said once | `PassengerReplicationTests.CE3110_I2b_TheOwnersList_…` (SimHost.Tests) |
+| only the `dtPassengerBuffer` owner publishes / arbitrates; the owner drops its own sample | `PassengerReplicationTests.CE3110_I2b_OnlyTheDescriptorOwner…` |
+| the toolkit's two ordinals are NED's descriptors | `PassengerReplicationTests.CE3110_I2b_TheToolkitsOrdinals_…` |
+| a list that arrives tags + strips; an emptied list untags, gives caps back, places beside the hull ONLY where the position is owned; the deciding node is a no-op; a move re-tags; a dead passenger gets no caps back | `EmbarkedStateSystemTests` (FDP, 5) |
+| boarding is not `MobilityLost` | `CognitiveInterruptSystemTests.CE3110_I2b_BoardingStripsCanMove_ButIsNotMobilityLost` |
+| `dtPassengerBuffer` is in the Brain group's descriptor set | `RoleGroupOwnershipStrategyTests`, `TheDescriptorMapIsWiredTests` |
 
 ### 7.2 What "inside" means *(✅ ruled `2026-10-11`, R-271 — I-2c)*
 

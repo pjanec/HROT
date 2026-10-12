@@ -34,22 +34,36 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>Spacing of the dismounted column along the vehicle (m).</summary>
         public const float DismountSpacing = 1.5f;
 
+        /// <summary>⭐ <c>CE-3110</c> I-2b — NED's <c>dtPassengerBuffer</c>: the vehicle's passenger list is published under this key (Brain
+        /// group), and only its owner arbitrates a boarding. A rail pins it to <c>EDescriptorType</c> (as the door's ordinal is).</summary>
+        public const long PassengerBufferDescriptorOrdinal = 131;
+        /// <summary>NED's <c>dtWorldPos</c>: the node owning a passenger's POSITION is the one that places it beside the hull.</summary>
+        public const long PositionDescriptorOrdinal = 2;
+
+        public static readonly long PassengerBufferKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(PassengerBufferDescriptorOrdinal, 0);
+        public static readonly long PositionKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(PositionDescriptorOrdinal, 0);
+
         /// <summary>The capabilities a seat takes away (and leaving gives back).</summary>
         public const ActorCapabilities StrippedAboard = ActorCapabilities.CanMove | ActorCapabilities.CanShoot;
 
         /// <summary>
         /// True when THIS node arbitrates boarding for <paramref name="vehicle"/> (R-224: the vehicle's owner). With no
         /// <see cref="NetworkAuthority"/> (one node, the editor) every vehicle is ours — ⛔ except a GHOST, a replica whose master has not
-        /// arrived (applying there would fork the passenger list). ⚠ I-2a gates on the vehicle's PRIMARY authority; I-2b moves it to the
-        /// <c>PassengerBuffer</c> descriptor's key, as doors gate on theirs (<c>DoorCommandSystem.OwnsDoor</c>).
+        /// arrived (applying there would fork the passenger list). ⭐ I-2b: the owner of <see cref="PassengerBufferKey"/> (the vehicle's
+        /// brain group), as doors gate on theirs (<c>DoorCommandSystem.OwnsDoor</c>).
         /// </summary>
         public static bool OwnsVehicle(EntityRepository repo, Entity vehicle)
         {
             if (!repo.IsAlive(vehicle) || !repo.HasComponent<PassengerBuffer>(vehicle)) return false;
             if (!(repo.IsComponentTypeRegistered<NetworkAuthority>() && repo.HasComponent<NetworkAuthority>(vehicle))
                 && repo.GetLifecycleState(vehicle) == EntityLifecycle.Ghost) return false;
-            return Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(repo, vehicle);
+            return Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(repo, vehicle, PassengerBufferKey);
         }
+
+        /// <summary>True when this node owns <paramref name="passenger"/>'s position (it places a leaving body). With no
+        /// <see cref="NetworkAuthority"/> (one node), always.</summary>
+        public static bool OwnsPosition(EntityRepository repo, Entity passenger)
+            => Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(repo, passenger, PositionKey);
 
         /// <summary>Is <paramref name="passenger"/> in <paramref name="vehicle"/>'s list?</summary>
         public static bool IsAboard(EntityRepository repo, Entity passenger, Entity vehicle)
@@ -60,11 +74,11 @@ namespace Fdp.Toolkit.Behavior
         public static EmbarkResult TryEmbark(EntityRepository repo, Entity passenger, Entity vehicle)
         {
             if (!repo.IsAlive(passenger) || !repo.IsAlive(vehicle) || !repo.HasComponent<PassengerBuffer>(vehicle)) return EmbarkResult.Invalid;
-            if (IsAboard(repo, passenger, vehicle)) { BoardSide(repo, passenger, vehicle); return EmbarkResult.AlreadyAboard; }
+            if (IsAboard(repo, passenger, vehicle)) { Board(repo, passenger, vehicle); return EmbarkResult.AlreadyAboard; }
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
             if (buffer.Count >= PassengerBuffer.Capacity) return EmbarkResult.Full;
             buffer.Passengers[buffer.Count++] = passenger;
-            BoardSide(repo, passenger, vehicle);
+            Board(repo, passenger, vehicle);
             return EmbarkResult.Applied;
         }
 
@@ -84,7 +98,7 @@ namespace Fdp.Toolkit.Behavior
             buffer.Passengers[slot] = buffer.Passengers[buffer.Count - 1];
             buffer.Passengers[buffer.Count - 1] = Entity.Null;
             buffer.Count--;
-            LeaveSide(repo, passenger, at);
+            Leave(repo, passenger, at);
             return true;
         }
 
@@ -100,7 +114,7 @@ namespace Fdp.Toolkit.Behavior
                 var passenger = buffer.Passengers[i];
                 buffer.Passengers[i] = Entity.Null;
                 if (!repo.IsAlive(passenger)) continue;   // killed aboard — skipped, not an error
-                LeaveSide(repo, passenger, DismountPoint(repo, vehicle, i, buffer.Count));
+                Leave(repo, passenger, DismountPoint(repo, vehicle, i, buffer.Count));
                 left++;
             }
             buffer.Count = 0;
@@ -138,17 +152,27 @@ namespace Fdp.Toolkit.Behavior
             return -1;
         }
 
-        private static void BoardSide(EntityRepository repo, Entity passenger, Entity vehicle)
+        /// <summary>
+        /// ⭐ THE passenger-side writer, boarding (I-2b): the tag naming its vehicle, CanMove/CanShoot off. Two callers — the deciding node at
+        /// once (<see cref="TryEmbark"/>) and every node from the list it holds (<c>EmbarkedStateSystem</c>) — so no node writes it from a
+        /// second rule. Idempotent.
+        /// </summary>
+        public static void Board(EntityRepository repo, Entity passenger, Entity vehicle)
         {
             if (Has<ActorCapabilityState>(repo, passenger))
                 repo.GetComponentRW<ActorCapabilityState>(passenger).Capabilities &= ~StrippedAboard;
             repo.SetComponent(passenger, new IsEmbarkedTag { VehicleEntity = vehicle });
         }
 
-        private static void LeaveSide(EntityRepository repo, Entity passenger, Vector3 at)
+        /// <summary>
+        /// ⭐ THE passenger-side writer, leaving (I-2b): the tag gone, CanMove/CanShoot back (not for the dead), and — ONLY on the node owning
+        /// the passenger's position (<see cref="OwnsPosition"/>) — standing at <paramref name="at"/>: a write anywhere else is overwritten by
+        /// the owner's replicated position.
+        /// </summary>
+        public static void Leave(EntityRepository repo, Entity passenger, Vector3 at)
         {
-            if (Has<SimTransform>(repo, passenger)) repo.GetComponentRW<SimTransform>(passenger).Position = at;
-            if (Has<ActorCapabilityState>(repo, passenger))
+            if (Has<SimTransform>(repo, passenger) && OwnsPosition(repo, passenger)) repo.GetComponentRW<SimTransform>(passenger).Position = at;
+            if (Has<ActorCapabilityState>(repo, passenger) && Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, passenger))
                 repo.GetComponentRW<ActorCapabilityState>(passenger).Capabilities |= StrippedAboard;
             if (Has<IsEmbarkedTag>(repo, passenger)) repo.RemoveComponent<IsEmbarkedTag>(passenger);
         }

@@ -222,6 +222,8 @@ namespace Hrot.CGF
             inputList.Add(new Fdp.Toolkit.Behavior.Possession.PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl));
             inputList.Add(_missionExecutionSystem);
             foreach (var s in _missionControlModule.InputSystems) inputList.Add(s);
+            // ⭐ CE-3110 I-2b (R-224) — the passenger side follows the replicated list; before CognitiveInterruptSystem (it skips a passenger).
+            inputList.Add(new Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem());
             foreach (var s in _cognitiveRuntimeModule.InputSystems) inputList.Add(s);
 
             simList.Add(_missionAdapterSystem);
