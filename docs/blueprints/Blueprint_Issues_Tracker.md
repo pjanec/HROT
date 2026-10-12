@@ -41,9 +41,9 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 > | lane | block | next free *(update when you allocate)* |
 > |---|---|---|
 > | `ui` | **`CE-1000` – `CE-1999`** | `CE-1053` |
-> | `behaviors` | **`CE-2000` – `CE-2999`** | `CE-2125` *(`CE-2010`–`CE-2029` reserved for the typed-event-nodes batch; it used `CE-2010`–`CE-2017`; the lane resumed at `CE-2018`)* |
+> | `behaviors` | **`CE-2000` – `CE-2999`** | `CE-2145` *(`CE-2010`–`CE-2029` reserved for the typed-event-nodes batch; it used `CE-2010`–`CE-2017`; the lane resumed at `CE-2018`)* |
 > | `backend` | **`CE-3000` – `CE-3999`** | `CE-3167` |
-> | *a new lane* | the next free thousand — **add its row here first** | |
+> | *a new lane* | the next free thousand — **add its row here first** (and the same thousand in `RULINGS.md` §0a for its ruling ids) | |
 >
 > ⭐ Ids below `CE-1000` stay as they are (highest in use `CE-524`, measured `2026-10-02` at the `backend` merge). ⛔ **Never renumber.**
 > ⚠ **Eight ids were allocated twice before the blocks existed** — each row carries a **lane tag** instead:

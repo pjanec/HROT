@@ -183,8 +183,8 @@ DESIGN BRIEF (post-compaction) -- lane: <lane>
 FMT
 echo
 echo "SPOT-CHECK these three (drawn at random, so a canned answer will not fit):"
-grep -oE '^\| (⭐|⚠|⛔|🔴| )*\*\*R-[0-9]+[a-z]?\*\*' "$LEDGER" 2>/dev/null \
-  | grep -oE 'R-[0-9]+[a-z]?' | sort -u | shuf -n 3 | sed 's/^/  - /'
+grep -oE '^\| (⭐|⚠|⛔|🔴| )*\*\*R-[0-9]+[a-z]?( \([a-z]+\))?\*\*' "$LEDGER" 2>/dev/null \
+  | grep -oE 'R-[0-9]+[a-z]?( \([a-z]+\))?' | sort -u | shuf -n 3 | sed 's/^/  - /'
 echo
 echo "If you cannot fill a line, SAY SO rather than guessing -- an empty line is a"
 echo "finding about the ledger, not something to paper over."

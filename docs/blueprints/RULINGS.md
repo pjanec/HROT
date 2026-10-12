@@ -6,6 +6,7 @@ current-answer: this file is now LEAN. Feature intent lives in the DESIGN docs (
   This file holds ONLY what those two cannot: engine invariants, silent-failure hazards,
   and cross-cutting decisions with no single design home.
 stale-below: nothing.
+id-blocks: 2026-10-12 — NEW rulings take ids from their lane's block (§0a: ui R-1000…, behaviors R-2000…, backend R-3000…); the collisions below predate the blocks and keep their lane tags.
 id-collision: 2026-10-11 — the ui and backend lanes BOTH allocated R-269 the same day (ui: wrecks + Lifespan; backend: AQ89
   suppress-and-close). ⛔ Not renumbered (ids are written into sources, commits and designs): each row carries a lane tag,
   R-269 (ui) and R-269 (backend). R-271 was ALSO allocated by both lanes the same day (ui: lightweight replicated rounds; backend: entity control messaging) — tagged the same way, R-271 (ui) and R-271 (backend); the behaviors lane used R-271 too (passengers) — R-271 (behaviors). Next free R-273.
@@ -84,6 +85,25 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | ⭐⭐ **a FEATURE design question** | ⛔ **do not look here first** — `grep -rln docs` for the feature, read the owning `DESIGN_*` / `Architect_Question_*_ANSWERS` doc *(`R-129`)* |
 | ⭐⭐ **before a handoff item / architect question** | ⛔ **cite the owning DESIGN doc + section** in `design-basis`, not a row here |
 | ⭐ **when you find a CROSS-CUTTING hazard/invariant/decision** | ⭐⭐ **add a row** — ⛔ but a feature ruling belongs in its DESIGN doc, not here |
+
+### 0a. ⭐⭐⭐ RULING ID BLOCKS — one number range per lane *(user, `2026-10-12`)*
+
+> 🔒 **User:** *"let's pls also change the rules for numbering the rulings, similar to numbering issues (using number ranges) so
+> different lanes do not collide."*
+
+| lane | block | next free *(update when you allocate)* |
+|---|---|---|
+| `ui` | **`R-1000` – `R-1999`** | `R-1000` |
+| `behaviors` | **`R-2000` – `R-2999`** | `R-2000` |
+| `backend` | **`R-3000` – `R-3999`** | `R-3000` |
+| *a new lane* | the next free thousand: the SAME thousand as its `CE-` block in the tracker's "ID blocks" table; **add its row here first** | |
+
+- ⭐ **The same thousands as the tracker's `CE-` blocks**, so a lane's ids are recognisable on sight (`CE-2130`, `R-2001`).
+- ⭐ **Inside a block, plain incrementing numbers.** ⛔ No letter suffixes on NEW rows.
+- ⛔⛔ **Never renumber.** `R-01` … `R-282` stay exactly as they are; the collisions before the blocks keep their **lane tag**: `R-204 (backend)` / `R-204 (behaviors)` · `R-269 (ui)` / `R-269 (backend)` · `R-271 (ui)` / `R-271 (backend)` / `R-271 (behaviors)` · `R-272 (backend)` / `R-272 (behaviors)`, and the behaviors rows `R-273 (behaviors)` … `R-282 (behaviors)`. Quote the tag with the id.
+- ⭐ A row from a block needs no tag: the number says the lane.
+- ⚠ **Probes:** the `probes` block lists the id exactly as the row writes it (`R-2001`, or `R-271 (ui)` for an old tagged row).
+
 
 ---
 
