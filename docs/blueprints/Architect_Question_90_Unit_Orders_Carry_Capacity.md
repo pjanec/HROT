@@ -586,7 +586,7 @@ a curated resolver or with no asset, so they stay classes. ⛔ Not measured per 
 ### 2.3k Amendments after the one-page proposal *(2026-10-12; user: "Good, i like it." then six points)*
 
 ✅ **The one-page proposal is approved in principle** (R-277 (behaviors)), with the amendments below. 🔒 *"Lets postpone
-embarkation until we finish this order/param/unit stuff."* ⇒ CE-3110 I-2d and the S3 Dismount drill wait.
+embarkation until we finish this order/param/unit stuff."* ⇒ CE-3110 I-2d and the S3 Dismount drill wait. ⛔ SUPERSEDED 2026-10-12 by R-282 (behaviors): not deferred any more; they may run in parallel.
 
 | # | user | answer / lean |
 |---|---|---|

@@ -11,7 +11,7 @@ related-designs:
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — the rulings R-273..R-281 (behaviors) and how they were reached
   - docs/blueprints/HANDOFF_Orders_Track_B_Params_Internals.md — Track B dispatch
   - docs/blueprints/HANDOFF_Orders_Track_C_Classes_And_Dis.md — Track C dispatch
-  - docs/blueprints/HANDOFF_Embark_I2d_And_Unit_Orders.md — embarkation I-2d, POSTPONED until this programme is done (R-277)
+  - docs/blueprints/HANDOFF_Embark_I2d_And_Unit_Orders.md — embarkation I-2d; NOT deferred (R-282), runs in parallel — see §1a
 -->
 
 # Resume — orders, params DTOs and entity classes
@@ -22,8 +22,14 @@ related-designs:
 |---|---|
 | design | ✅ [DESIGN_Orders_Params_Entity_Classes.md](../DESIGN_Orders_Params_Entity_Classes.md), READY-TO-BUILD; rulings R-273..R-281 (behaviors) |
 | built | nothing |
-| embarkation (CE-3110 I-2d, the S3 dismount) | ⏸ postponed by the user until this programme is finished |
+| embarkation (CE-3110 I-2d, the S3 dismount) and the other behaviour work planned before | ▶ **NOT deferred any more** — 🔒 user, 2026-10-12: *"if the embarkation and other behavior stuff … can continue in some session, it does not need to stay deferred anymore"* (R-282 (behaviors), superseding R-277's postponement). Hand a session [HANDOFF_Embark_I2d_And_Unit_Orders.md](HANDOFF_Embark_I2d_And_Unit_Orders.md) §2 items 1–2 (its item 0 / AQ90 and item 3 are done or absorbed here) plus the note below |
 | Track B / Track C | handoffs written; ⏳ not yet assigned to a session (the user assigns) |
+
+### 1a. A note for a session doing embarkation or other behaviour work in parallel
+
+- New nodes and behaviours (`Embark(vehicle)`, `Disembark`, the squad Dismount drill) follow the design's §1 rules from the start: ONE params DTO each, flat JSON; a behaviour that takes nothing names `NoParams` (or an empty DTO of its own until CE-2140 adds `NoParams`).
+- Do NOT name them `<Class><Order>` yet and do not add order DTOs; Track D (CE-2140 … CE-2143) does that.
+- The handoff's §3 (orders to a unit, carry by vehicle type, carrying a person) is superseded by this programme: R-273 … R-281, and R-274 for carrying. Carry capacity and seats stay out of scope until asked.
 
 ## 2. How to pick a task
 

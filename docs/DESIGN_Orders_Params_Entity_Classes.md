@@ -246,4 +246,4 @@ graph TD
 | **CE-2144** E1 | `HealthApplicationSystem` into the cross-role infrastructure on every host (R-275) | — | any | a passenger owned on a non-CGF node dies there |
 
 ⛔ Out of this programme (decided, built later): carry capacity and seats per vehicle type, and the human-carrier profile
-(R-274; with embarkation, which waits for this programme).
+(R-274). Embarkation itself is NOT deferred (R-282) and may run in parallel, following §1's rules.
