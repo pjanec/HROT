@@ -202,7 +202,7 @@ public sealed class EcsPatchContext : IEntityPatchContext
 
     /// <summary>
     /// The set of ECS component type IDs that were authorised and written during this session.
-    /// Used by <see cref="UpdateEntityAttributeRequestSystem"/> to build the 32-byte OpaqueData bitmask.
+    /// Used by <see cref="UpdateEntityAttributeRequestSystem"/> to build the OpaqueData bitmask (64 bytes, CE-1047).
     /// </summary>
     public IReadOnlyCollection<int> AppliedComponentIds => _appliedComponentIds;
 

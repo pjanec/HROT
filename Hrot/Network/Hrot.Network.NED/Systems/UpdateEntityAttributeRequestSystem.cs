@@ -44,7 +44,7 @@ namespace Hrot.Map.Common.Systems
     ///
     /// <para><b>Opt-in ACK:</b> a <see cref="CreateUpdateDeleteEntityAck"/> is sent only
     /// when the request specifies <c>RequireAck = true</c> AND this node applied at least
-    /// one mutation.  The returned <c>OpaqueData</c> is a 256-bit bitmask where
+    /// one mutation.  The returned <c>OpaqueData</c> is a 512-bit bitmask (<see cref="AckMaskBytes"/>) where
     /// bit N encodes that ECS component type ID N was applied.</para>
     ///
     /// <para>
@@ -60,6 +60,22 @@ namespace Hrot.Map.Common.Systems
     {
         private readonly IUpdateEntityAttributeRequestSource _requestSource;
         private readonly IUpdateEntityAttributeAckSink       _ackSink;
+
+        /// <summary>
+        /// ⭐ <c>CE-1047</c> — the ack receipt's size: one bit per component type the engine can have (<see cref="Fdp.Core.BitMask512"/>,
+        /// 512 ⇒ 64 bytes). 🔴 It was 32 bytes (256 bits), so an attribute writing a component id ≥ 256 — <c>EntityAppearance</c>
+        /// is 348 — threw <c>IndexOutOfRangeException</c> whenever the request asked for an ack.
+        /// </summary>
+        public const int AckMaskBytes = 512 / 8;
+
+        /// <summary>⭐ <c>CE-1047</c> — sets bit N of <paramref name="mask"/> for every applied component id N (an id past the
+        /// mask is left out rather than thrown on). The ONE builder both ack sites use.</summary>
+        public static void FillAckMask(IReadOnlyCollection<int> appliedComponentIds, Span<byte> mask)
+        {
+            foreach (int compId in appliedComponentIds)
+                if ((uint)compId < (uint)mask.Length * 8u)
+                    mask[compId >> 3] |= (byte)(1 << (compId & 7));
+        }
         private readonly NetworkEntityMap                    _entityMap;
         private JsonAttributeCompiler?                       _jsonCompiler;
         private BinaryInterpreter<EntityAttributeChange>?               _binaryInterpreter;
@@ -246,10 +262,8 @@ namespace Hrot.Map.Common.Systems
                 // OPT-IN ACK.
                 if (req.RequireAck)
                 {
-                    Span<byte> opaqueMask = stackalloc byte[32];
-                    foreach (int compId in ecsPatchCtx.AppliedComponentIds)
-                        opaqueMask[compId >> 3] |= (byte)(1 << (compId & 7));
-
+                    Span<byte> opaqueMask = stackalloc byte[AckMaskBytes];
+                    FillAckMask(ecsPatchCtx.AppliedComponentIds, opaqueMask);
                     _ackSink.WriteAck(req.RequestId, (int)NedStatusCode.Success, _localNodeId, opaqueMask);
                 }
                 return;
@@ -314,10 +328,9 @@ namespace Hrot.Map.Common.Systems
             // 8. OPT-IN ACK — send only when the requester asked for a response.
             if (req.RequireAck)
             {
-                // Build 32-byte bitmask: bit N = ECS component type ID N was mutated.
-                Span<byte> opaqueMask = stackalloc byte[32];
-                foreach (int compId in context.AppliedComponentIds)
-                    opaqueMask[compId >> 3] |= (byte)(1 << (compId & 7));
+                // Bitmask: bit N = ECS component type ID N was mutated.
+                Span<byte> opaqueMask = stackalloc byte[AckMaskBytes];
+                FillAckMask(context.AppliedComponentIds, opaqueMask);
 
                 _ackSink.WriteAck(req.RequestId, (int)NedStatusCode.Success, _localNodeId, opaqueMask);
             }

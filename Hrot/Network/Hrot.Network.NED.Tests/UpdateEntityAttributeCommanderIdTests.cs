@@ -277,4 +277,20 @@ public sealed class UpdateEntityAttributeCommanderIdTests
         Assert.False(sink.WasAckWritten,   "a bystander must not ack a patch it did not apply");
         Assert.False(sink.WasErrorWritten, "nor error-ack it: the owner answers");
     }
+
+    // ── CE-1047: the ack receipt holds every component id the engine can have ──
+
+    /// <summary>⭐ CE-1047 — an applied component id past 255 (<c>EntityAppearance</c> is 348) lands in the ack receipt
+    /// instead of throwing: the receipt is 512 bits, one per component type the engine can have (<c>BitMask512</c>).</summary>
+    [Fact]
+    public void CE1047_TheAckReceipt_HoldsAComponentIdPast255()
+    {
+        Span<byte> mask = stackalloc byte[UpdateEntityAttributeRequestSystem.AckMaskBytes];
+        UpdateEntityAttributeRequestSystem.FillAckMask(new[] { 164, 348, 511 }, mask);
+
+        Assert.Equal(64, mask.Length);
+        Assert.Equal((byte)(1 << (164 & 7)), mask[164 >> 3]);
+        Assert.Equal((byte)(1 << (348 & 7)), mask[348 >> 3]);
+        Assert.Equal((byte)(1 << (511 & 7)), mask[511 >> 3]);
+    }
 }

@@ -305,7 +305,7 @@ namespace Hrot.NED.Messages
         public NodeId RespondingNode;
 
         /// <summary>
-        /// Optional 32-byte engine-specific execution receipt (256 bits).
+        /// Optional engine-specific execution receipt — 64 bytes (512 bits) from FDP nodes (⭐ CE-1047; was 32 / 256).
         /// FDP nodes pack a component-mutation bitmask here: bit N is set when ECS component
         /// type ID N was authorised and written during this request.
         /// Non-FDP nodes may use this field for custom flags or leave it null/zeroed.
