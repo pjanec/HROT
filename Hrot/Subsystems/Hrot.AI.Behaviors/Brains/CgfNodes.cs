@@ -234,12 +234,13 @@ namespace Hrot.AI.Behaviors.Brains
         public static void ResolveFollowRoute(in Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto authored,
             ref FollowRouteParams block, EntityRepository world, Entity self)
         {
-            long route = authored.RouteEntityId.IsNone ? 0 : authored.RouteEntityId.NetworkId;
+            // ⚠ an empty params string reaches a typed resolver as default — null for this class DTO (BehaviorParams.FromBlockResolver).
+            long route = authored is null || authored.RouteEntityId.IsNone ? 0 : authored.RouteEntityId.NetworkId;
             block = new FollowRouteParams
             {
                 RouteNetworkId = route,
-                Speed          = authored.Speed,
-                Loop           = authored.Loop,
+                Speed          = authored?.Speed ?? 0f,
+                Loop           = authored?.Loop ?? false,
                 TrajectoryId   = TryFindRouteTrajectory(world, route, out int trajectory) ? trajectory : 0,
             };
         }

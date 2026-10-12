@@ -268,6 +268,21 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         Assert.Equal(typeof(Hrot.Map.Definitions.Behavior.NoParams), d!.JsonParamsDtoType);
     }
 
+    /// <summary>⭐ <c>CE-2132</c> — <c>DangerCrossing</c> publishes its resolver's flat contract, the blueprint twin's
+    /// <c>{Objective, WalkSpeed, RushSpeed, CrossWithin}</c>, not the <c>DangerCrossingConfig</c> block its nodes bind
+    /// (<c>Params.sensor</c> …). 🔴 Red-proof: drop the <c>[Behavior]</c> declaration → it publishes the config struct.</summary>
+    [Fact]
+    public void CE2132_DangerCrossing_PublishesItsFlatContract_NotItsBlock()
+    {
+        var registry = LoadProductionRegistry();
+        Assert.True(registry.TryGetId("DangerCrossing", out int id) && registry.TryGetDefinition(id, out var d) && d is not null);
+        registry.TryGetDefinition(id, out var def);
+        Assert.Equal(typeof(Hrot.AI.Behaviors.Brains.DangerCrossingParams), def!.JsonParamsDtoType);
+        var keys = PropertyNames(SchemaFor(registry, "DangerCrossing"));
+        Assert.Contains("Objective", keys);
+        Assert.Contains("CrossWithin", keys);
+    }
+
     // ── CE-2130 (docs/DESIGN_Orders_Params_Entity_Classes.md §1 P1–P2, §6 R0) ─────────────────────────────────────────────
     //   The authoring rules as a conformance rail: every registered behaviour names exactly ONE params DTO (its public JSON
     //   contract), and that DTO is a NAMED type — never a generator's mirror of the behaviour's own variables (which is what
@@ -283,9 +298,10 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         //   PlatoonHillAttack, Sentry, T11_Aliasing, T31_ComposedAiPrimitive, T34_ComposedAiPrimitiveCondition, TakeCover)
         // CE-2135 (B3a, 2026-10-12) removed 2: T32_ComposedGeneratedBlueprint, T33_ComposedParamBlueprint now name NoParams
         // CE-2132 (A2, 2026-10-12) removed 4: BasicInfantrySop, BasicSquadSop, FiringPosition, Flank now name NoParams (no
-        //   caller sends them JSON; their variables are baked tuning). DangerCrossing waits for field binding (orders design §6)
+        //   caller sends them JSON; their variables are baked tuning)
+        // CE-2132 (A2, 2026-10-12, after CE-3182) removed DangerCrossing: it publishes DangerCrossingParams (its resolver's contract)
         "BTreeCuratedBindingDemo", "BTreeRenderShowcase",
-        "BlueprintBehaviourDemo", "CombatShowcase", "DangerCrossing", "DangerCrossingBp",
+        "BlueprintBehaviourDemo", "CombatShowcase", "DangerCrossingBp",
         "Demo_Advance", "Demo_Engage", "Demo_MissionPlan", "Demo_Retreat",
         "Demo_TakeCover", "Demo_TaskChain",
         "HsmOrthogonalRegions", "HsmResolverDemo", "HsmShowcase", "HsmTwoChannelRegionsDemo",

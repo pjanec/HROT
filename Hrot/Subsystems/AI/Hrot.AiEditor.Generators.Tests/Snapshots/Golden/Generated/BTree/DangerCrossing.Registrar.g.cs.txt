@@ -38,13 +38,13 @@ public static class DangerCrossingRegistrar
 
         // S1-3: baked-offset action thunks for managed blackboard.
         // Key = {MethodFqn}@{offset} — matches blob key from topology emit.
-        actionRegistry.Register("Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteMoveToChannel@80",
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteMoveToChannel@68",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)80));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)68));
                     var status = global::Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteMoveToChannel(ref dto, ctx.Self, ctx.World);
                     return status;
                 }
@@ -62,13 +62,13 @@ public static class DangerCrossingRegistrar
                     return status;
                 }
             });
-        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead@56",
+        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead@48",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DangerAheadParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)56));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)48));
                     var status = global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead(ref dto, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
                     return status;
                 }
@@ -98,14 +98,14 @@ public static class DangerCrossingRegistrar
                     return global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.EnsureSensor(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.Register("Hrot.AI.Behaviors.Brains.DangerAreaNodes.HoldShort@40@1320364401",
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.DangerAreaNodes.HoldShort@36@1320364401",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.HoldShortParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)40));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)36));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1320364401;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -120,14 +120,14 @@ public static class DangerCrossingRegistrar
                     return global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.HoldShort(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.Register("Hrot.AI.Behaviors.Brains.DangerAreaNodes.Cross@72@1605583924",
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.DangerAreaNodes.Cross@60@1605583924",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.CrossParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)72));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)60));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1605583924;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -165,13 +165,13 @@ public static class DangerCrossingRegistrar
                     global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.Deactivate_EnsureSensor(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.DangerAreaNodes.HoldShort@40@1320364401",
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.DangerAreaNodes.HoldShort@36@1320364401",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.HoldShortParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)40));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)36));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1320364401;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -186,13 +186,13 @@ public static class DangerCrossingRegistrar
                     global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.Deactivate_HoldShort(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.DangerAreaNodes.Cross@72@1605583924",
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.DangerAreaNodes.Cross@60@1605583924",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.CrossParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)72));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)60));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1605583924;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -224,28 +224,8 @@ public static class DangerCrossingRegistrar
             static void __BakeDefaults(byte* memory, int capacity)
             {
                 {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerSensorParams>("{\"RouteTo\":[0,0,0],\"CorridorHalfWidth\":0,\"RefreshSeconds\":0,\"MaxAreas\":0}", __paramJsonOpts);
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerCrossingConfig>("{\"sensor\":{\"RouteTo\":[0,0,0],\"CorridorHalfWidth\":0,\"RefreshSeconds\":0,\"MaxAreas\":0},\"holdAhead\":{\"MinThreat\":0.5,\"WithinMetres\":60,\"KindMask\":0},\"hold\":{\"MinThreat\":0.5,\"Speed\":1.5,\"ArrivalRadius\":1.5},\"crossAhead\":{\"MinThreat\":0,\"WithinMetres\":15,\"KindMask\":14},\"cross\":{\"Speed\":4.5,\"ArrivalRadius\":1.5},\"walk\":{\"X\":0,\"Y\":0,\"Speed\":1.5,\"ArrivalRadius\":3}}", __paramJsonOpts);
                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __v);
-                }
-                {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerAheadParams>("{\"MinThreat\":0.5,\"WithinMetres\":60,\"KindMask\":0}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 24, __v);
-                }
-                {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.HoldShortParams>("{\"MinThreat\":0.5,\"Speed\":1.5,\"ArrivalRadius\":1.5}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 40, __v);
-                }
-                {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerAheadParams>("{\"MinThreat\":0,\"WithinMetres\":15,\"KindMask\":14}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 56, __v);
-                }
-                {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.CrossParams>("{\"Speed\":4.5,\"ArrivalRadius\":1.5}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 72, __v);
-                }
-                {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams>("{\"X\":0,\"Y\":0,\"Speed\":1.5,\"ArrivalRadius\":3}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 80, __v);
                 }
             }
             __bakeDefaults = __BakeDefaults;
@@ -254,61 +234,8 @@ public static class DangerCrossingRegistrar
                 // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
                 __BakeDefaults(memory, capacity);
 
-                // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
-                // variable's deserializer (DEBT-AIB-021 names this shape).
-                // ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and
-                //    commits only on success, so a throw leaves the entity on its old behaviour.
-                if (!string.IsNullOrWhiteSpace(json))
-                {
-                    using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
-                    if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)
-                    {
-                        foreach (var __prop in __doc.RootElement.EnumerateObject())
-                        {
-                            switch (__prop.Name)
-                            {
-                                case "sensor":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerSensorParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __o);
-                                    break;
-                                }
-                                case "holdAhead":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerAheadParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 24, __o);
-                                    break;
-                                }
-                                case "hold":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.HoldShortParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 40, __o);
-                                    break;
-                                }
-                                case "crossAhead":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerAheadParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 56, __o);
-                                    break;
-                                }
-                                case "cross":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.CrossParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 72, __o);
-                                    break;
-                                }
-                                case "walk":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 80, __o);
-                                    break;
-                                }
-                                // ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.
-                                default: break;
-                            }
-                        }
-                    }
-                }
+                // Step 2 — CE-2133/CE-2135: 'Params' IS the params DTO; the JSON is its fields, flat.
+                global::Fdp.Toolkit.Behavior.BehaviorParams.OverlayFlat(ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DangerCrossingConfig>(memory + 0), json, __paramJsonOpts);
             };
         }
 
@@ -319,17 +246,12 @@ public static class DangerCrossingRegistrar
             Group        = "Library/Tactics",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
-            BlueprintStructureHash = 5411267613390732858UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 6911263280434118005UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
-                new("sensor", typeof(global::Hrot.AI.Behaviors.Brains.DangerSensorParams), 0),
-                new("holdAhead", typeof(global::Hrot.AI.Behaviors.Brains.DangerAheadParams), 24),
-                new("hold", typeof(global::Hrot.AI.Behaviors.Brains.HoldShortParams), 40),
-                new("crossAhead", typeof(global::Hrot.AI.Behaviors.Brains.DangerAheadParams), 56),
-                new("cross", typeof(global::Hrot.AI.Behaviors.Brains.CrossParams), 72),
-                new("walk", typeof(global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams), 80),
+                new("Params", typeof(global::Hrot.AI.Behaviors.Brains.DangerCrossingConfig), 0),
             },
-            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.DangerCrossing_FdpToolkitBehaviorComponentsBrainBlackboard),
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Brains.DangerCrossingConfig),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.DangerCrossing_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,

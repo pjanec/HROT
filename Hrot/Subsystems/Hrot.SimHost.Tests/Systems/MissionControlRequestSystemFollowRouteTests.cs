@@ -162,6 +162,18 @@ public class MissionControlRequestSystemFollowRouteTests
         Assert.True(block.Loop);
     }
 
+    /// <summary>⭐ CE-2145 — an EMPTY params string reaches the typed resolver as a null DTO (BehaviorParams.FromBlockResolver
+    /// passes default for a class); it resolves to "no route" instead of throwing. 🔴 Red-proof: drop the null guard → NRE.</summary>
+    [Fact]
+    public void CE2145_TheResolver_WithNoParams_ResolvesToNoRoute_WithoutThrowing()
+    {
+        using var repo = CreateWorld();
+        var block = default(Hrot.AI.Behaviors.Brains.CgfNodes.FollowRouteParams);
+        Hrot.AI.Behaviors.Brains.CgfNodes.ResolveFollowRoute(null!, ref block, repo, Entity.Null);
+        Assert.Equal(0L, block.RouteNetworkId);
+        Assert.Equal(0, block.TrajectoryId);
+    }
+
     /// <summary>⭐ CE-2145 (was OC1-S001 Scenario 4) — a route compiled AFTER the start: the action waits (Running, the
     /// locomotion channel untouched) and follows the trajectory once it exists. 🔴 Red-proof: drop the action's look-up →
     /// the second tick writes trajectory 0.</summary>

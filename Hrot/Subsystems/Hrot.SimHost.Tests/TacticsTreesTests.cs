@@ -720,7 +720,28 @@ namespace Hrot.SimHost.Tests
 
         // ── ⭐ CE-3079 H5 — the DangerCrossing tree (docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.4) ───────────────────────────────
 
-        private const string Crossing = "{\"sensor\":{\"RouteTo\":[300,300,0]},\"walk\":{\"X\":300,\"Y\":300,\"Speed\":1.5,\"ArrivalRadius\":3}}";
+        /// <summary>⭐ <c>CE-2132</c> — the resolver writes only what the contract names: the objective into the sensor's route and
+        /// the walk, the speeds, <c>CrossWithin</c>; the asset's baked tuning (here <c>holdAhead.WithinMetres = 60</c>) stays.
+        /// 🔴 Red-proof: drop the walk line → the walk goes to (0, 0).</summary>
+        [Fact]
+        public void CE2132_TheDangerCrossingResolver_WritesTheContract_AndKeepsTheBakedTuning()
+        {
+            var block = new Hrot.AI.Behaviors.Brains.DangerCrossingConfig();
+            block.holdAhead.WithinMetres = 60f;   // as the asset's ParamsDefaultJson bakes it
+            var authored = new Hrot.AI.Behaviors.Brains.DangerCrossingParams { Objective = new System.Numerics.Vector3(300, 250, 0), RushSpeed = 5f };
+            Hrot.AI.Behaviors.Brains.DangerAreaNodes.ResolveDangerCrossing(authored, ref block, null!, default);
+
+            Assert.Equal(new System.Numerics.Vector3(300, 250, 0), block.sensor.RouteTo);
+            Assert.Equal(300f, block.walk.X);
+            Assert.Equal(250f, block.walk.Y);
+            Assert.Equal(1.5f, block.walk.Speed);      // the contract's default WalkSpeed
+            Assert.Equal(1.5f, block.hold.Speed);
+            Assert.Equal(5f, block.cross.Speed);
+            Assert.Equal(15f, block.crossAhead.WithinMetres);
+            Assert.Equal(60f, block.holdAhead.WithinMetres);
+        }
+
+        private const string Crossing = "{\"Objective\":[300,300,0]}";   // ⭐ CE-2132 — the flat contract (DangerCrossingParams), its twin's
 
         private static Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor Area(uint id, float threat, float along,
             Fdp.Toolkit.Squad.DangerArea.DangerAreaKind kind = Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.StreetCrossing)

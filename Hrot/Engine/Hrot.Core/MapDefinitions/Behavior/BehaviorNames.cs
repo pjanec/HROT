@@ -14,6 +14,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string WanderMilitary = "WanderMilitary";
         public const string FireAtTarget = "FireAtTarget";
         public const string HullDownAttackRun = "HullDownAttackRun";
+        /// <summary>⭐ CE-2132 — the danger-crossing tree (its blueprint twin is DangerCrossingBp); takes <c>DangerCrossingParams</c>.</summary>
+        public const string DangerCrossing = "DangerCrossing";
         public const string PlatoonHillAttack = "PlatoonHillAttack";
         public const string InfantryCombat = "InfantryCombat";
         public const string Ambush = "Ambush";

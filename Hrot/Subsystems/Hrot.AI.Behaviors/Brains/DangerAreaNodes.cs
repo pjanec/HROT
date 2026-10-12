@@ -97,6 +97,39 @@ namespace Hrot.AI.Behaviors.Brains
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-2132</c> (A2, docs/DESIGN_Orders_Params_Entity_Classes.md §6, §5a) — what a caller sends <c>DangerCrossing</c>: its
+    /// blueprint twin's contract (<c>DangerCrossingBp</c>'s Parameters), flat. The objective is named ONCE; the resolver writes it
+    /// into the sensor's route and the walk. Defaults are the twin's.
+    /// </summary>
+    public sealed class DangerCrossingParams
+    {
+        /// <summary>Where it walks — and the route its danger sensor watches (unit → objective).</summary>
+        public Vector3 Objective { get; set; }
+        /// <summary>Walking speed (m/s) — to the objective and to a near handle.</summary>
+        public float WalkSpeed { get; set; } = 1.5f;
+        /// <summary>Rush speed across an area (m/s).</summary>
+        public float RushSpeed { get; set; } = 4.5f;
+        /// <summary>An area this close along the route (m) is rushed across.</summary>
+        public float CrossWithin { get; set; } = 15f;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2132</c> — the tree's <c>Params</c> block: one field per node's params, each node bound to <c>Params.&lt;field&gt;</c>
+    /// (CE-3182). The asset's <c>ParamsDefaultJson</c> bakes the tuning; <see cref="DangerAreaNodes.ResolveDangerCrossing"/> then writes
+    /// the fields the contract names. ⚠ Field names are the old variable names, so the bindings read as before.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DangerCrossingConfig
+    {
+        public DangerSensorParams sensor;
+        public DangerAheadParams holdAhead;
+        public HoldShortParams hold;
+        public DangerAheadParams crossAhead;
+        public CrossParams cross;
+        public CgfNodes.MoveToLocationParams walk;
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-3079</c> H4 — the danger-crossing nodes, as shared C# nodes a BTree (and an HSM) binds: the SHAPE of
     /// <see cref="EqsTacticsNodes"/> (self-contained, a run-owned sensor, the one MoveTo write) — ⛔ not its ranked body.
     /// They only READ the processed answer (<see cref="DangerAreaCognitiveBuffer"/> on the sensor child, entry 0 = the next
@@ -108,6 +141,27 @@ namespace Hrot.AI.Behaviors.Brains
     {
         /// <summary>The sensor site (with the run's owner stamp, CE-485, the run finds its sensor again).</summary>
         public const int SensorSite = 0x30790001;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2132</c> — <c>DangerCrossing</c>'s resolver (the asset owns the tree, this C# owns the contract, as for
+        /// <c>PlatoonHillAttack</c>): the block arrives with the asset's baked tuning, and only the fields the contract names are
+        /// written — the objective into the sensor's route and the walk, the walking speed into the walk and the hold, the rush
+        /// speed into the crossing, <c>CrossWithin</c> into the "rush across" test. An empty params string (a null DTO) keeps the bake.
+        /// </summary>
+        [Hrot.Map.Definitions.Behavior.Behavior(Hrot.Map.Definitions.Behavior.BehaviorNames.DangerCrossing, Params = typeof(DangerCrossingParams),
+            Categories = Hrot.Map.Definitions.Behavior.BehaviorCategory.Infantry)]   // ⭐ CE-2132 — outranks the generated contract (CE-2134)
+        [BehaviorResolver(Hrot.Map.Definitions.Behavior.BehaviorNames.DangerCrossing)]
+        public static void ResolveDangerCrossing(in DangerCrossingParams authored, ref DangerCrossingConfig block, EntityRepository world, Entity self)
+        {
+            if (authored is null) return;
+            block.sensor.RouteTo        = authored.Objective;
+            block.walk.X                = authored.Objective.X;
+            block.walk.Y                = authored.Objective.Y;
+            block.walk.Speed            = authored.WalkSpeed;
+            block.hold.Speed            = authored.WalkSpeed;
+            block.cross.Speed           = authored.RushSpeed;
+            block.crossAhead.WithinMetres = authored.CrossWithin;
+        }
 
         /// <summary>Ensures the run's danger-area sensor watching unit → <see cref="DangerSensorParams.RouteTo"/>; Success once it
         /// exists (it lives until the run ends). Failure when it cannot be created.</summary>

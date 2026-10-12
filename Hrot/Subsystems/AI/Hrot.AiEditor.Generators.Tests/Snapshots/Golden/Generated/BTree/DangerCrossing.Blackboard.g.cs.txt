@@ -5,21 +5,11 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Explicit, Size = 100)]
+[StructLayout(LayoutKind.Explicit, Size = 88)]
 public struct DangerCrossing_FdpToolkitBehaviorComponentsBrainBlackboard
 {
     [FieldOffset(0)]
-    public global::Hrot.AI.Behaviors.Brains.DangerSensorParams sensor;
-    [FieldOffset(24)]
-    public global::Hrot.AI.Behaviors.Brains.DangerAheadParams holdAhead;
-    [FieldOffset(40)]
-    public global::Hrot.AI.Behaviors.Brains.HoldShortParams hold;
-    [FieldOffset(56)]
-    public global::Hrot.AI.Behaviors.Brains.DangerAheadParams crossAhead;
-    [FieldOffset(72)]
-    public global::Hrot.AI.Behaviors.Brains.CrossParams cross;
-    [FieldOffset(80)]
-    public global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams walk;
+    public global::Hrot.AI.Behaviors.Brains.DangerCrossingConfig Params;
 }
 
 /// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
@@ -27,5 +17,5 @@ public struct DangerCrossing_FdpToolkitBehaviorComponentsBrainBlackboard
 public struct DangerCrossing_Block
 {
     [FieldOffset(0)]
-    public DangerCrossing_FdpToolkitBehaviorComponentsBrainBlackboard In;
+    public global::Hrot.AI.Behaviors.Brains.DangerCrossingConfig In;
 }
