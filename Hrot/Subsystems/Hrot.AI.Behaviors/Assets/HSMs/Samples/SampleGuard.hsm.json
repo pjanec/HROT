@@ -148,5 +148,6 @@
     "TypeName": "SampleGuard_Blackboard",
     "HeavyDtoType": null,
     "Variables": []
-  }
+  },
+  "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams"
 }

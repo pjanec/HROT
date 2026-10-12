@@ -299,16 +299,13 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         // CE-2135 (B3a, 2026-10-12) removed 2: T32_ComposedGeneratedBlueprint, T33_ComposedParamBlueprint now name NoParams
         // CE-2132 (A2, 2026-10-12) removed 4: BasicInfantrySop, BasicSquadSop, FiringPosition, Flank now name NoParams (no
         //   caller sends them JSON; their variables are baked tuning)
+        // CE-2135 (B3b prep, 2026-10-12) removed 15 that store nothing: BTreeRenderShowcase, CombatShowcase, SampleScout, SampleGuard,
+        //   HsmShowcase, HsmTwoChannelRegionsDemo, HsmOrthogonalRegions (its one variable is State), T01–T08 now name NoParams
         // CE-2132 (A2, 2026-10-12, after CE-3182) removed DangerCrossing: it publishes DangerCrossingParams (its resolver's contract)
-        "BTreeCuratedBindingDemo", "BTreeRenderShowcase",
-        "BlueprintBehaviourDemo", "CombatShowcase", "DangerCrossingBp",
+        "BTreeCuratedBindingDemo", "BlueprintBehaviourDemo", "DangerCrossingBp",
         "Demo_Advance", "Demo_Engage", "Demo_MissionPlan", "Demo_Retreat",
         "Demo_TakeCover", "Demo_TaskChain",
-        "HsmOrthogonalRegions", "HsmResolverDemo", "HsmShowcase", "HsmTwoChannelRegionsDemo",
-        "OperatorControl", "PlatoonHillAttackBp", "SampleGuard", "SampleScout",
-        "T01_Sequence", "T02_Selector", "T03_Parallel", "T04_DecoratorRepeater",
-        "T05_DecoratorStack", "T06_ObserverSelector", "T07_Subtree", "T08_ActionLeaf",
-        "T09_BlackboardManaged", "T10_MultiAction", "T20_MultiStateful", "T35_SharedWorkingState",
+        "HsmResolverDemo", "OperatorControl", "PlatoonHillAttackBp", "T09_BlackboardManaged", "T10_MultiAction", "T20_MultiStateful", "T35_SharedWorkingState",
         "T39_TwoDistinctPrimitives", "T40_BehaviorResolverAsset",
     };
 

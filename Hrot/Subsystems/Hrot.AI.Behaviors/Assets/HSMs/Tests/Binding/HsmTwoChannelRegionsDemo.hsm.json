@@ -152,5 +152,6 @@
     "TypeName": "HsmTwoChannelRegionsDemo_Blackboard",
     "HeavyDtoType": null,
     "Variables": []
-  }
+  },
+  "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams"
 }

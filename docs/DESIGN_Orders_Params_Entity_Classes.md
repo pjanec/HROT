@@ -401,6 +401,13 @@ packed variables are plain variables (bindable, baked, never JSON); `St` stays t
 `Role = Input` therefore means "a plain (packed) variable" in an asset that names a DTO, and "the generated JSON mirror" only in a
 legacy asset; B3b removes the name. The `Block_B3` box above reads: `In` = `Params` + the plain variables.
 
+**B3b prep as built** *(2026-10-12, behaviors overnight)*: the 15 allow-listed assets that store nothing name `NoParams` —
+`BTreeRenderShowcase`, `CombatShowcase`, `SampleScout`, `SampleGuard`, `HsmShowcase`, `HsmTwoChannelRegionsDemo`, `HsmOrthogonalRegions`
+(its one variable is `State`), `T01`–`T08` (measured: no caller sends any of them params). ⚠ In a BTree the key sits where the serializer
+writes it (before `Pills`) — `MigrationEquivalenceTests` pins the editor's byte-stable save; `HsmShowcase`'s frozen V1 snapshot carries it
+too. Allow-list 33 → 18: the blueprints with Parameters, the two resolver assets (`HsmResolverDemo`, `T40`), and the multi-variable
+fixtures (`T09`, `T10`, `T20`, `T35`, `T39`, `BTreeCuratedBindingDemo`) — B3b proper.
+
 **B3a as built** *(2026-10-12)*: `ParamsDefaultJson` on the BTree / HSM asset; `BTreeEmitCore.WithParamsVariable` /
 `HsmBridgeEmitCore.WithParamsVariable` inject `Params` at every generator entry (idempotent); `ParamsTarget` = `Params` (named)
 or B1's single struct Input (legacy); `NoParams` stores nothing (no injection, `RequireNoStoredFields`, `InputBytes` 0, nothing

@@ -36,6 +36,7 @@ public static class SampleScoutRegistrar
             Group        = "Samples",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            JsonParamsDtoType    = typeof(global::Hrot.Map.Definitions.Behavior.NoParams),
             WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }

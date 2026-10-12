@@ -29,6 +29,7 @@ public static class SampleGuardRegistrar
             BrainTier     = BehaviorConstants.BrainTierHsm,
             HsmDefinition = blob,
             HsmMetadata   = blob.Metadata,
+            JsonParamsDtoType    = typeof(global::Hrot.Map.Definitions.Behavior.NoParams),
         });
     }
 }

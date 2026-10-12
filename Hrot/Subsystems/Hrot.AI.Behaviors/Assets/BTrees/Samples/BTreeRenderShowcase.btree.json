@@ -171,6 +171,7 @@
 			}
 		}
 	],
+	"ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams",
 	"Pills": [
 		{
 			"VisualId": "bb110000-0000-0000-0000-000000000001",

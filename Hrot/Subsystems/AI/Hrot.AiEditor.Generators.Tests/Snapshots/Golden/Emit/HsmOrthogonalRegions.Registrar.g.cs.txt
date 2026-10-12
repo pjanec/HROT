@@ -40,7 +40,7 @@ public static class HsmOrthogonalRegionsRegistrar
             {
             }
             __bakeDefaults = __BakeDefaults;
-            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => __BakeDefaults(memory, capacity);
+            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => { __BakeDefaults(memory, capacity); global::Fdp.Toolkit.Behavior.BehaviorParams.RequireNoStoredFields(json, "HsmOrthogonalRegions", "Hrot.Map.Definitions.Behavior.NoParams"); };
         }
         // Register the JSON-owned HSM definition.
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("HsmOrthogonalRegions"), "HsmOrthogonalRegions", new BehaviorDefinition
@@ -52,6 +52,7 @@ public static class HsmOrthogonalRegionsRegistrar
             BlueprintStructureHash = 14284189855993242755UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = global::System.Array.Empty<global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable>(),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Machines.HsmOrthogonalRegions_Block),
+            JsonParamsDtoType    = typeof(global::Hrot.Map.Definitions.Behavior.NoParams),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,
         });

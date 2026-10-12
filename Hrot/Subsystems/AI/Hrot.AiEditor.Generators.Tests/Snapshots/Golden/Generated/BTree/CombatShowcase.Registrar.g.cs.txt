@@ -49,6 +49,7 @@ public static class CombatShowcaseRegistrar
             Group        = "Samples",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            JsonParamsDtoType    = typeof(global::Hrot.Map.Definitions.Behavior.NoParams),
             StatefulWorkingSlots = __hosted.Slots,
         });
 
