@@ -483,7 +483,23 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             void Note() { var k = cgf.GetComponent<SquadCognitiveState>(commander).ManeuverKind; if (kinds.Count == 0 || kinds[^1] != k) kinds.Add(k); }
             float ApcHealth() => cgf.HasComponent<Health>(apc) ? cgf.GetComponent<Health>(apc).Current : -1f;
             double SimNow() => cgf.HasSingleton<GlobalTime>() ? cgf.GetSingleton<GlobalTime>().TotalTime : -1;
-            string State() => $"t={SimNow():F1}s kinds=[{string.Join(",", kinds)}] paused={Paused()} aboard cgf={Aboard(cgf)} sim={Aboard(sim)} apcHp={ApcHealth():F0}";
+            var rpg = ByName(cgf, "Insurgent RPG");
+            string Insurgent()
+            {
+                if (rpg.IsNull) return "rpg=?";
+                int run = cgf.HasComponent<BehaviorState>(rpg) ? cgf.GetComponent<BehaviorState>(rpg).ActiveBehaviorHash : 0;
+                int mem = -1; bool seesApc = false;
+                if (cgf.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(rpg))
+                {
+                    var m = cgf.GetComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(rpg);
+                    mem = m.Count;
+                    unsafe { for (int i = 0; i < m.Count; i++) if (m.EntityIds[i] == (long)apc.PackedValue) seesApc = true; }
+                }
+                string weapon = cgf.HasComponent<WeaponState>(rpg) ? JsonSerializer.Serialize(cgf.GetComponent<WeaponState>(rpg), new JsonSerializerOptions { IncludeFields = true }) : "none";
+                float simHp = ByName(sim, "Convoy APC") is var sa && !sa.IsNull && sim.HasComponent<Health>(sa) ? sim.GetComponent<Health>(sa).Current : -1f;
+                return $"rpg run={run} (fire={Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.FireAtTarget)}) mem={mem} seesApc={seesApc} weapon={weapon} simApcHp={simHp:F0}";
+            }
+            string State() => $"t={SimNow():F1}s kinds=[{string.Join(",", kinds)}] paused={Paused()} aboard cgf={Aboard(cgf)} sim={Aboard(sim)} apcHp={ApcHealth():F0} | {Insurgent()}";
 
             // ① the squad rides the APC (loaded aboard by the scenario).
             Assert.True(harness.PumpUntil(() => Aboard(cgf) == 5 && Aboard(sim) == 5, timeoutFrames: 3000), $"all five must start aboard; {State()}");
