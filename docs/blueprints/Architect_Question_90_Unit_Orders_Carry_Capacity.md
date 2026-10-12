@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -193,6 +193,29 @@ What the convention does NOT lose:
 - A blueprint behaviour joins by its name and its parameters.
 
 ⇒ **A2 and A7 are superseded by this, if the user agrees.**
+
+### 2.3c A3′ — which behaviours and which orders an entity supports *(2026-10-12; user: "I think the MissionPlan editor panel already filters behavior per entity type")*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the filter exists: a behaviour's params DTO carries `[BehaviorContract(name, BehaviorCategory flags)]`; `BehaviorCatalog` collects them by reflection | ✅ `BehaviorCatalog.cs:45-64`; 25 attributes (`AllMilitary` 8 · `Commander` 7 · …) | ✅ AQ29 §I row 2 |
+| ⛔ the TYPE → category step is a hard-coded switch over 8 type ids; everything else (both tanks, `Infantry_Rifleman`, the officer, aircraft) gets a fixed default list | ✅ `BehaviorCatalog.cs:72-82` | ⛔ AQ29 §I wanted the command set FROM THE TKB (ruling 43/46) — not built |
+| ⛔ the categories are a fixed 5-flag enum; `Commander` lumps a tank platoon and a squad together | ✅ `BehaviorCategory.cs` | — |
+| ⛔ every editor-authored behaviour (BTree / HSM / blueprint) is appended to EVERY type, unfiltered | ✅ `ScenarioMissionService.cs:121-140` and its own TODO *"gate by per-asset … affinity mask"* | ✅ R-268 / CE-446: see all technologies (the filter was never meant to hide them, only nobody declared their category) |
+| three consumers: the mission panel (`ScenarioMissionService`), ExCon (`MissionEditorService.cs:73`), the debug API's `GET /behaviors?entityId=` | ✅ grep | — |
+| the unit menu runs on CGF, IG, the editor, SimHost and the replay browser (no orders there); IG says it holds no behaviour registry | ✅ `MapInteractionPack.Build` callers; `IgApplication.cs:812` | — |
+
+**Lean — the convention's class IS this category, made data:**
+
+| question | ⭐ answer |
+|---|---|
+| what class is an entity? | its TKB type declares it: `BehaviorProfile.Class` (a string: `Squad`, `TankPlatoon`, `Tank`, `Infantry`, `Civilian`, …). It **replaces the switch** and the fixed enum; an open set, so a new type or a user's new class needs no code |
+| which behaviours may it run? *(mission panel, AI section, debug API)* | a behaviour declares the classes it is valid for: the existing `[BehaviorContract]` with class NAMES instead of flags; a blueprint / BTree / HSM behaviour has the same property on its asset (closing the TODO). ⭐ A `<Class><Order>` behaviour is valid for its class without declaring it |
+| which orders does it accept? *(the menu)* | the order kinds K for which `<Class>K` is registered **on the unit's brain owner**. Computed there once at spawn and replicated as a small `AcceptedOrders` mask on the unit. Every station's menu reads the mask, including IG, which holds no registry. ExCon (offline, no live owner) computes it from its own registry the same way |
+| why a replicated mask and not a TKB list | a list in the TKB is a second copy of what the registry already knows and can drift from it; the mask is computed from what will actually run, on the node where it will run |
+
+⛔ Not measured: what IG's `WithBehaviorRegistry(GetBehaviorRegistry())` holds (`IgNodeBootstrapper.cs:191`) — if it holds the
+full registry, the mask is unnecessary there; and the descriptor cost of one more replicated component.
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
