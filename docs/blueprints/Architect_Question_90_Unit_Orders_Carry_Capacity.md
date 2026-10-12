@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -268,7 +268,7 @@ Rejected:
 | question | ⭐ lean |
 |---|---|
 | sharing | ✅ allowed. It is the *"additive change"* the resolver design anticipated, and it needs only two changes: the contract moves onto the behaviour (§2.3d), and the palette de-duplicates by DTO type |
-| an ASSET implementing an order | ⭐ **(revised twice 2026-10-12; user: "behavior parameters are always a single dto, always pickable … Therd must be way already, no new picker should be necessary")** — **no new setting.** Measured: an asset declares its inputs as blackboard variables with Role = Input (the default role, `BlackboardVariableEnums.cs:10`), each one typed through the EXISTING type combo (primitives, `EntityRef`, `[BlackboardDtoStruct]` structs). Single-DTO is the common shape: `PlatoonHillAttack.btree.json` has ONE Input `Params : PlatoonHillAttackParams` plus one State. Field-by-field also exists: `BasicSquadSop.btree.json` has three Inputs (`underFire`, `leaderDown`, `contact`, each a `SopSenseParams`). The JSON contract is the generated mirror of the Inputs, keyed by VARIABLE name, so one DTO-typed Input nests as `{"Params":{…}}` (`BTreeBridgeEmitCore.cs:1710-1729`). A curated C# behaviour gets a flat contract from its `[BehaviorContract]` DTO plus a resolver instead (PlatoonHillAttack: `HillAttackCommanderNodes.cs:712`). ⇒ **Rule:** an asset whose Inputs are exactly ONE variable typed as an `[Order]` DTO implements that order. The generator then binds `JsonParamsDtoType` to the DTO itself and parses the order JSON straight into that one variable (unwrapped). The order DTOs carry `[BlackboardDtoStruct]` so the existing combo lists them. Blueprints: one Parameter typed as the order DTO, same rule. The order kind comes from the DTO, `Hold` has an empty `HoldOrder {}`, and the asset's extra knobs are State variables with defaults. ⛔ The earlier "Params type: own / order DTO" setting is withdrawn; "own" only meant "any other Inputs, as today" |
+| an ASSET implementing an order *(⛔ WITHDRAWN 2026-10-12 — it conflated an Input variable with the params DTO; see §2.3g)* | ⭐ **(revised twice 2026-10-12; user: "behavior parameters are always a single dto, always pickable … Therd must be way already, no new picker should be necessary")** — **no new setting.** Measured: an asset declares its inputs as blackboard variables with Role = Input (the default role, `BlackboardVariableEnums.cs:10`), each one typed through the EXISTING type combo (primitives, `EntityRef`, `[BlackboardDtoStruct]` structs). Single-DTO is the common shape: `PlatoonHillAttack.btree.json` has ONE Input `Params : PlatoonHillAttackParams` plus one State. Field-by-field also exists: `BasicSquadSop.btree.json` has three Inputs (`underFire`, `leaderDown`, `contact`, each a `SopSenseParams`). The JSON contract is the generated mirror of the Inputs, keyed by VARIABLE name, so one DTO-typed Input nests as `{"Params":{…}}` (`BTreeBridgeEmitCore.cs:1710-1729`). A curated C# behaviour gets a flat contract from its `[BehaviorContract]` DTO plus a resolver instead (PlatoonHillAttack: `HillAttackCommanderNodes.cs:712`). ⇒ **Rule:** an asset whose Inputs are exactly ONE variable typed as an `[Order]` DTO implements that order. The generator then binds `JsonParamsDtoType` to the DTO itself and parses the order JSON straight into that one variable (unwrapped). The order DTOs carry `[BlackboardDtoStruct]` so the existing combo lists them. Blueprints: one Parameter typed as the order DTO, same rule. The order kind comes from the DTO, `Hold` has an empty `HoldOrder {}`, and the asset's extra knobs are State variables with defaults. ⛔ The earlier "Params type: own / order DTO" setting is withdrawn; "own" only meant "any other Inputs, as today" |
 | entity classes on an asset | a new asset property **`Classes: EntityClass[]`** on all three asset models, persisted in the asset JSON and emitted by each generator into the registrar |
 | where both are edited | ⭐ **(revised 2026-10-12, user: "There is 'details panel' supporting switchable views, one of them might be asset level setting")** — correct; the sweep missed it. The Details panel is one shell with switchable views (`DetailsViewRegistry` + `DetailsViewDescriptor(Id, Title, Rank, AppliesTo, Create)`, DESIGN_Details_Panel_View_Switching §2). The predicate `DetailsViewPredicates.HasAsset` (*"asset context"*) is exactly an asset-level view, and the design's catalogue already lists **"Layout / byte budget · Asset settings"** (§6 L3, :507), today carried inside the `details.blackboard` view (BTree / HSM; measured satisfied, §7, :970). Blueprint has `details.graphsignature`. ⇒ add ONE shared view **`details.behaviour` ("Behaviour")** in `Hrot.Editor.AiShared/Shell`, `AppliesTo: HasAsset`, registered by all three editors. It shows the order the asset implements (read-only, derived from its one order-typed Input) and `Classes` (multi-select of `EntityClass`) |
 
@@ -294,11 +294,48 @@ the author edits field by field in the variables panel. That generated mirror is
 as its authored contract. Mapped onto the design:
 - **Authored DTO:** the shared order DTO, pointed at instead of mirrored.
 - **Usable params:** the Input variables. Identical to the DTO, they are filled by the default copy (§P.2, which needs identical shapes). Divergent (geo → local), the behaviour's own resolver bridges, exactly as today.
-- **The pointer, with no new picker:** the existing type combo. An asset whose Inputs are ONE variable typed as an `[Order]` DTO points at that DTO; the generator publishes it as the `JsonParamsDtoType` and unwraps it (§2.3e). A curated C# behaviour points with its behaviour attribute (§2.3d).
+- ⛔ *(withdrawn, §2.3g)* **The pointer, with no new picker:** the existing type combo. An asset whose Inputs are ONE variable typed as an `[Order]` DTO points at that DTO; the generator publishes it as the `JsonParamsDtoType` and unwraps it (§2.3e). A curated C# behaviour points with its behaviour attribute (§2.3d).
 
 ⛔ Where this deviates from the written design, and is therefore a decision for the user:
 - §3.2 says the default authored shape is a mirror keyed by VARIABLE name. Treating a single order-typed Input as "this DTO is my contract" is a special case of that rule.
 - The alternative that stays inside the rule: the asset declares the order's fields as separate Inputs with the same names, and the check is structural. It is more work for the author and drifts when the DTO changes.
+
+### 2.3g ⭐ The four things, kept apart — and the corrected lean *(2026-10-12; user: "No matter how many state variables a behavior has, there is up to one parameter dto. I think you are still mixing apples and oranges … read some explainer doc")*
+
+Source: EXPLAINER_Where_Parameters_And_State_Live §1, §3, §7.1 (the measurement record), with Parameter Model §1, §3.1 and the
+resolver design §3.2 (the intent).
+
+| # | thing | what it is | how many | public? |
+|---|---|---|---|---|
+| ① | **JSON params** | the text a scenario, mission, MCP call or order carries (`behaviorParams`) | one per assignment | the wire form |
+| ② | **the params DTO** (`JsonParamsDtoType`, "authored DTO") | the ONE type ① deserializes into: a transient parse buffer at start | **0 or 1 per behaviour** | ✅ the behaviour's public contract (`GET /behaviors`, the mission panel). 🔒 *"the behavior spec … always comes with json/dto only"* |
+| ③ | **Input variables** (`Role = Input`, "usable params") | the behaviour's OWN copy of its inputs, in its root params slot; filled ONCE at start from ②, by the default copy (by field name) or by its resolver (conversion) | any number | ⛔ internal (the blackboard) |
+| ④ | **State variables** (`Role = State`) | working memory, reset at start | any number | ⛔ internal; never part of ② |
+
+Who produces ②:
+- **Curated C#:** a hand-written `[BehaviorContract]` class.
+- **Editor asset:** GENERATED as the mirror of its ③ (one field per Input variable; `BTreeBridgeEmitCore.cs:1710-1729`).
+- **Asset with a resolver asset:** that resolver's Parameters (§P.7).
+
+⛔ Not pickable for an editor asset today: *"an editor-authored behaviour cannot have an authored shape different from `In`
+today"* (Parameter Model §P.7).
+
+⇒ **Where I mixed them (§2.3e / §2.3f, withdrawn):** I proposed "an asset whose ONE Input variable is typed `MoveOrder`
+implements Move". That uses a ③ (an internal landing variable) to stand for ② (the public contract). Read correctly, a
+single DTO-typed Input yields a GENERATED ② with one field, `{ Params: MoveOrder }`; that is why it nests, and it is not
+`MoveOrder`.
+
+**Corrected lean — an order behaviour's ② IS the order DTO:**
+- **Curated C#:** the behaviour names its ② (`Params = typeof(MoveOrder)`, §2.3d).
+- **Editor asset:** the asset names its ② instead of generating one. This is the change the resolver design foresaw (§3.1: *"a behavior points at a shared named param-type"*). Its ③ stays its own:
+  - mirror the DTO's fields, filled by the default copy;
+  - or differ, and its resolver converts (geo → local), as today.
+- **One asset setting is needed, "Params DTO": generated from Inputs (default) | a picked order DTO.** Measured: no editor UI sets an asset's ② today (§P.7). It belongs in the asset-level `details.behaviour` view (§2.3e).
+- **The order kind** comes from ②'s `[Order]` attribute.
+- **`Hold`:** an empty `HoldOrder`.
+
+⛔ Not measured: the generator change to publish a named ② and parse ① into it before the copy or resolver (the curated path
+already does this, so it is a reuse, not a new mechanism).
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
