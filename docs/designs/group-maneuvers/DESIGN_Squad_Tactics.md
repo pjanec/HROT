@@ -748,7 +748,7 @@ authoring, not the drill):
 | found | done |
 |---|---|
 | a `CombatPosture` whose objective is where the unit stands ENDS at once when nothing is seen yet (it "advances", arrives, succeeds — R-208); the hostiles then ran nothing and never fired | their objective is the convoy; ⚠ a static ambusher has no library form today (`Sentry` never shoots) |
-| a hostile given `FireAtTarget {targetNetworkId}` from the scenario also ran nothing (`run = 0`) although it saw the APC with its round loaded | not used; ⛔ the cause is NOT established (no shipped scenario uses `FireAtTarget`) |
+| a hostile given `FireAtTarget {targetNetworkId}` from the scenario also ran nothing (`run = 0`) although it saw the APC with its round loaded | not used. ⭐ **Cause found and fixed (`CE-1057`, 2026-10-12):** the load re-allocates network ids and the saved AI's params JSON was not remapped — [`DESIGN_Entity_Reference.md`](../../blueprints/DESIGN_Entity_Reference.md) §5 "CE-1057" |
 | a unit Hit edge needs a `TargetMemory` on the hit unit (`ThreatEvaluationSystem.cs:76`); the APC type gets none by default | authored in the scenario; a vehicle type with no sensors never feels hits |
 
 ## 6. Formations — as measured *(2026-10-11)*

@@ -179,6 +179,18 @@ bind entities, not authored fields).
 
 *Rails:* `StagingEntityExtractorTests.Extract_InitialTargetsIntent_RemapsTheReference_AndKeepsEveryOtherField` (new — the reference remapped AND `PosZ`/`Score` kept), the existing passenger/commander remap rails and every intent translator/materialisation rail, ported to the type. ⚠ CE-2056 has no composition-root rail (`EditorSubsystem.Initialize` needs a full host).
 
+### ⭐ `CE-1057` — a JSON-carried params string is the D4 loop's blind spot *(ui, 2026-10-12)*
+
+| as built | why |
+|---|---|
+| `RemapComponentNetworkIds`' JSON pass now also takes `InitialBrainIntent` (the saved AI, `CE-3042` / R-191): its `Behavior` and `Sop` slots' `Params` go through `behaviorRemapper.RemapJson(slot.Name, …)`, the pass the mission plan already used | ⛔ `EntityRefRemap.RemapObject` walks TYPED members; a slot's params are a JSON **string** (R-191 — "params in a scenario are JSON, never bytes"), so the type plan cannot see the `EntityRef` inside it. 🔴 Measured live on `tt-convoy-ambush`: `FireAtTarget {targetNetworkId: 7300}` kept 7300 after the load re-allocated every id, named nothing, and the behaviour never ran (`run = 0` for 190+ sim-s) |
+
+⚠ **The rule this leaves:** a component that carries a behaviour's params as JSON is reached ONLY by the by-name JSON pass, never
+by D4's loop — ⇒ a new one (a saved order, a queued task) must be added to that pass. The two today: `ActiveMissionPlan` tasks and
+`InitialBrainIntent` slots. *Rail:* `StagingEntityExtractorTests.CE1057_ASavedBrainIntentsTarget_IsRemapped_InTheTaskAndTheSop`
+(the real `CgfBehaviorSetup.CreateBehaviorRemapper()`, so it also proves `FireAtTarget`'s contract still reaches the remapper after
+`[Behavior]` replaced `[BehaviorContract]`); 🔴 red-proved (the pass removed ⇒ red).
+
 *Out of scope, measured:* `JoinFormationParams.LeaderNetworkId` (an `int` in a contract with no authoring surface) and the EQS sensor wire keys (`ParentNetworkId` — runtime keys on a DDS topic, not authored data) stay as they are.
 
 *Live (`2026-10-03`, `--mode all`, `scenarios/hill-attack-close-bp`):* load `OperatingLive`, 8 entities; the blueprint commander resolved its `EntityRef` area (1005) and dispatched `HullDownAttack` with `EntityRef` targets; both hostiles fell 50 → 25 → 0 by simTime 60 s; zero exceptions in the log. ⚠ In this file the staging ids coincide with the live ones, so the live run proves the type end to end, not the renumbering — `DistributedScenarioLoadTests` (non-coinciding ids) and the extractor rails prove that.
