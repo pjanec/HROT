@@ -57,7 +57,8 @@ public sealed class DebugApiOrdersTests
         Assert.Equal(200, status);
         Assert.Equal("Order.Move", result!["behavior"]!.GetValue<string>());
         h.PumpFrames(4);
-        Assert.Equal(IdOf(h, BehaviorNames.PersonMove), h.Repo.GetComponentRO<BehaviorState>(unit).ActiveBehaviorHash);
+        // the soldier's class ran ITS move — still running, or already ended (this world drives no navigation)
+        Assert.Equal(BehaviorNames.PersonMove, svc.GetOrder(UnitId)["behavior"]!.GetValue<string>());
 
         var munition = Unit(h, 3000, ForceId.Friend, Vector3.Zero);
         h.Repo.SetDisType(munition, new DISEntityType { Value = 2UL << 56 });   // no class of a munition has an order behaviour
