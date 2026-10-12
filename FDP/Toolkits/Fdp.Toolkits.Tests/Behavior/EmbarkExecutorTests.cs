@@ -225,5 +225,55 @@ namespace Fdp.Toolkit.Behavior.Tests
             _executor.Execute(soldier, ref channel, _world, EmbarkExecutor.ResultTimeoutSeconds);
             Assert.Equal(NodeStatus.Failure, channel.Status);
         }
+
+        // ── CE-1056 I-2d — DisembarkExecutor (interaction action 2) ─────────────────────────────────────────────────────────
+
+        /// <summary>⭐ <c>CE-1056</c> — a passenger's Disembark RAISES the command once; the vehicle's owner applies it (beside the hull,
+        /// capabilities back); the executor reads the answer (no tag) ⇒ Success.</summary>
+        [Fact]
+        public void CE1056_Disembark_RaisesTheCommand_TheOwnerApplies_ThenSuccess()
+        {
+            var vehicle = CreateVehicle(new Vector3(10f, 0f, 0f));
+            var (soldier, _) = CreateSoldier(new Vector3(10f, 0f, 0f), vehicle, 3f);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, soldier, vehicle));
+            var exec = new DisembarkExecutor();
+            var channel = _world.GetComponent<InteractionChannel>(soldier);
+
+            exec.OnEnter(soldier, ref channel, _world);
+            exec.Execute(soldier, ref channel, _world, 0f);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            Assert.True(_world.HasComponent<IsEmbarkedTag>(soldier));          // raised, not applied by the executor
+            _world.Bus.SwapBuffers();
+            _owner.Execute(_world, 0f);
+            exec.Execute(soldier, ref channel, _world, 0f);
+
+            Assert.Equal(NodeStatus.Success, channel.Status);
+            Assert.Equal(0, _world.GetComponent<PassengerBuffer>(vehicle).Count);
+            Assert.True(_world.GetComponent<ActorCapabilityState>(soldier).Capabilities.HasFlag(ActorCapabilities.CanMove));
+            Assert.True(Vector3.Distance(_world.GetComponent<SimTransform>(soldier).Position, new Vector3(10f, 0f, 0f)) > Embarkation.DefaultHullRadius);
+        }
+
+        /// <summary>⭐ <c>CE-1056</c> — not aboard ⇒ Success at once, nothing raised; aboard and no answer ⇒ Failure after the timeout.</summary>
+        [Fact]
+        public void CE1056_Disembark_NotAboard_SucceedsAtOnce_NoAnswer_TimesOut()
+        {
+            var exec = new DisembarkExecutor();
+            var vehicle = CreateVehicle(Vector3.Zero);
+            var (free, _) = CreateSoldier(Vector3.Zero, vehicle, 3f);
+            var ch = _world.GetComponent<InteractionChannel>(free);
+            exec.OnEnter(free, ref ch, _world);
+            exec.Execute(free, ref ch, _world, 0f);
+            Assert.Equal(NodeStatus.Success, ch.Status);
+
+            var (aboard, _) = CreateSoldier(Vector3.Zero, vehicle, 3f);
+            Embarkation.TryEmbark(_world, aboard, vehicle);
+            var ch2 = _world.GetComponent<InteractionChannel>(aboard);
+            exec.OnEnter(aboard, ref ch2, _world);
+            exec.Execute(aboard, ref ch2, _world, 0f);                       // raised; the owner never runs
+            exec.Execute(aboard, ref ch2, _world, DisembarkExecutor.ResultTimeoutSeconds - 0.5f);
+            Assert.Equal(NodeStatus.Running, ch2.Status);
+            exec.Execute(aboard, ref ch2, _world, 1f);
+            Assert.Equal(NodeStatus.Failure, ch2.Status);
+        }
     }
 }

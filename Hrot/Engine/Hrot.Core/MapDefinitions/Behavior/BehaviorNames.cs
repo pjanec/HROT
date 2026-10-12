@@ -75,6 +75,15 @@ namespace Hrot.Map.Definitions.Behavior
         public const string PlatformAttack = "PlatformAttack";
         public const string PlatformHold = "PlatformHold";
 
+        /// <summary>⭐ <c>CE-1056</c> I-2d — a soldier walks to a vehicle and boards it (DESIGN_Entity_Interactions §7.3).</summary>
+        public const string Embark = "Embark";
+
+        /// <summary>⭐ <c>CE-1056</c> I-2d — a passenger leaves its vehicle, beside the hull (DESIGN_Entity_Interactions §7.3).</summary>
+        public const string Disembark = "Disembark";
+
+        /// <summary>⭐ <c>CE-1056</c> I-2d — the squad gets out of its vehicles; done when nobody is aboard (DESIGN_Squad_Tactics §5a).</summary>
+        public const string SquadDismount = "SquadDismount";
+
         /// <summary>⭐ CE-3172 (R-270, M-7) — what a POSSESSED unit runs: the station's controls drive its body
         /// (DESIGN_Entity_Control §8b). Assigned by <c>PossessionSystem</c> at origin Possession only.</summary>
         public const string OperatorControl = "OperatorControl";

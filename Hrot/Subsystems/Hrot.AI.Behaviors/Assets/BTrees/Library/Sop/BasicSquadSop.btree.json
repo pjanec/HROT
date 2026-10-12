@@ -28,6 +28,7 @@
       "kind": "Selector",
       "VisualId": "c2123000-0000-0000-0000-000000000002",
       "ChildVisualIds": [
+        "c2123000-0000-0000-0000-000000000040",
         "c2123000-0000-0000-0000-000000000010",
         "c2123000-0000-0000-0000-000000000030",
         "c2123000-0000-0000-0000-000000000020"
@@ -37,6 +38,57 @@
         "X": 600,
         "Y": 120,
         "Comment": "The squad leader's standing orders: each row is a SQUAD edge (published on the leader by SquadCoordinationSystem) → React. The reaction pauses the leader's task; when it ends, the task resumes (CE-2123 S2).",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2123000-0000-0000-0000-000000000040",
+      "ChildVisualIds": [
+        "c2123000-0000-0000-0000-000000000041",
+        "c2123000-0000-0000-0000-000000000042"
+      ],
+      "DisplayLabel": "Squad under fire while mounted → dismount",
+      "EditorMetadata": {
+        "X": -60,
+        "Y": 260,
+        "Comment": "CE-1056 I-2d (Squad Tactics §5a): a carrier under fire puts its squad under fire; get everyone out first. Once nobody is aboard the drill ends and the rows below fight.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.SquadSopConditions.SensedFreshAboard",
+        "ExpressionTargetField": "underFire"
+      },
+      "VisualId": "c2123000-0000-0000-0000-000000000041",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Squad under fire (fresh, 3 s) AND a member aboard",
+      "EditorMetadata": {
+        "X": -140,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "SquadDismount",
+        "Urgency": "UnderFire"
+      },
+      "VisualId": "c2123000-0000-0000-0000-000000000042",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: SquadDismount",
+      "EditorMetadata": {
+        "X": 40,
+        "Y": 400,
+        "Comment": "Everyone out beside the hull; done when nobody is aboard.",
         "Collapsed": false,
         "Color": null
       }

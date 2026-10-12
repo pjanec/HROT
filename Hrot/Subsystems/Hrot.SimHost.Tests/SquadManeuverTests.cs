@@ -864,5 +864,79 @@ namespace Hrot.SimHost.Tests
             Assert.InRange(Vector2.Distance(new Vector2(back.X, back.Y), new Vector2(30f, 40f)), 0f, 0.1f);
             Assert.Equal(2f, move.Speed);
         }
+
+        // ── CE-1056 I-2d — the squad Dismount drill (Squad Tactics §5a) ──────────────────────────────────────────────────────
+
+        private static Entity Carrier(Squad s, Vector3 at, params int[] aboard)
+        {
+            var v = s.Repo.CreateEntity();
+            s.Repo.AddComponent(v, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            s.Repo.AddComponent(v, new PassengerBuffer());
+            foreach (int i in aboard) Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[i], v));
+            return v;
+        }
+
+        private static Fbt.NodeStatus? RunUntilFinished(Squad s, int ticks)
+        {
+            for (int i = 0; i < ticks; i++) { s.Tick(); if (s.Finished(out var r)) return r; }
+            return null;
+        }
+
+        [Fact]
+        public void CE1056_SquadDismount_EveryMemberAboardIsToldToDisembark_TheRestHold_DoneWhenNobodyIsAboard()
+        {
+            var s = new Squad(members: 4);
+            var apc = Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2);
+            s.Order("{}", BehaviorNames.SquadDismount);
+            Ticks(s, 3);
+
+            Assert.Equal(SquadDismountManeuver.ManeuverKind, s.Kind);
+            var last = s.Orders.GroupBy(o => o.Entity).ToDictionary(g => g.Key, g => g.Last());
+            for (int i = 0; i < 3; i++) Assert.Equal(BehaviorNames.Disembark, last[s.Members[i]].IntentId);
+            Assert.Equal(BehaviorNames.CombatPosture, last[s.Members[3]].IntentId);                  // already out: holds
+            Assert.All(last.Values, o => Assert.Equal(BehaviorOrigin.Superior, o.Origin));
+
+            Embarkation.Disembark(s.Repo, s.Members[0]);
+            Embarkation.Disembark(s.Repo, s.Members[1]);
+            Assert.Null(RunUntilFinished(s, 5));                                                     // one still aboard
+            Embarkation.Disembark(s.Repo, s.Members[2]);
+            Assert.Equal(Fbt.NodeStatus.Success, RunUntilFinished(s, 5));
+            Assert.Equal(0, s.Repo.GetComponentRO<PassengerBuffer>(apc).Count);
+            Ticks(s, 2);
+            Assert.Contains(s.Clears, c => c.Entity == s.Members[0]);                                // its orders released (A5)
+        }
+
+        [Fact]
+        public void CE1056_SquadDismount_SomebodyStuckAboard_FailsAfterItsTimeout()
+        {
+            var s = new Squad(members: 3);
+            Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2);
+            s.Order("{\"timeoutSeconds\":1}", BehaviorNames.SquadDismount);
+            Assert.Equal(Fbt.NodeStatus.Failure, RunUntilFinished(s, 120));                          // 1 s at 16 ms a tick
+        }
+
+        [Fact]
+        public void CE1056_BasicSquadSop_UnderFireWhileMounted_Dismounts_ThenReactsToContactOnceOut()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            Ticks(s, 20);
+            Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2, 3);
+
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            Ticks(s, 4);
+            Assert.Equal(BehaviorNames.SquadDismount, s.TaskName);                                   // row 1: mounted ⇒ get out
+            Assert.Equal(BehaviorOrigin.Reaction, s.Repo.GetComponent<BehaviorState>(s.Commander).Origin);
+
+            foreach (var m in s.Members) Embarkation.Disembark(s.Repo, m);
+            Ticks(s, 10);
+            Assert.NotEqual(BehaviorNames.SquadDismount, s.TaskName);                                // done once nobody is aboard
+
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            Ticks(s, 4);
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);                                  // out: the battle drill
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
     }
 }

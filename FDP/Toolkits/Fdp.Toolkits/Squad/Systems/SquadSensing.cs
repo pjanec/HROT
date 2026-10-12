@@ -39,12 +39,41 @@ namespace Fdp.Toolkit.Squad.Systems
             {
                 if (evt.What != SensorChange.Hit && evt.What != SensorChange.NearMiss) continue;
                 if (!repo.IsAlive(evt.Unit)) continue;
+                // ⭐ CE-1056 I-2d (Squad Tactics §5a) — a CARRIER under fire puts every squad it carries under fire: an enclosed
+                //   passenger is never hit itself (I-2c, R-271), so without this a mounted squad cannot feel an ambush.
+                if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PassengerBuffer>()
+                    && repo.HasComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(evt.Unit))
+                {
+                    CarriedUnderFire(repo, evt.Unit, gateOnAuthority);   // ⛔ no `continue`: a carrier may itself be a member
+                }
                 // ⭐ CE-2125 (R-272) — only MEMBERS: the commander is body-less now and the leader soldier is a member.
                 //   ⛔ SUPERSEDED: "or the commander itself (a soldier-leader is in the fight)" (CE-2123 S2).
                 var commander = repo.HasComponent<UnitSubordinate>(evt.Unit) ? repo.GetComponentRO<UnitSubordinate>(evt.Unit).Commander
                               : Entity.Null;
                 if (commander.IsNull || !repo.IsAlive(commander) || !IsCommander(repo, commander)) continue;
                 if (gateOnAuthority && (!repo.HasComponent<BehaviorState>(commander) || !repo.HasAuthority<BehaviorState>(commander))) continue;
+                Publish(repo, commander, SensorChange.SquadUnderFire);
+            }
+        }
+
+        /// <summary>⭐ <c>CE-1056</c> — <see cref="SensorChange.SquadUnderFire"/> once on the commander of each member <paramref name="carrier"/>
+        /// carries (a squad riding in it is under fire with it).</summary>
+        private static void CarriedUnderFire(EntityRepository repo, Entity carrier, bool gateOnAuthority)
+        {
+            ref readonly var buffer = ref repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(carrier);
+            System.Span<Entity> told = stackalloc Entity[Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity];
+            int n = 0;
+            for (int i = 0; i < buffer.Count; i++)
+            {
+                var passenger = buffer.Passengers[i];
+                if (passenger.IsNull || !repo.IsAlive(passenger) || !repo.HasComponent<UnitSubordinate>(passenger)) continue;
+                var commander = repo.GetComponentRO<UnitSubordinate>(passenger).Commander;
+                if (commander.IsNull || !repo.IsAlive(commander) || !IsCommander(repo, commander)) continue;
+                if (gateOnAuthority && (!repo.HasComponent<BehaviorState>(commander) || !repo.HasAuthority<BehaviorState>(commander))) continue;
+                bool already = false;
+                for (int k = 0; k < n; k++) if (told[k] == commander) { already = true; break; }
+                if (already) continue;
+                told[n++] = commander;
                 Publish(repo, commander, SensorChange.SquadUnderFire);
             }
         }

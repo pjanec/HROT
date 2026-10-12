@@ -144,14 +144,34 @@ namespace Fdp.Toolkit.Behavior
             var forward = new Vector2(fwd3.X, fwd3.Y);
             forward = forward.LengthSquared() > 1e-6f ? Vector2.Normalize(forward) : Vector2.UnitX;
             var right = new Vector2(forward.Y, -forward.X);
-            float hull = repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>()
-                         && repo.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(vehicle)
-                ? repo.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(vehicle).Radius
-                : DefaultHullRadius;
+            float hull = HullRadius(repo, vehicle);
             var along = forward * ((index - (count - 1) / 2f) * DismountSpacing);
             var lateral = right * (hull + DismountClearance);
             return tf.Position + new Vector3(along.X + lateral.X, along.Y + lateral.Y, 0f);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1056</c> I-2d — where a soldier walks to board <paramref name="vehicle"/>: the point a single dismount stands on
+        /// (seat 0 of 1, beside the hull — <see cref="DismountPoint"/>), so it is walkable wherever the vehicle stands on walkable
+        /// ground. ⛔ Never the vehicle's centre: inside the hull, off the navmesh, a move there fails for ever.
+        /// </summary>
+        public static Vector3 BoardingPoint(EntityRepository repo, Entity vehicle) => DismountPoint(repo, vehicle, 0, 1);
+
+        /// <summary>
+        /// ⭐ <c>CE-1056</c> I-2d — how close (to the vehicle's centre) a soldier must be to board: the boarding point's distance plus
+        /// <see cref="BoardingSlack"/>, so <c>EmbarkExecutor</c>'s range test agrees with where the walk stops (its 3 m default is
+        /// shorter than the boarding point of any hull over 0.5 m).
+        /// </summary>
+        public static float BoardingRange(EntityRepository repo, Entity vehicle) => HullRadius(repo, vehicle) + DismountClearance + BoardingSlack;
+
+        /// <summary>The margin <see cref="BoardingRange"/> adds beyond the boarding point (m).</summary>
+        public const float BoardingSlack = 1f;
+
+        private static float HullRadius(EntityRepository repo, Entity vehicle)
+            => repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>()
+               && repo.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(vehicle)
+                ? repo.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(vehicle).Radius
+                : DefaultHullRadius;
 
         private static int SlotOf(EntityRepository repo, Entity passenger, Entity vehicle)
         {
