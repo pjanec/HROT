@@ -300,7 +300,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[338,306,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Params": "{\"advance\":{\"Objective\":[300,276,0],\"Speed\":2,\"ArrivalRadius\":8,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
       }
     },
@@ -337,7 +337,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[346,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Params": "{\"advance\":{\"Objective\":[300,276,0],\"Speed\":2,\"ArrivalRadius\":8,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
       }
     }
