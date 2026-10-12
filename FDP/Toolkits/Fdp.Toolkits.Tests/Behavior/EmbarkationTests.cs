@@ -26,6 +26,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<PassengerBuffer>();
             _world.RegisterComponent<IsEmbarkedTag>();
             _world.RegisterComponent<NetworkAuthority>();
+            _world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
             _world.RegisterEvent<EmbarkEntityCommand>();
             _world.RegisterEvent<DisembarkEntityCommand>();
             _world.RegisterEvent<EjectPassengersCommand>();
@@ -73,6 +74,27 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(s, buf.Passengers[0]);
             Assert.Equal(v, _world.GetComponent<IsEmbarkedTag>(s).VehicleEntity);
             Assert.Equal(ActorCapabilities.None, Caps(s) & Embarkation.StrippedAboard);
+        }
+
+        /// <summary>
+        /// ⭐ A body-less UNIT (a squad's commander, R-272) is not a physical actor: it never takes a seat, and — although every brained
+        /// entity carries an empty <see cref="PassengerBuffer"/> — it carries nobody. Both directions refuse, and nothing is written.
+        /// </summary>
+        [Fact]
+        public void CE3110_AUnitNeitherBoardsNorCarries()
+        {
+            var v = Vehicle(Vector3.Zero);
+            var unit = Vehicle(Vector3.Zero);   // a unit: brained, so it has a PassengerBuffer too
+            _world.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitEntity());
+            var s = Soldier(Vector3.Zero);
+
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, unit, v));
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, s, unit));
+
+            Assert.Equal(0, _world.GetComponent<PassengerBuffer>(v).Count);
+            Assert.Equal(0, _world.GetComponent<PassengerBuffer>(unit).Count);
+            Assert.False(_world.HasComponent<IsEmbarkedTag>(unit));
+            Assert.False(_world.HasComponent<IsEmbarkedTag>(s));
         }
 
         /// <summary>A full vehicle refuses (was <c>EditorCargoSystemTests.Embark_AtCapacity_DoesNotExceedCapacityLimit</c>).</summary>

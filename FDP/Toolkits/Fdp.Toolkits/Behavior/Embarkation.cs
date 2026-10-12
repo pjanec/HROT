@@ -14,7 +14,8 @@ namespace Fdp.Toolkit.Behavior
         AlreadyAboard,
         /// <summary>The vehicle has no free seat.</summary>
         Full,
-        /// <summary>Either entity is gone, or the vehicle carries no passengers.</summary>
+        /// <summary>Either entity is gone, the vehicle carries no passengers, or either is a body-less UNIT (a squad's commander,
+        /// <c>UnitEntity</c>), which neither takes a seat nor carries anyone.</summary>
         Invalid,
     }
 
@@ -80,6 +81,8 @@ namespace Fdp.Toolkit.Behavior
         public static EmbarkResult TryEmbark(EntityRepository repo, Entity passenger, Entity vehicle)
         {
             if (!repo.IsAlive(passenger) || !repo.IsAlive(vehicle) || !repo.HasComponent<PassengerBuffer>(vehicle)) return EmbarkResult.Invalid;
+            // ⭐ CE-3110 (R-272) — a UNIT is not a physical actor: it takes no seat and carries nobody (its members do the boarding).
+            if (Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, passenger) || Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, vehicle)) return EmbarkResult.Invalid;
             if (IsAboard(repo, passenger, vehicle)) { Board(repo, passenger, vehicle); return EmbarkResult.AlreadyAboard; }
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
             if (buffer.Count >= PassengerBuffer.Capacity) return EmbarkResult.Full;
