@@ -1426,7 +1426,7 @@ wrappers) · a blueprint's channels are DERIVED by the compiler, nothing authore
 |---|---|
 | why prevent at all | ⭐ yes, semantically: one owner per channel (G9). An SOP that moves the unit fights the task it is supposed to sit beside — exactly what the gate and the pause exist to prevent; anything that must move the body goes through React |
 | ① assign time | ⭐ the SOP slot REFUSES (visibly, like an origin refusal) a behaviour whose channel set is non-empty — the union of its bound actions' `[WritesChannel]` (BTree/HSM, stored at registration — small new work) or its derived blueprint channels |
-| ② editor | the AI section's SOP row offers only channel-free behaviours; the BTree editor warns on a channel-writing node in an asset tagged as an SOP (the recipe carries the tag) |
+| ② editor | the AI section's SOP row offers only channel-free behaviours; the BTree editor warns on a channel-writing node in an asset tagged as an SOP (the recipe carries the tag) · ⭐ *refined by CE-1019 (2026-10-12): the row offers only SOPs — trees that carry SOP orders, the ③ mark, published as `BehaviorDefinition.CarriesSopOrders` — and the task pickers leave them out; Sensors & Doctrine §7.6* |
 | ③ C# | an analyzer WARNING when a curated SOP binds a `[WritesChannel]` method |
 | ④ runtime backstop | the first cancelled SOP channel command per run is logged loudly, never silent |
 

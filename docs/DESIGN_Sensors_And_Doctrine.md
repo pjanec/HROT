@@ -965,6 +965,15 @@ Rails: `EntityAiSectionTests` (`Hrot.Blueprints.Tests/Editor`) — paused edits 
 still refuses an edit under an Operator's order; a running edit is an event, not a write; the SOP row offers only
 known-empty behaviours; `CE-2084` refusal; the params form round-trips; the Scenario catalogue offers the section.
 
+**⭐ CE-1019 as built *(2026-10-12, behaviors)* — the SOP row offers only SOPs; the task rows leave them out.** 🔒 User-reported
+`2026-10-06`: the SOP picker showed every channel-free behaviour, and the task pickers listed the SOPs. ⭐ The mark is the one §4.5 ③
+already rules (*"carrying the orders is the mark"*, CE-2079) — not a new authored flag: the BTree generator publishes it as
+`BehaviorDefinition.CarriesSopOrders` (`BTreeBridgeEmitCore`, a tree with a "Do when idle" / "React" node). `SopChoices` = carries the
+orders AND known channel-free (§4.5 ② still holds); `TaskChoices` and the mission panel (`ScenarioMissionService.GetAvailableBehaviorChoices`)
+leave SOPs out. Rails: `EntityAiSectionTests.CE1019_TheSopRowOffersOnlySops_AndTheTaskRowLeavesThemOut`,
+`AdapterTests.CE1019_GetAvailableBehaviorChoices_LeavesOutAnSop`. ⚠ Only BTrees carry SOP orders today (no HSM / blueprint SOP node
+exists), so only BTrees are marked.
+
 ### 7.6a Instance-blueprint params rows — `CE-2086` *(behaviors, `2026-10-05`; build-state: BUILT — as-built at the end)*
 
 > 🔒 Approved with §7.5 (*"add the missing editor: each attached instance gets the same params form as the doctrine row,

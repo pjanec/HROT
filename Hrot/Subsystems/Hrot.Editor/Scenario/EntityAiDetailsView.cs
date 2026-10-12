@@ -134,18 +134,25 @@ public sealed class EntityAiEditModel
                             RoeOf.Fire(world, entity), RoeOf.Reactions(world, entity), roe.SetBy);
     }
 
-    /// <summary>Every registered behaviour, by name.</summary>
+    /// <summary>Every registered behaviour that is not an SOP, by name (⭐ <c>CE-1019</c>: an SOP is not a task).</summary>
     public IReadOnlyList<string> TaskChoices()
-        => _registry() is { } r ? r.GetRegisteredNames().OrderBy(n => n, StringComparer.Ordinal).ToList() : Array.Empty<string>();
+        => _registry() is { } r
+            ? r.GetRegisteredNames().Where(n => !IsSop(r, n)).OrderBy(n => n, StringComparer.Ordinal).ToList()
+            : Array.Empty<string>();
 
-    /// <summary>⭐ The SOP row's choices: only behaviours KNOWN to drive no channel (§4.5 ②) — an unknown set is not offered.</summary>
+    /// <summary>⭐ The SOP row's choices: only SOPs (⭐ <c>CE-1019</c>: behaviours that carry SOP orders, the ruled mark) that are
+    /// also KNOWN to drive no channel (§4.5 ②) — an unknown set is not offered.</summary>
     public IReadOnlyList<string> SopChoices()
     {
         if (_registry() is not { } r) return Array.Empty<string>();
         return r.GetRegisteredNames()
-            .Where(n => r.TryGetId(n, out int id) && r.TryGetDefinition(id, out var d) && d.WritesChannels is { Count: 0 })
+            .Where(n => r.TryGetId(n, out int id) && r.TryGetDefinition(id, out var d)
+                        && d.CarriesSopOrders && d.WritesChannels is { Count: 0 })
             .OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
+
+    private static bool IsSop(BehaviorRegistry r, string name)
+        => r.TryGetId(name, out int id) && r.TryGetDefinition(id, out var d) && d is { CarriesSopOrders: true };
 
     /// <summary>⭐ <c>CE-3164</c> (R-268) — <paramref name="names"/> as picker choices: each with its technology and folder.</summary>
     public IReadOnlyList<Hrot.UI.Common.Facades.BehaviorChoice> AsChoices(IReadOnlyList<string> names)

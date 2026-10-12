@@ -458,6 +458,8 @@ public static class BTreeBridgeEmitCore
         EmitRootParamsMembers(sb, dto, packedFields, isManaged, hasParseParams, pad2);
         if (WritesChannelsLiteral(dto, sharedAi, hostsSubtrees) is { } writes)   // ⭐ CE-3043 / CE-2084 — omitted = unknown
             sb.AppendLine($"{pad2}{Indent}WritesChannels = {writes},");
+        if (dto.Nodes.Any(n => n is BTreeActionNodeDto { SopOrder: not null }))   // ⭐ CE-1019 — carrying SOP orders IS the mark (§4.5 ③)
+            sb.AppendLine($"{pad2}{Indent}CarriesSopOrders = true,");
         if (isManaged)
             EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent, hostsSubtrees, packedFields, sharedAi);
         else if (hostsSubtrees)

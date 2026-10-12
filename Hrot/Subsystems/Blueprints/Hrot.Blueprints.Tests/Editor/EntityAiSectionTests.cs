@@ -112,6 +112,28 @@ public sealed class EntityAiSectionTests
         Assert.Contains("Idle", f.Model.TaskChoices());
     }
 
+    /// <summary>⭐ <c>CE-1019</c> — the SOP row offers only SOPs (the generator publishes the ruled mark, "carries SOP orders") and
+    /// the task row leaves them out: a channel-free tree that is not an SOP (<c>T01_Sequence</c>) is a task, not an SOP.
+    /// 🔴 Red-proof: drop the generator's <c>CarriesSopOrders</c> line → BasicInfantrySop vanishes from the SOP row.</summary>
+    [Fact]
+    public void CE1019_TheSopRowOffersOnlySops_AndTheTaskRowLeavesThemOut()
+    {
+        var f = new Fixture();
+        var sops = f.Model.SopChoices();
+        var tasks = f.Model.TaskChoices();
+        Assert.Contains("BasicInfantrySop", sops);
+        Assert.Contains("BasicSquadSop", sops);
+        Assert.DoesNotContain("T01_Sequence", sops);        // writes no channel, but carries no SOP orders
+        Assert.Contains("T01_Sequence", tasks);
+        Assert.DoesNotContain("BasicInfantrySop", tasks);
+        foreach (var name in sops)
+        {
+            Assert.True(f.Registry.TryGetId(name, out int id));
+            Assert.True(f.Registry.TryGetDefinition(id, out var d));
+            Assert.True(d!.CarriesSopOrders, $"{name} is offered as an SOP but carries no SOP orders");
+        }
+    }
+
     [Fact]
     public void CE2084_TheSopSlot_RefusesABehaviourKnownToDriveAChannel()
     {

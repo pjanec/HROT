@@ -148,6 +148,7 @@ public static class BasicInfantrySopRegistrar
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,
             WritesChannels = global::System.Array.Empty<global::System.Type>(),
+            CarriesSopOrders = true,
         });
     }
 }

@@ -321,6 +321,23 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(BehaviorChoice.OtherGroup, Assert.Single(choices, c => c.Name == "Ungrouped").Group);
         }
 
+        /// <summary>⭐ CE-1019 — an SOP (a behaviour carrying SOP orders, the ruled mark) is not a mission task: the mission panel's
+        /// list leaves it out. 🔴 Red-proof: drop the RemoveAll in GetAvailableBehaviorChoices → the SOP is offered.</summary>
+        [Fact]
+        public void CE1019_GetAvailableBehaviorChoices_LeavesOutAnSop()
+        {
+            _registry.Register(1, "Ungrouped", new BehaviorDefinition { Name = "Ungrouped", BrainTier = BehaviorConstants.BrainTierBTree });
+            _registry.Register(2, "SomeSop", new BehaviorDefinition { Name = "SomeSop", BrainTier = BehaviorConstants.BrainTierBTree, CarriesSopOrders = true });
+
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
+            _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
+
+            var names = new ScenarioMissionService(_bus, _repo, _registry).GetAvailableBehaviorChoices(NetIdFor(entity)).Select(c => c.Name).ToList();
+            Assert.Contains("Ungrouped", names);
+            Assert.DoesNotContain("SomeSop", names);
+        }
+
         /// <summary>⭐ CE-3164 (R-268) — a hot reload (staging registry merged into the live one) whose staging registration carries
         /// no group keeps the live group; one that declares a group moves it.</summary>
         [Fact]

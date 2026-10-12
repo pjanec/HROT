@@ -85,6 +85,9 @@ namespace Hrot.UI.Common.Adapters
             // Append editor-authored BTree behaviors not already in the curated list.
             AppendEditorBTreeBehaviors(_registry, result);
 
+            // ⭐ CE-1019 — an SOP is not a mission task: it runs beside the task in its own slot (§4.5, the ruled mark).
+            result.RemoveAll(n => _registry.TryGetId(n, out int id) && _registry.TryGetDefinition(id, out var d) && d is { CarriesSopOrders: true });
+
             return result.Select(n => new BehaviorChoice(n, TechnologyOf(_registry, n))
             {
                 Group = _registry.GroupOf(n) ?? BehaviorChoice.OtherGroup,   // ⭐ CE-3164 (R-268)

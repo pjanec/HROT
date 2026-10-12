@@ -305,6 +305,13 @@ namespace Fdp.Toolkit.Behavior
         public IReadOnlyList<Type>? WritesChannels { get; set; }
 
         /// <summary>
+        /// ⭐ <c>CE-1019</c> — this behaviour IS an SOP: it carries SOP orders ("Do when idle" / "React" nodes). Not an authored
+        /// flag — the mark the Decision Layer rules (§4.5 ③, <c>CE-2079</c>: "carrying the orders is the mark"), published by the
+        /// generator that sees it, so the SOP picker offers only SOPs and the task pickers leave them out.
+        /// </summary>
+        public bool CarriesSopOrders { get; set; }
+
+        /// <summary>
         /// 🔒 <b>ENGINE-INTERNAL.</b> The blittable struct laid out at the start of
         /// <c>RootParamsAccess</c> (the ROOT PARAMS SLOT; this was <c>BrainBlackboard.BehaviorParameters</c> before <c>P3-C</c>). Consumers project it <b>over raw
         /// blackboard bytes</b> (<c>Marshal.PtrToStructure</c> / <c>Unsafe.As</c>), so its field order
