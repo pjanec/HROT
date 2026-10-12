@@ -33,6 +33,7 @@ namespace Fdp.Examples.Scenarios.Tests
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<Health>();
+            world.RegisterComponent<ActorCapabilityState>();   // ⭐ CE-2126 — the halt latch reads the APC's CanMove
             return world;
         }
 
@@ -93,6 +94,7 @@ namespace Fdp.Examples.Scenarios.Tests
             var apc = world.CreateEntity();
             world.AddComponent(apc, new TkbIdentity { TkbType = TkbMilitaryApc });
             world.AddComponent(apc, new LocomotionChannel { ActiveAction = 1 }); // moving initially
+            world.AddComponent(apc, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract });
 
             var insurgent = world.CreateEntity();
             world.AddComponent(insurgent, new TkbIdentity { TkbType = TkbInsurgent });
@@ -112,9 +114,15 @@ namespace Fdp.Examples.Scenarios.Tests
             Assert.True(validator.LatchAmbushFired);
             Assert.False(validator.LatchApcHalted);
 
-            // Tick 3: halt APC → latch 2 fires.
+            // Tick 3: an idle locomotion channel alone is NOT a halt (⭐ CE-2126 — it is idle on tick 2, before Cruising writes it).
             ref var loco = ref world.GetComponentRW<LocomotionChannel>(apc);
             loco.ActiveAction = 0;
+            result = validator.EvaluateTick(3, world);
+            Assert.False(result);
+            Assert.False(validator.LatchApcHalted);
+
+            // Tick 3b: MobilityLost took CanMove → latch 2 fires.
+            world.GetComponentRW<ActorCapabilityState>(apc).Capabilities &= ~ActorCapabilities.CanMove;
             result = validator.EvaluateTick(3, world);
             Assert.False(result);
             Assert.True(validator.LatchApcHalted);

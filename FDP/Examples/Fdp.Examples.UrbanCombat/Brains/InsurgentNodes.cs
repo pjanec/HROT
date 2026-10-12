@@ -102,6 +102,10 @@ namespace Fdp.Examples.UrbanCombat.Brains
                 unchecked { channel.ActionInstanceId++; }
 
             channel.ActiveAction = CombatConstants.ActionIdAimAndFire;
+            // ⭐ CE-2126 — stamp the owning behaviour: ChannelArbitrationSystem clears an action whose BehaviorInstanceId is not
+            //   the unit's, so an unstamped one was re-issued every tick and OnEnter restarted the aim clock (CE-3136 P-3) for ever.
+            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+                channel.BehaviorInstanceId = ctx.World.GetComponent<BehaviorState>(ctx.Self).InstanceId;
             return NodeStatus.Running;
         }
 

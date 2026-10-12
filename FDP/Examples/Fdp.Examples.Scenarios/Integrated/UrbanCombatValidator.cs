@@ -129,7 +129,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 //   tick 2, before Cruising first writes it, so the old test latched here while the ambush had not hit at all.
                 bool halted = !world.IsAlive(apc)
                               || (world.GetComponent<LocomotionChannel>(apc).ActiveAction == 0
-                                  && world.HasComponent<ActorCapabilityState>(apc)
+                                  && world.IsComponentTypeRegistered<ActorCapabilityState>() && world.HasComponent<ActorCapabilityState>(apc)
                                   && (world.GetComponent<ActorCapabilityState>(apc).Capabilities & ActorCapabilities.CanMove) == 0);
                 if (halted)
                     _latchApcHalted = true;
