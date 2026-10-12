@@ -71,6 +71,19 @@ namespace Hrot.Map.Definitions.Tkb
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2139</c> (C3, rule K2, R-278 (behaviors)) — gives a COMPOSITE its unit DIS type: Kind 11, land, the arm, and
+        /// the echelon READ FROM its <see cref="TkbCompositionDef.Echelon"/>, so the echelon is stated once. Call after
+        /// <see cref="AsComposite"/>.
+        /// </summary>
+        public NedTkbBuilder AsLandUnit(long tkbId, Hrot.Core.Tkb.UnitArm arm, ushort country, byte variant = 1)
+        {
+            var template = _db.GetByType(tkbId) ?? throw new InvalidOperationException($"Template {tkbId} not found");
+            var composition = template.GetDescriptor<TkbCompositionDef>()
+                ?? throw new InvalidOperationException($"Template {tkbId} is not a composite: AsLandUnit needs AsComposite first.");
+            return WithDisType(tkbId, Hrot.Core.Tkb.UnitDis.Land(arm, Hrot.Core.Tkb.UnitDis.EchelonOf(composition.Echelon), country, variant));
+        }
+
+        /// <summary>
         /// Add visual properties — the symbol, colour, model and label the map draws from.
         /// </summary>
         /// <remarks>

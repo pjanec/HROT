@@ -46,7 +46,9 @@ public sealed class EntityTypeCatalogTests
     {
         var c = EntityTypeCatalog.Build(BuiltIn());
 
-        Assert.Equal("Units/United States", Of(c, TkbEntityTypes.Unit_TankPlatoon).Category);
+        Assert.Equal("Units/Land/United States/Armor", Of(c, TkbEntityTypes.Unit_TankPlatoon).Category);   // ⭐ CE-2139: the units' DIS path
+        Assert.StartsWith(EntityTypeCatalog.UnitsFolder + "/", Of(c, TkbEntityTypes.Unit_InfantrySquad).Category);   // ExCon's ORBAT keys on it
+        Assert.Equal(EntityTypeCatalog.UnitsFolder, DisNameTable.Default.KindName(UnitDis.Kind));
     }
 
     [Fact]
@@ -186,16 +188,17 @@ public sealed class EntityTypeCatalogTests
     }
 
     /// <summary>⭐ The golden, taken on the pre-C2 code (<c>VisualFamilies</c>' switches + <c>DisNames.json</c>). C2 (CE-2138)
-    /// must keep every line; C3 (CE-2139) moves only the three units, on purpose.</summary>
+    /// must keep every line; C3 (CE-2139) moves only the three units, on purpose: DIS 1.1.225 → 11.1.225.&lt;arm&gt;.&lt;echelon&gt;.&lt;variant&gt;,
+    /// folder Units/United States → Units/Land/United States/&lt;arm&gt; (family and icon unchanged).</summary>
     private const string BuiltInGolden = """
         100 M1 Abrams | dis 1.1.225.1.0.0.0 | family Tank | folder Platform/Land/United States/Tank | icon _tank
         101 M2 Bradley IFV | dis 1.1.225.2.0.0.0 | family Afv | folder Platform/Land/United States/Armored Fighting Vehicle | icon _afv
         102 HMMWV | dis 1.1.225.6.0.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
         103 T-72 | dis 1.1.222.1.0.0.0 | family Tank | folder Platform/Land/Russia/Tank | icon _tank
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
-        301 Tank Platoon | dis 1.1.225.0.0.0.0 | family Unit | folder Units/United States | icon _unit
-        302 Infantry Squad | dis 1.1.225.0.0.0.0 | family Unit | folder Units/United States | icon _unit
-        303 Tank Platoon (Auto Spawn) | dis 1.1.225.0.0.0.0 | family Unit | folder Units/United States | icon _unit
+        301 Tank Platoon | dis 11.1.225.2.4.1.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
+        302 Infantry Squad | dis 11.1.225.1.2.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
+        303 Tank Platoon (Auto Spawn) | dis 11.1.225.2.4.2.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
         400 UH-60A Black Hawk | dis 1.2.225.21.0.0.0 | family Helicopter | folder Platform/Air/United States/Utility Helicopter | icon -
         401 F-16C Fighting Falcon | dis 1.2.225.1.0.0.0 | family Jet | folder Platform/Air/United States/Fighter/Air Defense | icon -
         402 C-130H Hercules | dis 1.2.225.4.0.0.0 | family CargoPlane | folder Platform/Air/United States/Cargo/Tanker | icon -
@@ -215,7 +218,8 @@ public sealed class EntityTypeCatalogTests
         8809 Crate | dis - | family Unknown | folder Other | icon -
         """;
 
-    /// <summary>⭐ The DIS names as <c>DisNames.json</c> held them — the class table must name exactly these levels.</summary>
+    /// <summary>⭐ The DIS names as <c>DisNames.json</c> held them — the class table must name exactly these levels; ⭐ C3 adds the
+    /// unit Kind (11) and its arms, nothing else.</summary>
     private const string DisNamesGolden = """
         1 Platform
         1.1 Land
@@ -265,6 +269,13 @@ public sealed class EntityTypeCatalogTests
         7 Radio
         8 Expendable
         9 Sensor/Emitter
+        11 Units
+        11.1 Land
+        11.1.*.1 Infantry
+        11.1.*.2 Armor
+        11.1.*.3 Mechanized Infantry
+        11.1.*.4 Artillery
+        11.1.*.5 Reconnaissance
         country 71 France
         country 78 Germany
         country 222 Russia

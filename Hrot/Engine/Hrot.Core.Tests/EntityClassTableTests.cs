@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Tkb;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Core.Tkb;
 using Hrot.Map.Definitions.Tkb;
 using Xunit;
@@ -83,6 +84,57 @@ namespace Hrot.Map.Common.Tests
             Assert.True(EntityClassTable.Default.Find("Platform")!.NamesALevel);
             Assert.False(EntityClassTable.Default.Find("Armor")!.NamesALevel);
             Assert.False(EntityClassTable.Default.Find("Helicopter")!.NamesALevel);
+        }
+
+        // ── CE-2139 (C3, rule K2, R-278) — units have their own DIS Kind ───────────────────────────────────────────────────
+
+        /// <summary>Each built-in unit is Kind 11, land, its country kept, Category = arm, Subcategory = the echelon its
+        /// composition names; its most specific class is its own, and no platform class (tank masks included) matches it.</summary>
+        [Theory]
+        [InlineData(TkbEntityTypes.Unit_TankPlatoon, UnitArm.Armor, "TankPlatoon", 1)]
+        [InlineData(TkbEntityTypes.Unit_TankPlatoon_Auto, UnitArm.Armor, "TankPlatoon", 2)]
+        [InlineData(TkbEntityTypes.Unit_InfantrySquad, UnitArm.Infantry, "InfantrySquad", 1)]
+        public void CE2139_AUnit_HasItsOwnKind_ArmEchelonAndVariant(long type, UnitArm arm, string cls, int variant)
+        {
+            var t = BuiltIn().GetByType(type)!;
+            var dis = t.DisType;
+            Assert.Equal(UnitDis.Kind, dis.Kind);
+            Assert.Equal((byte)1, dis.Domain);
+            Assert.Equal(CountryTable.UnitedStates, dis.Country);
+            Assert.Equal((byte)arm, dis.Category);
+            Assert.Equal((byte)UnitDis.EchelonOf(t.GetDescriptor<TkbCompositionDef>()!.Echelon), dis.Subcategory);
+            Assert.Equal((byte)variant, dis.Specific);
+            Assert.Equal(cls, EntityClassTable.Default.MostSpecific(dis)!.Name);
+            Assert.DoesNotContain(EntityClassTable.Default.Chain(dis), c => c.Mask.ExactValue(0) != UnitDis.Kind);
+            Assert.False(EntityClassTable.Default.Find("Tank")!.Mask.Matches(dis));
+            Assert.Equal(t.DisType.ToString(), t.GetDescriptor<TkbMasterDto>()!.DisType);
+        }
+
+        /// <summary>The reverse: a tank's chain holds no unit class.</summary>
+        [Fact]
+        public void CE2139_ATank_MatchesNoUnitClass()
+        {
+            var t72 = BuiltIn().GetByType(TkbEntityTypes.Tank_T72)!.DisType;
+            Assert.DoesNotContain(EntityClassTable.Default.Chain(t72), c => c.Mask.ExactValue(0) == UnitDis.Kind);
+        }
+
+        /// <summary>The builder reads the echelon from the composition (one source) and refuses a non-composite or a misspelt echelon.</summary>
+        [Fact]
+        public void CE2139_AsLandUnit_ReadsTheEchelon_AndRefusesWhatItCannotType()
+        {
+            var db = new TkbDatabase();
+            var b = new NedTkbBuilder(db);
+            b.DefineVehicle(9001, "Coy").AsComposite(9001, c => c.Echelon = "company").AsLandUnit(9001, UnitArm.MechanizedInfantry, CountryTable.Germany);
+            var dis = db.GetByType(9001)!.DisType;
+            Assert.Equal((byte)UnitEchelon.Company, dis.Subcategory);
+            Assert.Equal((byte)UnitArm.MechanizedInfantry, dis.Category);
+            Assert.Equal("MechanizedInfantryUnit", EntityClassTable.Default.MostSpecific(dis)!.Name);
+
+            b.DefineVehicle(9002, "Tank");
+            Assert.Throws<InvalidOperationException>(() => b.AsLandUnit(9002, UnitArm.Armor, CountryTable.UnitedStates));
+            b.DefineVehicle(9003, "Typo").AsComposite(9003, c => c.Echelon = "Platon");
+            var ex = Assert.Throws<ArgumentException>(() => b.AsLandUnit(9003, UnitArm.Armor, CountryTable.UnitedStates));
+            Assert.Contains("Platon", ex.Message);
         }
     }
 }

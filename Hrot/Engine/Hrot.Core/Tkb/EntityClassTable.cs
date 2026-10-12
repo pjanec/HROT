@@ -165,6 +165,18 @@ namespace Hrot.Core.Tkb
             yield return C("SurfacePerson", "Surface", "3.3");
             yield return C("SubsurfacePerson", "Subsurface", "3.4");
             yield return C("Infantry", "Infantry (HROT)", "3.1.*.1");
+
+            // ⭐ CE-2139 (C3, R-278) — UNITS, under their own Kind (UnitDis): Category = arm, Subcategory = echelon. The Kind's
+            //   display name is the picker's units folder (EntityTypeCatalog.UnitsFolder, which ExCon's ORBAT list keys on).
+            yield return C("Unit", "Units", "11");
+            yield return C("LandUnit", "Land", "11.1");
+            yield return C("InfantryUnit", "Infantry", "11.1.*.1");
+            yield return C("ArmorUnit", "Armor", "11.1.*.2");
+            yield return C("MechanizedInfantryUnit", "Mechanized Infantry", "11.1.*.3");
+            yield return C("ArtilleryUnit", "Artillery", "11.1.*.4");
+            yield return C("ReconnaissanceUnit", "Reconnaissance", "11.1.*.5");
+            yield return C("InfantrySquad", "Infantry Squad", "11.1.*.1.2");
+            yield return C("TankPlatoon", "Tank Platoon", "11.1.*.2.4");
         }
     }
 

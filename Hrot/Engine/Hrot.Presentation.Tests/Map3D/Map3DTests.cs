@@ -366,6 +366,26 @@ public sealed class Map3DTests
                      byClass.GetShape(GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.Humanoid, 0).Name);
     }
 
+    /// <summary>⭐ CE-2139 (C3) — a unit is a unit by its DIS Kind: family Unit (no body), no 2-D avatar, in the ground-units map
+    /// layer but no longer in "vehicles" (it was, as 1.1.225); a composite with a PLATFORM DIS type is no longer special.</summary>
+    [Fact]
+    public void CE2139_AUnit_IsAUnitByItsDisKind_NoBodyNoAvatar_NotAVehicle()
+    {
+        var squad = BuiltIn().GetByType(TkbEntityTypes.Unit_InfantrySquad)!;
+        Assert.Equal(VisualFamily.Unit, VisualFamilies.Of(squad));
+        Assert.Equal(VisualFamily.Unit, VisualFamilies.Of(UnitDis.Land(UnitArm.Artillery, UnitEchelon.Battalion, 78)));
+        Assert.Equal(GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.Fallback,
+                     new Hrot.Presentation.Map.EntityClassShapeLibrary().GetShape(null, squad.DisType.Value).Name);
+
+        bool In(string layer) => Hrot.Presentation.Map.MapLayerRegistry.All.Single(l => l.Name == layer).IsMember(default, squad.DisType, null!);
+        Assert.True(In("units_ground"));     // the DIS-only layers; the others read components
+        Assert.False(In("vehicles"));
+
+        var platformComposite = new TkbTemplate("old", 9998) { DisType = new DISEntityType { Kind = 1, Domain = 1, Country = 225 } };
+        platformComposite.AddDescriptor(new TkbCompositionDef());
+        Assert.Equal(VisualFamily.Unknown, VisualFamilies.Of(platformComposite));   // the DIS type decides, not the composition
+    }
+
     // ── aircraft (SISO-REF-010 platform / air categories) ──
 
     [Theory]

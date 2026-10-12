@@ -30,7 +30,7 @@ public enum VisualFamily : byte
 /// what the type IS — its DIS type, or being a composite — so a TKB without art still gets a meaningful picture.
 /// <para>⭐ CE-2138 (C2, rule K1, R-279 / R-280 (behaviors)) — the DIS half is now <see cref="EntityClassTable"/>: the family is
 /// that of the MOST SPECIFIC class in the type's chain that has one (<see cref="FamilyOfClass"/>), so the 3-D model, the
-/// picker and the behaviours read one table. ⛔ The composite check stays until C3 (CE-2139) gives units a DIS Kind.</para>
+/// picker and the behaviours read one table. ⭐ CE-2139 (C3) — units have their own DIS Kind, so the composite check is gone.</para>
 /// </summary>
 public static class VisualFamilies
 {
@@ -38,6 +38,7 @@ public static class VisualFamilies
     /// most specific class up. Every name here is a class of <see cref="EntityClassTable.Default"/> (rail).</summary>
     public static IReadOnlyDictionary<string, VisualFamily> FamilyOfClass { get; } = new Dictionary<string, VisualFamily>
     {
+        ["Unit"] = VisualFamily.Unit,
         ["Person"] = VisualFamily.Person,
         ["Tank"] = VisualFamily.Tank,
         ["Afv"] = VisualFamily.Afv,
@@ -48,12 +49,9 @@ public static class VisualFamilies
         ["CargoPlane"] = VisualFamily.CargoPlane,
     };
 
-    /// <summary>The family of <paramref name="t"/>.</summary>
-    public static VisualFamily Of(TkbTemplate t)
-    {
-        if (t.GetDescriptor<TkbCompositionDef>() is not null) return VisualFamily.Unit;
-        return Of(t.DisType);
-    }
+    /// <summary>The family of <paramref name="t"/> — its DIS type's. ⭐ CE-2139 (C3): a unit is <see cref="VisualFamily.Unit"/>
+    /// because its DIS Kind is the unit Kind (11), no longer because it carries a <see cref="TkbCompositionDef"/>.</summary>
+    public static VisualFamily Of(TkbTemplate t) => Of(t.DisType);
 
     /// <summary>The family of a DIS type, from its class chain (<see cref="VisualFamily.Unknown"/> when no class decides one).</summary>
     public static VisualFamily Of(DISEntityType dis)

@@ -234,7 +234,7 @@ namespace Hrot.Map.Definitions.Tkb
                     comp.Echelon = "Platoon";
                     comp.AutoCreateChildren = false; // Manual creation
                 })
-                .WithDisType(TkbEntityTypes.Unit_TankPlatoon, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates });
+                .AsLandUnit(TkbEntityTypes.Unit_TankPlatoon, Hrot.Core.Tkb.UnitArm.Armor, UnitedStates);   // ⭐ CE-2139 — 11.1.225.2.4.1
             
             // Infantry Squad (Composite)
             builder
@@ -255,7 +255,7 @@ namespace Hrot.Map.Definitions.Tkb
                     comp.Echelon = "Squad";
                     comp.AutoCreateChildren = false;
                 })
-                .WithDisType(TkbEntityTypes.Unit_InfantrySquad, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates });
+                .AsLandUnit(TkbEntityTypes.Unit_InfantrySquad, Hrot.Core.Tkb.UnitArm.Infantry, UnitedStates);   // ⭐ CE-2139 — 11.1.225.1.2.1
 
             // Tank Platoon (Auto-Spawning)
             builder
@@ -275,7 +275,7 @@ namespace Hrot.Map.Definitions.Tkb
                     comp.Echelon = "Platoon";
                     comp.AutoCreateChildren = true; // The engine will now auto-spawn 4x M1 Abrams when this is created
                 })
-                .WithDisType(TkbEntityTypes.Unit_TankPlatoon_Auto, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates });
+                .AsLandUnit(TkbEntityTypes.Unit_TankPlatoon_Auto, Hrot.Core.Tkb.UnitArm.Armor, UnitedStates, variant: 2);   // ⭐ CE-2139 — the auto-spawning variant
 
             // ⭐⭐ CE-1041 — AIRCRAFT. CG-referenced bodies resting on their gear: the gear positions are what landing and parking
             //   use (BodyGeometry.RestingPose). ⛔ No WithPhysics — that adds VehicleParametersDto, i.e. CAR kinematics; an aircraft
