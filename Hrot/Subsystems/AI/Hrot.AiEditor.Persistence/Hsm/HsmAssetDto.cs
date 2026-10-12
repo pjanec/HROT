@@ -388,4 +388,13 @@ public sealed class HsmAssetDto
     /// (the HSM's block is emitted through <c>HsmBridgeEmitCore.BlackboardOwner</c>, which carries it).</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? ParamsDtoTypeId { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2135</c> (B3a, R-3000) — the reserved <c>Params</c> variable's baked default (JSON of the named params DTO), or
+    /// <c>null</c>. An asset that names its params DTO and declares NO Input variable stores its params in the reserved
+    /// <c>Params</c> (the block's <c>In</c>); this is that variable's <c>DefaultValueJson</c>. Written only when set.
+    /// 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §5c.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsDefaultJson { get; set; }
 }

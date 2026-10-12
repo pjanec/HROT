@@ -813,6 +813,7 @@ namespace Fdp.Toolkit.Behavior
             if (def.ManagedBlackboardVariables != null)          // generated: the authored contract is the hosted input
             {
                 if (def.JsonParamsDtoType == null) return false;   // no Input half and no resolver: nothing to seed
+                if (RootParamsAccess.IsNoParams(def.JsonParamsDtoType)) return false;   // CE-2135: takes nothing
                 inputType = def.JsonParamsDtoType;
                 return true;
             }

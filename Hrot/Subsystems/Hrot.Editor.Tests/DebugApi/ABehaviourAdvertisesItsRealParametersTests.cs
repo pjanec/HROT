@@ -244,6 +244,7 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         // measured 2026-10-12 at the first run of the rail: 48 behaviours
         // CE-2133 (B1, 2026-10-12) removed 8: one struct Input now IS the params DTO (FallBack, HullDownAttackRun,
         //   PlatoonHillAttack, Sentry, T11_Aliasing, T31_ComposedAiPrimitive, T34_ComposedAiPrimitiveCondition, TakeCover)
+        // CE-2135 (B3a, 2026-10-12) removed 2: T32_ComposedGeneratedBlueprint, T33_ComposedParamBlueprint now name NoParams
         "BTreeCuratedBindingDemo", "BTreeRenderShowcase", "BasicInfantrySop", "BasicSquadSop",
         "BlueprintBehaviourDemo", "CombatShowcase", "DangerCrossing", "DangerCrossingBp",
         "Demo_Advance", "Demo_Engage", "Demo_MissionPlan", "Demo_Retreat",
@@ -252,8 +253,8 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         "OperatorControl", "PlatoonHillAttackBp", "SampleGuard", "SampleScout",
         "T01_Sequence", "T02_Selector", "T03_Parallel", "T04_DecoratorRepeater",
         "T05_DecoratorStack", "T06_ObserverSelector", "T07_Subtree", "T08_ActionLeaf",
-        "T09_BlackboardManaged", "T10_MultiAction", "T20_MultiStateful", "T32_ComposedGeneratedBlueprint",
-        "T33_ComposedParamBlueprint", "T35_SharedWorkingState", "T39_TwoDistinctPrimitives", "T40_BehaviorResolverAsset",
+        "T09_BlackboardManaged", "T10_MultiAction", "T20_MultiStateful", "T35_SharedWorkingState",
+        "T39_TwoDistinctPrimitives", "T40_BehaviorResolverAsset",
     };
 
     /// <summary>⭐ CE-2130 — true when <paramref name="t"/> is a generator's mirror of a behaviour's own variables rather

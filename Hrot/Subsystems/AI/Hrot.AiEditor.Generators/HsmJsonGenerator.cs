@@ -98,6 +98,9 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
             return;
         }
 
+        // ⭐ CE-2135 (B3a) — an asset that names its params DTO gets the reserved Params variable before anything reads it.
+        HsmBridgeEmitCore.WithParamsVariable(dto);
+
         // ⭐ CE-3164 (R-268) — the picker group is the asset's FOLDER (never persisted in the file).
         dto.Group = Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath(path);
 

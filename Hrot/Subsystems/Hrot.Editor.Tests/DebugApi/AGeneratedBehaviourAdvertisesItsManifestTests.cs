@@ -264,9 +264,14 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
             //   resolver-filtered Editor tests were run; found by CE-449's full-suite gate.)
             // ⭐ CE-2134: a CURATED resolver likewise (PlatoonHillAttack declares its resolver's JSON DTO; its In is the struct it stores).
             bool resolverBound = def.ResolveStage is not null || registry.HasCuratedResolver(def.Name);
+            // ⭐ CE-2135 (B3a): NoParams stores nothing — the block's In holds only plain variables, never the contract; and a named
+            //   DTO beside plain variables sits at In's first field, Params.
+            bool storesNothing = RootParamsAccess.IsNoParams(layout);
+            bool paramsFirst = inField?.FieldType.GetField("Params") is { } pf && pf.FieldType == layout
+                && (int)System.Runtime.InteropServices.Marshal.OffsetOf(inField.FieldType, "Params") == 0;
             if (inField is null)
                 problems.Add($"{def.Name}: block.In is missing");
-            else if (!resolverBound && inField.FieldType != layout)
+            else if (!resolverBound && !storesNothing && !paramsFirst && inField.FieldType != layout)
                 problems.Add($"{def.Name}: block.In is {inField.FieldType.Name}, not {layout.Name}");
             else if ((int)System.Runtime.InteropServices.Marshal.OffsetOf(block, "In") != 0)
                 problems.Add($"{def.Name}: block.In is not at offset 0");

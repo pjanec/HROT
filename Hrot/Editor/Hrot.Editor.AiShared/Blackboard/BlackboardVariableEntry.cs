@@ -38,4 +38,5 @@ public record BlackboardVariableEntry(
     bool                 IsAutoManaged    = false,
     string?              DefaultValueJson = null,
     BlackboardVariableRole Role           = BlackboardVariableRole.Input,
-    WorkingStateScope    Scope            = WorkingStateScope.Node);
+    WorkingStateScope    Scope            = WorkingStateScope.Node,
+    bool                 IsReservedParams = false);

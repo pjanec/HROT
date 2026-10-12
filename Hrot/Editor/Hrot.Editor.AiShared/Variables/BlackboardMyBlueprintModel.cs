@@ -83,7 +83,9 @@ public sealed class BlackboardMyBlueprintModel : IMyBlueprintModel
         return new[]
         {
             new MyBlueprintSectionDescriptor(
-                Id: SectionInputs, DisplayName: "Inputs", SortOrder: 0, IconKey: null,
+                // ⭐ CE-2135 (B3a) — "Variables": the packed, bindable variables (the reserved Params first, when named).
+                //   ⛔ HISTORY: "Inputs" — every row here was the behaviour's JSON params until it named a params DTO.
+                Id: SectionInputs, DisplayName: "Variables", SortOrder: 0, IconKey: null,
                 CanCreateItems: true, CanHaveCategories: false,
                 CreateCommandId: $"{prefix}.blackboard.createInput"),
 

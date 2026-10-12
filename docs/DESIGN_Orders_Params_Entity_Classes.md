@@ -339,7 +339,9 @@ reference). The editor's example behaviours are declared in the editor, so CGF a
 | P3 (stored ⇒ unmanaged struct) is enforced at generate time | BEH003 makes a resolver-less curated behaviour's Params its `ParamsType` (a struct by construction); B1 makes a generated asset's stored params its Input (a struct). ⇒ no runtime P3 check is needed |
 | the registry refuses two declarations of one name, and a declaration with no `Params` | the load check: one producer per behaviour (R-132), P1 (a behaviour that takes nothing names `NoParams`) |
 
-## 5c. CE-2135 B3 — no Input / State roles *(design 2026-10-12, backend lane; build-state: DESIGN — awaiting the user on the split below)*
+## 5c. CE-2135 B3 — no Input / State roles *(design 2026-10-12, backend lane; build-state: B3a BUILT, B3b open — the split APPROVED, R-3000)*
+
+> 🔒 **User, 2026-10-12** (with the behaviors lane's steering): *"So approved, B3a now; A2 (CE-2132) converts straight to the B3a form after it lands"* ⇒ the order is **B3a (backend) → A2 / CE-2132 (behaviors, converts once, to the final form) → B3b (backend)**.
 
 **INVENTORY** *(two read-only sweeps, 2026-10-12; graph CLI index + grep)*:
 - **Code:** ~200 production lines read Role/Scope or the `In`/`St` split: persistence (10), BTree/HSM emitters + generators (~43),
@@ -383,6 +385,24 @@ Input variables), which is why the cost is in the editors, the generators and th
 |---|---|---|
 | ⭐ **B3a** | an asset that names its params DTO has NO Input variable: `In` = the DTO, called `Params`, its default `ParamsDefaultJson` on the asset; every authored variable is what `State`+`Behavior` is today (`St`). Convert the 11 class-B assets (5 shipped, 6 tests) to it. Editor: one "Variables" section + a read-only "Params" row; new variables are plain (no Role column). A host binds a child with an ordinary variable (`St` offsets measured on the struct, like the blueprint emitter). The legacy Input path stays ONLY for unconverted assets, listed by the CE-2130 allow-list | now (backend) |
 | **B3b** | delete `Role` (`BlackboardVariableRole`, the panel's legacy path, the mirror emission); blueprint behaviours' Parameters → a named DTO; resolver assets' Parameters → the DTO (supersedes §P.7) | when A2 (CE-2132) + the test / blueprint conversions empty the allow-list; blueprint Parameters ideally after B4 (an editor-made DTO) so no C# is needed |
+
+⚠ **Refined while building B3a (measured 2026-10-12, before any code relied on the table above):** a "plain" variable is a
+PACKED one (today's `Input` storage), not an `St` one. Action bindings bake each variable's OFFSET into their keys at generate
+time (`HsmActionKey.CompoundKeyName(fqn, offset)`, both emitters) and resolve it from the packed fields only
+(`BTreeBridgeEmitCore.cs:497`); `St` is CLR-laid-out (its types may be unsizable at generate time, e.g. fixed buffers), so an `St`
+variable cannot be an action's params. ⇒ in B3a: the reserved `Params` is the FIRST packed variable (offset 0); the asset's other
+packed variables are plain variables (bindable, baked, never JSON); `St` stays the working-state half. The persisted value
+`Role = Input` therefore means "a plain (packed) variable" in an asset that names a DTO, and "the generated JSON mirror" only in a
+legacy asset; B3b removes the name. The `Block_B3` box above reads: `In` = `Params` + the plain variables.
+
+**B3a as built** *(2026-10-12)*: `ParamsDefaultJson` on the BTree / HSM asset; `BTreeEmitCore.WithParamsVariable` /
+`HsmBridgeEmitCore.WithParamsVariable` inject `Params` at every generator entry (idempotent); `ParamsTarget` = `Params` (named)
+or B1's single struct Input (legacy); `NoParams` stores nothing (no injection, `RequireNoStoredFields`, `InputBytes` 0, nothing
+for a host to seed); `RootParamsAccess.InputBytes` = the DTO's size when the first packed variable is it. Editor: the mappers
+show `Params` as a read-only entry (`ReservedParamsVariable`, `BlackboardVariableEntry.IsReservedParams`) and save it back as the
+two asset fields; the panel has no Role column; the first section is "Variables". Converted: Sentry, TakeCover, FallBack,
+HullDownAttackRun, PlatoonHillAttack → `Params`; the test assets T11, T31–T34, HsmStatefulBindingDemo → `NoParams` (their one
+variable is a composed action's params or an aliasing fixture that no caller sets by JSON, so it stays a plain variable).
 
 Rejected (one line each): **remove `Role` in one step now** — breaks the 17 class-D and 4 class-C assets and 5 keyed scenario strings
 the behaviors lane is converting (A2) · **give the named DTO its default from C# initialisers** — `default(T)` ignores them

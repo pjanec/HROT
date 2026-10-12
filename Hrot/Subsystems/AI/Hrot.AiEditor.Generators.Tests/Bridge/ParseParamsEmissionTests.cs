@@ -529,26 +529,53 @@ public sealed class ParseParamsEmissionTests
         bridge.Should().NotContain("#error CE-2133");
     }
 
+    /// <summary>⭐ CE-2133 / CE-2135 — <c>NoParams</c> stores nothing: it is published, the asset's variables stay plain (baked,
+    /// never JSON), and fields sent to it are refused rather than dropped. ⛔ HISTORY (B1): any named DTO with no Input stored
+    /// nothing; since B3a a named DTO is stored in the reserved <c>Params</c> (the rail below).</summary>
     [Fact]
-    public void CE2133_ANamedDto_WithNoInput_IsPublished_AndStoresNothing()
+    public void CE2135_NoParams_IsPublished_AndStoresNothing()
     {
-        var bridge = Emit(MakeStructInputDto(paramsDtoTypeId: "Test.Ns.HoldLikeOrder", withInput: false, withState: true));
-
-        bridge.Should().Contain("JsonParamsDtoType    = typeof(global::Test.Ns.HoldLikeOrder),");
-        bridge.Should().Contain("BehaviorParams.RequireNoStoredFields(json, \"TestFlatParams\", \"Test.Ns.HoldLikeOrder\")",
-            "fields sent to a behaviour that stores none must throw, never vanish");
+        const string NoParams = "Hrot.Map.Definitions.Behavior.NoParams";
+        var bridge = Emit(MakeStructInputDto(paramsDtoTypeId: NoParams, withInput: false, withState: true));
+        bridge.Should().Contain($"JsonParamsDtoType    = typeof(global::{NoParams}),");
+        bridge.Should().Contain($"BehaviorParams.RequireNoStoredFields(json, \"TestFlatParams\", \"{NoParams}\")");
         bridge.Should().NotContain("#error CE-2133");
 
-        var noBlock = Emit(MakeStructInputDto(paramsDtoTypeId: "Test.Ns.HoldLikeOrder", withInput: false));
-        noBlock.Should().Contain("JsonParamsDtoType    = typeof(global::Test.Ns.HoldLikeOrder),",
-            "a behaviour with no variables at all still publishes the DTO it names");
+        var withPlainVariable = Emit(MakeStructInputDto(paramsDtoTypeId: NoParams));
+        withPlainVariable.Should().Contain($"BehaviorParams.RequireNoStoredFields(json, \"TestFlatParams\", \"{NoParams}\")",
+            "a packed variable beside NoParams is a plain variable, not the JSON");
+        withPlainVariable.Should().NotContain("case \"sentry\":").And.NotContain("BehaviorParams.OverlayFlat(");
+
+        Emit(MakeStructInputDto(paramsDtoTypeId: NoParams, withInput: false)).Should()
+            .Contain($"JsonParamsDtoType    = typeof(global::{NoParams}),", "a behaviour with no variables still publishes NoParams");
+    }
+
+    /// <summary>⭐⭐ CE-2135 (B3a, R-3000) — a named DTO is stored in the reserved <c>Params</c> variable, injected at offset 0 of the
+    /// packed region: the JSON lands ONLY there, and the asset's other packed variables are plain variables (baked, bindable,
+    /// never JSON). ✅ Red-proof: drop <c>WithParamsVariable</c> from <c>EmitBridge</c> and the JSON has nowhere to land.</summary>
+    [Fact]
+    public void CE2135_ANamedDto_IsStoredInTheReservedParams_AndOtherVariablesArePlain()
+    {
+        var dto = MakeStructInputDto(paramsDtoTypeId: "Test.Ns.OtherParams");   // plus a packed variable 'sentry'
+        dto.ParamsDefaultJson = "{\"N\":3}";
+        var bridge = Emit(dto);
+
+        bridge.Should().Contain("BehaviorParams.OverlayFlat(ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Test.Ns.OtherParams>(memory + 0), json, __paramJsonOpts);",
+            "the JSON lands in Params at offset 0");
+        bridge.Should().Contain("JsonParamsDtoType    = typeof(global::Test.Ns.OtherParams),");
+        bridge.Should().Contain("new(\"Params\", typeof(global::Test.Ns.OtherParams), 0),").And.Contain("new(\"sentry\", typeof(global::Test.Ns.SentryLikeParams), 16),",
+            "both are packed (bindable); only Params is the JSON");
+        bridge.Should().NotContain("case \"sentry\":", "a plain variable is never keyed JSON");
+        bridge.Should().Contain("{\\\"N\\\":3}", "the reserved Params bakes ParamsDefaultJson");
+        bridge.Should().NotContain("#error CE-2133");
     }
 
     [Fact]
-    public void CE2133_ANamedDto_ThatIsNotTheInput_OrBesideAResolver_IsACompileError()
+    public void CE2135_AWronglyTypedParamsVariable_OrANamedDtoBesideAResolver_IsACompileError()
     {
-        Emit(MakeStructInputDto(paramsDtoTypeId: "Test.Ns.OtherParams")).Should().Contain("#error CE-2133:",
-            "the JSON lands in the one Input, so a different named type has nowhere to go");
+        var clash = MakeStructInputDto(paramsDtoTypeId: "Test.Ns.OtherParams");
+        clash.Blackboard.Variables[0].Name = "Params";   // a Params variable of ANOTHER type
+        Emit(clash).Should().Contain("#error CE-2133:", "\"Params\" is reserved for the named DTO");
         Emit(MakeStructInputDto(paramsDtoTypeId: DtoTypeId, resolver: "SomeResolver")).Should().Contain("#error CE-2133:",
             "a resolver asset names its own contract (R-149)");
     }

@@ -72,7 +72,7 @@ public static class SentryRegistrar
                 // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
                 __BakeDefaults(memory, capacity);
 
-                // Step 2 — CE-2133: the one Input 'sentry' IS the params DTO; the JSON is its fields, flat.
+                // Step 2 — CE-2133/CE-2135: 'Params' IS the params DTO; the JSON is its fields, flat.
                 global::Fdp.Toolkit.Behavior.BehaviorParams.OverlayFlat(ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Fdp.Toolkit.Behavior.ThreatCountParams>(memory + 0), json, __paramJsonOpts);
             };
         }
@@ -84,10 +84,10 @@ public static class SentryRegistrar
             Group        = "Library/Tactics",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
-            BlueprintStructureHash = 10910191762451334334UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 6743294637350364525UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
-                new("sentry", typeof(global::Fdp.Toolkit.Behavior.ThreatCountParams), 0),
+                new("Params", typeof(global::Fdp.Toolkit.Behavior.ThreatCountParams), 0),
             },
             JsonParamsDtoType    = typeof(global::Fdp.Toolkit.Behavior.ThreatCountParams),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.Sentry_Block),

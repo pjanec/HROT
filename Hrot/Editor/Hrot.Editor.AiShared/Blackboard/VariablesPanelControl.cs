@@ -392,13 +392,14 @@ public sealed class VariablesPanelControl
         IReadOnlyDictionary<string, string>? liveValues = null)
     {
         var schema = section.Schema;
-        if (ImGui.BeginTable(section.TableId, 7, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        // ⭐ CE-2135 (B3a, R-3000) — no Role column: a variable is a variable; the behaviour's JSON params are the reserved
+        //   read-only "Params" row (its named DTO). ⛔ HISTORY: an Input/State combo per row (U-5/BP-230).
+        if (ImGui.BeginTable(section.TableId, 6, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             ImGui.TableSetupColumn("Name",  ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Type",  ImGuiTableColumnFlags.WidthFixed, 90f);
             ImGui.TableSetupColumn("Bytes", ImGuiTableColumnFlags.WidthFixed, 50f);
             ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Role",  ImGuiTableColumnFlags.WidthFixed, 56f);
             ImGui.TableSetupColumn("Scope", ImGuiTableColumnFlags.WidthFixed, 72f);
             ImGui.TableSetupColumn("##rmv", ImGuiTableColumnFlags.WidthFixed, 24f);
             ImGui.TableHeadersRow();
@@ -448,7 +449,8 @@ public sealed class VariablesPanelControl
                     if (ImGui.IsItemHovered())
                     {
                         if (row.IsUnused) ImGui.SetTooltip("Not referenced by any node -- consider removing.");
-                        if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && !schema.IsReadOnly)
+                        if (row.IsReadOnly) ImGui.SetTooltip("The behaviour's params: its named DTO (ParamsDtoTypeId). Reserved — not renamed or removed here.");
+                        if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && !schema.IsReadOnly && !row.IsReadOnly)
                         {
                             _renameActiveVarName = row.Name;
                             Array.Clear(_renameBuf, 0, _renameBuf.Length);
@@ -529,25 +531,6 @@ public sealed class VariablesPanelControl
                     else
                         ImGui.TextDisabled("—");
                 }
-                // Role column
-                // ⭐ U-5/BP-230: gated on the CAPABILITY, not just on IsReadOnly. A source that
-                // cannot apply the edit now renders the value as text (the else-branch) instead of a
-                // live combo that discards it.
-                ImGui.TableNextColumn();
-                if (!schema.IsReadOnly && schema.SupportsRoleScopeEditing)
-                {
-                    ImGui.SetNextItemWidth(-1f);
-                    int roleIdx = (int)row.Role;
-                    if (ImGui.Combo($"##role_{rowIdx}", ref roleIdx, "Input\0State\0\0"))
-                    {
-                        var newRole = (BlackboardVariableRole)roleIdx;
-                        schema.UpdateVariableRole(row.Name, newRole);
-                    }
-                }
-                else
-                {
-                    ImGui.TextUnformatted(row.Role == BlackboardVariableRole.State ? "state" : "input");
-                }
                 // Scope column — only meaningful when Role == State
                 ImGui.TableNextColumn();
                 if (row.ShowScopeSelector)
@@ -572,7 +555,7 @@ public sealed class VariablesPanelControl
                     ImGui.TextDisabled("—");
                 }
                 ImGui.TableNextColumn();
-                if (!schema.IsReadOnly && ImGui.SmallButton("[x]"))
+                if (!schema.IsReadOnly && !row.IsReadOnly && ImGui.SmallButton("[x]"))
                 {
                     _pendingRemoveName = row.Name;
                     _pendingRemoveRefCount = schema.CountNodesReferencingVariable(row.Name);

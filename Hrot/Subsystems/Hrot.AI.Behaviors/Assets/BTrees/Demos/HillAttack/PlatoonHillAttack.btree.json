@@ -230,6 +230,7 @@
 			}
 		}
 	],
+	"ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams",
 	"Pills": [
 		{
 			"VisualId": "1a000000-0000-0000-0000-0000000000f1",
@@ -265,15 +266,6 @@
 		"TypeName": "",
 		"HeavyDtoType": null,
 		"Variables": [
-			{
-				"Name": "Params",
-				"Type": {
-					"TypeId": "Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams",
-					"IsArray": false,
-					"FixedLength": null
-				},
-				"Comment": "Static hill-attack config (firing line, baseline, attack dir, target area entity). Populated once at behavior assignment by ParsePlatoonHillAttackParams; all nodes alias this one variable."
-			},
 			{
 				"Name": "State",
 				"Type": {

@@ -323,7 +323,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
                     : (IReadOnlyList<(string, Guid, Guid)>)Array.Empty<(string, Guid, Guid)>(),
                 isUnused,
                 IsAutoManaged: v.IsAutoManaged,
-                IsReadOnly:    false,
+                IsReadOnly:    v.IsReservedParams,   // ⭐ CE-2135 — the reserved Params is the named DTO, not authored here
                 Role:          v.Role,
                 Scope:         v.Scope,
                 // ⭐ Row 58 — the INITIAL arm's source for the AI hosts.

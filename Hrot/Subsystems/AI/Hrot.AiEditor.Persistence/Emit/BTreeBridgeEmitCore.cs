@@ -106,6 +106,7 @@ public static class BTreeBridgeEmitCore
     public static string EmitBridge(BehaviorTreeAssetDto dto, SizeResolverDelegate? sizeResolver,
         IReadOnlyList<DeactivatorEntry>? deactivators, Func<string, SharedAiMethodInfo?>? sharedAi)
     {
+        dto.WithParamsVariable();   // ⭐ CE-2135 — the reserved Params, when the asset names its DTO (idempotent)
         var sb = new StringBuilder();
 
         // Header (same marker so the file is recognized as editor-generated)
@@ -1605,14 +1606,22 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad4}// Step 2 — CE-443: the bound resolver, handed the parsed authored DTO (no copy onto In).");
             sb.AppendLine($"{pad4}__ResolveRoot(json, memory, capacity, world, self);");
         }
-        else if (packedFields.Count == 1 && BTreeEmitCore.FlatParamsVariable(dto) is { } flat
-                 && string.Equals(flat.Name, packedFields[0].Name, StringComparison.Ordinal))
+        else if (BTreeEmitCore.ParamsTarget(dto) is { } flat
+                 && packedFields.FirstOrDefault(f => string.Equals(f.Name, flat.Name, StringComparison.Ordinal)) is { } target)
         {
-            // ⭐⭐ CE-2133 (B1, DESIGN_Orders_Params_Entity_Classes §1 P2) — the one Input IS the params DTO: the JSON is its
-            //   fields, FLAT, overlaid field by field onto the baked default (an absent key keeps it). Never {"<variable>":{…}}.
-            string flatFqn = DtoTypeToGlobal(packedFields[0].TypeId);
-            sb.AppendLine($"{pad4}// Step 2 — CE-2133: the one Input '{EscapeCSharpStringLiteral(flat.Name)}' IS the params DTO; the JSON is its fields, flat.");
-            sb.AppendLine($"{pad4}global::Fdp.Toolkit.Behavior.BehaviorParams.OverlayFlat(ref global::System.Runtime.CompilerServices.Unsafe.AsRef<{flatFqn}>(memory + {packedFields[0].ByteOffset}), json, __paramJsonOpts);");
+            // ⭐⭐ CE-2133 (B1) / CE-2135 (B3a), DESIGN_Orders_Params_Entity_Classes §1 P2 — the params DTO's variable (the reserved
+            //   Params, or B1's one struct Input): the JSON is its fields, FLAT, overlaid onto the baked default (an absent key
+            //   keeps it). Never {"<variable>":{…}}; every other variable keeps its baked default (it is not JSON).
+            string flatFqn = DtoTypeToGlobal(target.TypeId);
+            sb.AppendLine($"{pad4}// Step 2 — CE-2133/CE-2135: '{EscapeCSharpStringLiteral(flat.Name)}' IS the params DTO; the JSON is its fields, flat.");
+            sb.AppendLine($"{pad4}global::Fdp.Toolkit.Behavior.BehaviorParams.OverlayFlat(ref global::System.Runtime.CompilerServices.Unsafe.AsRef<{flatFqn}>(memory + {target.ByteOffset}), json, __paramJsonOpts);");
+        }
+        else if (NamedParamsFqn(dto) != null)
+        {
+            // ⭐ CE-2135 (B3a) — the asset names a params DTO it does not store (NoParams): its variables are plain variables,
+            //   never JSON; fields sent to it are refused, never dropped.
+            sb.AppendLine($"{pad4}// Step 2 — CE-2135: '{EscapeCSharpStringLiteral(dto.ParamsDtoTypeId!)}' is stored nowhere; the variables are not JSON.");
+            sb.AppendLine($"{pad4}global::Fdp.Toolkit.Behavior.BehaviorParams.RequireNoStoredFields(json, \"{EscapeCSharpStringLiteral(dto.Name)}\", \"{EscapeCSharpStringLiteral(dto.ParamsDtoTypeId!)}\");");
         }
         else
         {

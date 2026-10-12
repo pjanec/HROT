@@ -141,6 +141,7 @@
 			}
 		}
 	],
+	"ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.HullDownAttackParams",
 	"Pills": [],
 	"Canvas": {
 		"PanX": 0,
@@ -157,15 +158,6 @@
 		"TypeName": "",
 		"HeavyDtoType": null,
 		"Variables": [
-			{
-				"Name": "Params",
-				"Type": {
-					"TypeId": "Hrot.AI.Behaviors.Brains.HullDownAttackParams",
-					"IsArray": false,
-					"FixedLength": null
-				},
-				"Comment": "Per-tank orders (firing slot, baseline slot, attack dir, speeds, TargetNetworkId, shot quota). Set per dispatch by ParseHullDownAttackParams; RoundsFired/LastObservedAmmo are mutated in place across ticks."
-			}
 		]
 	}
 }

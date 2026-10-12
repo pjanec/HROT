@@ -44,7 +44,7 @@
       "kind": "Condition",
       "Condition": {
         "MethodFqn": "Fdp.Toolkit.Behavior.SensorNodes.ThreatsAtLeast",
-        "ExpressionTargetField": "sentry"
+        "ExpressionTargetField": "Params"
       },
       "VisualId": "c3079000-0000-0000-0000-000000000004",
       "ChildVisualIds": [],
@@ -74,6 +74,8 @@
       }
     }
   ],
+  "ParamsDtoTypeId": "Fdp.Toolkit.Behavior.ThreatCountParams",
+  "ParamsDefaultJson": "{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":90}",
   "Pills": [
     {
       "VisualId": "c3079000-0000-0000-0000-000000000006",
@@ -100,16 +102,6 @@
     "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
     "HeavyDtoType": null,
     "Variables": [
-      {
-        "Name": "sentry",
-        "Type": {
-          "TypeId": "Fdp.Toolkit.Behavior.ThreatCountParams",
-          "IsArray": false,
-          "FixedLength": null
-        },
-        "DefaultValueJson": "{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":90}",
-        "Comment": "What ends the watch: at least Count contacts at least MinDanger dangerous whose remembered position is within WithinMetres (m)."
-      }
     ]
   }
 }
