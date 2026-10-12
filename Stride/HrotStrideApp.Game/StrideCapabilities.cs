@@ -88,8 +88,8 @@ public static class StrideCapabilities
             //    they are declared here and not simply deleted.
             .Capability(NodeRole.MuscleGround, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
             .Capability(NodeRole.MuscleGround, new Hrot.SimHost.EqsResultUpdateCapability())
-            // ⭐ CE-3110 (R-224) — embarkation is cross-role too: any node that can own a live entity can own a vehicle or a passenger.
-            .Capability(NodeRole.MuscleGround, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Embarkation());
+            // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
+            .Capability(NodeRole.MuscleGround, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions());
     }
 
     /// <summary>

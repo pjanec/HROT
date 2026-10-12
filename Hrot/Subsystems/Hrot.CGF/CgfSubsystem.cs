@@ -980,8 +980,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    a Brain+Muscle node register it ONCE instead of twice.
             .Capability(CgfSubsystem.DefaultRole, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
             .Capability(CgfSubsystem.DefaultRole, new Hrot.SimHost.EqsResultUpdateCapability())
-            // ⭐ CE-3110 (R-224) — embarkation is cross-role too: any node that can own a live entity can own a vehicle or a passenger.
-            .Capability(CgfSubsystem.DefaultRole, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Embarkation())
+            // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
+            .Capability(CgfSubsystem.DefaultRole, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions())
             .Resolve(CgfSubsystem.DefaultRole);
 
         foreach (INodeCapability capability in _capabilities)

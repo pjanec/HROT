@@ -329,8 +329,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             //    a Brain+Muscle node register it ONCE instead of twice.
             .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
             .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.EqsResultUpdateCapability())
-            // ⭐ CE-3110 (R-224) — embarkation is cross-role too: any node that can own a live entity can own a vehicle or a passenger.
-            .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Embarkation())
+            // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
+            .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions())
             // ⭐ CE-2121 — the character body (stance) over the fake animation backend; module-only, appended last.
             .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.AnimationMuscleCapability());
 

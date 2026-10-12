@@ -348,16 +348,17 @@ sequenceDiagram
 graph TD
   SP[SharedTranslatorPack - every networked host] --> EG[EntityPassengersEgress]
   SP --> IN[EntityPassengersIngress]
-  PLAN["every host's NodeCompositionPlan: CGF, SimHost, IG, editor (both arms), Stride"] --> CAP["CoreInfrastructureCapabilities.Embarkation (cross-role, Hrot.Common)"]
+  PLAN["every host's NodeCompositionPlan: CGF, SimHost, IG, editor (both arms), Stride"] --> CAP["CoreInfrastructureCapabilities.Interactions (cross-role, Hrot.Common)"]
   CAP -->|"input tail"| ES[EmbarkedStateSystem]
   CAP -->|"simulation tail"| EA[EmbarkationSystem - gates itself on dtPassengerBuffer]
+  CAP -->|"simulation tail"| DC[DoorCommandSystem - gates itself on dtDoorState]
   ES -.->|"same phase, order free: Board writes tag + strip together"| CIS[CognitiveInterruptSystem - skips a tagged entity]
   HAR["hand-wired harnesses: EditorHarness, SimHostInstance"] -.->|"take the capability's systems"| CAP
 ```
 *What the pictures show that prose hid: the passenger's side has ONE writer function (`Embarkation.Board` / `Leave`) and two callers
 — the deciding node right away, every node from the list it holds — so no node ever writes it from a second rule; the body is placed
 only where its position is owned, because a write anywhere else would be overwritten by the owner's replicated position the next
-frame; and NO host or role pack composes embarkation — one cross-role capability does, on every node that can own a live entity.*
+frame; and NO host or role pack composes an interaction applier — one cross-role capability does, on every node that can own a live entity.*
 *(⛔ SUPERSEDED `2026-10-12`: this graph first showed `CgfLogicPack` and `SimHostNodeBootstrapper` each registering the derivation,
 with an "ordered before `CognitiveInterruptSystem`" edge — see §7.1d.)*
 
@@ -398,7 +399,7 @@ What the build settled that the design left open:
 | the ingress hold | the NEWEST sample per vehicle waits in `_pending`; a later sample replaces it; it applies when the vehicle and every passenger resolve | same |
 | a passenger moved straight to another vehicle | `EmbarkedStateSystem` re-tags it (boarding wins) — it does not leave and re-board | `EmbarkedStateSystem.cs` |
 | the vehicle already gone | a tagged passenger whose vehicle no longer exists leaves where it stands (I-2c will kill it instead, R-271) | same |
-| registration | ⭐ **one cross-role capability, `CoreInfrastructureCapabilities.Embarkation`** (`Hrot.Common`), declared in EVERY host's `NodeCompositionPlan` beside `UnitHierarchy` — CGF, SimHost, IG, the editor's two arms, Stride — and taken by the two hand-wired harnesses. It carries BOTH systems: the derivation (input tail) and I-2a's applier (simulation tail). 🔒 User, `2026-10-12`: *"any node that can own live entities (excluding ReplayBrowser …) should be able to use the features, so I hope you do no per-host initializations."* ⛔ SUPERSEDED the same day: the first build registered the derivation in `CgfLogicPack` and as a SimHost global system, and I-2a had the applier in `CgfLogicPack` only — per-host composition, which left IG and Stride unable to board | `CoreInfrastructureCapabilities.cs`, the six plans |
+| registration | ⭐ **one cross-role capability, `CoreInfrastructureCapabilities.Interactions`** (`Hrot.Common`, key `cap:infra:interactions`), declared in EVERY host's `NodeCompositionPlan` beside `UnitHierarchy` — CGF, SimHost, IG, the editor's two arms, Stride — and taken by the two hand-wired harnesses. It carries every interaction kind's OWNER-side system: the passenger derivation (input tail), and the appliers `DoorCommandSystem` (5d-1, moved out of `CgfLogicPack` on the user's "yes please") and I-2a's `EmbarkationSystem` (simulation tail). ⭐ A new interaction kind adds its owner-side system there — one place, never a host. (First built the same day as `…Embarkation`; renamed with Roslyn when doors joined.) 🔒 User, `2026-10-12`: *"any node that can own live entities (excluding ReplayBrowser …) should be able to use the features, so I hope you do no per-host initializations."* ⛔ SUPERSEDED the same day: the first build registered the derivation in `CgfLogicPack` and as a SimHost global system, and I-2a had the applier in `CgfLogicPack` only — per-host composition, which left IG and Stride unable to board | `CoreInfrastructureCapabilities.cs`, the six plans |
 | frame order | ⭐ free inside the phase: `Board` writes the tag and strips CanMove in one call, so `CognitiveInterruptSystem` sees the tag whichever frame it notices the loss. ⛔ The design's "before `CognitiveInterruptSystem`" edge was not needed — and a `[UpdateBefore]` does nothing inside a togglable group (it runs its list in order), so it was removed | `EmbarkedStateSystem.cs` |
 | ownership | `dtPassengerBuffer` ↔ `PassengerBuffer` in `NedOwnershipGroupBinding`; `PassengerBuffer` joins the BRAIN group | `NedOwnershipGroupBinding.cs`, `HrotOwnershipGroups.cs` |
 
@@ -410,7 +411,7 @@ What the build settled that the design left open:
 | a list that arrives tags + strips; an emptied list untags, gives caps back, places beside the hull ONLY where the position is owned; the deciding node is a no-op; a move re-tags; a dead passenger gets no caps back | `EmbarkedStateSystemTests` (FDP, 5) |
 | boarding is not `MobilityLost` | `CognitiveInterruptSystemTests.CE3110_I2b_BoardingStripsCanMove_ButIsNotMobilityLost` |
 | `dtPassengerBuffer` is in the Brain group's descriptor set | `RoleGroupOwnershipStrategyTests`, `TheDescriptorMapIsWiredTests` |
-| embarkation is NOT pack content and resolves exactly once on both editor arms (an injected tier declaring it too de-duplicates by key); the Stride plan resolves it | `EditorCapabilitiesTests.CE3110_EmbarkationIsCrossRoleInfrastructure_ResolvedOnceOnEveryArm`, `CgfLogicPackTests`, `StrideCapabilitiesTests.MuscleGroundResolves` |
+| the interaction appliers (doors, embarkation) are NOT pack content and resolve exactly once on both editor arms (an injected tier declaring it too de-duplicates by key); the Stride plan resolves it | `EditorCapabilitiesTests.CE3110_EmbarkationIsCrossRoleInfrastructure_ResolvedOnceOnEveryArm`, `CgfLogicPackTests`, `StrideCapabilitiesTests.MuscleGroundResolves` |
 
 ### 7.2 What "inside" means *(✅ ruled `2026-10-11`, R-271 — I-2c)*
 

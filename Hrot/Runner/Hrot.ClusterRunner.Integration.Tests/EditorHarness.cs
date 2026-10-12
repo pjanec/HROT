@@ -321,9 +321,9 @@ public sealed class EditorHarness : IDisposable
         //   (EditorCapabilities) — without it the solver answers and NOTHING writes EqsCognitiveBuffer.
         Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("EqsResultUpdate", new Hrot.SimHost.Systems.EqsResultUpdateSystem()));
         Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("UnitHierarchy", new Hrot.Common.Systems.UnitHierarchySystem()));
-        // ⭐ CE-3110 — embarkation is cross-role infrastructure too (CoreInfrastructureCapabilities.Embarkation): the same two systems
+        // ⭐ CE-3110 — the interaction appliers are cross-role infrastructure too (CoreInfrastructureCapabilities.Interactions): the same systems
         //   every production plan resolves, taken from the capability itself so this harness cannot drift from it.
-        foreach (var s in new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Embarkation().Systems)
+        foreach (var s in new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions().Systems)
             Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule(s.GetType().Name, s));
         Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(EntityMap));
 

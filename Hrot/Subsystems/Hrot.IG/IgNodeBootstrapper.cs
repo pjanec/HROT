@@ -279,8 +279,8 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             //    ⚠ IG carries UnitHierarchy only: it never had EqsResultUpdateSystem, and Hrot.IG does
             //    not reference Hrot.SimHost where that system lives. Its system set is unchanged.
             .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
-            // ⭐ CE-3110 (R-224) — embarkation is cross-role too: any node that can own a live entity can own a vehicle or a passenger.
-            .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Embarkation());
+            // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
+            .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions());
 
         // ⭐⭐⭐ CE-197 — resolved from the DECLARED role, not a constant (B4b step 3).
         //    📐 Provably a no-op here: IgApplication.cs:923 passes the literal NodeRole.Map2D,
