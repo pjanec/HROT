@@ -17,5 +17,5 @@ public struct TakeCover_FdpToolkitBehaviorComponentsBrainBlackboard
 public struct TakeCover_Block
 {
     [FieldOffset(0)]
-    public TakeCover_FdpToolkitBehaviorComponentsBrainBlackboard In;
+    public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams In;
 }

@@ -460,6 +460,7 @@ public static class HsmBridgeEmitCore
         // ⭐ CE-503 — the bound resolver asset rides the view, so the shared emission's resolve stage (CE-428/443) serves
         //   the HSM unchanged: bake → the resolver INSTEAD of the default copy, published as ResolveStage + ResolverName.
         Resolver        = dto.Resolver,
+        ParamsDtoTypeId = dto.ParamsDtoTypeId,   // ⭐ CE-2133 — the named params DTO rides the view too
     };
 
     /// <summary>

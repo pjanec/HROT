@@ -72,6 +72,48 @@ namespace Fdp.Toolkit.Behavior
         public static JsonSerializerOptions JsonOptions
             => Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2133</c> (B1, <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §1 P2) — the params JSON IS the params DTO's
+        /// fields, FLAT, overlaid onto the already-baked <paramref name="target"/>: a key present in <paramref name="json"/>
+        /// replaces that field, an absent key keeps its baked default, an unknown key is ignored (the curated path's own rule),
+        /// keys match case-insensitively (<see cref="JsonOptions"/>), and malformed JSON THROWS (parse-before-commit is the
+        /// ingress's guarantee). Empty / whitespace <paramref name="json"/> leaves <paramref name="target"/> as baked.
+        /// <para>The generated <c>ParseParams</c> of a behaviour whose one Input variable is its params DTO calls this.</para>
+        /// </summary>
+        public static void OverlayFlat<T>(ref T target, string? json, JsonSerializerOptions? options = null) where T : struct
+        {
+            if (string.IsNullOrWhiteSpace(json)) return;
+            var opts = options ?? JsonOptions;
+            var incoming = System.Text.Json.Nodes.JsonNode.Parse(json!) as System.Text.Json.Nodes.JsonObject
+                ?? throw new JsonException($"CE-2133: params for '{typeof(T).Name}' must be a JSON object (the DTO's fields, flat).");
+            if (incoming.Count == 0) return;
+            var merged = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(target, opts)) as System.Text.Json.Nodes.JsonObject
+                ?? new System.Text.Json.Nodes.JsonObject();
+            foreach (var (key, value) in incoming)
+            {
+                string? existing = null;
+                foreach (var (k, _) in merged)
+                    if (string.Equals(k, key, StringComparison.OrdinalIgnoreCase)) { existing = k; break; }
+                merged[existing ?? key] = value?.DeepClone();
+            }
+            target = merged.Deserialize<T>(opts);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2133</c> — a behaviour that NAMES a params DTO it does not store (no Input variable of that type and no
+        /// generated resolver): an empty payload is fine (an empty DTO such as <c>HoldOrder</c> carries nothing), a payload
+        /// with fields THROWS unless a curated resolver has replaced this supply — ⛔ never drop authored params silently.
+        /// </summary>
+        public static void RequireNoStoredFields(string? json, string behaviour, string paramsDto)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return;
+            if (System.Text.Json.Nodes.JsonNode.Parse(json!) is System.Text.Json.Nodes.JsonObject { Count: 0 }) return;
+            throw new InvalidOperationException(
+                $"CE-2133: behaviour '{behaviour}' names params DTO '{paramsDto}' but stores none of it (no Input variable of " +
+                "that type) and no resolver converts it, so these params would be dropped. Declare the Input variable, or " +
+                "register a resolver.");
+        }
+
         // ⛔ CE-416 ③ (2026-10-02) — FromJson<TDto>(ResolveParams<TDto>?) and the ResolveParams delegate are RETIRED.
         //   📐 Zero production callers since CE-426/CE-427: every behaviour's supply is the bake + FromBlockResolver's
         //   typed resolve stage, and FromJson wrote the DTO OVER the baked defaults — a second, older supply shape.

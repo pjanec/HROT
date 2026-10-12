@@ -383,4 +383,9 @@ public sealed class HsmAssetDto
     [System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Hrot.AiEditor.Persistence.BTree.BehaviorResolverRefDto? Resolver { get; set; }
+
+    /// <summary>⭐⭐ <c>CE-2133</c> — the behaviour's NAMED params DTO; same rule as <c>BehaviorTreeAssetDto.ParamsDtoTypeId</c>
+    /// (the HSM's block is emitted through <c>HsmBridgeEmitCore.BlackboardOwner</c>, which carries it).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsDtoTypeId { get; set; }
 }

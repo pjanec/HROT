@@ -26,5 +26,9 @@ namespace Fdp.Toolkit.Behavior.Events
         public Entity Entity;
         /// <summary>⭐ <c>CE-3034</c> — who asks; a clear is gated like an assign (a behaviour ending itself is Self). Unmarked reads as Operator.</summary>
         public Fdp.Toolkit.Behavior.Components.BehaviorOrigin Origin;
+        /// <summary>⭐ <c>CE-2141</c> — 0: end whatever runs (as before). Otherwise a clear that NAMES a behaviour: it ends that
+        /// behaviour when it runs; when a reaction runs over it (paused), only the paused task is dropped and the reaction runs on;
+        /// anything else is left alone (a newer order replaced it). 📄 docs/DESIGN_Orders_Params_Entity_Classes.md §7 (D2-C).</summary>
+        public int OnlyBehaviorHash;
     }
 }

@@ -660,6 +660,36 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2133</c> (B1, <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §1 P2) — the Sentry's one Input IS its params
+        /// DTO, so its JSON is <c>ThreatCountParams</c>' fields FLAT (the shape <c>ua-danger-crossing</c> now saves), overlaid
+        /// onto the baked default: a sent key wins, an absent one keeps its default. The published contract is that DTO.
+        /// ⛔ The old wrapped form <c>{"sentry":{…}}</c> is an unknown key now — ignored, so the defaults stand.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2133_TheSentryReadsFlatParams_OverItsBakedDefaults()
+        {
+            var w = new World();
+            Assert.True(w.Registry.TryGetId("Sentry", out int id));
+            Assert.True(w.Registry.TryGetDefinition(id, out var def));
+            Assert.Equal(typeof(ThreatCountParams), def!.JsonParamsDtoType);
+
+            ThreatCountParams Parse(string json)
+            {
+                var block = new byte[RootParamsAccess.RootParamsBytes(def)];
+                fixed (byte* p = block) def.ParseParams!(json, p, block.Length, w.Repo, w.Unit);
+                return System.Runtime.CompilerServices.Unsafe.ReadUnaligned<ThreatCountParams>(ref block[0]);
+            }
+
+            var flat = Parse("{\"WithinMetres\":145,\"count\":3}");
+            Assert.Equal(145f, flat.WithinMetres);   // sent
+            Assert.Equal(3, flat.Count);             // sent, case-insensitive like every params parse
+            Assert.Equal(0.5f, flat.MinDanger);      // absent: the baked default (DefaultValueJson) stands
+
+            var wrapped = Parse("{\"sentry\":{\"WithinMetres\":145}}");
+            Assert.Equal(90f, wrapped.WithinMetres); // the retired wrapper is an unknown key
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3079</c> H2 — the point of the Sentry: a two-task mission ([Sentry, BehaviorFinished] → [next, BehaviorFinished])
         /// hands over to task 2 when the Sentry ends itself — the scenario's "sequencing of actions" (§10.5).
         /// </summary>

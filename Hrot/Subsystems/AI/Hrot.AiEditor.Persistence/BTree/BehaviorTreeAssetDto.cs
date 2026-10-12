@@ -403,6 +403,16 @@ public sealed class BehaviorTreeAssetDto
     /// <summary>⭐ <c>CE-428</c> — the bound resolver asset, or <c>null</c> (the common case: no resolve stage).</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BehaviorResolverRefDto? Resolver { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2133</c> (B1, R-276) — the behaviour's NAMED params DTO: the type id (CLR full name, no <c>global::</c>) its
+    /// JSON params deserialize into and <c>GET /behaviors</c> publishes. <c>null</c> = derived: the one Input variable's own
+    /// type when it is a struct (flat), else the generated mirror of the Inputs. Set, it must equal that one Input's type, or
+    /// the asset declares no Input (the DTO is published, nothing is stored — an empty order DTO). ⛔ Not with a resolver
+    /// asset: the resolver's Parameters are the contract (R-149). 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §1.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsDtoTypeId { get; set; }
     public List<BTreePillDto> Pills { get; set; } = new();
 
     // ── Canvas layout ─────────────────────────────────────────────────────────

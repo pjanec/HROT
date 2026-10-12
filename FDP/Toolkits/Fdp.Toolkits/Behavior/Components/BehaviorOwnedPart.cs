@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// <summary>
     /// ⭐ <b><c>CE-485</c> — the behaviour-wide teardown of owned parts.</b> 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D4.
     ///
+    /// <para>⭐ <c>CE-2141</c>: the run's orders to its members (<see cref="SubordinateOrders"/>) are released in the same step.</para>
     /// <para>Called by <c>BehaviorIngressSystem</c> at EVERY site that ends a behaviour run — the sites that bump
     /// <see cref="BehaviorState.InstanceId"/> (clear / finish / fault, every (re)start, the unhosted assign) — just before the
     /// bump. Destroys immediately: a restart in the same frame must not find the ending run's part.</para>
@@ -48,6 +49,7 @@ namespace Fdp.Toolkit.Behavior.Components
         public static int Release(EntityRepository repo, Entity parent, uint endingInstanceId)
         {
             if (endingInstanceId == 0) return 0;
+            SubordinateOrders.Release(repo, parent, endingInstanceId);   // ⭐ CE-2141 — the orders the run gave its members end with it too
             int count = 0;
             Entity[]? doomed = null;
             // ⚠ Collect first, destroy after: never mutate structure under a live query.

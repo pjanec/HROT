@@ -216,6 +216,21 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         Assert.Contains(arms, arm =>
             PropertyNames((JsonObject)arm!["paramSchema"]!).Length > 0);
     }
+    /// <summary>
+    /// ⭐ CE-2131 (CE-2128 ①) — <c>FollowRoute</c> advertises every key its callers write: the route entity, the speed and the
+    /// loop flag (<c>MissionControlBehaviorParamsHelper</c> reads all three). ⚠ Red-proof: drop <c>Speed</c> from
+    /// <c>FollowRouteParamsJsonDto</c> → this fails naming it.
+    /// </summary>
+    [Fact]
+    public void CE2131_FollowRouteAdvertisesTheKeysItsCallersWrite()
+    {
+        var keys = PropertyNames(SchemaFor(LoadProductionRegistry(), "FollowRoute"));
+
+        Assert.Contains("RouteEntityId", keys);   // the schema lists C# member names; JSON matching is case-insensitive
+        Assert.Contains("Speed", keys);
+        Assert.Contains("Loop", keys);
+    }
+
     // ── CE-2130 (docs/DESIGN_Orders_Params_Entity_Classes.md §1 P1–P2, §6 R0) ─────────────────────────────────────────────
     //   The authoring rules as a conformance rail: every registered behaviour names exactly ONE params DTO (its public JSON
     //   contract), and that DTO is a NAMED type — never a generator's mirror of the behaviour's own variables (which is what
@@ -227,18 +242,18 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     internal static readonly string[] ParamsContractAllowList =
     {
         // measured 2026-10-12 at the first run of the rail: 48 behaviours
+        // CE-2133 (B1, 2026-10-12) removed 8: one struct Input now IS the params DTO (FallBack, HullDownAttackRun,
+        //   PlatoonHillAttack, Sentry, T11_Aliasing, T31_ComposedAiPrimitive, T34_ComposedAiPrimitiveCondition, TakeCover)
         "BTreeCuratedBindingDemo", "BTreeRenderShowcase", "BasicInfantrySop", "BasicSquadSop",
         "BlueprintBehaviourDemo", "CombatShowcase", "DangerCrossing", "DangerCrossingBp",
         "Demo_Advance", "Demo_Engage", "Demo_MissionPlan", "Demo_Retreat",
-        "Demo_TakeCover", "Demo_TaskChain", "FallBack", "FiringPosition",
-        "Flank", "HsmOrthogonalRegions", "HsmResolverDemo", "HsmShowcase",
-        "HsmTwoChannelRegionsDemo", "HullDownAttackRun", "OperatorControl", "PlatoonHillAttack",
-        "PlatoonHillAttackBp", "SampleGuard", "SampleScout", "Sentry",
+        "Demo_TakeCover", "Demo_TaskChain", "FiringPosition", "Flank",
+        "HsmOrthogonalRegions", "HsmResolverDemo", "HsmShowcase", "HsmTwoChannelRegionsDemo",
+        "OperatorControl", "PlatoonHillAttackBp", "SampleGuard", "SampleScout",
         "T01_Sequence", "T02_Selector", "T03_Parallel", "T04_DecoratorRepeater",
         "T05_DecoratorStack", "T06_ObserverSelector", "T07_Subtree", "T08_ActionLeaf",
-        "T09_BlackboardManaged", "T10_MultiAction", "T11_Aliasing", "T20_MultiStateful",
-        "T31_ComposedAiPrimitive", "T32_ComposedGeneratedBlueprint", "T33_ComposedParamBlueprint", "T34_ComposedAiPrimitiveCondition",
-        "T35_SharedWorkingState", "T39_TwoDistinctPrimitives", "T40_BehaviorResolverAsset", "TakeCover",
+        "T09_BlackboardManaged", "T10_MultiAction", "T20_MultiStateful", "T32_ComposedGeneratedBlueprint",
+        "T33_ComposedParamBlueprint", "T35_SharedWorkingState", "T39_TwoDistinctPrimitives", "T40_BehaviorResolverAsset",
     };
 
     /// <summary>⭐ CE-2130 — true when <paramref name="t"/> is a generator's mirror of a behaviour's own variables rather

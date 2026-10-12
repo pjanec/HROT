@@ -24,7 +24,7 @@ public struct PlatoonHillAttack_BlockState
 public struct PlatoonHillAttack_Block
 {
     [FieldOffset(0)]
-    public PlatoonHillAttack_Blackboard In;
+    public global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams In;
     [FieldOffset(56)]
     public PlatoonHillAttack_BlockState St;
 }

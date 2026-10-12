@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
@@ -270,7 +271,7 @@ namespace Hrot.SimHost.Tests
             public void ClearFor(Entity entity, EntityRepository repo) => Cleared.Add(entity);
         }
 
-        private static (EntityRepository Repo, Entity Unit, RecordingProvider Provider, TacticalIntentResolutionSystem System) ClearRig(bool authority = true)
+        private static (EntityRepository Repo, Entity Unit, RecordingProvider Provider, TacticalIntentResolutionSystem System) ClearRig(bool authority = true, BehaviorRegistry? behaviors = null)
         {
             var repo = CreateTestWorld();
             repo.RegisterEvent<ClearBehaviorEvent>();
@@ -280,7 +281,7 @@ namespace Hrot.SimHost.Tests
             var provider = new RecordingProvider();
             var clears = new IntentClearRegistry();
             clears.Register(provider);
-            return (repo, unit, provider, new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), new BehaviorRegistry(), clears));
+            return (repo, unit, provider, new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), behaviors ?? new BehaviorRegistry(), clears));
         }
 
         /// <summary>⭐ CE-3167 (Entity Commanding §2.5b-d) — an order with ClearsPriorIntent runs every provider for the unit in the
@@ -336,6 +337,60 @@ namespace Hrot.SimHost.Tests
             Assert.Single(clears);
             Assert.Equal(unit, clears[0].Entity);
             Assert.Equal(BehaviorOrigin.Operator, clears[0].Origin);
+            Assert.Equal(0, clears[0].OnlyBehaviorHash);
+        }
+
+        // ── ⭐ CE-2141 (D2, docs/DESIGN_Orders_Params_Entity_Classes.md §7) — a release names what it ends; the last word wins ──
+
+        private static ClearBehaviorEvent[] Resolve(EntityRepository repo, TacticalIntentResolutionSystem system, params AssignTacticalIntentEvent[] intents)
+        {
+            foreach (var i in intents) repo.Bus.PublishManaged(i);
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.016f);
+            repo.Bus.SwapBuffers();
+            return repo.Bus.Read<ClearBehaviorEvent>().ToArray();
+        }
+
+        /// <summary>⭐ D2-C — a Clear intent naming a behaviour (a commander releasing its ended drill's order) becomes a clear of THAT
+        /// behaviour only; a name this node does not know cannot be running here, so nothing is published.</summary>
+        [Fact]
+        public void CE2141_AClearNamingABehaviour_ClearsOnlyThatBehaviour_AnUnknownNameNothing()
+        {
+            var behaviors = new BehaviorRegistry();
+            behaviors.Register(0x2141, "AdvanceTo", new BehaviorDefinition { Name = "AdvanceTo" });
+            var (repo, unit, _, system) = ClearRig(behaviors: behaviors);
+            using var __ = repo;
+
+            var named = Resolve(repo, system, new AssignTacticalIntentEvent { Entity = unit, Kind = TacticalIntentKind.Clear, IntentId = "AdvanceTo", Origin = BehaviorOrigin.Superior });
+            Assert.Single(named);
+            Assert.Equal(0x2141, named[0].OnlyBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Superior, named[0].Origin);
+
+            Assert.Empty(Resolve(repo, system, new AssignTacticalIntentEvent { Entity = unit, Kind = TacticalIntentKind.Clear, IntentId = "NoSuchBehaviour" }));
+        }
+
+        /// <summary>⭐⭐ D2-D — the ingress applies a frame's assigns BEFORE its clears, so a release and the next drill's order to one
+        /// member in the same frame would end the new order. Here a clear followed by an assign to the same entity is dropped (the
+        /// last word wins); an assign followed by a clear keeps both, in order; another entity's clear is untouched.</summary>
+        [Fact]
+        public void CE2141_AClearFollowedByAnAssign_ToTheSameEntity_InOneFrame_IsDropped()
+        {
+            var (repo, unit, _, system) = ClearRig();
+            using var __ = repo;
+            var other = CreateAuthorityEntity(repo);
+
+            var clears = Resolve(repo, system,
+                new AssignTacticalIntentEvent { Entity = unit, Kind = TacticalIntentKind.Clear, Origin = BehaviorOrigin.Superior },
+                new AssignTacticalIntentEvent { Entity = other, Kind = TacticalIntentKind.Clear, Origin = BehaviorOrigin.Superior },
+                new AssignTacticalIntentEvent { Entity = unit, IntentId = "Idle", Origin = BehaviorOrigin.Superior });
+            Assert.Equal(new[] { other }, clears.Select(c => c.Entity).ToArray());
+            Assert.Single(repo.Bus.ReadManaged<AssignBehaviorEvent>());
+
+            repo.Bus.SwapBuffers();
+            var kept = Resolve(repo, system,
+                new AssignTacticalIntentEvent { Entity = unit, IntentId = "Idle", Origin = BehaviorOrigin.Superior },
+                new AssignTacticalIntentEvent { Entity = unit, Kind = TacticalIntentKind.Clear, Origin = BehaviorOrigin.Superior });
+            Assert.Single(kept);
         }
     }
 }

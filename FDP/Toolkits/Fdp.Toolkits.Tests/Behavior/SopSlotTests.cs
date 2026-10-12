@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fbt;
 using Fbt.Compiler;
 using Fbt.Runtime;
@@ -434,6 +435,107 @@ namespace Fdp.Toolkit.Behavior.Tests
             f.Ingress.Execute(f.World, 0.016f);                               // …and the task is back
             Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
             Assert.Equal(BehaviorOrigin.Superior, f.Task_.Origin);
+        }
+
+        // ── ⭐ CE-2141 (D2, docs/DESIGN_Orders_Params_Entity_Classes.md §7) — a clear that NAMES a behaviour; a run's orders end with it ──
+
+        private static void NamedClear(Fixture f, int hash, BehaviorOrigin origin)
+        {
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = origin, OnlyBehaviorHash = hash });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+        }
+
+        /// <summary>⭐ D2-C — a named clear ends the behaviour it names when that one runs; any other (a newer order) is left alone.
+        /// An unnamed clear is unchanged.</summary>
+        [Fact]
+        public void CE2141_ANamedClear_EndsThatBehaviourWhenItRuns_AndLeavesAnyOtherAlone()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            NamedClear(f, OtherTaskId, BehaviorOrigin.Superior);                 // a newer order replaced the one it names
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+
+            NamedClear(f, TaskId, BehaviorOrigin.Superior);
+            Assert.Equal(0, f.Task_.ActiveBehaviorHash);
+
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            NamedClear(f, 0, BehaviorOrigin.Superior);                          // unnamed: whatever runs, as before
+            Assert.Equal(0, f.Task_.ActiveBehaviorHash);
+        }
+
+        /// <summary>⭐ D2-C — the member is REACTING (its own SOP) over the order a drill gave it: the drill's release drops only the
+        /// paused order; the reaction runs on, and when it ends nothing comes back. A release ranked below the paused order cannot.</summary>
+        [Fact]
+        public void CE2141_ANamedClear_OverAReaction_DropsOnlyThePausedTask_AndTheReactionRunsOn()
+        {
+            var f = new Fixture();
+            using var first = f;
+            f.Task("SopT_Task", BehaviorOrigin.Operator);
+            f.React("SopT_Cover", ReactionUrgency.Hit);
+            NamedClear(f, TaskId, BehaviorOrigin.Superior);                     // ranked below the Operator's paused task: refused
+            Assert.NotNull(f.Paused);
+
+            using var g = new Fixture();                                        // a Superior order this time (a drill's)
+            f = g;
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.React("SopT_Cover", ReactionUrgency.Hit);
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);
+            NamedClear(f, TaskId, BehaviorOrigin.Superior);
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);           // the reaction runs on
+            Assert.Null(f.Paused);                                              // the order is gone
+
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = BehaviorOrigin.Self });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);                                 // the reaction ends itself…
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            Assert.Equal(0, f.Task_.ActiveBehaviorHash);                        // …and nothing resumes
+        }
+
+        private static List<AssignTacticalIntentEvent> Released(Fixture f)
+        {
+            f.World.Bus.SwapBuffers();
+            var r = new List<AssignTacticalIntentEvent>();
+            foreach (var e in f.World.Bus.ReadManaged<AssignTacticalIntentEvent>()) if (e.Kind == TacticalIntentKind.Clear) r.Add(e);
+            return r;
+        }
+
+        /// <summary>⭐⭐ D2-B (AQ90 A5) — the orders a commander's RUN gave its members end with the run, like its sensors: replaced
+        /// from outside ⇒ each member gets a Clear naming what it was told, at the order's origin. A PAUSE releases nothing; the
+        /// pausing reaction's own orders are released when IT ends.</summary>
+        [Fact]
+        public void CE2141_ARunsOrdersToItsMembers_EndWithTheRun_NotWithAPause()
+        {
+            using var f = new Fixture();
+            var a = f.World.CreateEntity();
+            var b = f.World.CreateEntity();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            SubordinateOrders.Record(f.World, f.Unit, a, "AdvanceTo", BehaviorOrigin.Superior);
+            SubordinateOrders.Record(f.World, f.Unit, b, "AdvanceTo", BehaviorOrigin.Superior);
+            SubordinateOrders.Record(f.World, f.Unit, b, "CombatPosture", BehaviorOrigin.Superior);   // b's newer order replaces its record
+
+            f.React("SopT_Cover", ReactionUrgency.Hit);                         // a pause: the task's orders stay
+            Assert.Empty(Released(f));
+            SubordinateOrders.Record(f.World, f.Unit, a, "CombatPosture", BehaviorOrigin.Superior);   // the reaction orders a
+
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = BehaviorOrigin.Self });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);                                 // the reaction ends: ITS order goes
+            var first = Released(f);
+            Assert.Single(first);
+            Assert.Equal(a, first[0].Entity);
+            Assert.Equal("CombatPosture", first[0].IntentId);
+            Assert.Equal(BehaviorOrigin.Superior, first[0].Origin);
+
+            f.Ingress.Execute(f.World, 0.016f);                                 // the task is back (resumed, same run)…
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+            f.Task("SopT_Task2", BehaviorOrigin.Superior);                      // …and replaced from outside
+            var second = Released(f);
+            Assert.Single(second);                                              // a's record now belongs to the ended reaction
+            Assert.Equal(b, second[0].Entity);
+            Assert.Equal("CombatPosture", second[0].IntentId);
+            Assert.Null(SubordinateOrders.Of(f.World, f.Unit));
         }
 
         // ── ⭐ CE-3172 (M-7, docs/DESIGN_Entity_Control.md §8b) — possession: above every order, pauses, resumes on release ──
