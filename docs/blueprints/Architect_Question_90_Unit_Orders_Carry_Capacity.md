@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-12
-current-answer: ⭐ "THE PROPOSAL IN ONE PAGE" (above §1) is the consolidated answer, ✅ approved in principle (R-277 (behaviors)) with §2.3k's amendments; the sections below are how it was reached. §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), ⭐ the reserved Params variable + params DTO assets + registry (§2.3j, refines §2.3i), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
+current-answer: ⭐ "THE PROPOSAL IN ONE PAGE" (above §1) is the consolidated answer, ✅ approved in principle (R-277 (behaviors)) with §2.3k's amendments; the sections below are how it was reached. §0 the four user rulings (R-273 (behaviors), R-274 (behaviors), R-275 (behaviors)) · §2 A — how the receiver decides: sub-questions A1–A6 (§2.2), A7 order → params (§2.3a), A2′ the naming convention (§2.3b — lean: adopt it with three guards; supersedes A2 + A7 if agreed), A3′ which behaviours and orders an entity supports (§2.3c), the shared order DTO + contract on the behaviour + enums (§2.3d), DTO sharing, assets and entity classes measured (§2.3e), what the parameter design means (§2.3f), ⭐ the four things kept apart + corrected lean (§2.3g, supersedes §2.3e row 1 and §2.3f's pointer), ⭐ the user's one-Input / flat-JSON model (§2.3h, R-276 ruled, R-277 lean), ⭐ no Input role — one block, one params target (§2.3i, lean; corrects §2.3h on blueprint behaviours), ⭐ the reserved Params variable + params DTO assets + registry (§2.3j, refines §2.3i), the missing measurements + leans (§2.3m), awaiting the user · §3 B, C and the Health capability: ruled, details designed when built
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §3.1 and §10 map an order to a soldier behaviour IN THE SENDER (EntityOrders → MoveToLocation / CombatPosture / Idle); R-273 (behaviors) overrules that. docs/UX/UX_Feature_Entity_Commanding.md §2.4 lets a TKB CommandEntry name a behaviour that the MENU reads; A3 here narrows the menu to order kinds
@@ -526,6 +526,75 @@ embarkation until we finish this order/param/unit stuff."* ⇒ CE-3110 I-2d and 
 Measurements requested next (*"Do the missing measurements, no building yet"*) run as three read-only sweeps: DIS readers / mask
 prior art / aggregate types; the params pipeline (carry-over, empty DTO, generator precedence, class DTOs); the catalogue's
 consumers, the rename radius, ExCon's channel to a node, IG and the catalogue scan, the menu's pick wiring. Results land in §2.3m.
+
+### 2.3m The missing measurements *(2026-10-12; three read-only sweeps + one timing run; key lines re-read)*
+
+**A. DIS types**
+
+| finding | evidence |
+|---|---|
+| an entity's DIS type lives in the entity header (`EntityMetadataCold.DisType`), copied from the TKB template at spawn unless the request carries one | `EntityRepository.cs:403,417`; `NetworkSpawningSystem.cs:159-160` |
+| ⚠ a SAVED scenario overrides the template: `DisEntityTypeTranslator` saves the header value and writes it back on load | `DisEntityTypeTranslator.cs:32-43,70-81`; no checked-in scenario contains it, so only user-saved files are affected |
+| replication (NED egress / ingress) carries all seven fields unchanged | `EntityMasterEgressTranslator.cs:87-115`, `EntityMasterIngressTranslator.cs:246-260` |
+| the 2-D avatar shape: Kind 1 + Domain 1 → ground vehicle, Kind 3 → humanoid, else `_fallback`, drawn as nothing | `DefaultEntityShapeLibrary.cs:28-42`, `DebugPrimitiveRenderer2D.cs:508-509` |
+| ⛔ defect: the same function reads Category from the Country's high byte (`>> 40`; Category is bits 24–31) | → **CE-2127** |
+| map layers: `units_ground` = Domain 1, `vehicles` = Kind 1; a unit is in "vehicles" today | `MapLayerRegistry.cs:77-89` |
+| 3-D view, icons, Add-Entity picker are keyed on the composite, not on DIS (the picker reads Country only) | `VisualFamily.cs:35`, `EntityTypeCatalog.cs:88-89` |
+| a rail requires every built-in type to keep Country = US and Kind ≠ 0 | `BdcTkbBuilderVisualTests.cs:163-176` |
+| the ONE existing matcher is value + byte mask (exact or whole-segment wildcard; no ranges or lists), used by nothing in production | `QueryBuilder.WithDisType` (`QueryBuilder.cs:117-121`), `EntityQuery.cs:163,274`, `DisFilterTests` |
+| a "most specific first" DIS lookup was designed for the Terrain Reference Library and never built | DESIGN_Terrain_Combat_Tuning.md:90; `ParameterResolver.ReferenceByDis` has no producer |
+| no aggregate / echelon model exists; echelon is a free string on `TkbCompositionDef` (read by nothing) and inside the MIL-STD symbol code; `DisNames.json` names Kinds 1–9 and Categories for 1.1, 1.2 and 3.1 only | `TkbCompositionDef.cs:40`, `BdcTkbCatalog.cs:224-274`, `DisNameTable.cs:16-83` |
+
+**Lean (A):**
+- **Units get a Kind of their own** (a value DIS leaves unused, e.g. 11 "HROT aggregate"). Domain stays the arena (1 land), Country stays the side's country, Category = arm (infantry, armour, …), Subcategory = echelon (squad, platoon, company, …), Specific = variant.
+- Consequences:
+  - a tank mask can never match a unit;
+  - units leave the "vehicles" layer but stay in "units_ground";
+  - the 2-D avatar falls back to none, which is right for a body-less entity;
+  - the CE-1017 rail still holds (Kind ≠ 0, Country kept);
+  - `DisNames.json` gets the new Kind's names.
+- The echelon string on `TkbCompositionDef` becomes the Subcategory code, so one source states it.
+- On load, a composite takes its TEMPLATE's DIS type over a saved one, so old user files cannot keep a unit typed as a land platform.
+- Exact codes to be chosen; ⛔ no SISO aggregate table is in the repo to copy.
+
+**Lean (mask):**
+- One `DisTypeMask` type: per segment, a set of ranges, where `*` = one full range, `5` = `5-5`, and `1,3,7-9` = three ranges.
+- `Matches(DISEntityType)`.
+- Specificity is compared segment by segment from Kind down: exact > list/range > `*`.
+- It serves the behaviour lookup AND the unbuilt Terrain Reference Library lookup; `QueryBuilder.WithDisType` stays as the fast exact-or-wildcard query filter.
+
+**B. Parameters**
+
+| finding | evidence |
+|---|---|
+| ⭐ **nothing carries over between behaviours any more**: every start clears the block, bakes defaults and overlays the JSON (CE-421 + CE-426). AQ76's "carry-over manifest" table is itself marked superseded | `BehaviorIngressSystem.cs:764-782`; AQ76 :1885 |
+| what IS kept (a paused task's whole block on resume; stateful slots with the same key / size / hash) does not depend on Role | `BehaviorIngressSystem.cs:297-318,456-476` |
+| `Role` is read only at GENERATE time: it excludes State variables from the parse manifest and the Inputs struct, chooses the State half, and skips State types in the size pre-check | `BTreeBlackboardPackHelper.cs:129,177`, `BTreeEmitCore.cs:214-223`, `BTreeJsonGenerator.cs:229` |
+| ⇒ dropping Role is safe at runtime. The parse must still accept ONLY the params DTO's keys, which the reserved `Params` variable gives for free; the size pre-check must still skip types it cannot size | — |
+| an empty struct already runs: a blueprint behaviour with nothing declared names an empty `Block` (1 byte), and the start pipeline handles it | `InstanceEmitter.cs:302-316`, `ManagedLayout.cs:25-32` |
+| ⚠ one trap for `NoParams`: `InputBytes` would be 1 while `RootParamsBytes` ignores `JsonParamsDtoType` and returns 0, so `HostedSubtree.Supply` would throw on a bound NoParams variable | `RootParamsAccess.cs:270-274,323-324`, `HostedSubtree` :439-443 ⇒ `NoParams` must store nothing: no `Params` variable, size 0 |
+| who names the params DTO today: BTree / HSM name the generated Inputs struct (or a resolver asset's `Params`); blueprints name `{Class}.Params`; a generated DTO outranks a `[BehaviorContract]` | `BTreeBridgeEmitCore.cs:1732-1746`, `CSharpEmitter.cs:643-646`, `BehaviorRegistry.cs:546-548` |
+| minimal change to NAME a DTO: a `ParamsDtoTypeId` string on the asset (precedent: variable `TypeId` → `global::` FQN, `BTreeBridgeEmitCore.cs:1874`; blueprint `DtoTypeFqn`); emit `JsonParamsDtoType = typeof(global::X)` and `Deserialize<global::X>` | — |
+| the 10 class DTOs hold only unmanaged members; 6 are EMPTY (`Idle`, `Ambush`, `InfantryCombat`, `ConvoyEscort`, `JoinFormation`, `WanderMilitary`) ⇒ they become `NoParams`; `DefendArea` / `HullDownAttack` are intents (mapped, never stored); `FollowRoute` and `PlatoonHillAttack` have resolvers | per-DTO table in the sweep |
+| ⛔ defect: `FollowRoute` and `PlatoonHillAttack` publish a contract that is not what they parse | → **CE-2128** |
+
+**C. Catalogue, renames, hosts, menu**
+
+| finding | evidence |
+|---|---|
+| `ValidCategories` has ONE reader (`BehaviorCatalog.BuildMap`); `GetValidBehaviors` has 3 production callers (mission panel, ExCon, debug API fallback) | `BehaviorCatalog.cs:56`; `ScenarioMissionService.cs:80`, `MissionEditorService.cs:73`, `DebugApiService.cs:2064` |
+| `[BehaviorContract]` is scanned in two places (`BehaviorSchemaDiscovery`, the blueprint palette) | — |
+| ⭐ renames are NOT needed: with the DIS-mask lookup the name is no longer the key (§2.3k ⑤). Measured radius avoided: `CombatPosture` in 20 JSON occurrences across 9 scenario files, `MoveToLocation` in 12 / 10, plus mission tasks and blueprints storing these names | sweep counts |
+| ExCon talks to the cluster over DDS only (no HTTP); its project does not reference the AI assembly, but it is present when ExCon runs inside ClusterRunner | `ExConSubsystem.cs:279-453`; ClusterRunner `csproj:54` |
+| IG builds no registry, yet its project references the AI assembly and ClusterRunner loads it | `IgNodeBootstrapper.cs:191`, `Hrot.IG.csproj:27` |
+| ⏱ the catalogue scan is cheap: a test that runs `LoadFromAiAssembly` plus its own checks took **595 ms cold** in total (upper bound on the scan) | `SopParamsRoundTripTests.CE2079_…`, `--no-build` against the 06:36 build |
+| the menu entries are hard-coded today (`MoveHere`, `Engage`, `Stop`, `Possess`); the picks are hard-coded per entry | `ContextMenuProjectorGizmo.cs:55-67`, `MenuOrders.cs:43-94`, `RtsCommands.cs:56-72` |
+| ⭐ reuse for a generic order menu: "the TYPE makes a field pickable" already exists: `EntityRef` → entity pick, `PickableGeoPoint` → location pick, driven through `MapPickBroker`; the schema extractor emits the same | `BehaviorUiCompiler.cs:159,189`, `MapPickBroker.cs:17-63`, `DtoJsonSchemaExtractor.cs:194-250` |
+| the variables panel takes any `IEditableAsset` + type choices, so a params DTO asset can host it | `VariablesPanelControl` ctor (`VariablesPanelControl.cs:221+`) |
+
+**Leans (C):**
+- every node, ExCon included, builds the params-DTO registry by scanning the LOADED assemblies (as the blueprint palette already does over the AppDomain); standalone ExCon loads the AI assembly by name;
+- the order menu = the registry's order DTOs that the entity's behaviours fulfil, with one follow-up pick per pickable field type, through `MapPickBroker`.
 
 ### 2.4 Every place a behaviour is named from outside the unit today, and what A1/A6 do to it *(grep `new AssignTacticalIntentEvent` / `new AssignBehaviorEvent`, production only)*
 
