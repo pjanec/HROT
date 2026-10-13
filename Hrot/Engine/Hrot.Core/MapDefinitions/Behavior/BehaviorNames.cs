@@ -90,6 +90,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2152</c> C-c (R-b) — hold and put rounds on a named contact, seen or not (DESIGN_Squad_Tactics §7.5).</summary>
         public const string Suppress = "Suppress";
 
+        /// <summary>⭐ <c>CE-2152</c> C-c (R-c) — a commander's casualty care: the squad covers, the medic brings a man who is down to
+        /// cover (DESIGN_Squad_Tactics §7.5).</summary>
+        public const string CasualtyCare = "CasualtyCare";
+
         /// <summary>⭐ <c>CE-1056</c> I-2d — the squad gets out of its vehicles; done when nobody is aboard (DESIGN_Squad_Tactics §5a).</summary>
         public const string SquadDismount = "SquadDismount";
 

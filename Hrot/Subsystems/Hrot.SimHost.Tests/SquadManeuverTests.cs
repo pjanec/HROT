@@ -286,6 +286,112 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, s.Phase);
         }
 
+        // ── CE-2152 C-c R-c — the casualty-care play ───────────────────────────────────────────────────────────────────────
+
+        /// <summary>A squad of 4: member 1 is DOWN (25 of 100 HP), member 2 the designated Medic, everyone armed; one pooled enemy.</summary>
+        private static (Squad s, Entity casualty, Entity medic, Entity enemy) CareSquad()
+        {
+            var s = new Squad(members: 4);
+            foreach (var m in s.Members)
+                s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 100, MaxAmmo = 100, MagazineSize = 30, MagazineRounds = 30 });
+            var casualty = s.Members[1];
+            s.Repo.AddComponent(casualty, new Fdp.Toolkit.Combat.Components.Health { Current = 25f, Max = 100f });
+            s.Repo.AddComponent(casualty, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            var medic = s.Members[2];
+            s.Repo.GetComponentRW<Fdp.Core.CommandHierarchy.UnitSubordinate>(medic).Designation = Fdp.Core.CommandHierarchy.TacticalDesignation.Medic;
+            var enemy = s.Repo.CreateEntity();
+            s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(0, 80, 0), Rotation = Quaternion.Identity });
+            s.Pool(enemy, new Vector3(0, 80, 0), reporters: 1);
+            return (s, casualty, medic, enemy);
+        }
+
+        private static string LastIntent(Squad s, Entity m) => s.Orders.Last(o => o.Entity.Equals(m)).IntentId;
+        private static void Fire(Squad s, Entity m) => s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(m).Ammo -= 1;
+        private static Entity CoverQuery(Squad s) => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, SquadCasualtyCarePlay.CoverSite);
+
+        /// <summary>
+        /// ⭐ <c>CE-2152</c> C-c (R-c, Squad Tactics §7.5.3) — the coverers suppress the enemy while the MEDIC holds; he goes only once every
+        /// coverer has fired ("covering"); he is sent to bring the man to the cover point the terrain answered; the man lying there ends
+        /// the drill (Success) and the squad remembers him as cared for. 🔴 Red before: no play cared for a casualty.
+        /// </summary>
+        [Fact]
+        public void CE2152_CasualtyCare_TheOthersCover_TheMedicGoesOnlyWhenTheyFired_AndBringsHimToCover()
+        {
+            var (s, casualty, medic, enemy) = CareSquad();
+            s.Order("{}", BehaviorNames.CasualtyCare);
+            s.Tick(); s.Tick();
+
+            Assert.Equal(CasualtyCareManeuver.ManeuverKind, s.Kind);
+            Assert.Equal(CasualtyCareManeuver.PhaseSuppress, s.Phase);
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[3]));
+            Assert.Equal(BehaviorNames.CombatPosture, LastIntent(s, medic));      // he holds in cover
+            Assert.DoesNotContain(s.Orders, o => o.Entity.Equals(casualty));     // the man down gets nothing
+            var query = CoverQuery(s);
+            Assert.False(query.IsNull);                                          // the cover query, slot 0 the casualty
+            var cover = new Vector3(6, -4, 0);
+            s.Answer(query, cover);
+            for (int i = 0; i < 20; i++) s.Tick();
+            Assert.Equal(CasualtyCareManeuver.PhaseSuppress, s.Phase);            // nobody has fired yet: he waits
+
+            Fire(s, s.Members[0]); s.Tick();
+            Assert.Equal(CasualtyCareManeuver.PhaseSuppress, s.Phase);            // one coverer is not "covering"
+            Fire(s, s.Members[3]); s.Tick(); s.Tick();
+            Assert.Equal(CasualtyCareManeuver.PhaseGo, s.Phase);
+            Assert.Equal(BehaviorNames.CarryCasualty, LastIntent(s, medic));
+            var trace = SquadDrillTrace.Of(s.Repo, s.Commander);
+            Assert.Equal(cover, trace.Orders[2].Point);
+            Assert.Equal(casualty, trace.Orders[2].Target);
+            Assert.Equal(medic, trace.Care.Medic);
+            Assert.Equal((byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.ShotFired, trace.History[^1].Event);
+
+            s.Teleport(casualty, cover + new Vector3(1, 0, 0));                  // he lies at the cover point
+            s.Tick(); s.Tick();
+            Assert.True(s.Finished(out var result));
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+            Assert.Equal(0, CasualtyCare.UncaredCount(s.Repo, s.Commander));      // cared for: not again
+        }
+
+        /// <summary>⭐ R-c — the covering never comes (nobody fires): after <c>CoveringSeconds</c> the medic goes anyway, and the trace says
+        /// it was a Timeout, not the gate. 🔴 Red before: as above.</summary>
+        [Fact]
+        public void CE2152_CasualtyCare_NoCoveringFire_TheMedicGoesAfterAWhile_AndTheTraceSaysTimeout()
+        {
+            var (s, _, medic, _) = CareSquad();
+            s.Order("{}", BehaviorNames.CasualtyCare);
+            s.Tick(); s.Tick();
+            s.Answer(CoverQuery(s), new Vector3(6, -4, 0));
+            for (int i = 0; i < 250; i++) s.Tick();                               // 4 s > CoveringSeconds (3 s)
+            Assert.Equal(CasualtyCareManeuver.PhaseGo, s.Phase);
+            Assert.Equal(BehaviorNames.CarryCasualty, LastIntent(s, medic));
+            Assert.Equal(SquadDrillTrace.EventTimeout, SquadDrillTrace.Of(s.Repo, s.Commander).History[^1].Event);
+        }
+
+        /// <summary>⭐ R-c (§7.5.4 mid-rescue) — fire picks up while the medic is still WALKING to him: he is called back to where he waited,
+        /// and the drill fails once he is back (the reaction decides again). 🔴 Red before: as above.</summary>
+        [Fact]
+        public void CE2152_CasualtyCare_FireWhileTheMedicIsOnTheWay_CallsHimBack()
+        {
+            var (s, _, medic, _) = CareSquad();
+            var waited = s.At(medic);
+            s.Order("{}", BehaviorNames.CasualtyCare);
+            s.Tick(); s.Tick();
+            s.Answer(CoverQuery(s), new Vector3(6, -4, 0));
+            Fire(s, s.Members[0]); Fire(s, s.Members[3]); s.Tick(); s.Tick();
+            Assert.Equal(CasualtyCareManeuver.PhaseGo, s.Phase);
+
+            s.Teleport(medic, waited + new Vector3(0, 5, 0));                      // on his way
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(CasualtyCareManeuver.PhaseRecall, s.Phase);
+            Assert.Equal(BehaviorNames.AdvanceTo, LastIntent(s, medic));
+
+            s.Teleport(medic, waited);
+            s.Tick(); s.Tick();
+            Assert.True(s.Finished(out var result));
+            Assert.Equal(Fbt.NodeStatus.Failure, result);
+        }
+
         [Fact]
         public void CE507_BoundingOverwatch_ABoundThatNeverCompletes_TimesOut_AndTheOtherElementMoves()
         {

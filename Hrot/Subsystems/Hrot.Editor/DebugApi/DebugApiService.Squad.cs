@@ -110,6 +110,7 @@ namespace Hrot.Editor.DebugApi
                     ["point"] = new JsonArray(System.Math.Round(o.Point.X, 1), System.Math.Round(o.Point.Y, 1), System.Math.Round(o.Point.Z, 1)),
                     ["cover"] = o.Cover,
                     ["issuedAt"] = System.Math.Round(o.IssuedAt, 2),
+                    ["target"] = o.Target.IsNull ? null : unit(o.Target),
                 };
                 members.Add(m);
             }

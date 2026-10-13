@@ -39,9 +39,11 @@ namespace Fdp.Toolkit.Squad
             /// <summary>The point came from a cover query.</summary>
             public readonly bool Cover;
             public readonly double IssuedAt;
-            public Order(Entity member, byte kind, Vector3 point, bool cover, double issuedAt)
+            /// <summary>The entity the order is about (the contact to suppress, the man to carry); Null when none.</summary>
+            public readonly Entity Target;
+            public Order(Entity member, byte kind, Vector3 point, bool cover, double issuedAt, Entity target = default)
             {
-                Member = member; Kind = kind; Point = point; Cover = cover; IssuedAt = issuedAt;
+                Member = member; Kind = kind; Point = point; Cover = cover; IssuedAt = issuedAt; Target = target;
             }
         }
 

@@ -1,0 +1,306 @@
+using System;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Squad;
+using Fdp.Toolkit.Squad.Maneuvers;
+using Fdp.Toolkit.Squad.Primitives;
+using Hrot.Map.Definitions.Behavior;
+
+namespace Hrot.AI.Behaviors.Brains
+{
+    /// <summary>⭐ <c>CE-2152</c> C-c (R-c) — the casualty-care play's params; the four runtime fields are the play's own memory.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CasualtyCareParams
+    {
+        /// <summary>Walking speed (m/s).</summary>
+        public float Speed;
+        /// <summary>How far around the casualty the cover query looks (m).</summary>
+        public float CoverSearchRadius;
+        /// <summary>The medic goes after this long even when not every coverer has fired (s).</summary>
+        public float CoveringSeconds;
+        /// <summary>The whole drill gives up after this long in one phase (s).</summary>
+        public float PhaseTimeoutSeconds;
+        /// <summary>Runtime: the man being cared for.</summary>
+        public Entity Casualty;
+        /// <summary>Runtime: the man sent for him.</summary>
+        public Entity Medic;
+        /// <summary>Runtime: where the medic waited (in cover) — where he goes back to when called back.</summary>
+        public Vector3 MedicFrom;
+        /// <summary>Runtime: the casualty's roster slot.</summary>
+        public byte CasualtySlot;
+        /// <summary>Runtime: the medic's roster slot.</summary>
+        public byte MedicSlot;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2152</c> C-c (R-2012 K1–K6 / R-2013, slice R-c; 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.5.2–§7.5.3) — a man
+    /// is down: the squad covers, the medic brings him in. A play on the generic runner: the coverers <c>Suppress</c> the squad's top
+    /// contact while the medic HOLDS in cover; when every coverer has fired (<see cref="SquadGates.Covering"/>) the medic GOES —
+    /// <c>CarryCasualty</c> to the nearest cover point around the casualty hidden from the threat (<see cref="FindCoverFromTarget"/>, slot 0
+    /// the casualty, slot 1 the threat); the man lying there ⇒ Done (the squad remembers him as cared for). Fire picking up while the medic
+    /// is still WALKING to him ⇒ he is called back to where he waited and the play fails (the reaction decides again); once he is
+    /// CARRYING he keeps going. Medic: the member designated <c>Medic</c>, else the nearest member in the fight who is not the leader.
+    /// </summary>
+    public struct SquadCasualtyCarePlay : ISquadPlay<CasualtyCareParams>
+    {
+        /// <summary>The commander's cover query for the casualty.</summary>
+        public const int CoverSite = 0x21520001;
+
+        /// <summary>The casualty "lies at the cover point" within this (m).</summary>
+        public const float AtCoverMetres = 2.5f;
+
+        /// <summary>The recalled medic is back within this (m).</summary>
+        public const float BackMetres = 3f;
+
+        private static readonly SquadHsmShell s_shell = new(CasualtyCareManeuver.BuildTransitionTable(), CasualtyCareManeuver.PhaseAborted);
+
+        public SquadHsmShell Shell => s_shell;
+        public ushort ManeuverKind => CasualtyCareManeuver.ManeuverKind;
+        public ushort StartPhase => CasualtyCareManeuver.PhaseSuppress;
+        public ushort AbortPhase => CasualtyCareManeuver.PhaseAborted;
+        public byte ElementCount => 2;
+
+        public PlayStart Start(ref CasualtyCareParams p, ref SquadPlayState ws, in SquadPlayContext ctx, Span<MemberPartitionInput> partition)
+        {
+            int casualty = CasualtyCare.Uncared(in ctx, p.Casualty);
+            if (casualty < 0) return PlayStart.Fail;
+            int medic = CasualtyCare.MedicFor(in ctx, casualty);
+            if (medic < 0) return PlayStart.Fail;
+            p.Casualty = ctx.Roster.SubordinateEntities[casualty];
+            p.CasualtySlot = (byte)casualty;
+            p.Medic = ctx.Roster.SubordinateEntities[medic];
+            p.MedicSlot = (byte)medic;
+            p.MedicFrom = ctx.At(p.Medic);
+            if (SquadManeuverRunner.TopContact(in ctx, 0, out var contact))
+            {
+                ws.ThreatId = contact.EntityId;
+                ws.ThreatPoint = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);
+            }
+            for (int i = 0; i < ctx.Roster.Count; i++)
+                partition[i] = i == medic ? new MemberPartitionInput(0.1f, 1f) : new MemberPartitionInput(1f, 0.1f);
+            return PlayStart.Go;
+        }
+
+        public void Update(ref CasualtyCareParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (ws.ThreatId != 0 && SquadManeuverRunner.TopContact(in ctx, ws.ThreatId, out var contact) && contact.EntityId == ws.ThreatId)
+                ws.ThreatPoint = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);
+            if (ws.HasAnswer == 0)
+            {
+                if (ws.ThreatId == 0) ws.HasAnswer = SquadManeuverRunner.NoAnswer;   // nothing to hide from: bring him to where the medic waited
+                else SquadManeuverRunner.AskTerrain(ref ws, in ctx, FindCoverFromTarget.BlueprintId, CoverSite, p.CoverSearchRadius,
+                                                    p.Casualty, new Entity((ulong)ws.ThreatId));
+            }
+            SquadGates.Track(ref ws.Gate, in ctx);
+            ushort coverers = (ushort)(SquadGates.Element(in ctx, CasualtyCareManeuver.ElementCoverers) & ~(1 << p.CasualtySlot));
+            SquadDrillTrace.Gates(ctx.World, ctx.Commander, SquadGates.Covering(in ws.Gate, in ctx, coverers), LiesInCover(ref p, ref ws, in ctx));
+            SquadDrillTrace.CareChanged(ctx.World, ctx.Commander,
+                new SquadDrillTrace.CareState(p.Casualty, p.Medic, CoverPoint(ref p, ref ws), ws.HasAnswer != 0, (byte)ctx.Squad.PhaseId));
+        }
+
+        public NodeStatus Outcome(ref CasualtyCareParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (!ctx.World.IsAlive(p.Casualty) || !CombatLife.IsAlive(ctx.World, p.Casualty)) return NodeStatus.Failure;   // he died
+            if (ctx.Squad.PhaseId == CasualtyCareManeuver.PhaseDone)
+            {
+                CasualtyCare.MarkCaredFor(ctx.World, ctx.Commander, p.CasualtySlot);
+                return NodeStatus.Success;
+            }
+            if (!Injury.IsInTheFight(ctx.World, p.Medic)) return NodeStatus.Failure;   // the medic is down too: decide again
+            return NodeStatus.Running;
+        }
+
+        public bool PhaseComplete(ref CasualtyCareParams p, ref SquadPlayState ws, in SquadPlayContext ctx, out PhaseEventKind evt)
+        {
+            ushort phase = ctx.Squad.PhaseId;
+            bool timedOut = ctx.Now - ws.IssuedAt >= p.PhaseTimeoutSeconds;
+            if (phase == CasualtyCareManeuver.PhaseSuppress)
+            {
+                evt = PhaseEventKind.ShotFired;
+                if (ws.HasAnswer == 0) { if (!timedOut) return false; evt = PhaseEventKind.Abort; return true; }
+                ushort coverers = (ushort)(SquadGates.Element(in ctx, CasualtyCareManeuver.ElementCoverers) & ~(1 << p.CasualtySlot));
+                if (SquadGates.Covering(in ws.Gate, in ctx, coverers)) return true;
+                if (ctx.Now - ws.IssuedAt < p.CoveringSeconds) return false;
+                ws.CompletedByTimeout = 1;   // the medic goes anyway: the covering never came
+                return true;
+            }
+            if (phase == CasualtyCareManeuver.PhaseGo)
+            {
+                evt = PhaseEventKind.DefiladeReached;
+                if (LiesInCover(ref p, ref ws, in ctx)) return true;
+                evt = PhaseEventKind.BoundComplete;   // fire picked up while he was still on the way: back to cover
+                if (!Carrying(ref p, in ctx) && RecentSensesOf.WithinSince(ctx.World, ctx.Commander, SensorChange.SquadUnderFire, 3600d, ws.IssuedAt))
+                    return true;
+                evt = PhaseEventKind.Abort;
+                return timedOut;
+            }
+            evt = PhaseEventKind.BoundComplete;   // Recall: done when he is back where he waited
+            var d = ctx.At(p.Medic) - p.MedicFrom; d.Z = 0f;
+            return d.Length() <= BackMetres || timedOut;
+        }
+
+        public void BeginIssue(ref CasualtyCareParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
+
+        public MemberOrder OrderFor(ref CasualtyCareParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)
+        {
+            ushort phase = ctx.Squad.PhaseId;
+            if (member == p.MedicSlot)
+            {
+                if (phase == CasualtyCareManeuver.PhaseGo)
+                    return new MemberOrder
+                    {
+                        Kind = MemberOrderKind.CarryCasualty, Target = p.Casualty, Point = CoverPoint(ref p, ref ws), Speed = p.Speed,
+                        Cover = ws.HasAnswer == 1 ? (byte)1 : (byte)0, RoleId = CasualtyCareManeuver.RoleMedic,
+                    };
+                if (phase == CasualtyCareManeuver.PhaseRecall)
+                    return new MemberOrder
+                    {
+                        Kind = MemberOrderKind.AdvanceTo, Point = p.MedicFrom, Speed = p.Speed,
+                        ArrivalRadius = SquadManeuverRunner.MoverArrivalMetres, RoleId = CasualtyCareManeuver.RoleMedic,
+                    };
+                return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = CasualtyCareManeuver.RoleMedic };
+            }
+            if (ws.ThreatId == 0) return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = CasualtyCareManeuver.RoleCoverer };
+            return new MemberOrder
+            {
+                Kind = MemberOrderKind.Suppress, Target = new Entity((ulong)ws.ThreatId), Point = ws.ThreatPoint, Speed = p.Speed,
+                RoleId = CasualtyCareManeuver.RoleCoverer,
+            };
+        }
+
+        public void Release(ref SquadPlayState ws, EntityRepository world) => SquadManeuverRunner.DropSensor(ref ws, world);
+
+        /// <summary>Where the medic brings him: the cover query's answer, else where the medic waited.</summary>
+        private static Vector3 CoverPoint(ref CasualtyCareParams p, ref SquadPlayState ws) => ws.HasAnswer == 1 ? ws.Answer : p.MedicFrom;
+
+        private static bool Carrying(ref CasualtyCareParams p, in SquadPlayContext ctx)
+            => ctx.World.HasComponent<IsEmbarkedTag>(p.Casualty) && ctx.World.GetComponentRO<IsEmbarkedTag>(p.Casualty).VehicleEntity == p.Medic;
+
+        /// <summary>The man lies (put down, not carried) at the cover point.</summary>
+        private static bool LiesInCover(ref CasualtyCareParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (ws.HasAnswer == 0 || !ctx.World.HasComponent<SimTransform>(p.Casualty) || ctx.World.HasComponent<IsEmbarkedTag>(p.Casualty)) return false;
+            var d = ctx.At(p.Casualty) - CoverPoint(ref p, ref ws); d.Z = 0f;
+            return d.Length() <= AtCoverMetres;
+        }
+    }
+
+    /// <summary>⭐ <c>CE-2152</c> C-c — who is down and uncared for, and who goes for him (K3′).</summary>
+    public static class CasualtyCare
+    {
+        /// <summary>The roster slot of the man to care for: <paramref name="prefer"/> while he is still down and uncared for, else the
+        /// first such member; −1 when nobody is.</summary>
+        public static int Uncared(in SquadPlayContext ctx, Entity prefer)
+        {
+            ushort cared = CaredFor(ctx.World, ctx.Commander);
+            int first = -1;
+            for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
+            {
+                var m = ctx.Roster.SubordinateEntities[i];
+                if ((cared & (1 << i)) != 0 || m.IsNull || !Injury.IsIncapacitated(ctx.World, m)) continue;
+                if (ctx.World.HasComponent<IsEmbarkedTag>(m)) continue;   // someone already has him
+                if (!prefer.IsNull && m == prefer) return i;
+                if (first < 0) first = i;
+            }
+            return first;
+        }
+
+        /// <summary>The medic for the man in slot <paramref name="casualty"/>: the live <c>Medic</c>, else the nearest member in the fight
+        /// who is not the squad's leader; −1 when nobody can go.</summary>
+        public static int MedicFor(in SquadPlayContext ctx, int casualty)
+        {
+            for (int i = 0; i < ctx.Roster.Count; i++)
+                if (i != casualty && ctx.Live(i, out var m) && Designation(ctx.World, in ctx.Roster, i, m) == TacticalDesignation.Medic) return i;
+            var leader = ctx.World.HasComponent<SquadLeadership>(ctx.Commander) ? ctx.World.GetComponentRO<SquadLeadership>(ctx.Commander).Leader : Entity.Null;
+            var him = ctx.World.HasComponent<SimTransform>(ctx.Roster.SubordinateEntities[casualty])
+                ? ctx.At(ctx.Roster.SubordinateEntities[casualty]) : Vector3.Zero;
+            int best = -1; float bestD = float.MaxValue;
+            for (int i = 0; i < ctx.Roster.Count; i++)
+            {
+                if (i == casualty || !ctx.Live(i, out var m) || m == leader) continue;
+                float d = Vector3.DistanceSquared(ctx.At(m), him);
+                if (d < bestD) { bestD = d; best = i; }
+            }
+            return best;
+        }
+
+        public static ushort CaredFor(EntityRepository world, Entity commander)
+            => world.HasComponent<SquadLeadership>(commander) ? world.GetComponentRO<SquadLeadership>(commander).CaredFor : (ushort)0;
+
+        public static void MarkCaredFor(EntityRepository world, Entity commander, int slot)
+        {
+            if (slot < 0 || slot >= 16 || !world.IsComponentTypeRegistered<SquadLeadership>()) return;
+            if (!world.HasComponent<SquadLeadership>(commander)) world.AddComponent(commander, new SquadLeadership());   // succession fills the leader
+            world.GetComponentRW<SquadLeadership>(commander).CaredFor |= (ushort)(1 << slot);
+        }
+
+        /// <summary>The number of members down and not yet cared for.</summary>
+        public static int UncaredCount(EntityRepository world, Entity commander)
+        {
+            if (!world.HasComponent<UnitRoster>(commander)) return 0;
+            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(commander);
+            ushort cared = CaredFor(world, commander);
+            int n = 0;
+            for (int i = 0; i < roster.Count && i < 16; i++)
+            {
+                var m = roster.SubordinateEntities[i];
+                if ((cared & (1 << i)) == 0 && !m.IsNull && Injury.IsIncapacitated(world, m) && !world.HasComponent<IsEmbarkedTag>(m)) n++;
+            }
+            return n;
+        }
+
+        private static TacticalDesignation Designation(EntityRepository world, in UnitRoster roster, int i, Entity m)
+            => world.HasComponent<UnitSubordinate>(m) ? world.GetComponentRO<UnitSubordinate>(m).Designation : (TacticalDesignation)roster.TacticalDesignations[i];
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2152</c> C-c (R-c) — the library <c>CasualtyCare</c>: the care play as a commander's behaviour, for a man who is down. The
+    /// squad's contact reaction runs the same play when its <c>Rescue</c> option wins (R-d); this is the play on its own.
+    /// </summary>
+    public static class CasualtyCareBehavior
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct CasualtyCareBlackboard
+        {
+            public CasualtyCareParams Order;
+            public SquadPlayState State;
+        }
+
+        /// <summary>The play's defaults (shared by the reaction's <c>Rescue</c>).</summary>
+        public static CasualtyCareParams Defaults(float speed) => new()
+        {
+            Speed = speed > 0f ? speed : 3f, CoverSearchRadius = 25f, CoveringSeconds = 3f, PhaseTimeoutSeconds = 90f,
+        };
+
+        [BehaviorResolver(BehaviorNames.CasualtyCare)]
+        public static void Resolve(in CasualtyCareParamsJsonDto authored, ref CasualtyCareBlackboard block, EntityRepository world, Entity self)
+        {
+            block.Order = Defaults(authored.Speed);
+            if (authored.CoverSearchRadius > 0f) block.Order.CoverSearchRadius = authored.CoverSearchRadius;
+            block.Order.Casualty = authored.Casualty.Resolve(world);
+            block.State = default;
+        }
+
+        [Behavior(BehaviorNames.CasualtyCare, Params = typeof(CasualtyCareParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [BTreeDefinition(BehaviorNames.CasualtyCare, Curated = true, Group = "Library/Squad", ParamsType = typeof(CasualtyCareBlackboard))]
+        public static BTreeBuilder<CasualtyCareBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<CasualtyCareBlackboard, BTreeContext>()
+                .StatefulAction(bb => bb.Order, bb => bb.State, Run);
+
+        public static NodeStatus Run(ref CasualtyCareParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
+            => SquadManeuverRunner.Tick<SquadCasualtyCarePlay, CasualtyCareParams>(ref p, ref ws, self, world);
+
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.CasualtyCareBehavior.Run")]
+        public static void Deactivate_Run(ref CasualtyCareParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
+            => SquadManeuverRunner.DropSensor(ref ws, world);
+    }
+}

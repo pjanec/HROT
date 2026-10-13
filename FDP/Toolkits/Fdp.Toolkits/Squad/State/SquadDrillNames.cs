@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.Squad
             BreakContactManeuver.ManeuverKind        => "BreakContact",
             SquadMarchManeuver.ManeuverKind          => "SquadMarch",
             SquadDismountManeuver.ManeuverKind       => "SquadDismount",
+            CasualtyCareManeuver.ManeuverKind        => "CasualtyCare",
             _                                        => "kind " + kind,
         };
 
@@ -38,6 +39,11 @@ namespace Fdp.Toolkit.Squad
             (SuppressAndManeuverManeuver.ManeuverKind, SuppressAndManeuverManeuver.PhaseAssaulting)      => "Assaulting",
             (SuppressAndManeuverManeuver.ManeuverKind, SuppressAndManeuverManeuver.PhaseAssaultComplete) => "AssaultComplete",
             (SuppressAndManeuverManeuver.ManeuverKind, SuppressAndManeuverManeuver.PhaseAborted)         => "Aborted",
+            (CasualtyCareManeuver.ManeuverKind, CasualtyCareManeuver.PhaseSuppress)                     => "Suppress",
+            (CasualtyCareManeuver.ManeuverKind, CasualtyCareManeuver.PhaseGo)                           => "Go",
+            (CasualtyCareManeuver.ManeuverKind, CasualtyCareManeuver.PhaseDone)                         => "Done",
+            (CasualtyCareManeuver.ManeuverKind, CasualtyCareManeuver.PhaseRecall)                       => "Recall",
+            (CasualtyCareManeuver.ManeuverKind, CasualtyCareManeuver.PhaseAborted)                      => "Aborted",
             _                                                                                           => "phase " + phase,
         };
 

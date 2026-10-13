@@ -44,6 +44,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2152</c> C-c (R-b) — hold and put rounds on <see cref="MemberOrder.Target"/> (last reported at
         /// <see cref="MemberOrder.Point"/>), seen or not: the library <c>Suppress</c>. A unit member gets <c>Order.Hold</c>.</summary>
         Suppress = 3,
+        /// <summary>⭐ <c>CE-2152</c> C-c (R-c) — go for <see cref="MemberOrder.Target"/> (a man who is down) and bring him to
+        /// <see cref="MemberOrder.Point"/>: the library <c>CarryCasualty</c>. A unit member holds.</summary>
+        CarryCasualty = 4,
     }
 
     /// <summary>⭐ <c>CE-2123</c> — one member's order, as a play computes it. The runner turns a hold into the library CombatPosture at
@@ -101,6 +104,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2157</c> (O-a) — a play sets 1 when its <c>PhaseComplete</c> is true because the phase ran out of time, not
         /// because its gate held: the trace records <see cref="SquadDrillTrace.EventTimeout"/>. The runner clears it each tick.</summary>
         public byte CompletedByTimeout;
+        /// <summary>⭐ <c>CE-2158</c> F-a — what the "covering" gate reads: each member's rounds and when one last left
+        /// (<see cref="SquadGates.Track"/>); zero for a play that does not use the gates.</summary>
+        public FireGateMemory Gate;
     }
 
     /// <summary>
@@ -411,10 +417,11 @@ namespace Hrot.AI.Behaviors.Brains
                 squad.Roles[i].RoleId = order.RoleId;
                 var point = order.Kind is MemberOrderKind.Hold or MemberOrderKind.Disembark or MemberOrderKind.Suppress ? at : order.Point;
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
-                traced[i] = new SquadDrillTrace.Order(m, (byte)order.Kind, point, order.Cover != 0, ctx.Now);
+                traced[i] = new SquadDrillTrace.Order(m, (byte)order.Kind, point, order.Cover != 0, ctx.Now, order.Target);
                 if (order.Kind == MemberOrderKind.Hold) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
                 else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m);
                 else if (order.Kind == MemberOrderKind.Suppress) Suppress(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
+                else if (order.Kind == MemberOrderKind.CarryCasualty) Carry(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
                 else Move(ctx.World, ctx.Commander, m, point, order.Speed, order.ArrivalRadius);
             }
             ws.IssuedPhase = squad.PhaseId;
@@ -462,6 +469,17 @@ namespace Hrot.AI.Behaviors.Brains
             Publish(world, commander, member, BehaviorNames.Suppress, JsonSerializer.Serialize(new SuppressParamsJsonDto
             {
                 Target = Fdp.Toolkit.Replication.EntityRef.Of(world, target), X = reported.X, Y = reported.Y, Z = reported.Z,
+            }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+        }
+
+        /// <summary>⭐ <c>CE-2152</c> C-c (R-c) — CARRY: the library <c>CarryCasualty</c> — go for <paramref name="casualty"/>, drag him to
+        /// <paramref name="to"/>; a member that is a UNIT holds.</summary>
+        public static void Carry(EntityRepository world, Entity commander, Entity member, Entity casualty, Vector3 to, Vector3 at, float speed)
+        {
+            if (IsUnit(world, member)) { Hold(world, commander, member, at, speed); return; }
+            Publish(world, commander, member, BehaviorNames.CarryCasualty, JsonSerializer.Serialize(new CarryCasualtyParamsJsonDto
+            {
+                Casualty = Fdp.Toolkit.Replication.EntityRef.Of(world, casualty), X = to.X, Y = to.Y, Speed = speed,
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
         }
 

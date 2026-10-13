@@ -22,6 +22,8 @@ namespace Fdp.Toolkit.Squad
         /// <summary>⭐ <c>CE-2152</c> C-c (R-a) — roster slots already reported DOWN (<see cref="Fdp.Toolkit.Perception.Events.SensorChange.SquadMemberDown"/>
         /// once per man). Health only falls, so a bit is never cleared.</summary>
         public ushort DownReported;
+        /// <summary>⭐ <c>CE-2152</c> C-c (R-c) — roster slots already brought to cover by the care drill (not cared for again).</summary>
+        public ushort CaredFor;
 
         /// <summary>Is <paramref name="commander"/> silent at <paramref name="now"/>?</summary>
         public static bool Silent(ISimulationView view, Entity commander, double now)
