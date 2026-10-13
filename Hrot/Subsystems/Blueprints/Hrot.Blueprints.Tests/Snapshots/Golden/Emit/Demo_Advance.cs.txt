@@ -114,6 +114,7 @@ public static class DemoAdvance_98B92303_Bp
             throw new global::System.ArgumentOutOfRangeException(nameof(capacity),
                 $"the behaviour block holds {capacity} bytes but this blueprint needs {StateSize} (CE-446).");
         InitDefault(new global::System.Span<byte>(memory, StateSize));
+        global::Fdp.Toolkit.Behavior.BehaviorParams.RequireNoStoredFields(json, "Demo_Advance", "Hrot.Map.Definitions.Behavior.NoParams");
     }
     
     /// <summary>CE-446 / S2: this frame's events, then the Tick — its status ends the behaviour.</summary>
@@ -140,6 +141,7 @@ public static class BlueprintRegistrar_DemoAdvance_98B92303_Bp
             BlackboardLayoutType = typeof(DemoAdvance_98B92303_Bp.Block),
             BrainStateLayoutType = typeof(DemoAdvance_98B92303_Bp.Exec),
             BrainStateBytes = DemoAdvance_98B92303_Bp.ExecSize,
+            JsonParamsDtoType = typeof(global::Hrot.Map.Definitions.Behavior.NoParams),
             ManagedBlackboardVariables = DemoAdvance_98B92303_Bp.InputManifest(),
             ParseParams = DemoAdvance_98B92303_Bp.BehaviorParseParams,
             BlueprintTick = DemoAdvance_98B92303_Bp.BehaviorTick,

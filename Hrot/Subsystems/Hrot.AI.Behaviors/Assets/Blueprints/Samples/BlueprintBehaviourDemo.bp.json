@@ -10,6 +10,7 @@
   "TierHint": "Auto",
   "IsWorldSingleton": false,
   "Primitive": null,
+  "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams",
   "Declarations": [
     {
       "Kind": "Variable",

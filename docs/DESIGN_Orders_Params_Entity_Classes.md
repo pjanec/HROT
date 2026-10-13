@@ -1541,3 +1541,91 @@ classDiagram
   "rebuilt copy" is a minimal DYNAMIC assembly with the same name and one type: a second real copy of a test assembly would make every
   scanner that walks the loaded assemblies see its fixtures twice (CE-3180).
 
+
+### 13.9 P3 — B3b-1, the allow-list entries that need no Parameters *(CE-2135; build-state: BUILT `2026-10-13`, backend)*
+
+**Measured per entry** (read-only sweep: every caller of each behaviour, scenarios / C# / scripts / assets): **12** convert to `NoParams`
+with no caller change — the 5 parameter-less blueprints (`BlueprintBehaviourDemo`, `Demo_Advance`, `Demo_Engage`, `Demo_Retreat`,
+`Demo_TakeCover`: `"ParamsDtoTypeId"` after `Primitive`, where the serializer writes it), `OperatorControl` (the possession sends `"{}"`;
+`[Behavior(Params = typeof(NoParams))]` + a `[BehaviorResolver]` clearing `Control` — the `Disembark` shape), and `T10`, `T35`, `T39`,
+`BTreeCuratedBindingDemo`, `HsmCuratedBindingDemo`, `HsmPolledGuardDemo` (only `""` / `"{}"` callers; the B3a precedent: one top-level line,
+the variables untouched and now plain). The two v1 migration fixtures of converted assets (`T35`, `HsmPolledGuardDemo`) got the same line.
+
+⚠ **Deviation — 6 entries moved to P4**, each for a measured reason: `T20` (a caller sends `{"cursorB":{"Limit":…}}` — it needs a named
+DTO), `HsmChannelE2E` (its scenario sends keyed JSON, and its variables are AiPrimitive blueprints' generated `Params`, which P4 changes),
+`HsmResolverDemo` / `T40` (their resolver blueprints declare Parameters — P4 §13.10 P4-e), and `T09` / `HsmVariableShowcase` (no caller, but
+the legacy Inputs path's own rails pin them — `AGeneratedBehaviourAdvertisesItsManifestTests`, `HsmGoldenCorpusTests`; they are rewritten once,
+when P4 deletes that path, not twice). Allow-list 22 → 10 (with the 4 HSMs CE-3185 found and `PlatoonHillAttackBp`, retiring in P9).
+
+**Goldens** (regenerated, `AI_REGENERATE_SNAPSHOTS` / `BLUEPRINT_REGENERATE_SNAPSHOTS`; diff shape): 6 AI registrars lose the Input-overlay
+switch for `RequireNoStoredFields` + `JsonParamsDtoType = NoParams` (−29 to −41 lines each), `HsmCuratedBindingDemo` +1; 5 blueprint emits +2 lines
+each (the same two lines); 3 persistence-shape hash files move (8 / 4 / 10 lines). Gates: Generators 431/0 (twice), Editor DebugApi 73/0,
+Fdp.Toolkits tick arms + possession 85/0, SimHost 16/0, Blueprints 4203/2 — the 2 reds are in files this item does not touch
+(`ViewsAreUnreadTests` flags `Stage2_Validate.cs:2835`, CE-2133's BP1689 rule, which P4 rewrites; `CatalogTests` AimAndFire pins 4 vs 8 — the
+channel-command catalog). ⚠ Not re-run at the base sha.
+
+### 13.10 P4 — no blueprint declares Parameters; every kind names a params DTO *(CE-2135 B3b-2; R-2004, steers 1–2; build-state: READY-TO-BUILD `2026-10-13`, backend)*
+
+**INVENTORY** *(read-only sweep 2026-10-13 + grep; file:line in the CE-2135 report)*: `ParameterDecl` (`Declarations.cs:16`) is ALSO the
+element type of graph Inputs / Outputs, custom-event and dispatcher parameters ⇒ only its use as a blueprint **Parameter declaration kind**
+retires, not the type. 12 shipped `.bp.json` declare Parameters (after `PlatoonHillAttackBp` retires, P9): Behavior `Demo_MissionPlan` (3),
+`Demo_TaskChain` (2), `DangerCrossingBp` (4); AiPrimitive `ChannelMoveAndWaitDemo` (2), `GateConditionDemo` (1), `ParamDemo` (3),
+`HsmDriveActivity` (2), `HsmFireActivity` (1), `HsmGuardDemo` (1), `HsmTwoRegionParamsDemo` (1); resolvers `HsmResolverDemoResolver` (1),
+`T40Resolver` (1). Get Parameter: 2 graphs (`HsmGuardDemo`, `DangerCrossingBp`). The pin builder (`Stage0_Rehydrate.EnrichGetAllParametersPins`
+`:340`, editor twin `NodePinSchema.cs:962`), the IR (`IrOp_ReadParam`, `Stage5_Schedule.cs:2979`), the `Params` struct (`AiPrimitiveEmitter.cs:88`,
+`InstanceEmitter.cs:401`, `LibraryEmitter.cs:231`) and the legacy parse (`ParseParams`, flat, keyed by Parameter name) all read `asset.Parameters`.
+The AiPrimitive hosts bind the generated `{Name}_{Id:X8}_Bp+Params` by NAME (`BTreeMethodCompatibilityValidator.cs:373`) and size it from the
+`.bp.json` Parameters (`GeneratedBlueprintSchemaCatalog.TryResolveParamsSize`).
+
+```mermaid
+classDiagram
+  direction LR
+  class BlueprintAsset { <<existing>> +ParamsDtoTypeId · +Parameters (a VIEW, now synthesized) }
+  class ParamsDtoFields { <<NEW, Hrot.Blueprints.Compiler>> +Materialize(asset, source) · synthesizes one Parameter per DTO field }
+  class IParamsDtoFieldSource { <<NEW>> +TryGetFields(typeId) → (Name, TypeId, DefaultJson)[] }
+  class ReflectionFieldSource { <<NEW, editor / in-process>> loaded type's public fields + [ParamsDto(DefaultJson)] }
+  class RoslynFieldSource { <<NEW, Hrot.AiEditor.Generators>> ITypeSymbol fields; a .params.json via GeneratedTypeCatalog }
+  class CompileOptions { <<existing, CHANGED>> +ParamsDtoFields: IParamsDtoFieldSource? }
+  class V_ParamsDtoRules { <<existing, CHANGED>> BP1689: any kind may name a DTO; a declared Parameter is an error }
+  class GetParameterNode { <<RETIRED>> }
+  class GetAllParametersNode { <<existing>> one pin per (synthesized) Parameter = per DTO field }
+  class GeneratedBlueprintSchemaCatalog { <<existing, CHANGED>> Params size + names from the DTO's fields }
+  IParamsDtoFieldSource <|.. ReflectionFieldSource
+  IParamsDtoFieldSource <|.. RoslynFieldSource
+  CompileOptions o-- IParamsDtoFieldSource
+  ParamsDtoFields ..> IParamsDtoFieldSource
+  ParamsDtoFields ..> BlueprintAsset : fills Parameters
+  GetAllParametersNode ..> BlueprintAsset : Parameters
+  GeneratedBlueprintSchemaCatalog ..> IParamsDtoFieldSource
+```
+
+*What the picture shows that prose hid: nothing DOWNSTREAM of `asset.Parameters` changes. The DTO's fields are materialized as the
+Parameter view at load (editor) and at Stage 0 (compiler); the `Params` struct, the flat parse, `IrOp_ReadParam`, Get All Parameters' pins and
+the AiPrimitive hosts' `_Bp+Params` binding keep working because the generated `Params` still has the same names, types and order — now
+the DTO's. ⇒ the AiPrimitive conversion needs the DTO only (steer 1's stop condition does not trigger).*
+
+```mermaid
+sequenceDiagram
+  participant G as BlueprintIncrementalGenerator / editor compile
+  participant F as ParamsDtoFields
+  participant S as field source (Roslyn / reflection)
+  participant C as Stage0 → … → emitters
+  G->>F: Materialize(asset, source) — asset.ParamsDtoTypeId = X
+  F->>S: TryGetFields(X)
+  S-->>F: (Name, TypeId, DefaultJson) per public field, in order
+  F->>F: Parameters := one ParameterDecl per field (Id = deterministic from asset + name)
+  F-->>G: asset (no Parameter is STORED in the file)
+  G->>C: compile — Params struct, flat ParseParams, pins, ReadParam unchanged
+  C-->>G: JsonParamsDtoType = X (the published contract)
+```
+
+| # | decision | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| P4-a | how the compiler learns the DTO's fields | a field source on `CompileOptions` (generator: Roslyn symbol fields, or a `.params.json` through `GeneratedTypeCatalog`); null ⇒ reflection over loaded assemblies (the editor / in-process path) — the `ClrSignatureResolver` / `StructSizeOracle` precedent | a fields list stored in the `.bp.json` (a second declaration of the DTO's shape — what R-2004 retires) |
+| P4-b | how the rest of the compiler sees them | synthesized Parameters (deterministic ids) — every reader keeps reading `asset.Parameters` | teach each reader about the DTO (5 emitters + 2 pin builders + IR + layout: the blast radius for nothing) |
+| P4-c | defaults | `[ParamsDto(DefaultJson)]` per field, for hand-written AND generated DTOs, read the same way by both sources | C# initializers (Roslyn sees only constants; reflection sees all ⇒ the two compilers would disagree) |
+| P4-d | the AiPrimitive hosts | unchanged: the generated `_Bp+Params` still mirrors the DTO's fields, names and order; the generator's size prediction reads the DTO's fields | hosts bind the DTO type directly (every host asset's variable type changes — a second migration) |
+| P4-e | resolvers | the resolver blueprint names the DTO; its `Params` is synthesized; the host behaviour publishes the resolver's DTO (`JsonParamsDtoType`) | keep publishing `{Resolver}_Bp+Params` (the CE-2130 mirror the rule forbids) |
+| P4-f | Get Parameter | retires (steer 2); its 2 graphs move to Get All Parameters (links re-pointed by pin name) | migrate-on-load of old files (no shipped file needs it after the 2 are rewritten) |
+| P4-g | where the DTOs come from | hand-written C# structs beside the behaviour (the user: "no problem writing dto class in csharp"); `DangerCrossingBp` names `DangerCrossingParams`, its C# twin's contract — ONE contract for both | `.params.json` assets for all 12 (fine, but the C# twin already has the DTO) |
+| P4-h | order | ① field source + materialize + BP1689 + emit (rails) → ② 3 behaviours → ③ 7 AiPrimitives (+ their hosts' goldens) → ④ 2 resolvers (+ HsmResolverDemo, T40) → ⑤ Get Parameter retires → ⑥ the legacy BTree / HSM Inputs (T09, T20, HsmVariableShowcase, HsmChannelE2E) → ⑦ delete `Role`, `StatefulSlotInfo.Role`, `StatefulSlotRole`; the allow-list ends EMPTY | one big bang (no red-proof per step) |

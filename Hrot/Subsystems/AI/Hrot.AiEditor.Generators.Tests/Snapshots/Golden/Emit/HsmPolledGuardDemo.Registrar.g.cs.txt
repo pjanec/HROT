@@ -50,31 +50,8 @@ public static class HsmPolledGuardDemoRegistrar
                 // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
                 __BakeDefaults(memory, capacity);
 
-                // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
-                // variable's deserializer (DEBT-AIB-021 names this shape).
-                // ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and
-                //    commits only on success, so a throw leaves the entity on its old behaviour.
-                if (!string.IsNullOrWhiteSpace(json))
-                {
-                    using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
-                    if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)
-                    {
-                        foreach (var __prop in __doc.RootElement.EnumerateObject())
-                        {
-                            switch (__prop.Name)
-                            {
-                                case "EngageTarget":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<bool>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __o);
-                                    break;
-                                }
-                                // ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.
-                                default: break;
-                            }
-                        }
-                    }
-                }
+                // Step 2 — CE-2135: 'Hrot.Map.Definitions.Behavior.NoParams' is stored nowhere; the variables are not JSON.
+                global::Fdp.Toolkit.Behavior.BehaviorParams.RequireNoStoredFields(json, "HsmPolledGuardDemo", "Hrot.Map.Definitions.Behavior.NoParams");
             };
         }
 
@@ -90,7 +67,7 @@ public static class HsmPolledGuardDemoRegistrar
             {
                 new("EngageTarget", typeof(bool), 0),
             },
-            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Machines.HsmPolledGuardDemo_HsmPolledGuardDemo_Blackboard),
+            JsonParamsDtoType    = typeof(global::Hrot.Map.Definitions.Behavior.NoParams),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Machines.HsmPolledGuardDemo_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,
