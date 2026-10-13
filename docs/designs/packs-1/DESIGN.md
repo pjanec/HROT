@@ -7,6 +7,7 @@ known-rot: none known. ⛔ SUPERSEDED: §2.B step 1's "if Health.Current < Healt
   it froze infantry at the first graze once CE-3091 made the strip stop a running move (CE-3092,
   docs/blueprints/Blueprint_Issues_Tracker.md).
 related-designs:
+  - ../../DESIGN_Injury_States.md — OWNS the injury states; its incapacitated row extends §2.B's hit-capability rule (CE-2155)
   - ../brain-death/BD1-DESIGN.md — owns what stopping a running action means (§1.1 OnExit guarantee, §1.1a CE-3091:
     losing CanMove runs the running executor's OnExit). This document owns WHEN CanMove is stripped.
 -->

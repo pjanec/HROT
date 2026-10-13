@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-13 (§7.4 carrying by type — DESIGN, leans await the user)
+updated: 2026-10-13 (§7.4.7 B-b built; §7.4.8 C detailed — leans await the user)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.4 carrying is a type fact (R-274, approved 2026-10-13 R-2009 — READY-TO-BUILD) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.4.8 the person carrier detailed (C5–C10 leans, await the user) · §7.4 carrying is a type fact (R-274, approved 2026-10-13 R-2009 — READY-TO-BUILD) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
 related-designs:
+  - docs/DESIGN_Injury_States.md — OWNS the injury states (R-263 D1, CE-2155) that the person carrier's C3 gate reads
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-274 (behaviors): carry capacity and seats per vehicle type (B) and the human-carrier profile (C); R-275 (behaviors): Health in the cross-role set (D)
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §5a OWNS the squad Dismount drill that uses I-2d's Disembark (and the convoy-ambush acceptance); §5 the measured state of embark/disembark (2026-10-11) and why the squad dismount (S3) needs I-2a/I-2b first
   - docs/DESIGN_Building_Interiors.md §3j "5d" — OWNS doors (DoorRules, the door actions, DoorCommandSystem); doors are this design's first kind
@@ -825,3 +826,77 @@ Rails (`CarrierSeatsTests`, 4): a plain boarding takes a passenger seat, never a
 - `InteractionTransportTests` (the role crosses)
 - `GenesisMaterializationSystemTests.CE2151_ANonCarrierNamedAsAVehicle_IsNotMadeACarrier`
 - the packed-era fixtures updated in `EmbarkationTests`, `EmbarkExecutorTests` and `EditorAuthoringIntegrationTests` (a bare `Count = 8` no longer means full)
+
+#### 7.4.8 C — the person carrier, detailed *(`2026-10-13`, behaviors, `CE-2152`; build-state: DESIGN — C5–C10 await the user; built after [`DESIGN_Injury_States.md`](DESIGN_Injury_States.md) I-a)*
+
+**Measured first (C4, the open row of §7.4.4):** a soldier's top speed is `VehicleParams.MaxSpeedFwd` (`VehicleClass.Pedestrian`), scaled
+each frame on a LOCAL copy in `CarKinematicsSystem.UpdateVehicle:146-150` by `StanceSpeed.Factor` (standing 1, crouched 0.5, prone 0.2,
+`StanceComponents.cs:95`). ⇒ the carry factor multiplies in the same place; nothing is written back. **The prerequisite is unbuilt and
+had no row:** R-263's injury states exist only as a ruling (`.*Incapacit.*`: 0 symbols) — filed as `CE-2155`, designed in
+[`DESIGN_Injury_States.md`](DESIGN_Injury_States.md).
+
+```mermaid
+classDiagram
+  class CarrierDefDto { existing +Person : PersonCarryDto? NEW +DiesWithCarrier : bool = true NEW }
+  class PersonCarryDto { NEW +CarrySpeedFactor = 0.5 +DragSpeedFactor = 0.3 +CarryOffset +DragOffset }
+  class PersonCarrier { NEW component, only when Person is declared, the four values }
+  class CarrierSeats { existing +DiesWithCarrier : byte NEW }
+  class CarryMode { NEW enum Seated Carried Dragged }
+  class PassengerBuffer { existing +Modes : ushort NEW, 2 bits per seat }
+  class EntityPassengers { existing wire +Modes : ushort NEW }
+  class IsEmbarkedTag { existing +Mode : CarryMode NEW, derived like Seat }
+  class EmbarkEntityCommand { existing +Mode : CarryMode NEW }
+  class Embarkation { existing TryEmbark gate: a PersonCarrier takes only an incapacitated passenger, carried by a carrier in the fight }
+  class CarryLoad { NEW static Factor(repo, carrier) }
+  class CarKinematicsSystem { existing: MaxSpeedFwd x StanceSpeed x CarryLoad }
+  class EmbarkedStateSystem { existing: offset by Mode, kill only if DiesWithCarrier, a downed carrier drops its load }
+  class PickUpExecutor { NEW carrier-side interaction action: close in, raise the command, wait for the list }
+  CarrierDefDto o-- PersonCarryDto
+  PersonCarrier ..> PersonCarryDto : stamped from
+  PassengerBuffer --> CarryMode
+  IsEmbarkedTag --> CarryMode
+  CarryLoad ..> PersonCarrier
+  CarryLoad ..> PassengerBuffer : occupied seat mode
+  CarKinematicsSystem ..> CarryLoad
+  EmbarkedStateSystem ..> PersonCarrier : offsets
+  EmbarkedStateSystem ..> CarrierSeats : DiesWithCarrier
+  PickUpExecutor ..> EmbarkEntityCommand : raises, Vehicle = self
+```
+
+*What the picture shows that prose hid: the mode lives in the LIST, like the seat, so the tag stays derived on every node (B-b's
+rule) and the two nodes that need it — the casualty's position owner (offset) and the carrier's kinematics owner (speed) — read it
+without a second topic. And the carrier, not the casualty, starts the act: the only new behaviour piece is an action on the carrier.*
+
+```mermaid
+sequenceDiagram
+  participant C as carrier brain (PickUpExecutor)
+  participant O as EmbarkationSystem (carrier's owner)
+  participant E as Embarkation.TryEmbark
+  participant S as EmbarkedStateSystem (every node)
+  participant K as CarKinematicsSystem (carrier's owner)
+  C->>C: close in on the casualty
+  C->>O: EmbarkEntityCommand(passenger = casualty, vehicle = self, mode = Dragged)
+  O->>E: gate: PersonCarrier, casualty incapacitated, carrier in the fight
+  E->>E: seat 0, Modes[0] = Dragged, carrier loses CanShoot
+  S->>S: tag Mode = Dragged, casualty at carrier + DragOffset (where its position is owned)
+  K->>K: top speed x stance x DragSpeedFactor
+  Note over S: carrier downed: drop the casualty where it is (no kill, DiesWithCarrier = false)
+```
+
+| # | question | ⭐ lean | blast radius | what would change it |
+|---|---|---|---|---|
+| **C5** | where the mode lives | ⭐ in the list (`PassengerBuffer.Modes`, 2 bits a seat) and on the wire (`EntityPassengers.Modes`), the tag derived — like the seat | one field each; the two passenger codecs; the save extractor | — |
+| **C6** | who starts a carry | ⭐ the CARRIER: a new interaction action `PickUp` (close in, raise `EmbarkEntityCommand` with `Vehicle = self`), and `Drop` = the existing disembark | one executor + its BTree/HSM node | a medic who treats in place (MED-2) — a different action, not a carry |
+| **C7** | the carrier while carrying | ⭐ loses `CanShoot`, keeps `CanMove`; both back on `Drop` | `Embarkation` board/leave | doctrine that a dragger fires a pistol one-handed |
+| **C8** | the speed factor | ⭐ `CarryLoad.Factor` beside `StanceSpeed` in `CarKinematicsSystem` (C4); data on `PersonCarrier` (defaults 0.5 carry, 0.3 drag) | one multiply on a local copy | — |
+| **C9** | the carrier is hit while carrying | ⭐ `DiesWithCarrier = false` on a person: the casualty is DROPPED where it lies (no kill); a downed (incapacitated or dead) carrier drops it the same way | `EmbarkedStateSystem.CarryAndKill` | — |
+| **C10** | where the casualty is drawn | ⭐ at the carrier's position plus the mode's offset, rotated by the carrier's heading (carried: on the shoulder; dragged: ~1 m behind); its pose is a later presentation item | `CarryAndKill` | — |
+
+Rejected (one line each): **the mode in the tag only** — the tag is derived from the list on every node, so a mode stored nowhere else
+would be lost on the next derivation · **a separate carry component pair (`CarriedBy` / `Carrying`)** — the user ruled it the same embark
+mechanism (R-274) · **the casualty boards itself** — it is incapacitated and cannot act.
+
+| slice | what | rails |
+|---|---|---|
+| **C-a** (`CE-2152`, after `CE-2155` I-a) | Person block + `PersonCarrier`; `CarryMode` on the command, list, wire and tag; the C3 gate; C7; C8; C9; C10; soldier templates declare one open seat | a healthy soldier cannot be carried · an incapacitated one can, by a carrier in the fight · speed × factor · offset by mode · carrier downed ⇒ casualty dropped, alive · mode round-trips the wire |
+| **C-b** | `PickUp` / `Drop` actions and nodes; squad casualty care (L4) uses them | the carrier walks to the casualty and drags him to a point |

@@ -1,0 +1,136 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-13
+build-state: DESIGN — leans I1–I6 await the user; behaviors lane; CE-2155
+current-answer: §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 slices
+stale-below: nothing
+known-rot: none
+known-conflict: none
+related-designs:
+  - DESIGN_Operations_Behaviour_Catalogue.md — §10.1 D1 OWNS the RULING (R-263): four human states + bleed-out, the vehicle damage states; this file is the human half's build design
+  - DESIGN_Entity_Interactions.md — §7.4.8 OWNS the person carrier (CE-2152), the first consumer: only an incapacitated soldier may be carried (R-2009 C3)
+  - designs/packs-1/DESIGN.md — §2.B OWNS the opt-in MobilityKill and "death always stops" (CE-3092), which the incapacitated row extends
+  - DESIGN_Decision_Layer.md — §3.3f OWNS CE-3090's "wounded" (a HealthFraction curve today), which this state can later replace
+  - DESIGN_Visual_Effects.md — §7 OWNS how the dead LOOK (reads CombatLife.IsDestroyed); an incapacitated figure is a later presentation item
+  - designs/group-maneuvers/DESIGN_Squad_Tactics.md — L4 OWNS casualty care (buddy aid, moving the casualty), which waits for these states
+-->
+
+# Injury states — ok · wounded · incapacitated · dead *(R-263 D1; CE-2155)*
+
+🔒 *User, 2026-10-11 (catalogue §10.1 D1): "humans: the four injury states + bleed-out, as leaned"* — the lean being *"wounded = slower,
+worse aim; incapacitated = no move/fire, needs aid"*.
+
+## 1. Why now
+
+The person carrier (CE-2152, approved C3) may carry only an INCAPACITATED soldier, and that state does not exist. Squad tactics' casualty
+care (L4) and the medic and panic entries (MED-1/2/3, IND-5, CIV-3) wait on it too.
+
+## 2. INVENTORY *(graph CLI `search_graph` `.*Injur.*` (9, blast radius only) · `.*Incapacit.*` (0) · `.*Casualt.*` (0) · `.*Wound.*` (21, none a state) · `.*CombatLife.*` (1) · `.*HealthState.*` (IG's retired one), + grep for `Current <= 0`, 2026-10-13)*
+
+| what exists | where | what it means here |
+|---|---|---|
+| `Health { Current, Max }`, replicated in the Brain group | `Combat/Components/Health.cs:18-21`; CE-523 | the one input; a state derived from it needs NO new wire |
+| `CombatLife.IsAlive / IsDestroyed / ApplyHitCapabilities` — "the ONE rule" for death and hit effects | `Combat/CombatLife.cs:22-62` | the home for the state test and the incapacitated capability strip |
+| both damage paths call `ApplyHitCapabilities` | `DamageSystem.cs:83`, `HealthApplicationSystem.cs:105` | one call site per path already exists |
+| opt-in `MobilityKill { BelowFraction }` strips `CanMove` below a fraction | packs-1 §2.B, CE-3092 | the precedent for a per-type health threshold |
+| "dead" read raw (`Current <= 0`) outside `CombatLife` | `ThreatDanger.IsDead:33`, `AliveFilterTest.cs:33`, `AreaEffectSystem.cs:105`, `Possession.cs:224` | four readers decide "still a target / threat" — each needs a call on incapacitated (I4) |
+| "wounded" = a `HealthFraction` curve in the posture decision | `CombatPostureDecision.cs:42-65` (CE-3090) | works today; NOT replaced by this design |
+| infantry top speed scaled per frame by stance | `CarKinematicsSystem.UpdateVehicle:146-150` | where a wounded speed factor would multiply (a later slice) |
+| healing | ⛔ none (grep `Current +=` on `Health`: 0) | nothing restores health, so states move in one direction only |
+
+## 3. Classes
+
+```mermaid
+classDiagram
+  class InjuryDefDto {
+    NEW TkbDescriptor Gen.Injury
+    +WoundedBelow : float = 0.6
+    +IncapacitatedBelow : float = 0.25
+    +BleedOutSeconds : float = 120
+  }
+  class InjuryThresholds { NEW component, type data, stamped at spawn +WoundedBelow +IncapacitatedBelow +BleedRate }
+  class InjuryTkbTranslator { NEW in TkbTranslatorSet.Base }
+  class InjuryState { NEW enum Ok Wounded Incapacitated Dead }
+  class Injury {
+    NEW static rules
+    +StateOf(view, e) InjuryState
+    +IsIncapacitated(view, e) bool
+    +IsInTheFight(view, e) bool
+  }
+  class BleedOutSystem { NEW: Health owner drains Health while incapacitated }
+  class Health { existing Current Max }
+  class CombatLife { existing: ApplyHitCapabilities strips CanMove and CanShoot when incapacitated }
+  class ThreatDanger { existing IsDead reads Injury.IsInTheFight }
+  InjuryTkbTranslator ..> InjuryDefDto : reads
+  InjuryTkbTranslator ..> InjuryThresholds : stamps
+  Injury ..> Health : reads
+  Injury ..> InjuryThresholds : reads
+  Injury --> InjuryState
+  BleedOutSystem ..> Injury
+  BleedOutSystem ..> Health : writes
+  CombatLife ..> Injury
+  ThreatDanger ..> Injury
+```
+
+*What the picture shows that prose hid: the state is a FUNCTION of replicated `Health` and type data — no stored state, no new topic — so
+every node agrees on it by construction, and the only writer added is the bleed-out drain on the node that already owns `Health`.*
+
+## 4. Sequence — a hit that incapacitates, then bleed-out
+
+```mermaid
+sequenceDiagram
+  participant D as DamageSystem / HealthApplicationSystem (Health owner)
+  participant C as CombatLife.ApplyHitCapabilities
+  participant I as Injury.StateOf
+  participant B as BleedOutSystem (Health owner)
+  participant R as any node
+  D->>D: Health.Current -= damage
+  D->>C: apply
+  C->>I: state?
+  I-->>C: Incapacitated (Current < Max x IncapacitatedBelow)
+  C->>C: strip CanMove and CanShoot
+  loop each frame while Incapacitated
+    B->>B: Health.Current -= BleedRate x dt
+  end
+  B->>C: at 0: Dead (strip already done)
+  R->>I: StateOf from the replicated Health
+```
+
+## 5. Modules
+
+```mermaid
+graph TD
+  TS[TkbTranslatorSet.Base - every node's spawn] --> IT[InjuryTkbTranslator NEW]
+  HA[CoreInfrastructureCapabilities.HealthApplication - every live node] --> HAS[HealthApplicationSystem]
+  HA --> BO[BleedOutSystem NEW]
+  K[kernel each frame] --> HAS
+  K --> BO
+  HAS --> CL[CombatLife]
+  BO --> CL
+  CL --> INJ[Injury rules NEW]
+```
+
+*What the picture shows that prose hid: the drain rides the cross-role `HealthApplication` capability built in CE-2144 (R-2008), so every
+node that applies damage also bleeds — and only the `Health` owner writes, by the same authority gate.*
+
+## 6. Decisions *(leans; awaiting the user)*
+
+| # | question | ⭐ lean | blast radius | what would change it |
+|---|---|---|---|---|
+| **I1** | where the state lives | ⭐ DERIVED from `Health` + per-type thresholds (no stored state, no wire) | one rules class; all nodes agree for free | a state that cannot be read off health (e.g. stunned at full health) |
+| **I2** | thresholds | ⭐ per type via a NEW `Gen.Injury` descriptor; a type without it has no wounded/incapacitated band (today's behaviour: ok until dead) | soldier templates opt in; vehicles never declare it | wanting it on every human without data — then default it in `BehaviorTkbTranslator` |
+| **I3** | bleed-out | ⭐ the `Health` owner drains linearly from `IncapacitatedBelow` to 0 over `BleedOutSeconds`; reaching 0 is ordinary death | `BleedOutSystem` in `HealthApplication` | stabilisation by a medic (MED-2) — a later "stabilised" flag stops the drain |
+| **I4** | is an incapacitated soldier a threat / target | ⭐ NOT a threat (`ThreatDanger.IsDead` → `!Injury.IsInTheFight`), and the alive-filter skips him, so units stop shooting him; area effects and possession still see him alive | 2 readers changed, 2 kept | a doctrine of "make sure" fire on the downed |
+| **I5** | wounded effects (slower, worse aim) | ⭐ NOT in the first slice — CE-3090's `HealthFraction` curve already shapes behaviour; a speed/aim factor is slice I-b | none now | a scenario that needs wounded soldiers visibly slower |
+| **I6** | incapacitated capabilities | ⭐ strip `CanMove` and `CanShoot` in `ApplyHitCapabilities` (the one rule), regardless of `MobilityKill` | one branch in `CombatLife` | — |
+
+Rejected (one line each): **a stored, replicated `InjuryState` component** — a second producer of what `Health` already says, which could
+disagree with it (R-132) · **per-body-part wounds** — ruled out in D1 (cost, little behaviour gain) · **thresholds as global constants** —
+a civilian and a soldier would bleed alike; D1 lists civilians as casualties too.
+
+## 7. Slices
+
+| slice | what | rails |
+|---|---|---|
+| **I-a** (`CE-2155`) | `Gen.Injury` + translator + `InjuryThresholds`; `Injury` rules; `ApplyHitCapabilities` strips at incapacitated; `BleedOutSystem`; I4's two readers; soldier templates declare it | a hit below the band strips move and fire but leaves him alive · bleed-out reaches 0 in `BleedOutSeconds` on the owner only · a replica reads the same state · an incapacitated contact has danger 0 · no `Gen.Injury` ⇒ unchanged behaviour |
+| **I-b** | wounded speed / aim factors (I5) | — |
