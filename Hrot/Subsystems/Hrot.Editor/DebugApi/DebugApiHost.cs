@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Editor.DebugApi
 {
@@ -72,11 +73,13 @@ namespace Hrot.Editor.DebugApi
             return true;
         }
 
-        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
+        // CE-3187 (R-2005): the shared options plus two deltas — the camelCase envelope ("ok", "data", "error") every client
+        // reads, and nulls KEPT ("data": null) because clients index the key.
+        private static readonly JsonSerializerOptions _jsonOptions = FdpJsonOptionsRegistry.Derive(o =>
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = false
-        };
+            o.PropertyNamingPolicy   = JsonNamingPolicy.CamelCase;
+            o.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never;
+        });
 
         /// <summary>⭐ How this process was started — reported by <c>GET /capabilities</c>. See its remarks.</summary>
         private readonly string _mode;
@@ -271,7 +274,7 @@ namespace Hrot.Editor.DebugApi
             //   "JsonSerializerOptions instance must specify a TypeInfoResolver". ⭐ Going through
             //   JsonSerializer attaches it. 📌 Which is why the HTTP path, which serializes the same nodes
             //   through JsonSerializer, never hit this.
-            return JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
+            return JsonSerializer.Serialize(manifest, FdpJsonOptionsRegistry.Indented);
         }
 
         private void BuildRoutes()

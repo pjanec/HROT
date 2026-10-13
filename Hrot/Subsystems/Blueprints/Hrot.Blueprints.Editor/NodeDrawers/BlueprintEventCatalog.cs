@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
@@ -41,11 +42,7 @@ public sealed class BlueprintEventCatalog
 {
     public List<BlueprintEventDef> Events { get; set; } = new();
 
-    private static readonly JsonSerializerOptions Opts = new()
-    {
-        WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
+    private static readonly JsonSerializerOptions Opts = FdpJsonOptionsRegistry.Indented;
 
     public string ToJson() => JsonSerializer.Serialize(this, Opts);
 

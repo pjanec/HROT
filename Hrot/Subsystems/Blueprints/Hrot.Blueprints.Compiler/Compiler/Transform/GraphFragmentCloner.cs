@@ -74,7 +74,8 @@ public static class GraphFragmentCloner
             PropertyNameCaseInsensitive = true,
             WriteIndented               = false,
         };
-        opts.Converters.Add(new JsonStringEnumConverter());
+        // CE-3187 (R-2007): enums are names; an integer is refused, never read.
+        opts.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false));
         return opts;
     }
 

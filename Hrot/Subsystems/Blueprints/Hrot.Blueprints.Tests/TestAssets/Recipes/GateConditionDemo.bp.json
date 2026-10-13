@@ -9,10 +9,10 @@
   },
   "AssetId": "00000000-aaaa-0001-0000-00000000c001",
   "Name": "GateConditionDemo",
-  "Dispatch": 1,
-  "TierHint": 0,
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
   "Primitive": {
-    "Intent": 1,
+    "Intent": "Condition",
     "Hostings": [1]
   },
   "Parameters": [
@@ -37,7 +37,7 @@
     {
       "Id": "c0010000-0001-0001-0001-000000000001",
       "Name": "Main",
-      "Kind": 0,
+      "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
       "Nodes": [
@@ -54,7 +54,7 @@
         {
           "kind": "Return",
           "Id": "c0010010-0002-0002-0002-000000000002",
-          "Status": 0,
+          "Status": "Success",
           "Pins": [],
           "EditorMetadata": {
             "X": 420.0,

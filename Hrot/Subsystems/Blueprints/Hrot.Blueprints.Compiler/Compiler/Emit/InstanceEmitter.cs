@@ -1302,7 +1302,8 @@ internal static class InstanceEmitter
             e.WriteLine("{");
             e.Indent();
             e.WriteLine($"_whenCondDto_{id8} = global::System.Text.Json.JsonSerializer.Deserialize<");
-            e.WriteLine($"    global::Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto>(dtoJson_{id8});");
+            // CE-3187 (R-2005 / R-2007): the shared options — the condition's enums are names.
+            e.WriteLine($"    global::Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto>(dtoJson_{id8}, global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);");
             e.WriteLine($"_whenCondPred_{id8} = predicateCompiler.CompileComponentPredicate(_whenCondDto_{id8}!);");
             e.Outdent();
             e.WriteLine("}");

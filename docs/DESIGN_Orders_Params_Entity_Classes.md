@@ -2140,3 +2140,62 @@ node (dashed) never shows "Name…" or "Order with options", by construction rat
   `TheScenarioWindowsAreSharedTests.EveryParamsFormHostPassesTheEntityList` (the silent-default rule, per host).
 - ⛔ Not built: an RTS modifier that opens the form (F6 "or on request") — the menu's Order with options covers it. ⚠ Not visually checked
   on a real window (2-D or 3-D).
+
+### 13.13 CE-3187 — one shared JSON options instance *(R-2005 / R-2007, F12; build-state: BUILT `2026-10-13`, backend — CE-3191 carries the calls that pass no options)*
+
+```mermaid
+classDiagram
+  class FdpJsonOptionsRegistry {
+    <<Fdp.Core, existing>>
+    +DefaultRelaxed : JsonSerializerOptions
+    +Indented : JsonSerializerOptions
+    +Derive(delta, indented) JsonSerializerOptions
+  }
+  class OneSharedJsonOptionsTests {
+    <<Fdp.Core.Tests, new rail>>
+    -Exempt : path to (count, why)
+  }
+  class DerivedSite {
+    <<call site>>
+    shared settings + ONE named delta
+  }
+  class ExemptSite {
+    <<call site>>
+    netstandard2.0 / external lib / published contract
+  }
+  FdpJsonOptionsRegistry <.. DerivedSite : Derive(...)
+  OneSharedJsonOptionsTests ..> ExemptSite : allow-list, shrink only
+  OneSharedJsonOptionsTests ..> FdpJsonOptionsRegistry : the only other legal source
+```
+*What the picture shows that prose hid: there are exactly three legal sources of options — the two singletons and `Derive` — and every
+other construction is a NAMED exemption the rail counts. A variant can no longer drop a shared setting by forgetting it.*
+
+**As built `2026-10-13`.** Inventory (grep over two spellings, `new JsonSerializerOptions` and a target-typed `= new(`; three read-only
+classification sweeps, one per area): **72 production sites**, not the 42 the row first counted (the target-typed spelling was missed).
+
+| verdict | sites | where |
+|---|---|---|
+| ⭐ the shared instance as-is (`DefaultRelaxed` / `Indented`) | 44 | orchestration aggregators and translators, SimHost config, scenario DOM writes, breakpoint session / watch / clipboard files, `DefaultValueAuthoring` (now the runtime's own parser), blueprint clipboard / preferences / event catalog, replay search / export fallback, window and dialog settings, navigation snapshot |
+| ⭐ `Derive` with a named delta | 11 | `HrotJsonOptions` (camelCase) · `PanelDump` (camelCase, nulls kept — goldens pin them) · DebugApi envelope (camelCase, nulls kept) · DebugApi dump/patch (NaN-safe converters first) · DebugApi command reader (unmapped refused, per-perspective `Entity` converter) · recording export ×3 (diff-node, compact-diff-list, `Entity` converters) · `EntityRefRemap` (relaxed encoder) |
+| ⭐ deleted (unused) | 3 | `MissionPanel`, `CgfNodes`, `HillAttackTankNodes` |
+| ⛔ exempt, on the rail with a reason | 17 in 16 files | the registry (3) · FastBTree / GizmoMap / StructEdit (external, no `Fdp.Core`) · BTree / HSM / params-DTO / blueprint asset formats, debug map, fragment cloner (`netstandard2.0`) · DebugApi spawn transform (documented `{x,y,z}` objects) · Stride camera bookmarks (per-user files store vector objects) |
+
+**Enums (R-2007) on the options half:** four readers that accepted integers now refuse them — the DebugApi patch reader (HN-002's
+integer tolerance retired; the API emits names and round-trip still holds), the DebugApi command reader (CE-3168's "by name or number"),
+the search-predicate reader, and the blueprint clipboard. Writers that printed numbers now print names: `ClusterUiCache` payloads
+(display only), breakpoint session / watch / clipboard files, `DefaultValueAuthoring`, the recording export's reflection fallback.
+
+**The data half, built `2026-10-13`:**
+- **43 numeric enum values converted to names in 9 blueprint files.**
+  - 8 under `Hrot.Blueprints.Tests/TestAssets/Recipes/`, plus `HealthThresholdReaction.bp.json`'s When condition (`"Operator": 0` → `"And"`).
+  - The edit touched only those values, and each file still parses to the same tree apart from them.
+  - The keys involved: `Dispatch`, `TierHint`, graph `Kind`, Return `Status`, When `Mode` / `Edges`, `EqsResult.Trigger`, `ValueChanged.Source`, `Primitive.Intent`.
+- **The emitted When-condition reader passes the shared options** (`InstanceEmitter.cs`, `EmitInitializePredicates`).
+  - It used to pass none, which accepted numbers and would have rejected names.
+- **The four asset readers refuse integers** (`JsonStringEnumConverter(null, allowIntegerValues: false)`, which is `netstandard2.0`-safe).
+  - They are BTree, HSM, blueprint, and the fragment cloner.
+  - So a number in an asset is now a load error, never a silent read.
+- **One test read an asset with default options** (`SquadPrimitiveNodeTests`). It passed only because the file stored numbers, and now loads through `BlueprintJsonServices`.
+
+**Still open:** calls that pass no options at all. About 29 single-line `JsonSerializer.Serialize/Deserialize` calls get the platform
+defaults: no fields, case-sensitive, enums as numbers. Filed as CE-3191.

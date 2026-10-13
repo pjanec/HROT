@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Editor.AiShared.Variables;
 
@@ -161,7 +162,7 @@ public sealed class VariableValueFormatter
             using var doc = System.Text.Json.JsonDocument.Parse(json);
             return System.Text.Json.JsonSerializer.Serialize(
                 doc.RootElement,
-                new System.Text.Json.JsonSerializerOptions { WriteIndented = multiLine });
+                multiLine ? FdpJsonOptionsRegistry.Indented : FdpJsonOptionsRegistry.DefaultRelaxed);
         }
         catch
         {

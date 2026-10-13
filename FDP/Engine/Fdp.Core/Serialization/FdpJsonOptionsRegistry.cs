@@ -57,6 +57,21 @@ namespace Fdp.Core.Serialization
         /// </summary>
         public static readonly JsonSerializerOptions Indented;
 
+        /// <summary>
+        /// ⭐ <c>CE-3187</c> (R-2005) — the one legal way to make a VARIANT: a copy of <see cref="DefaultRelaxed"/> (or
+        /// <see cref="Indented"/>) with a named delta applied, then frozen. Every shared setting (fields, case-insensitive,
+        /// strict string enums, vectors as arrays, fixed strings and lists) carries over, so a variant differs only by what
+        /// its caller says. Cache the result in a static field; the call site states why the delta is needed.
+        /// </summary>
+        public static JsonSerializerOptions Derive(System.Action<JsonSerializerOptions> delta, bool indented = false)
+        {
+            var opts = new JsonSerializerOptions(indented ? Indented : DefaultRelaxed);
+            delta(opts);
+            opts.TypeInfoResolver ??= new DefaultJsonTypeInfoResolver();
+            opts.MakeReadOnly();
+            return opts;
+        }
+
         static FdpJsonOptionsRegistry()
         {
             var relaxed = new JsonSerializerOptions

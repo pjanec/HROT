@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using Fdp.Toolkit.ReplayBrowser.Search;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Diagnostics.Breakpoints;
 
@@ -11,11 +12,9 @@ namespace Hrot.Diagnostics.Breakpoints;
 /// </summary>
 public static class BreakpointJsonClipboard
 {
-    private static readonly JsonSerializerOptions _options = new()
-    {
-        WriteIndented = true,
-        IncludeFields = true,
-    };
+    // CE-3187 (R-2005 / R-2007): the shared options — enums as names, vectors as arrays. A file saved by an older
+    // build with numeric enums no longer loads and is reset.
+    private static readonly JsonSerializerOptions _options = FdpJsonOptionsRegistry.Indented;
 
     /// <summary>Serializes <paramref name="dto"/> to a JSON string.</summary>
     public static string Serialize(SearchPredicateDto dto)

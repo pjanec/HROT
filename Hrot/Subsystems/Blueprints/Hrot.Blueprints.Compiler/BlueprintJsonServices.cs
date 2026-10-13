@@ -24,7 +24,8 @@ public static class BlueprintJsonServices
             // ⭐ U-15: the canonical on-disk form is INDENTED. See Serialize().
             WriteIndented               = true,
         };
-        opts.Converters.Add(new JsonStringEnumConverter());
+        // CE-3187 (R-2007): enums are names; an integer is refused, never read.
+        opts.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false));
         opts.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
         _options = opts;
     }
@@ -113,7 +114,7 @@ public static class BlueprintJsonServices
 
 #if NET8_0_OR_GREATER
     /// <summary>⚠ <c>JsonNode.ToJsonString</c> reads formatting from ITS options, not the ones the DOM was built with.</summary>
-    private static readonly JsonSerializerOptions _domWriteOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions _domWriteOptions = Fdp.Core.Serialization.FdpJsonOptionsRegistry.Indented;
 #endif
 
     // Note (JM-P2-004): the $meta envelope needs no handling here.

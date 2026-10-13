@@ -505,11 +505,8 @@ namespace Fdp.Toolkit.ReplayBrowser
         /// representing the current state of an entity's components.
         /// </summary>
         // Cached options for the reflection-based component serialization fallback.
-        private static readonly JsonSerializerOptions _reflectionFallbackOpts = new JsonSerializerOptions
-        {
-            IncludeFields = true,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        };
+        // CE-3187: the shared options — vectors as arrays and enums as names, matching the auto-serializer path.
+        private static readonly JsonSerializerOptions _reflectionFallbackOpts = FdpJsonOptionsRegistry.DefaultRelaxed;
 
         // Cached TryGetComponent<T>(Entity, out T) generic method definition.
         private static readonly System.Reflection.MethodInfo? _tryGetComponentGenericDef =
@@ -621,30 +618,14 @@ namespace Fdp.Toolkit.ReplayBrowser
         /// </summary>
         private static JsonSerializerOptions BuildChangelogSerializerOptions(bool minified)
         {
-            var opts = new JsonSerializerOptions
-            {
-                IncludeFields = true,
-                WriteIndented = !minified,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            };
-            opts.Converters.Add(new DiffNodeConverter());
-            opts.TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver();
-            opts.MakeReadOnly();
-            return opts;
+            // CE-3187: the shared options plus the diff-node converter.
+            return FdpJsonOptionsRegistry.Derive(o => o.Converters.Insert(0, new DiffNodeConverter()), indented: !minified);
         }
 
         private static JsonSerializerOptions BuildIncrementalSerializerOptions(bool minified)
         {
-            var opts = new JsonSerializerOptions
-            {
-                IncludeFields = true,
-                WriteIndented = !minified,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            };
-            opts.Converters.Add(new CompactDiffListConverter());
-            opts.TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver();
-            opts.MakeReadOnly();
-            return opts;
+            // CE-3187: the shared options plus the compact diff-list converter.
+            return FdpJsonOptionsRegistry.Derive(o => o.Converters.Insert(0, new CompactDiffListConverter()), indented: !minified);
         }
 
         private static System.Collections.Generic.List<Diff.DiffNode> PruneUnchangedNodes(System.Collections.Generic.IReadOnlyList<Diff.DiffNode> nodes)
@@ -912,22 +893,8 @@ namespace Fdp.Toolkit.ReplayBrowser
         /// </summary>
         private static JsonSerializerOptions BuildEventSerializerOptions()
         {
-            var opts = new JsonSerializerOptions
-            {
-                IncludeFields = true,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            };
-
-            // Add our custom Entity converter first so it takes priority.
-            opts.Converters.Add(new EntityJsonConverter());
-
-            // Copy converters from the platform singleton for Vector3/Quaternion etc.
-            foreach (var c in FdpJsonOptionsRegistry.DefaultRelaxed.Converters)
-                opts.Converters.Add(c);
-
-            opts.TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver();
-            opts.MakeReadOnly();
-            return opts;
+            // CE-3187: the shared options plus the Entity converter, first so it takes priority.
+            return FdpJsonOptionsRegistry.Derive(o => o.Converters.Insert(0, new EntityJsonConverter()));
         }
 
         // ── Nested converters ────────────────────────────────────────────────────
