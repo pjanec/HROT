@@ -1948,5 +1948,11 @@ node (dashed) never shows "Name…" or "Order with options", by construction rat
 - Rails (`MenuOrdersTests`, the feature's suite): `CE1059_ATwoPickOrder_OpensTheFormPrefilled_SendsOncePerUnit_AndAnIncompleteFormSendsNothing`,
   `CE1059_OrderWithOptions_OrdersTheSelection_ThroughTheForm_AndRemembersThePoint`, `CE1059_TheMenu_OffersTheForm_OnlyWhereOneIsRegistered`,
   `CE1059_DesignateOnASelection_SetsEveryUnit_AndTheOverlayDrawsIt`, `CE1059_TheEntityList_AnswersThroughTheSamePick_AndLeavesOutTheOrderedUnits`.
-- ⛔ Not built: an RTS modifier that opens the form (F6 "or on request") — the menu's Order with options covers it; the mission panel and
-  the AI view do not pass an entity list yet (their brokers could, one line each). ⚠ Not visually checked on a real window (2-D or 3-D).
+- ⭐ **2026-10-13 (user: "add the entity list to the mission panel and AI view too")** — `MissionPanel.EntityList` (init, forwards to its
+  broker) and `EntityListSource.Opener(Func<EntityRepository?>, …)` (world and registry read at OPEN time: hosts build panels before
+  their world). Passed by the Editor (its mission panel, the Scenario view's mission panel, the AI view's broker) and CGF (its mission
+  panel), each over its shell pickers. ⛔ ExCon's mission panel stays map-only: ExCon holds no local entity world (its picks go to a
+  remote IG). Rails: `MissionPanelRegistryTests.CE1059_TheEntityList_ReachesTheTasksParamsForm_AtTheTasksScope`;
+  `TheScenarioWindowsAreSharedTests.EveryParamsFormHostPassesTheEntityList` (the silent-default rule, per host).
+- ⛔ Not built: an RTS modifier that opens the form (F6 "or on request") — the menu's Order with options covers it. ⚠ Not visually checked
+  on a real window (2-D or 3-D).

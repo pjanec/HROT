@@ -73,17 +73,18 @@ public static class EntityListSource
 
     /// <summary>
     /// ⭐ THE opener a <see cref="Hrot.Presentation.Facades.MapPickBroker.EntityList"/> takes: opens the list in the map's picker
-    /// registry and calls back with the chosen network id; <c>false</c> when the host has no registry.
+    /// registry and calls back with the chosen network id; <c>false</c> when the host has no world or no registry yet (both are
+    /// read at OPEN time — hosts build their panels before their world, ⭐ <c>CE-1059</c>).
     /// </summary>
-    public static Func<string[]?, Action<int>, bool> Opener(EntityRepository world, Func<PickerRegistry?> pickers,
+    public static Func<string[]?, Action<int>, bool> Opener(Func<EntityRepository?> world, Func<PickerRegistry?> pickers,
         Func<ICollection<long>?>? exclude = null)
     {
         if (world is null) throw new ArgumentNullException(nameof(world));
         if (pickers is null) throw new ArgumentNullException(nameof(pickers));
         return (presets, onChosen) =>
         {
-            if (pickers() is not { } registry) return false;
-            registry.OpenPicker(Request(world, presets, exclude?.Invoke()), result =>
+            if (world() is not { } w || pickers() is not { } registry) return false;
+            registry.OpenPicker(Request(w, presets, exclude?.Invoke()), result =>
             {
                 if (result.Selection.Count > 0 && result.Selection[0].Tag is long id) onChosen((int)id);
             });

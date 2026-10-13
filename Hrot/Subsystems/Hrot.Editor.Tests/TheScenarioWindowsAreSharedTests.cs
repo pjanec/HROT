@@ -227,4 +227,20 @@ public sealed class TheScenarioWindowsAreSharedTests
         Assert.DoesNotContain("ScenarioSpawnAdapter(", text);
         Assert.DoesNotContain("new Hrot.UI.Common.AddEntity.EntityIconLibrary(", text);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-1059</c> — the silent-default rule for the entity LIST: a host that holds a world and a picker registry passes the
+    /// list to every params form it builds (the Editor: its mission panel, the Scenario view's mission panel and the AI view's
+    /// broker; CGF: its mission panel). ⛔ Forgetting one leaves that form map-only with no error — this rail is the error.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs", 3)]
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs",    1)]
+    public void EveryParamsFormHostPassesTheEntityList(string project, string file, int forms)
+    {
+        var text = HostSource.Read(project, file);
+        int passed = System.Text.RegularExpressions.Regex.Matches(text,
+            @"EntityList = Hrot\.Presentation\.Orders\.EntityListSource\.Opener\(").Count;
+        Assert.Equal(forms, passed);
+    }
 }

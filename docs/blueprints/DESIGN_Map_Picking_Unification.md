@@ -7,7 +7,7 @@ stale-below: nothing yet.
 known-rot: §2's BehaviorUiCompiler box and its sequence participant are DELETED (CE-1023, 2026-10-12) — the mission panel draws THE one params form (BehaviorParamsForm + ComponentEditDrawer) through a ScopedMapPickContext($.tasks[i]) over the same broker, so the paths and the broker are unchanged; see ../DESIGN_Sensors_And_Doctrine.md §7.6b.
 known-conflict: none.
 related-designs:
-  - ../DESIGN_Orders_Params_Entity_Classes.md — §13.12 (P5b, CE-1059) adds the entity LIST pick to the one broker (IMapPickContext.RequestEntityListPick) and makes the preset filter the default on every host (CE-1060).
+  - ../DESIGN_Orders_Params_Entity_Classes.md — §13.12 (P5b, CE-1059) adds the entity LIST pick to the one broker (IMapPickContext.RequestEntityListPick; offered by the order form, the Editor/CGF mission panels and the Editor's AI view) and makes the preset filter the default on every host (CE-1060).
   - ../DESIGN_Sensors_And_Doctrine.md — §7.6b (CE-1023) puts the ONE params form on every screen, retires BehaviorUiCompiler (the mission panel's second form) and adds ScopedMapPickContext over the one broker.
   - DESIGN_Entity_Reference.md — owns the EntityRef TYPE and the rule "the type makes a field pickable"; this document
     applies that rule to locations and collapses the picking machinery underneath it.

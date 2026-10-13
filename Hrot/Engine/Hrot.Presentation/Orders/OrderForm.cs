@@ -39,7 +39,7 @@ public sealed class OrderForm : IOrderForm
     {
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _picks = new MapPickBroker(pickService ?? throw new ArgumentNullException(nameof(pickService)));
-        if (pickers != null) _picks.EntityList = EntityListSource.Opener(world, pickers, () => _drawing?.Draft.Units.ToArray());
+        if (pickers != null) _picks.EntityList = EntityListSource.Opener(() => world, pickers, () => _drawing?.Draft.Units.ToArray());
     }
 
     /// <summary>The open forms, oldest first.</summary>
