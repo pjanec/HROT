@@ -2038,7 +2038,7 @@ node (dashed) never shows "Name…" or "Order with options", by construction rat
 - ⛔ Not built: an RTS modifier that opens the form (F6 "or on request") — the menu's Order with options covers it. ⚠ Not visually checked
   on a real window (2-D or 3-D).
 
-### 13.13 CE-3187 — one shared JSON options instance *(R-2005 / R-2007, F12; build-state: BUILDING `2026-10-13`, backend — the options half BUILT, the enum-data half open)*
+### 13.13 CE-3187 — one shared JSON options instance *(R-2005 / R-2007, F12; build-state: BUILT `2026-10-13`, backend — CE-3191 carries the calls that pass no options)*
 
 ```mermaid
 classDiagram
@@ -2082,11 +2082,17 @@ integer tolerance retired; the API emits names and round-trip still holds), the 
 the search-predicate reader, and the blueprint clipboard. Writers that printed numbers now print names: `ClusterUiCache` payloads
 (display only), breakpoint session / watch / clipboard files, `DefaultValueAuthoring`, the recording export's reflection fallback.
 
-**Still open (the data half):**
-- **9 blueprint files store enums as numbers.** These are 8 under `Hrot.Blueprints.Tests/TestAssets/Recipes/` and
-  `HealthThresholdReaction.bp.json` (`"Operator": 0` inside a When condition).
-  - Converting the When condition first needs the emitted predicate reader (`InstanceEmitter.cs:1303`) to pass the shared options.
-    Today it deserializes with no options at all, so it accepts numbers and would reject names.
-  - Then the three asset readers can refuse integers (`JsonStringEnumConverter(allowIntegerValues: false)`, which is `netstandard2.0`-safe).
-- **Calls that pass no options at all.** About 29 single-line `JsonSerializer.Serialize/Deserialize` calls get the platform defaults:
-  no fields, case-sensitive, enums as numbers. Filed as CE-3191.
+**The data half, built `2026-10-13`:**
+- **43 numeric enum values converted to names in 9 blueprint files.**
+  - 8 under `Hrot.Blueprints.Tests/TestAssets/Recipes/`, plus `HealthThresholdReaction.bp.json`'s When condition (`"Operator": 0` → `"And"`).
+  - The edit touched only those values, and each file still parses to the same tree apart from them.
+  - The keys involved: `Dispatch`, `TierHint`, graph `Kind`, Return `Status`, When `Mode` / `Edges`, `EqsResult.Trigger`, `ValueChanged.Source`, `Primitive.Intent`.
+- **The emitted When-condition reader passes the shared options** (`InstanceEmitter.cs`, `EmitInitializePredicates`).
+  - It used to pass none, which accepted numbers and would have rejected names.
+- **The four asset readers refuse integers** (`JsonStringEnumConverter(null, allowIntegerValues: false)`, which is `netstandard2.0`-safe).
+  - They are BTree, HSM, blueprint, and the fragment cloner.
+  - So a number in an asset is now a load error, never a silent read.
+- **One test read an asset with default options** (`SquadPrimitiveNodeTests`). It passed only because the file stored numbers, and now loads through `BlueprintJsonServices`.
+
+**Still open:** calls that pass no options at all. About 29 single-line `JsonSerializer.Serialize/Deserialize` calls get the platform
+defaults: no fields, case-sensitive, enums as numbers. Filed as CE-3191.

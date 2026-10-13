@@ -9,8 +9,8 @@
   },
   "AssetId": "00000000-bbbb-0001-0000-000000000001",
   "Name": "BoundingOverwatchSwap",
-  "Dispatch": 2,
-  "TierHint": 0,
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
   "Primitive": null,
   "Parameters": [],
   "WorkingState": [],
@@ -22,7 +22,7 @@
     {
       "Id": "b6000001-0001-0001-0001-000000000001",
       "Name": "SwapOnBound",
-      "Kind": 0,
+      "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
       "Nodes": [
@@ -51,7 +51,7 @@
         {
           "kind": "Return",
           "Id": "c6000001-0004-0004-0004-000000000004",
-          "Status": 1,
+          "Status": "Failure",
           "Pins": [],
           "EditorMetadata": {}
         }

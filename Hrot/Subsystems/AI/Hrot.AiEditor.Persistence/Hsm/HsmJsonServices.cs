@@ -33,7 +33,8 @@ public static class HsmJsonServices
             ReadCommentHandling         = JsonCommentHandling.Skip,
             WriteIndented               = false,
         };
-        opts.Converters.Add(new JsonStringEnumConverter());
+        // CE-3187 (R-2007): enums are names; an integer is refused, never read.
+        opts.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false));
         opts.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
         _options = opts;
     }

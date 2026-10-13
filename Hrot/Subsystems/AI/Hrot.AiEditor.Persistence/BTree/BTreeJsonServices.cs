@@ -38,7 +38,8 @@ public static class BTreeJsonServices
             ReadCommentHandling         = JsonCommentHandling.Skip,
             WriteIndented               = false,
         };
-        opts.Converters.Add(new JsonStringEnumConverter());
+        // CE-3187 (R-2007): enums are names; an integer is refused, never read.
+        opts.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false));
         // DefaultJsonTypeInfoResolver is required for [JsonPolymorphic] to work correctly
         // under netstandard2.0 when using reflection-based serialization.
         opts.TypeInfoResolver = new DefaultJsonTypeInfoResolver();

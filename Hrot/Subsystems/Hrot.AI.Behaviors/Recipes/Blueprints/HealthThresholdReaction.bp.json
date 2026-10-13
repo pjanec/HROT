@@ -47,7 +47,7 @@
           "ConditionMet": {
             "Condition": {
               "$type": "Compound",
-              "Operator": 0,
+              "Operator": "And",
               "Conditions": [
                 {
                   "$type": "Numeric",
