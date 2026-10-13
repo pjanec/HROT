@@ -153,10 +153,30 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     if ((movers & (1 << i)) == 0 || !ctx.Live(i, out var m) || !SquadCover.Has(in p.Cover, i, out var pick)) continue;
                     var d = ctx.At(m) - pick; d.Z = 0f;
-                    if (d.Length() > SquadManeuverRunner.MoverArrivalMetres) return NodeStatus.Running;
+                    if (d.Length() > SquadGates.SetMetres) return NodeStatus.Running;
                 }
             }
             return NodeStatus.Success;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2158</c> F-c — every live mover is at his point: a man sent to a COVER point within <see cref="SquadGates.SetMetres"/>
+        /// (he is ordered to 1 m of it — in cover, not near it), a man on a geometric bound within the runner's 3 m.
+        /// ⛔ SUPERSEDED: one 3 m gate for all — measured live, the swap came while the cover movers were 2.6–3.9 m short, and the next
+        /// order held them there.
+        /// </summary>
+        private static unsafe bool MoversSet(in BoundingOverwatchParams p, in SquadPlayState ws, in SquadPlayContext ctx, byte element)
+        {
+            ushort movers = SquadGates.Element(in ctx, element);
+            for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
+            {
+                if ((movers & (1 << i)) == 0 || !ctx.Live(i, out var m)) continue;
+                bool cover = SquadCover.Has(in p.Cover, i, out var pick);
+                var target = cover ? pick : new Vector3(ws.TargetX[i], ws.TargetY[i], ws.TargetZ[i]);
+                var d = ctx.At(m) - target; d.Z = 0f;
+                if (d.Length() > (cover ? SquadGates.SetMetres : SquadManeuverRunner.MoverArrivalMetres)) return false;
+            }
+            return true;
         }
 
         public bool PhaseComplete(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx, out PhaseEventKind evt)
@@ -164,7 +184,7 @@ namespace Hrot.AI.Behaviors.Brains
             byte moving = BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId);
             // ⭐ CE-2158 F-c — every mover at his point is "set" (DefiladeReached); only the clock is BoundComplete (traced as Timeout).
             evt = PhaseEventKind.DefiladeReached;
-            if (!SquadGates.Set(in ws, in ctx, SquadGates.Element(in ctx, moving), SquadManeuverRunner.MoverArrivalMetres))
+            if (!MoversSet(in p, in ws, in ctx, moving))
             {
                 if (ctx.Now - ws.IssuedAt < p.BoundTimeoutSeconds) return false;
                 evt = PhaseEventKind.BoundComplete;

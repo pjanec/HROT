@@ -1023,6 +1023,8 @@ contact). F-b rails unchanged after the move onto `SquadCover`.
 | the last bound started 34 m short of the face; the pick allowed one bound + 2 m | ⇒ a bound may stretch to `BoundMetres × 1.25` to end in cover (`CoverStretch`; "bound 20–50 m to the next cover"); fire and movement keeps rush + 2 m (`SquadCover.Make` takes the reach) |
 | a pick could land where a man of the other element already stands | ⇒ `SquadCover.Pick` keeps 2 m from every other live member too |
 | the hostile is seen ~150 m up the open street; a scripted move through `/attribute` answered ok and never moved him | the demo starts in sight of him; "watchers hold before contact" stays a rail (`CE2158_BoundingOverwatch_TheWatchersSuppressOnContact`) |
+| the swap came while the cover movers were 2.6–3.9 m short (one 3 m gate), and the drill could end mid-bound once both centres were near the objective | ⇒ a man sent to cover is ordered to 1 m of it and is set within 1.5 m (`MoversSet`); the drill waits for a cover bound to finish. Live: the cover bounds now end 0.1–0.5 m from the point |
+| ⚠ **OPEN:** both halves read as moving for 1.1–3.6 s right after a swap (run to run), ⛔ cause not measured — the members' reported speed is 0 on the state route, so it may be the replica's smoothing of a stop | `ua-bounding-overwatch` check ① (tolerance 1.5 s); 8 of 9 checks pass |
 
 ### 7.7 Danger-area crossing — the squad drill *(behaviors, `2026-10-13`; build-state: BUILT (§7.7.6; X-a … X-d, `-contact` not yet) — ✅ approved 2026-10-13 (R-2014))*
 

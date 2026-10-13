@@ -1312,6 +1312,15 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(b0, t.Orders[2].Point);
             Assert.Equal(b1, t.Orders[3].Point);
             Assert.True(t.Orders[2].Cover && t.Orders[3].Cover);
+
+            // ⭐ a man sent to COVER is set in it (1.5 m), not 3 m short of it — measured live: the swap came 2.6–3.9 m short
+            s.Teleport(s.Members[2], b0 - new Vector3(0f, 2.5f, 0f));
+            s.Teleport(s.Members[3], b1);
+            s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, s.Phase);
+            s.Teleport(s.Members[2], b0);
+            s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
         }
 
         // ── CE-2158 F-b — fire and movement (Squad Tactics §7.6.1) ──────────────────────────────────────────────────────────────

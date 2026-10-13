@@ -914,6 +914,10 @@ def run_bounding_overwatch(c, timeout):
     # ⚠ 1.5 s, not §7.8.3's 1 s: positions are polled every 0.5 s over HTTP, and a man settling the last metre counts as moving
     c.ok(longest <= 1.5, f"① one half moves, the other watches (both moving at most {longest:.1f} s at a time"
                          + (f", ending t={longest_at:.1f})" if longest > 0 else ")"))
+    time.sleep(1.5)   # the drill ended: the replicated positions this node reads lag the commander's by a moment
+    for (nid, _), rec in cover_orders.items():
+        p = position(nid)
+        if p: rec[1] = min(rec[1], flat(p, rec[0]))
     reached = [rec[1] for rec in cover_orders.values() if "superseded" not in rec]
     print(f"    cover bounds: closest each mover got to his point {[round(r, 1) for r in reached]}")
     c.ok(covered >= 2, f"② bounds go to cover where there is cover ({covered} of {bounds} bound orders were cover points)")
