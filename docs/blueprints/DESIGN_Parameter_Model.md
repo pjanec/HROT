@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-22
+updated: 2026-10-13
 updated-2: 2026-09-30 — §P added: THE PARAMETER CONTRACT BY KIND (user ruling R-155). ⭐ READ §P FIRST.
 current-answer: ⭐⭐⭐ §P — the contract by kind (behaviour: inputs once at start, resolver REPLACES the copy;
   action/condition: live host reference, no copy, no resolver), its as-built table §P.5, §P.6 (IHostVariableAccess retired, user 2026-09-30) and §P.7 (a blueprint's authored params — REWRITTEN 2026-10-13, CE-2135 P4: the asset names a params DTO, its fields are the Parameters).
@@ -32,8 +32,11 @@ known-rot: (2026-10-13, P7) §1's Role row ("`Input` IS the parameter role"), §
   public fields marked `[ParamsDto]`, a mandatory field is `[Required]` —
   docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §13. The Role vocabulary and blueprint-declared Parameters
   still exist in code and retire with P4 (§13.10); this document is rewritten then, not before.
-  ⭐ 2026-10-13 (backend, P4 steps ①–⑥): §P.7 IS rewritten (as-built). §1's Role row and §3.1 still stand in code
-  until P4 step ⑦ deletes Role, which waits on CE-3190 (HsmChannelE2E).
+  ⭐ 2026-10-13 (backend, P4 steps ①–⑥): §P.7 IS rewritten (as-built).
+  ⭐ 2026-10-13 (P4 step ⑦, CE-3193, backend; folded here by behaviors, P7): `Role` AND `Scope` are DELETED from a
+  variable. Working state is DERIVED: a variable is working state exactly when a binding names it as its
+  `WorkingStateTargetField` (`WorkingStateVariables`, never persisted; old `Role`/`Scope` keys ignored on load). §1's
+  Role/Scope rows and §3.1's `Role=` labels are rewritten to that.
 known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. RESOLVED 2026-09-30 by
   CE-441 (Entity removed) — two remain, neither authorable.
   - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — a NEW variable owner for behaviour-only unit data, overriding ":386"'s "no new variable owner" (user 2026-10-09); engine-read data stays a component
@@ -254,7 +257,7 @@ it: blueprint resolver graphs have no host-read node, and curated resolvers are 
 | who parses JSON | generated C#, **flat** — the JSON is the DTO's fields (§13 there, §5a.1). ⛔ The keyed-by-variable-name overlay is gone from every asset except `HsmChannelE2E` (CE-3190, stopped) |
 | a nullable field | still refused (user `2026-09-30`) |
 
-⚠ **Still open:** the `Role` vocabulary (§1) retires in P4 step ⑦, which waits on CE-3190; this section is final, §1 is not.
+✅ **Closed `2026-10-13`:** the `Role` vocabulary (§1) retired with P4 step ⑦ (CE-3193); §1 is rewritten to the as-built.
 
 #### ⛔ HISTORY — §P.7 as decided `2026-09-30` *(declared Parameters; superseded by R-2004)*
 
@@ -408,8 +411,8 @@ copy); `O7_R37`/`O7_R38` re-homed onto the cached offset.
 
 | axis | values | ⛔ note |
 |---|---|---|
-| **`Role`** | `Input` · `State` | ⭐⭐ **There is NO "Param" role. `Input` IS the parameter role** — resolver design §3.2, verbatim |
-| **`Scope`** *(State only)* | `Node` · `Behavior` · `Entity` | how widely the state is shared |
+| **params** | ONE named params DTO per behaviour *(`[Behavior(Params = …)]` / `ParamsDtoTypeId`; the block's `In` half)* | ⭐ the author never declares a parameter variable — 📄 `DESIGN_Orders_Params_Entity_Classes.md` §1 / §13.10 |
+| **working state** | ⭐ **derived, not authored**: a variable some binding names as its `WorkingStateTargetField` *(the block's `St` half)* | `WorkingStateVariables` (`Hrot.AiEditor.Persistence`), CE-3193. ⛔ SUPERSEDED `2026-10-13`: the authored `Role` (`Input`/`State`) + `Scope` (`Node`/`Behavior`/`Entity`) pair — "`Input` IS the parameter role" |
 | **classification** | ⭐⭐⭐ **the SECTION it was created in** | ⛔ **no `Role`/`Scope` control on any host** (§5) |
 | **ownership** | ⭐⭐⭐ **params belong to the OCCURRENCE** | not to the entity (§4) |
 | **supply** | ⭐⭐ **ONE resolver pipeline, every host** | (§3) |
@@ -448,8 +451,8 @@ none — an Instance payload **starts with the 16-byte `BlueprintLatentCursor`**
 | shape | populated | lifetime |
 |---|---|---|
 | **authored DTO** | deserialized from JSON | parse-time only — a transient buffer |
-| **usable params** — `Role=Input` | the **resolver** writes them *(identity ⇒ just the deserialize)* | ⭐ **resolved once at activation** |
-| **working state** — `Role=State` | zero-init at provisioning | reset at activation; `Scope` decides sharing |
+| **usable params** — the params DTO *(was `Role=Input`)* | the **resolver** writes them *(identity ⇒ just the deserialize)* | ⭐ **resolved once at activation** |
+| **working state** — a binding's `WorkingStateTargetField` *(was `Role=State`)* | zero-init at provisioning | reset at activation; shared by every node naming the same variable |
 
 ⭐ **One shape by default** — the authored DTO is an auto-generated mirror; two shapes only on
 divergence *(geo point vs cartesian, network id vs `Entity`, derived fields)*.
