@@ -2125,10 +2125,10 @@ no replacement edge, by design (adding a field is B4b, postponed).*
 | D1 | U1 rows | `ParametersOf(asset)` → read-only rows `param:{name}` (name, type badge, the DTO default as tooltip); the section is titled `Inputs — <DTO simple name>` | the asset's declared Parameters (0 in the corpus — the section is empty everywhere) |
 | D2 | U2 | delete `CommandCreateParameter`, both `RegisterCreateDeclarationCommands` overloads' Parameter registration and `_createParameterModal`; the section keeps no "+" (`CanCreateItems=false`) | keep the "+" disabled with a reason (it would teach a gesture that no longer exists) |
 | D3 | U3 field source | extract `ActionBindingCompatibility.BindableFieldsOf(Type)` from `AddFieldPaths` and use it for both — the rows list what a binding can bind | `ParamsDtoFields` (unreachable from AiShared, a cross-assembly move into backend's compiler) · a third reflection walk |
-| D4 | U3 values | the value column shows the asset's override from `ParamsDefaultJson` when it sets the field, else "(DTO default)" | computing the DTO default here (that is `DefaultOf`, CE-3194 — building it in the panel would be a second producer) |
+| D4 | U3 values *(⛔ SUPERSEDED by §13.10c E7 — `DefaultOf` exists now)* | the value column shows the asset's override from `ParamsDefaultJson` when it sets the field, else "(DTO default)" | computing the DTO default here (that is `DefaultOf`, CE-3194 — building it in the panel would be a second producer) |
 | D5 | U5a write path | a small `IParamsDtoAsset` (AiShared) implemented by `BehaviorTreeAsset` / `HsmAsset`; the blueprint writes `BlueprintAsset.ParamsDtoTypeId` + `MarkDirty`. A DTO change clears `ParamsDefaultJson` | widening `IBlackboardManagedAsset` (8 fakes to touch for one member) · keeping the old overrides (they name another DTO's fields) |
 | D6 | U5a choices | `ParamsDtoRegistry.Default.Dtos` with `DtoPurpose.Params`, displayed `Name — C# File.cs:line` or `Name — asset`, plus `(none)`; the current type kept even when the registry does not list it | a list per origin (F2: one registry) |
-| D7 | U5b | ⏸ not built: needs `ParamsDefaults.DefaultOf` and `BlueprintAsset.ParamsDefaultJson` (CE-3194 ①–③, OPEN) | an editor-side default (a second producer of the DTO's default) |
+| D7 | U5b *(⛔ SUPERSEDED — built by §13.10c)* | ⏸ not built: needs `ParamsDefaults.DefaultOf` and `BlueprintAsset.ParamsDefaultJson` (CE-3194 ①–③, OPEN) | an editor-side default (a second producer of the DTO's default) |
 
 **As built** *(2026-10-13, ui, `CE-1061`; matches the three diagrams — no deviation in shape)*:
 - U1 `BlueprintMyBlueprintModel.BuildInputItems` (`param:{name}` rows, read-only, type badge, default in the tooltip); `Sections` projects
@@ -2146,6 +2146,108 @@ no replacement edge, by design (adding a field is B4b, postponed).*
   `CE1061_ChoosingTheParamsDto_NamesIt_AndTheInputsFollow` (three C-sections rails restated); `NodeOwnedVariableTests.CE1061_TheParamsRow_ListsItsDtosFields_ReadOnly`;
   `BehaviorTreeAssetModelTests.CE1061_PickingAParamsDto_WritesTheTypeId_AndRebuildsTheParamsEntry`; frame rail
   `TheParamsPanelRendersTests` (U4 evidence, screenshot).
+
+#### 13.10c U5b — editing an asset's params defaults, and undo for the params edits *(ui lane, CE-1061 U5b + CE-1062; build-state: READY-TO-BUILD `2026-10-13` — unblocked by backend CE-3194 at 2928ff2f0)*
+
+🔒 **R-3001 / R-3002** (above). Backend, as built: `Fdp.Toolkit.Behavior.ParamsDefaults.DefaultOf(Type)` (= `new T()`),
+`ParamsDefaults.Effective(Type, overridesJson)`; `ParamsDefaultJson` on BTree, HSM and now `BlueprintAsset`; a blueprint override naming a
+field the DTO lacks is `BP1689`. User, 2026-10-13: *"make the per-field default edits undoable, and the blueprint DTO chooser too"*.
+
+**INVENTORY** *(codebase-memory CLI `search_graph` Class / Interface `.*(Undo|Undoable|EditHistory|CommandSink).*` (3 interfaces, 37
+classes: `UndoStack`, `BTreeCommandSink`, `HsmCommandSink`, `BlueprintCommandSink`, the gizmo stacks); grep for every
+`BlueprintEditCommand` / `view.Execute` user, `UpdateVariableDefaultValueJson` caller and `ParamsDefaults` member; files below read)*:
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| a document's undo is its `GraphView.Undo` (`UndoStack`), applied through the kind's sink; `GraphView.Execute(forward, inverse, label)` records both | ✅ `GraphView.cs:73`, `UndoStack.cs:66` | ✅ BP-11 (Q22-A1/C2): property edits on the SAME stack as structural ones |
+| only the blueprint has an "apply this / undo that" command (`BlueprintEditCommand`), and BTree / HSM cannot reference it (Blueprints.Editor) | ✅ `BlueprintEditCommand.cs:36`; `BTreeCommandSink.cs:50-120`, `HsmCommandSink.cs` have no such arm | — |
+| ⚠ the blueprint sink's `default:` arm returns SUCCESS (an unknown command silently no-ops); the BTree sink's returns failure | ✅ `BlueprintEditCommand.cs` remarks, `BlueprintCommandSink.cs:215`; `BTreeCommandSink.cs:118` | — |
+| an AI document's view is reachable as `AiGraphCanvasWindow.ActiveContext.View`; the registrar already DERIVES that resolver for the outline (`SetCanvasContextResolver`) | ✅ `PerspectiveWorkspaceRegistrar.cs:837-842`, `AiCanvasContext.cs:54` | ✅ Batch 81 "derived, not passed" |
+| the blueprint outline receives its document's `GraphView` in `Retarget` | ✅ `BlueprintMyBlueprintWindow.cs:316-323` | — |
+| a BTree / HSM save writes `ParamsDefaultJson` = the reserved entry's default `??` the asset field ⇒ clearing the entry alone would resurrect the loaded value | ✅ `BehaviorTreeAssetMapper.cs:41-44` | — |
+
+```mermaid
+classDiagram
+  direction LR
+  class AssetEditCommand { <<NEW record, AiShared>> Label · Mutate : GraphCommand }
+  class BlueprintEditCommand { <<existing, CHANGED>> now : AssetEditCommand }
+  class AssetEdits { <<NEW, AiShared>> Run(view?, label, apply, undo) }
+  class BTreeCommandSink { <<existing, CHANGED>> + case AssetEditCommand }
+  class HsmCommandSink { <<existing, CHANGED>> + case AssetEditCommand }
+  class BlueprintCommandSink { <<existing, CHANGED>> + case AssetEditCommand (after BlueprintEditCommand) }
+  class IParamsDtoAsset { <<CHANGED, AiShared>> ParamsDtoTypeId · ParamsDefaultJson · SetParams(typeId, defaultsJson) }
+  class ParamsDefaultsModel { <<NEW, Hrot.Presentation/Behavior>> Sync(dto, overrides) · Session · IsOverridden(f) · TryEdited(out json) · Without(f) }
+  class ParamsDefaultsForm { <<NEW, AiShared>> Draw(model, label) → commit(json, label)? }
+  class ParamsDefaults { <<existing, Fdp.Toolkits>> DefaultOf · Effective }
+  class BlueprintParamsDto { <<CHANGED>> Set(asset, typeId, defaultsJson, view?, markDirty) }
+  class VariablesPanelControl { <<CHANGED>> chooser + defaults form → AssetEdits }
+  class BlueprintMyBlueprintWindow { <<CHANGED>> keeps its view; chooser + defaults form → AssetEdits }
+  BlueprintEditCommand --|> AssetEditCommand
+  AssetEdits ..> AssetEditCommand
+  BTreeCommandSink ..> AssetEditCommand
+  HsmCommandSink ..> AssetEditCommand
+  BlueprintCommandSink ..> AssetEditCommand
+  ParamsDefaultsModel ..> ParamsDefaults : Effective
+  ParamsDefaultsForm ..> ParamsDefaultsModel
+  VariablesPanelControl ..> ParamsDefaultsForm
+  VariablesPanelControl ..> AssetEdits
+  VariablesPanelControl ..> IParamsDtoAsset : SetParams
+  BlueprintMyBlueprintWindow ..> ParamsDefaultsForm
+  BlueprintMyBlueprintWindow ..> AssetEdits
+  BlueprintMyBlueprintWindow ..> BlueprintParamsDto
+```
+
+*What the picture shows that prose hid: ONE "apply / undo" command family for every AI document (the blueprint's existing one becomes a
+subtype, so nothing about it changes), ONE write per asset kind (`SetParams(type, defaults)` covers the chooser, an edit and a reset —
+and each undo is the same call with the old pair), and ONE form model over `ParamsDefaults.Effective`, the bake's own answer.*
+
+```mermaid
+sequenceDiagram
+  participant U as Author
+  participant F as ParamsDefaultsForm
+  participant M as ParamsDefaultsModel
+  participant E as AssetEdits
+  participant V as GraphView.Undo (the document's)
+  participant S as the kind's sink
+  participant A as asset (SetParams / BlueprintParamsDto.Set)
+  U->>F: edits Radius (or clicks Reset on it)
+  F->>M: TryEdited / Without("Radius")
+  M-->>F: the new overrides JSON (only overridden keys)
+  F->>E: Run(view, "Edit params default Radius", apply = set(new), undo = set(old))
+  E->>V: Execute(AssetEditCommand(apply), AssetEditCommand(undo), label)
+  V->>S: Apply(forward)
+  S->>A: Mutate() → SetParams(dto, new) · MarkDirty
+  U->>V: Ctrl+Z
+  V->>S: Apply(inverse)
+  S->>A: SetParams(dto, old)
+  F->>M: Sync(dto, old) — the session reopens from the outside change
+```
+
+```mermaid
+graph TD
+  REG[PerspectiveWorkspaceRegistrar.Register<br/>canvas window] -->|SetCanvasContextResolver, derived| BAW[BlackboardAuthoringWindow]
+  BAW -->|view of the active document| VPC[VariablesPanelControl]
+  BPW[BlueprintMyBlueprintWindow.Retarget] -->|its document's view| BPW
+  VPC --> AE[AssetEdits.Run]
+  BPW --> AE
+  AE --> UNDO[GraphView.Undo]
+  UNDO --> SINKS[BTree · HSM · Blueprint sinks<br/>case AssetEditCommand]
+  NOV[no view: a headless host / a test] -.->|applies directly, NOT undoable| AE
+  style NOV stroke:#c00,stroke-dasharray: 5 5
+```
+
+*What the module picture shows: the undo path is derived from the canvas the registrar already holds (no new host argument to forget);
+the dashed path is the fallback where no document view exists — the edit still applies, without an undo entry.*
+
+| # | decision | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| E1 | what an edit writes | `ParamsDefaultJson` = the asset's overrides only: editing a field sets that key (to the edited value, even if it equals the DTO default — the author asked for it), Reset removes it; `{}` is written as null | write the whole effective value (a DTO default change would never reach the asset — R-3001) |
+| E2 | the form | `ParamsDefaultsModel` (headless) over `ParamsDefaults.Effective(dto, overrides)`; `ParamsDefaultsForm` draws each field with `ComponentEditDrawer.DrawEditNode` in a 3-column table (field · value · ● overridden + Reset) | `BehaviorParamsForm.DrawFields` (a 2-column table: no room for the per-field marker / reset) · a hand-written per-type table |
+| E3 | the write | ONE call per kind — `IParamsDtoAsset.SetParams(typeId, defaultsJson)` (BTree / HSM: both asset fields + the reserved entry), `BlueprintParamsDto.Set(asset, typeId, defaultsJson)`. The chooser = `SetParams(new, null)`; an edit = `SetParams(same, json)`; every undo = `SetParams(old, oldJson)` | a setter per field (three undo shapes for one pair of values) |
+| E4 | undo | `AssetEditCommand(Label, Mutate)` in AiShared; `BlueprintEditCommand` derives from it (unchanged for its callers); each sink gets an explicit arm — the blueprint sink's `default:` would otherwise report success for a no-op | a third "apply/undo" record for BTree / HSM (two implementations of one concept) · a per-panel undo stack (Ctrl+Z on the canvas would not reach it) |
+| E5 | finding the view | BTree / HSM: `BlackboardAuthoringWindow.SetCanvasContextResolver`, installed by the registrar from its canvas window (the outline's precedent); used only when its context's asset IS the panel's asset. Blueprint: the `view` `Retarget` already receives | a new constructor argument on the window (a silent default to forget) |
+| E6 | a DTO change | clears the overrides (they name another DTO's fields; for a blueprint they would be `BP1689`) and is ONE undo entry restoring both | keep the overrides (a compile error on the next build) |
+| E7 | U3 rows | now show the EFFECTIVE value (`ParamsDefaults.Effective`), overridden ones marked "●" — D4's "(DTO default)" stood in for the missing `DefaultOf` | keep "(DTO default)" (the answer exists now) |
 
 ### 13.11 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
 
