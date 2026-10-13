@@ -95,6 +95,7 @@
       }
     }
   ],
+  "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams",
   "Pills": [],
   "Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
   "SubtreeSyncBindings": {},

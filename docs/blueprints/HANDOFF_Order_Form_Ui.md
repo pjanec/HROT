@@ -7,7 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
-  - docs/DESIGN_Orders_Params_Entity_Classes.md — THE design: §13.1 F6 (the order form, the fast path), §13.9 (P5 as built: OrderDraft, IOrderForm, the completeness rule, GET /orders), §13.3 (designations, P6 — will prefill the same draft)
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — THE design: §13.1 F6 (the order form, the fast path), §13.11 (P5 as built: OrderDraft, IOrderForm, the completeness rule, GET /orders), §13.3 (designations, P6 — will prefill the same draft)
   - docs/blueprints/DESIGN_Map_Picking_Unification.md — the map pick service and its presets
   - docs/DESIGN_Entity_Control.md — the unit menu, the RTS tool, EntityOrders as the one order path (§3.1, R-270)
 -->
@@ -17,7 +17,7 @@ related-designs:
 RELEARN
 
 ⭐ This is a FRAME: goal, the seam, fences and acceptance. ⭐ **Your step 1 is the design**: extend
-[DESIGN_Orders_Params_Entity_Classes.md](../DESIGN_Orders_Params_Entity_Classes.md) §13.9 with the form's own `classDiagram` +
+[DESIGN_Orders_Params_Entity_Classes.md](../DESIGN_Orders_Params_Entity_Classes.md) §13.11 with the form's own `classDiagram` +
 `sequenceDiagram` (after an `INVENTORY` of what exists), then build, then fold the as-built back in.
 
 🔒 **User, 2026-10-13:** *"Not all params are just picking, some are numbers (various distances etc.) and ui should allow editing them -

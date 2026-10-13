@@ -302,16 +302,19 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         // CE-2135 (B3b prep, 2026-10-12) removed 15 that store nothing: BTreeRenderShowcase, CombatShowcase, SampleScout, SampleGuard,
         //   HsmShowcase, HsmTwoChannelRegionsDemo, HsmOrthogonalRegions (its one variable is State), T01–T08 now name NoParams
         // CE-2132 (A2, 2026-10-12, after CE-3182) removed DangerCrossing: it publishes DangerCrossingParams (its resolver's contract)
-        // R-2006 (P9, 2026-10-13) removed PlatoonHillAttackBp: the asset is retired
-        "BTreeCuratedBindingDemo", "BlueprintBehaviourDemo", "DangerCrossingBp",
-        "Demo_Advance", "Demo_Engage", "Demo_MissionPlan", "Demo_Retreat",
-        "Demo_TakeCover", "Demo_TaskChain",
-        "HsmResolverDemo", "OperatorControl", "T09_BlackboardManaged", "T10_MultiAction", "T20_MultiStateful", "T35_SharedWorkingState",
-        "T39_TwoDistinctPrimitives", "T40_BehaviorResolverAsset",
-        // ⚠ CE-3185 (2026-10-13) found 4 more that were ALWAYS violators: the rail could not see an HSM's Inputs mirror
-        //   (`Hrot.AI.Behaviors.Machines.<Asset>_<Asset>_Blackboard`, see IsGeneratedMirror). Not new violations — a blind spot fixed in
-        //   place (T-1 ③); P3 (CE-2135) converts them with the other 14.
-        "HsmChannelE2E", "HsmCuratedBindingDemo", "HsmPolledGuardDemo", "HsmVariableShowcase",
+        // CE-2135 (B3b-1 / P3, 2026-10-13) removed 12 that name NoParams (no caller sends them a field): BlueprintBehaviourDemo,
+        //   Demo_Advance, Demo_Engage, Demo_Retreat, Demo_TakeCover, OperatorControl, T10, T35, T39, BTreeCuratedBindingDemo,
+        //   HsmCuratedBindingDemo, HsmPolledGuardDemo.
+        // ⚠ CE-3185 (2026-10-13) found 4 HSMs that were ALWAYS violators: the rail could not see an HSM's Inputs mirror
+        //   (`Hrot.AI.Behaviors.Machines.<Asset>_<Asset>_Blackboard`, see IsGeneratedMirror) — not new violations, a blind spot fixed in
+        //   place (T-1 ③). Two were converted by P3 above; HsmChannelE2E and HsmVariableShowcase stay below.
+        // ⚠ Left for P4 (they convert when the legacy Input path and Role are deleted): DangerCrossingBp, Demo_MissionPlan, Demo_TaskChain
+        //   (Parameters → a DTO, R-2004); HsmResolverDemo, T40 (resolver blueprints with Parameters); HsmChannelE2E (its variables are
+        //   AiPrimitive blueprints' generated Params); T20 (a caller sends it a field); T09, HsmVariableShowcase (the legacy path's own
+        //   rails pin them). PlatoonHillAttackBp retired with its scenario (P9, R-2006) — removed.
+        "DangerCrossingBp", "Demo_MissionPlan", "Demo_TaskChain",
+        "HsmChannelE2E", "HsmResolverDemo", "HsmVariableShowcase", "T09_BlackboardManaged", "T20_MultiStateful",
+        "T40_BehaviorResolverAsset",
     };
 
     /// <summary>⭐ CE-2130 — true when <paramref name="t"/> is a generator's mirror of a behaviour's own variables rather

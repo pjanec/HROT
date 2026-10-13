@@ -226,7 +226,7 @@ public sealed class MenuOrdersTests : IDisposable
         foreach (var o in OrderMenu.Orders) Assert.DoesNotContain($"\"id\":{o.ActionId},", none);
     }
 
-    // ── CE-2148 (P5, design §13.9) ─────────────────────────────────────────────────────────────────────────────────
+    // ── CE-2148 (P5, design §13.11) ─────────────────────────────────────────────────────────────────────────────────
 
     private struct TwoPicks
     {

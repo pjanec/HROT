@@ -121,5 +121,6 @@
         "Comment": "CE-397: seeds HsmGuardDemo's 'Open' parameter. Role=Input, so it is packed and addressable by HsmParamBindings."
       }
     ]
-  }
+  },
+  "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams"
 }

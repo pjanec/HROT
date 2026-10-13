@@ -1251,53 +1251,85 @@ surprising claims spot-checked by reading the file)*:
 | **F11** *(user, 2026-10-13: "propreties in param dtos are undesired")* | fields or properties in a params DTO | plain public FIELDS only. Measured: 21 hand-written DTO files hold 87 properties (mostly `Hrot.Core/MapDefinitions/Behavior/*ParamsJsonDto.cs`); the params parse already reads fields (B4a's T41 parses flat); `OrderMenu.PickOf` reads properties only (`OrderMenu.cs:79`). ⇒ a conformance rail rejects a property on a params DTO; the 21 files convert; every reader (`PickOf`, the schema extractor, `ComponentEditDrawer`, the registry) reads fields — ⚠ whether `DtoJsonSchemaExtractor` reads fields is not measured | keep both (two shapes every reader must handle) |
 | **F12** *(user, 2026-10-13)* | JSON options | ⭐ ruled: one shared options instance, field-aware and case-insensitive. ⭐ It EXISTS: `Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed` (`IncludeFields`, `PropertyNameCaseInsensitive`, trailing commas, comments, frozen; its header already says *"All JSON serialisation in the platform must use one of these two singletons"*) — under-adopted: 42 production `new JsonSerializerOptions` measured. ⇒ every params / order JSON path (parse AND send) uses it; the remaining ad-hoc instances move to it or carry a one-line justification, and a rail lists the justified ones (an allow-list that may only shrink). ⭐ ruled (R-2007): enums are STRINGS in every JSON — `DefaultRelaxed`'s `StrictStringEnumConverter` (`FdpJsonOptionsRegistry.cs:77`) is the rule, not a caveat; any data that sends an enum as a number is CONVERTED, the converter is never relaxed. It also omits nulls on write — measure who relies on an explicit null | a params-only options instance (a third producer for one setting) |
 
-### 13.3 F7 stage 1 — designations filled on the sender *(accepted 2026-10-13; build-state: DESIGN)*
+### 13.3 F7 stage 1 — designations filled on the sender *(accepted 2026-10-13; build-state: READY-TO-BUILD `2026-10-13`, behaviors — P6, CE-2149)*
+
+⚠ **Revised before the build (2026-10-13):** the first diagram had `EntityOrders` fill the designations. That contradicts this
+section's own row *"HTTP and AI senders: unaffected"* — `EntityOrders.Order` IS the HTTP path (`DebugApiService.Orders.cs:27`). Built
+on P5 (§13.11), the one place only operator gestures pass through is `OrderMenu.Draft` (one draft per unit: `MenuOrders.Begin`,
+`RtsCommands.Gesture`) ⇒ the fill lives there and `EntityOrders` is unchanged.
 
 ```mermaid
 classDiagram
   direction LR
-  class OrderDesignations { <<NEW, Hrot.Common/Orders, one per operator station>> Set(unit, kind, value) · Clear(unit, kind) · TryGet(unit, kind) }
-  class Designation { <<NEW>> Kind: Target | Point | Route | Area · EntityRef or PickableGeoPoint }
-  class EntityOrders { <<existing, CHANGED>> Order(unit, name, json) fills missing Required fields }
-  class OrderMenu { <<existing, CHANGED>> PickOf reads fields · FilledByGesture(dto, context) }
-  class ParamsDtoRegistry { <<existing>> the order DTO and its fields }
-  class DesignationOverlay { <<NEW, Hrot.Presentation>> draws each designation from its unit }
-  OrderDesignations o-- Designation
-  EntityOrders ..> OrderDesignations : reads at send
-  EntityOrders ..> ParamsDtoRegistry : which fields are Required
-  OrderMenu ..> OrderDesignations : Set from the unit menu
+  class OrderDesignations { <<NEW, Hrot.Common/Orders, world singleton id 368>> Set(unit, kind, value) · ClearAll(unit) · Lookup(world, map) }
+  class DesignationKind { <<NEW enum>> Target · MapPoint · Route · Area }
+  class OrderMenu { <<existing, CHANGED>> Draft(…, designation) fills after the context · KindOf(field) }
+  class OrderField { <<existing>> Kind · Presets }
+  class MenuOrders { <<existing, CHANGED>> Designate submenu handlers; drafts with the designation lookup }
+  class RtsCommands { <<existing, CHANGED>> drafts with the designation lookup }
+  class EntityOrders { <<existing, UNCHANGED>> the HTTP and AI path never sees designations }
+  class ContextMenuProjectorGizmo { <<existing, CHANGED>> + Designate submenu where orders are offered }
+  class DesignationOverlay { <<ui lane, P5b handoff U6>> draws each designation from its unit }
+  OrderDesignations --> DesignationKind
+  OrderMenu ..> OrderDesignations : lookup (unit, kind)
+  OrderMenu ..> OrderField : KindOf
+  MenuOrders ..> OrderDesignations : Set / ClearAll
+  MenuOrders ..> OrderMenu
+  RtsCommands ..> OrderMenu
+  MenuOrders ..> EntityOrders
+  RtsCommands ..> EntityOrders
   DesignationOverlay ..> OrderDesignations : reads
 ```
 
-*What the picture shows that prose hid: designations never reach the network or the brain — `EntityOrders` resolves them into the order
-JSON before it publishes, so the order on the wire is complete and every receiver, replay and log sees explicit arguments.*
+*What the picture shows that prose hid: designations never reach `EntityOrders`, the network or the brain — the operator's draft is
+complete before it is sent, so every receiver, replay and log sees explicit arguments, and the HTTP / AI path cannot be affected.*
 
 ```mermaid
 sequenceDiagram
   participant U as Operator
-  participant M as Unit menu
+  participant M as MenuOrders
   participant D as OrderDesignations
+  participant OM as OrderMenu
   participant O as EntityOrders
-  participant T as Intent topic
-  U->>M: Set sector, pick an area
-  M->>D: Set(squad, Area, areaRef)
-  U->>M: Defend (order DTO: Area Required, Radius optional)
-  M->>O: Order(squad, Defend, {})
-  O->>D: TryGet(squad, Area)
-  D-->>O: areaRef (entity still alive)
-  O->>T: Order.Defend {Area: areaRef}
+  U->>M: Designate > Set sector (unit menu)
+  M->>M: PickEntityAsync(tactical_graphics)
+  M->>D: Set(squad, Area, areaNetId)
+  U->>M: order whose required Area field is unset
+  M->>OM: Draft(order, [squad], context none, lookup)
+  OM->>D: lookup(squad, Area) — alive? else dropped
+  D-->>OM: areaNetId
+  OM-->>M: draft complete
+  M->>O: Order(squad, name, {Area: areaNetId})
 ```
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack<br/>every live map host] -->|registers, ticks each frame| MO[MenuOrders]
+  MIP -->|sets the world singleton| OD[OrderDesignations]
+  RTSG[RtsCommandGizmo] --> RTS[RtsCommands]
+  CMP[ContextMenuProjectorGizmo<br/>builds the unit menu] -->|Designate submenu, ids 470-474| MO
+  MO --> OD
+  RTS --> OD
+  MO --> EO[EntityOrders]
+  RTS --> EO
+  HTTP[DebugApiService<br/>POST /orders] --> EO
+  OV[DesignationOverlay<br/>ui lane] -.->|not built yet| OD
+  style OV stroke:#c00,stroke-dasharray: 5 5
+```
+
+*What the module picture shows: the HTTP box has no edge to `OrderDesignations` — by construction, not by convention. The dashed
+overlay is the ui lane's (the main con of the idea is hidden state; until it is drawn, the menu is the only place a designation shows).*
 
 | detail | ⭐ lean | why |
 |---|---|---|
-| the kinds | `Target` (an `EntityRef`), `Point` (`PickableGeoPoint`), `Route` (an `EntityRef` on `road_graphs`), `Area` (an `EntityRef` on `tactical_graphics` — a sector, F10) | the four the user named; each maps to a field TYPE + picker preset the registry already sees |
-| which field a designation fills | a missing field whose type (and `[MapPickableEntity]` preset) matches exactly one kind, when the DTO has exactly ONE such field; explicit arguments always win | two candidate fields ⇒ ambiguous ⇒ the order form opens instead (F6) |
+| the kinds | `Target` (an `EntityRef` field without a route / area preset), `MapPoint` (a `PickableGeoPoint`), `Route` (an `EntityRef` with `[MapPickableEntity("road_graphs")]`), `Area` (an `EntityRef` with `[MapPickableEntity("tactical_graphics")]` — a sector, F10) | the four the user named; each maps to a field TYPE + picker preset the registry already sees (measured: `road_graphs` ×2, `tactical_graphics` ×2) |
+| which field a designation fills | a missing `[Required]` field of its kind, when the order has exactly ONE such missing field; explicit JSON first, then the gesture's context, then designations | two candidate fields ⇒ ambiguous ⇒ the order form opens instead (F6) |
 | `[Required]` only, or optional fields too | `[Required]` only | an optional field keeps the behaviour's default; filling it silently would change behaviour nobody asked for |
-| where it lives | per operator station, in the order service beside `EntityOrders`; keyed by the unit's network id; not replicated, not saved | it is operator UI state, not entity state (R-136 binds entity state); stage 2 (G3) is where it becomes entity state |
-| how it is set | the unit's context menu: "Set target / point / route / sector" (one pick each); a "remember" tick in the order form; a selection sets it for every selected unit | explicit gestures — no silent capture from the last order |
-| visibility | drawn on the map from the unit (a line to the target / point, the route highlighted, the sector outlined) while the unit is selected | the main con of the idea is hidden state; drawing it removes it |
-| staleness | checked at send: an entity no longer alive (or a route / area deleted) is dropped and the order form opens | a dead target must not silently become `0` |
-| HTTP and AI senders | unaffected: they send explicit JSON; designations are the operator UI's convenience | nothing downstream learns a new concept |
+| where it lives | a world singleton per station (component id 368), keyed by the unit's network id; not replicated, not saved | it is operator UI state, not entity state (R-136 binds entity state); stage 2 (G3) is where it becomes entity state |
+| how it is set | the unit menu's **Designate** submenu: Set target… · Set point… · Set route… · Set sector… (one pick each, presets passed) · Clear | explicit gestures — no silent capture from the last order. ⚠ "a selection sets it for every selected unit" and the form's "remember" tick are the ui lane's (P5b) |
+| visibility | drawn on the map from the unit while it is selected — ui lane (handoff U6) | the main con of the idea is hidden state; drawing it removes it |
+| staleness | checked at draft: an entity no longer alive (or a deleted route / area) is dropped from the store and not filled ⇒ the pick or the form | a dead target must not silently become `0` |
+| HTTP and AI senders | unaffected: they send explicit JSON through `EntityOrders`, which never reads designations | nothing downstream learns a new concept |
 
 ### 13.2 The work and the lanes *(lean)*
 
@@ -1311,7 +1343,7 @@ sequenceDiagram
 | P5b | F6 form: the modeless floating order form (`BehaviorParamsForm` over the order DTO), an entity source for the fuzzy `PickerWindow`, 3D map picking if absent. ⭐ **Separable by one seam P5 defines:** an `OrderDraft` (units, order name, the prefilled DTO JSON, the `[Required]` fields still missing) and `IOrderForm.Open(draft)` — P5 calls it when the fast path cannot send; the ui lane implements it; until then a stub reports "needs the order form" | ui | P5's seam |
 | P8 | F11: params DTOs become plain fields (21 files, 87 properties), the rail, every reader over fields | backend | — |
 | P9 | retire `PlatoonHillAttackBp` + `hill-attack-close-bp` without costing a feature (§13.5) | behaviors | — |
-| P6 | F7 stage 1: the designations store + gestures + sender fill | behaviors (ui for the gestures) | P5 |
+| P6 | F7 stage 1: the designations store + the Designate menu + the draft fill (§13.3) | behaviors (ui: the overlay, multi-select, the form's remember tick) | P5 |
 | P7 | docs: the 6 high-risk rewrites + `OVERVIEW` box (behaviors); the remaining 15 known-rot lines + the 9 `[BehaviorContract]` mentions (any session) | behaviors leads | as each item lands |
 | — | B4b editor, the struct editor | postponed (user) | — |
 
@@ -1498,7 +1530,7 @@ an assembly loads.*
   assembly throw, 9 reds), `CE3185_FindByAssetId_LocatesTheAsset_WhereverItMoved` + two invalid-asset cases (generator), the collision guard's
   `.params.json` cases.
 
-### 13.8 P2 — no stale DTO type after a rebuild *(CE-3186; build-state: READY-TO-BUILD `2026-10-13`, backend)*
+### 13.8 P2 — no stale DTO type after a rebuild *(CE-3186; build-state: BUILT `2026-10-13`, backend — as-built at the end of this section)*
 
 | claim | code — how it IS | design basis |
 |---|---|---|
@@ -1543,7 +1575,112 @@ classDiagram
 | P2-b | how quick reload detects a changed DTO | a GENERATED DTO (`[ParamsDto(AssetId)]`) is compared field by field (name + type id) with its `.params.json` on disk; a mismatch refuses with "full rebuild needed" before compiling. A hand-written DTO cannot change without a build, which IS the full rebuild | compare a layout hash re-emitted by the generator (needs the generator in the editor process; the field list says the same) · compile the DTO in quick reload (rejected by the user, R-2001) |
 | P2-c | the palette cache | recomputed when `ParamsDtoRegistry.Default` is a different instance (the registry already drops itself on every assembly load) | an `AssemblyLoad` hook of its own (a second invalidation rule) |
 
-### 13.9 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
+**As built** *(2026-10-13)* — matches the diagrams:
+- `BehaviorRegistry.LatestCopyOf(Type)` (public, `Fdp.Toolkits`) + the re-base loop at the top of `MergeFrom`. ⚠ It does NOT skip dynamic
+  assemblies (a real reload copy is not dynamic; the rails need a dynamic twin — see below).
+- `Hrot.Editor.AiHotReloadCoordinator` (the file-watcher path) binds the staging registry from `ParamsDtoRegistry.Pinning(<the new copy>)`
+  before `MergeFrom`. ⚠ Its `ApplyQuickReload` path is left alone: a quick reload compiles one asset and no DTO, so there is nothing to rebind.
+- `BlackboardTypeHelper.ResolveClrType` walks the loaded assemblies LAST-to-first. `ReflectionIntentContractProvider` recomputes when
+  `ParamsDtoRegistry.Default` is a new instance.
+- ⚠ **Deviation (home):** the refusal is `Hrot.Editor.AiShared.Documents.ParamsDtoStaleness` (not `Hrot.AiEditor.Persistence`, which is
+  `netstandard2.0` and has no type helper); `AiAssetReload.ReloadBTree` / `ReloadHsm` call it before emitting. ⚠ **Not covered:** the blueprint
+  arm — its compile runs inside `Hrot.Blueprints.Editor` and no `.bp.json` names a generated DTO yet (P4 changes that; the check is one call).
+- Rails: `CE3186_LatestCopyOf_IsTheNewestLoadedCopy`, `CE3186_MergeFrom_AfterARebuild_PublishesTheNewCopysDto` (`BehaviorRegistryTests`, the
+  feature's suite; red-proved by removing the re-base), `CE3186_ResolveClrType_AnswersTheNewestCopy`, `CE3186_AnUnchangedGeneratedDto_IsNotRefused`,
+  `CE3186_AChangedGeneratedDto_IsRefused_FullRebuildNeeded`, `CE3186_AHandWrittenDto_OrNoDto_IsNeverRefused` (`ParamsDtoStalenessTests`). ⚠ The
+  "rebuilt copy" is a minimal DYNAMIC assembly with the same name and one type: a second real copy of a test assembly would make every
+  scanner that walks the loaded assemblies see its fixtures twice (CE-3180).
+
+
+### 13.9 P3 — B3b-1, the allow-list entries that need no Parameters *(CE-2135; build-state: BUILT `2026-10-13`, backend)*
+
+**Measured per entry** (read-only sweep: every caller of each behaviour, scenarios / C# / scripts / assets): **12** convert to `NoParams`
+with no caller change — the 5 parameter-less blueprints (`BlueprintBehaviourDemo`, `Demo_Advance`, `Demo_Engage`, `Demo_Retreat`,
+`Demo_TakeCover`: `"ParamsDtoTypeId"` after `Primitive`, where the serializer writes it), `OperatorControl` (the possession sends `"{}"`;
+`[Behavior(Params = typeof(NoParams))]` + a `[BehaviorResolver]` clearing `Control` — the `Disembark` shape), and `T10`, `T35`, `T39`,
+`BTreeCuratedBindingDemo`, `HsmCuratedBindingDemo`, `HsmPolledGuardDemo` (only `""` / `"{}"` callers; the B3a precedent: one top-level line,
+the variables untouched and now plain). The two v1 migration fixtures of converted assets (`T35`, `HsmPolledGuardDemo`) got the same line.
+
+⚠ **Deviation — 6 entries moved to P4**, each for a measured reason: `T20` (a caller sends `{"cursorB":{"Limit":…}}` — it needs a named
+DTO), `HsmChannelE2E` (its scenario sends keyed JSON, and its variables are AiPrimitive blueprints' generated `Params`, which P4 changes),
+`HsmResolverDemo` / `T40` (their resolver blueprints declare Parameters — P4 §13.10 P4-e), and `T09` / `HsmVariableShowcase` (no caller, but
+the legacy Inputs path's own rails pin them — `AGeneratedBehaviourAdvertisesItsManifestTests`, `HsmGoldenCorpusTests`; they are rewritten once,
+when P4 deletes that path, not twice). Allow-list 22 → 10 (with the 4 HSMs CE-3185 found and `PlatoonHillAttackBp`, retiring in P9).
+
+**Goldens** (regenerated, `AI_REGENERATE_SNAPSHOTS` / `BLUEPRINT_REGENERATE_SNAPSHOTS`; diff shape): 6 AI registrars lose the Input-overlay
+switch for `RequireNoStoredFields` + `JsonParamsDtoType = NoParams` (−29 to −41 lines each), `HsmCuratedBindingDemo` +1; 5 blueprint emits +2 lines
+each (the same two lines); 3 persistence-shape hash files move (8 / 4 / 10 lines). Gates: Generators 431/0 (twice), Editor DebugApi 73/0,
+Fdp.Toolkits tick arms + possession 85/0, SimHost 16/0, Blueprints 4203/2 — the 2 reds are in files this item does not touch
+(`ViewsAreUnreadTests` flags `Stage2_Validate.cs:2835`, CE-2133's BP1689 rule, which P4 rewrites; `CatalogTests` AimAndFire pins 4 vs 8 — the
+channel-command catalog). ⚠ Not re-run at the base sha.
+
+### 13.10 P4 — no blueprint declares Parameters; every kind names a params DTO *(CE-2135 B3b-2; R-2004, steers 1–2; build-state: READY-TO-BUILD `2026-10-13`, backend)*
+
+**INVENTORY** *(read-only sweep 2026-10-13 + grep; file:line in the CE-2135 report)*: `ParameterDecl` (`Declarations.cs:16`) is ALSO the
+element type of graph Inputs / Outputs, custom-event and dispatcher parameters ⇒ only its use as a blueprint **Parameter declaration kind**
+retires, not the type. 12 shipped `.bp.json` declare Parameters (after `PlatoonHillAttackBp` retires, P9): Behavior `Demo_MissionPlan` (3),
+`Demo_TaskChain` (2), `DangerCrossingBp` (4); AiPrimitive `ChannelMoveAndWaitDemo` (2), `GateConditionDemo` (1), `ParamDemo` (3),
+`HsmDriveActivity` (2), `HsmFireActivity` (1), `HsmGuardDemo` (1), `HsmTwoRegionParamsDemo` (1); resolvers `HsmResolverDemoResolver` (1),
+`T40Resolver` (1). Get Parameter: 2 graphs (`HsmGuardDemo`, `DangerCrossingBp`). The pin builder (`Stage0_Rehydrate.EnrichGetAllParametersPins`
+`:340`, editor twin `NodePinSchema.cs:962`), the IR (`IrOp_ReadParam`, `Stage5_Schedule.cs:2979`), the `Params` struct (`AiPrimitiveEmitter.cs:88`,
+`InstanceEmitter.cs:401`, `LibraryEmitter.cs:231`) and the legacy parse (`ParseParams`, flat, keyed by Parameter name) all read `asset.Parameters`.
+The AiPrimitive hosts bind the generated `{Name}_{Id:X8}_Bp+Params` by NAME (`BTreeMethodCompatibilityValidator.cs:373`) and size it from the
+`.bp.json` Parameters (`GeneratedBlueprintSchemaCatalog.TryResolveParamsSize`).
+
+```mermaid
+classDiagram
+  direction LR
+  class BlueprintAsset { <<existing>> +ParamsDtoTypeId · +Parameters (a VIEW, now synthesized) }
+  class ParamsDtoFields { <<NEW, Hrot.Blueprints.Compiler>> +Materialize(asset, source) · synthesizes one Parameter per DTO field }
+  class IParamsDtoFieldSource { <<NEW>> +TryGetFields(typeId) → (Name, TypeId, DefaultJson)[] }
+  class ReflectionFieldSource { <<NEW, editor / in-process>> loaded type's public fields + [ParamsDto(DefaultJson)] }
+  class RoslynFieldSource { <<NEW, Hrot.AiEditor.Generators>> ITypeSymbol fields; a .params.json via GeneratedTypeCatalog }
+  class CompileOptions { <<existing, CHANGED>> +ParamsDtoFields: IParamsDtoFieldSource? }
+  class V_ParamsDtoRules { <<existing, CHANGED>> BP1689: any kind may name a DTO; a declared Parameter is an error }
+  class GetParameterNode { <<RETIRED>> }
+  class GetAllParametersNode { <<existing>> one pin per (synthesized) Parameter = per DTO field }
+  class GeneratedBlueprintSchemaCatalog { <<existing, CHANGED>> Params size + names from the DTO's fields }
+  IParamsDtoFieldSource <|.. ReflectionFieldSource
+  IParamsDtoFieldSource <|.. RoslynFieldSource
+  CompileOptions o-- IParamsDtoFieldSource
+  ParamsDtoFields ..> IParamsDtoFieldSource
+  ParamsDtoFields ..> BlueprintAsset : fills Parameters
+  GetAllParametersNode ..> BlueprintAsset : Parameters
+  GeneratedBlueprintSchemaCatalog ..> IParamsDtoFieldSource
+```
+
+*What the picture shows that prose hid: nothing DOWNSTREAM of `asset.Parameters` changes. The DTO's fields are materialized as the
+Parameter view at load (editor) and at Stage 0 (compiler); the `Params` struct, the flat parse, `IrOp_ReadParam`, Get All Parameters' pins and
+the AiPrimitive hosts' `_Bp+Params` binding keep working because the generated `Params` still has the same names, types and order — now
+the DTO's. ⇒ the AiPrimitive conversion needs the DTO only (steer 1's stop condition does not trigger).*
+
+```mermaid
+sequenceDiagram
+  participant G as BlueprintIncrementalGenerator / editor compile
+  participant F as ParamsDtoFields
+  participant S as field source (Roslyn / reflection)
+  participant C as Stage0 → … → emitters
+  G->>F: Materialize(asset, source) — asset.ParamsDtoTypeId = X
+  F->>S: TryGetFields(X)
+  S-->>F: (Name, TypeId, DefaultJson) per public field, in order
+  F->>F: Parameters := one ParameterDecl per field (Id = deterministic from asset + name)
+  F-->>G: asset (no Parameter is STORED in the file)
+  G->>C: compile — Params struct, flat ParseParams, pins, ReadParam unchanged
+  C-->>G: JsonParamsDtoType = X (the published contract)
+```
+
+| # | decision | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| P4-a | how the compiler learns the DTO's fields | a field source on `CompileOptions` (generator: Roslyn symbol fields, or a `.params.json` through `GeneratedTypeCatalog`); null ⇒ reflection over loaded assemblies (the editor / in-process path) — the `ClrSignatureResolver` / `StructSizeOracle` precedent | a fields list stored in the `.bp.json` (a second declaration of the DTO's shape — what R-2004 retires) |
+| P4-b | how the rest of the compiler sees them | synthesized Parameters (deterministic ids) — every reader keeps reading `asset.Parameters` | teach each reader about the DTO (5 emitters + 2 pin builders + IR + layout: the blast radius for nothing) |
+| P4-c | defaults | `[ParamsDto(DefaultJson)]` per field, for hand-written AND generated DTOs, read the same way by both sources | C# initializers (Roslyn sees only constants; reflection sees all ⇒ the two compilers would disagree) |
+| P4-d | the AiPrimitive hosts | unchanged: the generated `_Bp+Params` still mirrors the DTO's fields, names and order; the generator's size prediction reads the DTO's fields | hosts bind the DTO type directly (every host asset's variable type changes — a second migration) |
+| P4-e | resolvers | the resolver blueprint names the DTO; its `Params` is synthesized; the host behaviour publishes the resolver's DTO (`JsonParamsDtoType`) | keep publishing `{Resolver}_Bp+Params` (the CE-2130 mirror the rule forbids) |
+| P4-f | Get Parameter | retires (steer 2); its 2 graphs move to Get All Parameters (links re-pointed by pin name) | migrate-on-load of old files (no shipped file needs it after the 2 are rewritten) |
+| P4-g | where the DTOs come from | hand-written C# structs beside the behaviour (the user: "no problem writing dto class in csharp"); `DangerCrossingBp` names `DangerCrossingParams`, its C# twin's contract — ONE contract for both | `.params.json` assets for all 12 (fine, but the C# twin already has the DTO) |
+| P4-h | order | ① field source + materialize + BP1689 + emit (rails) → ② 3 behaviours → ③ 7 AiPrimitives (+ their hosts' goldens) → ④ 2 resolvers (+ HsmResolverDemo, T40) → ⑤ Get Parameter retires → ⑥ the legacy BTree / HSM Inputs (T09, T20, HsmVariableShowcase, HsmChannelE2E) → ⑦ delete `Role`, `StatefulSlotInfo.Role`, `StatefulSlotRole`; the allow-list ends EMPTY | one big bang (no red-proof per step) |
+
+### 13.11 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
 
 **INVENTORY** *(codebase-memory CLI `search_graph` `EntityOrders.*` (8), `.*MenuOrder.*` (12), `.*DtoJsonSchema.*` (3),
 `.*MapPickable.*` (10), `.*GlobalActionRequested.*` (8), `.*ContextMenuProjector.*` (4) + grep for `OrderMenu.` callers; every file

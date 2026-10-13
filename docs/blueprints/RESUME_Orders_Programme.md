@@ -28,7 +28,7 @@ RELEARN
 | P8 fields-only DTOs → P1 one `[Dto]` registry → P2 | backend session A | dispatched by [`HANDOFF_Params_Finish_Backend.md`](HANDOFF_Params_Finish_Backend.md) (at `75ba5b75b`) + [`STEER_Params_Finish_Backend_1.md`](STEER_Params_Finish_Backend_1.md) (R-2004/R-2005) + [`STEER_Params_Finish_Backend_2.md`](STEER_Params_Finish_Backend_2.md) (R-2006/R-2007). ⚠ the steers reach backend only when the USER relays them |
 | P3 full-rebuild caches → P4 blueprints name a DTO, Get Parameter retires | backend session B | same handoff |
 | P9 retire `PlatoonHillAttackBp`, keep the node checks | behaviors | ✅ done `79adf99f3` + `5f544644f` (replacement `SubordinateForEachDemo`) |
-| P5 `[Required]`, RTS fast path, `GET /orders`, the `OrderDraft` / `IOrderForm.Open` seam | behaviors | ✅ built `CE-2148` (design §13.9) |
+| P5 `[Required]`, RTS fast path, `GET /orders`, the `OrderDraft` / `IOrderForm.Open` seam | behaviors | ✅ built `CE-2148` (design §13.11) |
 | P5b the modeless order form, entity source for `PickerWindow`, 3D map picking | ui | 📤 handoff written: [`HANDOFF_Order_Form_Ui.md`](HANDOFF_Order_Form_Ui.md) — ⚠ the USER passes it to the ui lane |
 | P6 designations stage 1 (§13.3) · P7 the docs of §13.4 | behaviors | after P5 |
 | G3 (designations stage 2) | user | architect question offered, unanswered |

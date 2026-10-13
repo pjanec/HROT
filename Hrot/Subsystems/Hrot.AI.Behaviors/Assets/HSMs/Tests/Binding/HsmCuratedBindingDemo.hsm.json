@@ -221,5 +221,6 @@
         "Comment": "Region one's activity reads and counts here."
       }
     ]
-  }
+  },
+  "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams"
 }

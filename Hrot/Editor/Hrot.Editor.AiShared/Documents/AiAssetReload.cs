@@ -102,6 +102,10 @@ public static class AiAssetReload
         if (dto == null)     throw new ArgumentNullException(nameof(dto));
         if (compile == null) throw new ArgumentNullException(nameof(compile));
 
+        // ⭐ CE-3186 (P2, R-2001) — refuse instead of running a changed params DTO stale.
+        if (ParamsDtoStaleness.Check(dto.ParamsDtoTypeId) is { } stale)
+            return Format("BTree", dto.Name, new CompileOutcome(false, stale, 0));
+
         var topology = Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.EmitTopologyCore(dto);
         var bridge   = Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.EmitBridge(dto);
         var outcome  = compile(
@@ -116,6 +120,10 @@ public static class AiAssetReload
     {
         if (dto == null)     throw new ArgumentNullException(nameof(dto));
         if (compile == null) throw new ArgumentNullException(nameof(compile));
+
+        // ⭐ CE-3186 (P2, R-2001) — refuse instead of running a changed params DTO stale.
+        if (ParamsDtoStaleness.Check(dto.ParamsDtoTypeId) is { } stale)
+            return Format("HSM", dto.Name, new CompileOutcome(false, stale, 0));
 
         var topology = Hrot.AiEditor.Persistence.Emit.HsmEmitCore.EmitTopologyCore(dto);
         var bridge   = Hrot.AiEditor.Persistence.Emit.HsmBridgeEmitCore.EmitBridge(dto);

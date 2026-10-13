@@ -113,6 +113,13 @@ namespace Hrot.AI.Behaviors.Brains
             };
         }
 
+        /// <summary>⭐ <c>CE-2135</c> (P3, B3b-1) — the operator's behaviour takes nothing: its block is internal (the possession sends
+        /// <c>"{}"</c>, <c>Possession.cs</c>), so it names <see cref="NoParams"/> and this resolver starts the block clean (the Disembark shape).</summary>
+        [BehaviorResolver(BehaviorNames.OperatorControl)]
+        public static void Resolve(in NoParams authored, ref OperatorControlBlackboard block, EntityRepository world, Entity self)
+            => block.Control = default;
+
+        [Behavior(BehaviorNames.OperatorControl, Params = typeof(NoParams))]   // ⭐ CE-2135 (P3) — it takes nothing (P1: NoParams)
         [BTreeDefinition(BehaviorNames.OperatorControl, Curated = true, Group = "Operator", ParamsType = typeof(OperatorControlBlackboard))]
         public static BTreeBuilder<OperatorControlBlackboard, BTreeContext> BuildOperatorControlTree()
             => new BTreeBuilder<OperatorControlBlackboard, BTreeContext>()

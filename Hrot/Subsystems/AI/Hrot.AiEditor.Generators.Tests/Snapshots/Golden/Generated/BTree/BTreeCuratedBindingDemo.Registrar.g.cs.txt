@@ -92,43 +92,8 @@ public static class BTreeCuratedBindingDemoRegistrar
                 // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
                 __BakeDefaults(memory, capacity);
 
-                // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
-                // variable's deserializer (DEBT-AIB-021 names this shape).
-                // ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and
-                //    commits only on success, so a throw leaves the entity on its old behaviour.
-                if (!string.IsNullOrWhiteSpace(json))
-                {
-                    using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
-                    if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)
-                    {
-                        foreach (var __prop in __doc.RootElement.EnumerateObject())
-                        {
-                            switch (__prop.Name)
-                            {
-                                case "varC":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __o);
-                                    break;
-                                }
-                                case "varA":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 8, __o);
-                                    break;
-                                }
-                                case "varB":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 16, __o);
-                                    break;
-                                }
-                                // ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.
-                                default: break;
-                            }
-                        }
-                    }
-                }
+                // Step 2 — CE-2135: 'Hrot.Map.Definitions.Behavior.NoParams' is stored nowhere; the variables are not JSON.
+                global::Fdp.Toolkit.Behavior.BehaviorParams.RequireNoStoredFields(json, "BTreeCuratedBindingDemo", "Hrot.Map.Definitions.Behavior.NoParams");
             };
         }
 
@@ -146,7 +111,7 @@ public static class BTreeCuratedBindingDemoRegistrar
                 new("varA", typeof(global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams), 8),
                 new("varB", typeof(global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams), 16),
             },
-            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.BTreeCuratedBindingDemo_FdpToolkitBehaviorComponentsBrainBlackboard),
+            JsonParamsDtoType    = typeof(global::Hrot.Map.Definitions.Behavior.NoParams),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.BTreeCuratedBindingDemo_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,

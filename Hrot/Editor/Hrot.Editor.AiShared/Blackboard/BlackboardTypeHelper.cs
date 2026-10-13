@@ -69,8 +69,12 @@ public static class BlackboardTypeHelper
         var t = Type.GetType(typeId);
         if (t != null) return t;
 
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        // ⭐ CE-3186 (P2, R-2001) — the LAST loaded match: a hot reload loads a new copy of a DTO's assembly beside the old one
+        //   (GetAssemblies lists in load order), and the first match was the stale type.
+        var loaded = AppDomain.CurrentDomain.GetAssemblies();
+        for (int i = loaded.Length - 1; i >= 0; i--)
         {
+            var asm = loaded[i];
             Type? byName;
             try { byName = asm.GetType(typeId, throwOnError: false, ignoreCase: false); }
             catch { byName = null; }   // dynamic/reflection-only assemblies may throw

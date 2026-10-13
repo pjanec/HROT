@@ -75,7 +75,7 @@ public sealed class OrderVocabularyTests
         Assert.Contains("InfantrySquadAttack", found);
     }
 
-    // ── CE-2148 (P5, design §13.9) — mandatory fields, the completeness rule, the draft ──────────────────────────────
+    // ── CE-2148 (P5, design §13.11) — mandatory fields, the completeness rule, the draft ──────────────────────────────
 
     private struct TwoPicks { [Required] public EntityRef Who; [Required] public PickableGeoPoint Where; }
     private struct NeedsANumber { [Required] public float Range; public EntityRef Optional; }
