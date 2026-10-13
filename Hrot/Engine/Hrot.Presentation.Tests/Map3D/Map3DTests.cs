@@ -955,6 +955,61 @@ public sealed class Map3DTests
         Assert.Equal(0f, tracker.Advance(man, new Vector3(0.35f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, 36 / 60.0, false).Moving);
     }
 
+    // ── ⭐ CE-1064 (docs/DESIGN_Map_3D_Mode.md §6j) — the crouched figure: a kneel when still, a crouched run on the move ─────────────
+
+    /// <summary>⭐ CE-1064 — crouched and STILL, he KNEELS: the firing-side shin lies on the ground, the support shin stands upright with
+    /// its foot planted forward, and his hips are over his feet (between the planted foot and the kneeling heel) — ⛔ not behind both
+    /// feet, the "sitting on an invisible chair" squat it replaced. The head stays at the crouched stance's height.</summary>
+    [Fact]
+    public void CE1064_CrouchedAndStill_HeKneels_HipsOverHisFeet()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        foreach (bool soldier in new[] { true, false })
+        {
+            var kneel = BlockFigure.Parts(StanceId.Crouched, soldier);
+            Vector3 rightShinA = Point(kneel[3], size, -0.5f), rightShinB = Point(kneel[3], size, 0.5f);
+            Assert.True(rightShinA.Z < 0.12f && rightShinB.Z < 0.12f, $"the kneeling shin lies on the ground: {rightShinA} {rightShinB}");
+            Vector3 leftKnee = Point(kneel[1], size, -0.5f), leftFoot = Point(kneel[1], size, 0.5f);
+            Assert.True(leftKnee.Z > 0.35f && leftFoot.Z < 0.05f && MathF.Abs(leftKnee.X - leftFoot.X) < 0.08f,
+                        $"the support shin stands upright on a planted foot: {leftKnee} {leftFoot}");
+            float hipX = Point(kneel[0], size, -0.5f).X;
+            float backFoot = MathF.Min(rightShinA.X, rightShinB.X);
+            Assert.True(backFoot < hipX && hipX < leftFoot.X, $"the hips are between the feet: {backFoot} < {hipX} < {leftFoot.X}");
+            float torsoX = Point(kneel[BlockFigure.TorsoIndex], size, 0f).X;
+            Assert.True(backFoot < torsoX && torsoX < leftFoot.X, $"the torso is over the feet: {torsoX}");
+            Assert.All(kneel.Take(BlockFigure.TorsoIndex), p => Assert.Equal(PartRole.Hull, p.Role));   // still: nothing swings
+        }
+    }
+
+    /// <summary>⭐ CE-1064 — crouched and MOVING (R-265's crouched run), the legs SWING: the crouched run's leg parts take the swing roles,
+    /// so the gait moves the feet; the hips drop to the run's height, both feet come under him, and his head stays below a standing
+    /// man's. ⛔ Before, a crouched figure's legs had no swing role and slid along frozen.</summary>
+    [Fact]
+    public void CE1064_CrouchedAndMoving_TheLegsSwing_LowAndKneesBent()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        foreach (bool soldier in new[] { true, false })
+        {
+            var still = BlockFigure.Parts(StanceId.Crouched, soldier, WeaponPostureKind.Ready, WeaponPostureKind.Ready, 1f);
+            var run = BlockFigure.CrouchedMoving(still, soldier, WeaponPostureKind.Ready, WeaponPostureKind.Ready, 1f, 1f);
+            Assert.Equal(still.Length, run.Length);
+            Assert.Equal(PartRole.LegLeft, run[0].Role); Assert.Equal(PartRole.LegLeft, run[1].Role);
+            Assert.Equal(PartRole.LegRight, run[2].Role); Assert.Equal(PartRole.LegRight, run[3].Role);
+            Assert.Equal(0.90f - BlockFigure.CrouchRunDrop, Point(run[0], size, -0.5f).Z, 2);   // the run's hips
+            for (int i = 1; i <= 3; i += 2)
+            {
+                var ankle = Point(run[i], size, 0.5f);
+                Assert.InRange(ankle.Z, 0f, 0.05f);
+                Assert.True(Vector3.Distance(Point(run[i - 1], size, -0.5f), ankle) < 0.80f, "knees bent");
+            }
+            // the gait moves the left foot forward on a positive swing (thigh and shin from the hip)
+            var foot = Vector3.Transform(new Vector3(0.5f, 0, 0), run[1].BodyTransform(size, default, ArticulationPose.Neutral, new MotionPose(0, 0, 0.4f)));
+            Assert.True(foot.X > Point(run[1], size, 0.5f).X + 0.1f, $"the left foot swings forward: {foot}");
+            Assert.True(Top(run, size) < 1.55f, $"a crouched run stays low: {Top(run, size)}");
+            Assert.Same(still, BlockFigure.CrouchedMoving(still, soldier, WeaponPostureKind.Ready, WeaponPostureKind.Ready, 1f, 0f));
+        }
+    }
+
     /// <summary>⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — the dead figure lies on the ground (lower than prone), arms flung out
     /// wider than any stance; a soldier's rifle lies beside him; halfway through the fall he is between his stance and the ground.</summary>
     [Fact]

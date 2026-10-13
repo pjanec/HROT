@@ -113,8 +113,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             if (look.Family == VisualFamily.Person)
             {
                 // ⭐ WL-6c — the posture first (how AIMED he is), then the gait and the upper body from it
-                (parts, float aimed) = FigurePose(world, e, look.Soldier, simTime, motion);
-                motion = FigureMotion(world, e, motion, look.Soldier, tf, size, simTime, aimed);
+                (parts, float aimed, float crouchRun) = FigurePose(world, e, look.Soldier, simTime, motion);
+                motion = FigureMotion(world, e, motion, look.Soldier, tf, size, simTime, aimed, crouchRun);
             }
             else
             {
@@ -181,8 +181,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// ⭐ WL-6c — the GAIT: each shin bends back as its leg swings through (both feet lift); an AIMED soldier (<paramref name="aimed"/>
     /// 0..1, the posture blend) stands in the athletic stance — hips <see cref="BlockFigure.AthleticDrop"/> lower, the upper body leaning
     /// <see cref="AthleticLean"/> forward — and on the move GLIDES: shorter steps, knees always bent.
+    /// ⭐ CE-1064 — a crouched figure on the move (<paramref name="crouchRun"/> 0..1, its run weight) carries its hips at the crouched
+    /// run's height and leans forward by <see cref="BlockFigure.CrouchRunLean"/> — less as he aims.
     private MotionPose FigureMotion(EntityRepository world, Entity e, MotionPose motion, bool soldier, in SimTransform tf, Vector3 size, double simTime,
-                                    float aimed)
+                                    float aimed, float crouchRun = 0f)
     {
         var stance = LogicalStance.Of(world, e);
         if (stance == StanceId.Prone || Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e))
@@ -198,6 +200,12 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             KneeFlexL = lift * MathF.Max(0f, swingThrough),
             KneeFlexR = lift * MathF.Max(0f, -swingThrough),
         };
+        if (stance == StanceId.Crouched && crouchRun > 0f)
+            motion = motion with
+            {
+                HipZ = motion.HipZ + (BlockFigure.CrouchRunHipFraction - motion.HipZ) * crouchRun,
+                Lean = motion.Lean + BlockFigure.CrouchRunLean * crouchRun * (1f - AimedNow(soldier ? PostureOf(world, e) : WeaponPostureKind.AtEase)),
+            };
         if (!soldier) return motion;
         if (stance == StanceId.Standing && aimed > 0f)
             motion = motion with
@@ -234,8 +242,11 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         return true;
     }
 
-    /// <returns>The parts, and how AIMED he is (0..1, the posture blend) — the athletic stance and the glide follow it.</returns>
-    private (KitPart[] Parts, float Aimed) FigurePose(EntityRepository world, Entity e, bool soldier, double simTime, in MotionPose motion)
+    private static float AimedNow(WeaponPostureKind posture) => posture == WeaponPostureKind.Aimed ? 1f : 0f;
+
+    /// <returns>The parts, how AIMED he is standing (0..1, the posture blend) — the athletic stance and the glide follow it — and
+    /// ⭐ CE-1064 how much a CROUCHED figure is running (0..1, its stride).</returns>
+    private (KitPart[] Parts, float Aimed, float CrouchRun) FigurePose(EntityRepository world, Entity e, bool soldier, double simTime, in MotionPose motion)
     {
         float stride = motion.Stride;
         var target = LogicalStance.Of(world, e);
@@ -250,21 +261,24 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e))
         {
             var (t, from) = _fall.Dead(e, simTime);
-            return (BlockFigure.Fall(BlockFigure.Parts(from, soldier, posture), t, soldier), 0f);
+            return (BlockFigure.Fall(BlockFigure.Parts(from, soldier, posture), t, soldier), 0f, 0f);
         }
         _fall.Alive(e, target, simTime);
         if (world.IsComponentTypeRegistered<StanceStatus>() && world.HasComponent<StanceStatus>(e))
         {
             ref readonly var status = ref world.GetComponentRO<StanceStatus>(e);
             if (status.Phase == StanceTransitionPhase.Transitioning && status.CurrentStance != target)
-                return (BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier, postureFrom, postureTo, postureT), 0f);
+                return (BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier, postureFrom, postureTo, postureT), 0f, 0f);
         }
         var parts = BlockFigure.Parts(target, soldier, postureFrom, postureTo, postureT);
         // ⭐ WL-6d — prone and moving: the crawl (never aimed), blended in by how much he moves
-        if (target == StanceId.Prone && motion.Moving > 0f) return (BlockFigure.Crawl(parts, soldier, motion.CrawlPhase, motion.Moving), 0f);
+        if (target == StanceId.Prone && motion.Moving > 0f) return (BlockFigure.Crawl(parts, soldier, motion.CrawlPhase, motion.Moving), 0f, 0f);
+        // ⭐ CE-1064 — crouched and on the move: the crouched run (R-265), blended in by his stride; still, he kneels
+        if (target == StanceId.Crouched && stride > 0f)
+            return (BlockFigure.CrouchedMoving(parts, soldier, postureFrom, postureTo, postureT, stride), 0f, stride);
         // ⭐ WL-6c — aimed and on the move: the combat glide (feet under the lowered hips, knees bent)
         if (soldier && target == StanceId.Standing && aimed > 0f && stride > 0f) parts = BlockFigure.Glide(parts, aimed * stride);
-        return (parts, target == StanceId.Standing ? aimed : 0f);
+        return (parts, target == StanceId.Standing ? aimed : 0f, 0f);
     }
 
     private readonly MotionTracker _motion = new();
