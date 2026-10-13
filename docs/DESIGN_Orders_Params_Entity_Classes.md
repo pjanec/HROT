@@ -1897,6 +1897,18 @@ sequenceDiagram
   Rejected:
   - deriving node memory from bindings — a variable's kind would depend on who binds it;
   - keeping `Role` — fails P4's acceptance and keeps the misleading name.
+  ⛔ **That lean is RETRACTED (2026-10-13, user: "why would we show the user those variable kinds? what would he do with that?").**
+  The target is §5c B3a: the author sees `Params` (read-only) and ONE list of variables, with no kind. Measured:
+  - `Scope=Node` has not been authorable since CE-435 (`BlackboardVariableEnums.cs:24`). It exists only for the memory the
+    editor creates when a stateful primitive is picked, and its storage already requires a node binding (`StateVariableStorage.cs:57`).
+  - The runtime never reads `Role`, and reads `Scope` only for inspector labels (`StatefulWorkingStateProjection.cs:84`,
+    `BehaviorParamSlotResolver.cs:70`). The difference is only the slot-key formula the generator picks.
+  - The 8 `State` variables are ordinary values (`Cursor`, `Ticks`, `Doubled`, `SharedCursor`, three working-state structs).
+  - The outline still shows three sections ("Variables", "Working State", "Asset Globals",
+    `BlackboardMyBlueprintModel.cs:85-100`), and the old panel still draws Role/Scope dropdowns. That is leftover, not the target.
+  ⇒ Storage (packed vs working-state, node-keyed vs shared) becomes a generator decision derived from what the file already
+  says (type, bindings), with no persisted kind. To be measured before building: whether packed vs working-state can be derived
+  without moving any shipped asset's bytes.
 - **Not yet**: the editor's Variables / Details panels still list only DECLARED Parameters (a DTO-named asset shows none) — the canvas
   pins are right (`ParametersOf`), the panels are the ui lane's surface (P5b). Steps ③–⑦ follow.
 
