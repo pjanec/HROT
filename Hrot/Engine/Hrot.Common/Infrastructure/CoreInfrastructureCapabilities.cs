@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Hrot.Common.Systems;
 
@@ -42,6 +43,46 @@ namespace Hrot.Common.Infrastructure;
 /// </remarks>
 public static class CoreInfrastructureCapabilities
 {
+    /// <summary>
+    /// ⭐⭐ <c>CE-2144</c> (R-2008) — THE way a host starts its plan: a new plan whose first declaration is <see cref="HealthApplication"/>,
+    /// so damage is applied at the HEAD of Simulation on every live-simulation node (before the cognitive runtime and the dispatchers
+    /// read the capabilities it strips). 📄 docs/DESIGN_Orders_Params_Entity_Classes.md §11.2.
+    /// </summary>
+    /// <remarks>⛔ A host never writes <c>new NodeCompositionPlan()</c> — a source rail pins that every production plan comes from here.
+    /// 🔒 User, <c>2026-10-13</c>: "provided it runs unified on any ECS enabled node running live simulation - shared code, shared
+    /// bootstrap".</remarks>
+    public static NodeCompositionPlan LiveSimulationPlan(NodeRole role)
+        => new NodeCompositionPlan().Capability(role, new HealthApplication());
+
+    /// <summary>
+    /// ⭐ <c>CE-2144</c> (R-2008) — <c>HealthApplicationSystem</c>, the owner side of damage: applies a <c>DamageAssessedEvent</c> where
+    /// this node holds the entity's Health claim and strips <c>CanMove</c>/<c>CanShoot</c> at 0 HP. Cross-role because a passenger, a
+    /// door or a soldier may be owned by a node of any role; inert where nothing publishes damage (an unregistered event reads empty).
+    /// </summary>
+    /// <remarks>⛔ Declared ONLY by <see cref="LiveSimulationPlan"/> — its position is load-bearing (§11.1): at the head it strips the
+    /// capabilities before the cognitive runtime and the dispatchers of the same frame read them, as it did inside <c>CgfLogicPack</c>.</remarks>
+    public sealed class HealthApplication : INodeCapability
+    {
+        private readonly Fdp.Toolkit.Combat.Systems.HealthApplicationSystem _system = new();
+
+        public string Key => CapabilityKeys.HealthApplication;
+
+        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
+
+        /// <summary>The systems, for a hand-wired harness that must match production (CE-493); run them FIRST in its sim list.</summary>
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system };
+
+        public void PopulateSystems(
+            HrotNodeContext context,
+            List<IEcsModuleSystem> input,
+            List<IEcsModuleSystem> simulation,
+            List<IEcsModuleSystem> postSimulation)
+        {
+            if (simulation is null) throw new ArgumentNullException(nameof(simulation));
+            simulation.Add(_system);
+        }
+    }
+
     /// <summary>
     /// Maintains the ECS commander/subordinate hierarchy (<c>CS016</c>).
     /// </summary>

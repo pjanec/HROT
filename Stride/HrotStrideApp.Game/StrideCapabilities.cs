@@ -76,7 +76,8 @@ public static class StrideCapabilities
     {
         if (muscleSet is null) throw new ArgumentNullException(nameof(muscleSet));
 
-        return new NodeCompositionPlan()
+        // ⭐⭐ CE-2144 (R-2008) — the ONE shared plan head (HealthApplication first). In mode 1 the editor's own head wins the Key.
+        return Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.LiveSimulationPlan(NodeRole.MuscleGround)
             .Capability(NodeRole.MuscleGround, new MuscleGround(muscleSet))
             .Capability(NodeRole.Perception,   new PerceptionSolver())
             // ⭐⭐ CE-221 — the two systems StrideMuscleModule used to register itself. Registering them

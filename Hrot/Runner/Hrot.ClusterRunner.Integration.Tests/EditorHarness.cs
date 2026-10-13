@@ -325,6 +325,10 @@ public sealed class EditorHarness : IDisposable
         //   (EditorCapabilities) — without it the solver answers and NOTHING writes EqsCognitiveBuffer.
         Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("EqsResultUpdate", new Hrot.SimHost.Systems.EqsResultUpdateSystem()));
         Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("UnitHierarchy", new Hrot.Common.Systems.UnitHierarchySystem()));
+        // ⭐⭐ CE-2144 (R-2008) — damage application left CgfLogicPack for the shared plan head (CoreInfrastructureCapabilities.HealthApplication),
+        //   which production runs FIRST in Simulation. Registered before EditorSimulationModule so it runs ahead of the pack here too.
+        foreach (var s in new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.HealthApplication().Systems)
+            Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule(s.GetType().Name, s));
         // ⭐ CE-3110 — the interaction appliers are cross-role infrastructure too (CoreInfrastructureCapabilities.Interactions): the same systems
         //   every production plan resolves, taken from the capability itself so this harness cannot drift from it.
         foreach (var s in new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions().Systems)

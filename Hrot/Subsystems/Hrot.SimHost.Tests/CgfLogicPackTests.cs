@@ -214,7 +214,10 @@ namespace Hrot.SimHost.Tests
             // ⛔ CE-3110 (2026-10-12) — EmbarkationSystem joined the pack in I-2a and LEFT it the same day, and DoorCommandSystem (5d-1)
             //   left with it: the interaction appliers are cross-role infrastructure (CoreInfrastructureCapabilities.Interactions, every
             //   host's plan) — a door or a vehicle can be owned by a node of any role.
-            Assert.Equal(20, pack.SimulationSystems.Count);
+            // ⛔ CE-2144 (2026-10-13, R-2008) — 1 FEWER: HealthApplicationSystem left the pack for the shared plan head
+            //   (CoreInfrastructureCapabilities.HealthApplication, declared FIRST by LiveSimulationPlan on every host).
+            Assert.Equal(19, pack.SimulationSystems.Count);
+            Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Terrain.DoorCommandSystem);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
@@ -437,7 +440,10 @@ namespace Hrot.SimHost.Tests
             // ⛔ CE-3110 (2026-10-12) — EmbarkationSystem joined the pack in I-2a and LEFT it the same day, and DoorCommandSystem (5d-1)
             //   left with it: the interaction appliers are cross-role infrastructure (CoreInfrastructureCapabilities.Interactions, every
             //   host's plan) — a door or a vehicle can be owned by a node of any role.
-            Assert.Equal(20, pack.SimulationSystems.Count);
+            // ⛔ CE-2144 (2026-10-13, R-2008) — 1 FEWER: HealthApplicationSystem left the pack for the shared plan head
+            //   (CoreInfrastructureCapabilities.HealthApplication, declared FIRST by LiveSimulationPlan on every host).
+            Assert.Equal(19, pack.SimulationSystems.Count);
+            Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Terrain.DoorCommandSystem);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
@@ -473,7 +479,7 @@ namespace Hrot.SimHost.Tests
             // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
             // ⛔ O7c-④b (2026-09-23): 19 → 18 — the two brain ticks merged (§31.14 / §31.16).
             // ⭐ CE-454 (2026-10-02): 18 → 19 — SquadCoordinationSystem (DESIGN_Squad_Wiring.md §3 W2).
-            Assert.Equal(25, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-3110: the interaction appliers (embarkation, and 5d-1's DoorCommandSystem) left the pack for the cross-role capability · CE-2125: +1 (UnitCentroidSystem) · CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · CE-3172: +1 (PossessionSystem) · CE-3174: +1 (WeaponAmmoMirrorSystem)
+            Assert.Equal(24, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⛔ CE-2144: −1 (HealthApplicationSystem → the shared plan head) · ⭐ CE-3110: the interaction appliers (embarkation, and 5d-1's DoorCommandSystem) left the pack for the cross-role capability · CE-2125: +1 (UnitCentroidSystem) · CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · CE-3172: +1 (PossessionSystem) · CE-3174: +1 (WeaponAmmoMirrorSystem)
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────

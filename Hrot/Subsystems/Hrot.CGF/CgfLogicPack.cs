@@ -65,7 +65,7 @@ namespace Hrot.CGF
         private readonly MissionAdapterSystem   _missionAdapterSystem;
 
         // ── Standalone systems (moved from RegisterSystems overloads) ──────────
-        private readonly HealthApplicationSystem      _healthApplicationSystem;        private readonly ActiveSensorTracksUpdateSystem _activeSensorTracksUpdateSystem;        private readonly CgfThreatEvaluationSystem    _cgfThreatEvaluationSystem;
+        private readonly ActiveSensorTracksUpdateSystem _activeSensorTracksUpdateSystem;        private readonly CgfThreatEvaluationSystem    _cgfThreatEvaluationSystem;
         private readonly RouteContextSystem           _routeContextSystem;
         private readonly TacticalIntentResolutionSystem _tacticalIntentResolutionSystem;
         private readonly Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem _squadCoordinationSystem;   // CE-454
@@ -196,7 +196,6 @@ namespace Hrot.CGF
                     System.Linq.Enumerable.Select(BehaviorConstants.DoorActionExecutors(),
                         d => (d.Id, (IActionExecutor<InteractionChannel>)d.Executor)))));
 
-            _healthApplicationSystem   = new HealthApplicationSystem();
             _activeSensorTracksUpdateSystem = new ActiveSensorTracksUpdateSystem();
             _cgfThreatEvaluationSystem = new CgfThreatEvaluationSystem();
             _routeContextSystem        = new RouteContextSystem();
@@ -228,7 +227,9 @@ namespace Hrot.CGF
             simList.Add(_missionAdapterSystem);
             simList.Add(_tacticalIntentResolutionSystem);
             foreach (var s in _missionControlModule.SimulationSystems) simList.Add(s);
-            simList.Add(_healthApplicationSystem);
+            // ⛔ CE-2144 (R-2008) — HealthApplicationSystem is NOT pack content: any live-simulation node may own Health, so it is the
+            //   cross-role CoreInfrastructureCapabilities.HealthApplication, declared FIRST by the shared LiveSimulationPlan head — ahead of
+            //   everything here, so the capabilities it strips at 0 HP are stripped before the cognitive runtime and the dispatchers read them.
             // ⛔ CE-3110 — the interaction APPLIERS (DoorCommandSystem, EmbarkationSystem) and EmbarkedStateSystem are NOT pack content:
             //   any node that can own a live entity needs them, so they are the cross-role CoreInfrastructureCapabilities.Interactions,
             //   declared in every host's plan (like UnitHierarchy).

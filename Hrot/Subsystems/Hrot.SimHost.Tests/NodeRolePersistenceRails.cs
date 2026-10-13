@@ -328,7 +328,8 @@ namespace Hrot.SimHost.Tests
             var src = CompositionRootSource.StripComments(
                 CompositionRootSource.ReadRepoSource(CgfRoot));
 
-            Assert.Contains("new NodeCompositionPlan()", src);
+            // ⭐ CE-2144 (R-2008) — the plan starts from the ONE shared head (LiveSimulationPlanRails pins that no host bypasses it).
+            Assert.Contains("CoreInfrastructureCapabilities.LiveSimulationPlan(", src);
             Assert.Contains("capability.ProvideModules()", src);
             Assert.Contains("capability.PopulateSystems(", src);
 

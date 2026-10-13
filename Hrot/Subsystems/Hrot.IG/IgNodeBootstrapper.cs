@@ -268,7 +268,9 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     {
         if (_capabilities != null) return _capabilities;
 
-        var plan = new NodeCompositionPlan()
+        // ⭐⭐ CE-2144 (R-2008) — the ONE shared plan head. ⚠ IG's PopulateSystems walks no capability today (CE-2150), so nothing
+        //    here ticks on IG yet; the plan is shared so that fixing that walk is the only change IG needs.
+        var plan = CoreInfrastructureCapabilities.LiveSimulationPlan(NodeRole.Map2D)
             .Capability(
                 NodeRole.Map2D,
                 new IgCapabilities.Presentation(

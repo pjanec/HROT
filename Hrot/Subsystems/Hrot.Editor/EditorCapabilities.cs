@@ -93,7 +93,8 @@ public static class EditorCapabilities
 
         // ⭐ CE-3017 — the solver is APPENDED after the EQS solver: it contributes modules only (no PopulateSystems), so
         //    every system sequence the order rails pin is unchanged, and every module registered before it keeps its slot.
-        return new NodeCompositionPlan()
+        // ⭐⭐ CE-2144 (R-2008) — the ONE shared plan head (HealthApplication first, ahead of the Brain's cognitive runtime).
+        return CoreInfrastructureCapabilities.LiveSimulationPlan(NodeRole.Brain)
             .Capability(NodeRole.Brain,        new Brain(cgfPack))
             .Capability(NodeRole.MuscleGround, new MuscleGround(musclePack))
             .Capability(NodeRole.Perception,   new PerceptionEqsSolver())
@@ -125,7 +126,8 @@ public static class EditorCapabilities
         if (cgfPack is null) throw new ArgumentNullException(nameof(cgfPack));
         if (injectedMuscleCapabilities is null) throw new ArgumentNullException(nameof(injectedMuscleCapabilities));
 
-        var plan = new NodeCompositionPlan()
+        // ⭐⭐ CE-2144 (R-2008) — the ONE shared plan head; an injected plan's own head loses the Key to this one (first wins).
+        var plan = CoreInfrastructureCapabilities.LiveSimulationPlan(NodeRole.Brain)
             .Capability(NodeRole.Brain, new Brain(cgfPack));
 
         // ⭐ S2b — the host hands over CAPABILITIES, not bare modules. They are added in the host's

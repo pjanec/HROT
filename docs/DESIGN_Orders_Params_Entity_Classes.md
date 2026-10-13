@@ -1015,7 +1015,7 @@ Design docs checked: OC1-DESIGN §2.1 (OC1-S001) — *superseded here*: its reas
 network-agnostic"*, still holds, because the lookup lives in `Hrot.AI.Behaviors` (HROT), not FDP; its §2.1 gets a superseded
 note. Parameter Model §P.2 (bake → overlay → resolve) — *applies*: the typed resolver is its resolve stage.
 
-## 11. CE-2144 E1 — health application is cross-role *(build-state: ⏸ STOPPED `2026-10-12` on a measured ordering question — see "Found before building"; behaviors)*
+## 11. CE-2144 E1 — health application is cross-role *(build-state: BUILT `2026-10-13` as option D — §11.2, R-2008; was ⏸ STOPPED `2026-10-12` on a measured ordering question; behaviors)*
 
 **Why:** R-275 (behaviors) — every node that can own live entities is equal in capability. `HealthApplicationSystem` (the owner
 side of damage: it applies a `DamageAssessedEvent` where this node holds the entity's Health claim) is built only by
@@ -1083,7 +1083,108 @@ and R-275 rules out the cheap fix (keep it in the CGF pack and add it per host e
 one call (`HealthApplicationSystem.cs:87-105`, `CombatLife.ApplyHitCapabilities`). At the tail, both are still unchanged when the
 dispatchers run, so a dispatcher testing `Health.Current > 0` sees what the capability test sees. ⇒ A = C plus code. The lean moved to D.
 
-**User decision needed** before building (the blast radius is every host's Simulation order).
+~~**User decision needed** before building (the blast radius is every host's Simulation order).~~ ⭐ Decided — D, §11.2.
+
+### 11.2 ⭐ D, as approved — one shared plan head *(R-2008, 2026-10-13; build-state: READY-TO-BUILD → BUILT, as-built below)*
+
+🔒 **User, 2026-10-13:** *"D approved (provided it runs unified on any ECS enabled node running live simulation - shared code, shared bootstrap)"*.
+
+**INVENTORY** *(grep `new NodeCompositionPlan()` over production sources, `has 6 hits` — the graph does not model constructor calls)*: the
+six host plans are `CgfSubsystem.cs:976`, `SimHostNodeBootstrapper.cs:322`, `IgNodeBootstrapper.cs:271`, `EditorCapabilities.cs:96`
+(default arm), `EditorCapabilities.cs:128` (injected arm), `StrideCapabilities.cs:79`. Every one is a bare `new` — nothing shared
+starts a plan today. Hand-wired harnesses that build `CgfLogicPack` and run its lists: `EditorHarness`, `SimHostInstance`,
+`OfflineKernelBootTests`, `TheHaltCannotStopTheClockTests`, `EditorCapabilitiesTests`.
+
+```mermaid
+classDiagram
+  class NodeCompositionPlan {
+    +Capability(role, cap) NodeCompositionPlan
+    +Resolve(role) IReadOnlyList~INodeCapability~
+  }
+  class CoreInfrastructureCapabilities {
+    <<static>>
+    +LiveSimulationPlan(role)$ NodeCompositionPlan
+  }
+  class HealthApplication {
+    NEW
+    +Key = cap:infra:health-application
+    +Systems
+    +PopulateSystems(..simulation)
+  }
+  class UnitHierarchy { existing, plan tail }
+  class Interactions { existing, plan tail }
+  class HealthApplicationSystem { existing, Fdp.Toolkits }
+  class CgfLogicPack { no longer builds it }
+  CoreInfrastructureCapabilities ..> NodeCompositionPlan : creates, head declared
+  CoreInfrastructureCapabilities *-- HealthApplication
+  CoreInfrastructureCapabilities *-- UnitHierarchy
+  CoreInfrastructureCapabilities *-- Interactions
+  HealthApplication o-- HealthApplicationSystem
+  INodeCapability <|.. HealthApplication
+```
+
+*What the picture shows that prose hid: "first" is not a convention each host keeps — the plan is BORN with the head, so a host
+cannot declare anything before it. The shared code is the capability; the shared bootstrap is the factory.*
+
+```mermaid
+graph TD
+  F["CoreInfrastructureCapabilities.LiveSimulationPlan(role)"]
+  CGF[CgfSubsystem] --> F
+  SH[SimHostNodeBootstrapper] --> F
+  ED1[EditorCapabilities default arm] --> F
+  ED2[EditorCapabilities injected arm] --> F
+  ST[StrideCapabilities] --> F
+  IG[IgNodeBootstrapper] --> F
+  F --> HA[HealthApplication - declared FIRST]
+  HA -->|PopulateSystems: head of the sim list| G1[CgfSimulation group]
+  HA --> G2[SimHostSim / StrideSim / editor plan sim group]
+  IG -.->|"PopulateSystems is EMPTY (IgNodeBootstrapper.cs:226): declared, never ticked"| X[no IG sim system]
+  K[kernel Simulation phase] -->|each frame, head of the group| G1
+  K --> G2
+  style X stroke:#c00,stroke-dasharray: 5 5
+```
+
+*What the picture shows that prose hid: IG declares every cross-role capability and runs none of them — its `PopulateSystems`
+walks nothing (red edge). That is pre-existing and also true of `UnitHierarchy` / `Interactions` there; IG says it "runs no
+simulation of its own", so R-2008's "node running live simulation" does not include it today. Filed as `CE-2150`, not changed here.*
+
+```mermaid
+sequenceDiagram
+  participant K as kernel Simulation (one frame, CGF)
+  participant HA as HealthApplicationSystem
+  participant MD as MissionDirector
+  participant CR as cognitive runtime
+  participant AD as action dispatch
+  K->>HA: head: apply last frame's DamageAssessedEvent, strip CanMove/CanShoot at 0 HP
+  K->>MD: HealthCritical trigger reads Health (now this frame's, was one frame late)
+  K->>CR: CognitiveInterrupt sees lost CanMove (same frame as before)
+  K->>AD: dispatchers see the stripped capabilities (same frame as before)
+```
+
+| claim | code | design |
+|---|---|---|
+| registration order is execution order inside a host's sim group | ✅ every host walks the resolved list into one list (`CgfSubsystem.cs:1002`, `SimHostNodeBootstrapper.cs:375`, `StrideNodeBootstrapper.cs:351`, `EditorSubsystem.cs:1661`) | ✅ `NodeCompositionPlan` remarks (flat ordered list) |
+| nothing on CGF before the old position reads Health except `MissionDirectorSystem` | ✅ grep: `MissionAdapter`, `TacticalIntentResolution` none; `MissionDirectorSystem.cs:187-192` reads it (HealthCritical) ⇒ it gets this frame's value, one frame EARLIER — a correction | ⛔ searched, no record |
+| harmless where nothing is assessed | ✅ `FdpEventBus.Read` returns empty for an unregistered event (`FdpEventBus.cs:231-249`); the Health claim gate (`HealthApplicationSystem.cs:79`) | ✅ BS-1 |
+| a fused node runs it once | ✅ `Resolve` de-duplicates by Key, first wins (`NodeCapability.cs` Resolve) — an injected Stride plan's copy loses to the editor's head | ✅ CE-221 |
+| replay does not apply damage | ✅ it lands in each host's TOGGLABLE sim group, which replay disables (as in `CgfLogicPack` before) | ✅ `SharedApplicationBootstrapper.cs:200-209` |
+| AQ90 §3 D's open item: "`HsmDamageBridgeSystem` reads its result" | ✅ **gone** — no `class HsmDamageBridgeSystem` anywhere (grep, 2026-10-13); nothing else is placed relative to it | ✅ AQ90 §3 D |
+| AQ90 §3 D's open item: does damage reach a non-CGF owner | ✅ the network ingress (`EntityHitDamageIngressTranslator`) is built for the Brain role only (`SimHostAuxiliaryTranslatorPack.cs:78-83`); a SimHost / Stride owner gets it from its OWN bus — `DamageCalculationSystem`, `AreaEffectSystem.cs:154`, `EmbarkedStateSystem.cs:109` (a passenger) — which is exactly what nothing applied before | ✅ AQ90 §3 D |
+
+**Decisions (leans, built):** a **factory** `LiveSimulationPlan(role)` rather than an extension called first — first-by-construction
+beats first-by-convention · **every host goes through it, IG included** (its plan is shared even though nothing ticks there yet) · a
+**source rail**: no production `new NodeCompositionPlan()` outside the factory — the shared bootstrap cannot be bypassed silently.
+Rejected: **a head + tail helper pair** — the tails differ per host (IG has no EQS update, SimHost/editor append the animation muscle),
+so a shared tail would reorder systems silently; **enable IG's walk now** — it would also start `UnitHierarchySystem` on IG, which has
+no authority gate (`UnitHierarchySystem.cs:41-90`): its own measurement, `CE-2150`.
+
+**As built (2026-10-13, behaviors):** exactly the diagrams above — `CoreInfrastructureCapabilities.LiveSimulationPlan(role)` +
+`HealthApplication` (key `cap:infra:health-application`, `Systems` for harnesses); the six plans start from it (CGF, SimHost, IG, both
+editor arms, Stride); `CgfLogicPack` no longer builds the system (sim 20 → 19, input + sim 25 → 24); the two hand-wired harnesses
+(`EditorHarness`, `SimHostInstance`) run it first. Rails: `LiveSimulationPlanRails` (no production `new NodeCompositionPlan()` outside
+the factory; damage applied on a Brain-less plan; inert without the event), `EditorCapabilitiesTests.CE2144_*` (first and once on both
+arms, an injected head de-duplicates), the Stride and pack-count rails, and `NodeRolePersistenceRails` now pins the factory call.
+Deviations: none from the diagrams.
 
 ## 12. CE-2136 B4 — the params DTO asset *(build-state: B4a BUILT `2026-10-12` — as-built §12.1 · B4b DESIGN, awaits the user — behaviors, taking Track B overnight)*
 

@@ -319,7 +319,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         Fdp.Toolkit.Navigation.Modules.NavigationSolverModule BuildSolver()
             => new(solverRoad, solverPool, Navmesh, roadNetworkHolder: _nodeBootstrapper?.RoadNetworkHolder);
 
-        var plan = new Hrot.Common.Infrastructure.NodeCompositionPlan()
+        // ⭐⭐ CE-2144 (R-2008) — the ONE shared plan head (HealthApplication first): damage owned here is applied here.
+        var plan = Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.LiveSimulationPlan(NodeRole.MuscleGround)
             .Provider(TrajectoryPool)
             .Capability(NodeRole.MuscleGround,     new SimHostCapabilities.MuscleGround(CoreLogicPack))
             .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSolver())

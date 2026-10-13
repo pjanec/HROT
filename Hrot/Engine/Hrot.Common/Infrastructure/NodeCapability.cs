@@ -78,6 +78,13 @@ public static class CapabilityKeys
     /// to <c>CoreInfrastructureCapabilities.Interactions</c> — one place, never a host.
     /// </summary>
     public const string Interactions = "cap:infra:interactions";
+
+    /// <summary>
+    /// ⭐ <c>CE-2144</c> (R-2008) — damage applied where this node holds the entity's Health claim. Cross-role and at the HEAD of
+    /// Simulation on every live-simulation node: <c>CoreInfrastructureCapabilities.LiveSimulationPlan</c> declares it first.
+    /// 📄 docs/DESIGN_Orders_Params_Entity_Classes.md §11.2.
+    /// </summary>
+    public const string HealthApplication = "cap:infra:health-application";
 }
 
 /// <summary>Keys for the one-per-world resources capabilities share.</summary>

@@ -251,6 +251,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// nothing to do is the honest outcome; silencing the assertion would not be.</para>
         /// </summary>
         private readonly Fdp.Toolkit.Replication.Systems.GhostPromotionSystem _promotionSystem;
+        // ⭐ CE-3136 P-7a — the pack's obstacle bake (a static obstacle waits Constructing until this node's terrain holds it).
+        private readonly Hrot.Map.Common.Services.StaticObstacleBakeSystem _obstacleBakeSystem;
         private readonly SystemList                     _elmSystems  = new();
         private readonly SystemList                     _geoSystems  = new();
 
@@ -362,13 +364,14 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _spawnSystem        = creation.SpawnSystem;
             _finalizationSystem = creation.FinalizationSystem;
             _promotionSystem    = creation.PromotionSystem;
+            _obstacleBakeSystem = creation.ObstacleBakeSystem;
             Translators         = creation.Translators;
 
             // The pack builds every piece; this harness schedules all three below in Tick(), so
             // nothing may be unserviceable. Asserting here rather than logging keeps the harness
             // honest about the thing it now exists to prove.
             var unserviceable = creation.Unserviceable(new object[]
-                { _requestSystem, _spawnSystem, _finalizationSystem, _promotionSystem });
+                { _requestSystem, _spawnSystem, _finalizationSystem, _promotionSystem, _obstacleBakeSystem });
             if (unserviceable.Length > 0)
                 throw new InvalidOperationException(
                     "SimHostInstance did not schedule every EntityCreationPack piece: " + unserviceable);
@@ -395,6 +398,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             foreach (var s in brainPack.InputSystems)       inputList.Add(s);
             foreach (var s in musclePack.InputSystems)      inputList.Add(s);
 
+            // ⭐⭐ CE-2144 (R-2008) — damage application left CgfLogicPack for the shared plan head; production runs it FIRST in Simulation.
+            new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.HealthApplication().PopulateSystems(context: null!, inputList, simList, postSimList);
             foreach (var s in brainPack.SimulationSystems)  simList.Add(s);
             foreach (var s in musclePack.SimulationSystems) simList.Add(s);
             // ⭐ CE-3110 — the interaction appliers left CgfLogicPack for the cross-role CoreInfrastructureCapabilities.Interactions (every production
@@ -832,6 +837,9 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // Force-activate any entity still in Constructing state.
             // (With zero ELM participants the ACK protocol never completes, so we
             // short-circuit it here for the test harness.)
+            // ⭐ CE-3136 P-7a — scheduled as SimHostNodeBootstrapper does (:562); the guard above refused the harness without it
+            //   from 0566241b1 on, which left this whole suite unconstructible (found running CE-2144's gates, 2026-10-13).
+            _obstacleBakeSystem.Execute(view, dt);
             ActivateConstructingEntities();
 
             // Phase-2 ACK dispatch: now that entities have been force-activated, the

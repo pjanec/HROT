@@ -67,6 +67,9 @@ public class StrideCapabilitiesTests
         Assert.Contains(resolved, c => c.Key == CapabilityKeys.MuscleGround);
         // ⭐ CE-3110 — a Stride node can own vehicles and passengers too: embarkation is cross-role infrastructure on every plan.
         Assert.Single(resolved, c => c.Key == CapabilityKeys.Interactions);
+        // ⭐ CE-2144 (R-2008) — a Stride node applies damage it owns: the shared plan head, FIRST.
+        Assert.Equal(CapabilityKeys.HealthApplication, resolved[0].Key);
+        Assert.Single(resolved, c => c.Key == CapabilityKeys.HealthApplication);
     }
 
     /// <summary>

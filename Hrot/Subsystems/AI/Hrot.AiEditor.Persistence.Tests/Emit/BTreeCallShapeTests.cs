@@ -125,6 +125,13 @@ public sealed class BTreeCallShapeTests
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000022", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000031", BTreeDelegateShapeDto.Plain),
+        // ⭐ CE-3189 (CE-2123 S2's squad SOP, never recorded) — shapes read from the SOURCE signatures, not the classifier:
+        //   SopConditions.SensedFresh (SopConditions.cs:55) and SquadSopConditions.SensedFreshAboard (SquadDismountBehavior.cs:145)
+        //   are both (ref SopSenseParams, Entity, EntityRepository) ⇒ the plain three-param shared form, as BasicInfantrySop records.
+        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
+        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.Plain),
+        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000031", BTreeDelegateShapeDto.Plain),
+        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000041", BTreeDelegateShapeDto.Plain),
         ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.Plain),
         ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Plain),
         ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),

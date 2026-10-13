@@ -973,7 +973,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ⚠ BEHAVIOUR-PRESERVING BY CONSTRUCTION: resolution order is registration order is EXECUTION
         //   order, so the sequence below reproduces the previous block exactly —
         //   BehaviorDiagnosticsModule, then the pack, then the two groups built from the pack's lists.
-        _capabilities = new NodeCompositionPlan()
+        // ⭐⭐ CE-2144 (R-2008) — the plan starts from the ONE shared head: HealthApplication first, so damage is applied before
+        //    the cognitive runtime and the dispatchers read the capabilities it strips (it used to sit inside CgfLogicPack).
+        _capabilities = Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.LiveSimulationPlan(CgfSubsystem.DefaultRole)
             .Capability(CgfSubsystem.DefaultRole, new CgfCapabilities.Brain(cgfLogicPack))
             // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation
             //    position. Declared once per plan; Resolve de-duplicates by Key, which is what makes

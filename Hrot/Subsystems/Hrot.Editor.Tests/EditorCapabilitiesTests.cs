@@ -164,7 +164,9 @@ public class EditorCapabilitiesTests : IDisposable
         //    ⭐ CE-3061 / CE-3062 — and the PERCEPTION capability now adds heat and sound to the main loop
         //       (EqsSolverStartup.PopulateSystems, the ONE composition point for every perception host), after the
         //       muscle tier and before the infrastructure tail. 📄 DESIGN_Thermal_And_Acoustic_Sensing.md §7.
-        Type[] expectedSim = handSim
+        // ⭐⭐ CE-2144 (R-2008) — HealthApplicationSystem left CgfLogicPack for the shared plan HEAD: it is FIRST, ahead of the Brain.
+        Type[] expectedSim = new[] { typeof(Fdp.Toolkit.Combat.Systems.HealthApplicationSystem) }
+            .Concat(handSim)
             .Concat(new[] { typeof(Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem),
                             typeof(Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem) })
             .Concat(new[] { typeof(Hrot.Common.Systems.UnitHierarchySystem),
@@ -254,7 +256,8 @@ public class EditorCapabilitiesTests : IDisposable
         //   against it by Key. That is what stopped the hosted Stride editor registering two
         //   UnitHierarchySystems and dying on [SingleInstance] in BeginRun().
         Assert.Equal(
-            cgf.SimulationSystems.Select(s => s.GetType())
+            new[] { typeof(Fdp.Toolkit.Combat.Systems.HealthApplicationSystem) }   // ⭐ CE-2144 — the shared plan head, first
+               .Concat(cgf.SimulationSystems.Select(s => s.GetType()))
                .Concat(new[] { typeof(Hrot.Common.Systems.UnitHierarchySystem),
                                typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem),
                                typeof(Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem),    // CE-3072 — same capability
@@ -293,6 +296,34 @@ public class EditorCapabilitiesTests : IDisposable
             Assert.Single(input, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
             Assert.Single(sim, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
             Assert.Single(sim, s => s is Fdp.Toolkit.Terrain.DoorCommandSystem);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2144</c> (R-2008; 🔒 user, 2026-10-13: "provided it runs unified on any ECS enabled node running live simulation - shared
+    /// code, shared bootstrap") — damage application is the shared plan HEAD on both arms: resolved FIRST and once, its system first in the
+    /// simulation list (ahead of the cognitive runtime and the dispatchers that read the capabilities it strips), and an injected plan that
+    /// starts from the same head (Stride's) de-duplicates against it by Key.
+    /// </summary>
+    [Fact]
+    public void CE2144_HealthApplicationIsTheSharedPlanHead_FirstAndOnceOnEveryArm()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+
+        Assert.DoesNotContain(cgf.SimulationSystems, s => s is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
+
+        var injected = new INodeCapability[] { new CoreInfrastructureCapabilities.HealthApplication() };
+        foreach (var plan in new[] { EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle)),
+                                     EditorCapabilities.BuildWithInjectedMuscle(cgf, injected) })
+        {
+            var resolved = plan.Resolve(EditorCapabilities.DefaultRole);
+            Assert.Equal(CapabilityKeys.HealthApplication, resolved[0].Key);
+            Assert.Single(resolved, c => c.Key == CapabilityKeys.HealthApplication);
+            var input = new List<IEcsModuleSystem>(); var sim = new List<IEcsModuleSystem>(); var post = new List<IEcsModuleSystem>();
+            foreach (var c in resolved) c.PopulateSystems(context: null!, input, sim, post);
+            Assert.IsType<Fdp.Toolkit.Combat.Systems.HealthApplicationSystem>(sim[0]);
+            Assert.Single(sim, s => s is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
         }
     }
 
