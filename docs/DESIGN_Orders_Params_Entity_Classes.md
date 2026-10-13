@@ -1907,8 +1907,22 @@ sequenceDiagram
   - The outline still shows three sections ("Variables", "Working State", "Asset Globals",
     `BlackboardMyBlueprintModel.cs:85-100`), and the old panel still draws Role/Scope dropdowns. That is leftover, not the target.
   ⇒ Storage (packed vs working-state, node-keyed vs shared) becomes a generator decision derived from what the file already
-  says (type, bindings), with no persisted kind. To be measured before building: whether packed vs working-state can be derived
-  without moving any shipped asset's bytes.
+  says (type, bindings), with no persisted kind.
+  📐 **Storage measured (2026-10-13).** One block per behaviour slot, `{Asset}_Block { In; St; }`:
+  - `In` at offset 0, offsets computed by the GENERATOR: `Params` + the plain variables. Offsets must be known at generate time
+    (the params parse, the manifest, action-param bindings bake them, a host seeds a child by offset), so its types must be sizable.
+  - `St` after it, laid out by the CLR, reached only by name (`block.St.X`, `BTreeBridgeEmitCore.AppendWorkingStateResolve`). It
+    exists for types the generator cannot size (`HillAttackMutableState`'s fixed buffers) and for working state that nodes share.
+  - Both halves get their defaults on every assign (`EmitStateDefaultBake`), so they behave the same; only addressing differs.
+  - Outside the block: a stateful node's PRIVATE working state, its own occurrence slot keyed by (asset, node id).
+  The 8 `St` variables: `PlatoonHillAttack.State` (7 nodes bind it), T35 `bpSharedWorkingState` (2), `HsmStatefulBindingDemo.steps`
+  (1) are named as working state by a binding; `Doubled` ×2 (a resolver writes it), `Cursor`, `Ticks`, `SharedCursor` are named
+  by nothing.
+  ⭐ Lean: the generator rule "named as a node's working state, or not sizable ⇒ `St`; else `In`". It moves only the 4 unbound
+  values in test / sample assets (`HsmResolverDemo`, `T40`, `HsmVariableShowcase`, `HsmOrthogonalRegions`) from `St` to `In`;
+  goldens regenerate, no shipped behaviour moves, and a running behaviour sees the layout change through its structure hash
+  (`BrainTickSystem.cs:504`). The editor's auto-created per-node memory then lives in `St` under its variable name, not in a
+  node-keyed side slot. Same behaviour while one node binds it; to be proven by a rail when built.
 - **Not yet**: the editor's Variables / Details panels still list only DECLARED Parameters (a DTO-named asset shows none) — the canvas
   pins are right (`ParametersOf`), the panels are the ui lane's surface (P5b). Steps ③–⑦ follow.
 
