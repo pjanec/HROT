@@ -382,9 +382,10 @@ public sealed class HsmDefinitionAttribute : Attribute
 }
 ```
 
-The `[BlackboardDtoStruct]`, `[BlackboardReadOnly]`, and `[BlackboardReadWrite]` parameter
+The `[BlackboardReadOnly]` and `[BlackboardReadWrite]` parameter
 attributes are defined in `Fbt.Kernel` (namespace `Fbt.Kernel`) and apply equally to HSM
-action methods. See the `Fbt.Kernel` documentation for their full API and usage.
+action methods. See the `Fbt.Kernel` documentation for their full API and usage. (A variable-type struct is marked
+`[Dto]` from `Fdp.Core`; `[BlackboardDtoStruct]` retired 2026-10-13, CE-3185.)
 
 ---
 

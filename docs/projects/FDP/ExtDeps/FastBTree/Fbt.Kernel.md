@@ -251,7 +251,7 @@ This layout means the interpreter only needs a simple index to navigate: no poin
 | `BTreeDefinitionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a method returning `BTreeBuilder` or `BehaviorTreeBlob` as a named tree catalog entry. Carries optional `BlackboardManaged`, plus a vestigial `HeavyDtoType` that no longer wires anything (see Attributes section). |
 | `BTreeDeactivatorAttribute.cs` | `[AttributeUsage(Method)]` | Pairs a static deactivator method with a `[BTreeAction]` or `[BTreeCondition]`; consumed by `Fbt.SourceGen` |
 | `FbtRegistrarAttribute.cs` | `[AttributeUsage(Class)]` | Applied by `Fbt.SourceGen` to the emitted registrar class; used by `FbtAutoDiscovery` for reflection scanning |
-| `BlackboardAnnotations.cs` | `[AttributeUsage(Struct/Parameter)]` | Three editor-only annotation attributes: `[BlackboardDtoStruct]`, `[BlackboardReadOnly]`, `[BlackboardReadWrite]`. Runtime ignores them; the HROT editor schema exporter reads them (see Attributes section). |
+| `BlackboardAnnotations.cs` | `[AttributeUsage(Struct/Parameter)]` | Two editor-only annotation attributes: `[BlackboardReadOnly]`, `[BlackboardReadWrite]` (`[BlackboardDtoStruct]` retired 2026-10-13, CE-3185 — a variable type is now marked `[Dto]` from `Fdp.Core`). Runtime ignores them; the HROT editor schema exporter reads them (see Attributes section). |
 
 ---
 
@@ -660,14 +660,6 @@ access patterns used by the cross-region conflict validator.
 
 ```csharp
 /// <summary>
-/// Marks a user-defined struct as a blackboard DTO type that should appear in the
-/// Add-Variable type picker in the HROT BTree and HSM editors, even before any action
-/// method references the struct. Applied to struct declarations only.
-/// </summary>
-[AttributeUsage(AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
-public sealed class BlackboardDtoStructAttribute : Attribute { }
-
-/// <summary>
 /// Annotates the first ref parameter of an action method as read-only access to the
 /// blackboard field. The editor records the access pattern as ReadOnly, enabling
 /// more precise cross-region conflict diagnostics.
@@ -686,8 +678,9 @@ public sealed class BlackboardReadWriteAttribute : Attribute { }
 Usage example:
 
 ```csharp
-// Struct available in the editor's Add Variable type picker without a referencing action:
-[BlackboardDtoStruct]
+// Struct available in the editor's Add Variable type picker without a referencing action
+// ([Dto] from Fdp.Core — it replaced [BlackboardDtoStruct], CE-3185; [ParamsDto]/[Order]/[UnitMemory] derive from it):
+[Dto]
 public struct SharedTargetingParams { public long TargetEntityId; public float AimDot; }
 
 // Action declares read-only access; editor won't flag it as a cross-region writer:

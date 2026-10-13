@@ -168,7 +168,7 @@ hazard is handled inside the primitive — invisible to the designer.
 
 ## 8. Struct values — `MakeStruct` / `BreakStruct` / `SetMembers` (shipped)
 
-One triple per `[BlackboardDtoStruct]`-tagged type, generated via `MakeBreakStructPaletteEntries`
+One triple per `[Dto]` (was `[BlackboardDtoStruct]`, retired CE-3185)-tagged type, generated via `MakeBreakStructPaletteEntries`
 (same catalog+reify pattern as above, keyed off the struct's own fields instead of an event/channel
 catalog entry):
 ```

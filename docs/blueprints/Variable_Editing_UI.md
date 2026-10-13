@@ -82,7 +82,7 @@ wants the tree, not a table — and locals must stay grouped under the graph tha
 
 **Requirement:** a hardcoded struct must be usable as a variable, exactly as in WorkingState.
 
-✅ **The discovery rule is already shared.** One marker attribute, `[BlackboardDtoStruct]`, is scanned
+✅ **The discovery rule is already shared.** One marker attribute, `[BlackboardDtoStruct]` *(⚠ retired 2026-10-13, CE-3185: now `[Dto]` from `Fdp.Core`, and every attribute derived from it)*, is scanned
 by **both** sides:
 
 | consumer | projects to | why that shape |

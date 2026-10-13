@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-09-22
 updated-2: 2026-09-30 — §P added: THE PARAMETER CONTRACT BY KIND (user ruling R-155). ⭐ READ §P FIRST.
 current-answer: ⭐⭐⭐ §P — the contract by kind (behaviour: inputs once at start, resolver REPLACES the copy;
-  action/condition: live host reference, no copy, no resolver), its as-built table §P.5, §P.6 (IHostVariableAccess retired, user 2026-09-30) and §P.7 (a blueprint's authored params — all decided 2026-09-30: Parameters + Get All Parameters, no nullables).
+  action/condition: live host reference, no copy, no resolver), its as-built table §P.5, §P.6 (IHostVariableAccess retired, user 2026-09-30) and §P.7 (a blueprint's authored params — REWRITTEN 2026-10-13, CE-2135 P4: the asset names a params DTO, its fields are the Parameters).
   The rest of the document is authoritative for parameters and storage where §P does not override it.
   See 3.1's AS BUILT 2026-09-08 (CE-235) for the two-member split of the authored DTO
   vs the blackboard layout - that is the live shape of BehaviorDefinition.
@@ -32,6 +32,8 @@ known-rot: (2026-10-13, P7) §1's Role row ("`Input` IS the parameter role"), §
   public fields marked `[ParamsDto]`, a mandatory field is `[Required]` —
   docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §13. The Role vocabulary and blueprint-declared Parameters
   still exist in code and retire with P4 (§13.10); this document is rewritten then, not before.
+  ⭐ 2026-10-13 (backend, P4 steps ①–⑥): §P.7 IS rewritten (as-built). §1's Role row and §3.1 still stand in code
+  until P4 step ⑦ deletes Role, which waits on CE-3190 (HsmChannelE2E).
 known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. RESOLVED 2026-09-30 by
   CE-441 (Entity removed) — two remain, neither authorable.
   - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — a NEW variable owner for behaviour-only unit data, overriding ":386"'s "no new variable owner" (user 2026-10-09); engine-read data stays a component
@@ -239,7 +241,23 @@ false. ⇒ in production every read returns `false`. And no blueprint node or cu
 it: blueprint resolver graphs have no host-read node, and curated resolvers are root-only, so they get
 `null`. ⇒ retiring it removes plumbing that is neither fed nor read.
 
-### P.7 ✅ A blueprint's authored params — no JSON; declared Parameters; read with Get All Parameters *(`2026-09-30`)*
+### P.7 ✅ A blueprint's authored params — the asset NAMES a params DTO; its fields ARE the Parameters *(rewritten `2026-10-13`, CE-2135 P4 — R-2004)*
+
+⭐ **As built `2026-10-13`** *(full as-built, class diagram and sequence: [`DESIGN_Orders_Params_Entity_Classes.md` §13.10](../DESIGN_Orders_Params_Entity_Classes.md))*:
+
+| question | as built |
+|---|---|
+| where the authored shape is declared | ⭐ **one named params DTO per asset** — `ParamsDtoTypeId` on a blueprint, BTree or HSM; a hand-written `[ParamsDto]` struct or a `.params.json` asset. ⛔ **No blueprint declares Parameters any more**; `BP1689` refuses a Behavior / AiPrimitive / resolver Library that names none |
+| what the Parameters are | the DTO's public fields *(minus `[JsonIgnore]`, declaration order)*, **materialised by the compiler** on its own store copy before Stage 0 (`ParamsDtoFields`). Ids are deterministic per (asset, field); defaults come from `[ParamsDto(DefaultJson)]` |
+| how the graph reads them | `GetVariable` (one field) or `GetAllParametersNode` (one pin per DTO field). ⛔ **Get Parameter is retired** |
+| what a resolver publishes | its DTO (`PublishedParams` on the resolver class), read by the host bridge — every bridge caller is right by construction |
+| who parses JSON | generated C#, **flat** — the JSON is the DTO's fields (§13 there, §5a.1). ⛔ The keyed-by-variable-name overlay is gone from every asset except `HsmChannelE2E` (CE-3190, stopped) |
+| a nullable field | still refused (user `2026-09-30`) |
+
+⚠ **Still open:** the `Role` vocabulary (§1) retires in P4 step ⑦, which waits on CE-3190; this section is final, §1 is not.
+
+#### ⛔ HISTORY — §P.7 as decided `2026-09-30` *(declared Parameters; superseded by R-2004)*
+
 
 | question | as built (measured) | target |
 |---|---|---|
