@@ -22,7 +22,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
     // Domain range: 181-189 (free; below CgfHarness's 200 base, above the 162 block).
     private static int _domain = 180;
 
-    // The curated hill-attack-close-bp params (scenarios/hill-attack-close-bp/scenario.json), with the area pointed at a
+    // The hill-attack params (from the retired hill-attack-close-bp scenario, R-2006; the C# PlatoonHillAttack still takes them), with the area pointed at a
     // REAL area entity: with none, the commander's area node fails at once and the behaviour ends (measured).
     private static string HillAttackParams(long areaNet) =>
         "{\"firingLineStart\":[52.5239942191481,13.413540814869096],\"firingLineEnd\":[52.524533409890886,13.413578805321581]," +

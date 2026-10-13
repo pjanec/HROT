@@ -2832,7 +2832,7 @@ internal sealed class V_ParamsDtoRules : IValidator
                 asset.AssetId, null, null));
             return;
         }
-        var ps = asset.Parameters.ToList();
+        var ps = asset.Declarations.Of(DeclarationKind.Parameter).ToList();   // through the store, not the view (ViewsAreUnreadTests)
         if (ps.Count > 1)
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1689,
                 $"'{asset.Name}' names params DTO '{named}' and declares {ps.Count} Parameters — the params DTO is ONE Parameter of that type.",

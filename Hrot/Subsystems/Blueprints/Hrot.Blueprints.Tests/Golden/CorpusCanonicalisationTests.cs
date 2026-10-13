@@ -310,7 +310,7 @@ public sealed class CorpusCanonicalisationTests
         // ⭐ 35 → 36 (CE-3079 H7 / CE-3078, 2026-10-06): `DangerCrossingBp` — the FIRST asset built from the per-kind
         //    sensor nodes (SpawnSensor · When SensorResult · ReadSensorResult), the DangerCrossing BTree as a blueprint.
         // ⭐ 36 → 37 (CE-3083 G5, 2026-10-06): `CombatPostureBp`.
-        Assert.Equal(37, GoldenCorpus.EnumerateFiles().Count);   // ⭐ 36 → 37: R-2006 — SubordinateForEachDemo (FlowForEach real-build coverage)  ⛔ 37 → 36: CE-3160 (R-266, R-258) — CombatPostureBp retired
+        Assert.Equal(36, GoldenCorpus.EnumerateFiles().Count);   // ⛔ 37 → 36: R-2006 — PlatoonHillAttackBp retired (the C# PlatoonHillAttack is the hill attack)  ⭐ 36 → 37: R-2006 — SubordinateForEachDemo (FlowForEach real-build coverage)  ⛔ 37 → 36: CE-3160 (R-266, R-258) — CombatPostureBp retired
         Assert.Equal(16, RecipeFiles().Count);
     }
 }

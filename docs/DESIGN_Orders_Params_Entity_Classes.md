@@ -1347,3 +1347,22 @@ Already correct (leave): this design, `RULINGS.md` R-273..R-282 / R-2000..R-2003
 | ⚠ **its C# types are shared** | `HillAttackBlueprintTypes.cs`: `HillAttackSlot` (also `DtoDiagnosticMapper`, `EventSerializationHelperTests`), `HillAttackRunner` (also `BlueprintDebugSession`, `StructSizeResolverEnumTests`, `BlueprintTooltipTests`), `HillAttackPhase` (its tests only) | each kept, moved, or re-pointed per user — never deleted while something reads it |
 | comments that cite it as the case that found a bug | `RootParamsAccess.cs:264`, `EmissionContext.cs:67`, `InstanceEmitter.cs:1228`, `BehaviorIngressSystemTests.cs:848` | kept as history (they record why the code is shaped so) |
 | docs | `DESIGN_Hill_Attack_Blueprint_Behaviour.md`, AQ78, `DESIGN_Hill_Attack_Eqs_Migration.md`, `designs/hill-attack/DESIGN.md`, `DESIGN_Cluster_Ai_Debug_Surface.md`, the CE-464 tracker row | a RETIRED banner / known-rot naming R-2006; the debug-surface design names the new subject |
+
+**P9 as built** *(2026-10-13, behaviors — two commits: the replacement first, the delete second)*:
+- `SubordinateForEachDemo.bp.json` (`Assets/Blueprints/Samples/`), authored by `Hrot.Blueprints.Tests/Authoring/SubordinateForEachDemoAuthoring.cs`
+  — the first `.bp.json` to name a params DTO (`NoParams`, R-2004). Beyond the plan it also carries the FIXED-LIST usages the
+  hill-attack asset alone had (measured per node configuration, not only per kind): an enum list (`Slots`, `SubordinateSlot`) and a
+  struct list (`Orders`, `SubordinateOrder`) written by `ListWrite` Clear / Resize / SetAt / Add, read by `ComponentItemGet`, walked
+  by `ComponentForEach`, with Make / Break struct — and an enum-typed variable (`LastOrder : OrderKind`) for the debug-surface rails.
+- The plain-data types are generic (`Hrot.AI.Behaviors/Brains/SubordinateForEachDemoTypes.cs`), replacing `HillAttackBlueprintTypes.cs`
+  (user: *"lets convert rhem to more generic shape"*); `StructSizeResolverEnumTests` and `BlueprintTooltipTests` hold the new struct.
+- Rails: `SubordinateForEachDemoAuthoringTests` (compiles with no diagnostic · carries the node usages · on disk = authoring) and
+  `SubordinateForEachDemoTests` (SimHost: 3 subordinates ⇒ one order each with its index and the count, then one confirming order
+  each read back through both lists, then it holds) — red-proved (slot check broken ⇒ 3 orders, not 6).
+- Re-pointed: `TheClusterAiDebugSurfaceAnswersTests` (6/6 on the demo), `ABlueprintBehaviourAdvertisesItsParameters` →
+  `DangerCrossingBp` (interim until backend P4), `NodeCoverageTests`' FlowForEach note, the CE-2130 allow-list (−1, 18 → 17).
+- Deleted: the asset, `scenarios/hill-attack-close-bp/`, its authoring + tests, `HillAttackBlueprintTests` (the blueprint-vs-C# parity
+  rail — its subject was the asset), its two goldens, `HillAttackBlueprintTypes.cs`. Code comments that cite it as the case that found
+  a bug are kept as history. Docs: `DESIGN_Hill_Attack_Blueprint_Behaviour.md` and AQ78 → HISTORICAL; the EQS-migration, hill-attack
+  and cluster-debug-surface designs carry a known-rot line.
+

@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (2026-10-01) — §4 is the as-built
-updated: 2026-10-09
+updated: 2026-10-13 (R-2006)
 current-answer: §2 (decisions), §3 (the UML — true as built) and §4 (as-built + rails). §1 is the measured inventory.
 stale-below: nothing.
-known-rot: none.
+known-rot: ⛔ the blueprint-behaviour subject of the rails moved from `PlatoonHillAttackBp` (retired, R-2006) to `SubordinateForEachDemo` — its variables are `LastOrder` (OrderKind), `Slots`, `Orders`; the §1 / §4 mentions of the old asset are history · none.
 known-conflict: HANDOFF_AreaQuery_Retirement_And_Cluster_Ai_Debug.md B-D3 assumes CGF has a per-perspective trace-arming
   tracer (CE-351) — measured false, see §1 row ③. B.3 ③ asks for "a blueprint trace naming the active graph" — a Behavior
   blueprint has no runtime record of which graph runs, see §1 row ⑤.

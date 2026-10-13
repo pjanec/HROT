@@ -1,10 +1,10 @@
 <!--STATUS
-state: LIVE
-updated: 2026-10-01
+state: HISTORICAL
+updated: 2026-10-13 (R-2006)
 build-state: BUILT
 current-answer: §3 (diagrams) · §4 (decisions — leans TAKEN, decide-and-log, overridable) · §5 (C# → graph map) · §6 (AS BUILT — read it)
 stale-below: nothing yet
-known-rot: the area query moved from AreaQueryBatchOps to the EQS EntitiesOfForceInArea sensor on 2026-10-01 (CE-478) — the
+known-rot: ⛔ `PlatoonHillAttackBp` and its scenario `hill-attack-close-bp` are RETIRED (R-2006, 2026-10-13: "we prefer csharp hardcoded version"); the C# `PlatoonHillAttack` is the hill attack. Its node usages live on in `SubordinateForEachDemo` (DESIGN_Orders_Params_Entity_Classes.md §13.5); this whole document describes the retired asset · the area query moved from AreaQueryBatchOps to the EQS EntitiesOfForceInArea sensor on 2026-10-01 (CE-478) — the
   §3.2 participant and the two §5 rows below were rewritten; the old helper is deleted. §6 describes the pre-EQS build.
 known-conflict: none
 related-designs:

@@ -302,10 +302,11 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         // CE-2135 (B3b prep, 2026-10-12) removed 15 that store nothing: BTreeRenderShowcase, CombatShowcase, SampleScout, SampleGuard,
         //   HsmShowcase, HsmTwoChannelRegionsDemo, HsmOrthogonalRegions (its one variable is State), T01–T08 now name NoParams
         // CE-2132 (A2, 2026-10-12, after CE-3182) removed DangerCrossing: it publishes DangerCrossingParams (its resolver's contract)
+        // R-2006 (P9, 2026-10-13) removed PlatoonHillAttackBp: the asset is retired
         "BTreeCuratedBindingDemo", "BlueprintBehaviourDemo", "DangerCrossingBp",
         "Demo_Advance", "Demo_Engage", "Demo_MissionPlan", "Demo_Retreat",
         "Demo_TakeCover", "Demo_TaskChain",
-        "HsmResolverDemo", "OperatorControl", "PlatoonHillAttackBp", "T09_BlackboardManaged", "T10_MultiAction", "T20_MultiStateful", "T35_SharedWorkingState",
+        "HsmResolverDemo", "OperatorControl", "T09_BlackboardManaged", "T10_MultiAction", "T20_MultiStateful", "T35_SharedWorkingState",
         "T39_TwoDistinctPrimitives", "T40_BehaviorResolverAsset",
     };
 

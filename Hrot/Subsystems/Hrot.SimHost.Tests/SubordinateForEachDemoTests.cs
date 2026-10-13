@@ -21,7 +21,8 @@ namespace Hrot.SimHost.Tests
     /// ⭐ <c>R-2006</c> — the RUNTIME proof of <c>SubordinateForEachDemo.bp.json</c> (a corpus blueprint behaviour, compiled by the real
     /// <c>Hrot.AI.Behaviors</c> generator): <c>FlowForEach</c> over a commander's <c>UnitRoster</c> visits every subordinate once, its
     /// <c>CurrentItem</c> / <c>CurrentIndex</c> / <c>Count</c> outs carry the right values, <c>SendIntent</c> publishes one order each,
-    /// and the <c>Not</c>-guarded branch finishes on the next tick. It replaces the runtime coverage <c>PlatoonHillAttackBp</c> gave
+    /// the recorded orders are walked back (struct list) and confirmed where the enum list reads Ordered, and the <c>Not</c>-guarded
+    /// branches then hold. It replaces the runtime coverage <c>PlatoonHillAttackBp</c> gave
     /// these nodes (design <c>DESIGN_Orders_Params_Entity_Classes.md</c> §13.5).
     /// </summary>
     public sealed class SubordinateForEachDemoTests : IDisposable

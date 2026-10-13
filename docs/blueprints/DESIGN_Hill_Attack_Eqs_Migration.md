@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-01
+updated: 2026-10-13 (R-2006)
 build-state: BUILT
 current-answer: §6 (as built) — §3/§4 are true with the deviations §6 lists.
 stale-below: nothing.
-known-rot: none.
+known-rot: ⛔ `PlatoonHillAttackBp` and its scenario `hill-attack-close-bp` are RETIRED (R-2006, 2026-10-13: "we prefer csharp hardcoded version"); the C# `PlatoonHillAttack` is the hill attack. Its node usages live on in `SubordinateForEachDemo` (DESIGN_Orders_Params_Entity_Classes.md §13.5) — everything here about the BLUEPRINT commander is history; the C# half stands · none.
 known-conflict: docs/blueprints/When_Reactivity_Iteration_Design_v2_2.md says SpawnEqsSensor is "one-shot per invocation —
   each execution creates a new sensor child entity". §4 D3 changes that to find-or-create; that doc's §7 is NOT edited (its
   own banner says it is the original iteration design) — this doc is the newer record for the node's runtime semantics.
