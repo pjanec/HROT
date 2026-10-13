@@ -186,6 +186,8 @@ public static class GoldenCorpus
 
         // Compile() works on a shallow copy so caller graphs are not mutated (U-2). The harness
         // deserializes a fresh asset per call, so it needs no equivalent.
+        // ⭐ CE-2135 P4 (R-2004) — the step Compile() runs before Stage 0: a named params DTO's fields become the Parameters.
+        ParamsDtoFields.Materialize(asset, opts.ParamsDtoFields, sink.Add);
         Stage0_Rehydrate.Run(asset, opts);
         Stage2_Validate.Run(asset, ctx);
 

@@ -966,23 +966,19 @@ internal static class NodePinSchema
         };
 
     /// <summary>
-    /// GetAllParameters (editor projection): one data-out pin per <c>asset.Parameters</c> entry
-    /// (name = <see cref="ParameterDecl.Name"/>, type from <see cref="ParameterDecl.Type"/>;
-    /// fallback <c>System.Object</c>) -- mirrors <see cref="EventEntryNodePins"/>'s one-data-out-
-    /// per-<c>Graph.Inputs</c> projection, retargeted at the asset's Parameters list. Returns an
-    /// empty pin list when the asset is null or has no declared Parameters.
+    /// GetAllParameters (editor projection): one data-out pin per Parameter (name, type; fallback <c>System.Object</c>) -- mirrors
+    /// <see cref="EventEntryNodePins"/>'s one-data-out-per-<c>Graph.Inputs</c> projection. ⭐ CE-2135 P4 (R-2004): an asset that names a
+    /// params DTO declares no Parameters — its pins are the DTO's fields, read through the same
+    /// <see cref="Hrot.Blueprints.Core.Compiler.ParamsDtoFields.ParametersOf"/> the compiler's materialized view agrees with.
+    /// Empty when the asset is null or has none.
     /// </summary>
     private static IReadOnlyList<Pin> GetAllParametersPins(BlueprintAsset? asset)
     {
-        if (asset is null || asset.Declarations.CountIn(DeclarationKind.Parameter) == 0)
-            return Array.Empty<Pin>();
-
-        var pins = new List<Pin>(asset.Declarations.CountIn(DeclarationKind.Parameter));
-        foreach (var p in asset.Declarations.Of(DeclarationKind.Parameter))
-        {
-            var typeId = string.IsNullOrEmpty(p.Type?.TypeId) ? "System.Object" : p.Type.TypeId;
-            pins.Add(MakeData(p.Name, "Out", typeId));
-        }
+        if (asset is null) return Array.Empty<Pin>();
+        var parameters = Hrot.Blueprints.Core.Compiler.ParamsDtoFields.ParametersOf(asset);
+        if (parameters.Count == 0) return Array.Empty<Pin>();
+        var pins = new List<Pin>(parameters.Count);
+        foreach (var p in parameters) pins.Add(MakeData(p.Name, "Out", p.TypeId));
         return pins;
     }
 

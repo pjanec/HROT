@@ -2816,8 +2816,11 @@ internal sealed class V_SopOrderRules : IValidator
 }
 
 /// <summary>
-/// ⭐ <c>CE-2133</c> (<c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §1 P2) — a named params DTO is a BEHAVIOUR's, and its JSON
-/// lands in its ONE Parameter of that type (flat) or nowhere (no Parameters: published, nothing stored). Otherwise <c>BP1689</c>.
+/// ⭐ <c>CE-2135</c> P4 (R-2004 — <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §13.10; was <c>CE-2133</c> §1 P2) — a blueprint
+/// declares no Parameters: it NAMES a params DTO and the DTO's fields are its Parameters (<see cref="ParamsDtoFields"/>). A behaviour, an
+/// AiPrimitive or a resolver (a Library with a <c>ResolverSubject</c>) may name one; an asset that names one AND declares Parameters, or
+/// that has no params JSON (an Instance, a plain Library), is <c>BP1689</c>.
+/// <para>⛔ RETIRED with P4: the CE-2133 B1 shape "one Parameter whose type IS the DTO" (overlaid flat) — the DTO's fields are flat.</para>
 /// </summary>
 internal sealed class V_ParamsDtoRules : IValidator
 {
@@ -2825,21 +2828,20 @@ internal sealed class V_ParamsDtoRules : IValidator
     {
         string? named = asset.ParamsDtoTypeId?.Trim();
         if (string.IsNullOrEmpty(named)) return;
-        if (asset.Dispatch != BlueprintDispatchKind.Behavior)
+        if (!ParamsDtoFields.HasParams(asset))
         {
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1689,
-                $"'{asset.Name}' names params DTO '{named}' but is a {asset.Dispatch}, not a behaviour — only a behaviour has params JSON.",
+                $"'{asset.Name}' names params DTO '{named}' but is a {asset.Dispatch}"
+                + (asset.Dispatch == BlueprintDispatchKind.Library ? " with no resolver subject" : "")
+                + " — only a behaviour, an AiPrimitive or a resolver has params.",
                 asset.AssetId, null, null));
             return;
         }
-        var ps = asset.Declarations.Of(DeclarationKind.Parameter).ToList();   // through the store, not the view (ViewsAreUnreadTests)
-        if (ps.Count > 1)
+        int declared = asset.ParametersFromParamsDto ? 0 : asset.Declarations.CountIn(DeclarationKind.Parameter);
+        if (declared > 0)
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1689,
-                $"'{asset.Name}' names params DTO '{named}' and declares {ps.Count} Parameters — the params DTO is ONE Parameter of that type.",
-                asset.AssetId, null, null));
-        else if (ps.Count == 1 && !string.Equals(ps[0].Type?.TypeId?.Replace('+', '.'), named!.Replace('+', '.'), StringComparison.Ordinal))
-            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1689,
-                $"'{asset.Name}' names params DTO '{named}' but its one Parameter '{ps[0].Name}' is '{ps[0].Type?.TypeId}' — the JSON lands in it, so they must be the same type.",
+                $"'{asset.Name}' names params DTO '{named}' and also declares {declared} Parameter(s) — a blueprint declares no Parameters; "
+                + "the params DTO's fields ARE its Parameters (R-2004).",
                 asset.AssetId, null, null));
     }
 }

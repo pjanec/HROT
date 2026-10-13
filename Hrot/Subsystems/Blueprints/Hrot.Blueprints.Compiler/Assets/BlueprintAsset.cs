@@ -25,15 +25,19 @@ public sealed class BlueprintAsset
     public ResolverSubjectDecl? ResolverSubject { get; set; }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-2133</c> (B1, R-276) — a BEHAVIOUR's named params DTO (type id, no <c>global::</c>): what its JSON params
-    /// deserialize into and <c>GET /behaviors</c> publishes. Set, the asset declares exactly one Parameter of that type (the
-    /// JSON is its fields, FLAT) or none (published, nothing stored — an empty order DTO); anything else is <c>BP1689</c>.
-    /// <c>null</c> = the generated <c>Params</c> of its Parameters, keyed by name. ⚠ Unlike a BTree, one struct Parameter does
-    /// NOT turn flat by itself: the compiler cannot tell a struct from an enum, so a blueprint opts in by naming it.
-    /// 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §1 P2. Written only when present (the corpus stays byte-identical).
+    /// ⭐⭐ <c>CE-2135</c> P4 (R-2004; was <c>CE-2133</c> B1, R-276) — the asset's named params DTO (type id, <c>Type.FullName</c> spelling,
+    /// no <c>global::</c>): what its JSON params deserialize into and <c>GET /behaviors</c> publishes. A blueprint DECLARES NO Parameters:
+    /// the compiler makes them from the DTO's public fields (<see cref="Compiler.ParamsDtoFields"/>), so the JSON is the DTO's fields, FLAT.
+    /// Named on a behaviour, an AiPrimitive or a resolver; declared Parameters beside it, or on any other kind, is <c>BP1689</c>.
+    /// <c>null</c> = the legacy shape (declared Parameters, keyed by name) — retiring (the CE-2130 allow-list).
+    /// 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §13.10. Written only when present (the corpus stays byte-identical).
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? ParamsDtoTypeId { get; set; }
+
+    /// <summary>⭐ <c>CE-2135</c> P4 (R-2004) — true on the compiler's own copy once <see cref="Compiler.ParamsDtoFields.Materialize"/> made the
+    /// Parameters from the named DTO's fields; never set on an asset that was loaded or authored (never serialized).</summary>
+    internal bool ParametersFromParamsDto { get; set; }
 
     /// <summary>
     /// ⭐⭐ <b>U-12 / D4 — THE STORE.</b> One list of tagged declarations. <c>Parameters</c>,

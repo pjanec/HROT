@@ -508,7 +508,7 @@ public static class BlueprintRegistrar_DangerCrossingBp_6DD5A9BE_Bp
             BlackboardLayoutType = typeof(DangerCrossingBp_6DD5A9BE_Bp.Block),
             BrainStateLayoutType = typeof(DangerCrossingBp_6DD5A9BE_Bp.Exec),
             BrainStateBytes = DangerCrossingBp_6DD5A9BE_Bp.ExecSize,
-            JsonParamsDtoType = typeof(DangerCrossingBp_6DD5A9BE_Bp.Params),
+            JsonParamsDtoType = typeof(global::Hrot.AI.Behaviors.Brains.DangerCrossingParams),
             ManagedBlackboardVariables = DangerCrossingBp_6DD5A9BE_Bp.InputManifest(),
             ParseParams = DangerCrossingBp_6DD5A9BE_Bp.BehaviorParseParams,
             BlueprintTick = DangerCrossingBp_6DD5A9BE_Bp.BehaviorTick,

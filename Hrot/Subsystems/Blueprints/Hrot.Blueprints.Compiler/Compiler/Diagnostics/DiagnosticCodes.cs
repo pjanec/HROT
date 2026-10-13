@@ -218,7 +218,7 @@ public static class DiagnosticCodes
     // ⭐ CE-2083 (DESIGN_Decision_Layer §4.10 D6) — an SOP order node that cannot issue: no behaviour, or no unit in scope.
     public const string BP1688 = "BP1688";  // SOP order node with no behaviour, or in a Library function
     // ⭐ CE-2133 (DESIGN_Orders_Params_Entity_Classes §1 P2) — a named params DTO that is not the behaviour's one Parameter.
-    public const string BP1689 = "BP1689";  // ParamsDtoTypeId on a non-behaviour, or not the one Parameter's type
+    public const string BP1689 = "BP1689";  // ParamsDtoTypeId: unknown type, beside declared Parameters, or on a kind with no params (CE-2135 P4)
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch

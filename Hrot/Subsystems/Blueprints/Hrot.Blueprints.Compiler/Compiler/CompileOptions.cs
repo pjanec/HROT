@@ -38,4 +38,9 @@ public sealed record CompileOptions(
 
     // ⭐ CE-3164 (R-268) — the picker group of a blueprint BEHAVIOUR: the asset's folder below Assets/Blueprints/, supplied by
     // the generator that holds the path (BehaviorGroups.FromAssetPath). Null ⇒ no group (the picker's "Other").
-    string? BehaviorGroup = null);
+    string? BehaviorGroup = null,
+
+    // ⭐ CE-2135 P4 (R-2004, docs/DESIGN_Orders_Params_Entity_Classes.md §13.10 P4-a) — where a named params DTO's fields come from.
+    // Null is the NORMAL case (ReflectionParamsDtoFieldSource over the loaded assemblies); the Roslyn generator supplies one over its
+    // compilation, exactly as it supplies ClrSignatureResolver.
+    IParamsDtoFieldSource? ParamsDtoFields = null);

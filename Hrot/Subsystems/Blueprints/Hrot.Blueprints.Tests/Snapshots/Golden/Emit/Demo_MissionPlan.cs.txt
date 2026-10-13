@@ -594,7 +594,7 @@ public static class BlueprintRegistrar_DemoMissionPlan_AB1AAB36_Bp
             BlackboardLayoutType = typeof(DemoMissionPlan_AB1AAB36_Bp.Block),
             BrainStateLayoutType = typeof(DemoMissionPlan_AB1AAB36_Bp.Exec),
             BrainStateBytes = DemoMissionPlan_AB1AAB36_Bp.ExecSize,
-            JsonParamsDtoType = typeof(DemoMissionPlan_AB1AAB36_Bp.Params),
+            JsonParamsDtoType = typeof(global::Hrot.AI.Behaviors.Brains.DemoMissionPlanParams),
             ManagedBlackboardVariables = DemoMissionPlan_AB1AAB36_Bp.InputManifest(),
             ParseParams = DemoMissionPlan_AB1AAB36_Bp.BehaviorParseParams,
             BlueprintTick = DemoMissionPlan_AB1AAB36_Bp.BehaviorTick,

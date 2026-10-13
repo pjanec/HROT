@@ -10,59 +10,8 @@
   "TierHint": "Auto",
   "IsWorldSingleton": false,
   "Primitive": null,
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.DangerCrossingParams",
   "Declarations": [
-    {
-      "Kind": "Parameter",
-      "Id": "58c45b90-6f44-5df2-a014-330302d3c4e8",
-      "Name": "Objective",
-      "Type": {
-        "TypeId": "System.Numerics.Vector3",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": null,
-      "Tooltip": "Where it walks \u2014 and the route its danger sensor watches (unit \u2192 objective, route source ToPoint).",
-      "Comment": null
-    },
-    {
-      "Kind": "Parameter",
-      "Id": "260fa0a3-7a47-55c7-888d-06b59e80c503",
-      "Name": "WalkSpeed",
-      "Type": {
-        "TypeId": "System.Single",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": "1.5",
-      "Tooltip": "Walking speed (m/s) \u2014 to the objective and to a near handle.",
-      "Comment": null
-    },
-    {
-      "Kind": "Parameter",
-      "Id": "f06cbdf7-ad05-5e9f-8073-e5b47b10c2ad",
-      "Name": "RushSpeed",
-      "Type": {
-        "TypeId": "System.Single",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": "4.5",
-      "Tooltip": "Rush speed across an area (m/s).",
-      "Comment": null
-    },
-    {
-      "Kind": "Parameter",
-      "Id": "6dfaa06c-5c98-5a99-bf87-0fd209008e0f",
-      "Name": "CrossWithin",
-      "Type": {
-        "TypeId": "System.Single",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": "15",
-      "Tooltip": "An area this close along the route (m) is rushed across.",
-      "Comment": null
-    },
     {
       "Kind": "Variable",
       "Id": "6893fbac-b44b-53ad-98d4-ae355ed36ed6",
@@ -138,7 +87,7 @@
         },
         {
           "kind": "GetParameter",
-          "ParameterId": "58c45b90-6f44-5df2-a014-330302d3c4e8",
+          "ParameterId": "5bece5d6-7ac2-9354-b24c-df9eb2b8c762",
           "Id": "25adc157-3faf-524b-981a-722e8c74d201",
           "Pins": [
             {
@@ -162,7 +111,7 @@
         },
         {
           "kind": "GetParameter",
-          "ParameterId": "260fa0a3-7a47-55c7-888d-06b59e80c503",
+          "ParameterId": "4150c437-7366-ce51-aaf9-d50b197c2a9c",
           "Id": "b04cc7a3-208c-56cf-a735-0cc0c963b262",
           "Pins": [
             {
@@ -186,7 +135,7 @@
         },
         {
           "kind": "GetParameter",
-          "ParameterId": "f06cbdf7-ad05-5e9f-8073-e5b47b10c2ad",
+          "ParameterId": "075e90e5-7d94-6f57-a2d0-d6bea14667b2",
           "Id": "f8dc2fa7-c485-54cb-a33c-0c4b0a6389d3",
           "Pins": [
             {
@@ -210,7 +159,7 @@
         },
         {
           "kind": "GetParameter",
-          "ParameterId": "6dfaa06c-5c98-5a99-bf87-0fd209008e0f",
+          "ParameterId": "2ef0e07a-b4d1-6a5e-9f9d-cebe0fcd770a",
           "Id": "115cf2e9-346a-59f2-86d5-8f681b2880cd",
           "Pins": [
             {

@@ -311,8 +311,10 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         // ⚠ Left for P4 (they convert when the legacy Input path and Role are deleted): DangerCrossingBp, Demo_MissionPlan, Demo_TaskChain
         //   (Parameters → a DTO, R-2004); HsmResolverDemo, T40 (resolver blueprints with Parameters); HsmChannelE2E (its variables are
         //   AiPrimitive blueprints' generated Params); T20 (a caller sends it a field); T09, HsmVariableShowcase (the legacy path's own
-        //   rails pin them). PlatoonHillAttackBp retired with its scenario (P9, R-2006) — removed.
-        "DangerCrossingBp", "Demo_MissionPlan", "Demo_TaskChain",
+        //   rails pin them).
+        // R-2006 (P9, 2026-10-13) removed PlatoonHillAttackBp: the asset is retired (behaviors lane).
+        // CE-2135 (B3b-2 / P4 ②, 2026-10-13) removed 3 that now NAME a params DTO (R-2004): DangerCrossingBp (DangerCrossingParams,
+        //   its C# twin's contract), Demo_MissionPlan (DemoMissionPlanParams), Demo_TaskChain (DemoTaskChainParams).
         "HsmChannelE2E", "HsmResolverDemo", "HsmVariableShowcase", "T09_BlackboardManaged", "T20_MultiStateful",
         "T40_BehaviorResolverAsset",
     };
