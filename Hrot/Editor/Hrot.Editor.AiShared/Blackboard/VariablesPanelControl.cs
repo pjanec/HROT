@@ -599,10 +599,11 @@ public sealed class VariablesPanelControl
                         ImGui.TableNextColumn(); ImGui.TextDisabled(f.TypeName);
                         ImGui.TableNextColumn();
                         ImGui.TableNextColumn();
-                        // ⭐ §13.10c E7 — the EFFECTIVE default; "●" where this asset overrides the DTO's own.
+                        // ⭐ §13.10c E7 — the EFFECTIVE default; "*" where this asset overrides the DTO's own (⚠ not "●": the editor
+                        //   font has no glyph for it).
                         if (f.ValueJson is { } v)
                         {
-                            if (f.IsOverridden) ImGui.TextUnformatted("● " + v);
+                            if (f.IsOverridden) ImGui.TextUnformatted("* " + v);
                             else ImGui.TextDisabled(v);
                         }
                         else ImGui.TextDisabled("—");

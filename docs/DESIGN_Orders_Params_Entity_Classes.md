@@ -2242,12 +2242,12 @@ the dashed path is the fallback where no document view exists — the edit still
 | # | decision | ⭐ lean | rejected (one line each) |
 |---|---|---|---|
 | E1 | what an edit writes | `ParamsDefaultJson` = the asset's overrides only: editing a field sets that key (to the edited value, even if it equals the DTO default — the author asked for it), Reset removes it; `{}` is written as null | write the whole effective value (a DTO default change would never reach the asset — R-3001) |
-| E2 | the form | `ParamsDefaultsModel` (headless) over `ParamsDefaults.Effective(dto, overrides)`; `ParamsDefaultsForm` draws each field with `ComponentEditDrawer.DrawEditNode` in a 3-column table (field · value · ● overridden + Reset) | `BehaviorParamsForm.DrawFields` (a 2-column table: no room for the per-field marker / reset) · a hand-written per-type table |
+| E2 | the form | `ParamsDefaultsModel` (headless) over `ParamsDefaults.Effective(dto, overrides)`; `ParamsDefaultsForm` draws each field with `ComponentEditDrawer.DrawEditNode` in a 3-column table (field · value · * overridden + Reset) | `BehaviorParamsForm.DrawFields` (a 2-column table: no room for the per-field marker / reset) · a hand-written per-type table |
 | E3 | the write | ONE call per kind — `IParamsDtoAsset.SetParams(typeId, defaultsJson)` (BTree / HSM: both asset fields + the reserved entry), `BlueprintParamsDto.Set(asset, typeId, defaultsJson)`. The chooser = `SetParams(new, null)`; an edit = `SetParams(same, json)`; every undo = `SetParams(old, oldJson)` | a setter per field (three undo shapes for one pair of values) |
 | E4 | undo | `AssetEditCommand(Label, Mutate)` in AiShared; `BlueprintEditCommand` derives from it (unchanged for its callers); each sink gets an explicit arm — the blueprint sink's `default:` would otherwise report success for a no-op | a third "apply/undo" record for BTree / HSM (two implementations of one concept) · a per-panel undo stack (Ctrl+Z on the canvas would not reach it) |
 | E5 | finding the view | BTree / HSM: `BlackboardAuthoringWindow.SetCanvasContextResolver`, installed by the registrar from its canvas window (the outline's precedent); used only when its context's asset IS the panel's asset. Blueprint: the `view` `Retarget` already receives | a new constructor argument on the window (a silent default to forget) |
 | E6 | a DTO change | clears the overrides (they name another DTO's fields; for a blueprint they would be `BP1689`) and is ONE undo entry restoring both | keep the overrides (a compile error on the next build) |
-| E7 | U3 rows | now show the EFFECTIVE value (`ParamsDefaults.Effective`), overridden ones marked "●" — D4's "(DTO default)" stood in for the missing `DefaultOf` | keep "(DTO default)" (the answer exists now) |
+| E7 | U3 rows | now show the EFFECTIVE value (`ParamsDefaults.Effective`), overridden ones marked "*" — D4's "(DTO default)" stood in for the missing `DefaultOf` | keep "(DTO default)" (the answer exists now) |
 
 **As built** *(2026-10-13, ui, `CE-1061` U5b + `CE-1062`)* — the diagrams hold, with three deviations (⚠):
 - ⚠ `ParamsDefaultsModel` and `ParamsDefaultsForm` live in `Hrot.Presentation/Behavior/ParamsDefaultsForm.cs`, beside `BehaviorParamsForm`
@@ -2255,7 +2255,8 @@ the dashed path is the fallback where no document view exists — the edit still
 - ⚠ `AssetEdits.Run` takes the document's `UndoStack` (`GraphView.Undo`), not the `GraphView`: `GraphView.Execute` only forwards to it, and
   the rails build an `UndoStack` over a real sink without an ImGui-bound view. The window resolves `ctx.View.Undo`; the blueprint outline
   `_view?.Undo`. `BlueprintParamsDto.Run(asset, type, defaults, label, undo, markDirty)` + `Set(asset, type, defaults)`.
-- ⚠ The "Params defaults" section opens by default (`DefaultOpen`) on both surfaces.
+- ⚠ The "Params defaults" section opens by default (`DefaultOpen`) on both surfaces. ⚠ The override marker is "*", not the designed "●": the
+  frame rail showed "?" — U+25CF is outside every glyph range `EditorFontService` loads (General Punctuation is in, so "—" is fine).
 - `IParamsDtoAsset` is `ParamsDtoTypeId` · `CurrentParamsDefaults` · `SetParams(type, defaults)` (U5a's `SetParamsDto` is gone — the chooser
   is `SetParams(new, null)`). `ReservedParamsVariable.Retarget` takes the defaults. The form commits only when no ImGui item is active
   (one undo entry per drag / typed value). `ParamsFieldRow` = `(Name, TypeName, ValueJson, IsOverridden)`.
