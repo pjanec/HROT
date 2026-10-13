@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-12
+updated: 2026-10-13 (§0 — the overnight run's handoff)
 doc-type: RESUME — the orders / params DTOs / entity classes programme (any lane picking up a task). ⚠ A STATE doc: verify every "built" / "dispatched" line against git before acting.
-current-answer: §1 where it stands · §2 how to pick a task · §3 the lanes
+current-answer: ⭐ §0 the overnight handoff (2026-10-13) — START THERE · then §2 how to pick a task · §3 the lanes
 stale-below: nothing
-known-rot: none
+known-rot: §1's table predates the overnight run — its "DangerCrossing (next)", "B4 may run" and CE-2131 🟡 are DONE (see §0); §0 wins where they differ
 known-conflict: none
 related-designs:
   - docs/DESIGN_Orders_Params_Entity_Classes.md — THE design and its task list (§6); start there
@@ -15,6 +15,50 @@ related-designs:
 -->
 
 # Resume — orders, params DTOs and entity classes
+
+RELEARN
+
+## 0. Overnight handoff *(behaviors lane, 2026-10-12 → 13, solo; backend + ui queues taken over)*
+
+**State:** `behaviors` @ `475509f35`, clean, pushed. `backend` (`a5a917d5b`, CE-3182) and `ui` (`f0a08b621`, CE-1023) merged; neither pushed since. ⚠ Verify against git before acting (`git fetch origin backend ui` → merge what moved, name it in the started note).
+
+**Start here:** read `RULINGS.md` → this §0 → `DESIGN_Orders_Params_Entity_Classes.md` §11 / §12 for the decisions below.
+
+### 0.1 Done overnight (all red-proved; designs + tracker updated)
+
+| id | what | where |
+|---|---|---|
+| CE-2131 · CE-2145 · CE-2132 | NoParams for take-nothing behaviours · FollowRoute resolved on the receiver · DangerCrossing on the params model | design §5c/§5d; tracker |
+| CE-2136 (B4a) · CE-2135 (B3b prep) | `*.params.json` → `[ParamsDto]` struct at build · 15 store-nothing assets → `NoParams`, allow-list 33 → 18 | design §12.1 / §5c |
+| CE-1019 | the SOP row offers only SOPs; task pickers leave them out | Sensors & Doctrine §7.6 |
+| CE-2126 | UrbanCombatNew green: the fixture's AimAndFire never stamped `BehaviorInstanceId` (arbitration cleared it every tick; the CE-3136 aim clock never finished — bisect: `d271ec488`), eject applier in the wrong stage, a trivially-true halt latch; BallisticsAndHit stale assertion | `DESIGN_Entity_Interactions.md` §7.1b |
+| CE-2107 | squad pool folds a heard contact into another member's sighting (no double-counted enemy) | `DESIGN_Thermal_And_Acoustic_Sensing.md` §8 |
+| CE-1055 | EQS crash: the map's sensor gizmo rebuilt the generator's broadphase under the solver ⇒ `BroadphaseCache`, one per thread | Sensors & Doctrine §5.5 · Peek & Fire §9.8 |
+| CE-1047 (prereq) | attribute ack receipt 512 bits (ids ≥ 256 threw) | tracker |
+| CE-1036 · CE-1037 · CE-2147 · CE-2063 | stale fixtures: cross-host danger test loads roads · editor harness passes its creation pack + starter obstacles + bake system (11/11) · FindThrowingPosition golden · 5 blueprint `$meta` envelopes + v2 expectation | tracker |
+
+### 0.2 Waiting on the USER (each has a lean)
+
+| # | decision | lean |
+|---|---|---|
+| 1 | **CE-2144 E1** — where `HealthApplicationSystem` runs (it sits before the cognitive runtime, `CgfLogicPack.cs:231`) | **A**: Simulation tail + dispatchers also gate on Health — design §11.1 |
+| 2 | **B4b** — the editor for params assets (a new `AssetKind`, the first non-graph document) | design §12 |
+| 3 | **B3b proper** — delete `Role`; blueprint Parameters → a named DTO; empties the last 18 allow-list entries | design §5c |
+| 4 | **UrbanCombat cluster run** (`UrbanCombatFileLifecycleTests`) red BY DESIGN: Peek & Fire D4 needs the target seen; the demo's hand-written trees configure no sensor | add a vision-sensor step to the demo's Ambush + InfantryCombat trees (CE-2126 row) |
+| 5 | **CE-1047 ①/②** — `EntityAppearance` descriptor arm + `"Color"` attribute | build in an ATTENDED session: a new DDS type that becomes mandatory for ghost promotion on every node |
+
+### 0.3 Open, no decision needed (next candidates)
+
+- **CE-3180** — fixture component ids vs production ids: census recorded per assembly (7 assemblies, ~190 fixtures); next = one reflection rail per test assembly, fixed assembly by assembly (cross-lane, daylight).
+- **CE-2049** — `Fdp.Presentation.Tests` 8 red, causes recorded; each is a ui UX call (singleton row count, id-search semantics, perspective names).
+- **CE-2090 / CE-2091** — blueprint EQS round-out pins; unscheduled, no demand.
+
+### 0.4 Traps measured overnight
+
+- ⛔ Killing `dotnet test` (its `vstest.console`) leaves the **`testhost` orphaned** — it held memory for an hour and made `Hrot.Editor.Tests` hang / go red once. `pgrep -fa testhost` and kill by PID.
+- ⛔ `pkill -f <pattern>` that matches your own command line kills your shell (exit 144) — kill by PID.
+- ⛔ Two builds of overlapping projects at once ⇒ spurious reds; serialise builds that share projects.
+- ⭐ Build the TEST project before `--no-build` (CLAUDE.md "second stale-binary trap") — and check a red-proof's mutated build actually succeeded.
 
 ## 1. Where it stands *(2026-10-12)*
 
