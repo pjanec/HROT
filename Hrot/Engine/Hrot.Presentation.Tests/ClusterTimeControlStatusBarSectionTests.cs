@@ -9,6 +9,7 @@ namespace Hrot.Presentation.Tests;
 /// proving the status-bar render path still works after extraction of
 /// <see cref="TransportIcons"/>.
 /// </summary>
+[Xunit.Collection(Hrot.Presentation.Tests.ImGuiTestCollection.Name)]   // ⭐ one global ImGui context
 public class ClusterTimeControlStatusBarSectionTests
 {
     [Fact]

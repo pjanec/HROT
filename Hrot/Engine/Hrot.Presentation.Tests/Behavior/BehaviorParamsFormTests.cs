@@ -18,6 +18,7 @@ namespace Hrot.Presentation.Tests.Behavior
     /// behaviour's params type draws. ⭐ The two pick rails are re-homed from <c>BehaviorUiCompilerTests</c> (CE-2023 ③, the
     /// compiled form deleted by CE-1023): the claim — a pick on a STRUCT contract reaches the JSON, not a copy — is the same.
     /// </summary>
+    [Xunit.Collection(Hrot.Presentation.Tests.ImGuiTestCollection.Name)]   // ⭐ one global ImGui context
     public sealed class BehaviorParamsFormTests
     {
         private sealed class PickingContext : IMapPickContext

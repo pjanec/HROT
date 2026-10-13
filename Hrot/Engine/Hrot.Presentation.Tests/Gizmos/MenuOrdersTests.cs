@@ -23,6 +23,7 @@ namespace Hrot.Presentation.Tests.Gizmos;
 /// map pack on every live host: Move and Engage take a follow-up pick and become the same order the HTTP route publishes; a
 /// cancelled pick orders nothing; a replay offers and registers none of them.
 /// </summary>
+[Xunit.Collection(Hrot.Presentation.Tests.ImGuiTestCollection.Name)]   // ⭐ one global ImGui context
 public sealed class MenuOrdersTests : IDisposable
 {
     private const long UnitId = 77, EnemyId = 88;
