@@ -218,7 +218,11 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
             Position = new Vector2(50f, 25f),
             Radius   = 10f,
         });
-        harness.PumpFrames(1);
+        // ⭐ CE-1037 — since CE-3136 P-7a (R-242/R-243) the zone obstacle is a TKB Concrete block created through the
+        //   asynchronous entity-creation request (not in one frame), its footprint a BOX of side 2 × radius, and its collider
+        //   the box's circumscribed circle (ObstacleTkbTranslator: half the diagonal).
+        Assert.True(harness.PumpUntil(() => world.Query().With<PhysicsCollider>().Build().Count() > 0),
+            "The obstacle must be created through the entity-creation request.");
 
         var entities = world.Query().With<PhysicsCollider>().Build();
         Assert.Equal(1, entities.Count());
@@ -226,7 +230,8 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         Entity entity = default;
         foreach (var e in entities) { entity = e; break; }
         ref readonly var col = ref world.GetComponent<PhysicsCollider>(entity);
-        Assert.Equal(10f, col.Radius, precision: 3);
+        Assert.Equal(20f, world.GetComponent<Fdp.Toolkit.Terrain.ObstacleShape>(entity).Length, precision: 3);
+        Assert.Equal(10f * MathF.Sqrt(2f), col.Radius, precision: 3);
 
         ref readonly var xfm = ref world.GetComponent<SimTransform>(entity);
         Assert.Equal(50f, xfm.Position.X, precision: 3);
@@ -264,7 +269,8 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
             Position = new Vector2(30f, 40f),
             Radius   = 5f,
         });
-        harness.PumpFrames(1);
+        Assert.True(harness.PumpUntil(() => world.Query().With<PhysicsCollider>().Build().Count() > 0),   // ⭐ CE-1037 — asynchronous
+            "The obstacle must be created through the entity-creation request.");
 
         var entities = world.Query().With<PhysicsCollider>().Build();
         Assert.Equal(1, entities.Count());
@@ -274,7 +280,7 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
 
         Assert.Equal(30f, world.GetComponent<SimTransform>(entity).Position.X);
         Assert.Equal(40f, world.GetComponent<SimTransform>(entity).Position.Y);
-        Assert.Equal(5f,  world.GetComponent<PhysicsCollider>(entity).Radius);
+        Assert.Equal(5f * MathF.Sqrt(2f), world.GetComponent<PhysicsCollider>(entity).Radius, precision: 3);   // ⭐ CE-1037 — the box's half-diagonal
     }
 
     // ⛔ DELETED (F1/F3): `ZoneAuthoring_RoadNetworkUpdate_InjectsZoneEnvironmentDataSingleton`.

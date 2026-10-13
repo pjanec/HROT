@@ -279,6 +279,9 @@ public sealed class EditorHarness : IDisposable
         // ⭐ A type the CLUSTER's TKB also has, so a scenario authored here can be loaded into a live cluster
         //   (DistributedScenarioLoadTests). ⛔ Type 1 exists only here: CGF rejects it ("TkbType=1 not found").
         tkbDb.Register(new TkbTemplate("Tank_M1Abrams", tkbType: Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams));
+        // ⭐ CE-1037 — the editor places a zone obstacle as a TKB Concrete block (R-242): without the starter obstacles the
+        //   creation request found no template and created nothing.
+        Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterObstacles(tkbDb);
 
         // ⭐ CE-515 ③ — the pipeline comes from the PACK, as on every production host (DESIGN_Entity_Creation_Unification
         //   §6 ⑨). This harness hand-rolled its translator list and spawn system (a sixth list, missing
@@ -395,7 +398,7 @@ public sealed class EditorHarness : IDisposable
             simHostCorePack.SimulationSystems));
 
         // Register editor-specific ECS systems (cargo, perception, zone authoring).
-        Kernel.RegisterModule(new EditorSystemsModule());
+        Kernel.RegisterModule(new EditorSystemsModule(() => EntityCreation));   // ⭐ CE-1037 — the harness HAS the pack: pass it (else every obstacle placement is dropped)
 
         // Register caller-injected global systems (e.g. mock physics solvers in unit tests).
         // Must happen BEFORE Kernel.Initialize().

@@ -342,8 +342,16 @@ namespace Hrot.Map.Definitions.Tkb
             //   EntityDoorState descriptor everywhere else — nothing for a TKB translator to inject.
             tkbDb.Register(new TkbTemplate("Door", TkbEntityTypes.Door));
 
-            // ⭐ CE-3136 P-7a (O4, R-242) — the four starter STATIC OBSTACLES: terrain made of a wall-library material
-            //   (📄 docs/DESIGN_Peek_And_Fire.md §9). ⚠ The sizes and the car-body material are starter values to tune (§3c).
+            RegisterObstacles(tkbDb);
+        }
+
+        /// <summary>
+        /// ⭐ CE-3136 P-7a (O4, R-242) — the four starter STATIC OBSTACLES: terrain made of a wall-library material
+        /// (📄 docs/DESIGN_Peek_And_Fire.md §9). ⚠ The sizes and the car-body material are starter values to tune (§3c).
+        /// ⭐ CE-1037 — public so a host with a smaller catalogue (the editor test harness) registers THESE, never a copy.
+        /// </summary>
+        public static void RegisterObstacles(TkbDatabase tkbDb)
+        {
             RegisterObstacle(tkbDb, "Car",            TkbEntityTypes.Obstacle_Car,           4.5f, 1.8f, 1.5f, "car-body");
             RegisterObstacle(tkbDb, "Sandbag wall",   TkbEntityTypes.Obstacle_SandbagWall,   3.0f, 0.6f, 1.0f, "sandbags");
             RegisterObstacle(tkbDb, "Concrete block", TkbEntityTypes.Obstacle_ConcreteBlock, 2.0f, 1.0f, 1.0f, "concrete");
