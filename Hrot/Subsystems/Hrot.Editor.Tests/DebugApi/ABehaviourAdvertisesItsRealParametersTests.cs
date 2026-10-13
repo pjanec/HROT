@@ -319,7 +319,8 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         //   (PublishedParams, P4-e): HsmResolverDemo (HsmResolverDemoParams), T40_BehaviorResolverAsset (T40ResolverParams).
         // CE-2135 (P4 ⑥, 2026-10-13) removed 3 legacy fixtures: T09_BlackboardManaged (T09Params), T20_MultiStateful (T20Params,
         //   its nodes bind Params.<field>), HsmVariableShowcase (NoParams — no caller sends it JSON; Threshold stays a plain variable).
-        "HsmChannelE2E",
+        // CE-3190 (P4, 2026-10-13) removed the last one: HsmChannelE2E names HsmChannelE2EParams (one field per hosted blueprint, each
+        //   its named DTO; states and the guard bind Params.<field>). ⭐ The list is EMPTY — the acceptance of CE-2135 / CE-2130.
     };
 
     /// <summary>⭐ CE-2130 — true when <paramref name="t"/> is a generator's mirror of a behaviour's own variables rather

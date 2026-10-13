@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.NED.Messages;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Network.NED.Factory;
 
@@ -93,7 +94,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
     private static string[] DeserializeTokens(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return Array.Empty<string>();
-        try { return System.Text.Json.JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>(); }
+        try { return System.Text.Json.JsonSerializer.Deserialize<string[]>(json, FdpJsonOptionsRegistry.DefaultRelaxed) ?? Array.Empty<string>(); }
         catch { return Array.Empty<string>(); }
     }
 

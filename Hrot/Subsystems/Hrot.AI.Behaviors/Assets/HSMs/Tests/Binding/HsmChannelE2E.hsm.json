@@ -44,7 +44,7 @@
       "Activity": {
         "BlueprintAssetId": "00000160-0000-0000-0000-000000000001",
         "BlueprintName": "HsmDriveActivity",
-        "ExpressionTargetField": "bpActivityParams"
+        "ExpressionTargetField": "Params.Drive"
       },
       "RegionIndex": 0,
       "DeferredEventNames": [],
@@ -69,7 +69,7 @@
       "Activity": {
         "BlueprintAssetId": "00000160-0000-0000-0000-000000000002",
         "BlueprintName": "HsmFireActivity",
-        "ExpressionTargetField": "bpActivityParams_2"
+        "ExpressionTargetField": "Params.Fire"
       },
       "RegionIndex": 0,
       "DeferredEventNames": [],
@@ -77,7 +77,7 @@
       "Y": 100,
       "SizeOverrideX": null,
       "SizeOverrideY": null,
-      "Comment": "A DIFFERENT channel from Driving, so the hand-off is observable on two components rather than one. CE-414: bpActivityParams_2 IS HsmFireActivity's generated Params struct.",
+      "Comment": "A DIFFERENT channel from Driving, so the hand-off is observable on two components rather than one. CE-3190: Params.Fire IS HsmFireActivity's named params DTO, the layout of its generated Params.",
       "IsCollapsed": false,
       "ColorOverride": null
     }
@@ -92,7 +92,7 @@
       "Guard": {
         "BlueprintAssetId": "00000150-0000-0000-0000-000000000001",
         "BlueprintName": "HsmGuardDemo",
-        "ExpressionTargetField": "bpGuardParams"
+        "ExpressionTargetField": "Params.Guard"
       },
       "Priority": 0,
       "Kind": "External",
@@ -117,40 +117,7 @@
     "Managed": true,
     "TypeName": "HsmChannelE2E_Blackboard",
     "HeavyDtoType": null,
-    "Variables": [
-      {
-        "Name": "bpActivityParams",
-        "Type": {
-          "TypeId": "Hrot.AI.Behaviors.Generated.HsmDriveActivity_085BB11D_Bp+Params",
-          "IsArray": false,
-          "FixedLength": null
-        },
-        "DefaultValueJson": "{\"DestX\":0,\"DestY\":0}",
-        "Comment": "CE-414: composed by the Driving state's activity-blueprint pick. The variable IS HsmDriveActivity's generated Params struct, so the seed offset is this one variable's offset and every field offset inside it comes from the DTO.",
-        "IsAutoManaged": true
-      },
-      {
-        "Name": "bpActivityParams_2",
-        "Type": {
-          "TypeId": "Hrot.AI.Behaviors.Generated.HsmFireActivity_055BAC64_Bp+Params",
-          "IsArray": false,
-          "FixedLength": null
-        },
-        "DefaultValueJson": "{\"TargetNetworkId\":0}",
-        "Comment": "CE-414: composed by the Firing state's activity-blueprint pick.",
-        "IsAutoManaged": true
-      },
-      {
-        "Name": "bpGuardParams",
-        "Type": {
-          "TypeId": "Hrot.AI.Behaviors.Generated.HsmGuardDemo_C2A38D0D_Bp+Params",
-          "IsArray": false,
-          "FixedLength": null
-        },
-        "DefaultValueJson": "{\"EngageTarget\":false}",
-        "Comment": "CE-413/CE-414: composed by the transition's guard-blueprint pick. The guard is stamped with its SOURCE STATE, so before CE-414 it read Driving's window through its OWN Params type; the site key (the guard's asset id) is what separates them.",
-        "IsAutoManaged": true
-      }
-    ]
-  }
+    "Variables": []
+  },
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.HsmChannelE2EParams"
 }

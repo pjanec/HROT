@@ -28,6 +28,7 @@ using Hrot.SimHost;
 using Fdp.Toolkit.Replication.Abstractions;
 using Hrot.Map.Common.Replication.Egress;
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Network.NED.Factory;
 
@@ -491,7 +492,7 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
     private static string[] DeserializeTokens(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return System.Array.Empty<string>();
-        try { return System.Text.Json.JsonSerializer.Deserialize<string[]>(json) ?? System.Array.Empty<string>(); }
+        try { return System.Text.Json.JsonSerializer.Deserialize<string[]>(json, FdpJsonOptionsRegistry.DefaultRelaxed) ?? System.Array.Empty<string>(); }
         catch { return System.Array.Empty<string>(); }
     }
 }

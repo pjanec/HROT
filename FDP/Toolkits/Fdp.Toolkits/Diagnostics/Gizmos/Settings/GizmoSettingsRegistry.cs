@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using Fdp.Interfaces;
+using Fdp.Core.Serialization;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
 {
@@ -126,7 +127,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
                     value = FormatValue(active),
                 });
             }
-            File.WriteAllText(path, JsonSerializer.Serialize(records));
+            File.WriteAllText(path, JsonSerializer.Serialize(records, FdpJsonOptionsRegistry.DefaultRelaxed));
         }
 
         /// <summary>
@@ -135,7 +136,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
         public void LoadFromDisk(string path, SettingScope scope = SettingScope.Global)
         {
             if (!File.Exists(path)) return;
-            var records = JsonSerializer.Deserialize<List<ScopeRecord>>(File.ReadAllText(path));
+            var records = JsonSerializer.Deserialize<List<ScopeRecord>>(File.ReadAllText(path), FdpJsonOptionsRegistry.DefaultRelaxed);
             if (records == null) return;
             foreach (var rec in records)
             {

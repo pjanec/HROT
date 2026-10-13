@@ -79,6 +79,106 @@ namespace Fdp.Tests.Serialization
         public void EveryExemption_SaysWhy()
         {
             Assert.All(Exempt, e => Assert.False(string.IsNullOrWhiteSpace(e.Value.Why), e.Key));
+            Assert.All(NoOptionsExempt, e => Assert.False(string.IsNullOrWhiteSpace(e.Value.Why), e.Key));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3191</c> — the files allowed a serializer call with NO options argument (the platform defaults: no fields,
+        /// case-sensitive, numeric enums). Shrink only.
+        /// </summary>
+        private static readonly Dictionary<string, (int Count, string Why)> NoOptionsExempt = new()
+        {
+            ["FDP/ExtDeps/NodeEdit/src/NodeEditor.Core/Bookmarks/BookmarkStore.cs"] = (2, "NodeEdit is an external library with no Fdp.Core reference; its DTO has only strings and numbers"),
+            ["Hrot/Subsystems/AI/Hrot.AiEditor.Persistence/Params/ParamsDtoAsset.cs"] = (2, "netstandard2.0; quotes a string and compacts a JsonElement"),
+            ["Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage5_Schedule.cs"] = (1, "netstandard2.0 build; serializes a JsonNode (a DOM ignores options)"),
+        };
+
+        private static readonly Regex SerializerCall = new(
+            @"(?<![A-Za-z])JsonSerializer\.(Serialize|Deserialize|SerializeToNode|SerializeToElement|SerializeToDocument|SerializeToUtf8Bytes)(<[^()]*?>)?\(",
+            RegexOptions.Compiled);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3191</c> (R-2005 / R-2007) — no production <c>JsonSerializer</c> call passes ONE argument, so none falls back to the
+        /// defaults. ⚠ A tripwire: a two-argument call naming a <c>Type</c> (<c>Deserialize(json, type)</c>) is not caught, and a
+        /// call inside a string literal (generated code) is skipped.
+        /// </summary>
+        [Fact]
+        public void EveryProductionSerializerCall_PassesOptions_OrIsAnExemptionWithAReason()
+        {
+            var root = RepoRoot();
+            Assert.NotNull(root);
+
+            var found = new Dictionary<string, List<int>>();
+            foreach (var (rel, src) in ProductionSources(root!))
+            {
+                foreach (Match m in SerializerCall.Matches(src))
+                {
+                    int lineStart = src.LastIndexOf('\n', Math.Max(0, m.Index - 1)) + 1;
+                    string before = src.Substring(lineStart, m.Index - lineStart);
+                    string t = before.TrimStart();
+                    if (t.StartsWith("//") || t.StartsWith("*")) continue;
+                    if (before.Count(c => c == '"') % 2 == 1) continue;   // inside a string literal on this line
+                    var (commas, empty) = TopLevelArguments(src, m.Index + m.Length);
+                    if (commas == 0 && !empty)
+                    {
+                        if (!found.TryGetValue(rel, out var lines)) found[rel] = lines = new List<int>();
+                        lines.Add(src.Take(m.Index).Count(c => c == '\n') + 1);
+                    }
+                }
+            }
+
+            var problems = new List<string>();
+            foreach (var (file, lines) in found)
+            {
+                if (!NoOptionsExempt.TryGetValue(file, out var allowed))
+                    problems.Add($"{file}:{string.Join(",", lines)}: a JsonSerializer call with no options — pass FdpJsonOptionsRegistry.DefaultRelaxed (or a Derive)");
+                else if (lines.Count > allowed.Count)
+                    problems.Add($"{file}: {lines.Count} no-options calls, the exemption allows {allowed.Count}");
+            }
+            foreach (var (file, allowed) in NoOptionsExempt)
+            {
+                int count = found.TryGetValue(file, out var l) ? l.Count : 0;
+                if (count < allowed.Count)
+                    problems.Add($"{file}: the exemption allows {allowed.Count} but {count} remain — shrink the entry");
+            }
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        }
+
+        private static (int Commas, bool Empty) TopLevelArguments(string src, int i)
+        {
+            int depth = 1, commas = 0;
+            bool empty = true;
+            for (int k = i; k < src.Length && depth > 0; k++)
+            {
+                char c = src[k];
+                if (c == '"')
+                {
+                    empty = false;
+                    for (k++; k < src.Length && src[k] != '"'; k++)
+                        if (src[k] == '\\') k++;
+                }
+                else if (c is '(' or '[' or '{') depth++;
+                else if (c is ')' or ']' or '}') depth--;
+                else if (c == ',' && depth == 1) commas++;
+                else if (!char.IsWhiteSpace(c)) empty = false;
+            }
+            return (commas, empty);
+        }
+
+        private static IEnumerable<(string Rel, string Source)> ProductionSources(string root)
+        {
+            foreach (var top in new[] { "FDP", "Hrot", "Stride" })
+            {
+                var dir = Path.Combine(root, top);
+                if (!Directory.Exists(dir)) continue;
+                foreach (var file in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
+                {
+                    var rel = Path.GetRelativePath(root, file).Replace('\\', '/');
+                    if (rel.Contains("/obj/") || rel.Contains("/bin/")) continue;
+                    if (rel.Split('/').Any(p => p.EndsWith(".Tests") || p.EndsWith("Tests") || p == "TestShared" || p.EndsWith(".TestKit"))) continue;
+                    yield return (rel, File.ReadAllText(file));
+                }
+            }
         }
 
         [Fact]

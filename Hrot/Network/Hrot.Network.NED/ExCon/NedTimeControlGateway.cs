@@ -53,8 +53,17 @@ public sealed class NedTimeControlGateway : ITimeControlGateway
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.SetTimeScale,
-            PayloadJson   = JsonSerializer.Serialize(scale),
+            PayloadJson   = SetTimeScalePayload(scale),
         });
+
+    /// <summary>
+    /// ⭐ <c>CE-3191</c> — the <c>SetTimeScale</c> payload: the object the master reads (<c>SetTimeScalePayloadDto</c>,
+    /// <c>ClusterMaster</c>). ⛔ It used to be the bare number, which failed to bind there; the error was swallowed and the scale
+    /// fell back to 1.0, so the ExCon time-scale control never changed the scale.
+    /// </summary>
+    public static string SetTimeScalePayload(float scale)
+        => JsonSerializer.Serialize(new Hrot.Network.Orchestration.SetTimeScalePayloadDto(scale),
+                                    Hrot.Network.Orchestration.OrchestrationJsonOptions.Default);
 
     public void Dispose() => _writer.Dispose();
 }

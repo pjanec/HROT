@@ -187,14 +187,14 @@ public sealed class OrchestrationObserverTranslator : IDisposable
     private static string[] DeserializeStringArray(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return Array.Empty<string>();
-        try { return JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>(); }
+        try { return JsonSerializer.Deserialize<string[]>(json, FdpJsonOptionsRegistry.DefaultRelaxed) ?? Array.Empty<string>(); }
         catch { return Array.Empty<string>(); }
     }
 
     private static ExerciseInventoryItem[] DeserializeExerciseArray(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return Array.Empty<ExerciseInventoryItem>();
-        try { return JsonSerializer.Deserialize<ExerciseInventoryItem[]>(json) ?? Array.Empty<ExerciseInventoryItem>(); }
+        try { return JsonSerializer.Deserialize<ExerciseInventoryItem[]>(json, FdpJsonOptionsRegistry.DefaultRelaxed) ?? Array.Empty<ExerciseInventoryItem>(); }
         catch { return Array.Empty<ExerciseInventoryItem>(); }
     }
 }

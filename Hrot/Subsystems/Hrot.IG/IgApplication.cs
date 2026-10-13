@@ -140,6 +140,7 @@ using rlImGui_cs;
 using Hrot.Presentation.Facades;
 using Hrot.ScenarioEditor.Rendering;
 using Hrot.UI.Common.Facades;
+using Fdp.Core.Serialization;
 
 
 
@@ -2424,7 +2425,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             lon,
             alt,
             time     = System.DateTime.UtcNow.Ticks,
-        });
+        }, FdpJsonOptionsRegistry.DefaultRelaxed);
         var cmd = new Hrot.Core.Network.UpdateEntityDescriptorCommand
         {
             EntityId       = (int)netId,
@@ -3502,7 +3503,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                         // Affiliation is just another property ? embed it into initialPropertiesJson
                         // so CreationTool can consume it as part of the initial property blob.
                         initialPropertiesJson = System.Text.Json.JsonSerializer.Serialize(
-                            new { affiliation = affEl.GetString() });
+                            new { affiliation = affEl.GetString() }, FdpJsonOptionsRegistry.DefaultRelaxed);
                     }
 
                     ActivatePlacementTool(Guid.Empty, tkbType, initialPropertiesJson);
@@ -3573,7 +3574,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             try
             {
                 var patch = System.Text.Json.JsonSerializer.Deserialize<EntityPropertyPatch>(
-                    initialPropertiesJson);
+                    initialPropertiesJson, FdpJsonOptionsRegistry.DefaultRelaxed);
 
                 if (patch?.AutogenerateName == true)
                 {

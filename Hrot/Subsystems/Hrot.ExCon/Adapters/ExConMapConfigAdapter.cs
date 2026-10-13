@@ -1,5 +1,6 @@
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
+using Fdp.Core.Serialization;
 
 namespace Hrot.ExCon.Adapters;
 
@@ -41,7 +42,7 @@ public sealed class ExConMapConfigAdapter : IMapConfigController
                     grid              = config.Grid,
                 }
             }
-        });
+        }, FdpJsonOptionsRegistry.DefaultRelaxed);
         _logic.SendConfigPatch(json);
     }
 }

@@ -6,6 +6,7 @@ using Hrot.Core.Mission;
 using Hrot.UI.Common.Facades;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
+using Fdp.Core.Serialization;
 
 namespace Hrot.UI.Common.AddEntity;
 
@@ -126,5 +127,5 @@ public sealed class AddEntityAction
     }
 
     /// <summary>Serializes a menu item list for <c>CanvasContextMenuState.MenuJson</c>.</summary>
-    public static string ToJson(IEnumerable<object> items) => JsonSerializer.Serialize(items);
+    public static string ToJson(IEnumerable<object> items) => JsonSerializer.Serialize(items, FdpJsonOptionsRegistry.DefaultRelaxed);
 }

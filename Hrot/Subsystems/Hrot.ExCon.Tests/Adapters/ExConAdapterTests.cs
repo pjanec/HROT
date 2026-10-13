@@ -223,7 +223,9 @@ public sealed class MissionEditorServiceGetBehaviorsTests
 
         Assert.NotNull(behaviors);
         Assert.NotEmpty(behaviors);
-        Assert.Contains("Ambush", behaviors);
+        // ⭐ CE-2134 — the list is what this host DECLARES (Hrot.AI.Behaviors, loaded by name); ⛔ "Ambush" is an editor-only
+        //   example declaration (Hrot.Editor), which ExCon does not ship. PersonAttack is not in the fallback list, so it proves the scan.
+        Assert.Contains("PersonAttack", behaviors);
     }
 
     // ── Test 10: Entity not found returns empty list ──────────────────────────
@@ -249,7 +251,7 @@ public sealed class MissionEditorServiceGetBehaviorsTests
 
         var behaviors = svc.GetAvailableBehaviors(5);
 
-        Assert.Contains("InfantryCombat", behaviors);
-        Assert.Contains("MoveToLocation", behaviors);
+        // ⭐ CE-2134 — as above: "InfantryCombat" is editor-only; PersonMove is declared by the AI assembly and absent from the fallback
+        Assert.Contains("PersonMove", behaviors);
     }
 }

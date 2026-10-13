@@ -17,6 +17,7 @@ using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Orchestrator;
 
@@ -1471,7 +1472,7 @@ public sealed class ClusterMaster : IDisposable
                 if (nodeIds.Count > 0)
                 {
                     var syntheticJson = System.Text.Json.JsonSerializer.Serialize(
-                        new EpisodeConsensusPayload { EpisodeId = intent.EpisodeId, IsStart = intent.IsStart });
+                        new EpisodeConsensusPayload { EpisodeId = intent.EpisodeId, IsStart = intent.IsStart }, FdpJsonOptionsRegistry.DefaultRelaxed);
                     _pendingTransactions[txId] = new GenericTransactionTracker
                     {
                         RequestId             = requestId,
@@ -1782,7 +1783,7 @@ public sealed class ClusterMaster : IDisposable
             {
                 string mirrorJson = ev.ResultPayload is null ? string.Empty
                     : ev.ResultPayload is string ms ? ms
-                    : JsonSerializer.Serialize(ev.ResultPayload);
+                    : JsonSerializer.Serialize(ev.ResultPayload, FdpJsonOptionsRegistry.DefaultRelaxed);
                 if (!_inflightTransitionTx.NodeResponses.TryGetValue(ev.NodeId, out var txOpDict))
                 {
                     txOpDict = new Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>();

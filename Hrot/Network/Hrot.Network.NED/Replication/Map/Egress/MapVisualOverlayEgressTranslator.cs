@@ -108,7 +108,9 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (view.HasComponent<MapOverlayStyle>(entity))
                 {
                     ref readonly var style = ref view.GetComponentRO<MapOverlayStyle>(entity);
-                    styleJson = System.Text.Json.JsonSerializer.Serialize(style);
+                    // CE-3191: the style's OWN wire form — FromJson reads hex colour strings. Serializing the struct wrote "{}"
+                    //   (its colours are fields, its properties [JsonIgnore]), so every overlay arrived on its default style.
+                    styleJson = style.ToJson();
                 }
 
                 _writer.Write(new MapVisualOverlay
