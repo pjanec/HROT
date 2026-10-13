@@ -23,6 +23,7 @@ public sealed class AssetBaseNameCollisionGuardTests
     [InlineData("Foo.btree.json", "Foo")]
     [InlineData("Foo.hsm.json",   "Foo")]
     [InlineData("Foo.bp.json",    "Foo")]
+    [InlineData("Foo.params.json", "Foo")]   // CE-3185
     [InlineData("Foo.cs",         "Foo")]
     [InlineData("Foo.txt",        "Foo")]
     [InlineData("Foo.bar.txt",    "Foo.bar")]    // only final extension stripped for unknowns
@@ -83,6 +84,22 @@ public sealed class AssetBaseNameCollisionGuardTests
         Assert.Contains("Foo.btree.json", error);
         Assert.Contains("Foo.cs",         error);
         Assert.Contains("/trees",          error);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3185 — creating Foo.params.json when Foo.cs already exists → collision (the generator would emit a second Foo).
+    /// </summary>
+    [Fact]
+    public void CheckCollision_ParamsJson_BlockedBy_ExistingCs()
+    {
+        var error = AssetBaseNameCollisionGuard.CheckCollision(
+            targetFileName:   "Foo.params.json",
+            siblingFileNames: new[] { "Foo.cs" },
+            directoryForMessage: "/params");
+
+        Assert.NotNull(error);
+        Assert.Contains("Foo.params.json", error);
+        Assert.Contains("Foo.cs",          error);
     }
 
     /// <summary>

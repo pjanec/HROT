@@ -78,7 +78,7 @@ internal static class SharedAiMethodResolver
         };
     }
 
-    /// <summary>⭐ <c>CE-3137</c> U-2 — the type carries <c>[Fbt.Kernel.UnitMemory]</c>.</summary>
+    /// <summary>⭐ <c>CE-3137</c> U-2 — the type carries <c>[Fdp.Core.UnitMemory]</c>.</summary>
     public static bool IsUnitMemory(ITypeSymbol t)
         => t.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == UnitMemoryParams.AttributeName);
 

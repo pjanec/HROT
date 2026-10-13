@@ -1,3 +1,4 @@
+using Fdp.Core;
 namespace Hrot.Map.Definitions.Behavior.Intents
 {
     /// <summary>
@@ -11,6 +12,7 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     /// <c>TargetIntentId</c> of the <c>DefendAreaMapper</c> (TASK-TI011).
     /// </para>
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public sealed class DefendAreaIntentDto
     {
         public const string BehaviorId = BehaviorNames.DefendArea;

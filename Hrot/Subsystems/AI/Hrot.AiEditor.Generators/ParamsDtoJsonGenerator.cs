@@ -42,8 +42,21 @@ public sealed class ParamsDtoJsonGenerator : IIncrementalGenerator
         try { dto = ParamsDtoJson.Deserialize(text); }
         catch (Exception ex) { return (null, null, new[] { "does not parse: " + ex.Message }); }
 
-        var errors = ParamsDtoEmitCore.Validate(dto).ToArray();
+        var errors = ParamsDtoEmitCore.Validate(dto)
+            .Concat(FileNameErrors(path, dto)).ToArray();
         if (errors.Length > 0) return (null, null, errors);
         return (ParamsDtoEmitCore.Emit(dto, path), ParamsDtoEmitCore.TypeIdOf(dto) + ".params.g.cs", Array.Empty<string>());
+    }
+
+    /// <summary>⭐ <c>CE-3185</c> (F1) — the asset's file name IS its DTO's name (<c>&lt;Name&gt;.params.json</c>), so the type a behaviour
+    /// names can be found by eye; a mismatch is an error, never a silent rename.</summary>
+    private static string[] FileNameErrors(string path, ParamsDtoAssetDto dto)
+    {
+        string file = System.IO.Path.GetFileName(path);
+        string stem = file.EndsWith(ParamsDtoJson.Extension, StringComparison.OrdinalIgnoreCase)
+            ? file.Substring(0, file.Length - ParamsDtoJson.Extension.Length) : file;
+        return string.Equals(stem, dto.Name?.Trim(), StringComparison.Ordinal)
+            ? Array.Empty<string>()
+            : new[] { $"the file is named '{stem}' but the DTO is '{dto.Name}' — a params DTO asset's file name is its Name (CE-3185)" };
     }
 }

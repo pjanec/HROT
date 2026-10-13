@@ -1377,7 +1377,7 @@ not the "bloat" R-2002 rules out; deleting it would remove the panel's map pick.
 Hrot types their members hold; red-proved (`MoveOrder.Speed` back to `{ get; set; }` → fails naming it). Companion
 `CE3184_TheRuleCatchesAPropertyAndExemptsAJsonIgnoredView`.
 
-### 13.7 P1 — one `[Dto]` base, its origin, one registry *(CE-3185; build-state: READY-TO-BUILD `2026-10-13`, backend)*
+### 13.7 P1 — one `[Dto]` base, its origin, one registry *(CE-3185; build-state: BUILT `2026-10-13`, backend — as-built at the end of this section)*
 
 ```mermaid
 classDiagram
@@ -1456,6 +1456,29 @@ an assembly loads.*
 | P1-f | a `.params.json` with no `AssetId`, or file name ≠ `Name` | generator ERROR diagnostics (`PARAMS0002`, `PARAMS0003`) | warnings (the identity would silently drift) |
 | P1-g | "open the asset" in this slice | the registry entry carries the `AssetId`; ⚠ **no catalog contributor for `.params.json` is built** — `AssetCatalog` holds editable documents, and the params asset's editor is B4b (postponed by the user). A file-scan locator `ParamsDtoJson.FindByAssetId(root, id)` answers the lookup until then | a read-only catalog contributor now (a new `AssetKind`, ripples into the browser and asset tokens — ui-lane surfaces — for an asset nobody can edit yet) |
 | P1-h | the rail "a behaviour's DTO lacks `[ParamsDto]`" | over every PUBLISHED DTO of the production registry (generated mirrors excepted until P3/P4 retire them) — a rail, not a load error (a test fixture would throw) | a load error |
+
+**As built** *(2026-10-13)* — matches the diagrams, with these deviations and findings:
+- `DtoAttribute`, `ParamsDtoAttribute`, `UnitMemoryAttribute` in `FDP/Engine/Fdp.Core/DtoAttribute.cs` (namespace `Fdp.Core`); the `Hrot.Core`
+  `ParamsDtoAttribute.cs` is deleted; `Fbt.Kernel/BlackboardAnnotations.cs` keeps only the two parameter-access attributes. `[BlackboardDtoStruct]`'s
+  three readers (`BlackboardTypeChoiceBuilder`, `ISharedStructTypeProvider`, `BlackboardFieldClassifier`) test `DtoAttribute` on VALUE types; its
+  three declarations became `[Dto]` (`CustomEventDemoEvents`) or were dropped (the order DTOs — `[Order]` is a `[Dto]`). The method name
+  `DiscoverBlackboardDtoStructTypes` is unchanged (a rename is Roslyn work, not part of this item). `UnitMemoryParams.AttributeName` = `Fdp.Core.UnitMemoryAttribute`.
+- `[ParamsDto]` added to 29 DTOs: the 21 `*ParamsJsonDto`, the 2 intent DTOs, `NoParams`, `DangerCrossingParams`, `EqsTacticsParams`,
+  `PlatoonHillAttackParams`, `HullDownAttackParams`, `ThreatCountParams` (`Fdp.Toolkits`) — and `CgfNodes.JoinFormationParams`, found by the rail.
+- ⚠ **Deviation:** the generator reports the two new asset errors (no `AssetId`; file name ≠ `Name`) under its existing single id `PARAMS0001`
+  with distinct messages, not as `PARAMS0002` / `PARAMS0003` — the generator's one-descriptor rule (RS2008) is kept.
+- ⚠ **Deviation (P1-g, as designed):** no catalog contributor; `ParamsDtoJson.FindByAssetId(root, id)` is the locator.
+- ⚠ **Found, fixed in place:** CE-2130's `IsGeneratedMirror` could not see an HSM's Inputs mirror (`Hrot.AI.Behaviors.Machines.<A>_<A>_Blackboard`)
+  ⇒ `HsmChannelE2E`, `HsmCuratedBindingDemo`, `HsmPolledGuardDemo`, `HsmVariableShowcase` always broke P2 unlisted. The test now sees them; they are
+  listed for P3 with a note (not new violations).
+- ⚠ **Found, fixed:** `ParamsDtoRegistry.Default` scanned while holding its lock, and its `AssemblyLoad` hook takes the same lock. With the scan
+  widened to every `Fdp.Core` referencer a `Hrot.Presentation.Tests` run hung 17 min (not reproduced; suspected, not proven). The scan now runs
+  outside the lock; a generation counter keeps a scan that raced a load from being cached. Presentation then ran 124/0 three times in a row.
+- Rails: `CE3185_EveryPublishedParamsDto_CarriesParamsDto` (CE-2130's suite; red on first run, naming the 4 HSM mirrors + `JoinFormationParams`),
+  `CE3185_TheRegistryRecordsEachDtosOrigin_AssetOrSourceLine` (SimHost), `CE3185_OneScan_RecordsPurposesAndOrigin` and
+  `CE3185_TwoParamsDtos_OneSimpleName_AreRefused` (Core; the clash twin lives in a dynamic assembly — a static twin made every scan of the test
+  assembly throw, 9 reds), `CE3185_FindByAssetId_LocatesTheAsset_WhereverItMoved` + two invalid-asset cases (generator), the collision guard's
+  `.params.json` cases.
 
 ### 13.8 P2 — no stale DTO type after a rebuild *(CE-3186; build-state: READY-TO-BUILD `2026-10-13`, backend)*
 

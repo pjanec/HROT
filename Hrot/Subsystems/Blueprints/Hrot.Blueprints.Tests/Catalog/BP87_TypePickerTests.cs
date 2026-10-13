@@ -33,7 +33,7 @@ public sealed class BP87_TypePickerTests
 
     /// <summary>
     /// ⚠ <b><c>S5</c> narrowed what this can claim, and said so rather than deleting it.</b> The
-    /// picker's set now includes discovered <c>[BlackboardDtoStruct]</c> types, which the compiler
+    /// picker's set now includes discovered <c>[Dto]</c> types, which the compiler
     /// accepts through Stage 4's dotted-FQN path and <b>not</b> through the registry table — so
     /// <i>"every offered id resolves in the registry"</i> is no longer the right statement of BP-87's
     /// rule. ⭐ The full-strength version already exists and is stronger: <c>TypeChoiceUnionTests

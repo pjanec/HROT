@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
 using Fdp.Toolkit.Terrain;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -10,6 +11,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// — through it. ⭐ A STRUCT of unmanaged fields (the door is a <see cref="TerrainObjectRef"/>, JSON its key string), so a host
     /// can also bind it by bytes.
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct DoorLocksmithParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.DoorLocksmith;

@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
 using Fdp.Toolkit.Replication;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -10,6 +11,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// and it is also what the behaviour parses: its typed resolver (<c>CgfNodes.ResolveFollowRoute</c>) turns the route entity
     /// into its compiled trajectory on the RECEIVING side (R-273).</para>
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public sealed class FollowRouteParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.FollowRoute;

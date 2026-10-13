@@ -15,7 +15,6 @@ namespace Hrot.AI.Behaviors.Orders
     /// for a point (DESIGN_Map_Picking_Unification); the fulfilling behaviour converts it to local metres (its resolver or its node).
     /// </summary>
     [Order(nameof(OrderKind.Move), Gesture = OrderGesture.GroundClick)]
-    [BlackboardDtoStruct]
     [StructLayout(LayoutKind.Sequential)]
     public struct MoveOrder
     {
@@ -41,7 +40,6 @@ namespace Hrot.AI.Behaviors.Orders
     /// applies. ⭐ <see cref="Target"/> is an <see cref="EntityRef"/>, so the type alone makes the menu ask for an entity.
     /// </summary>
     [Order(nameof(OrderKind.Attack), Gesture = OrderGesture.EnemyClick)]
-    [BlackboardDtoStruct]
     [StructLayout(LayoutKind.Sequential)]
     public struct AttackOrder
     {
@@ -55,7 +53,6 @@ namespace Hrot.AI.Behaviors.Orders
     /// (<c>NoParams</c> means "this behaviour takes nothing", not "hold").
     /// </summary>
     [Order(nameof(OrderKind.Hold))]
-    [BlackboardDtoStruct]
     [StructLayout(LayoutKind.Sequential)]
     public struct HoldOrder
     {

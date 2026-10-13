@@ -1,4 +1,5 @@
 using Fdp.Toolkit.Replication;
+using Fdp.Core;
 namespace Hrot.Map.Definitions.Behavior.Intents
 {
     /// <summary>
@@ -14,6 +15,7 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     /// </para>
     /// 📄 <c>docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md</c> §4 D.
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public sealed class HullDownAttackIntentDto
     {
         public const string BehaviorId = BehaviorNames.HullDownAttack;

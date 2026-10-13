@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -8,6 +9,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// <c>FireAtPoint</c> behaviour: fire mount <see cref="Mount"/> at the ground point (<see cref="X"/>, <see cref="Y"/>, <see cref="Z"/>)
     /// — a thrown grenade, a mortar. A STRUCT of unmanaged fields, so a host can also bind it by bytes.
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct FireAtPointParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.FireAtPoint;

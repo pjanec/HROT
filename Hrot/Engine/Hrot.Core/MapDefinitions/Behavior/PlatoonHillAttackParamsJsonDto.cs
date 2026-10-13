@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Behavior.Params;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -12,6 +13,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// <c>HillAttackCommanderNodes.ParsePlatoonHillAttackParams</c> at ingress time;
     /// never referenced from BTree hot-path nodes.</para>
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public sealed class PlatoonHillAttackParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.PlatoonHillAttack;

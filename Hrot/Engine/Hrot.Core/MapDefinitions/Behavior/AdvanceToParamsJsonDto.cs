@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json.Serialization;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -9,6 +10,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// with the enemy in sight chooses Suppress and stays put, so it cannot carry a "go there" order under contact.
     /// A zero field keeps its default. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §3.6.
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct AdvanceToParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.AdvanceTo;

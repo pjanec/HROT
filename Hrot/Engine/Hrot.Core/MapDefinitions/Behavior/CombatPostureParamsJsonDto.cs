@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -11,6 +12,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// scenario already writes — <c>{"advance":{"Objective":[x,y,z],"Speed":3,"ArrivalRadius":5,"CooldownSeconds":1}}</c> — so the
     /// retired JSON tree's payloads load unchanged. A zero field keeps the default.
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct CombatPostureParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.CombatPosture;

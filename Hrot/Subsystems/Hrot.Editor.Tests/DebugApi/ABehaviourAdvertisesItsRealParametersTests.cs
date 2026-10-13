@@ -307,14 +307,20 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         "Demo_TakeCover", "Demo_TaskChain",
         "HsmResolverDemo", "OperatorControl", "PlatoonHillAttackBp", "T09_BlackboardManaged", "T10_MultiAction", "T20_MultiStateful", "T35_SharedWorkingState",
         "T39_TwoDistinctPrimitives", "T40_BehaviorResolverAsset",
+        // ⚠ CE-3185 (2026-10-13) found 4 more that were ALWAYS violators: the rail could not see an HSM's Inputs mirror
+        //   (`Hrot.AI.Behaviors.Machines.<Asset>_<Asset>_Blackboard`, see IsGeneratedMirror). Not new violations — a blind spot fixed in
+        //   place (T-1 ③); P3 (CE-2135) converts them with the other 14.
+        "HsmChannelE2E", "HsmCuratedBindingDemo", "HsmPolledGuardDemo", "HsmVariableShowcase",
     };
 
     /// <summary>⭐ CE-2130 — true when <paramref name="t"/> is a generator's mirror of a behaviour's own variables rather
-    /// than a named params DTO: a BTree asset's Inputs struct (emitted into <c>Hrot.AI.Behaviors.Trees</c>) or a blueprint
-    /// behaviour's nested <c>Params</c> (inside its generated <c>*_Bp</c> class).</summary>
+    /// than a named params DTO: a BTree asset's Inputs struct (emitted into <c>Hrot.AI.Behaviors.Trees</c>), a blueprint
+    /// behaviour's nested <c>Params</c> (inside its generated <c>*_Bp</c> class), or ⭐ CE-3185 an HSM asset's Inputs struct
+    /// (<c>Hrot.AI.Behaviors.Machines.&lt;Asset&gt;_&lt;Asset&gt;_Blackboard</c>, <c>HsmBridgeEmitCore</c>) — the shape the rail missed.</summary>
     internal static bool IsGeneratedMirror(System.Type t)
         => t.Namespace == "Hrot.AI.Behaviors.Trees"
-           || (t.Name == "Params" && t.DeclaringType is { } d && d.Name.EndsWith("_Bp", System.StringComparison.Ordinal));
+           || (t.Name == "Params" && t.DeclaringType is { } d && d.Name.EndsWith("_Bp", System.StringComparison.Ordinal))
+           || (t.Namespace == "Hrot.AI.Behaviors.Machines" && t.Name.EndsWith("_Blackboard", System.StringComparison.Ordinal));
 
     /// <summary>⭐ CE-2130 — every behaviour in <paramref name="registry"/> that breaks P1 (no params DTO) or P2 (the DTO
     /// is a generated mirror), with the reason.</summary>
@@ -441,6 +447,33 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     {
         Assert.Single(PropertyViolations(typeof(CE3184_WithProperty)));
         Assert.Empty(PropertyViolations(typeof(CE3184_FieldsAndView)));
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3185 (P1, F1, R-2000) — every params DTO a behaviour PUBLISHES carries <c>[ParamsDto]</c> (or <c>[Order]</c>, which
+    /// implies it), so the one registry lists it with its origin — including the ones only an ASSET names (<c>ThreatCountParams</c>,
+    /// <c>EqsTacticsParams</c>, <c>HullDownAttackParams</c>), which the registry missed before. Generated mirrors are the allow-list's
+    /// business (CE-2130) and are skipped.
+    /// <para>⚠ Red-proof: drop <c>[ParamsDto]</c> from <c>MoveToLocationParamsJsonDto</c> → this fails naming it.</para>
+    /// </summary>
+    [Fact]
+    public void CE3185_EveryPublishedParamsDto_CarriesParamsDto()
+    {
+        var registry = LoadProductionRegistry();
+        var unmarked = registry.GetRegisteredNames()
+            .Select(n => registry.TryGetId(n, out int id) && registry.TryGetDefinition(id, out var d) ? (n, d?.JsonParamsDtoType) : (n, null))
+            .Where(x => x.Item2 is { } t && !IsGeneratedMirror(t)
+                        && !t.IsDefined(typeof(Fdp.Core.ParamsDtoAttribute), false)
+                        && !t.IsDefined(typeof(Hrot.Map.Definitions.Behavior.Orders.OrderAttribute), false))
+            .Select(x => $"{x.n}: {x.Item2!.FullName}").Distinct().ToArray();
+        Assert.True(unmarked.Length == 0,
+            "every params DTO a behaviour publishes carries [ParamsDto] (R-2000, design §13.7):\n  " + string.Join("\n  ", unmarked));
+
+        var declared = Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Pinning(typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly);
+        Assert.True(declared.TryGetDto(typeof(Fdp.Toolkit.Behavior.ThreatCountParams), out var threat),
+            "an asset-named DTO in Fdp.Toolkits is in the one registry");
+        Assert.True(threat.Origin.IsKnown && threat.Origin.SourceFile!.EndsWith("SensorNodes.cs", System.StringComparison.Ordinal),
+            $"ThreatCountParams' origin is its C# file, got '{threat.Origin.SourceFile}'");
     }
 
     private struct CE3184_WithProperty { public float Speed { get; set; } }

@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
 using Fdp.Toolkit.Behavior.Params;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -23,6 +24,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// <remarks>⭐ <c>CE-2023</c> ③ (<c>DESIGN_Unified_Behaviour_Run.md</c> "S8n"): a STRUCT, so a host can bind it — a
     /// blueprint's Behaviour Task passes its bytes and the typed resolver's from-bytes arm converts them. ⛔ It was a class,
     /// which the from-bytes arm cannot take. Same properties and JSON keys.</remarks>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct MoveToLocationParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.MoveToLocation;

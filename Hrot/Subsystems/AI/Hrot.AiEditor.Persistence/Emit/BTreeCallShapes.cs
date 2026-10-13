@@ -11,7 +11,7 @@ public readonly struct CallParam
 {
     public CallParam(string typeFqn, bool isRef, bool isUnitMemory = false)
     { TypeFqn = typeFqn; IsRef = isRef; IsUnitMemory = isUnitMemory; }
-    /// <summary>⭐ <c>CE-3137</c> U-2 — the parameter's type carries <c>[Fbt.Kernel.UnitMemory]</c>: it binds to the unit's memory
+    /// <summary>⭐ <c>CE-3137</c> U-2 — the parameter's type carries <c>[Fdp.Core.UnitMemory]</c>: it binds to the unit's memory
     /// (<c>UnitMemory.Ref&lt;T&gt;(world, self)</c>), never to a variable, and does not count toward the call shape.</summary>
     public bool IsUnitMemory { get; }
     /// <summary>The parameter type's full name WITHOUT <c>global::</c> (nested types may use <c>.</c> or <c>+</c>).</summary>

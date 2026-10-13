@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Fbt.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Combat
 {

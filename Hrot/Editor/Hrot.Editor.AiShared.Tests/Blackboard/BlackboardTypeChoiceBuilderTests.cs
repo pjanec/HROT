@@ -6,19 +6,20 @@ using Fbt.Kernel;
 using FluentAssertions;
 using Hrot.Editor.AiShared.Blackboard;
 using Xunit;
+using Fdp.Core;
 
 namespace Hrot.Editor.AiShared.Tests.Blackboard;
 
 // ---------------------------------------------------------------------------
 // Fixture struct types for BlackboardTypeChoiceBuilder tests.
 //
-// A local [BlackboardDtoStruct] fixture is used (rather than relying on
+// A local [Dto] fixture is used (rather than relying on
 // Hrot.AI.Behaviors.Brains.SquadRallyState loading into this test host) for
 // determinism -- the assembly containing SquadRallyState may or may not be
 // loaded depending on test execution order/isolation.
 // ---------------------------------------------------------------------------
 
-[BlackboardDtoStruct]
+[Dto]
 public struct ChoiceBuilderProbeDto { public int Count; public float Speed; }
 
 // Two structs sharing the same short Type.Name ("Foo") but declared in different
@@ -27,13 +28,13 @@ public struct ChoiceBuilderProbeDto { public int Count; public float Speed; }
 // by the (colliding) display string.
 public static class ChoiceBuilderNamespaceA
 {
-    [BlackboardDtoStruct]
+    [Dto]
     public struct Foo { public int X; }
 }
 
 public static class ChoiceBuilderNamespaceB
 {
-    [BlackboardDtoStruct]
+    [Dto]
     public struct Foo { public int Y; }
 }
 
@@ -67,7 +68,7 @@ public sealed class BlackboardTypeChoiceBuilderTests
         choices.Should().Contain(c => c.Display == "bool" && c.Type == typeof(bool));
     }
 
-    // ---- [BlackboardDtoStruct] discovery -------------------------------------
+    // ---- [Dto] discovery -------------------------------------
 
     [Fact]
     public void BuildDefault_IncludesLocalBlackboardDtoStruct()
@@ -114,7 +115,7 @@ public sealed class BlackboardTypeChoiceBuilderTests
 
         var fooChoices = choices.Where(c => c.Display == "Foo").ToList();
 
-        fooChoices.Should().HaveCount(2, "two distinct [BlackboardDtoStruct] types share the short name 'Foo'");
+        fooChoices.Should().HaveCount(2, "two distinct [Dto] types share the short name 'Foo'");
         fooChoices.Select(c => c.Type).Should().BeEquivalentTo(new[]
         {
             typeof(ChoiceBuilderNamespaceA.Foo),

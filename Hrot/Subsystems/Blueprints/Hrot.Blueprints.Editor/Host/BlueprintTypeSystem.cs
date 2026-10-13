@@ -255,7 +255,7 @@ public sealed class BlueprintTypeSystem : ITypeSystem
     /// </summary>
     /// <summary>
     /// U-8 (stage B′) — the types a blueprint variable may be declared as: ⭐ <b>the primitives, plus
-    /// every discovered <c>[BlackboardDtoStruct]</c> type</b>.
+    /// every discovered <c>[Dto]</c> type</b>.
     ///
     /// <para>
     /// ⛔ <b>This was 13 hardcoded primitives and no structs</b>, while the Variables panel's own list

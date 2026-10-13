@@ -1,4 +1,6 @@
 using System;
+using System.Runtime.CompilerServices;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior.Orders
 {
@@ -8,11 +10,15 @@ namespace Hrot.Map.Definitions.Behavior.Orders
     /// <para>⭐ The name is a string so that code outside <c>Hrot.AI.Behaviors</c> (menus, HTTP, RTS) reads orders from the params-DTO
     /// registry without referencing the AI assembly's <c>OrderKind</c> (AQ90 §2.3l); inside the AI assembly it is written
     /// <c>nameof(OrderKind.X)</c>, so no literal is typed twice.</para>
+    /// <para>⭐ <c>CE-3185</c> (§13.7 P1-c) — a <see cref="DtoAttribute"/>: an order DTO IS a params DTO, so the registry gives it the
+    /// Params purpose and it needs no <c>[ParamsDto]</c> beside it; the compiler records its origin (file + line).</para>
     /// </summary>
     [AttributeUsage(AttributeTargets.Struct | AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-    public sealed class OrderAttribute : Attribute
+    public sealed class OrderAttribute : DtoAttribute
     {
-        public OrderAttribute(string name) => Name = name ?? throw new ArgumentNullException(nameof(name));
+        public OrderAttribute(string name, [CallerFilePath] string sourceFile = "", [CallerLineNumber] int sourceLine = 0)
+            : base(sourceFile, sourceLine)
+            => Name = name ?? throw new ArgumentNullException(nameof(name));
 
         /// <summary>The order's name, e.g. <c>Move</c>: the second half of a fulfilling behaviour's <c>&lt;Class&gt;&lt;Order&gt;</c> name.</summary>
         public string Name { get; }

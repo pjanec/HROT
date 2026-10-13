@@ -26,6 +26,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// Total = 8 + 16 + 16 + 12 = 52 bytes.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct PlatoonHillAttackParams
     {
         // TargetAreaEntity first to ensure 8-byte alignment with no padding before floats.
@@ -193,6 +194,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// Total = 52 bytes.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct HullDownAttackParams
     {
         /// <summary>X coordinate of the assigned firing-line slot (metres).</summary>

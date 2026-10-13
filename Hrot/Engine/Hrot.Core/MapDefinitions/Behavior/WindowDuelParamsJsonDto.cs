@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -8,6 +9,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// <c>PeekAndFire</c> with one of the two duel shapes, the design's A / B columns, plus a few overrides (0 = the shape's value).
     /// A STRUCT of unmanaged fields, so a host can also bind it by bytes.
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct WindowDuelParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.WindowDuel;

@@ -1,11 +1,12 @@
 using System.Reflection;
 using Fbt.Kernel;
+using Fdp.Core;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
 /// <summary>
 /// Discovers the fully-qualified names of Category-1 shared-struct types (C# structs
-/// decorated with <see cref="BlackboardDtoStructAttribute"/>) for the Make/Break/SetMembers struct palette
+/// decorated with <see cref="Fdp.Core.DtoAttribute"/>) for the Make/Break/SetMembers struct palette
 /// (<see cref="MakeBreakStructPaletteEntries"/>). ⚠ Its first consumer — the GetShared/SetShared drawers —
 /// was removed by <c>CE-440</c>; the "Shared" name is historical.
 /// </summary>
@@ -21,7 +22,7 @@ public interface ISharedStructTypeProvider
 /// <summary>
 /// Default <see cref="ISharedStructTypeProvider"/>: scans every assembly currently loaded
 /// into <see cref="AppDomain.CurrentDomain"/> for value types decorated with
-/// <see cref="BlackboardDtoStructAttribute"/> -- the same predicate
+/// <see cref="Fdp.Core.DtoAttribute"/> -- the same predicate
 /// <see cref="Hrot.Editor.AiShared.Blackboard.BlackboardFieldClassifier"/> uses to recognize
 /// Category-1 shared-struct fields (see <c>IsKnownType</c> there).
 /// <para>
@@ -63,7 +64,7 @@ public sealed class ReflectionSharedStructTypeProvider : ISharedStructTypeProvid
             foreach (var t in types)
             {
                 if (!t.IsValueType) continue;
-                if (!t.IsDefined(typeof(BlackboardDtoStructAttribute), inherit: false)) continue;
+                if (!t.IsDefined(typeof(DtoAttribute)   /* CE-3185: [Dto] or a derived marker */, inherit: false)) continue;
                 if (t.FullName is { Length: > 0 } fqn) result.Add(fqn);
             }
         }
