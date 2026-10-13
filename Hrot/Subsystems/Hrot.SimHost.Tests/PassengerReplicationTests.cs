@@ -133,6 +133,36 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(otherB, list.Passengers[1]);
         }
 
+        /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — the CARRY MODE travels with the seat: a list with a dragged man in seat 1 arrives as a
+        /// dragged man in seat 1, so every node derives the same tag (and the same offset and speed). ✅ Red-proof: ingress dropping
+        /// <c>Modes</c> ⇒ seated on the replica ⇒ red.</summary>
+        [Fact]
+        public void CE2152_TheCarryMode_TravelsWithTheSeat()
+        {
+            using var owner = World();
+            var ownerMap = new NetworkEntityMap();
+            var apc = Networked(owner, ownerMap, ApcId, vehicle: true);
+            var b = Networked(owner, ownerMap, BId);
+            ref var src = ref owner.GetComponentRW<PassengerBuffer>(apc);
+            src.Passengers[1] = b;
+            src.SetMode(1, CarryMode.Dragged);
+            src.Count = 1;
+
+            var sample = EntityPassengersEgressTranslator.ToSample(owner, ApcId, owner.GetComponentRO<PassengerBuffer>(apc));
+
+            using var other = World();
+            var otherMap = new NetworkEntityMap();
+            var otherApc = Networked(other, otherMap, ApcId, vehicle: true);
+            Networked(other, otherMap, BId);
+            var ingress = new EntityPassengersIngressTranslator(participant: null, otherMap);
+            using var cmd = new EntityCommandBuffer();
+            ingress.Receive(in sample);
+            ingress.Flush(cmd, other);
+            cmd.Playback(other);
+            Assert.Equal(CarryMode.Dragged, other.GetComponentRO<PassengerBuffer>(otherApc).ModeOf(1));
+            Assert.Equal(CarryMode.Seated, other.GetComponentRO<PassengerBuffer>(otherApc).ModeOf(0));
+        }
+
         [Fact]
         public void CE3110_I2b_OnlyTheDescriptorOwnerPublishes_AndTheOwnerNeverTakesItsOwnSampleBack()
         {

@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-13 (§7.4.7 B-b built; §7.4.8 C detailed — leans await the user)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.4.8 the person carrier detailed (C5–C10 approved, R-2011) · §7.4 carrying is a type fact (R-274, approved 2026-10-13 R-2009 — READY-TO-BUILD) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.4.9 C-a as built · §7.4.8 the person carrier detailed (C5–C10 approved, R-2011) · §7.4 carrying is a type fact (R-274, approved 2026-10-13 R-2009 — READY-TO-BUILD) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
@@ -779,7 +779,7 @@ in the tag only** — the wire could not say which seat is free, so two nodes wo
 |---|---|---|
 | **B-a** (`CE-2151`, ✅ BUILT 2026-10-13 — §7.4.6) | `Gen.Carrier` + `CarrierTkbTranslator` + `CarrierSeats`; capacity from the type; `PassengerBuffer` only on a declaring type; `PassengerExposure` moved; every carrier template declares it | a soldier has no buffer · a 2-seat type refuses the 3rd · exposure from the type · the feature suites `EmbarkNodesTests`, `Embarkation*`, the convoy live run |
 | **B-b** (`CE-2151`, ✅ BUILT 2026-10-13 — §7.4.7) | seats: slot = seat, roles, per-seat exposure, slot-indexed codecs | a crew seat refuses a passenger · disembark leaves a hole the next board fills · wire round trip by slot |
-| **C** (`CE-2152`) | the person carrier — after R-263's injury states | carry/drag offsets, speed factor, survives the carrier's death |
+| **C** (`CE-2152`; C-a ✅ BUILT 2026-10-13 — §7.4.9) | the person carrier — after R-263's injury states | carry/drag offsets, speed factor, survives the carrier's death |
 
 #### 7.4.6 B-a as built *(`2026-10-13`, behaviors, `CE-2151`)*
 
@@ -900,3 +900,31 @@ mechanism (R-274) · **the casualty boards itself** — it is incapacitated and 
 |---|---|---|
 | **C-a** (`CE-2152`, after `CE-2155` I-a) | Person block + `PersonCarrier`; `CarryMode` on the command, list, wire and tag; the C3 gate; C7; C8; C9; C10; soldier templates declare one open seat | a healthy soldier cannot be carried · an incapacitated one can, by a carrier in the fight · speed × factor · offset by mode · carrier downed ⇒ casualty dropped, alive · mode round-trips the wire |
 | **C-b** | `PickUp` / `Drop` actions and nodes; squad casualty care (L4) uses them | the carrier walks to the casualty and drags him to a point |
+
+#### 7.4.9 C-a as built *(`2026-10-13`, behaviors, `CE-2152`)*
+
+As the §7.4.8 class and sequence diagrams, with these names and these differences.
+
+| piece | as built |
+|---|---|
+| the profile | `Gen.Carrier.Person` (`PersonCarryDto`: carry 0.5, drag 0.3, carried 0 m / dragged 1 m behind) + `DiesWithCarrier` (true by default). `CarrierDefDto.PersonCarrier()` = one open seat, `DiesWithCarrier = false`, the default Person block. `CarrierTkbTranslator` stamps `PersonCarrier` (component 371) and `CarrierSeats.PassengersSurvive` |
+| who carries | the five soldier types that have `Gen.Injury` (BDC rifleman, the four UrbanCombat soldiers) |
+| the mode | `CarryMode { Seated, Carried, Dragged }`; `PassengerBuffer.Modes` (2 bits a seat, `ModeOf` / `SetMode`), `IsEmbarkedTag.Mode` derived from it on every node, `EntityPassengers.Modes` on the wire, `EmbarkEntityCommand.Mode` and `EmbarkInteractionPayload.Mode` for the request |
+| the gate (C3) | `Embarkation.TryEmbark(…, mode)`: onto a person carrier only an incapacitated passenger, by a carrier in the fight, else `Invalid`; a seated request is carried. Onto a vehicle the mode is always seated |
+| the carrier's fire (C7) | `Board` strips the carrier's `CanShoot`; `Embarkation.ReleaseCarrier` gives it back when his list is empty, he is in the fight and not himself aboard (from `Disembark`, `EjectAll` and `EmbarkedStateSystem`'s leavers) |
+| the speed (C8) | `CarryLoad.Factor` multiplies a person's top speed in `CarKinematicsSystem.UpdateVehicle`, beside the stance |
+| the offset (C10) | `EmbarkedStateSystem.CarryAndKill`: the casualty stands at the carrier minus his flattened heading × the mode's distance |
+| the drop (C9) | a person carrier who is not in the fight has his list emptied (`EjectAll`) on the node that owns it; the casualty is never killed with him, and stays down |
+
+**Deviations:**
+- ① **Offsets are distances behind the carrier**, not vectors. One number per mode is all a carry or drag needs.
+- ② **`PassengersSurvive` is the stored flag** (0 = die, the zero default), so a hand-built `CarrierSeats` keeps the vehicle behaviour.
+- ③ **`ReleaseCarrier` grants `CanShoot`** without remembering whether the type had it. The profile is declared only on soldier types, which do.
+- ④ **The mode is not saved with a scenario**, like the seat: a casualty loaded from a save rides seated.
+- ⑤ **Nothing starts a carry yet.** The trigger is C-b's `PickUp` action; until then the command is raised by a test or an operator.
+
+Rails:
+- `PersonCarrierTests` (5): only a man down is carried, and only by a carrier in the fight · carrying takes his fire and setting down gives it back · the casualty is held behind by mode · a downed carrier drops him alive · the profile is stamped from the type.
+- `CarKinematicsSystemTests.CE2152_APersonCarrier_IsSlowedByWhatHeCarries` (3 cases).
+- `PassengerReplicationTests.CE2152_TheCarryMode_TravelsWithTheSeat`.
+- `InteractionTransportTests`: the mode crosses with the request.

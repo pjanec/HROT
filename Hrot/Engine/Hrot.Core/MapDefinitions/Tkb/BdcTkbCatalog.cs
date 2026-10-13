@@ -216,6 +216,7 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .WithFaction(TkbEntityTypes.Infantry_Rifleman, 1)
                 .WithInjury(TkbEntityTypes.Infantry_Rifleman, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())   // ⭐ CE-2155 — wounded, incapacitated, bleeds out (R-2011)
+                .WithCarrier(TkbEntityTypes.Infantry_Rifleman, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())   // ⭐ CE-2152 — carries or drags one casualty (R-2011 C1)
                 .WithBehavior(TkbEntityTypes.Infantry_Rifleman)
                 .WithDisType(TkbEntityTypes.Infantry_Rifleman, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
             

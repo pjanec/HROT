@@ -22,5 +22,9 @@ namespace Fdp.Toolkit.Behavior.Events
         /// <summary>⭐ <c>CE-2151</c> B-b (R-2009 B4) — the seat role asked for: <c>Passenger</c> (the default — a plain boarding) or a crew role,
         /// which only that role's seat takes.</summary>
         public Fdp.Toolkit.Behavior.Components.SeatRole Role;
+
+        /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — onto a PERSON carrier: carried or dragged (a seated request is carried). Ignored by a
+        /// vehicle, which always seats.</summary>
+        public Fdp.Toolkit.Behavior.Components.CarryMode Mode;
     }
 }

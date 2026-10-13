@@ -77,6 +77,9 @@ namespace Hrot.NED.Messages
 
         /// <summary>⭐ <c>CE-2151</c> B-b (R-2009 B4) — the seat role asked for (<c>SeatRole</c>; 0 = Passenger, a plain boarding).</summary>
         public byte Role;
+
+        /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — carried or dragged onto a person carrier (<c>CarryMode</c>; 0 = seated).</summary>
+        public byte Mode;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Disembark"/> case (target = the vehicle, actor = the passenger).</summary>

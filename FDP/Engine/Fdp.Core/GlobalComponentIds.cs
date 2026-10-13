@@ -836,5 +836,10 @@ namespace Fdp.Core
         /// becomes wounded and incapacitated, and how fast it bleeds out (TKB <c>Gen.Injury</c>), stamped on every node at spawn. ⚠ 370
         /// measured free on backend, ui and behaviors 2026-10-13.</summary>
         public const int InjuryThresholds = 370;
+
+        /// <summary><c>PersonCarrier</c> — ⭐ CE-2152 (R-274 C / R-2011, docs/DESIGN_Entity_Interactions.md §7.4.8): a person TYPE that carries or
+        /// drags a casualty (TKB <c>Gen.Carrier.Person</c>) — its speed factors and offsets, stamped on every node at spawn. ⚠ 371 measured free
+        /// on backend, ui and behaviors 2026-10-13.</summary>
+        public const int PersonCarrier = 371;
     }
 }

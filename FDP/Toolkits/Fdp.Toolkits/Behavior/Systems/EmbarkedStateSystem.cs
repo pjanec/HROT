@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         private readonly Dictionary<Entity, int> _leaving = new();
         private readonly Dictionary<Entity, int> _order = new();
         private readonly HashSet<Entity> _killSent = new();
+        private readonly HashSet<Entity> _drops = new();
 
         /// <summary>Passengers this node boarded from a list (a rail reads it).</summary>
         public long Boarded { get; private set; }
@@ -36,6 +37,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         public long Left { get; private set; }
         /// <summary>Passengers this node killed because their vehicle was destroyed (lethal damage events published).</summary>
         public long Killed { get; private set; }
+        /// <summary>⭐ CE-2152 — loads this node dropped because their person carrier went down.</summary>
+        public long Dropped { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -50,7 +53,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     var p = buffer.Passengers[i];
                     if (p.IsNull || !repo.IsAlive(p)) continue;
                     if (repo.HasComponent<IsEmbarkedTag>(p) && repo.GetComponentRO<IsEmbarkedTag>(p) is var tag
-                        && tag.VehicleEntity == vehicle && tag.Seat == i) continue;
+                        && tag.VehicleEntity == vehicle && tag.Seat == i && tag.Mode == buffer.ModeOf(i)) continue;   // ⭐ CE-2152 — and its mode
                     _boarders.Add((p, vehicle, i));
                 }
             }
@@ -73,8 +76,15 @@ namespace Fdp.Toolkit.Behavior.Systems
                 Embarkation.Leave(repo, p, StandAt(repo, p, vehicle, k, _leaving[vehicle]));
                 Left++;
             }
+            // ⭐ CE-2152 (R-2011 C7) — a person carrier whose list emptied gets his fire back, on every node deriving from the list.
+            foreach (var vehicle in _leaving.Keys) if (repo.IsAlive(vehicle)) Embarkation.ReleaseCarrier(repo, vehicle);
 
             CarryAndKill(repo);
+
+            // ⭐ CE-2152 (R-2011 C9) — a person carrier who is DOWN (incapacitated or dead) drops his load where he lies, alive: on the node
+            //   that owns his list (its change replicates); the casualty stays down (Leave restores only someone in the fight).
+            foreach (var carrier in _drops) { Embarkation.EjectAll(repo, carrier); Dropped++; }
+            _drops.Clear();
 
             _boarders.Clear();
             _leavers.Clear();
@@ -91,21 +101,30 @@ namespace Fdp.Toolkit.Behavior.Systems
             bool damage = repo.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
             foreach (var p in repo.Query().With<IsEmbarkedTag>().Build())
             {
-                var vehicle = repo.GetComponentRO<IsEmbarkedTag>(p).VehicleEntity;
+                var tag = repo.GetComponentRO<IsEmbarkedTag>(p);
+                var vehicle = tag.VehicleEntity;
                 if (!repo.IsAlive(vehicle)) continue;
+
+                bool person = Embarkation.IsPersonCarrier(repo, vehicle);
+                if (person && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, vehicle))
+                {
+                    if (Embarkation.OwnsVehicle(repo, vehicle)) _drops.Add(vehicle);   // ⭐ CE-2152 C9 — dropped below, never killed with him
+                    continue;
+                }
 
                 if (transforms && repo.HasComponent<SimTransform>(vehicle) && repo.HasComponent<SimTransform>(p) && Embarkation.OwnsPosition(repo, p))
                 {
                     ref readonly var v = ref repo.GetComponentRO<SimTransform>(vehicle);
                     ref var t = ref repo.GetComponentRW<SimTransform>(p);
-                    t.Position = v.Position;
+                    t.Position = v.Position - Forward(v.Rotation) * (person ? Behind(repo, vehicle, tag.Mode) : 0f);   // ⭐ CE-2152 C10
                     t.Rotation = v.Rotation;
                     if (velocities && repo.HasComponent<SimVelocity>(vehicle) && repo.HasComponent<SimVelocity>(p))
                         repo.GetComponentRW<SimVelocity>(p) = repo.GetComponentRO<SimVelocity>(vehicle);   // dead reckoning elsewhere
                 }
 
                 if (!Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, p)) { _killSent.Remove(p); continue; }
-                if (damage && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(repo, vehicle) && Embarkation.OwnsHealth(repo, p) && _killSent.Add(p))
+                if (damage && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(repo, vehicle) && !Survives(repo, vehicle)
+                    && Embarkation.OwnsHealth(repo, p) && _killSent.Add(p))
                 {
                     repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.DamageAssessedEvent
                     {
@@ -115,6 +134,26 @@ namespace Fdp.Toolkit.Behavior.Systems
                     Killed++;
                 }
             }
+        }
+
+        /// <summary>⭐ CE-2152 (R-2011 C9) — the type's passengers survive its destruction (<c>Gen.Carrier.DiesWithCarrier = false</c>).</summary>
+        private static bool Survives(EntityRepository repo, Entity vehicle)
+            => repo.IsComponentTypeRegistered<CarrierSeats>() && repo.HasComponent<CarrierSeats>(vehicle)
+               && repo.GetComponentRO<CarrierSeats>(vehicle).PassengersSurvive != 0;
+
+        /// <summary>⭐ CE-2152 (R-2011 C10) — how far behind a person carrier the casualty is held for its mode.</summary>
+        private static float Behind(EntityRepository repo, Entity carrier, CarryMode mode)
+        {
+            ref readonly var pc = ref repo.GetComponentRO<PersonCarrier>(carrier);
+            return mode == CarryMode.Dragged ? pc.DragBehindMetres : pc.CarryBehindMetres;
+        }
+
+        /// <summary>The heading (X-forward, Z-up), flattened to the ground.</summary>
+        private static Vector3 Forward(Quaternion rotation)
+        {
+            var f = Vector3.Transform(Vector3.UnitX, rotation);
+            f.Z = 0f;
+            return f.LengthSquared() > 1e-6f ? Vector3.Normalize(f) : Vector3.UnitX;
         }
 
         private bool Listed(Entity p)

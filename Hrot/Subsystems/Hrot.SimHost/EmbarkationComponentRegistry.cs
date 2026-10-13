@@ -30,6 +30,7 @@ public static class EmbarkationComponentRegistry
     {
         world.RegisterComponent<PassengerBuffer>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();   // ⭐ CE-2151 — a carrier type's seats (Gen.Carrier)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();   // ⭐ CE-2152 — a person type that carries / drags a casualty
         world.RegisterComponent<IsEmbarkedTag>();
         world.RegisterComponent<OpenPassengerCabin>();   // ⭐ CE-3110 I-2c (R-271) — the open-cabin vehicle type (also in HrotSharedComponentRegistry)
 

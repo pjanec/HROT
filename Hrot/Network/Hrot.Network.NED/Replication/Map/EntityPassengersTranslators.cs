@@ -68,6 +68,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 EntityId = netId, Count = (byte)n,
                 Passenger0 = ids[0], Passenger1 = ids[1], Passenger2 = ids[2], Passenger3 = ids[3],
                 Passenger4 = ids[4], Passenger5 = ids[5], Passenger6 = ids[6], Passenger7 = ids[7],
+                Modes = b.Modes,   // ⭐ CE-2152 (R-2011 C5) — carried / dragged travels with the seat
             };
         }
 
@@ -149,6 +150,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 buffer.Passengers[i] = passenger;
                 buffer.Count++;
             }
+            buffer.Modes = d.Modes;   // ⭐ CE-2152 (R-2011 C5)
             cmd.AddComponent(vehicle, buffer);
             return true;
         }
