@@ -228,18 +228,6 @@ internal static class GeneratedBlueprintSchemaCatalog
             .Select(f => (f.Name, FullNameOf(f.Type)))
             .ToList();
 
-    /// <summary>The <c>[ParamsDto(DefaultJson)]</c> on <paramref name="dto"/>, or null.</summary>
-    public static string? ParamsDtoDefaultJsonOf(INamedTypeSymbol dto)
-    {
-        foreach (var a in dto.GetAttributes())
-        {
-            if (a.AttributeClass?.ToDisplayString() != ParamsDtoAttributeName) continue;
-            foreach (var n in a.NamedArguments)
-                if (n.Key == "DefaultJson") return n.Value.Value as string;
-        }
-        return null;
-    }
-
     /// <summary><see cref="System.Type.FullName"/> of a type symbol: namespace-qualified, <c>+</c> for nesting, no keyword aliases.</summary>
     public static string FullNameOf(ITypeSymbol t)
     {

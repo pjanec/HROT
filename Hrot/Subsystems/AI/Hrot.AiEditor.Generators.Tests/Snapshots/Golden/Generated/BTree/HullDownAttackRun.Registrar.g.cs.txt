@@ -4,6 +4,7 @@
 #nullable enable
 
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 
 using Fbt;
 using Fbt.Runtime;
@@ -108,6 +109,10 @@ public static class HullDownAttackRunRegistrar
             // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
             static void __BakeDefaults(byte* memory, int capacity)
             {
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.HullDownAttackParams>("{}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __v);
+                }
             }
             __bakeDefaults = __BakeDefaults;
             __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>

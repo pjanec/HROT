@@ -366,9 +366,12 @@ internal static class AiPrimitiveEmitter
     /// <para>⚠ The cached offset is bounds-checked against the root block on every call — an occurrence that
     /// survived a hot reload of the old (copying) layout would otherwise hand back a stale number.</para>
     /// </summary>
-    private static void EmitLiveHostParams(CSharpEmitter e, string worldExpr, string selfExpr)
+    /// <para>⭐⭐ <c>CE-3163</c> — "the root block" is the HOSTING MACHINE's own block (<c>HsmBlock.Require</c>): the root block when
+    /// the HSM is the root, its own slot when it is hosted. ⛔ It was the ENTITY's root block, so under a hosted HSM this read the
+    /// host's host. 📄 <c>DESIGN_Behavior_Action_Binding.md</c> §5.7.</para>
+    private static void EmitLiveHostParams(CSharpEmitter e, string contextExpr)
     {
-        e.WriteLine($"byte* __root = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes({worldExpr}, {selfExpr}, out int __rootLen);");
+        e.WriteLine($"byte* __root = global::Fdp.Toolkit.Behavior.HsmBlock.Require({contextExpr}, out int __rootLen);");
         e.WriteLine("int __at = *__hostOffset;");
         e.WriteLine("if (__at < 0 || __at + sizeof(Params) > __rootLen)");
         e.WriteLine("    throw new global::System.InvalidOperationException($\"CE-444: '{nameof(Params)}' at host offset {__at} does not fit the {__rootLen}-byte root block — a stale occurrence or a wrong binding.\");");
@@ -544,7 +547,7 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
         e.WriteLine("var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
         e.WriteLine();
-        e.WriteLine("// CE-444: params are read LIVE from the entity's root block (§P.3); the occurrence holds only the");
+        e.WriteLine("// CE-444: params are read LIVE from the running machine's block (§P.3, CE-3163); the occurrence holds only the");
         e.WriteLine("//         working state and the host offset, looked up once at attach (option B, §P.9).");
         // ⭐ CE-2002 — `context` (the HsmKernelBridge) carries the occurrence the machine runs as; the key nests under it.
         e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, context, AssetId, writer);");
@@ -557,7 +560,7 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("    *__hostOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer, AssetId);");
         e.WriteLine("    InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
         e.WriteLine("}");
-        EmitLiveHostParams(e, "world", "bridge->Self");
+        EmitLiveHostParams(e, "context");
         e.WriteLine(tail);
     }
 

@@ -14,10 +14,22 @@ namespace Fhsm.Kernel
         {
         };
 
+        /// <summary>⭐ <c>CE-3163</c> — an action registered as a managed delegate (a fluent binding: its closure carries the
+        /// field offsets a static function pointer cannot). Same signature as the pointer table's.</summary>
+        public delegate void ManagedAction(void* instance, void* context, HsmCommandWriter* writer);
+
+        /// <summary>⭐ <c>CE-3163</c> — a guard registered as a managed delegate.</summary>
+        public delegate bool ManagedGuard(void* instance, void* context, ushort eventId, HsmCommandWriter* writer);
+
+        private static readonly Dictionary<ushort, ManagedAction> ManagedActionTable = new();
+        private static readonly Dictionary<ushort, ManagedGuard> ManagedGuardTable = new();
+
         public static void ExecuteAction(ushort actionId, void* instance, void* context, HsmCommandWriter* writer)
         {
             if (ActionTable.TryGetValue(actionId, out var actionPtr))
                 ((delegate* <void*, void*, HsmCommandWriter*, void>)actionPtr)(instance, context, writer);
+            else if (ManagedActionTable.TryGetValue(actionId, out var managed))   // ⭐ CE-3163 — a fluent binding
+                managed(instance, context, writer);
         }
 
         /// <summary>
@@ -35,6 +47,8 @@ namespace Fhsm.Kernel
         {
             if (GuardTable.TryGetValue(guardId, out var guardPtr))
                 return ((delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)guardPtr)(instance, context, eventId, writer);
+            if (ManagedGuardTable.TryGetValue(guardId, out var managed))   // ⭐ CE-3163 — a fluent binding
+                return managed(instance, context, eventId, writer);
             return true; // No guard = always pass
         }
 
@@ -51,12 +65,23 @@ namespace Fhsm.Kernel
         public static void RegisterAction(ushort id, IntPtr action) { lock (WriteLock) ActionTable[id] = action; }
         public static void RegisterGuard(ushort id, IntPtr guard)   { lock (WriteLock) GuardTable[id] = guard; }
 
+        /// <summary>⭐ <c>CE-3163</c> — register a managed action (the table keeps the delegate alive). ⚠ A function pointer
+        /// under the same id wins; the fluent binder's ids are compound keys, so they do not meet an emitted one.</summary>
+        public static void RegisterManagedAction(ushort id, ManagedAction action)
+        { if (action == null) throw new ArgumentNullException(nameof(action)); lock (WriteLock) ManagedActionTable[id] = action; }
+
+        /// <summary>⭐ <c>CE-3163</c> — register a managed guard.</summary>
+        public static void RegisterManagedGuard(ushort id, ManagedGuard guard)
+        { if (guard == null) throw new ArgumentNullException(nameof(guard)); lock (WriteLock) ManagedGuardTable[id] = guard; }
+
         public static void ClearAll()
         {
             lock (WriteLock)
             {
                 ActionTable.Clear();
                 GuardTable.Clear();
+                ManagedActionTable.Clear();
+                ManagedGuardTable.Clear();
             }
         }
     }

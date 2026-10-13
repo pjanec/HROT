@@ -106,6 +106,17 @@ namespace Fhsm.Compiler
             _state.OnEntryAction = actionName;
             return this;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3163</c> — register an action NAME on the graph from a state (the validator requires every name a state
+        /// uses to be registered, and a typed binding helper only holds the <see cref="StateBuilder"/>). Same effect as
+        /// <see cref="HsmBuilder.RegisterAction(string)"/>.
+        /// </summary>
+        public StateBuilder RegisterAction(string actionName)
+        {
+            _graph.RegisteredActions.Add(actionName);
+            return this;
+        }
         
         public StateBuilder OnExit(string actionName)
         {
@@ -321,6 +332,20 @@ namespace Fhsm.Compiler
         public TransitionBuilder Guard(string guardName)
         {
             _transition.GuardFunction = guardName;
+            return this;
+        }
+
+        /// <summary>⭐ <c>CE-3163</c> — register a guard NAME on the graph from a transition (see <see cref="StateBuilder.RegisterAction"/>).</summary>
+        public TransitionBuilder RegisterGuard(string guardName)
+        {
+            _graph.RegisteredGuards.Add(guardName);
+            return this;
+        }
+
+        /// <summary>⭐ <c>CE-3163</c> — register an action NAME on the graph from a transition.</summary>
+        public TransitionBuilder RegisterAction(string actionName)
+        {
+            _graph.RegisteredActions.Add(actionName);
             return this;
         }
         

@@ -45,9 +45,8 @@ namespace Fdp.Core
         public ParamsDtoAttribute([CallerFilePath] string sourceFile = "", [CallerLineNumber] int sourceLine = 0)
             : base(sourceFile, sourceLine) { }
 
-        /// <summary>The DTO's default as one JSON object (only the fields that have one) — what a behaviour's
-        /// <c>ParamsDefaultJson</c> can be seeded from. <c>default(T)</c> cannot carry it (R-237).</summary>
-        public string? DefaultJson { get; set; }
+        // ⛔ HISTORY (CE-3194, R-3002): a `DefaultJson` property carried the DTO's defaults as one JSON object. Retired — a DTO's
+        //   defaults are its field INITIALISERS (+ a parameterless constructor), read by `new T()`; the attribute held a second copy.
     }
 
     /// <summary>

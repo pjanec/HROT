@@ -110,7 +110,7 @@ public sealed class ThunkEmissionTests
         //   OccurrenceSlot_E3a pins that it sits inside the freshly-attached arm.
         // ⚠ CE-445: this asserted the word "BrainBlackboard", which only a (now removed) comment carried.
         //   The seed's real source is the entity's root params slot.
-        Assert.Contains("RootParamsAccess.RequireRootBytes(", src);   // CE-444: read live from the root block
+        Assert.Contains("HsmBlock.Require(context, out int __rootLen)", src);   // CE-444 live read; CE-3163: from THIS machine's block
         Assert.DoesNotContain("*(Params*)instance", src);
     }
 
@@ -190,7 +190,8 @@ public sealed class ThunkEmissionTests
         Assert.True(fresh >= 0 && cache > fresh, "the host offset must be cached INSIDE the freshly-attached arm");
         // …and the params are read LIVE from the root block on every call, AFTER that arm.
         Assert.True(read > cache, "params must be projected live from the root block on every call");
-        Assert.Contains("RootParamsAccess.RequireRootBytes(world, bridge->Self, out int __rootLen)", src);
+        Assert.Contains("global::Fdp.Toolkit.Behavior.HsmBlock.Require(context, out int __rootLen)", src);   // CE-3163 — the running machine's block, never the entity root
+        Assert.DoesNotContain("RequireRootBytes", src);
         // ⛔ no activation-time copy any more (the old E3a seed).
         Assert.DoesNotContain("*__params", src);
     }

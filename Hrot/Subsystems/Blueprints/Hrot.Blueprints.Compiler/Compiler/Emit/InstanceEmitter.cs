@@ -541,10 +541,28 @@ internal static class InstanceEmitter
     /// the ONE baseline both <c>ParseParams</c> (bake, then overlay) and <c>FormatParams</c> (diff against it) use.</summary>
     internal static void EmitParamsDefaults(CSharpEmitter e, IrAsset asset, string target)
     {
-        foreach (var f in asset.Parameters.Where(f =>
-            !Lowering.DefaultLiteral.IsSkippable(f.DefaultValueCSharp)))
+        // ⭐⭐ CE-3194 (R-3001 / R-3002) — a named params DTO: the baseline is the DTO's OWN default, `new T()` (its field initialisers,
+        //   read where the behaviour runs — a build-time generator cannot see a referenced assembly's initialisers), then the asset's
+        //   overrides (the made Parameters' defaults are exactly those, ParamsDtoFields.Materialize). ⚠ An override is written even when
+        //   it is zero: the baseline is no longer zero, so the BP-247 skip below does not apply to it.
+        bool fromDto = asset.ParamsDtoTypeId is { } dtoId && asset.Parameters.Count > 0;
+        if (fromDto)
         {
-            e.WriteLine($"{target}.{f.Name} = {f.DefaultValueCSharp};");
+            string dtoFqn = "global::" + asset.ParamsDtoTypeId!.Trim().Replace("global::", "").Replace('+', '.');
+            e.WriteLine("{");
+            e.Indent();
+            e.WriteLine($"var __dto = new {dtoFqn}();");
+            foreach (var f in asset.Parameters) e.WriteLine($"{target}.{f.Name} = __dto.{f.Name};");
+            e.Outdent();
+            e.WriteLine("}");
+        }
+        foreach (var f in asset.Parameters.Where(f => fromDto
+            ? f.HasDefault
+            : !Lowering.DefaultLiteral.IsSkippable(f.DefaultValueCSharp)))
+        {
+            // ⚠ a zero override lowers to no literal (DefaultLiteral's "0 means leave it zero") — over a `new T()` baseline that is `default`.
+            string value = string.IsNullOrEmpty(f.DefaultValueCSharp) ? "default" : f.DefaultValueCSharp;
+            e.WriteLine($"{target}.{f.Name} = {value};");
         }
         foreach (var f in asset.Parameters.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
         {

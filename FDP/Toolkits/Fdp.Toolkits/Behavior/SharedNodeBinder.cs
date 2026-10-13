@@ -308,7 +308,7 @@ namespace Fdp.Toolkit.Behavior
                     nameof(logic));
         }
 
-        private static nint FieldOffset<TBB, TValue>(Expression<Func<TBB, TValue>> selector)
+        internal static nint FieldOffset<TBB, TValue>(Expression<Func<TBB, TValue>> selector)
         {
             var member = selector.Body as MemberExpression ?? (selector.Body as UnaryExpression)?.Operand as MemberExpression;
             if (member == null)

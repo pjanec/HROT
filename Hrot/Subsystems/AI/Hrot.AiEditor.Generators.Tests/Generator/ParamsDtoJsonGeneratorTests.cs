@@ -31,10 +31,13 @@ public sealed class ParamsDtoJsonGeneratorTests
         hint.Should().Be("Demo.Params.MoveCarefully.params.g.cs");
         source.Should().Contain("namespace Demo.Params")
             .And.Contain("public struct MoveCarefully")
-            .And.Contain("[global::Fdp.Core.ParamsDto(AssetId = \"6f1c2b3a-0d4e-4f50-9a61-7b8c9d0e1f23\", DefaultJson = \"{\\\"Speed\\\":1.5,\\\"Goal\\\":[1,2,3],\\\"Quiet\\\":true}\")]")
+            .And.Contain("[global::Fdp.Core.ParamsDto(AssetId = \"6f1c2b3a-0d4e-4f50-9a61-7b8c9d0e1f23\")]")
+            .And.NotContain("DefaultJson", "CE-3194 (R-3002): the defaults are the fields' initialisers, not an attribute")
+            .And.Contain("public global::System.Single Speed = 1.5f;").And.Contain("public global::System.Numerics.Vector3 Goal = new global::System.Numerics.Vector3(1f, 2f, 3f);")
+            .And.Contain("public global::System.Int32 Hops;").And.Contain("public global::System.Boolean Quiet = true;")
+            .And.Contain("public MoveCarefully() { }")
             .And.Contain("[global::Hrot.Map.Definitions.Behavior.Orders.Order(\"Creep\", Gesture = global::Hrot.Map.Definitions.Behavior.Orders.OrderGesture.GroundClick)]")
             .And.Contain("LayoutKind.Sequential")
-            .And.Contain("public global::System.Numerics.Vector3 Goal;")
             .And.Contain("/// <summary>a &lt;test&gt; DTO</summary>");
     }
 

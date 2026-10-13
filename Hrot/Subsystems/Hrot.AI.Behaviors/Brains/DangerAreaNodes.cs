@@ -102,8 +102,9 @@ namespace Hrot.AI.Behaviors.Brains
     /// into the sensor's route and the walk. Defaults are the twin's.
     /// </summary>
     // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin. ⭐ CE-2135 P4 (R-2004): DangerCrossingBp names it too
-    //   — ONE contract for the C# behaviour and its blueprint twin; DefaultJson carries the initializers' values to the blueprint.
-    [ParamsDto(DefaultJson = "{\"WalkSpeed\":1.5,\"RushSpeed\":4.5,\"CrossWithin\":15}")]
+    //   — ONE contract for the C# behaviour and its blueprint twin. ⭐ CE-3194 (R-3002): its initialisers ARE the default, for the
+    //   blueprint too (`new DangerCrossingParams()` at run time); ⛔ the copy in `[ParamsDto(DefaultJson)]` retired.
+    [ParamsDto]
     public sealed class DangerCrossingParams
     {
         /// <summary>Where it walks — and the route its danger sensor watches (unit → objective).</summary>

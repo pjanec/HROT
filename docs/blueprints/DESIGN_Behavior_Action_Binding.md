@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-05
+updated: 2026-10-13
 build-state: BUILT (§5.6 CE-2099 BUILT 2026-10-05, as-built §5.6a) — slices 1…5 shipped 2026-10-01 (§5 slice table; as-built boxes per slice). B-1 … B-5 approved (user, 2026-10-01). B-2 = (a′), its tradeoffs accepted by the user after
   F7/F8/F9 were measured; it covers BOTH hosts (F8). The hot-path allocation half (F9) shipped separately as CE-505.
 current-answer: §4 (the five decisions, each with a lean). §2 is why Q75-B needs them: four of its premises moved
@@ -14,6 +14,7 @@ known-rot: (otherwise) none.
 known-conflict: Architect_Question_75 §4-B / §5 S5 — its "per-slot ExpressionTargetField" gain and its "six sites"
   count are both refined here (§2 F1, F3). This document is its build design and wins on those two points.
 related-designs:
+  - DESIGN_Occurrence_Scoped_Storage.md — owns E3a (§28: a hosted occurrence's params in its own slot) and §28.6a (one HSM thunk per action id); §5.7 here makes every HSM action read that block (CE-3163)
   - ../DESIGN_Decision_Layer.md — §3.3c OWNS CE-3082 D2 (HSM exits run the activity's deactivator, §5.3c here) and the CombatPostureHsm that needed it.
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — the first hand-written stateful nodes a designer would pick (TakeCover / FallBack), which §5.6's gap blocks from editor authoring.
   - DESIGN_BTree_Node_Call_Shapes.md — owns CE-504: what DelegateShape is FOR; proposes deriving it from the method and one C# node signature for both hosts.
@@ -738,6 +739,98 @@ CLEARS both fields, so a re-pick never leaves a stale working state behind.*
 clears both · the picker lists only `Role=State` variables of that type and promotes a SHARED one · the real catalogue
 reflects `UtilityNodes.IsOption` / `ChooseOption`). `SharedAiBindingCompilesTests.CE2069_ABTreeBindsAStatefulCondition_*`
 and `CE2099_ANodeScopedStatefulNode_WithNoTypeNamed_*` pin the emitter half (a shared and a node-scoped binding naming no type compile; red when the signature fallback is removed).
+
+## 5.7 `CE-3163` — a fluent C# HSM binds its params and working state; every HSM action reads ITS OWN block *(design `2026-10-13`, build-state: BUILT `2026-10-13` — as-built at the end of the section; the diagrams are the as-built)*
+
+🔒 **User, 2026-10-11 (R-264):** library squad behaviours *"may be C# fluent HSMs … no JSON asset"*; **2026-10-13:** CE-3163 is
+the backend lane's, and *"fold it into CE-3163"* — the hosted-HSM block read below.
+
+**INVENTORY** *(codebase-memory CLI `search_graph` `.*HsmKernelBridge.*`, `.*SharedNodeBinder.*`, `.*HsmActionDispatcher.*`,
+`.*HostedSubtree.*` + grep `RequireRootBytes` over every emitter + an Explore sweep of `docs/`, `.dev/`):*
+
+| exists | what it does today | file |
+|---|---|---|
+| `[HsmDefinition(ParamsType = …)]` | ✅ carried to `BlackboardLayoutType` + the identity `ParseParams` — **no machine uses it** | `HsmDefinitionAttribute.cs:33`, `CuratedBehaviorGenerator.cs:321-336` |
+| `HsmBuilder` / `StateBuilder` | names actions by STRING or explicit id (`ActivityId`, `OnExitId`, `GuardId`); no typed / selector overloads | `Fhsm.Compiler/HsmBuilder.cs:104-120, 210-233, 332` |
+| `HsmActionDispatcher` | two tables of STATIC function pointers keyed by a 16-bit id — **no captured data** | `HsmActionDispatcher.cs:17-52` |
+| `SharedNodeBinder` (BTree) | `Expression` selectors → field offsets → a DELEGATE per binding (the closure carries the offsets); key `Fqn@po[@so]`; deactivator paired | `SharedNodeBinder.cs:102-180` |
+| `HsmRunner.Tick(…, ref byte block)` | **receives the machine's OWN block** — the root block at the root, the child's block when hosted (`HostedSubtree.TickHosted:268`) — and builds `HsmKernelBridge` WITHOUT it | `HsmRunner.cs:110, 175-181` |
+| three emitted HSM thunks | read `RootParamsAccess.RequireRootBytes(world, self)` = the ENTITY'S ROOT block (`RootParamsAccess.cs:97-112`) | `SharedAiBindings.cs:295` · `HsmBridgeEmitCore.cs:853` (SOP orders) · `AiPrimitiveEmitter.cs:371` (blueprint-as-HSM-action, called at :560) |
+
+```mermaid
+classDiagram
+  class HsmKernelBridge { <<CHANGED, ABI: fields appended>> Self · WorldHandle · TraceContext · OccurrenceKey · +Block · +BlockLength }
+  class HsmRunner { <<CHANGED>> Tick(ctx, instance, size, ref block) sets bridge.Block = &block, BlockLength }
+  class HsmBlock { <<NEW, Fdp.Toolkits>> Require(context, out length) — bridge.Block, else the root block (a bridge built outside the runner) }
+  class HsmActionDispatcher { <<CHANGED, Fhsm.Kernel>> function-pointer tables · +delegate tables RegisterManagedAction / RegisterManagedGuard }
+  class HsmSharedBinder { <<NEW, Fdp.Toolkits>> RegisterAction / Condition / StatefulAction / StatefulCondition~TBlock,TP[,TS]~(selectors, method) : key }
+  class HsmFluentExtensions { <<NEW, Hrot.AI.Behaviors>> state.Activity(bb⇒bb.P, bb⇒bb.S, M) · OnEntry · OnExit · transition.Guard }
+  class SharedNodeBinder { <<EXISTS, BTree>> the twin: same selectors, same keys, same delegate types }
+  class SharedAiBindings_HsmBridgeEmitCore_AiPrimitiveEmitter { <<CHANGED emitters>> RequireRootBytes → HsmBlock.Require }
+  HsmRunner --> HsmKernelBridge : fills
+  HsmBlock ..> HsmKernelBridge : reads Block
+  HsmSharedBinder --> HsmActionDispatcher : registers delegates
+  HsmSharedBinder ..> HsmBlock : each delegate projects from
+  HsmFluentExtensions --> HsmSharedBinder
+  HsmSharedBinder ..|> SharedNodeBinder : mirrors
+  SharedAiBindings_HsmBridgeEmitCore_AiPrimitiveEmitter ..> HsmBlock : emitted thunks call
+```
+*What the picture shows that prose hid: the fix for the hosted read and the fluent binding meet in ONE accessor (`HsmBlock`), and the
+block it returns is already in the runner's hand — no key lookup is needed.*
+
+```mermaid
+sequenceDiagram
+  participant Host as HostedSubtree.TickHosted / BrainTickSystem
+  participant R as HsmRunner.Tick
+  participant K as HsmKernel.Update
+  participant D as HsmActionDispatcher
+  participant T as action (emitted thunk OR fluent delegate)
+  participant B as HsmBlock
+  Host->>R: ref block (root: the root block · hosted: the child's own block)
+  R->>R: bridge = {Self, World, OccurrenceKey, Block = &block, BlockLength}
+  R->>K: Update(blob, instance, &bridge)
+  K->>D: ExecuteAction(id, instance, &bridge, writer)
+  D->>T: function pointer, else managed delegate
+  T->>B: Require(&bridge, out len)
+  B-->>T: bridge.Block (this machine's block)
+  T->>T: method(ref *(P*)(block+po), ref *(S*)(block+so), self, world)
+```
+*What it shows: the block travels with the dispatch, so a machine hosted at two sites reads two blocks — and a fluent and a generated
+action read it the same way.*
+
+| decision | lean | rejected |
+|---|---|---|
+| **D1** where an HSM action finds its block | the runner already holds it: `HsmKernelBridge.Block` / `BlockLength`, set in `HsmRunner.Tick` (fields APPENDED — the bridge is emitted-code ABI) | look it up from `OccurrenceKey` (per-tier slot math the runner already did) |
+| **D2** one accessor | `HsmBlock.Require(context, out len)`; the three emitted thunks call it; a bridge built outside the runner (`Block == null`: tests, `BlueprintTestFixture`) falls back to the root block — today's behaviour | each emitter projecting `bridge->Block` itself (three copies of the bounds rule) |
+| **D3** how a fluent binding reaches the kernel | a MANAGED DELEGATE table beside the function-pointer one in `HsmActionDispatcher` (`ExecuteAction` / `EvaluateGuard` try the pointer, then the delegate); the delegate's closure carries the field offsets — exactly `SharedNodeBinder`'s shape | a source generator over the fluent lambdas (it would analyse method bodies) · a fixed pool of static trampolines (an arbitrary cap) |
+| **D4** the API | `HsmSharedBinder` mirrors `SharedNodeBinder` (same `SharedNode*` delegate types, same `Fqn@po[@so]` keys, id = `HsmActionKey.ForCompoundKey(key)` — the flattener's own FNV-1a, so `state.Activity(key)` and the table agree); extensions in `Hrot.AI.Behaviors` beside `SharedNodeBuilderExtensions` | new delegate types for the HSM (the same C# method must bind on both hosts) |
+| **D5** working state | a FIELD of the machine's block, like a C# tree (`BoundingOverwatchBlackboard { Order; State }`) and S8's `St` — so it is per occurrence by construction (D1) | a keyed side slot (a second home, CE-437) |
+| **D6** deactivator | `state.Activity(...)` pairs the method's deactivator as the state's exit when it has no `OnExit` — what CE-3082 D2 does for JSON HSMs | none (a stateful activity left mid-way keeps its channel) |
+| **D7** proof | a fluent demo machine with `ParamsType` in `Hrot.AI.Behaviors` + rails; converting a squad manoeuvre (R-264 *"may"*) is left to the lane that owns them | converting `BoundingOverwatch` here (a behaviour change on a shipped manoeuvre, outside the item) |
+
+**Acceptance (rails):** ① `HostingMatrixTests` (the hosting feature suite): an HSM child hosted under a bound site reads ITS block, not
+the host's — red today; ② a fluent machine with `ParamsType` reads its order's params and keeps per-state working state across ticks,
+at the root and hosted at two sites (two working states); ③ goldens: the three emitters' thunks change one line each.
+
+**As built (`2026-10-13`):**
+
+| piece | where |
+|---|---|
+| `HsmKernelBridge.Block` / `BlockLength` (appended) — set by `HsmRunner.Tick` from its `block` (`BehaviorBlock.Has` ⇒ pointer + `RootParamsAccess.RootParamsBytes(def)`) | `HsmKernelBridge.cs`, `HsmRunner.cs` |
+| `HsmBlock.Require(context, out len)` — the bridge's block, else the root block (a bridge built outside the runner) | `Fdp.Toolkits/Behavior/HsmBlock.cs` |
+| the three emitters call it: `SharedAiBindings.EmitThunk`, `HsmBridgeEmitCore` (SOP-order thunk), `AiPrimitiveEmitter.EmitLiveHostParams(e, "context")` | goldens move one line per thunk |
+| `HsmActionDispatcher`: `ManagedAction` / `ManagedGuard` delegate tables; `ExecuteAction` / `EvaluateGuard` try the pointer, then the delegate; `ClearAll` clears both | `Fhsm.Kernel/HsmActionDispatcher.cs` |
+| `HsmSharedBinder` — `RegisterAction` / `Condition` / `StatefulAction` / `StatefulCondition` + `RegisterDeactivator` (`[BTreeDeactivator]`, under `ExitCleanup_<key>`); `SharedNodeBinder.FieldOffset` made `internal` and shared | `Fdp.Toolkits/Behavior/HsmSharedBinder.cs` |
+| `HsmFluentBindingExtensions` — `state.Activity` (plain / stateful; pairs the deactivator as the exit when the state has none), `OnEntry`, `OnExit` (clears a paired id), `transition.Guard` (plain / stateful), `transition.Action` | `Hrot.AI.Behaviors/Brains/HsmFluentBindingExtensions.cs` |
+| ⚠ found while building: the graph validator requires every action / guard NAME to be registered on the graph, and a typed helper holds only the `StateBuilder` ⇒ `StateBuilder.RegisterAction`, `TransitionBuilder.RegisterGuard` / `RegisterAction` added (they add to the same sets as `HsmBuilder.RegisterAction`) | `Fhsm.Compiler/HsmBuilder.cs` |
+| ⭐ **deviation from D7** — no demo machine in `Hrot.AI.Behaviors`: a curated machine is listed in the behaviour palette, so a demo would ship to authors. The proof is two rails in the hosting feature suite instead | `HostingMatrixTests.CE3163_*` |
+| 🔒 **user, 2026-10-13 — for next time:** *"Hsm Demo can go to demo subfolder next time"* ⇒ a fluent-HSM demo belongs in a Demos subfolder (as `Assets/BTrees/Demos`, `Assets/Blueprints/Demos`), not left out | — |
+
+**Rails** (`HostingMatrixTests`, the hosting feature suite, 14/14): `CE3163_AFluentHsm_AtTheRoot_ReadsItsOrderAndKeepsItsWorkingState`
+(an order `{"Limit":7}` reaches the bound params, the working state counts across frames) and
+`CE3163_AFluentHsm_HostedAtTwoSites_KeepsTwoWorkingStates` (each site counts in its own block; the BTree host has no root block).
+🔴 Red-proved: `HsmBlock.Require` reading the root block (what every emitted HSM thunk did) ⇒ the hosted rail throws "no ROOT PARAMS slot".
+⚠ Not done here: converting a squad manoeuvre (R-264 *"may"*) — the lane that owns them decides.
 
 ## 6. Rails owed — ✅ all four exist since slice 5 (where each lives: slice 5 box)
 

@@ -178,6 +178,9 @@ namespace Fdp.Toolkit.Behavior.Runners
                 WorldHandle  = repo.UnmanagedHandle,
                 TraceContext = traceCtxPtr,
                 OccurrenceKey = ctx.OccurrenceKey,   // ⭐ CE-2002 — this machine's own occurrences nest under it
+                // ⭐⭐ CE-3163 — THIS machine's block (root, or the hosted child's own), so its actions never read the host's.
+                Block       = BehaviorBlock.Has(ref block) ? (byte*)Unsafe.AsPointer(ref block) : null,
+                BlockLength = BehaviorBlock.Has(ref block) ? RootParamsAccess.RootParamsBytes(def) : 0,
             };
 
             // ⭐⭐⭐ THE SIZE COMES FROM THE SLOT, NEVER FROM A TYPE (§9.4): a sizeof(TInstance) larger than the slot

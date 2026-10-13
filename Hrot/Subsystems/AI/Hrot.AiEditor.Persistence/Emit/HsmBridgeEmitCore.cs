@@ -481,7 +481,10 @@ public static class HsmBridgeEmitCore
         {
             Name             = BTreeEmitCore.ReservedParamsName,
             Type             = new HsmBlackboardTypeRefDto { TypeId = named! },
-            DefaultValueJson = dto.ParamsDefaultJson,
+            // ⭐ CE-3194 (R-3001/R-3002) — ALWAYS baked: the JSON is read over `new T()` (the DTO's initialisers; an absent key keeps
+            //   them), and "{}" when the asset overrides nothing. ⛔ It was baked only when the asset carried a default, so a DTO's own
+            //   defaults never reached the block (zeroed memory runs no constructor).
+            DefaultValueJson = string.IsNullOrWhiteSpace(dto.ParamsDefaultJson) ? "{}" : dto.ParamsDefaultJson,
             Comment          = "CE-2135: the behaviour's params (its named DTO, ParamsDtoTypeId) — reserved, not authored",
         });
         return dto;
@@ -847,7 +850,7 @@ public static class HsmBridgeEmitCore
         }
         else
         {
-            sb.AppendLine($"{pad}    byte* __root = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(__repo, __bridge->Self, out int __len);");
+            sb.AppendLine($"{pad}    byte* __root = global::Fdp.Toolkit.Behavior.HsmBlock.Require(contextPtr, out int __len);   // CE-3163 — this machine's block");
             sb.AppendLine($"{pad}    if ({e.Offset} + sizeof({e.ParamsTypeFqn}) > __len)");
             sb.AppendLine($"{pad}        throw new global::System.InvalidOperationException(\"CE-2083: {e.Key} does not fit the root block.\");");
             sb.AppendLine($"{pad}    {SopOrderEmit.Call(e.Order, "__repo", "__bridge->Self", $"in *({e.ParamsTypeFqn}*)(__root + {e.Offset})")};");

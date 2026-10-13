@@ -134,9 +134,13 @@ public static class DangerCrossingBp_6DD5A9BE_Bp
                 $"the params region holds {capacity} bytes but this asset's Params needs {sizeof(Params)}; the occurrence slot was sized for a different behaviour (CE-331).");
         ref var p = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<Params>(memory);
         p = default;
-        p.WalkSpeed = 1.5F;
-        p.RushSpeed = 4.5F;
-        p.CrossWithin = 15F;
+        {
+            var __dto = new global::Hrot.AI.Behaviors.Brains.DangerCrossingParams();
+            p.Objective = __dto.Objective;
+            p.WalkSpeed = __dto.WalkSpeed;
+            p.RushSpeed = __dto.RushSpeed;
+            p.CrossWithin = __dto.CrossWithin;
+        }
         if (string.IsNullOrWhiteSpace(json)) return;
         using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
         if (__doc.RootElement.ValueKind != global::System.Text.Json.JsonValueKind.Object) return;
@@ -180,9 +184,13 @@ public static class DangerCrossingBp_6DD5A9BE_Bp
                 $"the params region holds {capacity} bytes but this asset's Params needs {sizeof(Params)} (CE-331).");
         ref var p = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<Params>(memory);
         var __d = default(Params);
-        __d.WalkSpeed = 1.5F;
-        __d.RushSpeed = 4.5F;
-        __d.CrossWithin = 15F;
+        {
+            var __dto = new global::Hrot.AI.Behaviors.Brains.DangerCrossingParams();
+            __d.Objective = __dto.Objective;
+            __d.WalkSpeed = __dto.WalkSpeed;
+            __d.RushSpeed = __dto.RushSpeed;
+            __d.CrossWithin = __dto.CrossWithin;
+        }
         var __o = new global::System.Text.Json.Nodes.JsonObject();
         {
             var __v = global::System.Text.Json.JsonSerializer.Serialize<global::System.Numerics.Vector3>(p.Objective, __ParamJsonOptions);

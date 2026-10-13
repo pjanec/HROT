@@ -74,7 +74,7 @@
 		}
 	],
 	"ParamsDtoTypeId": "Hrot.AI.Behaviors.Params.T41Params",
-	"ParamsDefaultJson": "{\"Range\":25,\"Home\":[10,20,0],\"Loops\":2}",
+	"ParamsDefaultJson": "{\"Range\":30}",
 	"Pills": [],
 	"Canvas": {
 		"PanX": 0,

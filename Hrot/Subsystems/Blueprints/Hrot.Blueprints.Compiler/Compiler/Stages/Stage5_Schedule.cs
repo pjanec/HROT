@@ -164,6 +164,7 @@ internal static class Stage5_Schedule
                 //    file. ⭐ A literal the converter cannot type is REFUSED (BP1674) rather than passed
                 //    through — the refusal is the whole point.
                 DefaultValueCSharp = ConvertDefault(type, d, ctx),
+                HasDefault = !string.IsNullOrWhiteSpace(d.DefaultValueJson),   // ⭐ CE-3194
                 Comment = d.Comment,
             });
         }

@@ -8,6 +8,9 @@ public sealed record IrField
     public string Name { get; init; } = "";
     public IrTypeRef Type { get; init; } = null!;
     public string DefaultValueCSharp { get; init; } = "";
+    /// <summary>⭐ <c>CE-3194</c> — a default was DECLARED (even <c>0</c>, which lowers to no literal). A params-DTO field's baseline is
+    /// <c>new T()</c>, not zero, so an override of zero must still be written.</summary>
+    public bool HasDefault { get; init; }
     public string? Comment { get; init; }
     public int Offset { get; init; }
     public int Size { get; init; }

@@ -68,6 +68,7 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
             Primitive          = asset.Primitive,
             ResolverSubject    = asset.ResolverSubject,   // ⭐ CE-428 — measured: omitting it silently turned a resolver asset into a plain Library
             ParamsDtoTypeId    = asset.ParamsDtoTypeId,   // ⭐ CE-2133 — the named params DTO
+            ParamsDefaultJson  = asset.ParamsDefaultJson, // ⭐ CE-3194 — the asset's overrides of the DTO's defaults
             ParameterOrder     = asset.ParameterOrder,
             WorkingStateOrder  = asset.WorkingStateOrder,
             VariableOrder      = asset.VariableOrder,

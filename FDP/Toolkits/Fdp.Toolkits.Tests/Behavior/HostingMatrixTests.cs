@@ -632,4 +632,112 @@ public sealed unsafe class HostingMatrixTests : IDisposable
     }
 
     private static NodeStatus Succeed(ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int p) => NodeStatus.Success;
+
+    // ══ CE-3163 — a fluent HSM binds fields of ITS OWN block (DESIGN_Behavior_Action_Binding.md §5.7) ══════════════
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    public struct Ce3163Params { public int Limit; }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    public struct Ce3163State { public int Ticks; public int SeenLimit; }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    public struct Ce3163Block { public Ce3163Params Order; public Ce3163State State; }
+
+    /// <summary>The shared C# node a fluent HSM binds — the same signature a C# tree binds with SharedNodeBinder.</summary>
+    public static NodeStatus Ce3163Count(ref Ce3163Params p, ref Ce3163State ws, Entity self, EntityRepository world)
+    {
+        ws.Ticks++;
+        ws.SeenLimit = p.Limit;
+        return NodeStatus.Running;
+    }
+
+    private static BehaviorDefinition Ce3163Machine(string name)
+    {
+        var builder = new Fhsm.Compiler.HsmBuilder(name + "_HSM");
+        Hrot.AI.Behaviors.Brains.HsmFluentBindingExtensions.Activity<Ce3163Block, Ce3163Params, Ce3163State>(
+            builder.State("Run").Initial(), bb => bb.Order, bb => bb.State, Ce3163Count);
+        return new BehaviorDefinition
+        {
+            Name = name, BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = builder.Build().Compile(),
+            BlackboardLayoutType = typeof(Ce3163Block),
+            ParseParams = BehaviorParams.FromBlockResolver<Ce3163Params, Ce3163Block>(
+                static (in Ce3163Params a, ref Ce3163Block b, EntityRepository w, Entity s) => b.Order = a),
+        };
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-3163</c> — at the ROOT, a fluent HSM's activity reads the order's params and keeps its working state</b>, both
+    /// fields of the machine's block, bound by selector (<c>state.Activity(bb =&gt; bb.Order, bb =&gt; bb.State, …)</c>).
+    /// <para>✅ Red-proof: drop the managed-delegate table from <c>HsmActionDispatcher.ExecuteAction</c> → the activity never runs, Ticks stay 0.</para>
+    /// </summary>
+    [Fact]
+    public void CE3163_AFluentHsm_AtTheRoot_ReadsItsOrderAndKeepsItsWorkingState()
+    {
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+        beh.Register("CE3163_Root", Ce3163Machine("CE3163_Root"));
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = "CE3163_Root", JsonParams = "{\"Limit\":7}" });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(beh).Execute(world, 0.016f);
+        var brain = new BrainTickSystem(beh);
+        for (int f = 0; f < 3; f++) { brain.Execute(world, 0.016f); world.Bus.SwapBuffers(); }
+
+        Assert.True(RootParamsAccess.TryGetRootBytes(world, entity, out byte* root, out int len) && len >= sizeof(Ce3163Block));
+        var block = *(Ce3163Block*)root;
+        Assert.Equal(7, block.Order.Limit);
+        Assert.Equal(7, block.State.SeenLimit);
+        Assert.True(block.State.Ticks >= 2, $"the activity runs every frame and its working state persists: Ticks={block.State.Ticks}");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-3163</c> — HOSTED at two sites, the same fluent HSM keeps TWO blocks</b>: each site's activity counts in its own
+    /// working state. The host (a BTree with no params) has no root block at all.
+    /// <para>✅ Red-proof: make <c>HsmBlock.Require</c> ignore <c>bridge-&gt;Block</c> (read the entity's root block, as every emitted
+    /// HSM thunk did) → it throws "no ROOT PARAMS slot": a hosted machine could never read its own block.</para>
+    /// </summary>
+    [Fact]
+    public void CE3163_AFluentHsm_HostedAtTwoSites_KeepsTwoWorkingStates()
+    {
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+        var child = Ce3163Machine("CE3163_Child");
+        beh.Register("CE3163_Child", child);
+
+        var hb = new BTreeBuilder<byte, BTreeContext>().Parallel(0, p => p
+            .Subtree("CE3163_Child", visualId: SiteA)
+            .Subtree("CE3163_Child", visualId: SiteB));
+        var hostBlob = hb.Compile("CE3163_Host");
+        var plan = BTreeHostedSites.PlanFor(hostBlob, "CE3163_Host");
+        beh.Register(0x3163, "CE3163_Host", new BehaviorDefinition
+        {
+            Name = "CE3163_Host", BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(hostBlob, hb.GetRegistry()) { SubtreeHost = OccurrenceSubtreeHost.Instance },
+            StatefulWorkingSlots = plan.Slots,
+        });
+        BTreeHostedSites.Bind(beh, hostBlob, plan);
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = "CE3163_Host", JsonParams = string.Empty });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(beh).Execute(world, 0.016f);
+        var brain = new BrainTickSystem(beh);
+        for (int f = 0; f < 3; f++) { brain.Execute(world, 0.016f); world.Bus.SwapBuffers(); }
+
+        byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        var ticks = new System.Collections.Generic.List<int>();
+        foreach (var site in plan.Entries)
+        {
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, site.TreeStateSlotKey, out int off), "the site slot is provisioned");
+            var block = (Ce3163Block*)(store + off + HostedSubtree.BlockOffsetFor(child));
+            ticks.Add(block->State.Ticks);
+        }
+        Assert.True(ticks[0] >= 2 && ticks[0] == ticks[1], $"each site counts in its own block: {string.Join(", ", ticks)}");
+    }
 }
