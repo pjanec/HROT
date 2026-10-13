@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-11 (§5a who can ask EQS · §9 groups: commanders, squads, orders · §10 vehicles: passengers, formations · §6 / §6a refreshed)
+updated: 2026-10-13 (§9 params box: defaults R-3001/R-3002, no variable kinds, fluent HSM binding · §5a who can ask EQS · §9 groups: commanders, squads, orders · §10 vehicles: passengers, formations · §6 / §6a refreshed)
 current-answer: the whole file — an EXPLAINER (map of what exists), not a design; every box names its owning design. ⭐ READ IT BEFORE designing any behaviour, squad or vehicle work; when you MEASURE something it does not say, ADD it here (user, 2026-10-11: "I need the guide to serve every other future you so it does not need to rederive the stuff that is available")
 stale-below: none
 known-rot: §1–§8 colours are a 2026-10-06 snapshot (§5a, §9, §10 measured 2026-10-11) — re-check the tracker before relying on a red or amber box
@@ -372,7 +372,10 @@ it (only through utility inputs no shipped decision uses) ⇒ a soldier knows on
 > - flat JSON, case-insensitive through the one shared `FdpJsonOptionsRegistry.DefaultRelaxed`, enums as strings; DTOs are plain public FIELDS (§1 P2, §13.1 F12, §13.6);
 > - every DTO carries `[ParamsDto]` (a `[Dto]` in Fdp.Core recording its origin), read by one `ParamsDtoRegistry`; a `.params.json` asset generates one (§13.7, §12); a mandatory field is `[Required]` (§13.1 F5, §13.11);
 > - orders: `<Class><Order>` by the entity's DIS class (§8), one generic menu / RTS / HTTP path (§9), `GET /orders` lists them (§13.11); per-unit designations (target, point, route, area) fill a missing `[Required]` field on the sender (§13.3);
-> - not yet: blueprints still declare Parameters and `Role` still exists (P4, §13.10); the floating order form (P5b, ui lane); the params-asset editor (B4b, postponed).
+> - defaults *(R-3001/R-3002, CE-3194)*: a DTO's own defaults are its field INITIALISERS (+ a parameterless constructor) — never an attribute; an asset (BTree / HSM / blueprint) overrides single fields in `ParamsDefaultJson`; the bake is `new T()` → the asset's overrides → the order's JSON (`ParamsDefaults`, §13.10a);
+> - no variable kinds *(CE-3193)*: a blueprint names its DTO and its Parameters are the DTO's fields (no declared Parameters); a BTree / HSM variable has no `Role` / `Scope` — working state is the variable a binding names as its `WorkingStateTargetField` (§13.10 ⑦);
+> - a hand-written (fluent C#) HSM binds params and working state by selector, `state.Activity(bb => bb.Order, bb => bb.State, Run)`, and every HSM action reads its OWN block, so a hosted HSM is correct (CE-3163, [DESIGN_Behavior_Action_Binding](blueprints/DESIGN_Behavior_Action_Binding.md) §5.7);
+> - the floating order form is built (P5b, CE-1059); editor panels show `Params`' fields and pick the DTO (CE-1061); not yet: editing an asset's defaults in the editor (CE-1061 U5b, ui) and the params-asset editor (B4b, postponed).
 
 ## 10. Vehicles — passengers and formations *(measured 2026-10-11; passengers updated 2026-10-12)*
 

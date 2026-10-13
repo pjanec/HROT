@@ -12,17 +12,14 @@ namespace Fdp.Toolkit.Behavior.Analyzers
     /// Emits an assembly's <c>HsmActionRegistrar</c> from <c>[HsmAction]</c>, <c>[HsmGuard]</c> and
     /// the <c>[SharedAi*]</c> attributes.
     ///
-    /// <para><b>E3 — per-occurrence storage is NOT built yet, and the <c>[SharedAi*]</c> path bakes an
-    /// offset.</b> Every SharedAi entry below becomes a thunk that reads its DTO at a compile-time
-    /// constant byte offset from <c>BrainBlackboard.BehaviorParameters[0]</c>, registered under the
-    /// compound key <c>{MethodFqn}@{byteOffset}</c>. One occurrence per entity is all such a thunk can
-    /// ever address: a second occurrence of the same asset reads the first one's bytes, with no
-    /// diagnostic. That is not a ban on adding one — it means the addition now needs <b>E3</b>, whose
-    /// design is finished and waiting: see <c>docs/blueprints/Architect_Question_35_Hsm_Occurrence_Delivery.md</c>
-    /// (RESOLVED — carry the <c>(regionSlotIndex, stateId)</c> pair on <c>HsmCommandWriter</c>; ONE
-    /// delivery path, not two) and <c>docs/blueprints/DESIGN_Hsm_Storage_Model.md</c> §3.</para>
+    /// <para>⛔ HISTORY (superseded): this said <i>"E3 — per-occurrence storage is NOT built yet, and the <c>[SharedAi*]</c> path
+    /// bakes an offset from <c>BrainBlackboard.BehaviorParameters[0]</c>"</i>. Since CE-417 B-2 (a′) this generator emits NO
+    /// per-method <c>[SharedAi*]</c> thunks (see the note above <c>RegisterAll</c>'s cleanup half): an HSM ASSET's registrar emits one
+    /// thunk per binding (<c>SharedAiBindings</c>), E3 / E3a built per-occurrence storage, and since <c>CE-3163</c> every HSM action
+    /// reads ITS OWN block (<c>HsmBlock.Require</c>) and a hand-written fluent HSM binds through <c>HsmSharedBinder</c>.
+    /// 📄 <c>docs/blueprints/DESIGN_Behavior_Action_Binding.md</c> §5.7.</para>
     ///
-    /// <para>The executable form of this sentence is
+    /// <para>The executable form of the remaining rule (no DTO-bound per-METHOD thunk from this generator) is
     /// <c>HsmDtoBoundActionTripwireTests</c> in <c>Hrot.AiEditor.Generators.Tests</c>, which reddens
     /// when a DTO-bound HSM action appears in an assembly this generator runs over.</para>
     /// </summary>
