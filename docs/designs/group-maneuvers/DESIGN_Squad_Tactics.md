@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-13 (§7.4 L4 casualty care designed — K1–K6 await the user)
 build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch BUILT 2026-10-12 (as-built §6.1a) · embark §5 and formations §6 are MEASUREMENTS
-current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built, §7.4 L4 casualty care (K1–K6 ruled, R-2012) · §7.5 casualty care coordination + the rescue decision (DESIGN, approved R-2013, not built) · §7.6 fire and movement (DESIGN, approved, not built)
+current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built, §7.4 L4 casualty care (K1–K6 ruled, R-2012) · §7.5 casualty care coordination + the rescue decision (DESIGN, approved R-2013, not built) · §7.6 fire and movement (DESIGN, approved, not built) · §7.7 danger-area crossing (DESIGN, approved R-2014, not built)
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
@@ -841,6 +841,124 @@ watching and suppressing are different jobs, and before contact there is nothing
 | **F-b** | `RushTo` + `FireAndMovementPlay` (halves) |
 | **F-c** | `BoundingOverwatchPlay`: suppress on contact, cover-point bounds |
 | **F-d** | pairs (buddy teams) |
+
+### 7.7 Danger-area crossing — the squad drill *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved 2026-10-13 (R-2014), NOT built)*
+
+⭐ **Status for whoever returns:** measured `2026-10-13` (§7.7.1), approved; nothing built. It reuses §7.6's pattern (the commander reads
+gates and speaks only through orders) and §7.5's `Suppress` order; build after F-a (the gates). No re-measurement needed unless a cited file
+changed since this commit.
+
+📖 **Doctrine (general knowledge, ⛔ not in the corpus):** halt short of the area; near-side security watches left and right along it; a small
+team crosses first, clears the far side and takes overwatch there; the rest cross fast, in pairs, spaced, at the narrowest point; near-side
+security crosses last, covered from the far side; reform beyond. Everyone covering WATCHES (ready to fire), nobody fires before contact.
+Contact mid-crossing ⇒ a fight with the squad split across the area.
+
+#### 7.7.1 What exists — measured `2026-10-13`
+
+| fact | code | so |
+|---|---|---|
+| the phase table: `SetSecurity` (0) →`DefiladeReached`→ `CrossElement` (1) →`FarSideReached`→ `FarSideCover` (2) →`ShotFired`→ `CollapseSecurity` (3) →`FarSideReached`→ `Reform` (4); roles Crossing = 1, Security = 2; elements 0 crossing / 1 security; partition = front half / back half | `Fdp.Toolkits/Squad/Maneuvers/DangerAreaCrossingManeuver.cs` (kind 1) | the drill exists as data; ⛔ phase 2's `ShotFired` gate is wrong for overwatch (D2) |
+| the intent: phases as above; overwatch positions from an EQS cover query; elements cross one / a pair at a time with exposed-slot rotation across lanes; first-across is reassigned to cover; last element crosses last | `Squad_Coordination_Design_v1_1.md` §8.1 (:314-321) | the design this builds |
+| no play runs the table; nothing feeds `DefiladeReached` / `FarSideReached` / `ShotFired` | graph: 10 `*Maneuver` classes, 6 `*Play` structs (none for crossing); `Squad/Primitives/PhaseSequencer.cs:8-16` | X-b is the play |
+| lane rotation: `SlotRotation.AcquireSlot / ReleaseSlot / BurnSlot` | `Squad/Primitives/SlotRotation.cs:27-52` | the crossing lanes (D1) |
+| the area: `DangerAreaDescriptor { FeatureId, ThreatRating, Kind (OpenGround, StreetCrossing, Intersection, ChokePoint, CrestLine), Center, ExtentsXY, AngleRad, ZFloor, ZCeiling, NearSideHandle, FarSideHandle, DistanceAlongRoute }` in `DangerAreaCognitiveBuffer` | `Squad/DangerArea/DangerAreaDescriptor.cs:10-91`, `DangerAreaCognitiveBuffer.cs` | near / far points are given; lanes are offsets across `ExtentsXY` |
+| the sensor is BUILT: areas along a route (route sources: own move · a handle · to a point), rated every tick from the unit's memory (or the squad's pool), edges `AreaAhead` / `AreaThreatened` / `AreaCleared` | `Squad/Systems/DangerAreaSensorSystem.cs` (CE-3072); `DESIGN_Utility_AI_Demo_Scenarios.md` §10.2–§10.7 (R-213) | the trigger (D4) |
+| `RecentSenses` records the area edges (`AreaAhead`, `AreaThreatened`, `AreaCleared`) | `Behavior/Components/RecentSenses.cs:25` | ⭐ the earlier "kinds ≥ 8 dropped" row (§3, line ~247) is superseded by this field |
+| the single-unit `DangerCrossing` tree: hold while threatened, cross, walk on | `Hrot.AI.Behaviors/Assets/BTrees/Library/Tactics/DangerCrossing.btree.json` | stays for a lone soldier / vehicle |
+| the squad "how to cross" decision: options `DangerAreaCross` (0), `BoundOverwatch` (1), `Hold` (2) over strength, feature kind, threat rating, ammo — driven by nothing | `Squad/StarterPack/ManeuverSelectStarterDecision.cs:6-90`; this file §3 (line ~256) | D3: wired later |
+| doctrine | — | ⛔ none in the corpus (searched `docs/` + `.dev/`) |
+
+#### 7.7.2 Classes
+
+```mermaid
+classDiagram
+  class DangerAreaCrossingManeuver { existing table; phase 2 gate ShotFired becomes DefiladeReached CHANGED }
+  class DangerCrossingPlay { NEW ISquadPlay over the table: positions, lanes, gates, orders }
+  class SlotRotation { existing AcquireSlot ReleaseSlot BurnSlot - the crossing lanes }
+  class DangerAreaCognitiveBuffer { existing - the area, NearSideHandle, FarSideHandle }
+  class DangerAreaSensorSystem { existing - AreaAhead on the squad's route }
+  class MemberOrderKind { existing Hold AdvanceTo Disembark +Watch NEW +RushTo (F-b) +Suppress (R-b) }
+  class WatchBehavior { NEW library: hold a point, face a sector, fire only at a seen enemy }
+  class FindCoverFromTarget { existing EQS: overwatch spots near each edge }
+  class SquadManeuverRunner { existing }
+  class ReactToContactBehavior { existing - takes over on contact }
+  class BasicSquadSop { existing + a row: AreaAhead starts SquadDangerCrossing NEW }
+  DangerCrossingPlay ..> DangerAreaCrossingManeuver
+  DangerCrossingPlay ..> DangerAreaCognitiveBuffer : near and far handles
+  DangerCrossingPlay ..> SlotRotation : lanes
+  DangerCrossingPlay ..> FindCoverFromTarget : AskTerrain
+  DangerCrossingPlay ..> SquadManeuverRunner : runs inside
+  SquadManeuverRunner ..> MemberOrderKind
+  MemberOrderKind ..> WatchBehavior : Watch
+  BasicSquadSop ..> DangerAreaSensorSystem : AreaAhead edge
+  BasicSquadSop ..> DangerCrossingPlay
+  DangerCrossingPlay ..> ReactToContactBehavior : Abort on SquadContact
+```
+
+*What the picture shows: one new play over the EXISTING table and two existing primitives; the only new member order is `Watch` (`RushTo`
+and `Suppress` come from §7.6 / §7.5).*
+
+#### 7.7.3 Sequence
+
+```mermaid
+sequenceDiagram
+  participant SN as DangerAreaSensorSystem
+  participant SOP as BasicSquadSop on the commander
+  participant P as DangerCrossingPlay
+  participant S as security element
+  participant X as crossing pairs
+  SN->>SOP: AreaAhead on the squad's route
+  SOP->>P: run SquadDangerCrossing (the area's FeatureId)
+  P->>S: phase SetSecurity - RushTo overwatch spots near the near edge, then Watch along the area
+  S-->>P: every security member set (DefiladeReached)
+  P->>X: phase CrossElement - one pair at a time on a rotating lane: RushTo the far edge
+  X-->>P: the element past the far handle (FarSideReached)
+  P->>X: phase FarSideCover - RushTo far-side overwatch spots, then Watch
+  X-->>P: every far-side member set (DefiladeReached - was ShotFired)
+  P->>S: phase CollapseSecurity - security crosses by pairs, covered from the far side
+  S-->>P: all past the far handle (FarSideReached)
+  P->>P: Reform - the previous orders re-sent
+  Note over P: SquadContact at any phase - Abort, ReactToContact fights with the squad split across the area
+```
+
+*What the picture shows: every phase change is a fact the commander reads (set, across); nobody fires unless an enemy is seen.*
+
+```mermaid
+graph TD
+  CGF[CgfLogicPack] --> SCS[SquadCoordinationSystem - commander's node]
+  CGF --> DAS[DangerAreaSensorSystem - the commander's route sensor]
+  BT[BrainTickSystem] --> SOP[BasicSquadSop on the commander]
+  SOP --> PLAY[DangerCrossingPlay via SquadManeuverRunner]
+  PLAY --> ORD[AssignTacticalIntentEvent per member]
+  ORD --> MEM[members: RushTo / Watch]
+```
+
+*Module point: the commander needs a danger-area sensor of its own on the squad's route (route source "to a point" = the squad's
+objective, rated from the squad's pool) — the X-a slice adds it to the commander's type, as the soldier types carry theirs.*
+
+#### 7.7.4 Decisions (✅ approved 2026-10-13, R-2014)
+
+| # | decision | why | rejected (one line) |
+|---|---|---|---|
+| D1 | cross **one pair at a time** on a rotating lane (`SlotRotation`; lanes = offsets across the area's width) | doctrine; the design's exposed-slot rotation (§8.1) | one whole element at a time — a bigger target, one line of crossing |
+| D2 | the `FarSideCover` → `CollapseSecurity` gate is **set** (`DefiladeReached`), not `ShotFired` | overwatch watches; before contact nobody fires | keep `ShotFired` — the drill would stall until someone shot |
+| D3 | the careful drill only, first; wiring `ManeuverSelectStarterDecision` (cross / bound / hold) comes later | it exists but is driven by nothing, and its inputs read only the active area | wire the choice now — two unknowns at once |
+| D4 | trigger: the commander's own route sensor raises `AreaAhead`; a `BasicSquadSop` row starts the drill | the squad decides; members get orders; the single-unit tree stays for lone units | each member running `DangerCrossing` alone — no security, all cross at once |
+| D5 | covering members get **`Watch`** (a sector, fire only at a seen enemy), not `Suppress` | before contact there is nothing to suppress, and fire gives the squad away | `Suppress` while crossing |
+| D6 | contact at any phase ⇒ `Abort` ⇒ `ReactToContact` (with §7.6: fire and movement across the split squad) | the existing reaction; each side keeps its element | a special in-crossing fight |
+| D7 | plain bounding overwatch is NOT used over the area | it leapfrogs 30 m geometric steps with no near / far security and no edges | — |
+
+🔒 **User, `2026-10-13`:** *"Leans approved, write the danger crossing into the design"*.
+
+#### 7.7.5 Slices *(not started; after §7.6 F-a)*
+
+| slice | what | rails |
+|---|---|---|
+| **X-a** | the commander's route sensor (type data + route "to the objective", pool rating); `Watch` order + library `WatchBehavior` | `AreaAhead` reaches the commander · a watcher fires only at a seen enemy |
+| **X-b** | `DangerCrossingPlay` + the D2 table change; lanes by `SlotRotation`; overwatch spots by `FindCoverFromTarget` | security sets before anyone crosses · pairs cross one at a time on different lanes · far side sets before security collapses · all across ⇒ reform |
+| **X-c** | the `BasicSquadSop` row; contact ⇒ abort ⇒ `ReactToContact` | a contact mid-crossing hands over to the reaction |
+| **X-d** | a live scenario (`ua-danger-crossing`): a squad crosses a street; a variant with a hostile on the far side | the cluster run |
+| later | wire `ManeuverSelectStarterDecision` (cross / bound / hold) | D3 |
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 
