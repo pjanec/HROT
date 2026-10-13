@@ -2265,7 +2265,10 @@ the dashed path is the fallback where no document view exists — the edit still
 - Rails: `BehaviorParamsFormTests.CE1061_EditingADefault_WritesOnlyThatKey_AndResetRemovesIt` (acceptance 4);
   `BehaviorTreeAssetModelTests.CE1062_ParamsEdits_UndoAndRedo_OnTheDocumentsStack`; `HsmAssetBlackboardTests.CE1062_TheHsmParamsWrite_IsUndoableThroughItsSink`;
   `BlueprintUndoUnificationTests.CE1062_TheParamsDtoChooserAndDefaults_AreUndoable`; `NodeOwnedVariableTests.CE1061_TheParamsRow_…` (E7);
-  the frame rail now renders the defaults form.
+  the frame rail now renders the defaults form. Red-proved: dropping the BTree sink arm, writing every field instead of the edited
+  key, and narrowing the blueprint arm back to `BlueprintEditCommand` each turned their rail red.
+- ⚠ Not proven: Ctrl+Z in the real editor reaching these entries (the rails drive the `UndoStack` directly; the resolver wiring is
+  covered by the registrar, not a frame). With no document view open, an edit still applies but has no undo entry (the dashed path).
 
 ### 13.11 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
 
