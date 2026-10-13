@@ -1196,30 +1196,104 @@ surprising claims spot-checked by reading the file)*:
 | no "default order arguments" component exists; `Roe` (sticky unit state, `SetBy` origin gate, on `dtBrainIntent`) and `EqsSensor`'s context slots + mask bit are the patterns; Sensors & Doctrine **G3** (a per-unit intent component doctrine and orders write, behaviours read live) is OPEN | ✅ `Roe.cs:43`; `EqsComponents.cs:167` | ✅ `DESIGN_Sensors_And_Doctrine.md` G3 (open); R-136 / R-138 constrain it |
 | 21 live docs still state the old rules (6 likely read as current), 9 more still describe `[BehaviorContract]` | sweep, 2026-10-13 | — |
 
+### 13.0 User decisions *(2026-10-13)*
+
+> 🔒 **User, 2026-10-13, verbatim:** *"Hot reload lean accepted, param change forces full rebuild. We must support plain fields, not
+> just propweties, actually propreties in param dtos are undesired as unnecessary code bloat with no added value. F7 stage 1 accepted
+> just needs explanation on details. F1-F3 accepted. [Required] accepted. Not all params are just picking, some are numbers (various
+> distances etc.) and ui should allow editing them - some kind of parameter filling modeless floating form allowing for picking from
+> 2d/3d map (as attempted in the mission plan editor panel) and/or list picker with incremental search , but avoidable for simpler
+> orders where RTS style is desired (pre-filling params from previously clicked entity/place etc.) F9 accepted. Sector as area for sure."*
+> · on F1's identity: *"Is the json asset path a good id? Shoukdnt we have a guid baked in the json asset and same in the dto attrib to
+> stay indwpwndent on where the asset is? Or at least to force the param dto unique and force the json asset fike name define the param
+> dto name?"*
+
+| decision | state | ledger |
+|---|---|---|
+| F1–F3 (every params DTO carries `[ParamsDto]` with its origin; one registry; open source / asset) | ✅ accepted; identity refined in F1 below (the path is a LOCATOR, never an id) | R-2000 |
+| F4 a params DTO shape change needs a full rebuild | ✅ accepted | R-2001 |
+| F5 `[Required]` marks a mandatory field | ✅ accepted | R-2002 |
+| F11 *(new)* params DTOs use plain public FIELDS; properties are not allowed | ✅ ruled by the user | R-2002 |
+| F6 how the UI fills params | 🔁 revised by the user: a modeless floating params form + the RTS fast path — see F6 below | — (lean awaits a nod) |
+| F7 stage 1 (sender-side fill from per-unit designations) | ✅ accepted; details in §13.3 | R-2003 |
+| F9 one registry for every authored data struct | ✅ accepted | R-2000 |
+| F10 a sector is an area entity | ✅ ruled | R-2003 |
+
 ### 13.1 Decisions *(leans)*
 
 | # | question | ⭐ lean | rejected (one line each) |
 |---|---|---|---|
-| **F1** | how does a behaviour reference its DTO, and how is a generated one told apart | unchanged: asset `ParamsDtoTypeId` (FQN) / `[Behavior(Params=…)]`. ⭐ **Every params DTO carries `[ParamsDto]`**, hand-written included; the attribute records its origin: `SourceAsset` (set by the B4a generator ⇒ generated) or the C# file + line (caller-info arguments filled by the compiler at the use site ⇒ hand-written; ✅ verified 2026-10-13 with a console probe: `[CallerFilePath]` / `[CallerLineNumber]` on an attribute constructor yield the struct's absolute file and line; `Directory.Build.props` sets no `PathMap`, so the path is the machine's). A conformance rail (CE-2130's suite) fails a DTO a behaviour names without it | a namespace convention (unchecked) · a separate source-map generator (a second producer for one fact) |
+| **F1** | how does a behaviour reference its DTO, and how is a generated one told apart | unchanged: asset `ParamsDtoTypeId` (FQN) / `[Behavior(Params=…)]`. ⭐ **Every params DTO carries `[ParamsDto]`**, hand-written included; the attribute records its origin: `SourceAsset` (set by the B4a generator ⇒ generated) or the C# file + line (caller-info arguments filled by the compiler at the use site ⇒ hand-written; ✅ verified 2026-10-13 with a console probe: `[CallerFilePath]` / `[CallerLineNumber]` on an attribute constructor yield the struct's absolute file and line; `Directory.Build.props` sets no `PathMap`, so the path is the machine's). A conformance rail (CE-2130's suite) fails a DTO a behaviour names without it | a namespace convention (unchecked) · a separate source-map generator (a second producer for one fact) · ⭐ **identity, refined 2026-10-13:** the DTO's IDENTITY is its CLR type FQN — what `ParamsDtoTypeId` / `[Behavior(Params=…)]` already store, unique by the compiler and checked at build (`typeof(global::X)`); the path is only a LOCATOR. A `.params.json` asset carries an `AssetId` GUID like every `.bp` / `.btree` / `.hsm` asset (36 / 34 / 10 measured) and the generator emits it as `[ParamsDto(AssetId = …)]` ⇒ the editor opens the asset through `AssetCatalog.FindByAssetId` (exists, `AssetCatalog.cs:24`) wherever it moved; the generator ENFORCES file name = `Name` (a diagnostic), `AssetBaseNameCollisionGuard` gains `.params.json` (no same-named `.cs` beside it), and the registry refuses two `[ParamsDto]` types with the same simple name (the UI and order names show the simple name). Rejected: behaviours referencing a generated DTO by GUID (CE-417 4c binds a blueprint by GUID) — a hand-written DTO has no asset, so it would be a second reference mechanism |
 | **F2** | one registry the editor picks from | `ParamsDtoRegistry` = the `[ParamsDto]` scan (the other two arms become redundant once F1 holds); `BlackboardTypeChoiceBuilder` lists `[ParamsDto]` types; `GET /orders` publishes each order DTO's schema | keep three scan arms (an asset-named DTO stays invisible) |
 | **F3** | open source / open asset | the registry entry exposes the F1 location; the editor reuses `SourceFileOpener` (file + line). The struct EDITOR is postponed with B4b (user) | PDB lookup (a field-only struct has no sequence points) |
 | **F4** | hot reload | a DTO shape change needs a FULL rebuild (accepted); fix the three stale caches; a quick reload of an asset whose DTO changed refuses with "full rebuild needed" instead of running stale | compiling DTOs in quick reload (re-lays every block that embeds it — the Hard path anyway) |
 | **F5** | mandatory params | `System.ComponentModel.DataAnnotations.RequiredAttribute` (`[Required]`) on a DTO field — BCL, no new attribute; the schema emits `required`; the generic HTTP path answers 400 naming the field; the receiver's resolver may still refuse | a new `[Mandatory]` (duplicates the BCL) · "zero means default" for every field (cannot say "must pick") |
-| **F6** | how the menu supplies them | the picker comes from the field TYPE (unchanged: `PickableGeoPoint` → point, `EntityRef` + `[MapPickableEntity(presets)]` → filtered entity, routes / areas included); `PickOf` reads fields AND properties; the menu walks every `[Required]` pickable field in declaration order (one pick each, prompt = the field name); the right-clicked point / entity fills the first matching one; optional fields keep the DTO default; a required field with no picker ⇒ HTTP-only (as today) | a params form dialog for every order (slow for the common one-pick case) |
+| **F6** *(revised by the user 2026-10-13)* | how the UI fills params | ⭐ two paths, one rule. **RTS fast path:** the gesture fills the `[Required]` fields — the right-clicked / RTS-clicked entity or point, then the unit's designations (F7), then the DTO defaults; if every `[Required]` field is filled the order is sent at once (as today's one-pick orders). **Otherwise, or on request** (a modifier, or an "Order…" menu entry), a MODELESS floating **order form** opens, prefilled the same way: it is `BehaviorParamsForm` (exists; the mission panel and the AI details view host it) over the order DTO — numbers edited inline, `PickableGeoPoint` → a map pick button (2D built; 3D not verified), `EntityRef` → a map pick AND a searchable list (the node editor's fuzzy `PickerWindow` with favourites / recents exists, `NodeEditor.UI/Picker/PickerWindow.cs`; an entity source adapter is new), `[MapPickableEntity(presets)]` narrowing both; Send / Cancel; it stays open while the user picks. `PickOf` / the form read FIELDS (F11) | a chain of one pick per field (cannot enter numbers) · a modal dialog (blocks the map the user must pick on) · a params dialog for every order (slow for the common one-click order) |
 | **F7** | default order arguments (the user's idea) | ⭐ **stage 1: fill on the SENDER.** A per-unit "designations" store (target, point, route, area) set by UI gestures; `EntityOrders.Order` fills any missing `[Required]` field from it before publishing, so the order on the wire stays COMPLETE (replay, logs, HTTP and AI senders see explicit args). Stage 2 (a replicated per-unit intent component read live by behaviours) is G3 — a larger question, decided separately | receiver-side fill now: needs a new descriptor + component id (AQ87 budget), adds hidden state to every order, and pre-empts G3 |
 | **F8** | the 4 Parameter-declaring blueprints (B3b-2) | hand-written C# DTOs (user: "no problem writing dto class in csharp for now"); `ParameterDecl` / Get Parameter nodes stay as the graph's view of the DTO's fields | wait for B4b |
 | **F9** *(user, 2026-10-13: "we might need a dto registry not just for params")* | one registry for EVERY authored data struct, not only params | measured: four separate type catalogues, one marker each — `[ParamsDto]` (`ParamsDtoAttribute.cs`), `[Order]`, `[BlackboardDtoStruct]` (editor variable types, 13 production files, `Fbt.Kernel/BlackboardAnnotations.cs:12`) and `[UnitMemory]` (`:37`, 1 shipped struct `FiringPositionMemory`). ⭐ lean: one base `DtoAttribute` carrying the origin (F1) that the purpose attributes derive from; ONE registry scans the base and records each entry's purposes; `[BlackboardDtoStruct]` retires into the base (any registered struct is a variable type). where it lives, measured: `Fbt.Kernel` references nothing, and `Hrot.Core` → `Fdp.Toolkits` → `Fbt.Kernel`; the kernel itself never uses either attribute (only their declaration file names them). ⇒ move `[BlackboardDtoStruct]` / `[UnitMemory]` out of the vendored kernel to the base attribute in `Fdp.Core` (referenced by `Fdp.Toolkits` and `Hrot.Core`) — a namespace move, by Roslyn | a registry per purpose (today: four scans, four pickers, none knows the source) |
 | **F10** *(user: "squads might need to know their sectors where they fight as area of interest")* | where a squad's SECTOR lives | measured: an area is already an authored entity (a tactical graphic: `MapOverlayStyle`, picked as `EntityRef` + `[MapPickableEntity("tactical_graphics")]`, e.g. `PlatoonHillAttackParamsJsonDto.cs:45-46`); no sector / area-of-interest component exists (§13 inventory). ⭐ lean: the sector IS an area entity; WHICH area is a unit's sector is standing unit state read continually while it fights ⇒ it belongs in the G3 per-unit intent component (with target, objective, route), not only in a params field; until G3 is decided, a behaviour takes it as an `EntityRef` params field (works today). ⇒ sectors are the strongest case so far for G3's receiver-side, live-read stage | sector only as a params field forever (lost at the next order) · unit memory (behaviour-only: not replicated, not saved, invisible to the UI) |
+| **F11** *(user, 2026-10-13: "propreties in param dtos are undesired")* | fields or properties in a params DTO | plain public FIELDS only. Measured: 21 hand-written DTO files hold 87 properties (mostly `Hrot.Core/MapDefinitions/Behavior/*ParamsJsonDto.cs`); the params parse already reads fields (B4a's T41 parses flat); `OrderMenu.PickOf` reads properties only (`OrderMenu.cs:79`). ⇒ a conformance rail rejects a property on a params DTO; the 21 files convert; every reader (`PickOf`, the schema extractor, `ComponentEditDrawer`, the registry) reads fields — ⚠ whether `DtoJsonSchemaExtractor` reads fields is not measured | keep both (two shapes every reader must handle) |
+
+### 13.3 F7 stage 1 — designations filled on the sender *(accepted 2026-10-13; build-state: DESIGN)*
+
+```mermaid
+classDiagram
+  direction LR
+  class OrderDesignations { <<NEW, Hrot.Common/Orders, one per operator station>> Set(unit, kind, value) · Clear(unit, kind) · TryGet(unit, kind) }
+  class Designation { <<NEW>> Kind: Target | Point | Route | Area · EntityRef or PickableGeoPoint }
+  class EntityOrders { <<existing, CHANGED>> Order(unit, name, json) fills missing Required fields }
+  class OrderMenu { <<existing, CHANGED>> PickOf reads fields · FilledByGesture(dto, context) }
+  class ParamsDtoRegistry { <<existing>> the order DTO and its fields }
+  class DesignationOverlay { <<NEW, Hrot.Presentation>> draws each designation from its unit }
+  OrderDesignations o-- Designation
+  EntityOrders ..> OrderDesignations : reads at send
+  EntityOrders ..> ParamsDtoRegistry : which fields are Required
+  OrderMenu ..> OrderDesignations : Set from the unit menu
+  DesignationOverlay ..> OrderDesignations : reads
+```
+
+*What the picture shows that prose hid: designations never reach the network or the brain — `EntityOrders` resolves them into the order
+JSON before it publishes, so the order on the wire is complete and every receiver, replay and log sees explicit arguments.*
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant M as Unit menu
+  participant D as OrderDesignations
+  participant O as EntityOrders
+  participant T as Intent topic
+  U->>M: Set sector, pick an area
+  M->>D: Set(squad, Area, areaRef)
+  U->>M: Defend (order DTO: Area Required, Radius optional)
+  M->>O: Order(squad, Defend, {})
+  O->>D: TryGet(squad, Area)
+  D-->>O: areaRef (entity still alive)
+  O->>T: Order.Defend {Area: areaRef}
+```
+
+| detail | ⭐ lean | why |
+|---|---|---|
+| the kinds | `Target` (an `EntityRef`), `Point` (`PickableGeoPoint`), `Route` (an `EntityRef` on `road_graphs`), `Area` (an `EntityRef` on `tactical_graphics` — a sector, F10) | the four the user named; each maps to a field TYPE + picker preset the registry already sees |
+| which field a designation fills | a missing field whose type (and `[MapPickableEntity]` preset) matches exactly one kind, when the DTO has exactly ONE such field; explicit arguments always win | two candidate fields ⇒ ambiguous ⇒ the order form opens instead (F6) |
+| `[Required]` only, or optional fields too | `[Required]` only | an optional field keeps the behaviour's default; filling it silently would change behaviour nobody asked for |
+| where it lives | per operator station, in the order service beside `EntityOrders`; keyed by the unit's network id; not replicated, not saved | it is operator UI state, not entity state (R-136 binds entity state); stage 2 (G3) is where it becomes entity state |
+| how it is set | the unit's context menu: "Set target / point / route / sector" (one pick each); a "remember" tick in the order form; a selection sets it for every selected unit | explicit gestures — no silent capture from the last order |
+| visibility | drawn on the map from the unit (a line to the target / point, the route highlighted, the sector outlined) while the unit is selected | the main con of the idea is hidden state; drawing it removes it |
+| staleness | checked at send: an entity no longer alive (or a route / area deleted) is dropped and the order form opens | a dead target must not silently become `0` |
+| HTTP and AI senders | unaffected: they send explicit JSON; designations are the operator UI's convenience | nothing downstream learns a new concept |
 
 ### 13.2 The work and the lanes *(lean)*
 
 | # | item | lane | depends |
 |---|---|---|---|
-| P1 | F1 + F2: `[ParamsDto]` on every params DTO, origin recorded, registry = one scan, rail; `BlackboardTypeChoiceBuilder` lists them | backend | — |
+| P1 | F1 + F2 + F9: one `[Dto]` base (in `Fdp.Core`) with the origin (`AssetId` / caller file+line); `[ParamsDto]`, `[Order]`, `[UnitMemory]` derive from it; `[BlackboardDtoStruct]` retires; registry = one scan with purposes; `.params.json` gets `AssetId`, file name = `Name` enforced, the collision guard covers it; the rail | backend | — |
 | P2 | F4: the three stale caches; quick reload refuses a changed DTO | backend | P1 |
 | P3 | B3b-1: 14 allow-list entries (5 parameter-less blueprints → `NoParams`, `OperatorControl`, the 2 resolver behaviours, 6 fixtures) | backend | — |
 | P4 | B3b-2 (F8) then delete `Role`, `StatefulSlotRole`, `StatefulSlotInfo.Role` (§5c re-measured) — allow-list empty | backend | P3 |
-| P5 | F5 + F6: `[Required]`, schema `required`, HTTP 400, menu multi-pick, presets, the right-click point, `GET /orders`; `MoveOrder.Location` / `AttackOrder.Target` marked | behaviors | — |
+| P5 | F5 + F6 rule: `[Required]`, schema `required`, HTTP 400, the RTS fast path (gesture context + designations + defaults), `PickOf` over fields, presets passed, `GET /orders`; `MoveOrder.Location` / `AttackOrder.Target` marked | behaviors | P8 |
+| P5b | F6 form: the modeless floating order form (`BehaviorParamsForm` over the order DTO), an entity source for the fuzzy `PickerWindow`, 3D map picking if absent | ui | P5 |
+| P8 | F11: params DTOs become plain fields (21 files, 87 properties), the rail, every reader over fields | backend | — |
 | P6 | F7 stage 1: the designations store + gestures + sender fill | behaviors (ui for the gestures) | P5 |
 | P7 | docs: the 6 high-risk rewrites + `OVERVIEW` box (behaviors); the remaining 15 known-rot lines + the 9 `[BehaviorContract]` mentions (any session) | behaviors leads | as each item lands |
 | — | B4b editor, the struct editor | postponed (user) | — |
