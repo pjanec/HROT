@@ -658,7 +658,7 @@ def _care_cast(casualty_name):
     return ids, sq, cas, medic, members
 
 
-def _care_after_down(c, timeout, sq, cas, medic, members, casualty_name, t_down):
+def _care_after_down(c, timeout, sq, cas, medic, members, casualty_name, t_down, contact=True):
     """③–⑨ of §7.8.2, from the moment the man is down."""
     medic_from = position(medic)
     coverers = [nid for n, nid in members.items() if n not in ("Medic", casualty_name)]
@@ -685,8 +685,11 @@ def _care_after_down(c, timeout, sq, cas, medic, members, casualty_name, t_down)
         return
     c.ok((care.get("medic") or {}).get("name") == "Medic", f"the Medic goes, nobody else (care.medic = {care.get('medic')})")
     print(f"    coverers' first round at {first_fire}; the medic moved at {medic_moved_at}")
-    c.ok(medic_moved_at is not None and all(nid in first_fire and first_fire[nid] <= medic_moved_at for nid in coverers),
-         "covering fire BEFORE the medic moves: every coverer's rounds went down before he was 1 m out")
+    if contact:
+        c.ok(medic_moved_at is not None and all(nid in first_fire and first_fire[nid] <= medic_moved_at for nid in coverers),
+             "covering fire BEFORE the medic moves: every coverer's rounds went down before he was 1 m out")
+    else:   # nothing left to fight: nobody to suppress — the coverers hold (§7.5.2)
+        c.ok(medic_moved_at is not None, "with nothing left to fight the medic goes without waiting for covering fire")
     c.ok("IsEmbarkedTag" in comps(cas), "he takes the man (the casualty carries IsEmbarkedTag)")
     m = maneuver(sq)
     cover = (m.get("care") or {}).get("coverPoint")
@@ -697,7 +700,7 @@ def _care_after_down(c, timeout, sq, cas, medic, members, casualty_name, t_down)
         c.ok(flat(laid, cover) <= 2.5, "the man lies within 2.5 m of the cover point")
     c.ok((health(cas) or 0) > 0, f"he is alive ({health(cas)} HP)")
     back = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") != "CasualtyCare" and x, 10)
-    c.ok(back is not None, f"the squad goes back to the fight (drill now {back and back.get('kindName')})")
+    c.ok(back is not None, f"the squad goes back to the fight, or ends the reaction when nothing is left (drill now {back and back.get('kindName')})")
     m = maneuver(sq)
     slot = next((x for x in m.get("members", []) if x.get("networkId") == cas), None)
     o = (slot or {}).get("order")
@@ -758,7 +761,7 @@ def run_casualty_care_heavy(c, timeout):
         set_health(h, 0)
     go = wait_for(lambda: maneuver(sq).get("kindName") == "CasualtyCare", 20)
     c.ok(go is not None, "with the enemy down the squad goes for him at once (empty pool ⇒ Rescue)")
-    _care_after_down(c, timeout, sq, cas, medic, members, "Rifleman 3", t_down)
+    _care_after_down(c, timeout, sq, cas, medic, members, "Rifleman 3", t_down, contact=False)
 
 
 # ── F-e (CE-2158) — fire and movement: in contact the squad closes by halves, one suppressing, the other rushing to cover ───
