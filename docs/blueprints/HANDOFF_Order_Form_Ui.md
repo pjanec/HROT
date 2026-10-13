@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-13
-doc-type: HANDOFF — behaviors lane → the ui lane: P5b, the modeless order form (a FRAME — the ui lane designs the details). Dispatched at 737cd9e14 (branch `behaviors`).
+doc-type: HANDOFF — behaviors lane → the ui lane: P5b, the modeless order form (a FRAME — the ui lane designs the details). Dispatched at 846c8021d (branch `behaviors`; re-stamped from 737cd9e14 — unstarted, §13.9 → §13.11, U6 added).
 current-answer: §1 goal · §2 the seam you implement · §3 what to build · §4 fences · §5 acceptance and the report
 stale-below: nothing
 known-rot: none
@@ -53,13 +53,14 @@ a registered form they log *"needs the order form"* and send nothing.
 | U3 | an `Entity` field | a map pick (`PickEntityAsync(field.Presets)`) AND a searchable list — the node editor's fuzzy `PickerWindow` (favourites / recents, `NodeEditor.UI/Picker/PickerWindow.cs`) with a NEW entity source narrowed by the presets |
 | U4 | the menu | ⭐ flip `ContextMenuProjectorGizmo`: today it hides an order whose `Pick` is `Several`; show it as `Name…` when the world has an `IOrderForm` |
 | U5 | an "Order…" entry | optional: open the form for ANY order (prefilled), for an operator who wants to set optional fields |
+| U6 | the designations (P6, §13.3, `CE-2149`) | ⭐ draw each designation from its selected unit (`OrderDesignations.Of(world).Of(unitNetId)`: a line to the target / point, the route highlighted, the sector outlined); a SELECTION applies Designate › Set… to every selected unit; the form's "remember" tick calls `OrderDesignations.For(world).Set(…)`. Behaviors builds the store, the Designate menu and the draft fill — do not change those |
 
 ## 4. Fences
 
 - ⛔ Do not change `OrderDraft`, `IOrderForm`, `OrderMenu.MissingIn` or `EntityOrders` — they are behaviors' (P5). Need a change? Say so
   in the report or ask; a cross-lane edit is allowed but must be named.
 - ⛔ No second order path: the form sends ONLY through `draft.Send`.
-- ⭐ Designations (P6, behaviors, §13.3) will later prefill the same draft — nothing for you to do now.
+- ⭐ Designations (P6, behaviors, §13.3) prefill the same draft through `OrderMenu.Draft` — U6 is only their drawing and multi-select.
 
 ## 5. Acceptance and the report
 
