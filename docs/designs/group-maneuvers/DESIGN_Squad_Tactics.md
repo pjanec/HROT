@@ -794,7 +794,7 @@ and no care — as today for every play.*
 | (a) | a medic later also STOPS the bleeding (the drain stops once treated) — its own small slice | doctrine; `DESIGN_Injury_States.md` I3 already reserves "stabilised" | — |
 | (c) | the suppress order names the squad's top / assigned contact; none ⇒ nothing to suppress (and Rescue is quiet anyway) | the existing assignment | waiting until the casualty's shooter is known |
 
-#### 7.5.6 Slices *(R-a … R-d BUILT `2026-10-13` — §7.5.7; R-e the live scenario)*
+#### 7.5.6 Slices *(R-a … R-d BUILT `2026-10-13` — §7.5.7; R-e live, passing — §7.5.7)*
 
 | slice | what | rails |
 |---|---|---|
@@ -828,6 +828,11 @@ the squad fights first · empty pool ⇒ Rescue at once.
 | the winning drill under heavy fire (`Assault`) moves the whole squad, the Medic too | the `-heavy` check is "nobody is sent for him" (no `CarryCasualty`), not "the Medic stays put" |
 | ⭐⭐ a bleeding man's every health drop is a `Hit` edge (`ThreatEvaluationSystem` reads any drop as a hit), and `SquadSensing.UnderFire` made each one `SquadUnderFire` — 📐 second-by-second probe: Rescue stuck at 0.29–0.38 (never quiet), and every care drill recalled the medic ~2 s after sending him, until the man bled out | ⭐ `UnderFire` ignores `Hit` edges from a member out of the fight; near misses, and hits on men still fighting, count (`CE2152_ADownMansBleeding_…`) |
 | the leader down in `-leader`: the Medic, second in the roster, took command — and a leader is never sent, so a rifleman went | ⭐ succession passes over a `Medic` while anyone else can lead (§7.2 L1 deviation; `CE2152_SuccessionPassesOverTheMedic_…`) |
+| the medic stopped 1.7 m from the man (his body nudged as he came) and `PickUp` failed on the first walk that ended out of reach; the drill then waited in `Go` for 60 s while the man bled out | ⭐ `PickUp` walks to him again (≤ 3 walks, within 6 m); the care play re-sends the carry every 2 s while the medic neither carries him nor still runs `CarryCasualty` |
+| the casualty lay on the coverers' lines to the hostile, so the medic walking to him took their rounds | the scenario puts him out of every firing lane — ⚠ a squad with no friendly-fire awareness in its route choice is left open (the medic's walk does not avoid the base of fire's lanes) |
+
+⭐ **Result `2026-10-13`:** `ua-casualty-care` and `ua-casualty-care-leader` PASS every check over HTTP; `-heavy` passes all but the
+final "the drill ended" read, a checker defect (the route keeps the last drill, inactive) fixed after the run.
 
 Rails: `SquadManeuverTests.CE2152_Rescue_TheEnemyKilledButStillRemembered_TheSquadGoesForHim` (red only with BOTH fixes removed —
 either one closes the case it pins).

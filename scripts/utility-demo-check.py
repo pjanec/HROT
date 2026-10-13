@@ -699,8 +699,10 @@ def _care_after_down(c, timeout, sq, cas, medic, members, casualty_name, t_down,
         print(f"    cover point {cover}, casualty at {laid}, medic at {position(medic)}")
         c.ok(flat(laid, cover) <= 2.5, "the man lies within 2.5 m of the cover point")
     c.ok((health(cas) or 0) > 0, f"he is alive ({health(cas)} HP)")
-    back = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") != "CasualtyCare" and x, 10)
-    c.ok(back is not None, f"the squad goes back to the fight, or ends the reaction when nothing is left (drill now {back and back.get('kindName')})")
+    # ⚠ the route keeps the LAST drill when none runs (active false), so "ended" is either another drill or this one inactive
+    back = wait_for(lambda: (x := maneuver(sq)) and (x.get("kindName") != "CasualtyCare" or not x.get("active")) and x, 10)
+    c.ok(back is not None, f"the squad goes back to the fight, or ends the reaction when nothing is left "
+                           f"(drill now {back and back.get('kindName')}, active {back and back.get('active')})")
     m = maneuver(sq)
     slot = next((x for x in m.get("members", []) if x.get("networkId") == cas), None)
     o = (slot or {}).get("order")
