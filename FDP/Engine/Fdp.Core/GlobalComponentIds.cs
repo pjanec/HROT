@@ -841,5 +841,10 @@ namespace Fdp.Core
         /// drags a casualty (TKB <c>Gen.Carrier.Person</c>) — its speed factors and offsets, stamped on every node at spawn. ⚠ 371 measured free
         /// on backend, ui and behaviors 2026-10-13.</summary>
         public const int PersonCarrier = 371;
+
+        /// <summary><c>SquadDrillTrace</c> (managed) — ⭐ CE-2157 (O-a, docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.8.1): on a
+        /// commander, what its squad drill is doing (phase, history, orders, gates, care) for the debug route. Transient. ⚠ 372 measured free
+        /// on backend, ui and behaviors 2026-10-13.</summary>
+        public const int SquadDrillTrace = 372;
     }
 }

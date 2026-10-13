@@ -119,8 +119,10 @@ namespace Hrot.AI.Behaviors.Brains
         public bool PhaseComplete(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx, out PhaseEventKind evt)
         {
             evt = PhaseEventKind.BoundComplete;
-            return ctx.Now - ws.IssuedAt >= p.BoundTimeoutSeconds
-                || SquadManeuverRunner.ElementArrived(in ws, in ctx, BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId));
+            if (SquadManeuverRunner.ElementArrived(in ws, in ctx, BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId))) return true;
+            if (ctx.Now - ws.IssuedAt < p.BoundTimeoutSeconds) return false;
+            ws.CompletedByTimeout = 1;   // ⭐ CE-2157 (O-a) — the trace shows a timed-out bound as Timeout
+            return true;
         }
 
         public void BeginIssue(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)

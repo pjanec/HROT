@@ -224,6 +224,43 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>⭐ A mover that never arrives (pinned, lost) does not stall the squad: the bound times out and the other element goes.</summary>
+        /// <summary>
+        /// ⭐ <c>CE-2157</c> (O-a, Squad Tactics §7.8.1) — the drill trace the debug route reads: the drill and its phase, the history
+        /// (Start, then each phase change with the event that caused it — a finished bound vs a timed-out one), each member's order.
+        /// 🔴 Red before: nothing recorded a squad drill outside the behaviour block, so a debug route could not show it.
+        /// </summary>
+        [Fact]
+        public void CE2157_TheDrillTrace_ShowsThePhase_TheHistoryWithItsCause_AndEachMembersOrder()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":5}");
+            s.Tick(); s.Tick();
+
+            var t = SquadDrillTrace.Of(s.Repo, s.Commander);
+            Assert.True(t.Active);
+            Assert.Equal(BoundingOverwatchManeuver.ManeuverKind, t.Kind);
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, t.Phase);
+            Assert.Equal(SquadDrillTrace.EventStart, Assert.Single(t.History).Event);
+            Assert.Equal(4, t.Orders.Length);
+            Assert.Equal((byte)MemberOrderKind.AdvanceTo, t.Orders[0].Kind);
+            Assert.Equal((byte)MemberOrderKind.Hold, t.Orders[3].Kind);
+            Assert.Equal(s.Members[0], t.Orders[0].Member);
+            Assert.Equal(s.LastObjectives()[s.Members[0]], t.Orders[0].Point);
+
+            foreach (var m in s.Members.Take(2)) s.Teleport(m, s.LastObjectives()[m]);   // Alpha arrives: the bound is complete
+            s.Tick(); s.Tick();
+            t = SquadDrillTrace.Of(s.Repo, s.Commander);
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, t.Phase);
+            Assert.Equal(2, t.History.Length);
+            Assert.Equal((byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.BoundComplete, t.History[1].Event);
+            Assert.Equal((byte)MemberOrderKind.AdvanceTo, t.Orders[3].Kind);   // Bravo now bounds
+
+            for (int i = 0; i < 400; i++) s.Tick();                              // Bravo never arrives: the bound times out
+            t = SquadDrillTrace.Of(s.Repo, s.Commander);
+            Assert.Equal(SquadDrillTrace.EventTimeout, t.History[2].Event);
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, t.History[2].Phase);
+        }
+
         [Fact]
         public void CE507_BoundingOverwatch_ABoundThatNeverCompletes_TimesOut_AndTheOtherElementMoves()
         {

@@ -999,6 +999,16 @@ see the phase, the history or the orders, and would have to infer them from posi
 
 ⭐ O-a goes first, with whichever demo is built first. Its own rail: the block lists a running `BoundingOverwatch` play's phase and orders.
 
+**O-a as built** *(`2026-10-13`, `CE-2157`)*: the block reads `SquadDrillTrace` — a managed, transient component on the commander
+(id 372, registered on first use like `SubordinateOrders`), immutable, written by `SquadManeuverRunner` at the play's start, each phase
+change (the event that caused it; `Timeout` when the play set `SquadPlayState.CompletedByTimeout`), each issue (one order per roster slot,
+`MemberOrder.Cover` new) and the end; `Gates(...)` and `CareChanged(...)` for the plays that have them. Names come from
+`SquadDrillNames` (each manoeuvre's own constants). ⚠ **Deviation from the lean above**: always on, not armed by `observe_trace` —
+it changes per phase and per issue (not per frame), and the plays' own rails read it, so a debug-only recorder would have been a second
+source. ⚠ A drill CLEARED from outside (the commander's task replaced) leaves `active: true` until the next drill starts; its history
+still ends at the last phase. Rails: `SquadManeuverTests.CE2157_TheDrillTrace_ShowsThePhase_TheHistoryWithItsCause_AndEachMembersOrder`,
+`TheSquadRouteShowsTheDrillTests` (2).
+
 #### 7.8.2 `ua-casualty-care` — the medic brings a man to cover (R-e; needs R-a … R-d)
 
 **Cast:** a leader, a `Medic` (designation), four riflemen, in cover at a building edge; one hostile seen earlier, now with no sight of

@@ -53,6 +53,8 @@ namespace Hrot.AI.Behaviors.Brains
         public float ArrivalRadius;
         /// <summary>The role written into <see cref="SquadCognitiveState.Roles"/> for the member.</summary>
         public byte RoleId;
+        /// <summary>⭐ <c>CE-2157</c> (O-a) — 1 when <see cref="Point"/> came from a cover query (shown on the debug route).</summary>
+        public byte Cover;
     }
 
     /// <summary>
@@ -91,6 +93,9 @@ namespace Hrot.AI.Behaviors.Brains
         public ElementPartition OwnElements;
         /// <summary>⭐ <c>CE-2123</c> S3 — the march's memory (the lead's trail, per-member progress); zero for every other play.</summary>
         public MarchMemory March;
+        /// <summary>⭐ <c>CE-2157</c> (O-a) — a play sets 1 when its <c>PhaseComplete</c> is true because the phase ran out of time, not
+        /// because its gate held: the trace records <see cref="SquadDrillTrace.EventTimeout"/>. The runner clears it each tick.</summary>
+        public byte CompletedByTimeout;
     }
 
     /// <summary>
@@ -307,18 +312,24 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.Started = 1;
                 ws.StartedAt = now;
                 ws.IssuedPhase = ushort.MaxValue;
+                SquadDrillTrace.Started(world, self, play.ManeuverKind, play.StartPhase, now);   // ⭐ CE-2157 (O-a)
             }
             else
             {
                 if (now - ws.LastTickAt > ResumeGapSeconds) ws.Reissue = 1;   // ⭐ S1-G — back from a pause
-                if (!StillOurs(in ws, in ctx.Squad)) Retake(ref ws, ref ctx.Squad);   // ⭐ S2-G — another drill used the squad
+                if (!StillOurs(in ws, in ctx.Squad))                            // ⭐ S2-G — another drill used the squad
+                {
+                    Retake(ref ws, ref ctx.Squad);
+                    SquadDrillTrace.PhaseChanged(world, self, ws.OwnKind, ws.OwnPhase, SquadDrillTrace.EventRetake, now);
+                }
             }
             ws.LastTickAt = now;
+            ws.CompletedByTimeout = 0;
 
-            if (ctx.Squad.PhaseId == play.AbortPhase) { play.Release(ref ws, world); return NodeStatus.Failure; }
+            if (ctx.Squad.PhaseId == play.AbortPhase) return End<TPlay, TParams>(ref play, ref ws, world, self, now, NodeStatus.Failure);
             play.Update(ref p, ref ws, in ctx);
             var outcome = play.Outcome(ref p, ref ws, in ctx);
-            if (outcome != NodeStatus.Running) { play.Release(ref ws, world); return outcome; }
+            if (outcome != NodeStatus.Running) return End<TPlay, TParams>(ref play, ref ws, world, self, now, outcome);
 
             // ⭐ CE-2125 (§7.2 L2) — the leader fell: the commander is SILENT (no new orders, no phase change); members keep their
             //   orders and their own SOP. When it ends, every order goes out again.
@@ -328,14 +339,28 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 Span<PhaseEvent> events = stackalloc PhaseEvent[1];
                 events[0] = new PhaseEvent(evt);
+                ushort before = ctx.Squad.PhaseId;
                 play.Shell.Tick(ref ctx.Squad, events, (uint)world.GetSingleton<GlobalTime>().FrameNumber);
-                if (ctx.Squad.PhaseId == play.AbortPhase) { play.Release(ref ws, world); return NodeStatus.Failure; }
+                if (ctx.Squad.PhaseId != before)   // ⭐ CE-2157 (O-a) — the phase change and what caused it
+                    SquadDrillTrace.PhaseChanged(world, self, play.ManeuverKind, ctx.Squad.PhaseId,
+                        ws.CompletedByTimeout != 0 ? SquadDrillTrace.EventTimeout : (byte)evt, now);
+                if (ctx.Squad.PhaseId == play.AbortPhase) return End<TPlay, TParams>(ref play, ref ws, world, self, now, NodeStatus.Failure);
                 outcome = play.Outcome(ref p, ref ws, in ctx);
-                if (outcome != NodeStatus.Running) { play.Release(ref ws, world); return outcome; }
+                if (outcome != NodeStatus.Running) return End<TPlay, TParams>(ref play, ref ws, world, self, now, outcome);
             }
             if (ctx.Squad.PhaseId != ws.IssuedPhase || ws.Reissue != 0) Issue<TPlay, TParams>(ref p, ref ws, in ctx);
             Remember(ref ws, in ctx.Squad);
             return NodeStatus.Running;
+        }
+
+        /// <summary>The play is left: it releases what it owns, the trace records the end.</summary>
+        private static NodeStatus End<TPlay, TParams>(ref TPlay play, ref SquadPlayState ws, EntityRepository world, Entity self, double now, NodeStatus status)
+            where TPlay : struct, ISquadPlay<TParams>
+            where TParams : unmanaged
+        {
+            play.Release(ref ws, world);
+            SquadDrillTrace.Ended(world, self, now);
+            return status;
         }
 
         /// <summary>⭐ S2-G — does the squad still hold what this play left there?</summary>
@@ -371,14 +396,16 @@ namespace Hrot.AI.Behaviors.Brains
             var play = default(TPlay);
             play.BeginIssue(ref p, ref ws, in ctx);
             ref var squad = ref ctx.Squad;
+            var traced = new SquadDrillTrace.Order[ctx.Roster.Count];   // ⭐ CE-2157 (O-a) — once per issue, not per frame
             for (int i = 0; i < ctx.Roster.Count; i++)
             {
-                if (!ctx.Live(i, out var m)) continue;
+                if (!ctx.Live(i, out var m)) { traced[i] = new SquadDrillTrace.Order(ctx.Roster.SubordinateEntities[i], 255, default, false, ctx.Now); continue; }
                 var at = ctx.At(m);
                 var order = play.OrderFor(ref p, ref ws, in ctx, i, squad.Elements.MemberElements[i], at);
                 squad.Roles[i].RoleId = order.RoleId;
                 var point = order.Kind is MemberOrderKind.Hold or MemberOrderKind.Disembark ? at : order.Point;
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
+                traced[i] = new SquadDrillTrace.Order(m, (byte)order.Kind, point, order.Cover != 0, ctx.Now);
                 if (order.Kind == MemberOrderKind.Hold) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
                 else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m);
                 else Move(ctx.World, ctx.Commander, m, point, order.Speed, order.ArrivalRadius);
@@ -387,6 +414,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.IssuedAt = ctx.Now;
             ws.IssuedThreatPoint = ws.ThreatPoint;
             ws.Reissue = 0;
+            SquadDrillTrace.Issued(ctx.World, ctx.Commander, traced);
         }
 
         /// <summary>HOLD: the library CombatPosture at the member's own position — with the enemy in sight it suppresses (or lies prone)

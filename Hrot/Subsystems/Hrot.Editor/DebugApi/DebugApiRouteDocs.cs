@@ -1732,7 +1732,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_entity_squad",
             Group:   "K — AI behavior traces",
             Summary: "A squad as its commander sees it — members with their assigned fire targets, and the merged contact pool (CE-3087).",
-            Returns: "commander: { role:'commander', memberCount, members:[{slot, networkId, name, assignment:{networkId, name, score, focusFireCount}|null}], lastMergeTick, contactCount, contacts:[{networkId, name | heard:true, threat, position, sources, lastSeenTick}] } · member: { role:'member', commander:{networkId, name}, assignment } · otherwise { role:'none' }",
+            Returns: "commander: { role:'commander', memberCount, members:[{slot, networkId, name, assignment:{networkId, name, score, focusFireCount}|null}], lastMergeTick, contactCount, contacts:[{networkId, name | heard:true, threat, position, sources, lastSeenTick}], maneuver:{active, kind, kindName, phase, phaseName, phaseSince, members:[{slot, networkId, name, order:{kind, point, cover, issuedAt}|null}], history:[{t, phase, phaseName, event}], gates?:{covering, set}, care?:{casualty, medic, stage, coverPoint}}|null } · member: { role:'member', commander:{networkId, name}, assignment } · otherwise { role:'none' }",
             Hint:    "Req: networkId (number) of a commander or a member. Read on the Brain perspective (Scenario on a cluster). Example: get_entity_squad({networkId:1000})",
             Params: new RouteParam[]
             {
@@ -1743,9 +1743,10 @@ namespace Hrot.Editor.DebugApi
                 "The assignment is the leader's fire distribution (CE-3088): recomputed after each merge of the pool (≈ 10 Hz), at most 2 members per target.",
                 "An assignment is a consideration in the member's own threat ranking, not an order — a hurt member may still break off (its posture).",
                 "Heard contacts (no identity) appear in the pool with heard:true and are never assigned.",
+                "maneuver (CE-2157) is the squad drill the commander runs: its phase, the last 16 phase changes with the event that moved each (Start, BoundComplete, DefiladeReached, Timeout, End, ...), and the order each member last got. null when no drill ever ran.",
             },
             ExampleArgsJson: "{\"networkId\":1000}",
-            ExampleGist: "read which target each squad member is assigned and what the squad knows"),
+            ExampleGist: "read which target each squad member is assigned, what the squad knows, and which drill phase it is in"),
 
         [("GET", "/entities/{networkId}/sensors")] = new RouteDoc(
             Tool:    "get_entity_sensors",

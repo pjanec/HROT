@@ -1676,17 +1676,18 @@ export const TOOLS_CATALOG = [
         "description": "Network entity ID (long)"
       }
     ],
-    "returns": "commander: { role:'commander', memberCount, members:[{slot, networkId, name, assignment:{networkId, name, score, focusFireCount}|null}], lastMergeTick, contactCount, contacts:[{networkId, name | heard:true, threat, position, sources, lastSeenTick}] } · member: { role:'member', commander:{networkId, name}, assignment } · otherwise { role:'none' }",
+    "returns": "commander: { role:'commander', memberCount, members:[{slot, networkId, name, assignment:{networkId, name, score, focusFireCount}|null}], lastMergeTick, contactCount, contacts:[{networkId, name | heard:true, threat, position, sources, lastSeenTick}], maneuver:{active, kind, kindName, phase, phaseName, phaseSince, members:[{slot, networkId, name, order:{kind, point, cover, issuedAt}|null}], history:[{t, phase, phaseName, event}], gates?:{covering, set}, care?:{casualty, medic, stage, coverPoint}}|null } · member: { role:'member', commander:{networkId, name}, assignment } · otherwise { role:'none' }",
     "notes": [
       "The assignment is the leader's fire distribution (CE-3088): recomputed after each merge of the pool (≈ 10 Hz), at most 2 members per target.",
       "An assignment is a consideration in the member's own threat ranking, not an order — a hurt member may still break off (its posture).",
-      "Heard contacts (no identity) appear in the pool with heard:true and are never assigned."
+      "Heard contacts (no identity) appear in the pool with heard:true and are never assigned.",
+      "maneuver (CE-2157) is the squad drill the commander runs: its phase, the last 16 phase changes with the event that moved each (Start, BoundComplete, DefiladeReached, Timeout, End, ...), and the order each member last got. null when no drill ever ran."
     ],
     "example": {
       "args": {
         "networkId": 1000
       },
-      "gist": "read which target each squad member is assigned and what the squad knows"
+      "gist": "read which target each squad member is assigned, what the squad knows, and which drill phase it is in"
     },
     "hint": "Req: networkId (number) of a commander or a member. Read on the Brain perspective (Scenario on a cluster). Example: get_entity_squad({networkId:1000})",
     "manualVerify": false

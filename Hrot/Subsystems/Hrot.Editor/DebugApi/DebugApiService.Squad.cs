@@ -80,7 +80,61 @@ namespace Hrot.Editor.DebugApi
                 ["lastMergeTick"] = state.Contacts.LastMergeTick,
                 ["contactCount"]  = state.Contacts.Count,
                 ["contacts"]      = contacts,
+                ["maneuver"]      = DrillNode(SquadDrillTrace.Of(_world, commander), UnitNode),
             };
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2157</c> (O-a, §7.8.1) — the commander's drill: kind, phase, the last phase changes (with the event that moved each),
+        /// the order each member got, the fire-and-movement gates and the casualty-care state. Null when no drill ever ran on it.
+        /// </summary>
+        internal static JsonNode? DrillNode(SquadDrillTrace t, System.Func<Entity, JsonObject> unit)
+        {
+            if (!t.Active && t.History.Length == 0) return null;
+            var history = new JsonArray();
+            foreach (var h in t.History)
+                history.Add(new JsonObject
+                {
+                    ["t"] = System.Math.Round(h.At, 2), ["phase"] = h.Phase, ["phaseName"] = SquadDrillNames.Phase(t.Kind, h.Phase),
+                    ["event"] = SquadDrillNames.Event(h.Event),
+                });
+            var members = new JsonArray();
+            for (int i = 0; i < t.Orders.Length; i++)
+            {
+                var o = t.Orders[i];
+                var m = unit(o.Member);
+                m["slot"] = i;
+                m["order"] = o.Kind == 255 ? null : new JsonObject
+                {
+                    ["kind"]  = ((Hrot.AI.Behaviors.Brains.MemberOrderKind)o.Kind).ToString(),
+                    ["point"] = new JsonArray(System.Math.Round(o.Point.X, 1), System.Math.Round(o.Point.Y, 1), System.Math.Round(o.Point.Z, 1)),
+                    ["cover"] = o.Cover,
+                    ["issuedAt"] = System.Math.Round(o.IssuedAt, 2),
+                };
+                members.Add(m);
+            }
+            var node = new JsonObject
+            {
+                ["active"]     = t.Active,
+                ["kind"]       = t.Kind,
+                ["kindName"]   = SquadDrillNames.Kind(t.Kind),
+                ["phase"]      = t.Phase,
+                ["phaseName"]  = SquadDrillNames.Phase(t.Kind, t.Phase),
+                ["phaseSince"] = System.Math.Round(t.PhaseSince, 2),
+                ["members"]    = members,
+                ["history"]    = history,
+            };
+            if (t.HasGates) node["gates"] = new JsonObject { ["covering"] = t.Covering, ["set"] = t.Set };
+            if (t.HasCare)
+            {
+                var c = t.Care;
+                node["care"] = new JsonObject
+                {
+                    ["casualty"] = unit(c.Casualty), ["medic"] = c.Medic.IsNull ? null : unit(c.Medic), ["stage"] = c.Stage,
+                    ["coverPoint"] = c.HasCoverPoint ? new JsonArray(System.Math.Round(c.CoverPoint.X, 1), System.Math.Round(c.CoverPoint.Y, 1), System.Math.Round(c.CoverPoint.Z, 1)) : null,
+                };
+            }
+            return node;
         }
 
         private JsonNode? SlotNode(in SquadCognitiveState state, int slot)
