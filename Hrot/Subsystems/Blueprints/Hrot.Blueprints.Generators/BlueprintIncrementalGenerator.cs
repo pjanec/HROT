@@ -130,7 +130,9 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
             //     4-byte guess that dropped the whole block to runtime layout.
             StructSizeOracle: generated.SizeResolver(compilation, fieldSizes: true),
             // ⭐ CE-3164 (R-268) — the picker group is the asset's FOLDER.
-            BehaviorGroup: Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath(path));
+            BehaviorGroup: Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath(path),
+            // ⭐ CE-2135 P4 (R-2004) — a named params DTO's fields ARE the Parameters; reflection cannot see this compilation.
+            ParamsDtoFields: new RoslynParamsDtoFieldSource(compilation, generated));
 
         try
         {

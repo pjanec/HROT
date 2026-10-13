@@ -94,6 +94,11 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
         // resolved types back through them and the caller is meant to see that.
         asset.DeclarationStore.AddRange(callerAsset.DeclarationStore);
 
+        // ⭐ CE-2135 P4 (R-2004, docs/DESIGN_Orders_Params_Entity_Classes.md §13.10) — a named params DTO's fields ARE the Parameters:
+        //   made here, on this method's own store, so the caller's asset (and the file it saves) never gains them.
+        if (!ParamsDtoFields.Materialize(asset, options.ParamsDtoFields, sink.Add))
+            return FailResult(sink, asset);
+
         Stage0_Rehydrate.Run(asset, options);
 
         // U-2 / BP-229 -- the compiler takes ownership of the graphs it is about to rewrite.

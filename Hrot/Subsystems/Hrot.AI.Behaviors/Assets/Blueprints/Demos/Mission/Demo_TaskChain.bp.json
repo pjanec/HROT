@@ -10,33 +10,8 @@
   "TierHint": "Auto",
   "IsWorldSingleton": false,
   "Primitive": null,
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.DemoTaskChainParams",
   "Declarations": [
-    {
-      "Kind": "Parameter",
-      "Id": "a7c0de02-0000-4000-8000-000000000001",
-      "Name": "Move",
-      "Type": {
-        "TypeId": "Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": null,
-      "Tooltip": "Where the Advance task drives (MoveToLocation).",
-      "Comment": null
-    },
-    {
-      "Kind": "Parameter",
-      "Id": "a7c0de02-0000-4000-8000-000000000002",
-      "Name": "Fire",
-      "Type": {
-        "TypeId": "Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": null,
-      "Tooltip": "What the Engage task engages (FireAtTarget).",
-      "Comment": null
-    },
     {
       "Kind": "Variable",
       "Id": "b3b73e50-5fa4-4576-a636-3c8d9e67ff62",
@@ -130,7 +105,7 @@
           "kind": "BehaviorTask",
           "BehaviorName": "MoveToLocation",
           "ParamsTypeId": "Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto",
-          "ParamsVariable": "a7c0de02-0000-4000-8000-000000000001",
+          "ParamsVariable": "24508cc2-b4c8-6c5e-9ff1-d053bcc1b669",
           "Id": "dfb37387-024c-4c60-93e0-7030a1085517",
           "Pins": [
             {
@@ -301,7 +276,7 @@
           "kind": "BehaviorTask",
           "BehaviorName": "FireAtTarget",
           "ParamsTypeId": "Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto",
-          "ParamsVariable": "a7c0de02-0000-4000-8000-000000000002",
+          "ParamsVariable": "0d934d11-3069-9251-b9ef-4a7750244554",
           "Id": "206c5fe5-0e48-4ad4-ae8d-b28b2618bc41",
           "Pins": [
             {

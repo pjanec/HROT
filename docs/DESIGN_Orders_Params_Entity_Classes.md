@@ -1582,7 +1582,7 @@ Fdp.Toolkits tick arms + possession 85/0, SimHost 16/0, Blueprints 4203/2 — th
 (`ViewsAreUnreadTests` flags `Stage2_Validate.cs:2835`, CE-2133's BP1689 rule, which P4 rewrites; `CatalogTests` AimAndFire pins 4 vs 8 — the
 channel-command catalog). ⚠ Not re-run at the base sha.
 
-### 13.10 P4 — no blueprint declares Parameters; every kind names a params DTO *(CE-2135 B3b-2; R-2004, steers 1–2; build-state: READY-TO-BUILD `2026-10-13`, backend)*
+### 13.10 P4 — no blueprint declares Parameters; every kind names a params DTO *(CE-2135 B3b-2; R-2004, steers 1–2; build-state: BUILDING `2026-10-13`, backend — steps ①② built, as-built at the end of this section)*
 
 **INVENTORY** *(read-only sweep 2026-10-13 + grep; file:line in the CE-2135 report)*: `ParameterDecl` (`Declarations.cs:16`) is ALSO the
 element type of graph Inputs / Outputs, custom-event and dispatcher parameters ⇒ only its use as a blueprint **Parameter declaration kind**
@@ -1647,3 +1647,36 @@ sequenceDiagram
 | P4-f | Get Parameter | retires (steer 2); its 2 graphs move to Get All Parameters (links re-pointed by pin name) | migrate-on-load of old files (no shipped file needs it after the 2 are rewritten) |
 | P4-g | where the DTOs come from | hand-written C# structs beside the behaviour (the user: "no problem writing dto class in csharp"); `DangerCrossingBp` names `DangerCrossingParams`, its C# twin's contract — ONE contract for both | `.params.json` assets for all 12 (fine, but the C# twin already has the DTO) |
 | P4-h | order | ① field source + materialize + BP1689 + emit (rails) → ② 3 behaviours → ③ 7 AiPrimitives (+ their hosts' goldens) → ④ 2 resolvers (+ HsmResolverDemo, T40) → ⑤ Get Parameter retires → ⑥ the legacy BTree / HSM Inputs (T09, T20, HsmVariableShowcase, HsmChannelE2E) → ⑦ delete `Role`, `StatefulSlotInfo.Role`, `StatefulSlotRole`; the allow-list ends EMPTY | one big bang (no red-proof per step) |
+
+**P4 as built — steps ① ②** *(2026-10-13, backend; the design above held, deviations below)*:
+- **① field source + materializer** — `ParamsDtoFields` (`Hrot.Blueprints.Compiler/Compiler/ParamsDtoFields.cs`): `Materialize` runs in
+  `BlueprintCompiler.Compile` on the compiler's OWN store copy, after the store copy and before Stage 0, so the caller's asset never gains
+  the made Parameters (rail: `CE2135_AMisplacedParamsDto_IsBP1689` checks `ok.Parameters` stays empty). The made ids are
+  `ParamsDtoFields.ParameterId(assetId, field)` — PINNED by `CE2135_TheMadeParameterId_IsPinned`, because a converted file references them
+  (a task's `ParamsVariable`, a `GetParameter`'s `ParameterId`). Sources: `ReflectionParamsDtoFieldSource` (the default — last-loaded copy
+  wins, R-2001; loads the referenced closure once when a DTO's assembly is not loaded yet) and the generator's `RoslynParamsDtoFieldSource`
+  (`CompileOptions.ParamsDtoFields`), which reads a hand-written DTO from the semantic model or a sibling `.params.json` through the
+  shared `GeneratedTypeCatalog`. ⭐ ONE Roslyn field walk: `GeneratedBlueprintSchemaCatalog.ParamsDtoFieldsOf` — the generator's field
+  source and the AiPrimitive hosts' `_Bp+Params` size path both read it (public instance fields, `[JsonIgnore]` dropped, `FullName`
+  spelling — the reflection twin applies the same filter).
+- ⚠ **Deviation — BP1689 lives in ONE place**: `V_ParamsDtoRules` (Stage 2), not the materializer, because `BlueprintCompiler.Validate`
+  runs Stage 2 on the RAW asset without materializing. The materializer reports only "not a known type". `ParamsDtoFields.HasParams`
+  is the one predicate both use (Behavior, AiPrimitive, a Library with a `ResolverSubject`) — measured: materializing on a plain
+  Library first raised BP1011 ("a library declares nothing") and hid BP1689.
+- **emit** — `InstanceEmitter`'s CE-2133 B1 branch (one Parameter whose type IS the DTO, `OverlayFlat`) is deleted: a named DTO's fields
+  are the Parameters, so the ordinary keyed `ParseParams` reads the JSON flat; a field-less DTO (`NoParams`) keeps `RequireNoStoredFields`.
+  Rail `CE2135_ANamedParamsDto_ItsFieldsAreTheParameters_AndItsJsonLandsFlat` reads the block back AS the DTO (layout identity).
+- **editor twin** — `NodePinSchema.GetAllParametersPins` reads `ParamsDtoFields.ParametersOf(asset)` (declared, else the DTO's fields),
+  so the canvas shows the pins the build will have.
+- **② three behaviours** — `Demo_MissionPlan` → `DemoMissionPlanParams`, `Demo_TaskChain` → `DemoTaskChainParams`
+  (`Hrot.AI.Behaviors/Brains/DemoMissionParams.cs`), `DangerCrossingBp` → `DangerCrossingParams` (its C# twin's contract, now with
+  `DefaultJson` = the initializers' values). Converted by a text-level script (declarations removed, `ParamsDtoTypeId` before
+  `Declarations`, every old Parameter id re-pointed to the made id), then the corpus canonicaliser; the JSON callers send is
+  unchanged. CE-2130 allow-list −3. ⭐ **Golden movement, measured: ONE line per asset** — `JsonParamsDtoType` names the DTO instead of
+  `_Bp.Params`; the `Params` struct, the parse and the IR are byte-identical and Tier 1 did not move (P4-b's claim, confirmed).
+- ⚠ **Every pipeline copy materializes** — `GoldenCorpus.Compile` (the golden harness runs the stages itself) calls `Materialize`
+  before Stage 0 as `Compile` does; measured: without it the harness and the real compiler disagreed on `StructureHash` for the three
+  converted assets (`HarnessPipelineMatchesTheRealCompiler`). A future second pipeline must do the same.
+- **Not yet**: the editor's Variables / Details panels still list only DECLARED Parameters (a DTO-named asset shows none) — the canvas
+  pins are right (`ParametersOf`), the panels are the ui lane's surface (P5b). Steps ③–⑦ follow.
+

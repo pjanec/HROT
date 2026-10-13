@@ -882,21 +882,9 @@ internal static class InstanceEmitter
         e.WriteLine("    throw new global::System.ArgumentOutOfRangeException(nameof(capacity),");
         e.WriteLine("        $\"the behaviour block holds {capacity} bytes but this blueprint needs {StateSize} (CE-446).\");");
         e.WriteLine("InitDefault(new global::System.Span<byte>(memory, StateSize));");
-        if (asset.ParamsDtoTypeId is { } namedDto && asset.Parameters.Count == 1)
-        {
-            // ⭐⭐ CE-2133 (B1, DESIGN_Orders_Params_Entity_Classes §1 P2) — the one Parameter IS the named params DTO: the JSON
-            //   is its fields, FLAT, overlaid onto its declared default (an absent key keeps it). Never {"<parameter>":{…}}.
-            var only = asset.Parameters[0];
-            e.WriteLine("{");
-            e.Indent();
-            e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<Params>(memory + ParamsOffset);");
-            e.WriteLine("p = default;");
-            EmitParamsDefaults(e, asset, "p");
-            e.WriteLine($"global::Fdp.Toolkit.Behavior.BehaviorParams.OverlayFlat(ref p.{only.Name}, json, __ParamJsonOptions);");
-            e.Outdent();
-            e.WriteLine("}");
-        }
-        else if (asset.ParamsDtoTypeId is { } storedNowhere && asset.Parameters.Count == 0)
+        // ⭐ CE-2135 P4 (R-2004) — a named DTO's fields ARE the Parameters (ParamsDtoFields), so its JSON parses FLAT through the
+        //   ordinary keyed ParseParams below. ⛔ The CE-2133 B1 branch (one Parameter whose type is the DTO, overlaid) retired with it.
+        if (asset.ParamsDtoTypeId is { } storedNowhere && asset.Parameters.Count == 0)
             // ⭐ CE-2133 — a named DTO with no Parameter stores nothing: fields in the JSON are an error, never dropped.
             e.WriteLine($"global::Fdp.Toolkit.Behavior.BehaviorParams.RequireNoStoredFields(json, \"{asset.Name}\", \"{storedNowhere}\");");
         else if (asset.Parameters.Count > 0)

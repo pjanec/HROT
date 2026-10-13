@@ -68,24 +68,23 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
     }
 
     /// <summary>
-    /// ⭐⭐ <b>S3</b> (<c>DESIGN_Unified_Behaviour_Run</c> §4) — a shipped BLUEPRINT behaviour advertises its Parameters
-    /// exactly like a BTree/HSM one: the schema is its <c>Params</c> struct (the block's <c>In</c>), and it joins the
-    /// generated-block set the two rails below sweep. ✅ Red-proof: without S3's registrar lines the schema is empty.
+    /// ⭐⭐ <b>S3</b> (<c>DESIGN_Unified_Behaviour_Run</c> §4) → ⭐ <c>CE-2135</c> P4 (R-2004) — a shipped BLUEPRINT behaviour advertises
+    /// its NAMED params DTO (the contract it shares with its C# twin), and its block's <c>In</c> — the generated <c>Params</c> its
+    /// Inputs live in — mirrors that DTO field for field: the schema, the Input manifest and the block agree.
+    /// ✅ Red-proof: drop <c>ParamsDtoTypeId</c> from <c>DangerCrossingBp.bp.json</c> → the DTO is not the published contract.
     /// </summary>
     [Fact]
     public void ABlueprintBehaviourAdvertisesItsParameters()
     {
-        // ⭐ R-2006 — PlatoonHillAttackBp retired; DangerCrossingBp is the shipped blueprint behaviour with Parameters. ⚠ Interim:
-        //   R-2004 removes blueprint Parameters (backend P4) — this rail then asserts the blueprint advertises its NAMED DTO.
+        // ⭐ R-2006 — PlatoonHillAttackBp retired; DangerCrossingBp is the shipped blueprint behaviour with params.
         BehaviorDefinition def = Definition(LoadProductionRegistry(), "DangerCrossingBp");
 
-        Assert.True(IsGeneratedBlock(def));
-        Assert.Equal(
-            new[] { "Objective", "WalkSpeed", "RushSpeed", "CrossWithin" },
-            PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));
-        Assert.Equal(
-            def.ManagedBlackboardVariables!.Select(v => v.Name).ToArray(),
-            PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));
+        Assert.Equal("Hrot.AI.Behaviors.Brains.DangerCrossingParams", def.JsonParamsDtoType?.FullName);
+        var fields = new[] { "Objective", "WalkSpeed", "RushSpeed", "CrossWithin" };
+        Assert.Equal(fields, PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));
+        Assert.Equal(fields, def.ManagedBlackboardVariables!.Select(v => v.Name).ToArray());
+        Assert.Equal(fields, def.BlackboardLayoutType!.GetField("In")!.FieldType
+            .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Select(f => f.Name).ToArray());
     }
 
     /// <summary>

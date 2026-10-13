@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
@@ -48,15 +49,20 @@ internal sealed class GeneratedBlueprintSchema
     public bool IsAiPrimitive { get; }
     public IReadOnlyList<(string Name, string TypeId)> Parameters { get; }
 
+    /// <summary>⭐ <c>CE-2135</c> P4 (R-2004) — the asset's named params DTO, or null. Named, the asset declares no Parameters: its
+    /// generated <c>Params</c> mirrors the DTO's fields (<see cref="GeneratedBlueprintSchemaCatalog.ParamsDtoFieldsOf"/>).</summary>
+    public string? ParamsDtoTypeId { get; }
+
     public GeneratedBlueprintSchema(
         Guid assetId, string sanitizedName, int blueprintId, bool isAiPrimitive,
-        IReadOnlyList<(string Name, string TypeId)> parameters)
+        IReadOnlyList<(string Name, string TypeId)> parameters, string? paramsDtoTypeId = null)
     {
         AssetId        = assetId;
         SanitizedName = sanitizedName;
         BlueprintId   = blueprintId;
         IsAiPrimitive = isAiPrimitive;
         Parameters    = parameters;
+        ParamsDtoTypeId = paramsDtoTypeId;
     }
 
     /// <summary>The generated class name: "{SanitizedName}_{BlueprintId:X8}_Bp" (mirrors <c>AiPrimitiveEmitter.EmitClass</c>).</summary>
@@ -135,7 +141,10 @@ internal static class GeneratedBlueprintSchemaCatalog
                     AddParameter(item, parameters);
             }
 
-            return new GeneratedBlueprintSchema(assetId, sanitizedName, blueprintId, isAiPrimitive, parameters);
+            string? paramsDto = TryGetPropCI(root, "paramsDtoTypeId", out var dtoProp) && dtoProp.ValueKind == JsonValueKind.String
+                ? dtoProp.GetString()?.Trim() : null;
+            return new GeneratedBlueprintSchema(assetId, sanitizedName, blueprintId, isAiPrimitive, parameters,
+                string.IsNullOrEmpty(paramsDto) ? null : paramsDto);
         }
         catch
         {
@@ -178,11 +187,20 @@ internal static class GeneratedBlueprintSchemaCatalog
         if (schema == null)
             return null;
 
+        // ⭐ CE-2135 P4 (R-2004) — a named params DTO's fields ARE the Parameters (the blueprint compiler's ParamsDtoFields): read
+        //   them from the DTO's symbol, the same walk the generator's field source uses, so the host sizes the Params the build emits.
+        IEnumerable<(string Name, string TypeId)> parameters = schema.Parameters;
+        if (schema.Parameters.Count == 0 && schema.ParamsDtoTypeId is { } dtoId)
+        {
+            if (compilation.GetTypeByMetadataName(dtoId) is not { } dto) return null;   // unknown here ⇒ loud (BTREE0002), never a guess
+            parameters = ParamsDtoFieldsOf(dto).Select(f => (f.Name, f.TypeId));
+        }
+
         // Each parameter field's managed (size, alignment) — the known-type table first, then the Roslyn resolver (handles
         // project enum and struct types authored as a blueprint Parameter type). ⭐ CE-2027: the ALIGNMENT is the field's own
         // (a Vector3 is 4-aligned), not min(size, 8) — the Params struct is a Sequential C# struct the CLR lays out.
-        var fields = new List<(int Size, int Align)>(schema.Parameters.Count);
-        foreach (var param in schema.Parameters)
+        var fields = new List<(int Size, int Align)>();
+        foreach (var param in parameters)
         {
             var layout = StructSizeResolver.ResolveFieldLayout(param.TypeId, compilation);
             if (!layout.HasValue)
@@ -191,6 +209,44 @@ internal static class GeneratedBlueprintSchemaCatalog
         }
 
         return global::Fdp.Toolkit.Behavior.Shared.RoslynStructLayout.SequentialSize(fields);
+    }
+
+    /// <summary>The <c>[ParamsDto]</c> attribute, by name (this project cannot reference <c>Fdp.Core</c>).</summary>
+    public const string ParamsDtoAttributeName = "Fdp.Core.ParamsDtoAttribute";
+    private const string JsonIgnoreAttributeName = "System.Text.Json.Serialization.JsonIgnoreAttribute";
+
+    /// <summary>
+    /// ⭐ <c>CE-2135</c> P4 (R-2004) — a params DTO's public instance fields in declaration order, minus <c>[JsonIgnore]</c> ones (not in
+    /// the JSON contract), each with its <see cref="System.Type.FullName"/>-spelled type id: what the blueprint compiler makes the
+    /// Parameters from. ⭐ The ONE Roslyn walk — the generator's field source and the host size path both read it; its reflection twin
+    /// is <c>ReflectionParamsDtoFieldSource</c> (same filter, same spelling).
+    /// </summary>
+    public static IReadOnlyList<(string Name, string TypeId)> ParamsDtoFieldsOf(INamedTypeSymbol dto)
+        => dto.GetMembers().OfType<IFieldSymbol>()
+            .Where(f => f.DeclaredAccessibility == Accessibility.Public && !f.IsStatic && !f.IsConst && !f.IsImplicitlyDeclared)
+            .Where(f => !f.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == JsonIgnoreAttributeName))
+            .Select(f => (f.Name, FullNameOf(f.Type)))
+            .ToList();
+
+    /// <summary>The <c>[ParamsDto(DefaultJson)]</c> on <paramref name="dto"/>, or null.</summary>
+    public static string? ParamsDtoDefaultJsonOf(INamedTypeSymbol dto)
+    {
+        foreach (var a in dto.GetAttributes())
+        {
+            if (a.AttributeClass?.ToDisplayString() != ParamsDtoAttributeName) continue;
+            foreach (var n in a.NamedArguments)
+                if (n.Key == "DefaultJson") return n.Value.Value as string;
+        }
+        return null;
+    }
+
+    /// <summary><see cref="System.Type.FullName"/> of a type symbol: namespace-qualified, <c>+</c> for nesting, no keyword aliases.</summary>
+    public static string FullNameOf(ITypeSymbol t)
+    {
+        if (t is IArrayTypeSymbol arr) return FullNameOf(arr.ElementType) + "[]";
+        if (t is INamedTypeSymbol { ContainingType: { } outer }) return FullNameOf(outer) + "+" + t.MetadataName;
+        var ns = t.ContainingNamespace;
+        return (ns is null || ns.IsGlobalNamespace ? "" : ns.ToDisplayString() + ".") + t.MetadataName;
     }
 
     /// <summary>
