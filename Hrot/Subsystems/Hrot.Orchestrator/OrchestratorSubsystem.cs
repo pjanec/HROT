@@ -21,6 +21,7 @@ using Hrot.Orchestrator.Panels;
 using Hrot.Core.Network;
 using Hrot.Core.Diagnostics;
 using Hrot.Common.Diagnostics;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Orchestrator;
 
@@ -260,8 +261,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         try
         {
             using var doc = System.Text.Json.JsonDocument.Parse(json);
-            return System.Text.Json.JsonSerializer.Serialize(doc,
-                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            return System.Text.Json.JsonSerializer.Serialize(doc, FdpJsonOptionsRegistry.Indented);
         }
         catch { return json; }
     }

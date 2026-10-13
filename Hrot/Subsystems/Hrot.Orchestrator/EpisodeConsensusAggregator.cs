@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Orchestrator;
 
@@ -38,7 +39,7 @@ public sealed class EpisodeConsensusAggregator : INodeResponseAggregator
                 try
                 {
                     return System.Text.Json.JsonSerializer.Deserialize<EpisodeConsensusPayload>(
-                        json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        json, FdpJsonOptionsRegistry.DefaultRelaxed);
                 }
                 catch { }
             }

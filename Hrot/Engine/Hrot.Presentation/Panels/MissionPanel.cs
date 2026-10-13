@@ -96,11 +96,6 @@ public sealed class MissionPanel
         Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build();
     private readonly Dictionary<Guid, BehaviorParamsEditor> _paramForms = new();
 
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-    };
-
     // Transient per-frame service reference set at start of DrawContent; the pick broker reads it at request time.
     private IMapPickService? _framePickService;
 

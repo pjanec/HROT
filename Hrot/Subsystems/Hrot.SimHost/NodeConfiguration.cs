@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using Fdp.Core.Serialization.Migrations.Adapters;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Core.Serialization;
 
 namespace Hrot.SimHost
 {
@@ -96,11 +97,7 @@ namespace Hrot.SimHost
 
         // ── Serialisation ─────────────────────────────────────────────────────
 
-        private static readonly JsonSerializerOptions _jsonOptions = new()
-        {
-            WriteIndented       = true,
-            PropertyNameCaseInsensitive = true,
-        };
+        private static readonly JsonSerializerOptions _jsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
 
         /// <summary>
         /// Loads a <see cref="NodeConfiguration"/> from <paramref name="filePath"/>.
