@@ -96,6 +96,10 @@ namespace Hrot.AI.Behaviors.Brains
     {
         /// <summary>⭐ <c>CE-2158</c> F-c — the commander's cover query for the next element's bound.</summary>
         public const int CoverSite = 0x21580002;
+        /// <summary>A bound may stretch this much past <c>BoundMetres</c> to end in cover ("bound 20–50 m to the next cover").</summary>
+        public const float CoverStretch = 1.25f;
+        /// <summary>A mover sent to a cover point stops this close to it (m): the point stands 0.75 m off the wall.</summary>
+        public const float CoverArrivalMetres = 1f;
 
         private static readonly SquadHsmShell s_shell = new(
             BoundingOverwatchManeuver.BuildTransitionTable(), BoundingOverwatchManeuver.PhaseAborted);
@@ -126,7 +130,7 @@ namespace Hrot.AI.Behaviors.Brains
             else if (ws.ThreatId != 0) { ws.ThreatId = 0; ws.Reissue = 1; }   // the contact is down: the watchers go back to watching
             byte next = (byte)(1 - BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId));
             if (!SquadCover.IsReady(in p.Cover, next))
-                SquadCover.Make(ref p.Cover, ref ws, in ctx, CoverSite, next, p.Objective, p.BoundMetres,
+                SquadCover.Make(ref p.Cover, ref ws, in ctx, CoverSite, next, p.Objective, p.BoundMetres * CoverStretch,
                                 ws.ThreatId != 0 ? new Entity((ulong)ws.ThreatId) : Entity.Null, p.Objective, ws.IssuedAt);
         }
 
@@ -138,6 +142,19 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!any) continue;
                 var d = p.Objective - c; d.Z = 0f;
                 if (d.LengthSquared() > p.ArrivalRadius * p.ArrivalRadius) return NodeStatus.Running;
+            }
+            // ⭐ CE-2158 F-c — a mover still bounding to a COVER point finishes the bound (or it times out): ⛔ the drill does not end
+            //   with him in the open because both centres came within ArrivalRadius (measured live: the last bound to Block B's face
+            //   was cut off 5–18 m short). A geometric bound ends as before.
+            if (ws.IssuedPhase == ctx.Squad.PhaseId && ctx.Now - ws.IssuedAt < p.BoundTimeoutSeconds)
+            {
+                ushort movers = SquadGates.Element(in ctx, BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId));
+                for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
+                {
+                    if ((movers & (1 << i)) == 0 || !ctx.Live(i, out var m) || !SquadCover.Has(in p.Cover, i, out var pick)) continue;
+                    var d = ctx.At(m) - pick; d.Z = 0f;
+                    if (d.Length() > SquadManeuverRunner.MoverArrivalMetres) return NodeStatus.Running;
+                }
             }
             return NodeStatus.Success;
         }
@@ -188,7 +205,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Point         = cover ? pick : at + ws.Scratch,
                 Cover         = cover ? (byte)1 : (byte)0,
                 Speed         = p.Speed,
-                ArrivalRadius = SquadManeuverRunner.MoverArrivalMetres,
+                ArrivalRadius = cover ? CoverArrivalMetres : SquadManeuverRunner.MoverArrivalMetres,   // in cover, not 3 m from it
                 RoleId        = BoundingOverwatchManeuver.RoleMoving,
             };
         }

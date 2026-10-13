@@ -37,5 +37,11 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>A follower this far from its slot halts the lead until it closes up (m); 0 = 10.</summary>
         [JsonPropertyName("MaxLagMetres")]
         public float MaxLagMetres;
+
+        /// <summary>⭐ <c>CE-2159</c> X-a — watch the route for danger areas (a road, an open strip): the march owns the commander's
+        /// danger-area sensor to <see cref="Objective"/>, and the squad SOP's "danger area ahead" row crosses each one as a drill
+        /// (Squad Tactics §7.7.6). Off by default.</summary>
+        [JsonPropertyName("DangerAreas")]
+        public bool DangerAreas;
     }
 }

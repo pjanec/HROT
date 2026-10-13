@@ -12,8 +12,8 @@
     "a2158b00-0000-4000-8000-0000000000c0": {
       "SimTransform": {
         "Position": [
-          200,
-          135,
+          140,
+          139,
           0
         ],
         "Rotation": [
@@ -35,15 +35,15 @@
       },
       "Behavior": {
         "Name": "BoundingOverwatch",
-        "Params": "{\"Objective\": [200, 285, 0], \"BoundMetres\": 30, \"ArrivalRadius\": 25, \"BoundTimeoutSeconds\": 40}",
+        "Params": "{\"Objective\": [140, 226, 0], \"BoundMetres\": 30, \"ArrivalRadius\": 10, \"BoundTimeoutSeconds\": 40}",
         "Origin": "Superior"
       }
     },
     "a2158b00-0000-4000-8000-000000000001": {
       "SimTransform": {
         "Position": [
-          190,
-          135,
+          130,
+          139,
           0
         ],
         "Rotation": [
@@ -78,8 +78,8 @@
     "a2158b00-0000-4000-8000-000000000002": {
       "SimTransform": {
         "Position": [
-          194,
-          135,
+          134,
+          139,
           0
         ],
         "Rotation": [
@@ -114,8 +114,8 @@
     "a2158b00-0000-4000-8000-000000000003": {
       "SimTransform": {
         "Position": [
-          198,
-          135,
+          138,
+          139,
           0
         ],
         "Rotation": [
@@ -150,8 +150,8 @@
     "a2158b00-0000-4000-8000-000000000004": {
       "SimTransform": {
         "Position": [
-          202,
-          135,
+          142,
+          139,
           0
         ],
         "Rotation": [
@@ -186,8 +186,8 @@
     "a2158b00-0000-4000-8000-000000000005": {
       "SimTransform": {
         "Position": [
-          206,
-          135,
+          146,
+          139,
           0
         ],
         "Rotation": [
@@ -222,8 +222,8 @@
     "a2158b00-0000-4000-8000-000000000006": {
       "SimTransform": {
         "Position": [
-          210,
-          135,
+          150,
+          139,
           0
         ],
         "Rotation": [
@@ -258,8 +258,8 @@
     "a2158b00-0000-4000-8000-000000000011": {
       "SimTransform": {
         "Position": [
-          200,
-          290,
+          195,
+          300,
           0
         ],
         "Rotation": [
@@ -285,6 +285,9 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "WeaponState": {
+        "Ammo": 0
       }
     }
   }

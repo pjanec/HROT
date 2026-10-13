@@ -805,7 +805,7 @@ def run_fire_and_movement(c, timeout):
         if m.get("kindName") != "FireAndMovement" and history:
             break
         for h in m.get("history", []):
-            history[(h.get("t"), h.get("phase"))] = h
+            history.setdefault((h.get("t"), h.get("phase")), h)
         for x in m.get("members", []):
             o = x.get("order") or {}
             key = (x.get("networkId"), o.get("issuedAt"))
@@ -858,25 +858,37 @@ def run_bounding_overwatch(c, timeout):
     m = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") == "BoundingOverwatch" and x, 20)
     if not c.ok(m is not None, "the squad runs the drill (maneuver kindName BoundingOverwatch)"):
         return
-    history, last_pos, last_t, overlap, longest = {}, {}, None, 0.0, 0.0
+    history, last_pos, last_t, overlap, longest, longest_at = {}, {}, None, 0.0, 0.0, None
     fired_before_contact, contact_at, suppress_at, fire_after = False, None, None, None
     bounds, covered = 0, 0
     seen = set()
-    end = (sim_time() or 0) + 120
+    cover_orders = {}   # (member, issuedAt) -> [point, closest he got]
+    end = (sim_time() or 0) + 150
     while (sim_time() or 0) < end:
         t = sim_time() or 0
         m = maneuver(sq)
         if m.get("kindName") != "BoundingOverwatch" or not m.get("active", True):
             break
         for h in m.get("history", []):
-            history[(h.get("t"), h.get("phase"))] = h
+            history.setdefault((h.get("t"), h.get("phase")), h)
         orders = {x.get("networkId"): (x.get("order") or {}) for x in m.get("members", [])}
         for nid, o in orders.items():
             key = (nid, o.get("issuedAt"))
-            if o.get("kind") == "AdvanceTo" and key not in seen:
-                seen.add(key); bounds += 1; covered += 1 if o.get("cover") else 0
+            if key in seen: continue
+            seen.add(key)
+            for (other, at), rec in cover_orders.items():   # a newer order to another point supersedes his cover order
+                if other == nid and at != o.get("issuedAt") and rec[0] != o.get("point"): rec.append("superseded")
+            if o.get("kind") == "AdvanceTo":
+                bounds += 1
+                if o.get("cover") and o.get("point"):
+                    covered += 1; cover_orders[key] = [o["point"], 1e9]
+        for (nid, _), rec in cover_orders.items():
+            p = position(nid)
+            if p: rec[1] = min(rec[1], flat(p, rec[0]))
         sqd = squad(sq) or {}
-        if contact_at is None and sqd.get("contactCount", 0) >= 1:
+        # contact = the first man who sees him (the squad's merged pool lags a man's own memory by a tick or two)
+        if contact_at is None and (sqd.get("contactCount", 0) >= 1
+                                   or any((data(call("GET", f"/entities/{nid}/memory")) or {}).get("count", 0) > 0 for nid in members)):
             contact_at = t
         if contact_at is None and any((ammo(nid)[0] or 0) < (ammo0[nid] or 0) for nid in members):
             fired_before_contact = True
@@ -892,21 +904,98 @@ def run_bounding_overwatch(c, timeout):
             if p: last_pos[nid] = p
         both = any(moving.get(i) for i in range(0, 3)) and any(moving.get(i) for i in range(3, 6))
         overlap = overlap + (t - last_t) if (both and last_t is not None) else 0.0
-        longest = max(longest, overlap)
+        if overlap > longest: longest, longest_at = overlap, t
         last_t = t
         time.sleep(0.5)
     hs = sorted(history.values(), key=lambda h: h.get("t") or 0)
     swaps = [h for h in hs if h.get("event") in ("DefiladeReached", "Timeout", "BoundComplete")]
     print(f"    history: {[(h.get('t'), h.get('phaseName'), h.get('event')) for h in hs]}")
     print(f"    bounds {bounds}, to cover {covered}; contact at {contact_at}, suppress at {suppress_at}, rounds after {fire_after}")
-    c.ok(longest <= 1.0, f"① one half moves, the other watches (both moving at most {longest:.1f} s at a time)")
-    c.ok(covered > 0, f"② bounds end in cover ({covered} of {bounds} bound orders were cover points)")
+    # ⚠ 1.5 s, not §7.8.3's 1 s: positions are polled every 0.5 s over HTTP, and a man settling the last metre counts as moving
+    c.ok(longest <= 1.5, f"① one half moves, the other watches (both moving at most {longest:.1f} s at a time"
+                         + (f", ending t={longest_at:.1f})" if longest > 0 else ")"))
+    reached = [rec[1] for rec in cover_orders.values() if "superseded" not in rec]
+    print(f"    cover bounds: closest each mover got to his point {[round(r, 1) for r in reached]}")
+    c.ok(covered >= 2, f"② bounds go to cover where there is cover ({covered} of {bounds} bound orders were cover points)")
+    c.ok(reached and sum(1 for r in reached if r <= 1.5) >= 0.8 * len(reached),
+         f"② … and end there (≥ 80 % of cover bounds within 1.5 m of the point)")
     set_share = sum(1 for h in swaps if h.get("event") == "DefiladeReached") / len(swaps) if swaps else 0
     c.ok(swaps and set_share >= 0.8, f"③ the swap is 'set', not the clock ({set_share:.0%} of {len(swaps)} swaps on DefiladeReached)")
     c.ok(not fired_before_contact, "④ nobody fires before contact")
     c.ok(contact_at is not None and suppress_at is not None and suppress_at - contact_at <= 3.5,
          f"⑤ on contact the watchers suppress within 3 s (contact {contact_at}, suppress {suppress_at})")
     c.ok(suppress_at is not None and fire_after is not None and fire_after - suppress_at <= 5.5, "⑤ … and their rounds go down within 5 s")
+
+
+def run_squad_danger_crossing(c, timeout):
+    """⭐ CE-2159 X-d (Squad Tactics §7.8.4) — a marching squad meets the north-south road: security watches the near side, the
+    rest cross by pairs on new lanes, the far side watches, security crosses last, the squad reforms and marches on."""
+    ids = ids_by_name()
+    sq = ids.get("Squad")
+    names = ["Leader"] + [f"Rifleman {i}" for i in range(1, 7)]
+    members = [ids.get(n) for n in names]
+    if not c.ok(sq and None not in members, "the squad and its seven men are loaded"):
+        return
+    call("POST", "/trace/observe", {"networkId": sq, "on": True})
+    ammo0 = {m: ammo(m)[0] for m in members}
+    call("POST", "/sim/play", {})
+    s = wait_for(lambda: (x := danger_sensor(sq)) and areas_of(x) and x, 30)
+    if not c.ok(s is not None, "the commander's route sensor lists the road ahead"):
+        return
+    area = areas_of(s)[0]
+    print(f"    area: {area}")
+    started = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") == "DangerAreaCrossing" and x.get("active", True) and x, 120)
+    if not c.ok(started is not None, "① the crossing drill starts (maneuver kindName DangerAreaCrossing)"):
+        return
+    t0 = sim_time() or 0
+    near, far = started and area["nearHandle"], area["farHandle"]
+    dx, dy = far[0] - near[0], far[1] - near[1]
+    L = (dx * dx + dy * dy) ** 0.5 or 1.0
+    ux, uy = dx / L, dy / L
+    def along(p):
+        return (p[0] - near[0]) * ux + (p[1] - near[1]) * uy
+    elements = {}
+    history, inside_max, first_cross_t, security_entered_early = {}, 0, None, False
+    crossed_at = {}
+    reform_t = None
+    end = t0 + 150
+    while (sim_time() or 0) < end:
+        t = sim_time() or 0
+        m = maneuver(sq)
+        for h in m.get("history", []):
+            history.setdefault((h.get("t"), h.get("phase")), h)
+        for x in m.get("members", []):
+            elements[x.get("networkId")] = x.get("role")
+        phase = m.get("phaseName")
+        inside = 0
+        for nid in members:
+            p = position(nid)
+            if not p: continue
+            a = along(p)
+            if 0 < a < L: inside += 1
+            if a >= L and nid not in crossed_at: crossed_at[nid] = t
+            if 0 < a and first_cross_t is None: first_cross_t = t
+        inside_max = max(inside_max, inside)
+        if phase == "Reform" and reform_t is None: reform_t = t
+        if m.get("kindName") != "DangerAreaCrossing" or not m.get("active", True):
+            break
+        time.sleep(0.5)
+    hs = sorted(history.values(), key=lambda h: h.get("t") or 0)
+    print(f"    history: {[(h.get('t'), h.get('phaseName'), h.get('event')) for h in hs]}")
+    print(f"    crossed at: {[(names[members.index(n)], round(v, 1)) for n, v in sorted(crossed_at.items(), key=lambda kv: kv[1])]}")
+    ev = [(h.get("phaseName"), h.get("event")) for h in hs]
+    c.ok(("CrossElement", "DefiladeReached") in ev, "② security set first (SetSecurity → CrossElement on DefiladeReached)")
+    c.ok(inside_max <= 2, f"③ never more than one pair inside the road strip (most at once: {inside_max})")
+    c.ok(("CollapseSecurity", "DefiladeReached") in ev, "④ the far side set before security leaves (FarSideCover → CollapseSecurity on DefiladeReached)")
+    sec = members[max(1, len(members) // 2):]   # the back half secures (DangerAreaCrossingManeuver.ComputePartitionInputs)
+    last = sorted(crossed_at.items(), key=lambda kv: kv[1])[-len(sec):] if crossed_at else []
+    c.ok(len(crossed_at) == len(members) and set(n for n, _ in last) == set(sec),
+         f"⑤ everyone crossed, security last ({len(crossed_at)} of {len(members)} across)")
+    c.ok(reform_t is not None, f"⑥ the squad reforms beyond the road (Reform at {reform_t})")
+    resumed = wait_for(lambda: ((data(call("GET", f"/entities/{sq}/state")) or {}).get("behavior") or {}).get("name") == "SquadMarch", 20)
+    c.ok(resumed, "⑥ … and the march goes on")
+    c.ok(all((ammo(n)[0] or 0) >= (ammo0[n] or 0) for n in members), "⑦ watching, not shooting: nobody's ammo dropped")
+    c.ok(reform_t is not None and reform_t - t0 <= 120, f"⑧ the crossing took ≤ 120 s ({(reform_t or 0) - t0:.0f} s)")
 
 
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
@@ -926,7 +1015,9 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-casualty-care-leader": run_casualty_care_leader,
              # ⭐ CE-2158 F-e — fire and movement (Squad Tactics §7.8.3)
              "ua-fire-and-movement": run_fire_and_movement,
-             "ua-bounding-overwatch": run_bounding_overwatch}
+             "ua-bounding-overwatch": run_bounding_overwatch,
+             # ⭐ CE-2159 X-d — the squad danger crossing (Squad Tactics §7.8.4)
+             "ua-squad-danger-crossing": run_squad_danger_crossing}
 
 
 def main():

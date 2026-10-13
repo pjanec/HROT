@@ -13,6 +13,7 @@ using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Squad.DangerArea;
 using Fdp.Toolkit.Squad.Systems;
 using Fdp.Toolkit.Terrain;
@@ -149,6 +150,34 @@ namespace Fdp.Toolkit.Tests.Squad
 
             // the rifleman watched it walk behind the building: its last-known position no longer sees the crossing
             Remember(unit, watcher, new Vector3(290, 340, 0));
+            system.Execute(_repo, 0.1f);
+            Assert.Equal(0f, _repo.GetComponentRO<DangerAreaCognitiveBuffer>(child).GetSpanRO()[0].ThreatRating);
+        }
+
+        /// <summary>⭐ <c>CE-2159</c> X-a (Squad Tactics §7.7.6) — a squad COMMANDER has no memory of its own: its sensor is rated from the
+        /// squad's merged contact pool — a pooled contact with sight of the crossing threatens it, a dead one does not.
+        /// 🔴 Red before: a unit without <c>TargetMemory</c> rated every area 0.</summary>
+        [Fact]
+        public unsafe void CE2159_ACommandersAreas_AreRatedFromTheSquadPool()
+        {
+            _repo.RegisterComponent<SquadCognitiveState>();
+            var commander = _repo.CreateEntity();
+            _repo.AddComponent(commander, new SimTransform { Position = new Vector3(150, 300, 0) });
+            var child = DangerAreaChildSensor.Ensure(_repo, commander, 1, DangerAreaSettings.ToPoint(new Vector3(300, 300, 0)));
+            var watcher = Hostile(new Vector3(260, 300, 0));
+            var squad = new SquadCognitiveState();
+            squad.Contacts.Count = 1;
+            var pool = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref squad.Contacts.Contacts), 16);
+            pool[0] = new SquadContact { EntityId = (long)watcher.PackedValue, PositionX = 260, PositionY = 300, ThreatScore = 1f };
+            _repo.AddComponent(commander, squad);
+            var system = new DangerAreaSensorSystem();
+
+            var b = SolveAndTick(child, system);
+            Assert.Equal(1, b.Count);
+            Assert.Equal(1f, b.GetSpanRO()[0].ThreatRating);
+
+            _repo.GetComponentRW<Health>(watcher).Current = 0f;                                 // killed: still pooled, no threat
             system.Execute(_repo, 0.1f);
             Assert.Equal(0f, _repo.GetComponentRO<DangerAreaCognitiveBuffer>(child).GetSpanRO()[0].ThreatRating);
         }

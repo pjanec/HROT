@@ -1441,5 +1441,213 @@ namespace Hrot.SimHost.Tests
             Assert.True(s.Finished(out var result));
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
+
+        // ── CE-2159 X-a…X-c — the squad danger crossing (Squad Tactics §7.7.6) ──────────────────────────────────────────────────
+
+        private static readonly Vector3 NearSide = new(10f, 20f, 0f), FarSide = new(10f, 40f, 0f);
+
+        /// <summary>The commander's danger-area sensor (what the march owns live), holding one area: a 20 m strip crossed northward.</summary>
+        private static Entity AreaAhead(Squad s, float distanceAlongRoute = 10f, Vector3? near = null, Vector3? far = null)
+        {
+            var r = s.Repo;
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.SensorTag>()) r.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>()) r.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>()) r.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>();
+            // the unit's sensor of the kind, whoever holds it (live: the paused march's run) — here held by the unit itself, so the
+            // order that starts the drill does not end it with the previous run
+            var child = Fdp.Toolkit.Perception.Sensors.UnitSensors.Of(r, s.Commander, Fdp.Toolkit.Perception.Components.SensorModality.DangerArea);
+            if (child.IsNull)
+            {
+                child = Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(r, s.Commander, SquadMarchPlay.DangerSensorSite,
+                    Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.ToPoint(new Vector3(10f, 100f, 0f)));
+                r.FlushCommandBuffers();
+                if (r.HasComponent<BehaviorOwnedPart>(child)) r.RemoveComponent<BehaviorOwnedPart>(child);
+            }
+            ref var buffer = ref r.GetComponentRW<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(child);
+            buffer.Count = 1;
+            buffer.LastUpdateTick = 1;
+            buffer.GetSpanRW()[0] = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor
+            {
+                FeatureId = 7, Kind = Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.StreetCrossing, Center = new Vector3(10f, 30f, 0f),
+                ExtentsXY = new Vector2(30f, 10f), NearSideHandle = near ?? NearSide, FarSideHandle = far ?? FarSide,
+                DistanceAlongRoute = distanceAlongRoute,
+            };
+            return child;
+        }
+
+        private static Squad Crossing(int members = 6)
+        {
+            var s = new Squad(members);
+            AreaAhead(s);
+            s.Orders.Clear();
+            s.Order("{}", BehaviorNames.SquadDangerCrossing);
+            s.Tick(); s.Tick();
+            return s;
+        }
+
+        private static void Arrive(Squad s, params int[] members)
+        {
+            var at = s.LastObjectives();
+            foreach (int i in members) s.Teleport(s.Members[i], at[s.Members[i]]);
+            s.Tick(); s.Tick(); s.Tick();   // the phase moves · the next pair is picked · its orders are read off the bus
+        }
+
+        /// <summary>⭐ X-b — the drill starts on the commander's area: security (the back half) WATCHES beside the near side, the
+        /// crossers watch short of it; nobody crosses before security is set. 🔴 Red before: no play ran the crossing table.</summary>
+        [Fact]
+        public void CE2159_DangerCrossing_SecurityWatchesTheNearSide_BeforeAnyoneCrosses()
+        {
+            var s = Crossing();
+            Assert.Equal(DangerAreaCrossingManeuver.ManeuverKind, s.Kind);
+            Assert.Equal(DangerAreaCrossingManeuver.PhaseSetSecurity, s.Phase);
+            var orders = s.LastOrders();
+            foreach (var m in s.Members) Assert.Equal(BehaviorNames.CombatPosture, orders[m].Intent);     // Watch = hold at a point
+            foreach (var m in s.Members.Skip(3))
+            {
+                Assert.True(orders[m].Objective.Y < NearSide.Y, "security stands short of the near side");
+                Assert.True(MathF.Abs(orders[m].Objective.X - NearSide.X) >= 4f, "beside the crossing point, watching along the area");
+            }
+            foreach (var m in s.Members.Take(3)) Assert.True(orders[m].Objective.Y < NearSide.Y);
+            Assert.Equal(BehaviorNames.SquadDangerCrossing, s.TaskName);
+        }
+
+        /// <summary>⭐ X-b (D1) — once security is set the crossers go ONE PAIR AT A TIME, each pair on the next lane (≥ 4 m apart), and
+        /// a pair is across when it is past the far handle. 🔴 Red before: as above.</summary>
+        [Fact]
+        public void CE2159_DangerCrossing_PairsCrossOneAtATime_OnNewLanes()
+        {
+            var s = Crossing();
+            Arrive(s, 3, 4, 5);                                                        // security set
+            Assert.Equal(DangerAreaCrossingManeuver.PhaseCrossElement, s.Phase);
+            var orders = s.LastOrders();
+            Assert.Equal(BehaviorNames.AdvanceTo, orders[s.Members[0]].Intent);
+            Assert.Equal(BehaviorNames.AdvanceTo, orders[s.Members[1]].Intent);
+            Assert.Equal(BehaviorNames.CombatPosture, orders[s.Members[2]].Intent);   // the third waits
+            var lane0 = orders[s.Members[0]].Objective;
+            Assert.True(lane0.Y > FarSide.Y, "the pair crosses to beyond the far side");
+
+            Arrive(s, 0, 1);                                                           // the first pair is across
+            orders = s.LastOrders();
+            Assert.Equal(BehaviorNames.AdvanceTo, orders[s.Members[2]].Intent);
+            Assert.True(MathF.Abs(orders[s.Members[2]].Objective.X - lane0.X) >= 4f, "the next pair takes the next lane");
+            Assert.Equal(BehaviorNames.CombatPosture, orders[s.Members[0]].Intent);   // across: they watch from the far side
+            Assert.Equal(DangerAreaCrossingManeuver.PhaseCrossElement, s.Phase);
+        }
+
+        /// <summary>⭐ X-b (D2) — the whole drill: the far side is SET before security leaves, security crosses last by pairs, then the
+        /// squad reforms beyond and the drill succeeds; the trace carries each phase's cause. 🔴 Red before: as above.</summary>
+        [Fact]
+        public void CE2159_DangerCrossing_TheFarSideSetsBeforeSecurityCollapses_ThenTheSquadReforms()
+        {
+            var s = Crossing();
+            Arrive(s, 3, 4, 5);
+            Arrive(s, 0, 1);
+            Arrive(s, 2);
+            Assert.Equal(DangerAreaCrossingManeuver.PhaseFarSideCover, s.Phase);
+            var orders = s.LastOrders();
+            foreach (var m in s.Members.Skip(3)) Assert.Equal(BehaviorNames.CombatPosture, orders[m].Intent);   // security still watches
+            Arrive(s, 0, 1, 2);                                                        // the far side is set
+            Assert.Equal(DangerAreaCrossingManeuver.PhaseCollapseSecurity, s.Phase);
+            orders = s.LastOrders();
+            Assert.Equal(BehaviorNames.AdvanceTo, orders[s.Members[3]].Intent);
+            Assert.Equal(BehaviorNames.AdvanceTo, orders[s.Members[4]].Intent);
+            Assert.Equal(BehaviorNames.CombatPosture, orders[s.Members[5]].Intent);
+            Arrive(s, 3, 4);
+            Arrive(s, 5);
+            Assert.Equal(DangerAreaCrossingManeuver.PhaseReform, s.Phase);
+            var reform = s.LastObjectives();
+            foreach (var m in s.Members) s.Teleport(m, reform[m]);                     // reformed beyond the far side
+            bool finished = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 3 && !finished; i++) { s.Tick(); finished = s.Finished(out result); }
+            Assert.True(finished);
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+            var t = SquadDrillTrace.Of(s.Repo, s.Commander);
+            var events = t.History.Skip(1).Select(h => (Fdp.Toolkit.Squad.Primitives.PhaseEventKind)h.Event).ToArray();
+            Assert.Equal(new[]
+            {
+                Fdp.Toolkit.Squad.Primitives.PhaseEventKind.DefiladeReached, Fdp.Toolkit.Squad.Primitives.PhaseEventKind.FarSideReached,
+                Fdp.Toolkit.Squad.Primitives.PhaseEventKind.DefiladeReached, Fdp.Toolkit.Squad.Primitives.PhaseEventKind.FarSideReached,
+            }, events.Take(4).ToArray());
+        }
+
+        /// <summary>⭐ X-b — no area on the commander's sensor ⇒ nothing to cross: the drill fails at once (the SOP row never asks then).</summary>
+        [Fact]
+        public void CE2159_DangerCrossing_WithNoAreaAhead_Fails()
+        {
+            var s = new Squad(4);
+            s.Order("{}", BehaviorNames.SquadDangerCrossing);
+            s.Tick(); s.Tick();
+            Assert.True(s.Finished(out var result));
+            Assert.Equal(Fbt.NodeStatus.Failure, result);
+        }
+
+        /// <summary>⭐ X-c — the SOP row's condition reads STATE: an area within <c>WithinMetres</c> along the route, and the squad not yet
+        /// past its far side (a buffer not refreshed after a crossing must not start it again). 🔴 Red before: no such condition.</summary>
+        [Fact]
+        public void CE2159_DangerAreaAhead_IsNearAndNotYetCrossed()
+        {
+            var s = new Squad(4);
+            s.Repo.AddComponent(s.Commander, new SimTransform { Position = new Vector3(10f, 5f, 0f), Rotation = Quaternion.Identity });
+            var p = new SopAreaParams { WithinMetres = 30f };
+            Assert.False(SquadSopConditions.DangerAreaAhead(ref p, s.Commander, s.Repo));             // no sensor
+            AreaAhead(s, distanceAlongRoute: 50f);
+            Assert.False(SquadSopConditions.DangerAreaAhead(ref p, s.Commander, s.Repo));             // too far along the route
+            AreaAhead(s, distanceAlongRoute: 15f);
+            Assert.True(SquadDangerAhead(s, ref p));
+            s.Repo.GetComponentRW<SimTransform>(s.Commander).Position = new Vector3(10f, 45f, 0f);    // past the far side
+            Assert.False(SquadSopConditions.DangerAreaAhead(ref p, s.Commander, s.Repo));
+        }
+
+        private static bool SquadDangerAhead(Squad s, ref SopAreaParams p) => SquadSopConditions.DangerAreaAhead(ref p, s.Commander, s.Repo);
+
+        /// <summary>⭐ X-a — a march told to watch for danger areas owns the commander's route sensor (to its objective); one not told
+        /// does not. 🔴 Red before: no squad behaviour spawned a danger-area sensor.</summary>
+        [Fact]
+        public void CE2159_TheMarch_OwnsTheCommandersRouteSensor_WhenAsked()
+        {
+            var s = new Squad(4);
+            s.Order("{\"Objective\":[0,100,0]}", BehaviorNames.SquadMarch);
+            s.Tick(); s.Tick();
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, SquadMarchPlay.DangerSensorSite).IsNull);
+
+            var w = new Squad(4);
+            w.Order("{\"Objective\":[0,100,0],\"DangerAreas\":true}", BehaviorNames.SquadMarch);
+            w.Tick(); w.Tick(); w.Repo.FlushCommandBuffers();
+            var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(w.Repo, w.Commander, SquadMarchPlay.DangerSensorSite);
+            Assert.False(sensor.IsNull);
+            var settings = w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings;
+            Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerRouteSource.ToPoint, settings.RouteSource);
+            Assert.Equal(new Vector3(0f, 100f, 0f), settings.RoutePoint);
+        }
+
+        /// <summary>⭐ X-c (D4, D6) — the shipped squad SOP: a danger area ahead of a marching squad starts the crossing as a reaction
+        /// (<c>Alert</c>) that PAUSES the march; a contact during it is more urgent and replaces it with <c>ReactToContact</c>.
+        /// 🔴 Red before: the SOP had no danger-area row.</summary>
+        [Fact]
+        public void CE2159_BasicSquadSop_ADangerAreaAhead_CrossesIt_AndAContactReplacesTheCrossing()
+        {
+            var s = new Squad(members: 6);
+            s.Repo.AddComponent(s.Commander, new SimTransform { Position = new Vector3(10f, 5f, 0f), Rotation = Quaternion.Identity });
+            s.Order("{\"Objective\":[10,100,0]}", BehaviorNames.SquadMarch);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 10; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadMarch, s.TaskName);
+
+            AreaAhead(s, distanceAlongRoute: 12f);
+            for (int i = 0; i < 6; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadDangerCrossing, s.TaskName);
+            var task = s.Repo.GetComponent<BehaviorState>(s.Commander);
+            Assert.Equal(BehaviorOrigin.Reaction, task.Origin);
+            Assert.Equal(ReactionUrgency.Alert, task.Urgency);
+            Assert.Equal(BehaviorNames.SquadMarch, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
+            Assert.Equal(DangerAreaCrossingManeuver.ManeuverKind, s.Kind);
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+
+            var enemy = Enemy(s, new Vector3(10f, 60f, 0f));
+            s.Pool(enemy, new Vector3(10f, 60f, 0f), reporters: 0b0011);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+        }
     }
 }

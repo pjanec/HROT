@@ -47,6 +47,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2152</c> C-c (R-c) — go for <see cref="MemberOrder.Target"/> (a man who is down) and bring him to
         /// <see cref="MemberOrder.Point"/>: the library <c>CarryCasualty</c>. A unit member holds.</summary>
         CarryCasualty = 4,
+        /// <summary>⭐ <c>CE-2159</c> X-a (Squad Tactics §7.7.6, D5) — go to <see cref="MemberOrder.Point"/> and hold there, fighting only what
+        /// it sees: the library CombatPosture at that point (a <see cref="Hold"/> somewhere else). ⚠ It does not face a sector — no facing
+        /// control exists for a standing soldier. A unit member gets <c>Order.Hold</c>.</summary>
+        Watch = 5,
     }
 
     /// <summary>⭐ <c>CE-2123</c> — one member's order, as a play computes it. The runner turns a hold into the library CombatPosture at
@@ -418,7 +422,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var point = order.Kind is MemberOrderKind.Hold or MemberOrderKind.Disembark or MemberOrderKind.Suppress ? at : order.Point;
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
                 traced[i] = new SquadDrillTrace.Order(m, (byte)order.Kind, point, order.Cover != 0, ctx.Now, order.Target);
-                if (order.Kind == MemberOrderKind.Hold) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
+                if (order.Kind is MemberOrderKind.Hold or MemberOrderKind.Watch) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
                 else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m);
                 else if (order.Kind == MemberOrderKind.Suppress) Suppress(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
                 else if (order.Kind == MemberOrderKind.CarryCasualty) Carry(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
@@ -588,8 +592,10 @@ namespace Hrot.AI.Behaviors.Brains
                     BlueprintId         = blueprintId,
                     Epoch               = 1,
                     SearchRadius        = radius,
-                    PublishPolicy       = (byte)EqsPublishPolicy.ScoreDelta,
-                    ScoreDeltaThreshold = 0.05f,
+                    // ⭐ CE-2158 F-c — a ONE-SHOT query (dropped after its answer) wants every answer. ⛔ SUPERSEDED: ScoreDelta, which
+                    //   — measured live — never published the answer of a query re-made on the same part id when it equalled the last
+                    //   one (an empty answer again), so the play waited out its pick timeout every bound.
+                    PublishPolicy       = (byte)EqsPublishPolicy.AlwaysPush,
                     ContextSlot0        = from,
                     ContextSlot1        = at,
                     ContextPoint1       = atPoint,

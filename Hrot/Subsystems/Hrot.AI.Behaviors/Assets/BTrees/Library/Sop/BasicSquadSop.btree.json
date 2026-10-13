@@ -32,7 +32,8 @@
         "c2123000-0000-0000-0000-000000000010",
         "c2123000-0000-0000-0000-000000000030",
         "c2123000-0000-0000-0000-000000000050",
-        "c2123000-0000-0000-0000-000000000020"
+        "c2123000-0000-0000-0000-000000000020",
+        "c2123000-0000-0000-0000-000000000060"
       ],
       "DisplayLabel": "Rows — first true wins",
       "EditorMetadata": {
@@ -297,6 +298,57 @@
         "Collapsed": false,
         "Color": null
       }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2123000-0000-0000-0000-000000000060",
+      "ChildVisualIds": [
+        "c2123000-0000-0000-0000-000000000061",
+        "c2123000-0000-0000-0000-000000000062"
+      ],
+      "DisplayLabel": "Danger area ahead → cross it",
+      "EditorMetadata": {
+        "X": 1020,
+        "Y": 260,
+        "Comment": "CE-2159 X-c (Squad Tactics §7.7.6): the march's route sensor shows a danger area within 30 m and the squad is not past it — cross it as a drill (Alert: any contact row replaces it).",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.SquadSopConditions.DangerAreaAhead",
+        "ExpressionTargetField": "areaAhead"
+      },
+      "VisualId": "c2123000-0000-0000-0000-000000000061",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Danger area ahead (within 30 m, not yet crossed)",
+      "EditorMetadata": {
+        "X": 940,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "SquadDangerCrossing",
+        "Urgency": "Alert"
+      },
+      "VisualId": "c2123000-0000-0000-0000-000000000062",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: SquadDangerCrossing",
+      "EditorMetadata": {
+        "X": 1120,
+        "Y": 400,
+        "Comment": "Security watches the near side; the rest cross by pairs on new lanes; the far side watches; security follows; reform. The march resumes after.",
+        "Collapsed": false,
+        "Color": null
+      }
     }
   ],
   "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams",
@@ -355,6 +407,16 @@
         },
         "DefaultValueJson": "{\"Kind\":\"SquadMemberDown\",\"Seconds\":3}",
         "Comment": "A squad member went down (incapacitated) — once per man (CE-2152 C-c)."
+      },
+      {
+        "Name": "areaAhead",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Behavior.SopAreaParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"WithinMetres\":30}",
+        "Comment": "How near along the squad's route a danger area must be for the crossing drill (CE-2159)."
       }
     ]
   }

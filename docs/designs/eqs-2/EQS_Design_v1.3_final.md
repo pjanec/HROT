@@ -13,6 +13,7 @@ known-rot: §6.1 "registrar ... with RegisterAll" and §6.4 "AiHotReloadCoordina
 known-conflict: Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-D (keep area query separate) — overtaken by
   the user's 2026-09-30 decision to unify into EQS 1.3 (R-156).
 related-designs:
+  - ../group-maneuvers/DESIGN_Squad_Tactics.md — the squad plays' ONE-SHOT cover queries (§7.6.2) — what measured §17.6.1 (a re-made one-shot sensor and ScoreDelta)
   - ../../DESIGN_Peek_And_Fire.md — widens EqsResult with the cover point's Stance (CE-3135) and revives ThreatExposureTest (threats from the perception children); §9 makes static obstacles terrain and vehicles live cover in the EQS sight and cover generator (CE-3136, CE-3142)
   - ../../DESIGN_Building_Interiors.md — cover per storey and window firing positions (slice B-3)
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — the behaviours that CONSUME §19.6's cover / retreat templates (CE-3031): TakeCoverBp, FallBackBp, the blueprint re-point.
@@ -1039,6 +1040,18 @@ must return the **same network ids**:
 | a fresh answer per wave (free + re-request) | the sensor re-evaluates at 10 Hz; for a guaranteed-new answer bump `Epoch` (any parameter change now reaches the Muscle) and wait for `LastUpdateTick` to advance |
 | `FreeAreaQuerySlot` | destroy the child sensor entity (its config is disposed; the Muscle carrier goes with it) |
 | ⚠ 5 s timeout ⇒ Failure | keep it: with no area on the Muscle the sensor publishes **nothing** (§17.5), so a timeout still means "no answer", never "area clear" |
+
+#### 17.6.1 ⚠ A one-shot query re-made on the same part id *(behaviors, `2026-10-13`, `CE-2158` F-c — measured live, mechanism inferred)*
+
+📌 **Measured** (`ua-bounding-overwatch`, the commander's cover query polled at 10 Hz): a squad play asks once per bound and DROPS the
+sensor after its answer; the next bound makes a new one — **on the same part id, with the same stamped epoch** (`EqsChildSensor.Ensure`
+stamps `StampOwner(1, run)`: 131073 every time). With `PublishPolicy = ScoreDelta`, **3 of the 5 queries never answered** — every one
+whose answer would have equalled the last published one (empty again); the two that answered were the first and the first non-empty.
+⇒ ⚠ *"a ScoreDelta sensor's first answer of an epoch is never suppressed"* (the Teardown design's §3a) does not reach a sensor that is
+new but carries an old epoch. ⚠ **Inferred, not traced in the solver:** where the last-published scores survive the destroy (the
+Muscle carrier or its eval state).
+✅ **Consumer rule:** a ONE-SHOT query (asked, answered, dropped) uses `AlwaysPush` — `SquadManeuverRunner.AskTerrainAll` does since
+CE-2158. ⭐ A standing query keeps `ScoreDelta`; to force an answer, bump the epoch (`EqsChildSensor.Refresh`), never re-create.
 
 ### 17.7 As-built *(`2026-09-30`)* — what the build found that the design above did not know
 

@@ -25,6 +25,8 @@ namespace Hrot.AI.Behaviors.Brains
         public float Speed;
         public float ArrivalRadius;
         public float MaxLagMetres;
+        /// <summary>⭐ <c>CE-2159</c> X-a — 1 = the march owns the commander's danger-area sensor to <see cref="Objective"/>.</summary>
+        public byte DangerAreas;
     }
 
     /// <summary>
@@ -52,6 +54,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Speed         = authored.Speed > 0f ? authored.Speed : 1.5f,
                 ArrivalRadius = authored.ArrivalRadius > 0f ? authored.ArrivalRadius : 5f,
                 MaxLagMetres  = authored.MaxLagMetres > 0f ? authored.MaxLagMetres : 10f,
+                DangerAreas   = authored.DangerAreas ? (byte)1 : (byte)0,
             };
             block.State = default;
         }
@@ -112,6 +115,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void Update(ref SquadMarchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
+            if (p.DangerAreas != 0) WatchRoute(in p, in ws, in ctx);
             ref var march = ref ws.March;
             float t = (float)(ctx.Now - ws.StartedAt);
             int lead = march.LeadPlusOne - 1;
@@ -188,6 +192,23 @@ namespace Hrot.AI.Behaviors.Brains
                 Aim(ref ws, lead, p.Objective, leadAt, t);
                 march.Reorders++;
             }
+        }
+
+        /// <summary>The commander's danger-area sensor's site (the march's run owns it).</summary>
+        public const int DangerSensorSite = 0x21590001;
+
+        /// <summary>
+        /// ⭐ <c>CE-2159</c> X-a (Squad Tactics §7.7.6) — the march owns the commander's route sensor: the route from where the squad
+        /// stands to the objective, answered every 2 s. A crossing reaction pauses the march and keeps it (the SOP row and the crossing
+        /// read it); back from a pause the march RE-POINTS it, so the answer it reads next is from where the squad now stands — past the
+        /// area it crossed.
+        /// </summary>
+        private static void WatchRoute(in SquadMarchParams p, in SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            var settings = Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.ToPoint(p.Objective);
+            var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(ctx.World, ctx.Commander, DangerSensorSite);
+            if (sensor.IsNull) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(ctx.World, ctx.Commander, DangerSensorSite, in settings);
+            else if (ws.Reissue != 0) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Configure(ctx.World, sensor, in settings);
         }
 
         public NodeStatus Outcome(ref SquadMarchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)

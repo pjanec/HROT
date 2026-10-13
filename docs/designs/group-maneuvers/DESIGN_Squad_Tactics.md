@@ -20,6 +20,7 @@ related-designs:
   - docs/designs/navig-2/Navigation_Design_v2_0.md — names a "formations" design that was never written (:1040, :1666); §6 here is the measured state
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS who owns a composite unit's position (R-175, §4 D-8) and CE-514 (derive it from the members), which §7 builds
   - docs/designs/commander-subordinates/DESIGN.md — OWNS UnitRoster / UnitSubordinate and the FormationController/Follower refactor (Phase 2) §6 measures
+  - docs/designs/eqs-2/EQS_Design_v1.3_final.md — OWNS the cover query and its publish policies; §17.6.1 is what the squad plays' one-shot cover queries measured (§7.6.2)
 -->
 
 # Squad tactics — the runner, react to contact, and what embark / formations can carry
@@ -1012,7 +1013,18 @@ F-c's scope.
 Rails `SquadManeuverTests.CE2158_BoundingOverwatch_*` (2) and `CE2123_ABoundingSquadReactsToContact_ThenResumesItsBound` (the dead
 contact). F-b rails unchanged after the move onto `SquadCover`.
 
-### 7.7 Danger-area crossing — the squad drill *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved 2026-10-13 (R-2014), NOT built)*
+**What the live runs taught (`2026-10-13`, folded in):**
+
+| measured | so |
+|---|---|
+| on the open north-south street (the first `ua-bounding-overwatch` / `ua-fire-and-movement`) no bound and no rush ever ended in cover: the walls stand ~30 m to the side and give < 3 m of progress | ✅ correct refusal — the scenario, not the pick, was wrong. `ua-bounding-overwatch` now bounds north at x≈140 to Block B's 20 m south face |
+| the 0.5 m Low Wall is NO cover for the query: a point candidate is judged at the CROUCHED eye (`CheapLineOfSightTest`, Viewer = Slot), and the movers are not ordered prone | rail `TerrainEqsTests.CE2158_FindCoverFromTarget_HiddenFromAPointOrAnEntity_FindsBlockBsSouthFace` pins both (a point and an entity agree) |
+| 3 of 5 cover queries never answered: dropped after each answer and re-made on the same part id and epoch, `ScoreDelta` suppressed an unchanged (empty) answer | ⇒ `AskTerrainAll` asks with `AlwaysPush` (EQS §17.6.1) |
+| the last bound started 34 m short of the face; the pick allowed one bound + 2 m | ⇒ a bound may stretch to `BoundMetres × 1.25` to end in cover (`CoverStretch`; "bound 20–50 m to the next cover"); fire and movement keeps rush + 2 m (`SquadCover.Make` takes the reach) |
+| a pick could land where a man of the other element already stands | ⇒ `SquadCover.Pick` keeps 2 m from every other live member too |
+| the hostile is seen ~150 m up the open street; a scripted move through `/attribute` answered ok and never moved him | the demo starts in sight of him; "watchers hold before contact" stays a rail (`CE2158_BoundingOverwatch_TheWatchersSuppressOnContact`) |
+
+### 7.7 Danger-area crossing — the squad drill *(behaviors, `2026-10-13`; build-state: BUILT (§7.7.6; X-a … X-d, `-contact` not yet) — ✅ approved 2026-10-13 (R-2014))*
 
 ⭐ **Status for whoever returns:** measured `2026-10-13` (§7.7.1), approved; nothing built. It reuses §7.6's pattern (the commander reads
 gates and speaks only through orders) and §7.5's `Suppress` order; build after F-a (the gates). No re-measurement needed unless a cited file
@@ -1104,7 +1116,8 @@ graph TD
 ```
 
 *Module point: the commander needs a danger-area sensor of its own on the squad's route (route source "to a point" = the squad's
-objective, rated from the squad's pool) — the X-a slice adds it to the commander's type, as the soldier types carry theirs.*
+objective, rated from the squad's pool). ⛔ SUPERSEDED (measured, §7.7.6): "adds it to the commander's type, as the soldier types carry
+theirs" — no path spawns a danger sensor from a type (the soldier's `DangerCrossing` ensures its own); the MARCH owns it.*
 
 #### 7.7.4 Decisions (✅ approved 2026-10-13, R-2014)
 
@@ -1129,6 +1142,94 @@ objective, rated from the squad's pool) — the X-a slice adds it to the command
 | **X-c** | the `BasicSquadSop` row; contact ⇒ abort ⇒ `ReactToContact` | a contact mid-crossing hands over to the reaction |
 | **X-d** | a live scenario (`ua-squad-danger-crossing` + `-contact`): a squad crosses a street; a variant with a hostile on the far side. ⚠ NOT `ua-danger-crossing` — that name is the BUILT single-soldier demo (`DESIGN_Utility_AI_Demo_Scenarios.md` §10.3) | §7.8.4, over HTTP |
 | later | wire `ManeuverSelectStarterDecision` (cross / bound / hold) | D3 |
+
+#### 7.7.6 X-a … X-c in detail *(behaviors, `2026-10-13`, `CE-2159`; build-state: BUILT — within R-2014; the deviations are named; as-built at the end)*
+
+**Measured `2026-10-13`** (graph CLI + reads), with the design cell for each:
+
+| the build rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a danger-area sensor is spawned by a behaviour RUN, never by type data | ✅ `SensorKindBaker`: "a TKB perception kind is read, not spawned" (`SpawnSensorTests.cs:59`); the one production `Ensure` caller is `DangerAreaNodes.EnsureSensor` | ⛔ §7.7.3's caption says "add it to the commander's type, as the soldier types carry theirs" — **wrong**: the soldier's `DangerCrossing` ensures its own |
+| a reaction that PAUSES a task keeps the task's owned parts (its sensors) | ✅ `BehaviorIngressSystem.cs:563-572` (`keepsTask`) | ✅ CE-2081 (§4.9a resume) |
+| a play can read a sensor another run owns | ✅ `UnitSensors.Of` / `Read<T>` — the unit's sensor of a kind, whoever owns it (`UnitSensors.cs`) | ✅ CE-2071 ("for READING a sensor someone else already runs") |
+| a body-less commander can carry a route sensor | ✅ the route starts at the carrier's self (`DangerAlongRouteSolve.cs:35`), the commander stands at the centroid (`UnitCentroidSystem`); no plan ⇒ a straight leg | ⛔ searched, none found |
+| a contact reaction replaces a running crossing reaction | ✅ a reaction replaces a reaction only when MORE urgent (`AdmitsWithReactions` ③): crossing at `Alert` (1) < `Contact` (2) / `UnderFire` (3) | ✅ D6 |
+| `AreaAhead` fires once, when an area first appears on the route — often 100 m+ out | ✅ `DangerAreaSensorSystem.Rate` (edge on a new `FeatureId`) | ⛔ D4 named the edge as the trigger; the drill needs the area NEAR ⇒ the row reads STATE (below) |
+| a standing soldier cannot be told where to face | ✅ graph + grep: no writer of a stationary soldier's heading in any behaviour | ⛔ D5 "face a sector" — **not built**: `Watch` = hold at a point, fire only at a seen enemy |
+| the crossing table has no abort phase; the runner needs one | ✅ `DangerAreaCrossingManeuver.cs:47-55` | — |
+| overwatch spots: a cover query hides FROM a point; overwatch must SEE along the area | ✅ `CheapLineOfSightTest` Require = Hidden | ⛔ §7.7.4 named `FindCoverFromTarget` — **deviation**: the spots are geometric (beside the crossing point, back from the edge) |
+
+```mermaid
+classDiagram
+  class SquadMarchPlay { <<exists, CHANGED>> +DangerAreas: ensures the commander's route sensor (ToPoint objective) · re-points it on resume }
+  class DangerAreaSensorSystem { <<exists, CHANGED>> +rates from the squad pool when the unit has one }
+  class SquadDangerCrossingBehavior { <<new, library "SquadDangerCrossing">> }
+  class DangerCrossingPlay { <<new ISquadPlay>> lanes · spots · pairs }
+  class DangerCrossingParams { <<new>> Near Far Feature · Lanes SlotRotationState · Crossed Pair masks }
+  class DangerAreaCrossingManeuver { <<exists, CHANGED>> FarSideCover gate DefiladeReached · +Aborted }
+  class MemberOrderKind { <<exists>> +Watch NEW }
+  class SquadSopConditions { <<exists>> +DangerAreaAhead NEW }
+  class SopAreaParams { <<new>> WithinMetres }
+  class BasicSquadSop { <<exists>> +row: area ahead → React SquadDangerCrossing (Alert) }
+  class UnitSensors { <<exists>> +Read~DangerAreaCognitiveBuffer~ }
+  class SlotRotation { <<exists>> }
+  SquadDangerCrossingBehavior ..> DangerCrossingPlay : Tick
+  DangerCrossingPlay ..> DangerAreaCrossingManeuver : table
+  DangerCrossingPlay ..> UnitSensors : the area, at Start
+  DangerCrossingPlay ..> SlotRotation : lanes
+  DangerCrossingPlay ..> MemberOrderKind : Watch / AdvanceTo
+  BasicSquadSop ..> SquadSopConditions
+  SquadSopConditions ..> UnitSensors
+  SquadSopConditions ..> SopAreaParams
+  SquadMarchPlay ..> UnitSensors : owns the sensor it reads
+```
+*What the picture shows that prose hid: nothing new holds the area — the paused march's own sensor is read by both the SOP row and the
+crossing play, so there is one route, one answer, and no second query.*
+
+```mermaid
+sequenceDiagram
+  participant M as SquadMarch (paused)
+  participant SOP as BasicSquadSop
+  participant P as DangerCrossingPlay
+  participant S as security (element 1)
+  participant X as crossers (element 0)
+  M->>M: route sensor to the objective, on the commander
+  SOP->>SOP: DangerAreaAhead — next area ≤ WithinMetres along the route, squad not past its far side
+  SOP->>P: React SquadDangerCrossing (Alert) — the march pauses, keeps its sensor
+  P->>P: Start — copy the area's near / far handles · lanes across the crossing line
+  P->>S: Watch at spots beside the near side · X Watch short of it
+  S-->>P: set ⇒ DefiladeReached (SetSecurity → CrossElement)
+  loop one pair at a time, next lane each
+    P->>X: AdvanceTo the far side on lane k
+    X-->>P: the pair past the far handle ⇒ the next pair
+  end
+  P->>X: all across ⇒ FarSideReached · Watch at far-side spots
+  X-->>P: set ⇒ DefiladeReached (FarSideCover → CollapseSecurity, D2)
+  P->>S: pairs cross the same way · all across ⇒ FarSideReached
+  P->>P: Reform beyond the far side · set or 15 s ⇒ Success
+  P-->>M: the reaction ends · the march resumes and re-points its sensor
+  Note over SOP,P: SquadContact / UnderFire at any phase — a more urgent reaction replaces the crossing (D6)
+```
+
+| decision | lean, as it will be built | why · rejected (one line) |
+|---|---|---|
+| who owns the route sensor | **the march**, opt-in (`SquadMarch.DangerAreas`) | the only place that knows the objective · ⛔ type data: no path spawns a danger sensor from a type |
+| the trigger | **state**: an area ≤ `WithinMetres` (30) along the route AND the commander not past its far handle | stops a stale buffer re-starting the drill on the far side · ⛔ the `AreaAhead` edge: fires once, far out |
+| the area | copied at Start (near / far handles, feature) | the buffer moves with the centroid while the squad crosses |
+| lanes | `Lanes` (4) offsets `LaneSpacing` (4 m) across the crossing line, the next lane each pair (`SlotRotation`, reset when all used) | consecutive pairs ≥ 4 m apart (D1) |
+| spots | security beside the near handle, alternating left / right 5 m + 3 m per pair, `BackMetres` (3) short of the edge; far side the same `BeyondMetres` (4) past it; reform 8 m further | overwatch must see along the area · ⛔ `FindCoverFromTarget`: hides from it |
+| a pair "across" | its two members past the far handle along the crossing line | the line, not a radius: a wide road is crossed straight |
+| `Watch` | `CombatPosture` holding at the point (fights what it sees) | ⛔ facing a sector: no facing control exists |
+| timeouts | each phase `PhaseTimeoutSeconds` (40) ⇒ its event with `Timeout` in the trace | the drill must not stall on one man |
+
+**As built `2026-10-13` (`CE-2159`):** `SquadMarch.DangerAreas` (opt-in) · `DangerAreaSensorSystem.ThreatOnFromPool` · `MemberOrderKind.Watch` (5) ·
+`DangerCrossingPlay` + library `SquadDangerCrossing` (`SquadDangerCrossingParamsJsonDto`: `Lanes` 4, `LaneSpacing` 4, `BackMetres` 3,
+`BeyondMetres` 4, `Speed` 2, `CrossSpeed` 4, `PhaseTimeoutSeconds` 40) · `DangerAreaCrossingManeuver`: D2 + `PhaseAborted` (5) ·
+`SopAreaParams` + `SquadSopConditions.DangerAreaAhead` · the `BasicSquadSop` row (React, `Alert`). The diagrams above are TRUE as built.
+Rails `SquadManeuverTests.CE2159_*` (7: security first · pairs on new lanes · far side set before security · reform ⇒ Success · no area ⇒
+Failure · the condition · the march's sensor · the SOP row and a contact replacing it) + `DangerAreaSensorSystemTests.CE2159_*`, each
+red-proved. ⚠ **Measured live:** the march from a diagonal line crawled (~0.3 m/s, the lead holding for stragglers) — the demo starts in
+file ~40 m short of the road; the march's pace is not this slice's to fix.
 
 ### 7.8 The demos — one per drill, each checked over HTTP *(behaviors, `2026-10-13`; build-state: DESIGN — not built; the scenario slices R-e, F-e, X-d)*
 
@@ -1250,7 +1351,14 @@ vertical road `x 190–210`); no hostile. The road strip is read from the comman
 | ⑦ | watching, not shooting (D5) | `/weapons` all members | ammo unchanged for the whole run |
 | ⑧ | it finishes | sim time | the crossing (① to `Reform`) takes ≤ 120 s |
 
-**Variant `-contact` (D6):** the checker spawns a hostile on the far side while the second pair is in the strip.
+**As built (`2026-10-13`):** ⚠ the route is NOT `ua-danger-crossing`'s — its objective `(285, 220)` also crosses the east-west road;
+the squad marches east from `(150, 65)` to `(300, 100)` and meets the north-south road once (near handle ≈ `(186.6, 71.3)`, far ≈
+`(214.3, 77.8)`). Measured: the drill ran SetSecurity → CrossElement → FarSideCover → CollapseSecurity → Reform in **70 s**, the pairs
+crossed at 94 / 105 s (the third man alone) and security at 121 / 131 s, never more than 2 men in the strip, nobody fired, and the march
+resumed (`Retake`).
+
+**Variant `-contact` (D6):** the checker spawns a hostile on the far side while the second pair is in the strip. ⚠ Not authored yet
+(the D6 hand-over is a rail: `CE2159_BasicSquadSop_ADangerAreaAhead_CrossesIt_AndAContactReplacesTheCrossing`).
 ① `/squad` history shows `Abort` within 2 s of the first shot (anyone's ammo drop) · ② the commander's behaviour becomes
 `ReactToContact` · ③ no member ENTERS the strip after the abort (those in it finish within 5 s) · ④ at least one member on EACH side
 fires at the hostile (each side keeps its element).

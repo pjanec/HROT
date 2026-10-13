@@ -17,6 +17,14 @@ namespace Fdp.Toolkit.Behavior
         public float Seconds;
     }
 
+    /// <summary>⭐ <c>CE-2159</c> X-c — params of the "danger area ahead" condition: how near along the route the next area must be.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SopAreaParams
+    {
+        /// <summary>The area counts once the route reaches it within this many metres (0 = 30).</summary>
+        public float WithinMetres;
+    }
+
     /// <summary>⭐ <c>CE-2080</c> — params of the ROE conditions: the fire rule to compare against.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct SopRoeParams

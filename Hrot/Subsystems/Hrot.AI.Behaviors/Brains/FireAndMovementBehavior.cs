@@ -76,7 +76,7 @@ namespace Hrot.AI.Behaviors.Brains
             ushort phase = ctx.Squad.PhaseId;
             byte e = FireAndMovementManeuver.MovingElement(phase);
             if (!FireAndMovementManeuver.IsRush(phase) && !SquadCover.IsReady(in p.Cover, e))
-                SquadCover.Make(ref p.Cover, ref ws, in ctx, CoverSite, e, p.Objective, p.RushMetres,
+                SquadCover.Make(ref p.Cover, ref ws, in ctx, CoverSite, e, p.Objective, p.RushMetres + 2f,
                                 ws.ThreatId != 0 ? new Entity((ulong)ws.ThreatId) : Entity.Null, p.Objective, ws.IssuedAt);
             SquadDrillTrace.Gates(ctx.World, ctx.Commander,
                 SquadGates.Covering(in ws.Gate, in ctx, SquadGates.Element(in ctx, (byte)(1 - e))),

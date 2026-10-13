@@ -54,20 +54,21 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>
-        /// Make element <paramref name="element"/>'s picks: ask (threat entity, else <paramref name="expected"/> as a point) and pick once the
+        /// Make element <paramref name="element"/>'s picks: ask (threat entity, else <paramref name="expected"/> as a point) for cover within
+        /// <paramref name="reachMetres"/> of each mover (the play's one move, plus the stretch it allows to reach cover) and pick once the
         /// query answers; no lead, or no answer after <see cref="PickTimeoutSeconds"/> since <paramref name="since"/> ⇒ ready with no cover.
         /// Call every tick until <see cref="IsReady"/>.
         /// </summary>
         public static void Make(ref SquadCoverPicks picks, ref SquadPlayState ws, in SquadPlayContext ctx, int site, byte element,
-                                Vector3 objective, float moveMetres, Entity threat, Vector3 expected, double since)
+                                Vector3 objective, float reachMetres, Entity threat, Vector3 expected, double since)
         {
             var lead = SquadManeuverRunner.FirstLive(in ctx, element);
             if (lead.IsNull) { picks.Ready |= (byte)(1 << element); return; }
             Span<EqsResult> answers = stackalloc EqsResult[16];
             int count = 0;
             bool answered = threat.IsNull
-                ? SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindCoverFromTarget.BlueprintId, site, moveMetres + 5f, lead, expected, out var buffer)
-                : SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindCoverFromTarget.BlueprintId, site, moveMetres + 5f, lead, threat, out buffer);
+                ? SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindCoverFromTarget.BlueprintId, site, reachMetres + 3f, lead, expected, out var buffer)
+                : SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindCoverFromTarget.BlueprintId, site, reachMetres + 3f, lead, threat, out buffer);
             if (!answered)
             {
                 if (ctx.Now - since < PickTimeoutSeconds) return;
@@ -78,17 +79,24 @@ namespace Hrot.AI.Behaviors.Brains
                 count = Math.Min(buffer.Count, 16);
                 buffer.GetSpanRO()[..count].CopyTo(answers);
             }
-            Pick(ref picks, in ctx, element, objective, moveMetres, answers[..count]);
+            Pick(ref picks, in ctx, element, objective, reachMetres, answers[..count]);
         }
 
-        /// <summary>One cover point per live mover of <paramref name="element"/> that has one ahead within <paramref name="moveMetres"/>.</summary>
-        public static unsafe void Pick(ref SquadCoverPicks picks, in SquadPlayContext ctx, byte element, Vector3 objective, float moveMetres,
+        /// <summary>One cover point per live mover of <paramref name="element"/> that has one ahead within <paramref name="reachMetres"/> of the mover —
+        /// never within <see cref="PickSpacingMetres"/> of another pick or of where another live man of the squad stands.</summary>
+        public static unsafe void Pick(ref SquadCoverPicks picks, in SquadPlayContext ctx, byte element, Vector3 objective, float reachMetres,
                                        ReadOnlySpan<EqsResult> answers)
         {
             ushort movers = SquadGates.Element(in ctx, element);
             picks.CoverMask &= (ushort)~movers;
-            Span<Vector2> taken = stackalloc Vector2[16];
+            Span<Vector2> taken = stackalloc Vector2[32];
             int takenCount = 0;
+            for (int i = 0; i < ctx.Roster.Count && i < 16; i++)   // never onto a spot another live man of the squad holds
+            {
+                if ((movers & (1 << i)) != 0 || !ctx.Live(i, out var other)) continue;
+                var at = ctx.At(other);
+                taken[takenCount++] = new Vector2(at.X, at.Y);
+            }
             var obj = new Vector2(objective.X, objective.Y);
             for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
             {
@@ -101,7 +109,7 @@ namespace Hrot.AI.Behaviors.Brains
                 for (int k = 0; k < answers.Length; k++)
                 {
                     var pt = new Vector2(answers[k].PositionX, answers[k].PositionY);
-                    if (Vector2.Distance(pt, me) > moveMetres + 2f) continue;
+                    if (Vector2.Distance(pt, me) > reachMetres) continue;
                     float progress = dist - Vector2.Distance(pt, obj);
                     if (progress < bestProgress || Near(taken[..takenCount], pt)) continue;
                     best = k; bestProgress = progress;
