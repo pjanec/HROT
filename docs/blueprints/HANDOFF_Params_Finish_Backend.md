@@ -5,7 +5,7 @@ doc-type: HANDOFF — behaviors lane → the backend lane (one or two sessions).
 current-answer: §1 scope and the two sessions · §2 session A · §3 session B · §4 traps · §5 gates and the report
 stale-below: nothing
 known-rot: none
-known-conflict: ⚠ STEERED after the start — read docs/blueprints/STEER_Params_Finish_Backend_1.md (2026-10-13): P4's blueprint half is REPLACED (no blueprint declares Parameters, R-2004) and P8's JSON options are ruled (FdpJsonOptionsRegistry, R-2005); everything else unchanged
+known-conflict: ⚠ STEERED after the start — read docs/blueprints/STEER_Params_Finish_Backend_1.md (2026-10-13): P4's blueprint half is REPLACED (no blueprint declares Parameters, R-2004) and P8's JSON options are ruled (FdpJsonOptionsRegistry, R-2005); everything else unchanged · ⚠ and docs/blueprints/STEER_Params_Finish_Backend_2.md (2026-10-13): all blueprint kinds, Get Parameter retires, SKIP PlatoonHillAttackBp (behaviors retires it, P9), enums as strings (R-2007)
 related-designs:
   - docs/DESIGN_Orders_Params_Entity_Classes.md — THE design: §13 (finishing the params story: decisions F1–F11, work P1–P8, the docs list §13.4), §5c (B3 / B3b re-measured), §12 (the params DTO asset)
   - docs/blueprints/RULINGS.md — R-2000..R-2003 (2026-10-13), R-273..R-282 (behaviors)
