@@ -137,6 +137,9 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 evt = PhaseEventKind.DefiladeReached;
                 if (LiesInCover(ref p, ref ws, in ctx)) return true;
+                // ⭐ CE-2152 R-e — 📐 measured live: the medic's carry ended (he could not reach the man) and the drill waited in Go
+                //   while the man bled out. Not carrying him and no longer running the carry ⇒ send him again.
+                if (!Carrying(ref p, in ctx) && ctx.Now - ws.IssuedAt >= ResendSeconds && !RunsTheCarry(in ctx, p.Medic)) ws.Reissue = 1;
                 evt = PhaseEventKind.BoundComplete;   // fire picked up while he was still on the way: back to cover
                 if (!Carrying(ref p, in ctx) && RecentSensesOf.WithinSince(ctx.World, ctx.Commander, SensorChange.SquadUnderFire, 3600d, ws.IssuedAt))
                     return true;
@@ -181,6 +184,15 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>Where the medic brings him: the cover query's answer, else where the medic waited.</summary>
         private static Vector3 CoverPoint(ref CasualtyCareParams p, ref SquadPlayState ws) => ws.HasAnswer == 1 ? ws.Answer : p.MedicFrom;
+
+        /// <summary>⭐ <c>CE-2152</c> R-e — a medic who stopped carrying out the order is sent again after this long (s).</summary>
+        public const double ResendSeconds = 2d;
+
+        private static readonly int CarryCasualtyBehaviorId = BehaviorHash.FromName(BehaviorNames.CarryCasualty);
+
+        /// <summary>The medic still runs the carry he was given (true when this node cannot tell: he has no brain state here).</summary>
+        private static bool RunsTheCarry(in SquadPlayContext ctx, Entity medic)
+            => !ctx.World.HasComponent<BehaviorState>(medic) || ctx.World.GetComponentRO<BehaviorState>(medic).ActiveBehaviorHash == CarryCasualtyBehaviorId;
 
         private static bool Carrying(ref CasualtyCareParams p, in SquadPlayContext ctx)
             => ctx.World.HasComponent<IsEmbarkedTag>(p.Casualty) && ctx.World.GetComponentRO<IsEmbarkedTag>(p.Casualty).VehicleEntity == p.Medic;

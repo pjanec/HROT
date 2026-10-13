@@ -161,6 +161,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);             // the channel handed back
         }
 
+        /// <summary>⭐ <c>CE-2152</c> R-e — the walk to him ends just short of reach (📐 measured live: the medic stopped 1.7 m from the man,
+        /// whose body had been nudged): the node walks to him again rather than giving up — at most <c>MaxWalks</c> times in all, then it
+        /// fails. 🔴 Red before: the first walk that ended out of reach failed the pick-up.</summary>
+        [Fact]
+        public void CE2152_PickUp_AWalkThatEndsJustShort_WalksAgain_ThenGivesUp()
+        {
+            var carrier = Man(Vector3.Zero, 100f);
+            var down = Man(new Vector3(10f, 0f, 0f), 20f);
+            var p = new PickUpNodeParams { Casualty = down, Mode = CarryMode.Dragged };
+            Assert.Equal(NodeStatus.Running, CarryNodes.PickUp(ref p, carrier, _w));
+            for (int walk = 1; walk < CarryNodes.MaxWalks; walk++)
+            {
+                _w.GetComponentRW<SimTransform>(carrier).Position = new Vector3(8f, 0f, 0f);              // 2 m short of him …
+                _w.GetComponentRW<LocomotionChannel>(carrier).Status = NodeStatus.Success;                // … and the walk says it arrived
+                Assert.Equal(NodeStatus.Running, CarryNodes.PickUp(ref p, carrier, _w));
+                Assert.Equal(NavigationConstants.ActionIdMoveTo, _w.GetComponentRO<LocomotionChannel>(carrier).ActiveAction);   // walking again
+                Assert.Equal(NodeStatus.Running, _w.GetComponentRO<LocomotionChannel>(carrier).Status);
+            }
+            _w.GetComponentRW<LocomotionChannel>(carrier).Status = NodeStatus.Success;
+            Assert.Equal(NodeStatus.Failure, CarryNodes.PickUp(ref p, carrier, _w));                      // the last walk too: give up
+        }
+
         /// <summary>⭐ C-b — the carry end to end, node by node as the CarryCasualty tree runs them: pick him up, the plain move to the point
         /// starts AFRESH (not read as already arrived), put him down where he is held — beside the point, still down — and the carrier gets
         /// his fire back. ✅ Red-proofs: LeavePoint using the hull column for a person ⇒ he lands ~1 m to the carrier's right ⇒ red;

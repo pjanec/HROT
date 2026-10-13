@@ -25,6 +25,8 @@ namespace Hrot.AI.Behaviors.Brains
         [JsonIgnore] public byte Walking;
         /// <summary>Runtime: the interaction activation this node started (0 = none) — never authored.</summary>
         [JsonIgnore] public uint Started;
+        /// <summary>⭐ <c>CE-2152</c> R-e — runtime: how many walks to him this node issued; never authored.</summary>
+        [JsonIgnore] public byte Walks;
     }
 
     /// <summary>The params of <see cref="CarryNodes.PutDown"/>: nothing authored — the man is the one the unit carries.</summary>
@@ -55,6 +57,10 @@ namespace Hrot.AI.Behaviors.Brains
         public const float PickUpRange = PickUpExecutor.DefaultReach;
         /// <summary>The walk's arrival radius (m): inside <see cref="PickUpRange"/>, short of his body.</summary>
         public const float WalkArrival = 1f;
+        /// <summary>⭐ <c>CE-2152</c> R-e — a walk that ended this close to him, still out of reach, is walked again (m).</summary>
+        public const float RewalkMetres = 6f;
+        /// <summary>⭐ <c>CE-2152</c> R-e — at most this many walks to him per pick-up.</summary>
+        public const int MaxWalks = 3;
 
         [SharedAiAction]
         public static unsafe NodeStatus PickUp(ref PickUpNodeParams p, Entity self, EntityRepository world)
@@ -95,10 +101,13 @@ namespace Hrot.AI.Behaviors.Brains
                     var walk = LocomotionMoveTo.Status(world, self);
                     if (walk == NodeStatus.Running) return NodeStatus.Running;
                     EndWalk(ref p, self, world);
-                    return NodeStatus.Failure;   // the walk ended and he is still out of reach
+                    // ⭐ CE-2152 R-e — 📐 measured live (ua-casualty-care): the medic arrived 1.7 m from the man (his body had been
+                    //   nudged as he came) and the node gave up for good. Close, and not walked too often ⇒ walk to him again.
+                    if (p.Walks >= MaxWalks || Vector3.Distance(at, him) > RewalkMetres) return NodeStatus.Failure;   // still out of reach
                 }
                 if (!LocomotionMoveTo.Issue(world, self, him, p.Speed > 0f ? p.Speed : DefaultSpeed, WalkArrival)) return NodeStatus.Failure;
                 p.Walking = 1;
+                p.Walks++;
                 return NodeStatus.Running;
             }
 

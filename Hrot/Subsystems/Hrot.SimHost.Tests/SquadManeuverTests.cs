@@ -402,6 +402,25 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Failure, result);
         }
 
+        /// <summary>⭐ <c>CE-2152</c> R-e — the medic's carry ENDED without the man (📐 measured live: he could not reach him, and the drill
+        /// waited in Go while the man bled out): the play sends him again. 🔴 Red before: Go only waited for the man to lie in cover.</summary>
+        [Fact]
+        public void CE2152_CasualtyCare_AMedicWhoStoppedCarrying_IsSentAgain()
+        {
+            var (s, _, medic, _) = CareSquad();
+            s.Order("{}", BehaviorNames.CasualtyCare);
+            s.Tick(); s.Tick();
+            s.Answer(CoverQuery(s), new Vector3(6, -4, 0));
+            Fire(s, s.Members[0]); Fire(s, s.Members[3]); s.Tick(); s.Tick();
+            Assert.Equal(CasualtyCareManeuver.PhaseGo, s.Phase);
+            int sent = s.Orders.Count(o => o.Entity.Equals(medic) && o.IntentId == BehaviorNames.CarryCasualty);
+            Assert.Equal(1, sent);
+            s.Repo.AddComponent(medic, new BehaviorState());                                     // his brain runs nothing: the carry is over
+            for (int i = 0; i < 200; i++) { s.Tick(); s.Repo.GetComponentRW<BehaviorState>(medic).ActiveBehaviorHash = 0; }   // 3.2 s
+            Assert.Equal(CasualtyCareManeuver.PhaseGo, s.Phase);
+            Assert.True(s.Orders.Count(o => o.Entity.Equals(medic) && o.IntentId == BehaviorNames.CarryCasualty) > sent);
+        }
+
         // ── CE-2152 C-c R-d — the rescue decision inside the contact reaction ────────────────────────────────────────────────
 
         /// <summary>The care squad, everyone at full health but the casualty, the enemy pooled at <paramref name="enemyAt"/>; the casualty
