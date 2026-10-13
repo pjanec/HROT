@@ -39,7 +39,6 @@ namespace CarKinem.Tkb
             yield return typeof(NavigationStatus);
             yield return typeof(FrustrationTicks);
             yield return typeof(FormationController);
-            yield return typeof(Fdp.Toolkit.Behavior.Components.OpenPassengerCabin);
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -78,11 +77,7 @@ namespace CarKinem.Tkb
             if (repo.IsComponentTypeRegistered<FormationController>() && !repo.HasComponent<FormationController>(entity))
                 repo.AddComponent(entity, new FormationController());
 
-            // ⭐ CE-3110 I-2c (R-271) — an OPEN cabin (passengers seen and hit) is an opt-in; absent = enclosed.
-            if (dto.PassengerExposure == Fdp.Toolkit.Behavior.Components.PassengerExposure.Open
-                && repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>()
-                && !repo.HasComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>(entity))
-                repo.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.OpenPassengerCabin());
+            // ⛔ CE-2151 (R-2009 B2) — the open-cabin opt-in moved to Gen.Carrier (CarrierTkbTranslator): carrying is the carrier's fact.
         }
 
         /// <summary>

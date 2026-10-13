@@ -776,6 +776,27 @@ in the tag only** — the wire could not say which seat is free, so two nodes wo
 
 | slice | what | rails |
 |---|---|---|
-| **B-a** (`CE-2151`) | `Gen.Carrier` + `CarrierTkbTranslator` + `CarrierSeats`; capacity from the type; `PassengerBuffer` only on a declaring type; `PassengerExposure` moved; every carrier template declares it | a soldier has no buffer · a 2-seat type refuses the 3rd · exposure from the type · the feature suites `EmbarkNodesTests`, `Embarkation*`, the convoy live run |
+| **B-a** (`CE-2151`, ✅ BUILT 2026-10-13 — §7.4.6) | `Gen.Carrier` + `CarrierTkbTranslator` + `CarrierSeats`; capacity from the type; `PassengerBuffer` only on a declaring type; `PassengerExposure` moved; every carrier template declares it | a soldier has no buffer · a 2-seat type refuses the 3rd · exposure from the type · the feature suites `EmbarkNodesTests`, `Embarkation*`, the convoy live run |
 | **B-b** (`CE-2151`) | seats: slot = seat, roles, per-seat exposure, slot-indexed codecs | a crew seat refuses a passenger · disembark leaves a hole the next board fills · wire round trip by slot |
 | **C** (`CE-2152`) | the person carrier — after R-263's injury states | carry/drag offsets, speed factor, survives the carrier's death |
+
+#### 7.4.6 B-a as built *(`2026-10-13`, behaviors, `CE-2151`)*
+
+As the class diagram, with the B-a half of it: `CarrierDefDto` (`Gen.Carrier`: `Seats`, `Exposure`; the `Person` block waits for C) ·
+`SeatDto { Role, Exposed? }` · `SeatRole { Passenger, Driver, Gunner, Commander }` · `CarrierSeats { SeatCount, Roles[8], ExposedMask,
+PassengerSeats }` (component 369) · `CarrierTkbTranslator` in `TkbTranslatorSet.Base` (and the two FDP example lists) stamps the buffer,
+the seats (always rewritten — a type fact, never trusted from a save) and the open cabin; more than 8 seats throws at spawn ·
+`Embarkation.CapacityOf` = the type's passenger seats (a hand-built buffer with no seats keeps 8), used by `TryEmbark` and the embark
+executor · `BehaviorTkbTranslator` no longer stamps a buffer; `VehicleParametersDto.PassengerExposure` is gone.
+
+| carrier data | passenger seats |
+|---|---|
+| BDC `IFV_Bradley` / `Truck_HMMWV` (`NedTkbBuilder.WithCarrier`) | 6 / 3 |
+| UrbanCombat `MilitaryAPC` / `CivilianCar` (Hrot catalogue and the FDP example's) | 8 / 4 |
+| tanks, aircraft, soldiers | none — aircraft have no brain or flight model yet; crew seats come with B-b |
+
+**Deviations:** ① crew stay abstract, so B-a declares passenger seats only (crew seats would hold nobody until B-b's role requests).
+② `GenesisMaterializationSystem.EnsureBuffer` still gives a scenario-boarded vehicle a list when its type declares none — kept because
+its rails build bare vehicles; ⛔ it contradicts B3 and goes with B-b. Rails: `CarrierTkbTranslatorTests` (6 — no Gen.Carrier ⇒ no
+list; the 3rd boarding of a 2-seat type is Full; a crew seat is not passenger capacity; exposure + per-seat override; seats rewritten;
+9 seats refused), the open-cabin rail moved there from `VehicleKinematicsTkbTranslatorTests`.

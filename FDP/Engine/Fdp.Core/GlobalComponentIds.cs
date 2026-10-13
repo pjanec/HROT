@@ -826,5 +826,10 @@ namespace Fdp.Core
         /// target / point / route / sector per unit, a managed world singleton read only by an operator's order draft. Never saved, never
         /// sent. ⚠ 368 measured free on backend, ui and behaviors 2026-10-13.</summary>
         public const int OrderDesignations = 368;
+
+        /// <summary><c>CarrierSeats</c> — ⭐ CE-2151 (R-274 / R-2009, docs/DESIGN_Entity_Interactions.md §7.4): the seats a carrier TYPE declares
+        /// (TKB <c>Gen.Carrier</c>), stamped beside its <c>PassengerBuffer</c> on every node at spawn. ⚠ 369 measured free on backend, ui and
+        /// behaviors 2026-10-13.</summary>
+        public const int CarrierSeats = 369;
     }
 }

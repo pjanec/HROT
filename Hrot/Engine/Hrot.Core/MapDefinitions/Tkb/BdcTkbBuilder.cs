@@ -166,6 +166,17 @@ namespace Hrot.Map.Definitions.Tkb
         }
         
         /// <summary>
+        /// ⭐ <c>CE-2151</c> (R-274 / R-2009) — the type CARRIES: its seats (<c>Gen.Carrier</c>). A type without this boards nobody.
+        /// </summary>
+        public NedTkbBuilder WithCarrier(long tkbId, Fdp.Toolkit.Tkb.Domain.CarrierDefDto carrier)
+        {
+            var template = _db.GetByType(tkbId)
+                ?? throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(carrier);
+            return this;
+        }
+
+        /// <summary>
         /// Add combat properties (future).
         /// </summary>
         public NedTkbBuilder WithCombat(long tkbId, Action<SimCombatDef> configure)

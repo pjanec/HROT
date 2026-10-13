@@ -112,6 +112,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithTurrets(TkbEntityTypes.IFV_Bradley, new TurretDto { PivotX = -0.33f, PivotZ = 2.3f, TrunnionX = 0.65f,
                     ElevationMinDeg = -10f, ElevationMaxDeg = 60f, TraverseRateDegPerSec = 60f, ElevationRateDegPerSec = 30f })
                 .WithFaction(TkbEntityTypes.IFV_Bradley, 1)
+                .WithCarrier(TkbEntityTypes.IFV_Bradley, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PassengerSeats(6))   // ⭐ CE-2151 — six dismounts; the crew stay abstract (R-2009 B5)
                 .WithBehavior(TkbEntityTypes.IFV_Bradley)
                 .WithDisType(TkbEntityTypes.IFV_Bradley, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 2 });
             
@@ -138,6 +139,7 @@ namespace Hrot.Map.Definitions.Tkb
                     p.Mobility = TerrainMobility.Wheeled;
                 })
                 .WithFaction(TkbEntityTypes.Truck_HMMWV, 1)
+                .WithCarrier(TkbEntityTypes.Truck_HMMWV, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PassengerSeats(3))   // ⭐ CE-2151 — three beside the (abstract) driver
                 .WithBehavior(TkbEntityTypes.Truck_HMMWV)
                 .WithDisType(TkbEntityTypes.Truck_HMMWV, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6 });   // CE-1017 S0: 6 = small wheeled utility vehicle (SISO-REF-010); 3 read "armored utility vehicle"
             

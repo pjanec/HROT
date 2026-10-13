@@ -105,6 +105,7 @@ public static class HrotSharedComponentRegistry
         //   registered only by the CGF and SimHost registries, so IG — which runs I-2b's ingress — would have applied an
         //   unregistered PassengerBuffer. (EmbarkationComponentRegistry still registers them too; registration is idempotent.)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();   // ⭐ CE-2151 — a carrier type's seats (Gen.Carrier)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();   // I-2c (R-271) — the open-cabin vehicle type
         // ⭐⭐ The transient-spawn tag (R-140 D2): NetworkSpawningSystem.ProcessSpawn stamps it on EVERY node that materialises a

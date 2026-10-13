@@ -76,6 +76,17 @@ namespace Fdp.Toolkit.Behavior
         public static bool IsAboard(EntityRepository repo, Entity passenger, Entity vehicle)
             => SlotOf(repo, passenger, vehicle) >= 0;
 
+        /// <summary>
+        /// ⭐ <c>CE-2151</c> (R-2009) — how many plain boardings <paramref name="vehicle"/> takes: its type's <see cref="SeatRole.Passenger"/>
+        /// seats (<see cref="CarrierSeats"/>, from <c>Gen.Carrier</c>). A buffer with no declared seats (a test or hand-built world) keeps the
+        /// list's full <see cref="PassengerBuffer.Capacity"/>; no buffer = 0.
+        /// </summary>
+        public static int CapacityOf(EntityRepository repo, Entity vehicle)
+        {
+            if (!repo.IsAlive(vehicle) || !Has<PassengerBuffer>(repo, vehicle)) return 0;
+            return Has<CarrierSeats>(repo, vehicle) ? repo.GetComponentRO<CarrierSeats>(vehicle).PassengerSeats : PassengerBuffer.Capacity;
+        }
+
         /// <summary>Boards <paramref name="passenger"/> onto <paramref name="vehicle"/>: the list, the tag, the stripped capabilities.
         /// Idempotent — a passenger already aboard is <see cref="EmbarkResult.AlreadyAboard"/> (its own side is made consistent).</summary>
         public static EmbarkResult TryEmbark(EntityRepository repo, Entity passenger, Entity vehicle)
@@ -85,7 +96,7 @@ namespace Fdp.Toolkit.Behavior
             if (Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, passenger) || Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, vehicle)) return EmbarkResult.Invalid;
             if (IsAboard(repo, passenger, vehicle)) { Board(repo, passenger, vehicle); return EmbarkResult.AlreadyAboard; }
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
-            if (buffer.Count >= PassengerBuffer.Capacity) return EmbarkResult.Full;
+            if (buffer.Count >= CapacityOf(repo, vehicle)) return EmbarkResult.Full;   // ⭐ CE-2151 — the type's passenger seats
             buffer.Passengers[buffer.Count++] = passenger;
             Board(repo, passenger, vehicle);
             return EmbarkResult.Applied;

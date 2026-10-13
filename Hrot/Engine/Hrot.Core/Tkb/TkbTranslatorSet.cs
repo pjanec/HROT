@@ -92,6 +92,8 @@ namespace Hrot.Core.Tkb
             new Fdp.Toolkit.Spatial.SpatialCoreTkbTranslator(),
             new CarKinem.Tkb.VehicleKinematicsTkbTranslator(),
             new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator(),
+            // ⭐ CE-2151 (R-2009) — a carrier type's seats and passenger list; a type without Gen.Carrier carries nobody.
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator(),
             new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator(),
             // ⭐ WL-1 — a turret part child per TKB turret, on every node (docs/DESIGN_Weapon_Layers.md W-9).
             new Fdp.Toolkit.Combat.Translators.TurretTkbTranslator(),

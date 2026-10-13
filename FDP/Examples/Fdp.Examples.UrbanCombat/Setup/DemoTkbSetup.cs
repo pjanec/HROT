@@ -75,6 +75,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
         private static void RegisterCivilianCar(ITkbDatabase tkb)
         {
             var t = new TkbTemplate("CivilianCar", tkbType: 1002);
+t.AddDescriptor(Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PassengerSeats(4));   // ⭐ CE-2151 — only a Gen.Carrier type carries
             t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianCar" });
             t.AddDescriptor(new VehicleParametersDto
             {
@@ -101,6 +102,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
         private static void RegisterMilitaryAPC(ITkbDatabase tkb)
         {
             var t = new TkbTemplate("MilitaryAPC", tkbType: 2001);
+t.AddDescriptor(Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PassengerSeats(8));   // ⭐ CE-2151 — only a Gen.Carrier type carries
             t.AddDescriptor(new TkbMasterDto { CustomName = "MilitaryAPC" });
             t.AddDescriptor(new VehicleParametersDto
             {

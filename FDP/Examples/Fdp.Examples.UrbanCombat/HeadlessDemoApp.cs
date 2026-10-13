@@ -259,6 +259,7 @@ namespace Fdp.Examples.UrbanCombat
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();   // ⭐ CE-2151 — a carrier type's seats (Gen.Carrier)
             World.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();      // ⭐ CE-3110 I-2a
             World.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
             World.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();

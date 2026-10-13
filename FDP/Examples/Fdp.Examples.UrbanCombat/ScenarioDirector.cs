@@ -103,6 +103,7 @@ namespace Fdp.Examples.UrbanCombat
                 new SpatialCoreTkbTranslator(),
                 new VehicleKinematicsTkbTranslator(),
                 new BehaviorTkbTranslator(),
+                new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator(),   // ⭐ CE-2151 — only a Gen.Carrier type carries
                 new CombatTkbTranslator(),
                 new PerceptionTkbTranslator(),
             }.AsReadOnly();

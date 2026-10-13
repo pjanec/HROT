@@ -81,11 +81,6 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// </summary>
         public VehicleClass? VehicleClass { get; init; }
 
-        /// <summary>
-        /// ⭐ <c>CE-3110</c> I-2c (R-271) — whether this type's passengers are hidden inside (<c>Enclosed</c>, the default — and what an
-        /// absent field means, so older TKB data stays correct) or ride exposed (<c>Open</c>: a door-less helicopter, a pickup bed). The
-        /// translator stamps <c>OpenPassengerCabin</c> on an Open type. 📄 docs/DESIGN_Entity_Interactions.md §7.2a.
-        /// </summary>
-        public Fdp.Toolkit.Behavior.Components.PassengerExposure PassengerExposure { get; init; }
+        // ⛔ CE-2151 (R-2009 B2) — PassengerExposure MOVED to CarrierDefDto.Exposure (Gen.Carrier): one producer, the carrier's descriptor.
     }
 }

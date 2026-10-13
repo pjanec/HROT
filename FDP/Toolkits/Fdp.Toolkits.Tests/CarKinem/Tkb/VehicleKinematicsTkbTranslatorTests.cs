@@ -231,23 +231,6 @@ namespace CarKinem.Tkb.Tests
             Assert.True(p.MaxSteerAngle > 0f, "fallback produced MaxSteerAngle 0");
         }
 
-        /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — an OPEN-cabin type (a door-less helicopter) stamps <c>OpenPassengerCabin</c>; the default —
-        /// and an absent field, so older TKB data stays correct — is enclosed: no component.</summary>
-        [Fact]
-        public void CE3110_I2c_AnOpenCabinType_StampsOpenPassengerCabin_TheDefaultDoesNot()
-        {
-            var repo = MakeWorldWithComponents();
-            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
-            var open = new TkbTemplate("Heli", 998L);
-            open.AddDescriptor(new VehicleParametersDto { Length = 15f, Width = 3f, PassengerExposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Open });
-            var heli = repo.CreateEntity();
-            var apc = repo.CreateEntity();
-
-            new VehicleKinematicsTkbTranslator().Inject(repo, heli, open);
-            new VehicleKinematicsTkbTranslator().Inject(repo, apc, MakeTemplate());
-
-            Assert.True(repo.HasComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>(heli));
-            Assert.False(repo.HasComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>(apc));
-        }
+        // ⛔ CE-2151 (R-2009 B2) — the open-cabin rail moved to CarrierTkbTranslatorTests: exposure is the carrier's fact (Gen.Carrier).
     }
 }

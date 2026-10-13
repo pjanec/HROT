@@ -42,7 +42,6 @@ namespace Fdp.Toolkit.Behavior.Translators
             yield return typeof(WeaponChannel);
             yield return typeof(InteractionChannel);
             yield return typeof(MissionPlanQueue);
-            yield return typeof(PassengerBuffer);
             // ⛔ O7c-④d: BrainHsm128 is gone. There is no brain COMPONENT left to declare — both
             //   roots are occurrence slots, and the store's tier component is declared by the
             //   blueprint side, not here.
@@ -158,8 +157,8 @@ namespace Fdp.Toolkit.Behavior.Translators
             if (repo.IsComponentTypeRegistered<MissionPlanQueue>() && !repo.HasComponent<MissionPlanQueue>(entity))
                 repo.AddComponent(entity, new MissionPlanQueue());
 
-            if (repo.IsComponentTypeRegistered<PassengerBuffer>() && !repo.HasComponent<PassengerBuffer>(entity))
-                repo.AddComponent(entity, new PassengerBuffer());
+            // ⛔ CE-2151 (R-2009 B3) — no PassengerBuffer here any more: only a type declaring Gen.Carrier carries (CarrierTkbTranslator).
+            //   Before, every brained entity — soldiers too — got an empty 8-place buffer, so a soldier was a valid "vehicle".
 
             // ── Brain memory ──────────────────────────────────────────────────────
             if (dto.BrainTier == BehaviorConstants.BrainTierBTree)

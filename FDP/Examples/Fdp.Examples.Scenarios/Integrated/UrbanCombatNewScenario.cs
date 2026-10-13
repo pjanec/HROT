@@ -309,6 +309,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 new SpatialCoreTkbTranslator(),
                 new VehicleKinematicsTkbTranslator(),
                 new BehaviorTkbTranslator(),
+                new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator(),   // ⭐ CE-2151 — only a Gen.Carrier type carries
                 new CombatTkbTranslator(),
                 new PerceptionTkbTranslator(),
             }.AsReadOnly();
@@ -385,6 +386,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();
             world.RegisterComponent<PassengerBuffer>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();   // ⭐ CE-2151 — a carrier type's seats (Gen.Carrier)
             world.RegisterComponent<IsEmbarkedTag>();
             world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();      // ⭐ CE-3110 I-2a
             world.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();

@@ -136,6 +136,7 @@ namespace Hrot.Core.Tkb
                 var t = new TkbTemplate("CivilianCar", TkbCivilianCar);
                 Master(t, "CivilianCar", new DISEntityType { Kind = 1, Domain = 1, Category = 81 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 1.5f });
+                t.AddDescriptor(CarrierDefDto.PassengerSeats(4));   // ⭐ CE-2151 (R-2009) — a car seats four beside its (abstract) driver
                 t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));
@@ -147,6 +148,7 @@ namespace Hrot.Core.Tkb
                 var t = new TkbTemplate("MilitaryAPC", TkbMilitaryApc);
                 Master(t, "MilitaryAPC", new DISEntityType { Kind = 1, Domain = 1, Category = 2 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 2.5f });
+                t.AddDescriptor(CarrierDefDto.PassengerSeats(8));   // ⭐ CE-2151 (R-2009) — the APC carries a squad (the convoy ambush boards five)
                 t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth, MobilityKillBelowFraction = 1f });   // CE-3092 — the APC's mobility kill (PACK-M002)

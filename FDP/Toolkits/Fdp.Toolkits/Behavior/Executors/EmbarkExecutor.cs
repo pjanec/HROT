@@ -78,7 +78,8 @@ namespace Fdp.Toolkit.Behavior.Executors
                 var soldierPos = world.GetComponent<SimTransform>(entity).Position;
                 var vehiclePos = world.GetComponent<SimTransform>(p.VehicleEntity).Position;
                 if (Vector3.Distance(soldierPos, vehiclePos) > range) { channel.Status = NodeStatus.Running; return; }
-                if (world.GetComponentRO<PassengerBuffer>(p.VehicleEntity).Count >= PassengerBuffer.Capacity) { channel.Status = NodeStatus.Failure; return; }
+                if (world.GetComponentRO<PassengerBuffer>(p.VehicleEntity).Count >= Embarkation.CapacityOf(world, p.VehicleEntity))   // ⭐ CE-2151 — the type's seats
+                    { channel.Status = NodeStatus.Failure; return; }
                 world.Bus.Publish(new Events.EmbarkEntityCommand { Passenger = entity, Vehicle = p.VehicleEntity });
                 s.Sent = 1;
                 channel.Status = NodeStatus.Running;

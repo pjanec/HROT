@@ -67,6 +67,7 @@ namespace Hrot.Map.Common.Tests
             Assert.True(world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PassengerBuffer>());
             Assert.True(world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>());
             Assert.True(world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>());
+            Assert.True(world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CarrierSeats>());   // ⭐ CE-2151 — a carrier type's seats
         }
     }
 }
