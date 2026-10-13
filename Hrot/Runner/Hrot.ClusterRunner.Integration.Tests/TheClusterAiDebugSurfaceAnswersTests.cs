@@ -48,7 +48,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
         return new Rig(h, api, perspective);
     }
 
-    private static long Commander(Rig rig, string behaviour)
+    private static long Commander(Rig rig, string behaviour, string? paramsJson = null)
     {
         // The area: Muscle-owned, a polygon around the origin, replicated to the Brain before the assignment.
         long areaNet = rig.H.SimHost.TestHook_SpawnEntity(
@@ -103,7 +103,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
                         {
                             TaskId          = taskId,
                             BehaviorId      = behaviour,
-                            BehaviorParams  = HillAttackParams(areaNet),
+                            BehaviorParams  = paramsJson ?? HillAttackParams(areaNet),
                             ExecutingEngine = "CGFX",
                             State           = Hrot.NED.Descriptors.eTaskState.TASK_ACTIVE,
                             Triggers        = new System.Collections.Generic.List<Hrot.NED.Descriptors.MissionTrigger>
@@ -167,26 +167,28 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
     [Fact(Timeout = 120_000)]
     public void The_trace_and_the_variables_read_the_blueprint_behaviour_commander()
     {
+        // ⭐ R-2006 — the subject is SubordinateForEachDemo (PlatoonHillAttackBp retired): a blueprint BEHAVIOUR with an enum-typed
+        //   variable (LastOrder) and fixed lists of an enum and of a struct — the shapes the variables surface must read.
         using var rig = Boot(() => "Scenario");
-        long commander = Commander(rig, "PlatoonHillAttackBp");
+        long commander = Commander(rig, "SubordinateForEachDemo", "{}");
 
         var trace = rig.Api.GetEntityTrace(commander);
         Assert.True("Blueprint" == (string?)trace["tier"], $"trace: {trace.ToJsonString()} · {Brain(rig, commander)}");
         Assert.Equal("Behavior", (string?)trace["dispatch"]);
-        Assert.Equal("PlatoonHillAttackBp", (string?)trace["behavior"]);
+        Assert.Equal("SubordinateForEachDemo", (string?)trace["behavior"]);
         var traceVariables = Assert.IsType<JsonObject>(trace["variables"]);
-        Assert.True(traceVariables.ContainsKey("Phase"), $"trace variables: {traceVariables.ToJsonString()}");
-        Assert.True(traceVariables.ContainsKey("Sensor"), $"trace variables: {traceVariables.ToJsonString()}");
+        Assert.True(traceVariables.ContainsKey("LastOrder"), $"trace variables: {traceVariables.ToJsonString()}");
+        Assert.True(traceVariables.ContainsKey("Slots"), $"trace variables: {traceVariables.ToJsonString()}");
 
         var (result, error, _) = rig.Api.GetEntityVariables(commander, asset: null);
         Assert.Null(error);
         var names = result!["variables"]!.AsArray().Select(v => (string?)v!["path"]).ToList();
-        Assert.Contains("Phase", names);
-        Assert.Contains("Sensor", names);
+        Assert.Contains("LastOrder", names);
+        Assert.Contains("Orders", names);
 
-        var (one, oneError, _) = rig.Api.GetEntityVariable(commander, asset: "PlatoonHillAttackBp", path: "Phase");
+        var (one, oneError, _) = rig.Api.GetEntityVariable(commander, asset: "SubordinateForEachDemo", path: "LastOrder");
         Assert.Null(oneError);
-        Assert.Equal("HillAttackPhase", (string?)one!["type"]);
+        Assert.Equal("OrderKind", (string?)one!["type"]);
     }
 
     [Fact(Timeout = 120_000)]
@@ -194,7 +196,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
     {
         string perspective = "Scenario";
         using var rig = Boot(() => perspective);
-        long commander = Commander(rig, "PlatoonHillAttackBp");
+        long commander = Commander(rig, "SubordinateForEachDemo", "{}");   // R-2006: was PlatoonHillAttackBp
 
         perspective = "SimHost";   // the Muscle node: its world has a ghost of the commander, but no AI sessions
         var armed = rig.Api.ObserveTrace(commander, on: true);

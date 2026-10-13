@@ -75,11 +75,13 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
     [Fact]
     public void ABlueprintBehaviourAdvertisesItsParameters()
     {
-        BehaviorDefinition def = Definition(LoadProductionRegistry(), "PlatoonHillAttackBp");
+        // ⭐ R-2006 — PlatoonHillAttackBp retired; DangerCrossingBp is the shipped blueprint behaviour with Parameters. ⚠ Interim:
+        //   R-2004 removes blueprint Parameters (backend P4) — this rail then asserts the blueprint advertises its NAMED DTO.
+        BehaviorDefinition def = Definition(LoadProductionRegistry(), "DangerCrossingBp");
 
         Assert.True(IsGeneratedBlock(def));
         Assert.Equal(
-            new[] { "FiringLineStart", "FiringLineEnd", "BaselineStart", "BaselineEnd", "TankSpacing", "TargetAreaNetworkId" },
+            new[] { "Objective", "WalkSpeed", "RushSpeed", "CrossWithin" },
             PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));
         Assert.Equal(
             def.ManagedBlackboardVariables!.Select(v => v.Name).ToArray(),
