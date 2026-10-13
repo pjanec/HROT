@@ -831,5 +831,10 @@ namespace Fdp.Core
         /// (TKB <c>Gen.Carrier</c>), stamped beside its <c>PassengerBuffer</c> on every node at spawn. ⚠ 369 measured free on backend, ui and
         /// behaviors 2026-10-13.</summary>
         public const int CarrierSeats = 369;
+
+        /// <summary><c>InjuryThresholds</c> — ⭐ CE-2155 (R-263 D1 / R-2011, docs/DESIGN_Injury_States.md): the health fractions where a TYPE
+        /// becomes wounded and incapacitated, and how fast it bleeds out (TKB <c>Gen.Injury</c>), stamped on every node at spawn. ⚠ 370
+        /// measured free on backend, ui and behaviors 2026-10-13.</summary>
+        public const int InjuryThresholds = 370;
     }
 }

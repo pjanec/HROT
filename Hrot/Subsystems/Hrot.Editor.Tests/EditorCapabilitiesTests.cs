@@ -165,7 +165,9 @@ public class EditorCapabilitiesTests : IDisposable
         //       (EqsSolverStartup.PopulateSystems, the ONE composition point for every perception host), after the
         //       muscle tier and before the infrastructure tail. 📄 DESIGN_Thermal_And_Acoustic_Sensing.md §7.
         // ⭐⭐ CE-2144 (R-2008) — HealthApplicationSystem left CgfLogicPack for the shared plan HEAD: it is FIRST, ahead of the Brain.
-        Type[] expectedSim = new[] { typeof(Fdp.Toolkit.Combat.Systems.HealthApplicationSystem) }
+        // ⭐ CE-2155 (R-2011 I3) — the bleed-out rides the same capability, right behind it.
+        Type[] expectedSim = new[] { typeof(Fdp.Toolkit.Combat.Systems.HealthApplicationSystem),
+                                     typeof(Fdp.Toolkit.Combat.Systems.BleedOutSystem) }
             .Concat(handSim)
             .Concat(new[] { typeof(Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem),
                             typeof(Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem) })
@@ -256,7 +258,8 @@ public class EditorCapabilitiesTests : IDisposable
         //   against it by Key. That is what stopped the hosted Stride editor registering two
         //   UnitHierarchySystems and dying on [SingleInstance] in BeginRun().
         Assert.Equal(
-            new[] { typeof(Fdp.Toolkit.Combat.Systems.HealthApplicationSystem) }   // ⭐ CE-2144 — the shared plan head, first
+            new[] { typeof(Fdp.Toolkit.Combat.Systems.HealthApplicationSystem),   // ⭐ CE-2144 — the shared plan head, first
+                    typeof(Fdp.Toolkit.Combat.Systems.BleedOutSystem) }           // ⭐ CE-2155 — the same capability's bleed-out
                .Concat(cgf.SimulationSystems.Select(s => s.GetType()))
                .Concat(new[] { typeof(Hrot.Common.Systems.UnitHierarchySystem),
                                typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem),

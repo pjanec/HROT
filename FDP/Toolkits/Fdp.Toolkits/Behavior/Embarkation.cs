@@ -245,14 +245,15 @@ namespace Fdp.Toolkit.Behavior
         }
 
         /// <summary>
-        /// ⭐ THE passenger-side writer, leaving (I-2b): the tag gone, CanMove/CanShoot back (not for the dead), and — ONLY on the node owning
+        /// ⭐ THE passenger-side writer, leaving (I-2b): the tag gone, CanMove/CanShoot back (not for the dead — ⭐ CE-2155 nor for the
+        /// incapacitated, R-2011 I6: a casualty set down stays down), and — ONLY on the node owning
         /// the passenger's position (<see cref="OwnsPosition"/>) — standing at <paramref name="at"/>: a write anywhere else is overwritten by
         /// the owner's replicated position.
         /// </summary>
         public static void Leave(EntityRepository repo, Entity passenger, Vector3 at)
         {
             if (Has<SimTransform>(repo, passenger) && OwnsPosition(repo, passenger)) repo.GetComponentRW<SimTransform>(passenger).Position = at;
-            if (Has<ActorCapabilityState>(repo, passenger) && Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, passenger))
+            if (Has<ActorCapabilityState>(repo, passenger) && Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, passenger))
                 repo.GetComponentRW<ActorCapabilityState>(passenger).Capabilities |= StrippedAboard;
             if (Has<IsEmbarkedTag>(repo, passenger)) repo.RemoveComponent<IsEmbarkedTag>(passenger);
         }

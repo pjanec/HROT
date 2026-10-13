@@ -283,6 +283,7 @@ namespace Fdp.Examples.UrbanCombat
             World.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
             World.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             World.RegisterComponent<Fdp.Toolkit.Combat.Components.MobilityKill>();
+            World.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();   // ⭐ CE-2155
             World.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
 
             // FDP.Toolkit.CarKinem

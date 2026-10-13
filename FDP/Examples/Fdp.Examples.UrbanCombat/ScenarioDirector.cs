@@ -105,6 +105,7 @@ namespace Fdp.Examples.UrbanCombat
                 new BehaviorTkbTranslator(),
                 new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator(),   // ⭐ CE-2151 — only a Gen.Carrier type carries
                 new CombatTkbTranslator(),
+                new Fdp.Toolkit.Combat.Translators.InjuryTkbTranslator(),   // ⭐ CE-2155
                 new PerceptionTkbTranslator(),
             }.AsReadOnly();
 

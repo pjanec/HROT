@@ -311,6 +311,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 new BehaviorTkbTranslator(),
                 new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator(),   // ⭐ CE-2151 — only a Gen.Carrier type carries
                 new CombatTkbTranslator(),
+                new Fdp.Toolkit.Combat.Translators.InjuryTkbTranslator(),   // ⭐ CE-2155
                 new PerceptionTkbTranslator(),
             }.AsReadOnly();
 
@@ -404,6 +405,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             // FDP.Toolkit.Combat
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.MobilityKill>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();   // ⭐ CE-2155
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<BallisticProjectile>();
 

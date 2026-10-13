@@ -5,6 +5,7 @@ current-answer: the whole file — an EXPLAINER (map of what exists), not a desi
 stale-below: none
 known-rot: §1–§8 colours are a 2026-10-06 snapshot (§5a, §9, §10 measured 2026-10-11) — re-check the tracker before relying on a red or amber box
 related-designs:
+  - DESIGN_Injury_States.md — OWNS the injury states (CE-2155) that §8a summarises
   - DESIGN_Orders_Params_Entity_Classes.md — OWNS orders, params DTOs and entity classes (rules built 2026-10-12/13; the §9 order box was refreshed 2026-10-13, P7)
   - DESIGN_Peek_And_Fire.md — OWNS the library's fight-from-cover node (§10, CE-3158) that CombatPosture's TakeCover runs.
   - REVIEW_Behaviour_Library_Genericity.md — OWNS the genericity verdict on these blocks (library vs demo-local vs legacy) and the leans L1–L7.
@@ -309,6 +310,16 @@ graph TD
   classDef partial fill:#fff3cd,stroke:#c90
   classDef missing fill:#f8d7da,stroke:#c00
 ```
+
+## 8a. Hurt, down, dead — what a behaviour can rely on *(CE-2155, measured and built 2026-10-13)*
+
+| question | ✅ answer | where |
+|---|---|---|
+| the states | ok · wounded · incapacitated · dead, DERIVED from `Health` and the type's `Gen.Injury` band (no stored state, no topic) | `Combat/Injury.cs` — `Injury.StateOf` |
+| who has a band | types that declare `Gen.Injury`: BDC rifleman, the four UrbanCombat soldier types. Everything else: ok until dead | [`DESIGN_Injury_States.md`](DESIGN_Injury_States.md) §8 |
+| what "down" does | no move, no fire (stripped in `CombatLife.ApplyHitCapabilities`, enforced by the weapon / locomotion dispatchers); bleeds to death on the `Health` owner (`BleedOutSystem`) | §8 |
+| is he a threat / a target | no — `ThreatDanger.IsOutOfTheFight` (danger 0; `HaveLiveTarget`, `ThreatInSight`, the squad strength sum) and the EQS `AliveFilterTest` all skip him. A blast still hits him | §8 ① |
+| ⚠ the "wounded" a decision reads today | still the `HealthFraction` input (CE-3090's curves), not the state — the state's speed / aim effects are slice I-b | §6 I5 |
 
 ## 9. Groups — commanders, squads and orders *(measured 2026-10-11)*
 

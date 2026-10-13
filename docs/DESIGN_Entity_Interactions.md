@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-13 (§7.4.7 B-b built; §7.4.8 C detailed — leans await the user)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.4.8 the person carrier detailed (C5–C10 leans, await the user) · §7.4 carrying is a type fact (R-274, approved 2026-10-13 R-2009 — READY-TO-BUILD) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.4.8 the person carrier detailed (C5–C10 approved, R-2011) · §7.4 carrying is a type fact (R-274, approved 2026-10-13 R-2009 — READY-TO-BUILD) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
@@ -827,7 +827,7 @@ Rails (`CarrierSeatsTests`, 4): a plain boarding takes a passenger seat, never a
 - `GenesisMaterializationSystemTests.CE2151_ANonCarrierNamedAsAVehicle_IsNotMadeACarrier`
 - the packed-era fixtures updated in `EmbarkationTests`, `EmbarkExecutorTests` and `EditorAuthoringIntegrationTests` (a bare `Count = 8` no longer means full)
 
-#### 7.4.8 C — the person carrier, detailed *(`2026-10-13`, behaviors, `CE-2152`; build-state: DESIGN — C5–C10 await the user; built after [`DESIGN_Injury_States.md`](DESIGN_Injury_States.md) I-a)*
+#### 7.4.8 C — the person carrier, detailed *(`2026-10-13`, behaviors, `CE-2152`; build-state: READY-TO-BUILD — C5–C10 approved 2026-10-13 (R-2011); built after [`DESIGN_Injury_States.md`](DESIGN_Injury_States.md) I-a)*
 
 **Measured first (C4, the open row of §7.4.4):** a soldier's top speed is `VehicleParams.MaxSpeedFwd` (`VehicleClass.Pedestrian`), scaled
 each frame on a LOCAL copy in `CarKinematicsSystem.UpdateVehicle:146-150` by `StanceSpeed.Factor` (standing 1, crouched 0.5, prone 0.2,

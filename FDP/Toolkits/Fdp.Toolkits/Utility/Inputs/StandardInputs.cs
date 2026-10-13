@@ -227,7 +227,7 @@ namespace Fdp.Toolkit.Utility
                 // ⭐ CE-2120 (R-214) — a KILLED contact is not a target: the corpse stays remembered and tracked, and made the
                 //   approach flank it.
                 if (!TargetMemory.IsAnonymous(in mem, i) && ThreatFreshness.IsLive(ctx.Repo, ctx.Self, in mem, i)
-                    && !ThreatDanger.IsDead(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))) return 1f;
+                    && !ThreatDanger.IsOutOfTheFight(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))) return 1f;
             return 0f;
         }
 
@@ -257,7 +257,7 @@ namespace Fdp.Toolkit.Utility
                 if ((tracks.Modalities[t] & (byte)SensorModality.Visual) == 0) continue;
                 for (int i = 0; i < mem.Count; i++)
                     if (mem.EntityIds[i] == tracks.EntityIds[t] && !TargetMemory.IsAnonymous(in mem, i)
-                        && !ThreatDanger.IsDead(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))) return 1f;   // ⭐ CE-2120 — a corpse is no threat
+                        && !ThreatDanger.IsOutOfTheFight(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))) return 1f;   // ⭐ CE-2120 — a corpse is no threat
             }
             return 0f;
         }

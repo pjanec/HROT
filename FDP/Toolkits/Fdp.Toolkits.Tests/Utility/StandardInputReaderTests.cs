@@ -333,7 +333,7 @@ namespace Fdp.Toolkit.Tests.Utility
             var contact = _world.Repo.CreateEntity();
             _world.SeedContact(self, contact, 50f, 0.75f, 0f, true);                       // Health 0 — killed
             _world.Repo.AddComponent(contact, new WeaponState { Ammo = 30, MaxAmmo = 30 });   // still armed
-            Assert.True(Fdp.Toolkit.Perception.ThreatDanger.IsDead(_world.Repo, contact));
+            Assert.True(Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(_world.Repo, contact));
             Assert.Equal(0f, StandardInputs.ContactDanger(MakeCtx(self, contact)));
             Assert.Equal(0f, StandardInputs.ContactThreatLevel(MakeCtx(self, contact)));
             Assert.Equal(0f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)));

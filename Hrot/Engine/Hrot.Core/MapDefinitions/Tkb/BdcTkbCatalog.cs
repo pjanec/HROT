@@ -215,6 +215,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.SensorRange = 500;
                 })
                 .WithFaction(TkbEntityTypes.Infantry_Rifleman, 1)
+                .WithInjury(TkbEntityTypes.Infantry_Rifleman, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())   // ⭐ CE-2155 — wounded, incapacitated, bleeds out (R-2011)
                 .WithBehavior(TkbEntityTypes.Infantry_Rifleman)
                 .WithDisType(TkbEntityTypes.Infantry_Rifleman, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
             

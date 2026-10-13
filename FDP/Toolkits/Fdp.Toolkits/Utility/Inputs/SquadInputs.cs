@@ -179,7 +179,7 @@ namespace Fdp.Toolkit.Utility
             for (int m = 0; m < roster.Count; m++)
             {
                 var member = roster.SubordinateEntities[m];
-                if (!ctx.Repo.IsAlive(member) || Fdp.Toolkit.Perception.ThreatDanger.IsDead(ctx.Repo, member)) continue;
+                if (!ctx.Repo.IsAlive(member) || Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(ctx.Repo, member)) continue;
                 own += Fdp.Toolkit.Perception.ThreatDanger.OwnStrength(ctx.Repo, member);
             }
 

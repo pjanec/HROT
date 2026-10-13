@@ -36,7 +36,8 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>
         /// ⭐ <c>CE-3092</c> — what a hit does to a unit's CAPABILITIES, the ONE rule (both damage systems call it).
-        /// Death (<c>Current &lt;= 0</c>) strips moving and shooting. A NON-lethal hit strips <c>CanMove</c> only on a unit type
+        /// Death (<c>Current &lt;= 0</c>) and incapacitation (<see cref="Injury"/>, CE-2155) strip moving and shooting. A NON-lethal hit
+        /// strips <c>CanMove</c> only on a unit type
         /// that opted in (<see cref="MobilityKill"/>) and only once health is below its fraction of max; every other unit keeps
         /// moving — so a hurt infantryman can still take cover or fall back. 🔒 User, <c>2026-10-06</c>: "death always stops; a
         /// non-lethal hit stops a unit only when its TKB platform says so". 📄 <c>docs/designs/packs-1/DESIGN.md</c> §2.B.
@@ -46,7 +47,8 @@ namespace Fdp.Toolkit.Combat
         public static void ApplyHitCapabilities(EntityRepository repo, Entity entity, in Health health)
         {
             if (!repo.HasComponent<ActorCapabilityState>(entity)) return;
-            if (health.Current <= 0f)
+            // ⭐ CE-2155 (R-2011 I6) — incapacitated stops like death does (move and fire), whatever MobilityKill says: down, not dead.
+            if (health.Current <= 0f || Injury.StateOf(repo, entity, in health) == InjuryState.Incapacitated)
             {
                 ref var dead = ref repo.GetComponentRW<ActorCapabilityState>(entity);
                 dead.Capabilities &= ~(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);

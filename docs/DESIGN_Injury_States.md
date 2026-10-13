@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-13
-build-state: DESIGN — leans I1–I6 await the user; behaviors lane; CE-2155
-current-answer: §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 slices
+build-state: BUILT (I-a) — I1–I6 approved 2026-10-13 (R-2011); behaviors lane; CE-2155; I-b (wounded speed/aim) open
+current-answer: §8 I-a as built · §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - OVERVIEW_Behaviour_Building_Blocks.md — §8a OWNS the one-table summary of what a behaviour can rely on from these states
   - DESIGN_Operations_Behaviour_Catalogue.md — §10.1 D1 OWNS the RULING (R-263): four human states + bleed-out, the vehicle damage states; this file is the human half's build design
   - DESIGN_Entity_Interactions.md — §7.4.8 OWNS the person carrier (CE-2152), the first consumer: only an incapacitated soldier may be carried (R-2009 C3)
   - designs/packs-1/DESIGN.md — §2.B OWNS the opt-in MobilityKill and "death always stops" (CE-3092), which the incapacitated row extends
@@ -113,7 +114,9 @@ graph TD
 *What the picture shows that prose hid: the drain rides the cross-role `HealthApplication` capability built in CE-2144 (R-2008), so every
 node that applies damage also bleeds — and only the `Health` owner writes, by the same authority gate.*
 
-## 6. Decisions *(leans; awaiting the user)*
+## 6. Decisions *(✅ I1–I6 approved 2026-10-13, R-2011)*
+
+🔒 *User, 2026-10-13: "I1-I6 approved, C5-C10 approved, go ahead with CE-2155"*
 
 | # | question | ⭐ lean | blast radius | what would change it |
 |---|---|---|---|---|
@@ -132,5 +135,34 @@ a civilian and a soldier would bleed alike; D1 lists civilians as casualties too
 
 | slice | what | rails |
 |---|---|---|
-| **I-a** (`CE-2155`) | `Gen.Injury` + translator + `InjuryThresholds`; `Injury` rules; `ApplyHitCapabilities` strips at incapacitated; `BleedOutSystem`; I4's two readers; soldier templates declare it | a hit below the band strips move and fire but leaves him alive · bleed-out reaches 0 in `BleedOutSeconds` on the owner only · a replica reads the same state · an incapacitated contact has danger 0 · no `Gen.Injury` ⇒ unchanged behaviour |
+| **I-a** (`CE-2155`, ✅ BUILT 2026-10-13 — §8) | `Gen.Injury` + translator + `InjuryThresholds`; `Injury` rules; `ApplyHitCapabilities` strips at incapacitated; `BleedOutSystem`; I4's two readers; soldier templates declare it | a hit below the band strips move and fire but leaves him alive · bleed-out reaches 0 in `BleedOutSeconds` on the owner only · a replica reads the same state · an incapacitated contact has danger 0 · no `Gen.Injury` ⇒ unchanged behaviour |
 | **I-b** | wounded speed / aim factors (I5) | — |
+
+## 8. I-a as built *(`2026-10-13`, behaviors, `CE-2155`)*
+
+As §3–§5. `InjuryDefDto` (`Gen.Injury`) → `InjuryTkbTranslator` (in `TkbTranslatorSet.Base` and the two FDP example lists) →
+`InjuryThresholds` (component 370, always rewritten from the type; a band that cannot be read throws at spawn) · `Injury.StateOf /
+IsIncapacitated / IsInTheFight` (`Combat/Injury.cs`) · `CombatLife.ApplyHitCapabilities` strips move and fire at incapacitated (I6) ·
+`BleedOutSystem` in the `HealthApplication` capability, behind `HealthApplicationSystem`, same authority gate (I3) · declared on BDC
+`Infantry_Rifleman` (`NedTkbBuilder.WithInjury`) and the four UrbanCombat soldier types.
+
+| deviation / finding | why |
+|---|---|
+| ① `ThreatDanger.IsDead` **renamed** `IsOutOfTheFight` (Roslyn, 5 sites) and given I4's meaning | its three callers — `HaveLiveTarget`, `ThreatInSight` and the squad's own-strength sum — all meant "out of the fight"; with `ThreatDanger.Of` and the EQS `AliveFilterTest` that makes **4 readers changed**. Kept: `AreaEffectSystem` (a blast still hits a man down) and `Possession` (an operator still holds a downed unit). The design said "2 changed, 2 kept"; the count was of files, not readers |
+| ② bleed applied in **1-second steps**, not per frame | `Health` is published on change (`EntityDamageEgressTranslator`), so a per-frame drain would send one sample per frame per casualty |
+| ③ ⭐ **found and fixed: `Embarkation.Leave` gave move and fire back to any ALIVE passenger** | an incapacitated casualty set down would have stood up armed. It now restores only to someone in the fight. Not in the §2 inventory — found by listing every writer that GRANTS capabilities (one: this) |
+| ④ `InjuryThresholds.BleedPerSecond` (a health fraction a second) instead of `BleedOutSeconds` | the drain reads it every step; the translator does the division once |
+| ⑤ the FDP UrbanCombat example's own catalogue (`DemoTkbSetup`) does **not** declare `Gen.Injury` | a self-contained FDP demo with its own validator; absence = ok until dead, so it is unchanged |
+| ⑥ ⚠ **measured: rifle fire alone never incapacitates** | soldiers have 100 HP and a rifle round does 25, so health steps 75 → 50 → 25 → 0, and 25 % is not *below* the 25 % band. Blasts and other weapons can land inside it. Raising `IncapacitatedBelow` to 0.3 would make the third rifle hit incapacitate — a data change, left for the user |
+
+Rails — `InjuryTests` (8):
+- the state read off health and the band
+- a hit below the band strips move and fire but leaves him alive
+- no `Gen.Injury` ⇒ ok until dead
+- bleed-out on the owner only, in steps, wounded do not bleed
+- a replica reads the same state
+- an incapacitated contact has danger 0 and is filtered as a target
+- a casualty set down stays down
+- an unreadable band is refused at spawn
+
+Plus `LiveSimulationPlanRails` pins `BleedOutSystem` second on every live node, and the two editor sequence rails gained it.

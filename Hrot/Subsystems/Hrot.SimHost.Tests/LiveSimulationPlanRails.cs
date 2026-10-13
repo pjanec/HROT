@@ -86,6 +86,7 @@ public sealed class LiveSimulationPlanRails
         var input = new List<IEcsModuleSystem>(); var sim = new List<IEcsModuleSystem>(); var post = new List<IEcsModuleSystem>();
         foreach (var c in resolved) c.PopulateSystems(context: null!, input, sim, post);
         Assert.IsType<HealthApplicationSystem>(sim[0]);
+        Assert.IsType<Fdp.Toolkit.Combat.Systems.BleedOutSystem>(sim[1]);   // ⭐ CE-2155 (R-2011 I3) — every live node bleeds the casualties it owns
 
         using var world = new EntityRepository();
         world.RegisterComponent<Health>();
@@ -110,10 +111,11 @@ public sealed class LiveSimulationPlanRails
     [Fact]
     public void TheSharedHeadIsInertWhereNoDamageEventIsRegistered_CE2144()
     {
-        var system = new CoreInfrastructureCapabilities.HealthApplication().Systems.Single();
+        // ⭐ CE-2155 — every system of the capability (the bleed-out joined it): inert where nothing it reads is registered.
         using var world = new EntityRepository();
         world.RegisterComponent<Health>();
-        system.Execute(world, 0.016f);
+        foreach (var system in new CoreInfrastructureCapabilities.HealthApplication().Systems)
+            system.Execute(world, 0.016f);
     }
 
     private static string? RepoRoot()

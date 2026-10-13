@@ -21,16 +21,17 @@ namespace Fdp.Toolkit.Perception
         public static float Of(ISimulationView view, Entity self, Entity target)
         {
             if (target.IsNull || !view.IsAlive(target)) return 1f;
-            // ⭐ CE-3080 (R-214) — a KILLED unit is no danger: its entity stays (Health 0) and still carries WeaponState, so
+            // ⭐ CE-3080 (R-214) — a KILLED (⭐ CE-2155: or incapacitated) unit is no danger: its entity stays (Health 0) and still carries WeaponState, so
             //   it used to read as armed for every threat reader. Here, once, for all of them. 📄 DESIGN_Sensors_And_Doctrine §7.8a.
-            if (IsDead(view, target)) return 0f;
+            if (IsOutOfTheFight(view, target)) return 0f;
             return view.HasComponent<WeaponState>(target) ? 1f : Unarmed;
         }
 
-        /// <summary>⭐ <c>CE-3080</c> — true when <paramref name="target"/> carries a <see cref="Health"/> at or below 0 (killed;
-        /// the entity is kept). A unit with no Health is not dead.</summary>
-        public static bool IsDead(ISimulationView view, Entity target)
-            => view.HasComponent<Health>(target) && view.GetComponentRO<Health>(target).Current <= 0f;
+        /// <summary>⭐ <c>CE-3080</c> — true when <paramref name="target"/> is killed (Health at or below 0; the entity is kept) or,
+        /// ⭐ <c>CE-2155</c> (R-2011 I4), INCAPACITATED: down and bleeding, no longer a threat or a target. A unit with no Health, or one
+        /// this node does not hold, is still in the fight (renamed from <c>IsDead</c>).</summary>
+        public static bool IsOutOfTheFight(ISimulationView view, Entity target)
+            => Fdp.Toolkit.Combat.Injury.StateOf(view, target) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated;
 
         /// <summary>
         /// ⭐ <c>CE-3063</c> (§6.1a K3, R-207) — the danger of memory slot <paramref name="slot"/>: an identified contact through

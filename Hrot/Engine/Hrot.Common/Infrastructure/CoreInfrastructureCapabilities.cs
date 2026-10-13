@@ -64,13 +64,15 @@ public static class CoreInfrastructureCapabilities
     public sealed class HealthApplication : INodeCapability
     {
         private readonly Fdp.Toolkit.Combat.Systems.HealthApplicationSystem _system = new();
+        // ⭐ CE-2155 (R-2011 I3) — an incapacitated person bleeds out where his Health is owned: the other Health writer, beside damage.
+        private readonly Fdp.Toolkit.Combat.Systems.BleedOutSystem _bleedOut = new();
 
         public string Key => CapabilityKeys.HealthApplication;
 
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493); run them FIRST in its sim list.</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -80,6 +82,7 @@ public static class CoreInfrastructureCapabilities
         {
             if (simulation is null) throw new ArgumentNullException(nameof(simulation));
             simulation.Add(_system);
+            simulation.Add(_bleedOut);
         }
     }
 

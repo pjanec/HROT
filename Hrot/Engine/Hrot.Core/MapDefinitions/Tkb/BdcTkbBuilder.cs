@@ -177,6 +177,18 @@ namespace Hrot.Map.Definitions.Tkb
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2155</c> (R-263 D1 / R-2011) — the type's people get HURT before they die (<c>Gen.Injury</c>): wounded, then incapacitated
+        /// and bleeding out. A type without this is ok until dead.
+        /// </summary>
+        public NedTkbBuilder WithInjury(long tkbId, Fdp.Toolkit.Tkb.Domain.InjuryDefDto injury)
+        {
+            var template = _db.GetByType(tkbId)
+                ?? throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(injury);
+            return this;
+        }
+
+        /// <summary>
         /// Add combat properties (future).
         /// </summary>
         public NedTkbBuilder WithCombat(long tkbId, Action<SimCombatDef> configure)
