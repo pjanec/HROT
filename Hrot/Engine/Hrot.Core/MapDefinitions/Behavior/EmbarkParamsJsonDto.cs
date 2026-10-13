@@ -15,11 +15,11 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The vehicle to board.</summary>
         [JsonPropertyName("vehicle")]
-        public EntityRef Vehicle { get; set; }
+        public EntityRef Vehicle;
 
         /// <summary>Walking speed to the vehicle (m/s); 0 ⇒ the node's default.</summary>
         [JsonPropertyName("speed")]
-        public float Speed { get; set; }
+        public float Speed;
     }
 
 }
@@ -36,10 +36,10 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Failure when somebody is still aboard after this long (s); 0 ⇒ 10 s.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("timeoutSeconds")]
-        public float TimeoutSeconds { get; set; }
+        public float TimeoutSeconds;
 
         /// <summary>The hold speed of a member already out (m/s); 0 ⇒ 3.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("speed")]
-        public float Speed { get; set; }
+        public float Speed;
     }
 }

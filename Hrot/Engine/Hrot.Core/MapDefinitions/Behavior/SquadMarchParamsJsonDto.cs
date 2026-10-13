@@ -14,26 +14,26 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Where the squad goes (sim metres, Z up).</summary>
         [JsonPropertyName("Objective")]
-        public Vector3 Objective { get; set; }
+        public Vector3 Objective;
 
         /// <summary>0 = File (on the lead's trail) · 1 = Wedge · 2 = Line.</summary>
         [JsonPropertyName("Shape")]
-        public int Shape { get; set; }
+        public int Shape;
 
         /// <summary>The distance between neighbours (m); 0 = 5.</summary>
         [JsonPropertyName("Spacing")]
-        public float Spacing { get; set; }
+        public float Spacing;
 
         /// <summary>The members' asked speed (m/s); 0 = 1.5. Their stance caps it.</summary>
         [JsonPropertyName("Speed")]
-        public float Speed { get; set; }
+        public float Speed;
 
         /// <summary>How close the lead must get to the objective (m); 0 = 5.</summary>
         [JsonPropertyName("ArrivalRadius")]
-        public float ArrivalRadius { get; set; }
+        public float ArrivalRadius;
 
         /// <summary>A follower this far from its slot halts the lead until it closes up (m); 0 = 10.</summary>
         [JsonPropertyName("MaxLagMetres")]
-        public float MaxLagMetres { get; set; }
+        public float MaxLagMetres;
     }
 }

@@ -19,25 +19,25 @@ namespace Hrot.Map.Definitions.Behavior.Intents
         public const string BehaviorId = BehaviorNames.HullDownAttack;
 
         /// <summary>Firing-line slot, X (metres, local).</summary>
-        public float SlotX { get; set; }
+        public float SlotX;
         /// <summary>Firing-line slot, Y (metres, local).</summary>
-        public float SlotY { get; set; }
+        public float SlotY;
         /// <summary>Baseline retreat slot, X (metres, local).</summary>
-        public float BaselineX { get; set; }
+        public float BaselineX;
         /// <summary>Baseline retreat slot, Y (metres, local).</summary>
-        public float BaselineY { get; set; }
+        public float BaselineY;
         /// <summary>Normalised attack direction, X.</summary>
-        public float AttackDirX { get; set; }
+        public float AttackDirX;
         /// <summary>Normalised attack direction, Y.</summary>
-        public float AttackDirY { get; set; }
+        public float AttackDirY;
         /// <summary>The target (resolved on the receiving node). ⭐ An <see cref="EntityRef"/> (<c>DESIGN_Entity_Reference.md</c>)
         /// — it was a bare <c>long</c> with no remap and no picker, the one authorable id the attributes had missed.</summary>
-        public EntityRef TargetNetworkId { get; set; }
+        public EntityRef TargetNetworkId;
         /// <summary>Approach speed far from the slot (m/s).</summary>
-        public float ApproachSpeed { get; set; } = 15f;
+        public float ApproachSpeed = 15f;
         /// <summary>Creep speed near the slot (m/s).</summary>
-        public float CreepSpeed { get; set; } = 5f;
+        public float CreepSpeed = 5f;
         /// <summary>Rounds to fire before success; 0 = unlimited.</summary>
-        public int MaxRounds { get; set; } = 1;
+        public int MaxRounds = 1;
     }
 }

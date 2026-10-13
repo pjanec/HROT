@@ -11,26 +11,26 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>How long the squad holds and returns fire before the commander decides (s); 0 = 3.</summary>
         [JsonPropertyName("DecideAfterSeconds")]
-        public float DecideAfterSeconds { get; set; }
+        public float DecideAfterSeconds;
 
         /// <summary>The assault's flank query radius (m); 0 = 40.</summary>
         [JsonPropertyName("FlankSearchRadius")]
-        public float FlankSearchRadius { get; set; }
+        public float FlankSearchRadius;
 
         /// <summary>The break-contact retreat query radius (m); 0 = 60.</summary>
         [JsonPropertyName("RetreatSearchRadius")]
-        public float RetreatSearchRadius { get; set; }
+        public float RetreatSearchRadius;
 
         /// <summary>The members' asked speed (m/s); 0 = 3.</summary>
         [JsonPropertyName("Speed")]
-        public float Speed { get; set; }
+        public float Speed;
 
         /// <summary>How close a drill must get to its point (m); 0 = 8.</summary>
         [JsonPropertyName("ArrivalRadius")]
-        public float ArrivalRadius { get; set; }
+        public float ArrivalRadius;
 
         /// <summary>A drill phase is complete after this long even if a mover never arrives (s); 0 = 90.</summary>
         [JsonPropertyName("PhaseTimeoutSeconds")]
-        public float PhaseTimeoutSeconds { get; set; }
+        public float PhaseTimeoutSeconds;
     }
 }

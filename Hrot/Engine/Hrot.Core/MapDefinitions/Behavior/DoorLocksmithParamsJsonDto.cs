@@ -16,18 +16,18 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The door, by terrain-object key (<c>"&lt;terrain&gt;/&lt;building&gt;/&lt;doorId&gt;"</c>).</summary>
         [JsonPropertyName("door")]
-        public TerrainObjectRef Door { get; set; }
+        public TerrainObjectRef Door;
 
         /// <summary>Where to go once through (local metres, east).</summary>
         [JsonPropertyName("x")]
-        public float X { get; set; }
+        public float X;
 
         /// <summary>Where to go once through (local metres, north).</summary>
         [JsonPropertyName("y")]
-        public float Y { get; set; }
+        public float Y;
 
         /// <summary>Walking speed (m/s); 0 ⇒ the nodes' default.</summary>
         [JsonPropertyName("speed")]
-        public float Speed { get; set; }
+        public float Speed;
     }
 }

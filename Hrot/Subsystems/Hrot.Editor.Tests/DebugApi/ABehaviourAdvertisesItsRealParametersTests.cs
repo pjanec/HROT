@@ -379,6 +379,77 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         Assert.DoesNotContain("CE2130_Named", violations.Keys);
     }
 
+    // ── CE-3184 / P8 (docs/DESIGN_Orders_Params_Entity_Classes.md §13.1 F11, R-2002) — params DTOs are plain public FIELDS ──
+
+    /// <summary>⭐ CE-3184 — every params DTO this host can name: each registered behaviour's published DTO, plus every DTO the
+    /// one scan lists (<c>[Order]</c>, <c>[ParamsDto]</c>, the declared ones), plus the Hrot-declared struct / class types their
+    /// members hold (a nested DTO such as <c>CombatPostureAdvanceJsonDto</c> is part of the same JSON).</summary>
+    internal static System.Collections.Generic.SortedSet<System.Type> ParamsDtoTypes(BehaviorRegistry registry)
+    {
+        var roots = new System.Collections.Generic.List<System.Type>();
+        foreach (var name in registry.GetRegisteredNames())
+            if (registry.TryGetId(name, out int id) && registry.TryGetDefinition(id, out var def) && def?.JsonParamsDtoType is { } t)
+                roots.Add(t);
+        roots.AddRange(Hrot.Map.Definitions.Behavior.ParamsDtoRegistry
+            .Pinning(typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly).Dtos.Select(d => d.Type));
+
+        var all = new System.Collections.Generic.SortedSet<System.Type>(
+            System.Collections.Generic.Comparer<System.Type>.Create((a, b) => string.CompareOrdinal(a.FullName, b.FullName)));
+        void Walk(System.Type t)
+        {
+            if (t.IsPrimitive || t.IsEnum || t == typeof(string) || !(t.Namespace ?? "").StartsWith("Hrot.", System.StringComparison.Ordinal)
+                || !all.Add(t)) return;
+            const System.Reflection.BindingFlags Public = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+            foreach (var f in t.GetFields(Public)) Walk(f.FieldType.IsArray ? f.FieldType.GetElementType()! : f.FieldType);
+            foreach (var p in t.GetProperties(Public)) Walk(p.PropertyType.IsArray ? p.PropertyType.GetElementType()! : p.PropertyType);
+        }
+        foreach (var t in roots) Walk(t);
+        return all;
+    }
+
+    /// <summary>⭐ CE-3184 — the properties a params DTO may not declare: every public instance property except a
+    /// <c>[JsonIgnore]</c> computed view (<c>MoveToLocationParamsJsonDto.PickableLocation</c>, the mission panel's map-pick
+    /// target over the wire pair) — it carries no data of its own.</summary>
+    internal static string[] PropertyViolations(System.Type t)
+        => t.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly)
+            .Where(p => !p.IsDefined(typeof(System.Text.Json.Serialization.JsonIgnoreAttribute), inherit: true))
+            .Select(p => $"{t.FullName}.{p.Name}").ToArray();
+
+    /// <summary>
+    /// ⭐⭐ CE-3184 (P8, F11) — THE RAIL. 🔒 User, 2026-10-13: <i>"propreties in param dtos are undesired as unnecessary code
+    /// bloat with no added value"</i> (R-2002). No params DTO — nor a DTO nested in one — declares a property.
+    /// <para>⚠ Red-proof: turn any field of <c>MoveOrder</c> back into <c>{ get; set; }</c> → this fails naming it.</para>
+    /// </summary>
+    [Fact]
+    public void CE3184_ParamsDtosArePlainPublicFields_NeverProperties()
+    {
+        var types = ParamsDtoTypes(LoadProductionRegistry());
+        Assert.True(types.Count > 20, $"only {types.Count} params DTOs found — the set is broken, this rail would pass vacuously");
+        Assert.Contains(typeof(Hrot.AI.Behaviors.Orders.MoveOrder), types);
+        Assert.Contains(typeof(Hrot.Map.Definitions.Behavior.CombatPostureAdvanceJsonDto), types);   // nested DTOs are walked
+
+        var bad = types.SelectMany(PropertyViolations).ToArray();
+        Assert.True(bad.Length == 0,
+            "params DTOs must be plain public fields, never properties (R-2002, docs/DESIGN_Orders_Params_Entity_Classes.md §13.1 "
+            + $"F11) — {bad.Length} properties:\n  " + string.Join("\n  ", bad));
+    }
+
+    /// <summary>⭐ CE-3184 — the rule is not vacuous: a property-bearing type is caught, a field-only one and a
+    /// <c>[JsonIgnore]</c> view are not.</summary>
+    [Fact]
+    public void CE3184_TheRuleCatchesAPropertyAndExemptsAJsonIgnoredView()
+    {
+        Assert.Single(PropertyViolations(typeof(CE3184_WithProperty)));
+        Assert.Empty(PropertyViolations(typeof(CE3184_FieldsAndView)));
+    }
+
+    private struct CE3184_WithProperty { public float Speed { get; set; } }
+    private struct CE3184_FieldsAndView
+    {
+        public float Speed;
+        [System.Text.Json.Serialization.JsonIgnore] public float Twice => Speed * 2;
+    }
+
     // ── CE-2134 (docs/DESIGN_Orders_Params_Entity_Classes.md §5b) — the contract is declared ON THE BEHAVIOUR ───────────
 
     /// <summary>

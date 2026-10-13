@@ -11,18 +11,18 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>How far round the squad the retreat query looks (m); 0 = 60.</summary>
         [JsonPropertyName("RetreatSearchRadius")]
-        public float RetreatSearchRadius { get; set; }
+        public float RetreatSearchRadius;
 
         /// <summary>The members' asked speed (m/s); 0 = 3. Their stance caps it.</summary>
         [JsonPropertyName("Speed")]
-        public float Speed { get; set; }
+        public float Speed;
 
         /// <summary>How close both elements must be to the point for the order to be done (m); 0 = 8.</summary>
         [JsonPropertyName("ArrivalRadius")]
-        public float ArrivalRadius { get; set; }
+        public float ArrivalRadius;
 
         /// <summary>A bound is complete after this long even if a mover never arrives (s); 0 = 60.</summary>
         [JsonPropertyName("BoundTimeoutSeconds")]
-        public float BoundTimeoutSeconds { get; set; }
+        public float BoundTimeoutSeconds;
     }
 }

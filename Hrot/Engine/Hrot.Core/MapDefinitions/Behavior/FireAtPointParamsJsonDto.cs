@@ -14,26 +14,26 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The aim point (local metres, east).</summary>
         [JsonPropertyName("x")]
-        public float X { get; set; }
+        public float X;
 
         /// <summary>The aim point (local metres, north).</summary>
         [JsonPropertyName("y")]
-        public float Y { get; set; }
+        public float Y;
 
         /// <summary>The aim point (local metres, up) — a roof, a floor; 0 = the ground.</summary>
         [JsonPropertyName("z")]
-        public float Z { get; set; }
+        public float Z;
 
         /// <summary>The mount to fire (its index in the type's weapon suite).</summary>
         [JsonPropertyName("mount")]
-        public int Mount { get; set; }
+        public int Mount;
 
         /// <summary>Rounds to fire; 0 = until the ammunition runs out.</summary>
         [JsonPropertyName("rounds")]
-        public int Rounds { get; set; }
+        public int Rounds;
 
         /// <summary>Seconds between rounds.</summary>
         [JsonPropertyName("cooldownSeconds")]
-        public float CooldownSeconds { get; set; }
+        public float CooldownSeconds;
     }
 }

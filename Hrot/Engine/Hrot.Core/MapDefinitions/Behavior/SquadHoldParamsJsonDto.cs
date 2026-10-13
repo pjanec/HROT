@@ -11,14 +11,14 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The members' asked speed (m/s) when their posture moves them; 0 = 3.</summary>
         [JsonPropertyName("Speed")]
-        public float Speed { get; set; }
+        public float Speed;
 
         /// <summary>Hold this long, then the order is done (s); 0 = until another order.</summary>
         [JsonPropertyName("DurationSeconds")]
-        public float DurationSeconds { get; set; }
+        public float DurationSeconds;
 
         /// <summary>The order is done once the squad knows no contact.</summary>
         [JsonPropertyName("EndWhenClear")]
-        public bool EndWhenClear { get; set; }
+        public bool EndWhenClear;
     }
 }

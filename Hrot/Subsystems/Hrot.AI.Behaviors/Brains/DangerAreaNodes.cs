@@ -104,13 +104,13 @@ namespace Hrot.AI.Behaviors.Brains
     public sealed class DangerCrossingParams
     {
         /// <summary>Where it walks — and the route its danger sensor watches (unit → objective).</summary>
-        public Vector3 Objective { get; set; }
+        public Vector3 Objective;
         /// <summary>Walking speed (m/s) — to the objective and to a near handle.</summary>
-        public float WalkSpeed { get; set; } = 1.5f;
+        public float WalkSpeed = 1.5f;
         /// <summary>Rush speed across an area (m/s).</summary>
-        public float RushSpeed { get; set; } = 4.5f;
+        public float RushSpeed = 4.5f;
         /// <summary>An area this close along the route (m) is rushed across.</summary>
-        public float CrossWithin { get; set; } = 15f;
+        public float CrossWithin = 15f;
     }
 
     /// <summary>

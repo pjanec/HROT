@@ -16,6 +16,6 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>Standing, Crouched or Prone.</summary>
         [JsonPropertyName("stance")]
         [JsonConverter(typeof(JsonStringEnumConverter))]
-        public StanceId Stance { get; set; }
+        public StanceId Stance;
     }
 }

@@ -15,18 +15,18 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Where to go (sim metres, Z up).</summary>
         [JsonPropertyName("Objective")]
-        public Vector3 Objective { get; set; }
+        public Vector3 Objective;
 
         /// <summary>The asked speed (m/s); 0 = 3. The body's stance caps it.</summary>
         [JsonPropertyName("Speed")]
-        public float Speed { get; set; }
+        public float Speed;
 
         /// <summary>How close counts as arrived (m); 0 = 3.</summary>
         [JsonPropertyName("ArrivalRadius")]
-        public float ArrivalRadius { get; set; }
+        public float ArrivalRadius;
 
         /// <summary>Seconds between shots on the way; 0 = 1.</summary>
         [JsonPropertyName("CooldownSeconds")]
-        public float CooldownSeconds { get; set; }
+        public float CooldownSeconds;
     }
 }

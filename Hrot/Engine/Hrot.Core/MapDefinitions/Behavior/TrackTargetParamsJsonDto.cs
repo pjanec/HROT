@@ -13,6 +13,6 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The mount whose turret follows the target (its index in the type's weapon suite); 0 = the primary.</summary>
         [JsonPropertyName("mount")]
-        public int Mount { get; set; }
+        public int Mount;
     }
 }

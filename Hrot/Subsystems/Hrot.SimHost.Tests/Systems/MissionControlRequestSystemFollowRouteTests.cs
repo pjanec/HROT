@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using Fdp.Interfaces;
@@ -152,7 +152,7 @@ public class MissionControlRequestSystemFollowRouteTests
         repo.AddComponent(route, new RouteTrajectoryCache { TrajectoryId = 5, CompiledVersion = 1 });
 
         var authored = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto>(
-            "{\"routeEntityId\":42,\"Speed\":12.0,\"Loop\":true}")!;
+            "{\"routeEntityId\":42,\"Speed\":12.0,\"Loop\":true}", Fdp.Toolkit.Behavior.BehaviorParams.JsonOptions)!;
         var block = default(Hrot.AI.Behaviors.Brains.CgfNodes.FollowRouteParams);
         Hrot.AI.Behaviors.Brains.CgfNodes.ResolveFollowRoute(authored, ref block, repo, Entity.Null);
 
@@ -185,7 +185,7 @@ public class MissionControlRequestSystemFollowRouteTests
         var (vehicle, route) = SetupEntities(repo, new NetworkEntityMap(), vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
         repo.AddComponent(vehicle, new Fdp.Toolkit.Behavior.Components.LocomotionChannel());
 
-        var authored = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto>("{\"routeEntityId\":99}")!;
+        var authored = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto>("{\"routeEntityId\":99}", Fdp.Toolkit.Behavior.BehaviorParams.JsonOptions)!;
         var p = default(Hrot.AI.Behaviors.Brains.CgfNodes.FollowRouteParams);
         Hrot.AI.Behaviors.Brains.CgfNodes.ResolveFollowRoute(authored, ref p, repo, vehicle);
         Assert.Equal(0, p.TrajectoryId);

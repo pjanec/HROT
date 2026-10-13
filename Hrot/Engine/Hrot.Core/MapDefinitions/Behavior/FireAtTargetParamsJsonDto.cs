@@ -16,14 +16,14 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The target entity. ⭐ An <see cref="EntityRef"/>: picked on the map, remapped at scenario load
         /// (<c>DESIGN_Entity_Reference.md</c>); JSON is still the bare network id.</summary>
         [JsonPropertyName("targetNetworkId")]
-        public EntityRef TargetNetworkId { get; set; }
+        public EntityRef TargetNetworkId;
 
         /// <summary>Maximum number of rounds to fire.</summary>
         [JsonPropertyName("maxRounds")]
-        public int MaxRounds { get; set; }
+        public int MaxRounds;
 
         /// <summary>Minimum cooldown between bursts, in seconds.</summary>
         [JsonPropertyName("cooldownSeconds")]
-        public float CooldownSeconds { get; set; }
+        public float CooldownSeconds;
     }
 }

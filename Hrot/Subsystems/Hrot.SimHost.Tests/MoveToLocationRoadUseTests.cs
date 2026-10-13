@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Navigation;
 using Hrot.AI.Behaviors.Brains;
@@ -20,7 +21,7 @@ namespace Hrot.SimHost.Tests
         [InlineData("{\"x\":10,\"y\":20}", RoadUse.Unspecified)]
         public void CE3130_TheAuthoredRoadUse_ReachesTheBlackboard(string json, RoadUse expected)
         {
-            var authored = JsonSerializer.Deserialize<MoveToLocationParamsJsonDto>(json);
+            var authored = JsonSerializer.Deserialize<MoveToLocationParamsJsonDto>(json, BehaviorParams.JsonOptions);   // CE-3184: the params options (fields)
             var block = CgfNodes.ConvertMoveTo(authored, geoTransform: null);
             Assert.Equal(expected, block.RoadUse);
             Assert.Equal(10f, block.X);
@@ -30,9 +31,9 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3130_AnUnspecifiedRoadUse_IsNotWritten_ANamedOneIsWrittenByName()
         {
-            Assert.DoesNotContain("roadUse", JsonSerializer.Serialize(new MoveToLocationParamsJsonDto { X = 1, Y = 2 }));
+            Assert.DoesNotContain("roadUse", JsonSerializer.Serialize(new MoveToLocationParamsJsonDto { X = 1, Y = 2 }, BehaviorParams.JsonOptions));
             Assert.Contains("\"roadUse\":\"Prefer\"",
-                JsonSerializer.Serialize(new MoveToLocationParamsJsonDto { X = 1, Y = 2, RoadUse = RoadUse.Prefer }));
+                JsonSerializer.Serialize(new MoveToLocationParamsJsonDto { X = 1, Y = 2, RoadUse = RoadUse.Prefer }, BehaviorParams.JsonOptions));
         }
 
         [Fact]

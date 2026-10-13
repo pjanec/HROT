@@ -29,19 +29,19 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Target latitude in degrees (flat JSON wire format).</summary>
         [JsonPropertyName("targetLat")]
-        public double TargetLat { get; set; }
+        public double TargetLat;
 
         /// <summary>Target longitude in degrees (flat JSON wire format).</summary>
         [JsonPropertyName("targetLon")]
-        public double TargetLon { get; set; }
+        public double TargetLon;
 
         /// <summary>Travel speed in meters per second.</summary>
         [JsonPropertyName("speed")]
-        public double Speed { get; set; }
+        public double Speed;
 
         /// <summary>Radius in meters within which arrival is declared.</summary>
         [JsonPropertyName("arrivalRadius")]
-        public double ArrivalRadius { get; set; }
+        public double ArrivalRadius;
 
         /// <summary>
         /// Local ENU easting in metres, relative to <b>this node's geographic origin</b>
@@ -69,13 +69,13 @@ namespace Hrot.Map.Definitions.Behavior
         /// </para>
         /// </summary>
         [JsonPropertyName("x")]
-        public float X { get; set; }
+        public float X;
 
         /// <summary>
         /// Local ENU northing in metres. Same origin-dependence and same precedence as <see cref="X"/>.
         /// </summary>
         [JsonPropertyName("y")]
-        public float Y { get; set; }
+        public float Y;
 
         /// <summary>
         /// ⭐ <c>CE-3130</c> (R-230) — how the mover treats the road network: <c>Never</c> (sneak, keep off it), <c>Neutral</c>,
@@ -85,7 +85,7 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("roadUse")]
         [JsonConverter(typeof(JsonStringEnumConverter))]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-        public Fdp.Toolkit.Navigation.RoadUse RoadUse { get; set; }
+        public Fdp.Toolkit.Navigation.RoadUse RoadUse;
 
         /// <summary>
         /// Composite facade exposing the target position as a single pickable value.

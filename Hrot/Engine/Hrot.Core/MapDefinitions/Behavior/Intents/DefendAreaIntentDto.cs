@@ -16,12 +16,12 @@ namespace Hrot.Map.Definitions.Behavior.Intents
         public const string BehaviorId = BehaviorNames.DefendArea;
 
         /// <summary>Latitude of the area center.</summary>
-        public double CenterLat { get; set; }
+        public double CenterLat;
 
         /// <summary>Longitude of the area center.</summary>
-        public double CenterLon { get; set; }
+        public double CenterLon;
 
         /// <summary>Radius in meters.</summary>
-        public float RadiusMeters { get; set; }
+        public float RadiusMeters;
     }
 }

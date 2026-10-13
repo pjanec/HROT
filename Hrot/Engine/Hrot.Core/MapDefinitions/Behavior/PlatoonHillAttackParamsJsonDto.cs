@@ -18,23 +18,23 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Start of the firing-line segment.</summary>
         [JsonPropertyName("firingLineStart")]
-        public PickableGeoPoint FiringLineStart { get; set; }
+        public PickableGeoPoint FiringLineStart;
 
         /// <summary>End of the firing-line segment.</summary>
         [JsonPropertyName("firingLineEnd")]
-        public PickableGeoPoint FiringLineEnd { get; set; }
+        public PickableGeoPoint FiringLineEnd;
 
         /// <summary>Start of the baseline retreat segment.</summary>
         [JsonPropertyName("baselineStart")]
-        public PickableGeoPoint BaselineStart { get; set; }
+        public PickableGeoPoint BaselineStart;
 
         /// <summary>End of the baseline retreat segment.</summary>
         [JsonPropertyName("baselineEnd")]
-        public PickableGeoPoint BaselineEnd { get; set; }
+        public PickableGeoPoint BaselineEnd;
 
         /// <summary>Spacing (metres) between adjacent firing-line slots. Defaults to 30 m.</summary>
         [JsonPropertyName("tankSpacing")]
-        public float TankSpacing { get; set; } = 30f;
+        public float TankSpacing = 30f;
 
         /// <summary>
         /// Network-stable ID of the target area polygon entity.
@@ -43,6 +43,6 @@ namespace Hrot.Map.Definitions.Behavior
         /// </summary>
         [JsonPropertyName("targetAreaNetworkId")]
         [MapPickableEntity("tactical_graphics")]   // ⭐ narrows the picker; the TYPE makes it pickable and remapped
-        public EntityRef TargetAreaNetworkId { get; set; }
+        public EntityRef TargetAreaNetworkId;
     }
 }

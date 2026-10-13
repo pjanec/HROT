@@ -21,19 +21,19 @@ namespace Hrot.AI.Behaviors.Orders
     {
         /// <summary>Where to go (geodetic).</summary>
         [JsonPropertyName("Location")]
-        public PickableGeoPoint Location { get; set; }
+        public PickableGeoPoint Location;
 
         /// <summary>The asked speed (m/s); 0 = the behaviour's default.</summary>
         [JsonPropertyName("Speed")]
-        public float Speed { get; set; }
+        public float Speed;
 
         /// <summary>How close counts as arrived (m); 0 = the behaviour's default.</summary>
         [JsonPropertyName("ArrivalRadius")]
-        public float ArrivalRadius { get; set; }
+        public float ArrivalRadius;
 
         /// <summary>How much to prefer roads.</summary>
         [JsonPropertyName("RoadUse")]
-        public RoadUse RoadUse { get; set; }
+        public RoadUse RoadUse;
     }
 
     /// <summary>
@@ -47,7 +47,7 @@ namespace Hrot.AI.Behaviors.Orders
     {
         /// <summary>The entity to attack.</summary>
         [JsonPropertyName("Target")]
-        public EntityRef Target { get; set; }
+        public EntityRef Target;
     }
 
     /// <summary>
