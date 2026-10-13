@@ -46,6 +46,11 @@ namespace Fdp.Toolkit.Squad.Systems
                 {
                     CarriedUnderFire(repo, evt.Unit, gateOnAuthority);   // ⛔ no `continue`: a carrier may itself be a member
                 }
+                // ⭐ CE-2152 R-e — a man who is DOWN bleeds, and every drop of his health is a Hit edge (ThreatEvaluationSystem reads any
+                //   drop as a hit): 📐 measured live (ua-casualty-care) — the bleeding casualty kept his squad "under fire" for as long as
+                //   he lived, so it was never quiet and the medic was called back on every try. His own hits do not put the squad under
+                //   fire; near misses, and hits on men still in the fight, do.
+                if (evt.What == SensorChange.Hit && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, evt.Unit)) continue;
                 // ⭐ CE-2125 (R-272) — only MEMBERS: the commander is body-less now and the leader soldier is a member.
                 //   ⛔ SUPERSEDED: "or the commander itself (a soldier-leader is in the fight)" (CE-2123 S2).
                 var commander = repo.HasComponent<UnitSubordinate>(evt.Unit) ? repo.GetComponentRO<UnitSubordinate>(evt.Unit).Commander

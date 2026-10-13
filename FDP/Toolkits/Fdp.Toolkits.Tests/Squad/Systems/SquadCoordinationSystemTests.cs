@@ -276,6 +276,29 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             Assert.DoesNotContain(EdgesAfter(() => system.Execute(_repo, 0.016f)), e => e.What == SensorChange.SquadMemberDown);
         }
 
+        /// <summary>⭐ <c>CE-2152</c> R-e — a man who is DOWN bleeds, and each drop of his health is a <c>Hit</c> edge: his own hits must not
+        /// keep the squad "under fire" (📐 measured live: the bleeding casualty kept it so for as long as he lived). A hit on a man still in
+        /// the fight does. 🔴 Red before: every Hit raised <c>SquadUnderFire</c>.</summary>
+        [Fact]
+        public void CE2152_ADownMansBleeding_DoesNotPutTheSquadUnderFire_AHitOnAFightingManDoes()
+        {
+            var (commander, m) = Designated(TacticalDesignation.SquadLeader, TacticalDesignation.Wingman, TacticalDesignation.Wingman);
+            var system = new SquadCoordinationSystem();
+            At(1); EdgesAfter(() => system.Execute(_repo, 0.016f));
+            Down(m[1]);
+            At(2); EdgesAfter(() => system.Execute(_repo, 0.016f));
+
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = m[1], What = SensorChange.Hit });   // he bleeds
+            _repo.Bus.SwapBuffers();
+            At(3);
+            Assert.DoesNotContain(EdgesAfter(() => system.Execute(_repo, 0.016f)), e => e.What == SensorChange.SquadUnderFire);
+
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = m[2], What = SensorChange.Hit });   // a man still fighting is hit
+            _repo.Bus.SwapBuffers();
+            At(4);
+            Assert.Contains(EdgesAfter(() => system.Execute(_repo, 0.016f)), e => e.What == SensorChange.SquadUnderFire && e.Unit == commander);
+        }
+
         /// <summary>⭐ L1 — no team leader ⇒ the first live member in roster order; a squad that never had a designated leader loses none.</summary>
         [Fact]
         public void CE2125_NoTeamLeader_TheFirstLiveMemberTakesOver_AndALeaderlessSquadHasNoneToLose()
