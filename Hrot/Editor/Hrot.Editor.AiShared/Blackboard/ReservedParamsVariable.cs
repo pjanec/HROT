@@ -31,6 +31,14 @@ public static class ReservedParamsVariable
             DefaultValueJson: defaultJson, IsReservedParams: true));
     }
 
+    /// <summary>⭐ <c>CE-1061</c> (U5a) — the asset now names <paramref name="paramsDtoTypeId"/>: the old reserved entry goes and a new one is
+    /// made by the same rule as a load (<see cref="AddTo"/>), with no default override (another DTO's overrides name other fields).</summary>
+    public static void Retarget(List<BlackboardVariableEntry> vars, string paramsDtoTypeId, bool managed, bool hasResolver)
+    {
+        vars.RemoveAll(v => v.IsReservedParams);
+        AddTo(vars, paramsDtoTypeId, null, managed, hasResolver);
+    }
+
     /// <summary>The reserved entry in <paramref name="vars"/>, or null.</summary>
     public static BlackboardVariableEntry? Find(IEnumerable<BlackboardVariableEntry> vars)
         => vars.FirstOrDefault(v => v.IsReservedParams);

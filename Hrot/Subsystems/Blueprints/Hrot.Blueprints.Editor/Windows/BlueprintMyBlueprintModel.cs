@@ -92,10 +92,9 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     /// <summary>⭐ <c>C-sections</c> — the AiPrimitive's working state (<c>DeclarationKind.WorkingState</c>).</summary>
     public const string SectionWorkingState = "workingstate";
 
-    /// <summary>The Inputs section's "+". ⚠ A literal for the same reason as
-    /// <see cref="CommandCreateLocalVariable"/>: adding a <c>CommandCatalog</c> member moves the two
-    /// NodeEdit gates for a string.</summary>
-    public const string CommandCreateParameter = "editor.create-parameter";
+    // ⛔ CE-1061 (U2, §13.10b D2) — the Inputs "+" (`editor.create-parameter`) is RETIRED: it authored a ParameterDecl, which the
+    //   compiler honours only when the asset names no params DTO — and every asset names one (R-2004). Adding a field to the DTO is
+    //   B4b (the editor-made DTO, postponed by the user), not this button.
 
     /// <summary>The Working State section's "+".</summary>
     public const string CommandCreateWorkingState = "editor.create-working-state";
@@ -125,7 +124,8 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             //    section's SortOrder, and the D.6.2 order is asserted position-by-position. ⛔ Reading
             //    order would prefer Inputs FIRST; that is a presentation change worth making on
             //    purpose, with the order test rewritten, and not as a side effect of this item.
-            new(SectionParameters,   "Inputs",           6, null, true, true, CommandCreateParameter),
+            // ⭐ CE-1061 (U1/U2) — the named DTO's fields, read-only; no "+" (see the retired command above).
+            new(SectionParameters,   "Inputs",           6, null, false, false, null),
         };
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -176,13 +176,16 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
         get
         {
             var reason = LocalVariablesCreateDisabledReason();
-            if (_projectedSections is null || !string.Equals(_projectedReason, reason, StringComparison.Ordinal))
+            var inputs = InputsTitle();
+            if (_projectedSections is null || !string.Equals(_projectedReason, reason, StringComparison.Ordinal)
+                || !string.Equals(_projectedInputs, inputs, StringComparison.Ordinal))
             {
                 _projectedReason   = reason;
+                _projectedInputs   = inputs;
                 _projectedSections = _sections
-                    .Select(d => d.Id == SectionLocalVariables
-                        ? d with { CreateDisabledReason = reason }
-                        : d)
+                    .Select(d => d.Id == SectionLocalVariables ? d with { CreateDisabledReason = reason }
+                               : d.Id == SectionParameters     ? d with { DisplayName = inputs }
+                               : d)
                     .ToList();
             }
             return _projectedSections;
@@ -191,6 +194,16 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
 
     private IReadOnlyList<MyBlueprintSectionDescriptor>? _projectedSections;
     private string? _projectedReason;
+    private string? _projectedInputs;
+
+    /// <summary>⭐ <c>CE-1061</c> (U1) — the Inputs header names the asset's params DTO (its simple name), so the author sees WHICH
+    /// contract the rows come from.</summary>
+    private string InputsTitle()
+        => _asset?.ParamsDtoTypeId is { Length: > 0 } dto && !string.IsNullOrWhiteSpace(dto)
+            ? "Inputs — " + SimpleName(dto)
+            : "Inputs";
+
+    private static string SimpleName(string typeId) => Hrot.Editor.AiShared.Blackboard.ParamsDtoChooser.SimpleName(typeId);
 
     /// <summary>
     /// ⭐⭐ Why the Local Variables "+" cannot be used right now, or <c>null</c> when it can.
@@ -332,7 +345,9 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             SectionMacros       => BuildGraphItems(SectionMacros,    g => g.Kind == GraphKind.Macro),
             SectionCustomEvents => BuildCustomEventItems(),
             SectionVariables    => BuildDeclarationItems(DeclarationKind.Variable,     SectionVariables),
-            SectionParameters   => BuildDeclarationItems(DeclarationKind.Parameter,    SectionParameters),
+            // ⭐ CE-1061 (U1) — what the PINS read (Get All Parameters, NodePinSchema): the declared Parameters, else the named DTO's
+            //   fields. ⛔ Not the declarations alone — every asset names a DTO and declares none, so that section was empty everywhere.
+            SectionParameters   => BuildInputItems(),
             // BP-57: the one GRAPH-scoped section. ⭐ Empty rather than absent when the canvas has no
             // graph or the graph has no locals — a section that appears and disappears reads as a
             // broken feature, and BP1664's macro case is a refusal, not a vanishing.
@@ -461,6 +476,38 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
                 IsDeletable:  true,
                 IsHostDefined: false,
                 Tooltip:      v.Tooltip));
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1061</c> (U1, §13.10b D1) — the Inputs rows: <see cref="Hrot.Blueprints.Core.Compiler.ParamsDtoFields.ParametersOf"/>,
+    /// the source Get All Parameters' pins read, so the panel and the pins cannot disagree. Read-only: a field belongs to the DTO.
+    /// </summary>
+    private IReadOnlyList<MyBlueprintItem> BuildInputItems()
+    {
+        var fields = Hrot.Blueprints.Core.Compiler.ParamsDtoFields.ParametersOf(_asset!);
+        string? dto = _asset!.ParamsDtoTypeId is { Length: > 0 } d && !string.IsNullOrWhiteSpace(d) ? SimpleName(d) : null;
+        // ⭐ CE-3194 (R-3001/R-3002, merged into CE-1061): a field carries no default any more — the DTO's is its initialiser (new T()),
+        //   and this asset's own value is its override in ParamsDefaultJson. The tooltip names the override; U5b's form shows the rest.
+        var overrides = Hrot.Blueprints.Core.Compiler.ParamsDtoFields.OverridesOf(_asset.ParamsDefaultJson);
+        var result = new List<MyBlueprintItem>(fields.Count);
+        foreach (var f in fields)
+        {
+            result.Add(new MyBlueprintItem(
+                ItemId:       $"param:{f.Name}",
+                SectionId:    SectionParameters,
+                DisplayName:  f.Name,
+                CategoryPath: null,
+                IconKey:      null,
+                BadgeText:    SimpleName(f.TypeId),
+                AccentColor:  GetVariableAccentColor(f.TypeId),
+                Children:     null,
+                IsRenamable:  false,
+                IsDeletable:  false,
+                IsHostDefined: true,
+                Tooltip:      (dto is null ? "An input of this blueprint." : $"A field of {dto}, this blueprint's params DTO — change it in the DTO.")
+                              + (overrides.TryGetValue(f.Name, out var v) ? $" This asset's default: {v}." : "")));
         }
         return result;
     }

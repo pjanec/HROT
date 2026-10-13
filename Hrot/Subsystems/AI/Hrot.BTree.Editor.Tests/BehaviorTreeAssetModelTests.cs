@@ -186,5 +186,42 @@ public sealed class BehaviorTreeAssetModelTests
         asset.WorkingStateVariableNames().Should().BeEmpty("no binding names either yet");
     }
 
+    // ── CE-1061 (U5a, R-3001): naming the params DTO ──────────────────────────
 
+    public struct DtoA { public float Radius; }
+    public struct DtoB { public int Rounds; }
+
+    /// <summary>⭐ <c>CE-1061</c> (U5a, acceptance 4 — the half that is built): picking a DTO writes <c>ParamsDtoTypeId</c>, rebuilds the
+    /// reserved <c>Params</c> entry over the new type, clears the old DTO's default overrides and marks the asset dirty; re-picking the
+    /// same DTO changes nothing.</summary>
+    [Fact]
+    public void CE1061_PickingAParamsDto_WritesTheTypeId_AndRebuildsTheParamsEntry()
+    {
+        var asset = MakeAsset();
+        asset.IsBlackboardEditorManaged = true;
+        asset.ParamsDtoTypeId = typeof(DtoA).FullName;
+        asset.ParamsDefaultJson = "{\"radius\":3}";
+        asset.SetBlackboardVariables(new[]
+        {
+            new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry("Params", typeof(DtoA), null, DefaultValueJson: "{\"radius\":3}", IsReservedParams: true),
+            new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry("Counter", typeof(int), null),
+        });
+        int changed = 0;
+        asset.Changed += () => changed++;
+
+        ((Hrot.Editor.AiShared.Blackboard.IParamsDtoAsset)asset).SetParamsDto(typeof(DtoB).FullName!);
+
+        asset.ParamsDtoTypeId.Should().Be(typeof(DtoB).FullName);
+        asset.ParamsDefaultJson.Should().BeNull("DtoA's overrides name DtoA's fields");
+        var reserved = asset.BlackboardVariables.Single(v => v.IsReservedParams);
+        reserved.FieldType.Should().Be(typeof(DtoB));
+        reserved.DefaultValueJson.Should().BeNull();
+        asset.BlackboardVariables.Select(v => v.Name).Should().Contain("Counter");
+        asset.IsDirty.Should().BeTrue();
+        changed.Should().BeGreaterThan(0);
+
+        int before = changed;
+        asset.SetParamsDto(typeof(DtoB).FullName!);
+        changed.Should().Be(before, "the same DTO again is a no-op");
+    }
 }

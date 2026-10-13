@@ -2030,6 +2030,123 @@ one used `default(T)` when no order JSON came.*
 | the field sources carry no default any more (`ParamsDtoField(Name, TypeId)`); `GeneratedBlueprintSchemaCatalog.ParamsDtoDefaultJsonOf` and `ParamsDtoEmitCore.DefaultJsonOf` deleted | `ParamsDtoFields.cs`, `RoslynParamsDtoFieldSource.cs` |
 | the end-to-end fixture: `T41_GeneratedParamsDto` now overrides only `Range` (30); `Home` / `Loops` come from `T41Params`' initialisers | `ParamsDtoAssetTests` (the feature suite, 4/4) |
 
+#### 13.10b The params panels *(ui lane, CE-1061; build-state: BUILT `2026-10-13` (U1–U3, U5a; as-built after the decisions) — designed READY-TO-BUILD the same day — dispatched by [HANDOFF_Params_Panels_Ui](blueprints/HANDOFF_Params_Panels_Ui.md) at f7ee65c37; U1–U3 + U5a; U5b waits for CE-3194)*
+
+🔒 **User, 2026-10-13:** *"why would we show the user those variable kinds? what would he do with that?"* ⇒ the panels show `Params`
+(the DTO's fields) and the variables, nothing about kinds. R-3001: *"editor should allow choosing the csharp hardcoded dto OR json
+asset dto and editing the default values of the fields per asset"*.
+
+**INVENTORY** *(codebase-memory CLI `search_graph` Class / Interface / Enum over `.*ParamsDto.*`, `.*MyBlueprintModel.*`,
+`.*VariablesPanel.*`, `.*BlackboardAuthoring.*`, `.*ParamsDtoFields.*`, `.*DeclarationKind.*`; grep for every `create-parameter`,
+`IsReservedParams`, `ParamsDtoTypeId` writer and `IBlackboardManagedAsset` implementer; each file below read)*:
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| the pins' field source is `ParamsDtoFields.ParametersOf(asset)` (declared Parameters, else the named DTO's fields via `ReflectionParamsDtoFieldSource`) | ✅ `ParamsDtoFields.cs:144`, `NodePinSchema.cs:961` | ✅ §13.10 P4 |
+| `Hrot.Editor.AiShared` (the BTree / HSM panel) cannot reach `ParamsDtoFields`: it lives in `Hrot.Blueprints.Compiler` (netstandard2.0), which only the blueprint editor references | ✅ `Hrot.Editor.AiShared.csproj` references; `Hrot.Blueprints.Editor.csproj:24` | — |
+| what a `Params.<field>` BINDING reads: the variable's CLR type's public instance fields (`ActionBindingCompatibility.AddFieldPaths`) | ✅ `ActionBindingSources.cs:168-175` | ✅ handoff §4 "U3 reads what the bindings read" |
+| the reserved `Params` entry is built from `ParamsDtoTypeId` + `ParamsDefaultJson` on load (`ReservedParamsVariable.AddTo`) and saved back as the two asset fields; save falls back to `asset.ParamsDefaultJson` when the entry is gone | ✅ `ReservedParamsVariable.cs:24`, `BehaviorTreeAssetMapper.cs:41-44,236`, `HsmAssetMapper.cs:208-209,491` | ✅ §5c B3a |
+| `IBlackboardManagedAsset` has 2 production implementers (`BehaviorTreeAsset`, `HsmAsset`) and 8 test fakes | ✅ graph + grep | — |
+| the blueprint outline's sections are a static list projected per read; Inputs = `BuildDeclarationItems(Parameter)`; the "+" is registered twice (`RegisterCreateDeclarationCommands`, quick-add for tests and the dialog for production) and drawn by `_createParameterModal` | ✅ `BlueprintMyBlueprintModel.cs:128,335`, `BlueprintDocumentFactory.cs:1791-1840`, `BlueprintMyBlueprintWindow.cs:763` | ✅ `DESIGN_Variable_Details_And_Editing.md` §1c (section = control) |
+| a DTO entry carries its type, purposes (`DtoPurpose.Params`) and origin (`DtoOrigin`: asset id or file + line) | ✅ `ParamsDtoRegistry.cs:13-45` | ✅ F1 / F2 / F9 |
+| the panel picks a variable TYPE with an ImGui combo over `VariableTypeChoice` | ✅ `VariablesPanelControl.cs:182`, `BlackboardTypeChoiceBuilder.cs:41` | — |
+| `DefaultOf(T)` (the DTO's own default) does not exist yet | ✅ graph: no `ParamsDefaults` class; tracker CE-3194 OPEN | ✅ §13.10a, R-3002 |
+
+```mermaid
+classDiagram
+  direction LR
+  class ParamsDtoFields { <<existing, Blueprints.Compiler>> ParametersOf(asset) }
+  class ActionBindingCompatibility { <<existing, AiShared>> + BindableFieldsOf(type) «extracted from AddFieldPaths» }
+  class BlueprintMyBlueprintModel { <<existing, CHANGED>> Inputs = ParametersOf rows, read-only · header names the DTO · no create }
+  class BlueprintMyBlueprintWindow { <<existing, CHANGED>> draws ParamsDtoChooser above the outline }
+  class BlackboardAuthoringWindow { <<existing, CHANGED>> + ParamsFields rows under the reserved Params }
+  class VariablesPanelControl { <<existing, CHANGED>> draws the child rows + ParamsDtoChooser }
+  class ParamsDtoChoices { <<NEW, AiShared>> Build(registry) → Choice(TypeId, Display, Origin) }
+  class ParamsDtoChooser { <<NEW, AiShared>> Draw(current, choices) → picked TypeId? }
+  class IParamsDtoAsset { <<NEW, AiShared>> ParamsDtoTypeId · SetParamsDto(typeId) }
+  class BehaviorTreeAsset { <<existing, CHANGED>> }
+  class HsmAsset { <<existing, CHANGED>> }
+  class BlueprintParamsDto { <<NEW, Blueprints.Editor>> Set(asset, typeId, markDirty) }
+  class ParamsDtoRegistry { <<existing, Hrot.Core>> Dtos · Purposes · Origin }
+  class ReservedParamsVariable { <<existing>> AddTo · Find }
+  BlueprintMyBlueprintModel ..> ParamsDtoFields : Inputs rows
+  BlackboardAuthoringWindow ..> ActionBindingCompatibility : field rows
+  ParamsDtoChoices ..> ParamsDtoRegistry
+  VariablesPanelControl ..> ParamsDtoChooser
+  BlueprintMyBlueprintWindow ..> ParamsDtoChooser
+  VariablesPanelControl ..> IParamsDtoAsset : SetParamsDto
+  BehaviorTreeAsset ..|> IParamsDtoAsset
+  HsmAsset ..|> IParamsDtoAsset
+  BehaviorTreeAsset ..> ReservedParamsVariable : rebuild the entry
+  HsmAsset ..> ReservedParamsVariable
+  BlueprintMyBlueprintWindow ..> BlueprintParamsDto
+```
+
+*What the picture shows that prose hid: each panel lists fields from the source its own consumer reads — the blueprint Inputs from the
+pins' `ParametersOf`, the BTree / HSM rows from the bindings' field walk (now one extracted function) — so no third field source
+appears; and ONE chooser (model + widget) serves all three asset kinds.*
+
+```mermaid
+sequenceDiagram
+  participant U as Author
+  participant W as VariablesPanelControl / BlueprintMyBlueprintWindow
+  participant C as ParamsDtoChooser
+  participant A as IParamsDtoAsset / BlueprintParamsDto
+  participant R as ReservedParamsVariable
+  U->>W: opens the asset
+  W->>C: Draw(current ParamsDtoTypeId, ParamsDtoChoices.Build(Default))
+  U->>C: picks EqsTacticsParams (C# · file:line) or a .params.json DTO
+  C-->>W: picked type id
+  W->>A: SetParamsDto(typeId)
+  A->>A: ParamsDtoTypeId = typeId · ParamsDefaultJson = null (another DTO's overrides are meaningless)
+  A->>R: remove the reserved entry · AddTo(typeId) (BTree / HSM)
+  A-->>W: Changed · dirty
+  W->>W: Inputs / Params rows re-read the new DTO's fields
+```
+
+```mermaid
+graph TD
+  BPE[Blueprint editor<br/>BlueprintMyBlueprintWindow.DrawClientArea] -->|each frame| CH[ParamsDtoChooser]
+  AIE[BTree / HSM editor<br/>BlackboardAuthoringWindow] -->|builds rows on change| VPC[VariablesPanelControl]
+  VPC -->|each frame| CH
+  CH --> CHO[ParamsDtoChoices<br/>over ParamsDtoRegistry.Default]
+  BPM[BlueprintMyBlueprintModel.GetItems] -->|each frame, Inputs| PO[ParamsDtoFields.ParametersOf]
+  BAW[BlackboardAuthoringWindow.Build] --> BF[ActionBindingCompatibility.BindableFieldsOf]
+  CMD[editor.create-parameter] -.->|retired: no section creates it| X[ ]
+  style CMD stroke:#c00,stroke-dasharray: 5 5
+  style X stroke:#c00,stroke-dasharray: 5 5
+```
+
+*What the module picture shows: every edge is drawn from a window's own frame — no host wiring changes; the retired command (dashed) has
+no replacement edge, by design (adding a field is B4b, postponed).*
+
+| # | decision | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| D1 | U1 rows | `ParametersOf(asset)` → read-only rows `param:{name}` (name, type badge, the DTO default as tooltip); the section is titled `Inputs — <DTO simple name>` | the asset's declared Parameters (0 in the corpus — the section is empty everywhere) |
+| D2 | U2 | delete `CommandCreateParameter`, both `RegisterCreateDeclarationCommands` overloads' Parameter registration and `_createParameterModal`; the section keeps no "+" (`CanCreateItems=false`) | keep the "+" disabled with a reason (it would teach a gesture that no longer exists) |
+| D3 | U3 field source | extract `ActionBindingCompatibility.BindableFieldsOf(Type)` from `AddFieldPaths` and use it for both — the rows list what a binding can bind | `ParamsDtoFields` (unreachable from AiShared, a cross-assembly move into backend's compiler) · a third reflection walk |
+| D4 | U3 values | the value column shows the asset's override from `ParamsDefaultJson` when it sets the field, else "(DTO default)" | computing the DTO default here (that is `DefaultOf`, CE-3194 — building it in the panel would be a second producer) |
+| D5 | U5a write path | a small `IParamsDtoAsset` (AiShared) implemented by `BehaviorTreeAsset` / `HsmAsset`; the blueprint writes `BlueprintAsset.ParamsDtoTypeId` + `MarkDirty`. A DTO change clears `ParamsDefaultJson` | widening `IBlackboardManagedAsset` (8 fakes to touch for one member) · keeping the old overrides (they name another DTO's fields) |
+| D6 | U5a choices | `ParamsDtoRegistry.Default.Dtos` with `DtoPurpose.Params`, displayed `Name — C# File.cs:line` or `Name — asset`, plus `(none)`; the current type kept even when the registry does not list it | a list per origin (F2: one registry) |
+| D7 | U5b | ⏸ not built: needs `ParamsDefaults.DefaultOf` and `BlueprintAsset.ParamsDefaultJson` (CE-3194 ①–③, OPEN) | an editor-side default (a second producer of the DTO's default) |
+
+**As built** *(2026-10-13, ui, `CE-1061`; matches the three diagrams — no deviation in shape)*:
+- U1 `BlueprintMyBlueprintModel.BuildInputItems` (`param:{name}` rows, read-only, type badge, default in the tooltip); `Sections` projects
+  the Inputs title (`Inputs — <DTO>`) beside the locals' disabled reason.
+- U2 deleted: `CommandCreateParameter`, both `RegisterCreateDeclarationCommands` overloads (they registered only that id) and the window's
+  `_createParameterModal`. `BlueprintDocumentFactory.CreateDeclaration` / `AddDeclaration` stay: they are the generic per-kind create path
+  (variables use them). An asset that still DECLARES a Parameter keeps showing it — `ParametersOf` returns declared ones first.
+- U3 `ActionBindingCompatibility.BindableFieldsOf` (extracted; `AddFieldPaths` calls it); `ParamsFieldRow.Of(dto, assetDefaultJson)` on the
+  reserved row's `VariableViewModel.ParamsFields`; `VariablesPanelControl` draws them as indented read-only rows ("(DTO default)" where the
+  asset sets nothing).
+- U5a `IParamsDtoAsset` + `ParamsDtoChooser` (`Choices` / `Draw`, AiShared); `BehaviorTreeAsset` / `HsmAsset.SetParamsDto` →
+  `ReservedParamsVariable.Retarget`; `BlueprintParamsDto.Set`. The chooser draws above the variables table and above the blueprint outline
+  (only on a kind that takes params). ⚠ The blueprint write marks dirty but is not an undoable edit (as `AddDeclaration`).
+- Rails: `DeclarationSectionsTests` `CE1061_NoCreateParameterCommand_IsRegistered`, `CE1061_ADtoNamedBlueprintsInputs_ListExactlyParametersOf_ReadOnly`,
+  `CE1061_ChoosingTheParamsDto_NamesIt_AndTheInputsFollow` (three C-sections rails restated); `NodeOwnedVariableTests.CE1061_TheParamsRow_ListsItsDtosFields_ReadOnly`;
+  `BehaviorTreeAssetModelTests.CE1061_PickingAParamsDto_WritesTheTypeId_AndRebuildsTheParamsEntry`; frame rail
+  `TheParamsPanelRendersTests` (U4 evidence, screenshot).
+
 ### 13.11 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
 
 **INVENTORY** *(codebase-memory CLI `search_graph` `EntityOrders.*` (8), `.*MenuOrder.*` (12), `.*DtoJsonSchema.*` (3),

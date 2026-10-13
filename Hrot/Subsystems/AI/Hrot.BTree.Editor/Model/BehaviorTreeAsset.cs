@@ -225,7 +225,7 @@ public sealed class BTreeEditorNode
 /// Implements <see cref="IEditableAsset"/> so it participates in the shared
 /// AI editor selection store and asset browser.
 /// </summary>
-public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset
+public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, Hrot.Editor.AiShared.Blackboard.IParamsDtoAsset, IBTreeSyncableAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset
 {
     // ⛔ S8b-2 (CE-2025): the CE-439 `InputsTypeId` / IBehaviorInputsContract is RETIRED — a host's pickers ask the ONE
     //   child-inputs lookup (Hrot.Editor.AiComposition.ChildInputTypes, over BehaviorRegistry), which answers for every tier.
@@ -317,6 +317,17 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     {
         _blackboardVariables.Clear();
         _blackboardVariables.AddRange(vars);
+        MarkDirty();
+    }
+
+    /// <summary>⭐ <c>CE-1061</c> (U5a, R-3001) — names the asset's params DTO (the variables panel's chooser); see
+    /// <see cref="Hrot.Editor.AiShared.Blackboard.IParamsDtoAsset.SetParamsDto"/>.</summary>
+    public void SetParamsDto(string typeId)
+    {
+        if (string.IsNullOrWhiteSpace(typeId) || string.Equals(ParamsDtoTypeId, typeId, StringComparison.Ordinal)) return;
+        ParamsDtoTypeId   = typeId;
+        ParamsDefaultJson = null;   // the save falls back to it when the reserved entry carries none
+        Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.Retarget(_blackboardVariables, typeId, IsBlackboardEditorManaged, Resolver != null);
         MarkDirty();
     }
 
