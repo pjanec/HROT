@@ -80,24 +80,24 @@ public sealed class ActionBindingSources
             ? null
             : _exporter.Lookup(binding.MethodFqn!)?.WorkingStateType;
 
-    /// <summary>⭐ <c>CE-2099</c> — the <c>Role=State</c> variables of the binding's working-state type, sorted.</summary>
+    /// <summary>⭐ <c>CE-2099</c> — the variables of the binding's working-state type, sorted. ⭐ <c>CE-3193</c>: any variable of
+    /// that type — naming it as the working state is what makes it working state.</summary>
     public IReadOnlyList<string> GetWorkingStateVariables(in BehaviorActionBindingFacet binding)
     {
         var ws = WorkingStateType(binding);
         if (ws is null) return Array.Empty<string>();
         return _asset.BlackboardVariables
-            .Where(v => v.Role == BlackboardVariableRole.State && v.FieldType == ws)
+            .Where(v => v.FieldType == ws && !v.IsReservedParams)
             .Select(v => v.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
 
-    /// <summary>⭐ <c>CE-2099</c> — creates a SHARED (<c>Scope=Behavior</c>) <c>Role=State</c> variable of the binding's
-    /// working-state type, for other nodes to bind too; returns its name, or null when the method is not stateful.</summary>
+    /// <summary>⭐ <c>CE-2099</c> — creates a variable of the binding's working-state type, for other nodes to bind too (every
+    /// node naming it shares it); returns its name, or null when the method is not stateful.</summary>
     public string? PromoteWorkingState(in BehaviorActionBindingFacet binding)
     {
         var ws = WorkingStateType(binding);
         return ws is null ? null
-            : AutoManagedVariables.Create(_asset, char.ToLowerInvariant(ws.Name[0]) + ws.Name.Substring(1), ws,
-                                          BlackboardVariableRole.State, WorkingStateScope.Behavior);
+            : AutoManagedVariables.Create(_asset, char.ToLowerInvariant(ws.Name[0]) + ws.Name.Substring(1), ws);
     }
 
     /// <summary>

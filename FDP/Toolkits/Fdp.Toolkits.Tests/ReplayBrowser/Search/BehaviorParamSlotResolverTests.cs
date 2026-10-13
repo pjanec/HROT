@@ -41,8 +41,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             BlackboardLayoutType = typeof(RootParams),
             StatefulWorkingSlots = new[]
             {
-                new StatefulSlotInfo(SlotA, 4, 0, typeof(StateA), "ActionA", Role: 0, Scope: 0),
-                new StatefulSlotInfo(SlotB, 4, 0, typeof(StateB), "ActionB", Role: 0, Scope: 1),
+                new StatefulSlotInfo(SlotA, 4, 0, typeof(StateA), "ActionA", Scope: 0),
+                new StatefulSlotInfo(SlotB, 4, 0, typeof(StateB), "ActionB", Scope: 1),
             },
         };
 

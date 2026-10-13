@@ -116,16 +116,12 @@ public sealed class AiPrimitiveConditionPlacementRoundTripTests
             v => v.Name == conditionNodeDto.Condition.ExpressionTargetField).Which;
         paramsVarDto.Type.TypeId.Should().Be(typeof(FakeBpGeneratedCondition.Params).FullName,
             "matches the composed-action shape's Blackboard.Variables[0].Type.TypeId (the generated Params FQN)");
-        paramsVarDto.Role.Should().Be(BlackboardVariableRole.Input,
-            "the Params variable stays Input role (unchanged from pre-Slice-1 behavior)");
+        paramsVarDto.IsWorkingState.Should().BeFalse("CE-3193: the Params variable is a plain variable — no binding names it as working state");
 
         var wsVarDto = dto.Blackboard.Variables.Should().ContainSingle(
             v => v.Name == conditionNodeDto.Condition.WorkingStateTargetField).Which;
         wsVarDto.Type.TypeId.Should().Be(typeof(FakeBpGeneratedCondition.WorkingState).FullName,
             "the WorkingState variable is typed as the blueprint's generated WorkingState struct");
-        wsVarDto.Role.Should().Be(BlackboardVariableRole.State,
-            "the WorkingState variable must be Role=State so its Scope is authorable in the Role/Scope panel");
-        wsVarDto.Scope.Should().Be(WorkingStateScope.Node,
-            "default scope is Node (private) — matching pre-Slice-1 semantics until a designer opts into Behavior scope");
+        wsVarDto.IsWorkingState.Should().BeTrue("CE-3193: the node names it as its WorkingStateTargetField, which makes it working state");
     }
 }

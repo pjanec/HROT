@@ -41,8 +41,7 @@ public sealed class BehaviorResolverAuthoringTests
             dto.Blackboard.Variables.Add(new BlackboardVariableDto
             {
                 Name = n, Type = new BlackboardTypeRefDto { TypeId = t },
-                Role = st ? BlackboardVariableRole.State : BlackboardVariableRole.Input,
-                Scope = node ? WorkingStateScope.Node : WorkingStateScope.Behavior,
+                IsWorkingState = st && !node,   // CE-3193: derived; a node-private memory is not in the block
             });
         return dto;
     }
@@ -64,14 +63,14 @@ public sealed class BehaviorResolverAuthoringTests
         Assert.Equal(shipped.StateVariables, derived.StateVariables);
     }
 
-    /// <summary>⭐ Create mirrors the BLOCK: In vars + Behavior-scoped State vars, CLR type ids; a Node-scoped
-    /// State var (a node-bound side slot, not the block) is excluded. ⭐ CE-443: it seeds one Parameter per Input
+    /// <summary>⭐ Create mirrors the BLOCK: In vars + working-state vars (St), CLR type ids. ⛔ CE-3193: the case "a Node-scoped
+    /// State var is excluded" is gone with the authored Scope. ⭐ CE-443: it seeds one Parameter per Input
     /// variable (the authored input's identity shape). One empty Construction graph.</summary>
     [Fact]
     public void Create_MirrorsTheBlock_AndSeedsOneConstructionGraph()
     {
         var bp = BehaviorResolverAuthoring.Create(Behaviour(
-            ("Speed", "float", false, false), ("Doubled", "float", true, false), ("Rally", "Vector3", true, true)), Guid.NewGuid());
+            ("Speed", "float", false, false), ("Doubled", "float", true, false)), Guid.NewGuid());
 
         Assert.Equal(BlueprintDispatchKind.Library, bp.Dispatch);
         Assert.Equal("BehResolver", bp.Name);

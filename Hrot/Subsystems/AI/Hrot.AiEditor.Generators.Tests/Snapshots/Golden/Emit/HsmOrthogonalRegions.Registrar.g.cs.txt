@@ -30,7 +30,8 @@ public static class HsmOrthogonalRegionsRegistrar
         // Compile the blob from the topology-core thunk.
         var blob = HsmOrthogonalRegions.Compile();
 
-        // 4a. CE-429: a block with no Role=Input variable — nothing to overlay, but it must be allocated (and its State baked).
+        // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
+        // ParseParamsDelegate uses byte* — must be captured in an unsafe block.
         global::Fdp.Toolkit.Behavior.BakeDefaultsDelegate? __bakeDefaults;
         global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;
         unsafe
@@ -40,8 +41,16 @@ public static class HsmOrthogonalRegionsRegistrar
             {
             }
             __bakeDefaults = __BakeDefaults;
-            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => { __BakeDefaults(memory, capacity); global::Fdp.Toolkit.Behavior.BehaviorParams.RequireNoStoredFields(json, "HsmOrthogonalRegions", "Hrot.Map.Definitions.Behavior.NoParams"); };
+            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>
+            {
+                // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
+                __BakeDefaults(memory, capacity);
+
+                // Step 2 — CE-2135: 'Hrot.Map.Definitions.Behavior.NoParams' is stored nowhere; the variables are not JSON.
+                global::Fdp.Toolkit.Behavior.BehaviorParams.RequireNoStoredFields(json, "HsmOrthogonalRegions", "Hrot.Map.Definitions.Behavior.NoParams");
+            };
         }
+
         // Register the JSON-owned HSM definition.
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("HsmOrthogonalRegions"), "HsmOrthogonalRegions", new BehaviorDefinition
         {
@@ -49,10 +58,13 @@ public static class HsmOrthogonalRegionsRegistrar
             BrainTier     = BehaviorConstants.BrainTierHsm,
             HsmDefinition = blob,
             HsmMetadata   = blob.Metadata,
-            BlueprintStructureHash = 14284189855993242755UL,   // CE-455: the root block's layout
-            ManagedBlackboardVariables = global::System.Array.Empty<global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable>(),
-            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Machines.HsmOrthogonalRegions_Block),
+            BlueprintStructureHash = 12373048903805251757UL,   // CE-455: the root block's layout
+            ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
+            {
+                new("SharedCursor", typeof(int), 0),
+            },
             JsonParamsDtoType    = typeof(global::Hrot.Map.Definitions.Behavior.NoParams),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Machines.HsmOrthogonalRegions_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,
         });

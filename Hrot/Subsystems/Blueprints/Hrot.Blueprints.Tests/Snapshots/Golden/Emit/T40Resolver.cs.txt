@@ -25,7 +25,7 @@ public static class T40Resolver_3C40EC2E_Bp
         var __t2 = __t0 * __t1;
         block.In.Speed = __t2;
         var __t3 = __t2 * __t1;
-        block.St.Doubled = __t3;
+        block.In.Doubled = __t3;
         return global::Fbt.NodeStatus.Success;
         
     }

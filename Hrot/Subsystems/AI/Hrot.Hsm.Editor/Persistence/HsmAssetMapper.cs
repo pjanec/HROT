@@ -209,7 +209,7 @@ public static class HsmAssetMapper
         dto.ParamsDefaultJson = Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.Find(asset.BlackboardVariables)?.DefaultValueJson
                                 ?? asset.ParamsDefaultJson;   // ⭐ CE-2135
 
-        return dto;
+        return Hrot.AiEditor.Persistence.WorkingStateVariables.Mark(dto);   // ⭐ CE-3193 — working state, from the bindings
     }
 
     // ── DTO → Model ───────────────────────────────────────────────────────────
@@ -536,8 +536,6 @@ public static class HsmAssetMapper
                 DefaultValueJson = v.DefaultValueJson,
                 Comment          = v.Comment,
                 IsAutoManaged    = v.IsAutoManaged,
-                Role             = v.Role,
-                Scope            = v.Scope,
             });
         }
 
@@ -553,9 +551,7 @@ public static class HsmAssetMapper
             result.Add(new BlackboardVariableEntry(
                 v.Name, clrType, v.Comment,
                 IsAutoManaged:    v.IsAutoManaged,
-                DefaultValueJson: v.DefaultValueJson,
-                Role:             v.Role,
-                Scope:            v.Scope));
+                DefaultValueJson: v.DefaultValueJson));
         }
         return result;
     }

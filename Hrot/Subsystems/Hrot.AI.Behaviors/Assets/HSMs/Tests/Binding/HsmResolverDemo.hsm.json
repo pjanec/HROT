@@ -87,9 +87,7 @@
           "FixedLength": null
         },
         "DefaultValueJson": null,
-        "Comment": "CE-503: Role=State at Behavior scope - the block's St half, written only by the resolver.",
-        "Role": "State",
-        "Scope": "Behavior"
+        "Comment": "CE-503: Role=State at Behavior scope - the block's St half, written only by the resolver."
       }
     ]
   },

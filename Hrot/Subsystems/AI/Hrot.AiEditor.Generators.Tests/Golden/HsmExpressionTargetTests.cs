@@ -97,16 +97,17 @@ public sealed class HsmExpressionTargetTests
 
     /// <summary>
     /// ⚠ <b>A target naming a variable that is not packed falls back to the bare FQN</b> rather than
-    /// baking an offset that does not exist. <c>Role = State</c> variables live in the partition tier,
-    /// so they are not inline params and cannot be an inline expression target.
+    /// baking an offset that does not exist. A working-state variable (one a binding names as its working state —
+    /// <c>CE-3193</c>) lives in the block's <c>St</c> half, so it is not packed and cannot be an inline expression target.
     /// </summary>
     [Fact]
     public void ATargetThatIsNotAPackedParam_FallsBackToTheBareFqn()
     {
         var dto = MakeBoundAsset("Threshold");
-        // "Cursor" is Role=State: it lives in the partition tier, so it is not an inline param.
-        var dto2 = dto; dto2.Transitions.Single(t => t.Action?.MethodFqn == BoundActionFqn)
-            .Action!.ExpressionTargetField = "Cursor";
+        // "Cursor" is made working state by naming it so (CE-3193): it lives in St, so it is not an inline param.
+        var bound = dto.Transitions.Single(t => t.Action?.MethodFqn == BoundActionFqn).Action!;
+        bound.ExpressionTargetField   = "Cursor";
+        bound.WorkingStateTargetField = "Cursor";
 
         string core = HsmEmitCore.EmitTopologyCore(dto);
 
@@ -176,7 +177,7 @@ public sealed class HsmExpressionTargetTests
                {
                    Name = v.Name,
                    Type = new Hrot.AiEditor.Persistence.BTree.BlackboardTypeRefDto { TypeId = v.Type.TypeId },
-                   Role = v.Role,
+                   IsWorkingState = v.IsWorkingState,
                }).ToList(),
                out _)
            .Single(f => f.Name == variableName).ByteOffset;

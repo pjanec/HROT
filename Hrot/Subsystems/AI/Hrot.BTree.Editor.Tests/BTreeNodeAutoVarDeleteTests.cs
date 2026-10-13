@@ -163,11 +163,11 @@ public sealed class BTreeNodeAutoVarDeleteTests
     /// <summary>
     /// Adds an Action node that references BOTH a Params variable (ExpressionTargetField) and a
     /// WorkingState variable (WorkingStateTargetField), creating each as an auto-managed variable
-    /// (the WorkingState one with Role=State + the given scope) — mirrors a Slice-1 composed node.
+    /// (the WorkingState one named by the binding — CE-3193) — mirrors a Slice-1 composed node.
     /// The WorkingState variable is created only if not already present, so two nodes can share it.
     /// </summary>
     private static NodeId AddComposedNodeWithParamsAndWorkingState(
-        BehaviorTreeAsset asset, string paramsVar, string workingStateVar, WorkingStateScope wsScope)
+        BehaviorTreeAsset asset, string paramsVar, string workingStateVar)
     {
         var visualId = Guid.NewGuid();
         asset.AddNode(new BTreeEditorNode
@@ -188,7 +188,7 @@ public sealed class BTreeNodeAutoVarDeleteTests
         if (asset.BlackboardVariables.All(v => v.Name != workingStateVar))
             asset.AddVariable(new BlackboardVariableEntry(
                 workingStateVar, typeof(int), null, IsAutoManaged: true,
-                DefaultValueJson: null, Role: BlackboardVariableRole.State, Scope: wsScope));
+                DefaultValueJson: null));
         return new NodeId(visualId);
     }
 
@@ -199,7 +199,7 @@ public sealed class BTreeNodeAutoVarDeleteTests
         // WorkingState (State). Deleting the node must remove BOTH, not just the Params one.
         var (sink, asset) = MakeSink();
         var nodeId = AddComposedNodeWithParamsAndWorkingState(
-            asset, "bpParams", "bpWorkingState", WorkingStateScope.Node);
+            asset, "bpParams", "bpWorkingState");
 
         asset.BlackboardVariables.Should().HaveCount(2);
 
@@ -217,9 +217,9 @@ public sealed class BTreeNodeAutoVarDeleteTests
         // WorkingState var, because the surviving node still references it.
         var (sink, asset) = MakeSink();
         var id1 = AddComposedNodeWithParamsAndWorkingState(
-            asset, "bpParams", "bpSharedWs", WorkingStateScope.Behavior);
+            asset, "bpParams", "bpSharedWs");
         var id2 = AddComposedNodeWithParamsAndWorkingState(
-            asset, "bpParams_2", "bpSharedWs", WorkingStateScope.Behavior);
+            asset, "bpParams_2", "bpSharedWs");
 
         asset.BlackboardVariables.Should().HaveCount(3); // bpParams, bpParams_2, bpSharedWs
 

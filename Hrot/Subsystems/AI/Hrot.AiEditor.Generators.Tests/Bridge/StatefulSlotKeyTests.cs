@@ -258,14 +258,12 @@ public sealed class StatefulSlotKeyTests
     // ── S3-7: manifest carries role/scope ─────────────────────────────────────────
 
     /// <summary>
-    /// S3-7: the emitted StatefulWorkingSlots manifest entry for a side-slot State variable
-    /// must carry the authored Role (State=1) and Scope as the trailing ctor args, so the live inspector can
-    /// group/label by scope. ⚠ <c>CE-437</c> moved every Behavior-scoped State variable into the block (no
-    /// manifest entry) and <c>CE-441</c> slice 1 removed Entity, so the side-slot subject is the NODE-bound
-    /// State variable — Role=State makes the args non-default even at Scope=Node.
+    /// ⭐ <c>CE-3193</c> — a variable a binding names as its working state IS working state: it lives in the block's
+    /// <c>St</c> half (reached by name), so it needs no side slot and no manifest entry. ⛔ HISTORY: this rail pinned the
+    /// authored Role/Scope bytes on a NODE-scoped side slot (S3-7); the authored pair is gone.
     /// </summary>
     [Fact]
-    public void StatefulSlotInfo_CarriesRoleAndScope()
+    public void ANamedWorkingStateVariable_LivesInTheBlock_NotASideSlot()
     {
         const string ParamsTypeId = "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorParams";
         const string StateTypeId  = "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState";
@@ -292,15 +290,12 @@ public sealed class StatefulSlotKeyTests
                     {
                         Name = "cfg",
                         Type = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
-                        Role = BlackboardVariableRole.Input,
                     },
-                    // ⚠ NODE scope (the default): Behavior is block-resident (CE-437), Entity is gone (CE-441).
-                    //   A node-bound State variable is the one that still rides a side slot.
+                    // the node below names it as its working state — that alone makes it St (CE-3193)
                     new BlackboardVariableDto
                     {
                         Name  = "shared",
                         Type  = new BlackboardTypeRefDto { TypeId = StateTypeId },
-                        Role  = BlackboardVariableRole.State,
                     }
                 }
             },
@@ -324,10 +319,8 @@ public sealed class StatefulSlotKeyTests
         Func<string, int?> sizeResolver = t => t == ParamsTypeId ? 4 : (int?)null;
         string bridgeSrc = BTreeBridgeEmitCore.EmitBridge(dto, sizeResolver);
 
-        // Role=State(1), Scope=Behavior(1) appended after the NodeLabel string, as named enum casts
-        // (clarity-only change — same bytes, self-documenting source text) rather than raw ints.
-        bridgeSrc.Should().Contain(
-            "\"AdvanceShared\", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Node)",
-            "the StatefulSlotInfo for a side-slot State variable must carry its Role and Scope as named enum casts");
+        int key = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId, WorkingStateScope.Behavior, Guid.Empty, "shared");
+        bridgeSrc.Should().Contain(".St.shared", "the thunk reaches the working state through the block, by name");
+        bridgeSrc.Should().NotContain($"StatefulSlotInfo({key},", "one home: a block member has no side slot (CE-437)");
     }
 }

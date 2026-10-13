@@ -98,12 +98,7 @@ public sealed class TrackCWiringTests : IDisposable
         var ids = window.Model!.Sections.OrderBy(s => s.SortOrder).Select(s => s.Id).ToArray();
 
         Assert.Equal(
-            new[]
-            {
-                BlackboardMyBlueprintModel.SectionInputs,
-                BlackboardMyBlueprintModel.SectionWorkingState,
-                BlackboardMyBlueprintModel.SectionAssetGlobals,
-            },
+            new[] { BlackboardMyBlueprintModel.SectionInputs },   // CE-3193: one section
             ids);
     }
 
@@ -117,7 +112,7 @@ public sealed class TrackCWiringTests : IDisposable
         var window = MakeRegistrar().MyBlueprint!;
         window.Retarget(() => Array.Empty<BlackboardVariableEntry>(), null, null);
 
-        Assert.Equal(3, window.Model!.Sections.Count);
+        Assert.Single(window.Model!.Sections);   // CE-3193: one "Variables" section
         Assert.All(window.Model.Sections, s => Assert.Empty(window.Model.GetItems(s.Id)));
     }
 
@@ -166,18 +161,13 @@ public sealed class TrackCWiringTests : IDisposable
         var reg = MakeRegistrar();
         var rows = new Dictionary<string, IVariableRowSource>
         {
-            [BlackboardMyBlueprintModel.SectionInputs]       = Source("Health"),
-            [BlackboardMyBlueprintModel.SectionWorkingState] = Source("Cursor", "Phase"),
+            [BlackboardMyBlueprintModel.SectionInputs] = Source("Health"),
         };
         reg.SetSectionSourceResolver(id => rows.TryGetValue(id, out var s) ? s : null);
 
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionInputs);
         Assert.Equal(BlackboardMyBlueprintModel.SectionInputs, reg.Variables.Section);
         Assert.Equal(new[] { "Health" }, Names(reg.Variables));
-
-        reg.MyBlueprint.SelectSection(BlackboardMyBlueprintModel.SectionWorkingState);
-        Assert.Equal(BlackboardMyBlueprintModel.SectionWorkingState, reg.Variables.Section);
-        Assert.Equal(new[] { "Cursor", "Phase" }, Names(reg.Variables));
     }
 
     /// <summary>

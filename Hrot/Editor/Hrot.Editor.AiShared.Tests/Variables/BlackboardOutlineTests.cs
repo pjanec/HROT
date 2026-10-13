@@ -25,105 +25,66 @@ namespace Hrot.Editor.AiShared.Tests.Variables;
 /// </summary>
 public sealed class BlackboardOutlineTests
 {
-    private static BlackboardVariableEntry Var(
-        string name, BlackboardVariableRole role, WorkingStateScope scope, bool auto = false)
-        => new(name, typeof(int), Comment: null, IsAutoManaged: auto,
-               DefaultValueJson: null, Role: role, Scope: scope);
+    private static BlackboardVariableEntry Var(string name, bool auto = false)
+        => new(name, typeof(int), Comment: null, IsAutoManaged: auto, DefaultValueJson: null);
 
     private static BlackboardMyBlueprintModel Model(
         BlackboardHostKind host, params BlackboardVariableEntry[] vars)
         => new(host, () => vars);
 
     /// <summary>
-    /// ⭐ <b>Each host yields its section list in <c>SortOrder</c></b>, and the two lists are the same
-    /// SHAPE — the hosts differ in their create-command ids, not in what a section means.
+    /// ⭐ <b>Each host yields ONE section, "Variables"</b> (<c>CE-3193</c>, design §5c B3a): a variable has no authored kind,
+    /// so nothing splits them. ⛔ HISTORY: three sections — Variables / Working State / Asset Globals — the Role × Scope product.
     /// </summary>
     [Theory]
     [InlineData(BlackboardHostKind.BTree, "btree")]
     [InlineData(BlackboardHostKind.Hsm,   "hsm")]
-    public void EachHost_YieldsItsSectionsInSortOrder(BlackboardHostKind host, string prefix)
+    public void EachHost_YieldsOneVariablesSection(BlackboardHostKind host, string prefix)
     {
-        var sections = Model(host).Sections;
+        var section = Assert.Single(Model(host).Sections);
 
-        Assert.Equal(new[] { "Variables", "Working State", "Asset Globals" },   // CE-2135 (B3a): "Inputs" became "Variables"
-                     sections.OrderBy(s => s.SortOrder).Select(s => s.DisplayName));
-
+        Assert.Equal("Variables", section.DisplayName);
+        Assert.Equal(BlackboardMyBlueprintModel.SectionInputs, section.Id);
         // ⚠ Host-qualified, so two open perspectives cannot pick up each other's commands.
-        Assert.All(sections, s => Assert.StartsWith($"{prefix}.blackboard.create", s.CreateCommandId));
-        Assert.All(sections, s => Assert.True(s.CanCreateItems));
+        Assert.StartsWith($"{prefix}.blackboard.create", section.CreateCommandId);
+        Assert.True(section.CanCreateItems);
     }
 
-    /// <summary>
-    /// ⚠ <b>EMPTY rather than ABSENT</b> — <c>SectionLocalVariables</c>' rule: <i>"a section that
-    /// appears and disappears reads as a broken feature."</i> ⇒ an asset with no variables at all still
-    /// lists all three.
-    /// </summary>
+    /// <summary>⚠ <b>EMPTY rather than ABSENT</b> — an asset with no variables still lists the section.</summary>
     [Fact]
-    public void AnAssetWithNoVariables_StillListsEverySection()
+    public void AnAssetWithNoVariables_StillListsTheSection()
     {
         var model = Model(BlackboardHostKind.Hsm);
 
-        Assert.Equal(3, model.Sections.Count);
-        Assert.All(model.Sections, s => Assert.Empty(model.GetItems(s.Id)));
+        var section = Assert.Single(model.Sections);
+        Assert.Empty(model.GetItems(section.Id));
+    }
+
+    /// <summary>⭐ Every variable lands in the one section, in declaration order.</summary>
+    [Fact]
+    public void EveryVariable_LandsInTheOneSection()
+    {
+        var model = Model(BlackboardHostKind.Hsm, Var("speed"), Var("cursor"), Var("shared"));
+
+        Assert.Equal(new[] { "speed", "cursor", "shared" },
+                     model.GetItems(BlackboardMyBlueprintModel.SectionInputs).Select(i => i.DisplayName));
     }
 
     /// <summary>
-    /// ⭐⭐ <b>The <c>Role × Scope</c> routing, §1c's table exactly.</b> Inputs is <c>Role.Input</c>;
-    /// Working State is <c>Role.State</c> at <c>Node</c> scope; Asset Globals is <c>Role.State</c>
-    /// shared wider.
-    /// </summary>
-    [Theory]
-    [InlineData(BlackboardVariableRole.Input, WorkingStateScope.Node,     BlackboardMyBlueprintModel.SectionInputs)]
-    [InlineData(BlackboardVariableRole.Input, WorkingStateScope.Behavior, BlackboardMyBlueprintModel.SectionInputs)]
-    [InlineData(BlackboardVariableRole.State, WorkingStateScope.Node,     BlackboardMyBlueprintModel.SectionWorkingState)]
-    [InlineData(BlackboardVariableRole.State, WorkingStateScope.Behavior, BlackboardMyBlueprintModel.SectionAssetGlobals)]
-    public void EachVariable_LandsInItsSection(
-        BlackboardVariableRole role, WorkingStateScope scope, string expectedSection)
-    {
-        var v     = Var("v", role, scope);
-        var model = Model(BlackboardHostKind.BTree, v);
-
-        Assert.Equal(expectedSection, BlackboardMyBlueprintModel.SectionOf(v));
-        Assert.Equal("v", Assert.Single(model.GetItems(expectedSection)).DisplayName);
-
-        // ⛔ And nowhere else.
-        foreach (var other in model.Sections.Where(s => s.Id != expectedSection))
-            Assert.Empty(model.GetItems(other.Id));
-    }
-
-    /// <summary>⭐ A populated asset splits across sections rather than piling into one.</summary>
-    [Fact]
-    public void APopulatedAsset_SplitsAcrossSections()
-    {
-        var model = Model(BlackboardHostKind.Hsm,
-            Var("speed",  BlackboardVariableRole.Input, WorkingStateScope.Node),
-            Var("cursor", BlackboardVariableRole.State, WorkingStateScope.Node),
-            Var("shared", BlackboardVariableRole.State, WorkingStateScope.Behavior));
-
-        Assert.Equal(new[] { "speed"  }, model.GetItems(BlackboardMyBlueprintModel.SectionInputs).Select(i => i.DisplayName));
-        Assert.Equal(new[] { "cursor" }, model.GetItems(BlackboardMyBlueprintModel.SectionWorkingState).Select(i => i.DisplayName));
-        Assert.Equal(new[] { "shared" },
-                     model.GetItems(BlackboardMyBlueprintModel.SectionAssetGlobals).Select(i => i.DisplayName));
-    }
-
-    /// <summary>
-    /// ⛔⛔ <b>No <c>Role</c>/<c>Scope</c> control anywhere in the outline</b> (§1c) — the section IS
-    /// the classification. ⭐ Asserted because <c>BlackboardVariableEntry</c> carries both members, so
-    /// their absence must be a decision rather than an oversight.
+    /// ⛔⛔ <b>No kind anywhere</b> — <c>CE-3193</c> removed <c>Role</c>/<c>Scope</c> from the entry, so no section or command
+    /// can offer one.
     /// </summary>
     [Fact]
-    public void NoSection_OffersARoleOrScopeControl()
+    public void NoVariableKind_Survives()
     {
-        Assert.NotNull(typeof(BlackboardVariableEntry).GetProperty("Role"));
-        Assert.NotNull(typeof(BlackboardVariableEntry).GetProperty("Scope"));
+        Assert.Null(typeof(BlackboardVariableEntry).GetProperty("Role"));
+        Assert.Null(typeof(BlackboardVariableEntry).GetProperty("Scope"));
 
         foreach (var host in Enum.GetValues<BlackboardHostKind>())
         foreach (var section in Model(host).Sections)
         {
             Assert.DoesNotContain("Role",  section.DisplayName, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Scope", section.DisplayName, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("role",  section.CreateCommandId!, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("scope", section.CreateCommandId!, StringComparison.OrdinalIgnoreCase);
         }
     }
 
@@ -134,10 +95,9 @@ public sealed class BlackboardOutlineTests
     [Fact]
     public void AnAutoManagedVariable_IsHostDefinedAndNotEditable()
     {
-        var model = Model(BlackboardHostKind.BTree,
-            Var("owned", BlackboardVariableRole.State, WorkingStateScope.Node, auto: true));
+        var model = Model(BlackboardHostKind.BTree, Var("owned", auto: true));
 
-        var item = Assert.Single(model.GetItems(BlackboardMyBlueprintModel.SectionWorkingState));
+        var item = Assert.Single(model.GetItems(BlackboardMyBlueprintModel.SectionInputs));
         Assert.True (item.IsHostDefined);
         Assert.False(item.IsRenamable);
         Assert.False(item.IsDeletable);

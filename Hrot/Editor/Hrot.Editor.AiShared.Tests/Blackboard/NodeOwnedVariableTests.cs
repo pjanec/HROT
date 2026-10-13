@@ -207,30 +207,6 @@ internal sealed class FakeBlackboardAsset : IEditableAsset, IBlackboardManagedAs
     public void RenameVariable(string o, string n) { Changed?.Invoke(); }
     public int CountNodesReferencingVariable(string name) => _refCountOverride;
 
-    // ── S3-1 authorability: real (non-no-op) Role/Scope updates, mirroring
-    // BehaviorTreeAsset.UpdateVariableRole/UpdateVariableScope, so tests can prove the
-    // schema call actually persists on the model — including for IsAutoManaged rows,
-    // since the real asset applies the update purely by name lookup with no auto-managed gate.
-    public int UpdateVariableScopeCallCount { get; private set; }
-    public int UpdateVariableRoleCallCount { get; private set; }
-
-    public void UpdateVariableRole(string name, BlackboardVariableRole role)
-    {
-        UpdateVariableRoleCallCount++;
-        int idx = _vars.FindIndex(v => v.Name == name);
-        if (idx < 0) return;
-        _vars[idx] = _vars[idx] with { Role = role };
-        Changed?.Invoke();
-    }
-
-    public void UpdateVariableScope(string name, WorkingStateScope scope)
-    {
-        UpdateVariableScopeCallCount++;
-        int idx = _vars.FindIndex(v => v.Name == name);
-        if (idx < 0) return;
-        _vars[idx] = _vars[idx] with { Scope = scope };
-        Changed?.Invoke();
-    }
 
     public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string v) => Array.Empty<BlackboardAliasBinding>();
     public void AddAlias(string v, BlackboardAliasBinding b) { }

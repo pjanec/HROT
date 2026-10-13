@@ -22,29 +22,6 @@ public interface IVariablesSchemaSource
     int CountNodesReferencingVariable(string name);
     
     /// <summary>
-    /// U-5 / <c>BP-230</c> — whether this source can actually apply <see cref="UpdateVariableRole"/> /
-    /// <see cref="UpdateVariableScope"/>.
-    ///
-    /// <para>
-    /// ⛔⛔ <b>Deliberately has NO default body.</b> Every implementer must answer, because the thing
-    /// this replaces was <b>silence built into the interface</b>: the two setters below shipped as
-    /// <c>{ }</c> defaults *"so existing mock implementations continue to compile"*, and
-    /// <c>BlueprintVariableSchemaSource</c> took that offer. ⇒ the panel drew a live Role combo for a
-    /// blueprint (it gates only on <see cref="IsReadOnly"/>, which is <c>false</c> there), the
-    /// designer changed it, and the call landed in an empty body. ⭐ <b>Trap #5 in the contract
-    /// itself</b> — a default body is the interface volunteering to lie on an implementer's behalf.
-    /// </para>
-    ///
-    /// <para>
-    /// ⭐ <c>Q-k</c> ruled the semantics: for blueprints <c>Role</c>/<c>Scope</c> are <b>read-only</b> —
-    /// a MOVE between storage classes, not a toggle. So the honest answer is not to implement the
-    /// setter but to <b>say the surface cannot edit them</b>, which lets the panel render the value as
-    /// text instead of a dead control.
-    /// </para>
-    /// </summary>
-    bool SupportsRoleScopeEditing { get; }
-
-    /// <summary>
     /// ⭐⭐⭐ <b>Batch 98 (<c>98a</c>) — WHERE AN INITIAL-VALUE EDIT LANDS, in the vocabulary all three
     /// hosts already share.</b>
     ///
@@ -114,22 +91,6 @@ public interface IVariablesSchemaSource
     /// </summary>
     Variables.DeclarationPropertySnapshot? ReadVariableProperties(string name);
 
-    // S3-1: Role / Scope authoring.
-    // ⚠ U-5: these keep default bodies so implementers that legitimately cannot edit need not write
-    // them — but the bodies now THROW rather than doing nothing. Combined with
-    // SupportsRoleScopeEditing the pair is honest in both directions: a source that says it cannot
-    // edit is never called, and one that says it can but forgot to implement fails loudly instead of
-    // discarding the designer's edit.
-    void UpdateVariableRole(string name, BlackboardVariableRole role)
-        => throw new NotSupportedException(
-            $"{GetType().Name} does not support editing Role. "
-            + "Check SupportsRoleScopeEditing before calling.");
-
-    void UpdateVariableScope(string name, WorkingStateScope scope)
-        => throw new NotSupportedException(
-            $"{GetType().Name} does not support editing Scope. "
-            + "Check SupportsRoleScopeEditing before calling.");
-
     // Aliasing
     IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements { get; }
     void AddAlias(string name, BlackboardAliasBinding binding);
@@ -160,10 +121,6 @@ public sealed class BTreeHsmSchemaSource : IVariablesSchemaSource
     public void MoveVariable(int sourceIndex, int destIndex) => _asset.MoveVariable(sourceIndex, destIndex);
     public int CountNodesReferencingVariable(string name) => _asset.CountNodesReferencingVariable(name);
     
-    // U-5: BTree/HSM assets DO carry role/scope, so this source answers yes and implements both.
-    public bool SupportsRoleScopeEditing => true;
-    public void UpdateVariableRole(string name, BlackboardVariableRole role) => _asset.UpdateVariableRole(name, role);
-    public void UpdateVariableScope(string name, WorkingStateScope scope) => _asset.UpdateVariableScope(name, scope);
 
     /// <summary>
     /// ⭐ 99a — an AI blackboard entry carries only DefaultValue and Comment of the properties set
@@ -394,13 +351,12 @@ public sealed class VariablesPanelControl
         var schema = section.Schema;
         // ⭐ CE-2135 (B3a, R-3000) — no Role column: a variable is a variable; the behaviour's JSON params are the reserved
         //   read-only "Params" row (its named DTO). ⛔ HISTORY: an Input/State combo per row (U-5/BP-230).
-        if (ImGui.BeginTable(section.TableId, 6, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        if (ImGui.BeginTable(section.TableId, 5, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             ImGui.TableSetupColumn("Name",  ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Type",  ImGuiTableColumnFlags.WidthFixed, 90f);
             ImGui.TableSetupColumn("Bytes", ImGuiTableColumnFlags.WidthFixed, 50f);
             ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Scope", ImGuiTableColumnFlags.WidthFixed, 72f);
             ImGui.TableSetupColumn("##rmv", ImGuiTableColumnFlags.WidthFixed, 24f);
             ImGui.TableHeadersRow();
 
@@ -531,29 +487,7 @@ public sealed class VariablesPanelControl
                     else
                         ImGui.TextDisabled("—");
                 }
-                // Scope column — only meaningful when Role == State
-                ImGui.TableNextColumn();
-                if (row.ShowScopeSelector)
-                {
-                    // ⭐⭐⭐ CE-435 — THE SCOPE DROPDOWN IS GONE; `Behavior` IS THE ONLY SCOPE.
-                    //
-                    // 🔒 User, 2026-09-29: "I want to remove the entity scope and node scope on the
-                    //    blackboard variables because they have issues and there is no real need for
-                    //    them. I want to avoid the need to support these two as it might unnecessarily
-                    //    complicate the refactor."
-                    // 📐 Measured over the whole corpus: of the authored `State` variables, ZERO were
-                    //    at `Node` and two at `Entity` (both re-homed by this slice). A three-valued
-                    //    dropdown decided SIX variables, and its DEFAULT — `Node` — was the value that
-                    //    silently provisions nothing (CE-423).
-                    // ⭐ The model now forces `Behavior` whenever Role becomes `State`
-                    //    (BehaviorTreeAsset/HsmAsset.UpdateVariableRole), so this cell has nothing
-                    //    left to choose and says so instead of offering a one-item combo.
-                    ImGui.TextUnformatted(row.Scope.ToString());
-                }
-                else
-                {
-                    ImGui.TextDisabled("—");
-                }
+                // ⛔ CE-3193 — the Scope column (and Role before it, CE-2135) is gone: a variable has no kind to show.
                 ImGui.TableNextColumn();
                 if (!schema.IsReadOnly && !row.IsReadOnly && ImGui.SmallButton("[x]"))
                 {
@@ -595,22 +529,17 @@ public sealed class VariablesPanelControl
     /// Renders the "Node-Owned Allocations" table for auto-managed variables (B-4 §3.6).
     /// This table is always dimmed (caller wraps in PushStyleVar Alpha). Name, Type and Role
     /// stay read-only here — auto-managed vars are removed by the command sink when the owning
-    /// node is deleted, and Role must remain State for a composed node's WorkingState slot.
-    /// Scope IS editable for State-role rows (Slice-1 authorability): flipping an auto-managed
-    /// WorkingState variable from Node to Behavior/Entity scope is how a designer opts a
-    /// composed node into shared working-state, and <see cref="IVariablesSchemaSource.UpdateVariableScope"/>
-    /// applies cleanly regardless of IsAutoManaged (it is a plain name-keyed field update on the asset).
+    /// node is deleted. ⛔ CE-3193 — no Scope cell: working state is derived from the bindings, nothing to author.
     /// </summary>
     private void DrawNodeOwnedTable(VariablesPanelSection section, List<VariableViewModel> rows)
     {
         var schema = section.Schema;
         string tableId = $"##no_tbl_{section.TableId}";
-        if (ImGui.BeginTable(tableId, 4, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        if (ImGui.BeginTable(tableId, 3, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             ImGui.TableSetupColumn("Name",  ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Type",  ImGuiTableColumnFlags.WidthFixed, 90f);
             ImGui.TableSetupColumn("Bytes", ImGuiTableColumnFlags.WidthFixed, 50f);
-            ImGui.TableSetupColumn("Scope", ImGuiTableColumnFlags.WidthFixed, 72f);
             ImGui.TableHeadersRow();
 
             for (int rowIdx = 0; rowIdx < rows.Count; rowIdx++)
@@ -625,18 +554,6 @@ public sealed class VariablesPanelControl
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.TypeName);
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.ByteSize.ToString());
 
-                // Scope column: editable ONLY for State-role rows (Input-role node-owned vars,
-                // e.g. bpParams, have no meaningful scope and stay blank). Name/Type/Role remain
-                // read-only above — this is the one authorable cell in the node-owned table.
-                ImGui.TableNextColumn();
-                if (row.ShowScopeSelector)
-                {
-                    ImGui.TextUnformatted(row.Scope.ToString());   // CE-435 — see above
-                }
-                else
-                {
-                    ImGui.TextDisabled("—");
-                }
 
                 ImGui.PopID();
             }

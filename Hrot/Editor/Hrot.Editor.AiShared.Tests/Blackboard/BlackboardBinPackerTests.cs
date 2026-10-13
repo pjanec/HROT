@@ -43,7 +43,7 @@ public sealed class BlackboardBinPackerTests
             V("A", typeof(int)),
             V("Flags", typeof(TwoBools)),
             V("Mode", typeof(Small)),
-            new BlackboardVariableDescriptor("Scratch", typeof(long), Hrot.AiEditor.Persistence.BlackboardVariableRole.State));
+            new BlackboardVariableDescriptor("Scratch", typeof(long), IsWorkingState: true));
 
         Assert.Equal((0, 4), (result.Variables[0].ByteOffset, result.Variables[0].ByteSize));
         Assert.Equal((4, 2), (result.Variables[1].ByteOffset, result.Variables[1].ByteSize));

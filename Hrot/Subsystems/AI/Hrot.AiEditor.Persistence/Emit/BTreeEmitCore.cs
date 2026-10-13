@@ -89,7 +89,7 @@ public static class BTreeEmitCore
 
         bool hasInput = false;
         foreach (var v in dto.Blackboard.Variables)
-            if (v.Role == BlackboardVariableRole.Input && !string.IsNullOrEmpty(v.Type?.TypeId)) { hasInput = true; break; }
+            if (!v.IsWorkingState && !string.IsNullOrEmpty(v.Type?.TypeId)) { hasInput = true; break; }
         return hasInput ? BlackboardStructNamespace(dto) + "." + BlackboardStructName(dto) : null;
     }
 
@@ -105,7 +105,7 @@ public static class BTreeEmitCore
         BlackboardVariableDto? only = null;
         foreach (var v in dto.Blackboard.Variables)
         {
-            if (v.Role != BlackboardVariableRole.Input || string.IsNullOrEmpty(v.Type?.TypeId)) continue;
+            if (v.IsWorkingState || string.IsNullOrEmpty(v.Type?.TypeId)) continue;
             if (only != null) return null;
             only = v;
         }
@@ -142,7 +142,6 @@ public static class BTreeEmitCore
             Type             = new BlackboardTypeRefDto { TypeId = named! },
             DefaultValueJson = dto.ParamsDefaultJson,
             Comment          = "CE-2135: the behaviour's params (its named DTO, ParamsDtoTypeId) — reserved, not authored",
-            Role             = BlackboardVariableRole.Input,
         });
         return dto;
     }
@@ -164,8 +163,8 @@ public static class BTreeEmitCore
             return $"behaviour '{dto.Name}' names params DTO '{named}' and resolver asset '{dto.Resolver.Name}'; the resolver's Parameters are its contract — name one (R-149)";
         // ⭐ CE-2135 (B3a) — "Params" is reserved for the named DTO: a variable that takes the name must be that DTO, packed.
         var p = dto.Blackboard?.Variables?.FirstOrDefault(v => v.Name == ReservedParamsName);
-        if (p != null && (p.Role != BlackboardVariableRole.Input || !SameTypeId(p.Type?.TypeId, named)))
-            return $"behaviour '{dto.Name}' names params DTO '{named}' but its variable '{ReservedParamsName}' is '{p.Type?.TypeId}' ({p.Role}); the name is reserved for the params";
+        if (p != null && (p.IsWorkingState || !SameTypeId(p.Type?.TypeId, named)))
+            return $"behaviour '{dto.Name}' names params DTO '{named}' but its variable '{ReservedParamsName}' is '{p.Type?.TypeId}'{(p.IsWorkingState ? " (a working-state variable)" : "")}; the name is reserved for the params";
         return null;
     }
 
@@ -177,7 +176,7 @@ public static class BTreeEmitCore
     {
         if (dto?.Blackboard == null || dto.Resolver != null) return null;
         if (!string.IsNullOrWhiteSpace(dto.ParamsDtoTypeId))
-            return dto.Blackboard.Variables.FirstOrDefault(v => v.Name == ReservedParamsName && v.Role == BlackboardVariableRole.Input);
+            return dto.Blackboard.Variables.FirstOrDefault(v => v.Name == ReservedParamsName && !v.IsWorkingState);
         return FlatParamsVariable(dto);
     }
 
@@ -301,19 +300,15 @@ public static class BTreeEmitCore
         => "global::" + BlackboardStructNamespace(dto) + "." + BlockStructName(dto);
 
     /// <summary>
-    /// ⭐ <c>CE-437</c> — the variables that live in the block's <c>St</c> half:
-    /// <c>Role=State</c> at <c>Scope=Behavior</c>, in declaration order.
-    /// ⛔ HISTORY — <c>Scope=Entity</c> stayed on its own slot (<c>BlueprintSharedState.TryGetShared</c> computed
-    /// the ENTITY key at runtime, so it cannot move until decision <c>A</c> (<c>Q76</c> §12.15).
-    /// ⛔ <c>Scope=Node</c> is not authorable (<c>CE-435</c>) and both bridge emitters skip it.
+    /// ⭐ <c>CE-437</c> — the variables that live in the block's <c>St</c> half: the working-state variables
+    /// (<c>CE-3193</c>: a binding names them, <see cref="WorkingStateVariables"/>), in declaration order.
     /// </summary>
     internal static List<BlackboardVariableDto> BlockStateVariables(BehaviorTreeAssetDto dto)
     {
         var result = new List<BlackboardVariableDto>();
         if (dto.Blackboard?.Variables == null) return result;
         foreach (var v in dto.Blackboard.Variables)
-            if (v.Role == BlackboardVariableRole.State && v.Scope == WorkingStateScope.Behavior
-                && !string.IsNullOrEmpty(v.Type?.TypeId))
+            if (v.IsWorkingState && !string.IsNullOrEmpty(v.Type?.TypeId))
                 result.Add(v);
         return result;
     }
@@ -448,6 +443,7 @@ public static class BTreeEmitCore
         SizeResolverDelegate? sizeResolver = null, FieldLayoutResolver? fields = null)
     {
         dto.WithParamsVariable();   // ⭐ CE-2135 — the reserved Params, when the asset names its DTO (idempotent)
+        WorkingStateVariables.Mark(dto);   // ⭐ CE-3193 — working state is derived from the bindings, not read from the file
         var sb = new StringBuilder();
         var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
 

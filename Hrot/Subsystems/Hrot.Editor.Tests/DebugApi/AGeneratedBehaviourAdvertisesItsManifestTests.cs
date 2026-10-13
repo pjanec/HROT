@@ -319,23 +319,26 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
         //   it still lays out its block like a BTree (the CE-416 point), with its plain variable in In and its State in St.
         Assert.Equal("Hrot.Map.Definitions.Behavior.NoParams", def.JsonParamsDtoType?.FullName);
         Assert.Equal("HsmVariableShowcase_Block", def.BlackboardLayoutType!.Name);
-        Assert.NotNull(def.BlackboardLayoutType.GetField("In"));   // Threshold — a plain packed variable
-        Assert.NotNull(def.BlackboardLayoutType.GetField("St"));   // Cursor, Ticks — in the block, not side slots
+        Assert.NotNull(def.BlackboardLayoutType.GetField("In"));   // Threshold, Cursor, Ticks — plain packed variables
+        // ⭐ CE-3193 — nothing names Cursor/Ticks as working state, so there is no St (the state block is HsmStatefulBindingDemo's, below)
+        Assert.Null(def.BlackboardLayoutType.GetField("St"));
         Assert.DoesNotContain("Threshold", PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));   // ⛔ never JSON
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-416</c> — an HSM with State and NO Input (<c>HsmOrthogonalRegions</c>, <c>SharedCursor</c>) still owns a block
+    /// ⭐⭐ <c>CE-416</c> — an HSM with State and NO plain variable (<c>HsmStatefulBindingDemo</c>, <c>steps</c> — named as its state
+    /// binding's working state, CE-3193; ⛔ was <c>HsmOrthogonalRegions</c>' <c>SharedCursor</c>, which nothing names) still owns a block
     /// (<c>CE-429</c>'s rule, HSM half): an empty manifest, a parse that allocates and bakes, a root slot as wide as the block,
     /// and no side slot. 🔴 RED before: no layout type and no parse ⇒ the ingress allocated nothing for it.
     /// </summary>
     [Fact]
     public void AStateOnlyHsm_StillOwnsItsBlock()
     {
-        BehaviorDefinition def = Definition(LoadProductionRegistry(), "HsmOrthogonalRegions");
+        BehaviorDefinition def = Definition(LoadProductionRegistry(), "HsmStatefulBindingDemo");
 
-        Assert.Equal("HsmOrthogonalRegions_Block", def.BlackboardLayoutType?.Name);
-        Assert.Empty(def.ManagedBlackboardVariables!);
+        Assert.Equal("HsmStatefulBindingDemo_Block", def.BlackboardLayoutType?.Name);
+        Assert.NotNull(def.BlackboardLayoutType!.GetField("St"));
+        Assert.DoesNotContain(def.ManagedBlackboardVariables!, v => v.Name == "steps");   // working state is not a packed variable
         Assert.NotNull(def.ParseParams);
         Assert.True(RootParamsAccess.RootParamsBytes(def) >= System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType!));
         Assert.DoesNotContain(def.StatefulWorkingSlots ?? Array.Empty<StatefulSlotInfo>(),

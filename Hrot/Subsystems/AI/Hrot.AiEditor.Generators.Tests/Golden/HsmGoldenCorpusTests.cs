@@ -237,18 +237,22 @@ public sealed class HsmGoldenCorpusTests
     /// </summary>
     /// <para>⭐⭐ <b><c>CE-416</c> (<c>2026-10-01</c>):</b> the State variables' home moved from side slots to the block
     /// (<c>{Asset}_Block.St</c>, the BTree's <c>CE-437</c> home). ⛔ SUPERSEDED: "the registrar carries a slot manifest".</para>
+    /// <para>⭐⭐ <b><c>CE-3193</c>:</b> working state is what a binding NAMES as its working state; nothing in the showcase names
+    /// <c>Cursor</c>/<c>Ticks</c>, so they are plain variables in the block's <c>In</c>. ⚠ No HSM corpus asset the golden harness
+    /// can size now carries a working-state variable (<c>HsmStatefulBindingDemo</c>'s curated types are unsizable here); the
+    /// <c>St</c> emission is pinned by <c>HsmStatefulSlotEmissionTests</c>. ⛔ SUPERSEDED: "Cursor and Ticks are in St".</para>
     [Fact]
-    public void TheSeededCorpusPutsTheStateBlockInTheBaseline()
+    public void TheSeededCorpusPutsItsVariablesInTheBlock()
     {
         var parts     = Kind.Emit(AiAssetCorpus.ReadAsset(Kind, "HsmVariableShowcase"));
         var registrar = parts.Single(p => p.HintName == "Registrar.g.cs").Source;
         var structs   = parts.Single(p => p.HintName == "Blackboard.g.cs").Source;
 
         Assert.Contains("BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Machines.HsmVariableShowcase_Block)", registrar);
-        Assert.Contains("public struct HsmVariableShowcase_BlockState", structs);
-        Assert.Contains(" Cursor;", structs);   // Role=State, Behavior scope
-        Assert.Contains(" Ticks;",  structs);   // Role=State, Behavior scope
-        Assert.DoesNotContain("StatefulWorkingSlots", registrar);   // one home
+        Assert.Contains(" Cursor;", structs);
+        Assert.Contains(" Ticks;",  structs);
+        Assert.DoesNotContain("public struct HsmVariableShowcase_BlockState", structs);   // nothing names them as working state
+        Assert.DoesNotContain("StatefulWorkingSlots", registrar);
     }
 
     /// <summary>

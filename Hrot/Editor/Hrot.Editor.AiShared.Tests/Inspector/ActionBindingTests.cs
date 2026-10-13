@@ -197,22 +197,20 @@ public sealed class ActionBindingTests
     public void CE2099_TheWorkingStatePicker_ListsStateVariablesOfThatType_AndPromotesASharedOne()
     {
         var asset = MakeAsset(
-            new BlackboardVariableEntry("choice", typeof(ChoiceState), null, Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Behavior),
-            new BlackboardVariableEntry("input",  typeof(ChoiceState), null),                                    // Input role: not a state
-            new BlackboardVariableEntry("other",  typeof(int),         null, Role: BlackboardVariableRole.State));
+            new BlackboardVariableEntry("choice", typeof(ChoiceState), null),
+            new BlackboardVariableEntry("input",  typeof(ChoiceState), null),   // CE-3193: any variable of the type may be named
+            new BlackboardVariableEntry("other",  typeof(int),         null));
         var sources = new ActionBindingSources(asset, _ => Array.Empty<string>(),
             new Exporter().Stateful("Ns.IsOption", typeof(PatrolParams), typeof(ChoiceState), condition: true).Method("Ns.Plain", typeof(float)));
 
         var facet = new BehaviorActionBindingFacet { MethodFqn = "Ns.IsOption" };
         sources.WorkingStateType(facet).Should().Be(typeof(ChoiceState));
-        sources.GetWorkingStateVariables(facet).Should().Equal("choice");
+        sources.GetWorkingStateVariables(facet).Should().Equal("choice", "input");   // CE-3193: naming it is what makes it state
         sources.WorkingStateType(new BehaviorActionBindingFacet { MethodFqn = "Ns.Plain" }).Should().BeNull("not stateful: no picker");
 
         string? made = sources.PromoteWorkingState(facet);
         made.Should().NotBeNull();
         var v = asset.BlackboardVariables.Single(x => x.Name == made);
-        v.Role.Should().Be(BlackboardVariableRole.State);
-        v.Scope.Should().Be(WorkingStateScope.Behavior, "a promoted state is SHARED — other nodes bind it too");
         v.FieldType.Should().Be(typeof(ChoiceState));
     }
 

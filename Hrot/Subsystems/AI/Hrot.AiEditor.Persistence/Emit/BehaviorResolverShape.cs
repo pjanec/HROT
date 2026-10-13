@@ -47,9 +47,7 @@ public sealed class BehaviorResolverShape
         foreach (var v in dto.Blackboard?.Variables ?? new List<BlackboardVariableDto>())
         {
             if (string.IsNullOrEmpty(v.Name) || string.IsNullOrEmpty(v.Type?.TypeId)) continue;
-            bool isState = v.Role == BlackboardVariableRole.State;
-            // ⚠ A State variable outside Behavior scope lives on a side slot, not in the block (CE-437).
-            if (isState && v.Scope != WorkingStateScope.Behavior) continue;
+            bool isState = v.IsWorkingState;
             vars.Add(new BlockVariable(v.Name, ClrTypeId(v.Type!.TypeId), isState));
         }
 

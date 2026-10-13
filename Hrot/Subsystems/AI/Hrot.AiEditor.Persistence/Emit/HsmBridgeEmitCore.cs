@@ -45,6 +45,7 @@ public static class HsmBridgeEmitCore
     public static string EmitBridge(HsmAssetDto dto, Func<string, int?>? sizeResolver,
         Func<string, SharedAiMethodInfo?>? sharedAi = null, FieldLayoutResolver? fields = null)   // ⭐ CE-3182 — Variable.Field paths
     {
+        WorkingStateVariables.Mark(dto);   // ⭐ CE-3193 — working state is derived from the bindings, not read from the file
         var sb = new StringBuilder();
 
         // ⭐⭐⭐ BP-281 — the params supply is decided ONCE, here, and the decision is the PACKED
@@ -444,7 +445,9 @@ public static class HsmBridgeEmitCore
     /// the bound resolver asset; no nodes. ⭐ The namespace is the HSM's own (<c>Hrot.AI.Behaviors.Machines</c>
     /// by default), so <c>{Asset}_Blackboard</c> / <c>_Block</c> land beside the registrar that names them.
     /// </summary>
-    public static BehaviorTreeAssetDto BlackboardOwner(HsmAssetDto dto) => new BehaviorTreeAssetDto
+    public static BehaviorTreeAssetDto BlackboardOwner(HsmAssetDto dto) => OwnerView(WorkingStateVariables.Mark(dto));   // ⭐ CE-3193
+
+    private static BehaviorTreeAssetDto OwnerView(HsmAssetDto dto) => new BehaviorTreeAssetDto
     {
         Name            = dto.Name,
         AssetId         = dto.AssetId,
@@ -480,7 +483,6 @@ public static class HsmBridgeEmitCore
             Type             = new HsmBlackboardTypeRefDto { TypeId = named! },
             DefaultValueJson = dto.ParamsDefaultJson,
             Comment          = "CE-2135: the behaviour's params (its named DTO, ParamsDtoTypeId) — reserved, not authored",
-            Role             = BlackboardVariableRole.Input,
         });
         return dto;
     }
@@ -510,8 +512,7 @@ public static class HsmBridgeEmitCore
                 DefaultValueJson = v.DefaultValueJson,
                 Comment          = v.Comment,
                 IsAutoManaged    = v.IsAutoManaged,
-                Role             = v.Role,
-                Scope            = v.Scope,
+                IsWorkingState   = v.IsWorkingState,
             });
         }
         return result;
@@ -648,29 +649,28 @@ public static class HsmBridgeEmitCore
         //    list carries it explicitly and the set does the dedup, so the two jobs the dictionary was
         //    doing at once are now separate and neither is implicit.
         var seenKeys = new HashSet<int>();
-        var slots    = new List<(int SlotKey, string TypeId, string Label, int Role, int Scope)>();
+        var slots    = new List<(int SlotKey, string TypeId, string Label)>();
         foreach (var v in variables)
         {
-            if (v.Role != BlackboardVariableRole.State) continue;
-            if (v.Scope != WorkingStateScope.Behavior) continue;
+            if (!v.IsWorkingState) continue;   // ⭐ CE-3193 — derived from the bindings; working state keys by name
 
             string typeId = v.Type?.TypeId ?? string.Empty;
             if (string.IsNullOrEmpty(typeId)) continue;
 
             int slotKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(
-                dto.AssetId, v.Scope, Guid.Empty, v.Name);
+                dto.AssetId, WorkingStateScope.Behavior, Guid.Empty, v.Name);
             if (!seenKeys.Add(slotKey)) continue;   // co-scoped duplicates share one slot
             // ⭐ CE-416 (CE-437's HSM half) — a variable in the block's St has ONE home: no side slot.
             if (BTreeBridgeEmitCore.TryGetBlockStateVariable(owner, owned, slotKey, out _)) continue;
 
-            slots.Add((slotKey, typeId, v.Name, (int)v.Role, (int)v.Scope));
+            slots.Add((slotKey, typeId, v.Name));
         }
 
         if (slots.Count == 0 && hostedSlots.Count == 0) return;
 
         sb.AppendLine($"{pad}StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
         sb.AppendLine($"{pad}{{");
-        foreach (var (slotKey, typeId, label, role, scope) in slots)
+        foreach (var (slotKey, typeId, label) in slots)
         {
             string typeFqn = BTreeBridgeEmitCore.DtoTypeToGlobal(typeId);
             // DEBT-AIB-027: the structure hash folds in the struct's size at REGISTRATION time so it changes when the struct
@@ -683,8 +683,7 @@ public static class HsmBridgeEmitCore
                 $"global::System.Runtime.CompilerServices.Unsafe.SizeOf<{typeFqn}>(), " +
                 $"unchecked({typeNameHash}u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<{typeFqn}>()), " +
                 $"typeof({typeFqn}), \"{escapedLabel}\", " +
-                $"(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.{(BlackboardVariableRole)role}, " +
-                $"(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.{(WorkingStateScope)scope}),");
+                $"(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),");
         }
 
         // ⭐ E5 — the hosted children's tree-state slots, emitted AFTER the authored ones so the
@@ -703,7 +702,6 @@ public static class HsmBridgeEmitCore
                 $"unchecked({BTreeBridgeEmitCore.ComputeTypeNameHash("Fbt.BehaviorTreeState")}u ^ " +
                 "(uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fbt.BehaviorTreeState>()), " +
                 $"typeof(global::Fbt.BehaviorTreeState), \"{escaped}\", " +
-                "(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, " +
                 "(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),");
         }
 

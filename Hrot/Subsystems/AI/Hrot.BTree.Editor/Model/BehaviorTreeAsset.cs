@@ -378,39 +378,6 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
         MarkDirty();
     }
 
-    /// <summary>Sets the authoring role on an existing variable (S3-1). No-op if not found. Fires Changed.</summary>
-    public void UpdateVariableRole(string name, Hrot.AiEditor.Persistence.BlackboardVariableRole role)
-    {
-        int idx = _blackboardVariables.FindIndex(v => v.Name == name);
-        if (idx < 0) return;
-
-        // ⭐⭐⭐ CE-435 — A `State` VARIABLE IS ALWAYS `Behavior`-SCOPED, AND THE MODEL ENFORCES IT.
-        //
-        // 🔴 Before this, flipping Role to State left Scope at its default `Node`, and a STANDALONE
-        //    Node-scoped State variable is SILENTLY SKIPPED by both bridge emitters — no slot, no
-        //    diagnostic (CE-423). ⇒ the defect was reachable through the Variables panel in two
-        //    clicks, and nothing told the author their variable had no storage.
-        // 📐 Measured 2026-09-29 across every .btree.json/.hsm.json: of the authored State
-        //    variables, ZERO were at Node and (after CE-436) two at Entity, both re-homed by this
-        //    slice. `Behavior` is the only scope an author ever chose deliberately.
-        // ⛔ This does NOT touch OccurrenceSlotKey.Compute's Node arm — that keys node-BOUND working
-        //    state for hosted AiPrimitives, which is the common case and is not authored here.
-        var scope = role == Hrot.AiEditor.Persistence.BlackboardVariableRole.State
-            ? Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
-            : _blackboardVariables[idx].Scope;
-
-        _blackboardVariables[idx] = _blackboardVariables[idx] with { Role = role, Scope = scope };
-        MarkDirty();
-    }
-
-    /// <summary>Sets the working-state scope on an existing variable (S3-1). No-op if not found. Fires Changed.</summary>
-    public void UpdateVariableScope(string name, Hrot.AiEditor.Persistence.WorkingStateScope scope)
-    {
-        int idx = _blackboardVariables.FindIndex(v => v.Name == name);
-        if (idx < 0) return;
-        _blackboardVariables[idx] = _blackboardVariables[idx] with { Scope = scope };
-        MarkDirty();
-    }
 
     /// <summary>Moves a variable from sourceIndex to destIndex in canonical order. Fires Changed.</summary>
     public void MoveVariable(int sourceIndex, int destIndex)
@@ -505,16 +472,26 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     public IReadOnlyCollection<int> GetSharedScopeKeys()
     {
         HashSet<int>? keys = null;
+        var working = WorkingStateVariableNames();
         foreach (var v in _blackboardVariables)
         {
-            if (v.Role != Hrot.AiEditor.Persistence.BlackboardVariableRole.State) continue;
-            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior) continue;
+            if (!working.Contains(v.Name)) continue;   // ⭐ CE-3193 — derived from the bindings, not an authored Role/Scope
 
             (keys ??= new HashSet<int>()).Add(
                 Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.ComputeStatefulSlotKey(
-                    AssetId, v.Scope, Guid.Empty, v.Name));
+                    AssetId, Hrot.AiEditor.Persistence.WorkingStateScope.Behavior, Guid.Empty, v.Name));
         }
         return (IReadOnlyCollection<int>?)keys ?? Array.Empty<int>();
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlySet<string> WorkingStateVariableNames()
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var n in _nodes)
+            foreach (var path in new[] { n.Action?.WorkingStateTargetField, n.Condition?.WorkingStateTargetField })
+                if (Hrot.AiEditor.Persistence.BindingPath.Root(path) is { Length: > 0 } root) names.Add(root);
+        return names;
     }
 
     /// <summary>

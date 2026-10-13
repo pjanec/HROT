@@ -83,7 +83,6 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
         Name = name,
         Type = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
         DefaultValueJson = "{\"Limit\":1}",
-        Role = BlackboardVariableRole.Input,
     };
 
     // Working-state variable (DemoCursorState) — State role, given scope; NOT packed (lives in the
@@ -92,8 +91,6 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
     {
         Name = name,
         Type = new BlackboardTypeRefDto { TypeId = WorkingStateTypeId },
-        Role = BlackboardVariableRole.State,
-        Scope = scope,
     };
 
     private static BTreeActionNodeDto ActionNode(Guid visualId, string label, string paramField, string stateField) => new()
@@ -378,8 +375,8 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
     // ── TEST 2 ────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Mixed scopes: two Node-scoped variables (one binding each) + one Behavior-scoped variable
-    /// (two bindings). Expect three distinct manifest entries (two per-node keys + one shared
+    /// Mixed: two stateful nodes naming no working-state variable (per-node keys) + one working-state variable
+    /// two nodes name (CE-3193). Expect three distinct manifest entries (two per-node keys + one shared
     /// Behavior key; the two shared bindings dedup) ⇒ three provisioned slots.
     /// </summary>
     [Fact]
@@ -406,14 +403,14 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
             new[]
             {
                 ParamVar(ParamVarName),
-                StateVar("localA", WorkingStateScope.Node),
-                StateVar("localB", WorkingStateScope.Node),
                 StateVar("shared", WorkingStateScope.Behavior),
             },
+            // ⭐ CE-3193 — a node naming no working-state variable keys by node (a side slot each); the two naming "shared"
+            //   make it working state, in the block.
             new[]
             {
-                (n1, "Action_localA", "localA"),
-                (n2, "Action_localB", "localB"),
+                (n1, "Action_localA", (string)null!),
+                (n2, "Action_localB", (string)null!),
                 (n3, "Action_shared_1", "shared"),
                 (n4, "Action_shared_2", "shared"),
             });

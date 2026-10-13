@@ -62,8 +62,7 @@ public sealed class ExpressionTargetFieldCountTests
 
         asset.SetBlackboardVariables(new[]
         {
-            new BlackboardVariableEntry("Result", typeof(int), null, false, null,
-                BlackboardVariableRole.State, WorkingStateScope.Behavior),
+            new BlackboardVariableEntry("Result", typeof(int), null, false, null),
         });
 
         return (asset, t, g);

@@ -253,7 +253,7 @@ public sealed class HsmSubtreeAuthoringTests
         state.SubtreeParamsVariable.Should().Be("PatrolTreeParams");
         var v = hsm.BlackboardVariables.Single(x => x.Name == "PatrolTreeParams");
         v.FieldType.Should().Be(typeof(PatrolInputs));
-        v.Role.Should().Be(Hrot.AiEditor.Persistence.BlackboardVariableRole.Input);
+        hsm.WorkingStateVariableNames().Should().NotContain(v.Name, "CE-3193: it seeds the child — a plain variable");
         hsm.IsBlackboardEditorManaged.Should().BeTrue("both emitters gate the params path on the managed flag");
     }
 

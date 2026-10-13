@@ -11,11 +11,10 @@ namespace Hrot.Editor.AiShared.Blackboard;
 /// </summary>
 /// <param name="Name">The variable identifier.</param>
 /// <param name="FieldType">The CLR type used to determine size and alignment.</param>
-/// <param name="Role">⭐ CE-2029 — a <c>State</c> variable never joins the params region
-/// (<c>Blackboard_Authoring_Detailed_Design.md</c> §6.2); the generator's packer already honoured that, this one did not.</param>
-public record BlackboardVariableDescriptor(
-    string Name, Type FieldType,
-    Hrot.AiEditor.Persistence.BlackboardVariableRole Role = Hrot.AiEditor.Persistence.BlackboardVariableRole.Input);
+/// <param name="IsWorkingState">⭐ CE-2029 — a working-state variable never joins the params region
+/// (<c>Blackboard_Authoring_Detailed_Design.md</c> §6.2). ⭐ CE-3193: derived from the bindings
+/// (<see cref="IStatefulScopeAsset.WorkingStateVariableNames"/>), no longer an authored Role.</param>
+public record BlackboardVariableDescriptor(string Name, Type FieldType, bool IsWorkingState = false);
 
 /// <summary>
 /// Warning flags produced by <see cref="BlackboardBinPacker.Pack"/>.
@@ -140,7 +139,7 @@ public static class BlackboardBinPacker
                 all.Add(desc ?? throw new ArgumentException("aggregatedVars contains a null entry."));
 
         // ⭐⭐⭐ CE-2029 — THE GENERATOR'S PACKER, not a copy of it. 🔴 This class laid the region out itself: Marshal.SizeOf
-        //   for a struct (a bool counted 4, an enum threw), and every Role=State variable counted into the params total —
+        //   for a struct (a bool counted 4, an enum threw), and every working-state variable counted into the params total —
         //   so the panel could show a size and an overflow the generated struct does not have. ⭐ Now
         //   BTreeBlackboardPackHelper.Pack lays out exactly what BTreeJsonGenerator/HsmJsonGenerator emit, and each size is
         //   the managed size (Fdp.Core.TypeLayout) — what the build-time RoslynStructLayout computes for the same type.
@@ -154,7 +153,7 @@ public static class BlackboardBinPacker
             {
                 Name = desc.Name,
                 Type = new Hrot.AiEditor.Persistence.BTree.BlackboardTypeRefDto { TypeId = typeId },
-                Role = desc.Role,
+                IsWorkingState = desc.IsWorkingState,
             });
         }
         var fields = Hrot.AiEditor.Persistence.Emit.BTreeBlackboardPackHelper.Pack(
@@ -165,7 +164,7 @@ public static class BlackboardBinPacker
         int next = 0;
         foreach (var desc in all)
         {
-            if (desc.Role == Hrot.AiEditor.Persistence.BlackboardVariableRole.State)
+            if (desc.IsWorkingState)
             {
                 packed.Add(new PackedVariable(desc.Name, desc.FieldType, -1, GetManagedSize(desc.FieldType), InParamsRegion: false));
                 continue;

@@ -13,9 +13,7 @@
   "ResolverSubject": {
     "BehaviorName": "HsmResolverDemo",
     "BlockTypeId": "Hrot.AI.Behaviors.Machines.HsmResolverDemo_Block",
-    "StateVariables": [
-      "Doubled"
-    ]
+    "StateVariables": []
   },
   "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.HsmResolverDemoParams",
   "Declarations": [

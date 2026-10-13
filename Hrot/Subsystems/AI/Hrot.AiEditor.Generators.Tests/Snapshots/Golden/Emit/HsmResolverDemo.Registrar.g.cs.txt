@@ -86,10 +86,11 @@ public static class HsmResolverDemoRegistrar
             BrainTier     = BehaviorConstants.BrainTierHsm,
             HsmDefinition = blob,
             HsmMetadata   = blob.Metadata,
-            BlueprintStructureHash = 17798118677809526791UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 6776058462866398709UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("Speed", typeof(float), 0),
+                new("Doubled", typeof(float), 4),
             },
             JsonParamsDtoType    = global::Hrot.AI.Behaviors.Generated.HsmResolverDemoResolver_CCD63EE7_Bp.PublishedParams,
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Machines.HsmResolverDemo_Block),

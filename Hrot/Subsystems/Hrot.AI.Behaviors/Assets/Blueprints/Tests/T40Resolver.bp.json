@@ -13,9 +13,7 @@
   "ResolverSubject": {
     "BehaviorName": "T40_BehaviorResolverAsset",
     "BlockTypeId": "Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block",
-    "StateVariables": [
-      "Doubled"
-    ]
+    "StateVariables": []
   },
   "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.T40ResolverParams",
   "Declarations": [

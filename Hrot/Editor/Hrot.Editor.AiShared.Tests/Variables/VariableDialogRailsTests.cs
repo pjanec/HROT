@@ -331,15 +331,14 @@ public sealed class VariableDialogRailsTests
     }
 
     /// <summary>
-    /// ⛔⛔ <b><c>Role</c>/<c>Scope</c> is NOT A PROPERTY AT ALL</b> (§1c) — the SECTION is the
-    /// classification. ⭐ Asserted rather than assumed, because <c>BlackboardVariableEntry</c> DOES
-    /// carry both members: their absence has to be a decision, not an oversight.
+    /// ⛔⛔ <b><c>Role</c>/<c>Scope</c> is NOT A PROPERTY AT ALL</b> — ⭐ <c>CE-3193</c>: nor is it on the carrier any more; a
+    /// variable's kind is derived from the bindings, never authored.
     /// </summary>
     [Fact]
-    public void RoleAndScope_AreNotProperties_ThoughTheCarrierHasThem()
+    public void RoleAndScope_AreNotProperties_NorOnTheCarrier()
     {
-        Assert.NotNull(typeof(BlackboardVariableEntry).GetProperty("Role"));
-        Assert.NotNull(typeof(BlackboardVariableEntry).GetProperty("Scope"));
+        Assert.Null(typeof(BlackboardVariableEntry).GetProperty("Role"));
+        Assert.Null(typeof(BlackboardVariableEntry).GetProperty("Scope"));
 
         Assert.DoesNotContain(Enum.GetNames<VariableProperty>(),
             n => n.Contains("Role", StringComparison.Ordinal)

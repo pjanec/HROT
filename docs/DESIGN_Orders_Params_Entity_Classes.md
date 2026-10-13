@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: (resolved by CE-2143) docs/DESIGN_Entity_Control.md §3.1/§10 is now marked superseded in its own STATUS. · docs/blueprints/DESIGN_Parameter_Model.md §P.7 (a resolver asset's authored shape = its Parameters) and §1 (Role Input/State) are superseded HERE by R-276/R-277 (one params DTO, no roles); that doc is updated when B3 builds, not before. docs/DESIGN_Entity_Control.md §3.1/§10 (EntityOrders names soldier behaviours) is superseded by R-273; updated when D4 builds.
 related-designs:
+  - docs/blueprints/Variables_Designer_Quickstart.md — the designer-facing account of params, node memory and shared memory (rewritten for CE-3193)
   - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — OWNS the run-end release step (D4) that §7 hangs the members' release on (D4′)
   - docs/DESIGN_Decision_Layer.md — OWNS the gate (§4.1) the named clear of §7 is weighed by
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — the QUESTION and its rulings R-273..R-281 (behaviors); every decision here is argued there (§2.3a–§2.3p)
@@ -1923,6 +1924,40 @@ sequenceDiagram
   goldens regenerate, no shipped behaviour moves, and a running behaviour sees the layout change through its structure hash
   (`BrainTickSystem.cs:504`). The editor's auto-created per-node memory then lives in `St` under its variable name, not in a
   node-keyed side slot. Same behaviour while one node binds it; to be proven by a rail when built.
+  ✅ **BUILT `2026-10-13` (CE-3193, user: "yes, build it")** — the lean above, as built:
+
+```mermaid
+classDiagram
+  direction LR
+  class BehaviorActionBindingDto { WorkingStateTargetField }
+  class BlackboardVariableDto { Name · Type · DefaultValueJson · IsAutoManaged · IsWorkingState «derived, JsonIgnore» }
+  class WorkingStateVariables { <<Hrot.AiEditor.Persistence>> NamesOf(BTree|HSM) · Mark(BTree|HSM) }
+  class Asset_Block { In @0 = Params + plain variables · St = working-state variables }
+  class IStatefulScopeAsset { <<editor model>> WorkingStateVariableNames() · GetSharedScopeKeys() }
+  WorkingStateVariables ..> BehaviorActionBindingDto : reads every binding
+  WorkingStateVariables ..> BlackboardVariableDto : sets IsWorkingState
+  BlackboardVariableDto ..> Asset_Block : St when IsWorkingState, else In
+  IStatefulScopeAsset ..> BehaviorActionBindingDto : the same rule on the editor model
+```
+
+  *What the picture shows that the prose hid: the kind has ONE source — the bindings — and both the file-side generator path
+  and the editor model read it the same way; nothing persists it.*
+  - **Deleted**: `BlackboardVariableRole`, the variable `Role`/`Scope` properties (DTOs, `BlackboardVariableEntry`, the panel
+    view model), `UpdateVariableRole/Scope` (model, asset interface, schema source, `SupportsRoleScopeEditing`), the panel's
+    Scope column, the outline's Working State / Asset Globals sections (one "Variables" section), `StatefulSlotInfo.Role` and
+    `StatefulSlotRole`, and `StateVariableStorage` with its diagnostics `BTREE0003` / `HSM0002` (a working-state variable is
+    bound by definition, so "State variable has no storage" cannot arise; the codes are retired, not reused).
+  - **Derived**: `WorkingStateVariables.Mark` runs on load (`BTreeJsonServices` / `HsmJsonServices.Deserialize`), at each
+    generator entry (`BTreeEmitCore.EmitTopologyCore`, `BTreeBridgeEmitCore.EmitBridge`, `HsmBridgeEmitCore.EmitBridge` /
+    `BlackboardOwner`) and in both editor mappers' `ToDto`. A working-state variable keys by name (`WorkingStateScope.Behavior`);
+    `WorkingStateScope` survives only as the generator's slot-key formula (a stateful node that names no variable keys by node).
+  - ⚠ **Simplified from the lean**: the "or not sizable ⇒ `St`" clause was not built. Every unsizable shipped type
+    (`HillAttackMutableState`) is already bound as working state; an unbound unsizable variable fails packing as before.
+  - **Corpus**: `Role`/`Scope` keys stripped from 7 assets; an old file's keys are ignored on load (the frozen `MigrationV1`
+    snapshots keep them and still load). `Doubled` (two resolver assets), `Cursor`, `Ticks`, `SharedCursor` moved `St` → `In`;
+    the two resolver blueprints' `ResolverSubject.StateVariables` emptied accordingly.
+  - **Editor surfaces** (ui / behaviors lanes): the shared variables panel, outline and Details heading in `Hrot.Editor.AiShared`,
+    and the BTree / HSM models — named here and in the commit as cross-lane edits.
 - **Not yet**: the editor's Variables / Details panels still list only DECLARED Parameters (a DTO-named asset shows none) — the canvas
   pins are right (`ParametersOf`), the panels are the ui lane's surface (P5b). Steps ③–⑦ follow.
 

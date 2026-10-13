@@ -255,43 +255,7 @@ public sealed class VariableSchemaSourceKindTests
     // 🔴 U-5 / BP-230 — Q-k: read-only, said out loud
     // ────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// ⭐⭐ <b>The source SAYS it cannot edit Role/Scope, and the setter throws rather than
-    /// discarding.</b>
-    ///
-    /// <para>
-    /// ⛔ What this replaces: the interface shipped <c>{ }</c> default bodies, this source took the
-    /// offer, and <c>VariablesPanelControl</c> gated its Role combo on <c>IsReadOnly</c> alone — which
-    /// is <c>false</c> here. ⇒ the panel drew a live combo for a blueprint and the designer's change
-    /// went nowhere. ⭐ <b>Established from the panel code, not from a screenshot</b>: the question of
-    /// whether those columns were drawn-but-dead or hidden had been open since Batch 38 pending a
-    /// visual check.
-    /// </para>
-    /// </summary>
-    [Fact]
-    public void RoleAndScopeAreDeclaredUneditable_AndTheSettersRefuse()
-    {
-        IVariablesSchemaSource src = Source(Asset(), VariableKind.Variable);
+    // ⛔ HISTORY — U-5 rails on SupportsRoleScopeEditing / UpdateVariableRole: CE-3193 deleted the variable kind.
 
-        Assert.False(src.SupportsRoleScopeEditing);
-        Assert.Throws<NotSupportedException>(
-            () => src.UpdateVariableRole("V0", Hrot.AiEditor.Persistence.BlackboardVariableRole.State));
-        Assert.Throws<NotSupportedException>(
-            () => src.UpdateVariableScope("V0", Hrot.AiEditor.Persistence.WorkingStateScope.Behavior));
-    }
 
-    /// <summary>The locals source answers the same way, for the same reason.</summary>
-    [Fact]
-    public void TheLocalsSourceAlsoDeclaresRoleScopeUneditable()
-    {
-        var a = Asset();
-        var g = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function };
-        a.Graphs.Add(g);
-
-        IVariablesSchemaSource src = new BlueprintLocalVariableSchemaSource(a, () => g, () => { });
-
-        Assert.False(src.SupportsRoleScopeEditing);
-        Assert.Throws<NotSupportedException>(
-            () => src.UpdateVariableRole("x", Hrot.AiEditor.Persistence.BlackboardVariableRole.State));
-    }
 }

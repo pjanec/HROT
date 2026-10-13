@@ -33,10 +33,10 @@ public enum BlackboardHostKind
 /// </para>
 ///
 /// <para>
-/// ⭐⭐ <b>Sections are the <c>Role × Scope</c> product made visible</b>, exactly as §1c tabulates it:
-/// <b>Inputs</b> = <c>Role.Input</c> · <b>Working State</b> = <c>Role.State</c> with <c>Node</c> scope ·
-/// <b>Asset Globals</b> = <c>Role.State</c> shared wider (<c>Behavior</c>/<c>Entity</c>). ⛔ <b>And
-/// still no <c>Role</c>/<c>Scope</c> control on any host</b> — the section IS the control.
+/// ⭐⭐ <b>ONE section, "Variables"</b> (<c>CE-3193</c>, <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §5c B3a): the
+/// reserved <c>Params</c> row first, then every variable. ⛔ HISTORY: three sections — Inputs / Working State / Asset Globals —
+/// were the authored <c>Role × Scope</c> product made visible; the author had nothing to decide with them, so the kind went
+/// and so did they. Whether a variable is working state is derived from the bindings.
 /// </para>
 ///
 /// <para>
@@ -47,9 +47,7 @@ public enum BlackboardHostKind
 /// </summary>
 public sealed class BlackboardMyBlueprintModel : IMyBlueprintModel
 {
-    public const string SectionInputs       = "bb.inputs";
-    public const string SectionWorkingState = "bb.workingState";
-    public const string SectionAssetGlobals = "bb.assetGlobals";
+    public const string SectionInputs       = "bb.inputs";   // ⚠ the id predates the rename to "Variables"; ids are not shown
 
     private readonly Func<IReadOnlyList<BlackboardVariableEntry>> _variables;
     private readonly IReadOnlyList<MyBlueprintSectionDescriptor>  _sections;
@@ -88,16 +86,6 @@ public sealed class BlackboardMyBlueprintModel : IMyBlueprintModel
                 Id: SectionInputs, DisplayName: "Variables", SortOrder: 0, IconKey: null,
                 CanCreateItems: true, CanHaveCategories: false,
                 CreateCommandId: $"{prefix}.blackboard.createInput"),
-
-            new MyBlueprintSectionDescriptor(
-                Id: SectionWorkingState, DisplayName: "Working State", SortOrder: 1, IconKey: null,
-                CanCreateItems: true, CanHaveCategories: false,
-                CreateCommandId: $"{prefix}.blackboard.createWorkingState"),
-
-            new MyBlueprintSectionDescriptor(
-                Id: SectionAssetGlobals, DisplayName: "Asset Globals", SortOrder: 2, IconKey: null,
-                CanCreateItems: true, CanHaveCategories: false,
-                CreateCommandId: $"{prefix}.blackboard.createAssetGlobal"),
         };
     }
 
@@ -117,9 +105,7 @@ public sealed class BlackboardMyBlueprintModel : IMyBlueprintModel
 
     /// <summary>⭐ Which section a variable belongs to — §1c's table, in one place.</summary>
     public static string SectionOf(BlackboardVariableEntry v)
-        => v.Role != BlackboardVariableRole.State ? SectionInputs
-         : v.Scope == WorkingStateScope.Node      ? SectionWorkingState
-         :                                          SectionAssetGlobals;
+        => SectionInputs;   // ⭐ CE-3193 — one section
 
     public IReadOnlyList<MyBlueprintItem> GetItems(string sectionId)
         => _variables()

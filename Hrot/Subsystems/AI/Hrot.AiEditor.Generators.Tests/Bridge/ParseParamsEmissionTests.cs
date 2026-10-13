@@ -486,8 +486,7 @@ public sealed class ParseParamsEmissionTests
         if (withState)
             dto.Blackboard.Variables.Add(new BlackboardVariableDto
             {
-                Name = "seen", Type = new BlackboardTypeRefDto { TypeId = "System.Int32" }, Role = BlackboardVariableRole.State,
-                Scope = WorkingStateScope.Behavior,   // a block variable (Node-scoped State is not in the block)
+                Name = "seen", Type = new BlackboardTypeRefDto { TypeId = "System.Int32" }, IsWorkingState = true, // a block variable (Node-scoped State is not in the block)
             });
         if (resolver != null)
             dto.Resolver = new BehaviorResolverRefDto { AssetId = Guid.Parse("dddddddd-0000-0000-0000-000000000001"), Name = resolver };

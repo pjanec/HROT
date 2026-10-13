@@ -67,13 +67,6 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
     public bool IsReadOnly => false;
 
     /// <summary>
-    /// ⭐ <c>Q-k</c>: <c>Role</c>/<c>Scope</c> are <b>read-only for blueprints</b> — changing either is
-    /// a MOVE between storage classes with reference consequences, not a toggle. ⛔ Saying so is what
-    /// stops the panel drawing a live combo whose result is discarded (<c>BP-230</c>).
-    /// </summary>
-    public bool SupportsRoleScopeEditing => false;
-
-    /// <summary>
     /// ⚠ <b>Parameters get a real C# symbol path</b> — they become fields of the generated
     /// <c>Params</c> struct, so a rename is a genuine cross-language refactor. The other two are
     /// asset-scoped.
@@ -450,10 +443,6 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
         }
         return VariableRef.Unresolved;
     }
-
-    // U-5 / Q-k: Role/Scope are read-only for blueprints — see SupportsRoleScopeEditing. The setters
-    // are NOT overridden: the interface's defaults now throw, which is the point. A source that says
-    // it cannot edit them is never asked, and one that lies is loud.
 
     public IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements => Array.Empty<UnboundRequirementViewModel>();
     public void AddAlias(string name, BlackboardAliasBinding binding) { }
