@@ -563,5 +563,66 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.True(registry.TryGetDefinition(id, out var result));
             Assert.Same(def, result);
         }
+    
+        // ── CE-3186 (P2, R-2001 — docs/DESIGN_Orders_Params_Entity_Classes.md §13.8) — no stale DTO type after a rebuild ────────
+
+        /// <summary>
+        /// A rebuilt copy of this test assembly holding only <see cref="CE3186_ReloadedDto"/>: same assembly NAME, same type FullName, a
+        /// different <see cref="System.Type"/> — what a hot reload of a rebuilt assembly loads beside the old one. ⚠ A minimal DYNAMIC
+        /// assembly, not a second real copy of the test assembly: every scanner that walks the loaded assemblies would see a real copy's
+        /// fixtures twice (CE-3180: fixture ids already collide by test order).
+        /// </summary>
+        private static System.Reflection.Assembly SecondCopyOfThisAssembly()
+        {
+            var asm = System.Reflection.Emit.AssemblyBuilder.DefineDynamicAssembly(
+                new System.Reflection.AssemblyName(typeof(BehaviorRegistryTests).Assembly.GetName().Name!),
+                System.Reflection.Emit.AssemblyBuilderAccess.Run);
+            var tb = asm.DefineDynamicModule("rebuild").DefineType(typeof(CE3186_ReloadedDto).FullName!,
+                System.Reflection.TypeAttributes.Public | System.Reflection.TypeAttributes.Sealed | System.Reflection.TypeAttributes.SequentialLayout,
+                typeof(System.ValueType));
+            tb.DefineField("Range", typeof(float), System.Reflection.FieldAttributes.Public);
+            tb.CreateType();
+            return asm;
+        }
+
+        /// <summary>⭐ <see cref="BehaviorRegistry.LatestCopyOf"/> answers the type from the LAST loaded copy of its assembly, and the
+        /// type itself when it is the latest.</summary>
+        [Fact]
+        public void CE3186_LatestCopyOf_IsTheNewestLoadedCopy()
+        {
+            var copy = SecondCopyOfThisAssembly();
+            var newer = copy.GetType(typeof(CE3186_ReloadedDto).FullName!)!;
+            Assert.NotEqual(typeof(CE3186_ReloadedDto), newer);
+            Assert.Same(newer, BehaviorRegistry.LatestCopyOf(typeof(CE3186_ReloadedDto)));
+            Assert.Same(newer, BehaviorRegistry.LatestCopyOf(newer));
+            Assert.Same(typeof(int), BehaviorRegistry.LatestCopyOf(typeof(int)));
+        }
+
+        /// <summary>
+        /// ⭐⭐ THE STALE TYPE ITSELF: the declaration was bound at load from the OLD copy (CgfBehaviorSetup); a hot reload of a rebuilt
+        /// assembly merges a staging registration built from the NEW copy — and the merge used to put the old type back.
+        /// <para>🔴 Red-proof: drop the re-base loop in <see cref="BehaviorRegistry.MergeFrom"/> → the definition publishes the old copy's
+        /// type and this fails.</para>
+        /// </summary>
+        [Fact]
+        public void CE3186_MergeFrom_AfterARebuild_PublishesTheNewCopysDto()
+        {
+            var live = new BehaviorRegistry();
+            live.Register("CE3186_Behaviour", new BehaviorDefinition { Name = "CE3186_Behaviour" });
+            live.RegisterJsonParamsDtoType("CE3186_Behaviour", typeof(CE3186_ReloadedDto));   // bound at load, old copy
+
+            var newer = SecondCopyOfThisAssembly().GetType(typeof(CE3186_ReloadedDto).FullName!)!;   // the rebuild
+            var staging = new BehaviorRegistry();
+            staging.Register("CE3186_Behaviour", new BehaviorDefinition { Name = "CE3186_Behaviour", JsonParamsDtoType = newer });
+
+            live.MergeFrom(staging);
+
+            Assert.True(live.TryGetId("CE3186_Behaviour", out int id));
+            Assert.True(live.TryGetDefinition(id, out var def));
+            Assert.Same(newer, def!.JsonParamsDtoType);
+        }
     }
+
+    /// <summary>⭐ CE-3186 — a DTO in THIS assembly; <c>BehaviorRegistryTests.SecondCopyOfThisAssembly</c> builds its rebuilt twin.</summary>
+    public struct CE3186_ReloadedDto { public float Range; }
 }

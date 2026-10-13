@@ -27,8 +27,16 @@ public interface IIntentContractProvider
 public sealed class ReflectionIntentContractProvider : IIntentContractProvider
 {
     private IReadOnlyList<IntentContract>? _cached;
+    private Hrot.Map.Definitions.Behavior.ParamsDtoRegistry? _cachedFor;
 
-    public IReadOnlyList<IntentContract> GetContracts() => _cached ??= FromRegistry(Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default);
+    /// <summary>⭐ <c>CE-3186</c> (P2) — recomputed whenever <c>ParamsDtoRegistry.Default</c> is a new instance (it drops itself on every
+    /// assembly load), so a rebuilt DTO reaches the palette; the cache never outlives the registry it was built from.</summary>
+    public IReadOnlyList<IntentContract> GetContracts()
+    {
+        var registry = Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default;
+        if (_cached == null || !ReferenceEquals(_cachedFor, registry)) { _cached = FromRegistry(registry); _cachedFor = registry; }
+        return _cached;
+    }
 
     /// <summary>Scans <paramref name="assemblies"/> (exposed so a rail can scan a known assembly set).</summary>
     public static IReadOnlyList<IntentContract> Compute(IEnumerable<Assembly> assemblies)

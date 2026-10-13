@@ -891,6 +891,30 @@ namespace Fdp.Toolkit.Behavior
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3186</c> — <paramref name="type"/> as found in the LAST loaded assembly of its assembly's name (a hot reload loads a
+        /// new copy beside the old one; <see cref="AppDomain.GetAssemblies"/> lists in load order), or <paramref name="type"/> itself when
+        /// no later copy declares it. A copy that cannot answer the lookup is skipped.
+        /// </summary>
+        public static Type LatestCopyOf(Type type)
+        {
+            if (type == null) throw new ArgumentNullException(nameof(type));
+            string? asmName = type.Assembly.GetName().Name, fullName = type.FullName;
+            if (asmName == null || fullName == null || type.IsGenericType) return type;
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+            for (int i = assemblies.Length - 1; i >= 0; i--)
+            {
+                var a = assemblies[i];
+                if (a.GetName().Name != asmName) continue;
+                if (a == type.Assembly) return type;
+                Type? latest;
+                try { latest = a.GetType(fullName, throwOnError: false, ignoreCase: false); }
+                catch { latest = null; }
+                if (latest != null) return latest;
+            }
+            return type;
+        }
+
+        /// <summary>
         /// Copies all registrations from <paramref name="source"/> into this registry.
         /// Existing entries with the same key are overwritten.
         /// Called by <see cref="AiHotReloadCoordinator.ApplyQuickReload"/> to commit
@@ -910,6 +934,12 @@ namespace Fdp.Toolkit.Behavior
             // CE-235: same for authored JSON contracts — carried first so the copy below can bind them.
             foreach (var (name, jsonDto) in source._jsonParamsDtoByName)
                 _jsonParamsDtoByName[name] = jsonDto;
+
+            // ⭐ CE-3186 (P2, R-2001 — design §13.8) — a full rebuild arrives as a NEW COPY of the assembly; the declarations bound at
+            //   load (CgfBehaviorSetup) still name the OLD copy's types, and the copy below would put them back on the new definitions.
+            //   Re-base every declared DTO to its latest loaded copy (same assembly name, same FullName) first.
+            foreach (var name in _jsonParamsDtoByName.Keys.ToList())
+                _jsonParamsDtoByName[name] = LatestCopyOf(_jsonParamsDtoByName[name]);
 
             // O7b-3: and the hosted-occurrence demands. ⛔ Dropping them here would silently return
             //   every merged behaviour to the smallest tier — the exact regression this overlay fixes,

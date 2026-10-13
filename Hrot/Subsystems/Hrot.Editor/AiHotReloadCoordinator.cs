@@ -292,6 +292,13 @@ namespace Hrot.Editor
                 // Step 3: atomic commit of BlueprintRegistry.
                 _blueprintRegistry.CommitStaging(blueprintStaging);
 
+                // ⭐ CE-3186 (P2, R-2001 — design §13.8): bind the declared params DTOs FROM THE NEW COPY into the staging registry, so
+                //   the merge carries the rebuilt [Behavior(Params = …)] — a retargeted declaration too — instead of the declarations
+                //   CgfBehaviorSetup bound from the old copy at load (MergeFrom re-bases same-named types; a retarget needs this).
+                if (pending.Registrars.Count > 0)
+                    Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindJsonParamsDtoTypes(behaviorStaging,
+                        Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Pinning(pending.Registrars[0].DeclaringType.Assembly));
+
                 // Step 4: apply staging behavior registry -> live registry via MergeFrom (overwrite).
                 // A reload legitimately re-registers already-present behavior names with fresh-ALC
                 // definitions; a Register loop would hit the Phase-1e duplicate-name hard error and

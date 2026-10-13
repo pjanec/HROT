@@ -1480,7 +1480,7 @@ an assembly loads.*
   assembly throw, 9 reds), `CE3185_FindByAssetId_LocatesTheAsset_WhereverItMoved` + two invalid-asset cases (generator), the collision guard's
   `.params.json` cases.
 
-### 13.8 P2 — no stale DTO type after a rebuild *(CE-3186; build-state: READY-TO-BUILD `2026-10-13`, backend)*
+### 13.8 P2 — no stale DTO type after a rebuild *(CE-3186; build-state: BUILT `2026-10-13`, backend — as-built at the end of this section)*
 
 | claim | code — how it IS | design basis |
 |---|---|---|
@@ -1524,3 +1524,20 @@ classDiagram
 | P2-a | where the re-base lives | `BehaviorRegistry.MergeFrom` (`Fdp.Toolkits`) — one place both coordinators pass through; `LatestCopyOf(t)` = the same `FullName` in the last-loaded assembly of `t`'s name | a hook on the Fdp coordinator (an API for one caller) · a second rebind in each coordinator only (CGF's cannot reach `Hrot.Core`) |
 | P2-b | how quick reload detects a changed DTO | a GENERATED DTO (`[ParamsDto(AssetId)]`) is compared field by field (name + type id) with its `.params.json` on disk; a mismatch refuses with "full rebuild needed" before compiling. A hand-written DTO cannot change without a build, which IS the full rebuild | compare a layout hash re-emitted by the generator (needs the generator in the editor process; the field list says the same) · compile the DTO in quick reload (rejected by the user, R-2001) |
 | P2-c | the palette cache | recomputed when `ParamsDtoRegistry.Default` is a different instance (the registry already drops itself on every assembly load) | an `AssemblyLoad` hook of its own (a second invalidation rule) |
+
+**As built** *(2026-10-13)* — matches the diagrams:
+- `BehaviorRegistry.LatestCopyOf(Type)` (public, `Fdp.Toolkits`) + the re-base loop at the top of `MergeFrom`. ⚠ It does NOT skip dynamic
+  assemblies (a real reload copy is not dynamic; the rails need a dynamic twin — see below).
+- `Hrot.Editor.AiHotReloadCoordinator` (the file-watcher path) binds the staging registry from `ParamsDtoRegistry.Pinning(<the new copy>)`
+  before `MergeFrom`. ⚠ Its `ApplyQuickReload` path is left alone: a quick reload compiles one asset and no DTO, so there is nothing to rebind.
+- `BlackboardTypeHelper.ResolveClrType` walks the loaded assemblies LAST-to-first. `ReflectionIntentContractProvider` recomputes when
+  `ParamsDtoRegistry.Default` is a new instance.
+- ⚠ **Deviation (home):** the refusal is `Hrot.Editor.AiShared.Documents.ParamsDtoStaleness` (not `Hrot.AiEditor.Persistence`, which is
+  `netstandard2.0` and has no type helper); `AiAssetReload.ReloadBTree` / `ReloadHsm` call it before emitting. ⚠ **Not covered:** the blueprint
+  arm — its compile runs inside `Hrot.Blueprints.Editor` and no `.bp.json` names a generated DTO yet (P4 changes that; the check is one call).
+- Rails: `CE3186_LatestCopyOf_IsTheNewestLoadedCopy`, `CE3186_MergeFrom_AfterARebuild_PublishesTheNewCopysDto` (`BehaviorRegistryTests`, the
+  feature's suite; red-proved by removing the re-base), `CE3186_ResolveClrType_AnswersTheNewestCopy`, `CE3186_AnUnchangedGeneratedDto_IsNotRefused`,
+  `CE3186_AChangedGeneratedDto_IsRefused_FullRebuildNeeded`, `CE3186_AHandWrittenDto_OrNoDto_IsNeverRefused` (`ParamsDtoStalenessTests`). ⚠ The
+  "rebuilt copy" is a minimal DYNAMIC assembly with the same name and one type: a second real copy of a test assembly would make every
+  scanner that walks the loaded assemblies see its fixtures twice (CE-3180).
+
