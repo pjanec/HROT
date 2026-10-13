@@ -1999,7 +1999,7 @@ absent key loses the DTO's default; and a blueprint has no `ParamsDefaultJson` a
 | blueprints | `BlueprintAsset.ParamsDefaultJson` (new), baked the same way | blueprints take only the DTO's defaults |
 | the corpus | unchanged: today's files list every key, i.e. override every field — the same values, the same bake result | rewriting them to sparse (a behaviour change only where a DTO default differs; none needs it) |
 
-#### 13.10b The params panels *(ui lane, CE-1061; build-state: READY-TO-BUILD `2026-10-13` — dispatched by [HANDOFF_Params_Panels_Ui](blueprints/HANDOFF_Params_Panels_Ui.md) at f7ee65c37; U1–U3 + U5a; U5b waits for CE-3194)*
+#### 13.10b The params panels *(ui lane, CE-1061; build-state: BUILT `2026-10-13` (U1–U3, U5a; as-built after the decisions) — designed READY-TO-BUILD the same day — dispatched by [HANDOFF_Params_Panels_Ui](blueprints/HANDOFF_Params_Panels_Ui.md) at f7ee65c37; U1–U3 + U5a; U5b waits for CE-3194)*
 
 🔒 **User, 2026-10-13:** *"why would we show the user those variable kinds? what would he do with that?"* ⇒ the panels show `Params`
 (the DTO's fields) and the variables, nothing about kinds. R-3001: *"editor should allow choosing the csharp hardcoded dto OR json
@@ -2098,6 +2098,23 @@ no replacement edge, by design (adding a field is B4b, postponed).*
 | D5 | U5a write path | a small `IParamsDtoAsset` (AiShared) implemented by `BehaviorTreeAsset` / `HsmAsset`; the blueprint writes `BlueprintAsset.ParamsDtoTypeId` + `MarkDirty`. A DTO change clears `ParamsDefaultJson` | widening `IBlackboardManagedAsset` (8 fakes to touch for one member) · keeping the old overrides (they name another DTO's fields) |
 | D6 | U5a choices | `ParamsDtoRegistry.Default.Dtos` with `DtoPurpose.Params`, displayed `Name — C# File.cs:line` or `Name — asset`, plus `(none)`; the current type kept even when the registry does not list it | a list per origin (F2: one registry) |
 | D7 | U5b | ⏸ not built: needs `ParamsDefaults.DefaultOf` and `BlueprintAsset.ParamsDefaultJson` (CE-3194 ①–③, OPEN) | an editor-side default (a second producer of the DTO's default) |
+
+**As built** *(2026-10-13, ui, `CE-1061`; matches the three diagrams — no deviation in shape)*:
+- U1 `BlueprintMyBlueprintModel.BuildInputItems` (`param:{name}` rows, read-only, type badge, default in the tooltip); `Sections` projects
+  the Inputs title (`Inputs — <DTO>`) beside the locals' disabled reason.
+- U2 deleted: `CommandCreateParameter`, both `RegisterCreateDeclarationCommands` overloads (they registered only that id) and the window's
+  `_createParameterModal`. `BlueprintDocumentFactory.CreateDeclaration` / `AddDeclaration` stay: they are the generic per-kind create path
+  (variables use them). An asset that still DECLARES a Parameter keeps showing it — `ParametersOf` returns declared ones first.
+- U3 `ActionBindingCompatibility.BindableFieldsOf` (extracted; `AddFieldPaths` calls it); `ParamsFieldRow.Of(dto, assetDefaultJson)` on the
+  reserved row's `VariableViewModel.ParamsFields`; `VariablesPanelControl` draws them as indented read-only rows ("(DTO default)" where the
+  asset sets nothing).
+- U5a `IParamsDtoAsset` + `ParamsDtoChooser` (`Choices` / `Draw`, AiShared); `BehaviorTreeAsset` / `HsmAsset.SetParamsDto` →
+  `ReservedParamsVariable.Retarget`; `BlueprintParamsDto.Set`. The chooser draws above the variables table and above the blueprint outline
+  (only on a kind that takes params). ⚠ The blueprint write marks dirty but is not an undoable edit (as `AddDeclaration`).
+- Rails: `DeclarationSectionsTests` `CE1061_NoCreateParameterCommand_IsRegistered`, `CE1061_ADtoNamedBlueprintsInputs_ListExactlyParametersOf_ReadOnly`,
+  `CE1061_ChoosingTheParamsDto_NamesIt_AndTheInputsFollow` (three C-sections rails restated); `NodeOwnedVariableTests.CE1061_TheParamsRow_ListsItsDtosFields_ReadOnly`;
+  `BehaviorTreeAssetModelTests.CE1061_PickingAParamsDto_WritesTheTypeId_AndRebuildsTheParamsEntry`; frame rail
+  `TheParamsPanelRendersTests` (U4 evidence, screenshot).
 
 ### 13.11 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
 
