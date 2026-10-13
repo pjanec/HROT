@@ -1427,7 +1427,6 @@ internal static class Stage0_Rehydrate
     {
         FunctionCallNode fc   => !fc.IsPure,
         GetVariableNode       => false,
-        GetParameterNode      => false,
         GetAllParametersNode  => false,
         GetAllVariablesNode   => false,
         GetComponentNode      => false,

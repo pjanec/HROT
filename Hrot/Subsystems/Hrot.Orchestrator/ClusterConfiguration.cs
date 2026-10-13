@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Orchestrator;
 
@@ -56,10 +57,7 @@ public sealed class ClusterConfiguration
         NasBasePath                = NasBasePath,
     };
 
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-    };
+    private static readonly JsonSerializerOptions _jsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
 
     /// <summary>
     /// Loads a <see cref="ClusterConfiguration"/> from <paramref name="filePath"/>.

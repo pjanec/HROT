@@ -380,7 +380,7 @@ Discriminator property `"kind"`.  Derived types:
 | `BooleanOp` | `BooleanOpNode` | `Operator` (AND/OR/XOR) |
 | `Not` | `NotNode` | -- |
 | `GetComponent` | `GetComponentNode` | `ComponentTypeFqn`, `FieldName`, `FieldTypeFqn` (baked, reflection-free ECS field read off `self` or an optional `Target` entity pin) |
-| `GetParameter` | `GetParameterNode` | reads a single `AiPrimitive` parameter |
+| `GetParameter` | ⛔ **REMOVED by `CE-2135` P4** (steer 2, R-2004) — `GetParameterNode` | read a single parameter; Get All Parameters names one pin per parameter (a named DTO's fields) |
 | `GetAllParameters` | `GetAllParametersNode` | reads all `AiPrimitive` parameters |
 | `GetShared` | ⛔ **REMOVED by `CE-440`** — `GetSharedNode` | multi-pin per-field read of `BlueprintSharedState` |
 | `SetShared` | `SetSharedNode` | multi-pin per-field write via `BlueprintSharedState.TrySetSharedField` |

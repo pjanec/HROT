@@ -443,16 +443,7 @@ public sealed class NodeCoverageTests
                 "by FunctionCallSemanticResolveTests. (CE-436 deleted the HillAssault2I_* proof " +
                 "blueprints this line also cited; FunctionCall survives in 20 other corpus assets, " +
                 "measured 2026-09-29, so the coverage is re-pointed, not lost.)",
-            [typeof(GetParameterNode)] =
-                "GetParameter's 'Value' output is resolved at lowering from the node's BAKED ParameterId " +
-                "(like GetVariable), not by pin lookup, so it round-trips pin-less without the output pin " +
-                "being reconstructed. Proven by HsmGuardDemo (PlatoonHillAttackBp, the other, retired by R-2006), the corpus assets " +
-                "carrying a GetParameter node (measured 2026-10-01, when the HillAssault2_RequestAreaQuery / " +
-                "_HasTarget twins that also carried one retired; OwnParamResolverDemo was deleted by CE-445). " +
-                "NOTE this line previously named HillAssault2I_IsWaveCompleted as the evidence and that " +
-                "was ALREADY WRONG before CE-436 deleted it: that asset had ZERO GetParameter nodes. " +
-                "The one integrated asset that did carry one was HillAssault2I_RequestAreaQuery, whose " +
-                "surviving twin is now cited first above.",
+            // CE-2135 P4: GetParameterNode retired (steer 2) — its entry went with it.
         };
 
     /// <summary>
@@ -615,7 +606,6 @@ public sealed class NodeCoverageTests
         yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/SetComponent", new[] { BuildSetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/DiamondMerge", new[] { BuildDiamondMergeMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
-        yield return ("Inline/GetParameter", new[] { BuildGetParameterMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetAllParameters", new[] { BuildGetAllParametersMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetAllVariablesSetVariables", new[] { BuildGetAllVariablesSetVariablesMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/Compare", new[] { BuildCompareMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
@@ -1707,91 +1697,12 @@ public sealed class NodeCoverageTests
     }
 
     /// <summary>
-    /// EventEntry -&gt; SetVariable(FloatOut) -&gt; Return, fed by a data-only GetParameter node
-    /// (GAP-11). Mirrors <see cref="BuildGetComponentMinimalAsset"/>'s shape/evidence bar. Unlike
-    /// that fixture, GetParameter's <c>Parameters</c> declaration is only legal under AiPrimitive
-    /// dispatch (Stage2_Validate's BP1031 rejects a non-empty Parameters/WorkingState list on an
-    /// Instance asset) -- so this fixture uses <c>Dispatch = AiPrimitive</c> with a minimal
-    /// Primitive block, and stashes the SetVariable target under WorkingState (AiPrimitive
-    /// forbids Variables -- BP1024) rather than Variables. The GetParameter node's "Value" out-pin
-    /// is authored explicitly (mirrors GetComponentNode -- Stage0_Rehydrate's "node.Pins.Count > 0
-    /// =&gt; skip" guard leaves fully-authored pin-less-node exceptions alone, so no enricher is
-    /// needed), exercising the real Stage5_Schedule GetParameterNode lowering
-    /// (FindParameterIndex -&gt; IrOp_ReadParam -&gt; `p.PIn`) through the full Roslyn+ALC pipeline.
-    /// </summary>
-    private static BlueprintAsset BuildGetParameterMinimalAsset()
-    {
-        var paramId = Guid.NewGuid();
-        var param = new ParameterDecl
-        {
-            Id   = paramId,
-            Name = "PIn",
-            Type = new BlueprintTypeRef { TypeId = "System.Single" },
-        };
-
-        var getValuePin = DataPin("Value", "Out", "System.Single");
-        var getNode = new GetParameterNode { Id = Guid.NewGuid(), ParameterId = paramId.ToString() };
-        getNode.Pins.Add(getValuePin);
-
-        var floatVarId = Guid.NewGuid();
-        var floatVar = new VariableDecl
-        {
-            Id   = floatVarId,
-            Name = "FloatOut",
-            Type = new BlueprintTypeRef { TypeId = "System.Single" },
-        };
-
-        var setExecIn   = ExecPin("ExecIn",  "In");
-        var setExecOut  = ExecPin("ExecOut", "Out");
-        var setValuePin = DataPin("Value",   "In", "System.Single");
-        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = floatVarId.ToString() };
-        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin });
-
-        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
-        var entryOut = ExecPin("ExecOut", "Out");
-        entry.Pins.Add(entryOut);
-
-        var ret   = new ReturnNode { Id = Guid.NewGuid() };
-        var retIn = ExecPin("ExecIn", "In");
-        ret.Pins.Add(retIn);
-
-        var graph = new Graph
-        {
-            Id    = Guid.NewGuid(),
-            Name  = "Main",
-            Kind  = GraphKind.Function,
-            Nodes = { entry, getNode, setNode, ret },
-            Links =
-            {
-                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,    ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
-                new Link { FromNodeId = setNode.Id, FromPinId = setExecOut.Id,  ToNodeId = ret.Id,     ToPinId = retIn.Id },
-                new Link { FromNodeId = getNode.Id, FromPinId = getValuePin.Id, ToNodeId = setNode.Id, ToPinId = setValuePin.Id },
-            },
-        };
-
-        return new BlueprintAsset
-        {
-            AssetId      = Guid.NewGuid(),
-            Name         = "GetParameterCoverage",
-            Dispatch     = BlueprintDispatchKind.AiPrimitive,
-            Primitive    = new AiPrimitiveDecl
-            {
-                Intent   = AiPrimitiveIntent.Action,
-                Hostings = { AiPrimitiveHosting.BTreeAction },
-            },
-            Parameters   = { param },
-            WorkingState = { floatVar },
-            Graphs       = { graph },
-        };
-    }
-
-    /// <summary>
-    /// GetAllParametersNode -- near-exact mirror of <see cref="BuildGetParameterMinimalAsset"/>
+    /// GetAllParametersNode (⭐ CE-2135 P4: the one Parameter read — Get Parameter and its fixture retired)
     /// (same AiPrimitive/WorkingState shape, same evidence bar), but exercises the ONE-node,
     /// ONE-out-pin-per-Parameter shape: EventEntry -&gt; SetVariable(FloatOut) -&gt;
     /// SetVariable(IntOut) -&gt; Return, both SetVariable "Value" data-in pins fed by TWO DIFFERENT
     /// out-pins of a SINGLE GetAllParametersNode. Two Parameters (ParamA:Single, ParamB:Int32) are
-    /// declared; the node's two data-out pins are authored explicitly (mirrors GetParameterNode --
+    /// declared; the node's two data-out pins are authored explicitly (mirrors GetComponentNode --
     /// Stage0_Rehydrate's "node.Pins.Count &gt; 0 =&gt; skip" guard leaves fully-authored pin-less-node
     /// exceptions alone, so no enricher runs here), exercising the real Stage5_Schedule
     /// GetAllParametersNode lowering (per-pin FindParameterIndex-by-NAME -&gt; IrOp_ReadParam -&gt;

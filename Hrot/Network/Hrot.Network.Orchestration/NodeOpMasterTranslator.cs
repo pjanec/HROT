@@ -8,6 +8,7 @@ using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.NED.Descriptors.Orchestration;
 using NedNodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using FdpNodeOpType = Fdp.Toolkit.Orchestration.NodeOpType;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Network.Orchestration;
 
@@ -181,7 +182,7 @@ public sealed class NodeOpMasterTranslator
                 {
                     var entries = System.Text.Json.JsonSerializer.Deserialize<List<FileManifestEntry>>(
                         resultJson!,
-                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
+                        FdpJsonOptionsRegistry.DefaultRelaxed);
                     return entries;
                 }
                 catch
@@ -196,7 +197,7 @@ public sealed class NodeOpMasterTranslator
                 {
                     return JsonSerializer.Deserialize<List<FileManifestEntry>>(
                         resultJson!,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
+                        FdpJsonOptionsRegistry.DefaultRelaxed);
                 }
                 catch
                 {
@@ -210,7 +211,7 @@ public sealed class NodeOpMasterTranslator
                 {
                     return JsonSerializer.Deserialize<ReplayPrepareResult>(
                         resultJson!,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
+                        FdpJsonOptionsRegistry.DefaultRelaxed);
                 }
                 catch
                 {
@@ -224,7 +225,7 @@ public sealed class NodeOpMasterTranslator
                 {
                     return JsonSerializer.Deserialize<ReplaySeekResult>(
                         resultJson!,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
+                        FdpJsonOptionsRegistry.DefaultRelaxed);
                 }
                 catch
                 {

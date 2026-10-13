@@ -8,6 +8,7 @@ using Hrot.NED.Descriptors.Orchestration;
 using NedNodeOpType   = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
 using FdpNodeOpType   = Fdp.Toolkit.Orchestration.NodeOpType;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Common.Orchestration;
 
@@ -123,7 +124,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
                             // Rehydrate the specific DTO expected by ClusterUiCache
                             payload = JsonSerializer.Deserialize<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(
                                 s.Data.ResultJson,
-                                new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
+                                FdpJsonOptionsRegistry.DefaultRelaxed);
                         }
                         catch
                         {

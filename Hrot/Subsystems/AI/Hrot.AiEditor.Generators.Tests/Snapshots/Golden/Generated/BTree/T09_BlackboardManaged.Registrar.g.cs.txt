@@ -54,49 +54,8 @@ public static class T09_BlackboardManagedRegistrar
                 // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
                 __BakeDefaults(memory, capacity);
 
-                // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
-                // variable's deserializer (DEBT-AIB-021 names this shape).
-                // ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and
-                //    commits only on success, so a throw leaves the entity on its old behaviour.
-                if (!string.IsNullOrWhiteSpace(json))
-                {
-                    using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
-                    if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)
-                    {
-                        foreach (var __prop in __doc.RootElement.EnumerateObject())
-                        {
-                            switch (__prop.Name)
-                            {
-                                case "AttackRange":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<float>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __o);
-                                    break;
-                                }
-                                case "HomePosition":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::System.Numerics.Vector3>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 8, __o);
-                                    break;
-                                }
-                                case "PatrolLoops":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<int>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 20, __o);
-                                    break;
-                                }
-                                case "IsAlerted":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<bool>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 24, __o);
-                                    break;
-                                }
-                                // ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.
-                                default: break;
-                            }
-                        }
-                    }
-                }
+                // Step 2 — CE-2133/CE-2135: 'Params' IS the params DTO; the JSON is its fields, flat.
+                global::Fdp.Toolkit.Behavior.BehaviorParams.OverlayFlat(ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.T09Params>(memory + 0), json, __paramJsonOpts);
             };
         }
 
@@ -107,15 +66,12 @@ public static class T09_BlackboardManagedRegistrar
             Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
-            BlueprintStructureHash = 7129698420404886995UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 1298362157793573189UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
-                new("AttackRange", typeof(float), 0),
-                new("HomePosition", typeof(global::System.Numerics.Vector3), 8),
-                new("PatrolLoops", typeof(int), 20),
-                new("IsAlerted", typeof(bool), 24),
+                new("Params", typeof(global::Hrot.AI.Behaviors.Brains.T09Params), 0),
             },
-            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T09_BlackboardManaged_Blackboard),
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Brains.T09Params),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T09_BlackboardManaged_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,

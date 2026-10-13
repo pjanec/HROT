@@ -135,12 +135,7 @@ internal static class NodePinSchema
             MacroCallNode mc    => MacroCallPins(mc, asset),
             GetVariableNode gv  => GetVariablePins(gv, asset),
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
-            // GetParameter: pin-less assets carry no
-            // authored pins, and the compiler bakes this node at lowering (no pin needed there). The
-            // EDITOR still needs the "Value" out-pin projected so the node renders connected — reconstruct
-            // it here, typed from the referenced Parameter (mirrors the authored shape in the twins).
-            GetParameterNode gp => GetParameterPins(gp, asset),
-            // GetAllParameters: pin-less assets carry no authored pins either; the editor projects
+            // GetAllParameters: pin-less assets carry no authored pins; the editor projects
             // one "Value"-style data-out pin per asset Parameter directly from asset.Parameters
             // (mirrors EventEntryNodePins projecting one data-out per Graph.Inputs entry).
             GetAllParametersNode => GetAllParametersPins(asset),
@@ -924,12 +919,6 @@ internal static class NodePinSchema
     }
 
     /// <summary>
-    /// GetParameter (editor projection): a single "Value" data-out pin typed from the referenced
-    /// blueprint <see cref="ParameterDecl"/> (fallback <c>System.Object</c>). Matches the authored
-    /// shape the isolated twins persist, so a pin-less integrated blueprint renders its GetParameter
-    /// output connected.
-    /// </summary>
-    /// <summary>
     /// Literal editor projection: an editor-only "Value" data-IN pin (for inline-editable types) so the
     /// canvas inline editor renders in the body, plus the "Value" data-OUT pin. The authored output pin
     /// (and its GUID) is reused when present so outgoing links keep binding; otherwise the output is
@@ -959,12 +948,6 @@ internal static class NodePinSchema
         return pins;
     }
 
-    private static IReadOnlyList<Pin> GetParameterPins(GetParameterNode gp, BlueprintAsset? asset)
-        => new[]
-        {
-            MakeData("Value", "Out", ResolveParameterTypeId(gp.ParameterId, asset)),
-        };
-
     /// <summary>
     /// GetAllParameters (editor projection): one data-out pin per Parameter (name, type; fallback <c>System.Object</c>) -- mirrors
     /// <see cref="EventEntryNodePins"/>'s one-data-out-per-<c>Graph.Inputs</c> projection. ⭐ CE-2135 P4 (R-2004): an asset that names a
@@ -980,28 +963,6 @@ internal static class NodePinSchema
         var pins = new List<Pin>(parameters.Count);
         foreach (var p in parameters) pins.Add(MakeData(p.Name, "Out", p.TypeId));
         return pins;
-    }
-
-    /// <summary>
-    /// Looks up a blueprint parameter's <c>TypeId</c> by id (accepts the raw GUID or the
-    /// <c>param:</c>/<c>var:</c> item-id forms). Returns <c>System.Object</c> when not resolvable.
-    /// </summary>
-    private static string ResolveParameterTypeId(string parameterId, BlueprintAsset? asset)
-    {
-        if (asset == null || string.IsNullOrEmpty(parameterId))
-            return "System.Object";
-
-        var idStr = parameterId;
-        if (idStr.StartsWith("param:", StringComparison.OrdinalIgnoreCase)) idStr = idStr[6..];
-        else if (idStr.StartsWith("var:", StringComparison.OrdinalIgnoreCase)) idStr = idStr[4..];
-
-        if (Guid.TryParse(idStr, out var guid))
-        {
-            var decl = asset.Declarations.Of(DeclarationKind.Parameter).FirstOrDefault(d => d.Id == guid);
-            if (decl != null && !string.IsNullOrEmpty(decl.Type?.TypeId))
-                return decl.Type.TypeId;
-        }
-        return "System.Object";
     }
 
     /// <summary>

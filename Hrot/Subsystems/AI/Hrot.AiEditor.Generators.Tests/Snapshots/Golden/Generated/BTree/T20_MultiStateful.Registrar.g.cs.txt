@@ -111,16 +111,8 @@ public static class T20_MultiStatefulRegistrar
             static void __BakeDefaults(byte* memory, int capacity)
             {
                 {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams>("{\"Limit\":3}", __paramJsonOpts);
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.T20Params>("{\"cursorA\":{\"Limit\":3},\"cursorB\":{\"Limit\":5},\"counter\":{\"Counter\":0,\"Threshold\":1000}}", __paramJsonOpts);
                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __v);
-                }
-                {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams>("{\"Limit\":5}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 4, __v);
-                }
-                {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>("{\"Counter\":0,\"Threshold\":1000}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 8, __v);
                 }
             }
             __bakeDefaults = __BakeDefaults;
@@ -129,43 +121,8 @@ public static class T20_MultiStatefulRegistrar
                 // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
                 __BakeDefaults(memory, capacity);
 
-                // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
-                // variable's deserializer (DEBT-AIB-021 names this shape).
-                // ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and
-                //    commits only on success, so a throw leaves the entity on its old behaviour.
-                if (!string.IsNullOrWhiteSpace(json))
-                {
-                    using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
-                    if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)
-                    {
-                        foreach (var __prop in __doc.RootElement.EnumerateObject())
-                        {
-                            switch (__prop.Name)
-                            {
-                                case "cursorA":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __o);
-                                    break;
-                                }
-                                case "cursorB":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 4, __o);
-                                    break;
-                                }
-                                case "counter":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 8, __o);
-                                    break;
-                                }
-                                // ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.
-                                default: break;
-                            }
-                        }
-                    }
-                }
+                // Step 2 — CE-2133/CE-2135: 'Params' IS the params DTO; the JSON is its fields, flat.
+                global::Fdp.Toolkit.Behavior.BehaviorParams.OverlayFlat(ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.T20Params>(memory + 0), json, __paramJsonOpts);
             };
         }
 
@@ -176,14 +133,12 @@ public static class T20_MultiStatefulRegistrar
             Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
-            BlueprintStructureHash = 11304636318857902377UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 207027249817711663UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
-                new("cursorA", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams), 0),
-                new("cursorB", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams), 4),
-                new("counter", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams), 8),
+                new("Params", typeof(global::Hrot.AI.Behaviors.Brains.T20Params), 0),
             },
-            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T20_MultiStateful_FdpToolkitBehaviorComponentsBrainBlackboard),
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Brains.T20Params),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T20_MultiStateful_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,

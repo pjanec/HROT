@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Orchestrator;
 
@@ -17,10 +18,7 @@ namespace Hrot.Orchestrator;
 /// </summary>
 public sealed class ReplayConsensusAggregator : INodeResponseAggregator
 {
-    private static readonly JsonSerializerOptions _deserializeOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-    };
+    private static readonly JsonSerializerOptions _deserializeOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
 
     /// <inheritdoc/>
     public NodeOpType TargetOp => NodeOpType.PrepareReplay;

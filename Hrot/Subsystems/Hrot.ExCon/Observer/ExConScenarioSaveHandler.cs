@@ -8,6 +8,7 @@ using Fdp.Core.Logging;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Core.Serialization;
 
 namespace Hrot.ExCon.Observer;
 
@@ -67,7 +68,7 @@ public sealed class ExConScenarioSaveHandler : IClusterStateHandler
             },
         };
         JsonEnvelope.Write(dom, new DocumentMeta(ObserverDocType, 1));
-        File.WriteAllText(localFile, dom.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = false }));
+        File.WriteAllText(localFile, dom.ToJsonString(FdpJsonOptionsRegistry.DefaultRelaxed));
 
         var relativeDest = Path.Combine(
             OrchestrationConstants.ScenariosDirectoryName, payload.ScenarioName, ".slices", $"node_{_nodeId}.json");

@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Serialization;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Map.Common.Scenario;
 
@@ -54,8 +55,8 @@ public static class ScenarioSaveCore
     {
         var dom = BuildDom(serializer, world, header);
 
-        var minified = new JsonSerializerOptions(HrotSerializerOptions.HrotJsonOptions) { WriteIndented = false };
-        var json     = JsonSerializer.Serialize(dom, minified);
+        // CE-3187 (R-2005): a DOM ignores the naming policy, so the shared minified options are byte-identical.
+        var json     = JsonSerializer.Serialize(dom, FdpJsonOptionsRegistry.DefaultRelaxed);
         File.WriteAllText(filePath, JsonAestheticFormatter.FlattenNumericArrays(json));
     }
 }

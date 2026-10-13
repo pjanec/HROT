@@ -68,34 +68,32 @@ public sealed class NodePinSchemaEnrichmentTests
     private static bool HasExec(IEnumerable<Pin> pins, string name, string dir)
         => pins.Any(p => p.IsExec && p.Name == name && p.Direction == dir);
 
-    // ── GetParameter editor projection (pin-less integrated blueprints) ──────────
+    // ── GetAllParameters editor projection: a DTO-naming asset (CE-2135 P4; Get Parameter retired) ──────────
 
     /// <summary>
-    /// Regression: a pin-less GetParameter node (as stored by any asset authored without pin
-    /// metadata) must still project its "Value" data-out pin in the EDITOR, typed from the
-    /// referenced parameter — otherwise the node renders with no output pin and its wire vanishes.
-    /// (The compiler bakes this at lowering and needs no pin, which is why the proof tests pass
-    /// while the editor projection was broken.)
+    /// ⭐ <c>CE-2135</c> P4 (R-2004) — the editor's twin of the compiler's materialized Parameters: an asset that NAMES a params DTO
+    /// declares no Parameters, and its Get All Parameters node projects one data-out pin per DTO field (name, type, in order), so the
+    /// canvas shows the pins the build will have. (Get Parameter, which this rail used to cover, retired with P4.)
+    /// 🔴 Red-proof: project from <c>asset.Declarations.Of(Parameter)</c> again in <c>GetAllParametersPins</c> → no pins.
     /// </summary>
     [Fact]
-    public void GetParameter_PinlessAsset_ProjectsTypedValueOutPin()
+    public void GetAllParameters_ADtoNamingAsset_ProjectsOnePinPerDtoField()
     {
-        var pid = System.Guid.NewGuid();
         var asset = new BlueprintAsset
         {
             AssetId = System.Guid.NewGuid(),
             Name = "T",
-            Parameters = new() { new ParameterDecl { Id = pid, Name = "Width", Type = new BlueprintTypeRef { TypeId = "System.Single" } } },
+            Dispatch = BlueprintDispatchKind.AiPrimitive,
+            ParamsDtoTypeId = typeof(Hrot.Blueprints.Tests.Compiler.CE2135_FieldSourceDto).FullName,
         };
-        var node = new GetParameterNode { ParameterId = pid.ToString() }; // pin-less (no authored Pins)
-        Assert.Empty(node.Pins);
+        Assert.Empty(asset.Parameters);
 
-        var pins = NodePinSchema.GetCanonicalPins(node, asset: asset);
+        var pins = NodePinSchema.GetCanonicalPins(new GetAllParametersNode(), asset: asset);
 
         var outs = pins.Where(p => !p.IsExec && p.Direction == "Out").ToList();
-        Assert.Single(outs);
-        Assert.Equal("Value", outs[0].Name);
-        Assert.Equal("System.Single", outs[0].TypeRef!.TypeId);
+        Assert.Equal(new[] { "Speed", "Loops", "Mode" }, outs.Select(p => p.Name).ToArray());
+        Assert.Equal(new[] { "System.Single", "System.Int32", typeof(Hrot.Blueprints.Tests.Compiler.CE2135_Mode).FullName },
+            outs.Select(p => p.TypeRef!.TypeId).ToArray());
     }
 
     // ── Task 1: ChannelCommandNode ─────────────────────────────────────────────

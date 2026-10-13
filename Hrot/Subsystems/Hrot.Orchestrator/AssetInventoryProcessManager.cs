@@ -217,7 +217,7 @@ public sealed class AssetInventoryProcessManager
                 ScenarioTimeSeconds = entry.Duration.TotalSeconds,
             };
 
-            var opts = new JsonSerializerOptions { WriteIndented = true };
+            var opts = FdpJsonOptionsRegistry.Indented;
             var dom  = JsonSerializer.SerializeToNode(dto, opts)!.AsObject();
             JsonEnvelope.Write(dom, new DocumentMeta(HrotDocumentTypes.OrchestratorContext, 2));
             File.WriteAllText(Path.Combine(dir, "Orchestrator.json"), dom.ToJsonString(opts));

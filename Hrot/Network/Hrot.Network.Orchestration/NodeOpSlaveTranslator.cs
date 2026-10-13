@@ -11,6 +11,7 @@ using NedClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using NedNodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using FdpNodeOpType    = Fdp.Toolkit.Orchestration.NodeOpType;
 using FdpClusterState  = Fdp.Toolkit.Orchestration.ClusterState;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Common.Orchestration;
 
@@ -33,12 +34,8 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     private readonly int                        _nodeId;
     private readonly JsonSerializerOptions      _jsonOptions;
 
-    private static readonly JsonSerializerOptions DefaultOptions = new()
-    {
-        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-        IncludeFields = true
-    };
+    // CE-3187 (R-2005 / R-2007): the shared options — enums as names, fields, null-omitting, case-insensitive.
+    private static readonly JsonSerializerOptions DefaultOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
 
     /// <summary>Initialises a new <see cref="NodeOpSlaveTranslator"/>.</summary>
     public NodeOpSlaveTranslator(

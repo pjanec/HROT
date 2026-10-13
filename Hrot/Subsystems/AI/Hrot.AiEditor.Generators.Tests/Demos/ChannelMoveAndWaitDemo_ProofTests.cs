@@ -20,11 +20,11 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 /// The committed blueprint <c>Assets/Blueprints/Samples/ChannelMoveAndWaitDemo.bp.json</c> (AiPrimitive,
 /// Intent=Action, Hostings=[BTreeAction]) is a from-scratch, blueprint-authored rebuild of the C# oracle
 /// <c>HillAttackTankNodes.Action_ReverseToBaseline</c> (~line 456), using only shipped nodes
-/// (<c>ChannelCommand</c>, <c>WaitForChannel</c>, <c>GetParameter</c>, <c>PublishEvent</c>,
+/// (<c>ChannelCommand</c>, <c>WaitForChannel</c>, <c>GetAllParameters</c>, <c>PublishEvent</c>,
 /// <c>Return</c>) plus one small curated helper (<see cref="Hrot.AI.Behaviors.Brains.VectorOps.Vec3"/>)
 /// for <c>Vector3</c> construction -- there is no vector-literal node. Graph: <c>EventEntry</c> -&gt;
 /// <c>ChannelCommand</c>(LocomotionChannel/MoveTo) [explicit data-in pins Destination (wired from
-/// <c>VectorOps.Vec3(GetParameter(BaselineX), GetParameter(BaselineY), Literal 0f)</c>),
+/// <c>VectorOps.Vec3(GetAllParameters.BaselineX, GetAllParameters.BaselineY, Literal 0f)</c>),
 /// Speed/ArrivalRadius/ReverseAllowed baked via PinDefaults ("12"/"5"/"1")] -&gt;
 /// <c>WaitForChannel</c>(LocomotionChannel) [AiPrimitive latent lowering: issues the command once on the
 /// first tick and always returns Running; on later ticks, Running while the channel is Running; on channel
@@ -119,9 +119,9 @@ public sealed class ChannelMoveAndWaitDemo_ProofTests
         source.Should().Contain("VectorOps.Vec3(",
             "the Destination pin must be built via the curated VectorOps.Vec3 helper (no vector-literal node exists) -- see generated TickCore below:\n" + source);
         source.Should().Contain("p.BaselineX",
-            "BaselineX must be read via GetParameter (p.BaselineX) -- see generated TickCore below:\n" + source);
+            "BaselineX must be read via GetAllParameters (p.BaselineX) -- see generated TickCore below:\n" + source);
         source.Should().Contain("p.BaselineY",
-            "BaselineY must be read via GetParameter (p.BaselineY) -- see generated TickCore below:\n" + source);
+            "BaselineY must be read via GetAllParameters (p.BaselineY) -- see generated TickCore below:\n" + source);
         source.Should().Contain("world.Bus.Publish(new global::Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent",
             "the success path must publish ClearBehaviorEvent via world.Bus.Publish -- see generated TickCore below:\n" + source);
     }

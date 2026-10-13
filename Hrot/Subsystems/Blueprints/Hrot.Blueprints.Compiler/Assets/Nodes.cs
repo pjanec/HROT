@@ -8,7 +8,6 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(BranchNode),              "Branch")]
 [JsonDerivedType(typeof(SequenceNode),            "Sequence")]
 [JsonDerivedType(typeof(GetVariableNode),         "GetVariable")]
-[JsonDerivedType(typeof(GetParameterNode),        "GetParameter")]
 [JsonDerivedType(typeof(GetAllParametersNode),     "GetAllParameters")]
 [JsonDerivedType(typeof(SetVariableNode),         "SetVariable")]
 [JsonDerivedType(typeof(GetAllVariablesNode),     "GetAllVariables")]
@@ -209,23 +208,10 @@ public sealed class SetVariableNode : Node
 }
 
 /// <summary>
-/// Reads a declared AiPrimitive/Instance <b>Parameter</b> (the host-BTree/HSM data-IN contract)
-/// into the graph. Pure-data node (data-out "Value", type from the referenced Parameter). Lowers
-/// in Stage5 to the pre-existing <c>IrOp_ReadParam</c> (emits <c>p.{ParamName}</c>). Closes GAP-11:
-/// before this node, graphs could only read Variables/WorkingState, forcing read-only inputs to be
-/// mis-stashed in WorkingState.
-/// </summary>
-public sealed class GetParameterNode : Node
-{
-    /// <summary>Guid (string) of the Parameter to read, resolved against the asset's Parameters list.</summary>
-    public string ParameterId { get; set; } = "";
-}
-
-/// <summary>
 /// Reads ALL of the asset's declared Parameters at once: one data-OUT pin per
 /// <see cref="BlueprintAsset.Parameters"/> entry (name = <see cref="ParameterDecl.Name"/>, type from
-/// <see cref="ParameterDecl.Type"/>), instead of chaining one <see cref="GetParameterNode"/> per
-/// Parameter. Pure-data node (no exec pins, no fields -- it covers the WHOLE Parameters list, so
+/// <see cref="ParameterDecl.Type"/>), instead of one node per Parameter (⭐ CE-2135 P4 / steer 2: Get Parameter RETIRED — this is the one
+/// Parameter read; an asset that names a params DTO gets one pin per DTO field). Pure-data node (no exec pins, no fields -- it covers the WHOLE Parameters list, so
 /// there is nothing to bake per-instance). Mirrors <see cref="EventEntryNode"/>'s dynamic
 /// one-data-out-per-<c>Graph.Inputs</c> pin projection exactly, retargeted at
 /// <c>asset.Parameters</c>; each pin lowers in Stage5 to the pre-existing <c>IrOp_ReadParam</c>

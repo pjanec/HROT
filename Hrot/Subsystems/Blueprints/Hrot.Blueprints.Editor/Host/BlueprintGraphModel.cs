@@ -424,9 +424,9 @@ public sealed class BlueprintGraphModel : IGraphModel
 
     /// <summary>
     /// Render-only display label for a projected data pin, when it reads clearer than the pin's
-    /// identity Name. GetParameter's generic "Value" out-pin is relabeled with the referenced
-    /// parameter's NAME (the node title stays clean). The pin's identity Name is untouched, so
-    /// GUIDs / link rehydration are unaffected. Returns null to keep the pin's Name.
+    /// identity Name. The pin's identity Name is untouched, so GUIDs / link rehydration are unaffected.
+    /// Returns null to keep the pin's Name. ⚠ CE-2135 P4: its one client, Get Parameter's "Value" pin, retired
+    /// (Get All Parameters names each pin after its parameter) — the hook stays for the nodes below.
     /// (Get/SetShared + Get/SetVariable can adopt the same treatment here once confirmed.)
     /// </summary>
     private string? ResolvePinDisplayLabel(
@@ -437,25 +437,8 @@ public sealed class BlueprintGraphModel : IGraphModel
 
         return node switch
         {
-            Hrot.Blueprints.Core.Assets.GetParameterNode gp => ResolveParameterLabel(gp.ParameterId),
             _ => null,
         };
-    }
-
-    private string? ResolveParameterLabel(string parameterId)
-    {
-        if (_asset == null || string.IsNullOrEmpty(parameterId)) return null;
-
-        var id = parameterId;
-        if (id.StartsWith("param:", System.StringComparison.OrdinalIgnoreCase)) id = id[6..];
-        else if (id.StartsWith("var:", System.StringComparison.OrdinalIgnoreCase)) id = id[4..];
-
-        if (System.Guid.TryParse(id, out var guid))
-        {
-            var decl = _asset.Declarations.Of(DeclarationKind.Parameter).FirstOrDefault(d => d.Id == guid);
-            if (decl != null && !string.IsNullOrEmpty(decl.Name)) return decl.Name;
-        }
-        return null;
     }
 
     private static readonly List<Link> _emptyLinks = new();

@@ -73,6 +73,7 @@
 			}
 		}
 	],
+	"ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.T09Params",
 	"Pills": [],
 	"Canvas": {
 		"PanX": 0,
@@ -88,43 +89,6 @@
 		"Managed": true,
 		"TypeName": "",
 		"HeavyDtoType": null,
-		"Variables": [
-			{
-				"Name": "AttackRange",
-				"Type": {
-					"TypeId": "float",
-					"IsArray": false,
-					"FixedLength": null
-				},
-				"Comment": "Max distance to engage the target"
-			},
-			{
-				"Name": "HomePosition",
-				"Type": {
-					"TypeId": "Vector3",
-					"IsArray": false,
-					"FixedLength": null
-				},
-				"Comment": "Patrol anchor the agent returns to"
-			},
-			{
-				"Name": "PatrolLoops",
-				"Type": {
-					"TypeId": "int",
-					"IsArray": false,
-					"FixedLength": null
-				},
-				"Comment": "Number of patrol cycles before idling"
-			},
-			{
-				"Name": "IsAlerted",
-				"Type": {
-					"TypeId": "bool",
-					"IsArray": false,
-					"FixedLength": null
-				},
-				"Comment": "Set true when an enemy is spotted"
-			}
-		]
+		"Variables": []
 	}
 }

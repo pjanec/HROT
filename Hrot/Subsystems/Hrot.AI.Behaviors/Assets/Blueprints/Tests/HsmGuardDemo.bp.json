@@ -45,23 +45,9 @@
           }
         },
         {
-          "kind": "GetParameter",
-          "ParameterId": "999bb03f-d6d1-0157-bd20-9ba820f0b8ba",
+          "kind": "GetAllParameters",
           "Id": "20000150-0000-0000-0000-000000000002",
-          "Pins": [
-            {
-              "Id": "a1500000-0000-0000-0000-000000000001",
-              "Name": "Value",
-              "Direction": "Out",
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              },
-              "IsExec": false,
-              "LinkedToIds": []
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 60,
             "Y": 60,
@@ -89,7 +75,7 @@
         },
         {
           "FromNodeId": "20000150-0000-0000-0000-000000000002",
-          "FromPinId": "a1500000-0000-0000-0000-000000000001",
+          "FromPinId": "b3b09c9e-13c4-8e5f-9bcb-ce05d687c576",
           "ToNodeId": "20000150-0000-0000-0000-000000000003",
           "ToPinId": "e1500000-0000-0000-0000-000000000003"
         }

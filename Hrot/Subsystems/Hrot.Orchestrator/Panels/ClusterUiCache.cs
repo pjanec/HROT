@@ -12,6 +12,7 @@ using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using FdpNodeOpType = Fdp.Toolkit.Orchestration.NodeOpType;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Orchestrator.Panels;
 
@@ -25,11 +26,8 @@ namespace Hrot.Orchestrator.Panels;
 /// </summary>
 public sealed class ClusterUiCache : IDisposable
 {
-    private static readonly JsonSerializerOptions PayloadJsonOptions = new()
-    {
-        IncludeFields = true,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-    };
+    // CE-3187 (R-2007): the shared options — payload enums now print as names, not numbers.
+    private static readonly JsonSerializerOptions PayloadJsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
 
     // ── Published state ────────────────────────────────────────────────────────
     public ClusterState    CurrentState           { get; private set; }

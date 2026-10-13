@@ -10,6 +10,7 @@ using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
 using Hrot.Common.Serializers;
+using Fdp.Core.Serialization;
 
 namespace Hrot.SimHost.Serializers
 {
@@ -31,11 +32,7 @@ namespace Hrot.SimHost.Serializers
             public string? Designation { get; set; }
         }
 
-        private static readonly JsonSerializerOptions s_jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-        };
+        private static readonly JsonSerializerOptions s_jsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
 
         // ── IEntityScenarioTranslator ─────────────────────────────────────────
 

@@ -327,21 +327,6 @@ public sealed class BlueprintNodeTitleTests
     }
 
     [Fact]
-    public void GetParameter_TitleIsClean_NameShownOnPinInstead()
-    {
-        // The parameter NAME now labels the output pin (render-only, in BlueprintGraphModel), so the
-        // node title stays generic and uncluttered.
-        var pid = System.Guid.NewGuid();
-        var asset = new BlueprintAsset
-        {
-            AssetId = System.Guid.NewGuid(),
-            Name = "T",
-            Parameters = new() { new ParameterDecl { Id = pid, Name = "FiringLineStart" } },
-        };
-        Assert.Equal("Get Parameter", Title(new GetParameterNode { ParameterId = pid.ToString() }, asset));
-    }
-
-    [Fact]
     public void GetSetVariable_ResolvesWorkingStateSlotName_NotRawGuid()
     {
         // Get/SetVariable can target a WorkingState slot (the cross-entity / shared-state demos

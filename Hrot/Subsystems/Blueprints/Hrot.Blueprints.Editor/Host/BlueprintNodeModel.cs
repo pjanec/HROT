@@ -329,7 +329,6 @@ internal sealed class BlueprintNodeModel : INodeModel
         // pin label — the literal's value, the parameter's name, the compare/arith/bool operator.
         // Punch-list: the parameter NAME is shown on the output pin (render-only display label in
         // BlueprintGraphModel), so the title stays clean/uncluttered.
-        Hrot.Blueprints.Core.Assets.GetParameterNode      => "Get Parameter",
         Hrot.Blueprints.Core.Assets.GetAllParametersNode  => "Get All Parameters",
         Hrot.Blueprints.Core.Assets.GetAllVariablesNode   => "Get All Variables",
         Hrot.Blueprints.Core.Assets.SetVariablesNode      => "Set Variables",
@@ -405,7 +404,6 @@ internal sealed class BlueprintNodeModel : INodeModel
         // FC-2/LV-3: ListWrite is the exec write node for fixed-list VARIABLES (SetVariable analog).
         Hrot.Blueprints.Core.Assets.ListWriteNode            => NodeCategory.VariableSet,
         Hrot.Blueprints.Core.Assets.LiteralNode              => NodeCategory.Pure,
-        Hrot.Blueprints.Core.Assets.GetParameterNode         => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetAllParametersNode     => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetAllVariablesNode      => NodeCategory.VariableGet,
         Hrot.Blueprints.Core.Assets.SetVariablesNode         => NodeCategory.VariableSet,

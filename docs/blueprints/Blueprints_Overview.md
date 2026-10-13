@@ -187,7 +187,7 @@ mirrored in the other.
 
 - **Palette discovery** — the node vocabulary is assembled from many sources: the built-in set, plus
   *discovered* entries — per-action channel commands, `[BlueprintCallable]` methods, `[BlueprintEvent]`
-  publishers, and a Make/Break/SetMembers triple per `[BlackboardDtoStruct]`. Discovery reflects
+  publishers, and a Make/Break/SetMembers triple per `[Dto]` (was `[BlackboardDtoStruct]`, retired CE-3185). Discovery reflects
   Hrot/Fdp assemblies and **bakes** the resulting FQNs onto the created node.
 - **Pin projection** — `NodePinSchema.GetCanonicalPins` computes each node's pins (authored → registry
   → fallback). Dynamic kinds (EventEntry, FunctionCall, Make/Break/SetMembers,

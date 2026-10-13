@@ -377,7 +377,7 @@ Hrot.Blueprints.Editor/
 |   |-- IEditService.cs / EditService.cs    -- editor mutation + undo/redo service (RecordPropertyEdit)
 |   |-- BlueprintNodeDrawerRegistry.cs      -- registry mapping Node CLR type -> drawer
 |   |-- NodeKindDescriptor.cs / NodeKindRegistry.cs -- palette entry metadata + registry
-|   |-- ISharedStructTypeProvider.cs / (Reflection impl) -- discovers [BlackboardDtoStruct] types for Get/SetShared + Make/Break/SetMembers
+|   |-- ISharedStructTypeProvider.cs / (Reflection impl) -- discovers [Dto] types for Get/SetShared + Make/Break/SetMembers
 |   |-- WhenNodeDrawer.cs                   -- drawer for WhenNode (4-mode inspector UI)
 |   |-- ReadEqsResultNodeDrawer.cs          -- drawer for ReadEqsResultNode
 |   |-- SpawnEqsSensorNodeDrawer.cs         -- drawer for SpawnEqsSensorNode
@@ -392,7 +392,7 @@ Hrot.Blueprints.Editor/
 |   |-- BlueprintCallablePaletteEntries.cs  -- reflection-discovered [BlueprintCallable] CLR helper entries
 |   |-- BlueprintEventCatalog.cs / BlueprintEventDiscovery.cs / BlueprintEventPaletteEntries.cs
 |   |                                       -- discovers [BlueprintEvent]/[EventTarget] custom events; "Publish: {Event}" + EventEntry palette entries
-|   |-- MakeBreakStructPaletteEntries.cs    -- Make/Break/SetMembers palette triple per [BlackboardDtoStruct]
+|   |-- MakeBreakStructPaletteEntries.cs    -- Make/Break/SetMembers palette triple per [Dto]
 |   |-- EqsTemplateEntry.cs / EqsTemplateRegistry.cs -- editor-side catalog of EQS template assets
 |   |-- NodeKindDescriptor.cs / EditorColors.cs
 |
@@ -536,7 +536,7 @@ public static class BlueprintEditorBootstrap
   `channelCatalog` is supplied), one entry per non-channel behavior action (when
   `behaviorActionCatalog` is supplied), `BlueprintMathPaletteEntries.All()`, reflection-discovered
   `[BlueprintCallable]` entries, one "Publish: {Event}" entry per discovered custom event, and one
-  Make/Break struct pair per `[BlackboardDtoStruct]`.
+  Make/Break struct pair per `[Dto]`.
 - `CreateAttachmentProviders` returns `WhenNodeAttachmentProvider`,
   `ReadEqsResultAttachmentProvider`, `EqsTemplateAttachmentProvider`,
   `CrossAssetDependencyAttachmentProvider`.
@@ -719,7 +719,7 @@ The single source of truth for "what pins does this node kind have, right now, g
 asset/graph/catalog context." Resolution order: asset-authored pins (test builders) → literal
 inline-editor special case → `NodeKindRegistry` descriptor → dynamic per-kind computation
 (`EventEntryNode`, `ReturnNode`, `FunctionCallNode` CLR-vs-graph-call dispatch, `GetVariableNode`/
-`SetVariableNode`, `GetParameterNode`, `GetAllParametersNode`, `GetAllVariablesNode`/`SetVariablesNode`, `GetSharedNode`/`SetSharedNode`,  ⛔ *(removed by `CE-440`)*
+`SetVariableNode`, ~~`GetParameterNode`~~ *(removed by `CE-2135` P4)*, `GetAllParametersNode`, `GetAllVariablesNode`/`SetVariablesNode`, `GetSharedNode`/`SetSharedNode`,  ⛔ *(removed by `CE-440`)*
 `MakeStructNode`/`BreakStructNode`/`SetMembersNode`, `ChannelCommandNode` channel-vs-non-channel
 dispatch, `PublishEventNode`, `CallCustomEventNode`, `CallPeerBlueprintNode`) → static
 `BuiltInNodeRegistry` fallback. Every branch's doc comment cites the exact compiler stage
@@ -906,7 +906,7 @@ Palette-entry factories (`NodeKindDescriptor` producers registered into `NodeKin
 over `[BlueprintCallable]`), `BlueprintEventDiscovery`/`BlueprintEventPaletteEntries`
 (reflection over `[BlueprintEvent]`/`[EventTarget]` → "Publish: {Event}" + `EventEntry`
 Self/Any-filter entries), `MakeBreakStructPaletteEntries` (Make/Break/SetMembers triple per
-`[BlackboardDtoStruct]`, via `ISharedStructTypeProvider`).
+`[Dto]`, via `ISharedStructTypeProvider`).
 
 `EqsTemplateRegistry`/`EqsTemplateEntry` — editor-side catalog of EQS template assets
 (`Register`/`EnumerateAll`/`TryGet(Guid)`); distinct from the compiler-facing

@@ -78,8 +78,8 @@ internal sealed class BlueprintPinModel : IPinModel
     {
         Id          = new PinId(pin.Id);
         OwnerNodeId = ownerNodeId;
-        // Display label may differ from the pin's identity Name (e.g. GetParameter's "Value" out-pin
-        // shows the parameter's NAME). The identity Name is untouched, so pin GUIDs / link
+        // Display label may differ from the pin's identity Name (BlueprintGraphModel.ResolvePinDisplayLabel;
+        // its first client, Get Parameter's "Value" pin, retired with CE-2135 P4). The identity Name is untouched, so pin GUIDs / link
         // rehydration are unaffected — this is render-only.
         // glyphless (Literal's inline-editor input pin): no pin glyph, no label — only the value box.
         Label       = glyphless ? "" : (string.IsNullOrEmpty(displayLabel) ? pin.Name : displayLabel);

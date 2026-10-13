@@ -10,6 +10,7 @@ using Fdp.Core.Logging;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Scenario;
 using Hrot.Network.Orchestration;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Orchestrator;
 
@@ -245,7 +246,7 @@ public sealed class StorageProcessManager
         {
             var canonicalFile = Path.Combine(scenarioDir, "scenario.json");
             File.WriteAllText(canonicalFile,
-                result.CanonicalDom.ToJsonString(new JsonSerializerOptions { WriteIndented = false }));
+                result.CanonicalDom.ToJsonString(FdpJsonOptionsRegistry.DefaultRelaxed));
             FdpLog<StorageProcessManager>.Info(
                 "[StorageProcessManager] merged {0} slice(s) → '{1}/scenario.json'.", slices.Count, scenarioName);
         }

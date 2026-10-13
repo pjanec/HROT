@@ -13,6 +13,7 @@ using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Core.Serialization.Migrations.Adapters;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Orchestrator;
 
@@ -194,8 +195,7 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
             {
                 json = File.ReadAllText(filePath);
             }
-            var dto  = JsonSerializer.Deserialize<GlobalContextDto>(json,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var dto  = JsonSerializer.Deserialize<GlobalContextDto>(json, FdpJsonOptionsRegistry.DefaultRelaxed);
             if (dto == null)
             {
                 throw new InvalidOperationException(

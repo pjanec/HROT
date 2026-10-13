@@ -9,6 +9,7 @@ using Hrot.Common.Constants;
 using Fdp.Toolkit.Combat.Components;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Components;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Common.Diagnostics.Gizmos
 {
@@ -34,10 +35,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
         // ---- Pre-serialised menu permutations (built once at class-load time) ----
 
         private static readonly JsonSerializerOptions SerializerOptions =
-            new JsonSerializerOptions
-            {
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
-            };
+            // CE-3187 (R-2005): the shared options; every ContextMenuItemDto member carries its own ignore condition.
+            FdpJsonOptionsRegistry.DefaultRelaxed;
 
         /// <summary>The unit menus already built: health (degraded or not) × brain (the AI trace submenu, ⭐ <c>CE-3123</c>) × ⭐
         /// <c>CE-3169</c> orders offered (only where <see cref="Hrot.Common.Orders.OrdersOffered"/> is set) × ⭐ <c>CE-2143</c> the
