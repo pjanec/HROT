@@ -140,50 +140,31 @@ public sealed class DeclarationSectionsTests
         var inputs = model.Sections.Single(s => s.Id == BlueprintMyBlueprintModel.SectionParameters);
         var state  = model.Sections.Single(s => s.Id == BlueprintMyBlueprintModel.SectionVariables);
 
-        Assert.True(inputs.CanCreateItems);
+        // ⭐ CE-1061 (U2) — RESTATED: Inputs lists the named params DTO's fields and creates NOTHING (the "+" authored a
+        //   ParameterDecl the compiler ignores when a DTO is named — every asset names one, R-2004).
+        Assert.False(inputs.CanCreateItems);
+        Assert.Null(inputs.CreateCommandId);
         Assert.True(state.CanCreateItems);
-        Assert.Equal(BlueprintMyBlueprintModel.CommandCreateParameter, inputs.CreateCommandId);
-        Assert.Equal("editor.create-variable",                         state.CreateCommandId);
+        Assert.Equal("editor.create-variable", state.CreateCommandId);
     }
 
     // ── the wiring — BP-12c ──────────────────────────────────────────────────
 
     /// <summary>
-    /// ⭐⭐⭐ <b>Creating in a section produces a declaration OF THAT KIND</b> — the handoff's rail,
-    /// and the one that catches the inert button.
-    ///
-    /// <para>
-    /// ⛔ Asserted by INVOKING the command and inspecting the asset, not by reading the descriptor.
-    /// <c>BP-12c</c> shipped twice as a section whose "+" was declared and unhandled; a test over the
-    /// descriptor would have passed both times.
-    /// </para>
+    /// ⭐ <c>CE-1061</c> (U2, acceptance 1) — <b>no <c>editor.create-parameter</c> command exists any more</b>, not even after the
+    /// production <c>Retarget</c> wires every section command. ⛔ An author could otherwise still reach a gesture that makes a
+    /// Parameter the compiler ignores. (Replaces the C-sections rail that invoked it.)
     /// </summary>
-    /// <remarks>
-    /// ⭐⭐ <b>Batch 86 — RESTATED to ONE case, and the reason is a design fact rather than a
-    /// convenience.</b> The theory ran (Inputs, Working State) over the quick-add registrar. <c>R-01</c>
-    /// retires the Working State section, and its surviving counterpart — the Variables "+" — is
-    /// <b>not</b> registered by this method: <c>editor.create-variable</c> has its own owner
-    /// (<c>RegisterCreateVariableCommand</c>), and registering it here too would be the duplicate
-    /// implementation ruling 9 forbids. ⇒ ⭐ the second half of the claim did not vanish, it moved:
-    /// <c>TheCreateCommandsAreRegisteredByTheProductionRetarget</c> below covers that id end-to-end,
-    /// which is the STRONGER of the two gates anyway.
-    /// </remarks>
-    [Theory]
-    [InlineData(BlueprintMyBlueprintModel.CommandCreateParameter, DeclarationKind.Parameter)]
-    public void InvokingASectionsCreateCommand_AddsADeclarationOfThatKind(string commandId, DeclarationKind kind)
+    [Fact]
+    public void CE1061_NoCreateParameterCommand_IsRegistered()
     {
-        var asset = Builders.BlueprintAssetBuilder.Instance("CreateHost").Build();
-        int before = asset.Declarations.CountIn(kind);
-
+        var asset    = Builders.BlueprintAssetBuilder.Instance("RetiredHost").Build();
+        var window   = new BlueprintMyBlueprintWindow();
         var commands = new EditorCommandsImpl();
-        bool dirtied = false;
-        BlueprintDocumentFactory.RegisterCreateDeclarationCommands(commands, asset, () => dirtied = true);
+        window.Retarget(null, asset, null, commands, null, () => Guid.Empty);
 
-        Assert.True(commands.Invoke(commandId).Success,
-            $"'{commandId}' is declared by a section but nothing handles it — an inert '+' button.");
-
-        Assert.Equal(before + 1, asset.Declarations.CountIn(kind));
-        Assert.True(dirtied, "the document was not marked dirty, so the new declaration would not be saved.");
+        Assert.False(commands.Invoke("editor.create-parameter").Success);
+        Assert.True(commands.Invoke(NodeEditor.Core.CommandCatalog.CreateVariable).Success);   // the wiring did run
     }
 
     /// <summary>
@@ -204,7 +185,8 @@ public sealed class DeclarationSectionsTests
     // ⭐ Batch 86 — RESTATED: the Working State "+" is retired (R-01), and the row it leaves behind is
     //   the state kind's surviving "+". ⛔ Kept as a SECOND row rather than dropped — one row would
     //   stop proving that Retarget wires more than a single command.
-    [InlineData(BlueprintMyBlueprintModel.CommandCreateParameter)]
+    // ⭐ CE-1061 — the Inputs row is gone with its command; the Local Variables "+" keeps this a two-row proof.
+    [InlineData(BlueprintMyBlueprintModel.CommandCreateLocalVariable)]
     [InlineData(NodeEditor.Core.CommandCatalog.CreateVariable)]
     public void TheCreateCommandsAreRegisteredByTheProductionRetarget(string commandId)
     {
@@ -235,7 +217,7 @@ public sealed class DeclarationSectionsTests
     /// </summary>
     [Theory]
     // ⭐ Batch 86 — RESTATED onto the surviving state section (see above).
-    [InlineData(BlueprintMyBlueprintModel.CommandCreateParameter, DeclarationKind.Parameter)]
+    // ⭐ CE-1061 — the Inputs row is gone with its command.
     [InlineData("editor.create-variable",                         DeclarationKind.Variable)]
     public void TheProductionCreateCommand_OpensADialog_RatherThanQuickAdding(
         string commandId, DeclarationKind kind)
@@ -314,5 +296,62 @@ public sealed class DeclarationSectionsTests
         var c = BlueprintDocumentFactory.AddDeclaration(asset, DeclarationKind.Variable,  "Thing");
 
         Assert.Equal(3, new[] { a.Name, b.Name, c.Name }.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    /// <summary>A params DTO the U1 rail names (public fields, one ignored by JSON).</summary>
+    public struct InputsRailParams
+    {
+        public float Radius;
+        public int Rounds;
+        [System.Text.Json.Serialization.JsonIgnore] public int NotInTheContract;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1061</c> (U1, acceptance 1) — a DTO-named blueprint's "Inputs" lists EXACTLY what
+    /// <c>ParamsDtoFields.ParametersOf</c> returns (the pins' own source), read-only, and its header names the DTO.
+    /// </summary>
+    [Fact]
+    public void CE1061_ADtoNamedBlueprintsInputs_ListExactlyParametersOf_ReadOnly()
+    {
+        var asset = Builders.BlueprintAssetBuilder.Behavior("DtoHost").Build();
+        asset.ParamsDtoTypeId = typeof(InputsRailParams).FullName;
+        var model = MakeModel(asset);
+
+        var expected = Hrot.Blueprints.Core.Compiler.ParamsDtoFields.ParametersOf(asset).Select(f => f.Name).ToArray();
+        var inputs   = model.GetItems(BlueprintMyBlueprintModel.SectionParameters);
+
+        Assert.Equal(new[] { "Radius", "Rounds" }, expected);                     // the source itself, so the rail is not vacuous
+        Assert.Equal(expected, inputs.Select(i => i.DisplayName));
+        Assert.All(inputs, i => Assert.False(i.IsRenamable || i.IsDeletable));
+        Assert.Equal("Inputs — InputsRailParams",
+            model.Sections.Single(s => s.Id == BlueprintMyBlueprintModel.SectionParameters).DisplayName);
+        Assert.Empty(asset.Declarations.Of(DeclarationKind.Parameter));           // listing never declares anything
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1061</c> (U5a) — the blueprint's chooser write names the DTO and the Inputs section follows it; the chooser offers every
+    /// <c>Params</c>-purpose registry DTO with its origin, and keeps an unknown current DTO (marked "not loaded") rather than hiding it.
+    /// </summary>
+    [Fact]
+    public void CE1061_ChoosingTheParamsDto_NamesIt_AndTheInputsFollow()
+    {
+        var asset = Builders.BlueprintAssetBuilder.Behavior("ChooserHost").Build();
+        var model = MakeModel(asset);
+        bool dirtied = false;
+
+        Assert.True(Hrot.Blueprints.Editor.Host.BlueprintParamsDto.Set(asset, typeof(InputsRailParams).FullName!, () => dirtied = true));
+
+        Assert.True(dirtied);
+        Assert.Equal(typeof(InputsRailParams).FullName, asset.ParamsDtoTypeId);
+        Assert.Equal(new[] { "Radius", "Rounds" }, model.GetItems(BlueprintMyBlueprintModel.SectionParameters).Select(i => i.DisplayName));
+        Assert.False(Hrot.Blueprints.Editor.Host.BlueprintParamsDto.Set(asset, typeof(InputsRailParams).FullName!, null));   // same: no-op
+
+        var registry = Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default;
+        var choices  = Hrot.Editor.AiShared.Blackboard.ParamsDtoChooser.Choices(registry, "Not.A.Loaded.Dto");
+        Assert.Equal("not loaded", choices[0].Origin);
+        var expected = registry.Dtos.Where(d => (d.Purposes & Hrot.Map.Definitions.Behavior.DtoPurpose.Params) != 0)
+                                    .Select(d => d.Type.FullName).Distinct().Count();
+        Assert.Equal(expected + 1, choices.Count);
+        Assert.Contains(choices, c => c.Origin == "asset" || c.Origin.StartsWith("C#", StringComparison.Ordinal));
     }
 }

@@ -1767,78 +1767,8 @@ public static class BlueprintDocumentFactory
     /// </para>
     /// </summary>
     /// <param name="openModal">Opens the local-variable create modal (e.g. <c>modal.Open</c>).</param>
-    /// <summary>
-    /// ⭐⭐⭐ <c>C-sections</c> — the Inputs and Working State sections' <b>"+"</b>.
-    ///
-    /// <para>
-    /// ⛔⛔ <b><c>BP-12c</c>: a section that declares a create command nothing registers is an INERT
-    /// BUTTON</b> — a defect that shipped twice (Custom Events, Macros) before it was caught. ⇒ these
-    /// are registered in the same call the sections are added in, and the rail invokes them rather
-    /// than checking that the descriptor carries an id.
-    /// </para>
-    ///
-    /// <para>
-    /// ⚠⚠ <b><c>2026-08-17</c> — the "quick-add, not a modal" choice recorded here was OVERRULED by
-    /// the user</b>: <i>"working state [+] opening no dialog is wrong, inconsistent. Must open new
-    /// variable dialog same as any other variable section."</i> ⇒ ⭐ <b>the production overload is
-    /// <see cref="RegisterCreateDeclarationCommands(EditorCommandsImpl, Action)"/></b>, which
-    /// opens the same name+type dialog every other variable section opens.
-    /// ⛔ This quick-add overload is retained for HEADLESS TESTS of the create path only — the same
-    /// split <see cref="RegisterCreateVariableCommand(EditorCommandsImpl, BlueprintAsset, Action)"/>
-    /// has always had — ⚠ <b>and it is not what the editor wires.</b>
-    /// </para>
-    /// </summary>
-    public static void RegisterCreateDeclarationCommands(
-        EditorCommandsImpl commands,
-        BlueprintAsset     asset,
-        Action?            markDirty)
-    {
-        ArgumentNullException.ThrowIfNull(commands);
-        ArgumentNullException.ThrowIfNull(asset);
-
-        var reg = new CommandRegistration(commands);
-        reg.Add(
-            Windows.BlueprintMyBlueprintModel.CommandCreateParameter,
-            "Create Input", "Add",
-            _ => AddDeclaration(asset, DeclarationKind.Parameter, "NewInput", markDirty),
-            description: "Add an input parameter to this blueprint.");
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b>The production wiring for the Inputs "+"</b>: it opens a name-and-type dialog, the
-    /// same gesture <c>editor.create-variable</c> and <c>editor.create-local-variable</c> already
-    /// offer.
-    ///
-    /// <para>📌 <b>User ruling, <c>2026-08-17</c></b> — see <see cref="CreateDeclaration"/> for the
-    /// reversal it records and why the superseded note's premise was false.</para>
-    ///
-    /// <para>⚠ <b><c>BP-12c</c>: a section that declares a create command nothing registers is an
-    /// INERT BUTTON</b>, which shipped twice before it was caught. The rails invoke these rather than
-    /// checking that the descriptor carries an id.</para>
-    /// </summary>
-    /// <param name="openParameterModal">Opens the Input create dialog.</param>
-    /// <remarks>
-    /// ⭐⭐ <b>Batch 86 — the <c>openWorkingStateModal</c> parameter is GONE, not merely unused.</b>
-    /// <c>R-01</c> retires that section, so the second delegate had nothing left to register — and an
-    /// argument a method silently drops is the SILENT-DEFAULT shape this programme has filed three
-    /// times. ⛔ <c>editor.create-variable</c> is <b>not</b> registered here: it has its own owner in
-    /// <see cref="RegisterCreateVariableCommand"/>, and registering it twice would be two
-    /// implementations of one concept — ruling 9, the thing this batch exists to remove.
-    /// </remarks>
-    public static void RegisterCreateDeclarationCommands(
-        EditorCommandsImpl commands,
-        Action             openParameterModal)
-    {
-        ArgumentNullException.ThrowIfNull(commands);
-        ArgumentNullException.ThrowIfNull(openParameterModal);
-
-        var reg = new CommandRegistration(commands);
-        reg.Add(
-            Windows.BlueprintMyBlueprintModel.CommandCreateParameter,
-            "Create Input", "Add",
-            _ => openParameterModal(),
-            description: "Add an input parameter to this blueprint.");
-    }
+    // ⛔ CE-1061 (U2, DESIGN_Orders_Params_Entity_Classes §13.10b D2) — RegisterCreateDeclarationCommands (both overloads: the
+    //   test quick-add and the production dialog) registered only `editor.create-parameter`, the retired Inputs "+". Removed with it.
 
     /// <summary>
     /// ⭐ <c>C-sections</c> — the quick-add path for any declaration kind.

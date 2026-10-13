@@ -266,7 +266,6 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
 
     // ⭐ C-sections' two "+" dialogs (2026-08-17 user ruling). Same class as the variable modal,
     //   distinguished by their nouns — which drive the title, the default name and the popup id.
-    private VariableCreateModal? _createParameterModal;
 
     // BP-57: the locals schema source for the active document. Rebuilt per asset like the modals,
     // and for the same reason — it closes over the asset and the document's undo recorder.
@@ -433,26 +432,8 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
             BlueprintDocumentFactory.RegisterCreateLocalVariableCommand(
                 cmdImpl, _createLocalVariableModal.Open);
 
-            // ⭐⭐ C-sections — the Inputs / Working State sections' "+".
-            // ⛔ BP-12c: registered HERE, beside the sections that declare the ids, so the button
-            //    cannot ship inert the way Custom Events' and Macros' did.
-            // ⭐⭐⭐ 2026-08-17 (user): each "+" now opens the SAME name+type dialog every other
-            //    variable section opens — the quick-add was overruled as inconsistent, and its own
-            //    premise ("renamable in place") was false until this batch fixed the row commands.
-            // ⚠ The noun is LOAD-BEARING, not a label: VariableCreateModal derives its ImGui POPUP
-            //    ID from it, and two modals sharing one popup id is the exact bug the locals modal
-            //    hit (both field sets drawn in one window, the wrong Create button firing).
-            _createParameterModal = new VariableCreateModal(
-                (name, typeId, capacity, initialLength) => BlueprintDocumentFactory.CreateDeclaration(
-                    blueprintAsset, DeclarationKind.Parameter, name, typeId, markDirty,
-                    capacity, initialLength),
-                blueprintAsset,
-                noun: "Input");
-
-            BlueprintDocumentFactory.RegisterCreateDeclarationCommands(
-                // ⭐ Batch 86 — the Working State section is retired (R-01: one concept, one section),
-                //   so its create modal is the VARIABLE one: there is only one state kind to create.
-                cmdImpl, _createParameterModal.Open);
+            // ⛔ CE-1061 (U2) — the Inputs "+" and its create dialog are retired (DESIGN_Orders_Params_Entity_Classes §13.10b D2):
+            //   the section lists the named params DTO's fields, which are authored in the DTO.
 
             // BP-12b: rename / delete / duplicate. The context menu has always invoked these three
             // and nothing ever handled them, so a variable could be created but never renamed or
@@ -700,6 +681,30 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
     /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
     internal BlueprintMyBlueprintPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
 
+    // ⭐ CE-1061 — the DTO choices, rebuilt only when the registry or the current DTO changes.
+    private Hrot.Map.Definitions.Behavior.ParamsDtoRegistry? _choicesRegistry;
+    private string? _choicesCurrent;
+    private IReadOnlyList<Hrot.Editor.AiShared.Blackboard.ParamsDtoChoice> _choices = Array.Empty<Hrot.Editor.AiShared.Blackboard.ParamsDtoChoice>();
+
+    /// <summary>
+    /// ⭐ <c>CE-1061</c> (U5a, R-3001, design §13.10b) — the blueprint names its params DTO with THE chooser the BTree / HSM variables
+    /// panel draws (<see cref="Hrot.Editor.AiShared.Blackboard.ParamsDtoChooser"/>), above the outline; only on a kind that takes
+    /// params (<c>ParamsDtoFields.HasParams</c>). The Inputs section re-reads the new DTO's fields on the next frame.
+    /// </summary>
+    private void DrawParamsDtoChooser()
+    {
+        if (_model.Asset is not { } asset || !Hrot.Blueprints.Core.Compiler.ParamsDtoFields.HasParams(asset)) return;
+        var registry = Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default;
+        if (!ReferenceEquals(registry, _choicesRegistry) || !string.Equals(asset.ParamsDtoTypeId, _choicesCurrent, StringComparison.Ordinal))
+        {
+            _choices = Hrot.Editor.AiShared.Blackboard.ParamsDtoChooser.Choices(registry, asset.ParamsDtoTypeId);
+            _choicesRegistry = registry;
+            _choicesCurrent = asset.ParamsDtoTypeId;
+        }
+        if (Hrot.Editor.AiShared.Blackboard.ParamsDtoChooser.Draw("bp", asset.ParamsDtoTypeId, _choices) is { } picked)
+            Host.BlueprintParamsDto.Set(asset, picked, MarkDirtyAction());
+    }
+
     protected override void DrawClientArea()
     {
         var vm = BuildAndPublish();
@@ -753,6 +758,7 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
         // snap — the same provider, polled from the same place in the same way.
         _model.SyncCurrentGraph();
 
+        DrawParamsDtoChooser();   // ⭐ CE-1061 (U5a)
         _panel.Draw();
 
         // Draw the create modals (opened by the section "+" commands). No-op when closed.
@@ -760,7 +766,6 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
         _createLocalVariableModal?.Draw();
         // ⛔ A modal that is opened but never drawn is a "+" that does nothing — the same inert-button
         //    shape BP-12c names, one level down.
-        _createParameterModal?.Draw();
         _createCustomEventModal?.Draw();
         _createFunctionModal?.Draw();
         _createMacroModal?.Draw();

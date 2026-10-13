@@ -198,6 +198,23 @@ public sealed class VariablesPanelControl
     private bool _openRemoveUnusedPopup;
     private IVariablesSchemaSource? _removeUnusedPopupSchema;
 
+    // ⭐ CE-1061 — the DTO choices, rebuilt only when the registry or the current DTO changes (the panel draws every frame).
+    private Hrot.Map.Definitions.Behavior.ParamsDtoRegistry? _choicesRegistry;
+    private string? _choicesCurrent;
+    private IReadOnlyList<ParamsDtoChoice> _choices = Array.Empty<ParamsDtoChoice>();
+
+    private IReadOnlyList<ParamsDtoChoice> ChoicesFor(string? current)
+    {
+        var registry = Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default;
+        if (!ReferenceEquals(registry, _choicesRegistry) || !string.Equals(current, _choicesCurrent, StringComparison.Ordinal))
+        {
+            _choices = ParamsDtoChooser.Choices(registry, current);
+            _choicesRegistry = registry;
+            _choicesCurrent = current;
+        }
+        return _choices;
+    }
+
     public VariablesPanelControl(IRefactorService refactorService, IEditableAsset assetBase, IReadOnlyList<VariableTypeChoice> typeChoices)
     {
         _refactorService = refactorService;
@@ -241,6 +258,14 @@ public sealed class VariablesPanelControl
 
         if (section.Warning == PackWarning.InlineMemoryExceeded)
             ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), "Memory budget exceeded!");
+
+        // ⭐ CE-1061 (U5a, R-3001, DESIGN_Orders_Params_Entity_Classes §13.10b) — name the asset's params DTO: hand-written C# or a
+        //   .params.json DTO, from the one registry. The reserved Params row (and its field rows) follow the choice.
+        if (_assetBase is IParamsDtoAsset dtoAsset)
+        {
+            var picked = ParamsDtoChooser.Draw(section.TableId, dtoAsset.ParamsDtoTypeId, ChoicesFor(dtoAsset.ParamsDtoTypeId), schema.IsReadOnly);
+            if (picked != null) dtoAsset.SetParamsDto(picked);
+        }
 
         ImGui.Separator();
 
@@ -520,6 +545,26 @@ public sealed class VariablesPanelControl
 
                 if (row.IsUnused) ImGui.PopStyleVar();
                 ImGui.PopID();
+
+                // ⭐ CE-1061 (U3, DESIGN_Orders_Params_Entity_Classes §13.10b) — the params DTO's fields under the reserved Params row,
+                //   read-only: what a Params.<field> binding reaches. Value = the asset's override, else the DTO's own default.
+                if (row.ParamsFields is { Count: > 0 } fields)
+                    for (int fi = 0; fi < fields.Count; fi++)
+                    {
+                        var f = fields[fi];
+                        ImGui.TableNextRow();
+                        ImGui.TableNextColumn();
+                        ImGui.Indent(14f);
+                        ImGui.TextDisabled("." + f.Name);
+                        if (ImGui.IsItemHovered()) ImGui.SetTooltip($"A field of the params DTO — bind it as Params.{f.Name}. Defined by the DTO, not here.");
+                        ImGui.Unindent(14f);
+                        ImGui.TableNextColumn(); ImGui.TextDisabled(f.TypeName);
+                        ImGui.TableNextColumn();
+                        ImGui.TableNextColumn();
+                        if (f.OverrideJson is { } v) ImGui.TextUnformatted(v);
+                        else ImGui.TextDisabled("(DTO default)");
+                        ImGui.TableNextColumn();
+                    }
             }
             ImGui.EndTable();
         }

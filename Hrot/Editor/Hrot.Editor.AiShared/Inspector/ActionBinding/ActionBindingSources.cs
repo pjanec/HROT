@@ -165,10 +165,18 @@ public static class ActionBindingCompatibility
     /// <summary>How deep a field path may go (<c>Var.a.b.c</c>).</summary>
     public const int MaxFieldDepth = 3;
 
+    /// <summary>
+    /// ⭐ <c>CE-1061</c> (U3, design §13.10b D3) — the fields a binding can reach inside <paramref name="owner"/>: its public instance
+    /// fields (a <c>Var.field</c> path). ⭐ THE one walk — the bindings below and the variables panel's <c>Params</c> rows both read
+    /// it, so the panel lists exactly what an author can bind.
+    /// </summary>
+    public static System.Reflection.FieldInfo[] BindableFieldsOf(Type owner)
+        => owner.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+
     private static void AddFieldPaths(string path, Type owner, Type parameterType, List<string> into, int depth)
     {
         if (depth >= MaxFieldDepth || !owner.IsValueType || owner.IsPrimitive || owner.IsEnum) return;
-        foreach (var f in owner.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+        foreach (var f in BindableFieldsOf(owner))
         {
             string fieldPath = BindingPath.Compose(path, f.Name);
             if (f.FieldType == parameterType) into.Add(fieldPath);

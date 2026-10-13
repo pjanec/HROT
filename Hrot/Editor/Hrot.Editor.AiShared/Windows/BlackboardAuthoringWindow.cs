@@ -30,8 +30,39 @@ public sealed record VariableViewModel(
     bool   IsReadOnly            = false,
     // ⭐ Row 58 — the declaration's persisted default, so the Value column's INITIAL arm has a
     //   source. ⚠ Trailing and optional: every existing construction site is unchanged.
-    string? DefaultValueJson     = null)
+    string? DefaultValueJson     = null,
+    // ⭐ CE-1061 (U3) — the reserved Params row's fields (read-only child rows); null on every other row.
+    IReadOnlyList<ParamsFieldRow>? ParamsFields = null)
 ;   // ⛔ CE-3193 — Role / Scope / ShowScopeSelector went with the authored variable kind
+
+/// <summary>
+/// ⭐ <c>CE-1061</c> (U3, design §13.10b D3/D4) — one field of the behaviour's params DTO, listed under the reserved <c>Params</c> row:
+/// what a <c>Params.&lt;field&gt;</c> binding reaches (<see cref="Hrot.Editor.AiShared.Inspector.ActionBinding.ActionBindingCompatibility.BindableFieldsOf"/>).
+/// <paramref name="OverrideJson"/> is the asset's own value for it (<c>ParamsDefaultJson</c>), or null when the asset leaves it at the
+/// DTO's default — which this panel does not compute (that is <c>DefaultOf</c>, CE-3194).
+/// </summary>
+public sealed record ParamsFieldRow(string Name, string TypeName, string? OverrideJson)
+{
+    /// <summary>The fields of <paramref name="dto"/> with the asset's overrides from <paramref name="assetDefaultJson"/> (keys matched
+    /// case-insensitively, as the params JSON reads).</summary>
+    public static IReadOnlyList<ParamsFieldRow> Of(Type dto, string? assetDefaultJson)
+    {
+        System.Text.Json.Nodes.JsonObject? overrides = null;
+        if (!string.IsNullOrWhiteSpace(assetDefaultJson))
+            try { overrides = System.Text.Json.Nodes.JsonNode.Parse(assetDefaultJson!) as System.Text.Json.Nodes.JsonObject; }
+            catch (System.Text.Json.JsonException) { }
+        var rows = new List<ParamsFieldRow>();
+        foreach (var f in Hrot.Editor.AiShared.Inspector.ActionBinding.ActionBindingCompatibility.BindableFieldsOf(dto))
+        {
+            string? value = null;
+            if (overrides != null)
+                foreach (var kv in overrides)
+                    if (string.Equals(kv.Key, f.Name, StringComparison.OrdinalIgnoreCase)) { value = kv.Value?.ToJsonString() ?? "null"; break; }
+            rows.Add(new ParamsFieldRow(f.Name, BlackboardTypeHelper.GetDisplayName(f.FieldType), value));
+        }
+        return rows;
+    }
+}
 
 /// <summary>
 /// Display data for one unbound sub-tree DTO requirement row (BB SS5.6).
@@ -322,7 +353,9 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
                 IsAutoManaged: v.IsAutoManaged,
                 IsReadOnly:    v.IsReservedParams,   // ⭐ CE-2135 — the reserved Params is the named DTO, not authored here
                 // ⭐ Row 58 — the INITIAL arm's source for the AI hosts.
-                DefaultValueJson: v.DefaultValueJson));
+                DefaultValueJson: v.DefaultValueJson,
+                // ⭐ CE-1061 (U3) — the DTO's fields under the reserved row: what a Params.<field> binding reaches.
+                ParamsFields:  v.IsReservedParams && v.FieldType is { } dto ? ParamsFieldRow.Of(dto, v.DefaultValueJson) : null));
         }
 
         return new BlackboardWindowViewModel(
