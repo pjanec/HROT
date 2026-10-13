@@ -1755,16 +1755,26 @@ sequenceDiagram
   (`GetAllParameters_ADtoNamingAsset_ProjectsOnePinPerDtoField` — the editor-twin rail ① owed); the coverage fixture and title test went
   with the node. `BlueprintGraphModel.ResolvePinDisplayLabel` stays (its doc names other future clients); only its Get Parameter arm went.
   Golden movement, measured: none in code — the migrated graphs emit byte-identical C# (only the corpus hashes moved).
-- **⑥ legacy BTree / HSM fixtures** *(2026-10-13; 3 of 4)* — `T09_BlackboardManaged` → `T09Params` (its four Input variables, unbound);
+- **⑥ legacy BTree / HSM fixtures** *(2026-10-13; 4 of 4)* — `T09_BlackboardManaged` → `T09Params` (its four Input variables, unbound);
   `T20_MultiStateful` → `T20Params` (fields `cursorA`/`cursorB`/`counter` at the SAME offsets 0/4/8, its nodes rebound to `Params.<field>`
   — the `DangerCrossing` CE-3182 precedent — and its MigrationV1 fixture given the same conversion); `HsmVariableShowcase` → `NoParams`
   (measured: no caller sends it JSON; `Threshold` stays a plain packed variable, so the expression-target rails keep their carrier).
   Rails that pinned the retired legacy path were re-pointed, not deleted: `HsmGoldenCorpusTests.AnHsmPlainVariable_IsBaked_AndItsJsonIsTheNamedDto`
   (was BP-281's keyed `case "Threshold":` overlay) and `AGeneratedBehaviourAdvertisesItsManifestTests.AnHsmBehaviourPublishesItsNamedDto_AndLaysOutItsBlock`.
-  🛑 **`HsmChannelE2E` STOPPED (R-106) — CE-3190**: its Input variables are hosted AiPrimitives' `_Bp+Params` bound to those activities
-  and its scenario sends keyed JSON into them; a DTO holding them needs `Params.<field>` binding through `ResolveFieldOf`, which cannot
-  size a sibling-generated type. Lean (user's nod): accept a primitive's named DTO where its `_Bp+Params` is accepted.
-- **⑦ delete `Role` — measured, waits on CE-3190**: `Role` has two values, and the second survives as `Scope`: in the corpus `Role=State` ⇔
+  ✅ **`HsmChannelE2E` — CE-3190, built 2026-10-13 (user approved the lean the same day)** → `HsmChannelE2EParams { HsmDriveActivityParams
+  Drive; HsmFireActivityParams Fire; HsmGuardDemoParams Guard; }`. Each field is a hosted blueprint's NAMED DTO, and its layout IS that
+  blueprint's generated `Params` (the blueprint's Parameters are the DTO's fields, R-2004). The two states and the guard bind
+  `Params.Drive` / `Params.Fire` / `Params.Guard`, and `scenarios/hsm-channel-e2e` sends the flat DTO. As generated: `OverlayFlat` into the DTO at
+  block offset 0, seed offsets Driving 0 / Firing 8 / guard site 16 (`HsmParamBindings`). Rail:
+  `SopParamsRoundTripTests.CE3190_AnHsmHostingBlueprints_SeedsEachFromItsOwnFieldOfTheNamedDto` parses the scenario's own text through the
+  registered behaviour and reads each slice at its looked-up seed offset. ⭐ **The CE-2130 allow-list is EMPTY.**
+  ⚠ **Correction to the stop note:** the HSM path has NO hosting type check. `BTreeMethodCompatibilityValidator` is BTree-only
+  (`BTreeJsonGenerator.cs:176`), and the HSM bridge seeds by byte offset alone (`BindingTargets.TryResolve`). So the only change was the
+  asset itself, once its fields were hand-written types the Roslyn layout can see. A BTree hosting a blueprint the same way would still
+  need the validator to accept the named DTO, and nothing in the corpus does that today.
+  ⚠ The golden harness emits no params for this asset, before or after the change: it cannot lay out `Hrot.AI.Behaviors` types. The
+  as-built offsets above were read from the real generated registrar instead.
+- **⑦ delete `Role` — measured, unblocked by CE-3190**: `Role` has two values, and the second survives as `Scope`: in the corpus `Role=State` ⇔
   `Scope=Behavior` EXACTLY (8/8; 44 Input variables all `Scope=Node`), and the editor forces `Scope=Behavior` whenever a variable becomes
   `State` (`UpdateVariableRole`). ⇒ `Role` can go with `Scope=Behavior` as the working-state marker. Persisted key: lean ⭐ a one-time
   corpus rewrite (8 files), the loader ignoring the unknown key (System.Text.Json default), so an old file still loads — over a

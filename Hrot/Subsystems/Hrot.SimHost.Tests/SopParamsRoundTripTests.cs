@@ -68,6 +68,59 @@ namespace Hrot.SimHost.Tests
             Assert.Contains(exercised, e => e.Tier == BehaviorConstants.BrainTierBlueprint);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3190</c> — an HSM whose params DTO holds its HOSTED blueprints' DTOs, one per field: the scenario's own JSON
+        /// reaches each hosted blueprint. The rail above skips it (no top-level number), so this one parses
+        /// <c>scenarios/hsm-channel-e2e</c>'s <c>behaviorParams</c> through the REGISTERED behaviour and reads each slice back at the
+        /// seed offset the runtime looks up for that site (<see cref="HsmParamBindings.SeedOffsetFor(uint, ushort, Guid)"/>).
+        /// </summary>
+        [Fact]
+        public void CE3190_AnHsmHostingBlueprints_SeedsEachFromItsOwnFieldOfTheNamedDto()
+        {
+            var registry = new BehaviorRegistry();
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            Assert.True(registry.TryGetId("HsmChannelE2E", out int id));
+            Assert.True(registry.TryGetDefinition(id, out var def));
+            Assert.Equal("Hrot.AI.Behaviors.Brains.HsmChannelE2EParams", def!.JsonParamsDtoType?.FullName);
+
+            // the scenario's own params text — the shape a mission sends, kept honest by reading the file
+            string scenario = System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "scenarios", "hsm-channel-e2e", "scenario.json"));
+            string? json = null;
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(
+                         scenario, "\"behaviorName\":\\s*\"HsmChannelE2E\",\\s*\"behaviorParams\":\\s*(\"(?:[^\"\\\\]|\\\\.)*\")"))
+            { json = JsonSerializer.Deserialize<string>(m.Groups[1].Value); break; }
+            Assert.NotNull(json);
+
+            using var world = new EntityRepository();
+            byte[] block = new byte[RootParamsAccess.RootParamsBytes(def)];
+            Parse(def, json!, block, world, world.CreateEntity());
+
+            var blob = def.HsmDefinition!;
+            ushort State(string stableId) => blob.Metadata!.StateStableIds.First(kv => kv.Value == Guid.Parse(stableId)).Key;
+            int driving = HsmParamBindings.SeedOffsetFor(blob.MachineId, State("61000000-0000-0000-0000-00000000000a"), Guid.Empty);
+            int firing  = HsmParamBindings.SeedOffsetFor(blob.MachineId, State("61000000-0000-0000-0000-00000000000b"), Guid.Empty);
+            int guard   = HsmParamBindings.SeedOffsetFor(blob.MachineId, State("61000000-0000-0000-0000-00000000000a"),
+                                                         Guid.Parse("00000150-0000-0000-0000-000000000001"));
+
+            // each hosted blueprint reads its slice as its own params: Drive {float DestX; float DestY}, Fire {long TargetNetworkId},
+            // Guard {bool EngageTarget} (BlueprintDemoParams.cs)
+            Assert.Equal((560f, 296f), (BitConverter.ToSingle(block, driving), BitConverter.ToSingle(block, driving + 4)));
+            Assert.Equal(1002L, BitConverter.ToInt64(block, firing));
+            Assert.Equal(0, block[guard]);
+            Assert.Equal(3, new[] { driving, firing, guard }.Distinct().Count());   // three slices, not one window read three ways
+        }
+
+        private static string RepoRoot()
+        {
+            var dir = AppContext.BaseDirectory;
+            for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
+            {
+                if (System.IO.File.Exists(System.IO.Path.Combine(dir, "HROT.sln"))) return dir;
+                dir = System.IO.Directory.GetParent(dir)?.FullName;
+            }
+            throw new InvalidOperationException("HROT.sln not found above " + AppContext.BaseDirectory);
+        }
+
         /// <summary>⭐ The PRODUCTION serialiser itself (a boxed value serialises as its runtime type).</summary>
         private static string Json(object dto) => SopActions.ToJson(dto);
 

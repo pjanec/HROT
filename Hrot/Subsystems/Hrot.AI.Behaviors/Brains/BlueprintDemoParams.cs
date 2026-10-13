@@ -38,6 +38,20 @@ namespace Hrot.AI.Behaviors.Brains
     [ParamsDto(DefaultJson = "{\"EngageTarget\":false}")]
     public struct HsmGuardDemoParams { public bool EngageTarget; }
 
+    /// <summary>
+    /// ⭐ <c>CE-3190</c> — <c>HsmChannelE2E</c>'s params: one field per hosted blueprint, typed as that blueprint's own named DTO.
+    /// Each state / guard binds <c>Params.&lt;field&gt;</c>; the hosted blueprint reads the bytes as its generated <c>Params</c>,
+    /// whose layout IS its named DTO's (the blueprint's Parameters are that DTO's fields, R-2004).
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ParamsDto(DefaultJson = "{\"Drive\":{\"DestX\":0,\"DestY\":0},\"Fire\":{\"TargetNetworkId\":0},\"Guard\":{\"EngageTarget\":false}}")]
+    public struct HsmChannelE2EParams
+    {
+        public HsmDriveActivityParams Drive;
+        public HsmFireActivityParams Fire;
+        public HsmGuardDemoParams Guard;
+    }
+
     /// <summary><c>HsmTwoRegionParamsDemo</c>'s params.</summary>
     [StructLayout(LayoutKind.Sequential)]
     [ParamsDto]
