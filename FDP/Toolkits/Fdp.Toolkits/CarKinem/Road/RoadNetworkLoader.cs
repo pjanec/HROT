@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Numerics;
 using System.Threading;
 using Fdp.Core.Serialization.Migrations.Adapters;
+using Fdp.Core.Serialization;
 
 namespace CarKinem.Road
 {
@@ -24,12 +25,12 @@ namespace CarKinem.Road
             if (migrationAdapter != null)
             {
                 var outcome = migrationAdapter.LoadAndMigrateAsync(jsonPath, CancellationToken.None).GetAwaiter().GetResult();
-                roadData = JsonSerializer.Deserialize<RoadNetworkJson>(outcome.AsJsonString());
+                roadData = JsonSerializer.Deserialize<RoadNetworkJson>(outcome.AsJsonString(), FdpJsonOptionsRegistry.DefaultRelaxed);
             }
             else
             {
                 string jsonContent = File.ReadAllText(jsonPath);
-                roadData = JsonSerializer.Deserialize<RoadNetworkJson>(jsonContent);
+                roadData = JsonSerializer.Deserialize<RoadNetworkJson>(jsonContent, FdpJsonOptionsRegistry.DefaultRelaxed);
             }
             
             if (roadData == null)

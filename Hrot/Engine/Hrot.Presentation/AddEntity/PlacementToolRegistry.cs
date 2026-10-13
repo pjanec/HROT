@@ -2,6 +2,7 @@ using System.Text.Json;
 using Hrot.Core.Mission;
 using Hrot.Map.Common;
 using Hrot.UI.Common.Facades;
+using Fdp.Core.Serialization;
 
 namespace Hrot.UI.Common.AddEntity;
 
@@ -93,5 +94,5 @@ public static class PlacementToolRegistry
 
     /// <summary>The initial-properties JSON carrying a side.</summary>
     public static string AffiliationJson(eForceIdentifier side)
-        => JsonSerializer.Serialize(new { Affiliation = side.ToString() });
+        => JsonSerializer.Serialize(new { Affiliation = side.ToString() }, FdpJsonOptionsRegistry.DefaultRelaxed);
 }

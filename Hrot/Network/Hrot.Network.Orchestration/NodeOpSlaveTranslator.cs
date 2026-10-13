@@ -108,7 +108,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 _capabilitiesWriter.Write(new NodeCapabilitiesTopic
                 {
                     NodeId           = caps.NodeId,
-                    CapabilitiesJson = JsonSerializer.Serialize(caps.Capabilities ?? Array.Empty<string>()),
+                    CapabilitiesJson = JsonSerializer.Serialize(caps.Capabilities ?? Array.Empty<string>(), FdpJsonOptionsRegistry.DefaultRelaxed),
                 });
             }
         }

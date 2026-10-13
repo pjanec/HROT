@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using Fdp.Interfaces;
 using Hrot.UI.Common.AddEntity;
 using NodeEditor.UI.Picker;
+using Fdp.Core.Serialization;
 
 namespace Hrot.UI.Common.Panels;
 
@@ -188,7 +189,7 @@ public sealed class SpawnerPanel
     public void HandleActivatePlacementTool(ISpawnController spawn)
     {
         ArgumentNullException.ThrowIfNull(spawn);
-        var propsJson = JsonSerializer.Serialize(new { Affiliation = _affiliation.ToString() });
+        var propsJson = JsonSerializer.Serialize(new { Affiliation = _affiliation.ToString() }, FdpJsonOptionsRegistry.DefaultRelaxed);
         spawn.StartPlacementMode(_selectedType, propsJson);
     }
 
@@ -203,7 +204,7 @@ public sealed class SpawnerPanel
         {
             FillColor     = _fillColorHex,
             LineThickness = _lineThickness
-        });
+        }, FdpJsonOptionsRegistry.DefaultRelaxed);
         spawn.StartAreaAuthoringMode(styleJson);
     }
 
@@ -234,7 +235,7 @@ public sealed class SpawnerPanel
         {
             FillColor     = _fillColorHex,
             LineThickness = _lineThickness
-        });
+        }, FdpJsonOptionsRegistry.DefaultRelaxed);
         spawn.StartZoneAuthoringMode(styleJson);
     }
 

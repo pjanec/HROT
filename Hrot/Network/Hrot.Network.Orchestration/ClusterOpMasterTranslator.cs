@@ -9,6 +9,7 @@ using Hrot.NED.Messages;
 using NedClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using NedClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Network.Orchestration;
 
@@ -100,10 +101,10 @@ public sealed class ClusterOpMasterTranslator
                 _inventoryWriter.Write(new AssetInventoryTopic
                 {
                     NodeId                       = 0,
-                    LocalScenariosJson           = System.Text.Json.JsonSerializer.Serialize(ev.LocalScenarios),
-                    LocalExercisesJson           = System.Text.Json.JsonSerializer.Serialize(ev.LocalExercises),
-                    ArchivedExercisesJson        = System.Text.Json.JsonSerializer.Serialize(ev.ArchivedExercises),
-                    UnarchivedLocalExercisesJson = System.Text.Json.JsonSerializer.Serialize(ev.UnarchivedLocalExercises),
+                    LocalScenariosJson           = System.Text.Json.JsonSerializer.Serialize(ev.LocalScenarios, FdpJsonOptionsRegistry.DefaultRelaxed),
+                    LocalExercisesJson           = System.Text.Json.JsonSerializer.Serialize(ev.LocalExercises, FdpJsonOptionsRegistry.DefaultRelaxed),
+                    ArchivedExercisesJson        = System.Text.Json.JsonSerializer.Serialize(ev.ArchivedExercises, FdpJsonOptionsRegistry.DefaultRelaxed),
+                    UnarchivedLocalExercisesJson = System.Text.Json.JsonSerializer.Serialize(ev.UnarchivedLocalExercises, FdpJsonOptionsRegistry.DefaultRelaxed),
                 });
             }
         }

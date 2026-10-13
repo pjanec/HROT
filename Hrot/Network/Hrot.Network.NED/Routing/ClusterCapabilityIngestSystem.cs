@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Hrot.NED.Descriptors.Orchestration;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Network.Routing
 {
@@ -117,7 +118,7 @@ namespace Hrot.Network.Routing
         private static string[] DeserializeTokens(string? json)
         {
             if (string.IsNullOrWhiteSpace(json)) return Array.Empty<string>();
-            try { return System.Text.Json.JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>(); }
+            try { return System.Text.Json.JsonSerializer.Deserialize<string[]>(json, FdpJsonOptionsRegistry.DefaultRelaxed) ?? Array.Empty<string>(); }
             catch { return Array.Empty<string>(); }
         }
     }

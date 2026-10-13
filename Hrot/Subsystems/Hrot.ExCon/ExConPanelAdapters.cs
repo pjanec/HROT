@@ -1,6 +1,7 @@
 using Hrot.Core.Mission;
 using Hrot.UI.Common.Facades;
 using UiMissionCommitResult = Hrot.UI.Common.Models.MissionCommitResult;
+using Fdp.Core.Serialization;
 
 namespace Hrot.ExCon;
 
@@ -64,7 +65,7 @@ internal sealed class ExConMapConfigShim : IMapConfigController
                     grid              = config.Grid
                 }
             }
-        });
+        }, FdpJsonOptionsRegistry.DefaultRelaxed);
         _logic.SendConfigPatch(json);
     }
 }

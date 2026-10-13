@@ -40,6 +40,22 @@ public sealed class SpawnTransformBindsTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-3191</c> — a spawn's <c>components[i].data</c> binds through the API's patch options (fields, either vector
+    /// shape). ⛔ It was read with the DEFAULT options, which bind no field — so every component in a spawn body arrived at
+    /// its default while the route answered ok.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"Position":{"X":480.0,"Y":450.0,"Z":0.5}}""")]
+    [InlineData("""{"Position":[480.0,450.0,0.5]}""")]
+    public void AComponentInASpawnBodyBindsItsFields(string data)
+    {
+        var t = (SimTransform)JsonSerializer.Deserialize(data, typeof(SimTransform), DebugApiService.DebugApiPatchOptions)!;
+
+        Assert.Equal(480.0f, t.Position.X, 3);
+        Assert.Equal(0.5f,   t.Position.Z, 3);
+    }
+
+    /// <summary>
     /// ⛔ The anti-vacuity half, and the one that encodes the DEFECT: a payload whose members do not map
     /// must THROW, so the endpoint's catch refuses the spawn. Without this the first test could pass
     /// while a non-binding payload still silently produced the origin.

@@ -10,6 +10,7 @@ using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Modules.Geographic;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Map.Common.Replication.Utils
 {
@@ -280,7 +281,7 @@ namespace Hrot.Map.Common.Replication.Utils
                         var ctx = new ListPatchContext(result);
 
                         // Build a minimal JSON string with proper string escaping.
-                        string escapedName = JsonSerializer.Serialize(d.EntityInfo.Name ?? string.Empty);
+                        string escapedName = JsonSerializer.Serialize(d.EntityInfo.Name ?? string.Empty, FdpJsonOptionsRegistry.DefaultRelaxed);
                         string affStr      = ForceIdentifierToAffiliationString(d.EntityInfo.ForceIdentifier);
                         compiler.Compile(
                             $"{{\"Name\":{escapedName},\"Affiliation\":\"{affStr}\"}}",

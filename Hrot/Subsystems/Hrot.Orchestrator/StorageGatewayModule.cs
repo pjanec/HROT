@@ -10,6 +10,7 @@ using Fdp.Core.FlightRecorder.Metadata;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Orchestration;
 using Hrot.Network.Orchestration;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Orchestrator;
 
@@ -613,9 +614,9 @@ public sealed class StorageGatewayModule
     {
         var fields = new List<string>(2);
         if (!string.IsNullOrEmpty(names.TkbName))
-            fields.Add($"\"TkbName\":{JsonSerializer.Serialize(names.TkbName)}");
+            fields.Add($"\"TkbName\":{JsonSerializer.Serialize(names.TkbName, FdpJsonOptionsRegistry.DefaultRelaxed)}");
         if (!string.IsNullOrEmpty(names.TerrainName))
-            fields.Add($"\"TerrainName\":{JsonSerializer.Serialize(names.TerrainName)}");
+            fields.Add($"\"TerrainName\":{JsonSerializer.Serialize(names.TerrainName, FdpJsonOptionsRegistry.DefaultRelaxed)}");
         return "{" + string.Join(",", fields) + "}";
     }
 

@@ -1669,7 +1669,9 @@ namespace Hrot.Editor.DebugApi
                         return (null, $"'components[{i}]' ({typeName}) has no 'data' object to deserialize.");
 
                     object? compObj;
-                    try { compObj = JsonSerializer.Deserialize(data.ToJsonString(), compType); }
+                    // CE-3191: the API's own patch options — fields bound (components are field structs), vectors as arrays or
+                    //   objects (HN-002), enums by name. Default options bound no field, so every component spawned at default.
+                    try { compObj = JsonSerializer.Deserialize(data.ToJsonString(), compType, DebugApiPatchOptions); }
                     catch (Exception ex)
                     {
                         return (null,

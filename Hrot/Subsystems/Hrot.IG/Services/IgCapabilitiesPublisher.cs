@@ -5,6 +5,7 @@ using Hrot.Core.Network;
 using Hrot.IG.Systems;
 using Fdp.Core.Logging;
 using Hrot.Presentation.Map;
+using Fdp.Core.Serialization;
 
 namespace Hrot.IG.Services;
 
@@ -67,7 +68,7 @@ public static class IgCapabilitiesPublisher
         foreach (var layer in MapLayerRegistry.All)
             names.Add(layer.Name);
 
-        return JsonSerializer.Serialize(names);
+        return JsonSerializer.Serialize(names, FdpJsonOptionsRegistry.DefaultRelaxed);
     }
 
     /// <summary>
@@ -78,6 +79,6 @@ public static class IgCapabilitiesPublisher
         return JsonSerializer.Serialize(new
         {
             tools = new[] { "Navigation", "Selection", "Placement", "Measure", "AreaAuthoring" }
-        });
+        }, FdpJsonOptionsRegistry.DefaultRelaxed);
     }
 }

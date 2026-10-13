@@ -1774,11 +1774,26 @@ sequenceDiagram
   need the validator to accept the named DTO, and nothing in the corpus does that today.
   ⚠ The golden harness emits no params for this asset, before or after the change: it cannot lay out `Hrot.AI.Behaviors` types. The
   as-built offsets above were read from the real generated registrar instead.
-- **⑦ delete `Role` — measured, unblocked by CE-3190**: `Role` has two values, and the second survives as `Scope`: in the corpus `Role=State` ⇔
+- **⑦ delete `Role` — 🛑 STOPPED `2026-10-13` (R-106), CE-3193 — the premise below is WRONG; superseded note follows it** — the original measurement: `Role` has two values, and the second survives as `Scope`: in the corpus `Role=State` ⇔
   `Scope=Behavior` EXACTLY (8/8; 44 Input variables all `Scope=Node`), and the editor forces `Scope=Behavior` whenever a variable becomes
   `State` (`UpdateVariableRole`). ⇒ `Role` can go with `Scope=Behavior` as the working-state marker. Persisted key: lean ⭐ a one-time
   corpus rewrite (8 files), the loader ignoring the unknown key (System.Text.Json default), so an old file still loads — over a
   migrate-on-load shim that would keep the name alive.
+  🛑 **Superseding finding (2026-10-13, CE-3193).** "`Role` can go with `Scope=Behavior` as the marker" is false. There are THREE
+  variable kinds, and two of them share `Scope=Node`:
+  - plain: `Input+Node`, 34 in the corpus;
+  - shared working state: `State+Behavior`, 8 in the corpus;
+  - node memory: `State+Node`. None is persisted today, but the BTree editor creates one when a stateful AI primitive is picked
+    (`AutoManagedVariables.cs:178`, called from `BTreeFacetMapper.cs:232`, `bpWorkingState`).
+  Deleting `Role` would make node memory indistinguishable from a plain packed variable. §5c's line "node-scoped working state
+  survives; only `Role` goes" missed this collision.
+  ⭐ Lean, awaiting the user: one enum `VariableKind { Plain, Shared, NodeMemory }` replaces `Role` and `Scope` on a variable.
+  - Persisted as a `Kind` key, omitted when `Plain`. An old `Role`/`Scope` pair is still read on load, and the 8 corpus files are
+    rewritten once.
+  - The runtime `StatefulSlotInfo` keeps its `Scope` byte and drops `Role`.
+  Rejected:
+  - deriving node memory from bindings — a variable's kind would depend on who binds it;
+  - keeping `Role` — fails P4's acceptance and keeps the misleading name.
 - **Not yet**: the editor's Variables / Details panels still list only DECLARED Parameters (a DTO-named asset shows none) — the canvas
   pins are right (`ParametersOf`), the panels are the ui lane's surface (P5b). Steps ③–⑦ follow.
 
@@ -2104,5 +2119,26 @@ the search-predicate reader, and the blueprint clipboard. Writers that printed n
   - So a number in an asset is now a load error, never a silent read.
 - **One test read an asset with default options** (`SquadPrimitiveNodeTests`). It passed only because the file stored numbers, and now loads through `BlueprintJsonServices`.
 
-**Still open:** calls that pass no options at all. About 29 single-line `JsonSerializer.Serialize/Deserialize` calls get the platform
-defaults: no fields, case-sensitive, enums as numbers. Filed as CE-3191.
+**CE-3191 — calls that pass NO options, built `2026-10-13`** *(user approved the lean the same day)*.
+
+**Scope.**
+- Inventory: 252 `JsonSerializer` calls read in full, multi-line calls included.
+- 42 of them passed no options.
+- Generators: none of the code generators emits a no-options call.
+
+**What was done with the 42.**
+- 34 plain swaps take `DefaultRelaxed`. These are the orchestration translators and aggregators (each writer/reader pair changed together), the IG and its capabilities publisher, ExCon, the Presentation spawner and placement code, gizmo settings files, the road network loader, and the scenario header fields.
+- 5 stay exempt, each with a reason on the allow-list (see the rail below):
+  - NodeEdit, an external library.
+  - `ParamsDtoAsset` ×2 and `Stage5_Schedule` ×1, both built for `netstandard2.0`.
+- 3 were live bugs, and the shared options alone would not have fixed them:
+  - **Map overlay styles were lost on the wire.** `MapVisualOverlayEgressTranslator` serialized `MapOverlayStyle`, whose colours are fields and whose properties are `[JsonIgnore]`, so the payload was `{}`. It now sends the type's own `ToJson()`, the hex-string form `FromJson` reads.
+  - **The debug API's spawn route bound no component field.** The `components[i].data` read now uses `DebugApiPatchOptions`, so fields bind and both vector shapes are accepted.
+  - **`HrotHandlerAdapter`** (latent): a numeric enum would have thrown on the reader. It now uses the shared options.
+- One more defect, found while classifying: the ExCon time-scale command (`NedTimeControlGateway`) sent a bare number, while `ClusterMaster` reads `SetTimeScalePayloadDto`. The bind error was swallowed and the scale fell back to 1.0, so the control never worked. The payload is now `SetTimeScalePayload(scale)`, the DTO.
+
+**Rails.**
+- `OneSharedJsonOptionsTests.EveryProductionSerializerCall_PassesOptions_OrIsAnExemptionWithAReason`: a shrink-only allow-list of no-options calls.
+  - It is a tripwire, not proof: it misses `Deserialize(json, type)`, and it skips calls inside string literals.
+- `OrchestrationSchemaTests.TheGatewaysSetTimeScalePayload_IsWhatTheMasterReads`.
+- `SpawnTransformBindsTests.AComponentInASpawnBodyBindsItsFields` (both vector shapes).
