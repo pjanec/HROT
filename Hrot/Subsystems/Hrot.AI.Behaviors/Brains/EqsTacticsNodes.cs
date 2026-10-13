@@ -15,6 +15,7 @@ namespace Hrot.AI.Behaviors.Brains
 {
     /// <summary>⭐ <c>CE-2092</c> — the tunables of <see cref="EqsTacticsNodes"/> (what a designer edits on the tree's node).</summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct EqsTacticsParams
     {
         /// <summary>How far from the unit the query looks (m).</summary>

@@ -15,25 +15,24 @@ namespace Hrot.AI.Behaviors.Orders
     /// for a point (DESIGN_Map_Picking_Unification); the fulfilling behaviour converts it to local metres (its resolver or its node).
     /// </summary>
     [Order(nameof(OrderKind.Move), Gesture = OrderGesture.GroundClick)]
-    [BlackboardDtoStruct]
     [StructLayout(LayoutKind.Sequential)]
     public struct MoveOrder
     {
         /// <summary>Where to go (geodetic).</summary>
         [JsonPropertyName("Location")]
-        public PickableGeoPoint Location { get; set; }
+        public PickableGeoPoint Location;
 
         /// <summary>The asked speed (m/s); 0 = the behaviour's default.</summary>
         [JsonPropertyName("Speed")]
-        public float Speed { get; set; }
+        public float Speed;
 
         /// <summary>How close counts as arrived (m); 0 = the behaviour's default.</summary>
         [JsonPropertyName("ArrivalRadius")]
-        public float ArrivalRadius { get; set; }
+        public float ArrivalRadius;
 
         /// <summary>How much to prefer roads.</summary>
         [JsonPropertyName("RoadUse")]
-        public RoadUse RoadUse { get; set; }
+        public RoadUse RoadUse;
     }
 
     /// <summary>
@@ -41,13 +40,12 @@ namespace Hrot.AI.Behaviors.Orders
     /// applies. ⭐ <see cref="Target"/> is an <see cref="EntityRef"/>, so the type alone makes the menu ask for an entity.
     /// </summary>
     [Order(nameof(OrderKind.Attack), Gesture = OrderGesture.EnemyClick)]
-    [BlackboardDtoStruct]
     [StructLayout(LayoutKind.Sequential)]
     public struct AttackOrder
     {
         /// <summary>The entity to attack.</summary>
         [JsonPropertyName("Target")]
-        public EntityRef Target { get; set; }
+        public EntityRef Target;
     }
 
     /// <summary>
@@ -55,7 +53,6 @@ namespace Hrot.AI.Behaviors.Orders
     /// (<c>NoParams</c> means "this behaviour takes nothing", not "hold").
     /// </summary>
     [Order(nameof(OrderKind.Hold))]
-    [BlackboardDtoStruct]
     [StructLayout(LayoutKind.Sequential)]
     public struct HoldOrder
     {

@@ -191,7 +191,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
     /// <param name="knownTypeNames">
     /// Optional override for the Add-Variable type choice list. When null, the default list is
     /// built via <see cref="BlackboardTypeChoiceBuilder.BuildDefault"/>, unioning primitives,
-    /// <c>[BlackboardDtoStruct]</c> types, and (when <paramref name="actionSchemaExporter"/> is
+    /// <c>[Dto]</c> types, and (when <paramref name="actionSchemaExporter"/> is
     /// supplied) action-schema DTO types.
     /// </param>
     /// <param name="aggregationResult">Optional sub-tree aggregation result (AIE-052).</param>

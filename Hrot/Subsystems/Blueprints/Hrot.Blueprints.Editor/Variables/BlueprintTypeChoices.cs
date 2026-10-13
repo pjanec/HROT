@@ -28,7 +28,7 @@ namespace Hrot.Blueprints.Editor.Variables;
 /// <para>
 /// ⭐⭐ <b><c>S5</c>: the projection is no longer DIRECT.</b> It goes through
 /// <c>BlueprintTypeSystem.SelectableTypeIds</c>, which canonicalises that seed and unions it with the
-/// discovered <c>[BlackboardDtoStruct]</c> types — so the parameter combo and the variable modal are
+/// discovered <c>[Dto]</c> types — so the parameter combo and the variable modal are
 /// one set rather than two.
 /// </para>
 /// </summary>
@@ -43,7 +43,7 @@ public static class BlueprintTypeChoices
     /// to be <c>StaticTypeRegistry.EditorOfferableTypeIds</c> directly, while
     /// <c>VariableCreateModal</c> read <c>BlueprintTypeSystem.SelectableTypeIds</c> — 🔴 <b>two
     /// disjoint answers to one question</b>, so a designer could give a VARIABLE a
-    /// <c>[BlackboardDtoStruct]</c> type and could not give a PARAMETER one. ⛔ Ruling 9, in the UI.
+    /// <c>[Dto]</c> type and could not give a PARAMETER one. ⛔ Ruling 9, in the UI.
     /// </para>
     ///
     /// <para>
@@ -70,7 +70,7 @@ public static class BlueprintTypeChoices
     /// reflects over LOADED assemblies for its struct half, so a static initializer would force that
     /// discovery at type-load — freezing whatever happened to be loaded then, which in a test host is
     /// nothing. ⛔ Same load-order trap the union itself is deferred for.
-    /// ⭐ A <c>null</c> entry is legal: a discovered <c>[BlackboardDtoStruct]</c> is accepted by the
+    /// ⭐ A <c>null</c> entry is legal: a discovered <c>[Dto]</c> is accepted by the
     /// compiler through Stage 4's dotted-FQN path, not by the registry table, so it has no canonical
     /// alias to match — <see cref="IndexOfTypeId"/>'s exact-string pass finds it first anyway.
     /// </remarks>

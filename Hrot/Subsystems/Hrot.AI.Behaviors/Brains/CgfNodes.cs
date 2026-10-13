@@ -103,6 +103,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// (the empty JoinFormationParamsJsonDto that anchored the old contract is deleted).
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
+        [Fdp.Core.ParamsDto]   // CE-3185 (R-2000): JoinFormation publishes it as its params DTO
         public struct JoinFormationParams
         {
             // Reserved for future extension: nothing reads them yet, and a caller sending {} leaves both zero.

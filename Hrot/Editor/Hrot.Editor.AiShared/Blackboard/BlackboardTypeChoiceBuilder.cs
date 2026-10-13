@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Fbt.Kernel;
+using Fdp.Core;
 
 namespace Hrot.Editor.AiShared.Blackboard;
 
@@ -15,7 +16,7 @@ namespace Hrot.Editor.AiShared.Blackboard;
 /// <list type="number">
 ///   <item>The existing primitive/vector set (<see cref="BlackboardTypeHelper.DefaultKnownTypeNames"/>).</item>
 ///   <item>
-///   Structs decorated with <see cref="BlackboardDtoStructAttribute"/>, discovered by scanning
+///   Structs decorated with <see cref="Fdp.Core.DtoAttribute"/>, discovered by scanning
 ///   every assembly currently loaded into <see cref="AppDomain.CurrentDomain"/> -- the same
 ///   predicate <see cref="BlackboardFieldClassifier"/> uses to recognize Category-1 shared-struct
 ///   fields.
@@ -35,7 +36,7 @@ public static class BlackboardTypeChoiceBuilder
     /// <summary>
     /// Builds the default choice list. <paramref name="actionSchemaExporter"/> may be null when
     /// the caller has no schema exporter in scope (e.g. the Blueprint Variables window); in that
-    /// case the result still contains primitives + <c>[BlackboardDtoStruct]</c> types.
+    /// case the result still contains primitives + <c>[Dto]</c> types.
     /// </summary>
     public static IReadOnlyList<VariableTypeChoice> BuildDefault(IActionSchemaExporter? actionSchemaExporter = null)
     {
@@ -76,11 +77,11 @@ public static class BlackboardTypeChoiceBuilder
 
     /// <summary>
     /// Scans every assembly currently loaded into <see cref="AppDomain.CurrentDomain"/> for value
-    /// types decorated with <see cref="BlackboardDtoStructAttribute"/>. Same predicate as
+    /// types decorated with <see cref="Fdp.Core.DtoAttribute"/>. Same predicate as
     /// <see cref="BlackboardFieldClassifier"/>'s <c>IsKnownType</c> check.
     /// </summary>
     /// <summary>
-    /// U-8 — every <c>[BlackboardDtoStruct]</c> type in the loaded assemblies.
+    /// U-8 — every <c>[Dto]</c> type in the loaded assemblies.
     ///
     /// <para>
     /// ⭐ <b>Made public so the Blueprint type picker can offer the same set the Variables panel
@@ -124,7 +125,7 @@ public static class BlackboardTypeChoiceBuilder
             foreach (var t in types)
             {
                 if (!t.IsValueType) continue;
-                if (!t.IsDefined(typeof(BlackboardDtoStructAttribute), inherit: false)) continue;
+                if (!t.IsDefined(typeof(DtoAttribute)   /* CE-3185: [Dto] or a derived marker */, inherit: false)) continue;
                 result.Add(t);
             }
         }

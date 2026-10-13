@@ -1366,3 +1366,179 @@ Already correct (leave): this design, `RULINGS.md` R-273..R-282 / R-2000..R-2003
   a bug are kept as history. Docs: `DESIGN_Hill_Attack_Blueprint_Behaviour.md` and AQ78 → HISTORICAL; the EQS-migration, hill-attack
   and cluster-debug-surface designs carry a known-rot line.
 
+### 13.6 P8 — params DTOs are plain public fields *(CE-3184; build-state: BUILT `2026-10-13`, backend)*
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| the send side already writes params JSON with the field-aware options | ✅ every production `JsonSerializer` call on a params DTO passes `FdpJsonOptionsRegistry.DefaultRelaxed` (`SquadManeuverRunner.cs:398-419`, `HillAttackCommanderNodes.cs:157,480,744`, `DefendAreaMapper.cs:74`, the blueprint `ToJson` emit `StatementEmitter.cs:221`); `EntityOrders` builds its `JsonObject` by hand; the typed resolver reads with `BehaviorParams.JsonOptions` (= `DefaultRelaxed`, `BehaviorParams.cs:148`) | ✅ `BehaviorParams.JsonOptions` doc: "deliberately the SHARED registry" — ⇒ the "one shared options instance" the handoff leaned to ALREADY EXISTS; nothing new built |
+| `DtoJsonSchemaExtractor` reads fields | ✅ `DtoJsonSchemaExtractor.cs:178-187` (properties, then fields) — the handoff's unmeasured ⚠ is answered | ✅ CE-224 |
+| the other reflective readers read fields | ✅ `EntityRefRemap.cs:71-74`, `IntentContractPaletteEntries.PinnableMembers`, `BehaviorParamsForm` (`BehaviorParams.JsonOptions`) — ⛔ only `OrderMenu.PickOf` read properties alone | §13.1 F11 |
+
+**As built.** 22 files, **102** auto-properties → fields *(the dispatch counted 87 in 21 files; the rail found `DangerCrossingParams`
+too)*: the 20 `Hrot.Core/MapDefinitions/Behavior/**` DTOs (with the nested `CombatPostureAdvanceJsonDto`, `SquadDismountParamsJsonDto`),
+`OrderDtos.cs`, `DangerAreaNodes.DangerCrossingParams`. Attributes (`[JsonPropertyName]`, `[JsonConverter]`, `[JsonIgnore(WhenWritingDefault)]`)
+and initialisers moved unchanged. `OrderMenu.PickOf` reads fields (and still properties), skipping `[JsonIgnore]` members — ⚠ a cross-lane
+edit to the behaviors lane's file, named in the commit. Four tests that deserialised with DEFAULT options now pass `BehaviorParams.JsonOptions`
+(what production uses).
+
+**R-2005 (steer 1, the shared options) against P8, measured:** every params / order JSON path, parse and send, already passes
+`FdpJsonOptionsRegistry.DefaultRelaxed` (the table above) — nothing to switch. ⚠ The steer's warning (`StrictStringEnumConverter` reads enums
+as STRINGS only): the params DTOs hold two enums (`RoadUse`, `StanceId`); every authored value across `scenarios/`, the assets, the tests and
+the scripts is a string (`"Prone"`, `"StronglyPrefer"`, …), none a number — and the typed resolver already parses with these options. The
+other ad-hoc `new JsonSerializerOptions` (42) are their own item, **CE-3187**.
+
+**The one exemption, deliberately:** a `[JsonIgnore]` COMPUTED view — `MoveToLocationParamsJsonDto.PickableLocation`, the mission panel's
+map-pick target over the `targetLat`/`targetLon` wire pair (`MissionPanelRegistryTests` binds `.PickableLocation`). It stores nothing, so it is
+not the "bloat" R-2002 rules out; deleting it would remove the panel's map pick.
+
+**Rail** (CE-2130's suite): `CE3184_ParamsDtosArePlainPublicFields_NeverProperties` walks every published DTO + every registry DTO + the
+Hrot types their members hold; red-proved (`MoveOrder.Speed` back to `{ get; set; }` → fails naming it). Companion
+`CE3184_TheRuleCatchesAPropertyAndExemptsAJsonIgnoredView`.
+
+### 13.7 P1 — one `[Dto]` base, its origin, one registry *(CE-3185; build-state: BUILT `2026-10-13`, backend — as-built at the end of this section)*
+
+```mermaid
+classDiagram
+  direction LR
+  class DtoAttribute { <<NEW, Fdp.Core>> +SourceFile: string · +SourceLine: int · +AssetId: string? · ctor([CallerFilePath], [CallerLineNumber]) }
+  class ParamsDtoAttribute { <<MOVED Hrot.Core → Fdp.Core>> +DefaultJson: string? }
+  class UnitMemoryAttribute { <<MOVED Fbt.Kernel → Fdp.Core>> }
+  class OrderAttribute { <<existing, Hrot.Core>> +Name · +Gesture }
+  class BlackboardDtoStructAttribute { <<RETIRED → [Dto]>> }
+  class ParamsDtoRegistry { <<existing, Hrot.Core, CHANGED>> +Behaviors · +Dtos (params purpose) · +All (every [Dto]) · +TryGetDto(Type) }
+  class ParamsDtoInfo { <<existing record, CHANGED>> +Type · +Purposes · +OrderName · +BehaviorNames · +Origin }
+  class DtoOrigin { <<NEW record struct, Hrot.Core>> +SourceFile · +Line · +AssetId · +IsAsset }
+  class DtoPurpose { <<NEW flags>> Variable · Params · Order · UnitMemory }
+  class ParamsDtoEmitCore { <<existing, CHANGED>> emits AssetId · checks file name = Name }
+  class BlackboardTypeChoiceBuilder { <<existing, CHANGED>> lists [Dto] value types }
+  DtoAttribute <|-- ParamsDtoAttribute
+  DtoAttribute <|-- UnitMemoryAttribute
+  DtoAttribute <|-- OrderAttribute
+  ParamsDtoRegistry *-- "many" ParamsDtoInfo
+  ParamsDtoInfo *-- DtoOrigin
+  ParamsDtoInfo ..> DtoPurpose
+  ParamsDtoRegistry ..> DtoAttribute : one scan
+  ParamsDtoEmitCore ..> ParamsDtoAttribute : emits AssetId
+  BlackboardTypeChoiceBuilder ..> DtoAttribute : predicate
+```
+
+*What the picture shows that prose hid: `ParamsDtoAttribute` must leave `Hrot.Core` — `ThreatCountParams` (`Fdp.Toolkits`) is named by an asset
+and cannot see `Hrot.Core`, so the attribute every params DTO must carry has to live where `Fdp.Toolkits` sees it. `OrderAttribute` stays an
+Hrot concept and derives across the assembly line.*
+
+```mermaid
+sequenceDiagram
+  participant C as caller (CgfBehaviorSetup / OrderMenu / BehaviorCatalog / type picker)
+  participant R as ParamsDtoRegistry.Default
+  participant A as each loaded assembly
+  C->>R: Default
+  R->>R: load KnownBehaviourAssemblies
+  loop assemblies that reference Fdp.Core or Hrot.Core (latest copy per name)
+    R->>A: [Behavior] on assembly / types / methods
+    R->>A: types carrying a DtoAttribute (any derived)
+    A-->>R: purposes (Params / Order / UnitMemory / Variable) + origin (file:line or AssetId)
+  end
+  R->>R: two [ParamsDto] types, one simple name ⇒ THROW (load error)
+  R-->>C: Behaviors · Dtos (Params purpose) · All
+```
+
+```mermaid
+graph TD
+  FC["Fdp.Core<br/>DtoAttribute · ParamsDtoAttribute · UnitMemoryAttribute"]
+  FT["Fdp.Toolkits<br/>ThreatCountParams [ParamsDto]"]
+  HC["Hrot.Core<br/>OrderAttribute · ParamsDtoRegistry · the *ParamsJsonDto"]
+  AI["Hrot.AI.Behaviors<br/>order DTOs · asset DTOs · generated [ParamsDto(AssetId)]"]
+  GEN["Hrot.AiEditor.Generators (netstandard2.0)<br/>emits [ParamsDto(AssetId=…)] as TEXT"]
+  CGF["CgfBehaviorSetup.LoadFromAiAssembly — at CGF load"]
+  MENU["OrderMenu.Orders — first menu build"]
+  PICK["BlackboardTypeChoiceBuilder — editor type picker"]
+  FT --> FC
+  HC --> FC
+  AI --> HC
+  GEN -. "names by FQN string" .-> FC
+  CGF --> HC
+  MENU --> HC
+  PICK --> FC
+```
+
+*Who calls it: nobody per frame — the scan runs on first use (CGF load, the first menu build, the editor's type picker) and is cached until
+an assembly loads.*
+
+| # | decision | ⭐ lean (building on it) | rejected |
+|---|---|---|---|
+| P1-a | the base's home | `Fdp.Core`, namespace `Fdp.Core` (beside `BirthCriticalAttribute` and the other engine attributes) — the one assembly `Fdp.Toolkits`, `Hrot.Core` and the editor all see (`Fbt.Kernel` references nothing) | `Fbt.Kernel` (vendored; the kernel never reads them) · `Hrot.Core` (`Fdp.Toolkits` cannot see it) |
+| P1-b | `[ParamsDto]`'s home | moves to `Fdp.Core` with the base | stays in `Hrot.Core` — `ThreatCountParams` could never carry it |
+| P1-c | does `[Order]` also need `[ParamsDto]` | no — `[Order]` implies the Params purpose (an order DTO IS a params DTO, R-277) | both attributes on every order DTO (two markers for one fact) |
+| P1-d | `[BlackboardDtoStruct]` | retires; its 3 readers test `DtoAttribute` (a derived attribute matches) ⇒ every registered struct is a variable type (F9) | keep it as a fifth purpose (a marker that says what `[Dto]` already says) |
+| P1-e | origin of a generated DTO | `AssetId` set ⇒ the origin is the asset; the caller file is then the generated `.g.cs` and is ignored | carry both (the generated file is not where a human edits it) |
+| P1-f | a `.params.json` with no `AssetId`, or file name ≠ `Name` | generator ERROR diagnostics (`PARAMS0002`, `PARAMS0003`) | warnings (the identity would silently drift) |
+| P1-g | "open the asset" in this slice | the registry entry carries the `AssetId`; ⚠ **no catalog contributor for `.params.json` is built** — `AssetCatalog` holds editable documents, and the params asset's editor is B4b (postponed by the user). A file-scan locator `ParamsDtoJson.FindByAssetId(root, id)` answers the lookup until then | a read-only catalog contributor now (a new `AssetKind`, ripples into the browser and asset tokens — ui-lane surfaces — for an asset nobody can edit yet) |
+| P1-h | the rail "a behaviour's DTO lacks `[ParamsDto]`" | over every PUBLISHED DTO of the production registry (generated mirrors excepted until P3/P4 retire them) — a rail, not a load error (a test fixture would throw) | a load error |
+
+**As built** *(2026-10-13)* — matches the diagrams, with these deviations and findings:
+- `DtoAttribute`, `ParamsDtoAttribute`, `UnitMemoryAttribute` in `FDP/Engine/Fdp.Core/DtoAttribute.cs` (namespace `Fdp.Core`); the `Hrot.Core`
+  `ParamsDtoAttribute.cs` is deleted; `Fbt.Kernel/BlackboardAnnotations.cs` keeps only the two parameter-access attributes. `[BlackboardDtoStruct]`'s
+  three readers (`BlackboardTypeChoiceBuilder`, `ISharedStructTypeProvider`, `BlackboardFieldClassifier`) test `DtoAttribute` on VALUE types; its
+  three declarations became `[Dto]` (`CustomEventDemoEvents`) or were dropped (the order DTOs — `[Order]` is a `[Dto]`). The method name
+  `DiscoverBlackboardDtoStructTypes` is unchanged (a rename is Roslyn work, not part of this item). `UnitMemoryParams.AttributeName` = `Fdp.Core.UnitMemoryAttribute`.
+- `[ParamsDto]` added to 29 DTOs: the 21 `*ParamsJsonDto`, the 2 intent DTOs, `NoParams`, `DangerCrossingParams`, `EqsTacticsParams`,
+  `PlatoonHillAttackParams`, `HullDownAttackParams`, `ThreatCountParams` (`Fdp.Toolkits`) — and `CgfNodes.JoinFormationParams`, found by the rail.
+- ⚠ **Deviation:** the generator reports the two new asset errors (no `AssetId`; file name ≠ `Name`) under its existing single id `PARAMS0001`
+  with distinct messages, not as `PARAMS0002` / `PARAMS0003` — the generator's one-descriptor rule (RS2008) is kept.
+- ⚠ **Deviation (P1-g, as designed):** no catalog contributor; `ParamsDtoJson.FindByAssetId(root, id)` is the locator.
+- ⚠ **Found, fixed in place:** CE-2130's `IsGeneratedMirror` could not see an HSM's Inputs mirror (`Hrot.AI.Behaviors.Machines.<A>_<A>_Blackboard`)
+  ⇒ `HsmChannelE2E`, `HsmCuratedBindingDemo`, `HsmPolledGuardDemo`, `HsmVariableShowcase` always broke P2 unlisted. The test now sees them; they are
+  listed for P3 with a note (not new violations).
+- ⚠ **Found, fixed:** `ParamsDtoRegistry.Default` scanned while holding its lock, and its `AssemblyLoad` hook takes the same lock. With the scan
+  widened to every `Fdp.Core` referencer a `Hrot.Presentation.Tests` run hung 17 min (not reproduced; suspected, not proven). The scan now runs
+  outside the lock; a generation counter keeps a scan that raced a load from being cached. Presentation then ran 124/0 three times in a row.
+- Rails: `CE3185_EveryPublishedParamsDto_CarriesParamsDto` (CE-2130's suite; red on first run, naming the 4 HSM mirrors + `JoinFormationParams`),
+  `CE3185_TheRegistryRecordsEachDtosOrigin_AssetOrSourceLine` (SimHost), `CE3185_OneScan_RecordsPurposesAndOrigin` and
+  `CE3185_TwoParamsDtos_OneSimpleName_AreRefused` (Core; the clash twin lives in a dynamic assembly — a static twin made every scan of the test
+  assembly throw, 9 reds), `CE3185_FindByAssetId_LocatesTheAsset_WhereverItMoved` + two invalid-asset cases (generator), the collision guard's
+  `.params.json` cases.
+
+### 13.8 P2 — no stale DTO type after a rebuild *(CE-3186; build-state: READY-TO-BUILD `2026-10-13`, backend)*
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| a full rebuild reaches a running editor / CGF as a NEW COPY of the AI assembly, scanned into a staging registry and merged | ✅ `Fdp.Toolkit.Behavior.AiHotReloadCoordinator.ApplyReload` (`:332` scan, `:339` `MergeFrom`) — used by CGF (`CgfSubsystem.cs:2787`) and the editor's quick-reload service (`EditorSubsystem.cs:4629`); `Hrot.Editor.AiHotReloadCoordinator` (`:301`, `:362`) — the editor's file watcher | ✅ `DESIGN_Unified_Behaviour_Run` hot reload; R-2001 |
+| ⚠ the merge puts the OLD copy's DTO back | ✅ `BehaviorRegistry.MergeFrom` (`:899-936`) copies the staging declarations first (empty — nobody binds the staging registry) and then sets `def.JsonParamsDtoType` from the LIVE map, bound once at CGF load (`CgfBehaviorSetup.cs:64`) from the old copy | ⛔ no doc covers a DTO changing (§13 inventory) |
+| the type helper returns the FIRST copy | ✅ `BlackboardTypeHelper.ResolveClrType` walks `GetAssemblies()` in load order and returns the first hit (`:64-87`) | — |
+| the intent palette is cached forever | ✅ `ReflectionIntentContractProvider._cached ??=` (`IntentContractPaletteEntries.cs:31`); `ParamsDtoRegistry.Default` itself IS invalidated on an assembly load (`ParamsDtoRegistry.cs`, `AssemblyLoad` hook) | — |
+| quick reload compiles ONE asset against the loaded DTO types | ✅ `AiAssetReload.ReloadBTree` / `ReloadHsm` (`:99-124`) emit topology + bridge only; the DTO is named by FQN (`typeof(global::X)`) | ✅ R-2001: a DTO change needs a full rebuild |
+
+```mermaid
+sequenceDiagram
+  participant W as file watcher (full rebuild)
+  participant C as AiHotReloadCoordinator (Fdp / Hrot.Editor)
+  participant S as staging BehaviorRegistry
+  participant L as live BehaviorRegistry
+  W->>C: new copy of Hrot.AI.Behaviors loaded
+  C->>S: BlueprintRegistrarScanner.Scan(newCopy)
+  Note over C,S: NEW (Hrot.Editor coordinator) — BindJsonParamsDtoTypes(S, ParamsDtoRegistry.Pinning(newCopy))
+  C->>L: MergeFrom(S)
+  Note over L: NEW — every declared DTO type is re-based to its LATEST loaded copy (same assembly name, same FullName) before it is applied
+  L-->>C: definitions carry the new copy's DTO types
+```
+
+```mermaid
+classDiagram
+  class BehaviorRegistry { <<existing, Fdp.Toolkits, CHANGED>> MergeFrom(source) · LatestCopyOf(Type) NEW }
+  class BlackboardTypeHelper { <<existing, CHANGED>> ResolveClrType — the LAST loaded match }
+  class ReflectionIntentContractProvider { <<existing, CHANGED>> cache keyed by the ParamsDtoRegistry.Default instance }
+  class AiAssetReload { <<existing, CHANGED>> ReloadBTree / ReloadHsm refuse a stale params DTO }
+  class ParamsDtoStaleness { <<NEW, Hrot.AiEditor.Persistence>> Check(typeId, loadedType, assetRoot) → null | "full rebuild needed" }
+  AiAssetReload ..> ParamsDtoStaleness
+  ParamsDtoStaleness ..> ParamsDtoJson : FindByAssetId
+```
+
+*What the picture shows that prose hid: the stale type is not cached by the hot-reload coordinators at all — it is re-applied by
+`MergeFrom` from the declaration map the CGF loader filled once. One re-base inside `MergeFrom` fixes both coordinators (CGF's cannot see
+`Hrot.Core`); the editor's, which can, also rebinds from the new copy so a RETARGETED declaration (`Params = typeof(OtherDto)`) lands too.*
+
+| # | decision | ⭐ lean | rejected |
+|---|---|---|---|
+| P2-a | where the re-base lives | `BehaviorRegistry.MergeFrom` (`Fdp.Toolkits`) — one place both coordinators pass through; `LatestCopyOf(t)` = the same `FullName` in the last-loaded assembly of `t`'s name | a hook on the Fdp coordinator (an API for one caller) · a second rebind in each coordinator only (CGF's cannot reach `Hrot.Core`) |
+| P2-b | how quick reload detects a changed DTO | a GENERATED DTO (`[ParamsDto(AssetId)]`) is compared field by field (name + type id) with its `.params.json` on disk; a mismatch refuses with "full rebuild needed" before compiling. A hand-written DTO cannot change without a build, which IS the full rebuild | compare a layout hash re-emitted by the generator (needs the generator in the editor process; the field list says the same) · compile the DTO in quick reload (rejected by the user, R-2001) |
+| P2-c | the palette cache | recomputed when `ParamsDtoRegistry.Default` is a different instance (the registry already drops itself on every assembly load) | an `AssemblyLoad` hook of its own (a second invalidation rule) |

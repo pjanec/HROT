@@ -73,16 +73,21 @@ namespace Hrot.Common.Orders
         }
 
         /// <summary>⭐ D4-E — the pick an order's DTO needs, from its field TYPES: a <see cref="PickableGeoPoint"/> is a point, an
-        /// <see cref="EntityRef"/> an entity (DESIGN_Map_Picking_Unification P5).</summary>
+        /// <see cref="EntityRef"/> an entity (DESIGN_Map_Picking_Unification P5). ⭐ <c>CE-3184</c> (R-2002) — reads the DTO's public
+        /// FIELDS (a params DTO is fields only); a property is still read, and a <c>[JsonIgnore]</c> member is never a pick.</summary>
         public static (OrderPick Pick, string? Field) PickOf(Type dto)
         {
-            var picks = dto.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Select(p => (Prop: p, Kind: p.PropertyType == typeof(PickableGeoPoint) ? OrderPick.Point
-                                           : p.PropertyType == typeof(EntityRef) ? OrderPick.Entity : OrderPick.None))
+            const BindingFlags Public = BindingFlags.Public | BindingFlags.Instance;
+            var members = dto.GetFields(Public).Select(f => ((MemberInfo)f, f.FieldType))
+                .Concat(dto.GetProperties(Public).Select(p => ((MemberInfo)p, p.PropertyType)));
+            var picks = members
+                .Where(m => !m.Item1.IsDefined(typeof(JsonIgnoreAttribute), inherit: true))
+                .Select(m => (Member: m.Item1, Kind: m.Item2 == typeof(PickableGeoPoint) ? OrderPick.Point
+                                                 : m.Item2 == typeof(EntityRef) ? OrderPick.Entity : OrderPick.None))
                 .Where(x => x.Kind != OrderPick.None).ToArray();
             if (picks.Length == 0) return (OrderPick.None, null);
             if (picks.Length > 1) return (OrderPick.Several, null);
-            var p0 = picks[0].Prop;
+            var p0 = picks[0].Member;
             return (picks[0].Kind, p0.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? p0.Name);
         }
 

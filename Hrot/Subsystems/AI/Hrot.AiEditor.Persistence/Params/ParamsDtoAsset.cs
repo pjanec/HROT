@@ -13,7 +13,11 @@ namespace Hrot.AiEditor.Persistence.Params;
 /// </summary>
 public sealed class ParamsDtoAssetDto
 {
-    /// <summary>The DTO's type name (a C# identifier).</summary>
+    /// <summary>⭐ <c>CE-3185</c> (F1, R-2000) — the asset's stable id (a GUID), like every <c>.bp</c> / <c>.btree</c> / <c>.hsm</c> asset. The
+    /// generator emits it into <c>[ParamsDto(AssetId = …)]</c>, so the DTO's origin survives the file moving. Required.</summary>
+    public string? AssetId { get; set; }
+
+    /// <summary>The DTO's type name (a C# identifier); ⭐ <c>CE-3185</c> — also the asset's file name (<c>&lt;Name&gt;.params.json</c>).</summary>
     public string Name { get; set; } = string.Empty;
 
     /// <summary>The namespace; <see cref="ParamsDtoEmitCore.DefaultNamespace"/> when empty.</summary>
@@ -68,6 +72,25 @@ public static class ParamsDtoJson
            ?? throw new JsonException("a params DTO asset is empty");
 
     public static string Serialize(ParamsDtoAssetDto dto) => JsonSerializer.Serialize(dto, Options);
+
+    /// <summary>
+    /// ⭐ <c>CE-3185</c> (§13.7 P1-g) — the <c>*.params.json</c> under <paramref name="root"/> whose <c>AssetId</c> is
+    /// <paramref name="assetId"/>, or null: the "open asset" locator for a generated params DTO (its <c>[ParamsDto(AssetId)]</c>) until the
+    /// asset gets an editor and a catalog contributor (B4b). Unreadable files are skipped.
+    /// </summary>
+    public static string? FindByAssetId(string root, Guid assetId)
+    {
+        if (string.IsNullOrEmpty(root) || !System.IO.Directory.Exists(root)) return null;
+        foreach (var path in System.IO.Directory.EnumerateFiles(root, "*" + Extension, System.IO.SearchOption.AllDirectories))
+        {
+            try
+            {
+                if (Guid.TryParse(Deserialize(System.IO.File.ReadAllText(path)).AssetId, out var id) && id == assetId) return path;
+            }
+            catch (Exception) { /* not a params asset we can read: skip */ }
+        }
+        return null;
+    }
 }
 
 /// <summary>
@@ -79,7 +102,7 @@ public static class ParamsDtoJson
 public static class ParamsDtoEmitCore
 {
     public const string DefaultNamespace = "Hrot.AI.Behaviors.Params";
-    private const string Attr = "global::Hrot.Map.Definitions.Behavior.ParamsDto";
+    private const string Attr = "global::Fdp.Core.ParamsDto";   // ⭐ CE-3185 — moved to Fdp.Core
     private const string OrderAttr = "global::Hrot.Map.Definitions.Behavior.Orders.Order";
     private const string GestureEnum = "global::Hrot.Map.Definitions.Behavior.Orders.OrderGesture";
 
@@ -93,6 +116,9 @@ public static class ParamsDtoEmitCore
     {
         var errors = new List<string>();
         if (!IsIdentifier(dto.Name)) errors.Add($"'{dto.Name}' is not a C# identifier (the DTO's name)");
+        // ⭐ CE-3185 (F1) — the asset's identity travels into the DTO's [ParamsDto(AssetId)]; without one the origin is lost.
+        if (!Guid.TryParse(dto.AssetId ?? "", out var id) || id == Guid.Empty)
+            errors.Add($"names no AssetId (a non-empty GUID) — every params DTO asset has one (CE-3185)");
         if (!string.IsNullOrWhiteSpace(dto.Namespace))
             foreach (var part in dto.Namespace!.Trim().Split('.'))
                 if (!IsIdentifier(part)) { errors.Add($"namespace '{dto.Namespace}' is not a dotted C# name"); break; }
@@ -140,7 +166,7 @@ public static class ParamsDtoEmitCore
         sb.AppendLine($"namespace {ns}");
         sb.AppendLine("{");
         Doc(sb, "    ", dto.Comment);
-        sb.AppendLine($"    [{Attr}(DefaultJson = {Literal(DefaultJsonOf(dto))})]");
+        sb.AppendLine($"    [{Attr}(AssetId = {Literal(Guid.Parse(dto.AssetId!).ToString("D"))}, DefaultJson = {Literal(DefaultJsonOf(dto))})]");
         if (dto.OrderName != null)
             sb.AppendLine(dto.Gesture == null
                 ? $"    [{OrderAttr}({Literal(dto.OrderName)})]"

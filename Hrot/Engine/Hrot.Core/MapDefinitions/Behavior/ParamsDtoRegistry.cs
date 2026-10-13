@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Fdp.Core;
 using Hrot.Map.Definitions.Behavior.Orders;
 
 namespace Hrot.Map.Definitions.Behavior
@@ -9,14 +10,51 @@ namespace Hrot.Map.Definitions.Behavior
     /// <summary>⭐ <c>CE-2134</c> — one behaviour's declared params contract (<see cref="BehaviorAttribute"/>).</summary>
     public sealed record BehaviorDeclaration(string Name, Type ParamsType, BehaviorCategory Categories, string DeclaredOn);
 
-    /// <summary>⭐ <c>CE-2134</c> — one params DTO: the behaviours that take it, and its order name when it is an
-    /// <c>[Order]</c> DTO (a string — menus read it and never the AI assembly's <c>OrderKind</c>, §2.3l).</summary>
-    public sealed record ParamsDtoInfo(Type Type, string? OrderName, IReadOnlyList<string> BehaviorNames);
+    /// <summary>⭐ <c>CE-3185</c> (F9) — what an authored data struct is FOR; one DTO may serve several.</summary>
+    [Flags]
+    public enum DtoPurpose : byte
+    {
+        None       = 0,
+        /// <summary>A blackboard / blueprint variable type (every registered STRUCT is one).</summary>
+        Variable   = 1,
+        /// <summary>A params DTO: a behaviour's public JSON contract (<c>[ParamsDto]</c>, <c>[Order]</c>, or named by a behaviour).</summary>
+        Params     = 2,
+        /// <summary>An order's DTO (<c>[Order]</c>).</summary>
+        Order      = 4,
+        /// <summary>A unit memory (<c>[UnitMemory]</c>).</summary>
+        UnitMemory = 8,
+    }
+
+    /// <summary>⭐ <c>CE-3185</c> (F1, R-2000) — where a DTO is AUTHORED, a locator for "open source / open asset", never an identity
+    /// (the identity is the CLR type FQN). A generated DTO's origin is its asset (<see cref="AssetId"/>); a hand-written one's is
+    /// the file + line the compiler recorded on its <see cref="DtoAttribute"/>. <see cref="None"/> when the type carries no
+    /// <see cref="DtoAttribute"/> (a DTO a behaviour names without marking it — the CE-3185 rail fails that).</summary>
+    public readonly record struct DtoOrigin(string? SourceFile, int SourceLine, string? AssetId)
+    {
+        public static DtoOrigin None => default;
+        public bool IsAsset => !string.IsNullOrEmpty(AssetId);
+        public bool IsKnown => IsAsset || !string.IsNullOrEmpty(SourceFile);
+
+        /// <summary>The origin one attribute records: its asset when it names one, else its file + line.</summary>
+        public static DtoOrigin Of(DtoAttribute a)
+            => !string.IsNullOrEmpty(a.AssetId) ? new DtoOrigin(null, 0, a.AssetId)
+             : string.IsNullOrEmpty(a.SourceFile) ? None : new DtoOrigin(a.SourceFile, a.SourceLine, null);
+    }
+
+    /// <summary>⭐ <c>CE-2134</c> — one registered DTO: the behaviours that take it, and its order name when it is an
+    /// <c>[Order]</c> DTO (a string — menus read it and never the AI assembly's <c>OrderKind</c>, §2.3l). ⭐ <c>CE-3185</c> — plus
+    /// its <see cref="Purposes"/> and its <see cref="Origin"/>.</summary>
+    public sealed record ParamsDtoInfo(Type Type, string? OrderName, IReadOnlyList<string> BehaviorNames)
+    {
+        public DtoPurpose Purposes { get; init; }
+        public DtoOrigin Origin { get; init; }
+    }
 
     /// <summary>
     /// ⭐⭐⭐ <c>CE-2134</c> (B2, <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §5b) — THE ONE SCAN of the params contract:
-    /// every <see cref="BehaviorAttribute"/> (on methods, types and assemblies) and every <see cref="OrderAttribute"/> DTO in the
-    /// LOADED assemblies. Its readers — the runtime binding (<c>BehaviorSchemaDiscovery</c>), the mission pickers
+    /// every <see cref="BehaviorAttribute"/> (on methods, types and assemblies) and — ⭐ <c>CE-3185</c> (§13.7, F9) — every type that
+    /// carries a <see cref="DtoAttribute"/> (<c>[Dto]</c>, <c>[ParamsDto]</c>, <c>[Order]</c>, <c>[UnitMemory]</c>) in the
+    /// LOADED assemblies: one registry for every authored data struct, each with its purposes and origin. Its readers — the runtime binding (<c>BehaviorSchemaDiscovery</c>), the mission pickers
     /// (<see cref="Tkb.BehaviorCatalog"/>) and the blueprint palette — no longer scan for themselves.
     /// <para>⚠ It sees only loaded assemblies. <c>Hrot.Core</c> cannot reference the AI behaviours assembly (a cycle), so
     /// <see cref="Default"/> first tries to load each of <see cref="KnownBehaviourAssemblies"/> by name; a host that does not ship
@@ -32,21 +70,32 @@ namespace Hrot.Map.Definitions.Behavior
         private static readonly object Gate = new();
         private static ParamsDtoRegistry? _default;
         private static bool _hooked;
+        private static long _generation;   // bumped on every assembly load (CE-3185: a scan that raced one is not cached)
 
         private readonly Dictionary<string, BehaviorDeclaration> _byName;
 
-        private ParamsDtoRegistry(Dictionary<string, BehaviorDeclaration> byName, IReadOnlyList<ParamsDtoInfo> dtos)
+        private readonly Dictionary<Type, ParamsDtoInfo> _byType;
+
+        private ParamsDtoRegistry(Dictionary<string, BehaviorDeclaration> byName, IReadOnlyList<ParamsDtoInfo> all)
         {
             _byName = byName;
             Behaviors = byName.Values.OrderBy(d => d.Name, StringComparer.Ordinal).ToList();
-            Dtos = dtos;
+            All = all;
+            Dtos = all.Where(d => (d.Purposes & DtoPurpose.Params) != 0).ToList();
+            _byType = all.ToDictionary(d => d.Type);
         }
 
         /// <summary>Every declared behaviour, by name (ordinal).</summary>
         public IReadOnlyList<BehaviorDeclaration> Behaviors { get; }
 
-        /// <summary>Every params DTO a behaviour declares, plus every <c>[Order]</c> DTO, by type name.</summary>
+        /// <summary>Every PARAMS DTO — named by a behaviour, <c>[ParamsDto]</c> or <c>[Order]</c> — by type name.</summary>
         public IReadOnlyList<ParamsDtoInfo> Dtos { get; }
+
+        /// <summary>⭐ <c>CE-3185</c> — every registered DTO (every <see cref="DtoAttribute"/> carrier plus every params DTO), by type name.</summary>
+        public IReadOnlyList<ParamsDtoInfo> All { get; }
+
+        /// <summary>⭐ <c>CE-3185</c> — the registry's entry for <paramref name="type"/>.</summary>
+        public bool TryGetDto(Type type, out ParamsDtoInfo info) => _byType.TryGetValue(type, out info!);
 
         public bool TryGetBehavior(string name, out BehaviorDeclaration declaration)
             => _byName.TryGetValue(name, out declaration!);
@@ -57,19 +106,36 @@ namespace Hrot.Map.Definitions.Behavior
                         .Select(d => d.Name).ToList();
 
         /// <summary>The process-wide registry over the loaded assemblies (rebuilt after another assembly loads).</summary>
+        /// <remarks>⛔ <c>CE-3185</c> — the scan runs OUTSIDE <see cref="Gate"/>. Scanning loads assemblies (<c>GetTypes</c>, attribute
+        /// construction) and every load runs the <c>AssemblyLoad</c> hook, which takes <see cref="Gate"/>: holding it across the scan
+        /// could let a load on another thread wait for the lock while this thread waited for that load. ⚠ Suspected, not proven: a
+        /// <c>Hrot.Presentation.Tests</c> run hung 17 min once the scan widened to every <c>Fdp.Core</c> referencer, and did not reproduce. A scan that raced a load is returned but not cached
+        /// (<see cref="_generation"/>).</remarks>
         public static ParamsDtoRegistry Default
         {
             get
             {
+                bool hook;
+                long generation;
                 lock (Gate)
                 {
-                    if (!_hooked)
+                    if (_default != null) return _default;
+                    hook = !_hooked;
+                    if (hook)
                     {
                         _hooked = true;
-                        foreach (var name in KnownBehaviourAssemblies) TryLoad(name);
-                        AppDomain.CurrentDomain.AssemblyLoad += (_, _) => { lock (Gate) _default = null; };
+                        AppDomain.CurrentDomain.AssemblyLoad += (_, _) => { lock (Gate) { _default = null; _generation++; } };
                     }
-                    return _default ??= Scan(LatestPerName(AppDomain.CurrentDomain.GetAssemblies()));
+                    generation = _generation;
+                }
+                if (hook)
+                    foreach (var name in KnownBehaviourAssemblies) TryLoad(name);
+                var scanned = Scan(LatestPerName(AppDomain.CurrentDomain.GetAssemblies()));
+                lock (Gate)
+                {
+                    if (_default != null) return _default;
+                    if (_generation == generation) _default = scanned;
+                    return scanned;
                 }
             }
         }
@@ -95,8 +161,7 @@ namespace Hrot.Map.Definitions.Behavior
         public static ParamsDtoRegistry Scan(IEnumerable<Assembly> assemblies)
         {
             var declarations = new List<(BehaviorAttribute, string)>();
-            var orderDtos = new List<Type>();
-            var markedDtos = new List<Type>();   // ⭐ CE-2136 — [ParamsDto] (a generated params DTO asset)
+            var dtoTypes = new List<Type>();   // ⭐ CE-3185 — every DtoAttribute carrier ([Dto], [ParamsDto], [Order], [UnitMemory])
             foreach (var asm in assemblies.Distinct())
             {
                 if (asm.IsDynamic || !CanDeclare(asm)) continue;
@@ -105,8 +170,7 @@ namespace Hrot.Map.Definitions.Behavior
                 foreach (var t in LoadableTypes(asm))
                 {
                     foreach (var a in t.GetCustomAttributes<BehaviorAttribute>(inherit: false)) declarations.Add((a, t.FullName ?? t.Name));
-                    if (t.IsDefined(typeof(OrderAttribute), inherit: false)) orderDtos.Add(t);
-                    if (t.IsDefined(typeof(ParamsDtoAttribute), inherit: false)) markedDtos.Add(t);
+                    if (t.IsDefined(typeof(DtoAttribute), inherit: false)) dtoTypes.Add(t);
                     foreach (var m in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static
                                                    | BindingFlags.Instance | BindingFlags.DeclaredOnly))
                     {
@@ -117,15 +181,17 @@ namespace Hrot.Map.Definitions.Behavior
                     }
                 }
             }
-            return FromDeclarations(declarations, orderDtos, markedDtos);
+            return FromDeclarations(declarations, dtoTypes);
         }
 
         /// <summary>
-        /// The registry over explicit declarations (each with where it was found) and <c>[Order]</c> DTO types — what
-        /// <see cref="Scan"/> builds from reflection; a rail builds one by hand. ⛔ Throws on the load-check failures.
+        /// The registry over explicit declarations (each with where it was found) and the types that carry a <see cref="DtoAttribute"/>
+        /// — what <see cref="Scan"/> builds from reflection; a rail builds one by hand. ⛔ Throws on the load-check failures: a
+        /// behaviour with no <c>Params</c>, a behaviour declared twice, or ⭐ <c>CE-3185</c> two <c>[ParamsDto]</c> / <c>[Order]</c> types
+        /// with one simple name (menus, order names and the UI show the simple name).
         /// </summary>
         public static ParamsDtoRegistry FromDeclarations(IEnumerable<(BehaviorAttribute Declaration, string DeclaredOn)> declarations,
-            IEnumerable<Type> orderDtos, IEnumerable<Type>? markedDtos = null)
+            IEnumerable<Type> dtoTypes)
         {
             var byName = new Dictionary<string, BehaviorDeclaration>(StringComparer.Ordinal);
             foreach (var (a, on) in declarations)
@@ -140,16 +206,39 @@ namespace Hrot.Map.Definitions.Behavior
                 byName[a.Name] = new BehaviorDeclaration(a.Name, a.Params, a.Categories, on);
             }
 
-            var orders = new Dictionary<Type, string>();
-            foreach (var t in orderDtos)
-                if (t.GetCustomAttribute<OrderAttribute>(inherit: false) is { } order) orders[t] = order.Name;
+            var marked = dtoTypes.Distinct().ToList();
+            var types = byName.Values.Select(d => d.ParamsType).Concat(marked).Distinct().ToList();
+            var all = new List<ParamsDtoInfo>(types.Count);
+            foreach (var t in types)
+            {
+                var attrs = t.GetCustomAttributes<DtoAttribute>(inherit: false).ToArray();
+                var order = attrs.OfType<OrderAttribute>().FirstOrDefault();
+                var purposes = DtoPurpose.None;
+                foreach (var a in attrs)
+                    purposes |= a switch
+                    {
+                        ParamsDtoAttribute  => DtoPurpose.Params,
+                        OrderAttribute      => DtoPurpose.Params | DtoPurpose.Order,
+                        UnitMemoryAttribute => DtoPurpose.UnitMemory,
+                        _                   => DtoPurpose.None,
+                    };
+                var names = byName.Values.Where(d => d.ParamsType == t).Select(d => d.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
+                if (names.Count > 0) purposes |= DtoPurpose.Params;
+                if (t.IsValueType) purposes |= DtoPurpose.Variable;
+                var origin = attrs.Select(DtoOrigin.Of).Where(o => o.IsAsset).Concat(attrs.Select(DtoOrigin.Of).Where(o => o.IsKnown))
+                                  .FirstOrDefault();
+                all.Add(new ParamsDtoInfo(t, order?.Name, names) { Purposes = purposes, Origin = origin });
+            }
 
-            var dtos = byName.Values.Select(d => d.ParamsType).Concat(orders.Keys).Concat(markedDtos ?? Type.EmptyTypes).Distinct()
-                .Select(t => new ParamsDtoInfo(t, orders.TryGetValue(t, out var o) ? o : null,
-                    byName.Values.Where(d => d.ParamsType == t).Select(d => d.Name).OrderBy(n => n, StringComparer.Ordinal).ToList()))
-                .OrderBy(i => i.Type.FullName, StringComparer.Ordinal)
-                .ToList();
-            return new ParamsDtoRegistry(byName, dtos);
+            // ⭐ CE-3185 (F1) — the UI and the order names show a params DTO's SIMPLE name, so two marked ones may not share it.
+            var clash = all.Where(i => i.Type.IsDefined(typeof(ParamsDtoAttribute), false) || i.Type.IsDefined(typeof(OrderAttribute), false))
+                           .GroupBy(i => i.Type.Name, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1);
+            if (clash != null)
+                throw new InvalidOperationException(
+                    $"CE-3185: two params DTOs are named '{clash.Key}' ({string.Join(", ", clash.Select(i => i.Type.FullName))}) — a params " +
+                    "DTO's simple name is what menus and order names show; rename one (docs/DESIGN_Orders_Params_Entity_Classes.md §13.7).");
+
+            return new ParamsDtoRegistry(byName, all.OrderBy(i => i.Type.FullName, StringComparer.Ordinal).ToList());
         }
 
         /// <summary>⭐ One instance per assembly NAME, the last loaded: a host that hot-reloads the AI behaviours (the editor) holds
@@ -169,14 +258,16 @@ namespace Hrot.Map.Definitions.Behavior
             return order.Select(n => byName[n]);
         }
 
-        /// <summary>Only <c>Hrot.Core</c> and assemblies that reference it can carry these attributes — the rest are skipped
-        /// unscanned (the framework, FDP, the test runners), which is what keeps the scan cheap.</summary>
+        /// <summary>Only <c>Hrot.Core</c>, <c>Fdp.Core</c> and assemblies that reference either can carry these attributes — the
+        /// rest are skipped unscanned (the framework, the test runners), which is what keeps the scan cheap. ⭐ <c>CE-3185</c> — widened to
+        /// <c>Fdp.Core</c> (where <see cref="DtoAttribute"/> lives), or <c>Fdp.Toolkits</c>' DTOs (<c>ThreatCountParams</c>) stay invisible.</summary>
         private static bool CanDeclare(Assembly asm)
         {
             var core = typeof(BehaviorAttribute).Assembly;
-            if (asm == core) return true;
-            string coreName = core.GetName().Name!;
-            try { return asm.GetReferencedAssemblies().Any(n => n.Name == coreName); }
+            var fdp = typeof(DtoAttribute).Assembly;
+            if (asm == core || asm == fdp) return true;
+            string coreName = core.GetName().Name!, fdpName = fdp.GetName().Name!;
+            try { return asm.GetReferencedAssemblies().Any(n => n.Name == coreName || n.Name == fdpName); }
             catch { return false; }
         }
 

@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json.Serialization;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -8,32 +9,33 @@ namespace Hrot.Map.Definitions.Behavior
     /// to <see cref="Objective"/>; the others keep a slot of <see cref="Shape"/> on it, and walk in file on the lead's own trail where a
     /// slot does not work. A zero field keeps its default. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §6.1.
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct SquadMarchParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.SquadMarch;
 
         /// <summary>Where the squad goes (sim metres, Z up).</summary>
         [JsonPropertyName("Objective")]
-        public Vector3 Objective { get; set; }
+        public Vector3 Objective;
 
         /// <summary>0 = File (on the lead's trail) · 1 = Wedge · 2 = Line.</summary>
         [JsonPropertyName("Shape")]
-        public int Shape { get; set; }
+        public int Shape;
 
         /// <summary>The distance between neighbours (m); 0 = 5.</summary>
         [JsonPropertyName("Spacing")]
-        public float Spacing { get; set; }
+        public float Spacing;
 
         /// <summary>The members' asked speed (m/s); 0 = 1.5. Their stance caps it.</summary>
         [JsonPropertyName("Speed")]
-        public float Speed { get; set; }
+        public float Speed;
 
         /// <summary>How close the lead must get to the objective (m); 0 = 5.</summary>
         [JsonPropertyName("ArrivalRadius")]
-        public float ArrivalRadius { get; set; }
+        public float ArrivalRadius;
 
         /// <summary>A follower this far from its slot halts the lead until it closes up (m); 0 = 10.</summary>
         [JsonPropertyName("MaxLagMetres")]
-        public float MaxLagMetres { get; set; }
+        public float MaxLagMetres;
     }
 }

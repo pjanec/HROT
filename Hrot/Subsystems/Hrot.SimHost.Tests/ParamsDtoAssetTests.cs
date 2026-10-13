@@ -37,6 +37,30 @@ namespace Hrot.SimHost.Tests
             Assert.Contains(registry.Dtos, d => d.Type == t);
         }
 
+        /// <summary>⭐ CE-3185 (P1, F1) — the registry records each params DTO's ORIGIN: a generated one its asset's id (from
+        /// <c>T41Params.params.json</c>), a hand-written one its C# file and line. 🔴 Red-proof: drop the <c>AssetId</c> emit from
+        /// <c>ParamsDtoEmitCore.Emit</c> → the generated entry's origin is the generated file and this fails.</summary>
+        [Fact]
+        public void CE3185_TheRegistryRecordsEachDtosOrigin_AssetOrSourceLine()
+        {
+            var registry = ParamsDtoRegistry.Pinning(typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly);
+
+            Assert.True(registry.TryGetDto(Generated(), out var gen));
+            Assert.True(gen.Origin.IsAsset);
+            Assert.Equal("ee7e86f5-6718-4210-ae07-c8e13de9d8df", gen.Origin.AssetId);
+            Assert.True((gen.Purposes & DtoPurpose.Params) != 0 && (gen.Purposes & DtoPurpose.Variable) != 0);
+
+            Assert.True(registry.TryGetDto(typeof(MoveToLocationParamsJsonDto), out var hand));
+            Assert.False(hand.Origin.IsAsset);
+            Assert.EndsWith("MoveToLocationParamsJsonDto.cs", hand.Origin.SourceFile!.Replace('\\', '/'));
+            Assert.True(hand.Origin.SourceLine > 0);
+
+            Assert.True(registry.TryGetDto(typeof(Hrot.AI.Behaviors.Orders.MoveOrder), out var order));
+            Assert.Equal("Move", order.OrderName);
+            Assert.Equal(DtoPurpose.Variable | DtoPurpose.Params | DtoPurpose.Order, order.Purposes);
+            Assert.EndsWith("OrderDtos.cs", order.Origin.SourceFile!.Replace('\\', '/'));
+        }
+
         /// <summary>The CLR layout of the generated struct is the sequential one the sibling generators computed from the JSON
         /// (float@0, Vector3@4, int@16, bool@20, 24 bytes) — if the two disagreed, a <c>Params.&lt;field&gt;</c> binding would read the
         /// wrong bytes.</summary>

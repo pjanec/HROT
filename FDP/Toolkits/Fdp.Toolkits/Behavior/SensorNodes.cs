@@ -41,6 +41,7 @@ namespace Fdp.Toolkit.Behavior
 
     /// <summary>⭐ <c>CE-3054</c> D — params of <see cref="SensorNodes.ThreatsAtLeast"/>.</summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct ThreatCountParams
     {
         /// <summary>At least this many contacts (0 counts as 1).</summary>

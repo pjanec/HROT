@@ -7,7 +7,7 @@ namespace Hrot.AiEditor.Persistence.Emit;
 
 /// <summary>
 /// ⭐⭐ <c>CE-3137</c> U-2 (<c>Q87</c> G, <c>R-237</c>) — a C# <c>[SharedAi*]</c> action or condition may END its parameter list with
-/// <c>ref T</c> parameters of <c>[Fbt.Kernel.UnitMemory]</c> types:
+/// <c>ref T</c> parameters of <c>[Fdp.Core.UnitMemory]</c> types:
 /// <c>NodeStatus Act(ref P p, Entity self, EntityRepository world, ref FiringPositionMemory mem)</c>. They bind to the unit's
 /// memory (<c>Fdp.Toolkit.Behavior.UnitMemory.Ref&lt;T&gt;(world, self)</c>) with no variable, and are stripped before the
 /// call shape is classified (<see cref="BTreeCallShapes.WithoutUnitMemory"/>), so every existing shape keeps its meaning.
@@ -16,8 +16,8 @@ namespace Hrot.AiEditor.Persistence.Emit;
 /// </summary>
 public static class UnitMemoryParams
 {
-    /// <summary>The attribute's metadata name — matched by name so this assembly needs no reference to <c>Fbt.Kernel</c>.</summary>
-    public const string AttributeName = "Fbt.Kernel.UnitMemoryAttribute";
+    /// <summary>The attribute's metadata name — matched by name so this assembly needs no reference to <c>Fdp.Core</c>.</summary>
+    public const string AttributeName = "Fdp.Core.UnitMemoryAttribute";   // CE-3185: moved out of Fbt.Kernel
 
     /// <summary>The accessor the generated call goes through.</summary>
     public const string Accessor = "global::Fdp.Toolkit.Behavior.UnitMemory.Ref";

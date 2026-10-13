@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -8,32 +9,33 @@ namespace Hrot.Map.Definitions.Behavior
     /// <c>FireAtPoint</c> behaviour: fire mount <see cref="Mount"/> at the ground point (<see cref="X"/>, <see cref="Y"/>, <see cref="Z"/>)
     /// — a thrown grenade, a mortar. A STRUCT of unmanaged fields, so a host can also bind it by bytes.
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct FireAtPointParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.FireAtPoint;
 
         /// <summary>The aim point (local metres, east).</summary>
         [JsonPropertyName("x")]
-        public float X { get; set; }
+        public float X;
 
         /// <summary>The aim point (local metres, north).</summary>
         [JsonPropertyName("y")]
-        public float Y { get; set; }
+        public float Y;
 
         /// <summary>The aim point (local metres, up) — a roof, a floor; 0 = the ground.</summary>
         [JsonPropertyName("z")]
-        public float Z { get; set; }
+        public float Z;
 
         /// <summary>The mount to fire (its index in the type's weapon suite).</summary>
         [JsonPropertyName("mount")]
-        public int Mount { get; set; }
+        public int Mount;
 
         /// <summary>Rounds to fire; 0 = until the ammunition runs out.</summary>
         [JsonPropertyName("rounds")]
-        public int Rounds { get; set; }
+        public int Rounds;
 
         /// <summary>Seconds between rounds.</summary>
         [JsonPropertyName("cooldownSeconds")]
-        public float CooldownSeconds { get; set; }
+        public float CooldownSeconds;
     }
 }

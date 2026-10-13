@@ -1,3 +1,4 @@
+using Fdp.Core;
 namespace Hrot.Map.Definitions.Behavior.Intents
 {
     /// <summary>
@@ -11,17 +12,18 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     /// <c>TargetIntentId</c> of the <c>DefendAreaMapper</c> (TASK-TI011).
     /// </para>
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public sealed class DefendAreaIntentDto
     {
         public const string BehaviorId = BehaviorNames.DefendArea;
 
         /// <summary>Latitude of the area center.</summary>
-        public double CenterLat { get; set; }
+        public double CenterLat;
 
         /// <summary>Longitude of the area center.</summary>
-        public double CenterLon { get; set; }
+        public double CenterLon;
 
         /// <summary>Radius in meters.</summary>
-        public float RadiusMeters { get; set; }
+        public float RadiusMeters;
     }
 }

@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Behavior.Params;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -12,29 +13,30 @@ namespace Hrot.Map.Definitions.Behavior
     /// <c>HillAttackCommanderNodes.ParsePlatoonHillAttackParams</c> at ingress time;
     /// never referenced from BTree hot-path nodes.</para>
     /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public sealed class PlatoonHillAttackParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.PlatoonHillAttack;
 
         /// <summary>Start of the firing-line segment.</summary>
         [JsonPropertyName("firingLineStart")]
-        public PickableGeoPoint FiringLineStart { get; set; }
+        public PickableGeoPoint FiringLineStart;
 
         /// <summary>End of the firing-line segment.</summary>
         [JsonPropertyName("firingLineEnd")]
-        public PickableGeoPoint FiringLineEnd { get; set; }
+        public PickableGeoPoint FiringLineEnd;
 
         /// <summary>Start of the baseline retreat segment.</summary>
         [JsonPropertyName("baselineStart")]
-        public PickableGeoPoint BaselineStart { get; set; }
+        public PickableGeoPoint BaselineStart;
 
         /// <summary>End of the baseline retreat segment.</summary>
         [JsonPropertyName("baselineEnd")]
-        public PickableGeoPoint BaselineEnd { get; set; }
+        public PickableGeoPoint BaselineEnd;
 
         /// <summary>Spacing (metres) between adjacent firing-line slots. Defaults to 30 m.</summary>
         [JsonPropertyName("tankSpacing")]
-        public float TankSpacing { get; set; } = 30f;
+        public float TankSpacing = 30f;
 
         /// <summary>
         /// Network-stable ID of the target area polygon entity.
@@ -43,6 +45,6 @@ namespace Hrot.Map.Definitions.Behavior
         /// </summary>
         [JsonPropertyName("targetAreaNetworkId")]
         [MapPickableEntity("tactical_graphics")]   // ⭐ narrows the picker; the TYPE makes it pickable and remapped
-        public EntityRef TargetAreaNetworkId { get; set; }
+        public EntityRef TargetAreaNetworkId;
     }
 }

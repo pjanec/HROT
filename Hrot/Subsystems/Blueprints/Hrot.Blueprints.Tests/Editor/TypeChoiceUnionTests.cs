@@ -15,7 +15,7 @@ namespace Hrot.Blueprints.Tests.Editor;
 /// ⛔ <b>Two disjoint answers to one question.</b> <c>BlueprintTypeSystem.SelectableTypeIds</c> was 13
 /// hardcoded primitive FQNs with <b>no struct types at all</b>, while the Variables panel's own list
 /// (<c>BlackboardTypeChoiceBuilder.BuildDefault</c>) offered primitives <b>and</b> every discovered
-/// <c>[BlackboardDtoStruct]</c>. ⇒ whether a designer could declare a struct-typed variable depended
+/// <c>[Dto]</c>. ⇒ whether a designer could declare a struct-typed variable depended
 /// on which window they had open.
 /// </para>
 ///
@@ -95,7 +95,7 @@ public sealed class TypeChoiceUnionTests
     }
 
     /// <summary>
-    /// ⭐ <b>Pass 2 — the union really is a union.</b> Every discovered <c>[BlackboardDtoStruct]</c>
+    /// ⭐ <b>Pass 2 — the union really is a union.</b> Every discovered <c>[Dto]</c>
     /// FQN is offered, and the primitives survived.
     /// </summary>
     [Fact]

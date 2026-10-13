@@ -270,14 +270,14 @@ public sealed class VariableCreateModal
             && ir.IsUnmanaged && ir.SizeBytes > 0)
             return ir.SizeBytes;
 
-        // U-8: a discovered [BlackboardDtoStruct] is selectable, so the list budget must be able to
+        // U-8: a discovered [Dto] is selectable, so the list budget must be able to
         // size one. ⭐ The type was FOUND by reflection, so its size is available the same way — this
         // is not a second source of truth, it is the same one asked a second question.
         return StructByteSize(typeId);
     }
 
     /// <summary>
-    /// U-8 — the managed size (CE-2030) of a discovered <c>[BlackboardDtoStruct]</c>, or 0 when the id names
+    /// U-8 — the managed size (CE-2030) of a discovered <c>[Dto]</c>, or 0 when the id names
     /// no such struct.
     ///
     /// <para>

@@ -1,4 +1,5 @@
 {
+  "AssetId": "ee7e86f5-6718-4210-ae07-c8e13de9d8df",
   "Name": "T41Params",
   "Comment": "CE-2136 test fixture: an editor-authored params DTO (T41_GeneratedParamsDto takes it).",
   "Fields": [
