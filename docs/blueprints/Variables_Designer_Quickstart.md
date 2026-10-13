@@ -1,170 +1,92 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
-current-answer: the whole file. This is the DESIGNER-facing document; the engineering
-  record for parameter binding is Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md
-  and DESIGN_Parameter_Model.md.
+updated: 2026-10-13
+current-answer: the whole file. This is the DESIGNER-facing document; the engineering record is
+  docs/DESIGN_Orders_Params_Entity_Classes.md §5c / §13.10 ⑦ (one params DTO, no variable kinds) and
+  docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md (where memory lives).
 stale-below: nothing.
-known-rot: the "Static Parameters" panel is now labelled "DEFAULT VALUE - {var}" in
-  the Inspector (Batch 74). The old name survives only in comments and this file's
-  history; the section below uses the new one.
-known-rot: (2026-10-13, P7) "set its Role to Input" / the four-kinds table's Role + Scope columns use the Role
-  vocabulary that retires with P4 (docs/DESIGN_Orders_Params_Entity_Classes.md §13.10; rewrite waits for it). "A
-  node binds its whole parameter bundle to ONE variable — never field-by-field" was corrected today: CE-3182
-  lets the bundle sit in a FIELD of a variable (`Params.<field>`), §5d.
+known-rot: none known. ⛔ HISTORY (2026-10-13, CE-3193): this file taught "four kinds" set through a Role (Input/State)
+  and a Scope (Node/Behavior/Entity) on each variable. Role and Scope are gone — nothing about a variable's kind is
+  authored — and so are the Entity scope (CE-441) and the Get Shared / Set Shared nodes (CE-440).
+related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — owns the params DTO and the derived working-state rule (§13.10 ⑦)
+  - docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md — owns the storage behind node memory and unit memory
 -->
 # Behavior Variables — Designer Quickstart
 
-> **Who this is for:** anyone authoring BTree / blueprint behaviors who is *not* thinking about
-> bytes, slots, or hashing — you just want your node to remember something, or share it. It answers
-> one question: **"What kind of memory does my node need, and how do I set it up?"**
-> **Related (deeper, for engineers):** `Blueprint_SharedState_GetShared_Design.md`,
-> `BTree_AiActionParameterBinding_Detailed_Design.md`. You should not need those to use the system.
+> **Who this is for:** anyone authoring BTree / HSM behaviors who is *not* thinking about bytes, slots or
+> hashing. It answers one question: **"What kind of data does my node need, and how do I set it up?"**
 
 ---
 
-## Start here: describe what you want, in plain words
+## Start here
 
-Every piece of data a node uses falls into one of **four kinds**. You don't pick "Role" and "Scope"
-directly — you decide *what the data is for*, and that tells you the settings. Follow the tree:
+You never pick a "kind" for a variable. The editor shows **one list — `Params` first, then your variables** — and
+what a variable is follows from how nodes use it:
 
 ```mermaid
 flowchart TD
-    Start(["What must this node<br/>remember or read?"]) --> Q1{"Fixed setting,<br/>never changes in play?"}
-
-    Q1 -->|Yes| PARAM["① Parameter"]
-    Q1 -->|"No — changes at runtime"| Q2{"Who sees<br/>the changes?"}
-
-    Q2 -->|This node only| PRIV["② Private scratch"]
-    Q2 -->|Nodes in this behavior| BEH["③ Behavior shared"]
-    Q2 -->|The entity or its squad| SQUAD["④ Squad shared"]
-
-    PARAM --> PARAMHOW["Role = Input.<br/>Set defaults once."]
-    PRIV --> PRIVHOW["State · Node.<br/>The default."]
-    BEH --> BEHHOW["State · Behavior.<br/>Point nodes at one var."]
-    SQUAD --> SQUADHOW["State · Entity.<br/>Get/Set Shared to reach<br/>another entity."]
+    Start(["What must this node<br/>remember or read?"]) --> Q1{"Set by the order /<br/>the scenario?"}
+    Q1 -->|Yes| PARAM["① A field of Params"]
+    Q1 -->|"No — changes in play"| Q2{"Who sees<br/>the changes?"}
+    Q2 -->|This node only| PRIV["② Node memory<br/>(created for you)"]
+    Q2 -->|Several nodes| BEH["③ Shared memory:<br/>point them at one variable"]
 
     classDef kind fill:#dbeafe,stroke:#1f6feb,stroke-width:2px,color:#0a2540;
-    classDef how fill:#dcfce7,stroke:#2da44e,color:#0a2f16;
-    class PARAM,PRIV,BEH,SQUAD kind;
-    class PARAMHOW,PRIVHOW,BEHHOW,SQUADHOW how;
+    class PARAM,PRIV,BEH kind;
 ```
 
----
+| # | You want… | How |
+|---|-----------|-----|
+| **①** | a **setting** the order or scenario supplies ("move at **4 m/s**") | it is a field of the behaviour's **params DTO** — the read-only **`Params`** row. Bind a node to `Params` or to `Params.<field>` |
+| **②** | scratch memory **only this node** keeps between ticks | drop a stateful node: it gets its own memory variable, shown under **Node-Owned Allocations**. You don't touch it |
+| **③** | memory **several nodes** read and write together | point the other nodes' **working state** at the **same** variable (the working-state picker on the node). Naming it is what makes it shared — there is nothing to switch on |
 
-## The four kinds, at a glance
-
-| # | Name | You want… | Think of it as | Set | Example |
-|---|------|-----------|----------------|-----|---------|
-| **①** | **Parameter** | a value you **configure once** and never change while playing | a **knob / setting** | Role **Input** | "Fire when enemies ≥ **3**" · "Move at **4 m/s**" |
-| **②** | **Private scratch** | scratch memory **only this node** keeps between ticks | this node's **notepad** | Role **State**, Scope **Node** *(default)* | a local retry counter · a cooldown timer |
-| **③** | **Behavior shared** | memory **several nodes in one behavior** read/write together | a **whiteboard** for this behavior | Role **State**, Scope **Behavior** | two nodes advancing the same cursor / plan |
-| **④** | **Squad shared** | memory the **entity** keeps across behavior switches, or that its **squad** reads | the **squad board** | Role **State**, Scope **Entity** | a rally count subordinates read from the commander |
-
-> **"Squad" here = a commander and its subordinate roster** (the command hierarchy), not a generic
-> list of entities. Kind ④ also covers plain entity-persistent state — memory that survives the
-> entity switching behaviors, even when nobody else reads it.
-
-**Rule of thumb:** start at ① and only move down when you actually need sharing. Most nodes never
-leave ① or ②. Sharing (③ ④) is powerful but means "someone else can change this too" — reach for it
+**Rule of thumb:** most nodes need only ① and ②. Sharing (③) means "someone else can change this too" — reach for it
 deliberately.
 
 ---
 
 ## Single value or a bundle?
 
-A variable can hold **one value** (a number, a position, an on/off flag) or a **bundle of related
-values** (a small *struct* — e.g. `{ RallyCount, LastRallyTime }`). Pick a bundle when several values
-belong together and travel together. In the **Add variable** dropdown you'll see the basic types
-(`int`, `float`, `Vector3`, …) *and* any bundle types the project defines — pick whichever matches
-what you're storing.
+A variable holds **one value** (a number, a position, a flag) or a **bundle** (a small struct, e.g.
+`{ RallyCount, LastRallyTime }`). The **Add variable** dropdown lists the basic types and every bundle type the project
+defines.
 
 ---
 
-## How each kind looks in the editor
+## Why do parameters live in a variable at all?
 
-- **① Parameter** — Add a variable, set its **Role** to *Input*, and bind it as the node's
-  parameters. Its starting values are editable in the Inspector's **DEFAULT VALUE — {var}** panel
-  (applied once when the behavior is assigned, then left alone). See *"Why do parameters need a
-  variable at all?"* below — you usually don't create this variable by hand.
+**So that "fixed setting" and "something else drives this" are the same thing.** A node bound to `Params.speed` reads
+whatever the order sent; point it at a variable instead and it reads whatever writes that variable — the node did not
+change.
 
----
+### You do not create node memory by hand
 
-## Why do parameters need a variable at all?
-
-**The short answer: so that "fixed setting" and "something else drives this" are the same thing,
-and switching between them costs you nothing.**
-
-You might expect to just type values onto the node. You effectively do — but they are stored in a
-variable, and that buys you one thing that node-local values could never give you:
-
-> **A setting becomes live-driven without re-authoring the node.** Point a second node at the same
-> variable, or flip its Scope, and the value the action reads is now whatever that other thing
-> writes. The node did not change. Nothing was rewired.
-
-If parameters lived on the node, "make this speed react to the situation" would mean deleting the
-literal, adding a variable, and rebinding. Here it means *pointing something at the variable you
-already have.*
-
-### You do not create it by hand — **promote**
-
-In the node's parameter dropdown, pick **"+ Promote to new variable"**. It creates the variable,
-gives it the right type, binds it to the node, and hides it under **Node-Owned Allocations**
-(dimmed, read-only). Delete the node and the variable goes with it. You get "values on the node"
-without any variable bookkeeping.
-
-Pick an **existing** variable instead when you *want* the sharing.
-
-### The one rule that will surprise you
-
-**A node binds its whole parameter bundle to ONE place — never field-by-field.** You cannot say
-*"Target from variable A, Speed a fixed 4"*. Both live in the same bundle. ⭐ That place is a variable **or a field of one**
-(`Params.walk` — CE-3182, `DESIGN_Orders_Params_Entity_Classes.md` §5d).
-
-This is not an oversight; it is what keeps parameter reads free at runtime. And it costs less than
-it sounds: whatever writes that variable can still update **one field** and leave the rest at their
-authored defaults. You just can't declare it per field in the editor.
+Picking a stateful node creates its memory variable, typed and bound, under **Node-Owned Allocations** (read-only).
+Delete the node and the variable goes with it.
 
 ### What it costs you
 
 | ⚠ | |
 |---|---|
-| **Values apply once, at assignment** | changing a default mid-run does nothing until the behavior is re-assigned |
-| **All-or-nothing per node** | see the rule above |
-| **An extra concept** | the variable exists even when you only ever wanted a knob |
-- **② Private scratch** — When you drop a composed node it already gets a private memory variable
-  (Role *State*, Scope *Node*). You usually don't touch it.
-- **③ Behavior shared** — Change that memory variable's **Scope** to *Behavior* (the dropdown in the
-  Blackboard Variables panel), then point the other nodes' memory at the **same** variable. Now they
-  share one copy.
-- **④ Squad shared** — Set **Scope** to *Entity*. The copy now lives on the entity and survives
-  switching behaviors. For a subordinate to read its *commander's* copy, use a **Get Shared** node
-  and hand it the target entity.
+| **Values apply at assignment** | a new default takes effect when the behaviour is assigned again |
+| **One bundle per node** | a node binds its parameter bundle to one place — a variable or a field of one (`Params.walk`, CE-3182) |
 
 ---
 
-## One honest caveat (we're working on it)
+## Memory across behaviours and across a unit
 
-There are currently **two doors to the same room** for kind ④: you can either set a node's memory
-**Scope = Entity**, *or* drop explicit **Get Shared / Set Shared** nodes that name a shared slot.
-They use the same underlying storage. For now:
-
-- Use **Scope = Entity** when the sharing is *within* one entity (across its behaviors).
-- Use **Get Shared / Set Shared** when a blueprint needs to **explicitly read/write a named shared
-  slot**, especially **another entity's** (e.g. a subordinate reading its commander's plan).
-
-Unifying these into a single, obvious concept is a known UX goal — if this trips you up, that's the
-system's fault, not yours.
+Memory that must survive the entity switching behaviours, or that a commander and its subordinates share, is **unit
+memory** — see `docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md`. ⛔ The old "Scope = Entity" and the Get Shared /
+Set Shared nodes were removed (CE-441, CE-440).
 
 ---
 
 ## Cheat sheet
 
 ```
-Fixed setting?  ────────────────────► ① Parameter        (Role Input)
-Changes, only this node?  ──────────► ② Private scratch  (State · Node)     ← default
-Changes, shared in this behavior?  ─► ③ Behavior shared  (State · Behavior)
-Changes, shared with the squad?  ───► ④ Squad shared     (State · Entity + Get/Set Shared)
+Set by the order / scenario?  ──► ① a field of Params
+Changes, only this node?  ──────► ② node memory        (created when you drop the node)
+Changes, shared by nodes?  ─────► ③ one variable, named by each node's working state
 ```
-
-*Start at ①. Move down only when you truly need someone else to see the data.*

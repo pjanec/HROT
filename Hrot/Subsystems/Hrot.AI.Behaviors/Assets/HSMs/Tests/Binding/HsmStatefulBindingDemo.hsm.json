@@ -96,9 +96,7 @@
           "FixedLength": null
         },
         "DefaultValueJson": null,
-        "Comment": "S8: the stateful method's working state - Role=State at Behavior scope, so a member of the block's St.",
-        "Role": "State",
-        "Scope": "Behavior"
+        "Comment": "S8: the stateful method's working state - Role=State at Behavior scope, so a member of the block's St."
       }
     ]
   },

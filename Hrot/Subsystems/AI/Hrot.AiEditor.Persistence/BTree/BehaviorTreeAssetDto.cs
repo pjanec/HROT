@@ -39,15 +39,12 @@ public sealed class BlackboardVariableDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsAutoManaged { get; set; }
     /// <summary>
-    /// Authoring role: Input (default) or State. Omitted from JSON when Input (default).
+    /// ⭐ <c>CE-3193</c> — DERIVED, never persisted: true when a binding names this variable as its working state
+    /// (<see cref="WorkingStateVariables"/>). Working state lives in the block's <c>St</c> half; every other variable is a
+    /// plain one in <c>In</c>. ⛔ HISTORY: the authored <c>Role</c>/<c>Scope</c> pair; an old file's keys are ignored on load.
     /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public BlackboardVariableRole Role { get; set; }
-    /// <summary>
-    /// Working-state scope (only meaningful when Role == State). Omitted from JSON when Node (default).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public WorkingStateScope Scope { get; set; }
+    [JsonIgnore]
+    public bool IsWorkingState { get; set; }
 }
 
 /// <summary>Forward-compatible blackboard block (§5.4).</summary>

@@ -111,9 +111,7 @@
 					"IsArray": false,
 					"FixedLength": null
 				},
-				"Comment": "Role=State - written by the resolver asset T40Resolver",
-				"Role": "State",
-				"Scope": "Behavior"
+				"Comment": "Role=State - written by the resolver asset T40Resolver"
 			}
 		]
 	}

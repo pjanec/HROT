@@ -113,6 +113,7 @@ public static class BTreeBridgeEmitCore
         IReadOnlyList<DeactivatorEntry>? deactivators, Func<string, SharedAiMethodInfo?>? sharedAi, FieldLayoutResolver? fields)
     {
         dto.WithParamsVariable();   // ⭐ CE-2135 — the reserved Params, when the asset names its DTO (idempotent)
+        WorkingStateVariables.Mark(dto);   // ⭐ CE-3193 — working state is derived from the bindings, not read from the file
         var sb = new StringBuilder();
 
         // Header (same marker so the file is recognized as editor-generated)
@@ -254,9 +255,9 @@ public static class BTreeBridgeEmitCore
         {
             foreach (var v in dto.Blackboard.Variables)
             {
-                if (string.Equals(v.Name, targetField, StringComparison.Ordinal) && v.Role == BlackboardVariableRole.State)
+                if (string.Equals(v.Name, targetField, StringComparison.Ordinal) && v.IsWorkingState)
                 {
-                    scope = v.Scope;
+                    scope = WorkingStateScope.Behavior;   // ⭐ CE-3193 — a working-state variable keys by its name
                     break;
                 }
             }
@@ -265,27 +266,16 @@ public static class BTreeBridgeEmitCore
     }
 
     /// <summary>
-    /// S3-7: resolves the authored (Role, Scope) of the bound variable for the live inspector
-    /// manifest. Returns the integer enum values (Role: 0=Input,1=State; Scope: 0=Node,1=Behavior,
-    /// 2=Entity). Defaults to (Input, Node) when the variable is absent — matching a legacy slot.
+    /// S3-7: the scope byte of the bound variable for the live inspector manifest (0=Node, 1=Behavior): Behavior when it
+    /// is a working-state variable (<c>CE-3193</c>: derived, <see cref="WorkingStateVariables"/>), else Node — a legacy slot.
     /// </summary>
-    internal static (int Role, int Scope) ResolveVariableRoleScope(BehaviorTreeAssetDto dto, string? targetField)
+    internal static int ResolveVariableScope(BehaviorTreeAssetDto dto, string? targetField)
     {
-        var role = BlackboardVariableRole.Input;
-        var scope = WorkingStateScope.Node;
         if (!string.IsNullOrEmpty(targetField) && dto.Blackboard?.Variables != null)
-        {
             foreach (var v in dto.Blackboard.Variables)
-            {
                 if (string.Equals(v.Name, targetField, StringComparison.Ordinal))
-                {
-                    role = v.Role;
-                    scope = v.Scope;
-                    break;
-                }
-            }
-        }
-        return ((int)role, (int)scope);
+                    return v.IsWorkingState ? (int)WorkingStateScope.Behavior : (int)WorkingStateScope.Node;
+        return (int)WorkingStateScope.Node;
     }
 
     // ── Register method ─────────────────────────────────────────────────────────
@@ -1191,7 +1181,7 @@ public static class BTreeBridgeEmitCore
         Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         // Collect unique stateful entries (deduped by SlotKey).
-        var slotsBySeen = new Dictionary<int, (int SlotKey, string WsTypeId, string NodeLabel, int Role, int Scope)>();
+        var slotsBySeen = new Dictionary<int, (int SlotKey, string WsTypeId, string NodeLabel, int Scope)>();
 
         // Need packed fields for size lookup — we rebuild the offset map using variable names.
         foreach (var node in dto.Nodes)
@@ -1257,9 +1247,9 @@ public static class BTreeBridgeEmitCore
                 : visualId.ToString();
 
             // S3-7: carry the authored role/scope so the live inspector can group/label by scope.
-            var (role, scope) = ResolveVariableRoleScope(dto, scopeVar);
+            int scope = ResolveVariableScope(dto, scopeVar);
 
-            slotsBySeen[slotKey] = (slotKey, wsTypeId, nodeLabel, role, scope);
+            slotsBySeen[slotKey] = (slotKey, wsTypeId, nodeLabel, scope);
         }
 
         // Slice 2a-3 (ADDITIVE): a standalone Role=State blackboard variable that is NOT bound to
@@ -1281,17 +1271,16 @@ public static class BTreeBridgeEmitCore
         {
             foreach (var v in dto.Blackboard.Variables)
             {
-                if (v.Role != BlackboardVariableRole.State) continue;
-                if (v.Scope != WorkingStateScope.Behavior) continue;
+                if (!v.IsWorkingState) continue;   // ⭐ CE-3193 — working state always keys by name (Behavior)
 
-                int standaloneSlotKey = ComputeStatefulSlotKey(dto.AssetId, v.Scope, Guid.Empty, v.Name);
+                int standaloneSlotKey = ComputeStatefulSlotKey(dto.AssetId, WorkingStateScope.Behavior, Guid.Empty, v.Name);
                 if (slotsBySeen.ContainsKey(standaloneSlotKey)) continue; // node-bound (e.g. T35) — already seen above.
                 if (TryGetBlockStateVariable(dto, blockPackedFields, standaloneSlotKey, out _)) continue; // CE-437: in the block.
 
                 string standaloneWsTypeId = v.Type?.TypeId ?? string.Empty;
                 if (string.IsNullOrEmpty(standaloneWsTypeId)) continue;
 
-                slotsBySeen[standaloneSlotKey] = (standaloneSlotKey, standaloneWsTypeId, v.Name, (int)v.Role, (int)v.Scope);
+                slotsBySeen[standaloneSlotKey] = (standaloneSlotKey, standaloneWsTypeId, v.Name, (int)WorkingStateScope.Behavior);
             }
         }
 
@@ -1334,7 +1323,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad}StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
         }
         sb.AppendLine($"{pad}{{");
-        foreach (var (slotKey, wsTypeId, nodeLabel, role, scope) in slotsBySeen.Values)
+        foreach (var (slotKey, wsTypeId, nodeLabel, scope) in slotsBySeen.Values)
         {
             string wsTypeFqn = DtoTypeToGlobal(wsTypeId);
             // DEBT-AIB-027: StructureHash must be layout-sensitive so it changes when the
@@ -1351,17 +1340,10 @@ public static class BTreeBridgeEmitCore
             // WorkingStateType: typeof(global::...) so the inspector can project typed values.
             // NodeLabel: the node's DisplayLabel for a friendly row label in the inspector.
             string escapedLabel = nodeLabel.Replace("\\", "\\\\").Replace("\"", "\\\"");
-            // S3-7: Role/Scope (inspector metadata). Only appended when non-default (State/Behavior/
-            // Entity) so the existing Node-scoped corpus (e.g. T20) emits the byte-identical 5-arg form.
-            // Clarity-only: emit named enum casts instead of raw ints. The (int)role/(int)scope values
-            // come from the editor's BlackboardVariableRole/WorkingStateScope enums, but their member
-            // names (Input/State, Node/Behavior/Entity) line up 1:1 with the runtime-side twins
-            // StatefulSlotRole/StatefulSlotScope (Fdp.Toolkit.Blueprints.Partitioning), so mapping the
-            // int to a member NAME via the editor enum and re-casting through the runtime enum produces
-            // the exact same byte StatefulSlotInfo.Role/.Scope would have held as a raw literal — this
-            // changes only the emitted source text, not the compiled/runtime bytes.
-            string roleScopeArgs = (role != 0 || scope != 0)
-                ? $", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.{(BlackboardVariableRole)role}, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.{(WorkingStateScope)scope}"
+            // S3-7: the slot's Scope (inspector metadata), appended only when non-default (Behavior) so a Node-scoped slot
+            // (e.g. T20) emits the byte-identical 5-arg form. ⭐ CE-3193: the Role byte went with BlackboardVariableRole.
+            string roleScopeArgs = scope != 0
+                ? $", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.{(WorkingStateScope)scope}"
                 : string.Empty;
             sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.CompilerServices.Unsafe.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<{wsTypeFqn}>()), typeof({wsTypeFqn}), \"{escapedLabel}\"{roleScopeArgs}),");
         }
@@ -1413,7 +1395,7 @@ public static class BTreeBridgeEmitCore
 
             if (f is null)
                 return "((global::System.Collections.Generic.IReadOnlyDictionary<global::System.Guid, global::Fdp.Toolkit.Behavior.HostedSubtree.SiteBinding>?)null ?? throw new global::System.InvalidOperationException(\"CE-431: subtree site " + siteId.ToString("D")
-                     + " binds params variable '" + v!.Replace("\"", "") + "', which is not a Role=Input variable of '"
+                     + " binds params variable '" + v!.Replace("\"", "") + "', which is not a plain (packed) variable of '"
                      + hostName.Replace("\"", "") + "'.\"))";
 
             parts.Add("[new global::System.Guid(\"" + siteId.ToString("D") + "\")] = new(" + f.ByteOffset + ", " + f.ByteSize + ")");

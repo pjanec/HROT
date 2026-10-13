@@ -28,15 +28,10 @@ public sealed record VariableViewModel(
     bool   IsUnused,
     bool   IsAutoManaged         = false,
     bool   IsReadOnly            = false,
-    BlackboardVariableRole Role  = BlackboardVariableRole.Input,
-    WorkingStateScope Scope      = WorkingStateScope.Node,
     // ⭐ Row 58 — the declaration's persisted default, so the Value column's INITIAL arm has a
     //   source. ⚠ Trailing and optional: every existing construction site is unchanged.
     string? DefaultValueJson     = null)
-{
-    /// <summary>True when the Scope selector should be shown (i.e. Role == State).</summary>
-    public bool ShowScopeSelector => Role == BlackboardVariableRole.State;
-};
+;   // ⛔ CE-3193 — Role / Scope / ShowScopeSelector went with the authored variable kind
 
 /// <summary>
 /// Display data for one unbound sub-tree DTO requirement row (BB SS5.6).
@@ -284,8 +279,10 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
                 HardcodedDtoFields:        hardcodedDtoFields);
         }
 
+        // ⭐ CE-3193 — working state is derived from the bindings (the block's St half never joins the params region)
+        var working = (bbAsset as IStatefulScopeAsset)?.WorkingStateVariableNames();
         var descriptors = rawVars
-            .Select(v => new BlackboardVariableDescriptor(v.Name, v.FieldType, v.Role))
+            .Select(v => new BlackboardVariableDescriptor(v.Name, v.FieldType, working?.Contains(v.Name) == true))
             .ToList();
 
         // Derive aggregated descriptors from the aggregation requirements for packing.
@@ -324,8 +321,6 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
                 isUnused,
                 IsAutoManaged: v.IsAutoManaged,
                 IsReadOnly:    v.IsReservedParams,   // ⭐ CE-2135 — the reserved Params is the named DTO, not authored here
-                Role:          v.Role,
-                Scope:         v.Scope,
                 // ⭐ Row 58 — the INITIAL arm's source for the AI hosts.
                 DefaultValueJson: v.DefaultValueJson));
         }
@@ -641,8 +636,6 @@ public sealed class BlackboardWindowPanelViewModel : IPanelViewModel
                 ["isUnused"]         = v.IsUnused,
                 ["isAutoManaged"]    = v.IsAutoManaged,
                 ["isReadOnly"]       = v.IsReadOnly,
-                ["role"]             = v.Role.ToString(),
-                ["scope"]            = v.Scope.ToString(),
                 ["aliasCount"]       = v.AliasedBy.Count,
                 ["defaultValueJson"] = v.DefaultValueJson,
             });

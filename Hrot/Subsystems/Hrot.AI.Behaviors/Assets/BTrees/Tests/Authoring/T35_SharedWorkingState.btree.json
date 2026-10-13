@@ -152,9 +152,7 @@
           "IsArray": false,
           "FixedLength": null
         },
-        "Comment": "Slice 1: Role=State/Scope=Behavior WorkingState host variable. SharedA and SharedB both bind WorkingStateTargetField to this variable's Name, so ResolveStatefulSlotKey computes the SAME FNV-1a(assetId, 'bpSharedWorkingState') slot key for both -- one shared partition slot, accumulated by both nodes each tick.",
-        "Role": "State",
-        "Scope": "Behavior"
+        "Comment": "Slice 1: Role=State/Scope=Behavior WorkingState host variable. SharedA and SharedB both bind WorkingStateTargetField to this variable's Name, so ResolveStatefulSlotKey computes the SAME FNV-1a(assetId, 'bpSharedWorkingState') slot key for both -- one shared partition slot, accumulated by both nodes each tick."
       }
     ]
   }

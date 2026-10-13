@@ -259,7 +259,6 @@ public sealed class APinnedRowIsASnapshotTests
         public IReadOnlyList<VariableViewModel> Variables { get; }
 
         public bool IsReadOnly => false;
-        public bool SupportsRoleScopeEditing => false;
         public string? GetRefactorKey(string variableName) => null;
         public void AddVariable(BlackboardVariableEntry entry) { }
         public void RemoveVariable(string name) { }

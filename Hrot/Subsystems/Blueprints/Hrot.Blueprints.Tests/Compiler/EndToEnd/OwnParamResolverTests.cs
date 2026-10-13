@@ -105,7 +105,7 @@ public sealed class OwnParamResolverTests
     {
         var asset = GoldenCorpus.Load("T40Resolver");
         Assert.NotNull(asset.ResolverSubject);
-        Assert.Equal(new[] { "Doubled" }, asset.ResolverSubject!.StateVariables);
+        Assert.Empty(asset.ResolverSubject!.StateVariables);   // ⭐ CE-3193: nothing names Doubled as working state ⇒ In
 
         var src = Emit(asset);
         // ⭐ CE-443: the authored type is the asset's OWN Params (its Parameters), parsed by ParseAuthored.
@@ -113,7 +113,11 @@ public sealed class OwnParamResolverTests
         Assert.Contains("public static void ParseAuthored(string json, out Params authored)", src);
         Assert.Contains("authored.HalfSpeed", src);      // a Parameter ⇒ read from the authored source
         Assert.Contains("block.In.Speed = ", src);       // a Variable NOT in StateVariables ⇒ the In half
-        Assert.Contains("block.St.Doubled = ", src);     // a Variable in StateVariables ⇒ the St half
+        Assert.Contains("block.In.Doubled = ", src);
+
+        // ⭐ the St arm, on the same asset: a Variable in StateVariables ⇒ the St half
+        asset.ResolverSubject.StateVariables.Add("Doubled");
+        Assert.Contains("block.St.Doubled = ", Emit(asset));
     }
 
     /// <summary>
@@ -131,7 +135,7 @@ public sealed class OwnParamResolverTests
 
         Assert.DoesNotContain(Validate(asset), d => d.Code == DiagnosticCodes.BP1675);
         var src = Emit(asset);
-        Assert.Contains("block.St.Doubled = ", src);
+        Assert.Contains("block.In.Doubled = ", src);   // CE-3193: Doubled is a plain variable now
         // unwired Speed pin on Set Variables ⇒ untouched: the Set Variable node stays Speed's ONLY writer
         Assert.Single(System.Text.RegularExpressions.Regex.Matches(src, @"block\.In\.Speed = "));
     }

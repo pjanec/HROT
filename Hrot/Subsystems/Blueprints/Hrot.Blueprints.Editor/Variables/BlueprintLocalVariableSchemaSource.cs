@@ -26,13 +26,6 @@ namespace Hrot.Blueprints.Editor.Variables;
 /// </para>
 ///
 /// <para>
-/// ⛔ <b><c>UpdateVariableRole</c>/<c>UpdateVariableScope</c> are deliberately not implemented.</b>
-/// <c>Q-k</c> ruled <c>Role</c>/<c>Scope</c> read-only for blueprints — changing either is a MOVE with
-/// reference consequences, not a toggle. They are default-bodied members, so leaving them is the
-/// contract's intended shape rather than an omission.
-/// </para>
-///
-/// <para>
 /// ⚠ <b>The graph is read through a delegate, never captured.</b> The section this feeds follows the
 /// canvas (<c>BP-72</c>: a panel editing the graph you are not looking at is a defect), so the source
 /// must resolve the current graph at call time, not at construction.
@@ -82,13 +75,6 @@ public sealed class BlueprintLocalVariableSchemaSource : IVariablesSchemaSource
     /// a surface that vanishes teaches nothing (the standing <c>Q26-B2</c> ruling).
     /// </summary>
     public bool IsReadOnly => _currentGraph() is not { } g || g.Kind == GraphKind.Macro;
-
-    /// <summary>
-    /// U-5 / <c>Q-k</c> — a blueprint local has no <c>Role</c>/<c>Scope</c> to edit. ⭐ Answering
-    /// <c>false</c> is what stops the panel drawing a live combo whose result would be discarded; the
-    /// interface's setters now throw rather than silently accepting the call (<c>BP-230</c>).
-    /// </summary>
-    public bool SupportsRoleScopeEditing => false;
 
     /// <summary>Null when no graph is open, or when the open graph cannot own locals.</summary>
     private Graph? EditableGraph

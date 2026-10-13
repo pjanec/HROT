@@ -355,7 +355,7 @@ public static unsafe class HostedSubtree
     }
 
     /// <summary>
-    /// ⭐⭐ One hosted child's slot declaration, for a host's manifest. ⛔ <b>Role=State / Scope=Behavior with
+    /// ⭐⭐ One hosted child's slot declaration, for a host's manifest. ⛔ <b>Scope=Behavior with
     /// <c>WorkingStateType == typeof(BehaviorTreeState)</c></b> is the marker <see cref="IsTreeStateSlot"/> tests (the size is
     /// re-derived from the child at ingress, <see cref="EffectiveSlots"/>). ⭐ S5d: public so a blueprint registrar declares its
     /// Run Behaviour sites with the SAME shape a BTree host's plan does — one spelling, not two.
@@ -366,7 +366,6 @@ public static unsafe class HostedSubtree
         return new StatefulSlotInfo(
             key, size, unchecked(TypeNameHash("Fbt.BehaviorTreeState") ^ (uint)size), typeof(BehaviorTreeState),
             childName + " (hosted)",
-            (byte)Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State,
             (byte)Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior);
     }
 

@@ -273,9 +273,7 @@
 					"IsArray": false,
 					"FixedLength": null
 				},
-				"Comment": "S3-G: mutable commander working state (slot masks, wave cursor, EQS handles, per-attacker SoA). Behavior-scoped State variable: one shared BlueprintBlackboard* partition slot aliased by all six stateful commander nodes. Replaces the former Blackboard1024 + Unsafe.As hack. Excluded from the inline param region (lives in the partition tier).",
-				"Role": "State",
-				"Scope": "Behavior"
+				"Comment": "S3-G: mutable commander working state (slot masks, wave cursor, EQS handles, per-attacker SoA). Behavior-scoped State variable: one shared BlueprintBlackboard* partition slot aliased by all six stateful commander nodes. Replaces the former Blackboard1024 + Unsafe.As hack. Excluded from the inline param region (lives in the partition tier)."
 			}
 		]
 	}

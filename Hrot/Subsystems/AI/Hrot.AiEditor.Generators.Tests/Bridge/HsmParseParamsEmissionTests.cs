@@ -38,9 +38,8 @@ public sealed class HsmParseParamsEmissionTests
 {
     private static readonly Guid AssetId = new("bb281000-0000-0000-0000-000000000281");
 
-    private sealed record Var(string Name, string TypeId, string? DefaultJson,
-                              BlackboardVariableRole Role = BlackboardVariableRole.Input,
-                              WorkingStateScope Scope = WorkingStateScope.Node);
+    // ⭐ CE-3193 — WorkingState: a state's Activity names the variable as its working state (the kind is derived).
+    private sealed record Var(string Name, string TypeId, string? DefaultJson, bool WorkingState = false);
 
     private static HsmAssetDto MakeDto(bool managed, params Var[] vars)
     {
@@ -53,9 +52,10 @@ public sealed class HsmParseParamsEmissionTests
                 Name             = v.Name,
                 Type             = new HsmBlackboardTypeRefDto { TypeId = v.TypeId },
                 DefaultValueJson = v.DefaultJson,
-                Role             = v.Role,
-                Scope            = v.Scope,
             });
+            if (v.WorkingState)
+                dto.States.Add(new StateNodeDto { Name = "Uses" + v.Name,
+                    Activity = new BehaviorActionBindingDto { WorkingStateTargetField = v.Name } });
         }
         return dto;
     }
@@ -167,7 +167,7 @@ public sealed class HsmParseParamsEmissionTests
 
     /// <summary>
     /// ⭐⭐⭐ <b>ONE guard, not three.</b> A managed blackboard whose variables are ALL
-    /// <c>Role = State</c> packs to no inline fields — state lives in the partition tier — so it must
+    /// working-state variable packs to no inline fields — state lives in the partition tier — so it must
     /// emit <b>none</b> of the three pieces: the pragma, the options field, the delegate.
     ///
     /// <para>
@@ -183,7 +183,7 @@ public sealed class HsmParseParamsEmissionTests
     public void AManagedAssetOfOnlyStateVariables_EmitsAllThreePieces_ForItsBlock()
     {
         string bridge = HsmBridgeEmitCore.EmitBridge(MakeDto(true,
-            new Var("Cursor", "System.Int32", null, BlackboardVariableRole.State, WorkingStateScope.Behavior)));
+            new Var("Cursor", "System.Int32", null, WorkingState: true)));
 
         bridge.Should().Contain("#nullable enable");
         bridge.Should().Contain(
@@ -240,7 +240,7 @@ public sealed class HsmParseParamsEmissionTests
             {
                 Name = v.Name,
                 Type = new Hrot.AiEditor.Persistence.BTree.BlackboardTypeRefDto { TypeId = v.Type.TypeId },
-                Role = v.Role,
+                IsWorkingState = v.IsWorkingState,
             }).ToList(),
             out _);
 

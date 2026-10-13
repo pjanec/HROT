@@ -112,7 +112,7 @@ public static class BehaviorTreeAssetMapper
         // Blackboard block (§5.4)
         dto.Blackboard = BlackboardToDto(asset);
 
-        return dto;
+        return Hrot.AiEditor.Persistence.WorkingStateVariables.Mark(dto);   // ⭐ CE-3193 — working state, from the bindings
     }
 
     // ── DTO → Model ───────────────────────────────────────────────────────────
@@ -470,8 +470,6 @@ public static class BehaviorTreeAssetMapper
                 DefaultValueJson = v.DefaultValueJson,
                 Comment          = v.Comment,
                 IsAutoManaged    = v.IsAutoManaged,
-                Role             = v.Role,
-                Scope            = v.Scope,
             });
         }
 
@@ -488,9 +486,7 @@ public static class BehaviorTreeAssetMapper
             result.Add(new BlackboardVariableEntry(
                 v.Name, clrType, v.Comment,
                 IsAutoManaged:    v.IsAutoManaged,
-                DefaultValueJson: v.DefaultValueJson,
-                Role:             v.Role,
-                Scope:            v.Scope));
+                DefaultValueJson: v.DefaultValueJson));
         }
         return result;
     }

@@ -156,6 +156,7 @@ public static class HsmEmitCore
         // ⭐ Q84 C1/D1 — an old file's childless History pseudo-state becomes its parent's flag BEFORE emit, so the
         //    generator and the editor build the same machine (idempotent; a migrated asset is untouched).
         Hrot.AiEditor.Persistence.Hsm.HsmHistoryMigration.Apply(dto);
+        WorkingStateVariables.Mark(dto);   // ⭐ CE-3193 — working state is derived from the bindings, not read from the file
 
         var sb = new StringBuilder();
         var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);

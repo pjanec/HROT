@@ -152,7 +152,7 @@ public static class SharedAiBindings
         ws = WorkingStateVariable(b) ?? "";
         if (ws.Length == 0) return "names no working-state variable (WorkingStateTargetField)";
         if (block == null || block.Value.Member(StatefulSlotKey(dto.AssetId, ws)) == null)
-            return $"names working-state variable '{ws}', which is not a Behavior-scoped Role=State variable of this HSM's block";
+            return $"names working-state variable '{ws}', which is not a working-state variable of this HSM's block";
         string? typeId = VariableTypeId(dto, ws);
         if (!string.Equals(Norm(typeId), Norm(info.WorkingStateTypeFqn), StringComparison.Ordinal))
             return $"names working-state variable '{ws}' of type '{typeId}', but the method works on '{Norm(info.WorkingStateTypeFqn)}'";

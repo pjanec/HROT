@@ -30,19 +30,22 @@ public sealed class HsmStatefulSlotEmissionTests
 {
     private static readonly Guid AssetId = new("11111111-2222-3333-4444-555555555555");
 
-    private static HsmAssetDto MakeHsmDto(params (string Name, BlackboardVariableRole Role, WorkingStateScope Scope)[] vars)
+    // ⭐ CE-3193 — a variable is working state when a binding names it as its WorkingStateTargetField; this helper adds one
+    //   state per working-state variable whose Activity names it (the kind is derived, never authored).
+    private static HsmAssetDto MakeHsmDto(params (string Name, bool WorkingState)[] vars)
     {
         var dto = new HsmAssetDto { AssetId = AssetId, Name = "StatefulHsm" };
         dto.Blackboard.Managed = true;
-        foreach (var (name, role, scope) in vars)
+        foreach (var (name, working) in vars)
         {
             dto.Blackboard.Variables.Add(new HsmBlackboardVariableDto
             {
                 Name  = name,
                 Type  = new HsmBlackboardTypeRefDto { TypeId = "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState" },
-                Role  = role,
-                Scope = scope,
             });
+            if (working)
+                dto.States.Add(new StateNodeDto { Name = "Uses" + name,
+                    Activity = new BehaviorActionBindingDto { WorkingStateTargetField = name } });
         }
         return dto;
     }
@@ -56,7 +59,7 @@ public sealed class HsmStatefulSlotEmissionTests
     [Fact]
     public void AnAuthoredStateVariable_ReachesTheRuntime_InTheBlock()
     {
-        var dto    = MakeHsmDto(("Cursor", BlackboardVariableRole.State, WorkingStateScope.Behavior));
+        var dto    = MakeHsmDto(("Cursor", true));
         var bridge = HsmBridgeEmitCore.EmitBridge(dto);
         var structs = BTreeEmitCore.EmitBlackboardStructSource(HsmBridgeEmitCore.BlackboardOwner(dto), out _);
 
@@ -77,7 +80,7 @@ public sealed class HsmStatefulSlotEmissionTests
         int key = BTreeBridgeEmitCore.ComputeStatefulSlotKey(AssetId, WorkingStateScope.Behavior, Guid.Empty, "Cursor");
 
         var bridge = HsmBridgeEmitCore.EmitBridge(
-            MakeHsmDto(("Cursor", BlackboardVariableRole.State, WorkingStateScope.Behavior)));
+            MakeHsmDto(("Cursor", true)));
 
         bridge.Should().NotContain($"StatefulSlotInfo({key},");
     }
@@ -88,8 +91,8 @@ public sealed class HsmStatefulSlotEmissionTests
     public void NStateVariables_ProduceNDistinctBlockFields()
     {
         var dto = MakeHsmDto(
-            ("Alpha", BlackboardVariableRole.State, WorkingStateScope.Behavior),
-            ("Bravo", BlackboardVariableRole.State, WorkingStateScope.Behavior));
+            ("Alpha", true),
+            ("Bravo", true));
 
         var structs = BTreeEmitCore.EmitBlackboardStructSource(HsmBridgeEmitCore.BlackboardOwner(dto), out _);
 
@@ -98,7 +101,7 @@ public sealed class HsmStatefulSlotEmissionTests
     }
 
     /// <summary>
-    /// ⛔ <b><c>Role = Input</c> is NOT working state</b> and must not take a slot — inputs live in the
+    /// ⛔ <b>A variable no binding names is NOT working state</b> (<c>CE-3193</c>) and must not take a slot — it lives in the
     /// params region (<c>DESIGN_Parameter_Model.md</c> §1: <i>"there is NO 'Param' role; Input IS the
     /// parameter role"</i>).
     /// </summary>
@@ -106,25 +109,13 @@ public sealed class HsmStatefulSlotEmissionTests
     public void AnInputVariable_ProducesNoSlot()
     {
         var bridge = HsmBridgeEmitCore.EmitBridge(
-            MakeHsmDto(("Speed", BlackboardVariableRole.Input, WorkingStateScope.Node)));
+            MakeHsmDto(("Speed", false)));
 
         bridge.Should().NotContain("StatefulWorkingSlots");
     }
 
-    /// <summary>
-    /// ⚠ <b><c>Node</c> scope is skipped deliberately</b>, mirroring the BTree standalone pass: the
-    /// <c>Node</c> key collapses to <c>FNV(assetId ++ nodeVisualId)</c> and ignores the variable name,
-    /// so a variable with no node to key off has no meaningful <c>Node</c>-scoped slot. ⭐ Asserted so
-    /// the omission reads as a decision rather than a gap.
-    /// </summary>
-    [Fact]
-    public void ANodeScopedStateVariable_IsSkipped_WithNoNodeToKeyOff()
-    {
-        var bridge = HsmBridgeEmitCore.EmitBridge(
-            MakeHsmDto(("Scratch", BlackboardVariableRole.State, WorkingStateScope.Node)));
-
-        bridge.Should().NotContain("StatefulWorkingSlots");
-    }
+    // ⛔ HISTORY — ANodeScopedStateVariable_IsSkipped_WithNoNodeToKeyOff: CE-3193 removed the authored Scope, so a
+    //   variable no binding names is simply a plain variable (AnInputVariable_ProducesNoSlot above).
 
     /// <summary>⭐ An asset with no blackboard variables emits byte-identically to before — the
     /// existing HSM corpus must not move.</summary>

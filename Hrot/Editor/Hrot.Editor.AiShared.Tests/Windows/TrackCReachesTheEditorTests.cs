@@ -107,7 +107,7 @@ public sealed class TrackCReachesTheEditorTests
         reg.MyBlueprint.SyncToSelection();
 
         Assert.NotNull(reg.MyBlueprint.Model);
-        Assert.Equal(new[] { "Health" },
+        Assert.Equal(new[] { "Health", "Cursor" },   // CE-3193: one section holds every variable
             reg.MyBlueprint.Model!.GetItems(BlackboardMyBlueprintModel.SectionInputs)
                .Select(i => i.DisplayName));
     }
@@ -143,10 +143,7 @@ public sealed class TrackCReachesTheEditorTests
         store.ActiveAsset = FakeAsset.With(Var("Health"), Var("Ammo"), State("Cursor"));
 
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionInputs);
-        Assert.Equal(new[] { "Ammo", "Health" }, SortedNames(reg));
-
-        reg.MyBlueprint.SelectSection(BlackboardMyBlueprintModel.SectionWorkingState);
-        Assert.Equal(new[] { "Cursor" }, SortedNames(reg));
+        Assert.Equal(new[] { "Ammo", "Cursor", "Health" }, SortedNames(reg));   // CE-3193: one section holds every variable
     }
 
     /// <summary>
@@ -160,9 +157,11 @@ public sealed class TrackCReachesTheEditorTests
     {
         var asset  = FakeAsset.With(Var("Health"), State("Cursor"), Global("Wave"));
         var source = new BlackboardSectionRowSource(
-            () => asset, asset.AssetId, BlackboardMyBlueprintModel.SectionAssetGlobals);
+            () => asset, asset.AssetId, BlackboardMyBlueprintModel.SectionInputs);
+        var other  = new BlackboardSectionRowSource(() => asset, asset.AssetId, "bb.noSuchSection");
 
-        Assert.Equal(new[] { "Wave" }, source.GetRows().Select(r => r.ShortName));
+        Assert.Equal(new[] { "Health", "Cursor", "Wave" }, source.GetRows().Select(r => r.ShortName));   // CE-3193: one section
+        Assert.Empty(other.GetRows());   // ⭐ still a filter: an id that is not the section returns nothing
     }
 
     /// <summary>
@@ -209,10 +208,10 @@ public sealed class TrackCReachesTheEditorTests
         => new(n, typeof(float), null);
 
     private static BlackboardVariableEntry State(string n)
-        => new(n, typeof(int), null, Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Node);
+        => new(n, typeof(int), null);
 
     private static BlackboardVariableEntry Global(string n)
-        => new(n, typeof(int), null, Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Behavior);
+        => new(n, typeof(int), null);
 
     private sealed class FakeAsset : IEditableAsset, IBlackboardManagedAsset
     {

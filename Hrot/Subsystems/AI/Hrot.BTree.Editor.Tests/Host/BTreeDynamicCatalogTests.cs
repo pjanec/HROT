@@ -388,8 +388,7 @@ public sealed class BTreeDynamicCatalogTests
         var wsEntry = asset.BlackboardVariables.Should()
             .ContainSingle(v => v.Name == node.Action.WorkingStateTargetField).Which;
         wsEntry.FieldType.Should().Be(typeof(FakeGeneratedAiPrimitive_Bp.WorkingState));
-        wsEntry.Role.Should().Be(Hrot.AiEditor.Persistence.BlackboardVariableRole.State);
-        wsEntry.Scope.Should().Be(Hrot.AiEditor.Persistence.WorkingStateScope.Node);
+        asset.WorkingStateVariableNames().Should().Contain(wsEntry.Name, "CE-3193: the binding names it as working state");
     }
 
     [Fact]

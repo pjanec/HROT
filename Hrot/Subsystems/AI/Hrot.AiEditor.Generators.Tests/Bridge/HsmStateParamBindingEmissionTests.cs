@@ -41,7 +41,6 @@ public sealed class HsmStateParamBindingEmissionTests
             {
                 Name = name,
                 Type = new HsmBlackboardTypeRefDto { TypeId = typeId },
-                Role = BlackboardVariableRole.Input,
             });
         }
 

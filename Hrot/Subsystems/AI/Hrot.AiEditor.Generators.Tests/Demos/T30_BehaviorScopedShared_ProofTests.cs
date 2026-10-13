@@ -113,15 +113,15 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
             Name = ParamVarName,
             Type = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
             DefaultValueJson = "{\"StartX\":0,\"StartY\":0,\"EndX\":90,\"EndY\":0,\"TankSpacing\":30}",
-            Role = BlackboardVariableRole.Input,
         });
         // Behavior-scoped working-state variable (partition tier; excluded from inline packing).
         dto.Blackboard.Variables.Add(new BlackboardVariableDto
         {
             Name = StateVarName,
             Type = new BlackboardTypeRefDto { TypeId = StateTypeId },
-            Role = BlackboardVariableRole.State,
-            Scope = WorkingStateScope.Behavior,
+
+        IsWorkingState = true,
+
         });
         return dto;
     }

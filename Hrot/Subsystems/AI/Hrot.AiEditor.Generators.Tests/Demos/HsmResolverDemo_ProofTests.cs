@@ -49,7 +49,7 @@ public sealed class HsmResolverDemo_ProofTests : IDisposable
 
         ref var blk = ref RootParamsAccess.RootRef(world, entity);
         var block = System.Runtime.CompilerServices.Unsafe.As<byte, Hrot.AI.Behaviors.Machines.HsmResolverDemo_Block>(ref blk);
-        return (block.In.Speed, block.St.Doubled);
+        return (block.In.Speed, block.In.Doubled);   // CE-3193: nothing names Doubled as working state ⇒ a plain variable in In
     }
 
     /// <summary>⭐⭐ The resolver is handed the AUTHORED parameters and writes both halves of the HSM's block.

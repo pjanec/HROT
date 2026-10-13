@@ -308,7 +308,7 @@ public sealed class TheOutlineGetsItsServicesTests
     private static BlackboardVariableEntry Var(string n) => new(n, typeof(float), null);
 
     private static BlackboardVariableEntry State(string n)
-        => new(n, typeof(int), null, Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Node);
+        => new(n, typeof(int), null);
 
     // ── stubs ───────────────────────────────────────────────────────────────
 

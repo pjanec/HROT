@@ -5,18 +5,14 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Machines;
 
-[StructLayout(LayoutKind.Explicit, Size = 4)]
+[StructLayout(LayoutKind.Explicit, Size = 12)]
 public struct HsmVariableShowcase_HsmVariableShowcase_Blackboard
 {
     [FieldOffset(0)]
     public float Threshold;
-}
-
-/// <summary>CE-437: the Role=State, Scope=Behavior half of <see cref="HsmVariableShowcase_Block"/>.</summary>
-[StructLayout(LayoutKind.Sequential)]
-public struct HsmVariableShowcase_BlockState
-{
+    [FieldOffset(4)]
     public int Cursor;
+    [FieldOffset(8)]
     public int Ticks;
 }
 
@@ -26,6 +22,4 @@ public struct HsmVariableShowcase_Block
 {
     [FieldOffset(0)]
     public HsmVariableShowcase_HsmVariableShowcase_Blackboard In;
-    [FieldOffset(8)]
-    public HsmVariableShowcase_BlockState St;
 }

@@ -5,15 +5,10 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Machines;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 4)]
 public struct HsmOrthogonalRegions_HsmOrthogonalRegions_Blackboard
 {
-}
-
-/// <summary>CE-437: the Role=State, Scope=Behavior half of <see cref="HsmOrthogonalRegions_Block"/>.</summary>
-[StructLayout(LayoutKind.Sequential)]
-public struct HsmOrthogonalRegions_BlockState
-{
+    [FieldOffset(0)]
     public int SharedCursor;
 }
 
@@ -22,5 +17,5 @@ public struct HsmOrthogonalRegions_BlockState
 public struct HsmOrthogonalRegions_Block
 {
     [FieldOffset(0)]
-    public HsmOrthogonalRegions_BlockState St;
+    public HsmOrthogonalRegions_HsmOrthogonalRegions_Blackboard In;
 }

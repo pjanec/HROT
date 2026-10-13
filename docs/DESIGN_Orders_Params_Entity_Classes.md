@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: (resolved by CE-2143) docs/DESIGN_Entity_Control.md §3.1/§10 is now marked superseded in its own STATUS. · docs/blueprints/DESIGN_Parameter_Model.md §P.7 (a resolver asset's authored shape = its Parameters) and §1 (Role Input/State) are superseded HERE by R-276/R-277 (one params DTO, no roles); that doc is updated when B3 builds, not before. docs/DESIGN_Entity_Control.md §3.1/§10 (EntityOrders names soldier behaviours) is superseded by R-273; updated when D4 builds.
 related-designs:
+  - docs/blueprints/Variables_Designer_Quickstart.md — the designer-facing account of params, node memory and shared memory (rewritten for CE-3193)
   - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — OWNS the run-end release step (D4) that §7 hangs the members' release on (D4′)
   - docs/DESIGN_Decision_Layer.md — OWNS the gate (§4.1) the named clear of §7 is weighed by
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — the QUESTION and its rulings R-273..R-281 (behaviors); every decision here is argued there (§2.3a–§2.3p)
@@ -22,6 +23,7 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad drills D2 turns into order behaviours
   - docs/blueprints/HANDOFF_Orders_Track_B_Params_Internals.md — the dispatch for Track B
   - docs/blueprints/HANDOFF_Orders_Track_C_Classes_And_Dis.md — the dispatch for Track C
+  - docs/blueprints/HANDOFF_Params_Panels_Ui.md — the dispatch for the §13.10 ⑦ editor panels (ui)
   - docs/designs/orbat-context-menu/OC1-DESIGN.md — its §2.1 (OC1-S001, the sender-side FollowRoute translation) is superseded by §10 (CE-2145)
   - docs/blueprints/DESIGN_Map_Picking_Unification.md — OWNS the one pick broker and IMapPickContext; §13.12 (P5b) adds the entity LIST pick to it and one preset filter for every host (CE-1060)
   - docs/DESIGN_Sensors_And_Doctrine.md — §7.6b OWNS the one params form (BehaviorParamsForm) the order form draws
@@ -1897,8 +1899,74 @@ sequenceDiagram
   Rejected:
   - deriving node memory from bindings — a variable's kind would depend on who binds it;
   - keeping `Role` — fails P4's acceptance and keeps the misleading name.
-- **Not yet**: the editor's Variables / Details panels still list only DECLARED Parameters (a DTO-named asset shows none) — the canvas
-  pins are right (`ParametersOf`), the panels are the ui lane's surface (P5b). Steps ③–⑦ follow.
+  ⛔ **That lean is RETRACTED (2026-10-13, user: "why would we show the user those variable kinds? what would he do with that?").**
+  The target is §5c B3a: the author sees `Params` (read-only) and ONE list of variables, with no kind. Measured:
+  - `Scope=Node` has not been authorable since CE-435 (`BlackboardVariableEnums.cs:24`). It exists only for the memory the
+    editor creates when a stateful primitive is picked, and its storage already requires a node binding (`StateVariableStorage.cs:57`).
+  - The runtime never reads `Role`, and reads `Scope` only for inspector labels (`StatefulWorkingStateProjection.cs:84`,
+    `BehaviorParamSlotResolver.cs:70`). The difference is only the slot-key formula the generator picks.
+  - The 8 `State` variables are ordinary values (`Cursor`, `Ticks`, `Doubled`, `SharedCursor`, three working-state structs).
+  - The outline still shows three sections ("Variables", "Working State", "Asset Globals",
+    `BlackboardMyBlueprintModel.cs:85-100`), and the old panel still draws Role/Scope dropdowns. That is leftover, not the target.
+  ⇒ Storage (packed vs working-state, node-keyed vs shared) becomes a generator decision derived from what the file already
+  says (type, bindings), with no persisted kind.
+  📐 **Storage measured (2026-10-13).** One block per behaviour slot, `{Asset}_Block { In; St; }`:
+  - `In` at offset 0, offsets computed by the GENERATOR: `Params` + the plain variables. Offsets must be known at generate time
+    (the params parse, the manifest, action-param bindings bake them, a host seeds a child by offset), so its types must be sizable.
+  - `St` after it, laid out by the CLR, reached only by name (`block.St.X`, `BTreeBridgeEmitCore.AppendWorkingStateResolve`). It
+    exists for types the generator cannot size (`HillAttackMutableState`'s fixed buffers) and for working state that nodes share.
+  - Both halves get their defaults on every assign (`EmitStateDefaultBake`), so they behave the same; only addressing differs.
+  - Outside the block: a stateful node's PRIVATE working state, its own occurrence slot keyed by (asset, node id).
+  The 8 `St` variables: `PlatoonHillAttack.State` (7 nodes bind it), T35 `bpSharedWorkingState` (2), `HsmStatefulBindingDemo.steps`
+  (1) are named as working state by a binding; `Doubled` ×2 (a resolver writes it), `Cursor`, `Ticks`, `SharedCursor` are named
+  by nothing.
+  ⭐ Lean: the generator rule "named as a node's working state, or not sizable ⇒ `St`; else `In`". It moves only the 4 unbound
+  values in test / sample assets (`HsmResolverDemo`, `T40`, `HsmVariableShowcase`, `HsmOrthogonalRegions`) from `St` to `In`;
+  goldens regenerate, no shipped behaviour moves, and a running behaviour sees the layout change through its structure hash
+  (`BrainTickSystem.cs:504`). The editor's auto-created per-node memory then lives in `St` under its variable name, not in a
+  node-keyed side slot. Same behaviour while one node binds it; to be proven by a rail when built.
+  ✅ **BUILT `2026-10-13` (CE-3193, user: "yes, build it")** — the lean above, as built:
+
+```mermaid
+classDiagram
+  direction LR
+  class BehaviorActionBindingDto { WorkingStateTargetField }
+  class BlackboardVariableDto { Name · Type · DefaultValueJson · IsAutoManaged · IsWorkingState «derived, JsonIgnore» }
+  class WorkingStateVariables { <<Hrot.AiEditor.Persistence>> NamesOf(BTree|HSM) · Mark(BTree|HSM) }
+  class Asset_Block { In @0 = Params + plain variables · St = working-state variables }
+  class IStatefulScopeAsset { <<editor model>> WorkingStateVariableNames() · GetSharedScopeKeys() }
+  WorkingStateVariables ..> BehaviorActionBindingDto : reads every binding
+  WorkingStateVariables ..> BlackboardVariableDto : sets IsWorkingState
+  BlackboardVariableDto ..> Asset_Block : St when IsWorkingState, else In
+  IStatefulScopeAsset ..> BehaviorActionBindingDto : the same rule on the editor model
+```
+
+  *What the picture shows that the prose hid: the kind has ONE source — the bindings — and both the file-side generator path
+  and the editor model read it the same way; nothing persists it.*
+  - **Deleted**: `BlackboardVariableRole`, the variable `Role`/`Scope` properties (DTOs, `BlackboardVariableEntry`, the panel
+    view model), `UpdateVariableRole/Scope` (model, asset interface, schema source, `SupportsRoleScopeEditing`), the panel's
+    Scope column, the outline's Working State / Asset Globals sections (one "Variables" section), `StatefulSlotInfo.Role` and
+    `StatefulSlotRole`, and `StateVariableStorage` with its diagnostics `BTREE0003` / `HSM0002` (a working-state variable is
+    bound by definition, so "State variable has no storage" cannot arise; the codes are retired, not reused).
+  - **Derived**: `WorkingStateVariables.Mark` runs on load (`BTreeJsonServices` / `HsmJsonServices.Deserialize`), at each
+    generator entry (`BTreeEmitCore.EmitTopologyCore`, `BTreeBridgeEmitCore.EmitBridge`, `HsmBridgeEmitCore.EmitBridge` /
+    `BlackboardOwner`) and in both editor mappers' `ToDto`. A working-state variable keys by name (`WorkingStateScope.Behavior`);
+    `WorkingStateScope` survives only as the generator's slot-key formula (a stateful node that names no variable keys by node).
+  - ⚠ **Simplified from the lean**: the "or not sizable ⇒ `St`" clause was not built. Every unsizable shipped type
+    (`HillAttackMutableState`) is already bound as working state; an unbound unsizable variable fails packing as before.
+  - **Corpus**: `Role`/`Scope` keys stripped from 7 assets; an old file's keys are ignored on load (the frozen `MigrationV1`
+    snapshots keep them and still load). `Doubled` (two resolver assets), `Cursor`, `Ticks`, `SharedCursor` moved `St` → `In`;
+    the two resolver blueprints' `ResolverSubject.StateVariables` emptied accordingly.
+  - **Editor surfaces** (ui / behaviors lanes): the shared variables panel, outline and Details heading in `Hrot.Editor.AiShared`,
+    and the BTree / HSM models — named here and in the commit as cross-lane edits.
+- **Not yet** *(measured 2026-10-13; ui lane — ⚠ NOT P5b, which is the order form and is built, §13.12)*:
+  - the **blueprint** editor's "Inputs" section (`BlueprintMyBlueprintModel.cs:128/335`) lists only DECLARED Parameters — the
+    corpus has **0** left and all 18 `.bp.json` name a DTO, so it is empty everywhere; the canvas pins are right (`ParametersOf`).
+    "Create parameter" (`editor.create-parameter`) still authors a `ParameterDecl`;
+  - the **BTree / HSM** `Params` row is ONE read-only entry (`BlackboardAuthoringWindow.cs:323`) — the DTO's fields are not
+    listed (`VariablesPanelControl` has no struct expansion);
+  - no editor surface writes an asset's `ParamsDtoTypeId` or a BTree / HSM `ParamsDefaultJson` (hand-edited JSON).
+  ⇒ dispatched: [HANDOFF_Params_Panels_Ui.md](blueprints/HANDOFF_Params_Panels_Ui.md) (the last bullet pending the user's nod, U5).
 
 ### 13.11 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
 

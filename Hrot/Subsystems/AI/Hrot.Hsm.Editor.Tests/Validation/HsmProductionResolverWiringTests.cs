@@ -163,9 +163,9 @@ public sealed class HsmProductionResolverWiringTests
         var (child, _, _, _) = MakeParallelAsset();
         child.SetBlackboardVariables(new[]
         {
-            new BlackboardVariableEntry("Cursor", typeof(int), null, false, null,
-                BlackboardVariableRole.State, WorkingStateScope.Behavior),
+            new BlackboardVariableEntry("Cursor", typeof(int), null, false, null),
         });
+        child.AllStates[0].Activity = new BehaviorActionBinding { WorkingStateTargetField = "Cursor" };   // CE-3193: naming it makes it working state
         c0.SubtreeAssetId = child.AssetId;
         c1.SubtreeAssetId = child.AssetId;
 
@@ -185,9 +185,9 @@ public sealed class HsmProductionResolverWiringTests
         var (child, _, _, _) = MakeParallelAsset();
         child.SetBlackboardVariables(new[]
         {
-            new BlackboardVariableEntry("Cursor", typeof(int), null, false, null,
-                BlackboardVariableRole.State, WorkingStateScope.Behavior),
+            new BlackboardVariableEntry("Cursor", typeof(int), null, false, null),
         });
+        child.AllStates[0].Activity = new BehaviorActionBinding { WorkingStateTargetField = "Cursor" };   // CE-3193: naming it makes it working state
         var catalog = new WiringFakeCatalog(child);
 
         Assert.True(catalog.IsStatefulSubtree(child.AssetId));
@@ -202,25 +202,19 @@ public sealed class HsmProductionResolverWiringTests
     // ── the two HasAnyStatefulNode predicates ───────────────────────────────────
 
     /// <summary>
-    /// ⭐ <b>The HSM predicate is the SAME definition <c>E1</c>'s emitter uses:</b> a
-    /// <c>Role = State</c> variable scoped <c>Behavior</c> (<c>Entity</c> was removed by <c>CE-441</c>) — exactly the set
-    /// <c>HsmBridgeEmitCore</c> emits a <c>StatefulSlotInfo</c> for. ⛔ A different notion of "stateful"
-    /// here would let the validator and the emitter disagree about which assets own a partition slot.
+    /// ⭐ <b>The HSM predicate is the SAME definition the emitter uses</b> (<c>CE-3193</c>): a variable a binding names as its
+    /// working state. ⛔ A different notion of "stateful" here would let the validator and the emitter disagree about which
+    /// assets own a partition slot. A variable nothing names is a plain variable, not state.
     /// </summary>
     [Theory]
-    [InlineData(BlackboardVariableRole.State, WorkingStateScope.Behavior, true)]
-    // ⚠ Node scope is excluded for the same reason emission skips it: its key needs a node id.
-    [InlineData(BlackboardVariableRole.State, WorkingStateScope.Node,     false)]
-    // ⛔ Input is the PARAMETER role, not working state.
-    [InlineData(BlackboardVariableRole.Input, WorkingStateScope.Behavior, false)]
-    public void HsmHasAnyStatefulNode_MatchesTheEmittersOwnFilter(
-        BlackboardVariableRole role, WorkingStateScope scope, bool expected)
+    [InlineData(true,  true)]
+    [InlineData(false, false)]
+    public void HsmHasAnyStatefulNode_MatchesTheEmittersOwnFilter(bool namedAsWorkingState, bool expected)
     {
         var (asset, _, _, _) = MakeParallelAsset();
-        asset.SetBlackboardVariables(new[]
-        {
-            new BlackboardVariableEntry("v", typeof(int), null, false, null, role, scope),
-        });
+        asset.SetBlackboardVariables(new[] { new BlackboardVariableEntry("v", typeof(int), null) });
+        if (namedAsWorkingState)
+            asset.AllStates[0].Activity = new BehaviorActionBinding { WorkingStateTargetField = "v" };
 
         Assert.Equal(expected, asset.HasAnyStatefulNode());
     }
@@ -282,9 +276,9 @@ public sealed class HsmProductionResolverWiringTests
         var (asset, _, _, _) = MakeParallelAsset();
         asset.SetBlackboardVariables(new[]
         {
-            new BlackboardVariableEntry("Cursor", typeof(int), null, false, null,
-                BlackboardVariableRole.State, WorkingStateScope.Behavior),
+            new BlackboardVariableEntry("Cursor", typeof(int), null, false, null),
         });
+        asset.AllStates[0].Activity = new BehaviorActionBinding { WorkingStateTargetField = "Cursor" };   // CE-3193: naming it makes it working state
 
         int expected = Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.ComputeStatefulSlotKey(
             asset.AssetId, WorkingStateScope.Behavior, Guid.Empty, "Cursor");

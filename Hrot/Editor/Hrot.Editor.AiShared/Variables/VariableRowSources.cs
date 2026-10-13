@@ -243,9 +243,7 @@ public sealed class SectionVariableRowSource : IVariableRowSource
             FieldType:        v.FieldType,
             Comment:          v.Comment,
             IsAutoManaged:    v.IsAutoManaged,
-            DefaultValueJson: v.DefaultValueJson,
-            Role:             v.Role,
-            Scope:            v.Scope);
+            DefaultValueJson: v.DefaultValueJson);
 }
 
 /// <summary>A source over a fixed row list. ⭐ Used by §9's heterogeneous rail, and by any host that

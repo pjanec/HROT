@@ -76,7 +76,6 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         Name = name,
         Type = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
         DefaultValueJson = $"{{\"Limit\":{limit}}}",
-        Role = BlackboardVariableRole.Input,
     };
 
     // Working-state variable (DemoCursorState) — State role + scope; NOT packed. Drives slot key.
@@ -84,8 +83,6 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
     {
         Name = name,
         Type = new BlackboardTypeRefDto { TypeId = WorkingStateTypeId },
-        Role = BlackboardVariableRole.State,
-        Scope = scope,
     };
 
     private static BTreeActionNodeDto ActionNode(Guid visualId, string label, string paramField, string stateField) => new()
@@ -350,13 +347,10 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
 
         var dto = BuildAsset(
             assetId, "S3NodeScoped",
-            new[]
-            {
-                ParamVar(ParamVarName, limit: 3),
-                StateVar("localA", WorkingStateScope.Node),
-                StateVar("localB", WorkingStateScope.Node),
-            },
-            new[] { (n1, "A", "localA"), (n2, "B", "localB") });
+            new[] { ParamVar(ParamVarName, limit: 3) },
+            // ⭐ CE-3193 — the per-node key is what a stateful node gets when it names NO working-state variable; one that
+            //   names a variable keys by that name (it is working state, in the block's St).
+            new[] { (n1, "A", (string)null!), (n2, "B", (string)null!) });
 
         Func<string, int?> sizeResolver = t => t == ParamsTypeId ? 4 : (int?)null;
         string bridgeSrc = BTreeBridgeEmitCore.EmitBridge(dto, sizeResolver);

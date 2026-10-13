@@ -170,12 +170,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
 
         Assert.True(reg.Details!.ShowingVariables);
         Assert.Equal("Variables", reg.Details.Heading);   // CE-2135 (B3a): "Inputs" became "Variables"
-        Assert.Equal(new[] { "Ammo", "Health" }, DetailsRowNames(reg));
-
-        reg.MyBlueprint.SelectSection(BlackboardMyBlueprintModel.SectionWorkingState);
-
-        Assert.Equal("Working State", reg.Details.Heading);
-        Assert.Equal(new[] { "Cursor" }, DetailsRowNames(reg));
+        Assert.Equal(new[] { "Ammo", "Cursor", "Health" }, DetailsRowNames(reg));   // CE-3193: one section holds every variable
     }
 
     /// <summary>
@@ -190,9 +185,9 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
         var reg   = AsTheEditorBuildsIt("HSM", store);
         store.ActiveAsset = FakeAsset.With(Global("Wave"));
 
-        reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionAssetGlobals);
+        reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionInputs);
 
-        Assert.Equal("Asset Globals", reg.Details!.Heading);
+        Assert.Equal("Variables", reg.Details!.Heading);
     }
 
     /// <summary>
@@ -313,9 +308,9 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
 
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionInputs);
 
-        Assert.Equal(new[] { "Health" },
+        Assert.Equal(new[] { "Health", "Cursor" },   // CE-3193: one section holds every variable
                      reg.Variables.Model.Build().AllRows.Select(r => r.ShortName));
-        Assert.Equal(new[] { "Health" }, DetailsRowNames(reg));
+        Assert.Equal(new[] { "Cursor", "Health" }, DetailsRowNames(reg));   // sorted by name
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────
@@ -327,10 +322,10 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     private static BlackboardVariableEntry Var(string n) => new(n, typeof(float), null);
 
     private static BlackboardVariableEntry State(string n)
-        => new(n, typeof(int), null, Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Node);
+        => new(n, typeof(int), null);
 
     private static BlackboardVariableEntry Global(string n)
-        => new(n, typeof(int), null, Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Behavior);
+        => new(n, typeof(int), null);
 
     private sealed class FakeAsset : IEditableAsset, IBlackboardManagedAsset
     {

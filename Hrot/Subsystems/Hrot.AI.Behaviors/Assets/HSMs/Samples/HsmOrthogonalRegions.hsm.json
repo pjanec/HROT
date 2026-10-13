@@ -153,9 +153,7 @@
           "IsArray": false,
           "FixedLength": null
         },
-        "Comment": "E0 seed for E3: one Behavior-scoped slot that BOTH regions reach — the occurrence-key subject.",
-        "Role": "State",
-        "Scope": "Behavior"
+        "Comment": "E0 seed for E3: one Behavior-scoped slot that BOTH regions reach — the occurrence-key subject."
       }
     ]
   },

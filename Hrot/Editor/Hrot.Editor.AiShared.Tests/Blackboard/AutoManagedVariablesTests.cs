@@ -125,12 +125,9 @@ public sealed class AutoManagedVariablesTests
         // ⭐⭐ THE PROPERTY THAT MATTERS: the params variable IS the generated Params struct, so a
         //    hosting site's seed is that one variable and the field offsets come from the DTO.
         Assert.Equal(typeof(Patrol_0000ABCD_Bp.Params), p.FieldType);
-        Assert.Equal(BlackboardVariableRole.Input, p.Role);
         Assert.True(p.IsAutoManaged);
 
         Assert.Equal(typeof(Patrol_0000ABCD_Bp.WorkingState), ws.FieldType);
-        Assert.Equal(BlackboardVariableRole.State, ws.Role);
-        Assert.Equal(WorkingStateScope.Node, ws.Scope);
         Assert.Equal(typeof(Patrol_0000ABCD_Bp.WorkingState), composed.WorkingStateType);
     }
 

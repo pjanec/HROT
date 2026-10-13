@@ -24,8 +24,7 @@ namespace Hrot.Editor.AiShared.Blackboard;
 ///
 /// <para>⛔⛔ <b>What is deliberately NOT shared, so nobody "finishes" the unification wrongly:</b> the
 /// BTree host binds a SECOND variable for a composed node's WORKING STATE
-/// (<c>WorkingStateTargetField</c>, <c>Role=State</c>) so the designer can widen its <c>Scope</c> to
-/// <c>Behavior</c> and make two nodes share a partition slot. ⚠ The HSM host must NOT: an HSM-hosted
+/// (<c>WorkingStateTargetField</c>) so two nodes can be pointed at one variable and share it. ⚠ The HSM host must NOT: an HSM-hosted
 /// occurrence's working state lives in the occurrence slot keyed
 /// <c>(machine, region, state, childAsset)</c> — <c>HsmOccurrence.ResolveOrAttach&lt;Params,
 /// WorkingState&gt;</c> — so there is no variable to bind and inventing one would be a second storage
@@ -62,8 +61,6 @@ public static class AutoManagedVariables
         IBlackboardManagedAsset asset,
         string baseName,
         Type fieldType,
-        BlackboardVariableRole role = BlackboardVariableRole.Input,
-        WorkingStateScope scope = WorkingStateScope.Node,
         string? comment = null)
     {
         if (asset is null) throw new ArgumentNullException(nameof(asset));
@@ -71,8 +68,7 @@ public static class AutoManagedVariables
 
         string name = UniqueName(asset, baseName);
         asset.AddVariable(new BlackboardVariableEntry(
-            name, fieldType, comment, IsAutoManaged: true, DefaultValueJson: null,
-            Role: role, Scope: scope));
+            name, fieldType, comment, IsAutoManaged: true, DefaultValueJson: null));
         return name;
     }
 
@@ -172,11 +168,10 @@ public static class AutoManagedVariables
 
         Type? wsType = WorkingStateTypeOf(entry);
         string? wsVar = wsType != null && workingStateBaseName != null
-            // ⭐ Role=State, Node scope by default: a SEPARATE variable from the params one, so its Scope
-            //   is independently authorable and two composed nodes can be pointed at one Behavior-scoped
-            //   slot.
-            ? Create(asset, workingStateBaseName, wsType,
-                     BlackboardVariableRole.State, WorkingStateScope.Node)
+            // ⭐ A SEPARATE variable from the params one: the binding names it as its working state
+            //   (WorkingStateTargetField), which is what makes it working state (CE-3193), and pointing a
+            //   second composed node at it shares it.
+            ? Create(asset, workingStateBaseName, wsType)
             : null;
 
         return new ComposedBlueprintVariables(paramsVar, wsVar, wsType);
@@ -207,7 +202,7 @@ public static class AutoManagedVariables
 
         // ⚠ Same flip as ComposeForAiPrimitive: both emitters gate the whole params path on the managed flag.
         host.SetBlackboardEditorManaged(true);
-        return Create(host, baseName, inputs, BlackboardVariableRole.Input, WorkingStateScope.Node,
+        return Create(host, baseName, inputs,
                       comment: comment ?? $"CE-439: seeds hosted subtree '{childName}' on each start.");
     }
 
@@ -217,7 +212,7 @@ public static class AutoManagedVariables
 
 /// <summary>What <see cref="AutoManagedVariables.ComposeForAiPrimitive"/> created.</summary>
 /// <param name="ParamsVariable">The variable holding the blueprint's generated <c>Params</c>.</param>
-/// <param name="WorkingStateVariable">The <c>Role=State</c> variable, or null when none was asked for.</param>
+/// <param name="WorkingStateVariable">The working-state variable, or null when none was asked for.</param>
 /// <param name="WorkingStateType">
 /// The generated <c>WorkingState</c> type, or null when the generated shape has none. ⚠ Non-null even
 /// when <see cref="WorkingStateVariable"/> is null, because the BTree payload records the TYPE NAME

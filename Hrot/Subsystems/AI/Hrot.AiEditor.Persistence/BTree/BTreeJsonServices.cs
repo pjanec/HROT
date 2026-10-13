@@ -69,10 +69,13 @@ public static class BTreeJsonServices
         //   neither the editor nor a generator ever binds a v1 shape.
         var node = JsonNode.Parse(json, new JsonNodeOptions { PropertyNameCaseInsensitive = true },
                                   new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
-        if (node is not JsonObject root) return node == null ? null : node.Deserialize<BehaviorTreeAssetDto>(_options);
+        if (node is not JsonObject root) return node == null ? null : Marked(node.Deserialize<BehaviorTreeAssetDto>(_options));
         ActionBindingMigrator.UpgradeBTree(root);
-        return root.Deserialize<BehaviorTreeAssetDto>(_options);
+        return Marked(root.Deserialize<BehaviorTreeAssetDto>(_options));
     }
+
+    // ⭐ CE-3193 — working state is derived from the bindings (WorkingStateVariables), never read from the file.
+    private static BehaviorTreeAssetDto? Marked(BehaviorTreeAssetDto? dto) => dto == null ? null : WorkingStateVariables.Mark(dto);
 
     /// <summary>
     /// Header-lazy discovery: reads only AssetId+Name from a *.btree.json file

@@ -28,7 +28,7 @@ public static class ReservedParamsVariable
         if (vars.Any(v => v.Name == Name || v.IsReservedParams)) return;
         vars.Insert(0, new BlackboardVariableEntry(Name, BlackboardTypeHelper.ResolveClrType(named!),
             "the behaviour's params — its named DTO (ParamsDtoTypeId); reserved, not authored",
-            DefaultValueJson: defaultJson, Role: BlackboardVariableRole.Input, IsReservedParams: true));
+            DefaultValueJson: defaultJson, IsReservedParams: true));
     }
 
     /// <summary>The reserved entry in <paramref name="vars"/>, or null.</summary>

@@ -33,4 +33,8 @@ public interface IStatefulScopeAsset
     /// <summary>⭐ The shared scope keys this asset occupies. ⛔ Rule 8b's question: two DIFFERENT
     /// sub-trees resolving to the SAME key race on one slot.</summary>
     IReadOnlyCollection<int> GetSharedScopeKeys();
+
+    /// <summary>⭐ <c>CE-3193</c> — the variables some binding names as its working state (<c>WorkingStateTargetField</c>):
+    /// the block's <c>St</c> half. Derived from the bindings, the same rule as <c>WorkingStateVariables</c> on the DTO.</summary>
+    IReadOnlySet<string> WorkingStateVariableNames();
 }

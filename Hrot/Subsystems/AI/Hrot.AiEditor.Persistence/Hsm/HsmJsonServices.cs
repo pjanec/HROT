@@ -60,10 +60,13 @@ public static class HsmJsonServices
         //   neither the editor nor a generator ever binds a v1 shape.
         var node = JsonNode.Parse(json, new JsonNodeOptions { PropertyNameCaseInsensitive = true },
                                   new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
-        if (node is not JsonObject root) return node == null ? null : node.Deserialize<HsmAssetDto>(_options);
+        if (node is not JsonObject root) return node == null ? null : Marked(node.Deserialize<HsmAssetDto>(_options));
         ActionBindingMigrator.UpgradeHsm(root);
-        return root.Deserialize<HsmAssetDto>(_options);
+        return Marked(root.Deserialize<HsmAssetDto>(_options));
     }
+
+    // ⭐ CE-3193 — working state is derived from the bindings (WorkingStateVariables), never read from the file.
+    private static HsmAssetDto? Marked(HsmAssetDto? dto) => dto == null ? null : WorkingStateVariables.Mark(dto);
 
     /// <summary>
     /// Header-lazy discovery: reads only AssetId+Name from a *.hsm.json file.

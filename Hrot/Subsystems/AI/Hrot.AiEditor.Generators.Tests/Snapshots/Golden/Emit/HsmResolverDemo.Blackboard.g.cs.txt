@@ -5,17 +5,12 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Machines;
 
-[StructLayout(LayoutKind.Explicit, Size = 4)]
+[StructLayout(LayoutKind.Explicit, Size = 8)]
 public struct HsmResolverDemo_HsmResolverDemo_Blackboard
 {
     [FieldOffset(0)]
     public float Speed;
-}
-
-/// <summary>CE-437: the Role=State, Scope=Behavior half of <see cref="HsmResolverDemo_Block"/>.</summary>
-[StructLayout(LayoutKind.Sequential)]
-public struct HsmResolverDemo_BlockState
-{
+    [FieldOffset(4)]
     public float Doubled;
 }
 
@@ -25,6 +20,4 @@ public struct HsmResolverDemo_Block
 {
     [FieldOffset(0)]
     public HsmResolverDemo_HsmResolverDemo_Blackboard In;
-    [FieldOffset(8)]
-    public HsmResolverDemo_BlockState St;
 }
