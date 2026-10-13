@@ -1,5 +1,7 @@
 # RESUME / HANDOFF — Fixed Collections (design phase)  ·  2026-08-03
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 Self-contained handoff written before a preventive compaction. **The Fixed Collections capability is fully
 DESIGNED and documented; NOTHING is built yet.** A second adversarial design review was launched at compaction —
 fold its findings into the docs when it returns, then build.

@@ -1,5 +1,7 @@
 # Architect question #20 — component COLLECTION element WRITE (fixed-capacity, self, unmanaged only)
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 **Status: ✅ APPROVED (architect, 2026-08-04) — A1+amendment · B1-as-composed (1-tick lag documented) · C1 ·
 D + G1 accessor mediation; G1–G7 confirmed, FC-1b generator approved.** The write counterpart to Q#17/#18
 (component collection READ, shipped) and the collection-shaped sibling of Q#16 (scalar component WRITE,

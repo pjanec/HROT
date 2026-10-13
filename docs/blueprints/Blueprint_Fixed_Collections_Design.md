@@ -5,6 +5,7 @@ current-answer: the whole document; read the "Second review" deltas before quoti
 related-designs:
   - Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — decision C4 asks whether the curated-accessor
     (CuratedStatic) collection mode can be joined by direct fixed-buffer field access.
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
 -->
 
 # Blueprint Fixed Collections — umbrella design

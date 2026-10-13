@@ -1,5 +1,7 @@
 # Architect question #14 — designer-authored custom events + pub/sub (reflection-discovered, no manual registry)
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 **Status: ✅ APPROVED (architect) — Option 2b + full infrastructure.** Recipient-filtering (D2) refined with
 user sign-off to a declarative **Self/Any filter on the entry node** (spec in Q14-D).
 

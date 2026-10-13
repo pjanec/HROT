@@ -1,5 +1,7 @@
 # Blueprint Component Access — RESUME / HANDOFF (2026-08-01)
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 Self-contained resume point for the **ECS component read/write** workstream. Read this + the tracker
 (`Blueprint_Component_Access_TASK_TRACKER.md`) + design (`Blueprint_Component_Access_Design.md`) to continue.
 

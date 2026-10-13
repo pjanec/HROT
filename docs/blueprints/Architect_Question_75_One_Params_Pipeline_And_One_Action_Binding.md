@@ -33,7 +33,8 @@ current-answer: ⭐⭐⭐ READ §0 FIRST — it is the revision summary and says
 stale-below: ⛔ §5's slice table and §4's decision C were written before the second measurement
   pass. Both are CORRECTED IN PLACE and say so; nothing below is quotable as a plan without
   reading §0.
-known-rot: ⛔ 2026-09-30 (CE-448) — BlueprintResolverEntry / BlueprintDefinition.Resolvers (cited as a
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  ⛔ 2026-09-30 (CE-448) — BlueprintResolverEntry / BlueprintDefinition.Resolvers (cited as a
   publication currency) are DELETED.
   known-rot: ⚠ 2026-09-30 (R-155) — wherever this document places a resolve step
   AFTER the automatic copy, or on an action binding, read DESIGN_Parameter_Model.md §P instead: the

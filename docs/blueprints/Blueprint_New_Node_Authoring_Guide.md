@@ -1,5 +1,7 @@
 # How each new blueprint addition is authored — SHIPPED pattern, in use
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > See [Blueprints_Overview.md](Blueprints_Overview.md) for the current capabilities + architecture
 > front door.
 

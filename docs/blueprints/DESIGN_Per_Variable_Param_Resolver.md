@@ -20,7 +20,8 @@ review: reviewed twice, 2026-09-21. Round 1: the silent-TryRun path, D1's build-
   D5 re-filed as enforcement, A7 scoped by host. One round-2 premise did NOT verify - a
   warn-vs-fail artifact ruling in the asset-management corpus; searched, none found (section 6.1).
 stale-below: nothing.
-known-rot: 2026-09-28 - FIXED, not outstanding, recorded so nobody re-derives it. Two citations
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone. Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  2026-09-28 - FIXED, not outstanding, recorded so nobody re-derives it. Two citations
   named CgfCuratedBehaviorRegistrar.cs, which CE-374 DELETED: the problem statement and inventory
   item 8 (which also had a stale line number, :468 -> :531). Both re-measured against
   CuratedBehaviorGenerator.cs:278,286 and both conclusions HELD - see the re-measurement note under

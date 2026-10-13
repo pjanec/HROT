@@ -1,5 +1,7 @@
 # Architect question #15 — multi-pin ECS component READ (self + any entity, all field/collection kinds)
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 **Status: ✅ APPROVED (architect) — A1 · B1 · C1 · D1 · E1 · F2 · G1**, plus a managed-component
 **immutability / snapshot-aliasing** rule from the architect's follow-up (see that section below). Reads only —
 writes stay **action-gated**. Cleared to build; **Slice 1a needs no gate.**

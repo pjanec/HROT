@@ -1,5 +1,7 @@
 # Blueprint Fixed Collections — TASK TRACKER
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 Execution tracker for the Fixed Collections capability (umbrella: `Blueprint_Fixed_Collections_Design.md`;
 component-write rulings: `Architect_Question_20_Component_Collection_Write.md` ✅ APPROVED; blueprint-variable
 home: `Blueprint_List_Variables_Design.md` + Q#19). Branch: `claude/reset-from-blueprint-1t6cq8`.

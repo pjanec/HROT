@@ -1,5 +1,7 @@
 # Blueprint Feature-Maturity Matrix (audit, 2026-07-16)
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > ⚠ **Dated snapshot (2026-07-16) — largely superseded. Do not use for status.**
 > Kept only for its per-axis (compiler / authoring / tests) breakdown, which is still a useful way to
 > think about the subsystem. For the current capability list see

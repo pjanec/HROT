@@ -1,5 +1,7 @@
 # Fixed-List Blueprint Variables (FC-2)
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 Fixed-capacity, blittable lists as blueprint variables — declared like any variable, mutated
 in place, zero heap, zero reflection. Capacity is fixed at declare time; `Count` is the live
 logical length.

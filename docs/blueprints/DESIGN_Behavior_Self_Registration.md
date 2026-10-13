@@ -8,7 +8,8 @@ current-answer: ⭐ §10a is the AS-BUILT — read it FIRST for what actually ex
   §5-§7 the UML, §9 the build items as dispatched. ⭐ Start at §2 (INVENTORY)
   if you are about to argue that something here already exists — it probably does, and §2 says which.
 stale-below: nothing yet.
-known-rot: nothing yet.
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  nothing yet.
 known-conflict: ⚠ Behavior_Parameter_Resolver_Detailed_Design.md §338 expresses R-132 as "RegisterResolver
   is reached ONLY from CgfCuratedBehaviorRegistrar". This design DELETES that class, so that sentence
   must be re-expressed against the attribute — §8 ①. ⛔ The RULING is unchanged; only its probe moves.

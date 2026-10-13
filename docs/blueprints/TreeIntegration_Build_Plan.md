@@ -1,5 +1,7 @@
 # Tree-integration build plan (turnkey) — assembling the Hill-attack blueprint twins
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone; [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135); Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > **Status: ✅ DONE (2026-07-17).** Built per this plan — `PlatoonHillAttack2.btree.json` + 6 `HillAssault2I_*` integrated blueprints + `PlatoonHillAttack2_Integration_ProofTests` (3/3). Kept below as the record of the approach. Originally: future track, architect-approved (Q9). The per-node twins are complete + proven in isolation
 > (`HillAssault2_*` 52/52). This is the step-by-step recipe to assemble them into the running commander
 > behavior, using ONLY the architect-sanctioned pattern (Q9-A/B). It is deliberately mechanical — every

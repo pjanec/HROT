@@ -6,7 +6,8 @@ current-answer: the whole file. This is THE design record for what the Inspector
   is the ruling (per-field REJECTED, whole-DTO APPROVED); section 3 is node-owned
   variables; section 4 is the runtime.
 stale-below: nothing.
-known-rot: section 4 step 3 says the scenario/mission JSON overlay wins. TRUE, and it
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  section 4 step 3 says the scenario/mission JSON overlay wins. TRUE, and it
   was NOT true of the generated managed-asset path until BP-275 (Batch 70, BTree) and
   BP-292 (Batch 74, HSM). See DESIGN_Parameter_Model.md section 3.2, whose own
   correction on that point is now folded as HISTORY. The document is correct today.
