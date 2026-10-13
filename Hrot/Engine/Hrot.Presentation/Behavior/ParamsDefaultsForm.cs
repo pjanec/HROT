@@ -125,7 +125,7 @@ public sealed record ParamsDefaultsCommit(string? Json, string Label);
 
 /// <summary>
 /// ⭐ <c>CE-1061</c> U5b (§13.10c E2) — THE params-defaults form every asset kind draws (BTree / HSM variables panel, the blueprint outline):
-/// one row per DTO field — the value editor (<see cref="ComponentEditDrawer"/>), then "●" + Reset where the asset overrides it.
+/// one row per DTO field — the value editor (<see cref="ComponentEditDrawer"/>), then "*" + Reset where the asset overrides it.
 /// It commits only when no widget is active, so a drag or a typed number is ONE undo entry.
 /// </summary>
 public static class ParamsDefaultsForm
@@ -152,7 +152,8 @@ public static class ParamsDefaultsForm
                 if (model.IsOverridden(node.Name))
                 {
                     ImGuiNET.ImGui.PushID(node.Name);
-                    ImGuiNET.ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0.3f, 1f), "●");
+                    // ⚠ "*", not "●": U+25CF is outside every glyph range the editor font loads (EditorFontService.UiRanges) — it drew as "?".
+                    ImGuiNET.ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0.3f, 1f), "*");
                     if (ImGuiNET.ImGui.IsItemHovered()) ImGuiNET.ImGui.SetTooltip("This asset overrides the DTO's default.");
                     ImGuiNET.ImGui.SameLine();
                     if (ImGuiNET.ImGui.SmallButton("Reset")) reset = node.Name;
