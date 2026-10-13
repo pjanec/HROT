@@ -1210,7 +1210,7 @@ stateDiagram-v2
   }
   state Running {
     [*] --> CrouchRun
-    CrouchRun: kneel blended into the run by stride, hips 0.6 m, legs swing with knees bent, upper body leans 26 deg (less when aimed)
+    CrouchRun: kneel blended into the run by stride, hips 0.6 m, short steps with knees bent, upper body leans 26 deg (less when aimed)
   }
 ```
 *What the picture shows that prose hid:* "crouched" is two drawings chosen by the GAIT, not by the stance. Only the stance is
@@ -1224,7 +1224,7 @@ classDiagram
     CrouchedBody : the kneel
     CrouchRunBody : new
     CrouchedMoving(still, soldier, from, to, postureT, weight) KitPart[]
-    CrouchRunDrop, CrouchRunLean, CrouchRunHipFraction
+    CrouchRunDrop, CrouchRunLean, CrouchRunStepCut, CrouchRunHipFraction
     KneelingLeg(hip, ankle) : new, private
     PostureMix / PostureLerp : extracted from Parts(stance, from, to, t)
   }
@@ -1245,6 +1245,7 @@ classDiagram
 |---|---|---|
 | still = a **kneel** | its head stays at the crouched stance's 1.1 m eye (`EngineFallbacks.EyeHeightCrouched`) and its upper body is unchanged, so the rifle postures (WL-6), the aim shoulder (`TryAim`, 0.98 m) and the stance blends keep working | a corrected squat with the torso leaning forward (its head drops below the eye perception uses) |
 | moving = the **crouched run**, mixed in by `MotionPose.Stride` like the glide | the stance is the only replicated fact; the gait already comes from each entity's own motion, so every host draws the same | a separate "moving crouched" stance (not on the wire, and R-265 keeps the stance as the sim's single fact) |
+| the run's steps are 35 % shorter (`CrouchRunStepCut`, like the glide's) | the full gait swing from bent knees threw the back shin out flat behind him (a lunge) — seen in the frame rail | the upright gait's swing |
 | the run's lean shrinks while aimed | an aimed rifle is pitched by the aim (`Lean − pitch`), and the run lean would push it into the ground | a lean regardless of posture |
 | a frame with **no sim time** keeps the last gait | it carries no motion information; snapping to the still pose turned a runner into a kneel for a frame, and a pause into a kneel (the design says a pause freezes him, R-143) | gait smoothing over time (it would change every walker's swing timing) |
 | each kneeling leg keeps one `y` from hip to ankle, and the down shin is built foot → knee | no segment has a sideways yaw, so a Standing ↔ Crouched blend turns each leg in its own plane | the IK's free yaw (the blend swept the shin sideways) |

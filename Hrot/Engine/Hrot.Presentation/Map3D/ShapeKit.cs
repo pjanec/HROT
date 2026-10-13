@@ -466,6 +466,10 @@ public static class BlockFigure
     /// forward from them (radians, about 26°; <c>EntityBodyLayer3D</c> adds it on top of the gait's own lean).</summary>
     public const float CrouchRunDrop = 0.30f, CrouchRunLean = 0.45f;
 
+    /// <summary>⭐ CE-1064 — how much shorter a crouched run's steps are than an upright one's (a long stride from bent knees swung the
+    /// back shin out flat behind him — a lunge, not a run).</summary>
+    public const float CrouchRunStepCut = 0.35f;
+
     private static readonly Vector3 RunDrop = new(0.02f, 0f, -CrouchRunDrop);
 
     /// <summary>⭐ CE-1064 — the CROUCHED RUN (R-265: a threatened or cautious soldier moves in a crouch): hips 0.6 m, both feet under

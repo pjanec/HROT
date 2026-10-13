@@ -205,6 +205,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             {
                 HipZ = motion.HipZ + (BlockFigure.CrouchRunHipFraction - motion.HipZ) * crouchRun,
                 Lean = motion.Lean + BlockFigure.CrouchRunLean * crouchRun * (1f - AimedNow(soldier ? PostureOf(world, e) : WeaponPostureKind.AtEase)),
+                Swing = motion.Swing * (1f - BlockFigure.CrouchRunStepCut * crouchRun),
             };
         if (!soldier) return motion;
         if (stance == StanceId.Standing && aimed > 0f)
