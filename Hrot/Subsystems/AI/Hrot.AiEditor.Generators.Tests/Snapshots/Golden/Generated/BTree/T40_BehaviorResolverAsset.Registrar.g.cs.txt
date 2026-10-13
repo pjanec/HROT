@@ -100,7 +100,7 @@ public static class T40_BehaviorResolverAssetRegistrar
             {
                 new("Speed", typeof(float), 0),
             },
-            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.Params),
+            JsonParamsDtoType    = global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.PublishedParams,
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,

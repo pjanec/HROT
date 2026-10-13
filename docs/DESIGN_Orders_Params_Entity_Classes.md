@@ -1629,7 +1629,7 @@ Fdp.Toolkits tick arms + possession 85/0, SimHost 16/0, Blueprints 4203/2 — th
 (`ViewsAreUnreadTests` flags `Stage2_Validate.cs:2835`, CE-2133's BP1689 rule, which P4 rewrites; `CatalogTests` AimAndFire pins 4 vs 8 — the
 channel-command catalog). ⚠ Not re-run at the base sha.
 
-### 13.10 P4 — no blueprint declares Parameters; every kind names a params DTO *(CE-2135 B3b-2; R-2004, steers 1–2; build-state: BUILDING `2026-10-13`, backend — steps ①② built, as-built at the end of this section)*
+### 13.10 P4 — no blueprint declares Parameters; every kind names a params DTO *(CE-2135 B3b-2; R-2004, steers 1–2; build-state: BUILDING `2026-10-13`, backend — steps ①②③④ built, as-built at the end of this section)*
 
 **INVENTORY** *(read-only sweep 2026-10-13 + grep; file:line in the CE-2135 report)*: `ParameterDecl` (`Declarations.cs:16`) is ALSO the
 element type of graph Inputs / Outputs, custom-event and dispatcher parameters ⇒ only its use as a blueprint **Parameter declaration kind**
@@ -1655,13 +1655,16 @@ classDiagram
   class GetParameterNode { <<RETIRED>> }
   class GetAllParametersNode { <<existing>> one pin per (synthesized) Parameter = per DTO field }
   class GeneratedBlueprintSchemaCatalog { <<existing, CHANGED>> Params size + names from the DTO's fields }
+  class ResolverBpClass { <<generated, CHANGED>> +PublishedParams : Type }
+  class BTreeBridgeEmitCore { <<existing, CHANGED>> host JsonParamsDtoType = Resolver.PublishedParams }
   IParamsDtoFieldSource <|.. ReflectionFieldSource
   IParamsDtoFieldSource <|.. RoslynFieldSource
   CompileOptions o-- IParamsDtoFieldSource
   ParamsDtoFields ..> IParamsDtoFieldSource
   ParamsDtoFields ..> BlueprintAsset : fills Parameters
   GetAllParametersNode ..> BlueprintAsset : Parameters
-  GeneratedBlueprintSchemaCatalog ..> IParamsDtoFieldSource
+  RoslynFieldSource ..> GeneratedBlueprintSchemaCatalog : one Roslyn walk (ParamsDtoFieldsOf)
+  BTreeBridgeEmitCore ..> ResolverBpClass : reads PublishedParams
 ```
 
 *What the picture shows that prose hid: nothing DOWNSTREAM of `asset.Parameters` changes. The DTO's fields are materialized as the
@@ -1724,6 +1727,23 @@ sequenceDiagram
 - ⚠ **Every pipeline copy materializes** — `GoldenCorpus.Compile` (the golden harness runs the stages itself) calls `Materialize`
   before Stage 0 as `Compile` does; measured: without it the harness and the real compiler disagreed on `StructureHash` for the three
   converted assets (`HarnessPipelineMatchesTheRealCompiler`). A future second pipeline must do the same.
+- **③ seven AiPrimitives** *(2026-10-13)* — `ChannelMoveAndWaitDemo`, `GateConditionDemo`, `ParamDemo`, `HsmDriveActivity`, `HsmFireActivity`,
+  `HsmGuardDemo`, `HsmTwoRegionParamsDemo` name hand-written DTOs (`Hrot.AI.Behaviors/Brains/BlueprintDemoParams.cs`, each mirroring its
+  former Parameters and defaults). ⭐ **Golden movement, measured: NONE in code** — every AiPrimitive emit golden and every BTree/HSM host
+  golden is byte-identical (only the corpus file hashes in `persistence-shape.txt` moved): the hosts' `_Bp+Params` binding and size are
+  unchanged (P4-d confirmed). `HsmGuardDemo`'s Get Parameter keeps working on the made id until ⑤ retires the node.
+- ⚠ **A rail that saw only value-type contracts**: `SopParamsRoundTripTests.CE2079_…` exercised value-type DTOs only, so after ② no blueprint
+  behaviour was exercised (`DangerCrossingBp` publishes the class `DangerCrossingParams`) — widened to any contract with a parameterless
+  constructor (T-1 ③: the blindness fixed in the feature's own rail).
+- **④ two resolvers** *(2026-10-13)* — `T40Resolver` → `T40ResolverParams`, `HsmResolverDemoResolver` → `HsmResolverDemoParams`
+  (`BlueprintDemoParams.cs`). ⚠ **Deviation from P4-e's wording, same result**: the host does not look the resolver up. The resolver's
+  class publishes its own contract — `LibraryEmitter` emits `public static readonly Type PublishedParams = typeof(<named DTO, else Params>)`
+  — and the host bridge emits `JsonParamsDtoType = {ResolverClass}.PublishedParams` (`BTreeBridgeEmitCore.ResolverPublishedParams`,
+  shared by the BTree and HSM bridges). ⭐ Why: three callers emit host bridges (both generators and the editor's quick reload,
+  `AiAssetReload.cs:110,129`); a lookup would have to be passed by each — the silent-default pattern — while a member of the resolver
+  class is right by construction. Golden movement: the two host lines + one member per resolver class. CE-2130 allow-list −2 (T40,
+  HsmResolverDemo); `T40_BehaviorResolverAsset_ProofTests.ThePublishedContract_IsTheResolversParameters` now asserts the DTO.
+  ⭐ **No shipped `.bp.json` declares a Parameter any more.**
 - **Not yet**: the editor's Variables / Details panels still list only DECLARED Parameters (a DTO-named asset shows none) — the canvas
   pins are right (`ParametersOf`), the panels are the ui lane's surface (P5b). Steps ③–⑦ follow.
 

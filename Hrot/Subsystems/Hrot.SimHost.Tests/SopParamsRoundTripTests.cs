@@ -37,7 +37,10 @@ namespace Hrot.SimHost.Tests
             foreach (string name in registry.GetRegisteredNames())
             {
                 if (!registry.TryGetId(name, out int id) || !registry.TryGetDefinition(id, out var def)) continue;
-                if (def.ParseParams == null || def.JsonParamsDtoType is not { IsValueType: true } dtoType) continue;
+                // ⭐ CE-2135 P4 (R-2004) — a class contract too (a blueprint may name its C# twin's DTO: DangerCrossingBp →
+                //   DangerCrossingParams), so long as it can be made empty; ⛔ value types only left the blueprint kind unexercised.
+                if (def.ParseParams == null || def.JsonParamsDtoType is not { } dtoType
+                    || !(dtoType.IsValueType || dtoType.GetConstructor(Type.EmptyTypes) != null)) continue;
                 int bytes = RootParamsAccess.RootParamsBytes(def);
                 if (bytes <= 0) continue;
 

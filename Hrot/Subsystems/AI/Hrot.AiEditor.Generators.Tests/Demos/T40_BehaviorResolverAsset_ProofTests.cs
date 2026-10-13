@@ -86,7 +86,9 @@ public sealed class T40_BehaviorResolverAsset_ProofTests : IDisposable
         doubled.Should().Be(6f);
     }
 
-    /// <summary>⭐ <c>CE-443</c> — the published authored contract is the resolver's Parameters, not the block's In.</summary>
+    /// <summary>⭐ <c>CE-443</c> → ⭐ <c>CE-2135</c> P4 (R-2004, P4-e) — the published authored contract is the RESOLVER's: the params DTO
+    /// it names (<c>T40ResolverParams</c>, read from the resolver class's <c>PublishedParams</c>), not the block's In.
+    /// 🔴 Red-proof: drop <c>ParamsDtoTypeId</c> from <c>T40Resolver.bp.json</c> → the resolver's generated <c>Params</c> is published.</summary>
     [Fact]
     public void ThePublishedContract_IsTheResolversParameters()
     {
@@ -95,7 +97,7 @@ public sealed class T40_BehaviorResolverAsset_ProofTests : IDisposable
         _registry.TryGetId("T40_BehaviorResolverAsset", out int id).Should().BeTrue();
         _registry.TryGetDefinition(id, out var def).Should().BeTrue();
         def!.JsonParamsDtoType.Should().NotBeNull();
-        def.JsonParamsDtoType!.Name.Should().Be("Params");
+        def.JsonParamsDtoType!.FullName.Should().Be("Hrot.AI.Behaviors.Brains.T40ResolverParams");
         def.JsonParamsDtoType.GetField("HalfSpeed").Should().NotBeNull();
         def.JsonParamsDtoType.GetField("Speed").Should().BeNull();
     }

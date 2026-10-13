@@ -15,34 +15,8 @@
       "HsmAction"
     ]
   },
-  "Declarations": [
-    {
-      "Kind": "Parameter",
-      "Id": "d1600001-0001-0001-0001-000000000001",
-      "Name": "DestX",
-      "Type": {
-        "TypeId": "System.Single",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": "0",
-      "Tooltip": "World X of the MoveTo destination, seeded from the hosting HSM\u0027s blackboard.",
-      "Comment": null
-    },
-    {
-      "Kind": "Parameter",
-      "Id": "d1600001-0002-0002-0002-000000000001",
-      "Name": "DestY",
-      "Type": {
-        "TypeId": "System.Single",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": "0",
-      "Tooltip": "World Y of the MoveTo destination, seeded from the hosting HSM\u0027s blackboard.",
-      "Comment": null
-    }
-  ],
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.HsmDriveActivityParams",
+  "Declarations": [],
   "ParameterOrder": null,
   "WorkingStateOrder": null,
   "VariableOrder": null,

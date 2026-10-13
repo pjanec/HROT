@@ -15,21 +15,8 @@
       "HsmAction"
     ]
   },
-  "Declarations": [
-    {
-      "Kind": "Parameter",
-      "Id": "d1460001-0001-0001-0001-000000000001",
-      "Name": "Value",
-      "Type": {
-        "TypeId": "System.Int32",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": null,
-      "Tooltip": null,
-      "Comment": null
-    }
-  ],
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.HsmTwoRegionParamsDemoParams",
+  "Declarations": [],
   "ParameterOrder": null,
   "WorkingStateOrder": null,
   "VariableOrder": null,

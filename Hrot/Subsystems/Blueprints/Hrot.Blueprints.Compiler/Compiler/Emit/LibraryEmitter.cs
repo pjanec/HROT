@@ -240,6 +240,12 @@ internal static class LibraryEmitter
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine();
+        // ⭐ CE-2135 P4 (R-2004, P4-e) — the contract a HOST behaviour publishes for this resolver: its named params DTO (whose fields
+        //   ARE the Params above), else Params. The host bridge reads it here, so no host emitter has to look the resolver up.
+        string published = asset.ParamsDtoTypeId is { } dto ? "global::" + dto.Replace('+', '.') : "Params";
+        e.WriteLine("/// <summary>CE-2135 P4: the authored contract a host behaviour publishes (its JsonParamsDtoType).</summary>");
+        e.WriteLine($"public static readonly global::System.Type PublishedParams = typeof({published});");
+        e.WriteLine();
         e.WriteLine("/// <summary>CE-443: the Parameter defaults, then the intent JSON by name. The graph never sees JSON.</summary>");
         e.WriteLine("public static void ParseAuthored(string json, out Params authored)");
         e.WriteLine("{");

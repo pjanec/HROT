@@ -37,6 +37,9 @@ public static class HsmResolverDemoResolver_CCD63EE7_Bp
         public float HalfSpeed;
     }
     
+    /// <summary>CE-2135 P4: the authored contract a host behaviour publishes (its JsonParamsDtoType).</summary>
+    public static readonly global::System.Type PublishedParams = typeof(global::Hrot.AI.Behaviors.Brains.HsmResolverDemoParams);
+    
     /// <summary>CE-443: the Parameter defaults, then the intent JSON by name. The graph never sees JSON.</summary>
     public static void ParseAuthored(string json, out Params authored)
     {

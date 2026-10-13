@@ -315,8 +315,9 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         // R-2006 (P9, 2026-10-13) removed PlatoonHillAttackBp: the asset is retired (behaviors lane).
         // CE-2135 (B3b-2 / P4 ②, 2026-10-13) removed 3 that now NAME a params DTO (R-2004): DangerCrossingBp (DangerCrossingParams,
         //   its C# twin's contract), Demo_MissionPlan (DemoMissionPlanParams), Demo_TaskChain (DemoTaskChainParams).
-        "HsmChannelE2E", "HsmResolverDemo", "HsmVariableShowcase", "T09_BlackboardManaged", "T20_MultiStateful",
-        "T40_BehaviorResolverAsset",
+        // CE-2135 (P4 ④, 2026-10-13) removed 2 whose resolver blueprint now names a params DTO and publishes it
+        //   (PublishedParams, P4-e): HsmResolverDemo (HsmResolverDemoParams), T40_BehaviorResolverAsset (T40ResolverParams).
+        "HsmChannelE2E", "HsmVariableShowcase", "T09_BlackboardManaged", "T20_MultiStateful",
     };
 
     /// <summary>⭐ CE-2130 — true when <paramref name="t"/> is a generator's mirror of a behaviour's own variables rather
