@@ -172,7 +172,7 @@ it publishes an `AssignTacticalIntentEvent` per roster member and POLLS each mem
 ```mermaid
 classDiagram
   class BoundingOverwatchBehavior { <<NEW, Hrot.AI.Behaviors>> [BTreeDefinition BoundingOverwatch] one stateful node · [BehaviorResolver] }
-  class BoundingOverwatchParamsJsonDto { <<NEW, Hrot.Core>> [BehaviorContract Commander] Objective · BoundMetres 30 · Speed 3 · ArrivalRadius 10 · BoundTimeoutSeconds 60 }
+  class BoundingOverwatchParamsJsonDto { <<NEW, Hrot.Core>> named by [Behavior(Params) Commander] (CE-2134) Objective · BoundMetres 30 · Speed 3 · ArrivalRadius 10 · BoundTimeoutSeconds 60 }
   class SquadManeuverNodes { <<NEW>> +BoundingOverwatch(ref P, ref WS, self, world) NodeStatus }
   class BoundingOverwatchState { <<NEW>> targets per member · bound start time · started }
   class SquadHsmShell { <<existing, library — first production caller>> +Tick(ref state, events, tick) }

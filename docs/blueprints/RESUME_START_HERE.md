@@ -12,6 +12,9 @@ current-answer: ⛔⛔ STALE AS OF 2026-09-22 — this file's "state" is the 202
   action: Batch 88 is complete on the implementation branch and not yet merged.
 stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do not quote it
   for status, baselines or next steps.
+known-rot: (2026-10-13, P7) the body is HISTORY (see stale-below); its remark that "`BlackboardVariableRole
+  {Input,State}` already exists" (D2 note) is the Role vocabulary that retires with P4 —
+  docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §13 (one params DTO per behaviour, no Input/State roles).
 -->
 
 # ⭐⭐⭐ STATE AS OF `2026-08-18` — **READ THIS BLOCK FIRST**

@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-13
+current-answer: the BB1 banner at the top (architect + user, 2026-06-06); STATUS block added by the P7 sweep only to carry known-rot, the body was not re-read
+stale-below: nothing marked
+known-rot: (2026-10-13, P7) the BB1 banner ("an action node binds its WHOLE param DTO to ONE blackboard variable", "per-field binding REJECTED") is overtaken by CE-3182: a binding's target may be `Variable.Field` (e.g. `Params.walk`), the bundle itself still one params DTO — docs/DESIGN_Orders_Params_Entity_Classes.md §5d. Params are now ONE named DTO per behaviour (`[Behavior(Params = …)]` / `ParamsDtoTypeId`), flat JSON, plain fields, `[ParamsDto]` — §1 / §13.
+known-conflict: none known
+related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — the current params rules (§1, §13); §5d owns field-targeted bindings (CE-3182)
+  - docs/blueprints/Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md — the authoritative action-parameter binding record
+-->
 # Behavior-action nodes — duality & authoring (DESIGN CONVERGED)
 
 ## ✅ BB1 MODEL RESOLVED (architect + user, 2026-06-06) — whole-DTO binding + Promote + node-owned vars

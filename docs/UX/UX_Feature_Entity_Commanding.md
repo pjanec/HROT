@@ -29,7 +29,7 @@ BTree node already publishing the event this design routes.
 | ✅ | **`AssignTacticalIntentEvent { Entity, string IntentId, string JsonParams }`** | the choke point — already *"one id + a JSON argument"* |
 | ✅ | **Complementary authority gates** — `TacticalIntentResolutionSystem` (owner) / `TacticalIntentEgressTranslator` (→ `TacticalIntentRequest`) | any node may issue; routing is free |
 | ✅ | **Pass-through fallback** — an `IntentId` with no mapper is treated as a **direct behavior name** | ⭐ **most orders need no mapper at all** |
-| ✅ | **11 `[BehaviorContract]` param DTOs** — the real per-category vocabulary | §1 |
+| ✅ | **11 `[Behavior(Params = typeof(...))]` param DTOs** (CE-2134; was `[BehaviorContract]`) — the real per-category vocabulary | §1 |
 | ✅ | `BehaviorCatalog.GetValidBehaviors(long tkbType)` — per-TKB-type behavior list by reflection; **already used by ExCon and the Editor** | the fallback source (§4.3) |
 | ✅ | `BehaviorSchemaDiscovery.AutoRegister` → `BehaviorUiRegistry` — schema-driven parameter forms, already wired into `MissionPanel` | [ruling 42](UX_RESUME_INTERACTION.md)'s deferred work is **not greenfield** |
 | ✅ | **`GizmoInteractionBatch`** carries `int ActionId` **and** `[DdsManaged] string? PayloadJson` | ⭐ **seam-law 22** — the argument channel exists and is left null for `MenuAction` |

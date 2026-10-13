@@ -1373,6 +1373,8 @@ lookup on every draft), `RtsCommands` (the lookup), `ContextMenuProjectorGizmo` 
 | + | `OVERVIEW_Behaviour_Building_Blocks.md` | the params box says "designed, not built" | refresh the box |
 | + | `[BehaviorContract]` still current in: `UX/UX_Design.md`, `UX/UX_Requirements.md`, `UX/UX_Feature_Entity_Commanding.md`, `UX/UX_Golden_Path.md`, `designs/tactical-intent/DESIGN.md`, `designs/group-maneuvers/DESIGN_Squad_Tactics.md`, `designs/group-maneuvers/DESIGN_Squad_Wiring.md`, `projects/Hrot/Engine/Hrot.Core.md`, `blueprints/DESIGN_Entity_Reference.md` | replaced by `[Behavior(Params=…)]` (CE-2134) | one pass |
 
+**P7 sweep 2026-10-13:** known-rot lines added (ranks 1, 3–5, 7–21; two docs with no STATUS block got a minimal one), ranks 2 and 6 corrected where already false (Quickstart's "never field-by-field"; the visual-check guide's BTree/HSM first section, now "Variables"), the `[BehaviorContract]` pass and the OVERVIEW box done; the Role / blueprint-Parameters rewrites wait for P4 (§13.10).
+
 Already correct (leave): this design, `RULINGS.md` R-273..R-282 / R-2000..R-2003, AQ90, the orders resume / handoffs,
 `DESIGN_Entity_Interactions.md`, `tools/ai-debug-mcp/SKILL.md`, `AI_DEV_GUIDE.md`, `HROT-PROGRAMMERS-GUIDE.md`, `TUTORIAL_Behaviour_Composition.md`.
 

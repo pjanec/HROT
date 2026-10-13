@@ -186,7 +186,7 @@ Where the walk contradicts a prediction, the walk wins: record it in
 | **Gesture** | From the selected unit, assign a mission plan: add a task, choose a behavior, set its parameters (including picking a location on the map), set the completion trigger |
 | **Required outcome** | Reached **from the unit** (right-click or an inspector section), not by hunting a panel. Params are typed fields; spatial params are map-picked. Only behaviors that can run on this unit are offered. The assignment is acknowledged |
 | **Requirements** | [UXR-20](UX_Requirements.md#uxr-20)…[UXR-23](UX_Requirements.md#uxr-23), [UXR-25](UX_Requirements.md#uxr-25), [UXR-26](UX_Requirements.md#uxr-26) |
-| **Prediction** | `MissionPanel` does all of this mechanically — task add/delete/reorder, behavior combo, triggers, OCC commit — but: params fall back to a **raw JSON textbox** unless the behavior has a `[BehaviorContract]` DTO; map-pick is special-cased to 3 behaviors; the list appends **all** BTree assets for every entity type; and an **OCC/Force-Commit surface appears even offline**. Reachability from the unit is the key unknown |
+| **Prediction** | `MissionPanel` does all of this mechanically — task add/delete/reorder, behavior combo, triggers, OCC commit — but: params fall back to a **raw JSON textbox** unless the behavior names a DTO with `[Behavior(Params = typeof(...))]` (CE-2134; was `[BehaviorContract]`); map-pick is special-cased to 3 behaviors; the list appends **all** BTree assets for every entity type; and an **OCC/Force-Commit surface appears even offline**. Reachability from the unit is the key unknown |
 
 ## A7 — Run it
 

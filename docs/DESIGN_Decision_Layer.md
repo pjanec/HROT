@@ -5,6 +5,10 @@ build-state: BUILT §3.3e (CE-3084, G6: AttackApproach nested in the advance; CE
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
 known-rot: §3.3c/§3.3d HSM + blueprint posture PARITY is SUPERSEDED for the library by R-258 (2026-10-10: the three hosts were a proof; the library is BTrees, its blueprint and HSM copies go) — REVIEW_Behaviour_Library_Genericity.md §5.
+known-rot: (2026-10-13, P7) the class diagram's `[BehaviorContract Infantry]` on `CombatPostureParamsJsonDto` is
+  now `[Behavior(Params = typeof(CombatPostureParamsJsonDto))]` on the behaviour (CE-2134; `[BehaviorContract]`
+  is deleted), and its "`Role=State` variable as working state" (T35 note) uses the Role vocabulary —
+  docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5b / §13. `Role` retires with P4 (§13.10).
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:

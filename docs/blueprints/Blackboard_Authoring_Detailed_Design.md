@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-13
+current-answer: the REVISION NOTICE (v2, JSON-backed) and Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md (the authoritative refinement); STATUS block added by the P7 sweep only to carry known-rot, the body was not re-read
+stale-below: nothing marked
+known-rot: (2026-10-13, P7) "Aggregated `Role=Input` variables join the params region… a `Role=State` variable never joins it" (§ blackboard layout) uses the Role vocabulary, and the whole-DTO aliasing (Approach A) is refined by CE-3182 field targets (see Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md known-rot) — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §5d / §13. `Role` retires with P4 (§13.10).
+known-conflict: none known
+related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — the current params rules (§1, §13)
+  - docs/blueprints/Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md — the authoritative refinement (action-parameter binding, node-owned variables)
+-->
 # Blackboard Authoring — Detailed Design
 
 > **Status:** Detailed design. **v2 — JSON-backed (revised 2026-06-04).** Originally derived from `AI_Editor_Shared_Infrastructure.md` + `BTree_Editor_NodeEditor_Host_Design.md` + `HSM_Editor_NodeEditor_Host_Design.md` + the `design-talk.md` brainstorm sessions.

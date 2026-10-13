@@ -110,6 +110,10 @@ known-rot: ⚠ 2026-09-30 (R-155) — §28.7's hosted resolve (a blueprint primi
     of 8 entities in hill-attack/-close; test-move 1, test-fire 2). ⚠ The repo contains NO
     exercise-scale scenario, so production scale remains unrepresented — say so, do not
     extrapolate from these.
+known-rot: (2026-10-13, P7) related-designs' "the {Input,State} role model" (DESIGN_Parameter_Model.md) is
+  overtaken: one params DTO per behaviour, no Input/State roles — docs/DESIGN_Orders_Params_Entity_Classes.md §1
+  / §5c / §13. The Role vocabulary retires with P4 (§13.10); the occurrence-slot storage this document owns is
+  unaffected.
 known-conflict: none. This document EXTENDS DESIGN_Parameter_Model.md §4 rather than
   overturning it; where they disagree, DESIGN_Parameter_Model.md wins and this file is wrong.
 reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 2026-08-17

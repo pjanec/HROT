@@ -8,7 +8,11 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
   per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8o" — scenario load remaps a blueprint behaviour's ids).
 stale-below: nothing yet.
-known-rot: none.
+known-rot: (2026-10-13, P7) the S3 as-built note ("BTree/HSM manifests list `Role=Input` only") and the
+  pack-helper row ("`Pack` skips `Role=State`") use the Role vocabulary, and the inventory row "who registers
+  into them — reflection over `[BehaviorContract]`" is now `[Behavior(Params = …)]` + `ParamsDtoRegistry`
+  (CE-2134) — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5b / §13. `Role` retires with P4 (§13.10).
+known-rot: (otherwise) none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
   (§5 U-1); Q77 §5.14 points to this document.
 related-designs:

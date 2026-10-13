@@ -8,6 +8,10 @@ stale-below: nothing.
 known-rot: the "Static Parameters" panel is now labelled "DEFAULT VALUE - {var}" in
   the Inspector (Batch 74). The old name survives only in comments and this file's
   history; the section below uses the new one.
+known-rot: (2026-10-13, P7) "set its Role to Input" / the four-kinds table's Role + Scope columns use the Role
+  vocabulary that retires with P4 (docs/DESIGN_Orders_Params_Entity_Classes.md §13.10; rewrite waits for it). "A
+  node binds its whole parameter bundle to ONE variable — never field-by-field" was corrected today: CE-3182
+  lets the bundle sit in a FIELD of a variable (`Params.<field>`), §5d.
 -->
 # Behavior Variables — Designer Quickstart
 
@@ -113,8 +117,9 @@ Pick an **existing** variable instead when you *want* the sharing.
 
 ### The one rule that will surprise you
 
-**A node binds its whole parameter bundle to ONE variable — never field-by-field.** You cannot say
-*"Target from variable A, Speed a fixed 4"*. Both live in the same bundle, in the same variable.
+**A node binds its whole parameter bundle to ONE place — never field-by-field.** You cannot say
+*"Target from variable A, Speed a fixed 4"*. Both live in the same bundle. ⭐ That place is a variable **or a field of one**
+(`Params.walk` — CE-3182, `DESIGN_Orders_Params_Entity_Classes.md` §5d).
 
 This is not an oversight; it is what keeps parameter reads free at runtime. And it costs less than
 it sounds: whatever writes that variable can still update **one field** and leave the rest at their
