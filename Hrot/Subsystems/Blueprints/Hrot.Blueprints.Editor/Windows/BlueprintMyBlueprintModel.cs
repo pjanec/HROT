@@ -488,10 +488,13 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     {
         var fields = Hrot.Blueprints.Core.Compiler.ParamsDtoFields.ParametersOf(_asset!);
         string? dto = _asset!.ParamsDtoTypeId is { Length: > 0 } d && !string.IsNullOrWhiteSpace(d) ? SimpleName(d) : null;
-        // ⭐ CE-3194 (R-3001/R-3002, merged into CE-1061): a field carries no default any more — the DTO's is its initialiser (new T()),
-        //   and this asset's own value is its override in ParamsDefaultJson. The tooltip names the override; U5b's form shows the rest.
-        var overrides = Hrot.Blueprints.Core.Compiler.ParamsDtoFields.OverridesOf(_asset.ParamsDefaultJson);
         var result = new List<MyBlueprintItem>(fields.Count);
+        // ⭐ CE-3194 (R-3001) — a field carries no default any more: the DTO's own is its initialiser, the asset's override is
+        //   ParamsDefaultJson. The tooltip shows the asset's override; the effective value is U5b's (CE-1061). A malformed override
+        //   must not take the panel down, so it reads as "none" here (the compiler reports it).
+        IReadOnlyDictionary<string, string> overrides;
+        try { overrides = Hrot.Blueprints.Core.Compiler.ParamsDtoFields.OverridesOf(_asset!.ParamsDefaultJson); }
+        catch (System.Text.Json.JsonException) { overrides = new Dictionary<string, string>(); }
         foreach (var f in fields)
         {
             result.Add(new MyBlueprintItem(
@@ -507,7 +510,7 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
                 IsDeletable:  false,
                 IsHostDefined: true,
                 Tooltip:      (dto is null ? "An input of this blueprint." : $"A field of {dto}, this blueprint's params DTO — change it in the DTO.")
-                              + (overrides.TryGetValue(f.Name, out var v) ? $" This asset's default: {v}." : "")));
+                              + (overrides.TryGetValue(f.Name, out var v) ? $" This asset sets it to {v}." : "")));
         }
         return result;
     }

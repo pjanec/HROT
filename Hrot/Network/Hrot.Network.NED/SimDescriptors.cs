@@ -245,6 +245,8 @@ namespace Hrot.NED.Descriptors
         public long Passenger5;
         public long Passenger6;
         public long Passenger7;
+        /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — each seat's <c>CarryMode</c>, 2 bits per seat (the list's own <c>Modes</c>).</summary>
+        public ushort Modes;
     }
 
     // ⭐ CE-3136 P-7a (O3, R-242/R-243) — a static obstacle's box (the TKB's size or a scenario's per-instance one), published by the

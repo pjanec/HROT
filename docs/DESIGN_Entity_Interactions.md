@@ -1,15 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-13 (§7.4.7 B-b built; §7.4.8 C detailed — leans await the user)
+updated: 2026-10-13 (§7.4.10 C-b — the carrier's actions built; squad care in Squad Tactics §7.4 awaits K1–K6)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.4.8 the person carrier detailed (C5–C10 approved, R-2011) · §7.4 carrying is a type fact (R-274, approved 2026-10-13 R-2009 — READY-TO-BUILD) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.4.10 C-b the carrier's actions (built; the squad's use is Squad Tactics §7.4) · §7.4.9 C-a as built · §7.4.8 the person carrier detailed (C5–C10 approved, R-2011) · §7.4 carrying is a type fact (R-274, approved 2026-10-13 R-2009 — READY-TO-BUILD) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
 related-designs:
   - docs/DESIGN_Injury_States.md — OWNS the injury states (R-263 D1, CE-2155) that the person carrier's C3 gate reads
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-274 (behaviors): carry capacity and seats per vehicle type (B) and the human-carrier profile (C); R-275 (behaviors): Health in the cross-role set (D)
-  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §5a OWNS the squad Dismount drill that uses I-2d's Disembark (and the convoy-ambush acceptance); §5 the measured state of embark/disembark (2026-10-11) and why the squad dismount (S3) needs I-2a/I-2b first
+  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §7.4 OWNS squad casualty care (L4: who carries, when, where to) that uses §7.4.10's actions; §5a OWNS the squad Dismount drill that uses I-2d's Disembark (and the convoy-ambush acceptance); §5 the measured state of embark/disembark (2026-10-11) and why the squad dismount (S3) needs I-2a/I-2b first
   - docs/DESIGN_Building_Interiors.md §3j "5d" — OWNS doors (DoorRules, the door actions, DoorCommandSystem); doors are this design's first kind
   - docs/designs/edit-1/DESIGN.md §3.A — OWNS the typed FDP domain commands EmbarkEntityCommand / DisembarkEntityCommand; this design carries such commands to the owner
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS who owns what (descriptor claims, F-10 edit requests to the owner); a handler's gate is that design's descriptor ownership
@@ -779,7 +779,7 @@ in the tag only** — the wire could not say which seat is free, so two nodes wo
 |---|---|---|
 | **B-a** (`CE-2151`, ✅ BUILT 2026-10-13 — §7.4.6) | `Gen.Carrier` + `CarrierTkbTranslator` + `CarrierSeats`; capacity from the type; `PassengerBuffer` only on a declaring type; `PassengerExposure` moved; every carrier template declares it | a soldier has no buffer · a 2-seat type refuses the 3rd · exposure from the type · the feature suites `EmbarkNodesTests`, `Embarkation*`, the convoy live run |
 | **B-b** (`CE-2151`, ✅ BUILT 2026-10-13 — §7.4.7) | seats: slot = seat, roles, per-seat exposure, slot-indexed codecs | a crew seat refuses a passenger · disembark leaves a hole the next board fills · wire round trip by slot |
-| **C** (`CE-2152`) | the person carrier — after R-263's injury states | carry/drag offsets, speed factor, survives the carrier's death |
+| **C** (`CE-2152`; C-a ✅ BUILT 2026-10-13 — §7.4.9) | the person carrier — after R-263's injury states | carry/drag offsets, speed factor, survives the carrier's death |
 
 #### 7.4.6 B-a as built *(`2026-10-13`, behaviors, `CE-2151`)*
 
@@ -899,4 +899,126 @@ mechanism (R-274) · **the casualty boards itself** — it is incapacitated and 
 | slice | what | rails |
 |---|---|---|
 | **C-a** (`CE-2152`, after `CE-2155` I-a) | Person block + `PersonCarrier`; `CarryMode` on the command, list, wire and tag; the C3 gate; C7; C8; C9; C10; soldier templates declare one open seat | a healthy soldier cannot be carried · an incapacitated one can, by a carrier in the fight · speed × factor · offset by mode · carrier downed ⇒ casualty dropped, alive · mode round-trips the wire |
-| **C-b** | `PickUp` / `Drop` actions and nodes; squad casualty care (L4) uses them | the carrier walks to the casualty and drags him to a point |
+| **C-b** (✅ the actions BUILT 2026-10-13 — §7.4.10) | `PickUp` / `Drop` actions and nodes; squad casualty care (L4) uses them (Squad Tactics §7.4, awaiting K1–K6) | the carrier walks to the casualty and drags him to a point |
+
+#### 7.4.9 C-a as built *(`2026-10-13`, behaviors, `CE-2152`)*
+
+As the §7.4.8 class and sequence diagrams, with these names and these differences.
+
+| piece | as built |
+|---|---|
+| the profile | `Gen.Carrier.Person` (`PersonCarryDto`: carry 0.5, drag 0.3, carried 0 m / dragged 1 m behind) + `DiesWithCarrier` (true by default). `CarrierDefDto.PersonCarrier()` = one open seat, `DiesWithCarrier = false`, the default Person block. `CarrierTkbTranslator` stamps `PersonCarrier` (component 371) and `CarrierSeats.PassengersSurvive` |
+| who carries | the five soldier types that have `Gen.Injury` (BDC rifleman, the four UrbanCombat soldiers) |
+| the mode | `CarryMode { Seated, Carried, Dragged }`; `PassengerBuffer.Modes` (2 bits a seat, `ModeOf` / `SetMode`), `IsEmbarkedTag.Mode` derived from it on every node, `EntityPassengers.Modes` on the wire, `EmbarkEntityCommand.Mode` and `EmbarkInteractionPayload.Mode` for the request |
+| the gate (C3) | `Embarkation.TryEmbark(…, mode)`: onto a person carrier only an incapacitated passenger, by a carrier in the fight, else `Invalid`; a seated request is carried. Onto a vehicle the mode is always seated |
+| the carrier's fire (C7) | `Board` strips the carrier's `CanShoot`; `Embarkation.ReleaseCarrier` gives it back when his list is empty, he is in the fight and not himself aboard (from `Disembark`, `EjectAll` and `EmbarkedStateSystem`'s leavers) |
+| the speed (C8) | `CarryLoad.Factor` multiplies a person's top speed in `CarKinematicsSystem.UpdateVehicle`, beside the stance |
+| the offset (C10) | `EmbarkedStateSystem.CarryAndKill`: the casualty stands at the carrier minus his flattened heading × the mode's distance |
+| the drop (C9) | a person carrier who is not in the fight has his list emptied (`EjectAll`) on the node that owns it; the casualty is never killed with him, and stays down |
+
+**Deviations:**
+- ① **Offsets are distances behind the carrier**, not vectors. One number per mode is all a carry or drag needs.
+- ② **`PassengersSurvive` is the stored flag** (0 = die, the zero default), so a hand-built `CarrierSeats` keeps the vehicle behaviour.
+- ③ **`ReleaseCarrier` grants `CanShoot`** without remembering whether the type had it. The profile is declared only on soldier types, which do.
+- ④ **The mode is not saved with a scenario**, like the seat: a casualty loaded from a save rides seated.
+- ⑤ **Nothing starts a carry yet.** The trigger is C-b's `PickUp` action; until then the command is raised by a test or an operator.
+
+Rails:
+- `PersonCarrierTests` (5): only a man down is carried, and only by a carrier in the fight · carrying takes his fire and setting down gives it back · the casualty is held behind by mode · a downed carrier drops him alive · the profile is stamped from the type.
+- `CarKinematicsSystemTests.CE2152_APersonCarrier_IsSlowedByWhatHeCarries` (3 cases).
+- `PassengerReplicationTests.CE2152_TheCarryMode_TravelsWithTheSeat`.
+- `InteractionTransportTests`: the mode crosses with the request.
+
+#### 7.4.10 C-b — the carrier's actions *(`2026-10-13`, behaviors, `CE-2152`; build-state: BUILT (the actions) — the actions are C6 (approved, R-2011); the squad's use of them is [`DESIGN_Squad_Tactics.md`](designs/group-maneuvers/DESIGN_Squad_Tactics.md) §7.4, decisions awaiting the user)*
+
+**INVENTORY** *(graph CLI `search_graph` `.*PickUp.*` (0) · `.*Casualt.*` (0, a doc section only) · `.*Embark.*` · `.*Disembark.*`, + grep for
+`ActionId…` and the move nodes, 2026-10-13)*: the embark family is the whole prior art — `EmbarkExecutor` / `DisembarkExecutor` (the
+PASSENGER's actions, ids 1 / 2), `EjectPassengersExecutor` (3), `EmbarkNodes.Embark` / `.Disembark` (walk, then one interaction action),
+the library `Embark` / `Disembark` behaviours, all registered in `CgfLogicPack`'s interaction table. The plain move is
+`CgfNodes.Action_WriteMoveToChannel` (the library `PersonMove`'s node). No carrier-side action exists; nothing raises a carry.
+
+```mermaid
+classDiagram
+  class EmbarkEntityCommand { existing +Passenger +Vehicle +Mode }
+  class DisembarkEntityCommand { existing +Passenger +Vehicle }
+  class EmbarkationSystem { existing: the ONE applier, on the carrier's owner }
+  class Embarkation { existing +LeavePoint(vehicle, passenger, seat, count) NEW: a person carrier lays him where he is }
+  class PickUpExecutor { NEW id 9, on the CARRIER: in reach ⇒ raise EmbarkEntityCommand(casualty, self, mode); Success = his tag names self }
+  class PutDownExecutor { NEW id 10, on the CARRIER: raise DisembarkEntityCommand(his load, self); Success = list empty }
+  class CarryNodes { NEW shared nodes PickUp(casualty, mode, speed) · PutDown() }
+  class CarryCasualtyBehavior { NEW library tree: Sequence(PickUp, Action_WriteMoveToChannel, PutDown) }
+  class CarryCasualtyParamsJsonDto { NEW +Casualty : EntityRef +X +Y +Mode +Speed }
+  class CgfNodes { existing Action_WriteMoveToChannel }
+  class LocomotionMoveTo { existing Issue · Status · Stop }
+  PickUpExecutor ..> EmbarkEntityCommand : raises, Vehicle = self
+  PutDownExecutor ..> DisembarkEntityCommand : raises, Vehicle = self
+  EmbarkationSystem ..> Embarkation
+  CarryNodes ..> LocomotionMoveTo : the walk to him
+  CarryNodes ..> PickUpExecutor : action 9
+  CarryNodes ..> PutDownExecutor : action 10
+  CarryCasualtyBehavior ..> CarryNodes
+  CarryCasualtyBehavior ..> CgfNodes : the drag leg
+  CarryCasualtyBehavior ..> CarryCasualtyParamsJsonDto : resolved from
+```
+
+*What the picture shows that prose hid: the two new executors are the carrier's MIRROR of the passenger's two — same commands, same one
+applier — so nothing new writes embarkation state; and the drag leg is the existing move node, not a new one.*
+
+```mermaid
+sequenceDiagram
+  participant B as carrier brain (CarryCasualty tree)
+  participant N as CarryNodes
+  participant L as LocomotionMoveTo
+  participant X as PickUpExecutor / PutDownExecutor
+  participant O as EmbarkationSystem (carrier's owner)
+  B->>N: PickUp(casualty, Dragged)
+  N->>L: Issue(walk to him) … Status Running
+  N->>L: Stop (in reach — the channel is handed back, else the drag leg would read the old Success as "arrived")
+  N->>X: action 9 on the interaction channel
+  X->>O: EmbarkEntityCommand(casualty, self, Dragged)
+  O-->>X: his IsEmbarkedTag names self ⇒ Success
+  B->>B: Action_WriteMoveToChannel(the point) — slowed by CarryLoad, he trails 1 m behind
+  B->>N: PutDown()
+  N->>X: action 10
+  X->>O: DisembarkEntityCommand(casualty, self)
+  O-->>X: list empty ⇒ Success — he lies where he was held, still down
+```
+
+```mermaid
+graph TD
+  CGF[CgfLogicPack - registers the interaction executors] --> D[InteractionDispatcherSystem - every frame, on the brain's node]
+  D --> PX[PickUpExecutor id 9]
+  D --> DX[PutDownExecutor id 10]
+  PX -.EmbarkEntityCommand.-> T[InteractionTransport - to the carrier's owner when it is another node]
+  DX -.DisembarkEntityCommand.-> T
+  T --> ES[EmbarkationSystem - Simulation phase, carrier's owner]
+  BT[BrainTickSystem - every frame] --> NODES[CarryNodes in the CarryCasualty tree]
+  NODES --> D
+```
+
+*The module picture's point: the new executors ride the SAME dispatcher table as `Embark` / `Disembark` (`CgfLogicPack`), so every host that
+can board can carry; ⚠ a host with its own interaction table (`HeadlessDemoApp`, the FDP examples) gets neither — as today for Embark.*
+
+| # | decision | ⭐ as built | why |
+|---|---|---|---|
+| **C-b1** | the drop point | a **person** carrier lays the casualty where he is held (his own position); a vehicle still stands passengers beside the hull | `DismountPoint` is a hull column on the carrier's RIGHT: for a soldier carrier it would jump the casualty sideways. ⛔ Corrects C9 (§7.4.8) "DROPPED where it lies", which C-a's code did not do (it used the hull column) |
+| **C-b2** | pick-up reach | `CarryNodes.PickUpRange` = 1.5 m from the casualty; the walk aims at him with a 1 m arrival radius | both are soldiers' colliders (0.3 m); the walk must stop short of his body |
+| **C-b3** | the mode | the request's; `Seated` is refused by the node (a person carrier forces `Carried` anyway) | the params DTO says `drag` or `carry`; drag is the default (under fire) |
+| **C-b4** | a casualty already carried by someone else | `PickUp` fails at once | one seat, one carrier; the rules would refuse anyway |
+
+**C-b as built** *(`2026-10-13`, behaviors — the action layer; the squad's use waits on Squad Tactics §7.4 K1–K6)*:
+
+| piece | file |
+|---|---|
+| `PickUpExecutor` (id 9) · `PutDownExecutor` (id 10) · `PickUpParams` | `Fdp.Toolkits/Behavior/Executors/CarryExecutors.cs`; ids in `BehaviorConstants` |
+| registered beside Embark / Disembark | `Hrot.CGF/CgfLogicPack.cs` interaction table |
+| `Embarkation.LeavePoint` (C-b1) · `Embarkation.LoadOf` | `Disembark` and `EjectAll` stand a leaver at `LeavePoint` |
+| `CarryNodes.PickUp` / `.PutDown` (shared nodes) | `Hrot.AI.Behaviors/Brains/CarryNodes.cs`; reuses `EmbarkNodes`' channel helpers (`Start` / `OwnsInteraction` / `Release`, now `internal`) |
+| the library `CarryCasualty` (`Library/Infantry`) + `CarryCasualtyParamsJsonDto` (`casualty`, `x`, `y`, `carry`, `speed`) | `EmbarkBehaviors.cs` · `MapDefinitions/Behavior/` |
+
+**Deviation:** the drag leg needs an explicit speed (the authored one, else 3 m/s) — a MoveTo with speed 0 never moves
+(`CarKinematicsSystem` drives and arrives only with `TargetSpeed > 0`). The carry factor still applies, on the carrier's top speed.
+
+Rails (in the feature's own suite, `EmbarkNodesTests`): `CE2152_PickUp_WalksToTheCasualty_ThenTakesHimThroughTheOwner` ·
+`CE2152_TheCarrierDragsTheCasualtyToAPoint_AndPutsHimDownThere` (the C-b rail, node by node as the tree runs them) ·
+`CE2152_PickUp_FailsForAManCarriedByAnother_AndForAManWhoIsNotDown`.

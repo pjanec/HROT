@@ -388,6 +388,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             world.RegisterComponent<InteractionChannel>();
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();   // ⭐ CE-2151 — a carrier type's seats (Gen.Carrier)
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();   // ⭐ CE-2152 — a person type that carries / drags a casualty
             world.RegisterComponent<IsEmbarkedTag>();
             world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();      // ⭐ CE-3110 I-2a
             world.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();

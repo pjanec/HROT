@@ -22,6 +22,28 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>Number of passengers currently aboard (0–<see cref="Capacity"/>).</summary>
         public int Count;
+
+        /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — how each seat's occupant rides (<see cref="CarryMode"/>), 2 bits per seat (seat i at bits
+        /// 2i..2i+1). It lives in the LIST, like the seat, so every node derives the passenger's <see cref="IsEmbarkedTag.Mode"/> from it and
+        /// it crosses the wire with the list. ⚠ Not saved with a scenario (genesis boards seated), as the seat is not.</summary>
+        [ScenarioIgnore]
+        public ushort Modes;
+
+        /// <summary>The mode of seat <paramref name="seat"/>.</summary>
+        public readonly CarryMode ModeOf(int seat) => (CarryMode)((Modes >> (2 * seat)) & 0b11);
+
+        /// <summary>Sets the mode of seat <paramref name="seat"/>.</summary>
+        public void SetMode(int seat, CarryMode mode)
+            => Modes = (ushort)((Modes & ~(0b11 << (2 * seat))) | (((int)mode & 0b11) << (2 * seat)));
+    }
+
+    /// <summary>⭐ <c>CE-2152</c> (R-274 C / R-2011 C2) — how a passenger rides: in a seat, or as a casualty a person CARRIES or DRAGS. One
+    /// mechanism (embark); the mode picks the casualty's offset and the carrier's speed.</summary>
+    public enum CarryMode : byte
+    {
+        Seated = 0,
+        Carried = 1,
+        Dragged = 2,
     }
 
     /// <summary>
@@ -52,6 +74,9 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>⭐ <c>CE-2151</c> B-b (R-2009 B4) — the seat (the <see cref="PassengerBuffer"/> slot) it occupies. Set at boarding.</summary>
         public byte Seat;
+
+        /// <summary>⭐ <c>CE-2152</c> C-a — how it rides (<see cref="CarryMode"/>), derived from its seat's <see cref="PassengerBuffer.Modes"/>.</summary>
+        public CarryMode Mode;
     }
 
     /// <summary>
@@ -106,6 +131,10 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>Seats that ride exposed (bit i = seat i): the type's <c>Exposure</c>, overridden per seat.</summary>
         public byte ExposedMask;
 
+        /// <summary>⭐ <c>CE-2152</c> (R-2011 C9) — 1 when the passengers SURVIVE the carrier's destruction (a person carrying a casualty:
+        /// <c>Gen.Carrier.DiesWithCarrier = false</c>); 0, the default, kills them with it (a vehicle).</summary>
+        public byte PassengersSurvive;
+
         /// <summary>How many seats take a plain boarding — the <see cref="SeatRole.Passenger"/> seats.</summary>
         public readonly int PassengerSeats
         {
@@ -117,6 +146,25 @@ namespace Fdp.Toolkit.Behavior.Components
                 return n;
             }
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2152</c> C-a (R-274 C / R-2011 C1, docs/DESIGN_Entity_Interactions.md §7.4.8) — a PERSON who can carry or drag a casualty:
+    /// stamped by <c>CarrierTkbTranslator</c> from <c>Gen.Carrier.Person</c>. A person carrier takes only an INCAPACITATED passenger
+    /// (R-2009 C3), cannot fire while carrying (C7), slows by the mode's factor (C8) and holds the casualty at the mode's offset (C10).
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.PersonCarrier)]
+    public struct PersonCarrier
+    {
+        /// <summary>Top-speed factor while carrying (on the shoulder).</summary>
+        public float CarrySpeedFactor;
+        /// <summary>Top-speed factor while dragging.</summary>
+        public float DragSpeedFactor;
+        /// <summary>How far behind the carrier a carried casualty is held (m, along the carrier's heading).</summary>
+        public float CarryBehindMetres;
+        /// <summary>How far behind the carrier a dragged casualty is held (m).</summary>
+        public float DragBehindMetres;
     }
 
     /// <summary>⭐ <c>CE-3110</c> I-2c — a carrier type's passenger exposure in the TKB (<c>CarrierDefDto.Exposure</c> since CE-2151; was

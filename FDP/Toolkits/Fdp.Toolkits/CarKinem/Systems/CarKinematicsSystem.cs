@@ -146,9 +146,11 @@ namespace CarKinem.Systems
             var nav = repo.GetComponent<NavState>(entity);
             // ⭐ AQ88 B (R-265) — a person's top speed depends on his LOGICAL stance (Nav §11 ratios): crouched runs at half, prone
             //   crawls at a fifth. A local copy — the component is not written back.
+            //   ⭐ CE-2152 (R-2011 C8) — and a casualty on his shoulder or in tow slows him by the carry / drag factor (CarryLoad).
             if (@params.Class == VehicleClass.Pedestrian)
                 @params.MaxSpeedFwd *= Hrot.MuscleCharacter.Animation.Components.StanceSpeed.Factor(
-                    Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(repo, entity));
+                    Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(repo, entity))
+                    * Fdp.Toolkit.Behavior.CarryLoad.Factor(repo, entity);
             
             // Input conversion (bridge from SimTransform to 2D locals)
             Vector2 pos2D = new Vector2(tf.Position.X, tf.Position.Y);

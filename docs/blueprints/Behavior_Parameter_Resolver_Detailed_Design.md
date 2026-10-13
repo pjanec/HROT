@@ -17,7 +17,8 @@ known-rot: (2026-10-13, P7) the role enum `{ Input, State }` (§3.2 and its voca
   claim that the authored DTO is "an attached mirror of the `Input` variables" (§3.2, §4.1) are overtaken: one
   params DTO per behaviour, named by `[Behavior(Params = …)]` / `ParamsDtoTypeId`, flat JSON, no Input/State
   roles — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13. The Role vocabulary retires with P4
-  (§13.10).
+  (§13.10). ⭐ RETIRED 2026-10-13 (P4 step ⑦, CE-3193): `Role` and `Scope` are deleted from a variable; working state
+  is derived from the bindings (`WorkingStateVariables`) — read every `Role=` in this file as history.
 related-designs:
   - docs/DESIGN_Orders_Params_Entity_Classes.md — builds §3.1's foreseen shared named param-type (order DTOs)
   - Architect_Question_90_Unit_Orders_Carry_Capacity.md — §2.3f: orders are the first concrete use of §3.1's foreseen "shared named param-type" (a behaviour points at a shared order DTO as its authored contract)

@@ -106,6 +106,7 @@ public static class HrotSharedComponentRegistry
         //   unregistered PassengerBuffer. (EmbarkationComponentRegistry still registers them too; registration is idempotent.)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();   // ⭐ CE-2151 — a carrier type's seats (Gen.Carrier)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();   // ⭐ CE-2152 — a person type that carries / drags a casualty
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();   // I-2c (R-271) — the open-cabin vehicle type
         // ⭐⭐ The transient-spawn tag (R-140 D2): NetworkSpawningSystem.ProcessSpawn stamps it on EVERY node that materialises a

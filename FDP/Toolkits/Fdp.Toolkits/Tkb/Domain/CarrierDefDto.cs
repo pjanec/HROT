@@ -23,6 +23,23 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// helicopter, a pickup bed: seen, targeted and hit). Moved here from <c>VehicleParametersDto</c> (CE-2151, R-2009 B2).</summary>
         public PassengerExposure Exposure { get; init; }
 
+        /// <summary>⭐ <c>CE-2152</c> (R-2011 C9) — whether the passengers die when the carrier is destroyed: true for a vehicle (the default),
+        /// false for a person carrying a casualty, whose fall DROPS the casualty alive.</summary>
+        public bool DiesWithCarrier { get; init; } = true;
+
+        /// <summary>⭐ <c>CE-2152</c> (R-274 C / R-2011 C1) — set on a PERSON who can carry or drag a casualty: the speed factors and offsets.
+        /// Null on a vehicle.</summary>
+        public PersonCarryDto? Person { get; init; }
+
+        /// <summary>⭐ <c>CE-2152</c> — a soldier who can carry or drag one casualty: one open seat, the casualty survives his fall.</summary>
+        public static CarrierDefDto PersonCarrier() => new()
+        {
+            Seats = { new SeatDto() },
+            Exposure = PassengerExposure.Open,
+            DiesWithCarrier = false,
+            Person = new PersonCarryDto(),
+        };
+
         /// <summary>A type with <paramref name="passengers"/> plain passenger seats, enclosed.</summary>
         public static CarrierDefDto PassengerSeats(int passengers, PassengerExposure exposure = PassengerExposure.Enclosed)
         {
@@ -30,6 +47,19 @@ namespace Fdp.Toolkit.Tkb.Domain
             for (int i = 0; i < passengers; i++) dto.Seats.Add(new SeatDto());
             return dto;
         }
+    }
+
+    /// <summary>⭐ <c>CE-2152</c> (R-2011 C8 / C10) — how a person carries or drags a casualty.</summary>
+    public record PersonCarryDto
+    {
+        /// <summary>Top-speed factor while carrying on the shoulder.</summary>
+        public float CarrySpeedFactor { get; init; } = 0.5f;
+        /// <summary>Top-speed factor while dragging.</summary>
+        public float DragSpeedFactor { get; init; } = 0.3f;
+        /// <summary>How far behind the carrier a carried casualty is held (m): on the shoulder.</summary>
+        public float CarryBehindMetres { get; init; } = 0f;
+        /// <summary>How far behind the carrier a dragged casualty is held (m).</summary>
+        public float DragBehindMetres { get; init; } = 1f;
     }
 
     /// <summary>One seat of a <see cref="CarrierDefDto"/>.</summary>

@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-12
+updated: 2026-10-13 (§7.8 the three demos and their HTTP checks; §7.5–§7.7 approved, not built)
 build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch BUILT 2026-10-12 (as-built §6.1a) · embark §5 and formations §6 are MEASUREMENTS
-current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built
+current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built, §7.4 L4 casualty care (K1–K6 ruled, R-2012) · §7.5 casualty care coordination + the rescue decision (DESIGN, approved R-2013, not built) · §7.6 fire and movement (DESIGN, approved, not built) · §7.7 danger-area crossing (DESIGN, approved R-2014, not built) · §7.8 the three demos and their HTTP success checks (DESIGN, not built)
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the ua-* demo programme and scripts/utility-demo-check.py; its §10.3 ua-danger-crossing is the single-soldier demo whose route §7.8.4's squad demo reuses
   - ../../DESIGN_Injury_States.md — OWNS the injury states (CE-2155) that L4 casualty care waits for
   - docs/DESIGN_Orders_Params_Entity_Classes.md — D2 (CE-2141, §7): the order behaviours InfantrySquadMove / Hold / Attack are front doors to this file's plays; every drill's orders to its members are RELEASED when the commander's run ends (not at a pause); a unit member gets Order.* (A4)
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-273 (behaviors) — an order to a squad is resolved by the squad (A2), drills order member UNITS by kind (A4), an ended drill clears its members (A5)
@@ -15,7 +16,7 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — OWNS where the squad layer runs on CGF and the first runner (§6 BoundingOverwatch, CE-3162) this file generalises
   - docs/DESIGN_Decision_Layer.md — OWNS the task / SOP slots, the reaction gate and ROE that S2 plugs into (§4)
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS SensorChange and the SOP wake (§7.3) S2 extends with squad-level edges
-  - docs/DESIGN_Entity_Interactions.md — OWNS embarkation (§7, R-224, CE-3110); §5 here is its measured state
+  - docs/DESIGN_Entity_Interactions.md — OWNS embarkation (§7, R-224, CE-3110); §5 here is its measured state; §7.4.10 OWNS the carrier's PickUp / PutDown and the library CarryCasualty that §7.4 L4 casualty care orders
   - docs/designs/navig-2/Navigation_Design_v2_0.md — names a "formations" design that was never written (:1040, :1666); §6 here is the measured state
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS who owns a composite unit's position (R-175, §4 D-8) and CE-514 (derive it from the members), which §7 builds
   - docs/designs/commander-subordinates/DESIGN.md — OWNS UnitRoster / UnitSubordinate and the FormationController/Follower refactor (Phase 2) §6 measures
@@ -615,6 +616,471 @@ and ids 356–364 are the backend lane's — ours come from the squad block (274
 | `SquadManeuverTests.CE2125_TheSilentCommander_…` · `…_TheLeaderFallsDuringTheDrill_…` · `…_BasicSquadSop_TheLeaderDown_…` | L2, L3, the SOP row | ✅ silence check removed ⇒ the silence rail red |
 | `CgfLogicPackTests` (count 20 + contains `UnitCentroidSystem`) | the pack really runs it | — |
 | live `SquadTacticsScenarioTests` ×2 + `FireDistributionScenarioTests` | the migrated scenarios; on SimHost the commander stands at its men's centre and the enemy never remembers it | ✅ live green `2026-10-11`: fire distribution 9 s (five members, the leader among them), S2 45 s, S1 41 s |
+
+### 7.4 L4 — casualty care *(behaviors, `2026-10-13`, `CE-2152` C-b; build-state: DESIGN — K1–K6 ruled 2026-10-13 (R-2012: medic, cover point, covering fire); the coordination is open (§7.5); the carry actions it uses are [`DESIGN_Entity_Interactions.md`](../../DESIGN_Entity_Interactions.md) §7.4.10)*
+
+📖 **Doctrine (§7.2's, general knowledge):** fire superiority first; the casualty is treated when the situation allows; one man goes to
+him and moves him; the leader keeps control. **Now possible:** a man can be *down* (CE-2155) and a soldier can drag him (CE-2152 C-a, C-b).
+
+```mermaid
+sequenceDiagram
+  participant SS as SquadSensing (commander's node)
+  participant SOP as commander SOP (BasicSquadSop)
+  participant C as SquadCasualtyCare (on the commander)
+  participant R as SquadManeuverRunner
+  participant M as the chosen member (CarryCasualty)
+  SS->>SOP: SquadMemberDown (a member just became incapacitated)
+  SOP->>SOP: wait until quiet (no SquadUnderFire for QuietSeconds)
+  SOP->>C: run SquadCasualtyCare
+  C->>R: one member: CarryCasualty(casualty, to = beside the leader, Dragged) · the rest: Hold
+  R->>M: the library CarryCasualty
+  M-->>C: Success (he is down beside the leader) ⇒ care ends, the previous orders are re-sent
+```
+
+*What the picture shows: the squad decides (who, when, where); the member only runs the carry. Nothing new reaches the member but one
+more order kind.*
+
+| # | question | ⭐ lean | blast radius | what would change it |
+|---|---|---|---|---|
+| **K1** | how the squad learns a man is down | ⭐ a squad edge `SquadMemberDown` on the commander, the `SquadLeaderDown` way (`SquadSensing`, a per-commander "already down" mask so it fires once per man) | one `SensorChange` value, one HSM reserved event, one mask component | — |
+| **K2** | when care starts | ⭐ only when QUIET: no `SquadUnderFire` for `QuietSeconds` (default 10 s); under fire the casualty waits and bleeds (120 s) | the SOP row's guard | a doctrine that drags under covering fire — a later "covered" variant |
+| **K3** | who goes | ⭐ the nearest member still in the fight who is not the squad leader and carries nobody | one pick in `SquadCasualtyCare` | a designated medic / buddy pair (MED-2) |
+| **K4** | to where | ⭐ beside the squad leader (his position, 2 m to his rear), dragged | none beyond the order | a casualty collection point from EQS (MED-3, "covered, reachable by vehicle") |
+| **K5** | what the others do | ⭐ hold where they are (the existing `Hold` order), then every order is re-sent when care ends (the S1-G resume path, like L2) | the runner's existing resume | — |
+| **K6** | a DOWN leader (found while measuring) | ⭐ counts as lost: `Succession` hands over when the leader is out of the fight, not only dead — today an incapacitated leader keeps the squad | `SquadSensing.Succession` + its `Designated` / `FirstLive` picks (`CombatLife.IsAlive` → `Injury.IsInTheFight`) | — |
+
+⭐ **Ruled `2026-10-13` (R-2012)** — 🔒 user: *"I want a medic waiting in cover to come for the wounded and carry him to cover point, and
+others giving covering fire. Otherwise approved."* ⇒ K1, K2, K5, K6 approved as leaned; **K3 → a MEDIC** (a designated member, waiting
+in cover); **K4 → a COVER POINT** (not "beside the leader"); **K5 → the others give COVERING FIRE** (not merely hold). How the medic is
+told, and how covering fire starts and ends, is designed in §7.5 (approved R-2013).
+
+Rejected (one line each): **each soldier decides alone to help the nearest man down** — two men would go for one casualty, and nobody
+weighs the fire; **care at once, under fire** — doctrine says fire first, and a dragger cannot shoot (C7); **a vehicle evacuation** — MED-3,
+needs a collection point and a carrier that seats a casualty.
+
+### 7.5 Casualty care — the coordination and the rescue decision *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved 2026-10-13 (R-2013), NOT built; `CE-2152` C-c)*
+
+⭐ **Status for whoever returns:** everything below was MEASURED on `2026-10-13` (file:line in §7.5.1), discussed and approved. Nothing in
+§7.5 / §7.6 is built. Start the build at §7.5.6 slice R-a; the design needs no re-measurement unless a cited file changed since `abc5c4863`.
+
+#### 7.5.1 What exists — measured `2026-10-13` (graph CLI + MCP `search_graph`, + reads)
+
+| fact | code | so |
+|---|---|---|
+| squad edges are published ONLY on the commander (`Unit = commander`) and recorded only on `evt.Unit` | `Fdp.Toolkits/Squad/Systems/SquadSensing.cs:141` · `Behavior/Systems/RecentSensesSystem.cs:23-27` | a member never hears "man down"; the commander must order him |
+| a soldier's SOP reacts to his OWN edges only (`Hit`, `FirstThreat`) | `Assets/BTrees/Library/Sop/BasicInfantrySop.btree.json:258,268` | no member-side trigger exists, and none is wanted (§7.4 rejected) |
+| member orders: `MemberOrderKind { Hold, AdvanceTo, Disembark }`; `Hold` = the library CombatPosture at the member's own position | `Hrot.AI.Behaviors/Brains/SquadManeuverRunner.cs:34-44, :392-402` | ⛔ **no "suppress" order**: a holder fires only if HIS utility picks Suppress and he sees / remembers a target |
+| a covering element with no enemy in sight does not fight | measured, this file §2 (line ~56) | "cover" today does not mean "fire" |
+| the member picks his own target; the squad only BIASES it (`ThreatMatrixAssignmentSystem` → `IsAssignedTarget`, weight 0.9) | `Utility/Group/ThreatMatrixAssignmentSystem.cs` · `ThreatRankingDecision.cs:24` | the suppress order can name the squad's assigned contact |
+| `PostureNodes.Suppress`: aimed fire when the target is seen, blind fire at its remembered place otherwise | `Brains/PostureNodes.cs:220` | the suppress order's body exists — only the forcing is missing |
+| the runner's live test is `CombatLife.IsAlive` ⇒ a DOWN member still gets orders | `SquadManeuverRunner.cs:224` | ⛔ gap, fixed with K6 (§7.5.6 R-a) |
+| no `Medic` value; designations are read in behaviour code only by succession | `Fdp.Core/CommandHierarchy/TacticalDesignation.cs:8-17` (Undefined, Commander, SquadLeader, Wingman, Support, TeamLeader); `SquadSensing.cs:93-128` | add `Medic = 6`; assigned like `SquadLeader` (scenario `"Designation"`, TKB child slot) |
+| the commander can ask a terrain/EQS question | `SquadManeuverRunner.AskTerrain` (`:484`) | the cover point for the casualty |
+| `FindCoverFromTarget`: cover points around query slot 0's entity, LoS-filtered against slot 1, scored by distance + `ThreatExposureTest` + path cost | `Spatial/Eqs/FindCoverFromTarget.cs:29-43` · `CoverPointsGenerator.cs:29-34` · `EqsContext.cs:20-23` | slot 0 = the CASUALTY, slot 1 = the top threat ⇒ "nearest cover to him, hidden from it" |
+| the squad's contact decision: Assault (strength × ammo × inverse enemy strength) · BreakContact (enemy strength) · Hold (constant 0.25); decided ONCE per reaction | `Utility/StarterPack/SquadContactResponseDecision.cs:17, :34-41` | Rescue becomes its 4th option; the re-decide is new |
+| squad inputs today: `SquadKnowsContact`, `SquadContactThreatLevel`, `SquadStrengthRatio`, `SquadEnemyStrengthRatio`, `SquadAmmoRollup`, `SquadPoolThreatAggregate`, `AssignedRole`, `AssignedSlot`, … | `Utility/Inputs/SquadInputs.cs:73-331` | three new inputs (§7.5.4) |
+| `RecentSenses` holds the LAST time of each edge (`SquadUnderFire`, `SquadContact`, …), not a rate | `Behavior/Components/RecentSenses.cs:21-29` | "quiet seconds" = now − `SquadUnderFire` |
+| bleed-out: `InjuryThresholds.BleedPerSecond` (fraction of Max per second) | `Combat/Components/InjuryThresholds.cs:22` | seconds left = (Current / Max) / BleedPerSecond |
+| phase events `ShotFired`, `DefiladeReached` exist in the sequencer and are FED BY NOTHING | `Squad/Primitives/PhaseSequencer.cs:8-16` | the gates of §7.5.3 / §7.6 feed them |
+| the carry is built: library `CarryCasualty` (pick up → move → put down), only a man down, the carrier cannot fire | `Brains/EmbarkBehaviors.cs` (`CarryCasualtyBehavior`) · `Brains/CarryNodes.cs` · `DESIGN_Entity_Interactions.md` §7.4.10 | the medic's order IS this behaviour |
+| doctrine (casualty care under fire, fire and movement, "Moving!/Covering!") | — | ⛔ NOT in the corpus (searched `docs/` + `.dev/`); general military knowledge, used as such |
+
+#### 7.5.2 Classes
+
+```mermaid
+classDiagram
+  class SquadSensing { existing +MemberDown(repo, commander) NEW: SquadMemberDown once per man (mask) }
+  class SquadCasualtyMask { NEW component on the commander: roster bits already reported down }
+  class SensorChange { existing +SquadMemberDown NEW value }
+  class TacticalDesignation { existing +Medic = 6 NEW }
+  class SquadContactResponseDecision { existing Assault BreakContact Hold +Rescue NEW option }
+  class SquadInputs { existing +CasualtyUrgency NEW +CasualtyExposure NEW +SquadQuietSeconds NEW }
+  class ReactToContactBehavior { existing: re-decides every RedecideSeconds while a casualty is down NEW }
+  class SquadCasualtyCarePlay { NEW ISquadPlay: Suppress, Go, Carry, Done }
+  class MemberOrderKind { existing Hold AdvanceTo Disembark +Suppress NEW +CarryCasualty NEW }
+  class SuppressBehavior { NEW library: PostureNodes.Suppress on a named contact, forced }
+  class CarryCasualtyBehavior { existing library (CE-2152 C-b) }
+  class SquadManeuverRunner { existing: Live uses Injury.IsInTheFight NEW · issues the two new kinds }
+  class FindCoverFromTarget { existing EQS template: slot 0 casualty, slot 1 threat }
+  SquadSensing ..> SquadCasualtyMask
+  SquadSensing ..> SensorChange : publishes on the commander
+  ReactToContactBehavior ..> SquadContactResponseDecision
+  SquadContactResponseDecision ..> SquadInputs
+  ReactToContactBehavior ..> SquadCasualtyCarePlay : Rescue wins
+  SquadCasualtyCarePlay ..> SquadManeuverRunner : runs inside
+  SquadCasualtyCarePlay ..> FindCoverFromTarget : AskTerrain
+  SquadCasualtyCarePlay ..> TacticalDesignation : picks the Medic
+  SquadManeuverRunner ..> MemberOrderKind
+  MemberOrderKind ..> SuppressBehavior : Suppress
+  MemberOrderKind ..> CarryCasualtyBehavior : CarryCasualty
+```
+
+*What the picture shows: one new play and two new order kinds on the EXISTING runner; the decision is the existing squad decision with one
+more option. Nothing reaches a member except an order.*
+
+#### 7.5.3 Sequence — a man goes down, the squad decides, the medic goes
+
+```mermaid
+sequenceDiagram
+  participant SS as SquadSensing (commander's node)
+  participant R as ReactToContact on the commander
+  participant D as SquadContactResponseDecision
+  participant P as SquadCasualtyCarePlay
+  participant C as coverers (Suppress)
+  participant M as medic (CarryCasualty)
+  SS->>R: SquadMemberDown
+  loop every RedecideSeconds (5 s) while a man is down and not yet cared for
+    R->>D: score Rescue / Assault / BreakContact / Hold
+    D-->>R: under heavy fire Hold or Assault wins, the casualty waits
+  end
+  D-->>R: Rescue wins
+  R->>P: run the play
+  P->>P: AskTerrain FindCoverFromTarget (slot 0 casualty, slot 1 top threat) gives the cover point
+  P->>C: phase Suppress - every member but the medic: Suppress(the assigned contact)
+  P->>M: Hold in cover
+  C-->>P: every coverer fired within 2 s (ShotFired), or 3 s passed
+  P->>M: phase Go - CarryCasualty(casualty, the cover point, dragged)
+  Note over P,M: fire picks up while he is still on the way - he returns to cover, the squad re-decides
+  M-->>P: Success - the casualty lies at the cover point
+  P->>C: phase Done - every member's previous order re-sent (S1-G resume)
+```
+
+*What the picture shows: the "Covering!" → "Moving!" handshake is a phase GATE the commander reads (every coverer has fired), not a
+message between members; "finished" is the commander re-issuing the previous orders.*
+
+```mermaid
+graph TD
+  CGF[CgfLogicPack] --> SCS[SquadCoordinationSystem - every frame, commander's node]
+  SCS --> SS[SquadSensing.MemberDown NEW]
+  BT[BrainTickSystem - every frame] --> SOP[BasicSquadSop on the commander]
+  SOP --> RTC[ReactToContact - re-decides while a casualty is down]
+  RTC --> PLAY[SquadCasualtyCarePlay via SquadManeuverRunner]
+  PLAY --> ORD[AssignTacticalIntentEvent to each member]
+  ORD --> MEM[member brains: SuppressBehavior / CarryCasualty]
+```
+
+*Module point: everything runs where the squad already runs (CGF, the commander's node); a host without `CgfLogicPack` has no squad
+and no care — as today for every play.*
+
+#### 7.5.4 The rescue decision (approved, R-2013)
+
+🔒 **User, `2026-10-13`:** *"Leans approved."* (medic carries to cover under covering fire, (a)–(c)) · *"Approved, write it into the design, do not start imolementing"* (the scored Rescue option, the re-decide, mid-rescue return).
+
+`Rescue` = **WeightedProduct** of four considerations ⇒ any one near zero kills it, and Hold / Assault win as today:
+
+| input (NEW) | what it reads | curve, lean | its job |
+|---|---|---|---|
+| `CasualtyUrgency` | the worst casualty's seconds left to bleed out, from `Health` and `InjuryThresholds.BleedPerSecond`, normalised by `BleedOutSeconds` (120) | rising as time runs out (inverse linear) | a man about to die under LIGHT fire is worth some risk |
+| `CasualtyExposure` | how many pooled contacts (`SquadCognitiveState.Contacts`) have line of sight to the casualty and to the cover point (the `ThreatExposureTest` test, one sample each) | inverse: 0 seen ⇒ 1, all seen ⇒ 0 | heavy, aimed fire on the casualty's spot ⇒ no rescue |
+| `SquadQuietSeconds` | now − `RecentSenses.SquadUnderFire` on the commander | rising, ~1 at ≥ 10 s (K2's quiet becomes this factor) | under fire now ⇒ no rescue |
+| fire superiority | `SquadStrengthRatio` × inverse `SquadEnemyStrengthRatio` (existing) | as Assault's | we are winning the firefight |
+
+- ⭐ **Re-decide**: `ChooseOptionOnce` decides once per reaction (`SquadContactResponseDecision.cs:17`) ⇒ while a casualty is down and
+  uncared for, the reaction re-scores every `RedecideSeconds` (5 s) and on each `SquadMemberDown`.
+- ⭐ **Mid-rescue**: a `SquadUnderFire` edge while the medic is still WALKING to him ⇒ the medic is ordered back to cover and the squad
+  re-decides; once he is CARRYING ⇒ he keeps going (stopping in the open is worse).
+- ⭐ **Fog**: exposure counts the squad's POOLED contacts, never the truth — an unseen sniper can still hit the medic.
+
+#### 7.5.5 Decisions (all ✅ approved 2026-10-13)
+
+| # | decision | why | rejected (one line) |
+|---|---|---|---|
+| K1 | `SquadMemberDown` on the commander, once per man | the `SquadLeaderDown` precedent; members never hear squad edges | — |
+| K2′ | care starts when the scored `Rescue` option wins (§7.5.4); K2's "quiet ≥ 10 s" is one of its factors | a gate cannot weigh a dying man against light fire, nor exposure | the binary gate alone |
+| K3′ | a designated **Medic** (`TacticalDesignation.Medic`); none in the squad ⇒ the nearest member in the fight who is not the leader | user R-2012; doctrine | the medic's own SOP hearing the edge (members never hear it; two would go) |
+| K4′ | to the nearest **cover point** around the casualty hidden from the top threat (`FindCoverFromTarget`, slot 0 casualty) | user R-2012 | beside the leader (the K4 lean, replaced) |
+| K5′ | the others **suppress** the squad's assigned contact (new `Suppress` order), then get their previous orders back | user R-2012; `Hold` does not make anyone fire (§7.5.1) | a timer-only switch; member-to-member messages |
+| K6 | a DOWN leader hands over like a dead one; the runner's live test becomes "in the fight" | `SquadSensing.Succession` / `SquadManeuverRunner.cs:224` test `IsAlive` | — |
+| (a) | a medic later also STOPS the bleeding (the drain stops once treated) — its own small slice | doctrine; `DESIGN_Injury_States.md` I3 already reserves "stabilised" | — |
+| (c) | the suppress order names the squad's top / assigned contact; none ⇒ nothing to suppress (and Rescue is quiet anyway) | the existing assignment | waiting until the casualty's shooter is known |
+
+#### 7.5.6 Slices *(not started)*
+
+| slice | what | rails |
+|---|---|---|
+| **R-a** | K6: `Succession` and the runner's `Live` on `Injury.IsInTheFight`; `TacticalDesignation.Medic`; `SquadMemberDown` + mask | a down leader hands over · a down member gets no order · one edge per man |
+| **R-b** | `MemberOrderKind.Suppress` + library `SuppressBehavior` (forced `PostureNodes.Suppress` on a named contact) | a suppressor fires at a remembered contact it cannot see |
+| **R-c** | `SquadCasualtyCarePlay` (Suppress → Go → Carry → Done) + `MemberOrderKind.CarryCasualty` | the medic waits until the coverers fired · he brings the man to the cover point · the orders return |
+| **R-d** | the three inputs + `Rescue` option + the re-decide | heavy fire ⇒ Hold, the man waits · quiet + exposed-free ⇒ Rescue · a man about to bleed out under light fire ⇒ Rescue |
+| **R-e** | a live scenario (`ua-casualty-care` + `-heavy` + `-leader`): a squad in contact, a man down, the medic drags him to cover under covering fire | §7.8.2, over HTTP |
+
+### 7.6 Fire and movement — the same pattern *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved (R-2013, leans (b)); NOT built)*
+
+📖 **Doctrine (general knowledge, ⛔ not in the corpus):** two drills, not one. **Bounding overwatch** is used BEFORE contact: one element
+watches, ready to fire, while the other bounds 20–50 m to the next cover; then they swap. **Fire and movement** is used IN contact: the
+base of fire SUPPRESSES while the other element rushes 3–5 s (≈10–15 m: "I'm up, he sees me, I'm down") to cover, then fires so the first
+can move; a mover goes only after "Covering!", and calls "Set!" when down in cover.
+
+**Measured `2026-10-13`:** `BoundingOverwatchPlay` (`Brains/BoundingOverwatchBehavior.cs:88-150`) — half the squad `AdvanceTo` the
+moving element's centre + `min(BoundMetres 30, distance)` toward the objective (`:126-147`), the other half `Hold`; the swap is the movers
+within 3 m (`SquadManeuverRunner.ElementArrived`, XY) or `BoundTimeoutSeconds` 60 (`:119-124`); no cover query for the bound point. ⇒ the
+coverers do not necessarily FIRE, the bound is geometric, the swap is distance-only. The other four tables (`DangerAreaCrossing`,
+`HillCrestHullDown`, `StackAndRoomEntry`, `TravellingOverwatch`) have no play (graph: 10 `*Maneuver` classes, 6 `*Play` structs).
+
+**The pattern (approved): the commander coordinates; a phase changes on a GATE it can read; it speaks only through orders.**
+
+| gate | read as | feeds |
+|---|---|---|
+| **covering** | every coverer fired within the last 2 s (its `WeaponState.Ammo` dropped / its weapon channel ran a fire) | `PhaseEventKind.ShotFired` |
+| **set** | every mover stopped (arrived) AND at a cover point (hidden from the top threat) or prone | `PhaseEventKind.DefiladeReached` |
+| fallback | a timeout per phase | as today |
+
+- ⭐ Order kinds: `Hold` (watch) · `Suppress` (§7.5) · **`RushTo(cover point)`** NEW — an `AdvanceTo` to an EQS cover point at most
+  `RushMetres` (15 m) ahead, done when *set*.
+- ⭐ **`FireAndMovementPlay`** NEW: two halves (lean (b): halves first, pairs later); phase A: half 1 suppresses, half 2 rushes; *set* and
+  *covering* ⇒ swap. **`BoundingOverwatchPlay`** keeps `Hold` for its coverers until contact, then gives them `Suppress`; its bound point
+  becomes a cover point.
+- Casualty care (§7.5) is the same pattern with one mover (the medic) and one gate pair.
+
+Rejected (one line each): **each pair coordinating peer-to-peer** — a new member-to-member channel, when the commander already reads
+every member each frame on the same node · **time-only rushes** — they cannot tell whether the mover reached cover · **one drill for both** —
+watching and suppressing are different jobs, and before contact there is nothing to suppress.
+
+| slice | what |
+|---|---|
+| **F-a** | the *covering* and *set* gates feeding `ShotFired` / `DefiladeReached` |
+| **F-b** | `RushTo` + `FireAndMovementPlay` (halves) |
+| **F-c** | `BoundingOverwatchPlay`: suppress on contact, cover-point bounds |
+| **F-d** | pairs (buddy teams) |
+| **F-e** | the live scenarios `ua-bounding-overwatch` (after F-c) and `ua-fire-and-movement` (after F-b) — §7.8.3, over HTTP |
+
+### 7.7 Danger-area crossing — the squad drill *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved 2026-10-13 (R-2014), NOT built)*
+
+⭐ **Status for whoever returns:** measured `2026-10-13` (§7.7.1), approved; nothing built. It reuses §7.6's pattern (the commander reads
+gates and speaks only through orders) and §7.5's `Suppress` order; build after F-a (the gates). No re-measurement needed unless a cited file
+changed since this commit.
+
+📖 **Doctrine (general knowledge, ⛔ not in the corpus):** halt short of the area; near-side security watches left and right along it; a small
+team crosses first, clears the far side and takes overwatch there; the rest cross fast, in pairs, spaced, at the narrowest point; near-side
+security crosses last, covered from the far side; reform beyond. Everyone covering WATCHES (ready to fire), nobody fires before contact.
+Contact mid-crossing ⇒ a fight with the squad split across the area.
+
+#### 7.7.1 What exists — measured `2026-10-13`
+
+| fact | code | so |
+|---|---|---|
+| the phase table: `SetSecurity` (0) →`DefiladeReached`→ `CrossElement` (1) →`FarSideReached`→ `FarSideCover` (2) →`ShotFired`→ `CollapseSecurity` (3) →`FarSideReached`→ `Reform` (4); roles Crossing = 1, Security = 2; elements 0 crossing / 1 security; partition = front half / back half | `Fdp.Toolkits/Squad/Maneuvers/DangerAreaCrossingManeuver.cs` (kind 1) | the drill exists as data; ⛔ phase 2's `ShotFired` gate is wrong for overwatch (D2) |
+| the intent: phases as above; overwatch positions from an EQS cover query; elements cross one / a pair at a time with exposed-slot rotation across lanes; first-across is reassigned to cover; last element crosses last | `Squad_Coordination_Design_v1_1.md` §8.1 (:314-321) | the design this builds |
+| no play runs the table; nothing feeds `DefiladeReached` / `FarSideReached` / `ShotFired` | graph: 10 `*Maneuver` classes, 6 `*Play` structs (none for crossing); `Squad/Primitives/PhaseSequencer.cs:8-16` | X-b is the play |
+| lane rotation: `SlotRotation.AcquireSlot / ReleaseSlot / BurnSlot` | `Squad/Primitives/SlotRotation.cs:27-52` | the crossing lanes (D1) |
+| the area: `DangerAreaDescriptor { FeatureId, ThreatRating, Kind (OpenGround, StreetCrossing, Intersection, ChokePoint, CrestLine), Center, ExtentsXY, AngleRad, ZFloor, ZCeiling, NearSideHandle, FarSideHandle, DistanceAlongRoute }` in `DangerAreaCognitiveBuffer` | `Squad/DangerArea/DangerAreaDescriptor.cs:10-91`, `DangerAreaCognitiveBuffer.cs` | near / far points are given; lanes are offsets across `ExtentsXY` |
+| the sensor is BUILT: areas along a route (route sources: own move · a handle · to a point), rated every tick from the unit's memory (or the squad's pool), edges `AreaAhead` / `AreaThreatened` / `AreaCleared` | `Squad/Systems/DangerAreaSensorSystem.cs` (CE-3072); `DESIGN_Utility_AI_Demo_Scenarios.md` §10.2–§10.7 (R-213) | the trigger (D4) |
+| `RecentSenses` records the area edges (`AreaAhead`, `AreaThreatened`, `AreaCleared`) | `Behavior/Components/RecentSenses.cs:25` | ⭐ the earlier "kinds ≥ 8 dropped" row (§3, line ~247) is superseded by this field |
+| the single-unit `DangerCrossing` tree: hold while threatened, cross, walk on | `Hrot.AI.Behaviors/Assets/BTrees/Library/Tactics/DangerCrossing.btree.json` | stays for a lone soldier / vehicle |
+| the squad "how to cross" decision: options `DangerAreaCross` (0), `BoundOverwatch` (1), `Hold` (2) over strength, feature kind, threat rating, ammo — driven by nothing | `Squad/StarterPack/ManeuverSelectStarterDecision.cs:6-90`; this file §3 (line ~256) | D3: wired later |
+| doctrine | — | ⛔ none in the corpus (searched `docs/` + `.dev/`) |
+
+#### 7.7.2 Classes
+
+```mermaid
+classDiagram
+  class DangerAreaCrossingManeuver { existing table; phase 2 gate ShotFired becomes DefiladeReached CHANGED }
+  class DangerCrossingPlay { NEW ISquadPlay over the table: positions, lanes, gates, orders }
+  class SlotRotation { existing AcquireSlot ReleaseSlot BurnSlot - the crossing lanes }
+  class DangerAreaCognitiveBuffer { existing - the area, NearSideHandle, FarSideHandle }
+  class DangerAreaSensorSystem { existing - AreaAhead on the squad's route }
+  class MemberOrderKind { existing Hold AdvanceTo Disembark +Watch NEW +RushTo (F-b) +Suppress (R-b) }
+  class WatchBehavior { NEW library: hold a point, face a sector, fire only at a seen enemy }
+  class FindCoverFromTarget { existing EQS: overwatch spots near each edge }
+  class SquadManeuverRunner { existing }
+  class ReactToContactBehavior { existing - takes over on contact }
+  class BasicSquadSop { existing + a row: AreaAhead starts SquadDangerCrossing NEW }
+  DangerCrossingPlay ..> DangerAreaCrossingManeuver
+  DangerCrossingPlay ..> DangerAreaCognitiveBuffer : near and far handles
+  DangerCrossingPlay ..> SlotRotation : lanes
+  DangerCrossingPlay ..> FindCoverFromTarget : AskTerrain
+  DangerCrossingPlay ..> SquadManeuverRunner : runs inside
+  SquadManeuverRunner ..> MemberOrderKind
+  MemberOrderKind ..> WatchBehavior : Watch
+  BasicSquadSop ..> DangerAreaSensorSystem : AreaAhead edge
+  BasicSquadSop ..> DangerCrossingPlay
+  DangerCrossingPlay ..> ReactToContactBehavior : Abort on SquadContact
+```
+
+*What the picture shows: one new play over the EXISTING table and two existing primitives; the only new member order is `Watch` (`RushTo`
+and `Suppress` come from §7.6 / §7.5).*
+
+#### 7.7.3 Sequence
+
+```mermaid
+sequenceDiagram
+  participant SN as DangerAreaSensorSystem
+  participant SOP as BasicSquadSop on the commander
+  participant P as DangerCrossingPlay
+  participant S as security element
+  participant X as crossing pairs
+  SN->>SOP: AreaAhead on the squad's route
+  SOP->>P: run SquadDangerCrossing (the area's FeatureId)
+  P->>S: phase SetSecurity - RushTo overwatch spots near the near edge, then Watch along the area
+  S-->>P: every security member set (DefiladeReached)
+  P->>X: phase CrossElement - one pair at a time on a rotating lane: RushTo the far edge
+  X-->>P: the element past the far handle (FarSideReached)
+  P->>X: phase FarSideCover - RushTo far-side overwatch spots, then Watch
+  X-->>P: every far-side member set (DefiladeReached - was ShotFired)
+  P->>S: phase CollapseSecurity - security crosses by pairs, covered from the far side
+  S-->>P: all past the far handle (FarSideReached)
+  P->>P: Reform - the previous orders re-sent
+  Note over P: SquadContact at any phase - Abort, ReactToContact fights with the squad split across the area
+```
+
+*What the picture shows: every phase change is a fact the commander reads (set, across); nobody fires unless an enemy is seen.*
+
+```mermaid
+graph TD
+  CGF[CgfLogicPack] --> SCS[SquadCoordinationSystem - commander's node]
+  CGF --> DAS[DangerAreaSensorSystem - the commander's route sensor]
+  BT[BrainTickSystem] --> SOP[BasicSquadSop on the commander]
+  SOP --> PLAY[DangerCrossingPlay via SquadManeuverRunner]
+  PLAY --> ORD[AssignTacticalIntentEvent per member]
+  ORD --> MEM[members: RushTo / Watch]
+```
+
+*Module point: the commander needs a danger-area sensor of its own on the squad's route (route source "to a point" = the squad's
+objective, rated from the squad's pool) — the X-a slice adds it to the commander's type, as the soldier types carry theirs.*
+
+#### 7.7.4 Decisions (✅ approved 2026-10-13, R-2014)
+
+| # | decision | why | rejected (one line) |
+|---|---|---|---|
+| D1 | cross **one pair at a time** on a rotating lane (`SlotRotation`; lanes = offsets across the area's width) | doctrine; the design's exposed-slot rotation (§8.1) | one whole element at a time — a bigger target, one line of crossing |
+| D2 | the `FarSideCover` → `CollapseSecurity` gate is **set** (`DefiladeReached`), not `ShotFired` | overwatch watches; before contact nobody fires | keep `ShotFired` — the drill would stall until someone shot |
+| D3 | the careful drill only, first; wiring `ManeuverSelectStarterDecision` (cross / bound / hold) comes later | it exists but is driven by nothing, and its inputs read only the active area | wire the choice now — two unknowns at once |
+| D4 | trigger: the commander's own route sensor raises `AreaAhead`; a `BasicSquadSop` row starts the drill | the squad decides; members get orders; the single-unit tree stays for lone units | each member running `DangerCrossing` alone — no security, all cross at once |
+| D5 | covering members get **`Watch`** (a sector, fire only at a seen enemy), not `Suppress` | before contact there is nothing to suppress, and fire gives the squad away | `Suppress` while crossing |
+| D6 | contact at any phase ⇒ `Abort` ⇒ `ReactToContact` (with §7.6: fire and movement across the split squad) | the existing reaction; each side keeps its element | a special in-crossing fight |
+| D7 | plain bounding overwatch is NOT used over the area | it leapfrogs 30 m geometric steps with no near / far security and no edges | — |
+
+🔒 **User, `2026-10-13`:** *"Leans approved, write the danger crossing into the design"*.
+
+#### 7.7.5 Slices *(not started; after §7.6 F-a)*
+
+| slice | what | rails |
+|---|---|---|
+| **X-a** | the commander's route sensor (type data + route "to the objective", pool rating); `Watch` order + library `WatchBehavior` | `AreaAhead` reaches the commander · a watcher fires only at a seen enemy |
+| **X-b** | `DangerCrossingPlay` + the D2 table change; lanes by `SlotRotation`; overwatch spots by `FindCoverFromTarget` | security sets before anyone crosses · pairs cross one at a time on different lanes · far side sets before security collapses · all across ⇒ reform |
+| **X-c** | the `BasicSquadSop` row; contact ⇒ abort ⇒ `ReactToContact` | a contact mid-crossing hands over to the reaction |
+| **X-d** | a live scenario (`ua-squad-danger-crossing` + `-contact`): a squad crosses a street; a variant with a hostile on the far side. ⚠ NOT `ua-danger-crossing` — that name is the BUILT single-soldier demo (`DESIGN_Utility_AI_Demo_Scenarios.md` §10.3) | §7.8.4, over HTTP |
+| later | wire `ManeuverSelectStarterDecision` (cross / bound / hold) | D3 |
+
+### 7.8 The demos — one per drill, each checked over HTTP *(behaviors, `2026-10-13`; build-state: DESIGN — not built; the scenario slices R-e, F-e, X-d)*
+
+⭐ **The rule for all three:** a demo is DONE when its checker in `scripts/utility-demo-check.py` passes against a fresh
+`ClusterRunner --mode all` *(RUNBOOK_Cluster_Debugging_Over_Http §1, `localhost` not `127.0.0.1`, boots paused)*. Each check below is
+one HTTP read and one pass condition. ⚠ The runs are NOT deterministic (RUNBOOK §8): the checks assert the ORDER of events and their
+bounds, never exact positions or kill counts. Scenarios live in `scenarios/<name>/scenario.json` on test-town (the existing `ua-*` home);
+the exact coordinates are picked when each scenario is authored and recorded in its as-built row.
+
+#### 7.8.1 What the checks read — and the one thing that does not exist yet (slice **O-a**)
+
+```mermaid
+graph TD
+  CHK["utility-demo-check.py — one run_* per demo"]
+  CHK --> SQ["GET /entities/{cmdr}/squad — members, assignment, contact pool (CE-3087)"]
+  CHK --> MV["NEW maneuver block on /squad — kind, phase, history, member orders, care (O-a)"]
+  CHK --> UT["GET /entities/{cmdr}/utility — winner + per-consideration scores (CE-3069)"]
+  CHK --> WP["GET /entities/{id}/weapons — ammo per mount (CE-3089)"]
+  CHK --> SE["GET /entities/{id}/sensors + /memory — danger areas, what a unit sees (CE-3072, CE-3144)"]
+  CHK --> EN["GET /entities/{id} — SimTransform, Health, IsEmbarkedTag, BehaviorState"]
+  CHK --> HP["POST health / spawn — the scripted trigger (casualty, late hostile)"]
+  MV -. reads .-> PS["SquadCognitiveState.ManeuverKind / PhaseId / Roles + SquadPlayState"]
+  style MV fill:#fde2e2,stroke:#c0392b
+```
+
+*What the picture shows that prose hid: every check rides a route that exists today EXCEPT the red box. Without it a checker cannot
+see the phase, the history or the orders, and would have to infer them from positions.*
+
+| O-a — the `maneuver` block on `GET /entities/{commander}/squad` | why |
+|---|---|
+| `kind`, `kindName`, `phase`, `phaseName`, `phaseSince` | read straight from `SquadCognitiveState` (today's route ignores them, `DebugApiService.Squad.cs:48`) |
+| `members[]`: `slot`, `networkId`, `role`, `order {kind, point, cover}`, `inTheFight` | the order the runner last issued; `cover` = the point came from a cover query |
+| `history[]` (last 16): `{t, phase, event}` with `event` ∈ the `PhaseEventKind` that moved it, or `Timeout` / `Abort` | a fast phase (one pair crossing) is missed by polling; the history makes the order checkable. Lean: recorded by the observe switch, like the utility record (`observe_trace`), so it costs nothing unobserved — ⛔ where that recorder lives is not measured; measure it in O-a |
+| `care {casualty, medic, coverPoint, stage}` while the care play runs | the rescue checks name the medic and the cover point |
+| `gates {covering, set}` | the two F-a gates, as the commander reads them |
+
+⭐ O-a goes first, with whichever demo is built first. Its own rail: the block lists a running `BoundingOverwatch` play's phase and orders.
+
+#### 7.8.2 `ua-casualty-care` — the medic brings a man to cover (R-e; needs R-a … R-d)
+
+**Cast:** a leader, a `Medic` (designation), four riflemen, in cover at a building edge; one hostile seen earlier, now with no sight of
+the casualty's spot and holding fire. **Trigger:** once the squad's pool holds the contact, the checker sets rifleman 3's health to 25
+(incapacitated, bleeding; he is 15 m out in the open). Why scripted: a hit is not deterministic; the health write is what the hit would do.
+
+| # | check | read | pass |
+|---|---|---|---|
+| ① | the man is down, and the squad knows once | `/squad` history | one `SquadMemberDown` for his slot within 1 s of the write; none later |
+| ② | Rescue wins | `/utility` "Squad contact response" | winner `Rescue` within 15 s; each of its four considerations > 0 |
+| ③ | the Medic goes, nobody else | `/squad` care | `care.medic` = the Medic; no other member gets a `CarryCasualty` order |
+| ④ | covering fire BEFORE the medic moves | `/weapons` per coverer + Medic's position | every coverer's ammo dropped before the Medic is 1 m from where he stood |
+| ⑤ | he takes the man | `/entities/{casualty}` | `IsEmbarkedTag.VehicleEntity` = the Medic within 40 s |
+| ⑥ | to a hidden cover point | `/squad` care + positions + `/entities/{hostile}/memory` (CE-3144) | both end within 2 m of `care.coverPoint`; the hostile's memory slot for the casualty is not refreshed after he arrives there |
+| ⑦ | he puts him down, alive | `/entities/{casualty}` | the tag is gone; `Health.Current > 0` |
+| ⑧ | everyone goes back | `BehaviorState.ActiveBehaviorHash` per member | within 5 s of ⑦, each coverer and the Medic runs what he ran before ① |
+| ⑨ | a down man gets no orders (R-a) | `/squad` members | the casualty's `order` never changes after ①; `inTheFight` false |
+
+**Variant `-heavy` (the scoring):** three hostiles with sight of the casualty, firing at the squad.
+① as above · ② for 30 s `Rescue` never wins, `lastPass` shows `CasualtyExposure` or `SquadQuietSeconds` near 0, the Medic stays
+within 2 m of his start and the casualty is not carried · ③ the checker sets the three hostiles' health to 0 · ④ within 15 s (quiet
+10 s + one 5 s re-decide) `Rescue` wins, then ④–⑦ as above.
+
+**Variant `-leader` (succession, R-a):** the casualty is the LEADER. ① `/squad` on the next leader shows `role: commander` within 2 s,
+on the old one `role: none` · ② then ②–⑦ as above, run by the new commander.
+
+⛔ Not a demo, a rail only: the Medic called back mid-walk when fire starts (R-d) — the fire cannot be started at a chosen moment
+without scripting the hostile's weapon, which would test the script.
+
+#### 7.8.3 `ua-bounding-overwatch` and `ua-fire-and-movement` (F-e; need F-a, F-b, F-c)
+
+**`ua-bounding-overwatch` (F-c):** a leader and five riflemen ordered `BoundingOverwatch` to an objective ~150 m away across
+open ground and trees; one hostile at the objective, out of sight until the squad is ~70 m from it.
+
+| # | check | read | pass |
+|---|---|---|---|
+| ① | one half moves, the other watches | positions every 0.5 s | never both halves moving (> 0.5 m/s) for more than 1 s at a time |
+| ② | a bound ends in cover | `/squad` members' `order.cover` + positions | at each swap every mover is within 1.5 m of its point and `cover` is true |
+| ③ | the swap is "set", not the clock | `/squad` history | ≥ 80 % of swaps carry `DefiladeReached`, the rest `Timeout` |
+| ④ | nobody fires before contact | `/weapons` all members | ammo unchanged until the pool's `contactCount` ≥ 1 |
+| ⑤ | on contact the watchers suppress | `/squad` orders + `/weapons` | within 3 s the watching half has `Suppress` orders; within 5 s their ammo drops |
+| ⑥ | the movers do not stop in the open | positions | the bounding half ends its bound at its cover point |
+
+**`ua-fire-and-movement` (F-b):** the same squad starts in contact, 120 m from two hostiles at a building edge, ordered
+`FireAndMovement` toward them. The hostiles are tough and inaccurate (high health, low hit chance), so the drill runs long enough to watch.
+
+| # | check | read | pass |
+|---|---|---|---|
+| ① | the halves split | `/squad` orders | half A `Suppress`, half B `RushTo` |
+| ② | "Covering!" before "Moving!" | `/weapons` + positions | a mover starts only when every coverer fired within the last 2 s |
+| ③ | short rushes into cover | orders + positions | each rush ≤ 17 m (15 + tolerance) and ends at a `cover` point or prone |
+| ④ | the swap waits for "set" | `/squad` history + `gates` | ≥ 3 swaps in 90 s, each with `set` and `covering` true at the moment of the swap |
+| ⑤ | it closes the distance | positions | after 4 rushes the squad's centre is ≥ 30 m nearer the hostiles |
+| ⑥ | never both halves up | positions every 0.5 s | as ① above |
+
+⛔ Pairs (F-d) get no demo of their own: the same checks, per pair, once F-d is built.
+
+#### 7.8.4 `ua-squad-danger-crossing` (X-d; needs X-a … X-c)
+
+**Cast:** a leader and six riflemen on the route that `ua-danger-crossing` uses (south-west → objective `(285, 220)`, crossing the
+vertical road `x 190–210`); no hostile. The road strip is read from the commander's danger sensor (`/sensors`: centre, extents, angle).
+
+| # | check | read | pass |
+|---|---|---|---|
+| ① | the area is seen, the drill starts | `/sensors` + `/squad` maneuver | the road crossing listed; `kind` = DangerAreaCrossing within 5 s; nobody in the strip yet |
+| ② | security first | positions + orders | the security half is stopped (< 0.3 m/s) within 3 m of its spots BEFORE the first crosser enters the strip |
+| ③ | one pair at a time, on new lanes | positions + orders | never more than 2 members inside the strip; consecutive pairs enter ≥ 3 m apart along the road |
+| ④ | far side set before security leaves | `/squad` history + positions | `FarSideCover` → `CollapseSecurity` by `DefiladeReached`; no security member enters the strip before that |
+| ⑤ | security crosses last | positions | the last members to leave the strip are the security half |
+| ⑥ | reform, then go on | `/squad` phase + positions | phase `Reform` reached; all within 10 m of each other on the far side; then the squad reaches the objective |
+| ⑦ | watching, not shooting (D5) | `/weapons` all members | ammo unchanged for the whole run |
+| ⑧ | it finishes | sim time | the crossing (① to `Reform`) takes ≤ 120 s |
+
+**Variant `-contact` (D6):** the checker spawns a hostile on the far side while the second pair is in the strip.
+① `/squad` history shows `Abort` within 2 s of the first shot (anyone's ammo drop) · ② the commander's behaviour becomes
+`ReactToContact` · ③ no member ENTERS the strip after the abort (those in it finish within 5 s) · ④ at least one member on EACH side
+fires at the hostile (each side keeps its element).
+
+#### 7.8.5 Order
+
+O-a (with the first demo) → `ua-casualty-care` after R-d → `ua-fire-and-movement` after F-b → `ua-bounding-overwatch` after F-c →
+`ua-squad-danger-crossing` after X-c. Each demo's checker is added to `SCENARIOS` in the same commit as its scenario.
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 

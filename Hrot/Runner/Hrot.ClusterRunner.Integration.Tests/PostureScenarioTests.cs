@@ -9,6 +9,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Diagnostics;
+using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Perception.Components;
@@ -599,6 +600,11 @@ public sealed class PostureScenarioTests : IDisposable
             _out.WriteLine($"   peek f{f}: phase={(Fdp.Toolkit.Combat.PeekPhase)m.Phase} hide={m.HidePoint.X:F1},{m.HidePoint.Y:F1},{m.HidePoint.Z:F1} peek={m.PeekPoint.X:F1},{m.PeekPoint.Y:F1} until={m.PhaseUntil:F1} stance={stance} pos={Pos(rifleman).X:F1},{Pos(rifleman).Y:F1} posture={Winner()}");
         }
         int maxLeg = -1, firstHitFrame = -1; Vector3 posAtFirstHit = default; float movedAfterHit = 0f; bool defensiveAfterHit = false;
+        // ⭐ CE-2155 (R-2011 I6) — CE-3092's "keeps moving" is a claim about a WOUNDED man (hurt, still in the fight); once incapacitated he
+        //   is MEANT to stop. Measured per window, on CGF sim time, so a burst that puts him down within a second does not read as a freeze.
+        double SimT() => cgf.HasSingleton<GlobalTime>() ? cgf.GetSingleton<GlobalTime>().TotalTime : 0d;
+        double woundedSince = -1d, woundedSeconds = 0d; Vector3 posAtWound = default; float movedWhileWounded = 0f;
+        Vector3 posAtDown = default; bool wentDown = false, settled = false; double downAt = 0d; float movedWhileDown = 0f, stopSlide = 0f;
         int firedFromCover = 0;   // ⭐ CE-3158 G-6 / CE-3157 — rounds he fires while his posture is TakeCover, after the first hit
         int lastAmmo = cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).Ammo : -1;   // ⭐ CE-3136 P-5: the spawned load, not a literal 30
         for (int f = 0; f < 24000; f++)
@@ -627,6 +633,19 @@ public sealed class PostureScenarioTests : IDisposable
             {
                 movedAfterHit = MathF.Max(movedAfterHit, Vector3.Distance(Pos(rifleman), posAtFirstHit));
                 if (Winner() is Posture.TakeCover or Posture.Flee or Posture.HoldProne) defensiveAfterHit = true;
+                if (Injury.IsInTheFight(cgf, rifleman))
+                {
+                    if (woundedSince < 0d) { woundedSince = SimT(); posAtWound = Pos(rifleman); }
+                    woundedSeconds = SimT() - woundedSince;
+                    movedWhileWounded = MathF.Max(movedWhileWounded, Vector3.Distance(Pos(rifleman), posAtWound));
+                }
+                else if (Injury.IsIncapacitated(cgf, rifleman))
+                {
+                    if (!wentDown) { wentDown = true; downAt = SimT(); posAtDown = Pos(rifleman); _out.WriteLine($"f{f}: RIFLEMAN INCAPACITATED — {State()} after {woundedSeconds:F1} s wounded, moved {movedWhileWounded:F1} m"); }
+                    // the stop crosses to SimHost and he decelerates: measured 0.5 m of slide — the claim starts 1 s after he fell
+                    if (!settled && SimT() - downAt >= 1.0) { settled = true; stopSlide = Vector3.Distance(Pos(rifleman), posAtDown); posAtDown = Pos(rifleman); }
+                    if (settled) movedWhileDown = MathF.Max(movedWhileDown, Vector3.Distance(Pos(rifleman), posAtDown));
+                }
             }
             if (f % 150 == 0) { _out.WriteLine($"f{f}: {State()}"); Motion(f, "Rifleman"); Motion(f, "Hostile 1"); }
             PeekProbe(f);
@@ -664,6 +683,8 @@ public sealed class PostureScenarioTests : IDisposable
         // ⭐ CE-3094 — locked on what the composition does today (measured 2026-10-10, after AQ85 hit chance and CE-3095):
         //   hidden until ~f5950, both legs reached, 2 rounds both on Hostile 1, wounded ⇒ Flee → TakeCover → HoldProne, then
         //   killed in cover by a second hostile closing from another bearing (CE-3157). It does NOT assert that he wins.
+        //   ⭐ Re-measured 2026-10-13 under CE-2155 (band 0.3): first hit ~f4300-f4900, three rounds from two hostiles inside a second
+        //   (100 → 25 HP) put him DOWN, not dead; he stops where he fell, bleeds (0.25 HP/s) and a later round kills him where he lies.
         Assert.True(firstHitFrame < 0 || firstHitFrame > 4000,
             $"the approach behind Block C must keep him unseen for most of the walk; first hit at f{firstHitFrame}");
         Assert.True(maxLeg >= 1, $"the mission must advance to its second leg (reached {maxLeg})");
@@ -673,7 +694,14 @@ public sealed class PostureScenarioTests : IDisposable
         if (firstHitFrame >= 0)
         {
             Assert.True(defensiveAfterHit, $"wounded, he must pick a defensive posture (postures: {string.Join(" → ", postures)})");
-            Assert.True(movedAfterHit >= 2f, $"CE-3092: a wounded rifleman keeps moving (moved {movedAfterHit:F1} m after the first hit)");
+            _out.WriteLine($"CE-3092: wounded for {woundedSeconds:F1} s, moved {movedWhileWounded:F1} m (after the first hit {movedAfterHit:F1} m); down={wentDown}, slid {stopSlide:F2} m then moved {movedWhileDown:F2} m while down");
+            // ⭐ CE-3092 — wounded and still in the fight, he keeps moving: asserted when he stayed wounded long enough to cover 2 m
+            //   (3 s of sim time — the posture switch, the path request and the walk). ⛔ Was "≥ 2 m after the first hit", which read a
+            //   man put DOWN by a burst (CE-2155: three rifle hits in a second, 100 → 25 HP) as a frozen one.
+            if (woundedSeconds >= 3.0)
+                Assert.True(movedWhileWounded >= 2f, $"CE-3092: a wounded rifleman keeps moving (moved {movedWhileWounded:F1} m in {woundedSeconds:F1} s wounded)");
+            // ⚠ Not asserted: "once incapacitated he stays where he fell" (CE-2155 I6). Red-proofed and it stayed GREEN with the strip removed
+            //   — something else stops him here too — so it cannot tell the strip apart. The strip's rail is InjuryTests (unit), red-proofed.
         }
     }
 }

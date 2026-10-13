@@ -92,17 +92,31 @@ namespace Fdp.Toolkit.Behavior
         /// <remarks>⭐ <c>CE-2151</c> B-b (R-2009 B4) — a SEAT (<see cref="FreeSeat"/>): the first free one whose role is
         /// <paramref name="role"/>, else a free passenger seat (a passenger seat takes anyone, a crew seat only its role). The list is
         /// seat-indexed — leaving empties the seat in place.</remarks>
-        public static EmbarkResult TryEmbark(EntityRepository repo, Entity passenger, Entity vehicle, SeatRole role = SeatRole.Passenger)
+        /// <para>⭐ <c>CE-2152</c> C-a (R-2009 C3, R-2011 C5) — onto a PERSON carrier (<see cref="PersonCarrier"/>) only an INCAPACITATED
+        /// passenger boards, and only while the carrier is in the fight himself; else <see cref="EmbarkResult.Invalid"/>. Its
+        /// <paramref name="mode"/> is <see cref="CarryMode.Carried"/> or <see cref="CarryMode.Dragged"/> (a seated request is carried); onto a
+        /// vehicle it is always <see cref="CarryMode.Seated"/>.</para>
+        public static EmbarkResult TryEmbark(EntityRepository repo, Entity passenger, Entity vehicle, SeatRole role = SeatRole.Passenger,
+            CarryMode mode = CarryMode.Seated)
         {
             if (!repo.IsAlive(passenger) || !repo.IsAlive(vehicle) || !repo.HasComponent<PassengerBuffer>(vehicle)) return EmbarkResult.Invalid;
             // ⭐ CE-3110 (R-272) — a UNIT is not a physical actor: it takes no seat and carries nobody (its members do the boarding).
             if (Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, passenger) || Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, vehicle)) return EmbarkResult.Invalid;
             int aboard = SlotOf(repo, passenger, vehicle);
             if (aboard >= 0) { Board(repo, passenger, vehicle, aboard); return EmbarkResult.AlreadyAboard; }
+            if (IsPersonCarrier(repo, vehicle))
+            {
+                // ⭐ CE-2152 (R-2009 C3) — a person carries only a man DOWN, and only while he is in the fight himself.
+                if (!Fdp.Toolkit.Combat.Injury.IsIncapacitated(repo, passenger) || !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, vehicle))
+                    return EmbarkResult.Invalid;
+                if (mode == CarryMode.Seated) mode = CarryMode.Carried;
+            }
+            else mode = CarryMode.Seated;
             int seat = FreeSeat(repo, vehicle, role);   // ⭐ CE-2151 — the type's seats, by role
             if (seat < 0) return EmbarkResult.Full;
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
             buffer.Passengers[seat] = passenger;
+            buffer.SetMode(seat, mode);   // ⭐ CE-2152 (R-2011 C5) — in the list, so every node derives the tag's mode from it
             buffer.Count++;
             Board(repo, passenger, vehicle, seat);
             return EmbarkResult.Applied;
@@ -120,10 +134,12 @@ namespace Fdp.Toolkit.Behavior
             int slot = SlotOf(repo, passenger, vehicle);
             if (slot < 0) return false;
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
-            var at = DismountPoint(repo, vehicle, slot, buffer.Count);
+            var at = LeavePoint(repo, vehicle, passenger, slot, buffer.Count);
             buffer.Passengers[slot] = Entity.Null;   // ⭐ CE-2151 B-b — the seat empties in place (no compaction: a slot IS a seat)
+            buffer.SetMode(slot, CarryMode.Seated);
             buffer.Count--;
             Leave(repo, passenger, at);
+            ReleaseCarrier(repo, vehicle);
             return true;
         }
 
@@ -141,11 +157,34 @@ namespace Fdp.Toolkit.Behavior
                 if (passenger.IsNull) continue;
                 buffer.Passengers[i] = Entity.Null;
                 if (!repo.IsAlive(passenger)) continue;   // killed aboard — skipped, not an error
-                Leave(repo, passenger, DismountPoint(repo, vehicle, i, aboardCount));
+                Leave(repo, passenger, LeavePoint(repo, vehicle, passenger, i, aboardCount));
                 left++;
             }
             buffer.Count = 0;
+            buffer.Modes = 0;
+            ReleaseCarrier(repo, vehicle);
             return left;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2152</c> C-b (C-b1, docs/DESIGN_Entity_Interactions.md §7.4.10) — where <paramref name="passenger"/> lands on leaving
+        /// <paramref name="vehicle"/>: a PERSON carrier lays the casualty where he is held (his own position — C9 "dropped where it lies");
+        /// a vehicle stands him beside the hull (<see cref="DismountPoint"/>). ⛔ C-a used the hull column for both, which jumped a
+        /// dragged man sideways to the carrier's right.
+        /// </summary>
+        public static Vector3 LeavePoint(EntityRepository repo, Entity vehicle, Entity passenger, int index, int count)
+            => IsPersonCarrier(repo, vehicle) && Has<SimTransform>(repo, passenger)
+                ? repo.GetComponentRO<SimTransform>(passenger).Position
+                : DismountPoint(repo, vehicle, index, count);
+
+        /// <summary>⭐ <c>CE-2152</c> C-b — the first person <paramref name="carrier"/> carries, or <see cref="Entity.Null"/>.</summary>
+        public static Entity LoadOf(EntityRepository repo, Entity carrier)
+        {
+            if (!repo.IsAlive(carrier) || !Has<PassengerBuffer>(repo, carrier)) return Entity.Null;
+            ref readonly var buffer = ref repo.GetComponentRO<PassengerBuffer>(carrier);
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)
+                if (!buffer.Passengers[i].IsNull) return buffer.Passengers[i];
+            return Entity.Null;
         }
 
         /// <summary>
@@ -208,9 +247,32 @@ namespace Fdp.Toolkit.Behavior
         {
             if (Has<ActorCapabilityState>(repo, passenger))
                 repo.GetComponentRW<ActorCapabilityState>(passenger).Capabilities &= ~StrippedAboard;
+            // ⭐ CE-2152 (R-2011 C7) — a person carrying or dragging a casualty has his hands full: no fire (back on ReleaseCarrier).
+            if (IsPersonCarrier(repo, vehicle) && Has<ActorCapabilityState>(repo, vehicle))
+                repo.GetComponentRW<ActorCapabilityState>(vehicle).Capabilities &= ~ActorCapabilities.CanShoot;
+            var mode = Has<PassengerBuffer>(repo, vehicle) ? repo.GetComponentRO<PassengerBuffer>(vehicle).ModeOf(seat) : CarryMode.Seated;
             // ⭐ I-2c (R-271): an OPEN cabin leaves the passenger exposed (seen, targeted, hit); enclosed hides it (PhysicalPresence).
             //   ⭐ CE-2151 B-b (R-2009 B6): with declared seats the SEAT decides (a gunner's open hatch, the cabin closed).
-            repo.SetComponent(passenger, new IsEmbarkedTag { VehicleEntity = vehicle, Seat = (byte)seat, Exposed = (byte)(SeatExposed(repo, vehicle, seat) ? 1 : 0) });
+            repo.SetComponent(passenger, new IsEmbarkedTag
+            {
+                VehicleEntity = vehicle, Seat = (byte)seat, Exposed = (byte)(SeatExposed(repo, vehicle, seat) ? 1 : 0), Mode = mode,
+            });
+        }
+
+        /// <summary>⭐ <c>CE-2152</c> — is <paramref name="carrier"/> a PERSON who carries or drags (its type declares <c>Gen.Carrier.Person</c>)?</summary>
+        public static bool IsPersonCarrier(EntityRepository repo, Entity carrier) => Has<PersonCarrier>(repo, carrier);
+
+        /// <summary>
+        /// ⭐ <c>CE-2152</c> (R-2011 C7) — a person carrier whose hands are free again gets his fire back: nobody left in his list, still in the
+        /// fight, and not himself aboard something. Called wherever a list empties (the deciding node and every node deriving from the list).
+        /// ⚠ It grants <c>CanShoot</c>; the person-carrier profile is declared only on soldier types, which have it.
+        /// </summary>
+        public static void ReleaseCarrier(EntityRepository repo, Entity carrier)
+        {
+            if (!IsPersonCarrier(repo, carrier) || !Has<ActorCapabilityState>(repo, carrier) || !Has<PassengerBuffer>(repo, carrier)) return;
+            if (repo.GetComponentRO<PassengerBuffer>(carrier).Count > 0 || Has<IsEmbarkedTag>(repo, carrier)) return;
+            if (!Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, carrier)) return;
+            repo.GetComponentRW<ActorCapabilityState>(carrier).Capabilities |= ActorCapabilities.CanShoot;
         }
 
         /// <summary>⭐ <c>CE-2151</c> B-b — is seat <paramref name="seat"/> of <paramref name="vehicle"/> exposed: the type's per-seat mask

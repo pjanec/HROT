@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Behavior.Translators
             yield return typeof(PassengerBuffer);
             yield return typeof(CarrierSeats);
             yield return typeof(OpenPassengerCabin);
+            yield return typeof(PersonCarrier);   // ⭐ CE-2152 — only on a type with a Person block
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -48,6 +49,18 @@ namespace Fdp.Toolkit.Behavior.Translators
                 else repo.AddComponent(entity, Seats(dto));
             }
 
+            // ⭐ CE-2152 (R-2011 C1) — a PERSON carrier's factors and offsets: a type fact, always (re)written like the seats.
+            if (dto.Person != null && repo.IsComponentTypeRegistered<PersonCarrier>())
+            {
+                var person = new PersonCarrier
+                {
+                    CarrySpeedFactor = dto.Person.CarrySpeedFactor, DragSpeedFactor = dto.Person.DragSpeedFactor,
+                    CarryBehindMetres = dto.Person.CarryBehindMetres, DragBehindMetres = dto.Person.DragBehindMetres,
+                };
+                if (repo.HasComponent<PersonCarrier>(entity)) repo.SetComponent(entity, person);
+                else repo.AddComponent(entity, person);
+            }
+
             if (dto.Exposure == PassengerExposure.Open
                 && repo.IsComponentTypeRegistered<OpenPassengerCabin>()
                 && !repo.HasComponent<OpenPassengerCabin>(entity))
@@ -57,7 +70,11 @@ namespace Fdp.Toolkit.Behavior.Translators
         /// <summary>The component a descriptor projects to.</summary>
         public static CarrierSeats Seats(CarrierDefDto dto)
         {
-            var seats = new CarrierSeats { SeatCount = (byte)Math.Min(dto.Seats.Count, PassengerBuffer.Capacity) };
+            var seats = new CarrierSeats
+            {
+                SeatCount = (byte)Math.Min(dto.Seats.Count, PassengerBuffer.Capacity),
+                PassengersSurvive = (byte)(dto.DiesWithCarrier ? 0 : 1),   // ⭐ CE-2152 (R-2011 C9)
+            };
             for (int i = 0; i < seats.SeatCount; i++)
             {
                 seats.Roles[i] = dto.Seats[i].Role;

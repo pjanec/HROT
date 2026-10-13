@@ -1487,6 +1487,9 @@ lookup on every draft), `RtsCommands` (the lookup), `ContextMenuProjectorGizmo` 
 | + | `[BehaviorContract]` still current in: `UX/UX_Design.md`, `UX/UX_Requirements.md`, `UX/UX_Feature_Entity_Commanding.md`, `UX/UX_Golden_Path.md`, `designs/tactical-intent/DESIGN.md`, `designs/group-maneuvers/DESIGN_Squad_Tactics.md`, `designs/group-maneuvers/DESIGN_Squad_Wiring.md`, `projects/Hrot/Engine/Hrot.Core.md`, `blueprints/DESIGN_Entity_Reference.md` | replaced by `[Behavior(Params=…)]` (CE-2134) | one pass |
 
 **P7 sweep 2026-10-13:** known-rot lines added (ranks 1, 3–5, 7–21; two docs with no STATUS block got a minimal one), ranks 2 and 6 corrected where already false (Quickstart's "never field-by-field"; the visual-check guide's BTree/HSM first section, now "Variables"), the `[BehaviorContract]` pass and the OVERVIEW box done; the Role / blueprint-Parameters rewrites wait for P4 (§13.10).
+**P7 after P4 ⑦ (2026-10-13, behaviors):** rank 1 rewritten — `DESIGN_Parameter_Model.md` §1's Role/Scope rows and §3.1's labels now state
+the derived working state (backend had already done §P.7); rank 2 rewritten by backend with CE-3193; rank 3's known-rot line now records
+the retirement. The rank 4–21 known-rot lines stand: they name a vocabulary that is gone, which is what they say.
 
 Already correct (leave): this design, `RULINGS.md` R-273..R-282 / R-2000..R-2003, AQ90, the orders resume / handoffs,
 `DESIGN_Entity_Interactions.md`, `tools/ai-debug-mcp/SKILL.md`, `AI_DEV_GUIDE.md`, `HROT-PROGRAMMERS-GUIDE.md`, `TUTORIAL_Behaviour_Composition.md`.
@@ -2031,6 +2034,8 @@ one used `default(T)` when no order JSON came.*
 | the end-to-end fixture: `T41_GeneratedParamsDto` now overrides only `Range` (30); `Home` / `Loops` come from `T41Params`' initialisers | `ParamsDtoAssetTests` (the feature suite, 4/4) |
 
 #### 13.10b The params panels *(ui lane, CE-1061; build-state: BUILT `2026-10-13` (U1–U3, U5a; as-built after the decisions) — designed READY-TO-BUILD the same day — dispatched by [HANDOFF_Params_Panels_Ui](blueprints/HANDOFF_Params_Panels_Ui.md) at f7ee65c37; U1–U3 + U5a; U5b waits for CE-3194)*
+
+⭐ **Merge note (behaviors, `2026-10-13`):** backend's `CE-3194` is now BUILT (`da8598a84`, as-built in §13.10a above) — U5b (editing the defaults per asset) is UNBLOCKED; the "OPEN" mentions of `CE-3194` in this section predate it.
 
 🔒 **User, 2026-10-13:** *"why would we show the user those variable kinds? what would he do with that?"* ⇒ the panels show `Params`
 (the DTO's fields) and the variables, nothing about kinds. R-3001: *"editor should allow choosing the csharp hardcoded dto OR json

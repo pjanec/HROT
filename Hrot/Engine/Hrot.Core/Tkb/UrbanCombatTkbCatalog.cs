@@ -165,6 +165,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });   // ⭐ 5d-2 — doors
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
+                t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5,   /* ⭐ LR-1 (R-271) */ DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
@@ -181,6 +182,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
+                t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
                 t.AddDescriptor(new WeaponSuiteDto { Mounts =
                 {
                     new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5,   /* ⭐ LR-1 (R-271) */ DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils },
@@ -201,6 +203,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
+                t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = MortarBombs, MuzzleVelocity = MortarMuzzleVelocity, Range = MortarRange, AmmoGuid = MunitionTkbCatalog.Tkb81mmMortarHe } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange));
@@ -217,6 +220,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });   // ⭐ 5d-2 — doors
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
+                t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity, Range = RpgRange, Penetration = RpgPenetration, DamagePerHit = RpgDamage, AmmoGuid = MunitionTkbCatalog.TkbRpg7Rocket /* ⭐ LR-1 (R-271) */ } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange));

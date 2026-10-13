@@ -252,6 +252,20 @@ namespace Hrot.SimHost.Tests
             Deliver(asGunner);
             Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Gunner,
                 Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().ToArray()).Role);
+
+            // ⭐ CE-2152 C-a (R-2011 C5) — and the CARRY MODE (the payload's Mode byte): a drag request arrives as a drag.
+            //   ✅ Red-proof: toPayload without Mode ⇒ 0 (seated) on the wire ⇒ red.
+            owner.Bus.SwapBuffers();
+            writer.Written.Clear();
+            soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand
+                { Passenger = soldier, Vehicle = apc, Mode = Fdp.Toolkit.Behavior.Components.CarryMode.Dragged });
+            soldiersNode.Bus.SwapBuffers();
+            egress.ScanAndPublish(soldiersNode);
+            var asDrag = Assert.Single(writer.Written);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Components.CarryMode.Dragged, asDrag.Payload.Embark.Mode);
+            Deliver(asDrag);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.CarryMode.Dragged,
+                Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().ToArray()).Mode);
         }
 
         [Fact]

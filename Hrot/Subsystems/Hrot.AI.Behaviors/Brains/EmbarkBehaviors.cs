@@ -56,3 +56,53 @@ namespace Hrot.AI.Behaviors.Brains
                 .Action(bb => bb.Leave, EmbarkNodes.Disembark);
     }
 }
+
+namespace Hrot.AI.Behaviors.Brains
+{
+    /// <summary>
+    /// ⭐ <c>CE-2152</c> C-b (C6, R-2011; 📄 docs/DESIGN_Entity_Interactions.md §7.4.10) — <c>CarryCasualty</c>, a library behaviour (curated
+    /// C# tree, R-258): walk to a man who is down, take him, bring him to a point, put him down. Three nodes in a sequence —
+    /// <see cref="CarryNodes.PickUp"/>, the plain move (<see cref="CgfNodes.Action_WriteMoveToChannel"/>, slowed by the load through
+    /// <c>CarryLoad</c>), <see cref="CarryNodes.PutDown"/>. Scope: a soldier type that declares the person carrier (<c>Gen.Carrier.Person</c>);
+    /// the rules refuse a casualty who is not down.
+    /// </summary>
+    public static class CarryCasualtyBehavior
+    {
+        /// <summary>The arrival radius of the move to the drop point (m).</summary>
+        public const float ArrivalRadius = 1.5f;
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        public struct CarryCasualtyBlackboard
+        {
+            public PickUpNodeParams Take;
+            public CgfNodes.MoveToLocationParams Bring;
+            public PutDownNodeParams Leave;
+        }
+
+        /// <summary>The authored contract in (the casualty by network id), the nodes' params out.</summary>
+        [BehaviorResolver(BehaviorNames.CarryCasualty)]
+        public static void Resolve(in CarryCasualtyParamsJsonDto authored, ref CarryCasualtyBlackboard block, EntityRepository world, Entity self)
+        {
+            block.Take = new PickUpNodeParams
+            {
+                Casualty = authored.Casualty.Resolve(world),
+                Mode = authored.Carry ? Fdp.Toolkit.Behavior.Components.CarryMode.Carried : Fdp.Toolkit.Behavior.Components.CarryMode.Dragged,
+                Speed = authored.Speed,
+            };
+            // ⭐ An explicit speed (0 would never move: CarKinematicsSystem drives and arrives only with TargetSpeed > 0, :271 / :307);
+            //   CarryLoad (C8) cuts the carrier's TOP speed by the mode, so the drag is slow without this node knowing.
+            float speed = authored.Speed > 0f ? authored.Speed : CarryNodes.DefaultSpeed;
+            block.Bring = new CgfNodes.MoveToLocationParams { X = authored.X, Y = authored.Y, ArrivalRadius = ArrivalRadius, Speed = speed };
+            block.Leave = default;
+        }
+
+        [Behavior(BehaviorNames.CarryCasualty, Params = typeof(CarryCasualtyParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
+        [BTreeDefinition(BehaviorNames.CarryCasualty, Curated = true, Group = "Library/Infantry", ParamsType = typeof(CarryCasualtyBlackboard))]
+        public static BTreeBuilder<CarryCasualtyBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<CarryCasualtyBlackboard, BTreeContext>()
+                .Sequence(seq => seq
+                    .Action(bb => bb.Take, CarryNodes.PickUp)
+                    .Action(bb => bb.Bring, CgfNodes.Action_WriteMoveToChannel)
+                    .Action(bb => bb.Leave, CarryNodes.PutDown));
+    }
+}

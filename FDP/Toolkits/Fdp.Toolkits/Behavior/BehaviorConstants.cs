@@ -118,6 +118,14 @@ namespace Fdp.Toolkit.Behavior
         /// (3 is the vehicle's eject-all). 📄 docs/DESIGN_Entity_Interactions.md §7.3.</summary>
         public const ushort ActionIdDisembark = 2;
 
+        /// <summary>⭐ <c>CE-2152</c> C-b (C6, docs/DESIGN_Entity_Interactions.md §7.4.10) — the CARRIER's pick-up
+        /// (<see cref="Executors.PickUpExecutor"/>): the mirror of the passenger's <see cref="ActionIdEmbark"/>, raised with Vehicle = self.</summary>
+        public const ushort ActionIdPickUp = 9;
+
+        /// <summary>⭐ <c>CE-2152</c> C-b — the CARRIER's put-down (<see cref="Executors.PutDownExecutor"/>): the mirror of the passenger's
+        /// <see cref="ActionIdDisembark"/>.</summary>
+        public const ushort ActionIdPutDown = 10;
+
         /// <summary>⭐ Buildings 5d — the door actions on the interaction channel (<see cref="Executors.DoorActionExecutor"/>, one per verb).</summary>
         public const ushort ActionIdOpenDoor = 4;
         /// <inheritdoc cref="ActionIdOpenDoor"/>

@@ -580,6 +580,44 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2152</c> C-a (R-2011 C8) — a person carrying a casualty is slowed by the carry factor, dragging by the drag factor, beside
+        /// the stance (the same 6 m/s sprint: × 0.5 carried ⇒ 3, × 0.3 dragged ⇒ 1.8; carrying nobody ⇒ 5, the path's speed).
+        /// ✅ Red-proof: CarKinematicsSystem without the CarryLoad factor ⇒ he drags at full speed ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Behavior.Components.CarryMode.Seated,  false, 5.0f)]
+        [InlineData(Fdp.Toolkit.Behavior.Components.CarryMode.Carried, true,  3.0f)]
+        [InlineData(Fdp.Toolkit.Behavior.Components.CarryMode.Dragged, true,  1.8f)]
+        public void CE2152_APersonCarrier_IsSlowedByWhatHeCarries(Fdp.Toolkit.Behavior.Components.CarryMode mode, bool loaded, float expected)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Components.PersonCarrier
+                { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f, DragBehindMetres = 1f });
+            var buffer = new Fdp.Toolkit.Behavior.Components.PassengerBuffer();
+            if (loaded)
+            {
+                buffer.Passengers[0] = repo.CreateEntity();
+                buffer.SetMode(0, mode);
+                buffer.Count = 1;
+            }
+            repo.AddComponent(e, buffer);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float top = 0f;
+            for (int i = 0; i < 8 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                top = MathF.Max(top, repo.GetComponent<VehicleState>(e).Speed);
+            }
+            Assert.InRange(top, expected - 0.25f, expected + 0.05f);
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2059</c> — a vehicle on a one-shot path brakes on the approach and comes to rest within the arrival radius of
         /// the path's end — the same standard as Direct mode's rail above (the speed controller's lag is the residue).
         /// 🔴 Red before: it commanded 0 only at the end and rolled on (measured live 11 m past the end node).
