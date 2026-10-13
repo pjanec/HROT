@@ -28,6 +28,11 @@ known-rot: ⛔ 2026-10-03 (CE-2028 sweep) — §7 "nothing in it is serialised �
   order; the TARGET is "bake → EITHER the default copy OR the resolver, which receives the SOURCE"
   (DESIGN_Parameter_Model.md §P.2, CE-443). §12.20's T40 demo reads block.In after the copy — rot
   under the same row. The AiPrimitive own-resolver (shape ②, CE-432) is retired by §P.4 (CE-445).
+known-rot: (2026-10-13, P7) the `Role=Input` / `Role=State` vocabulary throughout (the root-params-slot table,
+  the class diagram's "Role Input fields", §12.2a "WHY `Role=Input` FIRST") is overtaken by R-276 / R-277: one
+  params DTO per behaviour (reserved `Params`, flat JSON, `[ParamsDto]`), no Input/State roles —
+  docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13; the block SHAPE (`In` at 0, `St` after) stands.
+  The Role vocabulary retires with P4 (§13.10).
 known-conflict: ⚠ Blueprint_SharedState_GetShared_Design.md §7 rules the opposite on ONE point —
   "Group/squad scope is not a separate scope — it is an Entity-scoped slot on the coordinator, read
   by members via the Slice-2 accessor", i.e. squad coordination by SHARED MEMORY. This document

@@ -1362,7 +1362,7 @@ public class IgApplication : IDisposable
     public void DrawUI()
 
     {
-        _igMapInteraction?.EntityAuthoring?.DrawFrame();   // ⛔ OpenPicker only queues (CE-1017)
+        _igMapInteraction?.DrawOperatorUi();   // ⛔ OpenPicker only queues (CE-1017) · ⭐ CE-1059 the order form
 
         _fdpRepoAdapter ??= new FdpRepositoryAdapter(_world);
 

@@ -9,6 +9,7 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md §13.12 — the order form (P5b, CE-1059) draws §7.6b's one params form over an order DTO
   - docs/blueprints/DESIGN_Map_Picking_Unification.md — OWNS the one pick service / context / broker; §7.6b here adds a SCOPED context so several params forms share one broker (CE-1023).
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §4 adds squad-level SensorChange kinds (SquadContact / SquadUnderFire / SquadAllClear) with Unit = the commander
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS S7 (CE-3055): thermal + acoustic templates, heat, sound emission, anonymous contacts (this file's G6).

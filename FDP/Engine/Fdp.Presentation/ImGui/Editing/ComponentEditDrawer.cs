@@ -296,7 +296,7 @@ public sealed class ComponentEditDrawer
         // ⭐ DESIGN_Entity_Reference D5 — the TYPE makes a field pickable; the attribute only narrows the pick.
         bool isEntityRef = node.ClrType == typeof(EntityRef);
         var entityAttr = node.Metadata.CustomAttributes.OfType<MapPickableEntityAttribute>().FirstOrDefault();
-        if (isEntityRef && _pickerCtx != null) inputWidth -= 90f;
+        if (isEntityRef && _pickerCtx != null) inputWidth -= _pickerCtx.CanListEntities ? 140f : 90f;   // ⭐ CE-1059 — + List…
 
         // ⭐ DESIGN_Map_Picking_Unification P5 — a PickableGeoPoint is a pickable world location by its TYPE.
         bool isLocation = node.ClrType == typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint);
@@ -330,11 +330,22 @@ public sealed class ComponentEditDrawer
             {
                 ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking...]");
             }
-            else if (ImGuiApi.Button($"Pick Entity##{node.Id.Value}"))
+            else
             {
-                _pickerCtx.RequestEntityPick(
-                    node.JsonPath,
-                    entityAttr is { FilterPresets.Length: > 0 } ? entityAttr.FilterPresets : null);
+                if (ImGuiApi.Button($"Pick Entity##{node.Id.Value}"))
+                    _pickerCtx.RequestEntityPick(
+                        node.JsonPath,
+                        entityAttr is { FilterPresets.Length: > 0 } ? entityAttr.FilterPresets : null);
+                // ⭐ CE-1059 (DESIGN_Orders_Params_Entity_Classes §13.12 O3) — or choose it from a searchable list, narrowed by the
+                //   same presets; the choice comes back through the same TryConsumeEntityPick.
+                if (_pickerCtx.CanListEntities)
+                {
+                    ImGuiApi.SameLine();
+                    if (ImGuiApi.Button($"List…##{node.Id.Value}"))
+                        _pickerCtx.RequestEntityListPick(
+                            node.JsonPath,
+                            entityAttr is { FilterPresets.Length: > 0 } ? entityAttr.FilterPresets : null);
+                }
             }
 
             if (_pickerCtx.TryConsumeEntityPick(node.JsonPath, out var picked))

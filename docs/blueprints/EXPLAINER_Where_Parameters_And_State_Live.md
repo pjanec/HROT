@@ -14,6 +14,11 @@ known-rot: ⚠ 2026-09-30 (R-155) — this explainer records how params IS suppl
   §3.1 carries the same correction. ⚠ §4's "one region, two layout authorities" is about WHO
   DECLARES the shape (compiler vs human); §7.4 is a DIFFERENT and newer finding about two
   authorities for the byte OFFSETS, which measurably disagree on 3 of 15 behaviours.
+known-rot: (2026-10-13, P7) §3's "the authored DTO is an auto-generated mirror of the `Input` variables" ("one
+  shape by default") and its `Role=Input` / `Role=State` rows predate B1 / B3a (CE-2133 / CE-2135): a behaviour
+  now names its own params DTO (`[Behavior(Params = …)]` / `ParamsDtoTypeId`), parsed flat, and an asset that
+  names one has no Input variables — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13. The Role
+  vocabulary retires with P4 (§13.10).
 known-conflict: none. ⛔ This document records how storage IS. How it is meant to BECOME is
   Architect_Question_76_One_Blackboard_Block_Per_Primitive.md, which is PARKED awaiting one
   decision; where they differ, this one is the present tense and Q76 is the future one.

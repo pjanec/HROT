@@ -119,7 +119,7 @@ classDiagram
   class SuppressAndManeuverPlay { <<NEW adapter>> over SuppressAndManeuverManeuver }
   class BoundingOverwatchBehavior { <<existing, REWIRED>> tree + params unchanged; Run → runner }
   class SuppressAndManeuverBehavior { <<NEW>> [BTreeDefinition SuppressAndManeuver, Library/Squad] }
-  class SuppressAndManeuverParamsJsonDto { <<NEW, Hrot.Core>> [BehaviorContract Commander] FlankSearchRadius 40 · Speed 3 · ArrivalRadius 8 · PhaseTimeoutSeconds 90 }
+  class SuppressAndManeuverParamsJsonDto { <<NEW, Hrot.Core>> named by [Behavior(Params) Commander] (CE-2134) FlankSearchRadius 40 · Speed 3 · ArrivalRadius 8 · PhaseTimeoutSeconds 90 }
   class SquadHsmShell { <<existing>> Tick(ref state, events, tick) }
   class BoundingOverwatchManeuver { <<existing table>> }
   class SuppressAndManeuverManeuver { <<existing table, EXTENDED>> + PhaseAssaulting }

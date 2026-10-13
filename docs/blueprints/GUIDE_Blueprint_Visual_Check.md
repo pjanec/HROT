@@ -4,7 +4,11 @@ updated: 2026-08-19
 current-answer: this whole file - rewritten for Batches 89 and 90, plus row A9 (Batch 91).
 stale-below: nothing. The 2026-08-18 edition's "part D is blocked" framing and its
   "expect (pending)" rows are BOTH GONE - do not quote them.
-known-rot: none known. Every "not built" claim names the command that measured it on
+known-rot: (2026-10-13, P7) row H3's section list "`Inputs` · `Working State` · `Asset Globals`" on BTree/HSM
+  was already false and is corrected (the first section is "Variables" since CE-2135 B3a,
+  docs/DESIGN_Orders_Params_Entity_Classes.md §5c); the blueprint "Inputs" section and the Role vocabulary
+  retire with P4 (§13.10).
+known-rot: (otherwise) none known. Every "not built" claim names the command that measured it on
   2026-08-19; re-measure rather than trusting the sentence.
 note: GUIDE_Track_C_Visual_Check.md parts B (Inspector default value) and F (change
   highlighting) still stand and are not repeated here.
@@ -197,7 +201,7 @@ the highlight diffs **bytes** ⇒ **inert by design**, not a bug. ⭐ **BTree an
 |---|---|---|---|
 | **H1** | **BTree** perspective, open a `.btree` asset | ⭐⭐ **a window titled `Details` exists** | ☐ |
 | **H2** | Repeat on **HSM** | ⭐ **the same** | ☐ |
-| **H3** | Read the **My Blueprint** section list here | ⭐⭐ **`Inputs` · `Working State` · `Asset Globals`.** ⛔⛔ **A `Working State` section here is CORRECT** — ⚠ **the opposite of `A2`** | ☐ |
+| **H3** | Read the **My Blueprint** section list here | ⭐⭐ **`Variables` · `Working State` · `Asset Globals`** *(the first was `Inputs` before CE-2135 B3a)*. ⛔⛔ **A `Working State` section here is CORRECT** — ⚠ **the opposite of `A2`** | ☐ |
 | **H4** | Click a variable row in the outline | ⭐⭐ **Details shows the TABLE of that section** — ⛔ not a form | ☐ |
 | **H5** | Find the row you clicked | ⭐ **highlighted** | ☐ |
 | **H6** | Click a section, then something with no variables | ⭐ **the panel CLEARS** | ☐ |

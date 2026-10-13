@@ -5,6 +5,10 @@ current-answer: this document specifies the JSON persistence architecture (schem
   generator wiring) for BTree/HSM assets. Runtime storage for behaviour params and AiPrimitive
   working state is occurrence slots, owned by DESIGN_Occurrence_Scoped_Storage.md §30 — read that
   document for storage, this one for persistence.
+known-rot: (2026-10-13, P7) §7's `[BlackboardDtoStruct]` (Category-1 reflection) is retired by CE-3185 into the
+  `[Dto]` base in Fdp.Core (docs/DESIGN_Orders_Params_Entity_Classes.md §13.7), and §5.4 / §7's Category-1 /
+  Category-2 split of the params struct predates `ParamsDtoTypeId` (CE-2133 B1): an asset now NAMES its params
+  DTO (hand-written struct or `.params.json`) — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5a.1 / §13.
 related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md — owns the occurrence-slot storage model referenced here.
 -->

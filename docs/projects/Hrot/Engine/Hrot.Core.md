@@ -50,7 +50,7 @@ The project defines three orthogonal concerns:
 | **PackRole** | Enum distinguishing DDS Ingress (reader) packs from Egress (writer) packs |
 | **TkbEntityTypes** | Integer constants for every spawnable entity class (tanks, infantry, routes, zones, etc.) |
 | **MissionPlan / MissionTask** | Domain POCO representing the ordered list of behavior-parameterised tasks assigned to one entity |
-| **BehaviorContractAttribute** | Marker + metadata attribute linking a behavior-parameter DTO to its engine ID and valid entity categories |
+| **BehaviorAttribute** | `[Behavior(name, Params = typeof(Dto), Categories)]` — declares a behaviour, the ONE params DTO it takes (`NoParams` when none) and its valid entity categories (CE-2134; replaced `[BehaviorContract]`) |
 | **HrotNodeConfig / HrotNodeContext** | Bootstrap carrier types passed between the composition root and subsystem modules |
 | **ZoneManagerService** | ACL pivot that translates `ZoneDefinitionDto` into ECS physics-collider entities and a road-network singleton |
 | **HrotScenarioEnvelope** | JSON envelope helper that peeks the `Header.SubsystemType` field to route scenario files to the correct loader |
@@ -131,11 +131,11 @@ throughout domain code.
 method.  This pattern keeps the ECS bootstrap sequence explicit and makes it
 trivial to understand which components are available in a given deployment.
 
-**8. BehaviorContractAttribute reflection catalog**
-`BehaviorCatalog` builds its per-entity-type behavior lists at type initialisation
-time by scanning the assembly for `[BehaviorContract]` attributes.  Adding a new
-behavior DTO automatically populates the editor drop-down without any manual
-catalog update.
+**8. BehaviorAttribute reflection catalog**
+`BehaviorCatalog` builds its per-entity-type behavior lists from `ParamsDtoRegistry` (one scan of
+the loaded assemblies for `[Behavior(...)]` declarations; CE-2134, was a scan for
+`[BehaviorContract]`).  Declaring a new behavior automatically populates the editor drop-down
+without any manual catalog update.
 
 ---
 
@@ -489,8 +489,8 @@ EntityRepository (world)
 | `MapDefinitions/Tkb/BehaviorCatalog.cs` | `Hrot.Map.Definitions.Tkb` | `static class BehaviorCatalog` | Reflection-built per-entity-type behavior name lists; `GetValidBehaviors(tkbType)` returns filtered list |
 | `MapDefinitions/Behavior/BehaviorIds.cs` | `Hrot.Map.Definitions.Behavior` | `internal static class BehaviorIds` | Integer constants for all behavior parameter DTOs (range 3001-3099 for CGF behaviors) |
 | `MapDefinitions/Behavior/BehaviorCategory.cs` | `Hrot.Map.Definitions.Behavior` | `[Flags] enum BehaviorCategory` | Entity category filter bits for behavior contracts (Civilian, MilitaryApc, Infantry, Insurgent, Commander) |
-| `MapDefinitions/Behavior/BehaviorContractAttribute.cs` | `Hrot.Map.Definitions.Behavior` | `sealed class BehaviorContractAttribute` | Metadata attribute linking a DTO to its engine behavior ID, wire name, and valid entity categories |
-| `MapDefinitions/Behavior/BehaviorTestHelper.cs` | `Hrot.Map.Definitions.Behavior` | `static class BehaviorTestHelper` | Reflection helper for unit tests to retrieve behavior name from a DTO type without hardcoding strings |
+| `MapDefinitions/Behavior/BehaviorAttribute.cs` | `Hrot.Map.Definitions.Behavior` | `sealed class BehaviorAttribute` | `[Behavior(name, Params = …, Categories)]` — links a behaviour to its params DTO, wire name and valid entity categories (CE-2134; replaced `BehaviorContractAttribute`) |
+| ~~`MapDefinitions/Behavior/BehaviorTestHelper.cs`~~ | — | — | deleted by CE-2134 (it read the `[BehaviorContract]` name off a DTO; names are `BehaviorNames` constants) |
 | `MapDefinitions/Behavior/MoveToLocationParamsJsonDto.cs` | `Hrot.Map.Definitions.Behavior` | DTO | `MoveToLocation` behavior: lat/lon/speed/arrivalRadius + pickable-geo-point facade |
 | `MapDefinitions/Behavior/FollowRouteParamsJsonDto.cs` | DTO | DTO | `FollowRoute` behavior: route entity network ID (long, remappable) |
 | `MapDefinitions/Behavior/JoinFormationParamsJsonDto.cs` | DTO | DTO | `JoinFormation` behavior: parameterless; anchors ID and Infantry category |
@@ -739,7 +739,7 @@ Built on `FdpJsonOptionsRegistry.Indented`.
 
 #### `BehaviorCatalog.GetValidBehaviors(long tkbType)`
 Returns `IReadOnlyList<string>` of behavior name strings valid for the given entity type.
-Built at type init from `[BehaviorContract]` reflection.
+Built from `ParamsDtoRegistry` (the `[Behavior(...)]` declarations; CE-2134, was `[BehaviorContract]` reflection).
 
 ### Diagnostics
 
@@ -920,8 +920,8 @@ IReadOnlyList<string> validBehaviors = BehaviorCatalog.GetValidBehaviors(tkbType
 foreach (string name in validBehaviors)
     Console.WriteLine(name);
 
-// Verify behavior name in a unit test without hardcoding:
-string moveToName = BehaviorTestHelper.GetBehaviorName<MoveToLocationParamsJsonDto>();
+// Verify behavior name in a unit test without hardcoding (CE-2134: BehaviorTestHelper is deleted):
+string moveToName = BehaviorNames.MoveToLocation;
 // moveToName == "MoveToLocation"
 ```
 
@@ -975,10 +975,11 @@ IDs 160-186 are currently used.  Document each new ID with a `<summary>` comment
 following the existing block-comment style.  Never re-use a retired ID; add a comment
 explaining why the old value was retired.
 
-### Use `BehaviorTestHelper.GetBehaviorName<TDto>()` in tests
+### Use the `BehaviorNames` constants in tests
+*(CE-2134: `BehaviorTestHelper.GetBehaviorName<TDto>()` and `BehaviorContractAttribute` are deleted.)*
 This avoids string literals for behavior IDs in test code.  If a behavior is renamed
-or its `BehaviorContractAttribute` is updated, the test will fail to compile (breaking
-change) rather than silently comparing wrong strings at runtime.
+the test will fail to compile (breaking change) rather than silently comparing wrong
+strings at runtime.
 
 ### `SequentialIdAllocator` is for offline only
 When building a non-headless test that exercises the full ECS spawn path, check

@@ -39,6 +39,12 @@ stale-below: ⛔ §2 ("STAGE 2 — the three items") is DONE. Its measurements a
 known-rot: ⚠ §2.2 said `CE-386` was "SMALLER than the design says". ⛔ HALF WRONG — the plumbing was
   indeed already there, but `ActionSchemaExporter` collapsed `hsmAction`/`hsmGuard` into one bit, so
   the item needed two new `ActionHosting` bits first. See §7 and design §13.5.
+known-rot: (2026-10-13, P7) three small mentions are overtaken: `JoinFormation`'s "`[BehaviorContract]`" (§9.4
+  trap ⑥) is now `[Behavior(Params = typeof(CgfNodes.JoinFormationParams))]` (CE-2134; the empty
+  `JoinFormationParamsJsonDto` is deleted); "`Role=State` / `Role=Input`" (CE-420, CE-429) is the Role
+  vocabulary that retires with P4; and the "`GetParameter`/`GetAllParameters` already ship" note (§12.4) — Get
+  Parameter retires in P4, Get All Parameters projects the named DTO's fields (§13.10) —
+  docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §13.
 known-conflict: ⚠ `RESUME_Hsm_Subtree_Authoring.md` is the PREVIOUS programme's doc and is COMPLETE;
   its build-state block already points here. ⛔ Two `RESUME_*` files exist for this one lane — THIS
   is the live one.

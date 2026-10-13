@@ -273,6 +273,23 @@ namespace Hrot.ScenarioEditor.Map
         public MenuOrders MenuOrders { get; internal init; } = null!;
 
         /// <summary>
+        /// ⭐ <c>CE-1059</c> (P5b, design §13.12) — THE order form on this map (null in a replay: nothing to order). It becomes the
+        /// world's <see cref="Hrot.Common.Orders.IOrderForm"/> on its first draw, so call <see cref="DrawOperatorUi"/> each ImGui frame.
+        /// </summary>
+        public Hrot.Presentation.Orders.OrderForm? OrderForm { get; internal init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-1059</c> — the map's floating operator UI, drawn ONCE per ImGui frame by every windowed host: the pack's own
+        /// picker registry (<see cref="Hrot.UI.Common.AddEntity.EntityAuthoring.DrawFrame"/>; a no-op where the host draws its shell
+        /// pickers) and the order form. ⛔ A headless host never calls it — and so never offers the form (§13.12 O2).
+        /// </summary>
+        public void DrawOperatorUi()
+        {
+            EntityAuthoring?.DrawFrame();
+            OrderForm?.Draw();
+        }
+
+        /// <summary>
         /// ⭐ What a host schedules for map INTERACTION, in order: the action dispatcher, the debug-state patch (⭐ CE-3123 — so a
         /// pin set by a menu action draws in the group that follows), then the gizmo group (the order every host used). Pass it to the interaction module AND to
         /// <see cref="Unserviceable"/>, so the two cannot disagree.

@@ -25,6 +25,13 @@ known-rot: (2026-10-12) §P.1's diagram labels "blueprint as a behaviour (O9, pl
 known-rot: (2026-09-30, §P) §1's Scope row: Entity is REMOVED (CE-441) and Scope is not authorable (CE-435) —
   Node = a blueprint node's private memory, Behavior = the shared block copy. §3.4's host accessor is RETIRED (§P.6, user 2026-09-30).
   §0 row 2 "a blueprint has params only when Dispatch == AiPrimitive" predates §3.3's Instance params.
+known-rot: (2026-10-13, P7) §1's Role row ("`Input` IS the parameter role"), §3.1's three-data-shapes table
+  (`Role=Input` usable params / `Role=State` working state) and §P.7 (a blueprint's authored Parameters, Get
+  Parameter / Get All Parameters) are overtaken: a behaviour names exactly ONE params DTO (a hand-written struct
+  or a `.params.json` asset; `[Behavior(Params = …)]` / `ParamsDtoTypeId`), its JSON is flat, the DTO is plain
+  public fields marked `[ParamsDto]`, a mandatory field is `[Required]` —
+  docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §13. The Role vocabulary and blueprint-declared Parameters
+  still exist in code and retire with P4 (§13.10); this document is rewritten then, not before.
 known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. RESOLVED 2026-09-30 by
   CE-441 (Entity removed) — two remain, neither authorable.
   - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — a NEW variable owner for behaviour-only unit data, overriding ":386"'s "no new variable owner" (user 2026-10-09); engine-read data stays a component

@@ -34,8 +34,9 @@ This workstream introduces the **Tactical Intent Distribution System**, which:
 2. Keeps senders (Commander AI, `MissionAdapterSystem`) fully agnostic of the recipient's
    unit type and capabilities.
 3. Leaves `BehaviorIngressSystem` and `AssignBehaviorEvent` completely unchanged.
-4. Reuses the existing `[BehaviorContract]` attribute and `BehaviorUiRegistry` for UI
-   discovery of generic intent DTOs with no new rendering code.
+4. Reuses the existing behaviour attribute (`[Behavior(Params = …)]`; CE-2134, was
+   `[BehaviorContract]`) and `BehaviorUiRegistry` for UI discovery of generic intent DTOs with
+   no new rendering code.
 
 ---
 
@@ -209,17 +210,20 @@ public enum BehaviorCategory
 
 ### 4.2 Intent Parameter DTOs
 
-Each generic intent has a plain DTO class decorated with `[BehaviorContract]` in
-`Hrot.Core.MapDefinitions.Behavior`. The `BehaviorContractAttribute` carries:
-- A **unique** `behaviorId` (reusing the same integer registry as behaviors - intent IDs
-  occupy a reserved range).
-- The `BehaviorId` string matching the mapper's `TargetIntentId`.
-- `BehaviorCategory.AllMilitary` (or `| Commander` if the intent is specifically for
+Each generic intent has a plain DTO in `Hrot.Core.MapDefinitions.Behavior`, named by the
+behaviour's `[Behavior(...)]` declaration (CE-2134; was `[BehaviorContract]` on the DTO — see
+`docs/DESIGN_Orders_Params_Entity_Classes.md` §5b). An intent id fulfilled by a mapper declares it on
+the mapper class. The attribute carries:
+- The behaviour/intent **name** (the `BehaviorId` string matching the mapper's `TargetIntentId`).
+- `Params = typeof(...)` — the one params DTO.
+- `Categories = BehaviorCategory.AllMilitary` (or `| Commander` if the intent is specifically for
   commander entities).
 
-Example:
+Example (`DefendAreaMapper`):
 ```csharp
-[BehaviorContract(BehaviorIds.DefendArea_Intent, "DefendArea", BehaviorCategory.AllMilitary)]
+[Behavior(BehaviorNames.DefendArea, Params = typeof(DefendAreaIntentDto), Categories = BehaviorCategory.AllMilitary)]
+public sealed class DefendAreaMapper { ... }
+
 public sealed class DefendAreaIntentDto
 {
     public double Lat;
@@ -229,17 +233,16 @@ public sealed class DefendAreaIntentDto
 }
 ```
 
-`BehaviorSchemaDiscovery.AutoRegister` picks these up automatically via reflection
-because it scans all types in the `Hrot.Core` assembly decorated with
-`[BehaviorContractAttribute]`. No changes to `BehaviorSchemaDiscovery` are needed.
+`ParamsDtoRegistry` (one scan of the loaded assemblies for `[Behavior]`) feeds the readers
+(`BehaviorSchemaDiscovery.AutoRegister` among them); no per-reader scan is needed.
 
 ### 4.3 BehaviorCatalog Update
 
 `BehaviorCatalog.GetValidBehaviors` is extended to handle the new `Commander` TKB type.
 The method's switch already handles all known TKB types; a new arm is added for
 `TkbEntityTypes.Commander` (once that constant is defined). The `s_commanderIntents`
-list is built from `BehaviorContractAttribute` entries that have `Commander` in their
-`ValidCategories` flags, following the same reflection pattern as the existing military
+list is built from `[Behavior]` declarations (`ParamsDtoRegistry`) that have `Commander` in their
+`Categories` flags, following the same reflection pattern as the existing military
 and insurgent lists.
 
 ---

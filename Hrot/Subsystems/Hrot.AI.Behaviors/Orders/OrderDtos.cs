@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 using Fbt.Kernel;
@@ -18,7 +19,8 @@ namespace Hrot.AI.Behaviors.Orders
     [StructLayout(LayoutKind.Sequential)]
     public struct MoveOrder
     {
-        /// <summary>Where to go (geodetic).</summary>
+        /// <summary>Where to go (geodetic). ⭐ <c>CE-2148</c> — required: a move without a point is refused.</summary>
+        [Required]
         [JsonPropertyName("Location")]
         public PickableGeoPoint Location;
 
@@ -43,7 +45,8 @@ namespace Hrot.AI.Behaviors.Orders
     [StructLayout(LayoutKind.Sequential)]
     public struct AttackOrder
     {
-        /// <summary>The entity to attack.</summary>
+        /// <summary>The entity to attack. ⭐ <c>CE-2148</c> — required.</summary>
+        [Required]
         [JsonPropertyName("Target")]
         public EntityRef Target;
     }

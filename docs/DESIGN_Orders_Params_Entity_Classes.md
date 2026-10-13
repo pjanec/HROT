@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-13 (§13 finishing the params story — measured, leans await the user)
 build-state: BUILDING — §5a records each task as built (CE-2145 ✅, CE-2131 ✅, CE-2132 ✅, CE-2130, CE-2133, CE-2134, CE-2140, CE-2141, CE-2142, CE-2143, CE-2137, CE-2138, CE-2139 ✅); §6 is the build plan
-current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class · §9 D4 (CE-2143) one generic order path: menu, RTS, HTTP · ⭐ §13 FINISHING THE PARAMS STORY (2026-10-13): what is left, decisions F1–F8, work P1–P7 by lane
+current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class · §9 D4 (CE-2143) one generic order path: menu, RTS, HTTP · ⭐ §13 FINISHING THE PARAMS STORY (2026-10-13): what is left, decisions F1–F8, work P1–P7 by lane · §13.12 P5b the order form (ui, CE-1059)
 stale-below: nothing
 known-rot: none
 known-conflict: (resolved by CE-2143) docs/DESIGN_Entity_Control.md §3.1/§10 is now marked superseded in its own STATUS. · docs/blueprints/DESIGN_Parameter_Model.md §P.7 (a resolver asset's authored shape = its Parameters) and §1 (Role Input/State) are superseded HERE by R-276/R-277 (one params DTO, no roles); that doc is updated when B3 builds, not before. docs/DESIGN_Entity_Control.md §3.1/§10 (EntityOrders names soldier behaviours) is superseded by R-273; updated when D4 builds.
@@ -23,6 +23,9 @@ related-designs:
   - docs/blueprints/HANDOFF_Orders_Track_B_Params_Internals.md — the dispatch for Track B
   - docs/blueprints/HANDOFF_Orders_Track_C_Classes_And_Dis.md — the dispatch for Track C
   - docs/designs/orbat-context-menu/OC1-DESIGN.md — its §2.1 (OC1-S001, the sender-side FollowRoute translation) is superseded by §10 (CE-2145)
+  - docs/blueprints/DESIGN_Map_Picking_Unification.md — OWNS the one pick broker and IMapPickContext; §13.12 (P5b) adds the entity LIST pick to it and one preset filter for every host (CE-1060)
+  - docs/DESIGN_Sensors_And_Doctrine.md — §7.6b OWNS the one params form (BehaviorParamsForm) the order form draws
+  - docs/DESIGN_Map_3D_Mode.md — §3.8 OWNS picking in 3-D, which the order form's picks use unchanged
 -->
 
 # Orders, params DTOs and entity classes
@@ -1074,6 +1077,11 @@ and R-275 rules out the cheap fix (keep it in the CGF pack and add it per host e
 | ⭐ **A (lean)** | the capability at the Simulation tail on every host, AND the action dispatchers gate on `Health.Current > 0` as well as on the capabilities | one frame later interrupt on CGF; the extra-shot window closed where it matters. Small, all in owner-side code |
 | B | the capability declares a scheduling anchor so it runs before the cognitive runtime on hosts that have one | needs an ordering seam the node plan does not have (`NodeCompositionPlan` orders by declaration only) |
 | C | accept the one-frame delay with no gate | the dead unit may fire once more |
+| ⭐ **D (lean, 2026-10-13)** | a `CoreInfrastructureCapabilities.HealthApplication` capability declared **FIRST** in every host's plan ⇒ it lands at the HEAD of Simulation (registration order is execution order, `CgfSubsystem.cs:970-975`); `CgfLogicPack` stops building it | no frame lost on CGF (it stays ahead of the cognitive runtime and the dispatchers); ahead of `MissionAdapter` / `TacticalIntentResolution` too, which read no Health (grep); the plans + 2 harnesses + the pack-count rails move |
+
+⚠ **A re-measured (2026-10-13): its gate closes nothing.** `HealthApplicationSystem` writes `Health` AND strips the capabilities in
+one call (`HealthApplicationSystem.cs:87-105`, `CombatLife.ApplyHitCapabilities`). At the tail, both are still unchanged when the
+dispatchers run, so a dispatcher testing `Health.Current > 0` sees what the capability test sees. ⇒ A = C plus code. The lean moved to D.
 
 **User decision needed** before building (the blast radius is every host's Simulation order).
 
@@ -1251,53 +1259,93 @@ surprising claims spot-checked by reading the file)*:
 | **F11** *(user, 2026-10-13: "propreties in param dtos are undesired")* | fields or properties in a params DTO | plain public FIELDS only. Measured: 21 hand-written DTO files hold 87 properties (mostly `Hrot.Core/MapDefinitions/Behavior/*ParamsJsonDto.cs`); the params parse already reads fields (B4a's T41 parses flat); `OrderMenu.PickOf` reads properties only (`OrderMenu.cs:79`). ⇒ a conformance rail rejects a property on a params DTO; the 21 files convert; every reader (`PickOf`, the schema extractor, `ComponentEditDrawer`, the registry) reads fields — ⚠ whether `DtoJsonSchemaExtractor` reads fields is not measured | keep both (two shapes every reader must handle) |
 | **F12** *(user, 2026-10-13)* | JSON options | ⭐ ruled: one shared options instance, field-aware and case-insensitive. ⭐ It EXISTS: `Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed` (`IncludeFields`, `PropertyNameCaseInsensitive`, trailing commas, comments, frozen; its header already says *"All JSON serialisation in the platform must use one of these two singletons"*) — under-adopted: 42 production `new JsonSerializerOptions` measured. ⇒ every params / order JSON path (parse AND send) uses it; the remaining ad-hoc instances move to it or carry a one-line justification, and a rail lists the justified ones (an allow-list that may only shrink). ⭐ ruled (R-2007): enums are STRINGS in every JSON — `DefaultRelaxed`'s `StrictStringEnumConverter` (`FdpJsonOptionsRegistry.cs:77`) is the rule, not a caveat; any data that sends an enum as a number is CONVERTED, the converter is never relaxed. It also omits nulls on write — measure who relies on an explicit null | a params-only options instance (a third producer for one setting) |
 
-### 13.3 F7 stage 1 — designations filled on the sender *(accepted 2026-10-13; build-state: DESIGN)*
+### 13.3 F7 stage 1 — designations filled on the sender *(accepted 2026-10-13; build-state: BUILT `2026-10-13`, behaviors — P6, CE-2149; as-built at the end of this section)*
+
+⚠ **Revised before the build (2026-10-13):** the first diagram had `EntityOrders` fill the designations. That contradicts this
+section's own row *"HTTP and AI senders: unaffected"* — `EntityOrders.Order` IS the HTTP path (`DebugApiService.Orders.cs:27`). Built
+on P5 (§13.11), the one place only operator gestures pass through is `OrderMenu.Draft` (one draft per unit: `MenuOrders.Begin`,
+`RtsCommands.Gesture`) ⇒ the fill lives there and `EntityOrders` is unchanged.
 
 ```mermaid
 classDiagram
   direction LR
-  class OrderDesignations { <<NEW, Hrot.Common/Orders, one per operator station>> Set(unit, kind, value) · Clear(unit, kind) · TryGet(unit, kind) }
-  class Designation { <<NEW>> Kind: Target | Point | Route | Area · EntityRef or PickableGeoPoint }
-  class EntityOrders { <<existing, CHANGED>> Order(unit, name, json) fills missing Required fields }
-  class OrderMenu { <<existing, CHANGED>> PickOf reads fields · FilledByGesture(dto, context) }
-  class ParamsDtoRegistry { <<existing>> the order DTO and its fields }
-  class DesignationOverlay { <<NEW, Hrot.Presentation>> draws each designation from its unit }
-  OrderDesignations o-- Designation
-  EntityOrders ..> OrderDesignations : reads at send
-  EntityOrders ..> ParamsDtoRegistry : which fields are Required
-  OrderMenu ..> OrderDesignations : Set from the unit menu
+  class OrderDesignations { <<NEW, Hrot.Common/Orders, world singleton id 368>> Set(unit, kind, value) · ClearAll(unit) · Lookup(world, map) }
+  class DesignationKind { <<NEW enum>> Target · MapPoint · Route · Area }
+  class OrderMenu { <<existing, CHANGED>> Draft(…, designation) fills after the context · KindOf(field) }
+  class OrderField { <<existing>> Kind · Presets }
+  class MenuOrders { <<existing, CHANGED>> Designate submenu handlers; drafts with the designation lookup }
+  class RtsCommands { <<existing, CHANGED>> drafts with the designation lookup }
+  class EntityOrders { <<existing, UNCHANGED>> the HTTP and AI path never sees designations }
+  class ContextMenuProjectorGizmo { <<existing, CHANGED>> + Designate submenu where orders are offered }
+  class DesignationOverlay { <<ui lane, P5b handoff U6>> draws each designation from its unit }
+  OrderDesignations --> DesignationKind
+  OrderMenu ..> OrderDesignations : lookup (unit, kind)
+  OrderMenu ..> OrderField : KindOf
+  MenuOrders ..> OrderDesignations : Set / ClearAll
+  MenuOrders ..> OrderMenu
+  RtsCommands ..> OrderMenu
+  MenuOrders ..> EntityOrders
+  RtsCommands ..> EntityOrders
   DesignationOverlay ..> OrderDesignations : reads
 ```
 
-*What the picture shows that prose hid: designations never reach the network or the brain — `EntityOrders` resolves them into the order
-JSON before it publishes, so the order on the wire is complete and every receiver, replay and log sees explicit arguments.*
+*What the picture shows that prose hid: designations never reach `EntityOrders`, the network or the brain — the operator's draft is
+complete before it is sent, so every receiver, replay and log sees explicit arguments, and the HTTP / AI path cannot be affected.*
 
 ```mermaid
 sequenceDiagram
   participant U as Operator
-  participant M as Unit menu
+  participant M as MenuOrders
   participant D as OrderDesignations
+  participant OM as OrderMenu
   participant O as EntityOrders
-  participant T as Intent topic
-  U->>M: Set sector, pick an area
-  M->>D: Set(squad, Area, areaRef)
-  U->>M: Defend (order DTO: Area Required, Radius optional)
-  M->>O: Order(squad, Defend, {})
-  O->>D: TryGet(squad, Area)
-  D-->>O: areaRef (entity still alive)
-  O->>T: Order.Defend {Area: areaRef}
+  U->>M: Designate > Set sector (unit menu)
+  M->>M: PickEntityAsync(tactical_graphics)
+  M->>D: Set(squad, Area, areaNetId)
+  U->>M: order whose required Area field is unset
+  M->>OM: Draft(order, [squad], context none, lookup)
+  OM->>D: lookup(squad, Area) — alive? else dropped
+  D-->>OM: areaNetId
+  OM-->>M: draft complete
+  M->>O: Order(squad, name, {Area: areaNetId})
 ```
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack<br/>every live map host] -->|registers, ticks each frame| MO[MenuOrders]
+  MIP -->|sets the world singleton| OD[OrderDesignations]
+  RTSG[RtsCommandGizmo] --> RTS[RtsCommands]
+  CMP[ContextMenuProjectorGizmo<br/>builds the unit menu] -->|Designate submenu, ids 470-474| MO
+  MO --> OD
+  RTS --> OD
+  MO --> EO[EntityOrders]
+  RTS --> EO
+  HTTP[DebugApiService<br/>POST /orders] --> EO
+  OV[DesignationOverlay<br/>ui lane] -.->|not built yet| OD
+  style OV stroke:#c00,stroke-dasharray: 5 5
+```
+
+*What the module picture shows: the HTTP box has no edge to `OrderDesignations` — by construction, not by convention. The dashed
+overlay is the ui lane's (the main con of the idea is hidden state; until it is drawn, the menu is the only place a designation shows).*
 
 | detail | ⭐ lean | why |
 |---|---|---|
-| the kinds | `Target` (an `EntityRef`), `Point` (`PickableGeoPoint`), `Route` (an `EntityRef` on `road_graphs`), `Area` (an `EntityRef` on `tactical_graphics` — a sector, F10) | the four the user named; each maps to a field TYPE + picker preset the registry already sees |
-| which field a designation fills | a missing field whose type (and `[MapPickableEntity]` preset) matches exactly one kind, when the DTO has exactly ONE such field; explicit arguments always win | two candidate fields ⇒ ambiguous ⇒ the order form opens instead (F6) |
+| the kinds | `Target` (an `EntityRef` field without a route / area preset), `MapPoint` (a `PickableGeoPoint`), `Route` (an `EntityRef` with `[MapPickableEntity("road_graphs")]`), `Area` (an `EntityRef` with `[MapPickableEntity("tactical_graphics")]` — a sector, F10) | the four the user named; each maps to a field TYPE + picker preset the registry already sees (measured: `road_graphs` ×2, `tactical_graphics` ×2) |
+| which field a designation fills | a missing `[Required]` field of its kind, when the order has exactly ONE such missing field; explicit JSON first, then the gesture's context, then designations | two candidate fields ⇒ ambiguous ⇒ the order form opens instead (F6) |
 | `[Required]` only, or optional fields too | `[Required]` only | an optional field keeps the behaviour's default; filling it silently would change behaviour nobody asked for |
-| where it lives | per operator station, in the order service beside `EntityOrders`; keyed by the unit's network id; not replicated, not saved | it is operator UI state, not entity state (R-136 binds entity state); stage 2 (G3) is where it becomes entity state |
-| how it is set | the unit's context menu: "Set target / point / route / sector" (one pick each); a "remember" tick in the order form; a selection sets it for every selected unit | explicit gestures — no silent capture from the last order |
-| visibility | drawn on the map from the unit (a line to the target / point, the route highlighted, the sector outlined) while the unit is selected | the main con of the idea is hidden state; drawing it removes it |
-| staleness | checked at send: an entity no longer alive (or a route / area deleted) is dropped and the order form opens | a dead target must not silently become `0` |
-| HTTP and AI senders | unaffected: they send explicit JSON; designations are the operator UI's convenience | nothing downstream learns a new concept |
+| where it lives | a world singleton per station (component id 368), keyed by the unit's network id; not replicated, not saved | it is operator UI state, not entity state (R-136 binds entity state); stage 2 (G3) is where it becomes entity state |
+| how it is set | the unit menu's **Designate** submenu: Set target… · Set point… · Set route… · Set sector… (one pick each, presets passed) · Clear | explicit gestures — no silent capture from the last order. ⚠ "a selection sets it for every selected unit" and the form's "remember" tick are the ui lane's (P5b) |
+| visibility | drawn on the map from the unit while it is selected — ui lane (handoff U6) | the main con of the idea is hidden state; drawing it removes it |
+| staleness | checked at draft: an entity no longer alive (or a deleted route / area) is dropped from the store and not filled ⇒ the pick or the form | a dead target must not silently become `0` |
+| HTTP and AI senders | unaffected: they send explicit JSON through `EntityOrders`, which never reads designations | nothing downstream learns a new concept |
+
+**P6 as built** *(2026-10-13, `CE-2149`; matches the revised diagrams)*: `Hrot.Common/Orders/OrderDesignations.cs` (`DesignationKind`
+`Target · MapPoint · Route · Area`, component id 368, `IsLive` = exists and not killed — the CE-466 meaning for a target); `OrderMenu.Draft`
+gained the `designation` lookup (fills only a one-unit draft); `MenuOrders` (Designate handlers, ids 470–474 in `GlobalActionIds`, the
+lookup on every draft), `RtsCommands` (the lookup), `ContextMenuProjectorGizmo` (the Designate submenu, only on a unit that takes orders).
+`EntityOrders` untouched. Rails: `OrderVocabularyTests` `CE2149_KindOf…`, `CE2149_Draft_Fills…`; `MenuOrdersTests`
+`CE2149_ADesignatedTarget_LetsAttackGoWithoutAPick…`, `CE2149_AGoneTarget_IsDropped…`, `CE2149_TheUnitMenu_OffersDesignate` — red-proved
+(fill disabled ⇒ 3 red). The overlay, multi-select and the form's remember tick: ui lane, handoff U6.
 
 ### 13.2 The work and the lanes *(lean)*
 
@@ -1311,7 +1359,7 @@ sequenceDiagram
 | P5b | F6 form: the modeless floating order form (`BehaviorParamsForm` over the order DTO), an entity source for the fuzzy `PickerWindow`, 3D map picking if absent. ⭐ **Separable by one seam P5 defines:** an `OrderDraft` (units, order name, the prefilled DTO JSON, the `[Required]` fields still missing) and `IOrderForm.Open(draft)` — P5 calls it when the fast path cannot send; the ui lane implements it; until then a stub reports "needs the order form" | ui | P5's seam |
 | P8 | F11: params DTOs become plain fields (21 files, 87 properties), the rail, every reader over fields | backend | — |
 | P9 | retire `PlatoonHillAttackBp` + `hill-attack-close-bp` without costing a feature (§13.5) | behaviors | — |
-| P6 | F7 stage 1: the designations store + gestures + sender fill | behaviors (ui for the gestures) | P5 |
+| P6 | F7 stage 1: the designations store + the Designate menu + the draft fill (§13.3) | behaviors (ui: the overlay, multi-select, the form's remember tick) | P5 |
 | P7 | docs: the 6 high-risk rewrites + `OVERVIEW` box (behaviors); the remaining 15 known-rot lines + the 9 `[BehaviorContract]` mentions (any session) | behaviors leads | as each item lands |
 | — | B4b editor, the struct editor | postponed (user) | — |
 
@@ -1332,6 +1380,8 @@ sequenceDiagram
 | 17–21 | `DESIGN_Decision_Layer.md` · `blueprints/DESIGN_Resolver_World_Reach.md` · `blueprints/RESUME_Hsm_Blueprint_Behaviour.md` · `blueprints/RESUME_START_HERE.md` · `blueprints/BTree_HSM_JSON_Persistence_Detailed_Design.md` | small mentions | low; a note each |
 | + | `OVERVIEW_Behaviour_Building_Blocks.md` | the params box says "designed, not built" | refresh the box |
 | + | `[BehaviorContract]` still current in: `UX/UX_Design.md`, `UX/UX_Requirements.md`, `UX/UX_Feature_Entity_Commanding.md`, `UX/UX_Golden_Path.md`, `designs/tactical-intent/DESIGN.md`, `designs/group-maneuvers/DESIGN_Squad_Tactics.md`, `designs/group-maneuvers/DESIGN_Squad_Wiring.md`, `projects/Hrot/Engine/Hrot.Core.md`, `blueprints/DESIGN_Entity_Reference.md` | replaced by `[Behavior(Params=…)]` (CE-2134) | one pass |
+
+**P7 sweep 2026-10-13:** known-rot lines added (ranks 1, 3–5, 7–21; two docs with no STATUS block got a minimal one), ranks 2 and 6 corrected where already false (Quickstart's "never field-by-field"; the visual-check guide's BTree/HSM first section, now "Variables"), the `[BehaviorContract]` pass and the OVERVIEW box done; the Role / blueprint-Parameters rewrites wait for P4 (§13.10).
 
 Already correct (leave): this design, `RULINGS.md` R-273..R-282 / R-2000..R-2003, AQ90, the orders resume / handoffs,
 `DESIGN_Entity_Interactions.md`, `tools/ai-debug-mcp/SKILL.md`, `AI_DEV_GUIDE.md`, `HROT-PROGRAMMERS-GUIDE.md`, `TUTORIAL_Behaviour_Composition.md`.
@@ -1708,3 +1758,268 @@ sequenceDiagram
 - **Not yet**: the editor's Variables / Details panels still list only DECLARED Parameters (a DTO-named asset shows none) — the canvas
   pins are right (`ParametersOf`), the panels are the ui lane's surface (P5b). Steps ③–⑦ follow.
 
+### 13.11 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
+
+**INVENTORY** *(codebase-memory CLI `search_graph` `EntityOrders.*` (8), `.*MenuOrder.*` (12), `.*DtoJsonSchema.*` (3),
+`.*MapPickable.*` (10), `.*GlobalActionRequested.*` (8), `.*ContextMenuProjector.*` (4) + grep for `OrderMenu.` callers; every file
+below read whole)*:
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| every operator order goes through `EntityOrders.Order` (menu, RTS, HTTP) | ✅ `MenuOrders.cs:85,95,102`, `RtsCommands.cs:90`, `DebugApiService.Orders.cs:73,111` | ✅ `DESIGN_Entity_Control.md` §3.1 (R-270) |
+| the menu and the RTS tool fill exactly ONE field (`OrderMenu.Json(order, picked)`) | ✅ `OrderMenu.cs:129-134` | ✅ D4-E |
+| an order with two pickable fields is hidden from the menu (`Several`) | ✅ `ContextMenuProjectorGizmo.cs:70` | ✅ D4-E "HTTP-only" — ⭐ superseded by F6: it needs the order FORM |
+| `[MapPickableEntity]` presets never reach the pick | ✅ `MenuOrders.cs:86` calls `PickEntityAsync()` bare; the service takes `filterPresets` (`IMapPickService.cs:32`) | ✅ `DESIGN_Map_Picking_Unification` P5 |
+| no field is mandatory; the schema has no `required` | ✅ `DtoJsonSchemaExtractor.cs:43-58` | ✅ F5 (R-2002) |
+| a BadRequest refusal is HTTP 400 | ✅ `DebugApiService.Orders.cs:160-165` | — |
+| `PickOf` reads fields (P8 done) | ✅ `OrderMenu.cs:79-91` | ✅ F11 |
+
+```mermaid
+classDiagram
+  direction LR
+  class OrderField { <<NEW record>> Name (JSON) · Type · Kind · Required · Presets }
+  class OrderFieldKind { <<NEW enum>> MapPoint · MapEntity · Value }
+  class OrderInfo { <<existing, CHANGED>> + Fields · Pick/PickField from the REQUIRED fields }
+  class OrderMenu { <<existing, CHANGED>> + FieldsOf(dto) · Draft(order, units, context) · MissingIn(order, json) }
+  class OrderContext { <<NEW record struct>> the gesture's Entity (network id) · Point [lat, lon] }
+  class OrderDraft { <<NEW record>> Units · Order · Params JsonObject · Missing · Send(json) }
+  class IOrderForm { <<NEW interface>> Open(draft) }
+  class EntityOrders { <<existing, CHANGED>> Order refuses a missing Required field (BadRequest, names it) }
+  class MenuOrders { <<existing, CHANGED>> draft → send · one pick (with presets) · or the form }
+  class RtsCommands { <<existing, CHANGED>> the gesture is the context; incomplete → the form }
+  class DtoJsonSchemaExtractor { <<existing, CHANGED>> + required }
+  class DebugApiService { <<existing, CHANGED>> + GetOrders(entityId?) }
+  class OrderForm { <<P5b, ui lane>> BehaviorParamsForm over the draft }
+  OrderInfo *-- OrderField
+  OrderField --> OrderFieldKind
+  OrderMenu ..> OrderInfo : builds
+  OrderMenu ..> OrderDraft : Draft
+  OrderDraft ..> OrderContext : filled from
+  MenuOrders ..> OrderMenu
+  RtsCommands ..> OrderMenu
+  MenuOrders ..> IOrderForm : incomplete draft
+  RtsCommands ..> IOrderForm : incomplete draft
+  OrderForm ..|> IOrderForm
+  MenuOrders ..> EntityOrders
+  RtsCommands ..> EntityOrders
+  DebugApiService ..> EntityOrders : POST
+  DebugApiService ..> OrderMenu : GET /orders
+  DebugApiService ..> DtoJsonSchemaExtractor
+  EntityOrders ..> OrderMenu : MissingIn
+```
+
+*What the picture shows that prose hid: ONE rule (`OrderMenu.MissingIn`) decides "complete", and it is asked twice — by the front-ends to
+choose send / pick / form, and by `EntityOrders` as the refusal every sender gets (HTTP 400 included). Nothing downstream of
+`EntityOrders` changes: the order on the wire is the same JSON.*
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant F as MenuOrders / RtsCommands
+  participant M as OrderMenu
+  participant P as IMapPickService
+  participant Form as IOrderForm (ui, P5b)
+  participant O as EntityOrders
+  U->>F: order (menu item / RTS gesture with its click)
+  F->>M: Draft(order, units, context)
+  M-->>F: draft (Params filled from the context, Missing)
+  alt Missing is empty
+    F->>O: Order(unit, name, json) per unit
+  else one missing pickable field (menu)
+    F->>P: PickLocationAsync / PickEntityAsync(presets)
+    P-->>F: the pick (a later frame)
+    F->>O: Order(unit, name, json + pick)
+  else more is missing
+    F->>Form: Open(draft)
+    Form->>O: draft.Send(json) when the operator presses Send
+  end
+  O->>M: MissingIn(order, json)
+  O-->>F: refused (BadRequest, names the field) or published
+```
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack<br/>every live map host] -->|registers, ticks each frame| MO[MenuOrders]
+  RTSG[RtsCommandGizmo<br/>input, RMB] -->|calls| RTS[RtsCommands]
+  HTTP[DebugApiHost<br/>GET/POST /orders, HTTP thread → RunMain] --> SVC[DebugApiService]
+  MO --> EO[EntityOrders]
+  RTS --> EO
+  SVC --> EO
+  MO -.->|world singleton, absent until P5b| FORM[IOrderForm]
+  RTS -.-> FORM
+  style FORM stroke:#c00,stroke-dasharray: 5 5
+```
+
+*⭐ SUPERSEDED 2026-10-13 by §13.12 (CE-1059): the form is built and registers itself where a host draws it, so the dashed edge is live on windowed hosts. — What the module picture showed: until the ui lane registers an `IOrderForm` (P5b) the dashed edge is DEAD — an order that needs the
+form is refused with "needs the order form" (logged), and the unit menu keeps hiding such orders so no menu item does nothing.*
+
+| # | decision | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| P5-a | what "complete" means | every `[Required]` field present in the JSON (key matched case-insensitively, R-2005) and not null; an `EntityRef` of 0 is missing | a sender-side check only (HTTP and AI senders would skip it) |
+| P5-b | which fields the context fills | a missing `[Required]` field of the context's kind, when the order has exactly ONE missing field of that kind; explicit JSON always wins | fill optional fields too (changes a default nobody asked to change, §13.3) |
+| P5-c | `Pick` / `PickField` | computed over the REQUIRED fields: one missing pick ⇒ `Point` / `Entity`; none ⇒ `None`; anything else (two picks, a required number) ⇒ `Several` = needs the form | over all pickable fields (an optional pick would force a pick) |
+| P5-d | where the form is found | an `IOrderForm` world singleton (the ui lane registers it); absent ⇒ refused + logged | a static registry (one process hosts several worlds in `--mode all`) |
+| P5-e | the menu and `Several` | stays hidden until an `IOrderForm` exists (P5b flips it, showing `Name…`) | show it now (a menu item that does nothing) |
+| P5-f | `GET /orders` | every order: name, gesture, pick, fields (name, kind, required, presets) and its schema with `required`; `?entityId=` narrows to the orders that unit fulfils | a per-order route (one call answers the vocabulary) |
+
+**P5 as built** *(2026-10-13, behaviors, `CE-2148`; matches the diagrams above, three deviations)*:
+- ⚠ `OrderFieldKind` is `Value · MapPoint · MapEntity` (not `Point · Entity`): the CycloneDDS code generator emits every enum of
+  `Hrot.Common` into one IDL scope per source file, and `OrderPick` already declares `Point` / `Entity` (`idlc`: *"Declaration 'Point'
+  collides"*). Enumerators of two enums in one file must not repeat.
+- ⚠ `IOrderForm` carries `[ComponentId(GlobalComponentIds.IOrderForm)]` (= 367, measured free on backend, ui and behaviors): a managed
+  world singleton needs an id, as `IGeographicTransform` has.
+- `OrderMenu.Json` (one picked field) is retired — `OrderMenu.Draft` does its job for the menu and the RTS tool.
+- Rails: `OrderVocabularyTests` (+5: required picks, `Several` = form, `MissingIn`, `Draft`, schema `required`), `MenuOrdersTests` (+2:
+  the refusal names the field; an incomplete draft opens the form and sends through it), `DebugApiOrdersTests` (+1: `GET /orders`, a
+  missing field is a 400). `MissingIn`'s entity-0 check compares JSON text — the rail caught that a `JsonValue` built from an `int` does not
+  answer `TryGetValue<long>`. MCP: `list_orders` (catalog + SKILL.md regenerated).
+
+### 13.12 P5b — the order form *(CE-1059, ui lane; build-state: BUILT `2026-10-13` — as-built at the end of this section; designed READY-TO-BUILD the same day — dispatched by [HANDOFF_Order_Form_Ui](blueprints/HANDOFF_Order_Form_Ui.md) at 846c8021d)*
+
+🔒 **User, 2026-10-13:** *"some kind of parameter filling modeless floating form allowing for picking from 2d/3d map … and/or list
+picker with incremental search, but avoidable for simpler orders where RTS style is desired"*.
+
+**INVENTORY** *(codebase-memory CLI `search_graph` Class + Interface: `.*OrderForm.*` (1: `IOrderForm`), `.*Designation.*` (4),
+`.*MapPick.*` (10 + 2 interfaces), `.*EntityFilter.*` (2 + 2 interfaces), `.*ParamsForm.*|.*ParamsEditor.*` (3),
+`.*EntityList.*|.*EntityPicker.*` (3, no list source); grep for every `new CanvasMapPickAdapter`, `.DrawFrame()`, `BehaviorParamsForm.`
+caller; every file named below read whole)*:
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| ONE params form exists and is drawn by the mission panel and the AI details view | ✅ `BehaviorParamsForm.cs:24`, `MissionPanel.cs:508`, `EntityAiDetailsView.cs:323` | ✅ `DESIGN_Sensors_And_Doctrine.md` §7.6b (CE-1023) |
+| a pickable field is drawn with a map pick button by its TYPE, through `IMapPickContext`; the broker turns `IMapPickService` into per-frame polling | ✅ `ComponentEditDrawer.cs:326-365`, `MapPickBroker.cs:17` | ✅ `DESIGN_Map_Picking_Unification.md` P4/P5 |
+| no entity LIST source exists for the fuzzy picker | ✅ graph: no `*EntityList*` / list source class; `PickerRegistry.OpenPicker(request, onChosen)` has no cancel callback (`PickerRegistry.cs:85`) | ⛔ searched docs/ + .dev/, none found (F6 names it new) |
+| ⚠ map entity picks honour `[MapPickableEntity]` presets ONLY on IG and the Editor: CGF and SimHost build `CanvasMapPickAdapter` with no filter factory ⇒ match-all | ✅ `IgApplication.cs:536`, `EditorSubsystem.cs:2385` pass `HrotEntityFilterFactory`; `CgfSubsystem.cs:1900`, `SimHostVisualization.cs:368` do not; default `MatchAllFilterFactory` (`CanvasMapPickAdapter.cs:29`) | ✅ `MapLayerAssignmentSystem` (which the filter reads) runs on all four hosts (`CgfSubsystem.cs:1482`, `SimHostApp.cs:542`, `EditorSubsystem.cs:1823`, IG `MapLayerModule`) ⇒ the filter would work everywhere — **CE-1060** |
+| 3-D picks need no new code: the location and entity pick gizmos run through the unchanged input chain | ✅ `CanvasMapPickAdapter.cs:94` (gizmo on the canvas), `EntityBoxPicker.cs` | ✅ `DESIGN_Map_3D_Mode.md` §3.8 (built) — ⚠ not visually checked here |
+| the four windowed hosts draw an ImGui frame hook: SimHost / IG call `EntityAuthoring.DrawFrame()`, Editor / CGF draw their shell pickers | ✅ `SimHostApp.cs:665`, `IgApplication.cs:1365`, `EditorSubsystem.cs:3051`, `CgfSubsystem.cs:1867` | ✅ §5 "One wiring" of `DESIGN_Add_Entity_Picker.md` |
+| no shipped order is `Several` today (Move: `Location`, Attack: `Target`, Hold: none) ⇒ the form is reached by "Order with options" until an order with two picks or a required number ships | ✅ `OrderDtos.cs` | ✅ §13.11 P5-c |
+| a menu click carries only (action id, entity) — no modifier, no point | ✅ `GlobalActionRequestedEvent.cs:15-20` | ✅ §13 inventory |
+
+```mermaid
+classDiagram
+  direction LR
+  class IOrderForm { <<existing, behaviors>> Open(draft) }
+  class OrderDraft { <<existing, behaviors>> Units · Order · Params · Missing · Send(json) }
+  class OrderForm { <<NEW>> Open(draft) · Draw() — registers itself as the world's IOrderForm on its FIRST draw · Entries }
+  class OrderFormEntry { <<NEW, no ImGui>> Draft · Session · Json() = Params + changed fields · Missing · Remember · Send() · Results }
+  class BehaviorParamsForm { <<existing>> Open · DrawFields · CommitToJson }
+  class MapPickBroker { <<existing, CHANGED>> + EntityList opener · CanListEntities · RequestEntityListPick }
+  class IMapPickContext { <<existing, CHANGED>> + CanListEntities (default false) · RequestEntityListPick (default no-op) }
+  class ScopedMapPickContext { <<existing, CHANGED>> forwards the two }
+  class ComponentEditDrawer { <<existing, CHANGED>> EntityRef leaf: Pick Entity + List… }
+  class EntityListSource { <<NEW>> Entries(world, filter, exclude) → PickerEntry per networked entity }
+  class HrotEntityFilterFactory { <<existing, MOVED Hrot.IG → Hrot.Presentation.Map>> presets → layer mask }
+  class CanvasMapPickAdapter { <<existing, CHANGED>> no factory + a world ⇒ HrotEntityFilterFactory (CE-1060) }
+  class PickerRegistry { <<existing, NodeEditor.UI>> OpenPicker · DrawFrame }
+  class OrderDesignations { <<existing, behaviors>> Set · Of · KindOf }
+  class DesignationOverlayGizmo { <<NEW>> passive global gizmo: draws each selected unit's designations }
+  class MenuOrders { <<existing, CHANGED>> Order with options (ids 480+) · Designate over the selection · Selected }
+  class ContextMenuProjectorGizmo { <<existing, CHANGED>> form registered ⇒ Several as "Name…" + "Order with options" submenu }
+  OrderForm ..|> IOrderForm
+  OrderForm *-- OrderFormEntry
+  OrderFormEntry --> OrderDraft
+  OrderFormEntry ..> BehaviorParamsForm
+  OrderFormEntry ..> OrderDesignations : Remember
+  OrderForm --> MapPickBroker : one, scoped per entry
+  MapPickBroker ..|> IMapPickContext
+  ScopedMapPickContext ..|> IMapPickContext
+  ComponentEditDrawer ..> IMapPickContext
+  MapPickBroker ..> PickerRegistry : list pick
+  MapPickBroker ..> EntityListSource
+  EntityListSource ..> HrotEntityFilterFactory
+  CanvasMapPickAdapter ..> HrotEntityFilterFactory
+  DesignationOverlayGizmo ..> OrderDesignations : reads
+  MenuOrders ..> IOrderForm
+  ContextMenuProjectorGizmo ..> IOrderForm : registered?
+```
+
+*What the picture shows that prose hid: the form adds no second editor, no second pick path and no second entity filter — the list pick
+is one more way the SAME broker answers the SAME `TryConsumeEntityPick`, so every params form (mission panel, AI view) can offer it,
+and the list and the map pick narrow by ONE preset rule.*
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant MO as MenuOrders
+  participant OM as OrderMenu
+  participant F as OrderForm
+  participant E as OrderFormEntry
+  participant B as MapPickBroker
+  participant P as IMapPickService / PickerRegistry
+  participant EO as EntityOrders
+  U->>MO: "Order with options › Move" (or a Several order "Name…")
+  MO->>OM: Draft(order, selected units ∋ clicked, context none)
+  MO->>F: Open(draft)
+  F->>E: new entry, session over the DTO seeded from draft.Params
+  loop every ImGui frame (host: mi.DrawOperatorUi)
+    F->>E: DrawFields(session, scoped broker)
+    U->>B: Pick Map / Pick Entity / List…
+    B->>P: PickLocationAsync / PickEntityAsync(presets) / OpenPicker(entities matching presets)
+    P-->>B: the pick (a later frame)
+    B-->>E: TryConsume… ⇒ the field
+    E->>OM: MissingIn(order, Json()) ⇒ Send enabled?
+  end
+  U->>E: Send
+  E->>EO: draft.Send(Json()) — once per unit
+  EO-->>E: results (refusals shown in the form)
+  E->>E: Remember ⇒ OrderDesignations.Set(unit, kind, value) for each designatable field sent
+```
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack<br/>live map host, not a replay] -->|builds, registers actions| MO[MenuOrders]
+  MIP -->|builds| OF[OrderForm]
+  MIP -->|registers, ticks each frame| OV[DesignationOverlayGizmo<br/>GlobalGizmoManager]
+  HOST[Editor · CGF · SimHost · IG<br/>ImGui frame] -->|mi.DrawOperatorUi each frame| OF
+  OF -->|first draw: SetSingletonManaged| ISF[IOrderForm world singleton]
+  CMP[ContextMenuProjectorGizmo] -->|reads| ISF
+  MO -->|OpenForm| ISF
+  RTS[RtsCommands] -->|OpenForm| ISF
+  HEADLESS[headless host / test<br/>never draws] -.->|no draw ⇒ never registered| ISF
+  style HEADLESS stroke:#c00,stroke-dasharray: 5 5
+```
+
+*What the module picture shows: the form is OFFERED exactly where it is DRAWN — it registers itself on its first draw, so a headless
+node (dashed) never shows "Name…" or "Order with options", by construction rather than by a flag each host must set.*
+
+| # | decision | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| O1 | what the form sends | `draft.Params` plus only the fields the operator CHANGED (compared with the value the session opened with); `OrderMenu.MissingIn` over that JSON enables Send — the one rule | the whole committed DTO (a never-picked `[Required]` point serialises as `[0,0]`, which `MissingIn` counts as set) |
+| O2 | where it lives, who draws it | built by `MapInteractionPack` beside `MenuOrders` (live hosts only); every windowed host calls `mi.DrawOperatorUi()` once per ImGui frame (the authoring pickers + the form); the form registers itself as `IOrderForm` on its first draw | register at build (a headless pack offers a form nobody draws) · a context flag (one more input four hosts must remember) |
+| O3 | the searchable entity list | `MapPickBroker` gets an optional list opener (the map's `PickerRegistry`); `IMapPickContext` gains `CanListEntities` / `RequestEntityListPick` as default members; the drawer shows **List…** beside **Pick Entity** when the context can list; entries = networked entities matching the field's presets, named by `EntityInfo.Name`, foldered by side | a combo private to the form (a second entity chooser the mission panel and the AI view could not use) |
+| O4 | one preset rule (CE-1060) | move `HrotEntityFilterFactory` to `Hrot.Presentation.Map` (same name); `CanvasMapPickAdapter` defaults to it when it has a world; the list uses the same factory | a list-only filter (the list and the map would disagree on what "a route" is) |
+| O5 | the unit menu | with a form registered: a `Several` order shows as `Name…` (its own id ⇒ `MenuOrders.Begin` ⇒ the form); an **Order with options** submenu lists every offered order (ids `480 + index`, 64 reserved, ⇒ the form prefilled) | a Shift-click modifier (a relayed menu click carries no modifier) |
+| O6 | several selected units | Designate › Set… and Order with options apply to the SELECTION when the clicked unit is in it, else to the clicked unit; plain menu orders stay one unit | every menu order on the selection (changes behaviour nobody asked to change) |
+| O7 | the remember tick | on Send, every designatable field (`OrderDesignations.KindOf`) present in the sent JSON is stored for every unit of the draft | remember on every send (silent hidden state, §13.3) |
+| O8 | the designation overlay | a passive global gizmo (the `LayerControlGizmo` shape) registered by the pack: for each SELECTED unit, a dashed line to each designation — target (red), point (green, + ring), route (amber, its waypoints drawn), area (blue, its outline drawn) | an entity projector (draws for every unit, not the selection) |
+| O9 | 3-D | no new code — picks run through the unchanged input chain (`DESIGN_Map_3D_Mode.md` §3.8) | a 3-D-only pick path |
+
+**P5b as built** *(2026-10-13, ui, `CE-1059` + `CE-1060`; matches the three diagrams above — deviations marked ⚠)*:
+- `Hrot.Presentation/Orders/`: `OrderForm` (`IOrderForm`; `Draw()` registers it and draws one ImGui window per open draft — fields,
+  "Remember as designations" when the order has a designatable field, "Missing: …", Send disabled until nothing is missing, Cancel, Esc
+  on the focused form, refusals listed; a form whose Send every unit accepted closes), `OrderFormEntry` (the headless model: `Json()`,
+  `Missing`, `Send()`, `Remember`), `EntityListSource` (entries + `Opener` for the broker), `DesignationOverlayGizmo`.
+- `MapInteraction.OrderForm` + `DrawOperatorUi()`; the four windowed hosts call `DrawOperatorUi()` once per ImGui frame (SimHost / IG
+  replaced their `EntityAuthoring.DrawFrame()` call; the Editor / CGF call it after their shell pickers). The rail
+  `EveryWindowedMapHostUsesTheOneEntityAuthoringWiring` now requires it.
+- `IMapPickContext.CanListEntities` / `RequestEntityListPick` (default members), forwarded by `ScopedMapPickContext`; `MapPickBroker.EntityList`;
+  `ComponentEditDrawer` draws **List…** after **Pick Entity** when the context can list. ⚠ The list sets NOTHING pending while it is open
+  (`PickerRegistry.OpenPicker` has no cancel callback, so a pending state could hang); the choice lands as a completed entity pick.
+- ⚠ O4 refined: `CanvasMapPickAdapter`'s default (with a world) narrows only a pick that HAS presets, and only where
+  `MapDisplayComponent` is registered; a preset-less pick stays match-all, as it was on CGF / SimHost. (`HrotEntityFilterFactory` with no
+  presets requires a layer mask, which would have newly hidden unclassified entities there.) The Editor no longer passes the factory (the
+  default is the same rule); IG still passes its own instance of the same class.
+- `ContextMenuProjectorGizmo.OrderItem(order, degraded, form)` — the per-order item, factored out so the `Several` ⇒ `Name…` rule has a rail
+  (no shipped order is `Several`); menu-cache flag 8 = "a form is registered here". `GlobalActionIds.OrderWithOptionsBase = 480`, 64 ids.
+- `MenuOrders.Selected` (set by the pack): Designate › Set… / Clear and Order with options act on the selection the clicked unit is in.
+- Rails (`MenuOrdersTests`, the feature's suite): `CE1059_ATwoPickOrder_OpensTheFormPrefilled_SendsOncePerUnit_AndAnIncompleteFormSendsNothing`,
+  `CE1059_OrderWithOptions_OrdersTheSelection_ThroughTheForm_AndRemembersThePoint`, `CE1059_TheMenu_OffersTheForm_OnlyWhereOneIsRegistered`,
+  `CE1059_DesignateOnASelection_SetsEveryUnit_AndTheOverlayDrawsIt`, `CE1059_TheEntityList_AnswersThroughTheSamePick_AndLeavesOutTheOrderedUnits`.
+- ⭐ **2026-10-13 (user: "add the entity list to the mission panel and AI view too")** — `MissionPanel.EntityList` (init, forwards to its
+  broker) and `EntityListSource.Opener(Func<EntityRepository?>, …)` (world and registry read at OPEN time: hosts build panels before
+  their world). Passed by the Editor (its mission panel, the Scenario view's mission panel, the AI view's broker) and CGF (its mission
+  panel), each over its shell pickers. ⛔ ExCon's mission panel stays map-only: ExCon holds no local entity world (its picks go to a
+  remote IG). Rails: `MissionPanelRegistryTests.CE1059_TheEntityList_ReachesTheTasksParamsForm_AtTheTasksScope`;
+  `TheScenarioWindowsAreSharedTests.EveryParamsFormHostPassesTheEntityList` (the silent-default rule, per host).
+- ⛔ Not built: an RTS modifier that opens the form (F6 "or on request") — the menu's Order with options covers it. ⚠ Not visually checked
+  on a real window (2-D or 3-D).

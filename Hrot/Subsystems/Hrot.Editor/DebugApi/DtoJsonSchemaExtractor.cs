@@ -43,18 +43,26 @@ namespace Hrot.Editor.DebugApi
         public static JsonObject ExtractParams(Type? dtoType)
         {
             var properties = new JsonObject();
+            var required = new JsonArray();
 
             if (dtoType is not null)
             {
                 foreach (var member in PublicWritableMembers(dtoType))
+                {
                     properties[member.Name] = DescribeMember(member);
+                    // ⭐ CE-2148 (F5, R-2002) — a [Required] field is one the order / behaviour cannot go without.
+                    if (member.Member.IsDefined(typeof(System.ComponentModel.DataAnnotations.RequiredAttribute), inherit: true))
+                        required.Add(member.Name);
+                }
             }
 
-            return new JsonObject
+            var schema = new JsonObject
             {
                 ["type"] = "object",
                 ["properties"] = properties,
             };
+            if (required.Count > 0) schema["required"] = required;
+            return schema;
         }
 
         /// <summary>

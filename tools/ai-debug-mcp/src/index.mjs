@@ -1704,6 +1704,18 @@ const TOOLS = [
   },
 
   {
+    name: 'list_orders',
+    description: TOOL_DEFS['list_orders'].description,
+    inputSchema: TOOL_DEFS['list_orders'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const q = toolArgs.entityId != null ? `?entityId=${encodeURIComponent(toolArgs.entityId)}` : '';
+        return toolSuccess(await callApi('GET', `/orders${q}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'list_orders'); }
+    },
+  },
+
+  {
     name: 'order_entities',
     description: TOOL_DEFS['order_entities'].description,
     inputSchema: TOOL_DEFS['order_entities'].inputSchema,

@@ -23,6 +23,7 @@ namespace Hrot.Presentation.Tests.Gizmos;
 /// map pack on every live host: Move and Engage take a follow-up pick and become the same order the HTTP route publishes; a
 /// cancelled pick orders nothing; a replay offers and registers none of them.
 /// </summary>
+[Xunit.Collection(Hrot.Presentation.Tests.ImGuiTestCollection.Name)]   // ⭐ one global ImGui context
 public sealed class MenuOrdersTests : IDisposable
 {
     private const long UnitId = 77, EnemyId = 88;
@@ -60,7 +61,8 @@ public sealed class MenuOrdersTests : IDisposable
         public TaskCompletionSource<GeoPoint>? Location;
         public TaskCompletionSource<int>? Enemy;
         public Task<GeoPoint> PickLocationAsync(CancellationToken ct = default) => (Location = new()).Task;
-        public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) => (Enemy = new()).Task;
+        public string[]? Presets;
+        public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) { Presets = filterPresets; return (Enemy = new()).Task; }
         public Task<IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<int>>(Array.Empty<int>());
     }
@@ -224,5 +226,259 @@ public sealed class MenuOrdersTests : IDisposable
         _w.SetDisType(munition, new DISEntityType { Value = 2UL << 56 });            // a munition: no class has an order behaviour
         var none = ContextMenuProjectorGizmo.MenuJsonFor(_w, munition);
         foreach (var o in OrderMenu.Orders) Assert.DoesNotContain($"\"id\":{o.ActionId},", none);
+    }
+
+    // ── CE-2148 (P5, design §13.11) ─────────────────────────────────────────────────────────────────────────────────
+
+    private struct TwoPicks
+    {
+        [System.ComponentModel.DataAnnotations.Required] public Fdp.Toolkit.Replication.EntityRef Who;
+        [System.ComponentModel.DataAnnotations.Required] public Fdp.Toolkit.Behavior.Params.PickableGeoPoint Where;
+    }
+
+    private sealed class FakeForm : IOrderForm
+    {
+        public OrderDraft? Opened;
+        public void Open(OrderDraft draft) => Opened = draft;
+    }
+
+    /// <summary>⭐ F5 — every sender gets the same refusal: an order missing a required field is refused, NAMING it, and nothing is
+    /// published; a key spelled in another case counts (R-2005).</summary>
+    [Fact]
+    public void CE2148_AnOrderMissingARequiredField_IsRefusedNamingIt()
+    {
+        var orders = new EntityOrders(_w, _map, null);
+        var r = orders.Order(UnitId, "Move", "{}");
+        Assert.Equal(OrderRefusal.BadRequest, r.Refusal);
+        Assert.Contains("Location", r.Detail);
+        r = orders.Order(UnitId, "Attack", "{\"target\":0}");
+        Assert.Equal(OrderRefusal.BadRequest, r.Refusal);
+        Assert.Contains("Target", r.Detail);
+        _w.Bus.SwapBuffers();
+        Assert.Empty(_w.Bus.ReadManaged<AssignTacticalIntentEvent>());
+
+        Assert.True(orders.Order(UnitId, "Attack", $"{{\"target\":{EnemyId}}}").Accepted);
+    }
+
+    /// <summary>⭐ F6 / P5-d — a draft the gesture cannot complete goes to the host's order FORM (a world singleton), which sends it
+    /// through the draft; with no form on the host it is refused (logged) and nothing is sent.</summary>
+    [Fact]
+    public void CE2148_AnIncompleteDraft_OpensTheOrderForm_WhichSendsThroughTheDraft()
+    {
+        var info = new OrderInfo("Attack", typeof(TwoPicks), 0, Hrot.Map.Definitions.Behavior.Orders.OrderGesture.None,
+            OrderMenu.PickOf(typeof(TwoPicks)).Pick, null, OrderMenu.FieldsOf(typeof(TwoPicks)));
+        string? sent = null;
+        var draft = OrderMenu.Draft(info, new[] { UnitId }, new OrderContext(EnemyId, null), json => { sent = json; return Array.Empty<OrderResult>(); });
+        Assert.Equal("Where", draft.Missing.Single().Name);
+
+        MenuOrders.OpenForm(_w, draft);   // no form on this host: refused, nothing sent
+        Assert.Null(sent);
+
+        var form = new FakeForm();
+        _w.SetSingletonManaged<IOrderForm>(form);
+        MenuOrders.OpenForm(_w, draft);
+        Assert.Same(draft, form.Opened);
+        form.Opened!.Send("{\"Who\":88,\"Where\":[1,2]}");
+        Assert.Equal("{\"Who\":88,\"Where\":[1,2]}", sent);
+    }
+
+    // ── CE-2149 (P6, design §13.3) ─────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ F7 stage 1 — Designate › Set target picks an entity once; a later Attack from the menu then goes at once with that
+    /// target (no second pick); Set route narrows the pick to roads; Clear forgets.</summary>
+    [Fact]
+    public void CE2149_ADesignatedTarget_LetsAttackGoWithoutAPick_AndClearForgetsIt()
+    {
+        var (mi, pick) = Live();
+        Click(mi, GlobalActionIds.DesignateTarget);
+        Assert.Null(pick.Presets);
+        pick.Enemy!.SetResult((int)EnemyId);
+        Assert.Empty(Published(mi));                                      // a designation is not an order
+        Assert.True(OrderDesignations.Of(_w)!.TryGet(UnitId, DesignationKind.Target, out var t));
+        Assert.Equal(EnemyId, t.GetValue<long>());
+
+        pick.Enemy = null;
+        Click(mi, Id("Attack"));
+        Assert.Null(pick.Enemy);                                          // no pick: the designation filled Target
+        var sent = Published(mi).Single(e => e.Entity == _unit);
+        Assert.Contains($"\"Target\":{EnemyId}", sent.JsonParams);
+
+        Click(mi, GlobalActionIds.DesignateRoute);
+        Assert.Equal(new[] { OrderDesignations.RoutePreset }, pick.Presets);
+
+        Click(mi, GlobalActionIds.DesignateClear);
+        Assert.False(OrderDesignations.Of(_w)!.TryGet(UnitId, DesignationKind.Target, out _));
+    }
+
+    /// <summary>⭐ §13.3 staleness — a designated target that is gone is dropped, and Attack asks for a pick again.</summary>
+    [Fact]
+    public void CE2149_AGoneTarget_IsDropped_AndAttackPicksAgain()
+    {
+        var (mi, pick) = Live();
+        OrderDesignations.For(_w).Set(UnitId, DesignationKind.Target, System.Text.Json.Nodes.JsonValue.Create(EnemyId));
+        Assert.True(_map.TryGetEntity(EnemyId, out var enemy));
+        _w.DestroyEntity(enemy);
+
+        Click(mi, Id("Attack"));
+        Assert.NotNull(pick.Enemy);                                       // the pick is back
+        Assert.False(OrderDesignations.Of(_w)!.TryGet(UnitId, DesignationKind.Target, out _));
+    }
+
+    /// <summary>⭐ The unit menu carries the Designate submenu where the unit takes orders.</summary>
+    [Fact]
+    public void CE2149_TheUnitMenu_OffersDesignate()
+    {
+        var (_, _) = Live();
+        var menu = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
+        Assert.Contains("Designate", menu);
+        Assert.Contains($"\"id\":{GlobalActionIds.DesignateArea},", menu);
+    }
+
+    // ── CE-1059 (P5b, the order form — design §13.12) ───────────────────────────────────────────────────────────────
+
+    private static void DrawFrame(Hrot.Presentation.Orders.OrderForm form)
+    {
+        using var imgui = new Hrot.Presentation.Tests.ImGuiTestFixture();
+        imgui.NewFrame();
+        form.Draw();
+        imgui.Render();
+    }
+
+    /// <summary>⭐ Acceptance 1 — an order with two required picks opens the form PREFILLED with the gesture's pick; a form left
+    /// incomplete sends nothing; once the second pick lands (a map pick through the form's own scoped broker, drawn by THE params
+    /// form) Send goes through the draft, once per unit, carrying both.</summary>
+    [Fact]
+    public void CE1059_ATwoPickOrder_OpensTheFormPrefilled_SendsOncePerUnit_AndAnIncompleteFormSendsNothing()
+    {
+        var pick = new FakePick();
+        var form = new Hrot.Presentation.Orders.OrderForm(_w, () => pick);
+        var info = new OrderInfo("TwoPicks", typeof(TwoPicks), 0, Hrot.Map.Definitions.Behavior.Orders.OrderGesture.None,
+            OrderMenu.PickOf(typeof(TwoPicks)).Pick, null, OrderMenu.FieldsOf(typeof(TwoPicks)));
+        var sent = new List<(long Unit, string Json)>();
+        long[] units = { UnitId, 66 };
+        var draft = OrderMenu.Draft(info, units, new OrderContext(EnemyId, null),
+            json => units.Select(u => { sent.Add((u, json)); return new OrderResult(OrderRefusal.None, "", "", ""); }).ToArray());
+        Assert.Equal(OrderPick.Several, info.Pick);
+
+        form.Open(draft);
+        var entry = Assert.Single(form.Entries);
+        Assert.Contains($"\"Who\":{EnemyId}", entry.Json().ToJsonString());          // prefilled from the gesture
+        Assert.Equal("Where", Assert.Single(entry.Missing).Name);
+        Assert.False(entry.Send());                                                    // incomplete: nothing sent
+        DrawFrame(form);
+        Assert.Empty(sent);
+
+        form.PicksFor(entry).RequestLocationPick("$.Where");                           // the field's Pick Map button
+        pick.Location!.SetResult(new GeoPoint(50.5, 14.25, 0));
+        DrawFrame(form);                                                               // the params form consumes the pick
+        Assert.Empty(entry.Missing);
+
+        Assert.True(entry.Send());
+        Assert.Equal(new[] { UnitId, 66L }, sent.Select(x => x.Unit));                 // once per unit
+        Assert.All(sent, x => Assert.Contains($"\"Who\":{EnemyId}", x.Json));
+        Assert.All(sent, x => Assert.Contains("\"Where\":[50.5,14.25]", x.Json));
+        DrawFrame(form);
+        Assert.Empty(form.Entries);                                                    // every unit accepted: the form closes
+    }
+
+    /// <summary>⭐ O5 / O6 / O7 — "Order with options › Move" opens the form for the SELECTION the clicked unit is in; Send publishes
+    /// the order once per selected unit through EntityOrders, and the remember tick stores the point as both units' designation.</summary>
+    [Fact]
+    public void CE1059_OrderWithOptions_OrdersTheSelection_ThroughTheForm_AndRemembersThePoint()
+    {
+        var (mi, pick) = Live();
+        var other = Add(66);
+        _w.SetDisType(other, _w.GetDisType(_unit));
+        mi.MenuOrders.Selected = () => new[] { _unit, other };
+        Assert.NotNull(mi.OrderForm);
+        mi.OrderForm!.Register();
+
+        Click(mi, GlobalActionIds.OrderWithOptionsBase + (Id("Move") - OrderMenu.ActionBase));
+        var entry = Assert.Single(mi.OrderForm.Entries);
+        Assert.Equal(new[] { UnitId, 66L }, entry.Draft.Units);
+        Assert.Empty(Published(mi));                                                   // nothing until Send
+
+        mi.OrderForm.PicksFor(entry).RequestLocationPick("$.Location");
+        pick.Location!.SetResult(new GeoPoint(120, -40, 0));
+        DrawFrame(mi.OrderForm);
+        entry.Remember = true;
+        Assert.True(entry.Send());
+
+        var orders = Published(mi);
+        Assert.Equal(2, orders.Length);
+        Assert.All(orders, o => Assert.Equal("Order.Move", o.IntentId));
+        Assert.Equal(new[] { _unit, other }, orders.Select(o => o.Entity).OrderBy(e => e.Index));
+        foreach (long u in new[] { UnitId, 66L })
+            Assert.True(OrderDesignations.Of(_w)!.TryGet(u, DesignationKind.MapPoint, out _), $"unit {u} remembers the point");
+    }
+
+    /// <summary>⭐ Acceptance 2 — the menu shows a <c>Several</c> order as <c>Name…</c> and offers "Order with options" ONLY where a form
+    /// is registered; a node that never draws a form (headless) shows neither.</summary>
+    [Fact]
+    public void CE1059_TheMenu_OffersTheForm_OnlyWhereOneIsRegistered()
+    {
+        var several = new OrderInfo("Escort", typeof(TwoPicks), OrderMenu.ActionBase + 5, Hrot.Map.Definitions.Behavior.Orders.OrderGesture.None,
+            OrderPick.Several, null, OrderMenu.FieldsOf(typeof(TwoPicks)));
+        Assert.Null(ContextMenuProjectorGizmo.OrderItem(several, degraded: false, form: false));
+        var item = ContextMenuProjectorGizmo.OrderItem(several, degraded: false, form: true)!;
+        Assert.Equal("Escort…", item.Label);
+        Assert.Equal(several.ActionId, item.Id);                                        // its own id ⇒ MenuOrders.Begin ⇒ the form
+
+        var (mi, _) = Live();                                                           // a live map, but nothing drew the form yet
+        Assert.DoesNotContain("Order with options", ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit));
+        DrawFrame(mi.OrderForm!);                                                       // the host draws it ⇒ registered ⇒ offered
+        Assert.True(mi.OrderForm!.IsRegistered);
+        var menu = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
+        Assert.Contains("Order with options", menu);
+        Assert.Contains($"\"id\":{GlobalActionIds.OrderWithOptionsBase + (Id("Move") - OrderMenu.ActionBase)},", menu);
+    }
+
+    /// <summary>⭐ U6 / O6 — Designate › Set target on a unit of the selection sets it for EVERY selected unit; the overlay then draws
+    /// a dashed target line from each selected unit.</summary>
+    [Fact]
+    public void CE1059_DesignateOnASelection_SetsEveryUnit_AndTheOverlayDrawsIt()
+    {
+        var (mi, pick) = Live();
+        var other = Add(66);
+        mi.MenuOrders.Selected = () => new[] { _unit, other };
+        Click(mi, GlobalActionIds.DesignateTarget);
+        pick.Enemy!.SetResult((int)EnemyId);
+        Published(mi);
+        foreach (long u in new[] { UnitId, 66L })
+            Assert.True(OrderDesignations.Of(_w)!.TryGet(u, DesignationKind.Target, out _), $"unit {u}");
+
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(capacity: 32);
+        new Hrot.Presentation.Orders.DesignationOverlayGizmo(() => new[] { _unit, other }).UpdateAndDraw(_w, 0f, buffer);
+        int lines = 0;
+        foreach (var p in buffer.GetFrame())
+            if (p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Line
+                && p.Color.Equals(Hrot.Presentation.Orders.DesignationOverlayGizmo.TargetColor)) lines++;
+        Assert.Equal(2, lines);
+
+        var nothing = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(capacity: 32);
+        new Hrot.Presentation.Orders.DesignationOverlayGizmo(() => Array.Empty<Entity>()).UpdateAndDraw(_w, 0f, nothing);
+        Assert.Equal(0, nothing.Count);                                                 // only the SELECTION is drawn
+    }
+
+    /// <summary>⭐ O3 — the entity LIST answers through the same broker as a map pick: the choice lands as a completed entity pick
+    /// for the field's path; the list leaves out the units being ordered.</summary>
+    [Fact]
+    public void CE1059_TheEntityList_AnswersThroughTheSamePick_AndLeavesOutTheOrderedUnits()
+    {
+        var broker = new Hrot.Presentation.Facades.MapPickBroker(new FakePick());
+        Assert.False(broker.CanListEntities);
+        string[]? asked = null;
+        broker.EntityList = (presets, chosen) => { asked = presets; chosen((int)EnemyId); return true; };
+        Assert.True(broker.CanListEntities);
+        var scoped = new Fdp.Presentation.Editing.ScopedMapPickContext(broker, "$.orderForm1");
+        Assert.True(scoped.CanListEntities);
+        scoped.RequestEntityListPick("$.Who", new[] { "units_ground" });
+        Assert.Equal(new[] { "units_ground" }, asked);
+        Assert.True(scoped.TryConsumeEntityPick("$.Who", out var picked));
+        Assert.Equal(EnemyId, picked.NetworkId);
+
+        var entries = Hrot.Presentation.Orders.EntityListSource.Entries(_w, null, exclude: new[] { UnitId });
+        Assert.Contains(entries, e => e.Tag is long id && id == EnemyId);
+        Assert.DoesNotContain(entries, e => e.Tag is long id && id == UnitId);
     }
 }

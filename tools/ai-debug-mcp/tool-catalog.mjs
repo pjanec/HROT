@@ -4482,6 +4482,33 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "list_orders",
+    "group": "Z — Entity control (orders)",
+    "summary": "The order vocabulary (Move, Attack, Hold …): each order's fields — kind (MapPoint · MapEntity · Value), required, entity-pick presets — and its params schema. entityId narrows it to the orders that unit fulfils.",
+    "http": {
+      "method": "GET",
+      "path": "/orders"
+    },
+    "params": [
+      {
+        "name": "entityId",
+        "type": "integer",
+        "required": false,
+        "description": "Only the orders this unit (network id) fulfils"
+      }
+    ],
+    "returns": "{ networkId?, orders:[ { name, gesture, pick, fields:[{name, kind, required, presets?}], paramSchema } ] }",
+    "example": {
+      "args": {
+        "entityId": 1000
+      },
+      "gist": "what can unit 1000 be ordered to do, and what does each order need"
+    },
+    "hint": "Opt: entityId. A required field must be in the order's params or the order is refused. Example: list_orders({entityId:1000})",
+    "manualVerify": false
+  },
+
+  {
     "name": "order_entities",
     "group": "Z — Entity control (orders)",
     "summary": "Several orders in one call (a squad, a turn's worth of moves). Each is answered on its own; a refusal does not stop the rest.",

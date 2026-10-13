@@ -2,7 +2,11 @@
 state: LIVE
 updated: 2026-08-20
 current-answer: sections 3-5; sections 1-2 are the shared ground, not questions
-known-rot: none. REWRITTEN 2026-08-20 after merging Batches 46-98 — the first draft asked
+known-rot: (2026-10-13, P7) the ruled-decisions table still states the Role vocabulary ("`Role { Input, State }`
+  is cross-host", "`Input` IS the parameter role", the thunk key for the `Role=Input` case), and the whole-DTO
+  binding row is refined by CE-3182 field targets (docs/DESIGN_Orders_Params_Entity_Classes.md §5d). A behaviour
+  now names ONE params DTO — §1 / §5c / §13; `Role` retires with P4 (§13.10).
+known-rot: (otherwise) none. REWRITTEN 2026-08-20 after merging Batches 46-98 — the first draft asked
   seven questions of which four were already ruled. Do not restore it from history.
 -->
 # Opening prompt — HSM parameters and variables: what is ruled, what HSM is missing, what is still open

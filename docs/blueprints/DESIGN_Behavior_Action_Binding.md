@@ -6,7 +6,11 @@ build-state: BUILT (§5.6 CE-2099 BUILT 2026-10-05, as-built §5.6a) — slices 
 current-answer: §4 (the five decisions, each with a lean). §2 is why Q75-B needs them: four of its premises moved
   since it was approved on 2026-09-28.
 stale-below: nothing yet.
-known-rot: none.
+known-rot: (2026-10-13, P7) the working-state notes (S8-1, C3: "the Behavior-scoped `Role=State` variable", "the
+  picker lists only `Role=State` variables") use the Role vocabulary that retires with P4
+  (docs/DESIGN_Orders_Params_Entity_Classes.md §13.10); and a binding's target may now also be `Variable.Field`
+  (`Params.<field>`, CE-3182, §5d).
+known-rot: (otherwise) none.
 known-conflict: Architect_Question_75 §4-B / §5 S5 — its "per-slot ExpressionTargetField" gain and its "six sites"
   count are both refined here (§2 F1, F3). This document is its build design and wins on those two points.
 related-designs:

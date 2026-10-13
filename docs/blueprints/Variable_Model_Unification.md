@@ -4,7 +4,11 @@ updated: 2026-09-22
 current-answer: section 4 "How to do it safely - RE-ORDERED by the review"
 stale-below: the A/B/C/D table under section 4's SUPERSEDED banner is HISTORY. Do not quote it.
 note: the live stage order is 0 -> C -> A -> B -> B' -> D1 -> D2 -> D3 -> D4
-known-rot: NONE as of 2026-08-17. B' was marked BLOCKED on BP-228 until then; BP-228
+known-rot: (2026-10-13, P7) "two orthogonal tags: `Role` ∈ {`Input`, `State`} × `Scope`" (§ model table and the
+  `BlackboardVariableRole { Input = 0, State = 1 }` listing) is overtaken: a behaviour names ONE params DTO
+  (reserved `Params`, flat JSON) — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13. `Role` retires
+  with P4 (§13.10).
+known-rot: (otherwise) NONE as of 2026-08-17. B' was marked BLOCKED on BP-228 until then; BP-228
   closed in Batch 47 and S5 built the union in Batch 65, so 0/C/A/B/B' are all DONE
   and stage D is the only work left in this document.
 -->

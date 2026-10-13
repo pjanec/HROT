@@ -40,6 +40,31 @@ public sealed class MapPickBroker : IMapPickContext
     /// <summary><c>true</c> while a location pick is in flight (for any path).</summary>
     public bool IsLocationPickPending => _locationPickTask is { IsCompleted: false };
 
+    /// <summary>
+    /// ⭐ <c>CE-1059</c> — the optional entity LIST: opens a searchable list narrowed by the presets and calls back with the
+    /// chosen entity's network id (<see cref="Hrot.Presentation.Orders.EntityListSource.Opener"/>); answers <c>false</c> when it
+    /// cannot open now. Null ⇒ no <c>List…</c> button. 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §13.12 O3.
+    /// </summary>
+    public Func<string[]?, Action<int>, bool>? EntityList { get; set; }
+
+    /// <inheritdoc/>
+    public bool CanListEntities => EntityList != null;
+
+    /// <inheritdoc/>
+    /// <remarks>Nothing is pending while the list is open (the list has no cancel callback, so a pending state could hang);
+    /// the choice lands as a COMPLETED entity pick for <paramref name="jsonPath"/>, consumed like a map pick.</remarks>
+    public void RequestEntityListPick(string jsonPath, string[]? filterPresets)
+    {
+        var open = EntityList;
+        if (open == null) return;
+        open(filterPresets, networkId =>
+        {
+            _pendingPath      = jsonPath;
+            _entityPickTask   = Task.FromResult(networkId);
+            _locationPickTask = null;
+        });
+    }
+
     /// <inheritdoc/>
     public bool IsPickPendingFor(string jsonPath)
         => _pendingPath == jsonPath && (IsEntityPickPending || IsLocationPickPending);

@@ -12,6 +12,12 @@ known-rot: ⛔ 2026-09-30 (CE-448) — "what ParamResolverDemo ships": that asse
   the AS-BUILT, not the target. Target: the resolver receives the SOURCE and REPLACES the default copy;
   an empty body copies nothing (DESIGN_Parameter_Model.md §P.2, CE-443). Resolvers exist only for
   behaviours, never for actions/conditions (§P.4).
+known-rot: (2026-10-13, P7) the role enum `{ Input, State }` (§3.2 and its vocabulary note; the §2 picture's
+  `Role=Input` / `Role=State` boxes), §4.1 steps 3–4 ("declare the variables… `Role=Input` for params") and the
+  claim that the authored DTO is "an attached mirror of the `Input` variables" (§3.2, §4.1) are overtaken: one
+  params DTO per behaviour, named by `[Behavior(Params = …)]` / `ParamsDtoTypeId`, flat JSON, no Input/State
+  roles — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13. The Role vocabulary retires with P4
+  (§13.10).
 related-designs:
   - docs/DESIGN_Orders_Params_Entity_Classes.md — builds §3.1's foreseen shared named param-type (order DTOs)
   - Architect_Question_90_Unit_Orders_Carry_Capacity.md — §2.3f: orders are the first concrete use of §3.1's foreseen "shared named param-type" (a behaviour points at a shared order DTO as its authored contract)

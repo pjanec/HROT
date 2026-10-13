@@ -29,6 +29,44 @@ namespace Hrot.Editor.DebugApi
 
         // ── orders ──────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// ⭐ <c>CE-2148</c> (P5-f) — <c>GET /orders</c>: the order vocabulary (the <c>[Order]</c> DTOs) with what each needs — its fields
+        /// (kind, <c>[Required]</c>, entity-pick presets) and its params schema (with <c>required</c>). <paramref name="networkId"/>
+        /// narrows it to the orders that unit's class fulfils (the receiver's own answer, §8).
+        /// </summary>
+        public (JsonNode? result, int status, string? error, string? hint) GetOrders(long? networkId)
+        {
+            IReadOnlyList<OrderInfo> orders = OrderMenu.Orders;
+            if (networkId is long id)
+            {
+                if (!_entityMap.TryGetEntity(id, out var unit) || !_world.IsAlive(unit))
+                    return (null, 404, $"Entity {id} not found. List entities with GET /entities.", DebugApiHints.Entity);
+                orders = OrderMenu.OfferedFor(_world.GetDisType(unit));
+            }
+            var list = new JsonArray();
+            foreach (var o in orders)
+            {
+                var fields = new JsonArray();
+                foreach (var f in o.Fields)
+                {
+                    var field = new JsonObject { ["name"] = f.Name, ["kind"] = f.Kind.ToString(), ["required"] = f.Required };
+                    if (f.Presets.Count > 0) field["presets"] = new JsonArray(System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(f.Presets, p => (JsonNode?)p)));
+                    fields.Add(field);
+                }
+                list.Add(new JsonObject
+                {
+                    ["name"] = o.Name,
+                    ["gesture"] = o.Gesture.ToString(),
+                    ["pick"] = o.Pick.ToString(),
+                    ["fields"] = fields,
+                    ["paramSchema"] = DtoJsonSchemaExtractor.ExtractParams(o.Dto),
+                });
+            }
+            var result = new JsonObject { ["orders"] = list };
+            if (networkId is long n) result["networkId"] = n;
+            return (result, 200, null, null);
+        }
+
         /// <summary><c>POST /entities/{networkId}/order</c> — one order; <c>kind</c> = move · hold (stop) · behavior · release.</summary>
         public (JsonNode? result, int status, string? error, string? hint) PostOrder(long networkId, JsonNode? body)
         {

@@ -816,5 +816,15 @@ namespace Fdp.Core
         /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — <c>OpenPassengerCabin</c>: a vehicle TYPE whose passengers are seen and hit (a
         /// door-less helicopter, a pickup bed); absent = enclosed. 📄 docs/DESIGN_Entity_Interactions.md §7.2a.</summary>
         public const int OpenPassengerCabin = 366;
+
+        /// <summary><c>IOrderForm</c> — ⭐ CE-2148 (docs/DESIGN_Orders_Params_Entity_Classes.md §13.11, P5-d): the station's order form, a
+        /// managed world singleton the ui lane registers (P5b); the unit menu and the RTS tool open an order they cannot complete in it.
+        /// Never saved, never sent. ⚠ 367 measured free on backend, ui and behaviors 2026-10-13.</summary>
+        public const int IOrderForm = 367;
+
+        /// <summary><c>OrderDesignations</c> — ⭐ CE-2149 (docs/DESIGN_Orders_Params_Entity_Classes.md §13.3, F7 stage 1): the station's standing
+        /// target / point / route / sector per unit, a managed world singleton read only by an operator's order draft. Never saved, never
+        /// sent. ⚠ 368 measured free on backend, ui and behaviors 2026-10-13.</summary>
+        public const int OrderDesignations = 368;
     }
 }

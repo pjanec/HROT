@@ -34,5 +34,16 @@ namespace Fdp.Presentation.Editing
         /// result is available.
         /// </summary>
         bool TryConsumeLocationPick(string jsonPath, out PickableGeoPoint location);
+
+        /// <summary>
+        /// ⭐ <c>CE-1059</c> — <see langword="true"/> when this context can also offer the operator a searchable LIST of entities
+        /// (the drawer then shows <c>List…</c> beside <c>Pick Entity</c>). The chosen entity arrives through the same
+        /// <see cref="TryConsumeEntityPick"/>. 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §13.12 O3.
+        /// </summary>
+        bool CanListEntities => false;
+
+        /// <summary>⭐ <c>CE-1059</c> — opens the entity list for the field at <paramref name="jsonPath"/>, narrowed by
+        /// <paramref name="filterPresets"/> as a map pick is. A no-op where <see cref="CanListEntities"/> is false.</summary>
+        void RequestEntityListPick(string jsonPath, string[]? filterPresets) { }
     }
 }

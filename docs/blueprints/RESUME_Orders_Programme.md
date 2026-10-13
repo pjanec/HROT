@@ -21,20 +21,23 @@ RELEARN
 
 ## P. Params finish — live state *(behaviors lane, 2026-10-13, day)*
 
-**Design:** [`DESIGN_Orders_Params_Entity_Classes.md`](../DESIGN_Orders_Params_Entity_Classes.md) §13 (decisions F1–F12, work P1–P9 by lane, §13.3 designations, §13.4 docs list, §13.5 the P9 retirement + node-coverage plan). **Rulings:** `R-2000`..`R-2007` (`RULINGS.md`). **Next free ids:** `CE-2148`, `R-2008`.
+**Design:** [`DESIGN_Orders_Params_Entity_Classes.md`](../DESIGN_Orders_Params_Entity_Classes.md) §13 (decisions F1–F12, work P1–P9 by lane, §13.3 designations, §13.4 docs list, §13.5 the P9 retirement + node-coverage plan). **Rulings:** `R-2000`..`R-2007` (`RULINGS.md`). **Next free ids:** `CE-2150`, `R-2008`.
 
 | item | lane | state |
 |---|---|---|
 | P8 fields-only DTOs → P1 one `[Dto]` registry → P2 | backend session A | dispatched by [`HANDOFF_Params_Finish_Backend.md`](HANDOFF_Params_Finish_Backend.md) (at `75ba5b75b`) + [`STEER_Params_Finish_Backend_1.md`](STEER_Params_Finish_Backend_1.md) (R-2004/R-2005) + [`STEER_Params_Finish_Backend_2.md`](STEER_Params_Finish_Backend_2.md) (R-2006/R-2007). ⚠ the steers reach backend only when the USER relays them |
 | P3 full-rebuild caches → P4 blueprints name a DTO, Get Parameter retires | backend session B | same handoff |
-| P9 retire `PlatoonHillAttackBp` + `hill-attack-close-bp`, keep the node checks | behaviors | step 1 `79adf99f3` (replacement `SubordinateForEachDemo` + re-points). Step 2 (the delete + docs + CE-464 tracker tail) was in the working tree, gating; ⚠ check `git log` — if not committed, re-run the gates and commit it |
-| P5 `[Required]`, RTS fast path, `GET /orders`, the `OrderDraft` / `IOrderForm.Open` seam, presets | behaviors | **next**, once backend P8 (fields) lands — `git fetch origin backend`, merge, then start |
-| P5b the modeless order form, entity source for `PickerWindow`, 3D map picking | ui | ⛔ **nothing sent yet, nothing owed yet**: it hangs on P5's seam. Write the ui handoff when P5 pushes the seam (cite design §13 P5b row) |
-| P6 designations stage 1 (§13.3) · P7 the docs of §13.4 | behaviors | after P5 |
+| P9 retire `PlatoonHillAttackBp`, keep the node checks | behaviors | ✅ done `79adf99f3` + `5f544644f` (replacement `SubordinateForEachDemo`) |
+| P5 `[Required]`, RTS fast path, `GET /orders`, the `OrderDraft` / `IOrderForm.Open` seam | behaviors | ✅ built `CE-2148` (design §13.11) |
+| P5b the modeless order form, entity source for `PickerWindow`, 3D map picking | ui | 📤 handoff written: [`HANDOFF_Order_Form_Ui.md`](HANDOFF_Order_Form_Ui.md) — ⚠ the USER passes it to the ui lane |
+| P6 designations stage 1 (§13.3) | behaviors | ✅ built `CE-2149` (store, Designate menu, draft fill; overlay = ui U6) |
+| P7 the docs of §13.4 | behaviors | next — fix each doc as the item that retires its rule lands |
 | G3 (designations stage 2) | user | architect question offered, unanswered |
-| later | behaviors | I-2d + convoy ambush ([`HANDOFF_Embark_I2d_And_Unit_Orders.md`](HANDOFF_Embark_I2d_And_Unit_Orders.md)) — after the params story (user: *"finish this parameter story before continuing with embark"*) |
+| CE-2144 E1 (Health applied on every host, R-275) | behaviors | ⏸ awaits the user: option D proposed 2026-10-13 (declare a `HealthApplication` capability FIRST in every plan) — design §11.1 lists A/B/C; A's gate was measured ineffective |
+| embarkation I-2d + the squad Dismount drill + `tt-convoy-ambush` | — | ✅ ALREADY BUILT 2026-10-12 by the ui lane (`CE-1056`; Entity Interactions §7.3a, Squad Tactics §5a.1); re-verified 2026-10-13 after the params merges (SimHost 57/0, Toolkits 23/0). ⚠ this row said "later" until 2026-10-13 — stale |
+| carry capacity + seats per vehicle type, the human-carrier profile (R-274) | behaviors | needs a design (UML) and the user's approval; the human carrier also needs the R-263 injury states |
 
-**How to resume:** `git fetch origin behaviors backend ui` → finish/verify P9 step 2 → merge whatever backend pushed (review the diff against the handoff, do not re-run their gates — rule 8) → P5.
+**How to resume:** `git fetch origin behaviors backend ui` → merge whatever backend pushed (P1 + P8 merged `80ffb3ad9`, P2 + P3 merged `846c8021d`; P4 next — review the diff against the handoff, do not re-run their gates, rule 8) → P7 (docs, §13.4); backend P4 (§13.10) is the last params item.
 
 ## 0. Overnight handoff *(behaviors lane, 2026-10-12 → 13, solo; backend + ui queues taken over)*
 

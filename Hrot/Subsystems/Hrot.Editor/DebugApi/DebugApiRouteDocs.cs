@@ -1883,6 +1883,16 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000,\"seq\":1,\"forward\":1,\"yaw\":0}",
             ExampleGist: "walk unit 1000 forward, facing east"),
 
+        [("GET", "/orders")] = new RouteDoc(
+            Tool:    "list_orders",
+            Group:   "Z — Entity control (orders)",
+            Summary: "The order vocabulary (Move, Attack, Hold …): each order's fields — kind (MapPoint · MapEntity · Value), required, entity-pick presets — and its params schema. entityId narrows it to the orders that unit fulfils.",
+            Returns: "{ networkId?, orders:[ { name, gesture, pick, fields:[{name, kind, required, presets?}], paramSchema } ] }",
+            Hint:    "Opt: entityId. A required field must be in the order's params or the order is refused. Example: list_orders({entityId:1000})",
+            Params: new RouteParam[] { new("entityId", "integer", false, "Only the orders this unit (network id) fulfils") },
+            ExampleArgsJson: "{\"entityId\":1000}",
+            ExampleGist: "what can unit 1000 be ordered to do, and what does each order need"),
+
         [("POST", "/orders")] = new RouteDoc(
             Tool:    "order_entities",
             Group:   "Z — Entity control (orders)",

@@ -10,6 +10,12 @@ known-rot: section 4 step 3 says the scenario/mission JSON overlay wins. TRUE, a
   was NOT true of the generated managed-asset path until BP-275 (Batch 70, BTree) and
   BP-292 (Batch 74, HSM). See DESIGN_Parameter_Model.md section 3.2, whose own
   correction on that point is now folded as HISTORY. The document is correct today.
+known-rot: (2026-10-13, P7) §2.2's ruling "whole-DTO APPROVED, per-field REJECTED" (an action node binds its
+  WHOLE param DTO to ONE variable) is overtaken by CE-3182: a binding's target may be `Variable.Field` (e.g.
+  `Params.walk`; offset = the variable's + the field's, build-time) —
+  docs/DESIGN_Orders_Params_Entity_Classes.md §5d. The node still binds ONE params bundle (the leaf field's type
+  must equal the method's params type, §5d D3); what changed is that the bundle may sit in a FIELD of a block
+  variable.
 known-conflict: section 3.4 names auto variables `_auto_{VisualId:N}`; that is what
   B-2's Promote gesture does (BTreePickerDrawers.cs:246). The LATER composed-AiPrimitive
   path (E2) names its pair `bpParams` / `bpWorkingState` instead - a different gesture,
