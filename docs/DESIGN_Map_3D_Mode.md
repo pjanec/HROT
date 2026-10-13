@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260). ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j). ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -8,7 +8,7 @@ updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assume
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
-  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §7 what is NOT verified.
+  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: none open — ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
@@ -22,6 +22,7 @@ related-designs:
     the TurretPose / WeaponTask wire; §3.11 here keeps the part, the pose and the drawing.
     ⭐ W-13 (R-272) owns the WEAPON POSTURE (at ease / ready / aimed) that §3.5's block figure draws (WL-6).
   - PLAN_3D_World_And_Realism.md — the programme index (roadmap A1…E2 across this design, effects, turret, aircraft, sound).
+  - blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — R-265: WHO moves crouched and how fast (the crouched run §6j draws)
   - DESIGN_Map_North_Up.md — CE-1040: the 2-D map north-up at its camera seam, so the 2-D ↔ 3-D swap keeps orientation.
   - DESIGN_Visual_Effects.md — muzzle fire, explosions and impact decals as TKB-typed temporary entities; the 3-D map draws them
     (S3b) and places a muzzle flash on the posed barrel (§3.11).
@@ -350,7 +351,7 @@ being a composite unit) to a family: person, tank, AFV, wheeled, unit. ⇒ that 
 
 | family *(DIS)* | built-in types today | kit — parts, as fractions of the type's L × W × H |
 |---|---|---|
-| **person** *(kind 3)* | Rifleman, InfantrySoldier, Grenadier, MortarTeam, Insurgent, CivilianPedestrian | the block figure; **rifle** part for soldiers (category 1), none for civilians; body in the entity colour (§3.7), side shown by the card frame. ⭐ **WL-6 (`2026-10-11`, R-272):** arms in two segments (elbows); a soldier holds the rifle in the weapon brain's `WeaponPosture` — at ease low, ready at the chest, aimed shouldered with the upper body turned and pitched toward the target — and his arms do not swing; running leans the upper body forward. ⭐ **WL-6c:** legs with knees (thigh + shin, IK); aimed standing = the athletic fighting stance, aimed moving = the combat glide; every walker's knees bend; ⭐ **WL-6d:** a prone figure that moves crawls (elbows and opposite knees, rifle carried); drawing only, the logical stance is unchanged. 📄 `DESIGN_Weapon_Layers.md` W-13 / §5h |
+| **person** *(kind 3)* | Rifleman, InfantrySoldier, Grenadier, MortarTeam, Insurgent, CivilianPedestrian | the block figure; **rifle** part for soldiers (category 1), none for civilians; body in the entity colour (§3.7), side shown by the card frame. ⭐ **WL-6 (`2026-10-11`, R-272):** arms in two segments (elbows); a soldier holds the rifle in the weapon brain's `WeaponPosture` — at ease low, ready at the chest, aimed shouldered with the upper body turned and pitched toward the target — and his arms do not swing; running leans the upper body forward. ⭐ **WL-6c:** legs with knees (thigh + shin, IK); aimed standing = the athletic fighting stance, aimed moving = the combat glide; every walker's knees bend; ⭐ **WL-6d:** a prone figure that moves crawls (elbows and opposite knees, rifle carried); drawing only, the logical stance is unchanged. ⭐ **CE-1064 (§6j):** crouched and still he KNEELS; crouched and moving he runs crouched (legs swinging, upper body leaning). 📄 `DESIGN_Weapon_Layers.md` W-13 / §5h |
 | **tank** *(1.1, cat 1)* | M1 Abrams, T-72 | lower hull · two track blocks (dark) · turret box set back · barrel cylinder forward |
 | **AFV / APC** *(1.1, cat 2)* | Bradley, MilitaryAPC | hull with a sloped front wedge · tracks or wheels (dark) · small turret · thin barrel |
 | **wheeled — car** *(1.1, cat 81)* | CivilianCar | lower body · cabin (glass) · four wheels (roll with speed) |
@@ -1189,6 +1190,75 @@ Live/Preview are written too (the camera is the view, not simulation state). · 
 unowned camera, the creator owns it, its pose is kept and saved · no request source ⇒ never made, a moved view not taken over ·
 a camera owned elsewhere is not moved · no body, no symbol, hidden type) ·
 `EveryMapHostAttachesTheSharedLayersTests` (no host builds its own camera layer; no host mentions the camera at all).
+
+### 6j. CE-1064 — the crouched figure: a kneel when still, a crouched run on the move — AS-BUILT `2026-10-13` (ui)
+
+🔒 *User, 2026-10-13: "Check how a character in crouched position is animated — first his position look very weird and second
+he does not move his legs when moving in crouched position."* 📐 Measured with a frame rail before the change:
+- **Still:** the crouch was a squat. Its thighs were level, its knees stuck out 0.4 m ahead of the hips, and its upright torso sat behind both feet, so it read as a man sitting on an invisible chair.
+- **Moving:** `CrouchedBody` built its legs with `swings: false`, so no part had a leg role. A crouched mover — R-265's crouched run at the stance's 0.5 speed cap, 3 m/s — slid along with frozen legs.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Still: stance Crouched, stride 0
+  Still --> Running: stride above 0 (speed from the entity's own motion)
+  Running --> Still: stride back to 0 (a sim frame without motion)
+  Running --> Running: a frame with NO sim time keeps the last gait (pause freezes mid-stride)
+  state Still {
+    [*] --> Kneel
+    Kneel: firing-side knee and shin on the ground, support foot planted forward, nothing swings
+  }
+  state Running {
+    [*] --> CrouchRun
+    CrouchRun: kneel blended into the run by stride, hips 0.6 m, legs swing with knees bent, upper body leans 26 deg (less when aimed)
+  }
+```
+*What the picture shows that prose hid:* "crouched" is two drawings chosen by the GAIT, not by the stance. Only the stance is
+replicated, so the choice comes from the same motion every host already reads, and a frame with no sim time must not count as
+stopping.
+
+```mermaid
+classDiagram
+  class BlockFigure {
+    <<exists, changed>>
+    CrouchedBody : the kneel
+    CrouchRunBody : new
+    CrouchedMoving(still, soldier, from, to, postureT, weight) KitPart[]
+    CrouchRunDrop, CrouchRunLean, CrouchRunHipFraction
+    KneelingLeg(hip, ankle) : new, private
+    PostureMix / PostureLerp : extracted from Parts(stance, from, to, t)
+  }
+  class EntityBodyLayer3D {
+    <<exists, changed>>
+    FigurePose() : Parts, Aimed, CrouchRun
+    FigureMotion(..., crouchRun) : hips to the run's height, lean
+  }
+  class MotionTracker {
+    <<exists, changed>>
+    Advance() : keeps the last gait over a frame with no sim time
+  }
+  EntityBodyLayer3D --> BlockFigure
+  EntityBodyLayer3D --> MotionTracker
+```
+
+| decision | why | rejected (one line each) |
+|---|---|---|
+| still = a **kneel** | its head stays at the crouched stance's 1.1 m eye (`EngineFallbacks.EyeHeightCrouched`) and its upper body is unchanged, so the rifle postures (WL-6), the aim shoulder (`TryAim`, 0.98 m) and the stance blends keep working | a corrected squat with the torso leaning forward (its head drops below the eye perception uses) |
+| moving = the **crouched run**, mixed in by `MotionPose.Stride` like the glide | the stance is the only replicated fact; the gait already comes from each entity's own motion, so every host draws the same | a separate "moving crouched" stance (not on the wire, and R-265 keeps the stance as the sim's single fact) |
+| the run's lean shrinks while aimed | an aimed rifle is pitched by the aim (`Lean − pitch`), and the run lean would push it into the ground | a lean regardless of posture |
+| a frame with **no sim time** keeps the last gait | it carries no motion information; snapping to the still pose turned a runner into a kneel for a frame, and a pause into a kneel (the design says a pause freezes him, R-143) | gait smoothing over time (it would change every walker's swing timing) |
+| each kneeling leg keeps one `y` from hip to ankle, and the down shin is built foot → knee | no segment has a sideways yaw, so a Standing ↔ Crouched blend turns each leg in its own plane | the IK's free yaw (the blend swept the shin sideways) |
+
+⚠ **Left, named:**
+- The run's head is about 1.2 m, 0.1 m above perception's crouched eye. The drawing approximates the logical stance; it doesn't define it.
+- A crouched runner's Ready rifle points about 50° down: low ready, carried with the lean.
+- Stopping pops from run to kneel in one sim frame. This matches the standing walk's pop from swing to still, which isn't eased either.
+- The Stride shell has its own animation clips and is not changed here.
+
+**Gates:**
+- `Map3DTests.CE1064_*` (3): the kneel has its hips and torso over its feet and nothing swings; the crouched run's legs swing with knees bent and stay low; a frame with no sim time keeps the gait and a stop ends it.
+- `Map3DFrameRail.CE1064_ACrouchedFigure_StillAndRunning` (Xvfb screenshots `crouch-1…4`).
+- `Map3DTests` whole.
 
 ## 7. NOT VERIFIED — say so before it is built on
 

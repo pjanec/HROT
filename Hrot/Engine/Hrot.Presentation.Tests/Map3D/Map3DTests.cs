@@ -1010,6 +1010,26 @@ public sealed class Map3DTests
         }
     }
 
+    /// <summary>⭐ CE-1064 — a frame in which NO sim time passed and he did not move (a paused sim, a frame drawn between two sim ticks)
+    /// keeps his last gait — a pause freezes him mid-stride (R-143) — while one in which time passed and he did not move stops him.</summary>
+    [Fact]
+    public void CE1064_AFrameWithNoSimTime_KeepsTheGait_AStopEndsIt()
+    {
+        var t = new MotionTracker();
+        var man = new Entity(12, 1);
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        MotionPose walking = default;
+        for (int i = 0; i <= 20; i++) walking = t.Advance(man, new Vector3(i * 0.1f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, i / 30.0, false);
+        Assert.True(walking.Stride > 0.9f && walking.Swing != 0f, $"walking at 3 m/s: {walking}");
+        var paused = t.Advance(man, new Vector3(2.0f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, 20 / 30.0, false);
+        Assert.Equal(walking.Swing, paused.Swing);
+        Assert.Equal(walking.Stride, paused.Stride);
+        Assert.Equal(walking.GaitPhase, paused.GaitPhase);
+        var stopped = t.Advance(man, new Vector3(2.0f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, 21 / 30.0, false);
+        Assert.Equal(0f, stopped.Stride);
+        Assert.Equal(0f, stopped.Swing);
+    }
+
     /// <summary>⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — the dead figure lies on the ground (lower than prone), arms flung out
     /// wider than any stance; a soldier's rifle lies beside him; halfway through the fall he is between his stance and the ground.</summary>
     [Fact]

@@ -1070,14 +1070,17 @@ public sealed class Map3DFrameRail
         Assert.Equal(5, bodies.BodiesDrawn);
 
         // follow the runner side-on, at two points of his stride (a quarter cycle apart: 0.4 m at 3 m/s)
-        CameraPose Beside(Entity e) => new(world.GetComponent<SimTransform>(e).Position + new Vector3(0f, 0f, 0.6f), 4.5f, MathF.PI * 0.5f, -0.05f);
+        CameraPose Beside(Entity e) => new(world.GetComponent<SimTransform>(e).Position + new Vector3(0.1f, 0f, 0.6f), 4.5f, MathF.PI * 0.5f, -0.05f);
         sw.Camera3D.Pose = Beside(runner);
-        frame.Step(canvas.Draw);
+        Frames(1);
         frame.Screenshot(Path.Combine(shots, "crouch-2-run-a.png"));
-        Frames(4);
+        Frames(3);
         sw.Camera3D.Pose = Beside(runner);
-        frame.Step(canvas.Draw);
+        Frames(1);
         frame.Screenshot(Path.Combine(shots, "crouch-3-run-b.png"));
+        // ⭐ a frame with no sim time (a pause): he stays mid-stride, not back in the kneel
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "crouch-4-paused.png"));
     }
 
     /// <summary>A point of plain ground (not inside a building footprint) closest to the town's middle.</summary>
