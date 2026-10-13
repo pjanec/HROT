@@ -45,7 +45,10 @@ public static class T40Resolver_3C40EC2E_Bp
     {
         authored = default;
         ref var p = ref authored;
-        p.HalfSpeed = 1.5F;
+        {
+            var __dto = new global::Hrot.AI.Behaviors.Brains.T40ResolverParams();
+            p.HalfSpeed = __dto.HalfSpeed;
+        }
         if (string.IsNullOrWhiteSpace(json)) return;
         using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
         if (__doc.RootElement.ValueKind != global::System.Text.Json.JsonValueKind.Object) return;

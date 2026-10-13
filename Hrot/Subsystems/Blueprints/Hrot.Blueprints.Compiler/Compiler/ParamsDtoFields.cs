@@ -8,8 +8,10 @@ namespace Hrot.Blueprints.Core.Compiler;
 /// <summary>One public field of a params DTO, in declaration order: what a blueprint's Parameter is made from.</summary>
 /// <param name="Name">the field name — the flat params JSON key and the Parameter's name.</param>
 /// <param name="TypeId">the field type's FQN (<c>Type.FullName</c> spelling, <c>+</c> for nesting) — a <see cref="BlueprintTypeRef.TypeId"/>.</param>
-/// <param name="DefaultValueJson">the field's default as one JSON value, from <c>[ParamsDto(DefaultJson)]</c>; null when it has none.</param>
-public readonly record struct ParamsDtoField(string Name, string TypeId, string? DefaultValueJson);
+/// <remarks>⭐ <c>CE-3194</c> (R-3002) — no default rides here: a DTO's default is its field initialisers, read by <c>new T()</c> where
+/// the behaviour runs (a build-time generator cannot see a referenced assembly's initialisers). ⛔ HISTORY: a third member carried the
+/// field's value from <c>[ParamsDto(DefaultJson)]</c>, baked as a compile-time literal.</remarks>
+public readonly record struct ParamsDtoField(string Name, string TypeId);
 
 /// <summary>
 /// ⭐ <c>CE-2135</c> P4 (R-2004 — <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §13.10 P4-a) — where the compiler learns a named
@@ -25,14 +27,11 @@ public interface IParamsDtoFieldSource
 
 /// <summary>
 /// The loaded-assembly field source. ⚠ The LAST loaded copy of a type wins (a rebuilt assembly loads after the old one — CE-3186 / R-2001).
-/// The <c>[ParamsDto]</c> attribute is read by NAME through <see cref="CustomAttributeData"/>: this project cannot reference <c>Fdp.Core</c>
-/// on its netstandard2.0 target.
 /// </summary>
 public sealed class ReflectionParamsDtoFieldSource : IParamsDtoFieldSource
 {
     public static readonly ReflectionParamsDtoFieldSource Instance = new();
 
-    internal const string ParamsDtoAttributeName = "Fdp.Core.ParamsDtoAttribute";   // twin: GeneratedBlueprintSchemaCatalog (Roslyn walk)
     internal const string JsonIgnoreAttributeName = "System.Text.Json.Serialization.JsonIgnoreAttribute";
 
     public bool TryGetFields(string typeId, out IReadOnlyList<ParamsDtoField> fields)
@@ -41,20 +40,12 @@ public sealed class ReflectionParamsDtoFieldSource : IParamsDtoFieldSource
         var type = Find(typeId);
         if (type is null) return false;
 
-        string? defaultJson = null;
-        foreach (var a in type.GetCustomAttributesData())
-        {
-            if (a.AttributeType.FullName != ParamsDtoAttributeName) continue;
-            foreach (var n in a.NamedArguments)
-                if (n.MemberName == "DefaultJson") defaultJson = n.TypedValue.Value as string;
-        }
-
         var list = type.GetFields(BindingFlags.Public | BindingFlags.Instance)
             .Where(f => !f.GetCustomAttributesData().Any(a => a.AttributeType.FullName == JsonIgnoreAttributeName))   // not in the JSON contract
             .OrderBy(f => f.MetadataToken)
             .Select(f => (f.Name, TypeId: f.FieldType.FullName ?? f.FieldType.Name))
             .ToList();
-        fields = ParamsDtoFields.WithDefaults(list, defaultJson);
+        fields = ParamsDtoFields.Normalized(list);
         return true;
     }
 
@@ -130,12 +121,23 @@ public static class ParamsDtoFields
             return false;
         }
 
+        // ⭐⭐ CE-3194 (R-3001) — a made Parameter's default is the ASSET's override of that field, or none: the DTO's own default is
+        //   `new T()` at run time (the emitter's params baseline), so a field the asset does not override follows the DTO.
+        var overrides = OverridesOf(asset.ParamsDefaultJson);
+        foreach (var key in overrides.Keys)
+            if (!fields.Any(f => string.Equals(f.Name, key, StringComparison.OrdinalIgnoreCase)))
+            {
+                report(Diagnostic.Error(DiagnosticCodes.BP1689,
+                    $"'{asset.Name}' overrides '{key}' in ParamsDefaultJson, which is not a field of its params DTO '{named}' (CE-3194).",
+                    asset.AssetId, null, null));
+                return false;
+            }
         var made = fields.Select(f => BlueprintDeclaration.For(new ParameterDecl
         {
             Id               = ParameterId(asset.AssetId, f.Name),
             Name             = f.Name,
             Type             = new BlueprintTypeRef { TypeId = f.TypeId },
-            DefaultValueJson = f.DefaultValueJson,
+            DefaultValueJson = overrides.TryGetValue(f.Name, out var v) ? v : null,
         })).ToList();
         asset.DeclarationStore.InsertRange(0, made);   // Parameters are the store's first run (DeclarationList.KindOrder)
         asset.ParameterOrder = null;                   // the DTO's field order is the order
@@ -163,30 +165,27 @@ public static class ParamsDtoFields
         string? named = asset.ParamsDtoTypeId?.Trim();
         if (string.IsNullOrEmpty(named) || asset.Declarations.CountIn(DeclarationKind.Parameter) > 0)
             return asset.Declarations.Of(DeclarationKind.Parameter)
-                .Select(p => new ParamsDtoField(p.Name, string.IsNullOrEmpty(p.Type?.TypeId) ? "System.Object" : p.Type!.TypeId, p.DefaultValueJson))
+                .Select(p => new ParamsDtoField(p.Name, string.IsNullOrEmpty(p.Type?.TypeId) ? "System.Object" : p.Type!.TypeId))
                 .ToList();
         return (source ?? ReflectionParamsDtoFieldSource.Instance).TryGetFields(named!, out var fields) ? fields : Array.Empty<ParamsDtoField>();
     }
 
-    /// <summary>Pairs each field with its value in the DTO's <c>DefaultJson</c> object (case-insensitive, as the params JSON reads).</summary>
-    public static IReadOnlyList<ParamsDtoField> WithDefaults(IEnumerable<(string Name, string TypeId)> fields, string? defaultJson)
+    /// <summary>The fields with their type ids in the comparable (<c>+</c>-nesting) spelling.</summary>
+    public static IReadOnlyList<ParamsDtoField> Normalized(IEnumerable<(string Name, string TypeId)> fields)
+        => fields.Select(f => new ParamsDtoField(f.Name, Norm(f.TypeId, keepNesting: true))).ToList();
+
+    /// <summary>
+    /// ⭐ <c>CE-3194</c> (R-3001) — an asset's <c>ParamsDefaultJson</c> as field → raw JSON value, keys case-insensitive (as the params JSON
+    /// reads). Empty for null / blank / non-object JSON; ⚠ malformed JSON throws (an asset bug, never silently "no overrides").
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> OverridesOf(string? json)
     {
-        Dictionary<string, string>? defaults = null;
-        if (!string.IsNullOrWhiteSpace(defaultJson))
-        {
-            try
-            {
-                using var doc = JsonDocument.Parse(defaultJson!);
-                if (doc.RootElement.ValueKind == JsonValueKind.Object)
-                {
-                    defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var p in doc.RootElement.EnumerateObject()) defaults[p.Name] = p.Value.GetRawText();
-                }
-            }
-            catch (JsonException) { /* a malformed default is the DTO's own rail's business (CE-3185), not the compile's */ }
-        }
-        return fields.Select(f => new ParamsDtoField(f.Name, Norm(f.TypeId, keepNesting: true),
-            defaults is not null && defaults.TryGetValue(f.Name, out var v) ? v : null)).ToList();
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(json)) return map;
+        using var doc = JsonDocument.Parse(json!);
+        if (doc.RootElement.ValueKind != JsonValueKind.Object) return map;
+        foreach (var p in doc.RootElement.EnumerateObject()) map[p.Name] = p.Value.GetRawText();
+        return map;
     }
 
     /// <summary>The comparable spelling of a type id: no <c>global::</c>, and (unless <paramref name="keepNesting"/>) <c>.</c> for nesting.</summary>

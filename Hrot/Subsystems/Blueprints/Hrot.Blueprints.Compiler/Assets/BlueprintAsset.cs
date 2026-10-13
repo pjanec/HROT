@@ -35,6 +35,14 @@ public sealed class BlueprintAsset
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? ParamsDtoTypeId { get; set; }
 
+    /// <summary>
+    /// ⭐ <c>CE-3194</c> (R-3001) — this asset's OVERRIDES of its params DTO's defaults: a JSON object of field → value. A field it does not
+    /// name keeps the DTO's own default (its initialiser, <c>new T()</c>), so assets sharing one DTO can differ. Baked before the order's
+    /// JSON. Written only when present. 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §13.10a.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsDefaultJson { get; set; }
+
     /// <summary>⭐ <c>CE-2135</c> P4 (R-2004) — true on the compiler's own copy once <see cref="Compiler.ParamsDtoFields.Materialize"/> made the
     /// Parameters from the named DTO's fields; never set on an asset that was loaded or authored (never serialized).</summary>
     internal bool ParametersFromParamsDto { get; set; }

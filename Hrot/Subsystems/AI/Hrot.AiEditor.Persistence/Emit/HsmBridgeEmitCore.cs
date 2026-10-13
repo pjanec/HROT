@@ -481,7 +481,10 @@ public static class HsmBridgeEmitCore
         {
             Name             = BTreeEmitCore.ReservedParamsName,
             Type             = new HsmBlackboardTypeRefDto { TypeId = named! },
-            DefaultValueJson = dto.ParamsDefaultJson,
+            // ⭐ CE-3194 (R-3001/R-3002) — ALWAYS baked: the JSON is read over `new T()` (the DTO's initialisers; an absent key keeps
+            //   them), and "{}" when the asset overrides nothing. ⛔ It was baked only when the asset carried a default, so a DTO's own
+            //   defaults never reached the block (zeroed memory runs no constructor).
+            DefaultValueJson = string.IsNullOrWhiteSpace(dto.ParamsDefaultJson) ? "{}" : dto.ParamsDefaultJson,
             Comment          = "CE-2135: the behaviour's params (its named DTO, ParamsDtoTypeId) — reserved, not authored",
         });
         return dto;

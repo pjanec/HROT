@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -95,7 +96,9 @@ public static class ParamsDtoJson
 
 /// <summary>
 /// ⭐ <c>CE-2136</c> — the params DTO asset's C#: one <c>[StructLayout(Sequential)]</c> struct with a public field per row,
-/// <c>[ParamsDto(DefaultJson = …)]</c> (so <c>ParamsDtoRegistry</c> lists it) and <c>[Order]</c> when it names an order. ⚠ Field
+/// <c>[ParamsDto(AssetId = …)]</c> (so <c>ParamsDtoRegistry</c> lists it) and <c>[Order]</c> when it names an order.
+/// ⭐⭐ <c>CE-3194</c> (R-3002) — a field's default is its INITIALISER, and the struct gets a parameterless constructor so
+/// <c>new T()</c> applies them; ⛔ the defaults are no longer copied into <c>[ParamsDto(DefaultJson)]</c> (retired). ⚠ Field
 /// types are emitted from their type ids (<c>global::Ns.T</c>) — a generator sees only JSON text, so an unknown type is a compile
 /// error in the generated file, never a guess.
 /// </summary>
@@ -139,22 +142,6 @@ public static class ParamsDtoEmitCore
         return errors;
     }
 
-    /// <summary>The DTO's default as one JSON object (only the fields that carry a default) — what a behaviour's
-    /// <c>ParamsDefaultJson</c> can be seeded from; <c>{}</c> when none does.</summary>
-    public static string DefaultJsonOf(ParamsDtoAssetDto dto)
-    {
-        var sb = new StringBuilder("{");
-        bool first = true;
-        foreach (var f in dto.Fields ?? new List<ParamsDtoFieldDto>())
-        {
-            if (string.IsNullOrWhiteSpace(f.DefaultJson)) continue;
-            if (!first) sb.Append(',');
-            first = false;
-            sb.Append(JsonSerializer.Serialize(f.Name)).Append(':').Append(Compact(f.DefaultJson!));
-        }
-        return sb.Append('}').ToString();
-    }
-
     /// <summary>The generated source. Call <see cref="Validate"/> first; this assumes a valid asset.</summary>
     public static string Emit(ParamsDtoAssetDto dto, string sourcePath)
     {
@@ -166,7 +153,7 @@ public static class ParamsDtoEmitCore
         sb.AppendLine($"namespace {ns}");
         sb.AppendLine("{");
         Doc(sb, "    ", dto.Comment);
-        sb.AppendLine($"    [{Attr}(AssetId = {Literal(Guid.Parse(dto.AssetId!).ToString("D"))}, DefaultJson = {Literal(DefaultJsonOf(dto))})]");
+        sb.AppendLine($"    [{Attr}(AssetId = {Literal(Guid.Parse(dto.AssetId!).ToString("D"))})]");
         if (dto.OrderName != null)
             sb.AppendLine(dto.Gesture == null
                 ? $"    [{OrderAttr}({Literal(dto.OrderName)})]"
@@ -177,8 +164,12 @@ public static class ParamsDtoEmitCore
         foreach (var f in dto.Fields ?? new List<ParamsDtoFieldDto>())
         {
             Doc(sb, "        ", f.Comment);
-            sb.AppendLine($"        public {TypeRef(f.TypeId)} {f.Name};");
+            string init = string.IsNullOrWhiteSpace(f.DefaultJson) ? "" : " = " + InitialiserOf(f.TypeId, f.DefaultJson!);
+            sb.AppendLine($"        public {TypeRef(f.TypeId)} {f.Name}{init};");
         }
+        // ⭐ CE-3194 (R-3002) — C# applies field initialisers only through a constructor call (CS8983 without one).
+        sb.AppendLine();
+        sb.AppendLine($"        public {dto.Name.Trim()}() {{ }}");
         sb.AppendLine("    }");
         sb.AppendLine("}");
         return sb.ToString();
@@ -233,6 +224,40 @@ public static class ParamsDtoEmitCore
         if (string.IsNullOrWhiteSpace(text)) return;
         string esc = text!.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\r", "").Replace("\n", " ");
         sb.AppendLine($"{pad}/// <summary>{esc}</summary>");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3194</c> — a field's JSON default as a C# initialiser: a literal for the primitives and the <c>System.Numerics</c>
+    /// vectors (no JSON parse each time the struct is made), else the platform's own JSON read of it — the same options the params
+    /// JSON is read with (<c>BehaviorParams.JsonOptions</c>: enums by name, vectors as arrays), so a default and an order's value
+    /// cannot read differently.
+    /// </summary>
+    internal static string InitialiserOf(string typeId, string json)
+    {
+        string id = typeId.Trim();
+        if (id.StartsWith("global::", StringComparison.Ordinal)) id = id.Substring("global::".Length);
+        using var doc = JsonDocument.Parse(json);
+        var e = doc.RootElement;
+        string Num(JsonElement n, string suffix) => n.GetRawText() + suffix;
+        switch (id)
+        {
+            case "System.Single"  when e.ValueKind == JsonValueKind.Number: return Num(e, "f");
+            case "System.Double"  when e.ValueKind == JsonValueKind.Number: return Num(e, "d");
+            case "System.Decimal" when e.ValueKind == JsonValueKind.Number: return Num(e, "m");
+            case "System.Int32" or "System.Int16" or "System.Byte" or "System.SByte" or "System.UInt16"
+                when e.ValueKind == JsonValueKind.Number && e.TryGetInt64(out _):
+                return $"({TypeRef(id)}){e.GetRawText()}";
+            case "System.Int64"  when e.ValueKind == JsonValueKind.Number && e.TryGetInt64(out _):  return e.GetRawText() + "L";
+            case "System.UInt32" when e.ValueKind == JsonValueKind.Number && e.TryGetUInt32(out _): return e.GetRawText() + "u";
+            case "System.UInt64" when e.ValueKind == JsonValueKind.Number && e.TryGetUInt64(out _): return e.GetRawText() + "ul";
+            case "System.Boolean" when e.ValueKind is JsonValueKind.True or JsonValueKind.False: return e.ValueKind == JsonValueKind.True ? "true" : "false";
+            case "System.String"  when e.ValueKind == JsonValueKind.String: return Literal(e.GetString()!);
+            case "System.Numerics.Vector2" or "System.Numerics.Vector3" or "System.Numerics.Vector4"
+                when e.ValueKind == JsonValueKind.Array && e.GetArrayLength() == id[id.Length - 1] - '0'
+                     && e.EnumerateArray().All(x => x.ValueKind == JsonValueKind.Number):
+                return $"new {TypeRef(id)}({string.Join(", ", e.EnumerateArray().Select(x => x.GetRawText() + "f"))})";
+        }
+        return $"global::System.Text.Json.JsonSerializer.Deserialize<{TypeRef(id)}>({Literal(Compact(json))}, global::Fdp.Toolkit.Behavior.BehaviorParams.JsonOptions)!";
     }
 
     private static string Literal(string s) => "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";

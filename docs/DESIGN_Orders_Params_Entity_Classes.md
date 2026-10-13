@@ -1968,7 +1968,7 @@ classDiagram
   - no editor surface writes an asset's `ParamsDtoTypeId` or a BTree / HSM `ParamsDefaultJson` (hand-edited JSON).
   ⇒ dispatched: [HANDOFF_Params_Panels_Ui.md](blueprints/HANDOFF_Params_Panels_Ui.md) (U1–U5; U5 ruled below).
 
-#### 13.10a The params DTO and its defaults, per asset *(R-3001, CE-3194; build-state: READY-TO-BUILD — backend half CE-3194, editor half the handoff's U5)*
+#### 13.10a The params DTO and its defaults, per asset *(R-3001, CE-3194; build-state: backend half BUILT `2026-10-13` (CE-3194, as-built at the end of this section) — editor half the handoff's U5)*
 
 🔒 **User, 2026-10-13:** *"editor should allow choosing the csharp hardcoded dto OR json asset dto and editing the default values of
 the fields per asset (using structEdit - already existing) and save those defaults in the asset. Both DTO (hardcoded or json) come
@@ -1998,6 +1998,37 @@ absent key loses the DTO's default; and a blueprint has no `ParamsDefaultJson` a
 | the editing surface | StructEdit over the DTO (`BehaviorParamsForm`, exists) showing the effective value; a field the asset overrides is marked and can be reset (the key removed) | a hand-written per-field table |
 | blueprints | `BlueprintAsset.ParamsDefaultJson` (new), baked the same way | blueprints take only the DTO's defaults |
 | the corpus | unchanged: today's files list every key, i.e. override every field — the same values, the same bake result | rewriting them to sparse (a behaviour change only where a DTO default differs; none needs it) |
+
+**As built (CE-3194, `2026-10-13`):**
+
+```mermaid
+classDiagram
+  class ParamsDefaults { <<NEW, Fdp.Toolkits/Behavior/BehaviorParams.cs>> New~T~() · DefaultOf(Type) · Effective(Type, overridesJson) }
+  class BehaviorParams { <<existing>> OverlayFlat · FromBlockResolver (no JSON ⇒ New~T~, was default) · FromBlockResolverSource }
+  class ParamsDtoEmitCore { <<CHANGED>> Emit: initialisers + public T() · InitialiserOf(typeId, json) }
+  class ParamsDtoAttribute { <<CHANGED>> AssetId only — DefaultJson retired }
+  class BlueprintAsset { <<CHANGED>> + ParamsDefaultJson }
+  class ParamsDtoFields { <<CHANGED>> ParamsDtoField(Name, TypeId) · OverridesOf(json) · Materialize: Parameter default = the asset's override }
+  class InstanceEmitter { <<CHANGED>> EmitParamsDefaults: new Dto() then the overrides }
+  class BTreeEmitCore_HsmBridgeEmitCore { <<CHANGED>> WithParamsVariable: Params always baked (empty object when no override) }
+  ParamsDtoEmitCore ..> ParamsDtoAttribute : emits
+  ParamsDtoFields ..> BlueprintAsset : reads ParamsDefaultJson
+  InstanceEmitter ..> ParamsDtoFields : made Parameters
+  ParamsDefaults <.. BehaviorParams : no-JSON baseline
+```
+*What the picture shows that prose hid: there are THREE bake paths (BTree/HSM generated, blueprint generated, curated C#) and each
+needed its own fix to start from `new T()` — the BTree/HSM one baked nothing at all when the asset carried no default, and the curated
+one used `default(T)` when no order JSON came.*
+
+| as built | where |
+|---|---|
+| the `.params.json` generator emits each `DefaultJson` as an INITIALISER (a literal for the primitives and `System.Numerics` vectors, else `JsonSerializer.Deserialize<T>(…, BehaviorParams.JsonOptions)`) and a `public T() { }`; `[ParamsDto(DefaultJson)]` is gone | `ParamsDtoAsset.cs` `Emit`, `InitialiserOf` |
+| the 9 hand-written uses converted: 5 all-zero defaults just dropped the attribute; `T40ResolverParams`, `HsmResolverDemoParams`, `T20Params` gained initialisers + a constructor; `DangerCrossingParams` (a class) already had them | `BlueprintDemoParams.cs`, `DangerAreaNodes.cs` |
+| BTree / HSM: the reserved `Params` is baked on every assign (`"{}"` when the asset overrides nothing), read by `Deserialize<T>` — which runs the parameterless constructor, so an absent key keeps its initialiser (measured, §13.10a decision row) | `BTreeEmitCore.WithParamsVariable`, `HsmBridgeEmitCore.WithParamsVariable` |
+| blueprint: `BlueprintAsset.ParamsDefaultJson` (persisted when set, copied into the compiler's working copy); a made Parameter's default is the asset's override (keys case-insensitive), an override naming no field is `BP1689`; the emitted baseline is `var __dto = new Dto(); p.F = __dto.F;` then the overrides — a ZERO override is written as `default` (it lowers to no literal; `IrField.HasDefault` carries it) | `BlueprintAsset.cs`, `ParamsDtoFields.Materialize`, `InstanceEmitter.EmitParamsDefaults`, `IrField.HasDefault` |
+| curated C# behaviours: no order JSON ⇒ a STRUCT contract is `ParamsDefaults.New<T>()` (was `default(T)`); ⚠ a CLASS contract stays `null` = "nothing was sent" (`DangerAreaNodes.ResolveDangerCrossing` keeps the asset's bake on it — measured while building; a fresh instance would overwrite the tuning); an unbound hosted child (always unmanaged) gets `New<T>()` | `BehaviorParams.FromBlockResolver`, `FromBlockResolverSource` |
+| the field sources carry no default any more (`ParamsDtoField(Name, TypeId)`); `GeneratedBlueprintSchemaCatalog.ParamsDtoDefaultJsonOf` and `ParamsDtoEmitCore.DefaultJsonOf` deleted | `ParamsDtoFields.cs`, `RoslynParamsDtoFieldSource.cs` |
+| the end-to-end fixture: `T41_GeneratedParamsDto` now overrides only `Range` (30); `Home` / `Loops` come from `T41Params`' initialisers | `ParamsDtoAssetTests` (the feature suite, 4/4) |
 
 ### 13.11 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
 

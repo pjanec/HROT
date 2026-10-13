@@ -30,16 +30,14 @@ internal sealed class RoslynParamsDtoFieldSource : IParamsDtoFieldSource
 
         if (_compilation.GetTypeByMetadataName(id) is { } type)
         {
-            fields = ParamsDtoFields.WithDefaults(GeneratedBlueprintSchemaCatalog.ParamsDtoFieldsOf(type),
-                GeneratedBlueprintSchemaCatalog.ParamsDtoDefaultJsonOf(type));
+            fields = ParamsDtoFields.Normalized(GeneratedBlueprintSchemaCatalog.ParamsDtoFieldsOf(type));
             return true;
         }
 
         if (_generated.ParamsDtos.TryGetValue(id, out var asset))
         {
-            fields = ParamsDtoFields.WithDefaults(
-                (asset.Fields ?? new List<Hrot.AiEditor.Persistence.Params.ParamsDtoFieldDto>()).Select(f => (f.Name, f.TypeId)),
-                Hrot.AiEditor.Persistence.Params.ParamsDtoEmitCore.DefaultJsonOf(asset));
+            fields = ParamsDtoFields.Normalized(
+                (asset.Fields ?? new List<Hrot.AiEditor.Persistence.Params.ParamsDtoFieldDto>()).Select(f => (f.Name, f.TypeId)));
             return true;
         }
 

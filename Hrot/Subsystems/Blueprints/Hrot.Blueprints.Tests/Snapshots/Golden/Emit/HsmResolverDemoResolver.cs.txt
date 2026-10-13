@@ -45,7 +45,10 @@ public static class HsmResolverDemoResolver_CCD63EE7_Bp
     {
         authored = default;
         ref var p = ref authored;
-        p.HalfSpeed = 1.5F;
+        {
+            var __dto = new global::Hrot.AI.Behaviors.Brains.HsmResolverDemoParams();
+            p.HalfSpeed = __dto.HalfSpeed;
+        }
         if (string.IsNullOrWhiteSpace(json)) return;
         using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
         if (__doc.RootElement.ValueKind != global::System.Text.Json.JsonValueKind.Object) return;

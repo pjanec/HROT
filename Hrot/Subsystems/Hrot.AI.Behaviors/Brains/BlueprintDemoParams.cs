@@ -5,12 +5,13 @@ namespace Hrot.AI.Behaviors.Brains
 {
     // ⭐ CE-2135 P4 (R-2004 — docs/DESIGN_Orders_Params_Entity_Classes.md §13.10 P4-d/P4-g) — the params DTOs the sample / test AiPrimitive
     //   blueprints name. A blueprint declares no Parameters: these fields ARE its Parameters, in this order, with these defaults
-    //   (the values its Parameters carried). The generated `{Name}_{Id:X8}_Bp+Params` still mirrors them field for field, so the
+    //   (the values its Parameters carried). ⭐ CE-3194 (R-3002): a default is a field INITIALISER (+ a parameterless constructor), never
+    //   `[ParamsDto(DefaultJson)]` (retired); an all-zero default needs neither. The generated `{Name}_{Id:X8}_Bp+Params` still mirrors them field for field, so the
     //   BTree / HSM hosts that bind it by name are unchanged.
 
     /// <summary><c>ChannelMoveAndWaitDemo</c>'s params.</summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ParamsDto(DefaultJson = "{\"BaselineX\":0,\"BaselineY\":0}")]
+    [ParamsDto]
     public struct ChannelMoveAndWaitDemoParams { public float BaselineX; public float BaselineY; }
 
     /// <summary><c>GateConditionDemo</c>'s params.</summary>
@@ -25,17 +26,17 @@ namespace Hrot.AI.Behaviors.Brains
 
     /// <summary><c>HsmDriveActivity</c>'s params.</summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ParamsDto(DefaultJson = "{\"DestX\":0,\"DestY\":0}")]
+    [ParamsDto]
     public struct HsmDriveActivityParams { public float DestX; public float DestY; }
 
     /// <summary><c>HsmFireActivity</c>'s params.</summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ParamsDto(DefaultJson = "{\"TargetNetworkId\":0}")]
+    [ParamsDto]
     public struct HsmFireActivityParams { public long TargetNetworkId; }
 
     /// <summary><c>HsmGuardDemo</c>'s params.</summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ParamsDto(DefaultJson = "{\"EngageTarget\":false}")]
+    [ParamsDto]
     public struct HsmGuardDemoParams { public bool EngageTarget; }
 
     /// <summary>
@@ -44,7 +45,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// whose layout IS its named DTO's (the blueprint's Parameters are that DTO's fields, R-2004).
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ParamsDto(DefaultJson = "{\"Drive\":{\"DestX\":0,\"DestY\":0},\"Fire\":{\"TargetNetworkId\":0},\"Guard\":{\"EngageTarget\":false}}")]
+    [ParamsDto]
     public struct HsmChannelE2EParams
     {
         public HsmDriveActivityParams Drive;
@@ -59,13 +60,13 @@ namespace Hrot.AI.Behaviors.Brains
 
     /// <summary><c>T40Resolver</c>'s params — the authored contract <c>T40_BehaviorResolverAsset</c> publishes (P4-e).</summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ParamsDto(DefaultJson = "{\"HalfSpeed\":1.5}")]
-    public struct T40ResolverParams { public float HalfSpeed; }
+    [ParamsDto]
+    public struct T40ResolverParams { public float HalfSpeed = 1.5f; public T40ResolverParams() { } }
 
     /// <summary><c>HsmResolverDemoResolver</c>'s params — the authored contract <c>HsmResolverDemo</c> publishes (P4-e).</summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ParamsDto(DefaultJson = "{\"HalfSpeed\":1.5}")]
-    public struct HsmResolverDemoParams { public float HalfSpeed; }
+    [ParamsDto]
+    public struct HsmResolverDemoParams { public float HalfSpeed = 1.5f; public HsmResolverDemoParams() { } }
 
     // ⭐ CE-2135 P4 ⑥ (R-2004) — the legacy BTree/HSM test fixtures' params DTOs: each asset names one (B3a form) instead of declaring
     //   Role=Input variables; the generated `<Asset>_Blackboard` JSON mirror is no longer their contract.
@@ -88,11 +89,12 @@ namespace Hrot.AI.Behaviors.Brains
     /// <summary><c>T20_MultiStateful</c>'s params — the three node params it bound as variables, at the same offsets (0 / 4 / 8);
     /// its nodes bind <c>Params.cursorA</c> / <c>Params.cursorB</c> / <c>Params.counter</c>.</summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ParamsDto(DefaultJson = "{\"cursorA\":{\"Limit\":3},\"cursorB\":{\"Limit\":5},\"counter\":{\"Counter\":0,\"Threshold\":1000}}")]
+    [ParamsDto]
     public struct T20Params
     {
-        public DemoCounterNodes.DemoCursorParams cursorA;
-        public DemoCounterNodes.DemoCursorParams cursorB;
-        public DemoCounterNodes.DemoCounterParams counter;
+        public DemoCounterNodes.DemoCursorParams cursorA = new() { Limit = 3 };
+        public DemoCounterNodes.DemoCursorParams cursorB = new() { Limit = 5 };
+        public DemoCounterNodes.DemoCounterParams counter = new() { Threshold = 1000 };
+        public T20Params() { }
     }
 }

@@ -25,13 +25,24 @@ namespace Hrot.SimHost.Tests
             return t!;
         }
 
+        /// <summary>⭐ CE-3194 (R-3002) — the asset's defaults are the generated struct's field INITIALISERS: <c>new T()</c> carries
+        /// them (the attribute no longer does). 🔴 Red-proof: drop the parameterless constructor from <c>ParamsDtoEmitCore.Emit</c> → the
+        /// build fails (CS8983), and without the initialisers <c>Range</c> reads 0.</summary>
         [Fact]
         public void CE2136_TheGeneratedDto_IsAParamsDto_ListedByTheRegistry_WithItsDefault()
         {
             var t = Generated();
-            var attr = (ParamsDtoAttribute?)Attribute.GetCustomAttribute(t, typeof(ParamsDtoAttribute));
-            Assert.NotNull(attr);
-            Assert.Equal("{\"Range\":25,\"Home\":[10,20,0],\"Loops\":2}", attr!.DefaultJson);
+            Assert.NotNull(Attribute.GetCustomAttribute(t, typeof(ParamsDtoAttribute)));
+            object made = ParamsDefaults.DefaultOf(t)!;
+            Assert.Equal(25f, t.GetField("Range")!.GetValue(made));
+            Assert.Equal(new System.Numerics.Vector3(10, 20, 0), t.GetField("Home")!.GetValue(made));
+            Assert.Equal(2, t.GetField("Loops")!.GetValue(made));
+            Assert.Equal(false, t.GetField("Alerted")!.GetValue(made));
+
+            // ⭐ CE-3194 — what the editor shows (U5b): the DTO's default with the asset's overrides on top, keys case-insensitive.
+            object eff = ParamsDefaults.Effective(t, "{\"range\":30}")!;
+            Assert.Equal(30f, t.GetField("Range")!.GetValue(eff));
+            Assert.Equal(2, t.GetField("Loops")!.GetValue(eff));
 
             var registry = ParamsDtoRegistry.Scan(new[] { t.Assembly, typeof(ParamsDtoRegistry).Assembly });
             Assert.Contains(registry.Dtos, d => d.Type == t);
@@ -74,6 +85,10 @@ namespace Hrot.SimHost.Tests
                 t.GetFields().Select(f => f.Name).ToArray());
         }
 
+        /// <summary>⭐⭐ CE-3194 (R-3001) end to end: <c>T41_GeneratedParamsDto</c> OVERRIDES only <c>Range</c> (30) in its
+        /// <c>ParamsDefaultJson</c>; <c>Home</c> and <c>Loops</c> come from the DTO's initialisers; the order's JSON lands on top.
+        /// 🔴 Red-proof: bake the asset JSON over zeroed memory (the pre-CE-3194 <c>Deserialize</c> of a struct with no constructor)
+        /// → <c>Home</c> / <c>Loops</c> read 0.</summary>
         [Fact]
         public unsafe void CE2136_ABehaviourTakesTheGeneratedDto_FlatOverItsBakedDefault()
         {
@@ -92,10 +107,21 @@ namespace Hrot.SimHost.Tests
                 def.ParseParams!("{\"range\":40,\"Alerted\":true}", p, block.Length, repo, Entity.Null);
             }
             Assert.Equal(40f, BitConverter.ToSingle(block, 0));                      // sent (case-insensitive)
-            Assert.Equal(10f, BitConverter.ToSingle(block, 4));                      // Home.X — the baked default
+            Assert.Equal(10f, BitConverter.ToSingle(block, 4));                      // Home.X — the DTO's initialiser (not overridden)
             Assert.Equal(20f, BitConverter.ToSingle(block, 8));
-            Assert.Equal(2, BitConverter.ToInt32(block, 16));                        // Loops — the baked default
+            Assert.Equal(2, BitConverter.ToInt32(block, 16));                        // Loops — the DTO's initialiser (not overridden)
             Assert.Equal(1, block[20]);                                              // Alerted — sent
+
+            // No order JSON: the asset's override (Range 30) over the DTO's initialisers.
+            var bare = new byte[block.Length];
+            fixed (byte* p = bare)
+            {
+                def.BakeDefaults?.Invoke(p, bare.Length);
+                def.ParseParams!("", p, bare.Length, repo, Entity.Null);
+            }
+            Assert.Equal(30f, BitConverter.ToSingle(bare, 0));                       // the asset's override
+            Assert.Equal(10f, BitConverter.ToSingle(bare, 4));                       // the DTO's initialiser
+            Assert.Equal(2, BitConverter.ToInt32(bare, 16));
         }
     }
 }

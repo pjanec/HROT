@@ -49,7 +49,7 @@ public static class T41_GeneratedParamsDtoRegistrar
             static void __BakeDefaults(byte* memory, int capacity)
             {
                 {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Params.T41Params>("{\"Range\":25,\"Home\":[10,20,0],\"Loops\":2}", __paramJsonOpts);
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Params.T41Params>("{\"Range\":30}", __paramJsonOpts);
                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __v);
                 }
             }
