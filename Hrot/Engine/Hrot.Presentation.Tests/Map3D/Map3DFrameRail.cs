@@ -990,6 +990,96 @@ public sealed class Map3DFrameRail
         return from;
     }
 
+    /// <summary>
+    /// ⭐ CE-1064 (docs/DESIGN_Map_3D_Mode.md §6j) — the CROUCHED figure, still and on the move: a soldier crouched at ease, ready and
+    /// aimed, a soldier RUNNING crouched at 3 m/s (R-265's crouched run, the stance's 0.5 speed cap) with his rifle ready, and a
+    /// civilian moving crouched. Side-on, at two points of the gait cycle, so the legs can be seen to move.
+    /// </summary>
+    [SkippableFact]
+    public void CE1064_ACrouchedFigure_StillAndRunning()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        double now = 1.0;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        Entity Person(float dx, float dy, long type, Fdp.Toolkit.Combat.Components.WeaponPostureKind posture)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // all face +x (east)
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Crouched });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = posture });
+            return e;
+        }
+        const long Rifleman = TkbEntityTypes.Infantry_Rifleman;
+        Person(0f, 3f, Rifleman, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+        Person(0f, 1.5f, Rifleman, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        Person(0f, 0f, Rifleman, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
+        var runner = Person(-4f, -1.5f, Rifleman, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        var civilian = Person(-4f, -3f, UrbanCombatTkbCatalog.TkbCivilianPedestrian, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+
+        void Move(Entity e, float speed, double dt)
+        {
+            var tf = world.GetComponent<SimTransform>(e);
+            tf.Position += new Vector3(speed * (float)dt, 0f, 0f);
+            tf.Position = tf.Position with { Z = G(tf.Position.X, tf.Position.Y) };
+            world.SetComponent(e, tf);
+        }
+        void Frames(int n)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                now += 1.0 / 30.0;
+                world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+                Move(runner, 3f, 1.0 / 30.0);
+                Move(civilian, 1.5f, 1.0 / 30.0);
+                frame.Step(canvas.Draw);
+            }
+        }
+
+        // side-on from the south, low: the three still ones (front three-quarter), then the movers
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 1f, spot.Y, G(spot.X, spot.Y) + 0.6f), 8f, MathF.PI * 0.62f, -0.06f);
+        Frames(6);
+        frame.Screenshot(Path.Combine(shots, "crouch-1-still-and-moving.png"));
+        Assert.Equal(5, bodies.BodiesDrawn);
+
+        // follow the runner side-on, at two points of his stride (a quarter cycle apart: 0.4 m at 3 m/s)
+        CameraPose Beside(Entity e) => new(world.GetComponent<SimTransform>(e).Position + new Vector3(0f, 0f, 0.6f), 4.5f, MathF.PI * 0.5f, -0.05f);
+        sw.Camera3D.Pose = Beside(runner);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "crouch-2-run-a.png"));
+        Frames(4);
+        sw.Camera3D.Pose = Beside(runner);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "crouch-3-run-b.png"));
+    }
+
     /// <summary>A point of plain ground (not inside a building footprint) closest to the town's middle.</summary>
     private static Vector2 FindOpenGround(Fdp.Toolkit.Terrain.TerrainWorld terrain, IWorldQuery query)
     {
