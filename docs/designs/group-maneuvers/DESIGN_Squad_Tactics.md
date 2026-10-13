@@ -831,8 +831,8 @@ the squad fights first · empty pool ⇒ Rescue at once.
 | the medic stopped 1.7 m from the man (his body nudged as he came) and `PickUp` failed on the first walk that ended out of reach; the drill then waited in `Go` for 60 s while the man bled out | ⭐ `PickUp` walks to him again (≤ 3 walks, within 6 m); the care play re-sends the carry every 2 s while the medic neither carries him nor still runs `CarryCasualty` |
 | the casualty lay on the coverers' lines to the hostile, so the medic walking to him took their rounds | the scenario puts him out of every firing lane — ⚠ a squad with no friendly-fire awareness in its route choice is left open (the medic's walk does not avoid the base of fire's lanes) |
 
-⭐ **Result `2026-10-13`:** `ua-casualty-care` and `ua-casualty-care-leader` PASS every check over HTTP; `-heavy` passes all but the
-final "the drill ended" read, a checker defect (the route keeps the last drill, inactive) fixed after the run.
+⭐ **Result `2026-10-13`:** `ua-casualty-care`, `-heavy` and `-leader` all PASS every check over HTTP (the `-heavy` "drill ended" read
+needed a checker fix: the route keeps the last drill, inactive, when none runs).
 
 Rails: `SquadManeuverTests.CE2152_Rescue_TheEnemyKilledButStillRemembered_TheSquadGoesForHim` (red only with BOTH fixes removed —
 either one closes the case it pins).
