@@ -841,6 +841,74 @@ def run_fire_and_movement(c, timeout):
     c.ok(both_up <= 1.0, f"⑥ never both halves up for more than 1 s ({both_up:.1f} s)")
 
 
+# ── F-e (CE-2158) — bounding overwatch: one half watches (suppresses on contact) while the other bounds to cover ───────────
+#   docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.8.3. Reads GET /entities/{squad}/squad ▸ maneuver (O-a).
+
+def run_bounding_overwatch(c, timeout):
+    ids = ids_by_name()
+    sq = ids.get("Squad")
+    names = ["Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4", "Rifleman 5"]
+    members = [ids.get(n) for n in names]
+    hostile = ids.get("Hostile")
+    if not c.ok(sq and None not in members and hostile, "the squad, six men and the hostile are loaded"):
+        return
+    call("POST", "/trace/observe", {"networkId": sq, "on": True})
+    ammo0 = {m: ammo(m)[0] for m in members}
+    call("POST", "/sim/play", {})
+    m = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") == "BoundingOverwatch" and x, 20)
+    if not c.ok(m is not None, "the squad runs the drill (maneuver kindName BoundingOverwatch)"):
+        return
+    history, last_pos, last_t, overlap, longest = {}, {}, None, 0.0, 0.0
+    fired_before_contact, contact_at, suppress_at, fire_after = False, None, None, None
+    bounds, covered = 0, 0
+    seen = set()
+    end = (sim_time() or 0) + 120
+    while (sim_time() or 0) < end:
+        t = sim_time() or 0
+        m = maneuver(sq)
+        if m.get("kindName") != "BoundingOverwatch" or not m.get("active", True):
+            break
+        for h in m.get("history", []):
+            history[(h.get("t"), h.get("phase"))] = h
+        orders = {x.get("networkId"): (x.get("order") or {}) for x in m.get("members", [])}
+        for nid, o in orders.items():
+            key = (nid, o.get("issuedAt"))
+            if o.get("kind") == "AdvanceTo" and key not in seen:
+                seen.add(key); bounds += 1; covered += 1 if o.get("cover") else 0
+        sqd = squad(sq) or {}
+        if contact_at is None and sqd.get("contactCount", 0) >= 1:
+            contact_at = t
+        if contact_at is None and any((ammo(nid)[0] or 0) < (ammo0[nid] or 0) for nid in members):
+            fired_before_contact = True
+        if contact_at is not None and suppress_at is None and sum(1 for o in orders.values() if o.get("kind") == "Suppress") >= 2:
+            suppress_at = t
+        if suppress_at is not None and fire_after is None and any((ammo(nid)[0] or 0) < (ammo0[nid] or 0) for nid in members):
+            fire_after = t
+        moving = {}
+        for i, nid in enumerate(members):
+            p = position(nid)
+            if p and nid in last_pos and last_t is not None and t > last_t:
+                moving[i] = flat(p, last_pos[nid]) / (t - last_t) > 0.5
+            if p: last_pos[nid] = p
+        both = any(moving.get(i) for i in range(0, 3)) and any(moving.get(i) for i in range(3, 6))
+        overlap = overlap + (t - last_t) if (both and last_t is not None) else 0.0
+        longest = max(longest, overlap)
+        last_t = t
+        time.sleep(0.5)
+    hs = sorted(history.values(), key=lambda h: h.get("t") or 0)
+    swaps = [h for h in hs if h.get("event") in ("DefiladeReached", "Timeout", "BoundComplete")]
+    print(f"    history: {[(h.get('t'), h.get('phaseName'), h.get('event')) for h in hs]}")
+    print(f"    bounds {bounds}, to cover {covered}; contact at {contact_at}, suppress at {suppress_at}, rounds after {fire_after}")
+    c.ok(longest <= 1.0, f"① one half moves, the other watches (both moving at most {longest:.1f} s at a time)")
+    c.ok(covered > 0, f"② bounds end in cover ({covered} of {bounds} bound orders were cover points)")
+    set_share = sum(1 for h in swaps if h.get("event") == "DefiladeReached") / len(swaps) if swaps else 0
+    c.ok(swaps and set_share >= 0.8, f"③ the swap is 'set', not the clock ({set_share:.0%} of {len(swaps)} swaps on DefiladeReached)")
+    c.ok(not fired_before_contact, "④ nobody fires before contact")
+    c.ok(contact_at is not None and suppress_at is not None and suppress_at - contact_at <= 3.5,
+         f"⑤ on contact the watchers suppress within 3 s (contact {contact_at}, suppress {suppress_at})")
+    c.ok(suppress_at is not None and fire_after is not None and fire_after - suppress_at <= 5.5, "⑤ … and their rounds go down within 5 s")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
@@ -857,7 +925,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-casualty-care-heavy": run_casualty_care_heavy,
              "ua-casualty-care-leader": run_casualty_care_leader,
              # ⭐ CE-2158 F-e — fire and movement (Squad Tactics §7.8.3)
-             "ua-fire-and-movement": run_fire_and_movement}
+             "ua-fire-and-movement": run_fire_and_movement,
+             "ua-bounding-overwatch": run_bounding_overwatch}
 
 
 def main():
