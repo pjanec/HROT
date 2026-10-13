@@ -1966,7 +1966,38 @@ classDiagram
   - the **BTree / HSM** `Params` row is ONE read-only entry (`BlackboardAuthoringWindow.cs:323`) — the DTO's fields are not
     listed (`VariablesPanelControl` has no struct expansion);
   - no editor surface writes an asset's `ParamsDtoTypeId` or a BTree / HSM `ParamsDefaultJson` (hand-edited JSON).
-  ⇒ dispatched: [HANDOFF_Params_Panels_Ui.md](blueprints/HANDOFF_Params_Panels_Ui.md) (the last bullet pending the user's nod, U5).
+  ⇒ dispatched: [HANDOFF_Params_Panels_Ui.md](blueprints/HANDOFF_Params_Panels_Ui.md) (U1–U5; U5 ruled below).
+
+#### 13.10a The params DTO and its defaults, per asset *(R-3001, CE-3194; build-state: READY-TO-BUILD — backend half CE-3194, editor half the handoff's U5)*
+
+🔒 **User, 2026-10-13:** *"editor should allow choosing the csharp hardcoded dto OR json asset dto and editing the default values of
+the fields per asset (using structEdit - already existing) and save those defaults in the asset. Both DTO (hardcoded or json) come
+with their own defaults but the assent must be able to override them (shared DTO for multiple assets might need different defaults
+per asset)"*. 📌 The case exists: `TakeCover` and `FallBack` both name `EqsTacticsParams`, with different `ParamsDefaultJson`.
+
+```mermaid
+sequenceDiagram
+  participant Bake as generated BakeDefaults (BTree / HSM / blueprint)
+  participant D as ParamsDefaults (NEW, Fdp.Toolkits)
+  participant Ov as BehaviorParams.OverlayFlat (exists)
+  participant Ord as ParseParams (exists)
+  Bake->>D: DefaultOf(T)
+  D-->>Bake: new T() (initialisers), overlaid with [ParamsDto(DefaultJson)]
+  Bake->>Ov: overlay the ASSET's ParamsDefaultJson (only the keys it overrides)
+  Ord->>Ov: overlay the ORDER's JSON (only the keys it sends)
+```
+*What the picture shows that prose hid: three layers, one overlay function — the DTO's default, then the asset's override, then the
+order. Today the middle step is `JsonSerializer.Deserialize<T>(assetJson)` (`BTreeBridgeEmitCore.cs:1812`): a whole REPLACEMENT, so an
+absent key loses the DTO's default; and a blueprint has no `ParamsDefaultJson` at all (`BlueprintAsset.cs:36` has only the type id).*
+
+| decision | lean (ruled R-3001) | rejected |
+|---|---|---|
+| what `ParamsDefaultJson` means | the asset's **overrides only** — a sparse object of field → value; an absent key inherits the DTO's default, so a changed DTO default reaches every asset that did not override it | a full copy seeded from the DTO (a DTO change never reaches its assets) |
+| the DTO's own default | `ParamsDefaults.DefaultOf(T)`: `new T()` (runs a parameterless constructor, so C# initialisers apply) then `[ParamsDto(DefaultJson)]` (a generated `.params.json` DTO carries its defaults there, R-237) — ONE function the bake and the editor both call | the editor reading the attribute and the bake reading the type separately (two answers for one value) |
+| which DTOs the editor offers | every `ParamsDtoRegistry` entry — hand-written C# and generated from `.params.json` alike, the origin shown | a separate list per origin |
+| the editing surface | StructEdit over the DTO (`BehaviorParamsForm`, exists) showing the effective value; a field the asset overrides is marked and can be reset (the key removed) | a hand-written per-field table |
+| blueprints | `BlueprintAsset.ParamsDefaultJson` (new), baked the same way | blueprints take only the DTO's defaults |
+| the corpus | unchanged: today's files list every key, i.e. override every field — the same values, the same bake result | rewriting them to sparse (a behaviour change only where a DTO default differs; none needs it) |
 
 ### 13.11 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
 
