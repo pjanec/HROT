@@ -1958,8 +1958,12 @@ classDiagram
     the two resolver blueprints' `ResolverSubject.StateVariables` emptied accordingly.
   - **Editor surfaces** (ui / behaviors lanes): the shared variables panel, outline and Details heading in `Hrot.Editor.AiShared`,
     and the BTree / HSM models — named here and in the commit as cross-lane edits.
-- **Not yet**: the editor's Variables / Details panels still list only DECLARED Parameters (a DTO-named asset shows none) — the canvas
-  pins are right (`ParametersOf`), the panels are the ui lane's surface (P5b). Steps ③–⑦ follow.
+- **Not yet** *(measured 2026-10-13; ui lane — ⚠ NOT P5b, which is the order form and is built, §13.12)*:
+  - the **blueprint** editor's "Inputs" section (`BlueprintMyBlueprintModel.cs:128/335`) lists only DECLARED Parameters — the
+    corpus has **0** left and all 18 `.bp.json` name a DTO, so it is empty everywhere; the canvas pins are right (`ParametersOf`).
+    "Create parameter" (`editor.create-parameter`) still authors a `ParameterDecl`;
+  - the **BTree / HSM** `Params` row is ONE read-only entry (`BlackboardAuthoringWindow.cs:323`) — the DTO's fields are not
+    listed (`VariablesPanelControl` has no struct expansion).
 
 ### 13.11 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
 
