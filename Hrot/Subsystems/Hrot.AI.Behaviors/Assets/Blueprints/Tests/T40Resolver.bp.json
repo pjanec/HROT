@@ -17,20 +17,8 @@
       "Doubled"
     ]
   },
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.T40ResolverParams",
   "Declarations": [
-    {
-      "Kind": "Parameter",
-      "Id": "d4280003-0003-0003-0003-000000000003",
-      "Name": "HalfSpeed",
-      "Type": {
-        "TypeId": "System.Single",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": "1.5",
-      "Tooltip": "CE-443: the AUTHORED input - what the intent JSON carries. The resolver converts it into block.In.Speed.",
-      "Comment": null
-    },
     {
       "Kind": "Variable",
       "Id": "d4280001-0001-0001-0001-000000000001",

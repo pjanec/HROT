@@ -42,4 +42,14 @@ namespace Hrot.AI.Behaviors.Brains
     [StructLayout(LayoutKind.Sequential)]
     [ParamsDto]
     public struct HsmTwoRegionParamsDemoParams { public int Value; }
+
+    /// <summary><c>T40Resolver</c>'s params — the authored contract <c>T40_BehaviorResolverAsset</c> publishes (P4-e).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ParamsDto(DefaultJson = "{\"HalfSpeed\":1.5}")]
+    public struct T40ResolverParams { public float HalfSpeed; }
+
+    /// <summary><c>HsmResolverDemoResolver</c>'s params — the authored contract <c>HsmResolverDemo</c> publishes (P4-e).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ParamsDto(DefaultJson = "{\"HalfSpeed\":1.5}")]
+    public struct HsmResolverDemoParams { public float HalfSpeed; }
 }

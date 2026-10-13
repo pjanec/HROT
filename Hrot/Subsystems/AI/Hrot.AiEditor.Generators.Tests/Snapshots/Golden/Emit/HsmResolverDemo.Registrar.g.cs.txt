@@ -91,7 +91,7 @@ public static class HsmResolverDemoRegistrar
             {
                 new("Speed", typeof(float), 0),
             },
-            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Generated.HsmResolverDemoResolver_CCD63EE7_Bp.Params),
+            JsonParamsDtoType    = global::Hrot.AI.Behaviors.Generated.HsmResolverDemoResolver_CCD63EE7_Bp.PublishedParams,
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Machines.HsmResolverDemo_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,

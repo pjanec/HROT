@@ -1751,10 +1751,11 @@ public static class BTreeBridgeEmitCore
             // ⭐⭐ CE-443 — with a bound resolver asset the AUTHORED contract is the resolver's own Params
             //   (its declared Parameters, DESIGN_Parameter_Model §P.7): the resolver owns the shape it converts from.
             // ⭐⭐ CE-2133 (B1, R-276) — otherwise the NAMED params DTO, else the one struct Input (flat), else the mirror.
-            string bbStructFqn = HasResolver(dto) ? ResolverParamsFqn(dto)
-                : NamedParamsFqn(dto)
-                  ?? (BTreeEmitCore.FlatParamsVariable(dto) is { } flatInput ? DtoTypeToGlobal(flatInput.Type.TypeId) : BTreeEmitCore.BlackboardStructFqn(dto));
-            sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({bbStructFqn}),");
+            // ⭐ CE-2135 P4 (R-2004, P4-e) — the resolver's contract is the one ITS class publishes (its named DTO, else its Params).
+            string contract = HasResolver(dto) ? ResolverPublishedParams(dto)
+                : "typeof(" + (NamedParamsFqn(dto)
+                  ?? (BTreeEmitCore.FlatParamsVariable(dto) is { } flatInput ? DtoTypeToGlobal(flatInput.Type.TypeId) : BTreeEmitCore.BlackboardStructFqn(dto))) + ")";
+            sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = {contract},");
             sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
         }
         else if (EmitsBlock(dto, packedFields) && BTreeEmitCore.BlockStateVariables(dto).Count > 0)
@@ -1767,7 +1768,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}ManagedBlackboardVariables = global::System.Array.Empty<global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable>(),");
             sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
             if (HasResolver(dto))   // CE-443: the resolver's Parameters are the authored contract even with no Input half
-                sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({ResolverParamsFqn(dto)}),");
+                sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = {ResolverPublishedParams(dto)},");
             else if (NamedParamsFqn(dto) is { } namedOnly)   // CE-2133: a named DTO with no Input — published, nothing stored
                 sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({namedOnly}),");
         }
@@ -1875,6 +1876,12 @@ public static class BTreeBridgeEmitCore
     /// <summary>⭐ <c>CE-443</c> — the resolver asset's authored <c>Params</c> struct (from its declared Parameters).</summary>
     private static string ResolverParamsFqn(BehaviorTreeAssetDto dto)
         => BlueprintClassNaming.ClassFqn(dto.Resolver!.AssetId, dto.Resolver.Name) + ".Params";
+
+    /// <summary>⭐ <c>CE-2135</c> P4 — the contract the resolver asset's class publishes (<c>PublishedParams</c>: its named DTO, else its
+    /// <c>Params</c>), as an expression. ⭐ Read from the class, so every bridge caller — both generators and the editor's quick reload —
+    /// publishes the same thing without looking the resolver asset up.</summary>
+    private static string ResolverPublishedParams(BehaviorTreeAssetDto dto)
+        => BlueprintClassNaming.ClassFqn(dto.Resolver!.AssetId, dto.Resolver.Name) + ".PublishedParams";
 
     /// <summary>⭐ <c>CE-428</c> — does this behaviour name a resolver asset?</summary>
     private static bool HasResolver(BehaviorTreeAssetDto dto)
