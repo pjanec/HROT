@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-13
-doc-type: HANDOFF — backend lane → the ui lane: the editor panels of the params programme (a FRAME — the ui lane designs the details). Dispatched at DISPATCH_SHA (branch `backend`; re-stamped from 388b4c7d2 — unstarted, U5 ruled by the user, R-3001).
+doc-type: HANDOFF — backend lane → the ui lane: the editor panels of the params programme (a FRAME — the ui lane designs the details). Dispatched at f7ee65c37 (branch `backend`; re-stamped from 388b4c7d2 — unstarted, U5 ruled by the user, R-3001).
 current-answer: §1 goal · §2 what exists · §3 what to build · §4 fences · §5 acceptance and the report
 stale-below: nothing
 known-rot: none
@@ -21,10 +21,10 @@ RELEARN
 [DESIGN_Orders_Params_Entity_Classes.md](../DESIGN_Orders_Params_Entity_Classes.md) §13.10 ⑦ with the panels' `classDiagram` +
 `sequenceDiagram` (after an `INVENTORY`), then build, then fold the as-built back in.
 
-⛔ **Your scope is FROZEN at `DISPATCH_SHA`.** Documents that change after it are FYI only; one that invalidates an item ⇒ stop that
+⛔ **Your scope is FROZEN at `f7ee65c37`.** Documents that change after it are FYI only; one that invalidates an item ⇒ stop that
 item and report it.
 
-**Merge first:** `backend` at `DISPATCH_SHA` or later (it carries `behaviors`; `ui@b68d82693` is an ancestor, so the merge is clean).
+**Merge first:** `backend` at `f7ee65c37` or later (it carries `behaviors`; `ui@b68d82693` is an ancestor, so the merge is clean).
 
 🔒 **User, 2026-10-13:** *"the programme was largely about forcing single-dto params and removing the role from the variable table …
 why would we show use those variable kinds? what would he do with that?"* ⇒ the panels show **`Params` (the DTO's fields) and the
