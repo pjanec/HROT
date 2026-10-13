@@ -42,6 +42,33 @@ public sealed class DebugApiOrdersTests
     /// <summary>⭐ CE-2143 (D4-G, D4-C) — ANY order by name with its DTO in <c>params</c> (here Move with a Location), resolved by the
     /// unit to its class's behaviour; an order the unit's class does not fulfil is refused (409) naming why; an unknown order is a
     /// bad request listing the orders.</summary>
+    /// <summary>⭐ CE-2148 (P5-f, F5) — <c>GET /orders</c> lists what each order needs (Move: a required point), narrowed to what a unit
+    /// fulfils; an order whose required field is missing is a 400 naming it.</summary>
+    [Fact]
+    public void CE2148_GetOrders_SaysWhatEachOrderNeeds_AndAMissingRequiredFieldIsA400()
+    {
+        using var h = new EditorHarness(productionBehaviors: true);
+        var svc = h.BuildDebugApiService();
+        Unit(h, UnitId, ForceId.Friend, Vector3.Zero);
+
+        var (all, status, error, _) = svc.GetOrders(null);
+        Assert.Null(error);
+        var move = all!["orders"]!.AsArray().Single(o => o!["name"]!.GetValue<string>() == "Move")!;
+        Assert.Equal("Point", move["pick"]!.GetValue<string>());
+        var location = move["fields"]!.AsArray().Single(f => f!["name"]!.GetValue<string>() == "Location")!;
+        Assert.True(location["required"]!.GetValue<bool>());
+        Assert.Equal("[\"Location\"]", move["paramSchema"]!["required"]!.ToJsonString());
+
+        var (mine, _, _, _) = svc.GetOrders(UnitId);
+        Assert.Contains(mine!["orders"]!.AsArray(), o => o!["name"]!.GetValue<string>() == "Hold");
+        (_, status, _, _) = svc.GetOrders(424242);
+        Assert.Equal(404, status);
+
+        (_, status, error, _) = svc.PostOrder(UnitId, new JsonObject { ["kind"] = "Move", ["params"] = new JsonObject { ["Speed"] = 2f } });
+        Assert.Equal(400, status);
+        Assert.Contains("Location", error);
+    }
+
     [Fact]
     public void CE2143_AnyOrderByName_WithItsParams_ARefusalSaysWhy_AnUnknownOrderListsTheOrders()
     {

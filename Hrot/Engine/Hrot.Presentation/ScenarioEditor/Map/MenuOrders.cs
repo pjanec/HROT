@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Fdp.Core;
@@ -31,6 +32,7 @@ namespace Hrot.ScenarioEditor.Map
         private Task<int>? _enemy;
         private long _unit;
         private OrderInfo? _order;
+        private OrderDraft? _draft;
 
         public MenuOrders(EntityRepository world) => _world = world ?? throw new ArgumentNullException(nameof(world));
 
@@ -63,7 +65,9 @@ namespace Hrot.ScenarioEditor.Map
             });
         }
 
-        /// <summary>⭐ CE-2143 (D4-E) — the order's pick comes from its DTO's field type: a point, an entity, or none (issue now).</summary>
+        /// <summary>⭐ CE-2143 (D4-E) / ⭐ <c>CE-2148</c> (F6) — the order goes as a DRAFT: complete ⇒ issued now; one missing
+        /// <c>[Required]</c> pick ⇒ the operator picks it (an entity pick narrowed by the field's <c>[MapPickableEntity]</c> presets);
+        /// more ⇒ the order form (<see cref="IOrderForm"/>), or refused when this host has none.</summary>
         private void Begin(OrderInfo order, Entity unit)
         {
             var pick = PickService?.Invoke();
@@ -72,11 +76,13 @@ namespace Hrot.ScenarioEditor.Map
             _order = order;
             _location = null;
             _enemy = null;
+            _draft = OrderMenu.Draft(order, new[] { id }, OrderContext.None, json => Send(new[] { id }, order, json));
+            if (_draft.IsComplete) { Report(Send(_draft)); return; }
             switch (order.Pick)
             {
-                case OrderPick.None:  Report(Orders()?.Order(id, order.Name, "{}")); break;
-                case OrderPick.Point: _location = pick.PickLocationAsync(); break;
-                case OrderPick.Entity: _enemy = pick.PickEntityAsync(); break;
+                case OrderPick.Point:  _location = pick.PickLocationAsync(); break;
+                case OrderPick.Entity: _enemy = pick.PickEntityAsync(order.PickTarget?.Presets is { Count: > 0 } p ? System.Linq.Enumerable.ToArray(p) : null); break;
+                default: OpenForm(_world, _draft); break;
             }
         }
 
@@ -86,21 +92,46 @@ namespace Hrot.ScenarioEditor.Map
             if (_location is { IsCompleted: true } location)
             {
                 _location = null;
-                if (location.Status == TaskStatus.RanToCompletion && _order is { } order)
+                if (location.Status == TaskStatus.RanToCompletion && _order is { } order && _draft is { } draft)
                 {
                     var at = location.Result;
                     // The adapter answers geodetic when the node has a transform, else world metres in the same fields (x, y):
                     // without a transform an order's point travels as [y, x] (OrderGeo's fallback).
                     var point = Geo() != null ? new JsonArray(at.Latitude, at.Longitude) : new JsonArray(at.Longitude, at.Latitude);
-                    Report(Orders()?.Order(_unit, order.Name, OrderMenu.Json(order, point)));
+                    Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(null, point), draft.Send, draft.Params)));
                 }
             }
             if (_enemy is { IsCompleted: true } enemy)
             {
                 _enemy = null;
-                if (enemy.Status == TaskStatus.RanToCompletion && enemy.Result > 0 && enemy.Result != _unit && _order is { } order)
-                    Report(Orders()?.Order(_unit, order.Name, OrderMenu.Json(order, JsonValue.Create((long)enemy.Result))));
+                if (enemy.Status == TaskStatus.RanToCompletion && enemy.Result > 0 && enemy.Result != _unit && _order is { } order && _draft is { } draft)
+                    Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(enemy.Result, null), draft.Send, draft.Params)));
             }
+        }
+
+        /// <summary>⭐ <c>CE-2148</c> — a draft the gesture could not complete goes to the host's order form (the ui lane's
+        /// <see cref="IOrderForm"/>, a world singleton); without one it is refused, said in the log — ⛔ never sent half-filled.</summary>
+        internal static void OpenForm(EntityRepository world, OrderDraft draft)
+        {
+            if (world.HasSingletonManaged<IOrderForm>() && world.GetSingletonManaged<IOrderForm>() is { } form) form.Open(draft);
+            else FdpLog<MenuOrders>.Warn("[Orders] {0} needs the order form ({1} missing) — none on this host.",
+                draft.Order.Name, string.Join(", ", System.Linq.Enumerable.Select(draft.Missing, f => f.Name)));
+        }
+
+        /// <summary>Issues a draft (only when complete — <see cref="EntityOrders"/> would refuse it anyway, naming the field).</summary>
+        private static OrderResult? Send(OrderDraft draft)
+        {
+            var results = draft.Send(draft.Params.ToJsonString());
+            return results.Count > 0 ? results[0] : null;
+        }
+
+        private IReadOnlyList<OrderResult> Send(long[] units, OrderInfo order, string json)
+        {
+            var orders = Orders();
+            if (orders is null) return Array.Empty<OrderResult>();
+            var results = new OrderResult[units.Length];
+            for (int i = 0; i < units.Length; i++) results[i] = orders.Order(units[i], order.Name, json);
+            return results;
         }
 
         private EntityOrders? Orders()

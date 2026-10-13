@@ -66,9 +66,11 @@ namespace Hrot.ScenarioEditor.Map
                 if (unit.IsNull || unit.Equals(hit) || !map.TryGetNetworkId(unit, out long id)) continue;
                 // ⭐ CE-2143 (D4-F) — the order a GESTURE issues ([Order(Gesture = …)]), never a behaviour name: a hostile under the
                 //   cursor is the EnemyClick order (Attack), anything else the GroundClick order (Move) to the point.
+                // ⭐ CE-2148 (F6) — the click is the gesture's CONTEXT: it fills the order's one missing [Required] field of its kind;
+                //   an order it cannot complete goes to the order form (MenuOrders.OpenForm), never half-filled.
                 OrderResult r = !hit.IsNull && IsHostile(unit, hit) && map.TryGetNetworkId(hit, out long target)
-                    ? Gesture(orders, id, OrderGesture.EnemyClick, JsonValue.Create(target))
-                    : Gesture(orders, id, OrderGesture.GroundClick, Point(worldXY));
+                    ? Gesture(orders, id, OrderGesture.EnemyClick, new OrderContext(target, null))
+                    : Gesture(orders, id, OrderGesture.GroundClick, new OrderContext(null, Point(worldXY)));
                 if (r.Accepted) accepted++;
                 else FdpLog<RtsCommands>.Warn("[Orders] RTS order refused: {0}", r.Detail);
             }
@@ -85,10 +87,15 @@ namespace Hrot.ScenarioEditor.Map
             return theirs != mine && theirs != ForceId.Neutral;
         }
 
-        private static OrderResult Gesture(EntityOrders orders, long id, OrderGesture gesture, JsonNode picked)
-            => OrderMenu.ByGesture(gesture) is { } order
-                ? orders.Order(id, order.Name, OrderMenu.Json(order, picked))
-                : new OrderResult(OrderRefusal.BadRequest, $"No order is issued by a {gesture}.", string.Empty, string.Empty);
+        private OrderResult Gesture(EntityOrders orders, long id, OrderGesture gesture, OrderContext context)
+        {
+            if (OrderMenu.ByGesture(gesture) is not { } order)
+                return new OrderResult(OrderRefusal.BadRequest, $"No order is issued by a {gesture}.", string.Empty, string.Empty);
+            var draft = OrderMenu.Draft(order, new[] { id }, context, json => new[] { orders.Order(id, order.Name, json) });
+            if (draft.IsComplete) return draft.Send(draft.Params.ToJsonString())[0];
+            MenuOrders.OpenForm(_world, draft);
+            return new OrderResult(OrderRefusal.BadRequest, $"{order.Name} needs the order form.", string.Empty, string.Empty);
+        }
 
         /// <summary>The clicked point as an order's geodetic point (without a transform, [y, x] — OrderGeo's fallback).</summary>
         private JsonArray Point(Vector2 at)

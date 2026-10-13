@@ -225,4 +225,58 @@ public sealed class MenuOrdersTests : IDisposable
         var none = ContextMenuProjectorGizmo.MenuJsonFor(_w, munition);
         foreach (var o in OrderMenu.Orders) Assert.DoesNotContain($"\"id\":{o.ActionId},", none);
     }
+
+    // ── CE-2148 (P5, design §13.9) ─────────────────────────────────────────────────────────────────────────────────
+
+    private struct TwoPicks
+    {
+        [System.ComponentModel.DataAnnotations.Required] public Fdp.Toolkit.Replication.EntityRef Who;
+        [System.ComponentModel.DataAnnotations.Required] public Fdp.Toolkit.Behavior.Params.PickableGeoPoint Where;
+    }
+
+    private sealed class FakeForm : IOrderForm
+    {
+        public OrderDraft? Opened;
+        public void Open(OrderDraft draft) => Opened = draft;
+    }
+
+    /// <summary>⭐ F5 — every sender gets the same refusal: an order missing a required field is refused, NAMING it, and nothing is
+    /// published; a key spelled in another case counts (R-2005).</summary>
+    [Fact]
+    public void CE2148_AnOrderMissingARequiredField_IsRefusedNamingIt()
+    {
+        var orders = new EntityOrders(_w, _map, null);
+        var r = orders.Order(UnitId, "Move", "{}");
+        Assert.Equal(OrderRefusal.BadRequest, r.Refusal);
+        Assert.Contains("Location", r.Detail);
+        r = orders.Order(UnitId, "Attack", "{\"target\":0}");
+        Assert.Equal(OrderRefusal.BadRequest, r.Refusal);
+        Assert.Contains("Target", r.Detail);
+        _w.Bus.SwapBuffers();
+        Assert.Empty(_w.Bus.ReadManaged<AssignTacticalIntentEvent>());
+
+        Assert.True(orders.Order(UnitId, "Attack", $"{{\"target\":{EnemyId}}}").Accepted);
+    }
+
+    /// <summary>⭐ F6 / P5-d — a draft the gesture cannot complete goes to the host's order FORM (a world singleton), which sends it
+    /// through the draft; with no form on the host it is refused (logged) and nothing is sent.</summary>
+    [Fact]
+    public void CE2148_AnIncompleteDraft_OpensTheOrderForm_WhichSendsThroughTheDraft()
+    {
+        var info = new OrderInfo("Attack", typeof(TwoPicks), 0, Hrot.Map.Definitions.Behavior.Orders.OrderGesture.None,
+            OrderMenu.PickOf(typeof(TwoPicks)).Pick, null, OrderMenu.FieldsOf(typeof(TwoPicks)));
+        string? sent = null;
+        var draft = OrderMenu.Draft(info, new[] { UnitId }, new OrderContext(EnemyId, null), json => { sent = json; return Array.Empty<OrderResult>(); });
+        Assert.Equal("Where", draft.Missing.Single().Name);
+
+        MenuOrders.OpenForm(_w, draft);   // no form on this host: refused, nothing sent
+        Assert.Null(sent);
+
+        var form = new FakeForm();
+        _w.SetSingletonManaged<IOrderForm>(form);
+        MenuOrders.OpenForm(_w, draft);
+        Assert.Same(draft, form.Opened);
+        form.Opened!.Send("{\"Who\":88,\"Where\":[1,2]}");
+        Assert.Equal("{\"Who\":88,\"Where\":[1,2]}", sent);
+    }
 }

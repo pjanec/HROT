@@ -124,10 +124,21 @@ namespace Hrot.Common.Orders
             if (!OrderMenu.TryGetByName(orderName ?? "", out var order))
                 return OrderResult.Refused(OrderRefusal.BadRequest,
                     $"No order '{orderName}'. Orders: {string.Join(", ", System.Linq.Enumerable.Select(OrderMenu.Orders, o => o.Name))}.");
+            string json = string.IsNullOrWhiteSpace(jsonParams) ? "{}" : jsonParams!;
+            // ⭐ CE-2148 (F5, P5-a) — a [Required] field the JSON does not set refuses the order here, named, for EVERY sender (menu,
+            //   RTS, HTTP → 400, an AI player): the one rule the front-ends also ask (OrderMenu.MissingIn).
+            JsonObject? parsed;
+            try { parsed = JsonNode.Parse(json) as JsonObject; }
+            catch (System.Text.Json.JsonException e) { return OrderResult.Refused(OrderRefusal.BadRequest, $"The {order.Name} params are not JSON: {e.Message}"); }
+            if (parsed is null) return OrderResult.Refused(OrderRefusal.BadRequest, $"The {order.Name} params must be a JSON object.");
+            var missing = OrderMenu.MissingIn(order, parsed);
+            if (missing.Count > 0)
+                return OrderResult.Refused(OrderRefusal.BadRequest,
+                    $"{order.Name} needs {string.Join(", ", System.Linq.Enumerable.Select(missing, f => f.Name))} (required).");
             if (!TryAddress(unit, out var entity, out var refused)) return refused;
             var r = OrderMenu.Resolve(_world.GetDisType(entity), order.Name);
             if (r.Outcome != Hrot.Core.Tkb.OrderResolution.Resolved) return OrderResult.Refused(OrderRefusal.NotFulfilled, r.Detail);
-            return Publish(entity, OrderAttribute.IntentFor(order.Name), string.IsNullOrWhiteSpace(jsonParams) ? "{}" : jsonParams!);
+            return Publish(entity, OrderAttribute.IntentFor(order.Name), json);
         }
 
         /// <summary>Any behaviour by name, with its parameter JSON (discover them with <c>GET /behaviors?entityId=</c>).</summary>

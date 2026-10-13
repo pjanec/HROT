@@ -1129,6 +1129,17 @@ namespace Hrot.Editor.DebugApi
                 });
             }));
 
+            // ⭐ CE-2148 (P5-f) — the order vocabulary with each order's fields and schema; ?entityId= narrows it to that unit.
+            _routes.Add(new("GET", "/orders", ctx =>
+            {
+                long? entityId = long.TryParse(ctx.Query("entityId"), out var e) ? e : null;
+                return RunMainResult(s =>
+                {
+                    var (result, status, error, hint) = s.GetOrders(entityId);
+                    return error != null ? Fail(status, error, hint) : Ok(result);
+                });
+            }));
+
             _routes.Add(new("POST", "/orders", ctx =>
             {
                 var body = ctx.Body;

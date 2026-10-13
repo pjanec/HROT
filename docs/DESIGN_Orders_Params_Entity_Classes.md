@@ -1542,3 +1542,120 @@ classDiagram
 | P2-a | where the re-base lives | `BehaviorRegistry.MergeFrom` (`Fdp.Toolkits`) — one place both coordinators pass through; `LatestCopyOf(t)` = the same `FullName` in the last-loaded assembly of `t`'s name | a hook on the Fdp coordinator (an API for one caller) · a second rebind in each coordinator only (CGF's cannot reach `Hrot.Core`) |
 | P2-b | how quick reload detects a changed DTO | a GENERATED DTO (`[ParamsDto(AssetId)]`) is compared field by field (name + type id) with its `.params.json` on disk; a mismatch refuses with "full rebuild needed" before compiling. A hand-written DTO cannot change without a build, which IS the full rebuild | compare a layout hash re-emitted by the generator (needs the generator in the editor process; the field list says the same) · compile the DTO in quick reload (rejected by the user, R-2001) |
 | P2-c | the palette cache | recomputed when `ParamsDtoRegistry.Default` is a different instance (the registry already drops itself on every assembly load) | an `AssemblyLoad` hook of its own (a second invalidation rule) |
+
+### 13.9 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
+
+**INVENTORY** *(codebase-memory CLI `search_graph` `EntityOrders.*` (8), `.*MenuOrder.*` (12), `.*DtoJsonSchema.*` (3),
+`.*MapPickable.*` (10), `.*GlobalActionRequested.*` (8), `.*ContextMenuProjector.*` (4) + grep for `OrderMenu.` callers; every file
+below read whole)*:
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| every operator order goes through `EntityOrders.Order` (menu, RTS, HTTP) | ✅ `MenuOrders.cs:85,95,102`, `RtsCommands.cs:90`, `DebugApiService.Orders.cs:73,111` | ✅ `DESIGN_Entity_Control.md` §3.1 (R-270) |
+| the menu and the RTS tool fill exactly ONE field (`OrderMenu.Json(order, picked)`) | ✅ `OrderMenu.cs:129-134` | ✅ D4-E |
+| an order with two pickable fields is hidden from the menu (`Several`) | ✅ `ContextMenuProjectorGizmo.cs:70` | ✅ D4-E "HTTP-only" — ⭐ superseded by F6: it needs the order FORM |
+| `[MapPickableEntity]` presets never reach the pick | ✅ `MenuOrders.cs:86` calls `PickEntityAsync()` bare; the service takes `filterPresets` (`IMapPickService.cs:32`) | ✅ `DESIGN_Map_Picking_Unification` P5 |
+| no field is mandatory; the schema has no `required` | ✅ `DtoJsonSchemaExtractor.cs:43-58` | ✅ F5 (R-2002) |
+| a BadRequest refusal is HTTP 400 | ✅ `DebugApiService.Orders.cs:160-165` | — |
+| `PickOf` reads fields (P8 done) | ✅ `OrderMenu.cs:79-91` | ✅ F11 |
+
+```mermaid
+classDiagram
+  direction LR
+  class OrderField { <<NEW record>> Name (JSON) · Type · Kind · Required · Presets }
+  class OrderFieldKind { <<NEW enum>> MapPoint · MapEntity · Value }
+  class OrderInfo { <<existing, CHANGED>> + Fields · Pick/PickField from the REQUIRED fields }
+  class OrderMenu { <<existing, CHANGED>> + FieldsOf(dto) · Draft(order, units, context) · MissingIn(order, json) }
+  class OrderContext { <<NEW record struct>> the gesture's Entity (network id) · Point [lat, lon] }
+  class OrderDraft { <<NEW record>> Units · Order · Params JsonObject · Missing · Send(json) }
+  class IOrderForm { <<NEW interface>> Open(draft) }
+  class EntityOrders { <<existing, CHANGED>> Order refuses a missing Required field (BadRequest, names it) }
+  class MenuOrders { <<existing, CHANGED>> draft → send · one pick (with presets) · or the form }
+  class RtsCommands { <<existing, CHANGED>> the gesture is the context; incomplete → the form }
+  class DtoJsonSchemaExtractor { <<existing, CHANGED>> + required }
+  class DebugApiService { <<existing, CHANGED>> + GetOrders(entityId?) }
+  class OrderForm { <<P5b, ui lane>> BehaviorParamsForm over the draft }
+  OrderInfo *-- OrderField
+  OrderField --> OrderFieldKind
+  OrderMenu ..> OrderInfo : builds
+  OrderMenu ..> OrderDraft : Draft
+  OrderDraft ..> OrderContext : filled from
+  MenuOrders ..> OrderMenu
+  RtsCommands ..> OrderMenu
+  MenuOrders ..> IOrderForm : incomplete draft
+  RtsCommands ..> IOrderForm : incomplete draft
+  OrderForm ..|> IOrderForm
+  MenuOrders ..> EntityOrders
+  RtsCommands ..> EntityOrders
+  DebugApiService ..> EntityOrders : POST
+  DebugApiService ..> OrderMenu : GET /orders
+  DebugApiService ..> DtoJsonSchemaExtractor
+  EntityOrders ..> OrderMenu : MissingIn
+```
+
+*What the picture shows that prose hid: ONE rule (`OrderMenu.MissingIn`) decides "complete", and it is asked twice — by the front-ends to
+choose send / pick / form, and by `EntityOrders` as the refusal every sender gets (HTTP 400 included). Nothing downstream of
+`EntityOrders` changes: the order on the wire is the same JSON.*
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant F as MenuOrders / RtsCommands
+  participant M as OrderMenu
+  participant P as IMapPickService
+  participant Form as IOrderForm (ui, P5b)
+  participant O as EntityOrders
+  U->>F: order (menu item / RTS gesture with its click)
+  F->>M: Draft(order, units, context)
+  M-->>F: draft (Params filled from the context, Missing)
+  alt Missing is empty
+    F->>O: Order(unit, name, json) per unit
+  else one missing pickable field (menu)
+    F->>P: PickLocationAsync / PickEntityAsync(presets)
+    P-->>F: the pick (a later frame)
+    F->>O: Order(unit, name, json + pick)
+  else more is missing
+    F->>Form: Open(draft)
+    Form->>O: draft.Send(json) when the operator presses Send
+  end
+  O->>M: MissingIn(order, json)
+  O-->>F: refused (BadRequest, names the field) or published
+```
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack<br/>every live map host] -->|registers, ticks each frame| MO[MenuOrders]
+  RTSG[RtsCommandGizmo<br/>input, RMB] -->|calls| RTS[RtsCommands]
+  HTTP[DebugApiHost<br/>GET/POST /orders, HTTP thread → RunMain] --> SVC[DebugApiService]
+  MO --> EO[EntityOrders]
+  RTS --> EO
+  SVC --> EO
+  MO -.->|world singleton, absent until P5b| FORM[IOrderForm]
+  RTS -.-> FORM
+  style FORM stroke:#c00,stroke-dasharray: 5 5
+```
+
+*What the module picture shows: until the ui lane registers an `IOrderForm` (P5b) the dashed edge is DEAD — an order that needs the
+form is refused with "needs the order form" (logged), and the unit menu keeps hiding such orders so no menu item does nothing.*
+
+| # | decision | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| P5-a | what "complete" means | every `[Required]` field present in the JSON (key matched case-insensitively, R-2005) and not null; an `EntityRef` of 0 is missing | a sender-side check only (HTTP and AI senders would skip it) |
+| P5-b | which fields the context fills | a missing `[Required]` field of the context's kind, when the order has exactly ONE missing field of that kind; explicit JSON always wins | fill optional fields too (changes a default nobody asked to change, §13.3) |
+| P5-c | `Pick` / `PickField` | computed over the REQUIRED fields: one missing pick ⇒ `Point` / `Entity`; none ⇒ `None`; anything else (two picks, a required number) ⇒ `Several` = needs the form | over all pickable fields (an optional pick would force a pick) |
+| P5-d | where the form is found | an `IOrderForm` world singleton (the ui lane registers it); absent ⇒ refused + logged | a static registry (one process hosts several worlds in `--mode all`) |
+| P5-e | the menu and `Several` | stays hidden until an `IOrderForm` exists (P5b flips it, showing `Name…`) | show it now (a menu item that does nothing) |
+| P5-f | `GET /orders` | every order: name, gesture, pick, fields (name, kind, required, presets) and its schema with `required`; `?entityId=` narrows to the orders that unit fulfils | a per-order route (one call answers the vocabulary) |
+
+**P5 as built** *(2026-10-13, behaviors, `CE-2148`; matches the diagrams above, three deviations)*:
+- ⚠ `OrderFieldKind` is `Value · MapPoint · MapEntity` (not `Point · Entity`): the CycloneDDS code generator emits every enum of
+  `Hrot.Common` into one IDL scope per source file, and `OrderPick` already declares `Point` / `Entity` (`idlc`: *"Declaration 'Point'
+  collides"*). Enumerators of two enums in one file must not repeat.
+- ⚠ `IOrderForm` carries `[ComponentId(GlobalComponentIds.IOrderForm)]` (= 367, measured free on backend, ui and behaviors): a managed
+  world singleton needs an id, as `IGeographicTransform` has.
+- `OrderMenu.Json` (one picked field) is retired — `OrderMenu.Draft` does its job for the menu and the RTS tool.
+- Rails: `OrderVocabularyTests` (+5: required picks, `Several` = form, `MissingIn`, `Draft`, schema `required`), `MenuOrdersTests` (+2:
+  the refusal names the field; an incomplete draft opens the form and sends through it), `DebugApiOrdersTests` (+1: `GET /orders`, a
+  missing field is a 400). `MissingIn`'s entity-0 check compares JSON text — the rail caught that a `JsonValue` built from an `int` does not
+  answer `TryGetValue<long>`. MCP: `list_orders` (catalog + SKILL.md regenerated).
+

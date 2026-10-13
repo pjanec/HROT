@@ -86,7 +86,7 @@ const EXPECTED_TOOLS = [
   'get_combat_shots', 'get_combat_detonations', 'explain_line_of_sight', 'resolve_entity_type_parameters',
   'list_doors', 'get_terrain_levels', 'query_terrain',
   // ⭐ CE-3167 — entity control (docs/DESIGN_Entity_Control.md §4.1): the AI player's orders and situation report.
-  'order_entity', 'get_entity_order', 'release_entity', 'order_entities', 'lock_side', 'get_sitrep',
+  'order_entity', 'get_entity_order', 'release_entity', 'list_orders', 'order_entities', 'lock_side', 'get_sitrep',
   'possess_entity', 'release_possession', 'control_entity',   // CE-3172 — possession (DESIGN_Entity_Control §13)
 ];
 
