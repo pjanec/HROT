@@ -87,6 +87,9 @@ namespace Hrot.Map.Definitions.Behavior
         /// (DESIGN_Entity_Interactions §7.4.10).</summary>
         public const string CarryCasualty = "CarryCasualty";
 
+        /// <summary>⭐ <c>CE-2152</c> C-c (R-b) — hold and put rounds on a named contact, seen or not (DESIGN_Squad_Tactics §7.5).</summary>
+        public const string Suppress = "Suppress";
+
         /// <summary>⭐ <c>CE-1056</c> I-2d — the squad gets out of its vehicles; done when nobody is aboard (DESIGN_Squad_Tactics §5a).</summary>
         public const string SquadDismount = "SquadDismount";
 

@@ -41,6 +41,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-1056</c> I-2d — get out of the vehicle it is aboard (the library <c>Disembark</c>; a unit member gets
         /// <c>SquadDismount</c> — its soldiers board, not it).</summary>
         Disembark = 2,
+        /// <summary>⭐ <c>CE-2152</c> C-c (R-b) — hold and put rounds on <see cref="MemberOrder.Target"/> (last reported at
+        /// <see cref="MemberOrder.Point"/>), seen or not: the library <c>Suppress</c>. A unit member gets <c>Order.Hold</c>.</summary>
+        Suppress = 3,
     }
 
     /// <summary>⭐ <c>CE-2123</c> — one member's order, as a play computes it. The runner turns a hold into the library CombatPosture at
@@ -55,6 +58,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte RoleId;
         /// <summary>⭐ <c>CE-2157</c> (O-a) — 1 when <see cref="Point"/> came from a cover query (shown on the debug route).</summary>
         public byte Cover;
+        /// <summary>⭐ <c>CE-2152</c> C-c — the entity the order is about: the contact to suppress, the man to carry.</summary>
+        public Entity Target;
     }
 
     /// <summary>
@@ -404,11 +409,12 @@ namespace Hrot.AI.Behaviors.Brains
                 var at = ctx.At(m);
                 var order = play.OrderFor(ref p, ref ws, in ctx, i, squad.Elements.MemberElements[i], at);
                 squad.Roles[i].RoleId = order.RoleId;
-                var point = order.Kind is MemberOrderKind.Hold or MemberOrderKind.Disembark ? at : order.Point;
+                var point = order.Kind is MemberOrderKind.Hold or MemberOrderKind.Disembark or MemberOrderKind.Suppress ? at : order.Point;
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
                 traced[i] = new SquadDrillTrace.Order(m, (byte)order.Kind, point, order.Cover != 0, ctx.Now);
                 if (order.Kind == MemberOrderKind.Hold) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
                 else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m);
+                else if (order.Kind == MemberOrderKind.Suppress) Suppress(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
                 else Move(ctx.World, ctx.Commander, m, point, order.Speed, order.ArrivalRadius);
             }
             ws.IssuedPhase = squad.PhaseId;
@@ -445,6 +451,17 @@ namespace Hrot.AI.Behaviors.Brains
             Publish(world, commander, member, BehaviorNames.AdvanceTo, JsonSerializer.Serialize(new AdvanceToParamsJsonDto
             {
                 Objective = point, Speed = speed, ArrivalRadius = arrival,
+            }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+        }
+
+        /// <summary>⭐ <c>CE-2152</c> C-c (R-b) — SUPPRESS: the library <c>Suppress</c> on <paramref name="target"/>, last reported at
+        /// <paramref name="reported"/>; a member that is a UNIT holds (it has no suppress order).</summary>
+        public static void Suppress(EntityRepository world, Entity commander, Entity member, Entity target, Vector3 reported, Vector3 at, float speed)
+        {
+            if (IsUnit(world, member)) { Hold(world, commander, member, at, speed); return; }
+            Publish(world, commander, member, BehaviorNames.Suppress, JsonSerializer.Serialize(new SuppressParamsJsonDto
+            {
+                Target = Fdp.Toolkit.Replication.EntityRef.Of(world, target), X = reported.X, Y = reported.Y, Z = reported.Z,
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
         }
 
