@@ -75,6 +75,9 @@ public sealed class EqsFlatTerrainGoldenTests
                     new CoverPoint { PositionX = -27f, PositionY = -8f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
                     new CoverPoint { PositionX = 26f,  PositionY = -6f, DirectionY = -1f, Quality = 1f, StanceHeight = 2, Kind = CoverKind.Cover },
                 }))),
+            // ⭐ WL-4 W-12f — where to throw from: a donut round the target's last-known point at the ~18 m radius the node sets.
+            [FindThrowingPosition.BlueprintId] = (nameof(FindThrowingPosition),
+                () => CaptureOnFlatGround(nameof(FindThrowingPosition), FindThrowingPosition.BlueprintId, 18f)),
             [FindThreatsInView.BlueprintId] = (nameof(FindThreatsInView),
                 () => CaptureOnFlatGround(nameof(FindThreatsInView), FindThreatsInView.BlueprintId, 60f, ForceId.Hostile)),
         };
@@ -116,6 +119,7 @@ public sealed class EqsFlatTerrainGoldenTests
     [InlineData(nameof(FindSafeRetreatPoint))]
     [InlineData(nameof(FindThreatsInView))]
     [InlineData(nameof(FindWindowFiringPosition))]
+    [InlineData(nameof(FindThrowingPosition))]
     public void TerrainStarterTemplate_FlatTerrain_MatchesGolden(string template) => RunGoldenForTemplate(template);
 
     [Fact]
