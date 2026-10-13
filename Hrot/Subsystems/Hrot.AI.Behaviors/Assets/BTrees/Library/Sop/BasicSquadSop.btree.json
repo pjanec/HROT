@@ -31,6 +31,7 @@
         "c2123000-0000-0000-0000-000000000040",
         "c2123000-0000-0000-0000-000000000010",
         "c2123000-0000-0000-0000-000000000030",
+        "c2123000-0000-0000-0000-000000000050",
         "c2123000-0000-0000-0000-000000000020"
       ],
       "DisplayLabel": "Rows — first true wins",
@@ -245,6 +246,57 @@
         "Collapsed": false,
         "Color": null
       }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2123000-0000-0000-0000-000000000050",
+      "ChildVisualIds": [
+        "c2123000-0000-0000-0000-000000000051",
+        "c2123000-0000-0000-0000-000000000052"
+      ],
+      "DisplayLabel": "Squad member down → react",
+      "EditorMetadata": {
+        "X": 620,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.SensedFresh",
+        "ExpressionTargetField": "memberDown"
+      },
+      "VisualId": "c2123000-0000-0000-0000-000000000051",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Squad member down (fresh, 3 s)",
+      "EditorMetadata": {
+        "X": 540,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "ReactToContact",
+        "Urgency": "UnderFire"
+      },
+      "VisualId": "c2123000-0000-0000-0000-000000000052",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: ReactToContact",
+      "EditorMetadata": {
+        "X": 720,
+        "Y": 400,
+        "Comment": "CE-2152 C-c (R-2013): a man is down — the reaction scores Rescue against the fight (and with nothing to fight, brings him in).",
+        "Collapsed": false,
+        "Color": null
+      }
     }
   ],
   "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams",
@@ -293,6 +345,16 @@
         },
         "DefaultValueJson": "{\"Kind\":\"SquadContact\",\"Seconds\":3}",
         "Comment": "The squad's shared contacts went from empty to holding one."
+      },
+      {
+        "Name": "memberDown",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Behavior.SopSenseParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Kind\":\"SquadMemberDown\",\"Seconds\":3}",
+        "Comment": "A squad member went down (incapacitated) — once per man (CE-2152 C-c)."
       }
     ]
   }

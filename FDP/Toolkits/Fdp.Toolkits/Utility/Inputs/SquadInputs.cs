@@ -36,6 +36,12 @@ namespace Fdp.Toolkit.Utility
         public const ushort AssignedRole             = 0x3FD1;
         // FNV-1a-32("AssignedSlot") & 0xFFFF
         public const ushort AssignedSlot             = 0x8BC9;
+        // FNV-1a-32("CasualtyUrgency") & 0xFFFF — ⭐ CE-2152 C-c R-d
+        public const ushort CasualtyUrgency          = 0x631E;
+        // FNV-1a-32("CasualtyExposure") & 0xFFFF — ⭐ CE-2152 C-c R-d
+        public const ushort CasualtyExposure         = 0x813A;
+        // FNV-1a-32("SquadQuietSeconds") & 0xFFFF — ⭐ CE-2152 C-c R-d
+        public const ushort SquadQuietSeconds        = 0xCA98;
     }
 
     /// <summary>
@@ -60,6 +66,88 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(SquadInputIds.SquadPoolThreatAggregate, &SquadPoolThreatAggregate);
             UtilityInputReaderStore.Register(SquadInputIds.AssignedRole,             &AssignedRole);
             UtilityInputReaderStore.Register(SquadInputIds.AssignedSlot,             &AssignedSlot);
+            UtilityInputReaderStore.Register(SquadInputIds.CasualtyUrgency,          &CasualtyUrgency);
+            UtilityInputReaderStore.Register(SquadInputIds.CasualtyExposure,         &CasualtyExposure);
+            UtilityInputReaderStore.Register(SquadInputIds.SquadQuietSeconds,        &SquadQuietSeconds);
+        }
+
+        // ── ⭐ CE-2152 C-c (R-d, Squad Tactics §7.5.4) — the rescue decision's inputs. ctx.Self is the COMMANDER. ────────────
+
+        /// <summary>A casualty with this long or more to live counts as "fresh" (s) — the design's <c>BleedOutSeconds</c>.</summary>
+        public const float BleedOutSeconds = 120f;
+
+        /// <summary>How long without the squad under fire counts as fully quiet (s).</summary>
+        public const float QuietSeconds = 10f;
+
+        /// <summary>A casualty with less than this to live starts lifting <see cref="SquadQuietSeconds"/> (s), fully at half of it: a
+        /// dying man is worth some risk.</summary>
+        public const float DyingSeconds = 60f;
+
+        /// <summary>
+        /// ⭐ How urgent the WORST casualty still to care for is: 0 with none; 0.8 for a fresh one (≥ <see cref="BleedOutSeconds"/> to live)
+        /// rising to 1 as he bleeds out. ⭐ The floor is the calibration, MEASURED (§7.5.7): at 0.6 a quiet squad with a hidden casualty
+        /// scored Rescue 0.883 against a strong squad's Assault 0.888; at 0.8 Rescue scores ≈ 0.95.
+        /// </summary>
+        [UtilityInput("CasualtyUrgency")]
+        public static float CasualtyUrgency(in UtilityInputCtx ctx)
+        {
+            if (SquadCasualties.Worst(ctx.Repo, ctx.Self, out _, out float left) < 0) return 0f;
+            float fresh = Math.Clamp(left / BleedOutSeconds, 0f, 1f);
+            return 0.8f + 0.2f * (1f - fresh);
+        }
+
+        /// <summary>
+        /// ⭐ How many of the squad's IDENTIFIED pooled contacts can see the worst casualty, as a share (0 = none, 1 = all): the
+        /// terrain sight test where this node holds the terrain (each contact's standing eye → the man lying, +0.3 m), else — no
+        /// terrain here — a contact within <see cref="ExposureFallbackMetres"/> counts as seeing him. ⭐ FOG: the squad's pool, never
+        /// the truth — an unseen sniper exposes nothing here. 0 with no casualty or no contact.
+        /// </summary>
+        [UtilityInput("CasualtyExposure")]
+        public static float CasualtyExposure(in UtilityInputCtx ctx)
+        {
+            if (SquadCasualties.Worst(ctx.Repo, ctx.Self, out var man, out _) < 0 || !ctx.Repo.HasComponent<SimTransform>(man)) return 0f;
+            if (!ctx.Repo.HasComponent<SquadCognitiveState>(ctx.Self)) return 0f;
+            ref readonly var state = ref ctx.Repo.GetComponentRO<SquadCognitiveState>(ctx.Self);
+            var span = MemoryMarshal.CreateReadOnlySpan(
+                ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref Unsafe.AsRef(in state.Contacts.Contacts)), 16);
+            var at = ctx.Repo.GetComponentRO<SimTransform>(man).Position + new System.Numerics.Vector3(0f, 0f, 0.3f);
+            var sight = Fdp.Toolkit.Spatial.Eqs.EqsTerrainSight.Sight(ctx.Repo, null);
+            int contacts = 0, seeing = 0;
+            for (int i = 0; i < state.Contacts.Count && i < 16; i++)
+            {
+                if ((span[i].Flags & SquadContact.AnonymousFlag) != 0 || span[i].EntityId <= 0) continue;
+                contacts++;
+                var eye = new System.Numerics.Vector3(span[i].PositionX, span[i].PositionY, span[i].PositionZ + 1.7f);
+                bool sees = sight != null
+                    ? sight.HasLineOfSight(eye, at)
+                    : System.Numerics.Vector3.Distance(eye, at) <= ExposureFallbackMetres;
+                if (sees) seeing++;
+            }
+            return contacts == 0 ? 0f : (float)seeing / contacts;
+        }
+
+        /// <summary>Without terrain on this node, a contact this close to the casualty counts as seeing him (m).</summary>
+        public const float ExposureFallbackMetres = 150f;
+
+        /// <summary>
+        /// ⭐ How QUIET the squad is: 0.2 right after it was under fire, rising to 1 after <see cref="QuietSeconds"/> without (never under
+        /// fire = 1) — from the commander's <see cref="RecentSenses"/> (<c>SquadUnderFire</c>). ⭐ A casualty within
+        /// <see cref="DyingSeconds"/> of bleeding out lifts it toward 1 (fully at half that) (light fire is accepted for a dying man; heavy AIMED fire on him is
+        /// still caught by <see cref="CasualtyExposure"/>).
+        /// </summary>
+        [UtilityInput("SquadQuietSeconds")]
+        public static float SquadQuietSeconds(in UtilityInputCtx ctx)
+        {
+            float quiet = 1f;
+            if (ctx.Repo.HasComponent<RecentSenses>(ctx.Self)
+                && ctx.Repo.GetComponentRO<RecentSenses>(ctx.Self).TryGetLast(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire, out double at))
+            {
+                double now = ctx.Repo.HasSingleton<GlobalTime>() ? ctx.Repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+                quiet = 0.2f + 0.8f * Math.Clamp((float)(now - at) / QuietSeconds, 0f, 1f);
+            }
+            if (SquadCasualties.Worst(ctx.Repo, ctx.Self, out _, out float left) >= 0 && left < DyingSeconds)
+                quiet = Math.Max(quiet, Math.Clamp((DyingSeconds - left) / (DyingSeconds * 0.5f), 0f, 1f));
+            return quiet;
         }
 
         /// <summary>

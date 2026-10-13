@@ -24,8 +24,17 @@ namespace Hrot.SimHost.Tests
     /// ⭐ <c>CE-3160</c> / <c>CE-507</c> D2 (a) (R-264) — the first squad manoeuvre that RUNS, on the commander:
     /// <see cref="BoundingOverwatchBehavior"/>. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §6.
     /// </summary>
-    public class SquadManeuverTests
+    public class SquadManeuverTests : IDisposable
     {
+        // Every world a test builds is disposed after it: an undisposed repository keeps its native maps, and the
+        // suite's leaked worlds once reached the process's map limit (`OutOfMemoryException` in later classes).
+        private static readonly List<Squad> Built = new();
+
+        public void Dispose()
+        {
+            lock (Built) { foreach (var s in Built) s.Repo.Dispose(); Built.Clear(); }
+        }
+
         private sealed class Squad
         {
             public readonly EntityRepository Repo = new();
@@ -43,6 +52,7 @@ namespace Hrot.SimHost.Tests
 
             public Squad(int members)
             {
+                lock (Built) Built.Add(this);
                 SimHostComponentRegistry.RegisterAll(Repo);
                 CognitiveComponentRegistry.RegisterAll(Repo);
                 BlueprintTierTable.RegisterAll(Repo);
@@ -390,6 +400,107 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick();
             Assert.True(s.Finished(out var result));
             Assert.Equal(Fbt.NodeStatus.Failure, result);
+        }
+
+        // ── CE-2152 C-c R-d — the rescue decision inside the contact reaction ────────────────────────────────────────────────
+
+        /// <summary>The care squad, everyone at full health but the casualty, the enemy pooled at <paramref name="enemyAt"/>; the casualty
+        /// bleeds at <paramref name="bleed"/> of max per second.</summary>
+        private static (Squad s, Entity casualty) RescueSquad(Vector3 enemyAt, float bleed)
+        {
+            var (s, casualty, _, enemy) = CareSquad();
+            foreach (var m in s.Members)
+                if (!m.Equals(casualty)) s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.InjuryThresholds>(casualty).BleedPerSecond = bleed;
+            s.Teleport(enemy, enemyAt);
+            s.Pool(enemy, enemyAt, reporters: 1);
+            return (s, casualty);
+        }
+
+        private static void Seconds(Squad s, double seconds) { for (int i = 0; i < (int)(seconds / 0.016); i++) s.Tick(); }
+
+        /// <summary>
+        /// ⭐ <c>CE-2152</c> C-c (R-d, §7.5.4) — a QUIET squad whose casualty no contact can see: after returning fire the reaction scores
+        /// Rescue above Assault and Hold and runs the care drill. 🔴 Red before: the decision had no Rescue option.
+        /// </summary>
+        [Fact]
+        public void CE2152_Rescue_AQuietSquad_HiddenCasualty_RescueWins()
+        {
+            var (s, _) = RescueSquad(new Vector3(0, 400, 0), bleed: 0.001f);   // beyond the no-terrain sight fallback (150 m)
+            s.React(BehaviorNames.ReactToContact);
+            Seconds(s, 4);
+            Assert.Equal(CasualtyCareManeuver.ManeuverKind, s.Kind);
+        }
+
+        /// <summary>
+        /// ⭐ R-d — HEAVY fire (under fire now, the enemy close enough to see the casualty): Rescue loses and the casualty waits; once the
+        /// enemy is out of sight of him and the squad has been quiet, the reaction's re-decide (every 5 s) picks Rescue.
+        /// 🔴 Red before: as above.
+        /// </summary>
+        [Fact]
+        public void CE2152_Rescue_UnderHeavyFire_TheManWaits_ThenWhenQuiet_TheReDecideGoesForHim()
+        {
+            var (s, _) = RescueSquad(new Vector3(0, 60, 0), bleed: 0.001f);
+            s.React(BehaviorNames.ReactToContact);
+            for (int k = 0; k < 8; k++) { s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire); Seconds(s, 1); }
+            Assert.NotEqual(CasualtyCareManeuver.ManeuverKind, s.Kind);
+
+            var enemy = s.Repo.CreateEntity();                                   // the fight moves off: a contact far from him
+            s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(0, 400, 0), Rotation = Quaternion.Identity });
+            s.Pool(enemy, new Vector3(0, 400, 0), reporters: 1);
+            Seconds(s, 16);                                                      // 10 s quiet + a 5 s re-decide
+            Assert.Equal(CasualtyCareManeuver.ManeuverKind, s.Kind);
+        }
+
+        /// <summary>⭐ R-d — a man about to BLEED OUT under light fire (shot at 3 s ago, nobody sees him): the squad accepts the risk.
+        /// 🔴 Red before: as above.</summary>
+        [Fact]
+        public void CE2152_Rescue_AManAboutToBleedOut_UnderLightFire_RescueWins()
+        {
+            var (s, _) = RescueSquad(new Vector3(0, 400, 0), bleed: 0.012f);    // 25 % health ⇒ ~20 s left
+            s.React(BehaviorNames.ReactToContact);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            Seconds(s, 4);
+            Assert.Equal(CasualtyCareManeuver.ManeuverKind, s.Kind);
+        }
+
+        /// <summary>⭐ R-d — the same man, NOT dying, under the same light fire: holding (or assaulting) wins — the contrast that makes
+        /// the bleed-out case mean something. 🔴 Red before: as above.</summary>
+        [Fact]
+        public void CE2152_Rescue_AFreshCasualty_UnderLightFire_TheSquadFightsFirst()
+        {
+            var (s, _) = RescueSquad(new Vector3(0, 400, 0), bleed: 0.001f);
+            s.React(BehaviorNames.ReactToContact);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            Seconds(s, 3.2);
+            Assert.NotEqual(CasualtyCareManeuver.ManeuverKind, s.Kind);
+        }
+
+        /// <summary>⭐ R-d — a man down and NOTHING to fight (the pool is empty): the reaction does not decide, it brings him in.
+        /// 🔴 Red before: as above.</summary>
+        [Fact]
+        public void CE2152_Rescue_NothingToFight_TheReactionBringsHimInStraightAway()
+        {
+            var (s, _) = RescueSquad(new Vector3(0, 400, 0), bleed: 0.001f);
+            s.ClearPool();
+            s.React(BehaviorNames.ReactToContact);
+            Seconds(s, 0.5);
+            Assert.Equal(CasualtyCareManeuver.ManeuverKind, s.Kind);
+        }
+
+        /// <summary>⭐ R-d — the reaction is HOLDING (the casualty waited under fire) when the enemy is gone: the pool emptying must not
+        /// end the reaction with the man left lying — it goes for him at once. 🔴 Red before this rail's fix: the hold ended "clear"
+        /// before the 5-s re-decide and the casualty was abandoned (found while writing the `-heavy` demo).</summary>
+        [Fact]
+        public void CE2152_Rescue_TheEnemyGoneWhileHolding_DoesNotLeaveTheMan()
+        {
+            var (s, _) = RescueSquad(new Vector3(0, 60, 0), bleed: 0.001f);   // close enough to see him: no rescue while he is there
+            s.React(BehaviorNames.ReactToContact);
+            for (int k = 0; k < 5; k++) { s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire); Seconds(s, 1); }
+            Assert.NotEqual(CasualtyCareManeuver.ManeuverKind, s.Kind);
+            s.ClearPool();
+            Seconds(s, 0.5);
+            Assert.Equal(CasualtyCareManeuver.ManeuverKind, s.Kind);
         }
 
         [Fact]

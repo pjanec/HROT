@@ -794,7 +794,7 @@ and no care — as today for every play.*
 | (a) | a medic later also STOPS the bleeding (the drain stops once treated) — its own small slice | doctrine; `DESIGN_Injury_States.md` I3 already reserves "stabilised" | — |
 | (c) | the suppress order names the squad's top / assigned contact; none ⇒ nothing to suppress (and Rescue is quiet anyway) | the existing assignment | waiting until the casualty's shooter is known |
 
-#### 7.5.6 Slices *(not started)*
+#### 7.5.6 Slices *(R-a … R-d BUILT `2026-10-13` — §7.5.7; R-e the live scenario)*
 
 | slice | what | rails |
 |---|---|---|
@@ -803,6 +803,27 @@ and no care — as today for every play.*
 | **R-c** | `SquadCasualtyCarePlay` (Suppress → Go → Carry → Done) + `MemberOrderKind.CarryCasualty` | the medic waits until the coverers fired · he brings the man to the cover point · the orders return |
 | **R-d** | the three inputs + `Rescue` option + the re-decide | heavy fire ⇒ Hold, the man waits · quiet + exposed-free ⇒ Rescue · a man about to bleed out under light fire ⇒ Rescue |
 | **R-e** | a live scenario (`ua-casualty-care` + `-heavy` + `-leader`): a squad in contact, a man down, the medic drags him to cover under covering fire | §7.8.2, over HTTP |
+
+#### 7.5.7 As built — R-a … R-d *(behaviors, `2026-10-13`, `CE-2152` C-c)*
+
+| slice | as built | deviation from §7.5.2–§7.5.6 |
+|---|---|---|
+| **R-a** | `TacticalDesignation.Medic = 6` (CGF-local; ⚠ neither it nor `TeamLeader` is in the NED wire enum) · `SensorChange.SquadMemberDown = 15`, `Target` = the man, once per man, from `SquadSensing.MemberDown` (called beside `Succession`); recorded in `RecentSenses`; HSM event `Sensor.SquadMemberDown` (0xFF0F) · `Succession` and the runner's `Live` read `Injury.IsInTheFight` | ⚠ the "reported" mask is `SquadLeadership.DownReported`, not a new `SquadCasualtyMask` component — the leadership record is already the squad's CGF-local memory of its members' fate |
+| **R-b** | library `Suppress` (`SuppressNodes.SuppressContact`): hold; aimed at the named contact when seen, blind at your own memory of him when hidden (`PostureNodes.Fire`, blind), at the squad's reported point (`FireAtPoint` action) when you never saw him; stops when he is down · `MemberOrderKind.Suppress` + `MemberOrder.Target` | the "never saw him" point fire is new: without it a coverer who never saw the contact would hold silently (the blind-fire executor needs a memory slot) |
+| **R-c** | `SquadCasualtyCarePlay` (`CasualtyCareManeuver`, kind 11: Suppress → Go → Done; Go → Recall → Aborted) · the **covering gate** `SquadGates.Covering` (every coverer's rounds went down within 2 s; `FireGateMemory` in `SquadPlayState`) — ⭐ F-a's first half, built here · cover point by the commander's `FindCoverFromTarget` query (slot 0 casualty, slot 1 threat; no threat ⇒ where the medic waited) · `MemberOrderKind.CarryCasualty` · the man lying at the point ⇒ Done ⇒ `SquadLeadership.CaredFor` · fire while the medic WALKS ⇒ Recall to where he waited ⇒ Failure (re-decide) · library `CasualtyCare` runs the play alone | the cover query reads the casualty and threat only (not "the cover point is also hidden" — the query's own threat test scores that) · `CoveringSeconds` (3 s) sends the medic when nobody fires, traced as `Timeout` |
+| **R-d** | inputs `CasualtyUrgency` (0 none · 0.8 fresh → 1 bleeding out), `CasualtyExposure` (share of identified pooled contacts with sight of the worst casualty — terrain LoS where this node holds terrain, else within 150 m), `SquadQuietSeconds` (0.2 under fire → 1 after 10 s; a casualty within 60 s of bleeding out lifts it, fully at 30 s) · `SquadContactResponse.Rescue = 4` · `ReactToContact`: re-decides every 5 s and on each `SquadMemberDown` while a casualty waits (a changed winner starts its drill; the same winner keeps running), runs the care play on Rescue, decides again when it ends; a man down with an EMPTY pool ⇒ Rescue without a decision · `BasicSquadSop` row: `SquadMemberDown` → `ReactToContact` | ⚠ **calibration**, measured against the existing options (`Assault` reaches ≈ 0.93 for a strong squad, `Hold` is 0.25): Rescue = product(urgency^0.5 · (1 − exposure) · quiet · (1 − enemy share)^0.5) — the floors and the dying-man lift exist because without them a fresh casualty in a quiet squad never beat Assault. ⚠ Exposure samples the casualty only, not the cover point (the cover query handles that) · ⚠ the no-terrain fallback (150 m) is a stand-in: on a node without terrain a close contact counts as seeing him |
+
+**Calibration, as scored** (the rails in `SquadManeuverTests`): quiet + nobody sees him ⇒ Rescue (≈ 0.85) over Assault and Hold ·
+under fire now with a contact close enough to see him ⇒ Rescue 0 ⇒ the man waits · same man, fire moved off, 10 s quiet ⇒ the
+5-s re-decide picks Rescue · a man ~20 s from bleeding out, shot at 3 s ago, unseen ⇒ Rescue · a fresh man in the same light fire ⇒
+the squad fights first · empty pool ⇒ Rescue at once.
+
+⚠ **Measured calibration step** *(probe, `2026-10-13`)*: in the "quiet, hidden casualty" rail the inputs read urgency 0.6 · exposure 0 ·
+quiet 1 · strength 0.81 · enemy share 0.09 · ammo 1 ⇒ Assault **0.888** vs Rescue **0.883** — a coin toss. The urgency floor went to
+**0.8** (Rescue ≈ 0.95); under light fire a fresh casualty then scores ≈ 0.55 against Assault's 0.89, so the squad still fights first.
+
+⚠ **§7.8.2 check ⑧ changed with the build**: "each member runs what he ran before ①" cannot hold — after the care the reaction DECIDES
+AGAIN (the fight may have moved on). ⑧ is now *"the drill is no longer `CasualtyCare` and every member in the fight has an order of it"*.
 
 ### 7.6 Fire and movement — the same pattern *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved (R-2013, leans (b)); NOT built)*
 
@@ -1024,7 +1045,7 @@ the casualty's spot and holding fire. **Trigger:** once the squad's pool holds t
 | ⑤ | he takes the man | `/entities/{casualty}` | `IsEmbarkedTag.VehicleEntity` = the Medic within 40 s |
 | ⑥ | to a hidden cover point | `/squad` care + positions + `/entities/{hostile}/memory` (CE-3144) | both end within 2 m of `care.coverPoint`; the hostile's memory slot for the casualty is not refreshed after he arrives there |
 | ⑦ | he puts him down, alive | `/entities/{casualty}` | the tag is gone; `Health.Current > 0` |
-| ⑧ | everyone goes back | `BehaviorState.ActiveBehaviorHash` per member | within 5 s of ⑦, each coverer and the Medic runs what he ran before ① |
+| ⑧ | everyone goes back to the fight | `/squad` maneuver | within 10 s of ⑦ the drill is no longer `CasualtyCare` (⚠ as built: the reaction decides again, so "what he ran before" is not the test — §7.5.7) |
 | ⑨ | a down man gets no orders (R-a) | `/squad` members | the casualty's `order` never changes after ①; `inTheFight` false |
 
 **Variant `-heavy` (the scoring):** three hostiles with sight of the casualty, firing at the squad.

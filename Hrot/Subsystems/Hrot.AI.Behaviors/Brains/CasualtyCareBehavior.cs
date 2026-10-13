@@ -201,13 +201,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// first such member; −1 when nobody is.</summary>
         public static int Uncared(in SquadPlayContext ctx, Entity prefer)
         {
-            ushort cared = CaredFor(ctx.World, ctx.Commander);
             int first = -1;
             for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
             {
                 var m = ctx.Roster.SubordinateEntities[i];
-                if ((cared & (1 << i)) != 0 || m.IsNull || !Injury.IsIncapacitated(ctx.World, m)) continue;
-                if (ctx.World.HasComponent<IsEmbarkedTag>(m)) continue;   // someone already has him
+                if (!SquadCasualties.ToCareFor(ctx.World, ctx.Commander, i, m)) continue;
                 if (!prefer.IsNull && m == prefer) return i;
                 if (first < 0) first = i;
             }
@@ -233,9 +231,6 @@ namespace Hrot.AI.Behaviors.Brains
             return best;
         }
 
-        public static ushort CaredFor(EntityRepository world, Entity commander)
-            => world.HasComponent<SquadLeadership>(commander) ? world.GetComponentRO<SquadLeadership>(commander).CaredFor : (ushort)0;
-
         public static void MarkCaredFor(EntityRepository world, Entity commander, int slot)
         {
             if (slot < 0 || slot >= 16 || !world.IsComponentTypeRegistered<SquadLeadership>()) return;
@@ -243,20 +238,8 @@ namespace Hrot.AI.Behaviors.Brains
             world.GetComponentRW<SquadLeadership>(commander).CaredFor |= (ushort)(1 << slot);
         }
 
-        /// <summary>The number of members down and not yet cared for.</summary>
-        public static int UncaredCount(EntityRepository world, Entity commander)
-        {
-            if (!world.HasComponent<UnitRoster>(commander)) return 0;
-            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(commander);
-            ushort cared = CaredFor(world, commander);
-            int n = 0;
-            for (int i = 0; i < roster.Count && i < 16; i++)
-            {
-                var m = roster.SubordinateEntities[i];
-                if ((cared & (1 << i)) == 0 && !m.IsNull && Injury.IsIncapacitated(world, m) && !world.HasComponent<IsEmbarkedTag>(m)) n++;
-            }
-            return n;
-        }
+        /// <summary>The number of members down and not yet cared for (<see cref="SquadCasualties.Count"/>).</summary>
+        public static int UncaredCount(EntityRepository world, Entity commander) => SquadCasualties.Count(world, commander);
 
         private static TacticalDesignation Designation(EntityRepository world, in UnitRoster roster, int i, Entity m)
             => world.HasComponent<UnitSubordinate>(m) ? world.GetComponentRO<UnitSubordinate>(m).Designation : (TacticalDesignation)roster.TacticalDesignations[i];

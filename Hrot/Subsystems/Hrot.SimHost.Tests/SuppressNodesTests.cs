@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Fbt;
@@ -22,12 +23,14 @@ namespace Hrot.SimHost.Tests
     {
         private static readonly Vector3 EnemyAt = new(30f, 0f, 0f);
 
-        private sealed class Coverer
+        private sealed class Coverer : IDisposable
         {
             public readonly EntityRepository Repo = new();
             public readonly Entity Self, Enemy;
             public SuppressContactParams P;
             public SuppressContactState Ws;
+
+            public void Dispose() => Repo.Dispose();
 
             public Coverer(bool remembers, bool sees)
             {
@@ -71,7 +74,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE2152_ASuppressorWhoSeesHim_FiresAimedAtHim()
         {
-            var c = new Coverer(remembers: true, sees: true);
+            using var c = new Coverer(remembers: true, sees: true);
             Assert.Equal(NodeStatus.Running, c.Tick());
             Assert.Equal(CombatConstants.ActionIdAimAndFire, c.Channel.ActiveAction);
             var fire = Unsafe.As<byte, AimAndFireParams>(ref c.Channel.Params[0]);
@@ -82,7 +85,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE2152_ASuppressorWhoRemembersButCannotSeeHim_StillFiresAtHim_Blind()
         {
-            var c = new Coverer(remembers: true, sees: false);
+            using var c = new Coverer(remembers: true, sees: false);
             Assert.Equal(NodeStatus.Running, c.Tick());
             Assert.Equal(CombatConstants.ActionIdAimAndFire, c.Channel.ActiveAction);
             var fire = Unsafe.As<byte, AimAndFireParams>(ref c.Channel.Params[0]);
@@ -93,7 +96,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE2152_ASuppressorWhoNeverSawHim_FiresAtTheSquadsReportedPoint()
         {
-            var c = new Coverer(remembers: false, sees: false);
+            using var c = new Coverer(remembers: false, sees: false);
             Assert.Equal(NodeStatus.Running, c.Tick());
             Assert.Equal(CombatConstants.ActionIdFireAtPoint, c.Channel.ActiveAction);
             var fire = Unsafe.As<byte, FireAtPointParams>(ref c.Channel.Params[0]);
@@ -106,7 +109,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE2152_WhenHeIsDown_TheSuppressorStops()
         {
-            var c = new Coverer(remembers: false, sees: false);
+            using var c = new Coverer(remembers: false, sees: false);
             c.Tick();
             c.Repo.AddComponent(c.Enemy, new Health { Current = 0f, Max = 100f });
             c.Tick();

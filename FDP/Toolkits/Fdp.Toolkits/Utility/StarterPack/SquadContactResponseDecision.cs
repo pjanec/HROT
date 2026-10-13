@@ -9,6 +9,8 @@ namespace Fdp.Toolkit.Utility
         BreakContact = 2,
         /// <summary>Stay where each member is and fight (<c>SquadHold</c>).</summary>
         Hold         = 3,
+        /// <summary>⭐ <c>CE-2152</c> C-c (R-2013) — a man is down: cover and bring him in (<c>CasualtyCare</c>).</summary>
+        Rescue       = 4,
     }
 
     /// <summary>
@@ -38,6 +40,14 @@ namespace Fdp.Toolkit.Utility
             .Option((ushort)SquadContactResponse.BreakContact, ScoringMode.WeightedProduct, o => o
                 .Consider(In.SquadEnemyStrengthRatio(), 1.0f, Curve.Logistic))
             .Option((ushort)SquadContactResponse.Hold, ScoringMode.WeightedSum, o => o
-                .Consider(In.Constant(0.25f),           1.0f, Curve.Linear));
+                .Consider(In.Constant(0.25f),           1.0f, Curve.Linear))
+            // ⭐ CE-2152 C-c (R-2013, §7.5.4) — any factor near zero kills it: no casualty, aimed fire on him, the squad under fire.
+            //   Weights are exponents: urgency and fire superiority at 0.5 so a quiet squad's fresh casualty beats both Hold and a
+            //   strong squad's Assault (calibration in §7.5.4 as built).
+            .Option((ushort)SquadContactResponse.Rescue, ScoringMode.WeightedProduct, o => o
+                .Consider(In.CasualtyUrgency(),         0.5f, Curve.Linear)
+                .Consider(In.CasualtyExposure(),        1.0f, Curve.InverseLinear)
+                .Consider(In.SquadQuietSeconds(),       1.0f, Curve.Linear)
+                .Consider(In.SquadEnemyStrengthRatio(), 0.5f, Curve.InverseLinear));
     }
 }

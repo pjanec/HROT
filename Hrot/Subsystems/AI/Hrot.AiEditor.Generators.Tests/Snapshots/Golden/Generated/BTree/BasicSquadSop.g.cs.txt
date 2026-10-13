@@ -44,6 +44,14 @@ public static class BasicSquadSop
                     visualId: new Guid("c2123000-0000-0000-0000-000000000030"));
                 sel.Sequence(seq =>
                 {
+                    seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@24",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000051"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:ReactToContact:UnderFire@-1",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000052"));
+                },
+                    visualId: new Guid("c2123000-0000-0000-0000-000000000050"));
+                sel.Sequence(seq =>
+                {
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@16",
                         visualId: new Guid("c2123000-0000-0000-0000-000000000021"));
                     seq.Action("Fdp.Toolkit.Behavior.SopActions.React:ReactToContact:Contact@-1",
