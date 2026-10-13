@@ -15,21 +15,8 @@
       "HsmAction"
     ]
   },
-  "Declarations": [
-    {
-      "Kind": "Parameter",
-      "Id": "d1600002-0001-0001-0001-000000000001",
-      "Name": "TargetNetworkId",
-      "Type": {
-        "TypeId": "System.Int64",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": "0",
-      "Tooltip": "NetworkIdentity of the entity to engage, seeded from the hosting HSM\u0027s blackboard. A network id, not an Entity: entity handles are not stable across a scenario load.",
-      "Comment": null
-    }
-  ],
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.HsmFireActivityParams",
+  "Declarations": [],
   "ParameterOrder": null,
   "WorkingStateOrder": null,
   "VariableOrder": null,

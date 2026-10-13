@@ -15,47 +15,8 @@
       "BTreeAction"
     ]
   },
-  "Declarations": [
-    {
-      "Kind": "Parameter",
-      "Id": "d0000001-0001-0001-0001-000000000001",
-      "Name": "Threshold",
-      "Type": {
-        "TypeId": "System.Int32",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": null,
-      "Tooltip": null,
-      "Comment": null
-    },
-    {
-      "Kind": "Parameter",
-      "Id": "d0000002-0002-0002-0002-000000000002",
-      "Name": "FlagA",
-      "Type": {
-        "TypeId": "System.Boolean",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": null,
-      "Tooltip": null,
-      "Comment": null
-    },
-    {
-      "Kind": "Parameter",
-      "Id": "d0000003-0003-0003-0003-000000000003",
-      "Name": "FlagB",
-      "Type": {
-        "TypeId": "System.Boolean",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": null,
-      "Tooltip": null,
-      "Comment": null
-    }
-  ],
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.ParamDemoParams",
+  "Declarations": [],
   "ParameterOrder": null,
   "WorkingStateOrder": null,
   "VariableOrder": null,

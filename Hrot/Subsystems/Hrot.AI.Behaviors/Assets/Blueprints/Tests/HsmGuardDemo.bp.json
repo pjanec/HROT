@@ -15,21 +15,8 @@
       "HsmGuard"
     ]
   },
-  "Declarations": [
-    {
-      "Kind": "Parameter",
-      "Id": "d1500001-0001-0001-0001-000000000001",
-      "Name": "EngageTarget",
-      "Type": {
-        "TypeId": "System.Boolean",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": "false",
-      "Tooltip": "The guard\u0027s verdict, seeded from the hosting HSM\u0027s blackboard.",
-      "Comment": null
-    }
-  ],
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.HsmGuardDemoParams",
+  "Declarations": [],
   "ParameterOrder": null,
   "WorkingStateOrder": null,
   "VariableOrder": null,
@@ -59,7 +46,7 @@
         },
         {
           "kind": "GetParameter",
-          "ParameterId": "d1500001-0001-0001-0001-000000000001",
+          "ParameterId": "999bb03f-d6d1-0157-bd20-9ba820f0b8ba",
           "Id": "20000150-0000-0000-0000-000000000002",
           "Pins": [
             {

@@ -15,20 +15,8 @@
       "BTreeCondition"
     ]
   },
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.GateConditionDemoParams",
   "Declarations": [
-    {
-      "Kind": "Parameter",
-      "Id": "d1010001-0001-0001-0001-000000000001",
-      "Name": "Threshold",
-      "Type": {
-        "TypeId": "System.Single",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": null,
-      "Tooltip": null,
-      "Comment": null
-    },
     {
       "Kind": "Variable",
       "Id": "d1010002-0002-0002-0002-000000000002",
