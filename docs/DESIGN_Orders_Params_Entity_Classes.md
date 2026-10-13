@@ -23,6 +23,7 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad drills D2 turns into order behaviours
   - docs/blueprints/HANDOFF_Orders_Track_B_Params_Internals.md — the dispatch for Track B
   - docs/blueprints/HANDOFF_Orders_Track_C_Classes_And_Dis.md — the dispatch for Track C
+  - docs/blueprints/HANDOFF_Params_Panels_Ui.md — the dispatch for the §13.10 ⑦ editor panels (ui)
   - docs/designs/orbat-context-menu/OC1-DESIGN.md — its §2.1 (OC1-S001, the sender-side FollowRoute translation) is superseded by §10 (CE-2145)
   - docs/blueprints/DESIGN_Map_Picking_Unification.md — OWNS the one pick broker and IMapPickContext; §13.12 (P5b) adds the entity LIST pick to it and one preset filter for every host (CE-1060)
   - docs/DESIGN_Sensors_And_Doctrine.md — §7.6b OWNS the one params form (BehaviorParamsForm) the order form draws
@@ -1963,7 +1964,9 @@ classDiagram
     corpus has **0** left and all 18 `.bp.json` name a DTO, so it is empty everywhere; the canvas pins are right (`ParametersOf`).
     "Create parameter" (`editor.create-parameter`) still authors a `ParameterDecl`;
   - the **BTree / HSM** `Params` row is ONE read-only entry (`BlackboardAuthoringWindow.cs:323`) — the DTO's fields are not
-    listed (`VariablesPanelControl` has no struct expansion).
+    listed (`VariablesPanelControl` has no struct expansion);
+  - no editor surface writes an asset's `ParamsDtoTypeId` or a BTree / HSM `ParamsDefaultJson` (hand-edited JSON).
+  ⇒ dispatched: [HANDOFF_Params_Panels_Ui.md](blueprints/HANDOFF_Params_Panels_Ui.md) (the last bullet pending the user's nod, U5).
 
 ### 13.11 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
 
