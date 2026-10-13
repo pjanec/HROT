@@ -89,16 +89,22 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>Boards <paramref name="passenger"/> onto <paramref name="vehicle"/>: the list, the tag, the stripped capabilities.
         /// Idempotent — a passenger already aboard is <see cref="EmbarkResult.AlreadyAboard"/> (its own side is made consistent).</summary>
-        public static EmbarkResult TryEmbark(EntityRepository repo, Entity passenger, Entity vehicle)
+        /// <remarks>⭐ <c>CE-2151</c> B-b (R-2009 B4) — a SEAT (<see cref="FreeSeat"/>): the first free one whose role is
+        /// <paramref name="role"/>, else a free passenger seat (a passenger seat takes anyone, a crew seat only its role). The list is
+        /// seat-indexed — leaving empties the seat in place.</remarks>
+        public static EmbarkResult TryEmbark(EntityRepository repo, Entity passenger, Entity vehicle, SeatRole role = SeatRole.Passenger)
         {
             if (!repo.IsAlive(passenger) || !repo.IsAlive(vehicle) || !repo.HasComponent<PassengerBuffer>(vehicle)) return EmbarkResult.Invalid;
             // ⭐ CE-3110 (R-272) — a UNIT is not a physical actor: it takes no seat and carries nobody (its members do the boarding).
             if (Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, passenger) || Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, vehicle)) return EmbarkResult.Invalid;
-            if (IsAboard(repo, passenger, vehicle)) { Board(repo, passenger, vehicle); return EmbarkResult.AlreadyAboard; }
+            int aboard = SlotOf(repo, passenger, vehicle);
+            if (aboard >= 0) { Board(repo, passenger, vehicle, aboard); return EmbarkResult.AlreadyAboard; }
+            int seat = FreeSeat(repo, vehicle, role);   // ⭐ CE-2151 — the type's seats, by role
+            if (seat < 0) return EmbarkResult.Full;
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
-            if (buffer.Count >= CapacityOf(repo, vehicle)) return EmbarkResult.Full;   // ⭐ CE-2151 — the type's passenger seats
-            buffer.Passengers[buffer.Count++] = passenger;
-            Board(repo, passenger, vehicle);
+            buffer.Passengers[seat] = passenger;
+            buffer.Count++;
+            Board(repo, passenger, vehicle, seat);
             return EmbarkResult.Applied;
         }
 
@@ -115,8 +121,7 @@ namespace Fdp.Toolkit.Behavior
             if (slot < 0) return false;
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
             var at = DismountPoint(repo, vehicle, slot, buffer.Count);
-            buffer.Passengers[slot] = buffer.Passengers[buffer.Count - 1];
-            buffer.Passengers[buffer.Count - 1] = Entity.Null;
+            buffer.Passengers[slot] = Entity.Null;   // ⭐ CE-2151 B-b — the seat empties in place (no compaction: a slot IS a seat)
             buffer.Count--;
             Leave(repo, passenger, at);
             return true;
@@ -129,12 +134,14 @@ namespace Fdp.Toolkit.Behavior
             if (!repo.IsAlive(vehicle) || !repo.HasComponent<PassengerBuffer>(vehicle)) return 0;
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
             int left = 0;
-            for (int i = 0; i < buffer.Count; i++)
+            int aboardCount = buffer.Count;
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)   // ⭐ CE-2151 B-b — every seat (seats may be empty mid-list)
             {
                 var passenger = buffer.Passengers[i];
+                if (passenger.IsNull) continue;
                 buffer.Passengers[i] = Entity.Null;
                 if (!repo.IsAlive(passenger)) continue;   // killed aboard — skipped, not an error
-                Leave(repo, passenger, DismountPoint(repo, vehicle, i, buffer.Count));
+                Leave(repo, passenger, DismountPoint(repo, vehicle, i, aboardCount));
                 left++;
             }
             buffer.Count = 0;
@@ -188,7 +195,7 @@ namespace Fdp.Toolkit.Behavior
         {
             if (vehicle.IsNull || !repo.IsAlive(vehicle) || !repo.HasComponent<PassengerBuffer>(vehicle)) return -1;
             ref readonly var buffer = ref repo.GetComponentRO<PassengerBuffer>(vehicle);
-            for (int i = 0; i < buffer.Count; i++) if (buffer.Passengers[i] == passenger) return i;
+            for (int i = 0; i < PassengerBuffer.Capacity; i++) if (!buffer.Passengers[i].IsNull && buffer.Passengers[i] == passenger) return i;
             return -1;
         }
 
@@ -197,12 +204,44 @@ namespace Fdp.Toolkit.Behavior
         /// once (<see cref="TryEmbark"/>) and every node from the list it holds (<c>EmbarkedStateSystem</c>) — so no node writes it from a
         /// second rule. Idempotent.
         /// </summary>
-        public static void Board(EntityRepository repo, Entity passenger, Entity vehicle)
+        public static void Board(EntityRepository repo, Entity passenger, Entity vehicle, int seat)
         {
             if (Has<ActorCapabilityState>(repo, passenger))
                 repo.GetComponentRW<ActorCapabilityState>(passenger).Capabilities &= ~StrippedAboard;
             // ⭐ I-2c (R-271): an OPEN cabin leaves the passenger exposed (seen, targeted, hit); enclosed hides it (PhysicalPresence).
-            repo.SetComponent(passenger, new IsEmbarkedTag { VehicleEntity = vehicle, Exposed = (byte)(Has<OpenPassengerCabin>(repo, vehicle) ? 1 : 0) });
+            //   ⭐ CE-2151 B-b (R-2009 B6): with declared seats the SEAT decides (a gunner's open hatch, the cabin closed).
+            repo.SetComponent(passenger, new IsEmbarkedTag { VehicleEntity = vehicle, Seat = (byte)seat, Exposed = (byte)(SeatExposed(repo, vehicle, seat) ? 1 : 0) });
+        }
+
+        /// <summary>⭐ <c>CE-2151</c> B-b — is seat <paramref name="seat"/> of <paramref name="vehicle"/> exposed: the type's per-seat mask
+        /// (<see cref="CarrierSeats.ExposedMask"/>), else the whole cabin (<see cref="OpenPassengerCabin"/>).</summary>
+        public static bool SeatExposed(EntityRepository repo, Entity vehicle, int seat)
+            => Has<CarrierSeats>(repo, vehicle)
+                ? (repo.GetComponentRO<CarrierSeats>(vehicle).ExposedMask & (1 << seat)) != 0
+                : Has<OpenPassengerCabin>(repo, vehicle);
+
+        /// <summary>
+        /// ⭐ <c>CE-2151</c> B-b (R-2009 B4: "a Passenger seat takes anyone, a crew seat only its role") — the first free seat of
+        /// <paramref name="vehicle"/> whose role is <paramref name="role"/>, else the first free PASSENGER seat, else −1. A plain boarding
+        /// (<see cref="SeatRole.Passenger"/>, the default) therefore never takes a crew seat. The declared seats (<see cref="CarrierSeats"/>);
+        /// a list with no declared seats (a hand-built world) has 8 passenger seats.
+        /// </summary>
+        public static int FreeSeat(EntityRepository repo, Entity vehicle, SeatRole role = SeatRole.Passenger)
+        {
+            if (!repo.IsAlive(vehicle) || !Has<PassengerBuffer>(repo, vehicle)) return -1;
+            ref readonly var buffer = ref repo.GetComponentRO<PassengerBuffer>(vehicle);
+            bool declared = Has<CarrierSeats>(repo, vehicle);
+            var seats = declared ? repo.GetComponentRO<CarrierSeats>(vehicle) : default;
+            int n = declared ? System.Math.Min((int)seats.SeatCount, PassengerBuffer.Capacity) : PassengerBuffer.Capacity;
+            int passengerSeat = -1;
+            for (int i = 0; i < n; i++)
+            {
+                if (!buffer.Passengers[i].IsNull) continue;
+                var seatRole = declared ? seats.Roles[i] : SeatRole.Passenger;
+                if (seatRole == role) return i;
+                if (passengerSeat < 0 && seatRole == SeatRole.Passenger) passengerSeat = i;
+            }
+            return passengerSeat;
         }
 
         /// <summary>

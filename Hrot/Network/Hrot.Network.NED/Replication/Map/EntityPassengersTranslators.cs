@@ -52,15 +52,16 @@ namespace Hrot.Map.Common.Replication.Egress
             }
         }
 
-        /// <summary>The wire form (the test seam): each passenger as its network id; one with none is left out.</summary>
+        /// <summary>The wire form (the test seam): seat i carries the network id of the passenger in seat i, 0 for an empty seat or one with
+        /// no network id; <c>Count</c> = the occupied seats. ⭐ CE-2151 B-b (R-2009 B4): slot-indexed — a slot IS a seat, so a hole is kept.</summary>
         internal static EntityPassengers ToSample(ISimulationView view, long netId, in PassengerBuffer b)
         {
             Span<long> ids = stackalloc long[PassengerBuffer.Capacity];
             int n = 0;
-            for (int i = 0; i < b.Count && i < PassengerBuffer.Capacity; i++)
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)
             {
                 var p = b.Passengers[i];
-                if (view.IsAlive(p) && view.HasComponent<NetworkIdentity>(p)) ids[n++] = view.GetComponentRO<NetworkIdentity>(p).Value;
+                if (!p.IsNull && view.IsAlive(p) && view.HasComponent<NetworkIdentity>(p)) { ids[i] = view.GetComponentRO<NetworkIdentity>(p).Value; n++; }
             }
             return new EntityPassengers
             {
@@ -141,10 +142,12 @@ namespace Hrot.Map.Common.Replication.Ingress
                 && AuthorityExtensions.IsRecordedOwner(repo, vehicle, OwnershipExtensions.PackKey(OrdinalValue, 0))) return true;   // ours: drop
             var buffer = new PassengerBuffer();
             Span<long> ids = stackalloc long[] { d.Passenger0, d.Passenger1, d.Passenger2, d.Passenger3, d.Passenger4, d.Passenger5, d.Passenger6, d.Passenger7 };
-            for (int i = 0; i < d.Count && i < PassengerBuffer.Capacity; i++)
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)   // ⭐ CE-2151 B-b — seat i from slot i; 0 = an empty seat
             {
+                if (ids[i] == 0) continue;
                 if (!_entityMap.TryGetEntity(ids[i], out var passenger) || !view.IsAlive(passenger)) return false;   // not known yet: hold
-                buffer.Passengers[buffer.Count++] = passenger;
+                buffer.Passengers[i] = passenger;
+                buffer.Count++;
             }
             cmd.AddComponent(vehicle, buffer);
             return true;

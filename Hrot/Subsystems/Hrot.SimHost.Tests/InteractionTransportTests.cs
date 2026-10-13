@@ -239,6 +239,19 @@ namespace Hrot.SimHost.Tests
             Deliver(disembark);
             Assert.Equal(0, owner.GetComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(ownersApc).Count);
             Assert.False(owner.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(ownersSoldier));
+
+            // ⭐ CE-2151 B-b (R-2009 B4) — the seat ROLE crosses too (the payload's Role byte): a crew request arrives as that role.
+            //   ✅ Red-proof: toPayload writing `Embark = default` ⇒ Role 0 on the wire ⇒ red.
+            writer.Written.Clear();
+            soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand
+                { Passenger = soldier, Vehicle = apc, Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner });
+            soldiersNode.Bus.SwapBuffers();
+            egress.ScanAndPublish(soldiersNode);
+            var asGunner = Assert.Single(writer.Written);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, asGunner.Payload.Embark.Role);
+            Deliver(asGunner);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Gunner,
+                Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().ToArray()).Role);
         }
 
         [Fact]

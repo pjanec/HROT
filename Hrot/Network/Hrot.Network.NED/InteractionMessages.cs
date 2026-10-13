@@ -74,6 +74,9 @@ namespace Hrot.NED.Messages
     public partial struct EmbarkInteractionPayload
     {
         public byte Reserved;
+
+        /// <summary>⭐ <c>CE-2151</c> B-b (R-2009 B4) — the seat role asked for (<c>SeatRole</c>; 0 = Passenger, a plain boarding).</summary>
+        public byte Role;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Disembark"/> case (target = the vehicle, actor = the passenger).</summary>

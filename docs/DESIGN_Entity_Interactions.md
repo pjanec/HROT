@@ -777,7 +777,7 @@ in the tag only** — the wire could not say which seat is free, so two nodes wo
 | slice | what | rails |
 |---|---|---|
 | **B-a** (`CE-2151`, ✅ BUILT 2026-10-13 — §7.4.6) | `Gen.Carrier` + `CarrierTkbTranslator` + `CarrierSeats`; capacity from the type; `PassengerBuffer` only on a declaring type; `PassengerExposure` moved; every carrier template declares it | a soldier has no buffer · a 2-seat type refuses the 3rd · exposure from the type · the feature suites `EmbarkNodesTests`, `Embarkation*`, the convoy live run |
-| **B-b** (`CE-2151`) | seats: slot = seat, roles, per-seat exposure, slot-indexed codecs | a crew seat refuses a passenger · disembark leaves a hole the next board fills · wire round trip by slot |
+| **B-b** (`CE-2151`, ✅ BUILT 2026-10-13 — §7.4.7) | seats: slot = seat, roles, per-seat exposure, slot-indexed codecs | a crew seat refuses a passenger · disembark leaves a hole the next board fills · wire round trip by slot |
 | **C** (`CE-2152`) | the person carrier — after R-263's injury states | carry/drag offsets, speed factor, survives the carrier's death |
 
 #### 7.4.6 B-a as built *(`2026-10-13`, behaviors, `CE-2151`)*
@@ -796,7 +796,32 @@ executor · `BehaviorTkbTranslator` no longer stamps a buffer; `VehicleParameter
 | tanks, aircraft, soldiers | none — aircraft have no brain or flight model yet; crew seats come with B-b |
 
 **Deviations:** ① crew stay abstract, so B-a declares passenger seats only (crew seats would hold nobody until B-b's role requests).
-② `GenesisMaterializationSystem.EnsureBuffer` still gives a scenario-boarded vehicle a list when its type declares none — kept because
-its rails build bare vehicles; ⛔ it contradicts B3 and goes with B-b. Rails: `CarrierTkbTranslatorTests` (6 — no Gen.Carrier ⇒ no
+② ⛔ SUPERSEDED by B-b (§7.4.7): `GenesisMaterializationSystem.EnsureBuffer` gave a scenario-boarded vehicle a list when its type
+declared none; it is gone. Rails: `CarrierTkbTranslatorTests` (6 — no Gen.Carrier ⇒ no
 list; the 3rd boarding of a 2-seat type is Full; a crew seat is not passenger capacity; exposure + per-seat override; seats rewritten;
 9 seats refused), the open-cabin rail moved there from `VehicleKinematicsTkbTranslatorTests`.
+
+#### 7.4.7 B-b as built *(`2026-10-13`, behaviors, `CE-2151`)*
+
+As the class and sequence diagrams (§7.4.1, §7.4.2), the B-b half. `Mode` and the `Person` block wait for C.
+
+| piece | as built |
+|---|---|
+| the list | slot = seat; `Entity.Null` = empty; `Count` = occupied seats. `TryEmbark` writes `Passengers[seat]`, `Disembark` nulls the slot in place, and `EjectAll`, `SlotOf`, `EmbarkedStateSystem`, `SquadSensing` and the save extractor walk all 8 slots |
+| choosing a seat | `Embarkation.FreeSeat(repo, vehicle, role)`: the first free seat of that role, else the first free PASSENGER seat, else −1. A plain boarding asks for `Passenger` (the default), so it never takes a crew seat. A list with no `CarrierSeats` (a hand-built world) has 8 passenger seats |
+| the role on the request | `EmbarkEntityCommand.Role` → `TryEmbark(…, role)`. Across nodes it rides in `EmbarkInteractionPayload.Role` (one byte; `Reserved` kept) |
+| the tag | `IsEmbarkedTag.Seat` (byte); `Exposed` = the seat's `ExposedMask` bit, else `OpenPassengerCabin`. `EmbarkedStateSystem` re-derives both on every node and re-tags when the seat moved |
+| the wire | `EntityPassengers` egress writes `ids[seat]` (0 = empty) with `Count` = occupied. Ingress sets slot i for every non-zero id, so a hole stays a hole on every node |
+| genesis | `EnsureBuffer` is gone (B3): a scenario that boards someone onto a type declaring no `Gen.Carrier` is refused and counted (`GenesisMaterializationSystem.RefusedBoardings`) |
+| the executor | `EmbarkExecutor` fails at once when `FreeSeat(vehicle) < 0` (no free passenger seat) |
+
+**Deviations:**
+- ① **B4's "`Any` default" is `Passenger`.** Under "a Passenger seat takes anyone, a crew seat only its role", an `Any` request and a `Passenger` request accept exactly the same seats, so no `Any` value was added. A crew request prefers its own seat and falls back to a passenger seat; the design's "first free seat whose role accepts" would have put a driver in the back whenever a passenger seat had a lower index.
+- ② **No template declares a crew seat yet.** B5 keeps crew abstract, so the seat roles are exercised only by rails.
+- ③ **Save/load does not keep the seat.** The save keeps the occupants, not their seat or role, and genesis boards them as plain passengers. This is harmless while no template has a crew seat; it needs a seat field in `InitialPassengersIntent` once one does.
+
+Rails (`CarrierSeatsTests`, 4): a plain boarding takes a passenger seat, never a crew seat; a crew request takes its own seat, else rides in back, else Full · leaving empties the seat in place and the next boarding fills it · exposure follows the seat, re-derived on a replica · `EjectAll` walks the holes. Elsewhere:
+- `PassengerReplicationTests.CE2151_ASeatLeftEmpty_StaysAHoleOnEveryNode`
+- `InteractionTransportTests` (the role crosses)
+- `GenesisMaterializationSystemTests.CE2151_ANonCarrierNamedAsAVehicle_IsNotMadeACarrier`
+- the packed-era fixtures updated in `EmbarkationTests`, `EmbarkExecutorTests` and `EditorAuthoringIntegrationTests` (a bare `Count = 8` no longer means full)

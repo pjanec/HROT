@@ -49,6 +49,9 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — 1 when the vehicle's cabin is OPEN (<see cref="OpenPassengerCabin"/>): the passenger
         /// is carried but still seen, targeted and hit; 0 (enclosed) hides it (<c>PhysicalPresence.IsHidden</c>). Set at boarding.</summary>
         public byte Exposed;
+
+        /// <summary>⭐ <c>CE-2151</c> B-b (R-2009 B4) — the seat (the <see cref="PassengerBuffer"/> slot) it occupies. Set at boarding.</summary>
+        public byte Seat;
     }
 
     /// <summary>

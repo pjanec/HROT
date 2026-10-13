@@ -18,5 +18,9 @@ namespace Fdp.Toolkit.Behavior.Events
 
         /// <summary>⭐ <c>CE-3110</c> I-2a (R-221) — set by the interaction ingress: this command came off the network (never sent again).</summary>
         public bool IsRemote;
+
+        /// <summary>⭐ <c>CE-2151</c> B-b (R-2009 B4) — the seat role asked for: <c>Passenger</c> (the default — a plain boarding) or a crew role,
+        /// which only that role's seat takes.</summary>
+        public Fdp.Toolkit.Behavior.Components.SeatRole Role;
     }
 }

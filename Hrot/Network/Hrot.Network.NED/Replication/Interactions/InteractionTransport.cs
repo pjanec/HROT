@@ -151,9 +151,9 @@ namespace Hrot.Map.Common.Replication.Interactions
             actor:       static (in EmbarkEntityCommand e) => e.Passenger,
             isRemote:    static (in EmbarkEntityCommand e) => e.IsRemote,
             ownsTarget:  static (repo, vehicle) => Embarkation.OwnsVehicle(repo, vehicle),
-            toPayload:   static (in EmbarkEntityCommand e) => new InteractionPayload { Embark = default },
+            toPayload:   static (in EmbarkEntityCommand e) => new InteractionPayload { Embark = new EmbarkInteractionPayload { Role = (byte)e.Role } },   // ⭐ CE-2151 B-b
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
-                => new EmbarkEntityCommand { Vehicle = target, Passenger = actor, IsRemote = true });
+                => new EmbarkEntityCommand { Vehicle = target, Passenger = actor, IsRemote = true, Role = (Fdp.Toolkit.Behavior.Components.SeatRole)p.Embark.Role });
 
         /// <summary>⭐ CE-3110 I-2a — a passenger leaves its vehicle (the raiser names the vehicle: the wire's target).</summary>
         public static readonly IInteractionCodec Disembark = new InteractionCodec<DisembarkEntityCommand>(

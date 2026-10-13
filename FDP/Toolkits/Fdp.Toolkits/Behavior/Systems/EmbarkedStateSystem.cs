@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     [UpdateInPhase(SystemPhase.Input)]
     public sealed class EmbarkedStateSystem : IEcsModuleSystem
     {
-        private readonly List<(Entity passenger, Entity vehicle)> _boarders = new();
+        private readonly List<(Entity passenger, Entity vehicle, int seat)> _boarders = new();
         private readonly List<(Entity passenger, Entity vehicle)> _leavers = new();
         private readonly Dictionary<Entity, int> _leaving = new();
         private readonly Dictionary<Entity, int> _order = new();
@@ -45,12 +45,13 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var vehicle in repo.Query().With<PassengerBuffer>().Build())
             {
                 ref readonly var buffer = ref repo.GetComponentRO<PassengerBuffer>(vehicle);
-                for (int i = 0; i < buffer.Count && i < PassengerBuffer.Capacity; i++)
+                for (int i = 0; i < PassengerBuffer.Capacity; i++)   // ⭐ CE-2151 B-b — every seat; a slot IS a seat, so one may be empty mid-list
                 {
                     var p = buffer.Passengers[i];
-                    if (!repo.IsAlive(p)) continue;
-                    if (repo.HasComponent<IsEmbarkedTag>(p) && repo.GetComponentRO<IsEmbarkedTag>(p).VehicleEntity == vehicle) continue;
-                    _boarders.Add((p, vehicle));
+                    if (p.IsNull || !repo.IsAlive(p)) continue;
+                    if (repo.HasComponent<IsEmbarkedTag>(p) && repo.GetComponentRO<IsEmbarkedTag>(p) is var tag
+                        && tag.VehicleEntity == vehicle && tag.Seat == i) continue;
+                    _boarders.Add((p, vehicle, i));
                 }
             }
 
@@ -63,7 +64,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 _leaving[vehicle] = _leaving.TryGetValue(vehicle, out var n) ? n + 1 : 1;
             }
 
-            foreach (var (p, vehicle) in _boarders) { Embarkation.Board(repo, p, vehicle); Boarded++; }
+            foreach (var (p, vehicle, seat) in _boarders) { Embarkation.Board(repo, p, vehicle, seat); Boarded++; }
 
             foreach (var (p, vehicle) in _leavers)
             {
@@ -118,7 +119,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         private bool Listed(Entity p)
         {
-            foreach (var (b, _) in _boarders) if (b == p) return true;
+            foreach (var (b, _, _) in _boarders) if (b == p) return true;
             return false;
         }
 

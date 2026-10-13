@@ -81,10 +81,9 @@ namespace Hrot.SimHost.Systems
                     }
                 }
                 if (!allResolved) continue;
-                EnsureBuffer(repo, entity);
                 foreach (var netId in intent.PassengerNetworkIds)
                     if (_entityMap.TryGetEntity(netId.NetworkId, out var passenger))
-                        Fdp.Toolkit.Behavior.Embarkation.TryEmbark(repo, passenger, entity);
+                        Count(Fdp.Toolkit.Behavior.Embarkation.TryEmbark(repo, passenger, entity));
                 cmd.RemoveManagedComponent<InitialPassengersIntent>(entity);
             }
         }
@@ -96,15 +95,19 @@ namespace Hrot.SimHost.Systems
                 var intent = view.GetManagedComponentRO<InitialVehicleIntent>(entity);
                 if (!_entityMap.TryGetEntity(intent.VehicleNetworkId.NetworkId, out var vehicle) || !view.IsAlive(vehicle))
                     continue;
-                EnsureBuffer(repo, vehicle);
-                Fdp.Toolkit.Behavior.Embarkation.TryEmbark(repo, entity, vehicle);
+                Count(Fdp.Toolkit.Behavior.Embarkation.TryEmbark(repo, entity, vehicle));
                 cmd.RemoveManagedComponent<InitialVehicleIntent>(entity);
             }
         }
 
-        private static void EnsureBuffer(EntityRepository repo, Entity vehicle)
+        /// <summary>⭐ <c>CE-2151</c> B-b (R-2009 B3) — boardings a scenario asked for that the rules refused: the vehicle's type declares no
+        /// <c>Gen.Carrier</c> (it carries nobody) or has no free seat. ⛔ Genesis used to give such a vehicle a list (<c>EnsureBuffer</c>),
+        /// which made any type a carrier the moment a save named passengers for it.</summary>
+        public int RefusedBoardings { get; private set; }
+
+        private void Count(Fdp.Toolkit.Behavior.EmbarkResult result)
         {
-            if (!repo.HasComponent<PassengerBuffer>(vehicle)) repo.SetComponent(vehicle, new PassengerBuffer());
+            if (result is Fdp.Toolkit.Behavior.EmbarkResult.Invalid or Fdp.Toolkit.Behavior.EmbarkResult.Full) RefusedBoardings++;
         }
 
         private void MaterializeHierarchy(ISimulationView view, EntityCommandBuffer cmd, EntityRepository repo)

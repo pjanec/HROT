@@ -195,7 +195,12 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void CE3110_Embark_FailsAtOnce_WhenTheVehicleIsFull_AndRaisesNothing()
         {
             var vehicle = CreateVehicle(new Vector3(0f, 0f, 0f));
-            _world.GetComponentRW<PassengerBuffer>(vehicle).Count = PassengerBuffer.Capacity;
+            // ⭐ CE-2151 B-b — full = no free SEAT: fill every seat with someone (a bare Count no longer means full).
+            var occupants = new Entity[PassengerBuffer.Capacity];
+            for (int i = 0; i < occupants.Length; i++) occupants[i] = _world.CreateEntity();
+            ref var full = ref _world.GetComponentRW<PassengerBuffer>(vehicle);
+            for (int i = 0; i < occupants.Length; i++) full.Passengers[i] = occupants[i];
+            full.Count = PassengerBuffer.Capacity;
             var (soldier, channel) = CreateSoldier(new Vector3(1f, 0f, 0f), vehicle, 3f);
 
             _executor.Execute(soldier, ref channel, _world, 0f);

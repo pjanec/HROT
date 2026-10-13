@@ -83,8 +83,14 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         using var harness = new EditorHarness();
         var world = harness.Repo;
 
+        // ⭐ CE-2151 B-b — full = no free SEAT: fill every seat with someone (a bare Count no longer means full).
+        var occupants = new Entity[PassengerBuffer.Capacity];
+        for (int i = 0; i < occupants.Length; i++) occupants[i] = world.CreateEntity();
         var apc = world.CreateEntity();
-        world.AddComponent(apc, new PassengerBuffer { Count = PassengerBuffer.Capacity });
+        world.AddComponent(apc, new PassengerBuffer());
+        ref var full = ref world.GetComponentRW<PassengerBuffer>(apc);
+        for (int i = 0; i < occupants.Length; i++) full.Passengers[i] = occupants[i];
+        full.Count = PassengerBuffer.Capacity;
 
         var extraSoldier = world.CreateEntity();
         world.AddComponent(extraSoldier, new ActorCapabilityState());

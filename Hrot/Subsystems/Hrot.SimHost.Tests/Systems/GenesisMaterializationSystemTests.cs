@@ -90,6 +90,7 @@ namespace Hrot.SimHost.Tests
             var passenger = CreateNetworkedEntity(42L);
 
             var vehicle = _repo.CreateEntity();
+            _repo.AddComponent(vehicle, new PassengerBuffer());   // ⭐ CE-2151 — a carrier (its type declares Gen.Carrier)
             var intent = new InitialPassengersIntent();
             intent.PassengerNetworkIds.Add(new EntityRef(42L));
             _repo.SetManagedComponent(vehicle, intent);
@@ -110,6 +111,7 @@ namespace Hrot.SimHost.Tests
         public void Vehicle_MaterializesIsEmbarkedTagOnceVehicleInMap()
         {
             var vehicle = CreateNetworkedEntity(77L);
+            _repo.AddComponent(vehicle, new PassengerBuffer());   // ⭐ CE-2151 — a carrier
 
             var soldier = _repo.CreateEntity();
             _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77L) });
@@ -130,6 +132,7 @@ namespace Hrot.SimHost.Tests
         public void CE3110_APassengerLoadedAboard_IsOnTheList_Tagged_AndCannotMoveOrShoot()
         {
             var vehicle = CreateNetworkedEntity(77L);
+            _repo.AddComponent(vehicle, new PassengerBuffer());   // ⭐ CE-2151 — a carrier
             var soldier = CreateNetworkedEntity(42L);
             _repo.AddComponent(soldier, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
             var intent = new InitialPassengersIntent();
@@ -150,6 +153,27 @@ namespace Hrot.SimHost.Tests
         }
 
         // â”€â”€ Test 4: VisHierarchyNode written from InitialHierarchyIntent â”€â”€â”€â”€â”€â”€â”€
+
+        /// <summary>
+        /// ⭐ <c>CE-2151</c> B-b (R-2009 B3) — a scenario naming passengers for a vehicle whose type carries nobody (no <c>Gen.Carrier</c>, so
+        /// no list) does NOT make it a carrier: the boarding is refused, counted, and the intent is still consumed.
+        /// ✅ Red-proof: restore <c>EnsureBuffer</c> ⇒ the vehicle gains a list ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2151_ANonCarrierNamedAsAVehicle_IsNotMadeACarrier()
+        {
+            var tank = CreateNetworkedEntity(77L);
+            var soldier = CreateNetworkedEntity(42L);
+            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77L) });
+
+            var sys = CreateAndStartSystem();
+            sys.Execute(_repo, 0.016f);
+
+            Assert.False(_repo.HasComponent<PassengerBuffer>(tank));
+            Assert.False(_repo.HasComponent<IsEmbarkedTag>(soldier));
+            Assert.False(_repo.HasManagedComponent<InitialVehicleIntent>(soldier));
+            Assert.Equal(1, sys.RefusedBoardings);
+        }
 
         [Fact]
         public void Hierarchy_MaterializesVisHierarchyNodeOnceAllEntitiesInMap()

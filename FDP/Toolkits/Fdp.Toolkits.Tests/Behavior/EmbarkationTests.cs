@@ -134,7 +134,9 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var buf = _world.GetComponent<PassengerBuffer>(v);
             Assert.Equal(1, buf.Count);
-            Assert.Equal(b, buf.Passengers[0]);
+            // ⭐ CE-2151 B-b (R-2009 B4) — a slot IS a seat: a's seat empties IN PLACE and b keeps seat 1 (was: swap-removed into seat 0).
+            Assert.True(buf.Passengers[0].IsNull);
+            Assert.Equal(b, buf.Passengers[1]);
             Assert.False(_world.HasComponent<IsEmbarkedTag>(a));
             Assert.Equal(Embarkation.StrippedAboard, Caps(a) & Embarkation.StrippedAboard);
             var at = _world.GetComponent<SimTransform>(a).Position;

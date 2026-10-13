@@ -44,7 +44,7 @@ namespace Hrot.SimHost.Serializers
             var buffer = repo.GetComponent<PassengerBuffer>(entity);
             var passengers = new JsonArray();
 
-            for (int i = 0; i < buffer.Count; i++)
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)   // ⭐ CE-2151 B-b — every seat (a slot IS a seat; holes are skipped)
             {
                 Entity passenger = buffer.Passengers[i];
                 if (passenger.IsNull || !repo.IsAlive(passenger))

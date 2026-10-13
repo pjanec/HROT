@@ -96,6 +96,43 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, other.GetComponentRO<PassengerBuffer>(otherApc).Count);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2151</c> B-b (R-2009 B4) — a slot IS a seat on the wire too: when the passenger in seat 0 leaves, the one in seat 1 stays
+        /// in seat 1 on every node (the sample carries 0 for the hole and Count = the occupied seats).
+        /// ✅ Red-proof: the old packed ingress (append) ⇒ B lands in seat 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2151_ASeatLeftEmpty_StaysAHoleOnEveryNode()
+        {
+            using var owner = World();
+            var ownerMap = new NetworkEntityMap();
+            var apc = Networked(owner, ownerMap, ApcId, vehicle: true);
+            var a = Networked(owner, ownerMap, AId);
+            var b = Networked(owner, ownerMap, BId);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(owner, a, apc));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(owner, b, apc));
+            Assert.True(Embarkation.Disembark(owner, a, apc));
+
+            var sample = EntityPassengersEgressTranslator.ToSample(owner, ApcId, owner.GetComponentRO<PassengerBuffer>(apc));
+            Assert.Equal((byte)1, sample.Count);
+            Assert.Equal(0L, sample.Passenger0);
+            Assert.Equal(BId, sample.Passenger1);
+
+            using var other = World();
+            var otherMap = new NetworkEntityMap();
+            var otherApc = Networked(other, otherMap, ApcId, vehicle: true);
+            var otherB = Networked(other, otherMap, BId);
+            var ingress = new EntityPassengersIngressTranslator(participant: null, otherMap);
+            using var cmd = new EntityCommandBuffer();
+            ingress.Receive(in sample);
+            ingress.Flush(cmd, other);
+            cmd.Playback(other);
+            var list = other.GetComponentRO<PassengerBuffer>(otherApc);
+            Assert.Equal(1, list.Count);
+            Assert.True(list.Passengers[0].IsNull);
+            Assert.Equal(otherB, list.Passengers[1]);
+        }
+
         [Fact]
         public void CE3110_I2b_OnlyTheDescriptorOwnerPublishes_AndTheOwnerNeverTakesItsOwnSampleBack()
         {

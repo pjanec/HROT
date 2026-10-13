@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Squad.Systems
             ref readonly var buffer = ref repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(carrier);
             System.Span<Entity> told = stackalloc Entity[Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity];
             int n = 0;
-            for (int i = 0; i < buffer.Count; i++)
+            for (int i = 0; i < Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity; i++)   // ⭐ CE-2151 B-b — every seat
             {
                 var passenger = buffer.Passengers[i];
                 if (passenger.IsNull || !repo.IsAlive(passenger) || !repo.HasComponent<UnitSubordinate>(passenger)) continue;
