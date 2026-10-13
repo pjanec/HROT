@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-13 (§7.4 L4 casualty care designed — K1–K6 await the user)
+updated: 2026-10-13 (§7.8 the three demos and their HTTP checks; §7.5–§7.7 approved, not built)
 build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch BUILT 2026-10-12 (as-built §6.1a) · embark §5 and formations §6 are MEASUREMENTS
-current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built, §7.4 L4 casualty care (K1–K6 ruled, R-2012) · §7.5 casualty care coordination + the rescue decision (DESIGN, approved R-2013, not built) · §7.6 fire and movement (DESIGN, approved, not built) · §7.7 danger-area crossing (DESIGN, approved R-2014, not built)
+current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built, §7.4 L4 casualty care (K1–K6 ruled, R-2012) · §7.5 casualty care coordination + the rescue decision (DESIGN, approved R-2013, not built) · §7.6 fire and movement (DESIGN, approved, not built) · §7.7 danger-area crossing (DESIGN, approved R-2014, not built) · §7.8 the three demos and their HTTP success checks (DESIGN, not built)
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the ua-* demo programme and scripts/utility-demo-check.py; its §10.3 ua-danger-crossing is the single-soldier demo whose route §7.8.4's squad demo reuses
   - ../../DESIGN_Injury_States.md — OWNS the injury states (CE-2155) that L4 casualty care waits for
   - docs/DESIGN_Orders_Params_Entity_Classes.md — D2 (CE-2141, §7): the order behaviours InfantrySquadMove / Hold / Attack are front doors to this file's plays; every drill's orders to its members are RELEASED when the commander's run ends (not at a pause); a unit member gets Order.* (A4)
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-273 (behaviors) — an order to a squad is resolved by the squad (A2), drills order member UNITS by kind (A4), an ended drill clears its members (A5)
@@ -801,7 +802,7 @@ and no care — as today for every play.*
 | **R-b** | `MemberOrderKind.Suppress` + library `SuppressBehavior` (forced `PostureNodes.Suppress` on a named contact) | a suppressor fires at a remembered contact it cannot see |
 | **R-c** | `SquadCasualtyCarePlay` (Suppress → Go → Carry → Done) + `MemberOrderKind.CarryCasualty` | the medic waits until the coverers fired · he brings the man to the cover point · the orders return |
 | **R-d** | the three inputs + `Rescue` option + the re-decide | heavy fire ⇒ Hold, the man waits · quiet + exposed-free ⇒ Rescue · a man about to bleed out under light fire ⇒ Rescue |
-| **R-e** | a live scenario (`ua-casualty-care`): a squad in contact, a man down, the medic drags him to cover under covering fire | the cluster run |
+| **R-e** | a live scenario (`ua-casualty-care` + `-heavy` + `-leader`): a squad in contact, a man down, the medic drags him to cover under covering fire | §7.8.2, over HTTP |
 
 ### 7.6 Fire and movement — the same pattern *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved (R-2013, leans (b)); NOT built)*
 
@@ -841,6 +842,7 @@ watching and suppressing are different jobs, and before contact there is nothing
 | **F-b** | `RushTo` + `FireAndMovementPlay` (halves) |
 | **F-c** | `BoundingOverwatchPlay`: suppress on contact, cover-point bounds |
 | **F-d** | pairs (buddy teams) |
+| **F-e** | the live scenarios `ua-bounding-overwatch` (after F-c) and `ua-fire-and-movement` (after F-b) — §7.8.3, over HTTP |
 
 ### 7.7 Danger-area crossing — the squad drill *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved 2026-10-13 (R-2014), NOT built)*
 
@@ -957,8 +959,128 @@ objective, rated from the squad's pool) — the X-a slice adds it to the command
 | **X-a** | the commander's route sensor (type data + route "to the objective", pool rating); `Watch` order + library `WatchBehavior` | `AreaAhead` reaches the commander · a watcher fires only at a seen enemy |
 | **X-b** | `DangerCrossingPlay` + the D2 table change; lanes by `SlotRotation`; overwatch spots by `FindCoverFromTarget` | security sets before anyone crosses · pairs cross one at a time on different lanes · far side sets before security collapses · all across ⇒ reform |
 | **X-c** | the `BasicSquadSop` row; contact ⇒ abort ⇒ `ReactToContact` | a contact mid-crossing hands over to the reaction |
-| **X-d** | a live scenario (`ua-danger-crossing`): a squad crosses a street; a variant with a hostile on the far side | the cluster run |
+| **X-d** | a live scenario (`ua-squad-danger-crossing` + `-contact`): a squad crosses a street; a variant with a hostile on the far side. ⚠ NOT `ua-danger-crossing` — that name is the BUILT single-soldier demo (`DESIGN_Utility_AI_Demo_Scenarios.md` §10.3) | §7.8.4, over HTTP |
 | later | wire `ManeuverSelectStarterDecision` (cross / bound / hold) | D3 |
+
+### 7.8 The demos — one per drill, each checked over HTTP *(behaviors, `2026-10-13`; build-state: DESIGN — not built; the scenario slices R-e, F-e, X-d)*
+
+⭐ **The rule for all three:** a demo is DONE when its checker in `scripts/utility-demo-check.py` passes against a fresh
+`ClusterRunner --mode all` *(RUNBOOK_Cluster_Debugging_Over_Http §1, `localhost` not `127.0.0.1`, boots paused)*. Each check below is
+one HTTP read and one pass condition. ⚠ The runs are NOT deterministic (RUNBOOK §8): the checks assert the ORDER of events and their
+bounds, never exact positions or kill counts. Scenarios live in `scenarios/<name>/scenario.json` on test-town (the existing `ua-*` home);
+the exact coordinates are picked when each scenario is authored and recorded in its as-built row.
+
+#### 7.8.1 What the checks read — and the one thing that does not exist yet (slice **O-a**)
+
+```mermaid
+graph TD
+  CHK["utility-demo-check.py — one run_* per demo"]
+  CHK --> SQ["GET /entities/{cmdr}/squad — members, assignment, contact pool (CE-3087)"]
+  CHK --> MV["NEW maneuver block on /squad — kind, phase, history, member orders, care (O-a)"]
+  CHK --> UT["GET /entities/{cmdr}/utility — winner + per-consideration scores (CE-3069)"]
+  CHK --> WP["GET /entities/{id}/weapons — ammo per mount (CE-3089)"]
+  CHK --> SE["GET /entities/{id}/sensors + /memory — danger areas, what a unit sees (CE-3072, CE-3144)"]
+  CHK --> EN["GET /entities/{id} — SimTransform, Health, IsEmbarkedTag, BehaviorState"]
+  CHK --> HP["POST health / spawn — the scripted trigger (casualty, late hostile)"]
+  MV -. reads .-> PS["SquadCognitiveState.ManeuverKind / PhaseId / Roles + SquadPlayState"]
+  style MV fill:#fde2e2,stroke:#c0392b
+```
+
+*What the picture shows that prose hid: every check rides a route that exists today EXCEPT the red box. Without it a checker cannot
+see the phase, the history or the orders, and would have to infer them from positions.*
+
+| O-a — the `maneuver` block on `GET /entities/{commander}/squad` | why |
+|---|---|
+| `kind`, `kindName`, `phase`, `phaseName`, `phaseSince` | read straight from `SquadCognitiveState` (today's route ignores them, `DebugApiService.Squad.cs:48`) |
+| `members[]`: `slot`, `networkId`, `role`, `order {kind, point, cover}`, `inTheFight` | the order the runner last issued; `cover` = the point came from a cover query |
+| `history[]` (last 16): `{t, phase, event}` with `event` ∈ the `PhaseEventKind` that moved it, or `Timeout` / `Abort` | a fast phase (one pair crossing) is missed by polling; the history makes the order checkable. Lean: recorded by the observe switch, like the utility record (`observe_trace`), so it costs nothing unobserved — ⛔ where that recorder lives is not measured; measure it in O-a |
+| `care {casualty, medic, coverPoint, stage}` while the care play runs | the rescue checks name the medic and the cover point |
+| `gates {covering, set}` | the two F-a gates, as the commander reads them |
+
+⭐ O-a goes first, with whichever demo is built first. Its own rail: the block lists a running `BoundingOverwatch` play's phase and orders.
+
+#### 7.8.2 `ua-casualty-care` — the medic brings a man to cover (R-e; needs R-a … R-d)
+
+**Cast:** a leader, a `Medic` (designation), four riflemen, in cover at a building edge; one hostile seen earlier, now with no sight of
+the casualty's spot and holding fire. **Trigger:** once the squad's pool holds the contact, the checker sets rifleman 3's health to 25
+(incapacitated, bleeding; he is 15 m out in the open). Why scripted: a hit is not deterministic; the health write is what the hit would do.
+
+| # | check | read | pass |
+|---|---|---|---|
+| ① | the man is down, and the squad knows once | `/squad` history | one `SquadMemberDown` for his slot within 1 s of the write; none later |
+| ② | Rescue wins | `/utility` "Squad contact response" | winner `Rescue` within 15 s; each of its four considerations > 0 |
+| ③ | the Medic goes, nobody else | `/squad` care | `care.medic` = the Medic; no other member gets a `CarryCasualty` order |
+| ④ | covering fire BEFORE the medic moves | `/weapons` per coverer + Medic's position | every coverer's ammo dropped before the Medic is 1 m from where he stood |
+| ⑤ | he takes the man | `/entities/{casualty}` | `IsEmbarkedTag.VehicleEntity` = the Medic within 40 s |
+| ⑥ | to a hidden cover point | `/squad` care + positions + `/entities/{hostile}/memory` (CE-3144) | both end within 2 m of `care.coverPoint`; the hostile's memory slot for the casualty is not refreshed after he arrives there |
+| ⑦ | he puts him down, alive | `/entities/{casualty}` | the tag is gone; `Health.Current > 0` |
+| ⑧ | everyone goes back | `BehaviorState.ActiveBehaviorHash` per member | within 5 s of ⑦, each coverer and the Medic runs what he ran before ① |
+| ⑨ | a down man gets no orders (R-a) | `/squad` members | the casualty's `order` never changes after ①; `inTheFight` false |
+
+**Variant `-heavy` (the scoring):** three hostiles with sight of the casualty, firing at the squad.
+① as above · ② for 30 s `Rescue` never wins, `lastPass` shows `CasualtyExposure` or `SquadQuietSeconds` near 0, the Medic stays
+within 2 m of his start and the casualty is not carried · ③ the checker sets the three hostiles' health to 0 · ④ within 15 s (quiet
+10 s + one 5 s re-decide) `Rescue` wins, then ④–⑦ as above.
+
+**Variant `-leader` (succession, R-a):** the casualty is the LEADER. ① `/squad` on the next leader shows `role: commander` within 2 s,
+on the old one `role: none` · ② then ②–⑦ as above, run by the new commander.
+
+⛔ Not a demo, a rail only: the Medic called back mid-walk when fire starts (R-d) — the fire cannot be started at a chosen moment
+without scripting the hostile's weapon, which would test the script.
+
+#### 7.8.3 `ua-bounding-overwatch` and `ua-fire-and-movement` (F-e; need F-a, F-b, F-c)
+
+**`ua-bounding-overwatch` (F-c):** a leader and five riflemen ordered `BoundingOverwatch` to an objective ~150 m away across
+open ground and trees; one hostile at the objective, out of sight until the squad is ~70 m from it.
+
+| # | check | read | pass |
+|---|---|---|---|
+| ① | one half moves, the other watches | positions every 0.5 s | never both halves moving (> 0.5 m/s) for more than 1 s at a time |
+| ② | a bound ends in cover | `/squad` members' `order.cover` + positions | at each swap every mover is within 1.5 m of its point and `cover` is true |
+| ③ | the swap is "set", not the clock | `/squad` history | ≥ 80 % of swaps carry `DefiladeReached`, the rest `Timeout` |
+| ④ | nobody fires before contact | `/weapons` all members | ammo unchanged until the pool's `contactCount` ≥ 1 |
+| ⑤ | on contact the watchers suppress | `/squad` orders + `/weapons` | within 3 s the watching half has `Suppress` orders; within 5 s their ammo drops |
+| ⑥ | the movers do not stop in the open | positions | the bounding half ends its bound at its cover point |
+
+**`ua-fire-and-movement` (F-b):** the same squad starts in contact, 120 m from two hostiles at a building edge, ordered
+`FireAndMovement` toward them. The hostiles are tough and inaccurate (high health, low hit chance), so the drill runs long enough to watch.
+
+| # | check | read | pass |
+|---|---|---|---|
+| ① | the halves split | `/squad` orders | half A `Suppress`, half B `RushTo` |
+| ② | "Covering!" before "Moving!" | `/weapons` + positions | a mover starts only when every coverer fired within the last 2 s |
+| ③ | short rushes into cover | orders + positions | each rush ≤ 17 m (15 + tolerance) and ends at a `cover` point or prone |
+| ④ | the swap waits for "set" | `/squad` history + `gates` | ≥ 3 swaps in 90 s, each with `set` and `covering` true at the moment of the swap |
+| ⑤ | it closes the distance | positions | after 4 rushes the squad's centre is ≥ 30 m nearer the hostiles |
+| ⑥ | never both halves up | positions every 0.5 s | as ① above |
+
+⛔ Pairs (F-d) get no demo of their own: the same checks, per pair, once F-d is built.
+
+#### 7.8.4 `ua-squad-danger-crossing` (X-d; needs X-a … X-c)
+
+**Cast:** a leader and six riflemen on the route that `ua-danger-crossing` uses (south-west → objective `(285, 220)`, crossing the
+vertical road `x 190–210`); no hostile. The road strip is read from the commander's danger sensor (`/sensors`: centre, extents, angle).
+
+| # | check | read | pass |
+|---|---|---|---|
+| ① | the area is seen, the drill starts | `/sensors` + `/squad` maneuver | the road crossing listed; `kind` = DangerAreaCrossing within 5 s; nobody in the strip yet |
+| ② | security first | positions + orders | the security half is stopped (< 0.3 m/s) within 3 m of its spots BEFORE the first crosser enters the strip |
+| ③ | one pair at a time, on new lanes | positions + orders | never more than 2 members inside the strip; consecutive pairs enter ≥ 3 m apart along the road |
+| ④ | far side set before security leaves | `/squad` history + positions | `FarSideCover` → `CollapseSecurity` by `DefiladeReached`; no security member enters the strip before that |
+| ⑤ | security crosses last | positions | the last members to leave the strip are the security half |
+| ⑥ | reform, then go on | `/squad` phase + positions | phase `Reform` reached; all within 10 m of each other on the far side; then the squad reaches the objective |
+| ⑦ | watching, not shooting (D5) | `/weapons` all members | ammo unchanged for the whole run |
+| ⑧ | it finishes | sim time | the crossing (① to `Reform`) takes ≤ 120 s |
+
+**Variant `-contact` (D6):** the checker spawns a hostile on the far side while the second pair is in the strip.
+① `/squad` history shows `Abort` within 2 s of the first shot (anyone's ammo drop) · ② the commander's behaviour becomes
+`ReactToContact` · ③ no member ENTERS the strip after the abort (those in it finish within 5 s) · ④ at least one member on EACH side
+fires at the hostile (each side keeps its element).
+
+#### 7.8.5 Order
+
+O-a (with the first demo) → `ua-casualty-care` after R-d → `ua-fire-and-movement` after F-b → `ua-bounding-overwatch` after F-c →
+`ua-squad-danger-crossing` after X-c. Each demo's checker is added to `SCENARIOS` in the same commit as its scenario.
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 
