@@ -262,7 +262,8 @@ namespace Hrot.SimHost.Tests
             t = SquadDrillTrace.Of(s.Repo, s.Commander);
             Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, t.Phase);
             Assert.Equal(2, t.History.Length);
-            Assert.Equal((byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.BoundComplete, t.History[1].Event);
+            // ⭐ CE-2158 F-c — an arrived bound is "set" (DefiladeReached); BoundComplete is now only the timed-out one
+            Assert.Equal((byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.DefiladeReached, t.History[1].Event);
             Assert.Equal((byte)MemberOrderKind.AdvanceTo, t.Orders[3].Kind);   // Bravo now bounds
 
             for (int i = 0; i < 400; i++) s.Tick();                              // Bravo never arrives: the bound times out
@@ -1259,6 +1260,58 @@ namespace Hrot.SimHost.Tests
             Ticks(s, 4);
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);                                  // out: the battle drill
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
+        // ── CE-2158 F-c — bounding overwatch: suppress on contact, cover-point bounds ───────────────────────────────────────────────
+
+        private static Entity BoQuery(Squad s) => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, BoundingOverwatchPlay.CoverSite);
+
+        /// <summary>⭐ <c>CE-2158</c> F-c (§7.6) — before contact the covering element WATCHES (holds); once the squad's pool holds a contact it
+        /// SUPPRESSES it. 🔴 Red before: the coverers only ever held, contact or not.</summary>
+        [Fact]
+        public void CE2158_BoundingOverwatch_TheWatchersSuppressOnContact()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":60}");
+            s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.CombatPosture, LastIntent(s, s.Members[2]));     // watching
+            var enemy = s.Repo.CreateEntity();
+            s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(0, 90, 0), Rotation = Quaternion.Identity });
+            s.Pool(enemy, new Vector3(0, 90, 0), reporters: 1);
+            s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[2]));
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[3]));
+            Assert.Equal(BehaviorNames.AdvanceTo, LastIntent(s, s.Members[0]));         // the bound goes on
+        }
+
+        /// <summary>⭐ <c>CE-2158</c> F-c — while Alpha bounds, the commander asks for cover for BRAVO's next bound (before contact aimed at the
+        /// objective, where the enemy is expected); when Alpha is set (DefiladeReached), Bravo bounds to the cover points ahead.
+        /// 🔴 Red before: the bound point was the formation shifted 30 m, cover or not.</summary>
+        [Fact]
+        public void CE2158_BoundingOverwatch_TheNextBoundGoesToCoverAhead()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":60}");
+            s.Tick(); s.Tick();
+            var query = BoQuery(s);
+            Assert.False(query.IsNull);
+            var sensor = s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(query);
+            Assert.Equal(s.Members[2], sensor.ContextSlot0);                             // around Bravo's lead
+            Assert.Equal(Fdp.Toolkit.Spatial.Eqs.EqsSensor.Point1Bit, sensor.ContextPointMask & Fdp.Toolkit.Spatial.Eqs.EqsSensor.Point1Bit);
+            Assert.Equal(new Vector3(0, 100, 0), sensor.ContextPoint1);                   // hidden from where the enemy is expected
+            var b0 = new Vector3(9, 26, 0); var b1 = new Vector3(13, 25, 0);
+            AnswerAll(s, query, new Vector3(8, -10, 0), b0, b1);
+            s.Tick();
+
+            var first = s.LastObjectives();
+            foreach (var m in s.Members.Take(2)) s.Teleport(m, first[m]);                // Alpha is set
+            s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, s.Phase);
+            var t = SquadDrillTrace.Of(s.Repo, s.Commander);
+            Assert.Equal((byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.DefiladeReached, t.History[^1].Event);
+            Assert.Equal(b0, t.Orders[2].Point);
+            Assert.Equal(b1, t.Orders[3].Point);
+            Assert.True(t.Orders[2].Cover && t.Orders[3].Cover);
         }
 
         // ── CE-2158 F-b — fire and movement (Squad Tactics §7.6.1) ──────────────────────────────────────────────────────────────

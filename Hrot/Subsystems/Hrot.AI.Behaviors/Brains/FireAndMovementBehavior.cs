@@ -16,7 +16,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// <summary>⭐ <c>CE-2158</c> F-b — fire and movement's params; the pick fields are the play's own memory (each mover's cover point for
     /// the coming rush).</summary>
     [StructLayout(LayoutKind.Sequential)]
-    public unsafe struct FireAndMovementParams
+    public struct FireAndMovementParams
     {
         /// <summary>Where the squad closes to.</summary>
         public Vector3 Objective;
@@ -30,14 +30,8 @@ namespace Hrot.AI.Behaviors.Brains
         public float CoveringSeconds;
         /// <summary>A rush counts as set after this long (s).</summary>
         public float RushTimeoutSeconds;
-        /// <summary>Runtime: each mover's point for the coming rush, by roster slot.</summary>
-        public fixed float PickX[16];
-        public fixed float PickY[16];
-        public fixed float PickZ[16];
-        /// <summary>Runtime: the roster bits whose pick is a cover point (the query's), not a geometric one.</summary>
-        public ushort CoverMask;
-        /// <summary>Runtime: the Cover phase the picks were made for, plus one (0 = none yet).</summary>
-        public ushort PickedPhase;
+        /// <summary>Runtime: each mover's cover point for the coming rush (<see cref="SquadCover"/>).</summary>
+        public SquadCoverPicks Cover;
     }
 
     /// <summary>
@@ -52,13 +46,6 @@ namespace Hrot.AI.Behaviors.Brains
     {
         /// <summary>The commander's cover query, one per bound.</summary>
         public const int CoverSite = 0x21580001;
-        /// <summary>A pick must bring the mover at least this much nearer the objective (m).</summary>
-        public const float MinProgressMetres = 3f;
-        /// <summary>Two movers' picks at least this far apart (m).</summary>
-        public const float PickSpacingMetres = 2f;
-        /// <summary>The query gives up after this long; the movers get geometric points (s).</summary>
-        public const float PickTimeoutSeconds = 5f;
-
         private static readonly SquadHsmShell s_shell = new(FireAndMovementManeuver.BuildTransitionTable(), FireAndMovementManeuver.PhaseAborted);
 
         public SquadHsmShell Shell => s_shell;
@@ -73,8 +60,7 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < ctx.Roster.Count; i++) if (ctx.Live(i, out _)) live++;
             if (live < 2) return PlayStart.Fail;
             BoundingOverwatchManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);   // first half, second half
-            p.PickedPhase = 0;
-            p.CoverMask = 0;
+            p.Cover = default;
             return PlayStart.Go;
         }
 
@@ -89,7 +75,9 @@ namespace Hrot.AI.Behaviors.Brains
             SquadGates.Track(ref ws.Gate, in ctx);
             ushort phase = ctx.Squad.PhaseId;
             byte e = FireAndMovementManeuver.MovingElement(phase);
-            if (!FireAndMovementManeuver.IsRush(phase) && p.PickedPhase != phase + 1) PickCover(ref p, ref ws, in ctx, phase, e);
+            if (!FireAndMovementManeuver.IsRush(phase) && !SquadCover.IsReady(in p.Cover, e))
+                SquadCover.Make(ref p.Cover, ref ws, in ctx, CoverSite, e, p.Objective, p.RushMetres,
+                                ws.ThreatId != 0 ? new Entity((ulong)ws.ThreatId) : Entity.Null, p.Objective, ws.IssuedAt);
             SquadDrillTrace.Gates(ctx.World, ctx.Commander,
                 SquadGates.Covering(in ws.Gate, in ctx, SquadGates.Element(in ctx, (byte)(1 - e))),
                 SquadGates.Set(in ws, in ctx, SquadGates.Element(in ctx, e), SquadGates.SetMetres));
@@ -115,13 +103,14 @@ namespace Hrot.AI.Behaviors.Brains
             if (FireAndMovementManeuver.IsRush(phase))
             {
                 evt = PhaseEventKind.DefiladeReached;   // "Set!"
-                if (SquadGates.Set(in ws, in ctx, SquadGates.Element(in ctx, e), SquadGates.SetMetres)) return true;
-                if (ctx.Now - ws.IssuedAt < p.RushTimeoutSeconds) return false;
-                ws.CompletedByTimeout = 1;
+                bool set = SquadGates.Set(in ws, in ctx, SquadGates.Element(in ctx, e), SquadGates.SetMetres);
+                if (!set && ctx.Now - ws.IssuedAt < p.RushTimeoutSeconds) return false;
+                if (!set) ws.CompletedByTimeout = 1;
+                SquadCover.Spend(ref p.Cover, in ctx, e);   // the rush is over: the next one picks afresh
                 return true;
             }
             evt = PhaseEventKind.ShotFired;   // "Covering!"
-            if (p.PickedPhase != phase + 1) return false;
+            if (!SquadCover.IsReady(in p.Cover, e)) return false;
             if (SquadGates.Covering(in ws.Gate, in ctx, SquadGates.Element(in ctx, (byte)(1 - e)))) return true;
             if (ctx.Now - ws.IssuedAt < p.CoveringSeconds) return false;
             ws.CompletedByTimeout = 1;   // the movers go anyway: the covering never came
@@ -130,17 +119,18 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void BeginIssue(ref FireAndMovementParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
 
-        public unsafe MemberOrder OrderFor(ref FireAndMovementParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)
+        public MemberOrder OrderFor(ref FireAndMovementParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)
         {
             ushort phase = ctx.Squad.PhaseId;
             if (element == FireAndMovementManeuver.MovingElement(phase))
             {
                 if (!FireAndMovementManeuver.IsRush(phase))
                     return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = FireAndMovementManeuver.RoleMoving };
+                bool cover = SquadCover.Has(in p.Cover, member, out var pick);
                 return new MemberOrder   // RushTo
                 {
-                    Kind = MemberOrderKind.AdvanceTo, Point = new Vector3(p.PickX[member], p.PickY[member], p.PickZ[member]), Speed = p.Speed,
-                    ArrivalRadius = 1f, Cover = (p.CoverMask & (1 << member)) != 0 ? (byte)1 : (byte)0, RoleId = FireAndMovementManeuver.RoleMoving,
+                    Kind = MemberOrderKind.AdvanceTo, Point = cover ? pick : OneRush(ref p, at), Speed = p.Speed,
+                    ArrivalRadius = 1f, Cover = cover ? (byte)1 : (byte)0, RoleId = FireAndMovementManeuver.RoleMoving,
                 };
             }
             if (ws.ThreatId == 0) return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = FireAndMovementManeuver.RoleCovering };
@@ -153,76 +143,13 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void Release(ref SquadPlayState ws, EntityRepository world) => SquadManeuverRunner.DropSensor(ref ws, world);
 
-        /// <summary>Ask for cover around half <paramref name="e"/>'s first mover (hidden from the threat) and give each mover the answer
-        /// that brings him furthest toward the objective, within one rush of him; no threat, no answer, or the query too slow ⇒ a
-        /// geometric point one rush toward the objective.</summary>
-        private static void PickCover(ref FireAndMovementParams p, ref SquadPlayState ws, in SquadPlayContext ctx, ushort phase, byte e)
+        /// <summary>No cover ahead: one rush straight toward the objective.</summary>
+        private static Vector3 OneRush(ref FireAndMovementParams p, Vector3 at)
         {
-            var lead = SquadManeuverRunner.FirstLive(in ctx, e);
-            Span<EqsResult> answers = stackalloc EqsResult[16];
-            int count = 0;
-            if (ws.ThreatId != 0 && !lead.IsNull)
-            {
-                bool answered = SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindCoverFromTarget.BlueprintId, CoverSite,
-                    p.RushMetres + 5f, lead, new Entity((ulong)ws.ThreatId), out var buffer);
-                if (!answered)
-                {
-                    if (ctx.Now - ws.IssuedAt < PickTimeoutSeconds) return;
-                    SquadManeuverRunner.DropSensor(ref ws, ctx.World);
-                }
-                else
-                {
-                    count = Math.Min(buffer.Count, 16);
-                    buffer.GetSpanRO()[..count].CopyTo(answers);
-                }
-            }
-            Pick(ref p, in ctx, e, answers[..count]);
-            p.PickedPhase = (ushort)(phase + 1);
-        }
-
-        /// <summary>One point per live mover of half <paramref name="e"/> (see <see cref="PickCover"/>).</summary>
-        public static unsafe void Pick(ref FireAndMovementParams p, in SquadPlayContext ctx, byte e, ReadOnlySpan<EqsResult> answers)
-        {
-            p.CoverMask = 0;
-            ushort movers = SquadGates.Element(in ctx, e);
-            Span<Vector2> taken = stackalloc Vector2[16];
-            int takenCount = 0;
-            for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
-            {
-                if ((movers & (1 << i)) == 0 || !ctx.Live(i, out var m)) continue;
-                var me = ctx.At(m);
-                var toObj = new Vector2(p.Objective.X - me.X, p.Objective.Y - me.Y);
-                float dist = toObj.Length();
-                int best = -1;
-                float bestProgress = MinProgressMetres;
-                for (int k = 0; k < answers.Length; k++)
-                {
-                    var pt = new Vector2(answers[k].PositionX, answers[k].PositionY);
-                    if (Vector2.Distance(pt, new Vector2(me.X, me.Y)) > p.RushMetres + 2f) continue;
-                    float progress = dist - Vector2.Distance(pt, new Vector2(p.Objective.X, p.Objective.Y));
-                    if (progress < bestProgress || Near(taken[..takenCount], pt)) continue;
-                    best = k; bestProgress = progress;
-                }
-                Vector3 point;
-                if (best >= 0)
-                {
-                    point = new Vector3(answers[best].PositionX, answers[best].PositionY, answers[best].PositionZ);
-                    p.CoverMask |= (ushort)(1 << i);
-                }
-                else
-                {
-                    float step = dist > 1e-3f ? MathF.Min(p.RushMetres, dist) / dist : 0f;
-                    point = new Vector3(me.X + toObj.X * step, me.Y + toObj.Y * step, me.Z);
-                }
-                p.PickX[i] = point.X; p.PickY[i] = point.Y; p.PickZ[i] = point.Z;
-                taken[takenCount++] = new Vector2(point.X, point.Y);
-            }
-        }
-
-        private static bool Near(ReadOnlySpan<Vector2> taken, Vector2 pt)
-        {
-            foreach (var t in taken) if (Vector2.Distance(t, pt) < PickSpacingMetres) return true;
-            return false;
+            var to = new Vector2(p.Objective.X - at.X, p.Objective.Y - at.Y);
+            float dist = to.Length();
+            float step = dist > 1e-3f ? MathF.Min(p.RushMetres, dist) / dist : 0f;
+            return new Vector3(at.X + to.X * step, at.Y + to.Y * step, at.Z);
         }
     }
 

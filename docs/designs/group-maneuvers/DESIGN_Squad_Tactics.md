@@ -844,7 +844,7 @@ quiet 1 · strength 0.81 · enemy share 0.09 · ammo 1 ⇒ Assault **0.888** vs 
 ⚠ **§7.8.2 check ⑧ changed with the build**: "each member runs what he ran before ①" cannot hold — after the care the reaction DECIDES
 AGAIN (the fight may have moved on). ⑧ is now *"the drill is no longer `CasualtyCare` and every member in the fight has an order of it"*.
 
-### 7.6 Fire and movement — the same pattern *(behaviors, `2026-10-13`; build-state: F-a + F-b BUILT (§7.6.1), F-c … F-e not — ✅ approved (R-2013, leans (b)))*
+### 7.6 Fire and movement — the same pattern *(behaviors, `2026-10-13`; build-state: F-a + F-b + F-c BUILT (§7.6.1, §7.6.2), F-d not; F-e live — ✅ approved (R-2013, leans (b)))*
 
 📖 **Doctrine (general knowledge, ⛔ not in the corpus):** two drills, not one. **Bounding overwatch** is used BEFORE contact: one element
 watches, ready to fire, while the other bounds 20–50 m to the next cover; then they swap. **Fire and movement** is used IN contact: the
@@ -959,8 +959,58 @@ the cover-query centre each tick — a moving centre re-solves every frame and t
 `FireAndMovementPlay` + library `FireAndMovement` (commander) · `SquadGates.Set` (every live mover within `SetMetres` 1.5 m of his order
 point) · `SquadManeuverRunner.AskTerrainAll` (the whole buffer; `AskTerrain` is now its one-answer wrapper) · defaults `RushMetres` 15,
 `Speed` 4, `ArrivalRadius` 20, `CoveringSeconds` 3, `RushTimeoutSeconds` 12, pick timeout 5 s · the movers' picks live in the play's
-params (`PickX/Y/Z`, `CoverMask`, `PickedPhase`). Rails `SquadManeuverTests.CE2158_FireAndMovement_*` (4). ⚠ Not yet: the live
+params — ⛔ SUPERSEDED by F-c: they moved to the shared `SquadCoverPicks` / `SquadCover` (§7.6.2), so `PickX/Y/Z` and `PickedPhase` are gone. Rails `SquadManeuverTests.CE2158_FireAndMovement_*` (4). ⚠ Not yet: the live
 `ua-fire-and-movement` (F-e) and the SOP route into it (the contact reaction's `Assault` still runs `SuppressAndManeuver`).
+
+#### 7.6.2 F-c — bounding overwatch on the same gates *(behaviors, `2026-10-13`, `CE-2158`; build-state: BUILT)*
+
+**Measured before the build:** `BoundingOverwatchPlay` gave its coverers `Hold` whatever the contact, bounded to the formation shifted
+`BoundMetres`, and swapped on `ElementArrived` (3 m) or the timeout; F-b's cover pick lived inside `FireAndMovementPlay`.
+
+```mermaid
+classDiagram
+    class SquadCover { <<new, static>> +Make() +Pick() +Has() +Spend() +IsReady() MinProgress 3 m · spacing 2 m · timeout 5 s }
+    class SquadCoverPicks { <<new>> X/Y/Z[16] CoverMask Ready(bit per element) }
+    class SquadManeuverRunner { <<exists>> +AskTerrainAll(threat) +AskTerrainAll(point) NEW +TopContact(liveOnly) NEW }
+    class FireAndMovementPlay { <<exists, F-b>> }
+    class BoundingOverwatchPlay { <<exists, CHANGED>> }
+    class BoundingOverwatchManeuver { <<exists, CHANGED>> +DefiladeReached swaps }
+    FireAndMovementPlay ..> SquadCover
+    BoundingOverwatchPlay ..> SquadCover
+    SquadCover ..> SquadCoverPicks : in the play's params
+    SquadCover ..> SquadManeuverRunner : AskTerrainAll(FindCoverFromTarget)
+    BoundingOverwatchPlay ..> BoundingOverwatchManeuver : table
+```
+*What the picture shows that prose hid: there is ONE cover pick, used by both drills, so the "ahead, within one move, 2 m apart" rule
+cannot drift between them.*
+
+```mermaid
+sequenceDiagram
+    participant C as commander (BoundingOverwatchPlay)
+    participant Q as its EQS child sensor
+    participant W as watchers (element 1−e)
+    participant M as movers (element e)
+    C->>M: AdvanceTo(cover pick, else formation + BoundMetres)
+    C->>W: Hold (watch) · on a LIVE pooled contact ⇒ Suppress(it)
+    C->>Q: FindCoverFromTarget(slot0 = the WATCHERS' lead, slot1 = threat · before contact the objective as a point)
+    Q-->>C: up to 16 points ⇒ SquadCover.Pick for the next bound
+    Note over C: set — every mover within 1.5 m of his point ⇒ DefiladeReached · else BoundTimeoutSeconds ⇒ BoundComplete (Timeout)
+    C->>W: AdvanceTo(their picks) — they bound next
+```
+
+| decision | as built | why |
+|---|---|---|
+| when the next bound's cover is asked | while the current element bounds, around the WATCHERS' lead | the picks are ready when the swap comes; no stop between bounds |
+| what the cover hides from before contact | the objective, as a context POINT (`EqsSensor.ContextPoint1`, `Point1Bit`) | the enemy is expected there; there is no entity to aim at |
+| the swap event | *set* ⇒ `DefiladeReached` (new rows in the table), the clock ⇒ `BoundComplete` | the trace says which; `BoundComplete` on a timeout is O-a's "Timeout" |
+| a pooled contact that is DEAD | skipped (`TopContact(…, liveOnly: true)`); when the threat goes, the watchers go back to `Hold` | the pool remembers the dead until they age out — 📌 measured: the resumed bound suppressed a body (`CE2123` red) |
+
+Rejected: a cover pick per play — two copies of one rule · asking at swap time — the movers would stand while the query runs ·
+`TopContact` live-only for every caller — `SuppressAndManeuver` and casualty care end on their own target's death; changing them is out of
+F-c's scope.
+
+Rails `SquadManeuverTests.CE2158_BoundingOverwatch_*` (2) and `CE2123_ABoundingSquadReactsToContact_ThenResumesItsBound` (the dead
+contact). F-b rails unchanged after the move onto `SquadCover`.
 
 ### 7.7 Danger-area crossing — the squad drill *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved 2026-10-13 (R-2014), NOT built)*
 
