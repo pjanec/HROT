@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-13
-doc-type: HANDOFF — behaviors lane → the ui lane: P5b, the modeless order form (a FRAME — the ui lane designs the details). Dispatched at <stamp below> (branch `behaviors`).
+doc-type: HANDOFF — behaviors lane → the ui lane: P5b, the modeless order form (a FRAME — the ui lane designs the details). Dispatched at 737cd9e14 (branch `behaviors`).
 current-answer: §1 goal · §2 the seam you implement · §3 what to build · §4 fences · §5 acceptance and the report
 stale-below: nothing
 known-rot: none
