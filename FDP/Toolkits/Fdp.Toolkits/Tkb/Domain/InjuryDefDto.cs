@@ -16,8 +16,9 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>Below this fraction of max health the person is WOUNDED.</summary>
         public float WoundedBelow { get; init; } = 0.6f;
 
-        /// <summary>Below this fraction of max health the person is INCAPACITATED: cannot move or fire, and bleeds out.</summary>
-        public float IncapacitatedBelow { get; init; } = 0.25f;
+        /// <summary>Below this fraction of max health the person is INCAPACITATED: cannot move or fire, and bleeds out. ⭐ 0.3 (user,
+        /// 2026-10-13: "go with 0.3") — at 0.25 a 100-HP soldier under 25-damage rifle fire went 75 → 50 → 25 → dead and was never down.</summary>
+        public float IncapacitatedBelow { get; init; } = 0.3f;
 
         /// <summary>Seconds an incapacitated person takes to bleed from <see cref="IncapacitatedBelow"/> to death. 0 = never bleeds out.</summary>
         public float BleedOutSeconds { get; init; } = 120f;

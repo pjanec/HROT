@@ -46,7 +46,7 @@ classDiagram
   class InjuryDefDto {
     NEW TkbDescriptor Gen.Injury
     +WoundedBelow : float = 0.6
-    +IncapacitatedBelow : float = 0.25
+    +IncapacitatedBelow : float = 0.3
     +BleedOutSeconds : float = 120
   }
   class InjuryThresholds { NEW component, type data, stamped at spawn +WoundedBelow +IncapacitatedBelow +BleedRate }
@@ -153,7 +153,7 @@ IsIncapacitated / IsInTheFight` (`Combat/Injury.cs`) · `CombatLife.ApplyHitCapa
 | ③ ⭐ **found and fixed: `Embarkation.Leave` gave move and fire back to any ALIVE passenger** | an incapacitated casualty set down would have stood up armed. It now restores only to someone in the fight. Not in the §2 inventory — found by listing every writer that GRANTS capabilities (one: this) |
 | ④ `InjuryThresholds.BleedPerSecond` (a health fraction a second) instead of `BleedOutSeconds` | the drain reads it every step; the translator does the division once |
 | ⑤ the FDP UrbanCombat example's own catalogue (`DemoTkbSetup`) does **not** declare `Gen.Injury` | a self-contained FDP demo with its own validator; absence = ok until dead, so it is unchanged |
-| ⑥ ⚠ **measured: rifle fire alone never incapacitates** | soldiers have 100 HP and a rifle round does 25, so health steps 75 → 50 → 25 → 0, and 25 % is not *below* the 25 % band. Blasts and other weapons can land inside it. Raising `IncapacitatedBelow` to 0.3 would make the third rifle hit incapacitate — a data change, left for the user |
+| ⑥ ⭐ **the band is 0.3, not the lean's 0.25** *(user, 2026-10-13: "go with 0.3")* | at 0.25 a 100-HP soldier under 25-damage rifle fire went 75 → 50 → 25 → 0 and was never down; at 0.3 the third hit puts him down. Measured blast radius: 14 scenarios hold banded soldiers (all `bt-*` / `ua-*`, 100 HP); hill-attack and the convoy do not; 50-HP and 25-HP soldiers are unchanged. ⛔ SUPERSEDED: "left for the user" |
 
 Rails — `InjuryTests` (8):
 - the state read off health and the band

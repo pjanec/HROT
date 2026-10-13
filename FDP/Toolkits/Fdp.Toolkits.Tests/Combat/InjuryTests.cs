@@ -103,7 +103,7 @@ namespace Fdp.Toolkit.Combat.Tests
         [Fact]
         public void AnIncapacitatedSoldier_BleedsOut_OnTheHealthOwnerOnly()
         {
-            var dto = new InjuryDefDto { BleedOutSeconds = 100f };   // from 25 % to 0 in 100 s ⇒ 0.25 HP a second at Max 100
+            var dto = new InjuryDefDto { IncapacitatedBelow = 0.25f, BleedOutSeconds = 100f };   // band pinned: 25 % to 0 in 100 s ⇒ 0.25 HP a second at Max 100
             var owned = Soldier(20f, dto);
             var replica = Soldier(20f, dto, ownsHealth: false);
             var wounded = Soldier(40f, dto);
