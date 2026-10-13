@@ -1342,6 +1342,12 @@ and initialisers moved unchanged. `OrderMenu.PickOf` reads fields (and still pro
 edit to the behaviors lane's file, named in the commit. Four tests that deserialised with DEFAULT options now pass `BehaviorParams.JsonOptions`
 (what production uses).
 
+**R-2005 (steer 1, the shared options) against P8, measured:** every params / order JSON path, parse and send, already passes
+`FdpJsonOptionsRegistry.DefaultRelaxed` (the table above) — nothing to switch. ⚠ The steer's warning (`StrictStringEnumConverter` reads enums
+as STRINGS only): the params DTOs hold two enums (`RoadUse`, `StanceId`); every authored value across `scenarios/`, the assets, the tests and
+the scripts is a string (`"Prone"`, `"StronglyPrefer"`, …), none a number — and the typed resolver already parses with these options. The
+other ad-hoc `new JsonSerializerOptions` (42) are their own item, **CE-3187**.
+
 **The one exemption, deliberately:** a `[JsonIgnore]` COMPUTED view — `MoveToLocationParamsJsonDto.PickableLocation`, the mission panel's
 map-pick target over the `targetLat`/`targetLon` wire pair (`MissionPanelRegistryTests` binds `.PickableLocation`). It stores nothing, so it is
 not the "bloat" R-2002 rules out; deleting it would remove the panel's map pick.
