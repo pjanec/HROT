@@ -11,6 +11,7 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Scheduling;
+using Fdp.Testing;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -28,6 +29,11 @@ namespace Hrot.SimHost.Tests
     [Xunit.Collection(RecordReplayKernelLoopCollection.Name)]
     public sealed class LiveFromReplayTests : IDisposable
     {
+        // ⚠ CE-1046 — wall-clock waits (Task.Delay(20)) on a self-driven kernel: red under machine load, green alone (measured
+        // 2026-10-11 and again 2026-10-13, TeardownReplay in a full-suite run). Skipped by default; the separate run is
+        // HROT_RUN_FLAKY=1 dotnet test <proj> --no-build --filter Category=Flaky. The fix (frame-count waits) stays open on CE-1046.
+        private const string Why = "CE-1046: Task.Delay wall-clock waits, red under machine load";
+
         private readonly EntityRepository _world;
         private readonly EventAccumulator  _evtAcc;
         private readonly ModuleHostKernel  _kernel;
@@ -67,7 +73,7 @@ namespace Hrot.SimHost.Tests
         /// Assert <c>EntityCount == 5</c> after teardown.
         /// </para>
         /// </summary>
-        [Fact(Timeout = 20_000)]
+        [FlakyFact(Why, Timeout = 20_000), Trait("Category", "Flaky")]
         public async Task TeardownReplay_PreservesEntityRepositoryState()
         {
             // ── Step 1: create 5 entities ──────────────────────────────────────
@@ -134,7 +140,7 @@ namespace Hrot.SimHost.Tests
         /// the <see cref="EcsRecordReplayController"/> must have an active
         /// <see cref="Fdp.Toolkit.Replay.RecordingModule"/> installed in the kernel scheduler.
         /// </summary>
-        [Fact(Timeout = 20_000)]
+        [FlakyFact(Why, Timeout = 20_000), Trait("Category", "Flaky")]
         public async Task AfterBranch_RecordingModuleIsInstalled()
         {
             // ── Step 1: create entities and record ────────────────────────────
@@ -205,7 +211,7 @@ namespace Hrot.SimHost.Tests
         /// <see cref="TogglableSimulationGroup.Enabled"/> must be <c>true</c> and
         /// <see cref="GhostCreationSystem.BypassLifecycle"/> must be <c>false</c>.
         /// </summary>
-        [Fact(Timeout = 20_000)]
+        [FlakyFact(Why, Timeout = 20_000), Trait("Category", "Flaky")]
         public async Task AfterBranch_SimGroupsReEnabled()
         {
             // ── Step 1: create entities and record ────────────────────────────

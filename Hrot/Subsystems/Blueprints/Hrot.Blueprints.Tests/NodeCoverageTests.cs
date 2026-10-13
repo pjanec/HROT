@@ -446,7 +446,7 @@ public sealed class NodeCoverageTests
             [typeof(GetParameterNode)] =
                 "GetParameter's 'Value' output is resolved at lowering from the node's BAKED ParameterId " +
                 "(like GetVariable), not by pin lookup, so it round-trips pin-less without the output pin " +
-                "being reconstructed. Proven by HsmGuardDemo and PlatoonHillAttackBp, the two corpus assets " +
+                "being reconstructed. Proven by HsmGuardDemo (PlatoonHillAttackBp, the other, retired by R-2006), the corpus assets " +
                 "carrying a GetParameter node (measured 2026-10-01, when the HillAssault2_RequestAreaQuery / " +
                 "_HasTarget twins that also carried one retired; OwnParamResolverDemo was deleted by CE-445). " +
                 "NOTE this line previously named HillAssault2I_IsWaveCompleted as the evidence and that " +
@@ -652,8 +652,9 @@ public sealed class NodeCoverageTests
         // FlowForEach (P1 -- GAP-1): ValidateOnlyStage1To7 -- the generated for-loop references
         // UnitRosterOps/UnitRoster (game assemblies the coverage-Roslyn compile does not reference);
         // the REAL Roslyn compile of a FlowForEach graph is proven by
-        // PlatoonHillAttackBp (CE-464) through the actual Hrot.AI.Behaviors build, and run by
-        // HillAttackBlueprintTests (HillAssault2_ForEachSubordinate_ProofTests retired 2026-10-01).
+        // SubordinateForEachDemo (R-2006) through the actual Hrot.AI.Behaviors build, and run by
+        // SubordinateForEachDemoTests (Hrot.SimHost.Tests) — PlatoonHillAttackBp / HillAttackBlueprintTests carried it until
+        // R-2006 retired them (HillAssault2_ForEachSubordinate_ProofTests retired 2026-10-01).
         yield return ("Inline/FlowForEach", new[] { BuildFlowForEachMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
         // FlowForEach loop-introspection outs (CurrentIndex + Count): same game-assembly reason as
         // above -> ValidateOnlyStage1To7. The GENERATED C# (count-hoist local + body index-copy +

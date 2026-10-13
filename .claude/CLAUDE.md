@@ -876,6 +876,17 @@ artefact: the report **names the feature's suite and its result** before it name
 | **T2** minutes | ⭐⭐ **the BATCH gate, once** — the implementation session's table | ⭐ the **fast** everything *(unit suites of touched projects, `--no-build`)* + the batch's **new rails** + the **targeted rails that reproduce any bug found**. ⛔ **Not per fix.** ⛔⛔ **The E2E/system suite is NOT here — see T3** |
 | ⭐⭐ **T3** *(the E2E slow lane)* | ⛔⛔ **NEVER a foreground blocker** | ⭐ `run-system-tests.sh` *(boots the real editor headless per case)* runs **async** — backgrounded, or in CI/nightly — its result lands in the report or the next session. ⛔ **Never sit on it; never re-run it "to be sure"** |
 
+#### ⭐⭐ KNOWN-FLAKY TESTS RUN IN THEIR OWN LANE, NEVER IN THE USUAL RUN *(user, `2026-10-13`)*
+
+> 🔒 **User, verbatim:** *"can we always run the known flaky test separately to avoid failing the usual test run and wasting time on retesting?"*
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐ **mark it `[FlakyFact("<tracker id>: why"), Trait("Category", "Flaky")]`** *(`FDP/TestShared/FlakyFactAttribute.cs`, linked into the test project)* | ⭐ skipped by default ⇒ the usual run stays green and nobody re-runs it to prove a red is noise |
+| ⭐⭐ **the separate run:** `HROT_RUN_FLAKY=1 dotnet test <proj> --no-build --filter Category=Flaky` — background, its own gate row, ⛔ never blocking | ⭐ a red there is reported against its tracker id, not chased |
+| ⛔⛔ **only a test already proven flaky** *(red in a suite run, green alone, at a base that predates your change)* **with an OPEN tracker row** | ⛔ never mark a red you just caused; ⛔ the mark is not the fix — the row stays open |
+| ⚠ **the older `[Trait("Stability", Flaky\|Environment\|Broken)]` convention** *(`.dev/_DONE/test-health`)* still exists | ⭐ new marks use `FlakyFact`; fold an old one over when you touch it |
+
 ⭐⭐⭐ **RUNNING THE REAL THING IS ITS OWN TIER, AND IT FINDS WHAT NO SUITE DOES** — 📄 **[`docs/RUNBOOK_Cluster_Debugging_Over_Http.md`](../docs/RUNBOOK_Cluster_Debugging_Over_Http.md)**:
 launching one node per process over plain HTTP *(the MCP server is often down and addresses one node)*,
 `/diagnostics/architecture` for per-translator `sentSamples`/`receivedSamples`, per-perspective entity

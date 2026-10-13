@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-13 (§0 — the overnight run's handoff)
+updated: 2026-10-13 (§P — the params-finish state, written after a compaction)
 doc-type: RESUME — the orders / params DTOs / entity classes programme (any lane picking up a task). ⚠ A STATE doc: verify every "built" / "dispatched" line against git before acting.
-current-answer: ⭐ design §13 (2026-10-13, finishing the params story: decisions, work P1–P8 by lane, backend handoff HANDOFF_Params_Finish_Backend.md) — then §0 the overnight handoff · then §2 how to pick a task · §3 the lanes
+current-answer: ⭐⭐ §P below (params finish — what is in flight, what is next, by lane) · ⭐ design §13 (2026-10-13, finishing the params story: decisions, work P1–P8 by lane, backend handoff HANDOFF_Params_Finish_Backend.md) — then §0 the overnight handoff · then §2 how to pick a task · §3 the lanes
 stale-below: nothing
 known-rot: §1's table predates the overnight run — its "DangerCrossing (next)", "B4 may run" and CE-2131 🟡 are DONE (see §0); §0 wins where they differ
 known-conflict: none
@@ -18,6 +18,23 @@ related-designs:
 # Resume — orders, params DTOs and entity classes
 
 RELEARN
+
+## P. Params finish — live state *(behaviors lane, 2026-10-13, day)*
+
+**Design:** [`DESIGN_Orders_Params_Entity_Classes.md`](../DESIGN_Orders_Params_Entity_Classes.md) §13 (decisions F1–F12, work P1–P9 by lane, §13.3 designations, §13.4 docs list, §13.5 the P9 retirement + node-coverage plan). **Rulings:** `R-2000`..`R-2007` (`RULINGS.md`). **Next free ids:** `CE-2148`, `R-2008`.
+
+| item | lane | state |
+|---|---|---|
+| P8 fields-only DTOs → P1 one `[Dto]` registry → P2 | backend session A | dispatched by [`HANDOFF_Params_Finish_Backend.md`](HANDOFF_Params_Finish_Backend.md) (at `75ba5b75b`) + [`STEER_Params_Finish_Backend_1.md`](STEER_Params_Finish_Backend_1.md) (R-2004/R-2005) + [`STEER_Params_Finish_Backend_2.md`](STEER_Params_Finish_Backend_2.md) (R-2006/R-2007). ⚠ the steers reach backend only when the USER relays them |
+| P3 full-rebuild caches → P4 blueprints name a DTO, Get Parameter retires | backend session B | same handoff |
+| P9 retire `PlatoonHillAttackBp` + `hill-attack-close-bp`, keep the node checks | behaviors | step 1 `79adf99f3` (replacement `SubordinateForEachDemo` + re-points). Step 2 (the delete + docs + CE-464 tracker tail) was in the working tree, gating; ⚠ check `git log` — if not committed, re-run the gates and commit it |
+| P5 `[Required]`, RTS fast path, `GET /orders`, the `OrderDraft` / `IOrderForm.Open` seam, presets | behaviors | **next**, once backend P8 (fields) lands — `git fetch origin backend`, merge, then start |
+| P5b the modeless order form, entity source for `PickerWindow`, 3D map picking | ui | ⛔ **nothing sent yet, nothing owed yet**: it hangs on P5's seam. Write the ui handoff when P5 pushes the seam (cite design §13 P5b row) |
+| P6 designations stage 1 (§13.3) · P7 the docs of §13.4 | behaviors | after P5 |
+| G3 (designations stage 2) | user | architect question offered, unanswered |
+| later | behaviors | I-2d + convoy ambush ([`HANDOFF_Embark_I2d_And_Unit_Orders.md`](HANDOFF_Embark_I2d_And_Unit_Orders.md)) — after the params story (user: *"finish this parameter story before continuing with embark"*) |
+
+**How to resume:** `git fetch origin behaviors backend ui` → finish/verify P9 step 2 → merge whatever backend pushed (review the diff against the handoff, do not re-run their gates — rule 8) → P5.
 
 ## 0. Overnight handoff *(behaviors lane, 2026-10-12 → 13, solo; backend + ui queues taken over)*
 

@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07
+updated: 2026-10-13 (R-2006)
 current-answer: whole document; §4.1/§4.2 carry the CE-459 end-of-attack return to baseline.
 stale-below: nothing.
-known-rot: ⚠ CE-466 (2026-09-30) replaced every combat-death IsAlive with CombatLife.IsAlive — see the note in the
+known-rot: ⛔ `PlatoonHillAttackBp` and its scenario `hill-attack-close-bp` are RETIRED (R-2006, 2026-10-13: "we prefer csharp hardcoded version"); the C# `PlatoonHillAttack` is the hill attack. Its node usages live on in `SubordinateForEachDemo` (DESIGN_Orders_Params_Entity_Classes.md §13.5) (the `PlatoonHillAttackBpAuthoring` mention near §4 is history) · ⚠ CE-466 (2026-09-30) replaced every combat-death IsAlive with CombatLife.IsAlive — see the note in the
   destruction paragraph; any older text saying "IsAlive detects destruction" is superseded. ⚠ §2.3 / §4.4 baseline-slot selection ("closest unreserved") cannot give distinct slots when the baseline has
   fewer slots than the platoon has tanks, and the staging reservation fills the mask — every attacker then retreats to the
   same slot mid-run (CE-460 — WON'T FIX 2026-09-30; SUPERSEDED 2026-10-07: the user reopened it and CE-2118 fixed the

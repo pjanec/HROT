@@ -40,7 +40,7 @@ public sealed class BlueprintTooltipTests
     [Theory]
     [InlineData("System.Numerics.Vector3", "Vector3")]
     [InlineData("System.Single", "Single")]
-    [InlineData("global::Hrot.AI.Behaviors.Brains.HillAttackRunner", "HillAttackRunner")]
+    [InlineData("global::Hrot.AI.Behaviors.Brains.SubordinateOrder", "SubordinateOrder")]
     [InlineData("Entity", "Entity")]
     public void ShortTypeName_StripsNamespaceAndGlobalSentinel(string typeId, string expected)
         => Assert.Equal(expected, TooltipText.ShortTypeName(typeId));

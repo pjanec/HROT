@@ -1,13 +1,13 @@
 <!--STATUS
-state: LIVE
-updated: 2026-09-30
+state: HISTORICAL
+updated: 2026-10-13 (R-2006)
 build-state: DESIGN — §6 leans APPROVED (user 2026-09-30: "paragraph 6 leans approved"), with §6.5's two amendments open; A approved in principle (user 2026-09-30: "Agreed on the single blueprint behavior, could be broken
   to blueprint functions whenever suitable"); everything else awaits review of §5. "Measure first … No blind coding."
 current-answer: ⭐⭐⭐ §7 (THE PLAN — ordered tasks, status, what is decided and what is still open) FIRST; then §6 (the user's 2026-09-30 revision of the old rulings + the measured cost of each blueprint-way
   node) FIRST — it overrides §5.1 and §5.4 where they disagree. Then §5 (EQS, measurements), then §3 A/E.
 stale-below: §3's rows C1, C2, C4, D1, D2 (overtaken by §5); §5.1's "effect on §3" column and §5.4's "revised lean"
   column wherever §6 disagrees (§6 wins — the user revised the Q6 rulings §5.1 leaned on).
-known-rot: ⚠ §3 was written without reading Q6's approved rulings (2026-07-17) and Q#5-C; four of its leans contradicted
+known-rot: ⛔ `PlatoonHillAttackBp` and its scenario `hill-attack-close-bp` are RETIRED (R-2006, 2026-10-13: "we prefer csharp hardcoded version"); the C# `PlatoonHillAttack` is the hill attack. Its node usages live on in `SubordinateForEachDemo` (DESIGN_Orders_Params_Entity_Classes.md §13.5) · ⚠ §3 was written without reading Q6's approved rulings (2026-07-17) and Q#5-C; four of its leans contradicted
   them (§5.1). §2's "replaced by" column for AreaQueryBatchOps and the intent JSON is wrong the same way.
 known-conflict: HillAssault_Blueprint_Migration.md §"What blueprintize means" keeps the BTree topology and turns only the
   node logic into blueprints. Decision A here departs from that on purpose; the reason is in A.

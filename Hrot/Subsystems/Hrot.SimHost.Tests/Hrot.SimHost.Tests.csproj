@@ -18,6 +18,9 @@
 
   <ItemGroup>
     <Using Include="Xunit" />  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\FDP\TestShared\FlakyFactAttribute.cs" Link="Shared\FlakyFactAttribute.cs" />
+  </ItemGroup>
 
   <ItemGroup>    <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />

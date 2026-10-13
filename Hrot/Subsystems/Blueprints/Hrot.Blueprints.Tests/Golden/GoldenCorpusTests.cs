@@ -101,7 +101,7 @@ public sealed class GoldenCorpusTests
         //    sensor nodes (SpawnSensor · When SensorResult · ReadSensorResult), the DangerCrossing BTree as a blueprint.
         // ⭐ 36 → 37 (CE-3083 G5, 2026-10-06): `CombatPostureBp` — the posture decision as a blueprint (ScoreDecision +
         //    a Behaviour Task per option), DESIGN_Decision_Layer §3.3d.
-        Assert.Equal(36, GoldenCorpus.EnumerateFiles().Count);   // ⛔ 37 → 36: CE-3160 (R-266, R-258) — CombatPostureBp retired
+        Assert.Equal(36, GoldenCorpus.EnumerateFiles().Count);   // ⛔ 37 → 36: R-2006 — PlatoonHillAttackBp retired (the C# PlatoonHillAttack is the hill attack)  ⭐ 36 → 37: R-2006 — SubordinateForEachDemo (FlowForEach real-build coverage)  ⛔ 37 → 36: CE-3160 (R-266, R-258) — CombatPostureBp retired
     }
 
     // ────────────────────────────────────────────────────────────────────────
