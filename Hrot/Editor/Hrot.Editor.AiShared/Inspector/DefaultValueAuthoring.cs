@@ -2,6 +2,7 @@ using System;
 using System.Text.Json;
 using Hrot.Editor.AiShared.Blackboard;
 using StructEdit.Core;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Editor.AiShared.Inspector;
 
@@ -35,13 +36,10 @@ public static class DefaultValueAuthoring
 
     /// <summary>
     /// Shared serializer options used for default-value JSON round-trips.
-    /// <c>IncludeFields = true</c> ensures public struct fields (in addition to properties)
-    /// are serialized/deserialized, which is the common pattern for game-dev DTO structs.
+    /// ⭐ CE-3187 (R-2005 / R-2007): the platform's shared options — the SAME ones the runtime parses a default with
+    /// (fields, enums as names, vectors as arrays), so the editor writes what the runtime reads.
     /// </summary>
-    public static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        IncludeFields = true,
-    };
+    public static readonly JsonSerializerOptions JsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
 
     // ── Hydration ─────────────────────────────────────────────────────────────
 

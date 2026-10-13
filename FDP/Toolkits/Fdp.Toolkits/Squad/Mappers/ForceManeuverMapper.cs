@@ -4,6 +4,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Squad;
+using Fdp.Core.Serialization;
 
 namespace Fdp.Toolkit.Squad.Mappers
 {
@@ -26,8 +27,7 @@ namespace Fdp.Toolkit.Squad.Mappers
             ForceManeuverParams p;
             try
             {
-                p = JsonSerializer.Deserialize<ForceManeuverParams>(jsonParams,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+                p = JsonSerializer.Deserialize<ForceManeuverParams>(jsonParams, FdpJsonOptionsRegistry.DefaultRelaxed)!;
             }
             catch { return false; }
 

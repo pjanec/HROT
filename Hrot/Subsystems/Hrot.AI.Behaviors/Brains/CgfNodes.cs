@@ -25,11 +25,6 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public static class CgfNodes
     {
-        private static readonly JsonSerializerOptions JsonOptions = new()
-        {
-            PropertyNameCaseInsensitive = true,
-            IncludeFields = true
-        };
 
         // -- Channel write helpers --
 

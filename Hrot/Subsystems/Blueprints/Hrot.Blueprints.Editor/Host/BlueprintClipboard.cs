@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Transform;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Blueprints.Editor.Host;
 
@@ -37,14 +38,8 @@ public static class BlueprintClipboard
 
     private static JsonSerializerOptions BuildOptions()
     {
-        var opts = new JsonSerializerOptions
-        {
-            IncludeFields               = true,
-            PropertyNameCaseInsensitive = true,
-            WriteIndented               = false,
-        };
-        opts.Converters.Add(new JsonStringEnumConverter());
-        return opts;
+        // CE-3187 (R-2005 / R-2007): the shared options — enums as names (already the clipboard's spelling).
+        return FdpJsonOptionsRegistry.DefaultRelaxed;
     }
 
     /// <summary>A copied fragment: the nodes, plus only the links whose <b>both</b> ends are in it.</summary>

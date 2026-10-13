@@ -19,6 +19,7 @@ using StructEdit.Core;
 namespace Fdp.Presentation.Panels.ReplayBrowser;
 
 using ImGuiApi = ImGuiNET.ImGui;
+using Fdp.Core.Serialization;
 
 /// <summary>⭐ One match row, projected by hand (entity flattened to index/generation).</summary>
 public sealed record ReplaySearchResultRowViewModel(int FrameIndex, long WallClockTicks, int EntityIndex, int EntityGeneration, string ContextMessage);
@@ -319,8 +320,7 @@ public sealed class ReplaySearchPanel
             if (_predicateSession != null)
             {
                 object dto = _predicateSession.Commit();
-                _presetJson = JsonSerializer.Serialize(dto,
-                    new JsonSerializerOptions { WriteIndented = false });
+                _presetJson = JsonSerializer.Serialize(dto, FdpJsonOptionsRegistry.DefaultRelaxed);
             }
         }
 
@@ -328,7 +328,7 @@ public sealed class ReplaySearchPanel
 
         if (ImGuiApi.Button("Load Preset") && !string.IsNullOrEmpty(_presetJson))
         {
-            var dto = JsonSerializer.Deserialize<SearchPredicateDto>(_presetJson);
+            var dto = JsonSerializer.Deserialize<SearchPredicateDto>(_presetJson, FdpJsonOptionsRegistry.DefaultRelaxed);
             if (dto != null)
             {
                 _predicateSession?.Dispose();

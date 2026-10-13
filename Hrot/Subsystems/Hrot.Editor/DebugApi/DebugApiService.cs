@@ -422,12 +422,8 @@ namespace Hrot.Editor.DebugApi
         // Group M — Focus / Annotations (ADA-BATCH-14)
         private readonly DebugPrimitiveBuffer? _primitiveBuffer;
 
-        internal static readonly JsonSerializerOptions SearchPredicateJsonOptions = new()
-        {
-            WriteIndented = false,
-            IncludeFields = true,
-            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
-        };
+        // CE-3187 (R-2005 / R-2007): the shared options — enums by name only, as the schema advertises.
+        internal static readonly JsonSerializerOptions SearchPredicateJsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
 
         /// <summary>
         /// Scoped <see cref="JsonSerializerOptions"/> for the DebugApi entity dump / diff surface.
@@ -453,50 +449,28 @@ namespace Hrot.Editor.DebugApi
         internal static readonly JsonSerializerOptions DebugApiDumpOptions = BuildDebugApiDumpOptions();
 
         /// <summary>
-        /// The dump options, but for reading a client's PATCH: identical converters — so a value
-        /// the API emitted is accepted verbatim (HN-002) — with enums relaxed to also accept their
-        /// integer form, which the strict dump converter refuses.
+        /// The dump options, for reading a client's PATCH: identical converters, so a value the API emitted is accepted
+        /// verbatim (HN-002).
         /// </summary>
         /// <remarks>
-        /// Deliberately asymmetric, and only in the tolerant direction: the API keeps emitting
-        /// canonical enum NAMES, and merely stops rejecting an integer a caller sends back.
+        /// ⛔ HISTORY: this used to relax enums to accept their integer form. CE-3187 / R-2007 ("json always should read
+        /// enums as strings not numeric constants") retired that — the API emits names, and a caller sends names back.
         /// </remarks>
-        internal static readonly JsonSerializerOptions DebugApiPatchOptions =
-            BuildDebugApiDumpOptions(strictEnums: false);
+        internal static readonly JsonSerializerOptions DebugApiPatchOptions = DebugApiDumpOptions;
 
-        private static JsonSerializerOptions BuildDebugApiDumpOptions(bool strictEnums = true)
+        private static JsonSerializerOptions BuildDebugApiDumpOptions()
         {
-            // Start from a mutable copy of DefaultRelaxed settings (can't clone frozen opts directly).
-            var opts = new JsonSerializerOptions
+            // CE-3187 (R-2005): the shared options plus one delta — non-finite-safe scalar and vector converters, inserted
+            // FIRST so they take priority (converters are checked in registration order).
+            return FdpJsonOptionsRegistry.Derive(o =>
             {
-                IncludeFields               = true,
-                PropertyNameCaseInsensitive = true,
-                AllowTrailingCommas         = true,
-                ReadCommentHandling         = JsonCommentHandling.Skip,
-                DefaultIgnoreCondition      = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-                TypeInfoResolver            = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(),
-            };
-
-            // Add scalar non-finite converters FIRST so they take priority over the default
-            // float/double serialization (converters are checked in registration order).
-            opts.Converters.Add(new NonFiniteFloatSentinelConverter());
-            opts.Converters.Add(new NonFiniteDoubleSentinelConverter());
-
-            // NaN-safe vector converters (replace the shared WriteRawValue-based ones).
-            opts.Converters.Add(new DebugApiVector2SafeConverter());
-            opts.Converters.Add(new DebugApiVector3SafeConverter());
-            opts.Converters.Add(new DebugApiVector4SafeConverter());
-            opts.Converters.Add(new DebugApiQuaternionSafeConverter());
-
-            // Keep FixedString and strict-enum converters from DefaultRelaxed.
-            opts.Converters.Add(new Fdp.Core.Serialization.Converters.FixedString32Converter());
-            opts.Converters.Add(new Fdp.Core.Serialization.Converters.FixedString64Converter());
-            opts.Converters.Add(strictEnums
-                ? new Fdp.Core.Serialization.Converters.StrictStringEnumConverter()
-                : new System.Text.Json.Serialization.JsonStringEnumConverter());
-
-            opts.MakeReadOnly();
-            return opts;
+                o.Converters.Insert(0, new NonFiniteFloatSentinelConverter());
+                o.Converters.Insert(1, new NonFiniteDoubleSentinelConverter());
+                o.Converters.Insert(2, new DebugApiVector2SafeConverter());
+                o.Converters.Insert(3, new DebugApiVector3SafeConverter());
+                o.Converters.Insert(4, new DebugApiVector4SafeConverter());
+                o.Converters.Insert(5, new DebugApiQuaternionSafeConverter());
+            });
         }
 
         /// <summary>Default upper bound for event-history queries.</summary>
@@ -1523,21 +1497,16 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>
         /// ⭐ <c>CE-3168</c> — how <c>POST /entities/command</c> binds a payload: fields included, case-insensitive, an
-        /// unmapped key refused, enums by name or number, and an <see cref="Entity"/> given as its network id (resolved
-        /// against THIS node's map). Built per call: the map is the active perspective's.
+        /// unmapped key refused, enums by name (CE-3187 / R-2007 — no longer by number), and an <see cref="Entity"/> given as
+        /// its network id (resolved against THIS node's map). Built per call: the map is the active perspective's.
         /// </summary>
         private JsonSerializerOptions CommandJsonOptions()
-        {
-            var o = new JsonSerializerOptions
+            // CE-3187 (R-2005): the shared options plus two deltas — unmapped keys refused, and the per-perspective Entity converter.
+            => FdpJsonOptionsRegistry.Derive(o =>
             {
-                IncludeFields               = true,
-                PropertyNameCaseInsensitive = true,
-                UnmappedMemberHandling      = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
-            };
-            o.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
-            o.Converters.Add(new EntityByNetworkIdConverter(_entityMap));
-            return o;
-        }
+                o.UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow;
+                o.Converters.Insert(0, new EntityByNetworkIdConverter(_entityMap));
+            });
 
         /// <summary>⭐ <c>CE-3168</c> — an <see cref="Entity"/> in a command payload is the unit's network id (a number).</summary>
         private sealed class EntityByNetworkIdConverter : System.Text.Json.Serialization.JsonConverter<Entity>

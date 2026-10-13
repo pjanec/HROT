@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Fdp.Core.Serialization;
 
 namespace Fdp.Toolkit.Replication
 {
@@ -124,10 +125,9 @@ namespace Fdp.Toolkit.Replication
         private static readonly ConditionalWeakTable<Type, Func<string?, IReadOnlyDictionary<long, long>, string?>> _json = new();
         private static readonly Func<string?, IReadOnlyDictionary<long, long>, string?> _identity = (json, _) => json;
 
-        private static readonly System.Text.Json.JsonSerializerOptions _writeOptions = new()
-        {
-            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        };
+        // CE-3187: the shared options plus one delta — the relaxed encoder, so untouched strings in a params blob keep their bytes.
+        private static readonly System.Text.Json.JsonSerializerOptions _writeOptions = FdpJsonOptionsRegistry.Derive(o =>
+            o.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping);
 
         /// <summary>Number of JSON delegates built (a cache probe for tests).</summary>
         internal static int JsonCompileCount { get; private set; }

@@ -6,6 +6,7 @@ using Fdp.Core.Logging;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Icons;
 using Fdp.Presentation.Panels;
+using Fdp.Core.Serialization;
 
 namespace Fdp.Presentation.WindowManager;
 
@@ -500,7 +501,7 @@ public class WindowManager
                     .Select(kv => KeyValuePair.Create(
                         kv.Key,
                         new WindowState(kv.Value.IsOpen, kv.Value.IsPinned)))));
-        var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(state, FdpJsonOptionsRegistry.Indented);
         File.WriteAllText(filePath, json);
     }
 
@@ -518,7 +519,7 @@ public class WindowManager
         // Try new schema first (WindowManagerSettings with ActivePerspective).
         try
         {
-            var settings = JsonSerializer.Deserialize<WindowManagerSettings>(json);
+            var settings = JsonSerializer.Deserialize<WindowManagerSettings>(json, FdpJsonOptionsRegistry.DefaultRelaxed);
             if (settings != null)
             {
                 foreach (var (id, ws) in settings.Windows)
@@ -539,7 +540,7 @@ public class WindowManager
         // Legacy format: plain Dictionary<string, WindowState>.
         try
         {
-            var legacy = JsonSerializer.Deserialize<Dictionary<string, WindowState>>(json);
+            var legacy = JsonSerializer.Deserialize<Dictionary<string, WindowState>>(json, FdpJsonOptionsRegistry.DefaultRelaxed);
             if (legacy != null)
             {
                 foreach (var (id, ws) in legacy)

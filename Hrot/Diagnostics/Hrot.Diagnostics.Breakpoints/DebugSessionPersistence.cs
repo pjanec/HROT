@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Fdp.Toolkit.ReplayBrowser.Search;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Diagnostics.Breakpoints;
 
@@ -110,11 +111,9 @@ public sealed class WatchEntry
 /// </summary>
 public static class DebugSessionPersistence
 {
-    private static readonly JsonSerializerOptions s_options = new()
-    {
-        WriteIndented = true,
-        IncludeFields = true,
-    };
+    // CE-3187 (R-2005 / R-2007): the shared options — enums as names, vectors as arrays. A file saved by an older
+    // build with numeric enums no longer loads and is reset.
+    private static readonly JsonSerializerOptions s_options = FdpJsonOptionsRegistry.Indented;
 
     /// <summary>
     /// Serializes the complete debug session to <paramref name="path"/>.

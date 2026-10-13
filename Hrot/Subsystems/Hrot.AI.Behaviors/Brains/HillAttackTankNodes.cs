@@ -59,10 +59,6 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public static class HillAttackTankNodes
     {
-        private static readonly JsonSerializerOptions JsonOptions = new()
-        {
-            PropertyNameCaseInsensitive = true
-        };
         // ── Channel write helpers ─────────────────────────────────────────────────
 
         private static unsafe void WriteToLocomotionParams<T>(ref LocomotionChannel ch, T value)

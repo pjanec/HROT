@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Fdp.Core.Serialization;
 
 namespace Fdp.Diagnostics.Contracts.Panels;
 
@@ -63,13 +64,14 @@ public interface IPanelViewModel
 /// </summary>
 public static class PanelDump
 {
-    /// <summary>⭐ camelCase to match the rest of the MCP surface and the design's §Example payload.</summary>
-    private static readonly JsonSerializerOptions Options = new()
+    /// <summary>⭐ camelCase to match the rest of the MCP surface and the design's §Example payload.
+    /// CE-3187: the shared options plus two deltas — camelCase (the MCP wire contract) and nulls KEPT (the panel goldens
+    /// pin <c>"key": null</c>).</summary>
+    private static readonly JsonSerializerOptions Options = FdpJsonOptionsRegistry.Derive(o =>
     {
-        PropertyNamingPolicy   = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.Never,
-        WriteIndented          = false,
-    };
+        o.PropertyNamingPolicy   = JsonNamingPolicy.CamelCase;
+        o.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
+    });
 
     /// <summary>
     /// ⭐ Serialise <paramref name="viewModel"/> to a <see cref="JsonNode"/>.
