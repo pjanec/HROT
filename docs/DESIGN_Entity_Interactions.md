@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-13 (§7.4 carrying by type — DESIGN, leans await the user)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.4 carrying is a type fact (R-274, DESIGN 2026-10-13) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.4 carrying is a type fact (R-274, approved 2026-10-13 R-2009 — READY-TO-BUILD) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
@@ -653,7 +653,9 @@ sequenceDiagram
 
 **Deviations from §7.3:** none in the classes or the sequence.
 
-### 7.4 Carrying is a type fact — capacity, seats, the person carrier *(R-274 (behaviors); build-state: DESIGN `2026-10-13` — leans await the user; behaviors lane; `CE-2151` (B), `CE-2152` (C))*
+### 7.4 Carrying is a type fact — capacity, seats, the person carrier *(R-274 (behaviors); build-state: READY-TO-BUILD — B1–B6, C1–C3 approved `2026-10-13` (R-2009); behaviors lane; `CE-2151` (B), `CE-2152` (C, after R-263))*
+
+🔒 *User, 2026-10-13: "B1-B6 approved. C1-C3 approved."*
 
 🔒 *User, 2026-10-12 (AQ90 §0 B, C): "carrying capacity and seats (driver, gunner, passenger) belong to the vehicle type" — yes ·
 "a soldier carrying or dragging a wounded comrade is the same embark mechanism with a 'human carrier' profile" — yes.*
@@ -751,7 +753,7 @@ graph TD
 *What the picture shows that prose hid: nothing new is registered per host — the translator rides the one shared list and the
 appliers already run in the cross-role `Interactions` capability, so R-275's "no per-host initialisation" holds by construction.*
 
-#### 7.4.4 Decisions *(leans — for the user)*
+#### 7.4.4 Decisions *(✅ B1–B6, C1–C3 approved 2026-10-13, R-2009; C4 is a measurement, the first step of C)*
 
 | # | question | ⭐ lean | blast radius | what would change it |
 |---|---|---|---|---|

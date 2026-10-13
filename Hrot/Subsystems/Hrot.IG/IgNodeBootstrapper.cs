@@ -229,8 +229,14 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         List<IEcsModuleSystem> sim,
         List<IEcsModuleSystem> postSim)
     {
-        // IG is a visualization-only node; all real ECS processing is done by the
-        // modules registered in phases 4b, 6a, and 6b.
+        // ⭐⭐ CE-2150 (R-2010) — IG walks its capabilities' systems like every other host (Stride: StrideNodeBootstrapper.cs:351).
+        //   🔒 User, 2026-10-13: "IG is no different (just having different role but most of the entity related capabilities should
+        //   dbe same as on other nodes)". ⛔ Until now this hook was EMPTY, so the cross-role capabilities IG declares (HealthApplication,
+        //   UnitHierarchy, Interactions) resolved here and ticked nowhere. Resolved lazily (ResolveCapabilities), so the step order
+        //   between this hook and GetAdditionalModules cannot matter. Each system gates on what IG registered (an unregistered event
+        //   reads empty), so a capability whose data IG does not carry costs nothing. 📄 docs/DESIGN_Orders_Params_Entity_Classes.md §11.2.
+        foreach (INodeCapability capability in ResolveCapabilities())
+            capability.PopulateSystems(context, input, sim, postSim);
     }
 
     // ── Phase 4b: Additional ECS modules ─────────────────────────────────────

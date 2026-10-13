@@ -143,4 +143,25 @@ public class IgNodeBootstrapperTests
 
         Assert.Equal(HeadlessOrder, modules.Select(m => m.GetType()).ToArray());
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2150</c> (R-2010; 🔒 user, 2026-10-13: "IG is no different") — IG's system hook walks its capabilities, so the cross-role
+    /// infrastructure it declares actually ticks there: damage application FIRST (the shared plan head, R-2008), then the unit hierarchy
+    /// and the interaction appliers; the passenger derivation in the input group. ✅ Red-proof: an empty hook (as before) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void PopulateSystems_WalksTheCrossRoleCapabilities_HealthFirst_CE2150()
+    {
+        var sut = CreateBootstrapper(headless: true);
+        var input = new List<IEcsModuleSystem>(); var sim = new List<IEcsModuleSystem>(); var post = new List<IEcsModuleSystem>();
+        typeof(IgNodeBootstrapper)
+            .GetMethod("PopulateSystems", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(sut, new object?[] { null, input, sim, post });
+
+        Assert.IsType<Fdp.Toolkit.Combat.Systems.HealthApplicationSystem>(sim[0]);
+        Assert.Contains(sim, s => s is Hrot.Common.Systems.UnitHierarchySystem);
+        Assert.Contains(sim, s => s is Fdp.Toolkit.Terrain.DoorCommandSystem);
+        Assert.Contains(sim, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
+        Assert.Contains(input, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
+    }
 }

@@ -1148,6 +1148,8 @@ graph TD
 walks nothing (red edge). That is pre-existing and also true of `UnitHierarchy` / `Interactions` there; IG says it "runs no
 simulation of its own", so R-2008's "node running live simulation" does not include it today. Filed as `CE-2150`, not changed here.*
 
+🔒 *User, 2026-10-13 (R-2010): "CE-2150 for sure they need to run there, IG is no different (just having different role but most of the entity related capabilities should dbe same as on other nodes)" — the red edge is a defect; CE-2150 makes IG walk its capabilities.*
+
 ```mermaid
 sequenceDiagram
   participant K as kernel Simulation (one frame, CGF)
