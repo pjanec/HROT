@@ -1260,7 +1260,7 @@ and the registry already loads that assembly by name on every node (`ParamsDtoRe
 | decision | ⭐ lean | why |
 |---|---|---|
 | **B4a** the shape | a `[StructLayout(Sequential)]` **struct** with public fields | it can be a no-resolver `Params` (B3a needs unmanaged); the platform JSON options include fields |
-| **B4a** defaults | per field in the asset; the generator also emits the whole default as `[ParamsDto(DefaultJson = …)]` | `default(T)` ignores initialisers (R-237); one string a host or the editor can seed `ParamsDefaultJson` from |
+| **B4a** defaults | per field in the asset; ⛔ ~~the generator also emits the whole default as `[ParamsDto(DefaultJson = …)]`~~ — ⭐ **SUPERSEDED by R-3002 (§13.10a): the generator emits field INITIALISERS + a parameterless constructor** | `default(T)` ignores initialisers (R-237); one string a host or the editor can seed `ParamsDefaultJson` from |
 | **B4a** an order DTO | `OrderName` (+ `Gesture`) on the asset ⇒ the generator adds `[Order]` | the menu then offers it with no other change (§9) |
 | **B4a** the type of a field | an FQN string, emitted `global::FQN` | generators see only JSON text; an unknown type is a compile error in the generated file |
 | **B4b** the editor ⏸ | a new `AssetKind.Params`, a FORM document (the first non-graph one) hosting `VariablesPanelControl` over a new `ParamsDtoSchemaSource`, plus an order-name field | ⚠ touches ~10 per-kind switches and adds the first non-graph document — **the user decides the shape** |
@@ -1982,7 +1982,7 @@ sequenceDiagram
   participant Ov as BehaviorParams.OverlayFlat (exists)
   participant Ord as ParseParams (exists)
   Bake->>D: DefaultOf(T)
-  D-->>Bake: new T() (initialisers), overlaid with [ParamsDto(DefaultJson)]
+  D-->>Bake: new T() (the DTO's field initialisers, R-3002)
   Bake->>Ov: overlay the ASSET's ParamsDefaultJson (only the keys it overrides)
   Ord->>Ov: overlay the ORDER's JSON (only the keys it sends)
 ```
@@ -1993,7 +1993,7 @@ absent key loses the DTO's default; and a blueprint has no `ParamsDefaultJson` a
 | decision | lean (ruled R-3001) | rejected |
 |---|---|---|
 | what `ParamsDefaultJson` means | the asset's **overrides only** — a sparse object of field → value; an absent key inherits the DTO's default, so a changed DTO default reaches every asset that did not override it | a full copy seeded from the DTO (a DTO change never reaches its assets) |
-| the DTO's own default | `ParamsDefaults.DefaultOf(T)`: `new T()` (runs a parameterless constructor, so C# initialisers apply) then `[ParamsDto(DefaultJson)]` (a generated `.params.json` DTO carries its defaults there, R-237) — ONE function the bake and the editor both call | the editor reading the attribute and the bake reading the type separately (two answers for one value) |
+| the DTO's own default *(R-3002)* | ⭐ **its field initialisers — `new T()`, nothing else.** 🔒 User, 2026-10-13: *"Param Dto defaults od csharpstruct should be written as initializers, not as attributes. Even structs support initializers (if ctor is used.)"* ⇒ a hand-written DTO declares initialisers + `public T() {}`; the `.params.json` generator EMITS the same (it emits `[ParamsDto(DefaultJson)]` today, `ParamsDtoAsset.cs:169`); `ParamsDtoAttribute.DefaultJson` and its readers retire (`ParamsDtoFields.cs:49`, `GeneratedBlueprintSchemaCatalog.ParamsDtoDefaultJsonOf`). The bake writes `new T()` at RUN time — never a compile-time literal (the blueprint `InitDefault` writes literals today, `InstanceEmitter.cs:673`; a build-time generator cannot read a referenced assembly's initialisers). The editor reads `Activator.CreateInstance(type)`. ✅ Verified 2026-10-13 (net8 console probe): `Activator.CreateInstance`, `JsonSerializer.Deserialize` (an absent key keeps its initialiser) and a generic `new T()` all run the initialisers; ⛔ `default(T)` / zeroed memory do NOT — so no bake may start from zeroed bytes | the attribute (a second copy of the default, beside the code that owns it) · `new T()` then the attribute (two sources) |
 | which DTOs the editor offers | every `ParamsDtoRegistry` entry — hand-written C# and generated from `.params.json` alike, the origin shown | a separate list per origin |
 | the editing surface | StructEdit over the DTO (`BehaviorParamsForm`, exists) showing the effective value; a field the asset overrides is marked and can be reset (the key removed) | a hand-written per-field table |
 | blueprints | `BlueprintAsset.ParamsDefaultJson` (new), baked the same way | blueprints take only the DTO's defaults |
