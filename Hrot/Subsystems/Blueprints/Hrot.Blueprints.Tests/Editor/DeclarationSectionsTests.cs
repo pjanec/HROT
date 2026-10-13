@@ -339,7 +339,7 @@ public sealed class DeclarationSectionsTests
         var model = MakeModel(asset);
         bool dirtied = false;
 
-        Assert.True(Hrot.Blueprints.Editor.Host.BlueprintParamsDto.Set(asset, typeof(InputsRailParams).FullName!, () => dirtied = true));
+        Hrot.Blueprints.Editor.Host.BlueprintParamsDto.Run(asset, typeof(InputsRailParams).FullName!, null, "choose", history: null, () => dirtied = true);
 
         Assert.True(dirtied);
         Assert.Equal(typeof(InputsRailParams).FullName, asset.ParamsDtoTypeId);

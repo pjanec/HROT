@@ -359,4 +359,35 @@ public sealed class BlueprintUndoUnificationTests
 
         Assert.Equal(7, value);
     }
+
+    // ── CE-1062: the params DTO and its defaults are undoable too ────────────
+
+    public struct BpParamsA { public float Radius = 1f; public BpParamsA() { } }
+    public struct BpParamsB { public int Rounds = 2; public BpParamsB() { } }
+
+    /// <summary>⭐ <c>CE-1062</c> (user: "make … the blueprint DTO chooser too") — the chooser and a default edit each go on the SAME undo
+    /// stack as every other blueprint edit, through the sink's one <c>AssetEditCommand</c> arm (the base of <c>BlueprintEditCommand</c>);
+    /// undo restores the exact previous DTO + overrides pair, redo re-applies, and each marks the asset dirty.</summary>
+    [Fact]
+    public void CE1062_TheParamsDtoChooserAndDefaults_AreUndoable()
+    {
+        var h = new Harness();
+        BlueprintParamsDto.Run(h.Asset, typeof(BpParamsA).FullName, "{\"Radius\":4}", "Params DTO: BpParamsA", h.Undo, markDirty: null);
+        BlueprintParamsDto.Run(h.Asset, typeof(BpParamsB).FullName, null, "Params DTO: BpParamsB", h.Undo, markDirty: null);
+        Assert.Equal((typeof(BpParamsB).FullName, (string?)null), (h.Asset.ParamsDtoTypeId, h.Asset.ParamsDefaultJson));
+        Assert.Equal(2, h.Undo.UndoCount);
+        Assert.Equal(2, h.DirtyLog.Count);                                    // the sink marked it dirty, once per edit
+
+        Assert.True(h.Undo.Undo());
+        Assert.Equal((typeof(BpParamsA).FullName, "{\"Radius\":4}"), (h.Asset.ParamsDtoTypeId, h.Asset.ParamsDefaultJson));
+        Assert.True(h.Undo.Undo());
+        Assert.Equal(((string?)null, (string?)null), (h.Asset.ParamsDtoTypeId, h.Asset.ParamsDefaultJson));
+        Assert.True(h.Undo.Redo());
+        Assert.Equal((typeof(BpParamsA).FullName, "{\"Radius\":4}"), (h.Asset.ParamsDtoTypeId, h.Asset.ParamsDefaultJson));
+
+        // ⚠ the BASE command runs too — a missing arm would hit the default and report success for a no-op
+        bool ran = false;
+        Assert.True(h.Sink.Apply(new Hrot.Editor.AiShared.Documents.AssetEditCommand("probe", () => ran = true)).Success);
+        Assert.True(ran);
+    }
 }

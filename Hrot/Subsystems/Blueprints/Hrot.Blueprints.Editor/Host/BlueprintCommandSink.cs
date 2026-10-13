@@ -213,7 +213,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
 
             // BP-11: the Blueprint-owned transport that carries drawer/inspector edits onto the
             // single UndoStack. MUST stay above the default: arm — see BlueprintEditCommand.
-            case BlueprintEditCommand edit:
+            // ⭐ CE-1062 — the family's base: BlueprintEditCommand and the shared AssetEditCommand (the params DTO / defaults).
+            case Hrot.Editor.AiShared.Documents.AssetEditCommand edit:
                 return ApplyBlueprintEdit(edit);
 
             // BP-74: without these two, a dispatched collapse reached the default: arm below and
@@ -1072,7 +1073,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// stack recorded the forward/inverse pair before handing us this one, so recording again would
     /// push a second entry for the same gesture (see the class docs on <see cref="BlueprintEditCommand"/>).
     /// </summary>
-    private GraphCommandResult ApplyBlueprintEdit(BlueprintEditCommand edit)
+    private GraphCommandResult ApplyBlueprintEdit(Hrot.Editor.AiShared.Documents.AssetEditCommand edit)
     {
         edit.Mutate();
         _markDirty(_asset);

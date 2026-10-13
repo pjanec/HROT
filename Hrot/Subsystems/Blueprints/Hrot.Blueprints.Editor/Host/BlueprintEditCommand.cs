@@ -35,4 +35,6 @@ namespace Hrot.Blueprints.Editor.Host;
 /// single direction: the caller builds two — a forward and an inverse — and hands both to
 /// <c>GraphView.Execute</c>.
 /// </param>
-public sealed record BlueprintEditCommand(string Label, Action Mutate) : GraphCommand;
+/// <remarks>⭐ <c>CE-1062</c> — a subtype of the AI documents' one <see cref="Hrot.Editor.AiShared.Documents.AssetEditCommand"/>; nothing
+/// changes for its callers, and the sink's single arm now matches the family.</remarks>
+public sealed record BlueprintEditCommand(string Label, Action Mutate) : Hrot.Editor.AiShared.Documents.AssetEditCommand(Label, Mutate);

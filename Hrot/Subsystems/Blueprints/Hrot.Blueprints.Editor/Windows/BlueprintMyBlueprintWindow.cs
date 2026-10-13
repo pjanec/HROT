@@ -324,6 +324,7 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
     {
         _model.Retarget(editableAsset, blueprintAsset, currentGraphId);
         _indicators = indicators;
+        _view = view;   // ⭐ CE-1062 — the params edits go onto this document's undo stack
 
         // If host services changed (or panel not yet built), rebuild the panel.
         if (!ReferenceEquals(_hostServices, hostServices) || _panel == null)
@@ -701,9 +702,24 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
             _choicesRegistry = registry;
             _choicesCurrent = asset.ParamsDtoTypeId;
         }
+        // ⭐ CE-1062 — one undo entry; the overrides go with the old DTO (they would be BP1689 on the new one, §13.10c E6).
         if (Hrot.Editor.AiShared.Blackboard.ParamsDtoChooser.Draw("bp", asset.ParamsDtoTypeId, _choices) is { } picked)
-            Host.BlueprintParamsDto.Set(asset, picked, MarkDirtyAction());
+            Host.BlueprintParamsDto.Run(asset, picked, null,
+                $"Params DTO: {Hrot.Editor.AiShared.Blackboard.ParamsDtoChooser.SimpleName(picked)}", _view?.Undo, MarkDirtyAction());
+
+        // ⭐ CE-1061 U5b (R-3001, §13.10c) — the asset's params defaults: the DTO's initialisers, this asset's overrides on top.
+        var dto = string.IsNullOrWhiteSpace(asset.ParamsDtoTypeId) ? null
+            : Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.ResolveClrType(asset.ParamsDtoTypeId!);
+        _paramsDefaults.Sync(dto, asset.ParamsDefaultJson);
+        if (_paramsDefaults.Session != null
+            && ImGuiNET.ImGui.CollapsingHeader($"Params defaults — {Hrot.Editor.AiShared.Blackboard.ParamsDtoChooser.SimpleName(asset.ParamsDtoTypeId!)}##bp_pd", ImGuiNET.ImGuiTreeNodeFlags.DefaultOpen)
+            && Hrot.Presentation.Behavior.ParamsDefaultsForm.Draw("##bp_pdf", _paramsDefaults) is { } commit)
+            Host.BlueprintParamsDto.Run(asset, asset.ParamsDtoTypeId, commit.Json, commit.Label, _view?.Undo, MarkDirtyAction());
     }
+
+    private NodeEditor.Core.View.GraphView? _view;
+    private readonly Hrot.Presentation.Behavior.ParamsDefaultsModel _paramsDefaults =
+        new(Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build());
 
     protected override void DrawClientArea()
     {

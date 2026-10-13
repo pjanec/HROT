@@ -2147,7 +2147,7 @@ no replacement edge, by design (adding a field is B4b, postponed).*
   `BehaviorTreeAssetModelTests.CE1061_PickingAParamsDto_WritesTheTypeId_AndRebuildsTheParamsEntry`; frame rail
   `TheParamsPanelRendersTests` (U4 evidence, screenshot).
 
-#### 13.10c U5b — editing an asset's params defaults, and undo for the params edits *(ui lane, CE-1061 U5b + CE-1062; build-state: READY-TO-BUILD `2026-10-13` — unblocked by backend CE-3194 at 2928ff2f0)*
+#### 13.10c U5b — editing an asset's params defaults, and undo for the params edits *(ui lane, CE-1061 U5b + CE-1062; build-state: BUILT `2026-10-13` (as-built after the decisions) — designed READY-TO-BUILD the same day — unblocked by backend CE-3194 at 2928ff2f0)*
 
 🔒 **R-3001 / R-3002** (above). Backend, as built: `Fdp.Toolkit.Behavior.ParamsDefaults.DefaultOf(Type)` (= `new T()`),
 `ParamsDefaults.Effective(Type, overridesJson)`; `ParamsDefaultJson` on BTree, HSM and now `BlueprintAsset`; a blueprint override naming a
@@ -2248,6 +2248,23 @@ the dashed path is the fallback where no document view exists — the edit still
 | E5 | finding the view | BTree / HSM: `BlackboardAuthoringWindow.SetCanvasContextResolver`, installed by the registrar from its canvas window (the outline's precedent); used only when its context's asset IS the panel's asset. Blueprint: the `view` `Retarget` already receives | a new constructor argument on the window (a silent default to forget) |
 | E6 | a DTO change | clears the overrides (they name another DTO's fields; for a blueprint they would be `BP1689`) and is ONE undo entry restoring both | keep the overrides (a compile error on the next build) |
 | E7 | U3 rows | now show the EFFECTIVE value (`ParamsDefaults.Effective`), overridden ones marked "●" — D4's "(DTO default)" stood in for the missing `DefaultOf` | keep "(DTO default)" (the answer exists now) |
+
+**As built** *(2026-10-13, ui, `CE-1061` U5b + `CE-1062`)* — the diagrams hold, with three deviations (⚠):
+- ⚠ `ParamsDefaultsModel` and `ParamsDefaultsForm` live in `Hrot.Presentation/Behavior/ParamsDefaultsForm.cs`, beside `BehaviorParamsForm`
+  (the one params form family), not in AiShared — both consumers (AiShared, Blueprints.Editor) reference it.
+- ⚠ `AssetEdits.Run` takes the document's `UndoStack` (`GraphView.Undo`), not the `GraphView`: `GraphView.Execute` only forwards to it, and
+  the rails build an `UndoStack` over a real sink without an ImGui-bound view. The window resolves `ctx.View.Undo`; the blueprint outline
+  `_view?.Undo`. `BlueprintParamsDto.Run(asset, type, defaults, label, undo, markDirty)` + `Set(asset, type, defaults)`.
+- ⚠ The "Params defaults" section opens by default (`DefaultOpen`) on both surfaces.
+- `IParamsDtoAsset` is `ParamsDtoTypeId` · `CurrentParamsDefaults` · `SetParams(type, defaults)` (U5a's `SetParamsDto` is gone — the chooser
+  is `SetParams(new, null)`). `ReservedParamsVariable.Retarget` takes the defaults. The form commits only when no ImGui item is active
+  (one undo entry per drag / typed value). `ParamsFieldRow` = `(Name, TypeName, ValueJson, IsOverridden)`.
+- `BlueprintEditCommand` now derives from `AssetEditCommand`; `BlueprintCommandSink`'s one arm matches the base (`ApplyBlueprintEdit` takes
+  it); `BTreeCommandSink` / `HsmCommandSink` gained the arm.
+- Rails: `BehaviorParamsFormTests.CE1061_EditingADefault_WritesOnlyThatKey_AndResetRemovesIt` (acceptance 4);
+  `BehaviorTreeAssetModelTests.CE1062_ParamsEdits_UndoAndRedo_OnTheDocumentsStack`; `HsmAssetBlackboardTests.CE1062_TheHsmParamsWrite_IsUndoableThroughItsSink`;
+  `BlueprintUndoUnificationTests.CE1062_TheParamsDtoChooserAndDefaults_AreUndoable`; `NodeOwnedVariableTests.CE1061_TheParamsRow_…` (E7);
+  the frame rail now renders the defaults form.
 
 ### 13.11 P5 — mandatory fields, the fast path, `GET /orders`, the order-form seam *(CE-2148; build-state: BUILT `2026-10-13`, behaviors — as-built at the end of this section)*
 

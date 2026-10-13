@@ -209,7 +209,7 @@ public sealed class BehaviorTreeAssetModelTests
         int changed = 0;
         asset.Changed += () => changed++;
 
-        ((Hrot.Editor.AiShared.Blackboard.IParamsDtoAsset)asset).SetParamsDto(typeof(DtoB).FullName!);
+        ((Hrot.Editor.AiShared.Blackboard.IParamsDtoAsset)asset).SetParams(typeof(DtoB).FullName!, null);   // the chooser's write
 
         asset.ParamsDtoTypeId.Should().Be(typeof(DtoB).FullName);
         asset.ParamsDefaultJson.Should().BeNull("DtoA's overrides name DtoA's fields");
@@ -221,7 +221,35 @@ public sealed class BehaviorTreeAssetModelTests
         changed.Should().BeGreaterThan(0);
 
         int before = changed;
-        asset.SetParamsDto(typeof(DtoB).FullName!);
+        asset.SetParams(typeof(DtoB).FullName!, null);
         changed.Should().Be(before, "the same DTO again is a no-op");
+    }
+
+    /// <summary>⭐ <c>CE-1062</c> — the params edits are ONE undo entry each on the document's undo stack, through the BTree sink's
+    /// <c>AssetEditCommand</c> arm: a default edit and the DTO choice undo back to the exact previous pair and redo again.</summary>
+    [Fact]
+    public void CE1062_ParamsEdits_UndoAndRedo_OnTheDocumentsStack()
+    {
+        var asset = MakeAsset();
+        asset.IsBlackboardEditorManaged = true;
+        asset.SetParams(typeof(DtoA).FullName, "{\"Radius\":3}");
+        var undo = new NodeEditor.Core.Commands.UndoStack(new Hrot.BTree.Editor.Host.BTreeCommandSink(asset, graph: null!));
+
+        Assert.True(Hrot.Editor.AiShared.Documents.AssetEdits.Run(undo, "Edit params default Radius",
+            () => asset.SetParams(typeof(DtoA).FullName, "{\"Radius\":5}"), () => asset.SetParams(typeof(DtoA).FullName, "{\"Radius\":3}")));
+        asset.CurrentParamsDefaults.Should().Be("{\"Radius\":5}");
+        Assert.True(Hrot.Editor.AiShared.Documents.AssetEdits.Run(undo, "Params DTO: DtoB",
+            () => asset.SetParams(typeof(DtoB).FullName, null), () => asset.SetParams(typeof(DtoA).FullName, "{\"Radius\":5}")));
+        asset.ParamsDtoTypeId.Should().Be(typeof(DtoB).FullName);
+        asset.CurrentParamsDefaults.Should().BeNull();
+
+        undo.Undo().Should().BeTrue();
+        (asset.ParamsDtoTypeId, asset.CurrentParamsDefaults).Should().Be((typeof(DtoA).FullName, "{\"Radius\":5}"));
+        asset.BlackboardVariables.Single(v => v.IsReservedParams).FieldType.Should().Be(typeof(DtoA));
+        undo.Undo().Should().BeTrue();
+        asset.CurrentParamsDefaults.Should().Be("{\"Radius\":3}");
+        asset.ParamsDefaultJson.Should().Be("{\"Radius\":3}", "the save falls back to the field, so it must follow too");
+        undo.Redo().Should().BeTrue();
+        asset.CurrentParamsDefaults.Should().Be("{\"Radius\":5}");
     }
 }

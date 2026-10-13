@@ -202,14 +202,21 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, Hrot.Edi
         MarkDirty();
     }
 
-    /// <summary>⭐ <c>CE-1061</c> (U5a, R-3001) — names the asset's params DTO (the variables panel's chooser); see
-    /// <see cref="Hrot.Editor.AiShared.Blackboard.IParamsDtoAsset.SetParamsDto"/>.</summary>
-    public void SetParamsDto(string typeId)
+    /// <summary>⭐ <c>CE-1061</c> — the default overrides as the open document holds them: the reserved entry's, else the asset field.</summary>
+    public string? CurrentParamsDefaults
+        => Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.Find(_blackboardVariables)?.DefaultValueJson ?? ParamsDefaultJson;
+
+    /// <summary>⭐ <c>CE-1061</c> U5a/U5b (R-3001, §13.10c E3) — the params DTO and its default overrides, written together (the chooser,
+    /// a default edit, every undo); see <see cref="Hrot.Editor.AiShared.Blackboard.IParamsDtoAsset.SetParams"/>. ⚠ Both the asset field
+    /// and the reserved entry: the save falls back to the field, so clearing only the entry would resurrect the loaded value.</summary>
+    public void SetParams(string? typeId, string? defaultsJson)
     {
-        if (string.IsNullOrWhiteSpace(typeId) || string.Equals(ParamsDtoTypeId, typeId, StringComparison.Ordinal)) return;
-        ParamsDtoTypeId   = typeId;
-        ParamsDefaultJson = null;   // the save falls back to it when the reserved entry carries none
-        Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.Retarget(_blackboardVariables, typeId, IsBlackboardEditorManaged, Resolver != null);
+        string? t = string.IsNullOrWhiteSpace(typeId) ? null : typeId;
+        string? d = string.IsNullOrWhiteSpace(defaultsJson) ? null : defaultsJson;
+        if (string.Equals(t, ParamsDtoTypeId, StringComparison.Ordinal) && string.Equals(d, CurrentParamsDefaults, StringComparison.Ordinal)) return;
+        ParamsDtoTypeId   = t;
+        ParamsDefaultJson = d;
+        Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.Retarget(_blackboardVariables, t, d, IsBlackboardEditorManaged, Resolver != null);
         MarkDirty();
     }
 

@@ -114,6 +114,11 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
                     Apply(sub);
                 break;
 
+            // ⭐ CE-1062 (§13.10c E4) — an asset-level edit (the params DTO, its defaults) on this document's undo stack.
+            case Hrot.Editor.AiShared.Documents.AssetEditCommand assetEdit:
+                assetEdit.Mutate();
+                break;
+
             default:
                 return new GraphCommandResult(false, $"Unsupported: {command.GetType().Name}");
         }
