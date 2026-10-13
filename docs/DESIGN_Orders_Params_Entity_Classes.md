@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-13 (§13 finishing the params story — measured, leans await the user)
 build-state: BUILDING — §5a records each task as built (CE-2145 ✅, CE-2131 ✅, CE-2132 ✅, CE-2130, CE-2133, CE-2134, CE-2140, CE-2141, CE-2142, CE-2143, CE-2137, CE-2138, CE-2139 ✅); §6 is the build plan
-current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class · §9 D4 (CE-2143) one generic order path: menu, RTS, HTTP · ⭐ §13 FINISHING THE PARAMS STORY (2026-10-13): what is left, decisions F1–F8, work P1–P7 by lane
+current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class · §9 D4 (CE-2143) one generic order path: menu, RTS, HTTP · ⭐ §13 FINISHING THE PARAMS STORY (2026-10-13): what is left, decisions F1–F8, work P1–P7 by lane · §13.12 P5b the order form (ui, CE-1059)
 stale-below: nothing
 known-rot: none
 known-conflict: (resolved by CE-2143) docs/DESIGN_Entity_Control.md §3.1/§10 is now marked superseded in its own STATUS. · docs/blueprints/DESIGN_Parameter_Model.md §P.7 (a resolver asset's authored shape = its Parameters) and §1 (Role Input/State) are superseded HERE by R-276/R-277 (one params DTO, no roles); that doc is updated when B3 builds, not before. docs/DESIGN_Entity_Control.md §3.1/§10 (EntityOrders names soldier behaviours) is superseded by R-273; updated when D4 builds.
@@ -23,6 +23,9 @@ related-designs:
   - docs/blueprints/HANDOFF_Orders_Track_B_Params_Internals.md — the dispatch for Track B
   - docs/blueprints/HANDOFF_Orders_Track_C_Classes_And_Dis.md — the dispatch for Track C
   - docs/designs/orbat-context-menu/OC1-DESIGN.md — its §2.1 (OC1-S001, the sender-side FollowRoute translation) is superseded by §10 (CE-2145)
+  - docs/blueprints/DESIGN_Map_Picking_Unification.md — OWNS the one pick broker and IMapPickContext; §13.12 (P5b) adds the entity LIST pick to it and one preset filter for every host (CE-1060)
+  - docs/DESIGN_Sensors_And_Doctrine.md — §7.6b OWNS the one params form (BehaviorParamsForm) the order form draws
+  - docs/DESIGN_Map_3D_Mode.md — §3.8 OWNS picking in 3-D, which the order form's picks use unchanged
 -->
 
 # Orders, params DTOs and entity classes
@@ -1839,7 +1842,7 @@ graph TD
   style FORM stroke:#c00,stroke-dasharray: 5 5
 ```
 
-*What the module picture shows: until the ui lane registers an `IOrderForm` (P5b) the dashed edge is DEAD — an order that needs the
+*⭐ SUPERSEDED 2026-10-13 by §13.12 (CE-1059): the form is built and registers itself where a host draws it, so the dashed edge is live on windowed hosts. — What the module picture showed: until the ui lane registers an `IOrderForm` (P5b) the dashed edge is DEAD — an order that needs the
 form is refused with "needs the order form" (logged), and the unit menu keeps hiding such orders so no menu item does nothing.*
 
 | # | decision | ⭐ lean | rejected (one line each) |
@@ -1863,3 +1866,152 @@ form is refused with "needs the order form" (logged), and the unit menu keeps hi
   missing field is a 400). `MissingIn`'s entity-0 check compares JSON text — the rail caught that a `JsonValue` built from an `int` does not
   answer `TryGetValue<long>`. MCP: `list_orders` (catalog + SKILL.md regenerated).
 
+### 13.12 P5b — the order form *(CE-1059, ui lane; build-state: BUILT `2026-10-13` — as-built at the end of this section; designed READY-TO-BUILD the same day — dispatched by [HANDOFF_Order_Form_Ui](blueprints/HANDOFF_Order_Form_Ui.md) at 846c8021d)*
+
+🔒 **User, 2026-10-13:** *"some kind of parameter filling modeless floating form allowing for picking from 2d/3d map … and/or list
+picker with incremental search, but avoidable for simpler orders where RTS style is desired"*.
+
+**INVENTORY** *(codebase-memory CLI `search_graph` Class + Interface: `.*OrderForm.*` (1: `IOrderForm`), `.*Designation.*` (4),
+`.*MapPick.*` (10 + 2 interfaces), `.*EntityFilter.*` (2 + 2 interfaces), `.*ParamsForm.*|.*ParamsEditor.*` (3),
+`.*EntityList.*|.*EntityPicker.*` (3, no list source); grep for every `new CanvasMapPickAdapter`, `.DrawFrame()`, `BehaviorParamsForm.`
+caller; every file named below read whole)*:
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| ONE params form exists and is drawn by the mission panel and the AI details view | ✅ `BehaviorParamsForm.cs:24`, `MissionPanel.cs:508`, `EntityAiDetailsView.cs:323` | ✅ `DESIGN_Sensors_And_Doctrine.md` §7.6b (CE-1023) |
+| a pickable field is drawn with a map pick button by its TYPE, through `IMapPickContext`; the broker turns `IMapPickService` into per-frame polling | ✅ `ComponentEditDrawer.cs:326-365`, `MapPickBroker.cs:17` | ✅ `DESIGN_Map_Picking_Unification.md` P4/P5 |
+| no entity LIST source exists for the fuzzy picker | ✅ graph: no `*EntityList*` / list source class; `PickerRegistry.OpenPicker(request, onChosen)` has no cancel callback (`PickerRegistry.cs:85`) | ⛔ searched docs/ + .dev/, none found (F6 names it new) |
+| ⚠ map entity picks honour `[MapPickableEntity]` presets ONLY on IG and the Editor: CGF and SimHost build `CanvasMapPickAdapter` with no filter factory ⇒ match-all | ✅ `IgApplication.cs:536`, `EditorSubsystem.cs:2385` pass `HrotEntityFilterFactory`; `CgfSubsystem.cs:1900`, `SimHostVisualization.cs:368` do not; default `MatchAllFilterFactory` (`CanvasMapPickAdapter.cs:29`) | ✅ `MapLayerAssignmentSystem` (which the filter reads) runs on all four hosts (`CgfSubsystem.cs:1482`, `SimHostApp.cs:542`, `EditorSubsystem.cs:1823`, IG `MapLayerModule`) ⇒ the filter would work everywhere — **CE-1060** |
+| 3-D picks need no new code: the location and entity pick gizmos run through the unchanged input chain | ✅ `CanvasMapPickAdapter.cs:94` (gizmo on the canvas), `EntityBoxPicker.cs` | ✅ `DESIGN_Map_3D_Mode.md` §3.8 (built) — ⚠ not visually checked here |
+| the four windowed hosts draw an ImGui frame hook: SimHost / IG call `EntityAuthoring.DrawFrame()`, Editor / CGF draw their shell pickers | ✅ `SimHostApp.cs:665`, `IgApplication.cs:1365`, `EditorSubsystem.cs:3051`, `CgfSubsystem.cs:1867` | ✅ §5 "One wiring" of `DESIGN_Add_Entity_Picker.md` |
+| no shipped order is `Several` today (Move: `Location`, Attack: `Target`, Hold: none) ⇒ the form is reached by "Order with options" until an order with two picks or a required number ships | ✅ `OrderDtos.cs` | ✅ §13.11 P5-c |
+| a menu click carries only (action id, entity) — no modifier, no point | ✅ `GlobalActionRequestedEvent.cs:15-20` | ✅ §13 inventory |
+
+```mermaid
+classDiagram
+  direction LR
+  class IOrderForm { <<existing, behaviors>> Open(draft) }
+  class OrderDraft { <<existing, behaviors>> Units · Order · Params · Missing · Send(json) }
+  class OrderForm { <<NEW>> Open(draft) · Draw() — registers itself as the world's IOrderForm on its FIRST draw · Entries }
+  class OrderFormEntry { <<NEW, no ImGui>> Draft · Session · Json() = Params + changed fields · Missing · Remember · Send() · Results }
+  class BehaviorParamsForm { <<existing>> Open · DrawFields · CommitToJson }
+  class MapPickBroker { <<existing, CHANGED>> + EntityList opener · CanListEntities · RequestEntityListPick }
+  class IMapPickContext { <<existing, CHANGED>> + CanListEntities (default false) · RequestEntityListPick (default no-op) }
+  class ScopedMapPickContext { <<existing, CHANGED>> forwards the two }
+  class ComponentEditDrawer { <<existing, CHANGED>> EntityRef leaf: Pick Entity + List… }
+  class EntityListSource { <<NEW>> Entries(world, filter, exclude) → PickerEntry per networked entity }
+  class HrotEntityFilterFactory { <<existing, MOVED Hrot.IG → Hrot.Presentation.Map>> presets → layer mask }
+  class CanvasMapPickAdapter { <<existing, CHANGED>> no factory + a world ⇒ HrotEntityFilterFactory (CE-1060) }
+  class PickerRegistry { <<existing, NodeEditor.UI>> OpenPicker · DrawFrame }
+  class OrderDesignations { <<existing, behaviors>> Set · Of · KindOf }
+  class DesignationOverlayGizmo { <<NEW>> passive global gizmo: draws each selected unit's designations }
+  class MenuOrders { <<existing, CHANGED>> Order with options (ids 480+) · Designate over the selection · Selected }
+  class ContextMenuProjectorGizmo { <<existing, CHANGED>> form registered ⇒ Several as "Name…" + "Order with options" submenu }
+  OrderForm ..|> IOrderForm
+  OrderForm *-- OrderFormEntry
+  OrderFormEntry --> OrderDraft
+  OrderFormEntry ..> BehaviorParamsForm
+  OrderFormEntry ..> OrderDesignations : Remember
+  OrderForm --> MapPickBroker : one, scoped per entry
+  MapPickBroker ..|> IMapPickContext
+  ScopedMapPickContext ..|> IMapPickContext
+  ComponentEditDrawer ..> IMapPickContext
+  MapPickBroker ..> PickerRegistry : list pick
+  MapPickBroker ..> EntityListSource
+  EntityListSource ..> HrotEntityFilterFactory
+  CanvasMapPickAdapter ..> HrotEntityFilterFactory
+  DesignationOverlayGizmo ..> OrderDesignations : reads
+  MenuOrders ..> IOrderForm
+  ContextMenuProjectorGizmo ..> IOrderForm : registered?
+```
+
+*What the picture shows that prose hid: the form adds no second editor, no second pick path and no second entity filter — the list pick
+is one more way the SAME broker answers the SAME `TryConsumeEntityPick`, so every params form (mission panel, AI view) can offer it,
+and the list and the map pick narrow by ONE preset rule.*
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant MO as MenuOrders
+  participant OM as OrderMenu
+  participant F as OrderForm
+  participant E as OrderFormEntry
+  participant B as MapPickBroker
+  participant P as IMapPickService / PickerRegistry
+  participant EO as EntityOrders
+  U->>MO: "Order with options › Move" (or a Several order "Name…")
+  MO->>OM: Draft(order, selected units ∋ clicked, context none)
+  MO->>F: Open(draft)
+  F->>E: new entry, session over the DTO seeded from draft.Params
+  loop every ImGui frame (host: mi.DrawOperatorUi)
+    F->>E: DrawFields(session, scoped broker)
+    U->>B: Pick Map / Pick Entity / List…
+    B->>P: PickLocationAsync / PickEntityAsync(presets) / OpenPicker(entities matching presets)
+    P-->>B: the pick (a later frame)
+    B-->>E: TryConsume… ⇒ the field
+    E->>OM: MissingIn(order, Json()) ⇒ Send enabled?
+  end
+  U->>E: Send
+  E->>EO: draft.Send(Json()) — once per unit
+  EO-->>E: results (refusals shown in the form)
+  E->>E: Remember ⇒ OrderDesignations.Set(unit, kind, value) for each designatable field sent
+```
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack<br/>live map host, not a replay] -->|builds, registers actions| MO[MenuOrders]
+  MIP -->|builds| OF[OrderForm]
+  MIP -->|registers, ticks each frame| OV[DesignationOverlayGizmo<br/>GlobalGizmoManager]
+  HOST[Editor · CGF · SimHost · IG<br/>ImGui frame] -->|mi.DrawOperatorUi each frame| OF
+  OF -->|first draw: SetSingletonManaged| ISF[IOrderForm world singleton]
+  CMP[ContextMenuProjectorGizmo] -->|reads| ISF
+  MO -->|OpenForm| ISF
+  RTS[RtsCommands] -->|OpenForm| ISF
+  HEADLESS[headless host / test<br/>never draws] -.->|no draw ⇒ never registered| ISF
+  style HEADLESS stroke:#c00,stroke-dasharray: 5 5
+```
+
+*What the module picture shows: the form is OFFERED exactly where it is DRAWN — it registers itself on its first draw, so a headless
+node (dashed) never shows "Name…" or "Order with options", by construction rather than by a flag each host must set.*
+
+| # | decision | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| O1 | what the form sends | `draft.Params` plus only the fields the operator CHANGED (compared with the value the session opened with); `OrderMenu.MissingIn` over that JSON enables Send — the one rule | the whole committed DTO (a never-picked `[Required]` point serialises as `[0,0]`, which `MissingIn` counts as set) |
+| O2 | where it lives, who draws it | built by `MapInteractionPack` beside `MenuOrders` (live hosts only); every windowed host calls `mi.DrawOperatorUi()` once per ImGui frame (the authoring pickers + the form); the form registers itself as `IOrderForm` on its first draw | register at build (a headless pack offers a form nobody draws) · a context flag (one more input four hosts must remember) |
+| O3 | the searchable entity list | `MapPickBroker` gets an optional list opener (the map's `PickerRegistry`); `IMapPickContext` gains `CanListEntities` / `RequestEntityListPick` as default members; the drawer shows **List…** beside **Pick Entity** when the context can list; entries = networked entities matching the field's presets, named by `EntityInfo.Name`, foldered by side | a combo private to the form (a second entity chooser the mission panel and the AI view could not use) |
+| O4 | one preset rule (CE-1060) | move `HrotEntityFilterFactory` to `Hrot.Presentation.Map` (same name); `CanvasMapPickAdapter` defaults to it when it has a world; the list uses the same factory | a list-only filter (the list and the map would disagree on what "a route" is) |
+| O5 | the unit menu | with a form registered: a `Several` order shows as `Name…` (its own id ⇒ `MenuOrders.Begin` ⇒ the form); an **Order with options** submenu lists every offered order (ids `480 + index`, 64 reserved, ⇒ the form prefilled) | a Shift-click modifier (a relayed menu click carries no modifier) |
+| O6 | several selected units | Designate › Set… and Order with options apply to the SELECTION when the clicked unit is in it, else to the clicked unit; plain menu orders stay one unit | every menu order on the selection (changes behaviour nobody asked to change) |
+| O7 | the remember tick | on Send, every designatable field (`OrderDesignations.KindOf`) present in the sent JSON is stored for every unit of the draft | remember on every send (silent hidden state, §13.3) |
+| O8 | the designation overlay | a passive global gizmo (the `LayerControlGizmo` shape) registered by the pack: for each SELECTED unit, a dashed line to each designation — target (red), point (green, + ring), route (amber, its waypoints drawn), area (blue, its outline drawn) | an entity projector (draws for every unit, not the selection) |
+| O9 | 3-D | no new code — picks run through the unchanged input chain (`DESIGN_Map_3D_Mode.md` §3.8) | a 3-D-only pick path |
+
+**P5b as built** *(2026-10-13, ui, `CE-1059` + `CE-1060`; matches the three diagrams above — deviations marked ⚠)*:
+- `Hrot.Presentation/Orders/`: `OrderForm` (`IOrderForm`; `Draw()` registers it and draws one ImGui window per open draft — fields,
+  "Remember as designations" when the order has a designatable field, "Missing: …", Send disabled until nothing is missing, Cancel, Esc
+  on the focused form, refusals listed; a form whose Send every unit accepted closes), `OrderFormEntry` (the headless model: `Json()`,
+  `Missing`, `Send()`, `Remember`), `EntityListSource` (entries + `Opener` for the broker), `DesignationOverlayGizmo`.
+- `MapInteraction.OrderForm` + `DrawOperatorUi()`; the four windowed hosts call `DrawOperatorUi()` once per ImGui frame (SimHost / IG
+  replaced their `EntityAuthoring.DrawFrame()` call; the Editor / CGF call it after their shell pickers). The rail
+  `EveryWindowedMapHostUsesTheOneEntityAuthoringWiring` now requires it.
+- `IMapPickContext.CanListEntities` / `RequestEntityListPick` (default members), forwarded by `ScopedMapPickContext`; `MapPickBroker.EntityList`;
+  `ComponentEditDrawer` draws **List…** after **Pick Entity** when the context can list. ⚠ The list sets NOTHING pending while it is open
+  (`PickerRegistry.OpenPicker` has no cancel callback, so a pending state could hang); the choice lands as a completed entity pick.
+- ⚠ O4 refined: `CanvasMapPickAdapter`'s default (with a world) narrows only a pick that HAS presets, and only where
+  `MapDisplayComponent` is registered; a preset-less pick stays match-all, as it was on CGF / SimHost. (`HrotEntityFilterFactory` with no
+  presets requires a layer mask, which would have newly hidden unclassified entities there.) The Editor no longer passes the factory (the
+  default is the same rule); IG still passes its own instance of the same class.
+- `ContextMenuProjectorGizmo.OrderItem(order, degraded, form)` — the per-order item, factored out so the `Several` ⇒ `Name…` rule has a rail
+  (no shipped order is `Several`); menu-cache flag 8 = "a form is registered here". `GlobalActionIds.OrderWithOptionsBase = 480`, 64 ids.
+- `MenuOrders.Selected` (set by the pack): Designate › Set… / Clear and Order with options act on the selection the clicked unit is in.
+- Rails (`MenuOrdersTests`, the feature's suite): `CE1059_ATwoPickOrder_OpensTheFormPrefilled_SendsOncePerUnit_AndAnIncompleteFormSendsNothing`,
+  `CE1059_OrderWithOptions_OrdersTheSelection_ThroughTheForm_AndRemembersThePoint`, `CE1059_TheMenu_OffersTheForm_OnlyWhereOneIsRegistered`,
+  `CE1059_DesignateOnASelection_SetsEveryUnit_AndTheOverlayDrawsIt`, `CE1059_TheEntityList_AnswersThroughTheSamePick_AndLeavesOutTheOrderedUnits`.
+- ⭐ **2026-10-13 (user: "add the entity list to the mission panel and AI view too")** — `MissionPanel.EntityList` (init, forwards to its
+  broker) and `EntityListSource.Opener(Func<EntityRepository?>, …)` (world and registry read at OPEN time: hosts build panels before
+  their world). Passed by the Editor (its mission panel, the Scenario view's mission panel, the AI view's broker) and CGF (its mission
+  panel), each over its shell pickers. ⛔ ExCon's mission panel stays map-only: ExCon holds no local entity world (its picks go to a
+  remote IG). Rails: `MissionPanelRegistryTests.CE1059_TheEntityList_ReachesTheTasksParamsForm_AtTheTasksScope`;
+  `TheScenarioWindowsAreSharedTests.EveryParamsFormHostPassesTheEntityList` (the silent-default rule, per host).
+- ⛔ Not built: an RTS modifier that opens the form (F6 "or on request") — the menu's Order with options covers it. ⚠ Not visually checked
+  on a real window (2-D or 3-D).

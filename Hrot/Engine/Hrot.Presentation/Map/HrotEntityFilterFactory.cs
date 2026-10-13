@@ -3,12 +3,13 @@ using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
-using Hrot.Presentation.Map;
 
-namespace Hrot.IG.Systems;
+namespace Hrot.Presentation.Map;
 
 /// <summary>
-/// Hrot-IG implementation of <see cref="IEntityFilterFactory"/>.
+/// THE <see cref="IEntityFilterFactory"/> of every map host (⭐ <c>CE-1060</c>: moved from <c>Hrot.IG</c> so the
+/// <c>CanvasMapPickAdapter</c> defaults to it — CGF and SimHost had passed none, so their entity picks ignored presets; and the
+/// order form's entity LIST narrows by the same rule, 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §13.12 O4).
 ///
 /// <para>
 /// Translates human-readable layer preset strings (e.g. <c>"road_graphs"</c>,
@@ -20,7 +21,7 @@ namespace Hrot.IG.Systems;
 /// </para>
 ///
 /// <para>
-/// <b>DIP / clean boundaries:</b> Only <c>Hrot.IG</c> knows about
+/// <b>DIP / clean boundaries:</b> Only <c>Hrot.Presentation</c> knows about
 /// <c>MapLayerRegistry</c> and <c>MapDisplayComponent</c>.
 /// <c>FDP.Toolkit.Vis2D</c> only sees the <see cref="IEntityFilter"/> abstraction.
 /// </para>

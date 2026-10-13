@@ -116,6 +116,15 @@ public sealed class MissionPanel
         _picks        = new Hrot.Presentation.Facades.MapPickBroker(() => _framePickService);
     }
 
+    /// <summary>⭐ <c>CE-1059</c> — the searchable entity LIST an <c>EntityRef</c> param can be chosen from (a "List…" button beside
+    /// "Pick Entity"): <see cref="Hrot.Presentation.Orders.EntityListSource.Opener"/> over the host's world and picker registry.
+    /// ⛔ A host that holds both must pass it (the silent-default rule); null ⇒ map picks only (ExCon: no local entity world).</summary>
+    public Func<string[]?, Action<int>, bool>? EntityList
+    {
+        get => _picks.EntityList;
+        init => _picks.EntityList = value;
+    }
+
     /// <summary>⭐ CE-1023 — the pick scope of task <paramref name="taskIndex"/>'s params form: a field <c>X</c> picks at
     /// <c>$.tasks[i].X</c> on <see cref="Picks"/>.</summary>
     public static string PickScope(int taskIndex) => $"$.tasks[{taskIndex}]";

@@ -14,6 +14,7 @@ known-rot: none open — ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/DESIGN_Orders_Params_Entity_Classes.md §13.12 — the order form's map picks rely on §3.8's unchanged input chain in 3-D
   - docs/DESIGN_Orders_Params_Entity_Classes.md — C2 (CE-2138): VisualFamilies grows into the shared hard-coded entity class table
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — §2.3o (lean): VisualFamilies grows into the hard-coded entity CLASS table (named DIS masks) that the behaviour lookup also uses; units get their own DIS Kind, so the composite special case becomes a DIS match
   - DESIGN_Visual_Effects.md §7 (R-269 (ui)) — the destroyed look in this map: a near-black wreck, flames and smoke particles, the `Dead` figure posture (VE-N..VE-S).

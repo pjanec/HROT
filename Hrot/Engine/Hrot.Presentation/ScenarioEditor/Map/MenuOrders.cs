@@ -34,11 +34,16 @@ namespace Hrot.ScenarioEditor.Map
         private OrderInfo? _order;
         private OrderDraft? _draft;
         private DesignationKind? _designating;   // ⭐ CE-2149 — the pending pick sets a designation, not an order
+        private long[] _designateFor = Array.Empty<long>();   // ⭐ CE-1059 (U6) — every unit the pending designation is for
 
         public MenuOrders(EntityRepository world) => _world = world ?? throw new ArgumentNullException(nameof(world));
 
         /// <summary>The host's map pick — set by every host that builds one (a resolver: the hosts build their pick after the map).</summary>
         public Func<IMapPickService?>? PickService { get; set; }
+
+        /// <summary>⭐ <c>CE-1059</c> (U6, design §13.12 O6) — the map's selection: Designate › Set… and Order with options apply to
+        /// every selected unit when the clicked unit is one of them. Set by <see cref="MapInteractionPack"/>; null ⇒ the clicked unit.</summary>
+        public Func<IReadOnlyCollection<Entity>>? Selected { get; set; }
 
         /// <summary>True while a follow-up pick is waiting for the operator.</summary>
         public bool IsPicking => _location is { IsCompleted: false } || _enemy is { IsCompleted: false };
@@ -65,8 +70,18 @@ namespace Hrot.ScenarioEditor.Map
             actions.RegisterLocal(GlobalActionIds.DesignateArea,   (_, unit) => BeginDesignate(DesignationKind.Area, unit));
             actions.RegisterLocal(GlobalActionIds.DesignateClear,  (_, unit) =>
             {
-                if (PickService?.Invoke() is not null && TryNetworkId(unit, out long id)) OrderDesignations.Of(_world)?.ClearAll(id);
+                if (PickService?.Invoke() is null || OrderDesignations.Of(_world) is not { } store) return;
+                foreach (long id in UnitsOf(unit)) store.ClearAll(id);   // ⭐ CE-1059 — the selection
             });
+            // ⭐ CE-1059 (§13.12 O5) — Order with options: the ORDER FORM for any order, prefilled, for the selection.
+            for (int i = 0; i < GlobalActionIds.OrderWithOptionsMax; i++)
+            {
+                int orderId = OrderMenu.ActionBase + i;
+                actions.RegisterLocal(GlobalActionIds.OrderWithOptionsBase + i, (_, unit) =>
+                {
+                    if (OrderMenu.TryGetById(orderId, out var order)) BeginForm(order, unit);
+                });
+            }
             // ⭐ CE-3174 (§8d) — Possess (FPS): this station takes the unit; the map follows PossessedBy into first person
             //   (PossessionStation). Like the orders, only where a pick exists — a windowed station, never a relayed headless node.
             actions.RegisterLocal(GlobalActionIds.Possess,  (_, unit) =>
@@ -99,13 +114,38 @@ namespace Hrot.ScenarioEditor.Map
             }
         }
 
+        /// <summary>⭐ <c>CE-1059</c> (§13.12 O5) — "Order with options › X": the order form for X, prefilled (gesture none, the
+        /// designations of a one-unit draft), for the selection the clicked unit is in.</summary>
+        private void BeginForm(OrderInfo order, Entity unit)
+        {
+            if (PickService?.Invoke() is null) return;
+            var units = UnitsOf(unit);
+            if (units.Length == 0) return;
+            OpenForm(_world, OrderMenu.Draft(order, units, OrderContext.None, json => Send(units, order, json),
+                designation: DesignationLookup()));
+        }
+
+        /// <summary>⭐ <c>CE-1059</c> (O6) — the units a click on <paramref name="unit"/> means: the whole selection when the unit is
+        /// in it, else the unit alone (network ids).</summary>
+        private long[] UnitsOf(Entity unit)
+        {
+            if (!TryNetworkId(unit, out long clicked)) return Array.Empty<long>();
+            var selected = Selected?.Invoke();
+            if (selected is null || !System.Linq.Enumerable.Contains(selected, unit)) return new[] { clicked };
+            var ids = new List<long>();
+            foreach (var e in selected)
+                if (TryNetworkId(e, out long id)) ids.Add(id);
+            return ids.ToArray();
+        }
+
         /// <summary>⭐ <c>CE-2149</c> (§13.3) — Designate › Set…: one pick of the kind's shape (an entity pick narrowed to routes or areas),
-        /// stored for the unit when it completes.</summary>
+        /// stored for the unit when it completes (⭐ <c>CE-1059</c>: for every selected unit when the clicked one is selected).</summary>
         private void BeginDesignate(DesignationKind kind, Entity unit)
         {
             var pick = PickService?.Invoke();
             if (pick is null || !TryNetworkId(unit, out long id)) return;
             _unit = id;
+            _designateFor = UnitsOf(unit);
             _order = null;
             _draft = null;
             _designating = kind;
@@ -132,7 +172,7 @@ namespace Hrot.ScenarioEditor.Map
                     // The adapter answers geodetic when the node has a transform, else world metres in the same fields (x, y):
                     // without a transform an order's point travels as [y, x] (OrderGeo's fallback).
                     var point = Geo() != null ? new JsonArray(at.Latitude, at.Longitude) : new JsonArray(at.Longitude, at.Latitude);
-                    if (_designating is DesignationKind kind) OrderDesignations.For(_world).Set(_unit, kind, point);
+                    if (_designating is DesignationKind kind) SetDesignation(kind, point);
                     else if (_order is { } order && _draft is { } draft)
                         Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(null, point), draft.Send, draft.Params, DesignationLookup())));
                 }
@@ -142,11 +182,17 @@ namespace Hrot.ScenarioEditor.Map
                 _enemy = null;
                 if (enemy.Status == TaskStatus.RanToCompletion && enemy.Result > 0 && enemy.Result != _unit)
                 {
-                    if (_designating is DesignationKind kind) OrderDesignations.For(_world).Set(_unit, kind, JsonValue.Create((long)enemy.Result));
+                    if (_designating is DesignationKind kind) SetDesignation(kind, JsonValue.Create((long)enemy.Result));
                     else if (_order is { } order && _draft is { } draft)
                         Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(enemy.Result, null), draft.Send, draft.Params, DesignationLookup())));
                 }
             }
+        }
+
+        private void SetDesignation(DesignationKind kind, JsonNode value)
+        {
+            var store = OrderDesignations.For(_world);
+            foreach (long unit in _designateFor) store.Set(unit, kind, value);
         }
 
         /// <summary>⭐ <c>CE-2149</c> — this station's designations as the draft's lookup (null when nothing was ever designated).</summary>

@@ -205,7 +205,7 @@ public sealed class TheScenarioWindowsAreSharedTests
     /// <summary>
     /// ⭐ <c>CE-1017</c> — ONE entity-authoring wiring on every windowed map host (🔒 user: "Do we share unified code
     /// across simhost and cgf and ig and editor? We should."): each passes <c>MapInteractionContext.EntityAuthoring</c>,
-    /// schedules the PACK's canvas menu and draws a picker — and none hand-builds a spawn adapter, a canvas menu system
+    /// schedules the PACK's canvas menu and draws the map's operator UI (picker + ⭐ CE-1059 order form) — and none hand-builds a spawn adapter, a canvas menu system
     /// or an entity-icon picker of its own. ⛔ A host that forgets a half gets no submenu and no error — this rail is
     /// the error.
     /// </summary>
@@ -220,9 +220,27 @@ public sealed class TheScenarioWindowsAreSharedTests
 
         Assert.Contains("EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(", text);
         Assert.Matches(@"RegisterGlobalSystem\(\w+\.CanvasMenu\)", text);
-        Assert.Contains(".DrawFrame()", text);   // the picker is drawn, or OpenPicker only queues
+        // ⭐ CE-1059 — the map's operator UI (the pack's pickers + the order form) is drawn each frame: OpenPicker only queues, and
+        //   the order form is offered only where it is drawn (DESIGN_Orders_Params_Entity_Classes §13.12 O2).
+        Assert.Contains(".DrawOperatorUi()", text);
         Assert.DoesNotContain("new Hrot.Presentation.Systems.CanvasMenuUpdateSystem(", text);
         Assert.DoesNotContain("ScenarioSpawnAdapter(", text);
         Assert.DoesNotContain("new Hrot.UI.Common.AddEntity.EntityIconLibrary(", text);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1059</c> — the silent-default rule for the entity LIST: a host that holds a world and a picker registry passes the
+    /// list to every params form it builds (the Editor: its mission panel, the Scenario view's mission panel and the AI view's
+    /// broker; CGF: its mission panel). ⛔ Forgetting one leaves that form map-only with no error — this rail is the error.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs", 3)]
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs",    1)]
+    public void EveryParamsFormHostPassesTheEntityList(string project, string file, int forms)
+    {
+        var text = HostSource.Read(project, file);
+        int passed = System.Text.RegularExpressions.Regex.Matches(text,
+            @"EntityList = Hrot\.Presentation\.Orders\.EntityListSource\.Opener\(").Count;
+        Assert.Equal(forms, passed);
     }
 }

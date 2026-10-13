@@ -7,6 +7,7 @@ namespace Hrot.Presentation.Tests;
 /// Tests for <see cref="MainToolbarTimeControlSection"/> — headless logic seams
 /// and gating behaviour, using a fake <see cref="ITimeTransportFacade"/>.
 /// </summary>
+[Xunit.Collection(Hrot.Presentation.Tests.ImGuiTestCollection.Name)]   // ⭐ one global ImGui context
 public class MainToolbarTimeControlTests
 {
     [Fact]

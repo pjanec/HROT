@@ -58,5 +58,7 @@ namespace Fdp.Presentation.Editing
             => _inner.TryConsumeEntityPick(Path(jsonPath), out picked);
         public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Behavior.Params.PickableGeoPoint location)
             => _inner.TryConsumeLocationPick(Path(jsonPath), out location);
+        public bool CanListEntities => _inner.CanListEntities;   // ⭐ CE-1059
+        public void RequestEntityListPick(string jsonPath, string[]? filterPresets) => _inner.RequestEntityListPick(Path(jsonPath), filterPresets);
     }
 }

@@ -149,5 +149,26 @@ namespace Hrot.Presentation.Tests.Behavior
             public Task<System.Collections.Generic.IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, System.Threading.CancellationToken ct = default)
                 => Task.FromResult<System.Collections.Generic.IReadOnlyList<int>>(System.Array.Empty<int>());
         }
+
+        /// <summary>⭐ <c>CE-1059</c> — a task's <c>EntityRef</c> param can be chosen from the searchable entity LIST as well as on the
+        /// map: a host that passes <see cref="MissionPanel.EntityList"/> gives the panel's broker the List… capability, and the choice
+        /// lands at the task's own scoped path, like a map pick. Without it the panel stays map-only.</summary>
+        [Fact]
+        public void CE1059_TheEntityList_ReachesTheTasksParamsForm_AtTheTasksScope()
+        {
+            Assert.False(new MissionPanel().Picks.CanListEntities);
+
+            string[]? asked = null;
+            var panel = new MissionPanel { EntityList = (presets, chosen) => { asked = presets; chosen(42); return true; } };
+            var task0 = new Fdp.Presentation.Editing.ScopedMapPickContext(panel.Picks, MissionPanel.PickScope(0));
+            Assert.True(task0.CanListEntities);
+
+            task0.RequestEntityListPick("$.TargetNetworkId", new[] { "units_ground" });
+            Assert.Equal(new[] { "units_ground" }, asked);
+            Assert.False(new Fdp.Presentation.Editing.ScopedMapPickContext(panel.Picks, MissionPanel.PickScope(1))
+                .TryConsumeEntityPick("$.TargetNetworkId", out _));                         // another task's field: not its pick
+            Assert.True(task0.TryConsumeEntityPick("$.TargetNetworkId", out var picked));
+            Assert.Equal(42L, picked.NetworkId);
+        }
     }
 }

@@ -37,8 +37,10 @@ public sealed class CanvasMapPickAdapter : IMapPickService
     /// on a picked entity.  When <see langword="null"/>, entity picks always return -1.
     /// </param>
     /// <param name="filterFactory">
-    /// Optional domain-specific filter factory.  When <see langword="null"/> a
-    /// match-all factory is used so every entity qualifies.
+    /// Optional domain-specific filter factory. ⭐ <c>CE-1060</c> — when <see langword="null"/> and a <paramref name="repo"/> is
+    /// given, THE layer-preset filter (<see cref="Hrot.Presentation.Map.HrotEntityFilterFactory"/>) is used, so a
+    /// <c>[MapPickableEntity("road_graphs")]</c> pick accepts only routes on every host (CGF and SimHost passed none and picked
+    /// anything); with no world a match-all factory is used.
     /// </param>
     /// <param name="globalGizmoManager">
     /// Optional gizmo manager used to host picker gizmos.  When <see langword="null"/>
@@ -69,7 +71,7 @@ public sealed class CanvasMapPickAdapter : IMapPickService
     {
         _canvas             = canvas ?? throw new ArgumentNullException(nameof(canvas));
         _repo               = repo;
-        _filterFactory      = filterFactory ?? DefaultFactory;
+        _filterFactory      = filterFactory ?? (repo != null ? new PresetFilterFactory(repo) : DefaultFactory);
         _geoTransform       = geoTransform;
         _areaGizmo          = areaGizmo;
         _globalGizmoManager = globalGizmoManager;
@@ -153,6 +155,18 @@ public sealed class CanvasMapPickAdapter : IMapPickService
                 ct);
 
     // ── Internal filter helpers ───────────────────────────────────────────────
+
+    /// <summary>⭐ <c>CE-1060</c> — the default with a world: a pick WITH presets narrows by the layer filter; a pick without presets,
+    /// or a world with no layer assignment (a test), stays match-all — exactly what the adapter answered before for those.</summary>
+    private sealed class PresetFilterFactory : IEntityFilterFactory
+    {
+        private readonly EntityRepository _repo;
+        public PresetFilterFactory(EntityRepository repo) => _repo = repo;
+        public IEntityFilter CreateFilter(string[] filterPresets)
+            => filterPresets is { Length: > 0 } && _repo.IsComponentTypeRegistered<Fdp.Toolkit.Vis2D.Components.MapDisplayComponent>()
+                ? new Hrot.Presentation.Map.HrotEntityFilterFactory(_repo).CreateFilter(filterPresets)
+                : DefaultFactory.CreateFilter(filterPresets);
+    }
 
     private sealed class MatchAllFilterFactory : IEntityFilterFactory
     {

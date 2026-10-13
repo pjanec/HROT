@@ -83,5 +83,10 @@ namespace Hrot.Common.Constants
         public const int DesignateRoute  = 472;
         public const int DesignateArea   = 473;
         public const int DesignateClear  = 474;
+
+        // --- Order with options (CE-1059, §13.12 O5) — the unit menu's submenu opening the ORDER FORM for an order, prefilled:
+        //     id = OrderWithOptionsBase + the order's index (OrderMenu.ActionBase + index ⇒ +80). ⚠ 480–543 measured free 2026-10-13.
+        public const int OrderWithOptionsBase = 480;
+        public const int OrderWithOptionsMax  = 64;
     }
 }
