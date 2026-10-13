@@ -165,4 +165,59 @@ public sealed class OrderVocabularyTests
         Assert.Equal("[\"Location\"]", schema["required"]!.ToJsonString());
         Assert.Null(DtoJsonSchemaExtractor.ExtractParams(typeof(HoldOrder))["required"]);
     }
+
+    // ── CE-2149 (P6, design §13.3) — designations fill an operator's draft ─────────────────────────────────────────
+
+    private struct NeedsAll
+    {
+        [Required] public EntityRef Enemy;
+        [Required, MapPickableEntity("road_graphs")] public EntityRef Road;
+        [Required, MapPickableEntity("tactical_graphics")] public EntityRef Sector;
+        [Required] public PickableGeoPoint Spot;
+        public EntityRef OptionalTarget;
+    }
+
+    /// <summary>⭐ §13.3 the kinds — an order field's TYPE and picker preset decide which designation can fill it.</summary>
+    [Fact]
+    public void CE2149_KindOf_MapsTheFieldShapeToItsDesignation()
+    {
+        var f = OrderMenu.FieldsOf(typeof(NeedsAll)).ToDictionary(x => x.Name);
+        Assert.Equal(DesignationKind.Target, OrderDesignations.KindOf(f["Enemy"]));
+        Assert.Equal(DesignationKind.Route, OrderDesignations.KindOf(f["Road"]));
+        Assert.Equal(DesignationKind.Area, OrderDesignations.KindOf(f["Sector"]));
+        Assert.Equal(DesignationKind.MapPoint, OrderDesignations.KindOf(f["Spot"]));
+        Assert.True(OrderMenu.TryGetByName("Move", out var move));
+        Assert.Null(OrderDesignations.KindOf(move.Fields.Single(x => x.Name == "Speed")));
+    }
+
+    /// <summary>⭐ F7 stage 1 — after explicit JSON and the gesture, each missing required field takes its kind's designation; a clicked
+    /// entity fills the TARGET only (never the route or the sector); optional fields stay empty; a draft for several units is not filled
+    /// (the store is per unit); a stale entity designation is dropped from the store and not filled.</summary>
+    [Fact]
+    public void CE2149_Draft_FillsEachMissingRequiredFieldFromItsDesignation_AfterTheGesture()
+    {
+        var info = Probe(typeof(NeedsAll));
+        var store = new OrderDesignations();
+        store.Set(7, DesignationKind.Target, 11L);
+        store.Set(7, DesignationKind.Route, 22L);
+        store.Set(7, DesignationKind.Area, 33L);
+        store.Set(7, DesignationKind.MapPoint, new JsonArray(1.0, 2.0));
+        var lookup = store.Lookup(_ => true);
+
+        var d = OrderMenu.Draft(info, new long[] { 7 }, new OrderContext(99, null), _ => Array.Empty<OrderResult>(), designation: lookup);
+        Assert.True(d.IsComplete);
+        Assert.Equal(99, d.Params["Enemy"]!.GetValue<long>());          // the gesture wins over the designation
+        Assert.Equal(22, d.Params["Road"]!.GetValue<long>());
+        Assert.Equal(33, d.Params["Sector"]!.GetValue<long>());
+        Assert.Equal("[1,2]", d.Params["Spot"]!.ToJsonString());
+        Assert.False(d.Params.ContainsKey("OptionalTarget"));
+
+        d = OrderMenu.Draft(info, new long[] { 7, 8 }, OrderContext.None, _ => Array.Empty<OrderResult>(), designation: lookup);
+        Assert.Equal(4, d.Missing.Count);                                 // several units: the per-unit store does not speak
+
+        var stale = store.Lookup(id => id != 33);
+        d = OrderMenu.Draft(info, new long[] { 7 }, OrderContext.None, _ => Array.Empty<OrderResult>(), designation: stale);
+        Assert.Equal("Sector", d.Missing.Single().Name);
+        Assert.False(store.TryGet(7, DesignationKind.Area, out _));       // dropped, so it is not offered again
+    }
 }

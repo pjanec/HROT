@@ -179,23 +179,34 @@ namespace Hrot.Common.Orders
 
         /// <summary>
         /// ⭐ <c>CE-2148</c> (F6, P5-b) — an order on its way: <paramref name="given"/> (explicit JSON, may be null), then the gesture's
-        /// <paramref name="context"/> fills a missing <c>[Required]</c> field of its kind when exactly one such field is missing.
-        /// Explicit values always win. <paramref name="send"/> is what <see cref="OrderDraft.Send"/> calls.
+        /// <paramref name="context"/> fills a missing <c>[Required]</c> field of its kind when exactly one such field is missing, then
+        /// (⭐ <c>CE-2149</c>) the unit's <paramref name="designation"/>s the same way. Explicit values always win.
+        /// <paramref name="send"/> is what <see cref="OrderDraft.Send"/> calls.
         /// </summary>
         public static OrderDraft Draft(OrderInfo order, IReadOnlyList<long> units, OrderContext context,
-            Func<string, IReadOnlyList<OrderResult>> send, JsonObject? given = null)
+            Func<string, IReadOnlyList<OrderResult>> send, JsonObject? given = null,
+            Func<long, DesignationKind, JsonNode?>? designation = null)
         {
             var json = given != null ? (JsonObject)given.DeepClone() : new JsonObject();
-            var missing = MissingIn(order, json);
-            Fill(OrderFieldKind.MapEntity, context.Entity is long e && e != 0 ? JsonValue.Create(e) : null);
-            Fill(OrderFieldKind.MapPoint, context.Point?.DeepClone());
+            // ⭐ CE-2149 (§13.3) — a clicked ENTITY fills a target, never a route or a sector; a clicked point fills a point.
+            Fill(DesignationKind.Target, context.Entity is long e && e != 0 ? JsonValue.Create(e) : null);
+            Fill(DesignationKind.MapPoint, context.Point?.DeepClone());
+            // ⭐ CE-2149 (F7 stage 1) — then the unit's standing designations, for an operator's draft of ONE unit (the per-unit store
+            //   cannot speak for several); explicit values and the gesture already won above.
+            if (designation != null && units.Count == 1)
+                foreach (DesignationKind kind in Enum.GetValues(typeof(DesignationKind)))
+                    if (OneMissing(kind) != null) Fill(kind, designation(units[0], kind));
             return new OrderDraft(units, order, json, MissingIn(order, json), send);
 
-            void Fill(OrderFieldKind kind, JsonNode? value)
+            OrderField? OneMissing(DesignationKind kind)
             {
-                if (value == null) return;
-                var candidates = missing.Where(f => f.Kind == kind).ToArray();
-                if (candidates.Length == 1) json[candidates[0].Name] = value;
+                var candidates = MissingIn(order, json).Where(f => OrderDesignations.KindOf(f) == kind).ToArray();
+                return candidates.Length == 1 ? candidates[0] : null;
+            }
+
+            void Fill(DesignationKind kind, JsonNode? value)
+            {
+                if (value != null && OneMissing(kind) is { } field) json[field.Name] = value;
             }
         }
 

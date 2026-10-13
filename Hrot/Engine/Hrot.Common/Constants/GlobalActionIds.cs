@@ -75,5 +75,13 @@ namespace Hrot.Common.Constants
         public const int UnpinGizmosAll      = 267;
         /// <summary>⭐ <c>CE-3136</c> — pin the action-status family (Channels). 268 free on backend, behaviors and ui, <c>2026-10-09</c>.</summary>
         public const int PinGizmosActions    = 268;
+
+        // --- Designations (CE-2149, docs/DESIGN_Orders_Params_Entity_Classes.md §13.3) — the unit menu's Designate submenu: one pick
+        //     each, stored per unit for a later order's missing [Required] field. ⚠ 470–474 measured free 2026-10-13 (orders use 400–463).
+        public const int DesignateTarget = 470;
+        public const int DesignatePoint  = 471;
+        public const int DesignateRoute  = 472;
+        public const int DesignateArea   = 473;
+        public const int DesignateClear  = 474;
     }
 }

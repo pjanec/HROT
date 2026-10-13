@@ -1251,7 +1251,7 @@ surprising claims spot-checked by reading the file)*:
 | **F11** *(user, 2026-10-13: "propreties in param dtos are undesired")* | fields or properties in a params DTO | plain public FIELDS only. Measured: 21 hand-written DTO files hold 87 properties (mostly `Hrot.Core/MapDefinitions/Behavior/*ParamsJsonDto.cs`); the params parse already reads fields (B4a's T41 parses flat); `OrderMenu.PickOf` reads properties only (`OrderMenu.cs:79`). ⇒ a conformance rail rejects a property on a params DTO; the 21 files convert; every reader (`PickOf`, the schema extractor, `ComponentEditDrawer`, the registry) reads fields — ⚠ whether `DtoJsonSchemaExtractor` reads fields is not measured | keep both (two shapes every reader must handle) |
 | **F12** *(user, 2026-10-13)* | JSON options | ⭐ ruled: one shared options instance, field-aware and case-insensitive. ⭐ It EXISTS: `Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed` (`IncludeFields`, `PropertyNameCaseInsensitive`, trailing commas, comments, frozen; its header already says *"All JSON serialisation in the platform must use one of these two singletons"*) — under-adopted: 42 production `new JsonSerializerOptions` measured. ⇒ every params / order JSON path (parse AND send) uses it; the remaining ad-hoc instances move to it or carry a one-line justification, and a rail lists the justified ones (an allow-list that may only shrink). ⭐ ruled (R-2007): enums are STRINGS in every JSON — `DefaultRelaxed`'s `StrictStringEnumConverter` (`FdpJsonOptionsRegistry.cs:77`) is the rule, not a caveat; any data that sends an enum as a number is CONVERTED, the converter is never relaxed. It also omits nulls on write — measure who relies on an explicit null | a params-only options instance (a third producer for one setting) |
 
-### 13.3 F7 stage 1 — designations filled on the sender *(accepted 2026-10-13; build-state: READY-TO-BUILD `2026-10-13`, behaviors — P6, CE-2149)*
+### 13.3 F7 stage 1 — designations filled on the sender *(accepted 2026-10-13; build-state: BUILT `2026-10-13`, behaviors — P6, CE-2149; as-built at the end of this section)*
 
 ⚠ **Revised before the build (2026-10-13):** the first diagram had `EntityOrders` fill the designations. That contradicts this
 section's own row *"HTTP and AI senders: unaffected"* — `EntityOrders.Order` IS the HTTP path (`DebugApiService.Orders.cs:27`). Built
@@ -1330,6 +1330,14 @@ overlay is the ui lane's (the main con of the idea is hidden state; until it is 
 | visibility | drawn on the map from the unit while it is selected — ui lane (handoff U6) | the main con of the idea is hidden state; drawing it removes it |
 | staleness | checked at draft: an entity no longer alive (or a deleted route / area) is dropped from the store and not filled ⇒ the pick or the form | a dead target must not silently become `0` |
 | HTTP and AI senders | unaffected: they send explicit JSON through `EntityOrders`, which never reads designations | nothing downstream learns a new concept |
+
+**P6 as built** *(2026-10-13, `CE-2149`; matches the revised diagrams)*: `Hrot.Common/Orders/OrderDesignations.cs` (`DesignationKind`
+`Target · MapPoint · Route · Area`, component id 368, `IsLive` = exists and not killed — the CE-466 meaning for a target); `OrderMenu.Draft`
+gained the `designation` lookup (fills only a one-unit draft); `MenuOrders` (Designate handlers, ids 470–474 in `GlobalActionIds`, the
+lookup on every draft), `RtsCommands` (the lookup), `ContextMenuProjectorGizmo` (the Designate submenu, only on a unit that takes orders).
+`EntityOrders` untouched. Rails: `OrderVocabularyTests` `CE2149_KindOf…`, `CE2149_Draft_Fills…`; `MenuOrdersTests`
+`CE2149_ADesignatedTarget_LetsAttackGoWithoutAPick…`, `CE2149_AGoneTarget_IsDropped…`, `CE2149_TheUnitMenu_OffersDesignate` — red-proved
+(fill disabled ⇒ 3 red). The overlay, multi-select and the form's remember tick: ui lane, handoff U6.
 
 ### 13.2 The work and the lanes *(lean)*
 

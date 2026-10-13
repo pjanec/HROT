@@ -91,7 +91,11 @@ namespace Hrot.ScenarioEditor.Map
         {
             if (OrderMenu.ByGesture(gesture) is not { } order)
                 return new OrderResult(OrderRefusal.BadRequest, $"No order is issued by a {gesture}.", string.Empty, string.Empty);
-            var draft = OrderMenu.Draft(order, new[] { id }, context, json => new[] { orders.Order(id, order.Name, json) });
+            // ⭐ CE-2149 — the unit's designations fill what the click did not (one draft per unit, so the per-unit store applies)
+            var store = OrderDesignations.Of(_world);
+            var map = Map();
+            var draft = OrderMenu.Draft(order, new[] { id }, context, json => new[] { orders.Order(id, order.Name, json) },
+                designation: store != null && map != null ? store.Lookup(n => OrderDesignations.IsLive(_world, map, n)) : null);
             if (draft.IsComplete) return draft.Send(draft.Params.ToJsonString())[0];
             MenuOrders.OpenForm(_world, draft);
             return new OrderResult(OrderRefusal.BadRequest, $"{order.Name} needs the order form.", string.Empty, string.Empty);

@@ -72,6 +72,21 @@ namespace Hrot.Common.Diagnostics.Gizmos
                         ? new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Enabled = false, Tooltip = "Cannot " + o.Name.ToLowerInvariant() + ": unit is heavily damaged" }
                         : new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Shortcut = o.Name.Substring(0, 1) });
                 }
+                // ⭐ CE-2149 (F7 stage 1, §13.3) — the standing target / point / route / sector a later order may take; only on a unit
+                //   that takes orders at all.
+                if (items.Count > 0) items.Add(new ContextMenuItemDto
+                {
+                    Label = "Designate",
+                    Children = new[]
+                    {
+                        new ContextMenuItemDto { Id = GlobalActionIds.DesignateTarget, Label = "Set target…" },
+                        new ContextMenuItemDto { Id = GlobalActionIds.DesignatePoint,  Label = "Set point…" },
+                        new ContextMenuItemDto { Id = GlobalActionIds.DesignateRoute,  Label = "Set route…" },
+                        new ContextMenuItemDto { Id = GlobalActionIds.DesignateArea,   Label = "Set sector…" },
+                        new ContextMenuItemDto { IsSeparator = true },
+                        new ContextMenuItemDto { Id = GlobalActionIds.DesignateClear,  Label = "Clear designations" },
+                    },
+                });
                 // ⭐ CE-2143 (D4-H) — no Possess on a body-less unit: there is nothing to drive.
                 if (!isUnit) items.Add(new ContextMenuItemDto { Id = GlobalActionIds.Possess, Label = "Possess (FPS)", Shortcut = "P" });   // ⭐ CE-3174
                 if (items.Count > 0) items.Add(new ContextMenuItemDto { IsSeparator = true });

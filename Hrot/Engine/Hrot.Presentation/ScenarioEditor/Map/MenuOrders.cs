@@ -33,6 +33,7 @@ namespace Hrot.ScenarioEditor.Map
         private long _unit;
         private OrderInfo? _order;
         private OrderDraft? _draft;
+        private DesignationKind? _designating;   // ⭐ CE-2149 — the pending pick sets a designation, not an order
 
         public MenuOrders(EntityRepository world) => _world = world ?? throw new ArgumentNullException(nameof(world));
 
@@ -56,6 +57,16 @@ namespace Hrot.ScenarioEditor.Map
                     if (OrderMenu.TryGetById(actionId, out var order)) Begin(order, unit);
                 });
             }
+            // ⭐ CE-2149 (§13.3) — the Designate submenu: one pick each (presets passed), stored per unit for a later order's missing
+            //   [Required] field; Clear forgets them. LOCAL only, like the orders.
+            actions.RegisterLocal(GlobalActionIds.DesignateTarget, (_, unit) => BeginDesignate(DesignationKind.Target, unit));
+            actions.RegisterLocal(GlobalActionIds.DesignatePoint,  (_, unit) => BeginDesignate(DesignationKind.MapPoint, unit));
+            actions.RegisterLocal(GlobalActionIds.DesignateRoute,  (_, unit) => BeginDesignate(DesignationKind.Route, unit));
+            actions.RegisterLocal(GlobalActionIds.DesignateArea,   (_, unit) => BeginDesignate(DesignationKind.Area, unit));
+            actions.RegisterLocal(GlobalActionIds.DesignateClear,  (_, unit) =>
+            {
+                if (PickService?.Invoke() is not null && TryNetworkId(unit, out long id)) OrderDesignations.Of(_world)?.ClearAll(id);
+            });
             // ⭐ CE-3174 (§8d) — Possess (FPS): this station takes the unit; the map follows PossessedBy into first person
             //   (PossessionStation). Like the orders, only where a pick exists — a windowed station, never a relayed headless node.
             actions.RegisterLocal(GlobalActionIds.Possess,  (_, unit) =>
@@ -74,9 +85,11 @@ namespace Hrot.ScenarioEditor.Map
             if (pick is null || !TryNetworkId(unit, out long id)) return;
             _unit = id;
             _order = order;
+            _designating = null;
             _location = null;
             _enemy = null;
-            _draft = OrderMenu.Draft(order, new[] { id }, OrderContext.None, json => Send(new[] { id }, order, json));
+            _draft = OrderMenu.Draft(order, new[] { id }, OrderContext.None, json => Send(new[] { id }, order, json),
+                designation: DesignationLookup());
             if (_draft.IsComplete) { Report(Send(_draft)); return; }
             switch (order.Pick)
             {
@@ -86,28 +99,61 @@ namespace Hrot.ScenarioEditor.Map
             }
         }
 
-        /// <summary>Turns a completed pick into its order; a cancelled or failed pick issues nothing.</summary>
+        /// <summary>⭐ <c>CE-2149</c> (§13.3) — Designate › Set…: one pick of the kind's shape (an entity pick narrowed to routes or areas),
+        /// stored for the unit when it completes.</summary>
+        private void BeginDesignate(DesignationKind kind, Entity unit)
+        {
+            var pick = PickService?.Invoke();
+            if (pick is null || !TryNetworkId(unit, out long id)) return;
+            _unit = id;
+            _order = null;
+            _draft = null;
+            _designating = kind;
+            _location = null;
+            _enemy = null;
+            if (kind == DesignationKind.MapPoint) _location = pick.PickLocationAsync();
+            else _enemy = pick.PickEntityAsync(kind switch
+            {
+                DesignationKind.Route => new[] { OrderDesignations.RoutePreset },
+                DesignationKind.Area => new[] { OrderDesignations.AreaPreset },
+                _ => null,
+            });
+        }
+
+        /// <summary>Turns a completed pick into its order (or ⭐ <c>CE-2149</c> its designation); a cancelled or failed pick does nothing.</summary>
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (_location is { IsCompleted: true } location)
             {
                 _location = null;
-                if (location.Status == TaskStatus.RanToCompletion && _order is { } order && _draft is { } draft)
+                if (location.Status == TaskStatus.RanToCompletion)
                 {
                     var at = location.Result;
                     // The adapter answers geodetic when the node has a transform, else world metres in the same fields (x, y):
                     // without a transform an order's point travels as [y, x] (OrderGeo's fallback).
                     var point = Geo() != null ? new JsonArray(at.Latitude, at.Longitude) : new JsonArray(at.Longitude, at.Latitude);
-                    Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(null, point), draft.Send, draft.Params)));
+                    if (_designating is DesignationKind kind) OrderDesignations.For(_world).Set(_unit, kind, point);
+                    else if (_order is { } order && _draft is { } draft)
+                        Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(null, point), draft.Send, draft.Params, DesignationLookup())));
                 }
             }
             if (_enemy is { IsCompleted: true } enemy)
             {
                 _enemy = null;
-                if (enemy.Status == TaskStatus.RanToCompletion && enemy.Result > 0 && enemy.Result != _unit && _order is { } order && _draft is { } draft)
-                    Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(enemy.Result, null), draft.Send, draft.Params)));
+                if (enemy.Status == TaskStatus.RanToCompletion && enemy.Result > 0 && enemy.Result != _unit)
+                {
+                    if (_designating is DesignationKind kind) OrderDesignations.For(_world).Set(_unit, kind, JsonValue.Create((long)enemy.Result));
+                    else if (_order is { } order && _draft is { } draft)
+                        Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(enemy.Result, null), draft.Send, draft.Params, DesignationLookup())));
+                }
             }
         }
+
+        /// <summary>⭐ <c>CE-2149</c> — this station's designations as the draft's lookup (null when nothing was ever designated).</summary>
+        private Func<long, DesignationKind, JsonNode?>? DesignationLookup()
+            => OrderDesignations.Of(_world) is { } store && Map() is { } map
+                ? store.Lookup(id => OrderDesignations.IsLive(_world, map, id))
+                : null;
 
         /// <summary>⭐ <c>CE-2148</c> — a draft the gesture could not complete goes to the host's order form (the ui lane's
         /// <see cref="IOrderForm"/>, a world singleton); without one it is refused, said in the log — ⛔ never sent half-filled.</summary>

@@ -60,7 +60,8 @@ public sealed class MenuOrdersTests : IDisposable
         public TaskCompletionSource<GeoPoint>? Location;
         public TaskCompletionSource<int>? Enemy;
         public Task<GeoPoint> PickLocationAsync(CancellationToken ct = default) => (Location = new()).Task;
-        public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) => (Enemy = new()).Task;
+        public string[]? Presets;
+        public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) { Presets = filterPresets; return (Enemy = new()).Task; }
         public Task<IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<int>>(Array.Empty<int>());
     }
@@ -278,5 +279,57 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Same(draft, form.Opened);
         form.Opened!.Send("{\"Who\":88,\"Where\":[1,2]}");
         Assert.Equal("{\"Who\":88,\"Where\":[1,2]}", sent);
+    }
+
+    // ── CE-2149 (P6, design §13.3) ─────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ F7 stage 1 — Designate › Set target picks an entity once; a later Attack from the menu then goes at once with that
+    /// target (no second pick); Set route narrows the pick to roads; Clear forgets.</summary>
+    [Fact]
+    public void CE2149_ADesignatedTarget_LetsAttackGoWithoutAPick_AndClearForgetsIt()
+    {
+        var (mi, pick) = Live();
+        Click(mi, GlobalActionIds.DesignateTarget);
+        Assert.Null(pick.Presets);
+        pick.Enemy!.SetResult((int)EnemyId);
+        Assert.Empty(Published(mi));                                      // a designation is not an order
+        Assert.True(OrderDesignations.Of(_w)!.TryGet(UnitId, DesignationKind.Target, out var t));
+        Assert.Equal(EnemyId, t.GetValue<long>());
+
+        pick.Enemy = null;
+        Click(mi, Id("Attack"));
+        Assert.Null(pick.Enemy);                                          // no pick: the designation filled Target
+        var sent = Published(mi).Single(e => e.Entity == _unit);
+        Assert.Contains($"\"Target\":{EnemyId}", sent.JsonParams);
+
+        Click(mi, GlobalActionIds.DesignateRoute);
+        Assert.Equal(new[] { OrderDesignations.RoutePreset }, pick.Presets);
+
+        Click(mi, GlobalActionIds.DesignateClear);
+        Assert.False(OrderDesignations.Of(_w)!.TryGet(UnitId, DesignationKind.Target, out _));
+    }
+
+    /// <summary>⭐ §13.3 staleness — a designated target that is gone is dropped, and Attack asks for a pick again.</summary>
+    [Fact]
+    public void CE2149_AGoneTarget_IsDropped_AndAttackPicksAgain()
+    {
+        var (mi, pick) = Live();
+        OrderDesignations.For(_w).Set(UnitId, DesignationKind.Target, System.Text.Json.Nodes.JsonValue.Create(EnemyId));
+        Assert.True(_map.TryGetEntity(EnemyId, out var enemy));
+        _w.DestroyEntity(enemy);
+
+        Click(mi, Id("Attack"));
+        Assert.NotNull(pick.Enemy);                                       // the pick is back
+        Assert.False(OrderDesignations.Of(_w)!.TryGet(UnitId, DesignationKind.Target, out _));
+    }
+
+    /// <summary>⭐ The unit menu carries the Designate submenu where the unit takes orders.</summary>
+    [Fact]
+    public void CE2149_TheUnitMenu_OffersDesignate()
+    {
+        var (_, _) = Live();
+        var menu = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
+        Assert.Contains("Designate", menu);
+        Assert.Contains($"\"id\":{GlobalActionIds.DesignateArea},", menu);
     }
 }
