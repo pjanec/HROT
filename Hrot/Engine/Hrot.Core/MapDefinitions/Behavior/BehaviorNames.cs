@@ -94,6 +94,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// cover (DESIGN_Squad_Tactics §7.5).</summary>
         public const string CasualtyCare = "CasualtyCare";
 
+        /// <summary>⭐ <c>CE-2158</c> F-b — a commander closes on an objective in contact by halves: one suppresses, the other rushes to
+        /// cover, then they swap (DESIGN_Squad_Tactics §7.6).</summary>
+        public const string FireAndMovement = "FireAndMovement";
+
         /// <summary>⭐ <c>CE-1056</c> I-2d — the squad gets out of its vehicles; done when nobody is aboard (DESIGN_Squad_Tactics §5a).</summary>
         public const string SquadDismount = "SquadDismount";
 

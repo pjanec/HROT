@@ -69,6 +69,26 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
+        /// <summary>⭐ <c>CE-2158</c> F-b — a mover "is set" this close to the point his order sent him to (m).</summary>
+        public const float SetMetres = 1.5f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2158</c> F-a — the "set" gate over the members whose roster bits are set in <paramref name="movers"/>: each live one
+        /// stands within <paramref name="metres"/> of the point his order sent him to (<see cref="SquadPlayState"/>'s targets). Whether
+        /// that point was cover is the play's pick (the trace shows it per order). True when nobody is left to wait for.
+        /// </summary>
+        public static unsafe bool Set(in SquadPlayState ws, in SquadPlayContext ctx, ushort movers, float metres)
+        {
+            for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
+            {
+                if ((movers & (1 << i)) == 0 || !ctx.Live(i, out var m)) continue;
+                var at = ctx.At(m);
+                float dx = at.X - ws.TargetX[i], dy = at.Y - ws.TargetY[i];
+                if (dx * dx + dy * dy > metres * metres) return false;
+            }
+            return true;
+        }
+
         /// <summary>The roster bits of the live members of <paramref name="element"/>.</summary>
         public static ushort Element(in SquadPlayContext ctx, byte element)
         {

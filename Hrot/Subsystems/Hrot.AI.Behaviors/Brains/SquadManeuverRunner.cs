@@ -547,11 +547,32 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         public static void AskTerrain(ref SquadPlayState ws, in SquadPlayContext ctx, uint blueprintId, int site, float radius, Entity from, Entity at)
         {
+            if (!AskTerrainAll(ref ws, in ctx, blueprintId, site, radius, from, at, out var buffer)) return;
+            if (buffer.Count == 0) ws.HasAnswer = NoAnswer;
+            else
+            {
+                var top = buffer.GetTop();
+                ws.Answer = new Vector3(top.PositionX, top.PositionY, top.PositionZ);
+                ws.HasAnswer = 1;
+                ws.Reissue = 1;
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2158</c> F-b — <see cref="AskTerrain"/>'s one implementation, keeping the WHOLE answer (up to 16 ranked points) for a play
+        /// that picks among them. True once it answered — <paramref name="answers"/> holds the buffer and the sensor is gone; also true,
+        /// with an empty buffer, when there is nothing to ask (<paramref name="from"/> or <paramref name="at"/> null). Call every tick until
+        /// it answers.
+        /// </summary>
+        public static bool AskTerrainAll(ref SquadPlayState ws, in SquadPlayContext ctx, uint blueprintId, int site, float radius, Entity from,
+                                         Entity at, out EqsCognitiveBuffer answers)
+        {
+            answers = default;
             var world = ctx.World;
             var child = ws.Sensor.IsValid && world.IsAlive(ws.Sensor.ChildId) ? ws.Sensor.ChildId : Entity.Null;
             if (child.IsNull)
             {
-                if (from.IsNull || at.IsNull) { ws.HasAnswer = NoAnswer; return; }
+                if (from.IsNull || at.IsNull) return true;
                 var config = new EqsSensor
                 {
                     BlueprintId         = blueprintId,
@@ -563,23 +584,17 @@ namespace Hrot.AI.Behaviors.Brains
                     ContextSlot1        = at,
                 };
                 child = EqsChildSensor.Ensure(world, ctx.Commander, site, in config);
-                if (child.IsNull) return;
+                if (child.IsNull) return false;
                 ws.Sensor = new EqsSensorHandle(child);
                 ws.LastAnswerTick = 0;
             }
-            if (!world.HasComponent<EqsCognitiveBuffer>(child)) return;
+            if (!world.HasComponent<EqsCognitiveBuffer>(child)) return false;
             ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(child);
-            if (!buffer.IsReady || buffer.LastUpdateTick == ws.LastAnswerTick) return;
+            if (!buffer.IsReady || buffer.LastUpdateTick == ws.LastAnswerTick) return false;
             ws.LastAnswerTick = buffer.LastUpdateTick;
-            if (buffer.Count == 0) ws.HasAnswer = NoAnswer;
-            else
-            {
-                var top = buffer.GetTop();
-                ws.Answer = new Vector3(top.PositionX, top.PositionY, top.PositionZ);
-                ws.HasAnswer = 1;
-                ws.Reissue = 1;
-            }
+            answers = buffer;
             DropSensor(ref ws, world);
+            return true;
         }
 
         /// <summary>⭐ <c>CE-2123</c> — the squad's top IDENTIFIED pooled contact (highest threat), preferring <paramref name="keep"/>

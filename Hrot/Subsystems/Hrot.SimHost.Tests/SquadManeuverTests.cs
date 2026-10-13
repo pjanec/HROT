@@ -503,6 +503,30 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(CasualtyCareManeuver.ManeuverKind, s.Kind);
         }
 
+        /// <summary>⭐ R-e — the enemy is KILLED but the squad still remembers him (the pool is rebuilt from the members' memories, which
+        /// keep him until they fade — measured live on <c>ua-casualty-care-heavy</c>): there is nothing left to fight, so the squad goes
+        /// for the man now, not when the memory fades. 🔴 Red before: "nothing to fight" was "the pool is empty".</summary>
+        [Fact]
+        public void CE2152_Rescue_TheEnemyKilledButStillRemembered_TheSquadGoesForHim()
+        {
+            var (s, _) = RescueSquad(new Vector3(0, 60, 0), bleed: 0.001f);
+            s.React(BehaviorNames.ReactToContact);
+            for (int k = 0; k < 5; k++) { s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire); Seconds(s, 1); }
+            Assert.NotEqual(CasualtyCareManeuver.ManeuverKind, s.Kind);
+            var enemy = PooledEnemy(s);
+            s.Repo.AddComponent(enemy, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });   // dead, still pooled
+            Seconds(s, 0.5);
+            Assert.Equal(CasualtyCareManeuver.ManeuverKind, s.Kind);
+        }
+
+        private static Entity PooledEnemy(Squad s)
+        {
+            ref var squad = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);
+            var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref squad.Contacts.Contacts), 16);
+            return new Entity((ulong)span[0].EntityId);
+        }
+
         [Fact]
         public void CE507_BoundingOverwatch_ABoundThatNeverCompletes_TimesOut_AndTheOtherElementMoves()
         {
@@ -1216,6 +1240,134 @@ namespace Hrot.SimHost.Tests
             Ticks(s, 4);
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);                                  // out: the battle drill
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
+        // ── CE-2158 F-b — fire and movement (Squad Tactics §7.6.1) ──────────────────────────────────────────────────────────────
+
+        private const string FmOrder = "{\"Objective\":[6,80,0],\"RushMetres\":15}";
+        private static readonly Vector3 AheadA = new(1f, 12f, 0f), AheadB = new(5f, 11f, 0f);
+
+        /// <summary>A squad of 4 in a row at y 0, everyone armed, one enemy pooled ~80 m north. Half 0 = members 0 and 1, half 1 = 2 and 3.</summary>
+        private static Squad FmSquad()
+        {
+            var s = new Squad(members: 4);
+            foreach (var m in s.Members)
+                s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 100, MaxAmmo = 100, MagazineSize = 30, MagazineRounds = 30 });
+            var enemy = s.Repo.CreateEntity();
+            s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(6, 80, 0), Rotation = Quaternion.Identity });
+            s.Pool(enemy, new Vector3(6, 80, 0), reporters: 1);
+            return s;
+        }
+
+        private static Entity FmQuery(Squad s) => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, FireAndMovementPlay.CoverSite);
+
+        /// <summary>SimHost's answer to a cover query: these points, best first.</summary>
+        private static void AnswerAll(Squad s, Entity sensor, params Vector3[] points)
+        {
+            var buf = new Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer { Count = points.Length, LastUpdateTick = 7 };
+            for (int i = 0; i < points.Length; i++)
+                buf.GetSpanRW()[i] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = points[i].X, PositionY = points[i].Y, PositionZ = points[i].Z, Score = 1f - i * 0.1f };
+            s.Repo.SetComponent(sensor, buf);
+        }
+
+        /// <summary>Order, answer the first bound's cover query (one point behind, one out of reach, two ahead), both coverers fire.</summary>
+        private static Squad FmRushing()
+        {
+            var s = FmSquad();
+            s.Order(FmOrder, BehaviorNames.FireAndMovement);
+            s.Tick(); s.Tick();
+            AnswerAll(s, FmQuery(s), new Vector3(0, -5, 0), new Vector3(0, 40, 0), AheadA, AheadB);
+            s.Tick();
+            Fire(s, s.Members[2]); Fire(s, s.Members[3]); s.Tick(); s.Tick();
+            return s;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2158</c> F-b (§7.6.1) — in contact, half 1 SUPPRESSES while half 0 holds; half 0 rushes only once every base-of-fire man
+        /// has fired ("covering"), each mover to the cover point that brings him furthest toward the objective within one rush (never the
+        /// point behind him, never the one 40 m off, never two men on one point). 🔴 Red before: no fire-and-movement play.
+        /// </summary>
+        [Fact]
+        public void CE2158_FireAndMovement_TheBaseOfFireSuppresses_TheMoversGoOnlyWhenCovered_ToCoverAhead()
+        {
+            var s = FmSquad();
+            s.Order(FmOrder, BehaviorNames.FireAndMovement);
+            s.Tick(); s.Tick();
+
+            Assert.Equal(FireAndMovementManeuver.ManeuverKind, s.Kind);
+            Assert.Equal(FireAndMovementManeuver.PhaseCover0, s.Phase);
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[2]));
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[3]));
+            Assert.Equal(BehaviorNames.CombatPosture, LastIntent(s, s.Members[0]));   // the movers wait down
+            Assert.Equal(BehaviorNames.CombatPosture, LastIntent(s, s.Members[1]));
+            var query = FmQuery(s);
+            Assert.False(query.IsNull);
+            AnswerAll(s, query, new Vector3(0, -5, 0), new Vector3(0, 40, 0), AheadA, AheadB);
+            for (int i = 0; i < 20; i++) s.Tick();
+            Assert.Equal(FireAndMovementManeuver.PhaseCover0, s.Phase);              // nobody fired: nobody moves
+
+            Fire(s, s.Members[2]); s.Tick();
+            Assert.Equal(FireAndMovementManeuver.PhaseCover0, s.Phase);              // one is not "covering"
+            Fire(s, s.Members[3]); s.Tick(); s.Tick();
+            Assert.Equal(FireAndMovementManeuver.PhaseRush0, s.Phase);
+            Assert.Equal(BehaviorNames.AdvanceTo, LastIntent(s, s.Members[0]));
+            Assert.Equal(BehaviorNames.AdvanceTo, LastIntent(s, s.Members[1]));
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[2]));       // still firing while they run
+            var trace = SquadDrillTrace.Of(s.Repo, s.Commander);
+            Assert.Equal(AheadA, trace.Orders[0].Point);
+            Assert.Equal(AheadB, trace.Orders[1].Point);
+            Assert.True(trace.Orders[0].Cover);
+            Assert.Equal((byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.ShotFired, trace.History[^1].Event);
+        }
+
+        /// <summary>⭐ F-b — "set": the halves swap only when EVERY mover is at his point; then the movers are the base of fire and the
+        /// other half waits for its own cover. 🔴 Red before: as above.</summary>
+        [Fact]
+        public void CE2158_FireAndMovement_SetSwapsTheHalves_TheMoversBecomeTheBaseOfFire()
+        {
+            var s = FmRushing();
+            Assert.Equal(FireAndMovementManeuver.PhaseRush0, s.Phase);
+            s.Teleport(s.Members[0], AheadA);
+            s.Tick(); s.Tick();
+            Assert.Equal(FireAndMovementManeuver.PhaseRush0, s.Phase);               // one man is still up
+            s.Teleport(s.Members[1], AheadB + new Vector3(0.5f, 0, 0));
+            s.Tick(); s.Tick();
+            Assert.Equal(FireAndMovementManeuver.PhaseCover1, s.Phase);
+            Assert.Equal((byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.DefiladeReached, SquadDrillTrace.Of(s.Repo, s.Commander).History[^1].Event);
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[1]));
+            Assert.Equal(BehaviorNames.CombatPosture, LastIntent(s, s.Members[2]));
+            Assert.False(FmQuery(s).IsNull);                                         // cover for the next half
+        }
+
+        /// <summary>⭐ F-b — no cover ahead and no covering fire: after <c>CoveringSeconds</c> the movers go anyway (traced Timeout), each
+        /// one rush (≤ RushMetres) straight toward the objective, and the trace says that point is NOT cover. 🔴 Red before: as above.</summary>
+        [Fact]
+        public void CE2158_FireAndMovement_NoCoverAhead_NoFire_AShortRushTowardTheObjective_NotCover()
+        {
+            var s = FmSquad();
+            s.Order(FmOrder, BehaviorNames.FireAndMovement);
+            s.Tick(); s.Tick();
+            AnswerAll(s, FmQuery(s), new Vector3(0, -5, 0));                          // only cover behind
+            Seconds(s, 4);                                                            // > CoveringSeconds (3 s)
+            Assert.Equal(FireAndMovementManeuver.PhaseRush0, s.Phase);
+            var trace = SquadDrillTrace.Of(s.Repo, s.Commander);
+            Assert.Equal(SquadDrillTrace.EventTimeout, trace.History[^1].Event);
+            var rush = trace.Orders[0].Point;
+            Assert.False(trace.Orders[0].Cover);
+            Assert.InRange(rush.Length(), 14.9f, 15.01f);                             // from (0,0): one rush
+            Assert.True(rush.Y > 14f);                                                // toward the objective
+        }
+
+        /// <summary>⭐ F-b — both halves within <c>ArrivalRadius</c> of the objective ⇒ Success. 🔴 Red before: as above.</summary>
+        [Fact]
+        public void CE2158_FireAndMovement_BothHalvesNearTheObjective_Success()
+        {
+            var s = FmRushing();
+            for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(i * 3f, 65f, 0f));
+            s.Tick(); s.Tick();
+            Assert.True(s.Finished(out var result));
+            Assert.Equal(Fbt.NodeStatus.Success, result);
         }
     }
 }

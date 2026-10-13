@@ -635,6 +635,203 @@ def run_window_duel(c, timeout):
     print(f"    health: A {ha}, B {hb}; ammo: A {ammo(a)[0]}, B {ammo(b)[0]}")
 
 
+# ── R-e (CE-2152 C-c) — casualty care: the squad covers, the medic brings a man who is down to cover ───────────────────
+#   docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.8.2. Reads GET /entities/{squad}/squad ▸ maneuver (O-a, CE-2157).
+
+def maneuver(nid):
+    return (squad(nid) or {}).get("maneuver") or {}
+
+
+def comps(nid):
+    return (data(call("GET", f"/entities/{nid}")) or {}).get("Components") or {}
+
+
+def flat(a, b):
+    return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+
+
+def _care_cast(casualty_name):
+    ids = ids_by_name()
+    sq, cas, medic = ids.get("Squad"), ids.get(casualty_name), ids.get("Medic")
+    names = ["Leader", "Medic", "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4"]
+    members = {n: ids.get(n) for n in names}
+    return ids, sq, cas, medic, members
+
+
+def _care_after_down(c, timeout, sq, cas, medic, members, casualty_name, t_down):
+    """③–⑨ of §7.8.2, from the moment the man is down."""
+    medic_from = position(medic)
+    coverers = [nid for n, nid in members.items() if n not in ("Medic", casualty_name)]
+    ammo0 = {nid: ammo(nid)[0] for nid in coverers}
+    first_fire, medic_moved_at = {}, None
+    care = None
+    end = time.time() + timeout * 2
+    while time.time() < end:
+        m = maneuver(sq)
+        if m.get("kindName") == "CasualtyCare" and m.get("care"):
+            care = m["care"]
+        for nid in coverers:
+            a = ammo(nid)[0]
+            if nid not in first_fire and a is not None and ammo0[nid] is not None and a < ammo0[nid]:
+                first_fire[nid] = sim_time()
+        p = position(medic)
+        if medic_moved_at is None and p and medic_from and flat(p, medic_from) > 1.0:
+            medic_moved_at = sim_time()
+        if "IsEmbarkedTag" in comps(cas):
+            break
+        time.sleep(0.25)
+    c.ok(care is not None, "the squad runs the care drill (maneuver kindName CasualtyCare)")
+    if care is None:
+        return
+    c.ok((care.get("medic") or {}).get("name") == "Medic", f"the Medic goes, nobody else (care.medic = {care.get('medic')})")
+    print(f"    coverers' first round at {first_fire}; the medic moved at {medic_moved_at}")
+    c.ok(medic_moved_at is not None and all(nid in first_fire and first_fire[nid] <= medic_moved_at for nid in coverers),
+         "covering fire BEFORE the medic moves: every coverer's rounds went down before he was 1 m out")
+    c.ok("IsEmbarkedTag" in comps(cas), "he takes the man (the casualty carries IsEmbarkedTag)")
+    m = maneuver(sq)
+    cover = (m.get("care") or {}).get("coverPoint")
+    laid = wait_for(lambda: "IsEmbarkedTag" not in comps(cas) and position(cas), timeout)
+    c.ok(laid is not None, "he puts him down")
+    if cover and laid:
+        print(f"    cover point {cover}, casualty at {laid}, medic at {position(medic)}")
+        c.ok(flat(laid, cover) <= 2.5, "the man lies within 2.5 m of the cover point")
+    c.ok((health(cas) or 0) > 0, f"he is alive ({health(cas)} HP)")
+    back = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") != "CasualtyCare" and x, 10)
+    c.ok(back is not None, f"the squad goes back to the fight (drill now {back and back.get('kindName')})")
+    m = maneuver(sq)
+    slot = next((x for x in m.get("members", []) if x.get("networkId") == cas), None)
+    o = (slot or {}).get("order")
+    c.ok(o is None or (o.get("issuedAt") or 0) < (t_down or 0), "the man down got no order after he went down (R-a)")
+
+
+def run_casualty_care(c, timeout, casualty_name="Rifleman 3"):
+    ids, sq, cas, medic, members = _care_cast(casualty_name)
+    if not c.ok(None not in (sq, cas, medic) and None not in members.values() and ids.get("Hostile"), "the squad, its Medic and the hostile are loaded"):
+        return
+    call("POST", "/trace/observe", {"networkId": sq, "on": True})
+    call("POST", "/sim/play", {})
+    pool = wait_for(lambda: (x := squad(sq)) and x.get("contactCount", 0) >= 1 and x, timeout)
+    if not c.ok(pool is not None, "the squad's pool holds the hostile (Rifleman 1 sees him past the tower)"):
+        return
+    set_health(cas, 25)
+    t_down = sim_time()
+    down = wait_for(lambda: (comps(sq).get("RecentSenses") or {}).get("SquadMemberDown", 0) > 0 and comps(sq)["RecentSenses"], 10)
+    c.ok(down is not None, "the squad knows a man is down (SquadMemberDown on the commander)")
+    d = wait_for(lambda: (x := decision(utility(sq), "Squad contact response")) and x.get("winner") == "Rescue" and x, 15)
+    c.ok(d is not None, f"Rescue wins the squad's decision ({decision(utility(sq), 'Squad contact response')})")
+    if casualty_name == "Leader":
+        newl = wait_for(lambda: any(((comps(n).get("UnitSubordinate") or {}).get("Designation") == "SquadLeader")
+                                     for k, n in members.items() if k != "Leader") and True, 5)
+        c.ok(newl is not None, "the next man takes command (R-a)")
+    _care_after_down(c, timeout, sq, cas, medic, members, casualty_name, t_down)
+
+
+def run_casualty_care_leader(c, timeout):
+    run_casualty_care(c, timeout, casualty_name="Leader")
+
+
+def run_casualty_care_heavy(c, timeout):
+    ids, sq, cas, medic, members = _care_cast("Rifleman 3")
+    hostiles = [ids.get(f"Hostile {i}") for i in (1, 2, 3)]
+    if not c.ok(None not in (sq, cas, medic) and None not in hostiles, "the squad, its Medic and three hostiles are loaded"):
+        return
+    call("POST", "/trace/observe", {"networkId": sq, "on": True})
+    call("POST", "/sim/play", {})
+    if not c.ok(wait_for(lambda: (x := squad(sq)) and x.get("contactCount", 0) >= 1 and x, timeout) is not None, "the squad is in contact"):
+        return
+    set_health(cas, 25)
+    t_down = sim_time()
+    t_end = (sim_time() or 0) + 30
+    rescued_early, sent = False, False
+    while (sim_time() or 0) < t_end:
+        m = maneuver(sq)
+        if m.get("kindName") == "CasualtyCare": rescued_early = True
+        if any(((x.get("order") or {}).get("kind") == "CarryCasualty") for x in m.get("members", [])): sent = True
+        time.sleep(0.5)
+    u = decision(utility(sq), "Squad contact response")
+    print(f"    after 30 s under fire: {u}")
+    c.ok(not rescued_early, "under heavy fire the squad does NOT go for him for 30 s")
+    # ⚠ not "the Medic stays put": the winning drill (Assault, measured) moves the whole squad, the Medic too
+    c.ok(not sent, "nobody is sent for him (no CarryCasualty order)")
+    c.ok("IsEmbarkedTag" not in comps(cas), "nobody carries the man yet")
+    for h in hostiles:
+        set_health(h, 0)
+    go = wait_for(lambda: maneuver(sq).get("kindName") == "CasualtyCare", 20)
+    c.ok(go is not None, "with the enemy down the squad goes for him at once (empty pool ⇒ Rescue)")
+    _care_after_down(c, timeout, sq, cas, medic, members, "Rifleman 3", t_down)
+
+
+# ── F-e (CE-2158) — fire and movement: in contact the squad closes by halves, one suppressing, the other rushing to cover ───
+#   docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.8.3 / §7.6.1. Reads GET /entities/{squad}/squad ▸ maneuver (O-a).
+
+def run_fire_and_movement(c, timeout):
+    ids = ids_by_name()
+    sq = ids.get("Squad")
+    names = ["Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4", "Rifleman 5"]
+    members = [ids.get(n) for n in names]
+    hostiles = [ids.get("Hostile 1"), ids.get("Hostile 2")]
+    if not c.ok(sq and None not in members and None not in hostiles, "the squad, six men and two hostiles are loaded"):
+        return
+    target = (200.0, 285.0)
+    def centre():
+        ps = [position(m) for m in members]
+        ps = [p for p in ps if p]
+        return (sum(p[0] for p in ps) / len(ps), sum(p[1] for p in ps) / len(ps)) if ps else None
+    call("POST", "/trace/observe", {"networkId": sq, "on": True})
+    c0 = centre()
+    d0 = flat(c0, target) if c0 else None
+    call("POST", "/sim/play", {})
+    m = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") == "FireAndMovement" and x, 20)
+    if not c.ok(m is not None, "the squad runs the drill (maneuver kindName FireAndMovement)"):
+        return
+    kinds = sorted(((x.get("order") or {}).get("kind") or "-") for x in m.get("members", []))
+    print(f"    first orders: {kinds}")
+    c.ok(kinds.count("Suppress") >= 2 and kinds.count("Hold") >= 2, "① the halves split: one half suppresses, the other holds (waits to rush)")
+    history, rush_lengths, rush_cover, both_up, last_pos, last_t = {}, [], [], 0.0, {}, None
+    seen_orders = set()
+    end = (sim_time() or 0) + 90
+    while (sim_time() or 0) < end:
+        t = sim_time() or 0
+        m = maneuver(sq)
+        if m.get("kindName") != "FireAndMovement" and history:
+            break
+        for h in m.get("history", []):
+            history[(h.get("t"), h.get("phase"))] = h
+        for x in m.get("members", []):
+            o = x.get("order") or {}
+            key = (x.get("networkId"), o.get("issuedAt"))
+            if o.get("kind") == "AdvanceTo" and key not in seen_orders:
+                seen_orders.add(key)
+                at = position(x.get("networkId"))
+                if at and o.get("point"):
+                    rush_lengths.append(round(flat(at, o["point"]), 1))
+                    rush_cover.append(bool(o.get("cover")))
+        moving = {}
+        for i, nid in enumerate(members):
+            p = position(nid)
+            if p and nid in last_pos and last_t is not None and t > last_t:
+                moving[i] = flat(p, last_pos[nid]) / (t - last_t) > 0.5
+            if p: last_pos[nid] = p
+        half_a = any(moving.get(i) for i in range(0, 3)); half_b = any(moving.get(i) for i in range(3, 6))
+        if half_a and half_b and last_t is not None: both_up += t - last_t
+        last_t = t
+        time.sleep(0.5)
+    hs = sorted(history.values(), key=lambda h: h.get("t") or 0)
+    print(f"    history: {[(h.get('t'), h.get('phaseName'), h.get('event')) for h in hs]}")
+    print(f"    rushes: {rush_lengths} cover {rush_cover}; both halves moving for {both_up:.1f} s")
+    rushes = [h for h in hs if (h.get("phaseName") or "").startswith("Rush")]
+    swaps = [h for h in hs if (h.get("phaseName") or "").startswith("Cover") and h.get("event") in ("DefiladeReached", "Timeout")]
+    c.ok(rushes and all(h.get("event") in ("ShotFired", "Timeout") for h in rushes),
+         "② a rush starts on 'Covering!' (ShotFired) — or the covering timeout")
+    c.ok(sum(1 for h in rushes if h.get("event") == "ShotFired") >= 1, "② at least one rush started on real covering fire")
+    c.ok(rush_lengths and max(rush_lengths) <= 17.0, f"③ every rush ≤ 17 m (longest {max(rush_lengths) if rush_lengths else None})")
+    c.ok(len(swaps) >= 3, f"④ ≥ 3 swaps in 90 s ({len(swaps)}; {sum(1 for h in swaps if h.get('event') == 'DefiladeReached')} on 'Set!')")
+    c1 = centre()
+    gained = (d0 - flat(c1, target)) if (c1 and d0) else 0
+    c.ok(gained >= 30, f"⑤ it closes the distance (the squad's centre is {gained:.0f} m nearer)")
+    c.ok(both_up <= 1.0, f"⑥ never both halves up for more than 1 s ({both_up:.1f} s)")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
@@ -645,7 +842,13 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "bt-doors": run_doors,
              "bt-grenade-posture": run_grenade_posture,
              "bt-mortar-roof": run_mortar_roof,
-             "bt-window-duel": run_window_duel}
+             "bt-window-duel": run_window_duel,
+             # ⭐ CE-2152 C-c R-e — casualty care (Squad Tactics §7.8.2)
+             "ua-casualty-care": run_casualty_care,
+             "ua-casualty-care-heavy": run_casualty_care_heavy,
+             "ua-casualty-care-leader": run_casualty_care_leader,
+             # ⭐ CE-2158 F-e — fire and movement (Squad Tactics §7.8.3)
+             "ua-fire-and-movement": run_fire_and_movement}
 
 
 def main():

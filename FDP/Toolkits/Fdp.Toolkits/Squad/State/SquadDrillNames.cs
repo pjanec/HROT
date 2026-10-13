@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Squad
             SquadMarchManeuver.ManeuverKind          => "SquadMarch",
             SquadDismountManeuver.ManeuverKind       => "SquadDismount",
             CasualtyCareManeuver.ManeuverKind        => "CasualtyCare",
+            FireAndMovementManeuver.ManeuverKind     => "FireAndMovement",
             _                                        => "kind " + kind,
         };
 
@@ -44,6 +45,11 @@ namespace Fdp.Toolkit.Squad
             (CasualtyCareManeuver.ManeuverKind, CasualtyCareManeuver.PhaseDone)                         => "Done",
             (CasualtyCareManeuver.ManeuverKind, CasualtyCareManeuver.PhaseRecall)                       => "Recall",
             (CasualtyCareManeuver.ManeuverKind, CasualtyCareManeuver.PhaseAborted)                      => "Aborted",
+            (FireAndMovementManeuver.ManeuverKind, FireAndMovementManeuver.PhaseCover0)                 => "Cover0",
+            (FireAndMovementManeuver.ManeuverKind, FireAndMovementManeuver.PhaseRush0)                  => "Rush0",
+            (FireAndMovementManeuver.ManeuverKind, FireAndMovementManeuver.PhaseCover1)                 => "Cover1",
+            (FireAndMovementManeuver.ManeuverKind, FireAndMovementManeuver.PhaseRush1)                  => "Rush1",
+            (FireAndMovementManeuver.ManeuverKind, FireAndMovementManeuver.PhaseAborted)                => "Aborted",
             _                                                                                           => "phase " + phase,
         };
 

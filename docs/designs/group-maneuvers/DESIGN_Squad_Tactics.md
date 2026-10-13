@@ -818,6 +818,18 @@ under fire now with a contact close enough to see him ⇒ Rescue 0 ⇒ the man w
 5-s re-decide picks Rescue · a man ~20 s from bleeding out, shot at 3 s ago, unseen ⇒ Rescue · a fresh man in the same light fire ⇒
 the squad fights first · empty pool ⇒ Rescue at once.
 
+**R-e, live (`2026-10-13`, `CE-2152`) — what the cluster taught, folded back:**
+
+| measured | change |
+|---|---|
+| a killed enemy stays in the squad's pool until the members' memories fade (the pool is rebuilt from them), so "the pool is empty" came long after the last enemy fell (`ua-casualty-care-heavy`: the hostiles killed, no rescue in 20 s) | ⭐ "nothing to fight" = no pooled contact still alive (`CombatLife.IsAlive`; a heard contact counts as alive) — the re-decide and the empty-pool shortcut read it |
+| a drill that is WON (`Assault` → Success when its enemy falls) ended the reaction with the man still down | ⭐ a won drill with a casualty waiting hands over to `Rescue` instead of ending |
+| authoring the hostile's `"Roe"` crashed the whole cluster natively — pre-existing, `ua-universal-soldier` too, at base (`CE-2160`) | the demos' "holding fire" hostile has an empty weapon (`WeaponState.Ammo = 0`) instead |
+| the winning drill under heavy fire (`Assault`) moves the whole squad, the Medic too | the `-heavy` check is "nobody is sent for him" (no `CarryCasualty`), not "the Medic stays put" |
+
+Rails: `SquadManeuverTests.CE2152_Rescue_TheEnemyKilledButStillRemembered_TheSquadGoesForHim` (red only with BOTH fixes removed —
+either one closes the case it pins).
+
 ⚠ **Measured calibration step** *(probe, `2026-10-13`)*: in the "quiet, hidden casualty" rail the inputs read urgency 0.6 · exposure 0 ·
 quiet 1 · strength 0.81 · enemy share 0.09 · ammo 1 ⇒ Assault **0.888** vs Rescue **0.883** — a coin toss. The urgency floor went to
 **0.8** (Rescue ≈ 0.95); under light fire a fresh casualty then scores ≈ 0.55 against Assault's 0.89, so the squad still fights first.
@@ -825,7 +837,7 @@ quiet 1 · strength 0.81 · enemy share 0.09 · ammo 1 ⇒ Assault **0.888** vs 
 ⚠ **§7.8.2 check ⑧ changed with the build**: "each member runs what he ran before ①" cannot hold — after the care the reaction DECIDES
 AGAIN (the fight may have moved on). ⑧ is now *"the drill is no longer `CasualtyCare` and every member in the fight has an order of it"*.
 
-### 7.6 Fire and movement — the same pattern *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved (R-2013, leans (b)); NOT built)*
+### 7.6 Fire and movement — the same pattern *(behaviors, `2026-10-13`; build-state: F-a + F-b BUILT (§7.6.1), F-c … F-e not — ✅ approved (R-2013, leans (b)))*
 
 📖 **Doctrine (general knowledge, ⛔ not in the corpus):** two drills, not one. **Bounding overwatch** is used BEFORE contact: one element
 watches, ready to fire, while the other bounds 20–50 m to the next cover; then they swap. **Fire and movement** is used IN contact: the
@@ -864,6 +876,84 @@ watching and suppressing are different jobs, and before contact there is nothing
 | **F-c** | `BoundingOverwatchPlay`: suppress on contact, cover-point bounds |
 | **F-d** | pairs (buddy teams) |
 | **F-e** | the live scenarios `ua-bounding-overwatch` (after F-c) and `ua-fire-and-movement` (after F-b) — §7.8.3, over HTTP |
+
+#### 7.6.1 F-a / F-b in detail *(behaviors, `2026-10-13`, `CE-2158`; build-state: BUILT — within the approved §7.6 pattern; as-built at the end of this section)*
+
+**Measured `2026-10-13`** (graph CLI + reads): the *covering* gate is BUILT (`SquadGates.Covering`, R-c); there is no *set* gate;
+`SquadManeuverRunner.AskTerrain` keeps only the TOP answer of the commander's query, while `EqsCognitiveBuffer` holds up to 16 ranked
+answers; `FindCoverFromTarget` generates terrain cover points near slot 0, keeps those hidden from slot 1, and scores nearness and
+how hidden each one is — it knows nothing about "ahead". ⇒ "ahead, and at most `RushMetres`" is the play's pick over the whole buffer.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Cover0
+    Cover0 --> Rush0: ShotFired (covering + picks ready, or CoveringSeconds)
+    Rush0 --> Cover1: DefiladeReached (set, or RushTimeoutSeconds)
+    Cover1 --> Rush1: ShotFired
+    Rush1 --> Cover0: DefiladeReached
+    Cover0 --> Aborted: Abort
+    Rush0 --> Aborted: Abort
+    Cover1 --> Aborted: Abort
+    Rush1 --> Aborted: Abort
+```
+*What the picture shows that prose hid: a bound is TWO phases. The mover waits in `Cover_e` until the other half is firing AND its own
+cover points are picked; only `Rush_e` moves anyone — so at no moment are both halves up.*
+
+```mermaid
+classDiagram
+    class ISquadPlay~TParams~ { <<interface, exists>> }
+    class SquadManeuverRunner { <<exists>> +AskTerrain() +AskTerrainAll() NEW }
+    class SquadGates { <<exists>> +Covering() +Set() NEW }
+    class FireAndMovementManeuver { <<new, kind 12>> Cover0 Rush0 Cover1 Rush1 Aborted +MovingElement(phase) }
+    class FireAndMovementParams { <<new>> Objective RushMetres Speed ArrivalRadius CoverSearchRadius CoveringSeconds RushTimeoutSeconds PickX/Y/Z[16] CoverMask PickedPhase }
+    class FireAndMovementPlay { <<new>> }
+    class FireAndMovementBehavior { <<new, library "FireAndMovement">> }
+    class FireAndMovementParamsJsonDto { <<new>> }
+    class SquadDrillTrace { <<exists, O-a>> }
+    ISquadPlay <|.. FireAndMovementPlay
+    FireAndMovementPlay ..> FireAndMovementManeuver : table
+    FireAndMovementPlay ..> SquadGates : covering / set
+    FireAndMovementPlay ..> SquadManeuverRunner : AskTerrainAll(FindCoverFromTarget)
+    FireAndMovementBehavior ..> FireAndMovementPlay : Tick
+    FireAndMovementBehavior ..> FireAndMovementParamsJsonDto : resolves
+    SquadManeuverRunner ..> SquadDrillTrace
+```
+
+```mermaid
+sequenceDiagram
+    participant C as commander (FireAndMovementPlay)
+    participant Q as its EQS child sensor
+    participant B as base of fire (half 1−e)
+    participant M as movers (half e)
+    C->>B: Suppress(top contact)
+    C->>M: Hold
+    C->>Q: FindCoverFromTarget(slot0 = lead mover, slot1 = threat)
+    Q-->>C: up to 16 cover points
+    C->>C: pick per mover — ahead ≥ 3 m, ≤ RushMetres from him, 2 m apart · none ⇒ a geometric point, cover false
+    Note over C: covering — every live armed coverer fired in the last 2 s
+    C->>M: AdvanceTo(pick, 1 m) — RushTo
+    Note over C: set — every live mover within 1.5 m of his pick
+    C->>M: Suppress(top contact)  [they are the base now]
+    C->>B: Hold, then RushTo
+```
+
+| decision | lean, as built | why |
+|---|---|---|
+| where "ahead" lives | the play's pick over the whole buffer (`AskTerrainAll`); `AskTerrain` becomes its one-answer wrapper | one query implementation; the template stays a plain cover query |
+| a mover with no cover point ahead | a geometric point `min(RushMetres, distance)` toward the objective, `cover = false` | the drill must not stall in the open; the trace shows the point was not cover |
+| *set* at a non-cover point | arrival counts | ⚠ deviation from §7.6's "or prone": no prone order exists for a play yet — the next phase's `Suppress` is the posture |
+| no contact at all | the base of fire HOLDS (watches); *covering* then waits out `CoveringSeconds` | nothing to suppress (§7.6: before contact is bounding overwatch's job) |
+| the end | both halves' centres within `ArrivalRadius` (20 m) of the objective ⇒ Success | as `BoundingOverwatchPlay`; the assault is the next drill |
+
+Rejected: one query per mover — up to 8 sensors per phase for a pick the whole buffer already answers · the movers' own positions as
+the cover-query centre each tick — a moving centre re-solves every frame and the pick flickers.
+
+**As built `2026-10-13` (F-a second half + F-b, `CE-2158`):** `FireAndMovementManeuver` (kind 12, Cover0/Rush0/Cover1/Rush1/Aborted) ·
+`FireAndMovementPlay` + library `FireAndMovement` (commander) · `SquadGates.Set` (every live mover within `SetMetres` 1.5 m of his order
+point) · `SquadManeuverRunner.AskTerrainAll` (the whole buffer; `AskTerrain` is now its one-answer wrapper) · defaults `RushMetres` 15,
+`Speed` 4, `ArrivalRadius` 20, `CoveringSeconds` 3, `RushTimeoutSeconds` 12, pick timeout 5 s · the movers' picks live in the play's
+params (`PickX/Y/Z`, `CoverMask`, `PickedPhase`). Rails `SquadManeuverTests.CE2158_FireAndMovement_*` (4). ⚠ Not yet: the live
+`ua-fire-and-movement` (F-e) and the SOP route into it (the contact reaction's `Assault` still runs `SuppressAndManeuver`).
 
 ### 7.7 Danger-area crossing — the squad drill *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved 2026-10-13 (R-2014), NOT built)*
 

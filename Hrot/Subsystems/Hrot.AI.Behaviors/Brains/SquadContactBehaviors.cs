@@ -6,6 +6,7 @@ using Fbt.Compiler;
 using Fbt.Kernel;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Squad.Maneuvers;
@@ -316,7 +317,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
             // ⭐ CE-2152 C-c (R-2013) — a man down with NOTHING to fight (the squad knows no contact): no decision to make — bring him in.
-            if (ws.Stage == StageReturnFire && SquadCasualties.Count(world, self) > 0 && PoolEmpty(world, self))
+            if (ws.Stage == StageReturnFire && SquadCasualties.Count(world, self) > 0 && NothingToFight(world, self))
             {
                 Next(ref ws, StageDrill, world);
                 ws.Choice = new UtilityChoice { Winner = (byte)SquadContactResponse.Rescue };
@@ -341,12 +342,12 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Stage != StageReturnFire && (SquadContactResponse)ws.Choice.Winner != SquadContactResponse.Rescue
                 && SquadCasualties.Count(world, self) > 0
                 && (now - ws.DecidedAt >= RedecideSeconds
-                    || PoolEmpty(world, self)   // the enemy is gone: the hold would end "clear" and leave him — decide now
+                    || NothingToFight(world, self)   // the enemy is gone: the hold would end "clear" and leave him — decide now
                     || Fdp.Toolkit.Behavior.Components.RecentSensesOf.WithinSince(world, self, Fdp.Toolkit.Perception.Events.SensorChange.SquadMemberDown, 3600d, ws.DecidedAt)))
             {
                 byte was = ws.Choice.Winner;
                 var fresh = new UtilityChoice();
-                if (PoolEmpty(world, self)) fresh.Winner = (byte)SquadContactResponse.Rescue;   // nothing to fight: bring him in
+                if (NothingToFight(world, self)) fresh.Winner = (byte)SquadContactResponse.Rescue;   // nothing to fight: bring him in
                 else UtilityNodes.ChooseOptionOnce(ref p.Choose, ref fresh, self, world);
                 ws.DecidedAt = now;
                 if (fresh.Winner != 0 && fresh.Winner != was)
@@ -360,7 +361,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (ws.Choice.Winner == 0)
                 {
-                    if (PoolEmpty(world, self) && SquadCasualties.Count(world, self) > 0) ws.Choice.Winner = (byte)SquadContactResponse.Rescue;
+                    if (NothingToFight(world, self) && SquadCasualties.Count(world, self) > 0) ws.Choice.Winner = (byte)SquadContactResponse.Rescue;
                     else UtilityNodes.ChooseOptionOnce(ref p.Choose, ref ws.Choice, self, world);
                     ws.DecidedAt = now;
                     if ((SquadContactResponse)ws.Choice.Winner == SquadContactResponse.Rescue) FreshCare(ref p);
@@ -377,19 +378,45 @@ namespace Hrot.AI.Behaviors.Brains
                     // ⭐ the man is in (or the care failed): decide again — the squad is still in the fight, or the reaction ends.
                     Next(ref ws, StageDrill, world);
                     ws.Choice = default;
-                    if (PoolEmpty(world, self) && SquadCasualties.Count(world, self) == 0) return NodeStatus.Success;
+                    if (NothingToFight(world, self) && SquadCasualties.Count(world, self) == 0) return NodeStatus.Success;
                     return NodeStatus.Running;
                 }
-                if (drill == NodeStatus.Success) return NodeStatus.Success;
+                if (drill == NodeStatus.Success)
+                {
+                    // ⭐ CE-2152 R-e — the drill is won with a man still down: the reaction does not end and leave him.
+                    if (SquadCasualties.Count(world, self) == 0) return NodeStatus.Success;
+                    Next(ref ws, StageDrill, world);
+                    ws.Choice = new UtilityChoice { Winner = (byte)SquadContactResponse.Rescue };
+                    ws.DecidedAt = now;
+                    FreshCare(ref p);
+                    return NodeStatus.Running;
+                }
                 if (drill == NodeStatus.Running && ws.Play.Started != 0) return NodeStatus.Running;
                 Next(ref ws, StageHoldOn, world);                          // failed, or could not start (e.g. only a heard contact)
             }
             return SquadManeuverRunner.Tick<SquadHoldPlay, SquadHoldParams>(ref p.HoldOn, ref ws.Play, self, world);
         }
 
-        /// <summary>The squad's pool holds no contact.</summary>
-        private static bool PoolEmpty(EntityRepository world, Entity self)
-            => !world.HasComponent<SquadCognitiveState>(self) || world.GetComponentRO<SquadCognitiveState>(self).Contacts.Count == 0;
+        /// <summary>
+        /// ⭐ <c>CE-2152</c> R-e — nothing left to fight: the squad's pool holds no contact that is still alive. 📐 Measured live
+        /// (<c>ua-casualty-care-heavy</c>): the pool is rebuilt from the members' memories, which keep a killed enemy until they fade,
+        /// so "the pool is empty" came long after the last enemy fell. A heard contact (no entity) counts as alive.
+        /// </summary>
+        private static bool NothingToFight(EntityRepository world, Entity self)
+        {
+            if (!world.HasComponent<SquadCognitiveState>(self)) return true;
+            ref readonly var squad = ref world.GetComponentRO<SquadCognitiveState>(self);
+            var pool = MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
+            for (int i = 0; i < squad.Contacts.Count && i < 16; i++)
+            {
+                var c = pool[i];
+                if ((c.Flags & SquadContact.AnonymousFlag) != 0 || c.EntityId <= 0) return false;
+                if (CombatLife.IsAlive(world, new Entity((ulong)c.EntityId))) return false;
+            }
+            return true;
+        }
 
         /// <summary>A new rescue starts from nothing: the care play's runtime memory (who, who goes, from where) is cleared.</summary>
         private static void FreshCare(ref ReactToContactParams p)
