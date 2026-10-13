@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-12
+updated: 2026-10-13 (§13 finishing the params story — measured, leans await the user)
 build-state: BUILDING — §5a records each task as built (CE-2145 ✅, CE-2131 ✅, CE-2132 ✅, CE-2130, CE-2133, CE-2134, CE-2140, CE-2141, CE-2142, CE-2143, CE-2137, CE-2138, CE-2139 ✅); §6 is the build plan
-current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class · §9 D4 (CE-2143) one generic order path: menu, RTS, HTTP
+current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class · §9 D4 (CE-2143) one generic order path: menu, RTS, HTTP · ⭐ §13 FINISHING THE PARAMS STORY (2026-10-13): what is left, decisions F1–F8, work P1–P7 by lane
 stale-below: nothing
 known-rot: none
 known-conflict: (resolved by CE-2143) docs/DESIGN_Entity_Control.md §3.1/§10 is now marked superseded in its own STATUS. · docs/blueprints/DESIGN_Parameter_Model.md §P.7 (a resolver asset's authored shape = its Parameters) and §1 (Role Input/State) are superseded HERE by R-276/R-277 (one params DTO, no roles); that doc is updated when B3 builds, not before. docs/DESIGN_Entity_Control.md §3.1/§10 (EntityOrders names soldier behaviours) is superseded by R-273; updated when D4 builds.
@@ -1174,3 +1174,50 @@ Design docs checked: AQ90 §2.3j + one-page row — *applies* (the asset, the ge
 | rails | `ParamsDtoJsonGeneratorTests` (valid → struct + `[ParamsDto]` + `[Order]`; six invalid cases → a diagnostic; the sequential layout) · `ParamsDtoAssetTests` (listed by the registry with its default; the CLR layout equals the computed one, 24 bytes; the behaviour publishes it and parses flat over the bake) · the corpus count 33 → 34 |
 
 ⚠ Deviation from the lean: none. ⚠ Not yet: the editor (B4b) and `BlackboardTypeChoiceBuilder` listing `[ParamsDto]` types.
+
+## 13. Finishing the params story *(build-state: DESIGN — measured `2026-10-13`, leans await the user; behaviors leads)*
+
+> 🔒 **User, 2026-10-13:** *"I would like to finish this parameter story before continuing with embark and other squad development.
+> We can postpone the editor parameter editing in favor of hardcoding the dto for now … backend lane can work on the param
+> infrastructure refactor and asset conversion, you can lead this effort making handoff to other sessions."*
+
+**INVENTORY** *(four read-only sweeps + codebase-memory CLI `search_graph` / `search_code` after a fresh index + grep; the two
+surprising claims spot-checked by reading the file)*:
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| an asset names its DTO by FQN; it is resolved at BUILD time only (`typeof(global::X)` in the generated registrar) | ✅ `BTreeBridgeEmitCore.cs:1772`, `HsmBridgeEmitCore.cs:470`, `CSharpEmitter.cs:644` | ✅ §6 CE-2133 |
+| nothing in the assembly marks a generated DTO apart from a hand-written one (`[ParamsDto]` may sit on either; the namespace is a convention) | ✅ `ParamsDtoAttribute.cs:8-17`, `ParamsDtoAsset.cs:137` | ✅ §12 rejected the namespace as a marker |
+| ⚠ the registry misses every DTO that is named only by an ASSET: it scans `[Behavior]`, `[Order]`, `[ParamsDto]` types (e.g. `ThreatCountParams`, `EqsTacticsParams`, `HullDownAttackParams` carry none) | ✅ `ParamsDtoRegistry.cs:107-109`; `SensorNodes.cs:44` | ⛔ §6 B2 says "one scan of loaded assemblies" — it never covered asset-named DTOs |
+| no DTO record carries a source location; `SourceFileOpener` + `ClrSourceLocator` open a METHOD only (portable PDB) | ✅ `ParamsDtoRegistry.cs:14`; `SourceFileOpener.cs:24`, `ClrSourceLocator.cs:27` | ⛔ searched docs/ + .dev/, none found |
+| a changed DTO arrives only by a FULL rebuild (quick reload compiles the active asset only); three caches keep the old Type: `BindJsonParamsDtoTypes` runs at CGF load only, `BlackboardTypeHelper.ResolveClrType` returns the first match, `IntentContractPaletteEntries` is cached with `??=` | ✅ `AiAssetReload.cs:101`; `BehaviorRegistry.cs:911`; `BlackboardTypeHelper.cs:64`; `IntentContractPaletteEntries.cs:31` | ✅ quick-reload DESIGN: structure change = Hard reload; ⛔ no doc covers a params DTO changing |
+| no field is MANDATORY anywhere: no attribute, the schema emits no `required`, the generic HTTP path checks nothing | ✅ `DtoJsonSchemaExtractor.cs:43-58`; `EntityOrders.cs:122-131` | ⛔ none |
+| ⚠ the menu supports ONE pick: `PickOf` reads PROPERTIES only (a B4a generated DTO has FIELDS ⇒ classed None, sent as `{}`); two pickable fields ⇒ the order is not offered; `[MapPickableEntity]` presets are not passed; the right-clicked point is not carried | ✅ `OrderMenu.cs:77-87`; `ContextMenuProjectorGizmo.cs:70`; `MenuOrders.cs:79`; `GlobalActionRequestedEvent.cs:15` | ✅ D4-E: "an order needing more than one pick is HTTP-only" |
+| no "default order arguments" component exists; `Roe` (sticky unit state, `SetBy` origin gate, on `dtBrainIntent`) and `EqsSensor`'s context slots + mask bit are the patterns; Sensors & Doctrine **G3** (a per-unit intent component doctrine and orders write, behaviours read live) is OPEN | ✅ `Roe.cs:43`; `EqsComponents.cs:167` | ✅ `DESIGN_Sensors_And_Doctrine.md` G3 (open); R-136 / R-138 constrain it |
+| 21 live docs still state the old rules (6 likely read as current), 9 more still describe `[BehaviorContract]` | sweep, 2026-10-13 | — |
+
+### 13.1 Decisions *(leans)*
+
+| # | question | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| **F1** | how does a behaviour reference its DTO, and how is a generated one told apart | unchanged: asset `ParamsDtoTypeId` (FQN) / `[Behavior(Params=…)]`. ⭐ **Every params DTO carries `[ParamsDto]`**, hand-written included; the attribute records its origin: `SourceAsset` (set by the B4a generator ⇒ generated) or the C# file + line (caller-info arguments filled by the compiler at the use site ⇒ hand-written; ✅ verified 2026-10-13 with a console probe: `[CallerFilePath]` / `[CallerLineNumber]` on an attribute constructor yield the struct's absolute file and line; `Directory.Build.props` sets no `PathMap`, so the path is the machine's). A conformance rail (CE-2130's suite) fails a DTO a behaviour names without it | a namespace convention (unchecked) · a separate source-map generator (a second producer for one fact) |
+| **F2** | one registry the editor picks from | `ParamsDtoRegistry` = the `[ParamsDto]` scan (the other two arms become redundant once F1 holds); `BlackboardTypeChoiceBuilder` lists `[ParamsDto]` types; `GET /orders` publishes each order DTO's schema | keep three scan arms (an asset-named DTO stays invisible) |
+| **F3** | open source / open asset | the registry entry exposes the F1 location; the editor reuses `SourceFileOpener` (file + line). The struct EDITOR is postponed with B4b (user) | PDB lookup (a field-only struct has no sequence points) |
+| **F4** | hot reload | a DTO shape change needs a FULL rebuild (accepted); fix the three stale caches; a quick reload of an asset whose DTO changed refuses with "full rebuild needed" instead of running stale | compiling DTOs in quick reload (re-lays every block that embeds it — the Hard path anyway) |
+| **F5** | mandatory params | `System.ComponentModel.DataAnnotations.RequiredAttribute` (`[Required]`) on a DTO field — BCL, no new attribute; the schema emits `required`; the generic HTTP path answers 400 naming the field; the receiver's resolver may still refuse | a new `[Mandatory]` (duplicates the BCL) · "zero means default" for every field (cannot say "must pick") |
+| **F6** | how the menu supplies them | the picker comes from the field TYPE (unchanged: `PickableGeoPoint` → point, `EntityRef` + `[MapPickableEntity(presets)]` → filtered entity, routes / areas included); `PickOf` reads fields AND properties; the menu walks every `[Required]` pickable field in declaration order (one pick each, prompt = the field name); the right-clicked point / entity fills the first matching one; optional fields keep the DTO default; a required field with no picker ⇒ HTTP-only (as today) | a params form dialog for every order (slow for the common one-pick case) |
+| **F7** | default order arguments (the user's idea) | ⭐ **stage 1: fill on the SENDER.** A per-unit "designations" store (target, point, route, area) set by UI gestures; `EntityOrders.Order` fills any missing `[Required]` field from it before publishing, so the order on the wire stays COMPLETE (replay, logs, HTTP and AI senders see explicit args). Stage 2 (a replicated per-unit intent component read live by behaviours) is G3 — a larger question, decided separately | receiver-side fill now: needs a new descriptor + component id (AQ87 budget), adds hidden state to every order, and pre-empts G3 |
+| **F8** | the 4 Parameter-declaring blueprints (B3b-2) | hand-written C# DTOs (user: "no problem writing dto class in csharp for now"); `ParameterDecl` / Get Parameter nodes stay as the graph's view of the DTO's fields | wait for B4b |
+
+### 13.2 The work and the lanes *(lean)*
+
+| # | item | lane | depends |
+|---|---|---|---|
+| P1 | F1 + F2: `[ParamsDto]` on every params DTO, origin recorded, registry = one scan, rail; `BlackboardTypeChoiceBuilder` lists them | backend | — |
+| P2 | F4: the three stale caches; quick reload refuses a changed DTO | backend | P1 |
+| P3 | B3b-1: 14 allow-list entries (5 parameter-less blueprints → `NoParams`, `OperatorControl`, the 2 resolver behaviours, 6 fixtures) | backend | — |
+| P4 | B3b-2 (F8) then delete `Role`, `StatefulSlotRole`, `StatefulSlotInfo.Role` (§5c re-measured) — allow-list empty | backend | P3 |
+| P5 | F5 + F6: `[Required]`, schema `required`, HTTP 400, menu multi-pick, presets, the right-click point, `GET /orders`; `MoveOrder.Location` / `AttackOrder.Target` marked | behaviors | — |
+| P6 | F7 stage 1: the designations store + gestures + sender fill | behaviors (ui for the gestures) | P5 |
+| P7 | docs: the 6 high-risk rewrites + `OVERVIEW` box (behaviors); the remaining 15 known-rot lines + the 9 `[BehaviorContract]` mentions (any session) | behaviors leads | as each item lands |
+| — | B4b editor, the struct editor | postponed (user) | — |
