@@ -1,5 +1,7 @@
 # Architect Question #32 — the variable **Details** panel: initial values and live values
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > **Coordinator, `2026-08-14`.** ⭐ **Raised by the user** after running `VISUAL_CHECK §A`:
 > *"there is no detail panel for variables… there should be a variable table listing all vars with
 > their details (type etc). I think there should be also their editable initial value if exercise not

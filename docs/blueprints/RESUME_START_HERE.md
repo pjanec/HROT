@@ -12,8 +12,9 @@ current-answer: ⛔⛔ STALE AS OF 2026-09-22 — this file's "state" is the 202
   action: Batch 88 is complete on the implementation branch and not yet merged.
 stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do not quote it
   for status, baselines or next steps.
-known-rot: (2026-10-13, P7) the body is HISTORY (see stale-below); its remark that "`BlackboardVariableRole
-  {Input,State}` already exists" (D2 note) is the Role vocabulary that retires with P4 —
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone; [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135); Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  (2026-10-13, P7) the body is HISTORY (see stale-below); its remark that "`BlackboardVariableRole
+  {Input,State}` already exists" (D2 note) is the Role vocabulary, retired with P4 (2026-10-13, CE-3193) —
   docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §13 (one params DTO per behaviour, no Input/State roles).
 -->
 

@@ -1,5 +1,7 @@
 # Architect question #9 — assembling the per-node blueprints into the running commander tree
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone; Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 **Context.** The per-node migration is **complete**: every `HillAttackCommanderNodes`/`HillAttackTankNodes`
 behavior node now has a visually-authored `.bp.json` twin, each proven in **isolation** against the
 (untouched) C# oracle through the real generator (`HillAssault2_*` 52/52). The natural next phase is

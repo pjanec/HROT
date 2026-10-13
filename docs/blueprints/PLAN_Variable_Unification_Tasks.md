@@ -1,5 +1,7 @@
 # PLAN — the variable unification, as tasks with gates
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135); Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > **Coordinator, 2026-08-13.** Decomposition of
 > [Variable_Model_Unification.md](Variable_Model_Unification.md) ·
 > [Variable_Editing_UI.md](Variable_Editing_UI.md), as re-ordered by

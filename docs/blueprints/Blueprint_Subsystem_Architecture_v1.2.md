@@ -1,5 +1,7 @@
 # Blueprint Subsystem — Architecture Document (Slice 1) — v1.2
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > **Status:** Architect-blessed v1.1 baseline + Q-OPEN-A/B/C resolutions + AI Primitives, channel-command authoring, and engine-direct interface model. All inline patches and Final Resolutions integrated; Q-OPEN-D and Q-OPEN-E resolved.
 > **Audience:** Senior engineer (rationale paragraphs); implementation agent (spec subsections).
 > **Scope:** Slice 1 architecture only. Detailed designs of compiler internals, codegen, runtime adapter, test harness, and editor follow as separate documents after this is approved.

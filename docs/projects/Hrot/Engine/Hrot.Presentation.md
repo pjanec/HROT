@@ -1,5 +1,7 @@
 # Hrot.Presentation
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: ../../../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > ⛔ **SUPERSEDED IN PART `2026-10-12` — [DESIGN_Sensors_And_Doctrine §7.6b](../../../DESIGN_Sensors_And_Doctrine.md) (`CE-1023`):** `BehaviorUiCompiler`, `BehaviorUiRegistry` and `BehaviorUiSetup` are DELETED. Every screen draws behaviour params with THE one form, `Hrot.Presentation.Behavior.BehaviorParamsForm` (StructEdit + `ComponentEditDrawer`, picks by field type through a `ScopedMapPickContext` over the broker); `MissionPanel(localNodeId, paramsTypeOf)` keeps a `BehaviorParamsEditor` per task. Every mention of the compiler below is history.
 
 > ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](../../../blueprints/DESIGN_Map_Picking_Unification.md):** `IPickInteractionContext` is deleted: `BehaviorUiCompiler` draws against `IMapPickContext` with `$.tasks[i].Prop` paths, and `MissionPanel` owns a `MapPickBroker` (THE broker) instead of implementing a pick state machine. `CanvasMapPickAdapter` is the only map-pick adapter (geodetic location picks).
@@ -193,8 +195,8 @@ All source files are under `Hrot/Engine/Hrot.Presentation/`.
 
 | File | Namespace | Type | Description |
 |---|---|---|---|
-| `BehaviorSchemaDiscovery.cs` | `Hrot.Presentation.Behavior` | `static class` | Scans `Hrot.Core` assembly for `[BehaviorContractAttribute]`-decorated types and auto-registers them with `BehaviorUiRegistry` and `ScenarioBehaviorRemapper` via reflection. |
-| `BehaviorUiCompiler.cs` | `Hrot.Presentation.Behavior` | `static class` + `sealed class` | Expression-tree-based compilation of ImGui draw delegates for behavior-parameter DTOs. `BehaviorUiRegistry` stores the per-ID cache; `BehaviorUiCompiler.Compile<TDto>()` performs one-time reflection and returns a cached `BehaviorUiDrawDelegate`. |
+| `BehaviorSchemaDiscovery.cs` | `Hrot.Presentation.Behavior` | `static class` | Reads every behaviour's declared params DTO (`[Behavior(Params = …)]` / the asset's `ParamsDtoTypeId`) through `ParamsDtoRegistry` (CE-2134) and registers each with `ScenarioBehaviorRemapper` and the `BehaviorRegistry` (`JsonParamsDtoType`). ⛔ *Was:* scanned for `[BehaviorContractAttribute]` (deleted) and fed `BehaviorUiRegistry` (deleted, CE-1023). |
+| ⛔ ~~`BehaviorUiCompiler.cs`~~ *(deleted, CE-1023 — every screen draws `BehaviorParamsForm` from the params type)* | `Hrot.Presentation.Behavior` | `static class` + `sealed class` | Expression-tree-based compilation of ImGui draw delegates for behavior-parameter DTOs. `BehaviorUiRegistry` stores the per-ID cache; `BehaviorUiCompiler.Compile<TDto>()` performs one-time reflection and returns a cached `BehaviorUiDrawDelegate`. |
 | `BehaviorUiSetup.cs` | `Hrot.Presentation.Behavior` | `static class` | Composition-root helper. `CreateRegistry()` returns a `BehaviorUiRegistry` pre-populated via `BehaviorSchemaDiscovery.AutoRegister`. |
 | `IPickInteractionContext.cs` | `Hrot.Presentation.Behavior` | `interface` | Per-field pick coordination for behavior parameter editors. Implemented by `MissionPanel`. |
 
@@ -1004,6 +1006,8 @@ windowManager.RegisterWindow(new ManagedWindow("spawner", "Spawner", perspective
 ```
 
 ### Example 2: Registering Behavior Parameter UI at Startup
+
+> ⛔ **HISTORY — this example no longer compiles:** `BehaviorUiRegistry`, `BehaviorUiCompiler` and `[BehaviorContractAttribute]` are deleted (CE-1023, CE-2134). A behaviour's parameter form is `BehaviorParamsForm`, drawn from the params DTO type that `ParamsDtoRegistry` lists.
 
 ```csharp
 // At application startup, create and populate the behavior UI registry.

@@ -1,5 +1,7 @@
 # Blueprint Subsystem — Runtime Detailed Design
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone. Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > ## Storage model — per-occurrence slots in the tier ladder
 >
 > 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** is the authority for

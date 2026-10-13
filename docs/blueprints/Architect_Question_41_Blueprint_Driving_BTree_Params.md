@@ -5,7 +5,8 @@ current-answer: section 5 - APPROVED IN FULL by the user 2026-08-18. A, B and D 
   written; C1 WITHDRAWN and replaced by C1'/C2'/C3', also approved. C3' is detailed
   in Architect_Question_43_Blueprint_Authored_Param_Resolver.md. Nothing is built.
 stale-below: nothing.
-known-rot: ⚠ 2026-09-30 (R-155) — C3' (a blueprint-authored resolver on the
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  ⚠ 2026-09-30 (R-155) — C3' (a blueprint-authored resolver on the
   primitive, detailed in Q43) is retired — resolvers belong only to behaviours (DESIGN_Parameter_Model.md
   §P.4, CE-445). A blueprint driving a BTree behaviour's params does so as that behaviour's ONE
   resolver asset (CE-428), which receives the source (§P.2, CE-443).

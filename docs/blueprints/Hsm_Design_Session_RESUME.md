@@ -1,5 +1,7 @@
 # HSM Design Session — RESUME
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone. Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > **Read this first when resuming.** Written to survive context compaction.
 > **Branch:** `claude/hsm-visual-editing-9ngei4`. ⭐ **Track `origin/ui` from now on** — it contains
 > `claude/blueprint-authoring-status-gm0akp` in full, and that branch stopped at `2026-09-19`.

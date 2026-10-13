@@ -1,5 +1,7 @@
 # Hrot.Blueprints.Core
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135); Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../../../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > Manually maintained; last verified 2026-07-21 against the implemented code.
 
 - **Project file**: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Core/Hrot.Blueprints.Core.csproj`
@@ -383,7 +385,7 @@ Discriminator property `"kind"`.  Derived types:
 | `GetParameter` | ⛔ **REMOVED by `CE-2135` P4** (steer 2, R-2004) — `GetParameterNode` | read a single parameter; Get All Parameters names one pin per parameter (a named DTO's fields) |
 | `GetAllParameters` | `GetAllParametersNode` | reads all `AiPrimitive` parameters |
 | `GetShared` | ⛔ **REMOVED by `CE-440`** — `GetSharedNode` | multi-pin per-field read of `BlueprintSharedState` |
-| `SetShared` | `SetSharedNode` | multi-pin per-field write via `BlueprintSharedState.TrySetSharedField` |
+| `SetShared` | ⛔ **REMOVED by `CE-440`** — `SetSharedNode` | multi-pin per-field write via `BlueprintSharedState.TrySetSharedField` |
 | `PartitionElements` | `PartitionElementsNode` | squad quartet: partitions a roster into groups |
 | `AssignRoles` | `AssignRolesNode` | squad quartet: assigns roles to partitioned members |
 | `AdvancePhase` | `AdvancePhaseNode` | squad quartet: advances a squad's phase state |
@@ -391,7 +393,7 @@ Discriminator property `"kind"`.  Derived types:
 
 Custom events pub/sub (`PublishEvent` + `EventEntry` with a Self/Any filter, discovered via
 `[BlueprintEvent]`/`[EventTarget]`, dispatched by `BlueprintEventDispatch`), multi-pin per-field pins
-(`PublishEvent`/`GetShared`/`SetShared`), and struct-typed `Variables` are all shipped. See
+(`PublishEvent`; ⛔ `GetShared`/`SetShared` removed by `CE-440`), and struct-typed `Variables` are all shipped. See
 Stage 0 (`Stage0_Rehydrate`) above for the pin/link reconstruction that these node kinds rely on.
 
 #### `WhenNode` and EQS nodes (schema detail)

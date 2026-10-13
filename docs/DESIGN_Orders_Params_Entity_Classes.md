@@ -1740,7 +1740,7 @@ Fdp.Toolkits tick arms + possession 85/0, SimHost 16/0, Blueprints 4203/2 — th
 (`ViewsAreUnreadTests` flags `Stage2_Validate.cs:2835`, CE-2133's BP1689 rule, which P4 rewrites; `CatalogTests` AimAndFire pins 4 vs 8 — the
 channel-command catalog). ⚠ Not re-run at the base sha.
 
-### 13.10 P4 — no blueprint declares Parameters; every kind names a params DTO *(CE-2135 B3b-2; R-2004, steers 1–2; build-state: BUILDING `2026-10-13`, backend — steps ①–⑤ built, as-built at the end of this section)*
+### 13.10 P4 — no blueprint declares Parameters; every kind names a params DTO *(CE-2135 B3b-2; R-2004, steers 1–2; build-state: BUILT `2026-10-13`, backend — steps ①–⑦ built (⑦ = CE-3193), as-built at the end of this section; the editor gaps under "Not yet" closed by CE-1061 except U5b)*
 
 **INVENTORY** *(read-only sweep 2026-10-13 + grep; file:line in the CE-2135 report)*: `ParameterDecl` (`Declarations.cs:16`) is ALSO the
 element type of graph Inputs / Outputs, custom-event and dispatcher parameters ⇒ only its use as a blueprint **Parameter declaration kind**
@@ -1967,8 +1967,8 @@ classDiagram
     corpus has **0** left and all 18 `.bp.json` name a DTO, so it is empty everywhere; the canvas pins are right (`ParametersOf`).
     "Create parameter" (`editor.create-parameter`) still authors a `ParameterDecl`; ✅ FIXED by CE-1061 U1/U2/U3/U5a (§13.10b);
   - the **BTree / HSM** `Params` row is ONE read-only entry (`BlackboardAuthoringWindow.cs:323`) — the DTO's fields are not
-    listed (`VariablesPanelControl` has no struct expansion);
-  - no editor surface writes an asset's `ParamsDtoTypeId` or a BTree / HSM `ParamsDefaultJson` (hand-edited JSON).
+    listed (`VariablesPanelControl` has no struct expansion); ✅ FIXED by CE-1061 U3 (§13.10b);
+  - no editor surface writes an asset's `ParamsDtoTypeId` or a BTree / HSM `ParamsDefaultJson` (hand-edited JSON). ✅ `ParamsDtoTypeId`: FIXED by CE-1061 U5a (the picker); ⏳ `ParamsDefaultJson`: U5b, open (§13.10a).
   ⇒ dispatched: [HANDOFF_Params_Panels_Ui.md](blueprints/HANDOFF_Params_Panels_Ui.md) (U1–U5; U5 ruled below).
 
 #### 13.10a The params DTO and its defaults, per asset *(R-3001, CE-3194; build-state: backend half BUILT `2026-10-13` (CE-3194, as-built at the end of this section) — editor half the handoff's U5)*

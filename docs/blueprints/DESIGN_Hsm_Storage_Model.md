@@ -7,10 +7,11 @@ current-answer: the whole file, WITH the storage banner below - and note that se
   nested slot (E3a). Both are occurrence slots — there is no separate component for either any more.
 note: section 2 CORRECTS the coordinator - BP-281 is NOT blocked. Read it before
   scheduling anything that assumes it is.
-known-rot: (2026-10-13, P7) the storage-classes table rows ① "`Role=Input` — the params" and ② "`Role=State` @
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone. Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  (2026-10-13, P7) the storage-classes table rows ① "`Role=Input` — the params" and ② "`Role=State` @
   `Behavior`/`Entity`" use the Role vocabulary: a behaviour now names ONE params DTO (reserved `Params`, flat
   JSON) and its other variables are plain — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13. `Role`
-  retires with P4 (§13.10).
+  retired with P4 (2026-10-13, CE-3193) (§13.10).
 -->
 # DESIGN — the HSM storage model *(`2026-08-17`)*
 

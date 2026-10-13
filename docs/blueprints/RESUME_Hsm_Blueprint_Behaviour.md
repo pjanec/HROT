@@ -36,13 +36,14 @@ current-answer: ⭐⭐⭐⭐⭐ **NOW (2026-10-06): the `ua-danger-crossing` dem
   Architect_Question_76_One_Blackboard_Block_Per_Primitive.md §12; its §12.6 is the slice order.
 stale-below: ⛔ §2 ("STAGE 2 — the three items") is DONE. Its measurements are still true; its
   instructions are spent. §2.4's "not built, not filed" is FIXED.
-known-rot: ⚠ §2.2 said `CE-386` was "SMALLER than the design says". ⛔ HALF WRONG — the plumbing was
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone; [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135); Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  ⚠ §2.2 said `CE-386` was "SMALLER than the design says". ⛔ HALF WRONG — the plumbing was
   indeed already there, but `ActionSchemaExporter` collapsed `hsmAction`/`hsmGuard` into one bit, so
   the item needed two new `ActionHosting` bits first. See §7 and design §13.5.
 known-rot: (2026-10-13, P7) three small mentions are overtaken: `JoinFormation`'s "`[BehaviorContract]`" (§9.4
   trap ⑥) is now `[Behavior(Params = typeof(CgfNodes.JoinFormationParams))]` (CE-2134; the empty
   `JoinFormationParamsJsonDto` is deleted); "`Role=State` / `Role=Input`" (CE-420, CE-429) is the Role
-  vocabulary that retires with P4; and the "`GetParameter`/`GetAllParameters` already ship" note (§12.4) — Get
+  vocabulary that retired with P4 (2026-10-13, CE-3193); and the "`GetParameter`/`GetAllParameters` already ship" note (§12.4) — Get
   Parameter retires in P4, Get All Parameters projects the named DTO's fields (§13.10) —
   docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §13.
 known-conflict: ⚠ `RESUME_Hsm_Subtree_Authoring.md` is the PREVIOUS programme's doc and is COMPLETE;

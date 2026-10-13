@@ -6,7 +6,8 @@ build-state: BUILT (option A approved by the user 2026-08-22 and shipped, BP-444
 updated: 2026-09-22
 stale-below: the "## ⛔ HISTORY" section at the foot of this file — it names the WRONG cause for the
   Category-2 limit (resolution, not the byte budget) and proposes a fix that would not have worked.
-known-rot: DESIGN_Details_Panel_View_Switching.md §7.6 ④ said S4's bindings "reach the runtime";
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone. Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  DESIGN_Details_Panel_View_Switching.md §7.6 ④ said S4's bindings "reach the runtime";
   corrected 2026-08-22 — no binding the panel can AUTHOR is emittable yet (see THE REACH).
 current-answer: the whole file — does the MASTER blackboard DECLARE the auto-allocated sub-tree slice
   `{SubtreeName}_{DtoTypeName}`, and who SIZES it? This is BP-342 gap (2), and it is the LAST thing

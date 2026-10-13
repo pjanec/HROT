@@ -1,5 +1,7 @@
 # Architect Question 29 — entity commanding: what a map "order" actually is
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > **For [UXI-32](UX_Issues.md#uxi-32) · opened 2026-08-13. Status: ✅ **FULLY ANSWERED, 2026-08-13** —
 > rulings 38-46, **no open decisions**. §B, §C, §E, §F, §H, §I and §J are settled; §D and the
 > parameter-authoring work are deliberately scoped out to a later design.**

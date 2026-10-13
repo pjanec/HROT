@@ -4,7 +4,8 @@ updated: 2026-09-22
 current-answer: section 4 "How to do it safely - RE-ORDERED by the review"
 stale-below: the A/B/C/D table under section 4's SUPERSEDED banner is HISTORY. Do not quote it.
 note: the live stage order is 0 -> C -> A -> B -> B' -> D1 -> D2 -> D3 -> D4
-known-rot: (2026-10-13, P7) "two orthogonal tags: `Role` ∈ {`Input`, `State`} × `Scope`" (§ model table and the
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone; [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135); Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  (2026-10-13, P7) "two orthogonal tags: `Role` ∈ {`Input`, `State`} × `Scope`" (§ model table and the
   `BlackboardVariableRole { Input = 0, State = 1 }` listing) is overtaken: a behaviour names ONE params DTO
   (reserved `Params`, flat JSON) — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13. `Role` retires
   with P4 (§13.10).

@@ -11,6 +11,7 @@ known-conflict: Q26 supersedes Q25-D and moots Q25-F/F′ — the "new editor ex
   WITHDRAWN (2026-08-10). Read §F/§F′ as historical.
 related-designs:
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — §2.3c–§2.3e: entity CLASSES (an enum, from the TKB) replace the category mask; assets carry Classes, edited in the editor (Q25-C C1)
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
 -->
 # Architect question #25 — Scenario-authoring UX: the five structural decisions
 

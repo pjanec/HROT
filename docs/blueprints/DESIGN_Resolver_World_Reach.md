@@ -23,7 +23,7 @@ known-rot: ⛔ 2026-09-30 (CE-448) — the REUSABLE resolver (a Library Construc
 known-rot: (2026-10-13, P7) the examples that name `Role=State` (`HsmVariableShowcase`'s `Cursor`,
   `T20_MultiStateful`) use the Role vocabulary, and "a variable's TYPE can be a whole DTO struct" predates the
   named params DTO: a behaviour names ONE params DTO (reserved `Params`, flat JSON) —
-  docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13. `Role` retires with P4 (§13.10).
+  docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13. `Role` retired with P4 (2026-10-13, CE-3193 — `Scope` too) (§13.10).
 known-conflict: Behavior_Parameter_Resolver_Detailed_Design.md 8.1 rates R4 "Medium" and offers
   two shapes ("adapter-supplied service arguments, or a small read-singleton node"). This design
   picks the FIRST and explicitly REFUSES the second; section 6 says why.

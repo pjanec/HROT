@@ -1,5 +1,7 @@
 # Unified variable editing UI — the vision
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone. Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > **Coordinator, 2026-08-13.** Companion to
 > [Variable_Model_Unification.md](Variable_Model_Unification.md), which covers the *model*. This one
 > covers **what the designer sees**. ⭐ **The user's proposal — table as the details view of the

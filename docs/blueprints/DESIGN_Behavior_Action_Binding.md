@@ -6,8 +6,9 @@ build-state: BUILT (§5.6 CE-2099 BUILT 2026-10-05, as-built §5.6a) — slices 
 current-answer: §4 (the five decisions, each with a lean). §2 is why Q75-B needs them: four of its premises moved
   since it was approved on 2026-09-28.
 stale-below: nothing yet.
-known-rot: (2026-10-13, P7) the working-state notes (S8-1, C3: "the Behavior-scoped `Role=State` variable", "the
-  picker lists only `Role=State` variables") use the Role vocabulary that retires with P4
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone. Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  (2026-10-13, P7) the working-state notes (S8-1, C3: "the Behavior-scoped `Role=State` variable", "the
+  picker lists only `Role=State` variables") use the Role vocabulary, retired with P4 (2026-10-13, CE-3193)
   (docs/DESIGN_Orders_Params_Entity_Classes.md §13.10); and a binding's target may now also be `Variable.Field`
   (`Params.<field>`, CE-3182, §5d).
 known-rot: (otherwise) none.

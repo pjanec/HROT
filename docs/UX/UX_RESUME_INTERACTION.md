@@ -1,5 +1,7 @@
 # RESUME — the interaction-design thread (2026-08-10)
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > 🔴 **Read this first if context was compacted mid-session.** It is the smallest complete state of the
 > interaction-design work. Branch: `claude/ux-session-resume-i2le7f`. Everything below is **committed**.
 

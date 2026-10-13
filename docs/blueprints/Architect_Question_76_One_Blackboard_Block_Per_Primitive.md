@@ -20,7 +20,8 @@ decision-rule: 🔒 The user's test for both resolved decisions, verbatim: "will
   carries its measurement inline, and BOTH answers are "remove ONLY as part of B" — A alone is
   ~200 lines and would park under the same rule. Reuse the rule on the next such question.
 stale-below: nothing.
-known-rot: ⛔ 2026-10-03 (CE-2028 sweep) — §7 "nothing in it is serialised … NO save-file or replay migration" is WRONG for replays: the tiers are [DataPolicy(NoScenario)] only, so Flight Recorder recordings and checkpoints carry the raw slot bytes, and since MX-031 a saved scenario carries non-default Instance params + ParamsStructureHash. See DESIGN_Unified_Behaviour_Run.md "S8c as-built" (CE-2028 table).
+known-rot: ⛔ 2026-10-13 (CE-3193) — decision C's "REMOVE `WorkingStateScope`" (§C, §1.3 table, the slice-10 row, "no scope remains") did NOT happen as written: the VARIABLE lost `Role` and `Scope`, but `WorkingStateScope` survives as the slot-key formula (`OccurrenceSlotKey.Compute`, `BlackboardVariableEnums.cs`). `Entity` scope went (CE-441), `GetShared`/`SetShared` went (CE-440); `StatefulSlotRole` / `StateVariableStorage` are deleted. Working state is derived from `WorkingStateTargetField` — DESIGN_Orders_Params_Entity_Classes.md §13.10 ⑦.
+  ⛔ 2026-10-03 (CE-2028 sweep) — §7 "nothing in it is serialised … NO save-file or replay migration" is WRONG for replays: the tiers are [DataPolicy(NoScenario)] only, so Flight Recorder recordings and checkpoints carry the raw slot bytes, and since MX-031 a saved scenario carries non-default Instance params + ParamsStructureHash. See DESIGN_Unified_Behaviour_Run.md "S8c as-built" (CE-2028 table).
   ⛔ 2026-09-30 (CE-448) — the diagram/table rows naming BlueprintDefinition.Resolvers and
   BlueprintResolverEntry (§12.20 area) describe a publication index that is DELETED.
   known-rot: ⚠ 2026-09-30 (R-155, §12.26) — the resolver no longer runs AFTER an automatic copy.
@@ -32,7 +33,7 @@ known-rot: (2026-10-13, P7) the `Role=Input` / `Role=State` vocabulary throughou
   the class diagram's "Role Input fields", §12.2a "WHY `Role=Input` FIRST") is overtaken by R-276 / R-277: one
   params DTO per behaviour (reserved `Params`, flat JSON, `[ParamsDto]`), no Input/State roles —
   docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13; the block SHAPE (`In` at 0, `St` after) stands.
-  The Role vocabulary retires with P4 (§13.10).
+  The Role vocabulary retired with P4 (2026-10-13, CE-3193) (§13.10).
 known-conflict: ⚠ Blueprint_SharedState_GetShared_Design.md §7 rules the opposite on ONE point —
   "Group/squad scope is not a separate scope — it is an Entity-scoped slot on the coordinator, read
   by members via the Slice-2 accessor", i.e. squad coordination by SHARED MEMORY. This document

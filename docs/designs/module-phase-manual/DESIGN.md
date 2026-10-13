@@ -1,5 +1,7 @@
 # Design: Network Architecture Cleanup and Module Phase Manual
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: ../../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 ## Overview
 
 This document captures the final design arising from the design talk in `design-talk.md`.

@@ -1,5 +1,7 @@
 # Blueprint Subsystem — Slice 2 Candidates and Forward-Look
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone; Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > **Status:** Forward-looking sketch. NOT a design. Captures everything flagged as "Slice 2" or deferred across the Slice 1 design corpus (148 references across 17 documents).
 > **Purpose:** Three uses — (1) checkpoint that Slice 1's architectural decisions extend cleanly to obvious Slice 2 needs, (2) backlog so deferred items aren't forgotten during Slice 1 implementation, (3) sense of "where this is heading" for engine team and AI-behaviors author.
 > **What this is NOT:** an architecture document, a design with reviewable code shapes, or a commitment to specific Slice 2 contents. The actual Slice 2 architecture pass happens after Slice 1 ships, when implementation telemetry can inform priorities.

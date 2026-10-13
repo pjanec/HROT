@@ -4,7 +4,8 @@ updated: 2026-09-30
 build-state: BUILT
 current-answer: §3 (the diagrams, as built) · §4 (decisions, APPROVED 2026-09-30) · §5 (as-built deviations — read it)
 stale-below: nothing; the pre-build provider shape is recorded in §5 as SUPERSEDED
-known-rot: none
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  none
 known-conflict: docs/blueprints/Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-C ("curated typed→JSON FunctionCall … without exposing JSON nodes") — SUPERSEDED by the user's Q78 §6 revision; this doc follows Q78
 related-designs:
   - docs/blueprints/Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — owns WHY (§6 rows 2 and 7, §7 row 7 = CE-472); this doc owns HOW

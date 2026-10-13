@@ -5,7 +5,8 @@ current-answer: ⭐ §7 — the AS-MEASURED BASELINE (2026-09-28), which is the 
   picture and the one to read first. §1's storage map is still correct but PARTIAL: it does not
   show that the ROOT is split across 3+ slots while a hosted child is one, nor the two key
   schemes, nor that two offset authorities disagree. §2-§6 remain the evidence behind §1.
-known-rot: ⚠ 2026-09-30 (R-155) — this explainer records how params IS supplied; the TARGET
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone; Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  ⚠ 2026-09-30 (R-155) — this explainer records how params IS supplied; the TARGET
   differs on three points — the behaviour resolver gets the source (CE-443), a blueprint HSM
   activity/guard reads live instead of being seeded (CE-444), and no action has a resolver (CE-445).
   See DESIGN_Parameter_Model.md §P.5.
@@ -18,7 +19,7 @@ known-rot: (2026-10-13, P7) §3's "the authored DTO is an auto-generated mirror 
   shape by default") and its `Role=Input` / `Role=State` rows predate B1 / B3a (CE-2133 / CE-2135): a behaviour
   now names its own params DTO (`[Behavior(Params = …)]` / `ParamsDtoTypeId`), parsed flat, and an asset that
   names one has no Input variables — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13. The Role
-  vocabulary retires with P4 (§13.10).
+  vocabulary retired with P4 (2026-10-13, CE-3193) (§13.10).
 known-conflict: none. ⛔ This document records how storage IS. How it is meant to BECOME is
   Architect_Question_76_One_Blackboard_Block_Per_Primitive.md, which is PARKED awaiting one
   decision; where they differ, this one is the present tense and Q76 is the future one.

@@ -4,7 +4,8 @@ updated: 2026-08-18
 current-answer: section 5 - APPROVED IN FULL by the user 2026-08-18, all six
   sub-questions as recommended. Nothing here is built yet.
 stale-below: nothing.
-known-rot: none.
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135); Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  none.
 known-conflict: none. Section 3's carve-outs are the same split R-88 records; this
   document decides what to do about them, it does not disagree with them.
 -->

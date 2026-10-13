@@ -16,7 +16,7 @@ known-rot: (2026-10-13, P7) the role enum `{ Input, State }` (§3.2 and its voca
   `Role=Input` / `Role=State` boxes), §4.1 steps 3–4 ("declare the variables… `Role=Input` for params") and the
   claim that the authored DTO is "an attached mirror of the `Input` variables" (§3.2, §4.1) are overtaken: one
   params DTO per behaviour, named by `[Behavior(Params = …)]` / `ParamsDtoTypeId`, flat JSON, no Input/State
-  roles — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13. The Role vocabulary retires with P4
+  roles — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c / §13. The Role vocabulary retired with P4 (2026-10-13, CE-3193)
   (§13.10). ⭐ RETIRED 2026-10-13 (P4 step ⑦, CE-3193): `Role` and `Scope` are deleted from a variable; working state
   is derived from the bindings (`WorkingStateVariables`) — read every `Role=` in this file as history.
 related-designs:

@@ -93,7 +93,8 @@ current-answer: ⭐⭐⭐ §34 — U-0, THE MULTI-BLOCK STORE (R-236, CE-3137) �
   O-item — it is simply already satisfied. An earlier STATUS line here said it was RED and blocked
   the programme; that was a measurement error (spawn read as baseline), filed as CE-296 and refuted.
 stale-below: nothing. Superseded wording lives under §15's "⛔ HISTORY" heading.
-known-rot: ⚠ 2026-09-30 (R-155) — §28.7's hosted resolve (a blueprint primitive running its
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone; Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  ⚠ 2026-09-30 (R-155) — §28.7's hosted resolve (a blueprint primitive running its
   own resolver at activation) is superseded — actions have no resolver (DESIGN_Parameter_Model.md
   §P.4, CE-445) and a blueprint HSM activity/guard reads its host live (§P.3, CE-444). §12's O9
   (blueprint as a root behaviour) now has a tracker row: CE-446; it inherits §P.2.
@@ -112,7 +113,7 @@ known-rot: ⚠ 2026-09-30 (R-155) — §28.7's hosted resolve (a blueprint primi
     extrapolate from these.
 known-rot: (2026-10-13, P7) related-designs' "the {Input,State} role model" (DESIGN_Parameter_Model.md) is
   overtaken: one params DTO per behaviour, no Input/State roles — docs/DESIGN_Orders_Params_Entity_Classes.md §1
-  / §5c / §13. The Role vocabulary retires with P4 (§13.10); the occurrence-slot storage this document owns is
+  / §5c / §13. The Role vocabulary retired with P4 (2026-10-13, CE-3193) (§13.10); the occurrence-slot storage this document owns is
   unaffected.
 known-conflict: none. This document EXTENDS DESIGN_Parameter_Model.md §4 rather than
   overturning it; where they disagree, DESIGN_Parameter_Model.md wins and this file is wrong.

@@ -2,10 +2,11 @@
 state: LIVE
 updated: 2026-08-20
 current-answer: sections 3-5; sections 1-2 are the shared ground, not questions
-known-rot: (2026-10-13, P7) the ruled-decisions table still states the Role vocabulary ("`Role { Input, State }`
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone. Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  (2026-10-13, P7) the ruled-decisions table still states the Role vocabulary ("`Role { Input, State }`
   is cross-host", "`Input` IS the parameter role", the thunk key for the `Role=Input` case), and the whole-DTO
   binding row is refined by CE-3182 field targets (docs/DESIGN_Orders_Params_Entity_Classes.md §5d). A behaviour
-  now names ONE params DTO — §1 / §5c / §13; `Role` retires with P4 (§13.10).
+  now names ONE params DTO — §1 / §5c / §13; `Role` retired with P4 (2026-10-13, CE-3193 — `Scope` too) (§13.10).
 known-rot: (otherwise) none. REWRITTEN 2026-08-20 after merging Batches 46-98 — the first draft asked
   seven questions of which four were already ruled. Do not restore it from history.
 -->

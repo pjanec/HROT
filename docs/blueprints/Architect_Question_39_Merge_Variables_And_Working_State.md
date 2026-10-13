@@ -1,5 +1,7 @@
 # Architect Question #39 — **the `Variable` / `WorkingState` unification is UNFINISHED INFRASTRUCTURE**
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone; Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > ⭐⭐⭐ **User, `2026-08-17`, verbatim:** *"variables **ARE** working state, there is **NO distinction**
 > and if there is it is very likely wrong old not yet updated implementations… it should **not be just
 > UI unification, it must be infrastructure unification as well**. So **there is no merging needed, it

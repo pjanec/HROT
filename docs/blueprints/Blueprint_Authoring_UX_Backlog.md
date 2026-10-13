@@ -1,5 +1,7 @@
 # Blueprint / BTree Authoring — UX Improvement Backlog
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > **Purpose:** a running list of ideas to make the variable / scope / shared-state authoring system
 > usable by non-programmers. **Ideas only — not commitments.** Each becomes a task when picked up.
 > **Feed:** anything that trips up an author (incl. findings from the *Platoon Hill-attack →

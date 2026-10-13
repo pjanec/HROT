@@ -6,7 +6,7 @@ known-rot: (2026-10-13, P7) the Role vocabulary — the section table ("asset in
   state vars = `Role = State`") and the slot-key table (`Role=Input` promoted-params case, `Role=State` @
   `Scope`) — is overtaken: a behaviour names ONE params DTO (the reserved `Params` variable) and the BTree/HSM
   editors show one "Variables" section (CE-2135 B3a) — docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5c /
-  §13. `Role` retires with P4 (§13.10); the blueprint section rows stay true until then.
+  §13. `Role` retired with P4 (2026-10-13, CE-3193 — `Scope` too) (§13.10); the blueprint section rows stay true until then.
 known-rot: (otherwise none) - the InspectorWindow retirement order was REPAIRED 2026-08-17, Batch 82
 known-conflict: SECTION 5 vs SECTION 6, INTERNAL, found 2026-08-18. Section 5 rules that
   node-owned (IsAutoManaged) rows "never get a writable dialog, in either mode" - and

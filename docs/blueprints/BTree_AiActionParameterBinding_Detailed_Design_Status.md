@@ -1,5 +1,7 @@
 # BTree AI Action/Condition Parameter Binding — Implementation Status (blueprint-authored actions/conditions)
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > **Status:** status snapshot (2026-07-13). Measures the *current codebase* against the target design in `BTree_AiActionParameterBinding_Detailed_Design.md`, specifically §3.2's claim that "**Blueprints (AiPrimitives) are the primary authoring source of actions/conditions**." Verdicts are code-grounded (file:line) on branch `claude/hill-attack-json-slice-3-7fbaf4`.
 > **Scope:** what is missing — in **infrastructure** (compiler/codegen/runtime) and in the **visual editor** — for a user to define a BTree/HSM action or condition as a blueprint (`AiPrimitive` dispatch), place it as a node, and bind its parameters. Does not restate the target design (that is the parent doc) or the resolver design (`Behavior_Parameter_Resolver_Detailed_Design.md`).
 > **Audience:** engineers scoping the blueprint-authored-action slice; reviewers.

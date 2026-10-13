@@ -4,11 +4,12 @@ updated: 2026-10-06
 build-state: BUILT §3.3e (CE-3084, G6: AttackApproach nested in the advance; CE-2117 kernel sweep). BUILT §3.3d (CE-3083, G5: CombatPostureBp + the decision picker; CE-2115, CE-2116). BUILT §3.3c (CE-3082, G4: CombatPostureHsm + HSM exits run deactivators). BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
-known-rot: §3.3c/§3.3d HSM + blueprint posture PARITY is SUPERSEDED for the library by R-258 (2026-10-10: the three hosts were a proof; the library is BTrees, its blueprint and HSM copies go) — REVIEW_Behaviour_Library_Genericity.md §5.
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone; [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  §3.3c/§3.3d HSM + blueprint posture PARITY is SUPERSEDED for the library by R-258 (2026-10-10: the three hosts were a proof; the library is BTrees, its blueprint and HSM copies go) — REVIEW_Behaviour_Library_Genericity.md §5.
 known-rot: (2026-10-13, P7) the class diagram's `[BehaviorContract Infantry]` on `CombatPostureParamsJsonDto` is
   now `[Behavior(Params = typeof(CombatPostureParamsJsonDto))]` on the behaviour (CE-2134; `[BehaviorContract]`
   is deleted), and its "`Role=State` variable as working state" (T35 note) uses the Role vocabulary —
-  docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5b / §13. `Role` retires with P4 (§13.10).
+  docs/DESIGN_Orders_Params_Entity_Classes.md §1 / §5b / §13. `Role` retired with P4 (2026-10-13, CE-3193 — `Scope` too) (§13.10).
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:

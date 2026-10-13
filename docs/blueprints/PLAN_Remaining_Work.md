@@ -1,5 +1,7 @@
 # PLAN — what is left *(revision 37, `2026-08-19`)*
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone; Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > ✅ **REVISION 37 — BATCH 91 MERGED `--ff-only`. ⭐⭐ TWO ITEMS LANDED, THREE STOPPED ON MEASUREMENTS.**
 > Tracker **68 / 208** *(✅ clean on their first paste this time)*. Ids: `BP-339` · `BP-340` · `BP-341`.
 >

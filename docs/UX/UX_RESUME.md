@@ -1,5 +1,7 @@
 # RESUME / HANDOFF — Scenario-Authoring UX programme
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > 🔴 **2026-08-10 — the interaction-design thread has its own resume doc:**
 > **[UX_RESUME_INTERACTION.md](UX_RESUME_INTERACTION.md)** — 17 user rulings, the API contract, 57
 > acceptance cases, verified engine facts and 6 verified defects. **Read that first** if you are picking
