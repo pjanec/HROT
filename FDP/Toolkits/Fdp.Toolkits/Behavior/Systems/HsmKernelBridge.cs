@@ -41,5 +41,17 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// 📄 <c>docs/blueprints/DESIGN_Unified_Behaviour_Run.md</c> "S8k".
         /// </summary>
         public int OccurrenceKey;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3163</c> — THIS machine's own block: the root block at the root, the child's own block when hosted (the
+        /// runner is handed exactly that). Every HSM action reads its params / working state from here through
+        /// <see cref="Fdp.Toolkit.Behavior.HsmBlock.Require"/>. ⛔ It used to read the ENTITY's root block, so a machine hosted
+        /// as a child read its host's bytes. <c>null</c> when the machine has no block, or the bridge was built outside
+        /// <c>HsmRunner</c>. ⚠ APPENDED — this struct is emitted-code ABI. 📄 <c>DESIGN_Behavior_Action_Binding.md</c> §5.7.
+        /// </summary>
+        public byte* Block;
+
+        /// <summary>⭐ <c>CE-3163</c> — the extent of <see cref="Block"/> in bytes (the behaviour's <c>RootParamsBytes</c>); 0 with no block.</summary>
+        public int BlockLength;
     }
 }

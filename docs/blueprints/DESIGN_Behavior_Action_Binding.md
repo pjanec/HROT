@@ -740,7 +740,7 @@ clears both · the picker lists only `Role=State` variables of that type and pro
 reflects `UtilityNodes.IsOption` / `ChooseOption`). `SharedAiBindingCompilesTests.CE2069_ABTreeBindsAStatefulCondition_*`
 and `CE2099_ANodeScopedStatefulNode_WithNoTypeNamed_*` pin the emitter half (a shared and a node-scoped binding naming no type compile; red when the signature fallback is removed).
 
-## 5.7 `CE-3163` — a fluent C# HSM binds its params and working state; every HSM action reads ITS OWN block *(design `2026-10-13`, build-state: READY-TO-BUILD)*
+## 5.7 `CE-3163` — a fluent C# HSM binds its params and working state; every HSM action reads ITS OWN block *(design `2026-10-13`, build-state: BUILT `2026-10-13` — as-built at the end of the section; the diagrams are the as-built)*
 
 🔒 **User, 2026-10-11 (R-264):** library squad behaviours *"may be C# fluent HSMs … no JSON asset"*; **2026-10-13:** CE-3163 is
 the backend lane's, and *"fold it into CE-3163"* — the hosted-HSM block read below.
@@ -811,6 +811,25 @@ action read it the same way.*
 **Acceptance (rails):** ① `HostingMatrixTests` (the hosting feature suite): an HSM child hosted under a bound site reads ITS block, not
 the host's — red today; ② a fluent machine with `ParamsType` reads its order's params and keeps per-state working state across ticks,
 at the root and hosted at two sites (two working states); ③ goldens: the three emitters' thunks change one line each.
+
+**As built (`2026-10-13`):**
+
+| piece | where |
+|---|---|
+| `HsmKernelBridge.Block` / `BlockLength` (appended) — set by `HsmRunner.Tick` from its `block` (`BehaviorBlock.Has` ⇒ pointer + `RootParamsAccess.RootParamsBytes(def)`) | `HsmKernelBridge.cs`, `HsmRunner.cs` |
+| `HsmBlock.Require(context, out len)` — the bridge's block, else the root block (a bridge built outside the runner) | `Fdp.Toolkits/Behavior/HsmBlock.cs` |
+| the three emitters call it: `SharedAiBindings.EmitThunk`, `HsmBridgeEmitCore` (SOP-order thunk), `AiPrimitiveEmitter.EmitLiveHostParams(e, "context")` | goldens move one line per thunk |
+| `HsmActionDispatcher`: `ManagedAction` / `ManagedGuard` delegate tables; `ExecuteAction` / `EvaluateGuard` try the pointer, then the delegate; `ClearAll` clears both | `Fhsm.Kernel/HsmActionDispatcher.cs` |
+| `HsmSharedBinder` — `RegisterAction` / `Condition` / `StatefulAction` / `StatefulCondition` + `RegisterDeactivator` (`[BTreeDeactivator]`, under `ExitCleanup_<key>`); `SharedNodeBinder.FieldOffset` made `internal` and shared | `Fdp.Toolkits/Behavior/HsmSharedBinder.cs` |
+| `HsmFluentBindingExtensions` — `state.Activity` (plain / stateful; pairs the deactivator as the exit when the state has none), `OnEntry`, `OnExit` (clears a paired id), `transition.Guard` (plain / stateful), `transition.Action` | `Hrot.AI.Behaviors/Brains/HsmFluentBindingExtensions.cs` |
+| ⚠ found while building: the graph validator requires every action / guard NAME to be registered on the graph, and a typed helper holds only the `StateBuilder` ⇒ `StateBuilder.RegisterAction`, `TransitionBuilder.RegisterGuard` / `RegisterAction` added (they add to the same sets as `HsmBuilder.RegisterAction`) | `Fhsm.Compiler/HsmBuilder.cs` |
+| ⭐ **deviation from D7** — no demo machine in `Hrot.AI.Behaviors`: a curated machine is listed in the behaviour palette, so a demo would ship to authors. The proof is two rails in the hosting feature suite instead | `HostingMatrixTests.CE3163_*` |
+
+**Rails** (`HostingMatrixTests`, the hosting feature suite, 14/14): `CE3163_AFluentHsm_AtTheRoot_ReadsItsOrderAndKeepsItsWorkingState`
+(an order `{"Limit":7}` reaches the bound params, the working state counts across frames) and
+`CE3163_AFluentHsm_HostedAtTwoSites_KeepsTwoWorkingStates` (each site counts in its own block; the BTree host has no root block).
+🔴 Red-proved: `HsmBlock.Require` reading the root block (what every emitted HSM thunk did) ⇒ the hosted rail throws "no ROOT PARAMS slot".
+⚠ Not done here: converting a squad manoeuvre (R-264 *"may"*) — the lane that owns them decides.
 
 ## 6. Rails owed — ✅ all four exist since slice 5 (where each lives: slice 5 box)
 

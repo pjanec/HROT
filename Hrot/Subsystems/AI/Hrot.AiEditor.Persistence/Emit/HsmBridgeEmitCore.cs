@@ -850,7 +850,7 @@ public static class HsmBridgeEmitCore
         }
         else
         {
-            sb.AppendLine($"{pad}    byte* __root = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(__repo, __bridge->Self, out int __len);");
+            sb.AppendLine($"{pad}    byte* __root = global::Fdp.Toolkit.Behavior.HsmBlock.Require(contextPtr, out int __len);   // CE-3163 — this machine's block");
             sb.AppendLine($"{pad}    if ({e.Offset} + sizeof({e.ParamsTypeFqn}) > __len)");
             sb.AppendLine($"{pad}        throw new global::System.InvalidOperationException(\"CE-2083: {e.Key} does not fit the root block.\");");
             sb.AppendLine($"{pad}    {SopOrderEmit.Call(e.Order, "__repo", "__bridge->Self", $"in *({e.ParamsTypeFqn}*)(__root + {e.Offset})")};");

@@ -92,7 +92,7 @@ public static class HsmFireActivity_055BAC64_Bp
         var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;
         var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
         
-        // CE-444: params are read LIVE from the entity's root block (§P.3); the occurrence holds only the
+        // CE-444: params are read LIVE from the running machine's block (§P.3, CE-3163); the occurrence holds only the
         //         working state and the host offset, looked up once at attach (option B, §P.9).
         int occurrenceKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, context, AssetId, writer);
         ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<int, WorkingState>(
@@ -102,7 +102,7 @@ public static class HsmFireActivity_055BAC64_Bp
             *__hostOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer, AssetId);
             InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
         }
-        byte* __root = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(world, bridge->Self, out int __rootLen);
+        byte* __root = global::Fdp.Toolkit.Behavior.HsmBlock.Require(context, out int __rootLen);
         int __at = *__hostOffset;
         if (__at < 0 || __at + sizeof(Params) > __rootLen)
             throw new global::System.InvalidOperationException($"CE-444: '{nameof(Params)}' at host offset {__at} does not fit the {__rootLen}-byte root block — a stale occurrence or a wrong binding.");

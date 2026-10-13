@@ -291,8 +291,8 @@ public static class SharedAiBindings
         sb.AppendLine($"{pad}    var __repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(__bridge->WorldHandle).Target!;");
         if (e.Form != Form.NoParams)
         {
-            sb.AppendLine($"{pad}    // ⭐ The host variable, LIVE (§P.3), at the offset baked from this asset's packer — no occurrence, no state base.");
-            sb.AppendLine($"{pad}    byte* __root = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(__repo, __bridge->Self, out int __len);");
+            sb.AppendLine($"{pad}    // ⭐ The host variable, LIVE (§P.3), at the offset baked from this asset's packer — in THIS machine's block (CE-3163).");
+            sb.AppendLine($"{pad}    byte* __root = global::Fdp.Toolkit.Behavior.HsmBlock.Require(contextPtr, out int __len);");
             sb.AppendLine($"{pad}    if ({e.Offset} + sizeof({e.Method.ParamTypeFqn}) > __len)");
             sb.AppendLine($"{pad}        throw new global::System.InvalidOperationException(\"CE-417: {e.Key} does not fit the root block.\");");
         }
