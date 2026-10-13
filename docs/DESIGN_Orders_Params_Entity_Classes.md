@@ -1783,7 +1783,7 @@ graph TD
   style FORM stroke:#c00,stroke-dasharray: 5 5
 ```
 
-*What the module picture shows: until the ui lane registers an `IOrderForm` (P5b) the dashed edge is DEAD — an order that needs the
+*⭐ SUPERSEDED 2026-10-13 by §13.12 (CE-1059): the form is built and registers itself where a host draws it, so the dashed edge is live on windowed hosts. — What the module picture showed: until the ui lane registers an `IOrderForm` (P5b) the dashed edge is DEAD — an order that needs the
 form is refused with "needs the order form" (logged), and the unit menu keeps hiding such orders so no menu item does nothing.*
 
 | # | decision | ⭐ lean | rejected (one line each) |
@@ -1807,7 +1807,7 @@ form is refused with "needs the order form" (logged), and the unit menu keeps hi
   missing field is a 400). `MissingIn`'s entity-0 check compares JSON text — the rail caught that a `JsonValue` built from an `int` does not
   answer `TryGetValue<long>`. MCP: `list_orders` (catalog + SKILL.md regenerated).
 
-### 13.12 P5b — the order form *(CE-1059, ui lane; build-state: READY-TO-BUILD `2026-10-13` — dispatched by [HANDOFF_Order_Form_Ui](blueprints/HANDOFF_Order_Form_Ui.md) at 846c8021d)*
+### 13.12 P5b — the order form *(CE-1059, ui lane; build-state: BUILT `2026-10-13` — as-built at the end of this section; designed READY-TO-BUILD the same day — dispatched by [HANDOFF_Order_Form_Ui](blueprints/HANDOFF_Order_Form_Ui.md) at 846c8021d)*
 
 🔒 **User, 2026-10-13:** *"some kind of parameter filling modeless floating form allowing for picking from 2d/3d map … and/or list
 picker with incremental search, but avoidable for simpler orders where RTS style is desired"*.
@@ -1926,3 +1926,27 @@ node (dashed) never shows "Name…" or "Order with options", by construction rat
 | O7 | the remember tick | on Send, every designatable field (`OrderDesignations.KindOf`) present in the sent JSON is stored for every unit of the draft | remember on every send (silent hidden state, §13.3) |
 | O8 | the designation overlay | a passive global gizmo (the `LayerControlGizmo` shape) registered by the pack: for each SELECTED unit, a dashed line to each designation — target (red), point (green, + ring), route (amber, its waypoints drawn), area (blue, its outline drawn) | an entity projector (draws for every unit, not the selection) |
 | O9 | 3-D | no new code — picks run through the unchanged input chain (`DESIGN_Map_3D_Mode.md` §3.8) | a 3-D-only pick path |
+
+**P5b as built** *(2026-10-13, ui, `CE-1059` + `CE-1060`; matches the three diagrams above — deviations marked ⚠)*:
+- `Hrot.Presentation/Orders/`: `OrderForm` (`IOrderForm`; `Draw()` registers it and draws one ImGui window per open draft — fields,
+  "Remember as designations" when the order has a designatable field, "Missing: …", Send disabled until nothing is missing, Cancel, Esc
+  on the focused form, refusals listed; a form whose Send every unit accepted closes), `OrderFormEntry` (the headless model: `Json()`,
+  `Missing`, `Send()`, `Remember`), `EntityListSource` (entries + `Opener` for the broker), `DesignationOverlayGizmo`.
+- `MapInteraction.OrderForm` + `DrawOperatorUi()`; the four windowed hosts call `DrawOperatorUi()` once per ImGui frame (SimHost / IG
+  replaced their `EntityAuthoring.DrawFrame()` call; the Editor / CGF call it after their shell pickers). The rail
+  `EveryWindowedMapHostUsesTheOneEntityAuthoringWiring` now requires it.
+- `IMapPickContext.CanListEntities` / `RequestEntityListPick` (default members), forwarded by `ScopedMapPickContext`; `MapPickBroker.EntityList`;
+  `ComponentEditDrawer` draws **List…** after **Pick Entity** when the context can list. ⚠ The list sets NOTHING pending while it is open
+  (`PickerRegistry.OpenPicker` has no cancel callback, so a pending state could hang); the choice lands as a completed entity pick.
+- ⚠ O4 refined: `CanvasMapPickAdapter`'s default (with a world) narrows only a pick that HAS presets, and only where
+  `MapDisplayComponent` is registered; a preset-less pick stays match-all, as it was on CGF / SimHost. (`HrotEntityFilterFactory` with no
+  presets requires a layer mask, which would have newly hidden unclassified entities there.) The Editor no longer passes the factory (the
+  default is the same rule); IG still passes its own instance of the same class.
+- `ContextMenuProjectorGizmo.OrderItem(order, degraded, form)` — the per-order item, factored out so the `Several` ⇒ `Name…` rule has a rail
+  (no shipped order is `Several`); menu-cache flag 8 = "a form is registered here". `GlobalActionIds.OrderWithOptionsBase = 480`, 64 ids.
+- `MenuOrders.Selected` (set by the pack): Designate › Set… / Clear and Order with options act on the selection the clicked unit is in.
+- Rails (`MenuOrdersTests`, the feature's suite): `CE1059_ATwoPickOrder_OpensTheFormPrefilled_SendsOncePerUnit_AndAnIncompleteFormSendsNothing`,
+  `CE1059_OrderWithOptions_OrdersTheSelection_ThroughTheForm_AndRemembersThePoint`, `CE1059_TheMenu_OffersTheForm_OnlyWhereOneIsRegistered`,
+  `CE1059_DesignateOnASelection_SetsEveryUnit_AndTheOverlayDrawsIt`, `CE1059_TheEntityList_AnswersThroughTheSamePick_AndLeavesOutTheOrderedUnits`.
+- ⛔ Not built: an RTS modifier that opens the form (F6 "or on request") — the menu's Order with options covers it; the mission panel and
+  the AI view do not pass an entity list yet (their brokers could, one line each). ⚠ Not visually checked on a real window (2-D or 3-D).

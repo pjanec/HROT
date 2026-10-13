@@ -308,11 +308,20 @@ namespace Hrot.ScenarioEditor.Map
             Hrot.Common.Diagnostics.Gizmos.AiTraceActions.RegisterActions(actions);
             // ⭐ CE-3169 (DESIGN_Entity_Control §4.2) — Move Here · Engage · Stop, once for every LIVE map host. ⛔ Not in a replay
             //   (no live brain to order): there the menu does not offer them (OrdersOffered unset) and nothing is registered.
-            var menuOrders = new MenuOrders(ctx.World);
+            var menuOrders = new MenuOrders(ctx.World) { Selected = () => selection.SelectedEntities };   // ⭐ CE-1059 — O6
+            Hrot.UI.Common.AddEntity.EntityAuthoring? authoringForForm = null;
+            Hrot.Presentation.Orders.OrderForm? orderForm = null;
             if (ctx.IsReplayActive?.Invoke() != true)
             {
                 menuOrders.RegisterOn(actions);
                 ctx.World.SetSingletonManaged(new Hrot.Common.Orders.OrdersOffered());
+
+                // ⭐ CE-1059 (P5b, DESIGN_Orders_Params_Entity_Classes §13.12) — THE order form (registered as IOrderForm on its first
+                //   draw: offered where drawn) and the overlay that draws each selected unit's designations.
+                orderForm = new Hrot.Presentation.Orders.OrderForm(ctx.World, () => menuOrders.PickService?.Invoke(),
+                    () => authoringForForm?.Pickers);
+                long overlayId = GlobalGizmoManager.NewId();
+                globalManager.Register(overlayId, new Hrot.Presentation.Orders.DesignationOverlayGizmo(() => selection.SelectedEntities));
 
                 // ⭐ CE-3171 (DESIGN_Entity_Control §8a) — the RTS command tool, armed from View › RTS Command Mode. It routes three
                 //   gestures to three existing writes (the selection request, EntityOrders, the station's hit test) — Measure's shape.
@@ -341,6 +350,7 @@ namespace Hrot.ScenarioEditor.Map
                 authoring = new Hrot.UI.Common.AddEntity.EntityAuthoring(inputs, ctx.World.Bus, globalManager, tools);
                 authoring.AddEntity.RegisterOn(actions);
                 authoringRef = authoring;
+                authoringForForm = authoring;   // ⭐ CE-1059 — the order form's entity list opens in the same picker registry
             }
             var canvasMenu = authoring?.CanvasMenu ?? new Hrot.Presentation.Systems.CanvasMenuUpdateSystem();
 
@@ -352,6 +362,7 @@ namespace Hrot.ScenarioEditor.Map
             {
                 IsReplayActive = ctx.IsReplayActive,   // ⭐ W1 (VE-R) — the effect systems stand down in a replay
                 MenuOrders     = menuOrders,
+                OrderForm      = orderForm,
             };
         }
 

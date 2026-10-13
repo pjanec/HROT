@@ -2379,10 +2379,9 @@ namespace Hrot.Editor
                 _mapViewConfig    = new MapViewConfig();
                 // 🔒 UXI-07 step 4b — picks SUSPEND the active tool instead of arming beside it.
                 // ⭐ CE-063 — THE shared adapter, built with the editor's capabilities (DESIGN_Map_Picking_Unification P2):
-                //   the domain filter, geodetic location picks and the modal area gizmo.
+                //   the domain filter (⭐ CE-1060: the adapter's default now), geodetic location picks and the modal area gizmo.
                 _mapPickAdapter   = new CanvasMapPickAdapter(
                     _canvas!, _world,
-                    filterFactory:      new Hrot.IG.Systems.HrotEntityFilterFactory(_world!),
                     globalGizmoManager: _globalGizmoManager!,
                     tools:              () => _editorToolController,
                     geoTransform:       geoTransform,
@@ -3049,6 +3048,8 @@ namespace Hrot.Editor
 
             // BATCH-29 (MTB-P8-T3): Draw the shell-global picker frame (Open Asset via Tree layout).
             _shellPickers?.DrawFrame();
+            // ⭐ CE-1059 — the map's order form (its entity list opens in the shell pickers drawn above).
+            _editorMapInteraction?.DrawOperatorUi();
 
             // BATCH-42 (MTB2-T8b): Draw the Save-As browser dialog (New flow).
             if (_saveAsBrowser != null && _iconProvider != null)

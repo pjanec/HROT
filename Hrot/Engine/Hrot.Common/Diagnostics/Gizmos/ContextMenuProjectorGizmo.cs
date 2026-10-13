@@ -46,7 +46,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<(int Flags, ulong Dis, bool Unit), string> UnitMenus = new();
         private static object? _menusBuiltFor;
 
-        private static string UnitMenuFor(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit)
+        private static string UnitMenuFor(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit, bool form = false)
         {
             var vocabulary = Hrot.Common.Orders.OrderMenu.Orders;
             if (!ReferenceEquals(vocabulary, System.Threading.Volatile.Read(ref _menusBuiltFor)))
@@ -54,23 +54,32 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 UnitMenus.Clear();
                 System.Threading.Volatile.Write(ref _menusBuiltFor, vocabulary);
             }
-            int flags = (degraded ? 1 : 0) | (brain ? 2 : 0) | (orders ? 4 : 0);
-            return UnitMenus.GetOrAdd((flags, orders ? dis.Value : 0UL, orders && isUnit), _ => UnitMenu(degraded, brain, orders, dis, isUnit));
+            form &= orders;
+            int flags = (degraded ? 1 : 0) | (brain ? 2 : 0) | (orders ? 4 : 0) | (form ? 8 : 0);   // ⭐ CE-1059 — 8: an order form here
+            return UnitMenus.GetOrAdd((flags, orders ? dis.Value : 0UL, orders && isUnit), _ => UnitMenu(degraded, brain, orders, dis, isUnit, form));
         }
 
-        private static string UnitMenu(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit)
+        private static string UnitMenu(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit, bool form)
         {
             var items = new System.Collections.Generic.List<ContextMenuItemDto>();
             if (orders)
             {
                 // ⭐⭐ CE-2143 (D4-D) — the orders THIS entity's class fulfils (the receiver's own answer, §8), not a fixed three.
                 //   An order that needs the operator to point at something is disabled on a heavily damaged unit, as Move / Engage were.
-                foreach (var o in Hrot.Common.Orders.OrderMenu.OfferedFor(dis))
+                var offered = Hrot.Common.Orders.OrderMenu.OfferedFor(dis);
+                foreach (var o in offered)
+                    if (OrderItem(o, degraded, form) is { } item) items.Add(item);
+                // ⭐ CE-1059 (§13.12 O5) — every offered order through the form, prefilled, to set its optional fields.
+                if (form && offered.Count > 0)
                 {
-                    if (o.Pick == Hrot.Common.Orders.OrderPick.Several) continue;   // more than one pick: HTTP only
-                    items.Add(degraded && o.Pick != Hrot.Common.Orders.OrderPick.None
-                        ? new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Enabled = false, Tooltip = "Cannot " + o.Name.ToLowerInvariant() + ": unit is heavily damaged" }
-                        : new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Shortcut = o.Name.Substring(0, 1) });
+                    var withOptions = new ContextMenuItemDto[offered.Count];
+                    for (int i = 0; i < offered.Count; i++)
+                        withOptions[i] = new ContextMenuItemDto
+                        {
+                            Id = GlobalActionIds.OrderWithOptionsBase + (offered[i].ActionId - Hrot.Common.Orders.OrderMenu.ActionBase),
+                            Label = offered[i].Name + "…",
+                        };
+                    items.Add(new ContextMenuItemDto { Label = "Order with options", Children = withOptions });
                 }
                 // ⭐ CE-2149 (F7 stage 1, §13.3) — the standing target / point / route / sector a later order may take; only on a unit
                 //   that takes orders at all.
@@ -102,6 +111,21 @@ namespace Hrot.Common.Diagnostics.Gizmos
             });
             if (brain) items.Add(AiTraceActions.Submenu());   // ⭐ CE-3123 — the AI trace toggles, on every map host
             return JsonSerializer.Serialize(items.ToArray(), SerializerOptions);
+        }
+
+        /// <summary>
+        /// One order's unit-menu item, or null when it is not offered here. ⭐ <c>CE-1059</c> (§13.12 O5) — an order the gesture cannot
+        /// complete (<see cref="Hrot.Common.Orders.OrderPick.Several"/>) needs the ORDER FORM: <c>Name…</c> where this world has one
+        /// (<paramref name="form"/>: registered by the host that draws it), hidden elsewhere (a headless node: HTTP only). An order
+        /// that needs a pick is disabled on a heavily damaged unit, as Move / Engage were.
+        /// </summary>
+        public static ContextMenuItemDto? OrderItem(Hrot.Common.Orders.OrderInfo o, bool degraded, bool form)
+        {
+            if (o.Pick == Hrot.Common.Orders.OrderPick.Several)
+                return form ? new ContextMenuItemDto { Id = o.ActionId, Label = o.Name + "…" } : null;
+            return degraded && o.Pick != Hrot.Common.Orders.OrderPick.None
+                ? new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Enabled = false, Tooltip = "Cannot " + o.Name.ToLowerInvariant() + ": unit is heavily damaged" }
+                : new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Shortcut = o.Name.Substring(0, 1) };
         }
 
         /// <summary>Menu for a tactical graphics area overlay.</summary>
@@ -192,7 +216,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 bool orders = repo != null && repo.HasSingletonManaged<Hrot.Common.Orders.OrdersOffered>();   // ⭐ CE-3169
                 var dis = repo != null ? repo.GetDisType(entity) : default;                                 // ⭐ CE-2143 — its class
                 bool isUnit = view.HasComponent<Fdp.Core.CommandHierarchy.UnitEntity>(entity);
-                menuJson = UnitMenuFor(degraded, brain, orders, dis, isUnit);
+                bool form = orders && repo!.HasSingletonManaged<Hrot.Common.Orders.IOrderForm>();             // ⭐ CE-1059
+                menuJson = UnitMenuFor(degraded, brain, orders, dis, isUnit, form);
             }
 
             return menuJson;

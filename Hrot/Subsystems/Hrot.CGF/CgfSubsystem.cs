@@ -1865,6 +1865,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ⭐ These are CGF's OWN registry, not the canvas windows' — see WirePickerShell's remarks on
         //   double-DrawFrame.
         _shellPickers?.DrawFrame();
+        _cgfMapInteraction?.DrawOperatorUi();   // ⭐ CE-1059 — the map's order form
         if (_saveAsBrowser != null && _shellIconProvider != null)
             _saveAsBrowser.DrawFrame(_shellIconProvider);
     }

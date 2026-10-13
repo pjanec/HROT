@@ -661,8 +661,8 @@ namespace Hrot.SimHost
         protected override void OnDrawUI()
         {
             _vis?.DrawUI();
-            // ⛔ OpenPicker only queues — the map pack's Add Entity picker draws here (CE-1017).
-            _mapInteraction?.EntityAuthoring?.DrawFrame();
+            // ⛔ OpenPicker only queues — the map pack's Add Entity picker draws here (CE-1017); ⭐ CE-1059 the order form too.
+            _mapInteraction?.DrawOperatorUi();
         }
 
         protected override void OnUnload()
