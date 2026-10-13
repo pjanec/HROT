@@ -156,11 +156,21 @@ namespace Fdp.Toolkit.Squad.Systems
             return -1;
         }
 
+        /// <summary>The first member in the fight, in roster order — ⭐ <c>CE-2152</c> R-e: passing over a <c>Medic</c> while anyone else can
+        /// lead (📐 measured live, <c>ua-casualty-care-leader</c>: the Medic, second in the roster, took command, and a leader is never the
+        /// one sent for a casualty, so a rifleman went instead). A Medic still leads when nobody else is left.</summary>
         private static int FirstLive(EntityRepository repo, in UnitRoster roster)
         {
+            int medic = -1;
             for (int i = 0; i < roster.Count; i++)
-                if (Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, roster.SubordinateEntities[i])) return i;
-            return -1;
+            {
+                var m = roster.SubordinateEntities[i];
+                if (!Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, m)) continue;
+                var d = repo.HasComponent<UnitSubordinate>(m) ? repo.GetComponentRO<UnitSubordinate>(m).Designation : (TacticalDesignation)roster.TacticalDesignations[i];
+                if (d != TacticalDesignation.Medic) return i;
+                if (medic < 0) medic = i;
+            }
+            return medic;
         }
 
         private static bool IsCommander(EntityRepository repo, Entity e)

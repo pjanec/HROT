@@ -299,6 +299,22 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             Assert.Contains(EdgesAfter(() => system.Execute(_repo, 0.016f)), e => e.What == SensorChange.SquadUnderFire && e.Unit == commander);
         }
 
+        /// <summary>⭐ <c>CE-2152</c> R-e — the leader falls and the next man in the roster is the MEDIC: command passes over him to the next
+        /// one (a leader is never the one sent for a casualty); a squad with nobody else left is led by its Medic. 🔴 Red before: the Medic,
+        /// first in roster order, took command (measured live, <c>ua-casualty-care-leader</c>).</summary>
+        [Fact]
+        public void CE2152_SuccessionPassesOverTheMedic_WhileAnyoneElseCanLead()
+        {
+            var (commander, m) = Designated(TacticalDesignation.SquadLeader, TacticalDesignation.Medic, TacticalDesignation.Wingman);
+            var (pair, n) = Designated(TacticalDesignation.SquadLeader, TacticalDesignation.Medic);
+            var system = new SquadCoordinationSystem();
+            At(1); EdgesAfter(() => system.Execute(_repo, 0.016f));
+            Kill(m[0]); Kill(n[0]);
+            At(2); EdgesAfter(() => system.Execute(_repo, 0.016f));
+            Assert.Equal(m[2], _repo.GetComponentRO<SquadLeadership>(commander).Leader);
+            Assert.Equal(n[1], _repo.GetComponentRO<SquadLeadership>(pair).Leader);   // nobody else: the Medic leads
+        }
+
         /// <summary>⭐ L1 — no team leader ⇒ the first live member in roster order; a squad that never had a designated leader loses none.</summary>
         [Fact]
         public void CE2125_NoTeamLeader_TheFirstLiveMemberTakesOver_AndALeaderlessSquadHasNoneToLose()
