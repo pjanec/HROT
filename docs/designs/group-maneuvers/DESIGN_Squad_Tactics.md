@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-13 (§7.4 L4 casualty care designed — K1–K6 await the user)
 build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch BUILT 2026-10-12 (as-built §6.1a) · embark §5 and formations §6 are MEASUREMENTS
-current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built, §7.4 L4 casualty care (DESIGN, K1–K6 await the user)
+current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built, §7.4 L4 casualty care (K1–K6 ruled, R-2012) · §7.5 casualty care coordination + the rescue decision (DESIGN, approved R-2013, not built) · §7.6 fire and movement (DESIGN, approved, not built)
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
@@ -651,11 +651,196 @@ more order kind.*
 ⭐ **Ruled `2026-10-13` (R-2012)** — 🔒 user: *"I want a medic waiting in cover to come for the wounded and carry him to cover point, and
 others giving covering fire. Otherwise approved."* ⇒ K1, K2, K5, K6 approved as leaned; **K3 → a MEDIC** (a designated member, waiting
 in cover); **K4 → a COVER POINT** (not "beside the leader"); **K5 → the others give COVERING FIRE** (not merely hold). How the medic is
-told, and how covering fire starts and ends, is the open design (§7.5, discussion).
+told, and how covering fire starts and ends, is designed in §7.5 (approved R-2013).
 
 Rejected (one line each): **each soldier decides alone to help the nearest man down** — two men would go for one casualty, and nobody
 weighs the fire; **care at once, under fire** — doctrine says fire first, and a dragger cannot shoot (C7); **a vehicle evacuation** — MED-3,
 needs a collection point and a carrier that seats a casualty.
+
+### 7.5 Casualty care — the coordination and the rescue decision *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved 2026-10-13 (R-2013), NOT built; `CE-2152` C-c)*
+
+⭐ **Status for whoever returns:** everything below was MEASURED on `2026-10-13` (file:line in §7.5.1), discussed and approved. Nothing in
+§7.5 / §7.6 is built. Start the build at §7.5.6 slice R-a; the design needs no re-measurement unless a cited file changed since `abc5c4863`.
+
+#### 7.5.1 What exists — measured `2026-10-13` (graph CLI + MCP `search_graph`, + reads)
+
+| fact | code | so |
+|---|---|---|
+| squad edges are published ONLY on the commander (`Unit = commander`) and recorded only on `evt.Unit` | `Fdp.Toolkits/Squad/Systems/SquadSensing.cs:141` · `Behavior/Systems/RecentSensesSystem.cs:23-27` | a member never hears "man down"; the commander must order him |
+| a soldier's SOP reacts to his OWN edges only (`Hit`, `FirstThreat`) | `Assets/BTrees/Library/Sop/BasicInfantrySop.btree.json:258,268` | no member-side trigger exists, and none is wanted (§7.4 rejected) |
+| member orders: `MemberOrderKind { Hold, AdvanceTo, Disembark }`; `Hold` = the library CombatPosture at the member's own position | `Hrot.AI.Behaviors/Brains/SquadManeuverRunner.cs:34-44, :392-402` | ⛔ **no "suppress" order**: a holder fires only if HIS utility picks Suppress and he sees / remembers a target |
+| a covering element with no enemy in sight does not fight | measured, this file §2 (line ~56) | "cover" today does not mean "fire" |
+| the member picks his own target; the squad only BIASES it (`ThreatMatrixAssignmentSystem` → `IsAssignedTarget`, weight 0.9) | `Utility/Group/ThreatMatrixAssignmentSystem.cs` · `ThreatRankingDecision.cs:24` | the suppress order can name the squad's assigned contact |
+| `PostureNodes.Suppress`: aimed fire when the target is seen, blind fire at its remembered place otherwise | `Brains/PostureNodes.cs:220` | the suppress order's body exists — only the forcing is missing |
+| the runner's live test is `CombatLife.IsAlive` ⇒ a DOWN member still gets orders | `SquadManeuverRunner.cs:224` | ⛔ gap, fixed with K6 (§7.5.6 R-a) |
+| no `Medic` value; designations are read in behaviour code only by succession | `Fdp.Core/CommandHierarchy/TacticalDesignation.cs:8-17` (Undefined, Commander, SquadLeader, Wingman, Support, TeamLeader); `SquadSensing.cs:93-128` | add `Medic = 6`; assigned like `SquadLeader` (scenario `"Designation"`, TKB child slot) |
+| the commander can ask a terrain/EQS question | `SquadManeuverRunner.AskTerrain` (`:484`) | the cover point for the casualty |
+| `FindCoverFromTarget`: cover points around query slot 0's entity, LoS-filtered against slot 1, scored by distance + `ThreatExposureTest` + path cost | `Spatial/Eqs/FindCoverFromTarget.cs:29-43` · `CoverPointsGenerator.cs:29-34` · `EqsContext.cs:20-23` | slot 0 = the CASUALTY, slot 1 = the top threat ⇒ "nearest cover to him, hidden from it" |
+| the squad's contact decision: Assault (strength × ammo × inverse enemy strength) · BreakContact (enemy strength) · Hold (constant 0.25); decided ONCE per reaction | `Utility/StarterPack/SquadContactResponseDecision.cs:17, :34-41` | Rescue becomes its 4th option; the re-decide is new |
+| squad inputs today: `SquadKnowsContact`, `SquadContactThreatLevel`, `SquadStrengthRatio`, `SquadEnemyStrengthRatio`, `SquadAmmoRollup`, `SquadPoolThreatAggregate`, `AssignedRole`, `AssignedSlot`, … | `Utility/Inputs/SquadInputs.cs:73-331` | three new inputs (§7.5.4) |
+| `RecentSenses` holds the LAST time of each edge (`SquadUnderFire`, `SquadContact`, …), not a rate | `Behavior/Components/RecentSenses.cs:21-29` | "quiet seconds" = now − `SquadUnderFire` |
+| bleed-out: `InjuryThresholds.BleedPerSecond` (fraction of Max per second) | `Combat/Components/InjuryThresholds.cs:22` | seconds left = (Current / Max) / BleedPerSecond |
+| phase events `ShotFired`, `DefiladeReached` exist in the sequencer and are FED BY NOTHING | `Squad/Primitives/PhaseSequencer.cs:8-16` | the gates of §7.5.3 / §7.6 feed them |
+| the carry is built: library `CarryCasualty` (pick up → move → put down), only a man down, the carrier cannot fire | `Brains/EmbarkBehaviors.cs` (`CarryCasualtyBehavior`) · `Brains/CarryNodes.cs` · `DESIGN_Entity_Interactions.md` §7.4.10 | the medic's order IS this behaviour |
+| doctrine (casualty care under fire, fire and movement, "Moving!/Covering!") | — | ⛔ NOT in the corpus (searched `docs/` + `.dev/`); general military knowledge, used as such |
+
+#### 7.5.2 Classes
+
+```mermaid
+classDiagram
+  class SquadSensing { existing +MemberDown(repo, commander) NEW: SquadMemberDown once per man (mask) }
+  class SquadCasualtyMask { NEW component on the commander: roster bits already reported down }
+  class SensorChange { existing +SquadMemberDown NEW value }
+  class TacticalDesignation { existing +Medic = 6 NEW }
+  class SquadContactResponseDecision { existing Assault BreakContact Hold +Rescue NEW option }
+  class SquadInputs { existing +CasualtyUrgency NEW +CasualtyExposure NEW +SquadQuietSeconds NEW }
+  class ReactToContactBehavior { existing: re-decides every RedecideSeconds while a casualty is down NEW }
+  class SquadCasualtyCarePlay { NEW ISquadPlay: Suppress, Go, Carry, Done }
+  class MemberOrderKind { existing Hold AdvanceTo Disembark +Suppress NEW +CarryCasualty NEW }
+  class SuppressBehavior { NEW library: PostureNodes.Suppress on a named contact, forced }
+  class CarryCasualtyBehavior { existing library (CE-2152 C-b) }
+  class SquadManeuverRunner { existing: Live uses Injury.IsInTheFight NEW · issues the two new kinds }
+  class FindCoverFromTarget { existing EQS template: slot 0 casualty, slot 1 threat }
+  SquadSensing ..> SquadCasualtyMask
+  SquadSensing ..> SensorChange : publishes on the commander
+  ReactToContactBehavior ..> SquadContactResponseDecision
+  SquadContactResponseDecision ..> SquadInputs
+  ReactToContactBehavior ..> SquadCasualtyCarePlay : Rescue wins
+  SquadCasualtyCarePlay ..> SquadManeuverRunner : runs inside
+  SquadCasualtyCarePlay ..> FindCoverFromTarget : AskTerrain
+  SquadCasualtyCarePlay ..> TacticalDesignation : picks the Medic
+  SquadManeuverRunner ..> MemberOrderKind
+  MemberOrderKind ..> SuppressBehavior : Suppress
+  MemberOrderKind ..> CarryCasualtyBehavior : CarryCasualty
+```
+
+*What the picture shows: one new play and two new order kinds on the EXISTING runner; the decision is the existing squad decision with one
+more option. Nothing reaches a member except an order.*
+
+#### 7.5.3 Sequence — a man goes down, the squad decides, the medic goes
+
+```mermaid
+sequenceDiagram
+  participant SS as SquadSensing (commander's node)
+  participant R as ReactToContact on the commander
+  participant D as SquadContactResponseDecision
+  participant P as SquadCasualtyCarePlay
+  participant C as coverers (Suppress)
+  participant M as medic (CarryCasualty)
+  SS->>R: SquadMemberDown
+  loop every RedecideSeconds (5 s) while a man is down and not yet cared for
+    R->>D: score Rescue / Assault / BreakContact / Hold
+    D-->>R: under heavy fire Hold or Assault wins, the casualty waits
+  end
+  D-->>R: Rescue wins
+  R->>P: run the play
+  P->>P: AskTerrain FindCoverFromTarget (slot 0 casualty, slot 1 top threat) gives the cover point
+  P->>C: phase Suppress - every member but the medic: Suppress(the assigned contact)
+  P->>M: Hold in cover
+  C-->>P: every coverer fired within 2 s (ShotFired), or 3 s passed
+  P->>M: phase Go - CarryCasualty(casualty, the cover point, dragged)
+  Note over P,M: fire picks up while he is still on the way - he returns to cover, the squad re-decides
+  M-->>P: Success - the casualty lies at the cover point
+  P->>C: phase Done - every member's previous order re-sent (S1-G resume)
+```
+
+*What the picture shows: the "Covering!" → "Moving!" handshake is a phase GATE the commander reads (every coverer has fired), not a
+message between members; "finished" is the commander re-issuing the previous orders.*
+
+```mermaid
+graph TD
+  CGF[CgfLogicPack] --> SCS[SquadCoordinationSystem - every frame, commander's node]
+  SCS --> SS[SquadSensing.MemberDown NEW]
+  BT[BrainTickSystem - every frame] --> SOP[BasicSquadSop on the commander]
+  SOP --> RTC[ReactToContact - re-decides while a casualty is down]
+  RTC --> PLAY[SquadCasualtyCarePlay via SquadManeuverRunner]
+  PLAY --> ORD[AssignTacticalIntentEvent to each member]
+  ORD --> MEM[member brains: SuppressBehavior / CarryCasualty]
+```
+
+*Module point: everything runs where the squad already runs (CGF, the commander's node); a host without `CgfLogicPack` has no squad
+and no care — as today for every play.*
+
+#### 7.5.4 The rescue decision (approved, R-2013)
+
+🔒 **User, `2026-10-13`:** *"Leans approved."* (medic carries to cover under covering fire, (a)–(c)) · *"Approved, write it into the design, do not start imolementing"* (the scored Rescue option, the re-decide, mid-rescue return).
+
+`Rescue` = **WeightedProduct** of four considerations ⇒ any one near zero kills it, and Hold / Assault win as today:
+
+| input (NEW) | what it reads | curve, lean | its job |
+|---|---|---|---|
+| `CasualtyUrgency` | the worst casualty's seconds left to bleed out, from `Health` and `InjuryThresholds.BleedPerSecond`, normalised by `BleedOutSeconds` (120) | rising as time runs out (inverse linear) | a man about to die under LIGHT fire is worth some risk |
+| `CasualtyExposure` | how many pooled contacts (`SquadCognitiveState.Contacts`) have line of sight to the casualty and to the cover point (the `ThreatExposureTest` test, one sample each) | inverse: 0 seen ⇒ 1, all seen ⇒ 0 | heavy, aimed fire on the casualty's spot ⇒ no rescue |
+| `SquadQuietSeconds` | now − `RecentSenses.SquadUnderFire` on the commander | rising, ~1 at ≥ 10 s (K2's quiet becomes this factor) | under fire now ⇒ no rescue |
+| fire superiority | `SquadStrengthRatio` × inverse `SquadEnemyStrengthRatio` (existing) | as Assault's | we are winning the firefight |
+
+- ⭐ **Re-decide**: `ChooseOptionOnce` decides once per reaction (`SquadContactResponseDecision.cs:17`) ⇒ while a casualty is down and
+  uncared for, the reaction re-scores every `RedecideSeconds` (5 s) and on each `SquadMemberDown`.
+- ⭐ **Mid-rescue**: a `SquadUnderFire` edge while the medic is still WALKING to him ⇒ the medic is ordered back to cover and the squad
+  re-decides; once he is CARRYING ⇒ he keeps going (stopping in the open is worse).
+- ⭐ **Fog**: exposure counts the squad's POOLED contacts, never the truth — an unseen sniper can still hit the medic.
+
+#### 7.5.5 Decisions (all ✅ approved 2026-10-13)
+
+| # | decision | why | rejected (one line) |
+|---|---|---|---|
+| K1 | `SquadMemberDown` on the commander, once per man | the `SquadLeaderDown` precedent; members never hear squad edges | — |
+| K2′ | care starts when the scored `Rescue` option wins (§7.5.4); K2's "quiet ≥ 10 s" is one of its factors | a gate cannot weigh a dying man against light fire, nor exposure | the binary gate alone |
+| K3′ | a designated **Medic** (`TacticalDesignation.Medic`); none in the squad ⇒ the nearest member in the fight who is not the leader | user R-2012; doctrine | the medic's own SOP hearing the edge (members never hear it; two would go) |
+| K4′ | to the nearest **cover point** around the casualty hidden from the top threat (`FindCoverFromTarget`, slot 0 casualty) | user R-2012 | beside the leader (the K4 lean, replaced) |
+| K5′ | the others **suppress** the squad's assigned contact (new `Suppress` order), then get their previous orders back | user R-2012; `Hold` does not make anyone fire (§7.5.1) | a timer-only switch; member-to-member messages |
+| K6 | a DOWN leader hands over like a dead one; the runner's live test becomes "in the fight" | `SquadSensing.Succession` / `SquadManeuverRunner.cs:224` test `IsAlive` | — |
+| (a) | a medic later also STOPS the bleeding (the drain stops once treated) — its own small slice | doctrine; `DESIGN_Injury_States.md` I3 already reserves "stabilised" | — |
+| (c) | the suppress order names the squad's top / assigned contact; none ⇒ nothing to suppress (and Rescue is quiet anyway) | the existing assignment | waiting until the casualty's shooter is known |
+
+#### 7.5.6 Slices *(not started)*
+
+| slice | what | rails |
+|---|---|---|
+| **R-a** | K6: `Succession` and the runner's `Live` on `Injury.IsInTheFight`; `TacticalDesignation.Medic`; `SquadMemberDown` + mask | a down leader hands over · a down member gets no order · one edge per man |
+| **R-b** | `MemberOrderKind.Suppress` + library `SuppressBehavior` (forced `PostureNodes.Suppress` on a named contact) | a suppressor fires at a remembered contact it cannot see |
+| **R-c** | `SquadCasualtyCarePlay` (Suppress → Go → Carry → Done) + `MemberOrderKind.CarryCasualty` | the medic waits until the coverers fired · he brings the man to the cover point · the orders return |
+| **R-d** | the three inputs + `Rescue` option + the re-decide | heavy fire ⇒ Hold, the man waits · quiet + exposed-free ⇒ Rescue · a man about to bleed out under light fire ⇒ Rescue |
+| **R-e** | a live scenario (`ua-casualty-care`): a squad in contact, a man down, the medic drags him to cover under covering fire | the cluster run |
+
+### 7.6 Fire and movement — the same pattern *(behaviors, `2026-10-13`; build-state: DESIGN — ✅ approved (R-2013, leans (b)); NOT built)*
+
+📖 **Doctrine (general knowledge, ⛔ not in the corpus):** two drills, not one. **Bounding overwatch** is used BEFORE contact: one element
+watches, ready to fire, while the other bounds 20–50 m to the next cover; then they swap. **Fire and movement** is used IN contact: the
+base of fire SUPPRESSES while the other element rushes 3–5 s (≈10–15 m: "I'm up, he sees me, I'm down") to cover, then fires so the first
+can move; a mover goes only after "Covering!", and calls "Set!" when down in cover.
+
+**Measured `2026-10-13`:** `BoundingOverwatchPlay` (`Brains/BoundingOverwatchBehavior.cs:88-150`) — half the squad `AdvanceTo` the
+moving element's centre + `min(BoundMetres 30, distance)` toward the objective (`:126-147`), the other half `Hold`; the swap is the movers
+within 3 m (`SquadManeuverRunner.ElementArrived`, XY) or `BoundTimeoutSeconds` 60 (`:119-124`); no cover query for the bound point. ⇒ the
+coverers do not necessarily FIRE, the bound is geometric, the swap is distance-only. The other four tables (`DangerAreaCrossing`,
+`HillCrestHullDown`, `StackAndRoomEntry`, `TravellingOverwatch`) have no play (graph: 10 `*Maneuver` classes, 6 `*Play` structs).
+
+**The pattern (approved): the commander coordinates; a phase changes on a GATE it can read; it speaks only through orders.**
+
+| gate | read as | feeds |
+|---|---|---|
+| **covering** | every coverer fired within the last 2 s (its `WeaponState.Ammo` dropped / its weapon channel ran a fire) | `PhaseEventKind.ShotFired` |
+| **set** | every mover stopped (arrived) AND at a cover point (hidden from the top threat) or prone | `PhaseEventKind.DefiladeReached` |
+| fallback | a timeout per phase | as today |
+
+- ⭐ Order kinds: `Hold` (watch) · `Suppress` (§7.5) · **`RushTo(cover point)`** NEW — an `AdvanceTo` to an EQS cover point at most
+  `RushMetres` (15 m) ahead, done when *set*.
+- ⭐ **`FireAndMovementPlay`** NEW: two halves (lean (b): halves first, pairs later); phase A: half 1 suppresses, half 2 rushes; *set* and
+  *covering* ⇒ swap. **`BoundingOverwatchPlay`** keeps `Hold` for its coverers until contact, then gives them `Suppress`; its bound point
+  becomes a cover point.
+- Casualty care (§7.5) is the same pattern with one mover (the medic) and one gate pair.
+
+Rejected (one line each): **each pair coordinating peer-to-peer** — a new member-to-member channel, when the commander already reads
+every member each frame on the same node · **time-only rushes** — they cannot tell whether the mover reached cover · **one drill for both** —
+watching and suppressing are different jobs, and before contact there is nothing to suppress.
+
+| slice | what |
+|---|---|
+| **F-a** | the *covering* and *set* gates feeding `ShotFired` / `DefiladeReached` |
+| **F-b** | `RushTo` + `FireAndMovementPlay` (halves) |
+| **F-c** | `BoundingOverwatchPlay`: suppress on contact, cover-point bounds |
+| **F-d** | pairs (buddy teams) |
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 
