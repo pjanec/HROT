@@ -33,7 +33,9 @@ RELEARN
 | P6 designations stage 1 (§13.3) | behaviors | ✅ built `CE-2149` (store, Designate menu, draft fill; overlay = ui U6) |
 | P7 the docs of §13.4 | behaviors | next — fix each doc as the item that retires its rule lands |
 | G3 (designations stage 2) | user | architect question offered, unanswered |
-| later | behaviors | I-2d + convoy ambush ([`HANDOFF_Embark_I2d_And_Unit_Orders.md`](HANDOFF_Embark_I2d_And_Unit_Orders.md)) — after the params story (user: *"finish this parameter story before continuing with embark"*) |
+| CE-2144 E1 (Health applied on every host, R-275) | behaviors | ⏸ awaits the user: option D proposed 2026-10-13 (declare a `HealthApplication` capability FIRST in every plan) — design §11.1 lists A/B/C; A's gate was measured ineffective |
+| embarkation I-2d + the squad Dismount drill + `tt-convoy-ambush` | — | ✅ ALREADY BUILT 2026-10-12 by the ui lane (`CE-1056`; Entity Interactions §7.3a, Squad Tactics §5a.1); re-verified 2026-10-13 after the params merges (SimHost 57/0, Toolkits 23/0). ⚠ this row said "later" until 2026-10-13 — stale |
+| carry capacity + seats per vehicle type, the human-carrier profile (R-274) | behaviors | needs a design (UML) and the user's approval; the human carrier also needs the R-263 injury states |
 
 **How to resume:** `git fetch origin behaviors backend ui` → merge whatever backend pushed (P1 + P8 merged `80ffb3ad9`, P2 + P3 merged `846c8021d`; P4 next — review the diff against the handoff, do not re-run their gates, rule 8) → P7 (docs, §13.4); backend P4 (§13.10) is the last params item.
 

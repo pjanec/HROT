@@ -1074,6 +1074,11 @@ and R-275 rules out the cheap fix (keep it in the CGF pack and add it per host e
 | ⭐ **A (lean)** | the capability at the Simulation tail on every host, AND the action dispatchers gate on `Health.Current > 0` as well as on the capabilities | one frame later interrupt on CGF; the extra-shot window closed where it matters. Small, all in owner-side code |
 | B | the capability declares a scheduling anchor so it runs before the cognitive runtime on hosts that have one | needs an ordering seam the node plan does not have (`NodeCompositionPlan` orders by declaration only) |
 | C | accept the one-frame delay with no gate | the dead unit may fire once more |
+| ⭐ **D (lean, 2026-10-13)** | a `CoreInfrastructureCapabilities.HealthApplication` capability declared **FIRST** in every host's plan ⇒ it lands at the HEAD of Simulation (registration order is execution order, `CgfSubsystem.cs:970-975`); `CgfLogicPack` stops building it | no frame lost on CGF (it stays ahead of the cognitive runtime and the dispatchers); ahead of `MissionAdapter` / `TacticalIntentResolution` too, which read no Health (grep); the plans + 2 harnesses + the pack-count rails move |
+
+⚠ **A re-measured (2026-10-13): its gate closes nothing.** `HealthApplicationSystem` writes `Health` AND strips the capabilities in
+one call (`HealthApplicationSystem.cs:87-105`, `CombatLife.ApplyHitCapabilities`). At the tail, both are still unchanged when the
+dispatchers run, so a dispatcher testing `Health.Current > 0` sees what the capability test sees. ⇒ A = C plus code. The lean moved to D.
 
 **User decision needed** before building (the blast radius is every host's Simulation order).
 
