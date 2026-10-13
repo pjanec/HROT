@@ -1292,8 +1292,29 @@ sequenceDiagram
 | P3 | B3b-1: 14 allow-list entries (5 parameter-less blueprints → `NoParams`, `OperatorControl`, the 2 resolver behaviours, 6 fixtures) | backend | — |
 | P4 | B3b-2 (F8) then delete `Role`, `StatefulSlotRole`, `StatefulSlotInfo.Role` (§5c re-measured) — allow-list empty | backend | P3 |
 | P5 | F5 + F6 rule: `[Required]`, schema `required`, HTTP 400, the RTS fast path (gesture context + designations + defaults), `PickOf` over fields, presets passed, `GET /orders`; `MoveOrder.Location` / `AttackOrder.Target` marked | behaviors | P8 |
-| P5b | F6 form: the modeless floating order form (`BehaviorParamsForm` over the order DTO), an entity source for the fuzzy `PickerWindow`, 3D map picking if absent | ui | P5 |
+| P5b | F6 form: the modeless floating order form (`BehaviorParamsForm` over the order DTO), an entity source for the fuzzy `PickerWindow`, 3D map picking if absent. ⭐ **Separable by one seam P5 defines:** an `OrderDraft` (units, order name, the prefilled DTO JSON, the `[Required]` fields still missing) and `IOrderForm.Open(draft)` — P5 calls it when the fast path cannot send; the ui lane implements it; until then a stub reports "needs the order form" | ui | P5's seam |
 | P8 | F11: params DTOs become plain fields (21 files, 87 properties), the rail, every reader over fields | backend | — |
 | P6 | F7 stage 1: the designations store + gestures + sender fill | behaviors (ui for the gestures) | P5 |
 | P7 | docs: the 6 high-risk rewrites + `OVERVIEW` box (behaviors); the remaining 15 known-rot lines + the 9 `[BehaviorContract]` mentions (any session) | behaviors leads | as each item lands |
 | — | B4b editor, the struct editor | postponed (user) | — |
+
+### 13.4 Docs that still state the old parameter rules *(sweep 2026-10-13; P7 works this list)*
+
+⭐ Fix each when the item that retires its rule lands; a doc already marked SUPERSEDED / HISTORICAL is skipped.
+
+| rank | doc (under `docs/`) | what it still says | fix |
+|---|---|---|---|
+| 1 | `blueprints/DESIGN_Parameter_Model.md` | §1 / §P.7: `Role=Input` is the parameter role; the DTO is a generated mirror; classification by section | known-rot now; rewrite §1 when B3b lands |
+| 2 | `blueprints/Variables_Designer_Quickstart.md` | four kinds as Role + Scope; "set its Role to Input"; "never field-by-field" (CE-3182 allows `Params.walk`) | rewrite |
+| 3 | `blueprints/Behavior_Parameter_Resolver_Detailed_Design.md` | role enum { Input, State } in §3.2, §4.1, the diagram | known-rot → this design §1 / §5c |
+| 4 | `blueprints/EXPLAINER_Where_Parameters_And_State_Live.md` | "the authored DTO is an auto-generated mirror of the Input variables" | known-rot (predates B1 / B3a) |
+| 5 | `blueprints/Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md` | binds a WHOLE DTO to one variable | known-rot (CE-3182) |
+| 6 | `blueprints/GUIDE_Blueprint_Visual_Check.md` | sections "Inputs · Working State · Asset Globals" | rewrite the row |
+| 7–8 | `designs/blueprint-finalize/ACTION-NODE-DESIGN.md` · `blueprints/Hsm_Parameters_And_Variables_OPENING_PROMPT.md` | whole-DTO binding · { Input, State } | STATUS block + known-rot · superseded-by this design |
+| 9–16 | `blueprints/DESIGN_Variable_Details_And_Editing.md` · `DESIGN_Hsm_Storage_Model.md` · `DESIGN_Unified_Behaviour_Run.md` · `Architect_Question_76_…` · `DESIGN_Behavior_Action_Binding.md` · `DESIGN_Occurrence_Scoped_Storage.md` · `Variable_Model_Unification.md` · `Blackboard_Authoring_Detailed_Design.md` | `Role=Input` / `Role=State` vocabulary | a known-rot line each |
+| 17–21 | `DESIGN_Decision_Layer.md` · `blueprints/DESIGN_Resolver_World_Reach.md` · `blueprints/RESUME_Hsm_Blueprint_Behaviour.md` · `blueprints/RESUME_START_HERE.md` · `blueprints/BTree_HSM_JSON_Persistence_Detailed_Design.md` | small mentions | low; a note each |
+| + | `OVERVIEW_Behaviour_Building_Blocks.md` | the params box says "designed, not built" | refresh the box |
+| + | `[BehaviorContract]` still current in: `UX/UX_Design.md`, `UX/UX_Requirements.md`, `UX/UX_Feature_Entity_Commanding.md`, `UX/UX_Golden_Path.md`, `designs/tactical-intent/DESIGN.md`, `designs/group-maneuvers/DESIGN_Squad_Tactics.md`, `designs/group-maneuvers/DESIGN_Squad_Wiring.md`, `projects/Hrot/Engine/Hrot.Core.md`, `blueprints/DESIGN_Entity_Reference.md` | replaced by `[Behavior(Params=…)]` (CE-2134) | one pass |
+
+Already correct (leave): this design, `RULINGS.md` R-273..R-282 / R-2000..R-2003, AQ90, the orders resume / handoffs,
+`DESIGN_Entity_Interactions.md`, `tools/ai-debug-mcp/SKILL.md`, `AI_DEV_GUIDE.md`, `HROT-PROGRAMMERS-GUIDE.md`, `TUTORIAL_Behaviour_Composition.md`.
