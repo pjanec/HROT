@@ -597,7 +597,7 @@ whole squad on a leader loss** (doctrine keeps the teams and fills the gap; form
 | `Hrot.Core/…/Tkb/CompositeUnitTkbTranslator.cs` (NEW, in `TkbTranslatorSet.Base`) · `TkbCompositionDef.CommandDisruptionSeconds` (6) | a composite type ⇒ `UnitEntity` on every node |
 | `Fdp.Toolkits/Perception/PhysicalPresence.cs` (NEW) · `LocalGridBuilderSystem` · `EntitiesInAreaGenerator` | the one hidden check, at the two doors |
 | `Fdp.Toolkits/Squad/Systems/UnitCentroidSystem.cs` (NEW, in `CgfLogicPack`) | CE-514: the owned unit at its live members' mean |
-| `Fdp.Toolkits/Squad/SquadLeadership.cs` (NEW, id 275) · `SquadSensing.Succession` (called by `SquadCoordinationSystem` each frame) | L1 successor · L2 `SilentUntil` · L3 `SquadLeaderDown` (14, HSM `Sensor.SquadLeaderDown`) |
+| `Fdp.Toolkits/Squad/SquadLeadership.cs` (NEW, id 275) · `SquadSensing.Succession` (called by `SquadCoordinationSystem` each frame) | L1 successor (⭐ `2026-10-13`, R-e: the roster-order fallback passes over a `Medic` while anyone else can lead — §7.5.7) · L2 `SilentUntil` · L3 `SquadLeaderDown` (14, HSM `Sensor.SquadLeaderDown`) |
 | `SquadManeuverRunner` · `ReactToContactBehavior` · `BasicSquadSop` (third row) | silent ⇒ no orders, re-sent after · the leader lost mid-drill ⇒ hold and decide again · leader down ⇒ React |
 | `SquadSensing.UnderFire` | the commander's own Hit / NearMiss no longer counts (it is body-less) |
 | `BdcTkbCatalog` 302 `.WithBehavior` | the squad commander can run the squad SOP and drills |
@@ -826,6 +826,8 @@ the squad fights first · empty pool ⇒ Rescue at once.
 | a drill that is WON (`Assault` → Success when its enemy falls) ended the reaction with the man still down | ⭐ a won drill with a casualty waiting hands over to `Rescue` instead of ending |
 | authoring the hostile's `"Roe"` crashed the whole cluster natively — pre-existing, `ua-universal-soldier` too, at base (`CE-2160`) | the demos' "holding fire" hostile has an empty weapon (`WeaponState.Ammo = 0`) instead |
 | the winning drill under heavy fire (`Assault`) moves the whole squad, the Medic too | the `-heavy` check is "nobody is sent for him" (no `CarryCasualty`), not "the Medic stays put" |
+| ⭐⭐ a bleeding man's every health drop is a `Hit` edge (`ThreatEvaluationSystem` reads any drop as a hit), and `SquadSensing.UnderFire` made each one `SquadUnderFire` — 📐 second-by-second probe: Rescue stuck at 0.29–0.38 (never quiet), and every care drill recalled the medic ~2 s after sending him, until the man bled out | ⭐ `UnderFire` ignores `Hit` edges from a member out of the fight; near misses, and hits on men still fighting, count (`CE2152_ADownMansBleeding_…`) |
+| the leader down in `-leader`: the Medic, second in the roster, took command — and a leader is never sent, so a rifleman went | ⭐ succession passes over a `Medic` while anyone else can lead (§7.2 L1 deviation; `CE2152_SuccessionPassesOverTheMedic_…`) |
 
 Rails: `SquadManeuverTests.CE2152_Rescue_TheEnemyKilledButStillRemembered_TheSquadGoesForHim` (red only with BOTH fixes removed —
 either one closes the case it pins).
