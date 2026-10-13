@@ -14,7 +14,7 @@ namespace Hrot.Hsm.Editor.Model;
 // Editor-side model of an HSM asset.
 // Implements IEditableAsset so the shared asset catalog can hold it.
 // Mutable; tracks layout, editor-specific identity, and a reference to the kernel blob.
-public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset
+public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, Hrot.Editor.AiShared.Blackboard.IParamsDtoAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset
 {
     // Identity
     public Guid AssetId { get; }
@@ -199,6 +199,17 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     {
         _blackboardVariables.Clear();
         _blackboardVariables.AddRange(vars);
+        MarkDirty();
+    }
+
+    /// <summary>⭐ <c>CE-1061</c> (U5a, R-3001) — names the asset's params DTO (the variables panel's chooser); see
+    /// <see cref="Hrot.Editor.AiShared.Blackboard.IParamsDtoAsset.SetParamsDto"/>.</summary>
+    public void SetParamsDto(string typeId)
+    {
+        if (string.IsNullOrWhiteSpace(typeId) || string.Equals(ParamsDtoTypeId, typeId, StringComparison.Ordinal)) return;
+        ParamsDtoTypeId   = typeId;
+        ParamsDefaultJson = null;   // the save falls back to it when the reserved entry carries none
+        Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.Retarget(_blackboardVariables, typeId, IsBlackboardEditorManaged, Resolver != null);
         MarkDirty();
     }
 

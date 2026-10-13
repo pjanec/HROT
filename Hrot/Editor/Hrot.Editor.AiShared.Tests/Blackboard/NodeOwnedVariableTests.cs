@@ -166,11 +166,43 @@ public sealed class NodeOwnedVariableTests
         autoVar.IsUnused.Should().BeFalse(
             "auto-managed var must NOT be flagged as unused while its owning node is alive");
     }
+
+    // ── CE-1061 (U3): the reserved Params row lists its DTO's fields ──────────
+
+    /// <summary>A params DTO for the U3 rail.</summary>
+    public struct ParamsRowRailDto
+    {
+        public float Radius;
+        public int Rounds;
+    }
+
+    /// <summary>⭐ <c>CE-1061</c> (U3, acceptance 2) — the <c>Params</c> row of a DTO-named BTree lists the DTO's fields READ-ONLY, from the
+    /// walk the bindings use (<c>ActionBindingCompatibility.BindableFieldsOf</c>); a field the asset overrides shows its value, the rest
+    /// say "DTO default". Any other row carries no field rows.</summary>
+    [Fact]
+    public void CE1061_TheParamsRow_ListsItsDtosFields_ReadOnly()
+    {
+        var asset = new FakeBlackboardAsset();
+        asset.SetBlackboardVariables(new[]
+        {
+            new BlackboardVariableEntry("Params", typeof(ParamsRowRailDto), null, DefaultValueJson: "{\"radius\":2.5}", IsReservedParams: true),
+            new BlackboardVariableEntry("Counter", typeof(int), null),
+        });
+
+        var vm = BlackboardAuthoringWindow.BuildViewModel(asset);
+
+        var row = vm.Variables.Single(v => v.Name == "Params");
+        row.IsReadOnly.Should().BeTrue();
+        row.ParamsFields!.Select(f => f.Name).Should().Equal(
+            Hrot.Editor.AiShared.Inspector.ActionBinding.ActionBindingCompatibility.BindableFieldsOf(typeof(ParamsRowRailDto)).Select(f => f.Name));
+        row.ParamsFields.Select(f => f.Name).Should().Equal("Radius", "Rounds");
+        row.ParamsFields.Single(f => f.Name == "Radius").OverrideJson.Should().Be("2.5");   // the key matched case-insensitively
+        row.ParamsFields.Single(f => f.Name == "Rounds").OverrideJson.Should().BeNull();
+        vm.Variables.Single(v => v.Name == "Counter").ParamsFields.Should().BeNull();
+    }
 }
 
-// ── Fake asset for BuildViewModel tests ──────────────────────────────────────
-
-internal sealed class FakeBlackboardAsset : IEditableAsset, IBlackboardManagedAsset
+internal class FakeBlackboardAsset : IEditableAsset, IBlackboardManagedAsset
 {
     private readonly List<BlackboardVariableEntry> _vars = new();
     private readonly int _refCountOverride;
