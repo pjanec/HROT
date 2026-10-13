@@ -185,7 +185,7 @@ single spare (`Reserved29`) and no param field; `TransitionDef` is a full 16 wit
 *"Which parameter block does this binding use"* is unrepresentable in the HSM blob — which is why
 HSM-013's naming question is really the broader question of **how a parameterised action binds to a
 state slot at all**. Hand-written HSM actions sidestep it entirely by taking no parameters and
-reading the world.
+reading the world. *(⛔ 2026-10-13: superseded — a binding now names fields of the machine's own block (JSON HSMs: per-binding thunks, CE-417; hand-written fluent HSMs: `HsmSharedBinder`, CE-3163), read through `HsmBlock.Require` — [DESIGN_Behavior_Action_Binding](DESIGN_Behavior_Action_Binding.md) §5.7.)*
 
 ---
 

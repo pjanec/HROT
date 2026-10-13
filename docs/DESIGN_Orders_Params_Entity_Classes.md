@@ -193,7 +193,7 @@ outlines are GizmoMap's (CE-2138).*
 
 ## 5. What changes, by area
 
-| area | today | after |
+| area | before (pre-`2026-10`) | after *(built: B1–B4, CE-3193, CE-3194)* |
 |---|---|---|
 | params contract | `[BehaviorContract]` on the DTO, one behaviour per DTO; a generated mirror of Input variables; nested JSON for one DTO-typed Input | `[Behavior(Params=…)]` on the behaviour (C#) or `ParamsDtoTypeId` on the asset; shared DTOs; flat JSON |
 | blackboard | Input / State roles | one variable kind; reserved `Params` (no resolver only) |
@@ -350,7 +350,7 @@ reference). The editor's example behaviours are declared in the editor, so CGF a
 | P3 (stored ⇒ unmanaged struct) is enforced at generate time | BEH003 makes a resolver-less curated behaviour's Params its `ParamsType` (a struct by construction); B1 makes a generated asset's stored params its Input (a struct). ⇒ no runtime P3 check is needed |
 | the registry refuses two declarations of one name, and a declaration with no `Params` | the load check: one producer per behaviour (R-132), P1 (a behaviour that takes nothing names `NoParams`) |
 
-## 5c. CE-2135 B3 — no Input / State roles *(design 2026-10-12, backend lane; build-state: B3a BUILT, B3b open — the split APPROVED, R-3000)*
+## 5c. CE-2135 B3 — no Input / State roles *(design 2026-10-12, backend lane; build-state: B3a BUILT, B3b BUILT `2026-10-13` (CE-2135 P4, CE-3193 — `Role` AND `Scope` deleted, see §13.10 ⑦) — the split APPROVED, R-3000)*
 
 > 🔒 **User, 2026-10-12** (with the behaviors lane's steering): *"So approved, B3a now; A2 (CE-2132) converts straight to the B3a form after it lands"* ⇒ the order is **B3a (backend) → A2 / CE-2132 (behaviors, converts once, to the final form) → B3b (backend)**.
 
@@ -364,16 +364,16 @@ reference). The editor's example behaviours are declared in the editor, so CGF a
   (shipped BTree: BasicInfantrySop, BasicSquadSop, DangerCrossing, FiringPosition, Flank = A2 CE-2132, behaviors lane;
   shipped blueprints with Parameters: PlatoonHillAttackBp, Demo_MissionPlan, Demo_TaskChain, DangerCrossingBp). Keyed (nested)
   JSON in data: `ua-danger-crossing`, `hsm-channel-e2e` (×2), `mission-demo-bp`, `T20` test.
-- ⭐ **`Scope` is NOT the same question:** `Node`-scoped working state (an action's private memory, auto-managed) is separate
+- ⛔ **SUPERSEDED `2026-10-13` (CE-3193, §13.10 ⑦): `Scope` went too** — no variable carries `Role` or `Scope`; working state is DERIVED (a binding names the variable as its `WorkingStateTargetField`); `WorkingStateScope` survives only as the slot-key formula. *Was:* ⭐ **`Scope` is NOT the same question:** `Node`-scoped working state (an action's private memory, auto-managed) is separate
   storage keyed by node; it survives B3. Only `Role` goes.
 
 ```mermaid
 classDiagram
   direction LR
-  class Block_today { <<Asset_Block today>> In @0 = the Role=Input variables, or the flat DTO (B1) · St = Role=State + Scope=Behavior }
+  class Block_today { <<Asset_Block before B3>> In @0 = the Role=Input variables, or the flat DTO (B1) · St = Role=State + Scope=Behavior }
   class Block_B3 { <<Asset_Block after B3>> In @0 = Params, the NAMED DTO (ParamsDtoTypeId), absent with a resolver · St = EVERY authored variable }
   class Asset_B3 { <<asset JSON after B3>> ParamsDtoTypeId · ParamsDefaultJson NEW · Variables without Role }
-  class NodeMemory { <<unchanged>> Scope=Node working state = an action's private memory, its own slot }
+  class NodeMemory { <<node-keyed slot>> an action's private memory, its own slot (no Scope field since CE-3193) }
   Asset_B3 ..> Block_B3 : generator
   Block_today ..> Block_B3 : same layout shape, In now always the named DTO
 ```
@@ -394,7 +394,7 @@ Input variables), which is why the cost is in the editors, the generators and th
 
 | | what | when |
 |---|---|---|
-| ⭐ **B3a** | an asset that names its params DTO has NO Input variable: `In` = the DTO, called `Params`, its default `ParamsDefaultJson` on the asset; every authored variable is what `State`+`Behavior` is today (`St`). Convert the 11 class-B assets (5 shipped, 6 tests) to it. Editor: one "Variables" section + a read-only "Params" row; new variables are plain (no Role column). A host binds a child with an ordinary variable (`St` offsets measured on the struct, like the blueprint emitter). The legacy Input path stays ONLY for unconverted assets, listed by the CE-2130 allow-list | now (backend) |
+| ⭐ **B3a** | an asset that names its params DTO has NO Input variable: `In` = the DTO, called `Params`, its default `ParamsDefaultJson` on the asset (⭐ since R-3001/CE-3194: the asset's per-field OVERRIDES over the DTO's initialisers, §13.10a); every authored variable is what `State`+`Behavior` is today (`St`). Convert the 11 class-B assets (5 shipped, 6 tests) to it. Editor: one "Variables" section + a read-only "Params" row; new variables are plain (no Role column). A host binds a child with an ordinary variable (`St` offsets measured on the struct, like the blueprint emitter). The legacy Input path stays ONLY for unconverted assets, listed by the CE-2130 allow-list | now (backend) |
 | **B3b** | delete `Role` (`BlackboardVariableRole`, the panel's legacy path, the mirror emission); blueprint behaviours' Parameters → a named DTO; resolver assets' Parameters → the DTO (supersedes §P.7) | when A2 (CE-2132) + the test / blueprint conversions empty the allow-list; blueprint Parameters ideally after B4 (an editor-made DTO) so no C# is needed |
 
 ⚠ **Refined while building B3a (measured 2026-10-12, before any code relied on the table above):** a "plain" variable is a
@@ -432,7 +432,7 @@ fixtures (`T09`, `T10`, `T20`, `T35`, `T39`, `BTreeCuratedBindingDemo`) — B3b 
 - **Blueprint Parameters blast radius**: `ParameterDecl` is named in 24 production / 72 total files, `GetParameterNode` in 8 / 13,
   `GetAllParametersNode` in 7 / 10 (grep: 21 / 70, 7 / 13, 7 / 10). ⚠ This section does not say whether "Parameters → a named DTO"
   removes `ParameterDecl` and the two Get nodes, or keeps them as the graph's view of the DTO's fields. That is decided before B3b-2 is
-  built. Lean: keep them as a view, which leaves the graphs untouched.
+  built. Lean: keep them as a view, which leaves the graphs untouched. ⛔ SUPERSEDED — F8 / R-2004: `ParameterDecl` authoring and Get Parameter retired (§13.10 ⑤, CE-1061 U2).
 
 **B3a as built** *(2026-10-12)*: `ParamsDefaultJson` on the BTree / HSM asset; `BTreeEmitCore.WithParamsVariable` /
 `HsmBridgeEmitCore.WithParamsVariable` inject `Params` at every generator entry (idempotent); `ParamsTarget` = `Params` (named)
@@ -564,7 +564,7 @@ graph TD
 ```
 
 *What it shows: the runtime has no edge to anything new — a field binding is a baked offset like any other. ⚠ A path into a type
-Roslyn cannot see (a sibling's GENERATED Inputs struct, a blueprint's generated `Params`) has no field layout and fails CLOSED with
+Roslyn cannot see (a sibling's GENERATED Inputs struct — ⛔ retired with B3b, a behaviour's contract is its named DTO — a blueprint's generated `Params`) has no field layout and fails CLOSED with
 a diagnostic, never a guessed offset.*
 
 | decision | ⭐ chosen | rejected (one line each) |
@@ -693,7 +693,7 @@ so they end when the run ends, for any reason (A5).
 | a Clear intent's `IntentId` already crosses the wire | `TacticalIntentEgressTranslator.cs:92`, message `IntentId` | CE-3167 (assign and clear share one wire path) |
 | the squad pool keys a contact by the LOCAL entity; an `EntityRef` resolves a network id to it | `SquadManeuverRunner.TopContact`; `EntityRef.TryResolve` | DESIGN_Entity_Reference |
 | geodetic → local metres through the `IGeographicTransform` singleton (CGF has it) | `HillAttackCommanderNodes.cs:717-778` | — |
-| ⚠ the mission editor's per-type behaviour list sees only `[BehaviorContract]` DTOs in `Hrot.Core` ⇒ the order behaviours are NOT in it until the class table replaces it | `BehaviorCatalog.cs:45-56` | §5 row "behaviour filter per type" (C2/D3) |
+| ⚠ the mission editor's per-type behaviour list sees only `[BehaviorContract]` DTOs in `Hrot.Core` ⇒ the order behaviours are NOT in it until the class table replaces it (✅ resolved: `[BehaviorContract]` retired by CE-2134, the list reads `[Behavior(Params=…)]`) | `BehaviorCatalog.cs:45-56` | §5 row "behaviour filter per type" (C2/D3) |
 | ⚠ `Order.<name>` is not resolved by anything until D3 | `TacticalIntentResolutionSystem.cs:129-148` (falls back to a behaviour named `Order.Move`, warns) | §3.1 (D3 resolves it) |
 
 ### 7.1 Classes
@@ -1216,7 +1216,7 @@ classDiagram
   class ParamsDtoField { <<NEW>> Name · TypeId (FQN) · DefaultJson · Comment }
   class ParamsDtoJsonGenerator { <<NEW, Hrot.AiEditor.Generators, IIncrementalGenerator>> *.params.json → struct source }
   class GeneratedDto { <<GENERATED into Hrot.AI.Behaviors>> [ParamsDto] [Order]? sequential struct, one public field per row }
-  class ParamsDtoAttribute { <<NEW, Hrot.Core>> DefaultJson · Comment }
+  class ParamsDtoAttribute { <<NEW, Hrot.Core>> ~~DefaultJson~~ (retired, R-3002 — initialisers) · Comment }
   class ParamsDtoRegistry { <<existing, CHANGED>> Dtos also lists every [ParamsDto] type }
   class OrderAttribute { <<existing>> }
   class ParamsDtoDocument { <<B4b, NEW — awaits the user>> a form document hosting VariablesPanelControl over a ParamsDtoSchemaSource }
@@ -1278,9 +1278,9 @@ Design docs checked: AQ90 §2.3j + one-page row — *applies* (the asset, the ge
 
 | piece | where |
 |---|---|
-| the asset model, validation, emitter, sequential layout | `Hrot.AiEditor.Persistence/Params/ParamsDtoAsset.cs` (`ParamsDtoAssetDto`, `ParamsDtoJson`, `ParamsDtoEmitCore.Validate / Emit / DefaultJsonOf / TryLayout`) |
+| the asset model, validation, emitter, sequential layout | `Hrot.AiEditor.Persistence/Params/ParamsDtoAsset.cs` (`ParamsDtoAssetDto`, `ParamsDtoJson`, `ParamsDtoEmitCore.Validate / Emit / ~~DefaultJsonOf~~ (deleted, CE-3194) / TryLayout`) |
 | the generator | `Hrot.AiEditor.Generators/ParamsDtoJsonGenerator.cs` — `PARAMS0001` on a bad asset (descriptor inline: RS2008, the siblings' rule) |
-| the attribute and the registry arm | `Hrot.Core/MapDefinitions/Behavior/ParamsDtoAttribute.cs` (`DefaultJson`); `ParamsDtoRegistry.Scan` lists `[ParamsDto]` types (`FromDeclarations(…, markedDtos)`) |
+| the attribute and the registry arm | `Hrot.Core/MapDefinitions/Behavior/ParamsDtoAttribute.cs` (~~`DefaultJson`~~ retired by CE-3194 / R-3002); `ParamsDtoRegistry.Scan` lists `[ParamsDto]` types (`FromDeclarations(…, markedDtos)`) |
 | sibling sizing / field binding | `GeneratedTypeCatalog` collects `*.params.json`: `Declares`, `SizeResolver` and `FieldResolver` lay a generated DTO out from its JSON (fail closed on an unknown field type) |
 | wiring | `Hrot.AI.Behaviors.csproj`: `AdditionalFiles` / `UpToDateCheckInput` `Assets\Params\**\*.params.json` |
 | the end-to-end fixture | `Assets/Params/Tests/T41Params.params.json` + `Assets/BTrees/Tests/Authoring/T41_GeneratedParamsDto.btree.json` (names it, bakes `ParamsDefaultJson`) |
@@ -1559,7 +1559,7 @@ Hrot types their members hold; red-proved (`MoveOrder.Speed` back to `{ get; set
 classDiagram
   direction LR
   class DtoAttribute { <<NEW, Fdp.Core>> +SourceFile: string · +SourceLine: int · +AssetId: string? · ctor([CallerFilePath], [CallerLineNumber]) }
-  class ParamsDtoAttribute { <<MOVED Hrot.Core → Fdp.Core>> +DefaultJson: string? }
+  class ParamsDtoAttribute { <<MOVED Hrot.Core → Fdp.Core>> ~~DefaultJson~~ retired R-3002 }
   class UnitMemoryAttribute { <<MOVED Fbt.Kernel → Fdp.Core>> }
   class OrderAttribute { <<existing, Hrot.Core>> +Name · +Gesture }
   class BlackboardDtoStructAttribute { <<RETIRED → [Dto]>> }
@@ -1758,8 +1758,8 @@ classDiagram
   direction LR
   class BlueprintAsset { <<existing>> +ParamsDtoTypeId · +Parameters (a VIEW, now synthesized) }
   class ParamsDtoFields { <<NEW, Hrot.Blueprints.Compiler>> +Materialize(asset, source) · synthesizes one Parameter per DTO field }
-  class IParamsDtoFieldSource { <<NEW>> +TryGetFields(typeId) → (Name, TypeId, DefaultJson)[] }
-  class ReflectionFieldSource { <<NEW, editor / in-process>> loaded type's public fields + [ParamsDto(DefaultJson)] }
+  class IParamsDtoFieldSource { <<NEW>> +TryGetFields(typeId) → (Name, TypeId)[] — DefaultJson dropped, CE-3194 }
+  class ReflectionFieldSource { <<NEW, editor / in-process>> loaded type's public fields (defaults: new T(), CE-3194) }
   class RoslynFieldSource { <<NEW, Hrot.AiEditor.Generators>> ITypeSymbol fields; a .params.json via GeneratedTypeCatalog }
   class CompileOptions { <<existing, CHANGED>> +ParamsDtoFields: IParamsDtoFieldSource? }
   class V_ParamsDtoRules { <<existing, CHANGED>> BP1689: any kind may name a DTO; a declared Parameter is an error }
@@ -1791,7 +1791,7 @@ sequenceDiagram
   participant C as Stage0 → … → emitters
   G->>F: Materialize(asset, source) — asset.ParamsDtoTypeId = X
   F->>S: TryGetFields(X)
-  S-->>F: (Name, TypeId, DefaultJson) per public field, in order
+  S-->>F: (Name, TypeId) per public field, in order — CE-3194 dropped DefaultJson
   F->>F: Parameters := one ParameterDecl per field (Id = deterministic from asset + name)
   F-->>G: asset (no Parameter is STORED in the file)
   G->>C: compile — Params struct, flat ParseParams, pins, ReadParam unchanged
@@ -1802,7 +1802,7 @@ sequenceDiagram
 |---|---|---|---|
 | P4-a | how the compiler learns the DTO's fields | a field source on `CompileOptions` (generator: Roslyn symbol fields, or a `.params.json` through `GeneratedTypeCatalog`); null ⇒ reflection over loaded assemblies (the editor / in-process path) — the `ClrSignatureResolver` / `StructSizeOracle` precedent | a fields list stored in the `.bp.json` (a second declaration of the DTO's shape — what R-2004 retires) |
 | P4-b | how the rest of the compiler sees them | synthesized Parameters (deterministic ids) — every reader keeps reading `asset.Parameters` | teach each reader about the DTO (5 emitters + 2 pin builders + IR + layout: the blast radius for nothing) |
-| P4-c | defaults | `[ParamsDto(DefaultJson)]` per field, for hand-written AND generated DTOs, read the same way by both sources | C# initializers (Roslyn sees only constants; reflection sees all ⇒ the two compilers would disagree) |
+| P4-c ⛔ **REVERSED by R-3002 (§13.10a, CE-3194): defaults are C# INITIALISERS, read at run time by `new T()` — the build-time view never needs them** | defaults | `[ParamsDto(DefaultJson)]` per field, for hand-written AND generated DTOs, read the same way by both sources | C# initializers (Roslyn sees only constants; reflection sees all ⇒ the two compilers would disagree) |
 | P4-d | the AiPrimitive hosts | unchanged: the generated `_Bp+Params` still mirrors the DTO's fields, names and order; the generator's size prediction reads the DTO's fields | hosts bind the DTO type directly (every host asset's variable type changes — a second migration) |
 | P4-e | resolvers | the resolver blueprint names the DTO; its `Params` is synthesized; the host behaviour publishes the resolver's DTO (`JsonParamsDtoType`) | keep publishing `{Resolver}_Bp+Params` (the CE-2130 mirror the rule forbids) |
 | P4-f | Get Parameter | retires (steer 2); its 2 graphs move to Get All Parameters (links re-pointed by pin name) | migrate-on-load of old files (no shipped file needs it after the 2 are rewritten) |
@@ -1831,7 +1831,7 @@ sequenceDiagram
   so the canvas shows the pins the build will have.
 - **② three behaviours** — `Demo_MissionPlan` → `DemoMissionPlanParams`, `Demo_TaskChain` → `DemoTaskChainParams`
   (`Hrot.AI.Behaviors/Brains/DemoMissionParams.cs`), `DangerCrossingBp` → `DangerCrossingParams` (its C# twin's contract, now with
-  `DefaultJson` = the initializers' values). Converted by a text-level script (declarations removed, `ParamsDtoTypeId` before
+  `DefaultJson` = the initializers' values — ⛔ attribute removed by CE-3194, the initialisers alone are the default). Converted by a text-level script (declarations removed, `ParamsDtoTypeId` before
   `Declarations`, every old Parameter id re-pointed to the made id), then the corpus canonicaliser; the JSON callers send is
   unchanged. CE-2130 allow-list −3. ⭐ **Golden movement, measured: ONE line per asset** — `JsonParamsDtoType` names the DTO instead of
   `_Bp.Params`; the `Params` struct, the parse and the IR are byte-identical and Tier 1 did not move (P4-b's claim, confirmed).
@@ -1965,7 +1965,7 @@ classDiagram
 - **Not yet** *(measured 2026-10-13; ui lane — ⚠ NOT P5b, which is the order form and is built, §13.12)*:
   - the **blueprint** editor's "Inputs" section (`BlueprintMyBlueprintModel.cs:128/335`) lists only DECLARED Parameters — the
     corpus has **0** left and all 18 `.bp.json` name a DTO, so it is empty everywhere; the canvas pins are right (`ParametersOf`).
-    "Create parameter" (`editor.create-parameter`) still authors a `ParameterDecl`;
+    "Create parameter" (`editor.create-parameter`) still authors a `ParameterDecl`; ✅ FIXED by CE-1061 U1/U2/U3/U5a (§13.10b);
   - the **BTree / HSM** `Params` row is ONE read-only entry (`BlackboardAuthoringWindow.cs:323`) — the DTO's fields are not
     listed (`VariablesPanelControl` has no struct expansion);
   - no editor surface writes an asset's `ParamsDtoTypeId` or a BTree / HSM `ParamsDefaultJson` (hand-edited JSON).

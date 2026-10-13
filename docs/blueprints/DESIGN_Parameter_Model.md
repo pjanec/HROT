@@ -251,7 +251,7 @@ it: blueprint resolver graphs have no host-read node, and curated resolvers are 
 | question | as built |
 |---|---|
 | where the authored shape is declared | ⭐ **one named params DTO per asset** — `ParamsDtoTypeId` on a blueprint, BTree or HSM; a hand-written `[ParamsDto]` struct or a `.params.json` asset. ⛔ **No blueprint declares Parameters any more**; `BP1689` refuses a Behavior / AiPrimitive / resolver Library that names none |
-| what the Parameters are | the DTO's public fields *(minus `[JsonIgnore]`, declaration order)*, **materialised by the compiler** on its own store copy before Stage 0 (`ParamsDtoFields`). Ids are deterministic per (asset, field); defaults come from `[ParamsDto(DefaultJson)]` |
+| what the Parameters are | the DTO's public fields *(minus `[JsonIgnore]`, declaration order)*, **materialised by the compiler** on its own store copy before Stage 0 (`ParamsDtoFields`). Ids are deterministic per (asset, field); defaults: the DTO's own are its field INITIALISERS (`new T()` at run time), the asset may override single fields in `ParamsDefaultJson` (R-3001/R-3002, CE-3194; ⛔ `[ParamsDto(DefaultJson)]` retired) |
 | how the graph reads them | `GetVariable` (one field) or `GetAllParametersNode` (one pin per DTO field). ⛔ **Get Parameter is retired** |
 | what a resolver publishes | its DTO (`PublishedParams` on the resolver class), read by the host bridge — every bridge caller is right by construction |
 | who parses JSON | generated C#, **flat** — the JSON is the DTO's fields (§13 there, §5a.1). ⛔ The keyed-by-variable-name overlay is gone from every asset except `HsmChannelE2E` (CE-3190, stopped) |
@@ -459,6 +459,8 @@ divergence *(geo point vs cartesian, network id vs `Entity`, derived fields)*.
 
 #### 🔴🔴 AS MEASURED `2026-09-28` — **row 3's *"`Scope` decides sharing"* is TRUE OF ONE SCOPE OF THREE**
 
+> ⛔ **SUPERSEDED `2026-10-13` (`CE-3193`, [Orders design §13.10 ⑦](../DESIGN_Orders_Params_Entity_Classes.md)) — this whole subsection is HISTORY.** A variable carries no `Role` and no `Scope` any more; `Entity` scope went with `CE-441` and `GetShared`/`SetShared` with `CE-440`. Working state is DERIVED — a variable is working state exactly when a binding names it as its `WorkingStateTargetField` (`WorkingStateVariables.Mark`) — and `WorkingStateScope` survives only as the slot-key formula (`OccurrenceSlotKey.Compute`). `StateVariableStorage` and `BTREE0003` / `HSM0002` (the `CE-423` note below) are deleted: with no declared scope there is no undeclared-scope case to report.
+
 > 🔒 **Raised by the user, who did not believe the model:** *"I still do not understand the
 > Node/Behavior/Entity scopes. I thought only real scope is 'behavior' and that the blackboard is
 > born and dies with the behavior."* ⭐⭐ **Measured, and the user's model matches the CODE.** ⛔ The
@@ -521,6 +523,8 @@ prior enumeration had missed** *(`PredicateCompiler.cs:317`, `PropertyPathFieldD
 LAYOUT type — a JSON DTO's `Marshal.SizeOf` is meaningless there.
 
 ⭐ **Who fills each, per §3.1's own rule:**
+
+> ⛔ **SUPERSEDED (2026-10-13) — the table and the paragraphs to the next heading are the 2026-09-08 picture.** Now: every behaviour's `JsonParamsDtoType` is its ONE named params DTO (`[Behavior(Params = …)]`, or an asset's `ParamsDtoTypeId`, `NoParams` when it takes nothing — R-2000/R-2004, CE-2134/CE-2135); a generated BTree/HSM no longer publishes its `*_Blackboard` / Inputs mirror; `[BehaviorContract]` and `BehaviorSchemaDiscovery`'s contract arm are retired — `ParamsDtoRegistry` is the one producer; `JoinFormation` names `JoinFormationParams`. 📄 `docs/DESIGN_Orders_Params_Entity_Classes.md` §1, §5b, §13.
 
 | behaviour kind | `JsonParamsDtoType` | `BlackboardLayoutType` | shapes |
 |---|---|---|---|
@@ -874,7 +878,7 @@ discovered structs. ⇒ **a variable can be struct-typed; a parameter cannot.**
 | date | ruling |
 |---|---|
 | `2026-06-06` | **architect-approved**: defaults → scenario JSON overlay, **runtime wins**, once at assignment |
-| `2026-07-13` | resolver design: **`{Input, State}` only — no "Param" role**; resolve **once** at activation |
+| `2026-07-13` | resolver design: **`{Input, State}` only — no "Param" role**; resolve **once** at activation — ⛔ *roles SUPERSEDED `2026-10-13` (`CE-3193`): no roles at all; params = the named DTO in `Params`* |
 | `2026-08-15` | ⭐ *"what is not used does not mean it is existing without reason — a design doc gives answers"* |
 | `2026-08-16` | ⭐⭐⭐ **Instances use the RESOLVER shape**, not `Overrides` |
 | `2026-08-16` | ⭐⭐⭐ **one mental model, one UI, one implementation** — blueprint vars are not different |
