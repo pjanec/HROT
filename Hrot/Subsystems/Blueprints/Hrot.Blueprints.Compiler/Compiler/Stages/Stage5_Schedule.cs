@@ -2971,24 +2971,8 @@ internal sealed class GraphScheduler
                 });
                 break;
 
-            // GetParameter (GAP-11): reads a declared AiPrimitive/Instance Parameter -- mirrors
-            // GetVariableNode exactly except it resolves against a PARAMS-ONLY index (never a
-            // combined Variables/WorkingState/Parameters index -- see FindParameterIndex) and
-            // lowers to the pre-existing IrOp_ReadParam (StatementEmitter already emits
-            // `p.{ParamFieldName}` for it; no new IR op, no new StatementEmitter case).
-            case GetParameterNode gp:
-                int paramIdx = FindParameterIndex(gp.ParameterId);
-                result = AllocValue(pinType);
-                stmts.Add(new IrStatement
-                {
-                    ResultValue = result,
-                    Operation   = new IrOp_ReadParam(paramIdx),
-                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gp.Id, PinId = sourcePinId },
-                });
-                break;
-
-            // GetAllParameters: one out-pin per asset.Parameters entry -- mirrors GetParameterNode's
-            // IrOp_ReadParam lowering, but (like EventEntryNode's data-out pins, which are matched
+            // GetAllParameters (⭐ CE-2135 P4: the one Parameter read — Get Parameter retired): one out-pin per
+            // asset.Parameters entry, lowered to IrOp_ReadParam, but (like EventEntryNode's data-out pins, which are matched
             // by NAME against Graph.Inputs) resolves the param index by matching the SPECIFIC
             // requested out-pin's Name against asset.Parameters (FindParameterIndex's non-Guid
             // fallback already does a plain name match), rather than a single baked ParameterId.
@@ -5147,7 +5131,7 @@ internal sealed class GraphScheduler
     }
 
     /// <summary>
-    /// Params-ONLY index lookup for <see cref="GetParameterNode"/> (GAP-11): searches
+    /// Params-ONLY index lookup for <see cref="GetAllParametersNode"/> (GAP-11; its Get Parameter twin retired, CE-2135 P4): searches
     /// <c>_typed.Asset.Parameters</c> alone, because <c>IrOp_ReadParam</c>'s index is resolved by
     /// <c>EmissionContext.ParamFieldName</c> against that list alone.
     ///

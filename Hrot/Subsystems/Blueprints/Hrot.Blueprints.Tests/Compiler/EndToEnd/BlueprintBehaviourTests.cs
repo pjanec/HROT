@@ -162,7 +162,7 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
 
     /// <summary>
     /// A behaviour with Parameter <c>Speed</c> (default 2), Variable <c>Mirrored</c>, and a resolver graph
-    /// <c>Mirrored = Speed</c> (Get Parameter → Set Variable). ⭐ The resolver reads the AUTHORED input and writes STATE.
+    /// <c>Mirrored = Speed</c> (Get All Parameters → Set Variable). ⭐ The resolver reads the AUTHORED input and writes STATE.
     /// </summary>
     private static BlueprintAsset BehaviourWithResolver(string name, Action<Graph>? tweakResolver = null)
     {
@@ -177,8 +177,9 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         var entry = new EventEntryNode { Id = Guid.NewGuid() };
         var eOut  = new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() };
         entry.Pins.Add(eOut);
-        var get   = new GetParameterNode { Id = Guid.NewGuid(), ParameterId = speed.Id.ToString() };
-        var gOut  = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "Out", TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
+        // ⭐ CE-2135 P4 — Get Parameter retired; Get All Parameters' pin named after the Parameter reads it.
+        var get   = new GetAllParametersNode { Id = Guid.NewGuid() };
+        var gOut  = new Pin { Id = Guid.NewGuid(), Name = speed.Name, Direction = "Out", TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
         get.Pins.Add(gOut);
         var set   = new SetVariableNode { Id = Guid.NewGuid(), VariableId = mirrored.Id.ToString() };
         var sIn   = new Pin { Id = Guid.NewGuid(), Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() };

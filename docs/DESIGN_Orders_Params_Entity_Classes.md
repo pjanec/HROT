@@ -1582,7 +1582,7 @@ Fdp.Toolkits tick arms + possession 85/0, SimHost 16/0, Blueprints 4203/2 — th
 (`ViewsAreUnreadTests` flags `Stage2_Validate.cs:2835`, CE-2133's BP1689 rule, which P4 rewrites; `CatalogTests` AimAndFire pins 4 vs 8 — the
 channel-command catalog). ⚠ Not re-run at the base sha.
 
-### 13.10 P4 — no blueprint declares Parameters; every kind names a params DTO *(CE-2135 B3b-2; R-2004, steers 1–2; build-state: BUILDING `2026-10-13`, backend — steps ①②③④ built, as-built at the end of this section)*
+### 13.10 P4 — no blueprint declares Parameters; every kind names a params DTO *(CE-2135 B3b-2; R-2004, steers 1–2; build-state: BUILDING `2026-10-13`, backend — steps ①–⑤ built, as-built at the end of this section)*
 
 **INVENTORY** *(read-only sweep 2026-10-13 + grep; file:line in the CE-2135 report)*: `ParameterDecl` (`Declarations.cs:16`) is ALSO the
 element type of graph Inputs / Outputs, custom-event and dispatcher parameters ⇒ only its use as a blueprint **Parameter declaration kind**
@@ -1697,6 +1697,14 @@ sequenceDiagram
   class is right by construction. Golden movement: the two host lines + one member per resolver class. CE-2130 allow-list −2 (T40,
   HsmResolverDemo); `T40_BehaviorResolverAsset_ProofTests.ThePublishedContract_IsTheResolversParameters` now asserts the DTO.
   ⭐ **No shipped `.bp.json` declares a Parameter any more.**
+- **⑤ Get Parameter retired** *(2026-10-13, steer 2)* — `GetParameterNode` deleted (its JSON kind, registry row, Stage 0/5 arms, editor
+  title/category/pin projection/pin label). The two graphs that used it (`HsmGuardDemo` 1, `DangerCrossingBp` 4) were migrated by script:
+  each node became a pin-less `GetAllParameters` node with the SAME id and position, its links re-pointed to the pin named after the
+  parameter (`DeterministicIds.PinId(node, name, "Out")` — measured identical to an existing asset's pins before use). Test sites
+  re-homed: the resolver fixture reads `Speed` off Get All Parameters; the editor pin rail now pins the DTO-naming projection
+  (`GetAllParameters_ADtoNamingAsset_ProjectsOnePinPerDtoField` — the editor-twin rail ① owed); the coverage fixture and title test went
+  with the node. `BlueprintGraphModel.ResolvePinDisplayLabel` stays (its doc names other future clients); only its Get Parameter arm went.
+  Golden movement, measured: none in code — the migrated graphs emit byte-identical C# (only the corpus hashes moved).
 - **Not yet**: the editor's Variables / Details panels still list only DECLARED Parameters (a DTO-named asset shows none) — the canvas
   pins are right (`ParametersOf`), the panels are the ui lane's surface (P5b). Steps ③–⑦ follow.
 

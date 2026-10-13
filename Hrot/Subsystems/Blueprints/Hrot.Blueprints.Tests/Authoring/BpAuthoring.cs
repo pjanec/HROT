@@ -150,8 +150,8 @@ internal sealed class BpGraph
     public LiteralNode Enum(string enumFqn, string member) => Lit("global::" + enumFqn, $"global::{enumFqn}.{member}");
 
     public GetVariableNode Get(string var) => Add(new GetVariableNode { VariableId = _a.V(var).Id.ToString() });
-    public GetParameterNode Param(string name)
-        => Add(new GetParameterNode { ParameterId = _a.Asset.Parameters.Single(p => p.Name == name).Id.ToString() });
+    /// <summary>⭐ CE-2135 P4 — the one Parameter read (Get Parameter retired): link from the pin named after the Parameter.</summary>
+    public GetAllParametersNode Params() => Add(new GetAllParametersNode());
 
     /// <summary>SetVariable <paramref name="var"/> ← <paramref name="value"/>.<paramref name="valuePin"/> (or its single output).</summary>
     public SetVariableNode Set(string var, Node value, string? valuePin = null)
