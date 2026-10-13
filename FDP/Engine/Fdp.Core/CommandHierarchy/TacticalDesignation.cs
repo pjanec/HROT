@@ -14,5 +14,8 @@ namespace Fdp.Core.CommandHierarchy
         Support      = 4,
         /// <summary>⭐ CE-2125 — a fire-team leader: first in line when the squad leader falls (§7.2 L1).</summary>
         TeamLeader   = 5,
+        /// <summary>⭐ <c>CE-2152</c> C-c (R-2012 K3′) — the squad's medic: the one the commander sends for a man who is down. CGF-local like
+        /// <see cref="TeamLeader"/> (⚠ neither is in the NED wire enum <c>eTacticalDesignation</c> yet).</summary>
+        Medic        = 6,
     }
 }

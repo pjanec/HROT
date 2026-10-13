@@ -32,6 +32,7 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             _repo.RegisterComponent<UnitEntity>();
             _repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             _repo.RegisterComponent<SimTransform>();
+            _repo.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
         }
 
         public void Dispose() => _repo.Dispose();
@@ -224,6 +225,55 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
 
             At(12);
             Assert.DoesNotContain((commander, SensorChange.SquadLeaderDown), EdgesAfter(() => system.Execute(_repo, 0.016f)).Select(e => (e.Unit, e.What)));
+        }
+
+        /// <summary>A man DOWN: alive, under the type's incapacitated band (25 of 100 HP, band 0.3).</summary>
+        private void Down(Entity m)
+        {
+            _repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            _repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(m).Current = 25f;
+        }
+
+        /// <summary>⭐ <c>CE-2152</c> C-c (R-2012 K6, Squad Tactics §7.5) — a leader who is DOWN (not dead) hands over exactly like a dead
+        /// one, and a down man is never the one picked. ✅ Red-proof: <c>Succession</c> back on <c>CombatLife.IsAlive</c> ⇒ red.</summary>
+        [Fact]
+        public void CE2152_ADownLeader_HandsOverLikeADeadOne_AndADownManIsNeverPicked()
+        {
+            var (commander, m) = Designated(TacticalDesignation.SquadLeader, TacticalDesignation.TeamLeader, TacticalDesignation.Wingman);
+            var system = new SquadCoordinationSystem();
+            At(1); EdgesAfter(() => system.Execute(_repo, 0.016f));
+            Down(m[1]);                                   // the team leader is down first
+            Down(m[0]);                                   // then the leader
+            At(2);
+            var edges = EdgesAfter(() => system.Execute(_repo, 0.016f)).Select(e => (e.Unit, e.What)).ToArray();
+
+            Assert.Contains((commander, SensorChange.SquadLeaderDown), edges);
+            Assert.Equal(m[2], _repo.GetComponentRO<SquadLeadership>(commander).Leader);   // not the down team leader
+        }
+
+        /// <summary>⭐ <c>CE-2152</c> C-c (R-2012 K1) — a man going down raises ONE <c>SquadMemberDown</c> on the commander, naming him;
+        /// never again for him, once for the next man; a dead man is not "down". ✅ Red-proof: drop the <c>MemberDown</c> call ⇒ red.</summary>
+        [Fact]
+        public void CE2152_AManGoingDown_RaisesSquadMemberDown_OnceForHim_OnTheCommander()
+        {
+            var (commander, m) = Designated(TacticalDesignation.SquadLeader, TacticalDesignation.Wingman, TacticalDesignation.Wingman);
+            var system = new SquadCoordinationSystem();
+            At(1); EdgesAfter(() => system.Execute(_repo, 0.016f));
+
+            Down(m[1]);
+            At(2);
+            var first = EdgesAfter(() => system.Execute(_repo, 0.016f)).Where(e => e.What == SensorChange.SquadMemberDown).ToArray();
+            Assert.Equal(commander, Assert.Single(first).Unit);
+            Assert.Equal(m[1], first[0].Target);
+
+            At(3);
+            Assert.DoesNotContain(EdgesAfter(() => system.Execute(_repo, 0.016f)), e => e.What == SensorChange.SquadMemberDown);
+
+            Kill(m[2]);                                   // dead is not down
+            Down(m[2]);
+            Kill(m[2]);
+            At(4);
+            Assert.DoesNotContain(EdgesAfter(() => system.Execute(_repo, 0.016f)), e => e.What == SensorChange.SquadMemberDown);
         }
 
         /// <summary>⭐ L1 — no team leader ⇒ the first live member in roster order; a squad that never had a designated leader loses none.</summary>

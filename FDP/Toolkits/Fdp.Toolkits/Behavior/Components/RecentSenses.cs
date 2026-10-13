@@ -27,6 +27,8 @@ namespace Fdp.Toolkit.Behavior.Components
         public double SquadContact, SquadUnderFire, SquadAllClear;
         /// <summary>⭐ <c>CE-2125</c> — kind 14, on the commander.</summary>
         public double SquadLeaderDown;
+        /// <summary>⭐ <c>CE-2152</c> C-c — kind 15, on the commander: a member went down.</summary>
+        public double SquadMemberDown;
         /// <summary>Bit <c>1 &lt;&lt; (int)kind</c> set once that kind has happened at least once (kinds up to 15).</summary>
         public ushort SeenMask;
 
@@ -49,6 +51,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 case SensorChange.SquadUnderFire: SquadUnderFire = now; break;
                 case SensorChange.SquadAllClear:  SquadAllClear  = now; break;
                 case SensorChange.SquadLeaderDown: SquadLeaderDown = now; break;
+                case SensorChange.SquadMemberDown: SquadMemberDown = now; break;
                 default: return;
             }
             SeenMask |= (ushort)(1 << (int)kind);
@@ -79,6 +82,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 SensorChange.SquadUnderFire => SquadUnderFire,
                 SensorChange.SquadAllClear  => SquadAllClear,
                 SensorChange.SquadLeaderDown => SquadLeaderDown,
+                SensorChange.SquadMemberDown => SquadMemberDown,
                 _                        => double.NegativeInfinity,
             };
             return true;

@@ -48,6 +48,10 @@ namespace Fdp.Toolkit.Perception.Events
 
         /// <summary>⭐ <c>CE-2125</c> (§7.2 L3) — the squad's leader soldier fell; the next man took over. Published on the COMMANDER.</summary>
         SquadLeaderDown = 14,
+
+        /// <summary>⭐ <c>CE-2152</c> C-c (R-2012 K1, R-a) — a squad member is DOWN (incapacitated, alive, bleeding): once per man.
+        /// Published on the COMMANDER; <see cref="SensorChangedEvent.Target"/> is the man.</summary>
+        SquadMemberDown = 15,
     }
 
     /// <summary>

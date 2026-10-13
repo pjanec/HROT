@@ -101,7 +101,8 @@ namespace Fdp.Toolkit.Squad.Systems
                 if (first >= 0) leadership.Leader = roster.SubordinateEntities[first];
                 return;
             }
-            if (Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, leadership.Leader)) return;
+            // ⭐ CE-2152 C-c (R-2012 K6) — a DOWN leader hands over like a dead one: he cannot lead from the ground.
+            if (Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, leadership.Leader)) return;
 
             int next = Designated(repo, in roster, TacticalDesignation.TeamLeader);
             if (next < 0) next = FirstLive(repo, in roster);
@@ -116,6 +117,28 @@ namespace Fdp.Toolkit.Squad.Systems
             Publish(repo, commander, SensorChange.SquadLeaderDown);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2152</c> C-c (R-2012 K1, Squad Tactics §7.5) — publish <see cref="SensorChange.SquadMemberDown"/> on
+        /// <paramref name="commander"/> once for each member that is DOWN (incapacitated: alive, bleeding, out of the fight), with the man
+        /// as <see cref="SensorChangedEvent.Target"/>. Members never hear squad edges — the commander decides who goes (§7.5.1).
+        /// Remembered in <see cref="SquadLeadership.DownReported"/>; a squad with no leadership record (an unregistered type) has none.
+        /// </summary>
+        public static void MemberDown(EntityRepository repo, Entity commander)
+        {
+            if (!repo.IsComponentTypeRegistered<SquadLeadership>() || !repo.HasComponent<SquadLeadership>(commander)) return;
+            ref readonly var roster = ref repo.GetComponentRO<UnitRoster>(commander);
+            ref var leadership = ref repo.GetComponentRW<SquadLeadership>(commander);
+            for (int i = 0; i < roster.Count && i < 16; i++)
+            {
+                ushort bit = (ushort)(1 << i);
+                if ((leadership.DownReported & bit) != 0) continue;
+                var m = roster.SubordinateEntities[i];
+                if (m.IsNull || !Fdp.Toolkit.Combat.Injury.IsIncapacitated(repo, m)) continue;
+                leadership.DownReported |= bit;
+                repo.Bus.Publish(new SensorChangedEvent { Unit = commander, What = SensorChange.SquadMemberDown, Target = m });
+            }
+        }
+
         /// <summary>The first LIVE member carrying <paramref name="designation"/>, in roster order; −1 when none.</summary>
         private static int Designated(EntityRepository repo, in UnitRoster roster, TacticalDesignation designation)
         {
@@ -123,7 +146,7 @@ namespace Fdp.Toolkit.Squad.Systems
             {
                 var m = roster.SubordinateEntities[i];
                 var d = repo.HasComponent<UnitSubordinate>(m) ? repo.GetComponentRO<UnitSubordinate>(m).Designation : (TacticalDesignation)roster.TacticalDesignations[i];
-                if (d == designation && Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, m)) return i;
+                if (d == designation && Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, m)) return i;
             }
             return -1;
         }
@@ -131,7 +154,7 @@ namespace Fdp.Toolkit.Squad.Systems
         private static int FirstLive(EntityRepository repo, in UnitRoster roster)
         {
             for (int i = 0; i < roster.Count; i++)
-                if (Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, roster.SubordinateEntities[i])) return i;
+                if (Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, roster.SubordinateEntities[i])) return i;
             return -1;
         }
 

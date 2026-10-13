@@ -261,6 +261,31 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, t.History[2].Phase);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2152</c> C-c (R-2012 K6, R-a) — a man who is DOWN gets no order, and a bound does not wait for him: the runner's live
+        /// test is "in the fight". 🔴 Red before: <c>SquadPlayContext.Live</c> tested <c>CombatLife.IsAlive</c>, so a down mover got
+        /// orders he could not carry out and held the bound open until it timed out.
+        /// </summary>
+        [Fact]
+        public void CE2152_ADownMember_GetsNoOrder_AndTheBoundDoesNotWaitForHim()
+        {
+            var s = new Squad(members: 4);
+            var down = s.Members[1];
+            s.Repo.AddComponent(down, new Fdp.Toolkit.Combat.Components.Health { Current = 25f, Max = 100f });
+            s.Repo.AddComponent(down, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":60}");
+            s.Tick(); s.Tick();
+
+            var orders = s.LastObjectives();
+            Assert.False(orders.ContainsKey(down));
+            Assert.Equal(3, orders.Count);
+            Assert.Equal(255, SquadDrillTrace.Of(s.Repo, s.Commander).Orders[1].Kind);
+
+            s.Teleport(s.Members[0], orders[s.Members[0]]);   // the one Alpha mover in the fight arrives
+            s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, s.Phase);
+        }
+
         [Fact]
         public void CE507_BoundingOverwatch_ABoundThatNeverCompletes_TimesOut_AndTheOtherElementMoves()
         {

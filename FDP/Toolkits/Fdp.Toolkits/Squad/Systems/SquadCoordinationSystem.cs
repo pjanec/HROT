@@ -71,6 +71,7 @@ namespace Fdp.Toolkit.Squad.Systems
             foreach (var commander in _commanders)
             {
                 SquadSensing.Succession(repo, commander, now);   // ⭐ CE-2125 — the leader fell ⇒ the next man, a lull, an edge
+                SquadSensing.MemberDown(repo, commander);        // ⭐ CE-2152 C-c — a man is down ⇒ one edge on the commander
                 int before = repo.GetComponentRO<SquadCognitiveState>(commander).Contacts.Count;
                 bool merged = SquadPerceptionMergeSystem.Run(repo, commander, tick, MergeIntervalTicks);
                 if (!merged) continue;

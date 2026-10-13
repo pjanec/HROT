@@ -23,6 +23,7 @@ namespace Fdp.Toolkit.Behavior.Shared
             "Sensor.AreaAhead", "Sensor.AreaThreatened", "Sensor.AreaCleared",   // ⭐ CE-3072 B0 — ids 0xFF08–0xFF0A, the danger-area sensor
             "Sensor.SquadContact", "Sensor.SquadUnderFire", "Sensor.SquadAllClear",   // ⭐ CE-2123 S2 — ids 0xFF0B–0xFF0D, on the commander
             "Sensor.SquadLeaderDown",   // ⭐ CE-2125 — id 0xFF0E, on the commander
+            "Sensor.SquadMemberDown",   // ⭐ CE-2152 C-c — id 0xFF0F, on the commander
         };
 
         /// <summary>The reserved id of a sensor change (its <c>SensorChange</c> value, 1-based).</summary>
