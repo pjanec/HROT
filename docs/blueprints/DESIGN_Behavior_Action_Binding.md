@@ -824,6 +824,7 @@ at the root and hosted at two sites (two working states); ③ goldens: the three
 | `HsmFluentBindingExtensions` — `state.Activity` (plain / stateful; pairs the deactivator as the exit when the state has none), `OnEntry`, `OnExit` (clears a paired id), `transition.Guard` (plain / stateful), `transition.Action` | `Hrot.AI.Behaviors/Brains/HsmFluentBindingExtensions.cs` |
 | ⚠ found while building: the graph validator requires every action / guard NAME to be registered on the graph, and a typed helper holds only the `StateBuilder` ⇒ `StateBuilder.RegisterAction`, `TransitionBuilder.RegisterGuard` / `RegisterAction` added (they add to the same sets as `HsmBuilder.RegisterAction`) | `Fhsm.Compiler/HsmBuilder.cs` |
 | ⭐ **deviation from D7** — no demo machine in `Hrot.AI.Behaviors`: a curated machine is listed in the behaviour palette, so a demo would ship to authors. The proof is two rails in the hosting feature suite instead | `HostingMatrixTests.CE3163_*` |
+| 🔒 **user, 2026-10-13 — for next time:** *"Hsm Demo can go to demo subfolder next time"* ⇒ a fluent-HSM demo belongs in a Demos subfolder (as `Assets/BTrees/Demos`, `Assets/Blueprints/Demos`), not left out | — |
 
 **Rails** (`HostingMatrixTests`, the hosting feature suite, 14/14): `CE3163_AFluentHsm_AtTheRoot_ReadsItsOrderAndKeepsItsWorkingState`
 (an order `{"Limit":7}` reaches the bound params, the working state counts across frames) and
