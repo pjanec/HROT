@@ -616,7 +616,7 @@ and ids 356–364 are the backend lane's — ours come from the squad block (274
 | `CgfLogicPackTests` (count 20 + contains `UnitCentroidSystem`) | the pack really runs it | — |
 | live `SquadTacticsScenarioTests` ×2 + `FireDistributionScenarioTests` | the migrated scenarios; on SimHost the commander stands at its men's centre and the enemy never remembers it | ✅ live green `2026-10-11`: fire distribution 9 s (five members, the leader among them), S2 45 s, S1 41 s |
 
-### 7.4 L4 — casualty care *(behaviors, `2026-10-13`, `CE-2152` C-b; build-state: DESIGN — decisions K1–K6 await the user; the carry actions it uses are [`DESIGN_Entity_Interactions.md`](../../DESIGN_Entity_Interactions.md) §7.4.10)*
+### 7.4 L4 — casualty care *(behaviors, `2026-10-13`, `CE-2152` C-b; build-state: DESIGN — K1–K6 ruled 2026-10-13 (R-2012: medic, cover point, covering fire); the coordination is open (§7.5); the carry actions it uses are [`DESIGN_Entity_Interactions.md`](../../DESIGN_Entity_Interactions.md) §7.4.10)*
 
 📖 **Doctrine (§7.2's, general knowledge):** fire superiority first; the casualty is treated when the situation allows; one man goes to
 him and moves him; the leader keeps control. **Now possible:** a man can be *down* (CE-2155) and a soldier can drag him (CE-2152 C-a, C-b).
@@ -647,6 +647,11 @@ more order kind.*
 | **K4** | to where | ⭐ beside the squad leader (his position, 2 m to his rear), dragged | none beyond the order | a casualty collection point from EQS (MED-3, "covered, reachable by vehicle") |
 | **K5** | what the others do | ⭐ hold where they are (the existing `Hold` order), then every order is re-sent when care ends (the S1-G resume path, like L2) | the runner's existing resume | — |
 | **K6** | a DOWN leader (found while measuring) | ⭐ counts as lost: `Succession` hands over when the leader is out of the fight, not only dead — today an incapacitated leader keeps the squad | `SquadSensing.Succession` + its `Designated` / `FirstLive` picks (`CombatLife.IsAlive` → `Injury.IsInTheFight`) | — |
+
+⭐ **Ruled `2026-10-13` (R-2012)** — 🔒 user: *"I want a medic waiting in cover to come for the wounded and carry him to cover point, and
+others giving covering fire. Otherwise approved."* ⇒ K1, K2, K5, K6 approved as leaned; **K3 → a MEDIC** (a designated member, waiting
+in cover); **K4 → a COVER POINT** (not "beside the leader"); **K5 → the others give COVERING FIRE** (not merely hold). How the medic is
+told, and how covering fire starts and ends, is the open design (§7.5, discussion).
 
 Rejected (one line each): **each soldier decides alone to help the nearest man down** — two men would go for one casualty, and nobody
 weighs the fire; **care at once, under fire** — doctrine says fire first, and a dragger cannot shoot (C7); **a vehicle evacuation** — MED-3,
