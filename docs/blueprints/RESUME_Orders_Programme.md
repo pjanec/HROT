@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-13 (§0 — the overnight run's handoff)
 doc-type: RESUME — the orders / params DTOs / entity classes programme (any lane picking up a task). ⚠ A STATE doc: verify every "built" / "dispatched" line against git before acting.
-current-answer: ⭐ §0 the overnight handoff (2026-10-13) — START THERE · then §2 how to pick a task · §3 the lanes
+current-answer: ⭐ design §13 (2026-10-13, finishing the params story: decisions, work P1–P8 by lane, backend handoff HANDOFF_Params_Finish_Backend.md) — then §0 the overnight handoff · then §2 how to pick a task · §3 the lanes
 stale-below: nothing
 known-rot: §1's table predates the overnight run — its "DangerCrossing (next)", "B4 may run" and CE-2131 🟡 are DONE (see §0); §0 wins where they differ
 known-conflict: none
@@ -11,6 +11,7 @@ related-designs:
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — the rulings R-273..R-281 (behaviors) and how they were reached
   - docs/blueprints/HANDOFF_Orders_Track_B_Params_Internals.md — Track B dispatch
   - docs/blueprints/HANDOFF_Orders_Track_C_Classes_And_Dis.md — Track C dispatch
+  - docs/blueprints/HANDOFF_Params_Finish_Backend.md — 2026-10-13: finishing the params story, backend P1/P2/P3/P4/P8 (design §13)
   - docs/blueprints/HANDOFF_Embark_I2d_And_Unit_Orders.md — embarkation I-2d; NOT deferred (R-282), runs in parallel — see §1a
 -->
 
