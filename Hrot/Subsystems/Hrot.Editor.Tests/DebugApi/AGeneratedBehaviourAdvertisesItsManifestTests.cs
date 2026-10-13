@@ -113,7 +113,7 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
 
         Assert.NotNull(def.JsonParamsDtoType);
         Assert.NotNull(def.BlackboardLayoutType);
-        Assert.Equal("T09_BlackboardManaged_Blackboard", def.JsonParamsDtoType!.Name);
+        Assert.Equal("T09Params", def.JsonParamsDtoType!.Name);   // ⭐ CE-2135 P4 ⑥ — its NAMED DTO (was the generated _Blackboard mirror)
         Assert.Equal("T09_BlackboardManaged_Block", def.BlackboardLayoutType!.Name);
         Assert.Same(def.JsonParamsDtoType, def.BlackboardLayoutType.GetField("In")!.FieldType);
         Assert.Equal(0, (int)System.Runtime.InteropServices.Marshal.OffsetOf(def.BlackboardLayoutType, "In"));
@@ -307,16 +307,21 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
     /// HSM generator emits no blackboard struct, so there is no type to name and the manifest IS the authored contract"</i>.
     /// The HSM generator now calls the same <c>EmitBlackboardStructSource</c> as the BTree, so an HSM publishes its Inputs
     /// struct and lays out its block exactly like a BTree — and the generic block rail above covers it.
+    /// <para>⛔ <b>SUPERSEDED in part (CE-2135 P4 ⑥, R-2004):</b> "publishes its Inputs struct" — the generated mirror is no longer a
+    /// contract; the HSM publishes its NAMED DTO. The block half stands.</para>
     /// </summary>
     [Fact]
-    public void AnHsmBehaviourPublishesItsInputsStruct_AndLaysOutItsBlock()
+    public void AnHsmBehaviourPublishesItsNamedDto_AndLaysOutItsBlock()
     {
         BehaviorDefinition def = Definition(LoadProductionRegistry(), "HsmVariableShowcase");
 
-        Assert.True(IsGeneratedBlock(def), "the HSM's layout is {Asset}_Block whose In is its published Inputs struct");
+        // ⭐ CE-2135 P4 ⑥ (R-2004) — the asset names NoParams: its published contract is the DTO, not a generated Inputs mirror;
+        //   it still lays out its block like a BTree (the CE-416 point), with its plain variable in In and its State in St.
+        Assert.Equal("Hrot.Map.Definitions.Behavior.NoParams", def.JsonParamsDtoType?.FullName);
         Assert.Equal("HsmVariableShowcase_Block", def.BlackboardLayoutType!.Name);
+        Assert.NotNull(def.BlackboardLayoutType.GetField("In"));   // Threshold — a plain packed variable
         Assert.NotNull(def.BlackboardLayoutType.GetField("St"));   // Cursor, Ticks — in the block, not side slots
-        Assert.Contains("Threshold", PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));
+        Assert.DoesNotContain("Threshold", PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));   // ⛔ never JSON
     }
 
     /// <summary>

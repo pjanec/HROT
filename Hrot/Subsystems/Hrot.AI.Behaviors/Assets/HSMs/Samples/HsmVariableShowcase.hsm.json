@@ -177,5 +177,6 @@
         "Scope": "Behavior"
       }
     ]
-  }
+  },
+  "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams"
 }

@@ -252,35 +252,23 @@ public sealed class HsmGoldenCorpusTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b><c>BP-281</c> — INVERTED in Batch 74. An HSM <c>Role=Input</c> variable now reaches
-    /// emitted output.</b>
-    ///
-    /// <para>
-    /// 🔴 <b>What this used to assert, and why it existed.</b> Batch 71 measured that <c>Threshold</c>
-    /// (a <c>Role=Input</c> variable with a <c>DefaultValueJson</c>) appeared in <b>neither</b> emitted
-    /// part — <c>HsmBridgeEmitCore</c> emitted a stateful-slot manifest and <b>no params handling of
-    /// any kind</b>. ⇒ <c>DEBT-AIB-021</c>'s fix had no HSM counterpart to fix. The test asserted that
-    /// gap deliberately, named for what it was, with the standing instruction to <b>invert it, not
-    /// delete it</b>, when the path was built. 📌 This is that inversion.
-    /// </para>
-    ///
-    /// <para>
-    /// ⚠ <b>It asserts the variable is NAMED in the registrar</b> — the overlay arm is keyed by
-    /// variable name, so the name appearing is the observable difference between "authored" and
-    /// "reachable". ⭐ The bytes themselves are held by
-    /// <c>HsmParseParamsEmissionTests</c>, which compiles and runs what this emits.
-    /// </para>
+    /// ⭐⭐⭐ <b><c>BP-281</c> → ⭐ <c>CE-2135</c> P4 ⑥ (R-2004)</b> — an HSM's authored variable reaches the emitted registrar as a
+    /// BAKED default, and its params JSON is the asset's NAMED DTO, never the variable.
+    /// <para>⛔ <b>SUPERSEDED (2026-10-13):</b> <i>"an HSM <c>Role=Input</c> variable reaches emitted output"</i> asserted the keyed
+    /// overlay arm (<c>case "Threshold":</c>) — the legacy Input path R-2004 retires. <c>HsmVariableShowcase</c> now names
+    /// <c>NoParams</c> (no caller sends it JSON); <c>Threshold</c> stays a plain packed variable (bindable, baked, never JSON).</para>
+    /// <para>🔴 Red-proof: drop <c>ParamsDtoTypeId</c> from the asset → the keyed <c>case "Threshold":</c> arm comes back.</para>
     /// </summary>
     [Fact]
-    public void AnHsmRoleInputVariable_ReachesTheEmittedRegistrar()
+    public void AnHsmPlainVariable_IsBaked_AndItsJsonIsTheNamedDto()
     {
         var parts = Kind.Emit(AiAssetCorpus.ReadAsset(Kind, "HsmVariableShowcase"));
 
         string registrar = parts.Single(p => p.HintName.Contains("Registrar", StringComparison.Ordinal)).Source;
 
-        Assert.Contains("ParseParams  = __parseParams,", registrar);   // CE-416: the shared emission
-        Assert.Contains("case \"Threshold\":", registrar);   // the overlay arm, keyed by variable name
-        Assert.Contains("\"1.5\"", registrar);               // the authored default, baked
+        Assert.Contains("RequireNoStoredFields(json, \"HsmVariableShowcase\", \"Hrot.Map.Definitions.Behavior.NoParams\")", registrar);
+        Assert.DoesNotContain("case \"Threshold\":", registrar);   // ⛔ no keyed overlay: the variable is not JSON
+        Assert.Contains("\"1.5\"", registrar);                     // the authored default, still baked
 
         // ⛔ The topology core stays out of it: params are the bridge's job, not the blob's.
         string core = parts.Single(p => p.HintName == "g.cs").Source;
@@ -298,7 +286,7 @@ public sealed class HsmGoldenCorpusTests
 
         Assert.Contains("SampleGuard",          names);   // shipped: the minimal machine
         Assert.Contains("HsmShowcase",          names);   // shipped: parallel + history + deferral
-        Assert.Contains("HsmVariableShowcase",  names);   // seeded: Role=Input + Role=State (E1/E2)
+        Assert.Contains("HsmVariableShowcase",  names);   // seeded: a plain variable + Behavior-scoped State (E1/E2; CE-2135 P4: NoParams)
         Assert.Contains("HsmOrthogonalRegions", names);   // seeded: two regions on one shared slot (E3)
     }
 

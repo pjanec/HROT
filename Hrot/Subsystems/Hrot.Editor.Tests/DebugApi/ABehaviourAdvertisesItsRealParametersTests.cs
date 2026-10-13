@@ -317,7 +317,9 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         //   its C# twin's contract), Demo_MissionPlan (DemoMissionPlanParams), Demo_TaskChain (DemoTaskChainParams).
         // CE-2135 (P4 ④, 2026-10-13) removed 2 whose resolver blueprint now names a params DTO and publishes it
         //   (PublishedParams, P4-e): HsmResolverDemo (HsmResolverDemoParams), T40_BehaviorResolverAsset (T40ResolverParams).
-        "HsmChannelE2E", "HsmVariableShowcase", "T09_BlackboardManaged", "T20_MultiStateful",
+        // CE-2135 (P4 ⑥, 2026-10-13) removed 3 legacy fixtures: T09_BlackboardManaged (T09Params), T20_MultiStateful (T20Params,
+        //   its nodes bind Params.<field>), HsmVariableShowcase (NoParams — no caller sends it JSON; Threshold stays a plain variable).
+        "HsmChannelE2E",
     };
 
     /// <summary>⭐ CE-2130 — true when <paramref name="t"/> is a generator's mirror of a behaviour's own variables rather
