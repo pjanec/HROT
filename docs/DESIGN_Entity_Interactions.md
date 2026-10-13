@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-12 (I-2a BUILT — §7.1b; I-2b BUILT — §7.1d)
+updated: 2026-10-13 (§7.4 carrying by type — DESIGN, leans await the user)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.4 carrying is a type fact (R-274, DESIGN 2026-10-13) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
@@ -652,3 +652,128 @@ sequenceDiagram
 | `EmbarkExecutorTests.CE1056_*` (FDP, 2) | the Disembark executor raises once, the owner applies, Success; not aboard ⇒ Success; no answer ⇒ timeout |
 
 **Deviations from §7.3:** none in the classes or the sequence.
+
+### 7.4 Carrying is a type fact — capacity, seats, the person carrier *(R-274 (behaviors); build-state: DESIGN `2026-10-13` — leans await the user; behaviors lane; `CE-2151` (B), `CE-2152` (C))*
+
+🔒 *User, 2026-10-12 (AQ90 §0 B, C): "carrying capacity and seats (driver, gunner, passenger) belong to the vehicle type" — yes ·
+"a soldier carrying or dragging a wounded comrade is the same embark mechanism with a 'human carrier' profile" — yes.*
+📄 The rulings and the first measurements: [AQ90 §3](blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md) rows B and C.
+
+#### 7.4.0 INVENTORY *(graph CLI `search_graph` `.*PassengerBuffer.*` (22, `has_more:false`) · `.*Embark.*` · `.*Passenger.*` · `.*Seat.*` (7, none a seat) · `.*Carr(y|ier).*`, + grep, 2026-10-13)*
+
+| what | where | what it means for carrying |
+|---|---|---|
+| `PassengerBuffer { Passengers[8], Count }`, `const Capacity = 8` | `InteractionComponents.cs:12-35` | capacity is a COMPILE-TIME constant on every carrier |
+| every brained entity gets an empty `PassengerBuffer` | `BehaviorTkbTranslator.cs:161-162` | a soldier is a valid "vehicle" today (the gap R-274 closes) |
+| the list is PACKED: `TryEmbark` appends, `Disembark` swap-removes | `Embarkation.cs:88-109` | a slot is NOT a seat today |
+| the wire `EntityPassengers { Count, Passenger0..7 }`; egress reads `i < Count`, ingress appends | `SimDescriptors.cs:233-248`, `EntityPassengersTranslators.cs:60,144-147` | 8 is also the WIRE maximum; seat-indexed slots change both codecs |
+| exposure per type: `VehicleParametersDto.PassengerExposure` → `OpenPassengerCabin` tag → `IsEmbarkedTag.Exposed` at boarding | `VehicleParametersDto.cs:89`, `VehicleKinematicsTkbTranslator.cs:81-85`, `Embarkation.cs:194` | the per-type precedent; no JSON or code template sets `Open` (grep, 0 hits) |
+| carried, killed with a destroyed vehicle | `EmbarkedStateSystem.CarryAndKill` (`EmbarkedStateSystem.cs:86-115`) | "dies with the carrier" is unconditional today |
+| crew, seats, roles | ⛔ none (`.*Seat.*` finds no seat; `Driver`/`Gunner` only in the possession camera) | the vehicle's own brain is its crew today |
+| injury states (ok / wounded / incapacitated) | ⛔ not built — `Health { Current, Max }` only (R-263 decided) | who MAY be carried cannot be stated yet |
+| TKB descriptors | 20 production `VehicleParametersDto` builders; the translator list is ONE (`TkbTranslatorSet.Base`, `TkbTranslatorSet.cs:89-106`) | a new descriptor needs one translator entry, every node |
+
+#### 7.4.1 Classes
+
+```mermaid
+classDiagram
+  class CarrierDefDto {
+    NEW TkbDescriptor Gen.Carrier
+    +Seats : SeatDto[] (max 8)
+    +Exposure : PassengerExposure
+    +DiesWithCarrier : bool = true
+    +Person : PersonCarryDto?
+  }
+  class SeatDto { NEW +Role : SeatRole +Exposed : bool? }
+  class SeatRole { NEW enum Passenger Driver Gunner Commander }
+  class PersonCarryDto { NEW +CarrySpeedFactor +DragSpeedFactor +CarryOffset +DragOffset }
+  class CarrierTkbTranslator { NEW in TkbTranslatorSet.Base }
+  class CarrierSeats {
+    NEW component, only on a declaring type
+    +SeatCount : byte
+    +Roles : SeatRole[8]
+    +ExposedMask : byte
+    +Flags : DiesWithCarrier, Person
+  }
+  class PassengerBuffer { existing: slot = SEAT, Null = empty (was packed) }
+  class IsEmbarkedTag { existing +Seat : byte NEW +Mode : Seated Carried Dragged NEW }
+  class Embarkation { existing +TryEmbark(p, v, role = Any, mode = Seated) }
+  class EmbarkedStateSystem { existing: kill reads DiesWithCarrier, offset by Mode }
+  class BehaviorTkbTranslator { existing: STOPS stamping PassengerBuffer }
+  class VehicleParametersDto { existing: PassengerExposure MOVES to Gen.Carrier }
+  CarrierDefDto *-- SeatDto
+  CarrierDefDto o-- PersonCarryDto
+  SeatDto --> SeatRole
+  CarrierTkbTranslator ..> CarrierDefDto : reads
+  CarrierTkbTranslator ..> CarrierSeats : stamps
+  CarrierTkbTranslator ..> PassengerBuffer : stamps
+  Embarkation ..> CarrierSeats : capacity, role, exposure
+  Embarkation ..> IsEmbarkedTag : writes Seat, Mode
+  EmbarkedStateSystem ..> CarrierSeats : DiesWithCarrier
+```
+
+*What the picture shows that prose hid: ONE descriptor serves both rulings — a truck and a medic declare the same `Gen.Carrier`, the
+medic with one seat and a `Person` block — so the person carrier is not a second mechanism; and the only existing classes that change
+are the four that hard-code "8, packed, everyone, always dies".*
+
+#### 7.4.2 Sequence — boarding a declared seat
+
+```mermaid
+sequenceDiagram
+  participant S as spawn (any node)
+  participant T as CarrierTkbTranslator
+  participant A as EmbarkationSystem (vehicle's owner)
+  participant E as Embarkation.TryEmbark
+  participant W as EntityPassengers wire
+  S->>T: type declares Gen.Carrier
+  T->>T: stamp CarrierSeats + PassengerBuffer (absent ⇒ the type carries nobody)
+  A->>E: EmbarkEntityCommand(passenger, vehicle, role = Any)
+  E->>E: first free seat whose role accepts the request, none ⇒ Full
+  E->>E: Passengers[seat] = p, tag = Vehicle + Seat + Mode + Exposed (seat, else type)
+  A->>W: egress all 8 slots by index (0 = empty)
+  W-->>A: ingress writes slot i, not Count++
+```
+
+#### 7.4.3 Modules
+
+```mermaid
+graph TD
+  TS[TkbTranslatorSet.Base - every node's spawn] --> CT[CarrierTkbTranslator NEW]
+  INT[CoreInfrastructureCapabilities.Interactions - every live node] --> ES[EmbarkationSystem]
+  INT --> ESS[EmbarkedStateSystem]
+  ES --> EMB[Embarkation rules]
+  ESS --> EMB
+  NED[EntityPassengers translators] -->|slot-indexed| EMB
+  K[kernel each frame] --> ES
+  K --> ESS
+```
+
+*What the picture shows that prose hid: nothing new is registered per host — the translator rides the one shared list and the
+appliers already run in the cross-role `Interactions` capability, so R-275's "no per-host initialisation" holds by construction.*
+
+#### 7.4.4 Decisions *(leans — for the user)*
+
+| # | question | ⭐ lean | blast radius | what would change it |
+|---|---|---|---|---|
+| **B1** | where a type declares carrying | ⭐ a NEW descriptor `Gen.Carrier` on any type (vehicle or person), not fields on `VehicleParametersDto` | one DTO, one translator in `TkbTranslatorSet.Base` | if persons should never carry — but ruling C says they do |
+| **B2** | `PassengerExposure` | ⭐ MOVE it into `Gen.Carrier` (type default) + a per-seat override; delete the `VehicleParametersDto` field — one producer, not two (R-132) | 1 field, 1 translator line; no data sets it (0 hits) | a staged TKB zip that sets it (none found in-repo) |
+| **B3** | who gets a `PassengerBuffer` | ⭐ ONLY a type declaring `Gen.Carrier`; `BehaviorTkbTranslator` stops stamping it | every carrier TEMPLATE must declare it (the convoy truck, the test vehicles — the 20 builders are the list to walk) | keeping a default 8-seat carrier for every vehicle would keep old scenarios unchanged, but re-opens "every vehicle carries" |
+| **B4** | seats | ⭐ slot = seat (no compaction); a request names a role (`Any` default); a Passenger seat takes anyone, a crew seat only its role; max 8 = the wire | `Embarkation` Board/Disembark/EjectAll, both passenger codecs, `DismountPoint` | — |
+| **B5** | who drives when the driver seat is empty | ⭐ unchanged: the vehicle's brain drives (crew stay abstract); a later per-type `RequiresCrew` may stop it | none now | a scenario that needs a vehicle immobile without a driver |
+| **B6** | per-seat exposure (a gunner's open hatch) | ⭐ yes, now — it is one bit per seat once slot = seat | `IsEmbarkedTag.Exposed` set from the seat | — |
+| **C1** | the person carrier | ⭐ `Gen.Carrier` on the soldier type: one seat, `Exposure = Open`, `DiesWithCarrier = false`, a `Person` block (speed factors, offsets) | data on soldier templates | — |
+| **C2** | carry vs drag | ⭐ one mechanism: a `Mode` on the request and the tag (`Carried` / `Dragged`) picks the offset and the speed factor | `IsEmbarkedTag`, `EmbarkedStateSystem` | — |
+| **C3** | who may be carried | ⭐ only an INCAPACITATED soldier (R-263) ⇒ **C is built after the injury states**; until then `TryEmbark` onto a `Person` carrier refuses | none until R-263 | — |
+| **C4** | where the speed factor applies | ⛔ **not measured**: the infantry locomotion speed source | C's build | the measurement, first step of C |
+
+Rejected (one line each): **capacity as a field on `VehicleParametersDto`** — a person is not a vehicle and ruling C needs the same
+field · **a separate "carry" interaction kind** — the user ruled it the same embark mechanism · **keep the packed list and store seat
+in the tag only** — the wire could not say which seat is free, so two nodes would seat two people in one seat.
+
+#### 7.4.5 Slices *(after approval)*
+
+| slice | what | rails |
+|---|---|---|
+| **B-a** (`CE-2151`) | `Gen.Carrier` + `CarrierTkbTranslator` + `CarrierSeats`; capacity from the type; `PassengerBuffer` only on a declaring type; `PassengerExposure` moved; every carrier template declares it | a soldier has no buffer · a 2-seat type refuses the 3rd · exposure from the type · the feature suites `EmbarkNodesTests`, `Embarkation*`, the convoy live run |
+| **B-b** (`CE-2151`) | seats: slot = seat, roles, per-seat exposure, slot-indexed codecs | a crew seat refuses a passenger · disembark leaves a hole the next board fills · wire round trip by slot |
+| **C** (`CE-2152`) | the person carrier — after R-263's injury states | carry/drag offsets, speed factor, survives the carrier's death |
