@@ -408,6 +408,27 @@ writes it (before `Pills`) — `MigrationEquivalenceTests` pins the editor's byt
 too. Allow-list 33 → 18: the blueprints with Parameters, the two resolver assets (`HsmResolverDemo`, `T40`), and the multi-variable
 fixtures (`T09`, `T10`, `T20`, `T35`, `T39`, `BTreeCuratedBindingDemo`) — B3b proper.
 
+**B3b re-measured** *(2026-10-13, behaviors; codebase-memory `search_graph` / `search_code` after a fresh index, grep corroboration;
+`check_index_coverage` is not reachable through the CLI, so the counts are best-effort)*:
+- ⭐ **Only 4 of the 9 allow-listed blueprints declare Parameters**: `DangerCrossingBp` (4), `Demo_MissionPlan` (3), `Demo_TaskChain` (2),
+  `PlatoonHillAttackBp` (6), counted from each `.bp.json` `Declarations` by `Kind` (AQ90's "four Parameter-declaring blueprints"). The other
+  five, `BlueprintBehaviourDemo`, `Demo_Advance`, `Demo_Engage`, `Demo_Retreat` and `Demo_TakeCover`, declare none: they fail the rail only
+  because the emitter's empty `*_Bp.Params` mirror is their DTO. ⇒ they can name `NoParams` like the 15 in the prep, with no editor.
+  The blueprint compiler already reads `ParamsDtoTypeId` (`BlueprintAsset.cs`, `Stage2_Validate.cs`, `CSharpEmitter.cs`); no `.bp.json` sets it yet.
+- `OperatorControl` is a curated C# BTree (`[BTreeDefinition(… ParamsType = typeof(OperatorControlBlackboard))]`,
+  `OperatorControlBehavior.cs:116`): a C# change, no editor.
+- ⇒ **only the 4 Parameter-declaring blueprints need B4b's params-asset editor** (or hand-written C# DTOs). The other 14 entries need neither.
+- **The `Role` enum**: `BlackboardVariableRole` (in-degree 106) is named in 23 production files (persistence + emitters 10, the AiShared
+  editor 11, the BTree / HSM models 2) and 33 test files.
+- ⭐ **The runtime twin is write-only**: `StatefulSlotInfo.Role` (`BehaviorRegistry.cs:91`) is written by every generated registrar and by
+  `HostedSubtree.cs:369`, and read by nothing (the inspector's `StatefulWorkingStateProjection` reads neither `Role` nor `Scope`).
+  `Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole` exists only to spell that byte. ⇒ B3b deletes both with `BlackboardVariableRole`,
+  which this section's B3b row did not list.
+- **Blueprint Parameters blast radius**: `ParameterDecl` is named in 24 production / 72 total files, `GetParameterNode` in 8 / 13,
+  `GetAllParametersNode` in 7 / 10 (grep: 21 / 70, 7 / 13, 7 / 10). ⚠ This section does not say whether "Parameters → a named DTO"
+  removes `ParameterDecl` and the two Get nodes, or keeps them as the graph's view of the DTO's fields. That is decided before B3b-2 is
+  built. Lean: keep them as a view, which leaves the graphs untouched.
+
 **B3a as built** *(2026-10-12)*: `ParamsDefaultJson` on the BTree / HSM asset; `BTreeEmitCore.WithParamsVariable` /
 `HsmBridgeEmitCore.WithParamsVariable` inject `Params` at every generator entry (idempotent); `ParamsTarget` = `Params` (named)
 or B1's single struct Input (legacy); `NoParams` stores nothing (no injection, `RequireNoStoredFields`, `InputBytes` 0, nothing
