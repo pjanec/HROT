@@ -789,9 +789,13 @@ def run_fire_and_movement(c, timeout):
     m = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") == "FireAndMovement" and x, 20)
     if not c.ok(m is not None, "the squad runs the drill (maneuver kindName FireAndMovement)"):
         return
-    kinds = sorted(((x.get("order") or {}).get("kind") or "-") for x in m.get("members", []))
-    print(f"    first orders: {kinds}")
-    c.ok(kinds.count("Suppress") >= 2 and kinds.count("Hold") >= 2, "① the halves split: one half suppresses, the other holds (waits to rush)")
+    # ⚠ the drill starts before the pool holds the hostiles: until then the base of fire HOLDS (nothing to suppress, §7.6.1)
+    def split():
+        k = sorted(((x.get("order") or {}).get("kind") or "-") for x in maneuver(sq).get("members", []))
+        return k if k.count("Suppress") >= 2 and (k.count("Hold") + k.count("AdvanceTo")) >= 2 else None
+    kinds = wait_for(split, 15)
+    print(f"    orders once in contact: {kinds}")
+    c.ok(kinds is not None, "① the halves split: one half suppresses, the other holds or rushes")
     history, rush_lengths, rush_cover, both_up, last_pos, last_t = {}, [], [], 0.0, {}, None
     seen_orders = set()
     end = (sim_time() or 0) + 90
