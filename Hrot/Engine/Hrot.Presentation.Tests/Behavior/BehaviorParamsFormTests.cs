@@ -144,5 +144,55 @@ namespace Hrot.Presentation.Tests.Behavior
             scoped.TryConsumeEntityPick("$.Vehicle", out _);
             Assert.Equal("$.tasks[3].Vehicle", ctx.AskedPaths.Single());
         }
-    }
+
+
+        // ── CE-1061 U5b (§13.10c E1/E2): an asset's params defaults ─────────────────────────────
+
+        public struct DefaultsRailDto
+        {
+            public float Radius = 1.5f;
+            public int Rounds = 4;
+            public DefaultsRailDto() { }
+        }
+
+        private static void SetField(IEditSession session, string name, object value)
+        {
+            var root = session.Document.Root;
+            var fields = root.Kind == EditNodeKind.SelectionRoot ? root.Children.First() : root;
+            fields.Children.Single(c => c.Name == name).Binding!.SetBoxed(value);
+        }
+
+        /// <summary>⭐ <c>CE-1061</c> U5b (acceptance 4) — the form opens on the EFFECTIVE value (the DTO's initialisers, the asset's
+        /// overrides on top); editing one field writes ONLY that key; Reset removes it; the form's own commit does not reopen the session,
+        /// an outside change (an undo) does.</summary>
+        [Fact]
+        public void CE1061_EditingADefault_WritesOnlyThatKey_AndResetRemovesIt()
+        {
+            var model = new ParamsDefaultsModel(ComponentEditServices.CreateBuilder().Build());
+            model.Sync(typeof(DefaultsRailDto), "{\"radius\":2.5}");
+            var opened = (DefaultsRailDto)model.Session!.Commit();
+            Assert.Equal((2.5f, 4), (opened.Radius, opened.Rounds));          // override on top of the initialiser
+            Assert.True(model.IsOverridden("Radius"));
+            Assert.False(model.IsOverridden("Rounds"));
+            Assert.False(model.TryEdited(out _, out _));                       // nothing edited yet
+
+            SetField(model.Session, "Rounds", 7);
+            Assert.True(model.TryEdited(out var json, out var field));
+            Assert.Equal("Rounds", field);
+            var written = System.Text.Json.Nodes.JsonNode.Parse(json!)!.AsObject();
+            Assert.Equal(new[] { "radius", "Rounds" }, written.Select(kv => kv.Key));   // the old override + ONLY the edited key
+            Assert.Equal(7, (int)written["Rounds"]!);
+
+            var session = model.Session;
+            model.Sync(typeof(DefaultsRailDto), json);                         // the asset now holds the form's own commit
+            Assert.Same(session, model.Session);                               // not reopened (a drag keeps its widget)
+
+            Assert.Equal("{\"Rounds\":7}", model.Without("Radius"));          // Reset Radius: its key goes, the DTO default returns
+            Assert.Null(new ParamsDefaultsModel(ComponentEditServices.CreateBuilder().Build()).Without("Radius"));
+
+            model.Sync(typeof(DefaultsRailDto), "{\"radius\":2.5}");          // an outside change (an undo)
+            Assert.NotSame(session, model.Session);
+            Assert.Equal(4, ((DefaultsRailDto)model.Session!.Commit()).Rounds);
+        }
+}
 }

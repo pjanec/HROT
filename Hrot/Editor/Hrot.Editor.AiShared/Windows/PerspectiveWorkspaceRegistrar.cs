@@ -840,6 +840,13 @@ public class PerspectiveWorkspaceRegistrar
         {
             MyBlueprint.SetCanvasContextResolver(() => canvas.ActiveContext);
         }
+        // ⭐ CE-1062 (§13.10c E5) — the same derivation for the variables panel: its params edits go onto the active document's undo stack.
+        if (window is AiGraphCanvasWindow bbCanvas
+            && BlackboardAuthoring != null
+            && !BlackboardAuthoring.HasCanvasContextResolver)
+        {
+            BlackboardAuthoring.SetCanvasContextResolver(() => bbCanvas.ActiveContext);
+        }
 
         // ⭐⭐⭐ U-6 — the outline→Details routing is DERIVED, not remembered.
         //    Q32 ruling 2 is "selection routes": an outline click decides what the Details panel

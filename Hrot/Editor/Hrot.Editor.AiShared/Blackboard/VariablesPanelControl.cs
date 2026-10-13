@@ -198,6 +198,43 @@ public sealed class VariablesPanelControl
     private bool _openRemoveUnusedPopup;
     private IVariablesSchemaSource? _removeUnusedPopupSchema;
 
+    /// <summary>⭐ <c>CE-1062</c> (§13.10c E5) — the active document's view, for the undo stack (set by
+    /// <see cref="Hrot.Editor.AiShared.Windows.BlackboardAuthoringWindow"/> from the canvas the registrar derives). Null ⇒ the edit applies
+    /// without an undo entry.</summary>
+    public Func<NodeEditor.Core.Commands.UndoStack?>? UndoView { get; set; }
+
+    private readonly Hrot.Presentation.Behavior.ParamsDefaultsModel _paramsDefaults =
+        new(Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build());
+
+    /// <summary>⭐ <c>CE-1061</c> U5a + <c>CE-1062</c> — choose the DTO as ONE undo entry: the new DTO with no overrides; the undo restores
+    /// the old pair.</summary>
+    public void ChooseParamsDto(IParamsDtoAsset asset, string typeId)
+    {
+        string? oldType = asset.ParamsDtoTypeId, oldDefaults = asset.CurrentParamsDefaults;
+        Hrot.Editor.AiShared.Documents.AssetEdits.Run(UndoView?.Invoke(), $"Params DTO: {ParamsDtoChooser.SimpleName(typeId)}",
+            () => asset.SetParams(typeId, null), () => asset.SetParams(oldType, oldDefaults));
+    }
+
+    /// <summary>⭐ <c>CE-1061</c> U5b + <c>CE-1062</c> — write new default overrides as ONE undo entry.</summary>
+    public void CommitParamsDefaults(IParamsDtoAsset asset, string? json, string label)
+    {
+        string? type = asset.ParamsDtoTypeId, old = asset.CurrentParamsDefaults;
+        Hrot.Editor.AiShared.Documents.AssetEdits.Run(UndoView?.Invoke(), label,
+            () => asset.SetParams(type, json), () => asset.SetParams(type, old));
+    }
+
+    /// <summary>⭐ <c>CE-1061</c> U5b (R-3001, §13.10c) — the asset's params defaults: the DTO's own (its initialisers) with this asset's
+    /// overrides, edited per field; an edit writes only that key, Reset removes it.</summary>
+    private void DrawParamsDefaults(IParamsDtoAsset asset, string tableId, bool readOnly)
+    {
+        var dto = string.IsNullOrWhiteSpace(asset.ParamsDtoTypeId) ? null : BlackboardTypeHelper.ResolveClrType(asset.ParamsDtoTypeId!);
+        _paramsDefaults.Sync(dto, asset.CurrentParamsDefaults);
+        if (_paramsDefaults.Session == null) return;
+        if (!ImGui.CollapsingHeader($"Params defaults — {ParamsDtoChooser.SimpleName(asset.ParamsDtoTypeId!)}##pd_{tableId}", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        if (Hrot.Presentation.Behavior.ParamsDefaultsForm.Draw($"##pdf_{tableId}", _paramsDefaults, null, readOnly) is { } commit)
+            CommitParamsDefaults(asset, commit.Json, commit.Label);
+    }
+
     // ⭐ CE-1061 — the DTO choices, rebuilt only when the registry or the current DTO changes (the panel draws every frame).
     private Hrot.Map.Definitions.Behavior.ParamsDtoRegistry? _choicesRegistry;
     private string? _choicesCurrent;
@@ -264,7 +301,8 @@ public sealed class VariablesPanelControl
         if (_assetBase is IParamsDtoAsset dtoAsset)
         {
             var picked = ParamsDtoChooser.Draw(section.TableId, dtoAsset.ParamsDtoTypeId, ChoicesFor(dtoAsset.ParamsDtoTypeId), schema.IsReadOnly);
-            if (picked != null) dtoAsset.SetParamsDto(picked);
+            if (picked != null) ChooseParamsDto(dtoAsset, picked);
+            DrawParamsDefaults(dtoAsset, section.TableId, schema.IsReadOnly);
         }
 
         ImGui.Separator();
@@ -561,8 +599,14 @@ public sealed class VariablesPanelControl
                         ImGui.TableNextColumn(); ImGui.TextDisabled(f.TypeName);
                         ImGui.TableNextColumn();
                         ImGui.TableNextColumn();
-                        if (f.OverrideJson is { } v) ImGui.TextUnformatted(v);
-                        else ImGui.TextDisabled("(DTO default)");
+                        // ⭐ §13.10c E7 — the EFFECTIVE default; "*" where this asset overrides the DTO's own (⚠ not "●": the editor
+                        //   font has no glyph for it).
+                        if (f.ValueJson is { } v)
+                        {
+                            if (f.IsOverridden) ImGui.TextUnformatted("* " + v);
+                            else ImGui.TextDisabled(v);
+                        }
+                        else ImGui.TextDisabled("—");
                         ImGui.TableNextColumn();
                     }
             }

@@ -16,9 +16,15 @@ public interface IParamsDtoAsset
     /// <summary>The named params DTO's type id (<c>Type.FullName</c>), or null.</summary>
     string? ParamsDtoTypeId { get; }
 
-    /// <summary>Names <paramref name="typeId"/> as the asset's params DTO: clears <c>ParamsDefaultJson</c> (another DTO's overrides name
-    /// other fields), rebuilds the reserved <c>Params</c> entry, marks the asset dirty. A no-op when it is already the DTO.</summary>
-    void SetParamsDto(string typeId);
+    /// <summary>The asset's params default overrides as the open document holds them (field → value JSON), or null.</summary>
+    string? CurrentParamsDefaults { get; }
+
+    /// <summary>
+    /// ⭐ <c>CE-1061</c> U5a/U5b (§13.10c E3) — THE one write: the params DTO and its default overrides together. The chooser passes the new
+    /// DTO and null (another DTO's overrides name other fields); a default edit passes the same DTO and the new overrides; every undo
+    /// passes the old pair. Rebuilds the reserved <c>Params</c> entry and marks the asset dirty; a no-op when nothing changes.
+    /// </summary>
+    void SetParams(string? typeId, string? defaultsJson);
 }
 
 /// <summary>One params DTO the chooser offers.</summary>

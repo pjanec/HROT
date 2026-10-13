@@ -172,8 +172,9 @@ public sealed class NodeOwnedVariableTests
     /// <summary>A params DTO for the U3 rail.</summary>
     public struct ParamsRowRailDto
     {
-        public float Radius;
-        public int Rounds;
+        public float Radius = 1f;
+        public int Rounds = 4;
+        public ParamsRowRailDto() { }   // R-3002 — initialisers need a parameterless constructor
     }
 
     /// <summary>⭐ <c>CE-1061</c> (U3, acceptance 2) — the <c>Params</c> row of a DTO-named BTree lists the DTO's fields READ-ONLY, from the
@@ -196,8 +197,12 @@ public sealed class NodeOwnedVariableTests
         row.ParamsFields!.Select(f => f.Name).Should().Equal(
             Hrot.Editor.AiShared.Inspector.ActionBinding.ActionBindingCompatibility.BindableFieldsOf(typeof(ParamsRowRailDto)).Select(f => f.Name));
         row.ParamsFields.Select(f => f.Name).Should().Equal("Radius", "Rounds");
-        row.ParamsFields.Single(f => f.Name == "Radius").OverrideJson.Should().Be("2.5");   // the key matched case-insensitively
-        row.ParamsFields.Single(f => f.Name == "Rounds").OverrideJson.Should().BeNull();
+        var radius = row.ParamsFields.Single(f => f.Name == "Radius");
+        radius.ValueJson.Should().Be("2.5");                                    // the key matched case-insensitively
+        radius.IsOverridden.Should().BeTrue();
+        var rounds = row.ParamsFields.Single(f => f.Name == "Rounds");
+        rounds.ValueJson.Should().Be("4", "§13.10c E7 — the DTO's own default (its initialiser), not a placeholder");
+        rounds.IsOverridden.Should().BeFalse();
         vm.Variables.Single(v => v.Name == "Counter").ParamsFields.Should().BeNull();
     }
 }

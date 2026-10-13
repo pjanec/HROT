@@ -36,31 +36,44 @@ public sealed record VariableViewModel(
 ;   // ⛔ CE-3193 — Role / Scope / ShowScopeSelector went with the authored variable kind
 
 /// <summary>
-/// ⭐ <c>CE-1061</c> (U3, design §13.10b D3/D4) — one field of the behaviour's params DTO, listed under the reserved <c>Params</c> row:
-/// what a <c>Params.&lt;field&gt;</c> binding reaches (<see cref="Hrot.Editor.AiShared.Inspector.ActionBinding.ActionBindingCompatibility.BindableFieldsOf"/>).
-/// <paramref name="OverrideJson"/> is the asset's own value for it (<c>ParamsDefaultJson</c>), or null when the asset leaves it at the
-/// DTO's default — which this panel does not compute (that is <c>DefaultOf</c>, CE-3194).
+/// ⭐ <c>CE-1061</c> (U3, design §13.10b D3; §13.10c E7) — one field of the behaviour's params DTO, listed under the reserved <c>Params</c>
+/// row: what a <c>Params.&lt;field&gt;</c> binding reaches (<see cref="Hrot.Editor.AiShared.Inspector.ActionBinding.ActionBindingCompatibility.BindableFieldsOf"/>),
+/// with its EFFECTIVE default (<c>ParamsDefaults.Effective</c>: the DTO's initialisers, then the asset's overrides) and whether the asset
+/// overrides it.
 /// </summary>
-public sealed record ParamsFieldRow(string Name, string TypeName, string? OverrideJson)
+public sealed record ParamsFieldRow(string Name, string TypeName, string? ValueJson, bool IsOverridden)
 {
-    /// <summary>The fields of <paramref name="dto"/> with the asset's overrides from <paramref name="assetDefaultJson"/> (keys matched
-    /// case-insensitively, as the params JSON reads).</summary>
+    /// <summary>The fields of <paramref name="dto"/> with their effective defaults under <paramref name="assetDefaultJson"/> (keys matched
+    /// case-insensitively, as the params JSON reads). A malformed override shows no values rather than throwing in a panel.</summary>
     public static IReadOnlyList<ParamsFieldRow> Of(Type dto, string? assetDefaultJson)
     {
-        System.Text.Json.Nodes.JsonObject? overrides = null;
-        if (!string.IsNullOrWhiteSpace(assetDefaultJson))
-            try { overrides = System.Text.Json.Nodes.JsonNode.Parse(assetDefaultJson!) as System.Text.Json.Nodes.JsonObject; }
-            catch (System.Text.Json.JsonException) { }
+        System.Text.Json.Nodes.JsonObject? overrides = null, effective = null;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(assetDefaultJson))
+                overrides = System.Text.Json.Nodes.JsonNode.Parse(assetDefaultJson!) as System.Text.Json.Nodes.JsonObject;
+            if (Fdp.Toolkit.Behavior.ParamsDefaults.Effective(dto, assetDefaultJson) is { } value)
+                effective = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(value, dto,
+                    Fdp.Toolkit.Behavior.BehaviorParams.JsonOptions)) as System.Text.Json.Nodes.JsonObject;
+        }
+        catch (System.Text.Json.JsonException) { }
+        catch (NotSupportedException) { }
         var rows = new List<ParamsFieldRow>();
         foreach (var f in Hrot.Editor.AiShared.Inspector.ActionBinding.ActionBindingCompatibility.BindableFieldsOf(dto))
         {
-            string? value = null;
-            if (overrides != null)
-                foreach (var kv in overrides)
-                    if (string.Equals(kv.Key, f.Name, StringComparison.OrdinalIgnoreCase)) { value = kv.Value?.ToJsonString() ?? "null"; break; }
-            rows.Add(new ParamsFieldRow(f.Name, BlackboardTypeHelper.GetDisplayName(f.FieldType), value));
+            string key = f.GetCustomAttributes(typeof(System.Text.Json.Serialization.JsonPropertyNameAttribute), true)
+                             is { Length: > 0 } a ? ((System.Text.Json.Serialization.JsonPropertyNameAttribute)a[0]).Name : f.Name;
+            rows.Add(new ParamsFieldRow(f.Name, BlackboardTypeHelper.GetDisplayName(f.FieldType), ValueOf(effective, key), ValueOf(overrides, key) != null));
         }
         return rows;
+    }
+
+    private static string? ValueOf(System.Text.Json.Nodes.JsonObject? o, string key)
+    {
+        if (o == null) return null;
+        foreach (var kv in o)
+            if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase)) return kv.Value?.ToJsonString() ?? "null";
+        return null;
     }
 }
 
@@ -206,6 +219,17 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
         //    window's own id, unique among the per-perspective instances (idOverride).
         PanelSnapshot.DeclareInstrumented(Id);
     }
+
+    private Func<AiCanvasContext?>? _canvasContext;
+
+    /// <summary>⭐ <c>CE-1062</c> (§13.10c E5) — how this window reaches the active document's view (its undo stack): installed by the
+    /// registrar from the perspective's canvas window, exactly as the outline's (<see cref="AiMyBlueprintWindow.SetCanvasContextResolver"/>).
+    /// ⭐ Derived, not passed: there is nothing for a composition root to forget.</summary>
+    public void SetCanvasContextResolver(Func<AiCanvasContext?> resolver)
+        => _canvasContext = resolver ?? throw new ArgumentNullException(nameof(resolver));
+
+    /// <summary>True once <see cref="SetCanvasContextResolver"/> ran.</summary>
+    public bool HasCanvasContextResolver => _canvasContext != null;
 
     // ---- View-model building (unit-testable) --------------------------------
 
@@ -578,7 +602,11 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
 
         if (_variablesControl == null || _lastAssetBase != asset)
         {
-            _variablesControl = new VariablesPanelControl(_refactorService, asset, vm.KnownTypeNames);
+            _variablesControl = new VariablesPanelControl(_refactorService, asset, vm.KnownTypeNames)
+            {
+                // ⭐ CE-1062 (§13.10c E5) — the active document's undo stack, only when its document IS this asset.
+                UndoView = () => _canvasContext?.Invoke() is { } ctx && ReferenceEquals(ctx.AssetRef, asset) ? ctx.View.Undo : null,
+            };
             _lastAssetBase = asset;
         }
 

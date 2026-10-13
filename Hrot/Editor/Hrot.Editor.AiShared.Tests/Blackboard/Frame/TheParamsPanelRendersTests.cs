@@ -22,15 +22,17 @@ public sealed class TheParamsPanelRendersTests
 {
     public struct RenderedParams
     {
-        public float Radius;
-        public int Rounds;
-        public bool UseCover;
+        public float Radius = 12.5f;
+        public int Rounds = 2;
+        public bool UseCover = true;
+        public RenderedParams() { }
     }
 
     private sealed class ParamsAsset : FakeBlackboardAsset, IParamsDtoAsset
     {
         public string? ParamsDtoTypeId { get; set; }
-        public void SetParamsDto(string typeId) => ParamsDtoTypeId = typeId;
+        public string? CurrentParamsDefaults { get; set; }
+        public void SetParams(string? typeId, string? defaultsJson) { ParamsDtoTypeId = typeId; CurrentParamsDefaults = defaultsJson; }
     }
 
     private sealed class NoRefactor : IRefactorService
@@ -53,7 +55,7 @@ public sealed class TheParamsPanelRendersTests
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
 
-        var asset = new ParamsAsset { ParamsDtoTypeId = typeof(RenderedParams).FullName };
+        var asset = new ParamsAsset { ParamsDtoTypeId = typeof(RenderedParams).FullName, CurrentParamsDefaults = "{\"Rounds\":3}" };
         asset.SetBlackboardVariables(new[]
         {
             new BlackboardVariableEntry("Params", typeof(RenderedParams), null, DefaultValueJson: "{\"Rounds\":3}", IsReservedParams: true),
@@ -68,7 +70,7 @@ public sealed class TheParamsPanelRendersTests
         frame.StepN(4, () =>
         {
             ImGuiNET.ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10), ImGuiNET.ImGuiCond.Always);
-            ImGuiNET.ImGui.SetNextWindowSize(new System.Numerics.Vector2(620, 330), ImGuiNET.ImGuiCond.Always);
+            ImGuiNET.ImGui.SetNextWindowSize(new System.Numerics.Vector2(620, 470), ImGuiNET.ImGuiCond.Always);
             ImGuiNET.ImGui.Begin("Variables (CE-1061)");
             control.DrawSingle(section);
             ImGuiNET.ImGui.End();
