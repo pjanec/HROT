@@ -1421,3 +1421,48 @@ an assembly loads.*
 | P1-f | a `.params.json` with no `AssetId`, or file name ≠ `Name` | generator ERROR diagnostics (`PARAMS0002`, `PARAMS0003`) | warnings (the identity would silently drift) |
 | P1-g | "open the asset" in this slice | the registry entry carries the `AssetId`; ⚠ **no catalog contributor for `.params.json` is built** — `AssetCatalog` holds editable documents, and the params asset's editor is B4b (postponed by the user). A file-scan locator `ParamsDtoJson.FindByAssetId(root, id)` answers the lookup until then | a read-only catalog contributor now (a new `AssetKind`, ripples into the browser and asset tokens — ui-lane surfaces — for an asset nobody can edit yet) |
 | P1-h | the rail "a behaviour's DTO lacks `[ParamsDto]`" | over every PUBLISHED DTO of the production registry (generated mirrors excepted until P3/P4 retire them) — a rail, not a load error (a test fixture would throw) | a load error |
+
+### 13.7 P2 — no stale DTO type after a rebuild *(CE-3186; build-state: READY-TO-BUILD `2026-10-13`, backend)*
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| a full rebuild reaches a running editor / CGF as a NEW COPY of the AI assembly, scanned into a staging registry and merged | ✅ `Fdp.Toolkit.Behavior.AiHotReloadCoordinator.ApplyReload` (`:332` scan, `:339` `MergeFrom`) — used by CGF (`CgfSubsystem.cs:2787`) and the editor's quick-reload service (`EditorSubsystem.cs:4629`); `Hrot.Editor.AiHotReloadCoordinator` (`:301`, `:362`) — the editor's file watcher | ✅ `DESIGN_Unified_Behaviour_Run` hot reload; R-2001 |
+| ⚠ the merge puts the OLD copy's DTO back | ✅ `BehaviorRegistry.MergeFrom` (`:899-936`) copies the staging declarations first (empty — nobody binds the staging registry) and then sets `def.JsonParamsDtoType` from the LIVE map, bound once at CGF load (`CgfBehaviorSetup.cs:64`) from the old copy | ⛔ no doc covers a DTO changing (§13 inventory) |
+| the type helper returns the FIRST copy | ✅ `BlackboardTypeHelper.ResolveClrType` walks `GetAssemblies()` in load order and returns the first hit (`:64-87`) | — |
+| the intent palette is cached forever | ✅ `ReflectionIntentContractProvider._cached ??=` (`IntentContractPaletteEntries.cs:31`); `ParamsDtoRegistry.Default` itself IS invalidated on an assembly load (`ParamsDtoRegistry.cs`, `AssemblyLoad` hook) | — |
+| quick reload compiles ONE asset against the loaded DTO types | ✅ `AiAssetReload.ReloadBTree` / `ReloadHsm` (`:99-124`) emit topology + bridge only; the DTO is named by FQN (`typeof(global::X)`) | ✅ R-2001: a DTO change needs a full rebuild |
+
+```mermaid
+sequenceDiagram
+  participant W as file watcher (full rebuild)
+  participant C as AiHotReloadCoordinator (Fdp / Hrot.Editor)
+  participant S as staging BehaviorRegistry
+  participant L as live BehaviorRegistry
+  W->>C: new copy of Hrot.AI.Behaviors loaded
+  C->>S: BlueprintRegistrarScanner.Scan(newCopy)
+  Note over C,S: NEW (Hrot.Editor coordinator) — BindJsonParamsDtoTypes(S, ParamsDtoRegistry.Pinning(newCopy))
+  C->>L: MergeFrom(S)
+  Note over L: NEW — every declared DTO type is re-based to its LATEST loaded copy (same assembly name, same FullName) before it is applied
+  L-->>C: definitions carry the new copy's DTO types
+```
+
+```mermaid
+classDiagram
+  class BehaviorRegistry { <<existing, Fdp.Toolkits, CHANGED>> MergeFrom(source) · LatestCopyOf(Type) NEW }
+  class BlackboardTypeHelper { <<existing, CHANGED>> ResolveClrType — the LAST loaded match }
+  class ReflectionIntentContractProvider { <<existing, CHANGED>> cache keyed by the ParamsDtoRegistry.Default instance }
+  class AiAssetReload { <<existing, CHANGED>> ReloadBTree / ReloadHsm refuse a stale params DTO }
+  class ParamsDtoStaleness { <<NEW, Hrot.AiEditor.Persistence>> Check(typeId, loadedType, assetRoot) → null | "full rebuild needed" }
+  AiAssetReload ..> ParamsDtoStaleness
+  ParamsDtoStaleness ..> ParamsDtoJson : FindByAssetId
+```
+
+*What the picture shows that prose hid: the stale type is not cached by the hot-reload coordinators at all — it is re-applied by
+`MergeFrom` from the declaration map the CGF loader filled once. One re-base inside `MergeFrom` fixes both coordinators (CGF's cannot see
+`Hrot.Core`); the editor's, which can, also rebinds from the new copy so a RETARGETED declaration (`Params = typeof(OtherDto)`) lands too.*
+
+| # | decision | ⭐ lean | rejected |
+|---|---|---|---|
+| P2-a | where the re-base lives | `BehaviorRegistry.MergeFrom` (`Fdp.Toolkits`) — one place both coordinators pass through; `LatestCopyOf(t)` = the same `FullName` in the last-loaded assembly of `t`'s name | a hook on the Fdp coordinator (an API for one caller) · a second rebind in each coordinator only (CGF's cannot reach `Hrot.Core`) |
+| P2-b | how quick reload detects a changed DTO | a GENERATED DTO (`[ParamsDto(AssetId)]`) is compared field by field (name + type id) with its `.params.json` on disk; a mismatch refuses with "full rebuild needed" before compiling. A hand-written DTO cannot change without a build, which IS the full rebuild | compare a layout hash re-emitted by the generator (needs the generator in the editor process; the field list says the same) · compile the DTO in quick reload (rejected by the user, R-2001) |
+| P2-c | the palette cache | recomputed when `ParamsDtoRegistry.Default` is a different instance (the registry already drops itself on every assembly load) | an `AssemblyLoad` hook of its own (a second invalidation rule) |
