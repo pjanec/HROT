@@ -191,6 +191,8 @@ namespace Hrot.CGF
                         (BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor()),
                         (BehaviorConstants.ActionIdEmbark,          new EmbarkExecutor()),   // ⭐ CE-3110 I-2a — boarding was constructed only by its unit test
                         (BehaviorConstants.ActionIdDisembark,       new DisembarkExecutor()),   // ⭐ CE-1056 I-2d — one passenger leaves
+                        (BehaviorConstants.ActionIdPickUp,          new PickUpExecutor()),    // ⭐ CE-2152 C-b — a carrier picks a casualty up
+                        (BehaviorConstants.ActionIdPutDown,         new PutDownExecutor()),   // ⭐ CE-2152 C-b — and puts him down
                     },
                     // ⭐ Buildings 5d — Open/Close/Lock/Unlock/Breach door, one list so no host forgets a verb
                     System.Linq.Enumerable.Select(BehaviorConstants.DoorActionExecutors(),

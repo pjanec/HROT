@@ -5,7 +5,13 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Behavior.Translators;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Translators;
 using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Tkb.Domain;
+using Fdp.Interfaces;
 using Hrot.AI.Behaviors.Brains;
 using Xunit;
 
@@ -107,6 +113,116 @@ namespace Hrot.SimHost.Tests
             var p2 = new DisembarkNodeParams();
             Assert.Equal(NodeStatus.Success, EmbarkNodes.Disembark(ref p2, soldier, _w));                   // not aboard: nothing to do
             Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(soldier).ActiveAction);
+        }
+
+        // ── CE-2152 C-b (C6, R-2011; docs/DESIGN_Entity_Interactions.md §7.4.10) — the CARRIER's pick-up and put-down ──────────────
+
+        /// <summary>A soldier of a type declaring the person carrier and the injury band, through the real translators.</summary>
+        private Entity Man(Vector3 at, float health)
+        {
+            var s = Soldier(at);
+            _w.AddComponent(s, new Health { Current = health, Max = 100f });
+            var t = new TkbTemplate("Rifleman", 4545L);
+            t.AddDescriptor(CarrierDefDto.PersonCarrier());
+            t.AddDescriptor(new InjuryDefDto());
+            new CarrierTkbTranslator().Inject(_w, s, t);
+            new InjuryTkbTranslator().Inject(_w, s, t);
+            CombatLife.ApplyHitCapabilities(_w, s, in _w.GetComponentRO<Health>(s));
+            return s;
+        }
+
+        private const ActorCapabilities MoveAndFire = ActorCapabilities.CanMove | ActorCapabilities.CanShoot;
+
+        /// <summary>⭐ C6 — PickUp walks to the man who is down, hands the walk back in reach, asks the owner on the interaction channel, and
+        /// answers Success once he is carried by this unit, dragged. ✅ Red-proof: PickUp not stopping its walk ⇒ the locomotion channel
+        /// still holds the MoveTo ⇒ red.</summary>
+        [Fact]
+        public void CE2152_PickUp_WalksToTheCasualty_ThenTakesHimThroughTheOwner()
+        {
+            var carrier = Man(Vector3.Zero, 100f);
+            var down = Man(new Vector3(10f, 0f, 0f), 20f);
+            var p = new PickUpNodeParams { Casualty = down, Mode = CarryMode.Dragged };
+
+            Assert.Equal(NodeStatus.Running, CarryNodes.PickUp(ref p, carrier, _w));
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, _w.GetComponentRO<LocomotionChannel>(carrier).ActiveAction);
+            Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);              // not asking yet: out of reach
+
+            _w.GetComponentRW<SimTransform>(carrier).Position = new Vector3(9f, 0f, 0f);              // the walk arrives
+            Assert.Equal(NodeStatus.Running, CarryNodes.PickUp(ref p, carrier, _w));
+            Assert.Equal(0, _w.GetComponentRO<LocomotionChannel>(carrier).ActiveAction);              // the walk handed back
+            Assert.Equal(BehaviorConstants.ActionIdPickUp, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);
+            Assert.False(_w.HasComponent<IsEmbarkedTag>(down));                                        // asked, not written
+
+            Dispatch(carrier, new PickUpExecutor());
+            Assert.Equal(NodeStatus.Success, CarryNodes.PickUp(ref p, carrier, _w));
+            Assert.Equal(carrier, _w.GetComponentRO<IsEmbarkedTag>(down).VehicleEntity);
+            Assert.Equal(CarryMode.Dragged, _w.GetComponentRO<IsEmbarkedTag>(down).Mode);
+            Assert.Equal(ActorCapabilities.CanMove, _w.GetComponentRO<ActorCapabilityState>(carrier).Capabilities & MoveAndFire);   // C7
+            Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);             // the channel handed back
+        }
+
+        /// <summary>⭐ C-b — the carry end to end, node by node as the CarryCasualty tree runs them: pick him up, the plain move to the point
+        /// starts AFRESH (not read as already arrived), put him down where he is held — beside the point, still down — and the carrier gets
+        /// his fire back. ✅ Red-proofs: LeavePoint using the hull column for a person ⇒ he lands ~1 m to the carrier's right ⇒ red;
+        /// PickUp not stopping its walk ⇒ the move node answers Success at once ⇒ red.</summary>
+        [Fact]
+        public void CE2152_TheCarrierDragsTheCasualtyToAPoint_AndPutsHimDownThere()
+        {
+            var carrier = Man(new Vector3(9f, 0f, 0f), 100f);
+            var down = Man(new Vector3(10f, 0f, 0f), 20f);
+            var take = new PickUpNodeParams { Casualty = down, Mode = CarryMode.Dragged };
+            _w.GetComponentRW<LocomotionChannel>(carrier).ActiveAction = NavigationConstants.ActionIdMoveTo;   // a walk that arrived …
+            _w.GetComponentRW<LocomotionChannel>(carrier).Status = NodeStatus.Success;                          // … and said so
+            take.Walking = 1;
+            Assert.Equal(NodeStatus.Running, CarryNodes.PickUp(ref take, carrier, _w));
+            Dispatch(carrier, new PickUpExecutor());
+            Assert.Equal(NodeStatus.Success, CarryNodes.PickUp(ref take, carrier, _w));
+
+            var bring = new CgfNodes.MoveToLocationParams { X = 30f, Y = 0f, Speed = 3f, ArrivalRadius = 1.5f };
+            Assert.Equal(NodeStatus.Running, CgfNodes.Action_WriteMoveToChannel(ref bring, carrier, _w));   // a NEW move, not the old Success
+
+            // the drag arrives: the carrier at the point, facing +X; the casualty held 1 m behind him (EmbarkedStateSystem)
+            _w.GetComponentRW<SimTransform>(carrier).Position = new Vector3(30f, 0f, 0f);
+            new EmbarkedStateSystem().Execute(_w, 0.016f);
+            Assert.Equal(29f, _w.GetComponentRO<SimTransform>(down).Position.X, 3);
+
+            var leave = new PutDownNodeParams();
+            Assert.Equal(NodeStatus.Running, CarryNodes.PutDown(ref leave, carrier, _w));
+            Assert.Equal(BehaviorConstants.ActionIdPutDown, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);
+            Dispatch(carrier, new PutDownExecutor());
+            Assert.Equal(NodeStatus.Success, CarryNodes.PutDown(ref leave, carrier, _w));
+
+            Assert.False(_w.HasComponent<IsEmbarkedTag>(down));
+            Assert.Equal(new Vector3(29f, 0f, 0f), _w.GetComponentRO<SimTransform>(down).Position);          // C-b1: where he was held
+            Assert.Equal((ActorCapabilities)0, _w.GetComponentRO<ActorCapabilityState>(down).Capabilities & MoveAndFire);   // still down
+            Assert.Equal(MoveAndFire, _w.GetComponentRO<ActorCapabilityState>(carrier).Capabilities & MoveAndFire);         // C7: fire back
+            var again = new PutDownNodeParams();
+            Assert.Equal(NodeStatus.Success, CarryNodes.PutDown(ref again, carrier, _w));                     // carrying nobody: at once
+        }
+
+        /// <summary>⭐ C3 / C-b4 — a man carried by someone else fails at once; a man who is NOT down is refused by the rules, and the
+        /// carrier's pick-up fails when no answer comes. ✅ Red-proof: PickUp treating "carried by another" like "not yet carried" ⇒ it
+        /// walks to him ⇒ red.</summary>
+        [Fact]
+        public void CE2152_PickUp_FailsForAManCarriedByAnother_AndForAManWhoIsNotDown()
+        {
+            var a = Man(new Vector3(0f, 5f, 0f), 100f);
+            var b = Man(Vector3.Zero, 100f);
+            var down = Man(new Vector3(1f, 0f, 0f), 20f);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_w, down, a, mode: CarryMode.Dragged));
+            var p = new PickUpNodeParams { Casualty = down };
+            Assert.Equal(NodeStatus.Failure, CarryNodes.PickUp(ref p, b, _w));
+            Assert.Equal(0, _w.GetComponentRO<LocomotionChannel>(b).ActiveAction);
+
+            var healthy = Man(new Vector3(1f, 1f, 0f), 90f);
+            var q = new PickUpNodeParams { Casualty = healthy };
+            Assert.Equal(NodeStatus.Running, CarryNodes.PickUp(ref q, b, _w));
+            var exec = new PickUpExecutor();
+            Dispatch(b, exec);
+            Assert.False(_w.HasComponent<IsEmbarkedTag>(healthy));                                        // the rules refused
+            ref var ch = ref _w.GetComponentRW<InteractionChannel>(b);
+            exec.Execute(b, ref ch, _w, PickUpExecutor.ResultTimeoutSeconds + 1f);
+            Assert.Equal(NodeStatus.Failure, CarryNodes.PickUp(ref q, b, _w));
         }
 
         [Fact]

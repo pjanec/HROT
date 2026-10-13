@@ -83,6 +83,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-1056</c> I-2d — a passenger leaves its vehicle, beside the hull (DESIGN_Entity_Interactions §7.3).</summary>
         public const string Disembark = "Disembark";
 
+        /// <summary>⭐ <c>CE-2152</c> C-b — a soldier walks to a man who is down, drags (or carries) him to a point and puts him down
+        /// (DESIGN_Entity_Interactions §7.4.10).</summary>
+        public const string CarryCasualty = "CarryCasualty";
+
         /// <summary>⭐ <c>CE-1056</c> I-2d — the squad gets out of its vehicles; done when nobody is aboard (DESIGN_Squad_Tactics §5a).</summary>
         public const string SquadDismount = "SquadDismount";
 

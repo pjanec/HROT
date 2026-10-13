@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-12
+updated: 2026-10-13 (§7.4 L4 casualty care designed — K1–K6 await the user)
 build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch BUILT 2026-10-12 (as-built §6.1a) · embark §5 and formations §6 are MEASUREMENTS
-current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built
+current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built, §7.4 L4 casualty care (DESIGN, K1–K6 await the user)
 stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
@@ -15,7 +15,7 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — OWNS where the squad layer runs on CGF and the first runner (§6 BoundingOverwatch, CE-3162) this file generalises
   - docs/DESIGN_Decision_Layer.md — OWNS the task / SOP slots, the reaction gate and ROE that S2 plugs into (§4)
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS SensorChange and the SOP wake (§7.3) S2 extends with squad-level edges
-  - docs/DESIGN_Entity_Interactions.md — OWNS embarkation (§7, R-224, CE-3110); §5 here is its measured state
+  - docs/DESIGN_Entity_Interactions.md — OWNS embarkation (§7, R-224, CE-3110); §5 here is its measured state; §7.4.10 OWNS the carrier's PickUp / PutDown and the library CarryCasualty that §7.4 L4 casualty care orders
   - docs/designs/navig-2/Navigation_Design_v2_0.md — names a "formations" design that was never written (:1040, :1666); §6 here is the measured state
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS who owns a composite unit's position (R-175, §4 D-8) and CE-514 (derive it from the members), which §7 builds
   - docs/designs/commander-subordinates/DESIGN.md — OWNS UnitRoster / UnitSubordinate and the FormationController/Follower refactor (Phase 2) §6 measures
@@ -615,6 +615,42 @@ and ids 356–364 are the backend lane's — ours come from the squad block (274
 | `SquadManeuverTests.CE2125_TheSilentCommander_…` · `…_TheLeaderFallsDuringTheDrill_…` · `…_BasicSquadSop_TheLeaderDown_…` | L2, L3, the SOP row | ✅ silence check removed ⇒ the silence rail red |
 | `CgfLogicPackTests` (count 20 + contains `UnitCentroidSystem`) | the pack really runs it | — |
 | live `SquadTacticsScenarioTests` ×2 + `FireDistributionScenarioTests` | the migrated scenarios; on SimHost the commander stands at its men's centre and the enemy never remembers it | ✅ live green `2026-10-11`: fire distribution 9 s (five members, the leader among them), S2 45 s, S1 41 s |
+
+### 7.4 L4 — casualty care *(behaviors, `2026-10-13`, `CE-2152` C-b; build-state: DESIGN — decisions K1–K6 await the user; the carry actions it uses are [`DESIGN_Entity_Interactions.md`](../../DESIGN_Entity_Interactions.md) §7.4.10)*
+
+📖 **Doctrine (§7.2's, general knowledge):** fire superiority first; the casualty is treated when the situation allows; one man goes to
+him and moves him; the leader keeps control. **Now possible:** a man can be *down* (CE-2155) and a soldier can drag him (CE-2152 C-a, C-b).
+
+```mermaid
+sequenceDiagram
+  participant SS as SquadSensing (commander's node)
+  participant SOP as commander SOP (BasicSquadSop)
+  participant C as SquadCasualtyCare (on the commander)
+  participant R as SquadManeuverRunner
+  participant M as the chosen member (CarryCasualty)
+  SS->>SOP: SquadMemberDown (a member just became incapacitated)
+  SOP->>SOP: wait until quiet (no SquadUnderFire for QuietSeconds)
+  SOP->>C: run SquadCasualtyCare
+  C->>R: one member: CarryCasualty(casualty, to = beside the leader, Dragged) · the rest: Hold
+  R->>M: the library CarryCasualty
+  M-->>C: Success (he is down beside the leader) ⇒ care ends, the previous orders are re-sent
+```
+
+*What the picture shows: the squad decides (who, when, where); the member only runs the carry. Nothing new reaches the member but one
+more order kind.*
+
+| # | question | ⭐ lean | blast radius | what would change it |
+|---|---|---|---|---|
+| **K1** | how the squad learns a man is down | ⭐ a squad edge `SquadMemberDown` on the commander, the `SquadLeaderDown` way (`SquadSensing`, a per-commander "already down" mask so it fires once per man) | one `SensorChange` value, one HSM reserved event, one mask component | — |
+| **K2** | when care starts | ⭐ only when QUIET: no `SquadUnderFire` for `QuietSeconds` (default 10 s); under fire the casualty waits and bleeds (120 s) | the SOP row's guard | a doctrine that drags under covering fire — a later "covered" variant |
+| **K3** | who goes | ⭐ the nearest member still in the fight who is not the squad leader and carries nobody | one pick in `SquadCasualtyCare` | a designated medic / buddy pair (MED-2) |
+| **K4** | to where | ⭐ beside the squad leader (his position, 2 m to his rear), dragged | none beyond the order | a casualty collection point from EQS (MED-3, "covered, reachable by vehicle") |
+| **K5** | what the others do | ⭐ hold where they are (the existing `Hold` order), then every order is re-sent when care ends (the S1-G resume path, like L2) | the runner's existing resume | — |
+| **K6** | a DOWN leader (found while measuring) | ⭐ counts as lost: `Succession` hands over when the leader is out of the fight, not only dead — today an incapacitated leader keeps the squad | `SquadSensing.Succession` + its `Designated` / `FirstLive` picks (`CombatLife.IsAlive` → `Injury.IsInTheFight`) | — |
+
+Rejected (one line each): **each soldier decides alone to help the nearest man down** — two men would go for one casualty, and nobody
+weighs the fire; **care at once, under fire** — doctrine says fire first, and a dragger cannot shoot (C7); **a vehicle evacuation** — MED-3,
+needs a collection point and a carrier that seats a casualty.
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 

@@ -148,7 +148,7 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Running;
         }
 
-        private static void Start(EntityRepository world, Entity self, ref InteractionChannel channel, ushort action)
+        internal static void Start(EntityRepository world, Entity self, ref InteractionChannel channel, ushort action)
         {
             if (world.HasComponent<BehaviorState>(self)) channel.BehaviorInstanceId = world.GetComponent<BehaviorState>(self).InstanceId;
             unchecked { channel.ActionInstanceId++; if (channel.ActionInstanceId == 0) channel.ActionInstanceId = 1; }
@@ -156,7 +156,7 @@ namespace Hrot.AI.Behaviors.Brains
             channel.Status = NodeStatus.Running;
         }
 
-        private static bool OwnsInteraction(EntityRepository world, Entity self, uint started, ushort action)
+        internal static bool OwnsInteraction(EntityRepository world, Entity self, uint started, ushort action)
         {
             if (!world.HasComponent<InteractionChannel>(self)) return false;
             ref readonly var channel = ref world.GetComponentRO<InteractionChannel>(self);
@@ -165,7 +165,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>A node hands its channel back when its action ends (no action, a new activation id) — the <c>DoorNodes</c> rule:
         /// a finished action left on the channel would read as the NEXT node's answer.</summary>
-        private static void Release(EntityRepository world, Entity self)
+        internal static void Release(EntityRepository world, Entity self)
         {
             ref var channel = ref world.GetComponentRW<InteractionChannel>(self);
             channel.ActiveAction = 0;

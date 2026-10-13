@@ -134,7 +134,7 @@ namespace Fdp.Toolkit.Behavior
             int slot = SlotOf(repo, passenger, vehicle);
             if (slot < 0) return false;
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
-            var at = DismountPoint(repo, vehicle, slot, buffer.Count);
+            var at = LeavePoint(repo, vehicle, passenger, slot, buffer.Count);
             buffer.Passengers[slot] = Entity.Null;   // ⭐ CE-2151 B-b — the seat empties in place (no compaction: a slot IS a seat)
             buffer.SetMode(slot, CarryMode.Seated);
             buffer.Count--;
@@ -157,13 +157,34 @@ namespace Fdp.Toolkit.Behavior
                 if (passenger.IsNull) continue;
                 buffer.Passengers[i] = Entity.Null;
                 if (!repo.IsAlive(passenger)) continue;   // killed aboard — skipped, not an error
-                Leave(repo, passenger, DismountPoint(repo, vehicle, i, aboardCount));
+                Leave(repo, passenger, LeavePoint(repo, vehicle, passenger, i, aboardCount));
                 left++;
             }
             buffer.Count = 0;
             buffer.Modes = 0;
             ReleaseCarrier(repo, vehicle);
             return left;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2152</c> C-b (C-b1, docs/DESIGN_Entity_Interactions.md §7.4.10) — where <paramref name="passenger"/> lands on leaving
+        /// <paramref name="vehicle"/>: a PERSON carrier lays the casualty where he is held (his own position — C9 "dropped where it lies");
+        /// a vehicle stands him beside the hull (<see cref="DismountPoint"/>). ⛔ C-a used the hull column for both, which jumped a
+        /// dragged man sideways to the carrier's right.
+        /// </summary>
+        public static Vector3 LeavePoint(EntityRepository repo, Entity vehicle, Entity passenger, int index, int count)
+            => IsPersonCarrier(repo, vehicle) && Has<SimTransform>(repo, passenger)
+                ? repo.GetComponentRO<SimTransform>(passenger).Position
+                : DismountPoint(repo, vehicle, index, count);
+
+        /// <summary>⭐ <c>CE-2152</c> C-b — the first person <paramref name="carrier"/> carries, or <see cref="Entity.Null"/>.</summary>
+        public static Entity LoadOf(EntityRepository repo, Entity carrier)
+        {
+            if (!repo.IsAlive(carrier) || !Has<PassengerBuffer>(repo, carrier)) return Entity.Null;
+            ref readonly var buffer = ref repo.GetComponentRO<PassengerBuffer>(carrier);
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)
+                if (!buffer.Passengers[i].IsNull) return buffer.Passengers[i];
+            return Entity.Null;
         }
 
         /// <summary>
