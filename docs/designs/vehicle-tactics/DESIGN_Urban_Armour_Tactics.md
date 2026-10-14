@@ -1,12 +1,16 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14 (round 3: D-A…D-H APPROVED; tank ammo loadout (AP + HEAT + HE), technicals (pickup + HMG / ATGM) with shoot-and-scoot on the move; new items M8, M9; new decisions D-I…D-L not yet approved)
-build-state: DESIGN — 🔒 user, 2026-10-14: "No building, still designing."
+updated: 2026-10-14 (round 4: D-I…D-L APPROVED, "Leans accepted. Write the designs" — four BUILD designs written, see §4a)
+build-state: READY-TO-BUILD (the four build designs in §4a) — 🔒 user, 2026-10-14: "Leans accepted. Write the designs"
 current-answer: §4 (the programme) and §5 (decisions: D-A…D-H approved, D-I…D-L open with leans) — §1 is the measured ground (do not re-derive), §2 the threats and how a vehicle defeats each, §3 the behaviour.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — a BUILD design of this programme (§4a)
+  - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — a BUILD design of this programme (§4a)
+  - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — a BUILD design of this programme (§4a)
+  - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — a BUILD design of this programme (§4a)
   - docs/DESIGN_Peek_And_Fire.md — OWNS the INFANTRY fight-from-cover node (hide / expose / fire / heat, FiringPositionMemory); G8 (R-257) keeps vehicles OUT of it, so this design's cycle is a vehicle sibling that reuses its memory and fire step
   - docs/designs/hill-attack/DESIGN.md — OWNS HullDownAttackRun (demo-local): creep until seen → fire → reverse to baseline; the one built vehicle exposure, which V4 generalises
   - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — OWNS the HillCrestHullDown manoeuvre table (§8.4: waves, burned slots) — the PLATOON layer above this unit-level cycle
@@ -213,6 +217,18 @@ forward. One node, one parameter derived from the type's armour (D-J).*
 | **M9** 🆕 | backend (data) | **technicals**: a pickup type (`PersonalCar` / `Truck` preset, ~25 m/s, no armour, low health, mobility kill on a penetrating hit, open cab) in three fits — **HMG** (12.7 / 14.5 mm on a pintle = a fast-slewing turret part, elevation to ~+70°, so it can also fire at drones), **ATGM** (a command-guided launcher on a turret part with limited traverse), and both; usable by either side | D-K, D-L |
 | **M7** | backend + behaviors | **a minimal FPV drone**: a TKB air type on `LinearKinematicsSystem` (point-mass: speed, climb, turn), a rotor sound class, a small collider with a height, a warhead it detonates on contact (itself as shooter); its behaviour: fly a 3-D route → search → select (threat ranking) → pursue → dive on the top / rear; the overhead broadphase fix (`VisionBroadphase.cs:86`) | D-E; R-263 D2 (AIR-2's first slice) |
 
+## 4a. The build designs — the UML lives there
+
+| design | items | what it decides in classes and sequences |
+|---|---|---|
+| [DESIGN_Armour_Hit_Model.md](DESIGN_Armour_Hit_Model.md) | M1, M2, M3, M6 shape | the travel direction on `DetonationNotification`, `Facing.Top`, the shaped-charge column, `Penetrator`, the vehicle height band |
+| [DESIGN_Missiles_And_Ammo.md](DESIGN_Missiles_And_Ammo.md) | M4, M5, M8, D-L | `AmmoLoadout` + `AmmoChoice`, `MissileDto` + `GuidedRound` + `GuidedRoundSystem`, the lock, min range, `FireOnMove`, the munition table |
+| [DESIGN_Vehicle_Exposure_Cycle.md](DESIGN_Vehicle_Exposure_Cycle.md) | V1, V3, V4, V5, V6, V8, M9 | `ThreatDanger.ToMe`, the vehicle EQS templates and `OverheadCoverTest`, `VehicleFightFromCover` + `LandPlatformAttack`, reverse, technicals, `ShelterFromAir` + `BasicVehicleSop` |
+| [DESIGN_FPV_Drone.md](DESIGN_FPV_Drone.md) | M7 | `FlightParams`, `PointMassFlightSystem`, `DroneImpactSystem`, `FpvAttack` |
+
+⚠ **Found while designing, recorded, not fixed (design only):** CE-2166 — a per-shot cooldown drains twice a frame; CE-2167 — AI reverse is
+clamped to ≥ 0 (`BicycleModel.cs:34`), so no AI vehicle reverses today (V5 fixes it).
+
 **Demos (V7):**
 
 | demo | terrain | shows |
@@ -230,9 +246,9 @@ electronic warfare, hull-vs-turret armour, R-263 damage states, pairs and infant
 
 ## 5. Decisions
 
-🔒 User, `2026-10-14`: **"D-A to D-H approved."** — the round-2 rows below are DECIDED as leaned. **D-I…D-L (round 3) are open.**
+🔒 User, `2026-10-14`: **"D-A to D-H approved."** then **"Leans accepted. Write the designs"** — every row below (D-A…D-L) is DECIDED as leaned.
 
-| id | question | lean (round 3, open) | blast radius / what would change it |
+| id | question | lean (round 3, approved) | blast radius / what would change it |
 |---|---|---|---|
 | **D-I** | ammo choice | **a loadout per mount, chosen by the weapon brain with the one `ArmorModel` (W-6)**; HE valued by its expected area damage; a switch costs one reload; the behaviour never names a round | backend weapon brain + TKB; W-12d is unblocked by this data. ⛔ not a behaviour-level ammo node — R-261 keeps it in the weapon layer |
 | **D-J** | reverse or scoot | **derived from the type**: front armour ≥ 2 × side ⇒ REVERSE to the same hide; else SCOOT forward to the next hide; a behaviour param overrides | one rule in the V4 node; an MBT and an IFV reverse, a technical and an armoured car scoot |
@@ -252,5 +268,4 @@ electronic warfare, hull-vs-turret armour, R-263 damage states, pairs and infant
 | **D-G** | separate hull and turret armour? | **no, later** — the face is chosen from the hull; the top face covers the turret roof | — |
 | **D-H** | counter-drone means in v1 | **shelter, keep moving, shoot it if seen**; jammers (they need a radio-link model), active protection, smoke later | V8 only |
 
-⚠ Before building (user: "still designing"): `classDiagram` + `sequenceDiagram` per item; read `PeekAndFireNodes`, `HillAttackTankNodes`,
-`BallisticsSystem`, `DamageCalculationSystem` end to end (assumed here, not read); a backend handoff for M1–M9 once D-I…D-L are decided.
+Next: a backend handoff for M1–M9 and V5 (the combat engine and kinematics), citing §4a's designs by section; the behaviour items follow in the order above.

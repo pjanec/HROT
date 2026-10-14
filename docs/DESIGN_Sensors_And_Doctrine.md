@@ -9,6 +9,7 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — §2 builds §11.2's G1: ThreatDanger.ToMe (the threat's weapon vs MY armour) for a vehicle self
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — proposes building §11.2's G1 lean (danger from weapons vs my armour) in ThreatDanger.Of (V1)
   - docs/DESIGN_Orders_Params_Entity_Classes.md §13.12 — the order form (P5b, CE-1059) draws §7.6b's one params form over an order DTO
   - docs/blueprints/DESIGN_Map_Picking_Unification.md — OWNS the one pick service / context / broker; §7.6b here adds a SCOPED context so several params forms share one broker (CE-1023).
