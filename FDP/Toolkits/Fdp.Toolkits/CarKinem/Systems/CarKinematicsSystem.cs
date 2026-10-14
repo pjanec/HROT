@@ -407,7 +407,9 @@ namespace CarKinem.Systems
             }
             else
             {
-                BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase);
+                BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase,
+                    nav.ReverseAllowed == 1 ? @params.MaxSpeedRev : 0f,   // ⭐ CE-2167 (V5) — reverse when allowed
+                    @params.MaxSpeedFwd > 0f ? @params.MaxSpeedFwd : float.MaxValue);   // 0 = an unknown profile (CE-103): no cap
                 yawRate = (state.Speed / @params.WheelBase) * MathF.Tan(steerAngle);
             }
 
@@ -433,7 +435,12 @@ namespace CarKinem.Systems
                 if (person && _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var walked) && walked.IsLooped == 0)
                     nav.ProgressS = HumanGait.Progress(in walked, nav.ProgressS, pos2D);
                 else
-                    nav.ProgressS += state.Speed * dt * MathF.Max(0f, Vector2.Dot(fwd2D, progressTangent ?? targetHeading));
+                {
+                    // ⭐ CE-2167 (V5) — the way it MOVES, not the way it faces: a vehicle backing along its path makes progress too
+                    //   (it froze: the forward vector points against the tangent while reversing).
+                    var travel = state.Speed < 0f ? -fwd2D : fwd2D;
+                    nav.ProgressS += MathF.Abs(state.Speed) * dt * MathF.Max(0f, Vector2.Dot(travel, progressTangent ?? targetHeading));
+                }
             }
             else if (nav.Mode == KinematicsMode.RoadGraph)
             {

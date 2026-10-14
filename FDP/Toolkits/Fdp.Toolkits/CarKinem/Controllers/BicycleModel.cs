@@ -20,6 +20,8 @@ namespace CarKinem.Controllers
         /// <param name="accel">Acceleration command (m/s²)</param>
         /// <param name="dt">Timestep (seconds)</param>
         /// <param name="wheelBase">Distance between axles (meters)</param>
+        /// <param name="maxSpeedRev">⭐ <c>CE-2167</c> (V5) — how fast it may back up (m/s, ≥ 0); 0 = it never reverses (the default).</param>
+        /// <param name="maxSpeedFwd">Its top forward speed (m/s); unbounded by default.</param>
         public static void Integrate(
             ref Vector2 pos,
             ref Vector2 fwd,
@@ -27,11 +29,14 @@ namespace CarKinem.Controllers
             float steerAngle,
             float accel,
             float dt,
-            float wheelBase)
+            float wheelBase,
+            float maxSpeedRev = 0f,
+            float maxSpeedFwd = float.MaxValue)
         {
-            // 1. Update speed
+            // 1. Update speed — ⭐ CE-2167 (V5): clamped to [−maxSpeedRev, maxSpeedFwd]. ⛔ It was ≥ 0, so the kinematics' reverse
+            //    (speedSign −1) could never back an AI vehicle up: only the manual drive reversed.
             state.Speed += accel * dt;
-            state.Speed = MathF.Max(0f, state.Speed);
+            state.Speed = Math.Clamp(state.Speed, -MathF.Max(0f, maxSpeedRev), maxSpeedFwd);
 
             // 2. Calculate angular velocity (yaw rate)
             // omega = (v / L) * tan(delta)

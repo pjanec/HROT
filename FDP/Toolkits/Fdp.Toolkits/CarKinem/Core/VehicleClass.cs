@@ -48,6 +48,7 @@ namespace CarKinem.Core
                     Width = 2.0f,
                     WheelBase = 2.7f,
                     MaxSpeedFwd = 25.0f,
+                    MaxSpeedRev = 6.0f,   // ⭐ CE-2167 (V5) — it can back up (it was 0: no AI car ever reversed)
                     MaxAccel = 3.0f,
                     MaxDecel = 6.0f,
                     MaxSteerAngle = 0.6f,
@@ -65,6 +66,7 @@ namespace CarKinem.Core
                     Width = 2.5f,
                     WheelBase = 5.0f,
                     MaxSpeedFwd = 18.0f,
+                    MaxSpeedRev = 4.0f,   // ⭐ CE-2167 (V5)
                     MaxAccel = 1.5f,
                     MaxDecel = 4.0f,
                     MaxSteerAngle = 0.4f,

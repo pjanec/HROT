@@ -88,6 +88,20 @@ namespace CarKinem.Tests.Algorithms
             Assert.Equal(0f, state.Speed);
         }
         
+        /// <summary>⭐ <c>CE-2167</c> (V5) — given a reverse speed it backs up, no faster than that, and the position goes backwards.</summary>
+        [Fact]
+        public void CE2167_BicycleModel_WithAReverseSpeed_BacksUp_ToThatSpeedOnly()
+        {
+            var state = new VehicleState { Speed = 0f };
+            var pos = Vector2.Zero;
+            var fwd = new Vector2(1, 0);
+            for (int i = 0; i < 10; i++)
+                BicycleModel.Integrate(ref pos, ref fwd, ref state, 0f, -10f, 0.5f, 2.7f, maxSpeedRev: 4f, maxSpeedFwd: 20f);
+            Assert.Equal(-4f, state.Speed);
+            Assert.True(pos.X < -10f, $"it moved backwards: {pos.X}");
+            Assert.Equal(new Vector2(1, 0), fwd);
+        }
+
         [Fact]
         public void BicycleModel_ZeroDt_NoChange()
         {

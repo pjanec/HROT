@@ -1045,6 +1045,52 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(new Vector3(10, 2, 0), aboard.GetComponent<SimTransform>(a).Position);
         }
 
+        // ── ⭐ CE-2167 (V5, docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §5) — an AI vehicle can REVERSE ────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2167</c> (V5) — an AI tank given a point straight BEHIND it, reverse allowed, backs to it and keeps facing the way it
+        /// faced (out of a firing position into the hide). 🔴 Red-proof: <c>BicycleModel</c> clamped speed at 0 — the kinematics asked
+        /// for reverse and the tank stood still.
+        /// </summary>
+        [Fact]
+        public void V5_AnAiTank_ReversesToAPointBehindIt_FacingUnchanged()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Tank, null);
+            repo.SetComponent(e, new NavState
+            {
+                Mode = KinematicsMode.Direct, FinalDestination = new Vector3(-20f, 0f, 0f), TargetSpeed = 6f, ArrivalRadius = 1.5f,
+                ReverseAllowed = 1,
+            });
+            Run(repo, 15f);
+            var at = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(at.X < -17f, $"it backed to the point: x {at.X:F1}");
+            Assert.InRange(MathF.Abs(at.Y), 0f, 0.5f);
+            Assert.InRange(MathF.Abs(YawOf(repo, e)), 0f, 2f * MathF.PI / 180f);   // still facing east
+            Assert.Equal(1, repo.GetComponent<NavState>(e).HasArrived);
+            repo.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-2167</c> (V5) — backing ALONG a path counts as progress (it froze: the forward vector points against the
+        /// tangent while reversing), so a reversing vehicle reaches the end of its path.</summary>
+        [Fact]
+        public void V5_ReversingAlongAPath_MakesProgress()
+        {
+            var tank = VehiclePresets.GetPreset(VehicleClass.Tank);
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 6f, startSpeed: 0f, facing: SimMath.FromYaw(MathF.PI), vehicle: tank);
+            var nav = repo.GetComponent<NavState>(e);
+            nav.ReverseAllowed = 1;
+            repo.SetComponent(e, nav);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 10 * 60; i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); }
+            var at = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(at.X > 30f, $"it backed east along the path: x {at.X:F1}");
+            Assert.True(repo.GetComponent<NavState>(e).ProgressS > 25f, $"progress {repo.GetComponent<NavState>(e).ProgressS:F1}");
+            Assert.InRange(MathF.Abs(MathF.Abs(YawOf(repo, e)) - MathF.PI), 0f, 5f * MathF.PI / 180f);   // still facing west
+            pool.Dispose();
+            repo.Dispose();
+        }
+
         // ── ⭐ CE-3195 (R-3003, docs/DESIGN_Weapon_Layers.md W-14b–e) — an AIMED person turns his body to the aim ─────────────
 
         /// <summary>A standing person facing EAST, aimed (his weapon brain's posture) at <paramref name="aimAt"/>.</summary>
