@@ -13,6 +13,7 @@ known-rot: §6.1 "registrar ... with RegisterAll" and §6.4 "AiHotReloadCoordina
 known-conflict: Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-D (keep area query separate) — overtaken by
   the user's 2026-09-30 decision to unify into EQS 1.3 (R-156).
 related-designs:
+  - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — proposes vehicle-sized cover points and exposure at the querier's sight height (V3)
   - ../group-maneuvers/DESIGN_Squad_Tactics.md — the squad plays' ONE-SHOT cover queries (§7.6.2) — what measured §17.6.1 (a re-made one-shot sensor and ScoreDelta)
   - ../../DESIGN_Peek_And_Fire.md — widens EqsResult with the cover point's Stance (CE-3135) and revives ThreatExposureTest (threats from the perception children); §9 makes static obstacles terrain and vehicles live cover in the EQS sight and cover generator (CE-3136, CE-3142)
   - ../../DESIGN_Building_Interiors.md — cover per storey and window firing positions (slice B-3)

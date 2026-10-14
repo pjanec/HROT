@@ -5,6 +5,7 @@ current-answer: the whole document (what the squad layer IS)
 stale-below: none
 known-rot: none recorded; ⚠ the layer is built but its RUNTIME WIRING is owned elsewhere (see related-designs)
 related-designs:
+  - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the UNIT-level vehicle exposure cycle under the HillCrestHullDown platoon table
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the generic runner that executes this file's manoeuvre tables (§3) and the squad react-to-contact (§4)
   - ../../DESIGN_Peek_And_Fire.md — §10 OWNS the member's fight-from-cover action: reads `Assignment` (G4), per-unit `CoverClaim` de-confliction (G5), and a `MayExpose` seam for the PhaseSequencer (G6, CE-507)
   - ../../DESIGN_Building_Interiors.md — gives §8.6 stack-and-room-entry real rooms and doors (slice B-8)
