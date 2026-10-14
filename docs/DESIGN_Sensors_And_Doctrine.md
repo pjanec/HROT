@@ -32,6 +32,7 @@ related-designs:
   - docs/DESIGN_Terrain_World.md — OWNS the sight the perception templates call (SegmentBlocked, TerrainWorldLosStrategy).
   - docs/blueprints/batches/FRAME_Decision_Layer.md — the behaviors lane's frame for the decision layer (doctrine, missions, intent, utility) and the doctrine/origin build.
   - docs/blueprints/batches/FRAME_Eqs_Consuming_Behaviours.md — the behaviours lane's consumers; a doctrine is what assigns them.
+  - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — the programme for later (CE-2162) that points the vision cone along a look direction and narrows humans from 360° to ~200°; §1 there records how this file's cone test uses the FOV today
 -->
 
 # Sensors and Doctrine — one sensor form, and who decides what a unit does

@@ -27,6 +27,7 @@ related-designs:
   - DESIGN_Dead_Reckoning.md — the ONE dead-reckoning model (sample + rate + sim stamp, pure projection, R1–R8); W-10 applies it
     to TurretPose instead of inventing a second one.
   - DESIGN_Entity_Control.md — OWNS operator fire: AimAndFireExecutor's point target + operator mode (M-8, C-2)
+  - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — the programme for later (CE-2162): LD-1 reuses W-14's body turn (HumanGait.FacingTurn) for a look direction, LD-2 points the vision cone along it
 -->
 
 # Weapon layers — behaviour brain, weapon brain, weapon muscle
