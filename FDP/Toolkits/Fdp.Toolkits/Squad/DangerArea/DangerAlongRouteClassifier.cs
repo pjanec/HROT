@@ -14,6 +14,11 @@ namespace Fdp.Toolkit.Squad.DangerArea
     /// <see cref="MaxCrossingLength"/> (a longer run is walking ALONG the street, not crossing it) — and
     /// <see cref="DangerAreaKind.Intersection"/> — such a run through a junction. ⚠ OpenGround, ChokePoint and CrestLine are
     /// <c>CE-3081</c>.</para>
+    /// <para>⭐⭐ <c>CE-3081</c> (§10.7b) — <see cref="DangerAreaKind.OpenGround"/>: an OFF-ROAD run of at least <see cref="MinOpenRun"/> with no
+    /// cover within the corridor — no point of the terrain's cover map (<see cref="Fdp.Toolkit.Spatial.Eqs.ICoverProvider"/>, the one the
+    /// cover query reads) that protects at least a CROUCHING man (A1). A road sample is never open, so every crossing answer is as
+    /// before (A3). No cover map ⇒ no OpenGround (A6). Which kinds a sensor RECEIVES is the Brain's filter
+    /// (<see cref="DangerAreaSettings.Kinds"/>, A5).</para>
     /// <para>⛔ No threat: the answer carries geometry only; the Brain rates it from what the unit knows (B2, R-194).</para>
     /// <para>⭐ <see cref="DangerAreaDescriptor.FeatureId"/> is stable across re-plans: it hashes the road elements (segments, or the
     /// junction) and the run's EXIT point on a 10 m grid — the exit does not move while the unit walks up to and through the
@@ -29,13 +34,17 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public const float Step = 1f;
         /// <summary>The grid the FeatureId quantises the exit point to (m).</summary>
         public const float FeatureGrid = 10f;
+        /// <summary>⭐ <c>CE-3081</c> (A2) — an open run shorter than this (m) is a gap, not a field.</summary>
+        public const float MinOpenRun = 20f;
+        /// <summary>⭐ <c>CE-3081</c> (A1) — a cover point counts only within this height (m) of the route there (not a roof or another storey).</summary>
+        public const float CoverLevelTolerance = 2.5f;
 
         /// <summary>
         /// Classifies <paramref name="route"/> (a polyline from the unit) over <paramref name="terrain"/>; writes up to
         /// <c>areas.Length</c> descriptors in route order and returns how many.
         /// </summary>
         public static int Classify(ReadOnlySpan<Vector3> route, in global::CarKinem.Road.RoadNetworkBlob roads, Fdp.Toolkit.World.IWorldQuery? terrain,
-            float corridorHalfWidth, Span<DangerAreaDescriptor> areas)
+            Fdp.Toolkit.Spatial.Eqs.ICoverProvider? cover, float corridorHalfWidth, Span<DangerAreaDescriptor> areas)
         {
             if (route.Length < 2 || areas.Length == 0 || !Fdp.Toolkit.Navigation.RoadGraphRouter.HasRoads(roads)) return 0;
 
@@ -50,11 +59,29 @@ namespace Fdp.Toolkit.Squad.DangerArea
             bool inRun = false;
             float runStart = 0f;
             ulong runMask = 0;
+            bool inOpen = false;
+            float openStart = 0f;
             for (float d = 0f; ; d += Step)
             {
                 bool last = d >= total;
                 float at = last ? total : d;
-                ulong mask = RoadMask(roads, Xy(PointAt(route, cumulative, at)));
+                var here = PointAt(route, cumulative, at);
+                ulong mask = RoadMask(roads, Xy(here));
+
+                // ⭐ CE-3081 — an open run: off the roads (A3) and no crouch cover within the corridor (A1). Runs never overlap a road
+                //   run, so emitting at a run's end keeps the areas in route order.
+                bool open = mask == 0 && cover != null && OpenAt(cover, here, corridorHalfWidth);
+                if (open && !inOpen) { inOpen = true; openStart = at; }
+                if (inOpen && (!open || last))
+                {
+                    float openEnd = open ? at : at - Step * 0.5f;
+                    if (openEnd - openStart >= MinOpenRun)
+                    {
+                        areas[written++] = Describe(route, cumulative, total, terrain, openStart, openEnd, 0ul, corridorHalfWidth, DangerAreaKind.OpenGround);
+                        if (written == areas.Length) return written;
+                    }
+                    inOpen = false;
+                }
 
                 if (mask != 0 && !inRun) { inRun = true; runStart = at; runMask = mask; }
                 else if (mask != 0) runMask |= mask;
@@ -65,7 +92,8 @@ namespace Fdp.Toolkit.Squad.DangerArea
                     if (runEnd < runStart) runEnd = runStart;
                     if (runEnd - runStart <= MaxCrossingLength)
                     {
-                        areas[written++] = Describe(route, cumulative, total, terrain, runStart, runEnd, runMask, corridorHalfWidth);
+                        areas[written++] = Describe(route, cumulative, total, terrain, runStart, runEnd, runMask, corridorHalfWidth,
+                            (runMask & JunctionBit) != 0 ? DangerAreaKind.Intersection : DangerAreaKind.StreetCrossing);
                         if (written == areas.Length) return written;
                     }
                     inRun = false;
@@ -77,7 +105,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
         }
 
         private static DangerAreaDescriptor Describe(ReadOnlySpan<Vector3> route, ReadOnlySpan<float> cumulative, float total,
-            Fdp.Toolkit.World.IWorldQuery? terrain, float start, float end, ulong mask, float corridor)
+            Fdp.Toolkit.World.IWorldQuery? terrain, float start, float end, ulong mask, float corridor, DangerAreaKind kind)
         {
             float mid = (start + end) * 0.5f;
             var center = PointAt(route, cumulative, mid);
@@ -89,7 +117,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
             {
                 FeatureId          = FeatureIdOf(mask, exit),
                 ThreatRating       = 0f,
-                Kind               = (mask & JunctionBit) != 0 ? DangerAreaKind.Intersection : DangerAreaKind.StreetCrossing,
+                Kind               = kind,
                 Center             = center,
                 ExtentsXY          = new Vector2(MathF.Max(0.5f, (end - start) * 0.5f), MathF.Max(1f, corridor)),
                 AngleRad           = dir.LengthSquared() > 1e-6f ? MathF.Atan2(dir.Y, dir.X) : 0f,
@@ -113,6 +141,24 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 Mix((uint)(int)MathF.Round(exit.Y / FeatureGrid));
                 return h == 0 ? 1u : h;
             }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3081</c> (A1) — no point of the cover map within <paramref name="corridor"/> of <paramref name="p"/> (at its level) protects
+        /// a crouching man (<c>StanceHeight</c> 1 crouch or 2 stand; 0 is prone-only — the 0.5 m Low Wall). Window positions are not cover.
+        /// </summary>
+        public static bool OpenAt(Fdp.Toolkit.Spatial.Eqs.ICoverProvider cover, Vector3 p, float corridor)
+        {
+            Span<Fdp.Toolkit.Spatial.Eqs.CoverPoint> near = stackalloc Fdp.Toolkit.Spatial.Eqs.CoverPoint[64];
+            int n = cover.GetCoverPointsInRadius(Xy(p), MathF.Max(0.5f, corridor), near);
+            for (int i = 0; i < n; i++)
+            {
+                ref readonly var c = ref near[i];
+                if (c.Kind != Fdp.Toolkit.Spatial.Eqs.CoverKind.Cover || c.StanceHeight < 1 || c.StanceHeight == 255) continue;
+                if (MathF.Abs(c.PositionZ - p.Z) > CoverLevelTolerance) continue;
+                return false;
+            }
+            return true;
         }
 
         /// <summary>The top bit of a road mask: the point is inside a junction (a node with three or more segments).</summary>

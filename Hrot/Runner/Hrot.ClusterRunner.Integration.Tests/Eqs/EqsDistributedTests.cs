@@ -528,6 +528,59 @@ public sealed class EqsDistributedTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-3081</c> (docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7b) — OpenGround ACROSS HOSTS on the real test-town: the SimHost
+    /// judges the loose march leg (72, 58) → (175, 60) open against ITS cover map, the answer rides DangerAreaResult, and a Brain sensor
+    /// that asks for OpenGround lists it. The stretch behaviours' <c>CE-2161</c> demo uses.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public void CE3081_OpenGround_AcrossHosts_ASensorThatAsksForIt_ListsTheLooseMarchLeg()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+        var sim = harness.SimHost.World!;
+        var cgf = harness.Cgf!.World!;
+
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town");
+        var town = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "test-town.world.geojson")), "test-town");
+        foreach (var w in new[] { sim, cgf })
+        {
+            w.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();   // idempotent
+            w.SetSingletonManaged(town);
+        }
+        // the solver node's cover map, as TerrainResidency publishes it
+        sim.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(town));
+        var roads = CarKinem.Road.RoadNetworkLoader.LoadFromJson(System.IO.Path.Combine(folder, "roads.json"));
+        sim.RegisterManagedComponent<CarKinem.Road.RoadNetworkHolder>();   // idempotent
+        if (sim.HasSingletonManaged<CarKinem.Road.RoadNetworkHolder>()) sim.GetSingletonManaged<CarKinem.Road.RoadNetworkHolder>()!.Publish(roads);
+        else sim.SetSingletonManaged(new CarKinem.Road.RoadNetworkHolder(roads, takeOwnership: true));
+
+        long unitNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);
+        Assert.True(harness.PumpUntil(() => harness.SimHost.TestHook_EntityMap.TryGetEntity(unitNet, out _)
+             && harness.Cgf!.GhostEntityMap!.TryGetEntity(unitNet, out _), timeoutFrames: 3000),
+            "The unit must exist on the Muscle and the Brain.");
+        Place(sim, SimEntity(harness, unitNet), 72f, 58f, ForceId.Friend);
+        harness.Cgf!.GhostEntityMap!.TryGetEntity(unitNet, out Entity cgfUnit);
+
+        var settings = Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.ToPoint(new Vector3(175f, 60f, 0f));
+        settings.Kinds = Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.OpenGround;
+        var child = Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(cgf, cgfUnit, siteId: 8, settings);
+        Assert.False(child.IsNull);
+
+        Assert.True(harness.PumpUntil(() =>
+            {
+                var b = cgf.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(child);
+                return b.IsReady && b.Count > 0;
+            }, timeoutFrames: 3000),
+            "The SimHost must answer the Brain's danger-area sensor with the open run.");
+        var buf = cgf.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(child);
+        var area = Assert.Single(buf.GetSpanRO().Slice(0, buf.Count).ToArray());
+        Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround, area.Kind);
+        Assert.True(area.ExtentsXY.X * 2f >= 80f, $"the open run is {area.ExtentsXY.X * 2f:F0} m");
+    }
+
+    /// <summary>
     /// T-DIS5: pointing a live sensor at a different area (epoch bump) must reach the Muscle and change
     /// the answer. Before the egress published on change, a reliable config sample was sent ONCE and a
     /// later parameter change never left the Brain (T-DIS2 had to remove and re-add the sensor).

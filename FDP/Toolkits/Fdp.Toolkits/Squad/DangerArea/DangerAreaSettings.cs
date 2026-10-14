@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -16,6 +17,31 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// handle) becomes the watched route and hides the area it reacts to (§10.4).
         /// </summary>
         ToPoint = 2,
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3081</c> (docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7b A5) — the danger-area kinds a sensor wants, one bit per
+    /// <see cref="DangerAreaKind"/>. 0 = the v1 crossings (StreetCrossing + Intersection), so a sensor that says nothing sees what it
+    /// saw before OpenGround existed.
+    /// </summary>
+    [Flags]
+    public enum DangerAreaKinds : byte
+    {
+        /// <summary>The v1 crossings: <see cref="StreetCrossing"/> + <see cref="Intersection"/>.</summary>
+        Crossings      = 0,
+        OpenGround     = 1 << (int)DangerAreaKind.OpenGround,
+        StreetCrossing = 1 << (int)DangerAreaKind.StreetCrossing,
+        Intersection   = 1 << (int)DangerAreaKind.Intersection,
+    }
+
+    /// <summary>⭐ <c>CE-3081</c> — whether a sensor asking for <see cref="DangerAreaKinds"/> keeps an area of a kind.</summary>
+    public static class DangerAreaKindsOf
+    {
+        public static bool Wants(DangerAreaKinds wanted, DangerAreaKind kind)
+        {
+            if (wanted == DangerAreaKinds.Crossings) wanted = DangerAreaKinds.StreetCrossing | DangerAreaKinds.Intersection;
+            return kind <= DangerAreaKind.CrestLine && ((int)wanted & (1 << (int)kind)) != 0;
+        }
     }
 
     /// <summary>
@@ -38,6 +64,11 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public Vector3 RoutePoint;
         /// <summary>The planned route for <see cref="DangerRouteSource.Handle"/>.</summary>
         public uint RouteHandle;
+        /// <summary>
+        /// ⭐ <c>CE-3081</c> (§10.7b A5) — which kinds this sensor wants; <see cref="DangerAreaKinds.Crossings"/> (0, every zero-filled
+        /// writer) = the v1 crossings. The solve finds every kind; the Brain keeps these (<c>DangerAreaSensorSystem</c>).
+        /// </summary>
+        public DangerAreaKinds Kinds;
 
         /// <summary>The defaults: a 10 m corridor, 8 areas, an answer every 2 s, the unit's own move.</summary>
         public static DangerAreaSettings Default => new()

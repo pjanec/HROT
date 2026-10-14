@@ -56,7 +56,9 @@ namespace Fdp.Toolkit.Squad.DangerArea
             {
                 route[0] = start; route[1] = end; points = 2;   // nothing can plan it: the straight leg
             }
-            return DangerAlongRouteClassifier.Classify(route.Slice(0, points), in graph, terrain, sensor.SearchRadius, areas);
+            // ⭐ CE-3081 (§10.7b A1/A6) — the node's cover map (the one the cover query reads) judges OpenGround; none ⇒ crossings only
+            var cover = repo.HasSingletonManaged<ICoverProvider>() ? repo.GetSingletonManaged<ICoverProvider>() : null;
+            return DangerAlongRouteClassifier.Classify(route.Slice(0, points), in graph, terrain, cover, sensor.SearchRadius, areas);
         }
 
         /// <summary>Where the watched route ends — see the class remarks — and the unit's road use for it.</summary>
