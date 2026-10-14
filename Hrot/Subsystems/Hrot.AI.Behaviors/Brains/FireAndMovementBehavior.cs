@@ -30,6 +30,11 @@ namespace Hrot.AI.Behaviors.Brains
         public float CoveringSeconds;
         /// <summary>A rush counts as set after this long (s).</summary>
         public float RushTimeoutSeconds;
+        /// <summary>⭐ <c>CE-2158</c> F-d (§7.6.4) — 1 = the moving half rushes by BUDDY PAIRS: its even-ranked men (A) first while their
+        /// buddies (B) fire, then B; 0 = the whole half at once.</summary>
+        public byte Pairs;
+        /// <summary>Runtime (F-d): which buddies of the moving half are up — 0 = A, 1 = B.</summary>
+        public byte Buddy;
         /// <summary>Runtime: each mover's cover point for the coming rush (<see cref="SquadCover"/>).</summary>
         public SquadCoverPicks Cover;
     }
@@ -61,6 +66,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (live < 2) return PlayStart.Fail;
             BoundingOverwatchManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);   // first half, second half
             p.Cover = default;
+            p.Buddy = 0;
             return PlayStart.Go;
         }
 
@@ -103,9 +109,13 @@ namespace Hrot.AI.Behaviors.Brains
             if (FireAndMovementManeuver.IsRush(phase))
             {
                 evt = PhaseEventKind.DefiladeReached;   // "Set!"
-                bool set = SquadGates.Set(in ws, in ctx, SquadGates.Element(in ctx, e), SquadGates.SetMetres);
+                ushort up = p.Pairs != 0 ? Buddies(in ctx, e, p.Buddy) : SquadGates.Element(in ctx, e);
+                bool set = SquadGates.Set(in ws, in ctx, up, SquadGates.SetMetres);
                 if (!set && ctx.Now - ws.IssuedAt < p.RushTimeoutSeconds) return false;
+                // ⭐ F-d — the A buddies are down: the B buddies go (a re-issue inside the phase, not a phase change)
+                if (p.Pairs != 0 && p.Buddy == 0 && Buddies(in ctx, e, 1) != 0) { p.Buddy = 1; ws.Reissue = 1; return false; }
                 if (!set) ws.CompletedByTimeout = 1;
+                p.Buddy = 0;
                 SquadCover.Spend(ref p.Cover, in ctx, e);   // the rush is over: the next one picks afresh
                 return true;
             }
@@ -126,6 +136,8 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (!FireAndMovementManeuver.IsRush(phase))
                     return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = FireAndMovementManeuver.RoleMoving };
+                // ⭐ F-d — the buddy who is not up fires for the one who is
+                if (p.Pairs != 0 && (Buddies(in ctx, element, p.Buddy) & (1 << member)) == 0) return Covering(in p, in ws);
                 bool cover = SquadCover.Has(in p.Cover, member, out var pick);
                 return new MemberOrder   // RushTo
                 {
@@ -133,12 +145,30 @@ namespace Hrot.AI.Behaviors.Brains
                     ArrivalRadius = 1f, Cover = cover ? (byte)1 : (byte)0, RoleId = FireAndMovementManeuver.RoleMoving,
                 };
             }
+            return Covering(in p, in ws);
+        }
+
+        private static MemberOrder Covering(in FireAndMovementParams p, in SquadPlayState ws)
+        {
             if (ws.ThreatId == 0) return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = FireAndMovementManeuver.RoleCovering };
             return new MemberOrder
             {
                 Kind = MemberOrderKind.Suppress, Target = new Entity((ulong)ws.ThreatId), Point = ws.ThreatPoint, Speed = p.Speed,
                 RoleId = FireAndMovementManeuver.RoleCovering,
             };
+        }
+
+        /// <summary>⭐ F-d — the live men of <paramref name="element"/> whose rank in it has parity <paramref name="buddy"/> (0 = A, 1 = B).</summary>
+        public static ushort Buddies(in SquadPlayContext ctx, byte element, byte buddy)
+        {
+            ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
+            ushort mask = 0; int rank = 0;
+            for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
+            {
+                if (squad.Elements.MemberElements[i] != element || !ctx.Live(i, out _)) continue;
+                if ((rank++ & 1) == buddy) mask |= (ushort)(1 << i);
+            }
+            return mask;
         }
 
         public void Release(ref SquadPlayState ws, EntityRepository world) => SquadManeuverRunner.DropSensor(ref ws, world);
@@ -176,6 +206,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ArrivalRadius      = authored.ArrivalRadius > 0f ? authored.ArrivalRadius : 20f,
                 CoveringSeconds    = 3f,
                 RushTimeoutSeconds = authored.RushTimeoutSeconds > 0f ? authored.RushTimeoutSeconds : 12f,
+                Pairs              = authored.Pairs ? (byte)1 : (byte)0,
             };
             block.State = default;
         }

@@ -845,7 +845,7 @@ quiet 1 · strength 0.81 · enemy share 0.09 · ammo 1 ⇒ Assault **0.888** vs 
 ⚠ **§7.8.2 check ⑧ changed with the build**: "each member runs what he ran before ①" cannot hold — after the care the reaction DECIDES
 AGAIN (the fight may have moved on). ⑧ is now *"the drill is no longer `CasualtyCare` and every member in the fight has an order of it"*.
 
-### 7.6 Fire and movement — the same pattern *(behaviors, `2026-10-13`; build-state: F-a + F-b + F-c BUILT (§7.6.1, §7.6.2), the Assault route BUILT (§7.6.3), F-d not; F-e live — ✅ approved (R-2013, leans (b)))*
+### 7.6 Fire and movement — the same pattern *(behaviors, `2026-10-13`; build-state: F-a … F-d BUILT (§7.6.1, §7.6.2, §7.6.4), the Assault route BUILT (§7.6.3); F-e live — ✅ approved (R-2013, leans (b)))*
 
 📖 **Doctrine (general knowledge, ⛔ not in the corpus):** two drills, not one. **Bounding overwatch** is used BEFORE contact: one element
 watches, ready to fire, while the other bounds 20–50 m to the next cover; then they swap. **Fire and movement** is used IN contact: the
@@ -1024,7 +1024,7 @@ contact). F-b rails unchanged after the move onto `SquadCover`.
 | a pick could land where a man of the other element already stands | ⇒ `SquadCover.Pick` keeps 2 m from every other live member too |
 | the hostile is seen ~150 m up the open street; a scripted move through `/attribute` answered ok and never moved him | the demo starts in sight of him; "watchers hold before contact" stays a rail (`CE2158_BoundingOverwatch_TheWatchersSuppressOnContact`) |
 | the swap came while the cover movers were 2.6–3.9 m short (one 3 m gate), and the drill could end mid-bound once both centres were near the objective | ⇒ a man sent to cover is ordered to 1 m of it and is set within 1.5 m (`MoversSet`); the drill waits for a cover bound to finish. Live: the cover bounds now end 0.1–0.5 m from the point |
-| ⚠ **OPEN:** both halves read as moving for 1.1–3.6 s right after a swap (run to run), ⛔ cause not measured — the members' reported speed is 0 on the state route, so it may be the replica's smoothing of a stop | `ua-bounding-overwatch` check ① (tolerance 1.5 s); 8 of 9 checks pass |
+| ~~⚠ OPEN: both halves read as moving for 1.1–3.6 s right after a swap~~ ✅ **SOLVED `2026-10-14` — a CHECKER bug, not the drill:** check ① grouped the men into halves by the order their NAMES are listed (first three, last three), while the drill's elements come from the roster partition. Grouped by the drill's own element (the member's `role` in `/squad`), the longest overlap is **0.0 s** | `ua-bounding-overwatch` 9 of 9; the checker logs every overlap with who moved and how far from his point |
 
 #### 7.6.3 The contact reaction's Assault closes by fire and movement first *(behaviors, `2026-10-14`, `CE-2158` F-e; build-state: BUILT)*
 
@@ -1061,7 +1061,7 @@ Rail `SquadManeuverTests.CE2158_ReactToContact_AFarContact_IsClosedByFireAndMove
 `SquadTacticsScenarioTests.CE2123_ABoundingSquadMeetsTheEnemy_…` now expects kinds 2 → 7 → 12 → 3 → 2; the near case stays
 `CE2123_ReactToContact_HoldsAndReturnsFire_ThenAStrongSquadAssaults` (60 m ⇒ the flank at once).
 
-#### 7.6.4 F-d — fire and movement in pairs *(behaviors, `2026-10-14`, `CE-2158`; build-state: READY-TO-BUILD — the approved slice F-d, lean (b) "halves first, pairs later")*
+#### 7.6.4 F-d — fire and movement in pairs *(behaviors, `2026-10-14`, `CE-2158`; build-state: BUILT `2026-10-14` — the approved slice F-d, lean (b) "halves first, pairs later"; as-built at the end)*
 
 📖 **Doctrine (general knowledge):** inside a fire team the rush is by BUDDY PAIRS — one man up while his buddy fires, then the buddy.
 **Measured:** `FireAndMovementPlay` moves a whole half per `Rush_e` (`SquadGates.Set` over `SquadGates.Element(e)`); the halves come from
@@ -1090,6 +1090,13 @@ unchanged; only who moves inside `Rush_e` changes.
 
 Rejected: **pairs as four elements** — the table and both gates are written for two elements · **a new phase table** — the A/B step is
 not a squad phase, nobody outside the half needs to see it.
+
+**As built `2026-10-14`:** `FireAndMovementParams.Pairs` / `.Buddy` · authored `Pairs` (bool) · `FireAndMovementPlay.Buddies(ctx, element,
+buddy)` (the live men of the half by rank parity) · in `Rush_e` the set gate is over the up buddies only; A set (or the rush timeout)
+⇒ `Buddy = 1` and a re-issue; B set ⇒ the swap (`DefiladeReached`, as before). The waiting buddy gets the covering order (`Suppress`, or
+`Hold` with no threat). The diagram above is TRUE as built. ⚠ The contact reaction's closing stage (§7.6.3) keeps halves (`Pairs` 0) —
+pairs are an authored choice for now. Rail `SquadManeuverTests.CE2158_FireAndMovement_InPairs_OneBuddyUpWhileTheOtherFires_ThenTheOther`
+(red-proved: pairs ignored ⇒ red); the four halves rails unchanged.
 
 ### 7.7 Danger-area crossing — the squad drill *(behaviors, `2026-10-13`; build-state: BUILT (§7.7.6; X-a … X-d, `-contact` §7.8.4) — ✅ approved 2026-10-13 (R-2014))*
 

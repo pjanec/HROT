@@ -1467,6 +1467,34 @@ namespace Hrot.SimHost.Tests
             Assert.False(FmQuery(s).IsNull);                                         // cover for the next half
         }
 
+        /// <summary>⭐ <c>CE-2158</c> F-d (§7.6.4) — in PAIRS the moving half rushes one buddy at a time: the A man (member 0) goes while
+        /// his buddy B (member 1) fires with the other half; A set ⇒ B goes (still the same phase); B set ⇒ the halves swap.
+        /// 🔴 Red before: the whole half went at once.</summary>
+        [Fact]
+        public void CE2158_FireAndMovement_InPairs_OneBuddyUpWhileTheOtherFires_ThenTheOther()
+        {
+            var s = FmSquad();
+            s.Order("{\"Objective\":[6,80,0],\"RushMetres\":15,\"Pairs\":true}", BehaviorNames.FireAndMovement);
+            s.Tick(); s.Tick();
+            AnswerAll(s, FmQuery(s), new Vector3(0, -5, 0), new Vector3(0, 40, 0), AheadA, AheadB);
+            s.Tick();
+            Fire(s, s.Members[2]); Fire(s, s.Members[3]); s.Tick(); s.Tick();
+            Assert.Equal(FireAndMovementManeuver.PhaseRush0, s.Phase);
+            Assert.Equal(BehaviorNames.AdvanceTo, LastIntent(s, s.Members[0]));     // A is up …
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[1]));      // … his buddy fires
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[2]));
+
+            s.Teleport(s.Members[0], AheadA);
+            s.Tick(); s.Tick();
+            Assert.Equal(FireAndMovementManeuver.PhaseRush0, s.Phase);               // the same phase: B's turn
+            Assert.Equal(BehaviorNames.AdvanceTo, LastIntent(s, s.Members[1]));
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));      // A, down, now covers B
+
+            s.Teleport(s.Members[1], SquadDrillTrace.Of(s.Repo, s.Commander).Orders[1].Point);
+            s.Tick(); s.Tick();
+            Assert.Equal(FireAndMovementManeuver.PhaseCover1, s.Phase);              // both set: the halves swap
+        }
+
         /// <summary>⭐ F-b — no cover ahead and no covering fire: after <c>CoveringSeconds</c> the movers go anyway (traced Timeout), each
         /// one rush (≤ RushMetres) straight toward the objective, and the trace says that point is NOT cover. 🔴 Red before: as above.</summary>
         [Fact]

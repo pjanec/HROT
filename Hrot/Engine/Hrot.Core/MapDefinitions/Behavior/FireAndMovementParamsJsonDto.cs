@@ -33,5 +33,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>A rush counts as set after this long even if a mover never reaches his point (s); 0 = 12.</summary>
         [JsonPropertyName("RushTimeoutSeconds")]
         public float RushTimeoutSeconds;
+
+        /// <summary>⭐ <c>CE-2158</c> F-d — rush by buddy pairs inside the moving half (one man up while his buddy fires); false = the
+        /// whole half at once.</summary>
+        [JsonPropertyName("Pairs")]
+        public bool Pairs;
     }
 }
