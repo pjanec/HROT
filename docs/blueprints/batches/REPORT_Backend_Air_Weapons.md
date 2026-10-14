@@ -21,9 +21,9 @@ Scope frozen at the dispatch commit (merged into `backend` in `32264ce64`, behav
 
 | item | what | sha on `backend` | state |
 |---|---|---|---|
-| **F1** | the A-10's GAU-8 (405, mount 1): `Autocannon`, fixed forward, **`WeaponMountDto.FixedConeDeg` = 5°** — the AI's aimed, blind and at-point rounds are held `OutOfArc` outside the cone (3-D, the body's pitch included); HEI loaded (6023) + a penetrator (6024), `AmmoChoice` picks | `SHA_F` | ✅ |
-| **F2** | the attack helicopter **406** (`Heli_AH64`, DIS 1.2.225.20): Rotorcraft, mount 0 a chin M134 on turret 0 (±110°, −60…+11°), mount 1 the Hydra pod (`Rocket`, fixed forward, 8° cone, 38 rounds) | `SHA_F` | ✅ |
-| **F3** | **6025 Hydra-70 HE**: unguided `MissileDto` 700 m/s / 6 s, the warhead of the new library entry `70mm rocket HE`; `WeaponCategory.Rocket = 9` (per-shot; a held trigger keeps firing — the ripple) | `SHA_F` | ✅ |
+| **F1** | the A-10's GAU-8 (405, mount 1): `Autocannon`, fixed forward, **`WeaponMountDto.FixedConeDeg` = 5°** — the AI's aimed, blind and at-point rounds are held `OutOfArc` outside the cone (3-D, the body's pitch included); HEI loaded (6023) + a penetrator (6024), `AmmoChoice` picks | `19fcb343a` | ✅ |
+| **F2** | the attack helicopter **406** (`Heli_AH64`, DIS 1.2.225.20): Rotorcraft, mount 0 a chin M134 on turret 0 (±110°, −60…+11°), mount 1 the Hydra pod (`Rocket`, fixed forward, 8° cone, 38 rounds) | `19fcb343a` | ✅ |
+| **F3** | **6025 Hydra-70 HE**: unguided `MissileDto` 700 m/s / 6 s, the warhead of the new library entry `70mm rocket HE`; `WeaponCategory.Rocket = 9` (per-shot; a held trigger keeps firing — the ripple) | `19fcb343a` | ✅ |
 | **F4** | the doors-off UH-60's door gunners | — | ⏳ **unblocked by the user** (below) — next commit |
 
 ## F4 — stopped, then unblocked
