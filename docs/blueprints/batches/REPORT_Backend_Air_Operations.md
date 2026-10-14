@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-current-answer: the whole file. It is the report for HANDOFF_Behaviors_To_Backend_Air_Operations.md (E1–E4; E5 follows).
+current-answer: the whole file. It is the report for HANDOFF_Behaviors_To_Backend_Air_Operations.md (E1–E5).
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -13,7 +13,7 @@ related-designs:
   - docs/designs/navig-2/Navigation_Design_v2_0.md — §7.1 RouteEntityId (E2), the C8 row (E3)
 -->
 
-# Report — backend → behaviors: air operations (E1–E4)
+# Report — backend → behaviors: air operations (E1–E5)
 
 Scope frozen at the dispatch commit `65ff1d032`, merged into `backend` in `fbdbedac8`. The started marker is `4df8c1f88`. Branch: **`backend`**.
 Each item's as-built is folded into its owning design. Deviations are listed below with their reasons.
@@ -26,7 +26,7 @@ Each item's as-built is folded into its owning design. Deviations are listed bel
 | E2 | slice 1 — waypoint fields + `NavigationIntent.RouteEntityId`; CE-2171 confirmed and fixed | `c5b8b8e9f` (+ tracker `272eb90ca`) | Air Ops §5a, ROUTES1 §6, Nav v2 §7.1 | ✅ |
 | E3 | slice 2 — `AirRoute`/`AirPath`, the `RotorcraftModel` route follower, take-off/landing/holds, 404 flight data | `dc45879ce` | Air Ops §5b, Nav v2 C8, FPV §6, Motion Domains | ✅ |
 | E4 | slice 4 — `FixedWingModel`, A-10 (405), air launch velocity, Mk-82 (6022), `BombBallistics`, the Release profile | `992329a2e` | Air Ops §6a + §8a, Motion Domains, Missiles | ✅ |
-| E5 ⏸ | pilot Manual models | — | — | next: unblocked now that E3 and E4 are in |
+| E5 | slice 6, backend half — `FixedWingModel.Manual` mouse-aim pilot · `RotorcraftModel.Manual` tilt + hover hold | `a71724e9c` | Air Ops §6b, Motion Domains | ✅ |
 | CE-3198 ⏸ | NLAW overfly | — | — | stays queued, as the handoff says |
 
 ## E2 — CE-2171 (a FollowRoute order never moves the unit on a split cluster), confirmed then fixed
@@ -90,7 +90,8 @@ No other wire change.
 - **E3** Curvature is measured as Menger curvature over densified 20 m legs.
 - **E4** A Ground waypoint on a FixedWing route is removed from the path, with an `FdpLog` warning (B9: it is flown over, never landed on). Holds are removed too. The plane circles the last point.
 - **E4** Fixed-wing turn radius is cruise² / (g·tan max bank); the stall speed is a hard floor.
-- **E4** `FixedWingModel.Manual` flies straight until E5.
+- **E5** The plane's mouse-aim turn is coordinated: the bank drives the yaw, and the yaw never passes the look. The throttle is a level: 0 is cruise, +1 top speed, −1 the stall speed.
+- **E5** `RotorcraftModel.Manual` keeps its direct axes. Its hover hold is the existing "no axis ⇒ stay put", now with the body levelling out. No acceleration limit was added, because `M7_ARotorcraft_Hovers_ClimbsAndYaws_UnderManualDrive` and the drone's cross-node possession rail pin the direct response.
 - **E4** The Mk-82 takes its warhead from the library entry nearest to it, the 120 mm mortar HE, with `Indirect = true`.
   - Penetration 50 and damage 1200 are stated on the munition.
   - **CE-3201** is filed: the warhead library has no bomb.
@@ -100,7 +101,8 @@ No other wire change.
 
 - **CE-3201**: the warhead library has no bomb entry. Lean: add a Mk-82 entry to `ammo.json`.
 - ⛔ **behaviour lane, report only:** `FireAtPointExecutor` has no release gate, so a Strike on a POINT with a bomb would drop at once. It is yours to decide in slice 5. `AimAndFireExecutor.ReleaseCue(world, unit, target)` is public, so you can reuse it.
-- **ui:** `PossessionStation`'s WeaponCategory label has no `Bomb` case.
+- **ui:** `PossessionStation`'s WeaponCategory label has no `Bomb` case. The station half of slice 6 (`ControlScheme.FixedWing`, the camera following the attitude, the HUD) is still to build, and it can drive E5 as is: the camera's look heading goes in `ManualDrive.Yaw`, the climb in `Vertical`, the throttle in `Forward`.
+- ⚠ **A manual plane flown into the terrain crashes through `DroneImpactSystem`, which bursts mount 0, the A-10's Mk-82 rack.** The design does not say what a plane crash should do. No id is filed; it is yours to decide, along with slice 5.
 - **CE-3138**: still red, pre-existing (above). A progress line is added to its tracker row.
 
 No ground combat number moved. The launch change runs only for an **Air-domain** shooter (`Locomotions.InAir`): a Bomb mount drops through `BombBallistics.Launch`, and any other round adds the carrier's velocity. A ground shooter never enters that branch, which `A4`'s ground half pins.
