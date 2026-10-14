@@ -61,6 +61,32 @@ namespace Hrot.SimHost.Tests
             return null!;
         }
 
+        /// <summary>⭐ Air Ops B1 (handoff E2; DESIGN_Air_Operations §5) — the air fields of a waypoint (kind, height above ground,
+        /// hold, seconds, unit) survive the scenario save; a plain waypoint keeps their defaults (a ground route saves as before).</summary>
+        [Fact]
+        public void B1_TheAirFields_RoundTrip_AndAPlainWaypointKeepsTheDefaults()
+        {
+            var plan = new RoutePlan();
+            plan.Mutate(w =>
+            {
+                w.Add(new RouteWaypoint { Position = new Vector3(0f, 0f, 0f), TargetSpeed = 30f, Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground,
+                                          Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup, HoldUnit = 7701 });
+                w.Add(new RouteWaypoint { Position = new Vector3(500f, 0f, 0f), HeightAgl = 60f });
+                w.Add(new RouteWaypoint { Position = new Vector3(900f, 200f, 0f), Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground,
+                                          Hold = Fdp.Toolkit.Navigation.RouteHold.Seconds, HoldSeconds = 12.5f });
+            });
+            var (_, fresh) = RoundTrip(plan);
+            using (fresh)
+            {
+                var w = LoadedPlan(fresh).Waypoints;
+                Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, Fdp.Toolkit.Navigation.RouteHold.Pickup, 7701L),
+                             (w[0].Kind, w[0].Hold, w[0].HoldUnit));
+                Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Pass, 60f, Fdp.Toolkit.Navigation.RouteHold.None, 0L),
+                             (w[1].Kind, w[1].HeightAgl, w[1].Hold, w[1].HoldUnit));
+                Assert.Equal((Fdp.Toolkit.Navigation.RouteHold.Seconds, 12.5f), (w[2].Hold, w[2].HoldSeconds));
+            }
+        }
+
         [Fact]
         public void RoundTrip_PreservesWaypointsAndLoopFlag()
         {

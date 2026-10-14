@@ -259,4 +259,91 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         Assert.True(harness.PumpUntil(() => cgf.GetComponentRO<BehaviorState>(onBrain).Origin != BehaviorOrigin.Possession
             && station.HolderOf(id) is null, timeoutFrames: 600), "released");
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2171</c> (Air Ops handoff E2; DESIGN_Air_Operations §5, B1) — a ground unit told <c>FollowRoute</c> on a SPLIT cluster
+    /// drives its route: the brain (CGF) and the body (SimHost) are on two nodes, the route entity is replicated (MapRoute), and the
+    /// body ends near the route's last point. 🔴 Before: the brain waited for a LOCAL trajectory-pool id that only SimHost makes and
+    /// that never crosses the wire, so the order never started. The scenario is <c>ua-grenade-or-rifle</c> plus a route and a tank.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2171_AFollowRoute_OnASplitCluster_DrivesTheRoute()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        var scenario = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json")))!;
+        scenario["entities"]!["a4120000-0000-4000-8000-0000000000e1"] = System.Text.Json.Nodes.JsonNode.Parse("""
+            {
+              "SimTransform": { "Position": [60, -60, 0], "Rotation": [0, 0, 0, 1] },
+              "NetworkIdentity": { "Value": 7800 },
+              "TkbIdentity": { "TkbType": 8802 },
+              "EntityInfo": { "Name": "Route east" },
+              "RoutePlan": { "IsLoop": false, "Waypoints": [
+                { "X": 60, "Y": -60, "Z": 0, "TargetSpeed": 6 },
+                { "X": 110, "Y": -60, "Z": 0, "TargetSpeed": 6 },
+                { "X": 110, "Y": -20, "Z": 0, "TargetSpeed": 6 } ] }
+            }
+            """);
+        scenario["entities"]!["a4120000-0000-4000-8000-0000000000e2"] = System.Text.Json.Nodes.JsonNode.Parse("""
+            {
+              "SimTransform": { "Position": [60, -60, 0], "Rotation": [0, 0, 0, 1] },
+              "Health": { "Current": 3000, "Max": 3000 },
+              "NetworkIdentity": { "Value": 7801 },
+              "TkbIdentity": { "TkbType": 100 },
+              "EntityInfo": { "Name": "Route tank", "ForceId": "Friend" },
+              "Behavior": { "Name": "FollowRoute", "Params": "{\"routeEntityId\":7800,\"Speed\":6}", "Origin": "Superior" }
+            }
+            """);
+        File.WriteAllText(Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), scenario.ToJsonString());
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Route tank").IsNull && !ByName(sim, "Route tank").IsNull, timeoutFrames: 2000),
+            "the tank must exist on both nodes");
+        var onMuscle = ByName(sim, "Route tank");
+        var start = sim.GetComponentRO<SimTransform>(onMuscle).Position;
+        var end = new System.Numerics.Vector2(110f, -20f);
+        bool arrived = harness.PumpUntil(() =>
+        {
+            var p = sim.GetComponentRO<SimTransform>(onMuscle).Position;
+            return System.Numerics.Vector2.Distance(new(p.X, p.Y), end) < 8f;
+        }, timeoutFrames: 6000);
+        var now = sim.GetComponentRO<SimTransform>(onMuscle).Position;
+        var intent = sim.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(onMuscle)
+            ? sim.GetComponentRO<Fdp.Toolkit.Navigation.NavigationIntent>(onMuscle) : default;
+        var nav = sim.HasComponent<CarKinem.Core.NavState>(onMuscle) ? sim.GetComponentRO<CarKinem.Core.NavState>(onMuscle) : default;
+        var routeOnSim = Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(sim, intent.RouteEntityId);
+        bool plan = !routeOnSim.IsNull && sim.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(routeOnSim);
+        int compiled = !routeOnSim.IsNull && sim.IsComponentTypeRegistered<Hrot.Map.Common.Components.RouteTrajectoryCache>()
+            && sim.HasComponent<Hrot.Map.Common.Components.RouteTrajectoryCache>(routeOnSim)
+            ? sim.GetComponentRO<Hrot.Map.Common.Components.RouteTrajectoryCache>(routeOnSim).TrajectoryId : -1;
+        _out.WriteLine($"tank {start} -> {now}; SimHost intent Mode {intent.Mode} TrajectoryId {intent.TrajectoryId} RouteEntityId {intent.RouteEntityId}; "
+            + $"NavState Mode {nav.Mode} Traj {nav.TrajectoryId} Speed {nav.TargetSpeed}; route on SimHost {routeOnSim} plan {plan} compiled {compiled}");
+        var routeOnCgf = ByName(cgf, "Route east");
+        string Owner(EntityRepository w, Entity e) => e.IsNull || !w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>(e) ? "?"
+            : $"owner {w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkAuthority>(e).PrimaryOwnerId} local {w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkAuthority>(e).LocalNodeId}";
+        _out.WriteLine($"route on CGF: SimTransform {(!routeOnCgf.IsNull && cgf.HasComponent<SimTransform>(routeOnCgf))} "
+            + $"authority dtMapRoute {(!routeOnCgf.IsNull && Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(cgf, routeOnCgf, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)Hrot.NED.Descriptors.EDescriptorType.dtMapRoute, 0)))}");
+        _out.WriteLine($"route on CGF: plan {(!routeOnCgf.IsNull && cgf.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(routeOnCgf))} {Owner(cgf, routeOnCgf)}; on SimHost {Owner(sim, routeOnSim)}");
+        foreach (var (name, w) in new[] { ("ig", harness.Ig.App.World) })
+        {
+            var r = ByName(w, "Route east");
+            _out.WriteLine($"route on {name}: {r} plan {(!r.IsNull && w.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(r))} {Owner(w, r)}");
+        }
+        var routeOnSimByName = ByName(sim, "Route east");
+        _out.WriteLine($"route by name: CGF {routeOnCgf} SimHost {routeOnSimByName}; SimHost RoutePlan {( !routeOnSimByName.IsNull && sim.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(routeOnSimByName))}"
+            + $" netId on SimHost {(routeOnSimByName.IsNull ? -1 : (sim.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(routeOnSimByName) ? sim.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(routeOnSimByName).Value : -2))}");
+        Assert.True(arrived, $"the tank must drive its route on SimHost to (110, -20): {start} -> {now} (intent {intent.Mode})");
+    }
 }

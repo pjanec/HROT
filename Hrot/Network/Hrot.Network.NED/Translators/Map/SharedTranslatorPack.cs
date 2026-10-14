@@ -34,6 +34,8 @@ namespace Hrot.Map.Common.Translators
     ///   <item><see cref="MapVisualOverlayIngressTranslator"/> — applies incoming overlay geometry to ghost entities.
     ///     Needed on all roles (Brain and Muscle) so non-owning nodes maintain an up-to-date
     ///     <see cref="EditablePolyline"/> component for area entities published by the owning node.</item>
+    ///   <item><see cref="MapRouteEgressTranslator"/> / <see cref="MapRouteIngressTranslator"/> — a route's <c>RoutePlan</c>, its
+    ///     owner → every node (CE-2171: CGF owns scenario routes; SimHost follows them).</item>
     /// </list>
     /// </summary>
     public static class SharedTranslatorPack
@@ -117,6 +119,12 @@ namespace Hrot.Map.Common.Translators
             yield return new OwnershipUpdateTranslator(participant, (int)localNodeId);
             yield return new MapVisualOverlayEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new MapVisualOverlayIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
+            // ⭐ CE-2171 (Air Ops E2) — a route's plan, its owner → every node. Moved here from KinematicTranslatorPack (egress) and
+            //   added (ingress) beside the overlay pair, for the same reason: a SCENARIO route is created and owned by CGF (Brain), and
+            //   the egress existed only on the Muscle ⇒ SimHost, where the route is followed, never had the plan. 📄 ROUTES1 §6.1/6.2.
+            //   The pure IG keeps its own ingress in EntityStatesIngressPack (the `!pureIg` guard skips this pack's ingress there).
+            yield return new MapRouteEgressTranslator(participant, entityMap, geoTransform);
+            yield return new MapRouteIngressTranslator(participant, entityMap, geoTransform);
             yield return new UpdateEntityAttributeCommandEgressTranslator(participant);
             // ⭐ CE-484 — every node may host an operator window: a behaviour fault raised on any node becomes a row of
             //   the Message Log's "Behaviour faults" tab here. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c

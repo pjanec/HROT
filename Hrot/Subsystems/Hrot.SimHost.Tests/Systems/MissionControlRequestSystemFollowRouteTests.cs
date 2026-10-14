@@ -174,11 +174,13 @@ public class MissionControlRequestSystemFollowRouteTests
         Assert.Equal(0, block.TrajectoryId);
     }
 
-    /// <summary>⭐ CE-2145 (was OC1-S001 Scenario 4) — a route compiled AFTER the start: the action waits (Running, the
-    /// locomotion channel untouched) and follows the trajectory once it exists. 🔴 Red-proof: drop the action's look-up →
-    /// the second tick writes trajectory 0.</summary>
+    /// <summary>⭐ CE-2145 (was OC1-S001 Scenario 4), re-pinned by ⭐⭐ CE-2171 (Air Ops E2, DESIGN_Air_Operations §5a) — a route
+    /// compiled AFTER the start. The action no longer waits for the LOCAL trajectory (a pool id only the motion node makes, which
+    /// never crosses the wire — on a split cluster it waited for good): it starts at once carrying the route ENTITY, and the motion
+    /// side resolves its own trajectory. When this node does compile the route (an all-in-one host) the local id rides along.
+    /// 🔴 Red-proof: restore the wait → the first tick leaves the channel untouched.</summary>
     [Fact]
-    public unsafe void CE2145_TheAction_WaitsForTheRoute_ThenFollowsIt()
+    public unsafe void CE2145_TheAction_StartsWithTheRouteEntity_ThenAddsTheLocalTrajectory()
     {
         using var repo = CreateWorld();
         repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>();
@@ -191,15 +193,35 @@ public class MissionControlRequestSystemFollowRouteTests
         Assert.Equal(0, p.TrajectoryId);
 
         Assert.Equal(Fbt.NodeStatus.Running, Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteFollowRouteChannel(ref p, vehicle, repo));
-        Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdFollowRoute,
-            repo.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(vehicle).ActiveAction);
+        var first = repo.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(vehicle);
+        Assert.Equal(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdFollowRoute, first.ActiveAction);
+        Assert.Equal(99L, (*(Fdp.Toolkit.Navigation.FollowRouteParams*)first.Params).RouteEntityId);
+        Assert.Equal(0, (*(Fdp.Toolkit.Navigation.FollowRouteParams*)first.Params).TrajectoryId);
+        repo.GetComponentRW<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(vehicle).Status = Fbt.NodeStatus.Running;   // the executor took it
 
         repo.SetComponent(route, new RouteTrajectoryCache { TrajectoryId = 7, CompiledVersion = 1 });
         Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteFollowRouteChannel(ref p, vehicle, repo);
 
         var ch = repo.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(vehicle);
-        Assert.Equal(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdFollowRoute, ch.ActiveAction);
+        Assert.Equal(first.ActionInstanceId, ch.ActionInstanceId);   // the same order, not a restart
         Assert.Equal(7, (*(Fdp.Toolkit.Navigation.FollowRouteParams*)ch.Params).TrajectoryId);
+        Assert.Equal(99L, (*(Fdp.Toolkit.Navigation.FollowRouteParams*)ch.Params).RouteEntityId);
+    }
+
+    /// <summary>⭐ CE-2145's wait survives where it still means something: with NO route entity to send, the action waits (Running,
+    /// the channel untouched) — there is nothing the motion side could resolve.</summary>
+    [Fact]
+    public void CE2145_WithoutARouteEntity_TheActionWaits()
+    {
+        using var repo = CreateWorld();
+        repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>();
+        var vehicle = repo.CreateEntity();
+        repo.AddComponent(vehicle, new Fdp.Toolkit.Behavior.Components.LocomotionChannel());
+        var p = default(Hrot.AI.Behaviors.Brains.CgfNodes.FollowRouteParams);
+
+        Assert.Equal(Fbt.NodeStatus.Running, Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteFollowRouteChannel(ref p, vehicle, repo));
+        Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdFollowRoute,
+            repo.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(vehicle).ActiveAction);
     }
 
     /// <summary>

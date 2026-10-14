@@ -222,7 +222,12 @@ namespace Hrot.Map.Common.Replication.Egress
                     // No geo-transform: treat Cartesian XYZ as lon/lat/alt.
                     pos = new GeoPoint { Latitude = wp.Position.Y, Longitude = wp.Position.X, Altitude = wp.Position.Z };
                 }
-                waypoints.Add(new Waypoint { Position = pos, SpeedMetersPerSec = wp.TargetSpeed });
+                waypoints.Add(new Waypoint
+                {
+                    Position = pos, SpeedMetersPerSec = wp.TargetSpeed,
+                    Kind = (byte)wp.Kind, HeightAgl = wp.HeightAgl, Hold = (byte)wp.Hold,   // ⭐ Air Ops B1
+                    HoldSeconds = wp.HoldSeconds, HoldUnit = wp.HoldUnit,
+                });
             }
 
             return new EntityDescriptorUnion

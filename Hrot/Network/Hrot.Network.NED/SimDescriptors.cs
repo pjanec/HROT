@@ -367,6 +367,9 @@ namespace Hrot.NED.Descriptors
         public byte MaxReplans;
         /// <summary>1 = reverse driving allowed.</summary>
         public byte ReverseAllowed;
+        /// <summary>⭐⭐ CE-2171 / Air Ops B1 (R-169: APPENDED, reported) — the route ENTITY a FollowRoute follows (network id); the
+        /// motion side resolves its own compiled path from it. 0 = none.</summary>
+        public long RouteEntityId;
     }
 
     /// <summary>

@@ -223,6 +223,12 @@ For personal routes, step 1 is handled automatically by `PersonalRouteAuthoringS
 
 The DDS wire format remains geodetic (the pre-existing `MapRoute` IDL descriptor) to preserve global interoperability. Coordinate conversion is isolated to two new translators.
 
+> ⭐ **AS-BUILT `2026-10-14` (`CE-2171`):** both translators run on **every** node, in `SharedTranslatorPack` (beside the
+> `MapVisualOverlay` pair, for the same reason). ⛔ Until then the egress lived in `KinematicTranslatorPack` (Muscle only)
+> and the ingress only in the pure IG's `EntityStatesIngressPack`, so a route **created and owned by CGF** (every scenario
+> route) never reached SimHost, which follows it. The pure IG keeps its own ingress (its `!pureIg` guard skips the shared
+> pack's ingress); the ingress skips its own sample on the recorded owner (F-5).
+
 ### 6.1 MapRouteEgressTranslator (SimHost + IG)
 
 - Queries entities with `NetworkIdentity` + `SimTransform` + `RoutePlan` (and `NetworkAuthority` on SimHost).

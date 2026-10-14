@@ -324,10 +324,13 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             // ⭐ CE-2145 — the route is not compiled yet: look again, and WAIT (Running) without touching the channel.
+            // ⭐⭐ CE-2171 — …but only when there is no route ENTITY to send: the compiled trajectory is a LOCAL pool id that only the
+            //   motion node makes and that never crosses the wire, so on a split cluster the brain waited for good. With a route entity
+            //   the intent carries it and the motion side resolves its own trajectory (the local id still rides along when this node has one).
             if (p.TrajectoryId == 0)
             {
-                if (!TryFindRouteTrajectory(world, p.RouteNetworkId, out int trajectory)) return NodeStatus.Running;
-                p.TrajectoryId = trajectory;
+                if (TryFindRouteTrajectory(world, p.RouteNetworkId, out int trajectory)) p.TrajectoryId = trajectory;
+                else if (p.RouteNetworkId <= 0) return NodeStatus.Running;
             }
 
             ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
@@ -347,7 +350,8 @@ namespace Hrot.AI.Behaviors.Brains
             WriteToLocomotionParams(ref channel, new Fdp.Toolkit.Navigation.FollowRouteParams
             {
                 TrajectoryId = p.TrajectoryId, // FIX: was hardcoded to 0; now reads from blackboard params
-                IsLooped     = (byte)(p.Loop ? 1 : 0)
+                IsLooped     = (byte)(p.Loop ? 1 : 0),
+                RouteEntityId = p.RouteNetworkId,   // ⭐ CE-2171
             });
 
             return NodeStatus.Running;

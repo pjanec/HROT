@@ -118,6 +118,18 @@ namespace Hrot.NED.Descriptors
 
         // JSON payload for mission-specific logic (e.g., "Hold for 5 mins", "Deploy sensors").
         public string ExtensionJson;
+
+        // ⭐ Air Ops B1 (DESIGN_Air_Operations §5; R-169: APPENDED, reported) — a ground unit ignores these, a flyer reads them.
+        // Waypoint kind (Fdp.Toolkit.Navigation.RouteWaypointKind: 0 Pass, 1 Ground).
+        public byte Kind;
+        // > 0 ⇒ a flyer holds this height above the terrain (m); 0 ⇒ Position's altitude.
+        public float HeightAgl;
+        // Hold on a Ground waypoint (Fdp.Toolkit.Navigation.RouteHold: 0 None, 1 Seconds, 2 Unload, 3 Pickup).
+        public byte Hold;
+        // The Seconds hold (s).
+        public float HoldSeconds;
+        // The unit a Pickup hold waits for (network id); 0 = none.
+        public long HoldUnit;
     }
 
     // Defines a navigation route composed of multiple waypoints.

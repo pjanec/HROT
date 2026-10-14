@@ -101,6 +101,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                     Flags            = msg.Flags,
                     MaxReplans       = msg.MaxReplans,
                     ReverseAllowed   = msg.ReverseAllowed,
+                    RouteEntityId    = msg.RouteEntityId,   // ⭐ CE-2171
                 });
 
                 FdpLog<NavigationIntentIngressTranslator>.Debug(
