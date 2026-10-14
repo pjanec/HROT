@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none (§4a's CE-2170 row is fixed, 2026-10-14).
 known-conflict: none.
 related-designs:
+  - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the launchers as entities (Javelin, NLAW, LAW, Kornet, TOW as weapon systems; 2006 / 2007 as presets, R-2016); the rounds and guidance stay here
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the free-fall bomb, the Air-domain launch velocity, BombBallistics and the weapon brain's Release profile (R-2015); a GPS bomb becomes a GuidanceKind here later
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the PROGRAMME (items M4, M5, M8; decisions D-D, D-I, D-L)
   - docs/DESIGN_Weapon_Layers.md — OWNS the three weapon layers (R-261), the turret task (R-267, W-11), W-6 "the profile picks the ammo with the SAME ArmorModel" and W-12d "one AmmoGuid per mount until a mount declares a second round"; this file is W-6 / W-12d built, and the guided-weapon timing rule (WL-5) turned into guidance
