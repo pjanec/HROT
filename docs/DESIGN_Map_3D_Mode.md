@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j). ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k). ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -8,7 +8,7 @@ updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assume
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
-  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §7 what is NOT verified.
+  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: none open — ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
@@ -23,6 +23,7 @@ related-designs:
     ⭐ W-13 (R-272) owns the WEAPON POSTURE (at ease / ready / aimed) that §3.5's block figure draws (WL-6).
   - PLAN_3D_World_And_Realism.md — the programme index (roadmap A1…E2 across this design, effects, turret, aircraft, sound).
   - blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — R-265: WHO moves crouched and how fast (the crouched run §6j draws)
+  - DESIGN_Building_Interiors.md §3j — OWNS the door ENTITY, its state and its leaf geometry; §6k here only draws it (a hinged slab)
   - DESIGN_Terrain_Combat_Tuning.md §5d — CE-1065: which gizmo layers and families are ON by default (most off — the 3-D clutter), and the live layer panel
   - DESIGN_Map_North_Up.md — CE-1040: the 2-D map north-up at its camera seam, so the 2-D ↔ 3-D swap keeps orientation.
   - DESIGN_Visual_Effects.md — muzzle fire, explosions and impact decals as TKB-typed temporary entities; the 3-D map draws them
@@ -1261,6 +1262,101 @@ classDiagram
 - `Map3DTests.CE1064_*` (3): the kneel has its hips and torso over its feet and nothing swings; the crouched run's legs swing with knees bent and stay low; a frame with no sim time keeps the gait and a stop ends it.
 - `Map3DFrameRail.CE1064_ACrouchedFigure_StillAndRunning` (Xvfb screenshots `crouch-1…4`).
 - `Map3DTests` whole.
+
+### 6k. CE-1068 — doors as they really are: a hinged leaf, gone when destroyed — AS-BUILT `2026-10-14` (ui)
+
+🔒 *User, 2026-10-14: "The building doors are visualized as weird pink boxes in 3d map and likely also in 2d map (in 2d there was nice
+simple gizmo and the pink box is undesired - doors should not be shown as unknown entity). I would like to see doors in 3d map as in
+reality - rectangle that rotates around hinges and can be destroyed (=missing from view)."*
+
+📐 **Measured cause.** A door is an ENTITY: the load makes one per terrain door with a bare `Door` TKB template, `DoorState`,
+`TerrainObjectKey` and a `SimTransform` at the doorway (`TerrainObjectRequests.cs:51-60`).
+- **3-D:** `EntityBodyLayer3D` drew every `SimTransform`+`TkbIdentity` entity, and a bare template resolves to `VisualFamily.Unknown`: the unknown box.
+- **2-D:** `EntityPresentationGizmo` emitted a semantic shape for it, and the renderer's fallback for an unknown profile is magenta.
+- **Design intent:** both contradict the door design, which says the entity is selectable with *"no symbol, no palette entry"* (`DESIGN_Building_Interiors.md` §3j 5b).
+
+**INVENTORY** *(grep + read, codebase-memory MCP not connected this session)*. Doors are drawn by:
+- `DoorLeafGizmo`, the 2-D line on the Doors layer;
+- `NavmeshGizmo`, the doorway polygons;
+- `EntityPresentationGizmo`, the unknown symbol;
+- `EntityBodyLayer3D`, the unknown box.
+
+The leaf's geometry already exists in `TerrainWorld.DoorLeaves`: hinge → closed tip, sill → head, 5 cm thick (`TerrainWorld.cs:166`). Nothing drew it as a solid.
+
+```mermaid
+classDiagram
+  class DoorLeaf3D {
+    <<new, static>>
+    OpenAngle = 90 deg
+    SwingSeconds = 0.8
+    TargetAngle(state) float?
+    IsDoor(world, e) bool
+    TryLeaf(world, e, out leaf, out state) bool
+    Box(leaf, angle) centre, rotation, half
+  }
+  class DoorSwing {
+    <<new>>
+    Angle(e, target, simTime) float
+    Current(e, fallback) float
+    EndFrame(drawn)
+  }
+  class EntityBodyLayer3D {
+    <<exists, changed>>
+    DrawDoor() the leaf, wood, selection box
+    TryGetBox() a door's box = its leaf
+    LookOf(Door) no kit
+  }
+  class EntityPresentationGizmo {
+    <<exists, changed>>
+    a TerrainObjectKey entity: anchor + pick box, no symbol
+  }
+  class DoorLeafGizmo {
+    <<exists, changed>>
+    lines target Map2D only
+  }
+  class TerrainWorld { <<exists>> DoorLeaves, DoorIndexOf(key) }
+  EntityBodyLayer3D --> DoorLeaf3D
+  EntityBodyLayer3D *-- DoorSwing
+  DoorLeaf3D ..> TerrainWorld
+  EntityBoxPicker ..> EntityBodyLayer3D : TryGetBox
+```
+*What the picture shows that prose hid:* the door ENTITY stays the one thing the maps draw, pick and select. Its key finds the
+terrain's leaf, so no second door list is kept. The 3-D slab and the 3-D click share one box: `TryGetBox`, which `EntityBoxPicker` already reads.
+
+```mermaid
+sequenceDiagram
+  participant B as EntityBodyLayer3D.Draw
+  participant D as DoorLeaf3D
+  participant S as DoorSwing
+  participant P as EntityBoxPicker
+  B->>D: IsDoor(e)? TryLeaf(e): leaf + DoorState
+  D-->>B: Closed/Locked 0 deg, Open 90 deg, Destroyed none
+  B->>S: Angle(e, target, simTime)
+  S-->>B: eased toward target, a pause holds it
+  B->>D: Box(leaf, angle): turned about the hinge
+  B->>B: draw a wood slab (+ selection wire box)
+  P->>B: TryGetBox(e)
+  B-->>P: the same leaf box (false when destroyed)
+```
+
+| decision | ⭐ lean | rejected (one line each) |
+|---|---|---|
+| what a door is in 3-D | the leaf as a slab, turned about its hinge: shut and locked in the wall, open 90° to the side the 2-D door layer opens it to (`DoorLeafGizmo.OpenTip`), destroyed not drawn | a shape kit for the `Door` type (the leaf is terrain geometry with a real width and height; a kit would be a second, guessed size) |
+| the swing | eased on SIM time, a quarter turn in 0.8 s; first seen = in its state; a pause freezes it (R-143, like `PostureBlend`) | snap (an open order would pop) · replicating an angle (the state is the fact; the picture times itself) |
+| where it is drawn | the body layer, beside the entities, because a door IS an entity: one box for drawing, picking and the selection outline | a separate door layer (a second pick path for the same entity) |
+| 2-D | no symbol for a terrain object (anchor and pick box kept: a door is selectable, §3j 5b); the door layer's line stays the 2-D picture | hiding the door entity entirely (its commands hang off the selection) |
+| the 2-D door line in 3-D | `Map2D` only: the slab shows the state | both (a line on the slab's foot) |
+| locked vs closed in 3-D | drawn the same (a real locked door looks shut) | a tint (a debug cue, the 2-D layer has it) |
+
+⚠ **Left, named:**
+- A host with door entities but no terrain draws no door (there is no leaf to place).
+- A destroyed door vanishes at once (no falling slab).
+- The terrain mesh's doorway is the opening the leaf fills, and the leaf is not part of the terrain picker, so a click on a shut door hits the door entity.
+
+**Rails:**
+- `Map3DTests.CE1068_ADoorLeaf_TurnsOnItsHinge_AndADestroyedDoorIsNotDrawn`, `CE1068_ADoorSwings_OnSimTime_AndIsFirstSeenInItsState` and `CE1068_ADoorEntity_HasNoKit_AndIsPickedByItsLeaf`.
+- `EntityPresentationGizmoTests.CE1068_ADoor_HasAnAnchorAndAPickBox_ButNoSymbol`.
+- `Map3DFrameRail.CE1068_Doors_ShutOpenAndDestroyed` (Xvfb screenshots `door-1…3`).
 
 ## 7. NOT VERIFIED — say so before it is built on
 

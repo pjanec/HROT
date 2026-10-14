@@ -57,6 +57,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// <summary>Bodies drawn in the last 3-D frame, and parts — the frame-cost counters (§7).</summary>
     public int BodiesDrawn { get; private set; }
     public int PartsDrawn { get; private set; }
+    /// <summary>⭐ CE-1068 — door leaves drawn by the last frame (a destroyed door is not one).</summary>
+    public int DoorsDrawn { get; private set; }
 
     public void Update(float dt) { }
     public void Draw(RenderContext ctx) { }
@@ -65,7 +67,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     public void Draw3D(RenderContext ctx)
     {
-        BodiesDrawn = PartsDrawn = 0;
+        BodiesDrawn = PartsDrawn = DoorsDrawn = 0;
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
         if (!ReferenceEquals(world, _queryWorld))
@@ -90,6 +92,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         _tops.Clear();
         foreach (var e in _query!)
         {
+            // ⭐ CE-1068 (§6k) — a DOOR is its leaf, hinged in its doorway, never a shape kit (it used to be an unknown box)
+            if (DoorLeaf3D.IsDoor(world, e)) { DrawDoor(world, e, shader, simTime, hasSelection); continue; }
             long type = world.GetComponentRO<TkbIdentity>(e).TkbType;
             var look = LookOf(type, tkb);
             if (look.Family == VisualFamily.Unit) continue;
@@ -154,6 +158,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         }
         _motion.EndFrame(_drawn);
         _fall.EndFrame(_drawn);
+        _doors.EndFrame(_drawn);
         _postures.EndFrame(_drawn);
     }
 
@@ -284,6 +289,32 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     private readonly MotionTracker _motion = new();
     private readonly DeathFall _fall = new();
+    private readonly DoorSwing _doors = new();
+
+    /// <summary>⭐ CE-1068 — a door leaf's wood.</summary>
+    private static readonly Color DoorColour = new(124, 86, 52, 255);
+
+    /// <summary>⭐ CE-1068 (§6k) — door entity <paramref name="e"/>'s leaf, swung toward its state's angle on sim time; nothing for a
+    /// destroyed door or a host with no terrain to place it in.</summary>
+    private void DrawDoor(EntityRepository world, Entity e, LitShader shader, double simTime, bool hasSelection)
+    {
+        if (!DoorLeaf3D.TryLeaf(world, e, out var leaf, out var state) || DoorLeaf3D.TargetAngle(state) is not { } target) return;
+        _drawn.Add(e);
+        var (centre, rotation, half) = DoorLeaf3D.Box(leaf, _doors.Angle(e, target, simTime));
+        var model = Matrix4x4.CreateScale(half * 2f) * Matrix4x4.CreateFromQuaternion(rotation) * Matrix4x4.CreateTranslation(centre);
+        Raylib.DrawMesh(_cube, shader.Tinted(DoorColour), HrotToRaylib.ModelFromHrot(model));
+        PartsDrawn++;
+        DoorsDrawn++;
+        if (hasSelection && world.HasComponent<Hrot.IG.Components.SelectionState>(e))
+        {
+            ref readonly var sel = ref world.GetComponentRO<Hrot.IG.Components.SelectionState>(e);
+            if (sel.IsSelected)
+            {
+                DrawWireBox(centre, rotation, half * 1.06f, sel.IsPrimarySelection ? PrimarySelection : OtherSelection);
+                SelectionBoxesDrawn++;
+            }
+        }
+    }
     private readonly PostureBlend _postures = new();
 
     /// <summary>⭐ WL-6b — the posture changes' timing (the rail's seam).</summary>
@@ -397,8 +428,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         //   the catalog too, so a host with no TKB (the replay browser) does not draw a recorded effect as an unknown box.
         // ⭐ CE-1033 S5 — nor has the map CAMERA entity (R-260): it is the view, not a thing in it.
         // ⭐ LR-3 — nor has a built-in MUNITION type (a round), on a host whose TKB lacks it (the replay browser).
+        // ⭐ CE-1068 — nor has a DOOR a shape kit: it is drawn as its leaf (DoorLeaf3D), and where no terrain places it, not at all.
         if (Hrot.Core.Tkb.EffectTkbCatalog.BuiltIn.ContainsKey(tkbType) || Hrot.Core.Tkb.MapCameraTkb.Is(tkbType)
-            || Hrot.Core.Tkb.MunitionTkbCatalog.IsBuiltIn(tkbType))
+            || Hrot.Core.Tkb.MunitionTkbCatalog.IsBuiltIn(tkbType) || tkbType == Hrot.Map.Common.TkbEntityTypes.Door)
             return _looks[tkbType] = new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         look = Resolve(tkb != null && tkb.TryGetByType(tkbType, out var t) ? t : null);
         _looks[tkbType] = look;
@@ -450,6 +482,14 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()
             && world.HasComponent<Fdp.Toolkit.Replication.Components.LightweightRound>(e)) return false;   // LR-3: a round has no box
         if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(world, e)) return false;   // ⭐ CE-1058: nothing to pick or select
+        // ⭐ CE-1068 — a door is picked and selected by its LEAF, where it is drawn (shut, open, or nothing when destroyed)
+        if (DoorLeaf3D.IsDoor(world, e))
+        {
+            if (!DoorLeaf3D.TryLeaf(world, e, out var leaf, out var state) || DoorLeaf3D.TargetAngle(state) is not { } target) return false;
+            (centre, rotation, half) = DoorLeaf3D.Box(leaf, _doors.Current(e, target));
+            half = Vector3.Max(half, new Vector3(0.1f));   // a 5 cm leaf stays clickable edge-on
+            return true;
+        }
         var look = LookOf(world.GetComponentRO<TkbIdentity>(e).TkbType, tkb);
         if (look.Family == VisualFamily.Unit) return false;
         var size = SizeOf(world, e, look);

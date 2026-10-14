@@ -139,6 +139,11 @@ namespace Hrot.ScenarioEditor.Gizmos
             // ⭐ W2 (VE-N) — the one "destroyed" test, shared with the 3-D wreck and the flames.
             if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(view, entity)) conditionMask |= ConditionDestroyed;
 
+            // ⭐ CE-1068 — a TERRAIN OBJECT (a door) is picked and selected here, but it has NO symbol: the door layer draws its leaf
+            //   (2-D) and the 3-D map its slab. 📄 DESIGN_Building_Interiors.md §3j 5b: "no symbol, no palette entry". ⛔ It drew the
+            //   unknown-type fallback (magenta) for every door.
+            if (view.HasManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>(entity)) return;
+
             EntityPresentationGizmoShared.TryGetVehicleDimensions(view, entity, out float length, out float width);
             ulong profileId = EntityPresentationGizmoShared.ResolveProfileId(view, entity);
 

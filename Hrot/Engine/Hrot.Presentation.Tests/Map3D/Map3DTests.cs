@@ -1030,6 +1030,90 @@ public sealed class Map3DTests
         Assert.Equal(0f, stopped.Swing);
     }
 
+    // ── ⭐ CE-1068 (docs/DESIGN_Map_3D_Mode.md §6k) — a door is its LEAF, hinged in its doorway ───────────────────────────────────
+
+    internal static TerrainWorld BtRange()
+    {
+        string dir = AppContext.BaseDirectory;
+        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Path.GetDirectoryName(dir)!;
+        var file = Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range", "bt-range.world.geojson");
+        return TerrainWorldParser.Parse(File.ReadAllText(file), "bt-range", TerrainAssets.ForFolder(Path.GetDirectoryName(file)!));
+    }
+
+    /// <summary>⭐ CE-1068 — the leaf fills its doorway shut (hinge → closed tip, sill → head, the leaf's thickness), turns about the
+    /// hinge to stand where the door layer's open line ends, and a destroyed door asks for no angle (it is not drawn).</summary>
+    [Fact]
+    public void CE1068_ADoorLeaf_TurnsOnItsHinge_AndADestroyedDoorIsNotDrawn()
+    {
+        var terrain = BtRange();
+        Assert.True(terrain.DoorLeaves.Count > 0, "bt-range has doors");
+        var leaf = terrain.DoorLeaves[0];
+        var (hinge, closedTip) = Hrot.ScenarioEditor.Gizmos.DoorLeafGizmo.Leaf(leaf.Footprint);
+        float width = Vector2.Distance(hinge, closedTip);
+
+        var (c0, r0, h0) = DoorLeaf3D.Box(leaf, 0f);
+        Assert.Equal(width / 2f, h0.X, 3);
+        Assert.Equal((leaf.TopZ - leaf.BaseZ) / 2f, h0.Z, 3);
+        Assert.InRange(h0.Y, 0.01f, 0.05f);                                            // a 5 cm leaf
+        Assert.InRange(Vector2.Distance(new Vector2(c0.X, c0.Y), (hinge + closedTip) / 2f), 0f, 1e-3f);   // shut: in the doorway
+
+        var (c1, r1, _) = DoorLeaf3D.Box(leaf, DoorLeaf3D.OpenAngle);
+        var farEdge = new Vector2(c1.X, c1.Y) + (new Vector2(c1.X, c1.Y) - hinge);      // the edge opposite the hinge
+        var openTip = Hrot.ScenarioEditor.Gizmos.DoorLeafGizmo.OpenTip(hinge, closedTip);
+        Assert.InRange(Vector2.Distance(farEdge, openTip), 0f, 1e-3f);                 // the same side the 2-D layer opens it to
+        Assert.InRange(Vector2.Distance(hinge, new Vector2(c1.X, c1.Y)), width / 2f - 1e-3f, width / 2f + 1e-3f);   // still on its hinge
+
+        Assert.Equal(0f, DoorLeaf3D.TargetAngle(TerrainDoorState.Closed));
+        Assert.Equal(0f, DoorLeaf3D.TargetAngle(TerrainDoorState.Locked));
+        Assert.Equal(DoorLeaf3D.OpenAngle, DoorLeaf3D.TargetAngle(TerrainDoorState.Open));
+        Assert.Null(DoorLeaf3D.TargetAngle(TerrainDoorState.Destroyed));
+    }
+
+    /// <summary>⭐ CE-1068 — the leaf SWINGS on sim time (a quarter turn in <see cref="DoorLeaf3D.SwingSeconds"/>), a pause holds
+    /// it, and a door first seen just stands in its state.</summary>
+    [Fact]
+    public void CE1068_ADoorSwings_OnSimTime_AndIsFirstSeenInItsState()
+    {
+        var swing = new DoorSwing();
+        var door = new Entity(5, 1);
+        Assert.Equal(DoorLeaf3D.OpenAngle, swing.Angle(door, DoorLeaf3D.OpenAngle, 10.0));   // first seen: already open
+        float half = swing.Angle(door, 0f, 10.0 + DoorLeaf3D.SwingSeconds / 2.0);         // closing: half way after half the time
+        Assert.Equal(DoorLeaf3D.OpenAngle / 2f, half, 3);
+        Assert.Equal(half, swing.Angle(door, 0f, 10.0 + DoorLeaf3D.SwingSeconds / 2.0));  // paused: no time, no swing
+        Assert.Equal(0f, swing.Angle(door, 0f, 12.0));                                     // shut
+    }
+
+    /// <summary>⭐ CE-1068 — a DOOR entity has no shape kit (it used to be an unknown box) and is picked and selected by its LEAF:
+    /// open it and its box turns with it, destroy it and there is nothing to pick.</summary>
+    [Fact]
+    public void CE1068_ADoorEntity_HasNoKit_AndIsPickedByItsLeaf()
+    {
+        var terrain = BtRange();
+        var world = WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        world.RegisterComponent<DoorState>();
+        world.RegisterManagedComponent<TerrainObjectKey>();
+        var def = terrain.Doors[0];
+        var e = world.CreateEntity();
+        world.AddComponent(e, new SimTransform { Position = new Vector3(def.Center, def.SillZ), Rotation = Quaternion.Identity });
+        world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.Door });
+        world.AddComponent(e, new DoorState { State = TerrainDoorState.Closed });
+        world.AddComponent(e, new TerrainObjectKey { Key = def.Key });
+
+        var bodies = new EntityBodyLayer3D(() => world, () => BuiltIn());
+        Assert.Equal(VisualFamily.Unit, bodies.LookOf(Hrot.Map.Common.TkbEntityTypes.Door, BuiltIn()).Family);   // no kit, never Unknown
+
+        Assert.True(bodies.TryGetBox(world, e, BuiltIn(), out var centre, out var rotation, out var half));
+        var (c0, r0, _) = DoorLeaf3D.Box(terrain.DoorLeaves[0], 0f);
+        Assert.InRange(Vector3.Distance(centre, c0), 0f, 1e-3f);
+        Assert.Equal(r0, rotation);
+        Assert.True(half.Z > 0.9f, $"the pick box is the door's height: {half}");
+
+        world.SetComponent(e, new DoorState { State = TerrainDoorState.Destroyed });
+        Assert.False(bodies.TryGetBox(world, e, BuiltIn(), out _, out _, out _));   // gone: nothing to pick
+    }
+
     /// <summary>⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — the dead figure lies on the ground (lower than prone), arms flung out
     /// wider than any stance; a soldier's rifle lies beside him; halfway through the fall he is between his stance and the ground.</summary>
     [Fact]

@@ -1083,6 +1083,66 @@ public sealed class Map3DFrameRail
         frame.Screenshot(Path.Combine(shots, "crouch-4-paused.png"));
     }
 
+    /// <summary>
+    /// ⭐ CE-1068 (docs/DESIGN_Map_3D_Mode.md §6k) — bt-range's doors in the 3-D map as door ENTITIES (the way the load creates them):
+    /// one shut, one open (swung on its hinge), one destroyed (gone). Each is photographed from the side it opens to. ⛔ Before, each
+    /// door entity was an unknown purple box in the middle of its doorway.
+    /// </summary>
+    [SkippableFact]
+    public void CE1068_Doors_ShutOpenAndDestroyed()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.BtRange();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+        world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 1.0 });
+        var states = new[] { Fdp.Toolkit.Terrain.TerrainDoorState.Closed, Fdp.Toolkit.Terrain.TerrainDoorState.Open, Fdp.Toolkit.Terrain.TerrainDoorState.Destroyed };
+        Assert.True(terrain.Doors.Count >= states.Length, "bt-range has three doors");
+        for (int i = 0; i < states.Length; i++)
+        {
+            var def = terrain.Doors[i];
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(def.Center, def.SillZ), Rotation = Quaternion.Identity });
+            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Door });
+            world.AddComponent(e, new Fdp.Toolkit.Terrain.DoorState { State = states[i] });
+            world.AddComponent(e, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = def.Key });
+        }
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        var query = WorldQuery.Of(world)!;
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+
+        string[] names = { "closed", "open", "destroyed" };
+        for (int i = 0; i < states.Length; i++)
+        {
+            var fp = terrain.DoorLeaves[i].Footprint;
+            var n = Vector2.Normalize(fp[3] - fp[0]);                     // the side the leaf swings to
+            var def = terrain.Doors[i];
+            float yaw = MathF.Atan2(-n.Y, -n.X) + 0.35f;                  // from that side, a little off-axis
+            sw.Camera3D.Pose = new CameraPose(new Vector3(def.Center, def.SillZ + 1.0f), 5.5f, yaw, -0.18f);
+            frame.Step(canvas.Draw);
+            frame.Screenshot(Path.Combine(shots, $"door-{i + 1}-{names[i]}.png"));
+        }
+        Assert.Equal(2, bodies.DoorsDrawn);   // the destroyed one is not drawn
+    }
+
     /// <summary>A point of plain ground (not inside a building footprint) closest to the town's middle.</summary>
     private static Vector2 FindOpenGround(Fdp.Toolkit.Terrain.TerrainWorld terrain, IWorldQuery query)
     {

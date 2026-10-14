@@ -13,6 +13,8 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// <see cref="TerrainWorld.Doors"/>); the state is <see cref="DoorStates.Of(ISimulationView, TerrainWorld)"/>, i.e. the recorded
 /// <c>DoorState</c> of each door entity, so replay shows it too wherever the terrain is loaded (the Replay Browser: <c>CE-3118</c>).
 /// Toggled by the <c>Doors</c> bit of the layer control.
+/// <para>⭐ CE-1068 — 2-D ONLY (<see cref="PipelineTarget.Map2D"/>): the 3-D map draws the real leaf (<c>DoorLeaf3D</c>), hinged and
+/// swinging, so a line on its foot would only duplicate it.</para>
 /// </summary>
 [GizmoProjector]
 public sealed class DoorLeafGizmo : IGlobalStatelessGizmo
@@ -48,18 +50,18 @@ public sealed class DoorLeafGizmo : IGlobalStatelessGizmo
             switch (states[i])
             {
                 case TerrainDoorState.Open:
-                    draw.DrawLine(h3, new Vector3(OpenTip(hinge, closedTip), z), OpenColor, 3f, layer: DebugTraceLayers.Doors);
+                    draw.DrawLine(h3, new Vector3(OpenTip(hinge, closedTip), z), OpenColor, 3f, target: PipelineTarget.Map2D, layer: DebugTraceLayers.Doors);
                     break;
                 case TerrainDoorState.Locked:
-                    draw.DrawLine(h3, new Vector3(closedTip, z), LockedColor, 3f, layer: DebugTraceLayers.Doors);
+                    draw.DrawLine(h3, new Vector3(closedTip, z), LockedColor, 3f, target: PipelineTarget.Map2D, layer: DebugTraceLayers.Doors);
                     break;
                 case TerrainDoorState.Destroyed:
                     var mid = new Vector3((hinge + closedTip) * 0.5f, z);
-                    draw.DrawLine(mid + new Vector3(-0.4f, -0.4f, 0), mid + new Vector3(0.4f, 0.4f, 0), DestroyedColor, 2.5f, layer: DebugTraceLayers.Doors);
-                    draw.DrawLine(mid + new Vector3(-0.4f, 0.4f, 0), mid + new Vector3(0.4f, -0.4f, 0), DestroyedColor, 2.5f, layer: DebugTraceLayers.Doors);
+                    draw.DrawLine(mid + new Vector3(-0.4f, -0.4f, 0), mid + new Vector3(0.4f, 0.4f, 0), DestroyedColor, 2.5f, target: PipelineTarget.Map2D, layer: DebugTraceLayers.Doors);
+                    draw.DrawLine(mid + new Vector3(-0.4f, 0.4f, 0), mid + new Vector3(0.4f, -0.4f, 0), DestroyedColor, 2.5f, target: PipelineTarget.Map2D, layer: DebugTraceLayers.Doors);
                     break;
                 default:
-                    draw.DrawLine(h3, new Vector3(closedTip, z), ClosedColor, 3f, layer: DebugTraceLayers.Doors);
+                    draw.DrawLine(h3, new Vector3(closedTip, z), ClosedColor, 3f, target: PipelineTarget.Map2D, layer: DebugTraceLayers.Doors);
                     break;
             }
         }
