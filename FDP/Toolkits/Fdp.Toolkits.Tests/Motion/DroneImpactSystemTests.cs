@@ -113,5 +113,56 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.Empty(dets);
             Assert.Empty(dmg);
         }
-    }
+    
+        /// <summary>A walkable SLAB — how the terrain models a deck (Exposure Cycle §3, V3: a prism has nothing under it) — at
+        /// <paramref name="z"/> over x, y ∈ [90, 110].</summary>
+        private void Deck(float z)
+            => _w.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+            {
+                BoundsMin = new Vector2(-200, -200), BoundsMax = new Vector2(200, 200),
+                Walkables = new[]
+                {
+                    new Fdp.Toolkit.Terrain.TerrainWalkable
+                    {
+                        Kind = Fdp.Toolkit.Terrain.TerrainWalkableKind.Slab,
+                        Vertices = new[] { new Vector3(90, -10, z), new Vector3(110, -10, z), new Vector3(110, 10, z), new Vector3(90, 10, z) },
+                        Triangles = new[] { 0, 1, 2, 0, 2, 3 },
+                        Min = new Vector2(90, -10), Max = new Vector2(110, 10), MinZ = z, MaxZ = z,
+                    },
+                },
+            });
+
+        /// <summary>
+        /// ⭐⭐ <c>C2</c> (handoff 2; FPV §4) — a drone diving at a tank parked UNDER A DECK meets the deck, not the hull: its warhead goes
+        /// off on the slab (no target), the tank is untouched, and the drone stops on the deck. ⭐ Two shapes: the frame that crosses the
+        /// deck stays above the hull's band (a normal 60 Hz dive); and ONE long frame whose segment crosses the deck AND enters the hull's
+        /// band behind it — the deck is first along the segment, so it wins.
+        /// </summary>
+        [Theory]
+        [InlineData(1f / 60f)]
+        [InlineData(0.1f)]
+        public void M7_ADive_UnderADeck_MeetsTheSlab(float dt)
+        {
+            Deck(4.5f);
+            var tank = Tank(new Vector3(100, 0, 0));                          // roof 2.4, under the 4.5 m deck
+            var v = new Vector3(15, 0, -26);                                    // 60° dive
+            var drone = Drone(new Vector3(100, 0, 6f), v);
+            DetonationNotification[] dets = Array.Empty<DetonationNotification>();
+            for (int k = 0; k < 120 && dets.Length == 0; k++)
+            {
+                ref var tf = ref _w.GetComponentRW<SimTransform>(drone);
+                if (_w.GetComponentRO<FlightState>(drone).Airborne == 0) break;
+                tf.Position += v * dt;                                          // the air module's step (moved first, as in the pack)
+                new DroneImpactSystem().Execute(_w, dt);
+                _w.Bus.SwapBuffers();
+                dets = _w.Bus.Read<DetonationNotification>().ToArray();
+            }
+            var det = Assert.Single(dets);
+            Assert.True(det.Target.IsNull, $"the warhead went off on {det.Target}, not on the deck");
+            Assert.InRange(det.HitZ, 4.0f, 5.0f);
+            Assert.Equal(0, _w.GetComponentRO<FlightState>(drone).Airborne);
+            Assert.True(_w.GetComponentRO<SimTransform>(drone).Position.Z > 4.0f, "the wreck rests on the deck, not under it");
+            Assert.Equal(2500f, _w.GetComponentRO<Health>(tank).Current);
+        }
+}
 }

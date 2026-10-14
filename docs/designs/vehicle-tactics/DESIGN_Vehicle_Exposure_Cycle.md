@@ -409,8 +409,10 @@ classDiagram
 
 Rails: `ThreatEvaluationSystemTests.V8_AHeardDrone_Raises_AirThreat` · `V8_ASeenFlyer_Raises_AirThreat_ATankDoesNot_AndHeardThenSeenIsOneAlarm` ·
 `ShelterFromAirNodesTests` (5: under the deck / hold / clear · evade legs · shelter mid-evade · fire + out-of-arc retry · release) ·
-`BasicVehicleSopTests` (2: registered + idles · the rows in order). ⛔ Not built: `AimAndFireExecutorTests.V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc`
-(the weapon-brain half — the behaviour half is `ShelterFromAirNodesTests.V8_ASeenDrone_IsFiredAt_AndAnOutOfArcFailure_IsRetriedLater`) · the demo `ua-drone-shelter`.
+`BasicVehicleSopTests` (2: registered + idles · the rows in order) · ✅ `AimAndFireExecutorTests.V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc`
+(backend, handoff 2 C4 — the weapon-brain half: a drone 40 m up, 30 m out (~52°) — the technical's pintle HMG (−10…+70°) is granted and fires 5 rounds; the M1's
+gun (−10…+20°) ends its task `OutOfArc` and fires none; green without a code change; the behaviour half is
+`ShelterFromAirNodesTests.V8_ASeenDrone_IsFiredAt_AndAnOutOfArcFailure_IsRetriedLater`). ⛔ Not built: the demo `ua-drone-shelter`.
 
 ## 9. Who runs it
 
@@ -449,5 +451,5 @@ fix inside the existing kinematics; the behaviour and the danger stay on the Bra
 | ✅ `V4_TheCycle_HidesExposesFiresAndReverses_ToTheSameHide` · ✅ `V4_ATechnical_Scoots_ToANewHide_EveryTime` · ✅ `V4_TheBudget_IsTheAtGunnersAimTime` · ✅ `V4_ANearMiss_CutsTheExposure` · ✅ `V4_Guiding_Holds_TheFiringPoint` · *(as-built, also)* ✅ `V4_ATank_ExposesTwiceFromOneHide_ThenRelocates` · `V4_TheBudget_CountsOnlyASeenDangerousThreat` · `V4_ALaunchHeard_TowardTheThreat_CutsTheExposure` · `V4_NothingInSight_Watches_ThenWithdraws_OrFiresWhenHeShowsHimself` · `V4_UnderFireOrReloading_StaysHidden` · `V4_Leaving_ReleasesEverything_ButTheMemory` · `V4_NothingRemembered_Succeeds` · `V4_AutoWithdraw_ReversesATank_ScootsATechnical` | new `VehicleFightFromCoverNodesTests` (Hrot.SimHost.Tests, beside `PeekAndFireNodesTests`) |
 | ✅ `V4_ATanksAttackOrder_ResolvesTo_LandPlatformAttack` | `TacticalIntentResolutionSystemTests` |
 | V5 rails (§5) | `CarKinematicsSystemTests`, `BicycleModelTests` |
-| ✅ `V8_AHeardDrone_Raises_AirThreat` · ✅ `V8_ShelterFromAir_GoesUnderTheDeck_HoldsWhileSensed_EndsWhenClear` + `V8_NoShelter_KeepsMoving_AwayFromTheDrone` *(as built: the design's one rail split in two)* · `V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc` *(behaviour half built; executor half not)* | `ThreatEvaluationSystemTests`, new `ShelterFromAirNodesTests`, `AimAndFireExecutorTests` |
+| ✅ `V8_AHeardDrone_Raises_AirThreat` · ✅ `V8_ShelterFromAir_GoesUnderTheDeck_HoldsWhileSensed_EndsWhenClear` + `V8_NoShelter_KeepsMoving_AwayFromTheDrone` *(as built: the design's one rail split in two)* · ✅ `V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc` *(both halves built — the executor half by backend, handoff 2 C4)* | `ThreatEvaluationSystemTests`, new `ShelterFromAirNodesTests`, `AimAndFireExecutorTests` |
 | demos: `ua-tank-corner`, `ua-ifv-standoff`, `ua-technical-scoot`, `ua-tank-ammo`, `ua-javelin-lock`, `ua-drone-shelter` | `scripts/utility-demo-check.py` |

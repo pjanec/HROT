@@ -1015,6 +1015,88 @@ namespace Fdp.Toolkit.Combat.Tests
             return (shooter, TurretParts.Ensure(_world, shooter, 0), channel, target);
         }
 
+        // ── ⭐ CE-2165 V8 (handoff 2 C4; DESIGN_Vehicle_Exposure_Cycle §8, §10) — who can shoot at a drone ─────────────────────────
+
+        /// <summary>A shooter with ONE turreted mount of <paramref name="category"/> on <paramref name="turret"/>, aiming at a target at
+        /// <paramref name="targetAt"/> — <see cref="TurretedTank"/>'s world with the turret's arcs and the target's place chosen.</summary>
+        private (Entity Shooter, Entity Turret, WeaponChannel Channel, Entity Target) Turreted(Fdp.Toolkit.Tkb.Domain.TurretDto turret,
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory category, Vector3 targetAt, int rounds)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _world.RegisterComponent<TurretPose>();
+            _world.RegisterComponent<WeaponTask>();
+            _world.RegisterComponent<WeaponTaskStatus>();
+            _world.RegisterComponent<WeaponMuscleState>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var type = new Fdp.Interfaces.TkbTemplate("Shooter", 43);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { turret } });
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+                { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = category, TurretIndex = 0 } } });
+            db.Register(type);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var target = SpawnTarget(targetAt);
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 50, 0f, target, 0.1f);
+            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 43 });
+            unsafe
+            {
+                var p = new AimAndFireParams { Target = target, CooldownSeconds = 0.1f, Rounds = rounds };
+                Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
+            }
+            return (shooter, TurretParts.Ensure(_world, shooter, 0), channel, target);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>C4</c> (handoff 2) — the weapon-brain half of <c>ua-drone-shelter</c>: a drone 40 m up and 30 m out sits ~52° above the
+        /// guns. The technical's pintle HMG (B9, TKB 104: all round, −10…+70°) is granted rounds and fires them; the tank's main gun (the
+        /// M1's −10…+20°) cannot reach it — its task ends <see cref="WeaponTaskFailure.OutOfArc"/>
+        /// (<c>TurretSlew.InArc</c> in <c>WeaponTaskDispatcherSystem</c>) and no round leaves. The behaviour half (the brain retries an
+        /// out-of-arc failure later) is <c>ShelterFromAirNodesTests.V8_ASeenDrone_IsFiredAt_AndAnOutOfArcFailure_IsRetriedLater</c>.
+        /// </summary>
+        [Theory]
+        [InlineData("pintle HMG", true)]
+        [InlineData("tank gun", false)]
+        public void V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc(string who, bool reaches)
+        {
+            var turret = reaches
+                ? new Fdp.Toolkit.Tkb.Domain.TurretDto { PivotX = -1.3f, PivotZ = 1.9f, TrunnionX = 0.4f, TraverseMinDeg = -180f, TraverseMaxDeg = 180f,
+                                                          ElevationMinDeg = -10f, ElevationMaxDeg = 70f, TraverseRateDegPerSec = 90f, ElevationRateDegPerSec = 45f }
+                : new Fdp.Toolkit.Tkb.Domain.TurretDto { PivotX = -0.55f, PivotZ = 1.9f, TrunnionX = 1.65f,
+                                                          ElevationMinDeg = -10f, ElevationMaxDeg = 20f, TraverseRateDegPerSec = 40f, ElevationRateDegPerSec = 10f };
+            var category = reaches ? Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun : Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun;
+            var (shooter, part, channel, drone) = Turreted(turret, category, new Vector3(30f, 0f, 40f), rounds: 5);
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            _executor.OnEnter(shooter, ref channel, _world);
+
+            const float dt = 1f / 60f;
+            int shots = 0; bool outOfArc = false;
+            for (int f = 0; f < 60 * 6 && channel.Status == NodeStatus.Running; f++)
+            {
+                Tick(shooter, ref channel, dt);
+                muscle.Execute(_world, dt);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
+                {
+                    Assert.Equal(drone, shot.Target);
+                    shots++;
+                }
+                if (_world.HasComponent<WeaponTaskStatus>(part) && _world.GetComponent<WeaponTaskStatus>(part).Reason == WeaponTaskFailure.OutOfArc)
+                    outOfArc = true;
+            }
+
+            if (reaches)
+            {
+                Assert.True(shots >= 5, $"the {who} fired {shots} of 5 granted rounds at the drone");
+                Assert.False(outOfArc, $"the {who} reported OutOfArc");
+            }
+            else
+            {
+                Assert.Equal(0, shots);
+                Assert.True(outOfArc, $"the {who}'s task never ended OutOfArc (status {_world.GetComponent<WeaponTaskStatus>(part).State})");
+            }
+        }
+
         /// <summary>
         /// ⭐ WL-3 — the brain grants, the muscle aims and fires: no round while the turret slews (no AimSeconds on this path — the
         /// slew IS the aim), then exactly the rounds asked, spaced by the cooldown; every round the muscle reports is spent ONCE on
