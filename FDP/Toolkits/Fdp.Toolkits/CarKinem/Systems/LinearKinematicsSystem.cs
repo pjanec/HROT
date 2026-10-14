@@ -92,7 +92,10 @@ namespace Fdp.Toolkit.CarKinem.Systems
                 .With<SimTransform>()
                 .With<SimVelocity>()
                 .Without<VehicleState>()
-                .Without<CrowdAgent>();
+                .Without<CrowdAgent>()
+                // ⭐ CE-2168 (Motion Domains MD-C) — a body with a motion model is moved by its domain's module (the air one integrates
+                //   its own position); this integrator stays the projectiles'.
+                .Without<Fdp.Toolkit.Motion.Locomotion>();
 
             // CE-238: a host may narrow this to the entities its own engine does NOT own.
             for (int i = 0; i < _requiredComponentIds.Length; i++)

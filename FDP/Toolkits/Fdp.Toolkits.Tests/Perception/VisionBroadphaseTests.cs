@@ -524,5 +524,30 @@ namespace Fdp.Toolkit.Perception.Tests
             }
             finally { grid.Dispose(); w1.Dispose(); w2.Dispose(); }
         }
-    }
+    
+        /// <summary>⭐ M7 (DESIGN_FPV_Drone §1, §5) — a drone straight ABOVE the observer is a candidate: it has no horizontal bearing, and the
+        /// old 2-D "degenerate" test dropped it (so it was neither seen nor heard). The observer itself is still skipped.</summary>
+        [Fact]
+        public void M7_ADroneOverhead_IsInTheBroadphase()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var grid = CreateTestGrid();
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            world.AddComponent(observer, new EntityInfo { ForceId = ForceId.Friend });
+            world.AddComponent(observer, new PerceptionReceptor { VisionRange = 200f, HearingRange = 50f, FieldOfViewCos = MathF.Cos(MathF.PI / 6f) });
+            world.AddComponent(observer, new TargetMemory());
+            var drone = world.CreateEntity();
+            world.AddComponent(drone, new SimTransform { Position = new Vector3(0f, 0f, 60f), Rotation = Quaternion.Identity });
+            world.AddComponent(drone, new EntityInfo { ForceId = ForceId.Hostile });
+            grid.Clear();
+            grid.Add(observer, Vector2.Zero);
+            grid.Add(drone, Vector2.Zero);
+
+            var selected = Selected(world, grid, observer);
+            Assert.Equal(new[] { drone }, selected.ToArray());
+            grid.Dispose();
+        }
+
+}
 }

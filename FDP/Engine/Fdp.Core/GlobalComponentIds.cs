@@ -855,5 +855,17 @@ namespace Fdp.Core
         /// <summary><c>GuidedRound</c> — ⭐ M4 (D-D, DESIGN_Missiles_And_Ammo §3): a guided round's guidance, target, phase and lifetime; Muscle-local,
         /// beside its BallisticProjectile. ⚠ 374 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int GuidedRound = 374;
+
+        /// <summary><c>Locomotion</c> — ⭐ CE-2168 (Motion Domains MD-A): how a body moves (its <c>LocomotionClass</c>), from the TKB's
+        /// <c>Gen.Locomotion</c>; every node. ⚠ 375 measured free on backend, ui and behaviors 2026-10-14.</summary>
+        public const int Locomotion = 375;
+
+        /// <summary><c>FlightParams</c> — ⭐ M7 (DESIGN_FPV_Drone §2): a flyer's speed, climb, turn, endurance and contact radius, from the TKB's
+        /// <c>Gen.Flight</c>; every node. ⚠ 376 measured free on backend, ui and behaviors 2026-10-14.</summary>
+        public const int FlightParams = 376;
+
+        /// <summary><c>FlightState</c> — ⭐ M7: a flyer's airborne flag and vertical speed, written by its motion model on the Muscle.
+        /// ⚠ 377 measured free on backend, ui and behaviors 2026-10-14.</summary>
+        public const int FlightState = 377;
     }
 }

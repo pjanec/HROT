@@ -105,5 +105,24 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(300f, a.DetonationX);
             Assert.Equal(40f, a.DetonationY);
         }
-    }
+    
+        /// <summary>⭐ M7 (DESIGN_FPV_Drone §2, §5) — a flyer is heard at its full moving range while AIRBORNE, even hovering (a source
+        /// below the audible speed was silent); once down (Airborne 0) the speed rule applies again.</summary>
+        [Fact]
+        public void M7_AHoveringDrone_IsHeard_AsRotor()
+        {
+            var (w, e) = World();
+            w.RegisterComponent<Fdp.Toolkit.Motion.FlightState>();
+            w.AddComponent(e, new Fdp.Toolkit.Motion.FlightState { Airborne = 1 });
+            var s = new SoundEmissionSystem();
+            Step(w, s); Step(w, s);   // not moving
+            Assert.Equal(200f, w.GetComponentRO<AcousticEmitter>(e).CurrentMovingRange);
+
+            w.SetComponent(e, new Fdp.Toolkit.Motion.FlightState { Airborne = 0 });
+            Step(w, s);
+            Assert.Equal(0f, w.GetComponentRO<AcousticEmitter>(e).CurrentMovingRange);
+            Assert.Equal((byte)7, (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Rotor);
+        }
+
+}
 }

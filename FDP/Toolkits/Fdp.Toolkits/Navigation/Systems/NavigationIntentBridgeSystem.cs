@@ -114,11 +114,19 @@ namespace Fdp.Toolkit.Navigation.Systems
                 .IncludeAll()
                 .Build();
 
+            bool locomotion = repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>();
             // 1. Coarse unmanaged filter
             foreach (var entity in repo.QueryDelta(query, _lastScanTick))
             {
                 var lifecycle = repo.GetLifecycleState(entity);
                 if (lifecycle != EntityLifecycle.Active && lifecycle != EntityLifecycle.Constructing)
+                    continue;
+
+                // ⭐ M7 / CE-2168 (Motion Domains MD-E) — a flyer (or later a boat) is not a ground mover: its domain's model reads the
+                //   intent itself (v1: straight legs to the 3-D point) — no ground path request, no NavState
+                if (locomotion && repo.HasComponent<Fdp.Toolkit.Motion.Locomotion>(entity)
+                    && Fdp.Toolkit.Motion.Locomotions.DomainOf(repo.GetComponentRO<Fdp.Toolkit.Motion.Locomotion>(entity).Class)
+                       is Fdp.Toolkit.Motion.MotionDomain.Air or Fdp.Toolkit.Motion.MotionDomain.Naval)
                     continue;
 
                 var intent = repo.GetComponent<NavigationIntent>(entity);

@@ -68,7 +68,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var input = world.GetComponentRO<OperatorInput>(self);
                 drive = new ManualDrive
                 {
-                    Forward = input.Forward, Lateral = input.Lateral, Steer = input.Steer, Yaw = input.Yaw, Gait = input.Gait,
+                    Forward = input.Forward, Lateral = input.Lateral, Steer = input.Steer, Yaw = input.Yaw, Vertical = input.Vertical, Gait = input.Gait,
                     Seq = input.Seq,
                 };
             }

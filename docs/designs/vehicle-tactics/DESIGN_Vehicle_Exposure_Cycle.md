@@ -333,6 +333,21 @@ sequenceDiagram
 D-K: the gunner is not a separate person; the vehicle's ~0 armour makes it weak to rifles. A shootable gunner comes with R-263's damage
 states and the carrier's per-seat exposure (R-2009). Withdraw mode `Auto` ⇒ `Scoot` for both (front 5 < 2 × side 5).
 
+**As-built `2026-10-14` (backend, handoff B9):** ✅ the table, in `NedTkbCatalog` (`TkbEntityTypes.Technical_Hmg` 104 / `Technical_Atgm` 105,
+one `Technical(…)` helper for both). Deviations, argued:
+
+| design said | built | why |
+|---|---|---|
+| the `PersonalCar` preset | ✅ through a new `SimVehicleDef.Preset` override | `TerrainMobility.Wheeled` maps to `Truck` (`NedTkbBuilder.MapMobility`); a stated preset wins, every other type unchanged |
+| a `WheeledEngine` signature | ✅ through a new `NedTkbBuilder.WithSignatures` (moving 100 m, firing `HeavyWeapon` 1000 m) | the NED builder had no way to add one |
+| DIS "→ `LandPlatformAttack`" | 1.1.**0**.6 — `SmallWheeledUtilityVehicle`, country 0 (generic) | no such class in `EntityClassTable`; the picker folders it beside the HMMWV |
+| the weapons' penetration | stated by the munition (6019: 25 mm, 6015: 1100 mm tandem) — the mounts state none | one source (Missiles §5a) |
+| HMG ammunition | 300 carried, 50-round belts, 8 s to change, 4 mils; ATGM 4 missiles, 1.5 s lay, 20 s reload | approximate, tuning starts here; hostile (faction 2) |
+
+Rail `NedTkbBuilderCombatTests.M9_TheTechnicals_APickupWithAPintle_ShootAndScoot` (the HMG elevates to +70°, the ATGM to +20°); picker golden
+`EntityTypeCatalogTests.CE2138_…` re-pinned (two lines added). The SOP (`BasicVehicleSop`, §8) and the demo `ua-technical-scoot` are the
+behaviour lane's.
+
 ## 7. The AT side (V6) — compositions, no new node
 
 | shooter | how it fights | what makes it realistic |

@@ -34,6 +34,8 @@ namespace Hrot.SimHost.Tests
             { UrbanCombatTkbCatalog.TkbMilitaryApc,        "MilitaryAPC"        },
             { UrbanCombatTkbCatalog.TkbInfantrySoldier,    "InfantrySoldier"    },
             { UrbanCombatTkbCatalog.TkbInsurgent,          "Insurgent"          },
+            { UrbanCombatTkbCatalog.TkbJavelinTeam,        "JavelinTeam"        },   // ⭐ M5
+            { UrbanCombatTkbCatalog.TkbNlawGunner,         "NlawGunner"         },   // ⭐ M5
         };
 
         /// <summary>
@@ -131,11 +133,51 @@ namespace Hrot.SimHost.Tests
             int seededCount = seeded.GetAll().Count();
             int urbanOnly   = urbanCombatOnly.GetAll().Count();
 
-            Assert.Equal(7, urbanOnly);          // the five templates + ⭐ CE-1032's Grenadier (2004) and MortarTeam (2005)
+            Assert.Equal(9, urbanOnly);          // the five templates + ⭐ CE-1032's Grenadier (2004) and MortarTeam (2005) + ⭐ M5's JavelinTeam (2006) and NlawGunner (2007)
             Assert.True(seededCount > urbanOnly,
                 $"CreateTkb() carries {seededCount} templates and UrbanCombat alone is {urbanOnly}. " +
                 "CreateTkb() must ALSO carry NedTkbCatalog's content — equal counts mean a contributor " +
                 "was dropped from CreateTkb().");
+        }
+
+        /// <summary>
+        /// ⭐⭐ M5 / M6 (DESIGN_Missiles_And_Ammo §5, DESIGN_Armour_Hit_Model §2) — the anti-armour men and the armoured APC: the RPG man
+        /// carries four rockets, lays 2 s, reloads 6 s and stands to fire, with a rifle on mount 1 (the weapon brain picks); the Javelin
+        /// team and the NLAW gunner each carry their launcher (its penetration is the munition's own) and a rifle, and see as far as the
+        /// launcher reaches; the APC is armoured against rifles — a 5 mm rifle round no longer scratches it — not against a rocket.
+        /// </summary>
+        [Fact]
+        public void M5_M6_TheRpgMan_TheAntiTankTeams_AndTheArmouredApc()
+        {
+            ITkbDatabase tkb = HrotEnvironment.CreateTkb();
+
+            var rpgMan = tkb.GetByType(UrbanCombatTkbCatalog.TkbInsurgent).GetDescriptor<WeaponSuiteDto>()!.Mounts;
+            Assert.Equal(2, rpgMan.Count);
+            Assert.Equal((ulong)MunitionTkbCatalog.TkbRpg7Rocket, rpgMan[0].AmmoGuid);
+            Assert.Equal(4, rpgMan[0].InitialAmmunition);
+            Assert.Equal(2f, rpgMan[0].AimSeconds);
+            Assert.Equal(6f, rpgMan[0].ReloadSeconds);
+            Assert.False(rpgMan[0].FireOnMove);
+            Assert.Equal(WeaponCategory.SmallArms, rpgMan[1].Category);
+
+            foreach (var (type, missile, range) in new[] { (UrbanCombatTkbCatalog.TkbJavelinTeam, MunitionTkbCatalog.TkbJavelinMissile, 2500f),
+                                                            (UrbanCombatTkbCatalog.TkbNlawGunner, MunitionTkbCatalog.TkbNlawMissile, 800f) })
+            {
+                var t = tkb.GetByType(type);
+                var m = t.GetDescriptor<WeaponSuiteDto>()!.Mounts;
+                Assert.Equal((ulong)missile, m[0].AmmoGuid);
+                Assert.Equal(WeaponCategory.Atgm, m[0].Category);   // ⇒ it stands to fire (D-L)
+                Assert.Equal(0f, m[0].Penetration);                 // the munition states it
+                Assert.True(Fdp.Toolkit.Tkb.Parameters.ParameterResolver.MountPenetration(tkb, m[0]).Value > 0f);
+                Assert.Equal(WeaponCategory.SmallArms, m[1].Category);
+                Assert.Equal(range, t.GetDescriptor<SensorCapabilitiesDto>()!.VisionRange);
+                Assert.NotNull(t.GetDescriptor<StrideRenderModelDefDto>());
+            }
+
+            var apc = tkb.GetByType(UrbanCombatTkbCatalog.TkbMilitaryApc).GetDescriptor<CombatPlatformDefDto>()!;
+            Assert.Equal(500f, apc.MaxHealth);
+            Assert.True(apc.ArmorFront > 5f && apc.ArmorRear > 5f, "a rifle round (5 mm) must not defeat the APC");
+            Assert.True(apc.ArmorFront < 300f, "an RPG (300 mm) must");
         }
     }
 }

@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AcousticEmitter>()) return;
 
+            bool flight = repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FlightState>();
             foreach (var e in repo.Query().With<AcousticEmitter>().With<SimTransform>().Build())
             {
                 ref var a = ref repo.GetComponentRW<AcousticEmitter>(e);
@@ -43,6 +44,9 @@ namespace Fdp.Toolkit.Perception.Signatures
                     float reference = a.ReferenceSpeed > 0f ? a.ReferenceSpeed : 5f;
                     a.CurrentMovingRange = speed > MinAudibleSpeed ? a.MovingAudibleRange * MathF.Min(1f, speed / reference) : 0f;
                 }
+                // ⭐ M7 (DESIGN_FPV_Drone §2) — a flyer is loud while airborne at ANY speed: a hovering drone is not silent
+                if (flight && repo.HasComponent<Fdp.Toolkit.Motion.FlightState>(e) && repo.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(e).Airborne != 0)
+                    a.CurrentMovingRange = a.MovingAudibleRange;
                 a.ShotTimeLeft       = MathF.Max(0f, a.ShotTimeLeft - deltaTime);
                 a.DetonationTimeLeft = MathF.Max(0f, a.DetonationTimeLeft - deltaTime);
             }

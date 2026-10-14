@@ -216,7 +216,7 @@ namespace Fdp.Toolkit.Physics.Systems
         /// <summary>⭐ M1 — narrows [<paramref name="tIn"/>, <paramref name="tOut"/>] of a segment whose height runs
         /// <paramref name="z0"/>→<paramref name="z1"/> to where it lies in [<paramref name="lo"/>, <paramref name="hi"/>]; false when it
         /// never does.</summary>
-        internal static bool ZBandOverlap(float z0, float z1, float lo, float hi, ref float tIn, ref float tOut)
+        public static bool ZBandOverlap(float z0, float z1, float lo, float hi, ref float tIn, ref float tOut)
         {
             float dz = z1 - z0;
             if (MathF.Abs(dz) < 1e-9f) return z0 >= lo && z0 <= hi;

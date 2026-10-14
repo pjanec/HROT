@@ -93,6 +93,10 @@ public static class HrotOwnershipGroups
         muscle.SetBit(GlobalComponentIds.TurretPose);
         muscle.SetBit(GlobalComponentIds.WeaponTaskStatus);   // ⭐ WL-2b (W-3) — the muscle's report on a turret's task
         muscle.SetBit(GlobalComponentIds.WeaponMuscleState);  // ⭐ WL-3 — its never-sent fire timing (like FrustrationTicks)
+        // ⭐ CE-3199 / R-3005 — ONE Muscle role moves every body, ground or air: a flyer's never-sent flight state and its flight
+        //   parameters sit here beside VehicleState / VehicleParams (docs/designs/motion-models/DESIGN_Motion_Domains.md §5a).
+        muscle.SetBit(GlobalComponentIds.FlightParams);
+        muscle.SetBit(GlobalComponentIds.FlightState);
 
         // ── Perception (§1.2b, R-171) — perception EXECUTION ─────────────────────────────────────────
         var perception = default(BitMask512);
@@ -120,7 +124,9 @@ public static class HrotOwnershipGroups
 
     // G-4 — the same conditions the TKB translators use to provision each group's components.
     private static bool HasBrain(TkbTemplate t)      => t.GetDescriptor<BehaviorProfileDto>() is { BrainTier: not 0 };
-    private static bool HasKinematics(TkbTemplate t) => t.GetDescriptor<VehicleParametersDto>() != null;
+    // ⭐ CE-3199 / R-3005 — a FLYER (Gen.Flight) is moved by the Muscle too: there is one Muscle role (MuscleGround keeps its name).
+    private static bool HasKinematics(TkbTemplate t)
+        => t.GetDescriptor<VehicleParametersDto>() != null || t.GetDescriptor<FlightParamsDto>() != null;
     // ⭐ CE-3036 — a unit with any SENSOR is perceived by the Perception group too (V3: its results publish from there).
     private static bool HasPerception(TkbTemplate t)
         => t.GetDescriptor<SensorCapabilitiesDto>() is { } s && (s.VisionRange > 0f || s.Sensors.Count > 0);

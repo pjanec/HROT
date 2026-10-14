@@ -54,7 +54,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>The wire form (the test seam).</summary>
         internal static EntityManualDrive ToSample(long netId, in ManualDrive d) => new()
         {
-            EntityId = netId, Forward = d.Forward, Lateral = d.Lateral, Steer = d.Steer, Yaw = d.Yaw, Gait = d.Gait, Seq = d.Seq,
+            EntityId = netId, Forward = d.Forward, Lateral = d.Lateral, Steer = d.Steer, Yaw = d.Yaw, Gait = d.Gait, Seq = d.Seq, Vertical = d.Vertical,
         };
 
         public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);

@@ -249,3 +249,15 @@ Rails (§5) — all built, red-proved by breaking the mechanism: `ArmorModelTest
 
 ⚠ **Blast radius:** every vehicle hit (the height band) and every fragment burst above a vehicle (the top face). Demos to re-check:
 `ua-weapon-choice`, `hill-attack`, `tt-convoy-ambush`.
+
+**M6 data (backend, handoff B8):** ✅ every combat vehicle in the built-in catalogues STATES its health (each equal to the old front × 5, so
+no fight moves on it) and its roof and shaped-charge columns — M1, T-72, Bradley (`NedTkbCatalog`) and the `MilitaryAPC` (now armoured
+30 / 20 / 15 / top 10 against rifles). The front × 5 fallback stays only for a type that states none. The numbers and the argument:
+[Missiles §5a](DESIGN_Missiles_And_Ammo.md).
+
+⚠ **Found re-checking `hill-attack` after B8 (`2026-10-14`):** every NED hull had collider **height 0** — the only height source was the Stride
+render descriptor, which NED types lack — so the M1 height band never applied to them, and the blast rule (personnel only, `HullHeight ≤ 0`)
+took a tank for a person. With B8's loadouts the weapon brain then picked HEAT-MP against a 50 hp M1 (its blast "kills"), the round met the
+900 mm composite front, and the attack stalled (both hostiles untouched; at B7 they died by t = 46 s). ✅ Fixed at the source: `WithPhysics`
+states the hull's `Body.Geometry` (ground-centred size; people excluded) and `VehicleKinematicsTkbTranslator` falls back to its height. Rail
+`NedTkbBuilderCombatTests.B8_ANedHull_StatesItsSizeAndLocomotion_…`; the live hill attack is the proof (handoff report).
