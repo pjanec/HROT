@@ -79,8 +79,8 @@ Each TEST project is built once (`dotnet build <tests.csproj> --no-restore`); ev
 - **E4:**
   - `A4_AnAircraftsBomb_KeepsItsVelocity_AGroundShotDoesNot` goes red with the air-launch branch removed.
   - `A6_TheReleaseProfile_WaitsForTheCue` goes red with the release gate removed. The build succeeded (dll 18:35:53), and both rails were green again after the restore.
-- **E5:** with the mouse-aim pilot bypassed and the helicopter's tilt not written (the build succeeded, dll 18:53:19), all three `B3_*` rails were red. With the code restored (dll 18:53:49) they were green again: 12/0 across the `B3_` filter. ⚠ The first E5 attempt used an early `return`, which raised CS0162, so that run used a stale binary. It was redone with a break that only applies at runtime.
   - ⚠ The first E4 attempt used `if (false)`. That raises CS0162, which this repo treats as an error, so the run used a stale binary. It was redone with a real edit.
+- **E5:** with the mouse-aim pilot bypassed and the helicopter's tilt not written (the build succeeded, dll 18:53:19), all three `B3_*` rails were red. With the code restored (dll 18:53:49) they were green again: 12/0 across the `B3_` filter. ⚠ The first E5 attempt used an early `return`, which raised CS0162, so that run used a stale binary. It was redone with a break that only applies at runtime.
 
 ## Wire (R-169)
 
