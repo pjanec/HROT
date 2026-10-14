@@ -999,6 +999,8 @@ read the same component — not wired.
 | the gait | `HumanGait.FacingTurn` (snap beyond the twist, `AlignGain` × angle inside, 3° dead band) · `FacingSpeedFactor` · `IntegrateFacing` (moves along the way, not the heading); `CarKinematicsSystem`'s person branch uses them when `TryAimPoint` answers — standing too — else `HumanGait.Integrate` exactly as before | `HumanGait.cs` · `CarKinematicsSystem.cs` |
 | the Stride host | `BulletCharacterMotor` turns an aimed character by `FacingTurn` from its body's current heading (less the model offset), else faces travel as before | `BulletCharacterMotor.cs` |
 
+Gates `2026-10-14`: `Fdp.Toolkits.Tests` 3225 / 0 (1 skip) · `Hrot.Presentation.Tests` Map3D 139 / 0 (8 skip) · cluster scenarios (`PostureScenarioTests`, `GrenadeOrRifleScenarioTests`, `SquadTacticsScenarioTests`, `EqsCombatNodesTests`) 31 / 0 — no baseline moved · `Hrot.Stride.Core` builds clean, ⚠ its tests cannot run on Linux (net8.0-windows runtime) and the motor's aimed branch has no rail — verify on the Windows host.
+
 ⚠ Known, not fixed here: blind fire's ROUNDS-in-progress posture still names the hidden target ENTITY (W-13b), so between held rounds the gait turns toward where he really is, not where he was last seen — the gate itself uses the remembered point. Small in practice (the point is where he was a moment ago).
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
