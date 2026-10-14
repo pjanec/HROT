@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: DESIGN — leans MD-A…MD-H not yet approved
+build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "MD-A to MD-H approved"
 current-answer: §3 (the proposal) and §4 (decisions with leans) — §1 measured ground, §2 the requirement.
 stale-below: nothing.
 known-rot: none.
@@ -138,7 +138,7 @@ sequenceDiagram
 
 *Possession of a drone is the existing chain; only the axes and the model differ — the same holds for a boat later.*
 
-## 4. Decisions — each with a lean
+## 4. Decisions — 🔒 APPROVED `2026-10-14` ("MD-A to MD-H approved")
 
 | id | question | lean | blast radius / what would change it |
 |---|---|---|---|
