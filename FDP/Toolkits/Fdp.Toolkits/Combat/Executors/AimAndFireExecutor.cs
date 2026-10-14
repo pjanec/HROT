@@ -186,6 +186,16 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
+            // ⭐⭐ CE-3195 (R-3003, W-14a) — a person fires only within his twist of his heading: beyond it the round is held (Running,
+            //   nothing spent) and the posture stays Aimed, so the Muscle's gait turns him. The aim clock keeps running — the shot
+            //   leaves the moment he is round (a quick shot at a target that appears behind him).
+            if (BodyAim.TargetPoint(world, p.Target, out var targetAt) && BodyAim.HoldsFire(world, entity, targetAt))
+            {
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, ActionReason.Turning, p.Target);
+                return;
+            }
+
             // ⭐ CE-321 — hold fire while a friendly is on the line (LineOfFire): the action keeps running and no round is spent,
             //   so a unit that moves clear (or a friendly that moves away) fires again.
             if (LineOfFire.BlockedByFriendly(world, entity, p.Target))
@@ -254,7 +264,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 SayAt(world, entity, ActionReason.Aiming, p.Point);
                 return;
             }
-            var reason = FireAtPointExecutor.ShootAtPoint(world, entity, mountIndex, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: false);
+            var reason = FireAtPointExecutor.ShootAtPoint(world, entity, mountIndex, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: false, obeyArc: false);
             if (reason == ActionReason.Firing) RoundsFired(ref channel)++;
             SayAt(world, entity, reason, p.Point);
         }
@@ -294,6 +304,9 @@ namespace Fdp.Toolkit.Combat.Executors
                 Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
                 return;
             }
+            // ⭐ CE-3195 (W-14a) — blind rounds too wait for the body to face where they go
+            //   (aimed at the remembered POINT, so the gait turns him to where the round goes, not to where the hidden man really is)
+            if (BodyAim.HoldsFire(world, entity, point)) { SayAt(world, entity, ActionReason.Turning, point); return; }
             if (LineOfFire.BlockedByFriendly(world, entity, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
             if (!RoePermitsFire(world, entity)) { Say(world, entity, ActionReason.HoldRoe, p.Target); return; }
 

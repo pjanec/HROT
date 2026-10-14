@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.Combat
         {
             ActionReason.Aiming or ActionReason.Firing or ActionReason.Cooldown or ActionReason.BlindFire
                 or ActionReason.HoldFriendlyOnLine or ActionReason.HoldRoe or ActionReason.Slewing or ActionReason.Guiding
+                or ActionReason.Turning   // ⭐ CE-3195 — held while the body turns, still aimed (the gait turns him toward it)
                 => WeaponPostureKind.Aimed,
             ActionReason.HoldNotSeen or ActionReason.Reloading or ActionReason.Throwing or ActionReason.OutOfArc
                 or ActionReason.Done or ActionReason.Failed or ActionReason.OutOfAmmo
@@ -38,6 +39,26 @@ namespace Fdp.Toolkit.Combat
             p.Target = target;
             p.Point = target.IsNull ? point : default;
             p.IdleSeconds = 0f;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3195</c> (W-14b) — where an AIMED <paramref name="unit"/> points (world metres): its target's chest (1 m above its
+        /// position) or its aim point. False when it is not Aimed or aims at nothing it can place. The ONE reading of the posture's aim,
+        /// shared by the drawn twist (<c>EntityBodyLayer3D</c>), the person gait (<c>CarKinematicsSystem</c>) and the Stride motor.
+        /// </summary>
+        public static bool TryAimPoint(EntityRepository world, Entity unit, out Vector3 at)
+        {
+            at = default;
+            if (!world.IsComponentTypeRegistered<WeaponPosture>() || !world.HasComponent<WeaponPosture>(unit)) return false;
+            ref readonly var posture = ref world.GetComponentRO<WeaponPosture>(unit);
+            if (posture.Kind != WeaponPostureKind.Aimed) return false;
+            if (!posture.Target.IsNull && world.IsAlive(posture.Target) && world.HasComponent<SimTransform>(posture.Target))
+            {
+                at = world.GetComponentRO<SimTransform>(posture.Target).Position + new Vector3(0f, 0f, 1.0f);
+                return true;
+            }
+            if (posture.Target.IsNull && posture.Point != Vector3.Zero) { at = posture.Point; return true; }
+            return false;
         }
 
         /// <summary><paramref name="unit"/> runs no weapon action this frame (<paramref name="dt"/> seconds).</summary>

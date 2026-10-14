@@ -42,6 +42,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         BlindFire,
         /// <summary>⭐ W-12c — a guided round is in flight: the launcher stays on the target and the next waits.</summary>
         Guiding,
+        /// <summary>⭐ <c>CE-3195</c> (W-14a) — the target is beyond a person's twist: the round is held while his body turns to it.</summary>
+        Turning,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -113,6 +115,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.Throwing           => "throw: last seen",
             ActionReason.BlindFire          => "suppress: last seen",
             ActionReason.Guiding            => "guiding",
+            ActionReason.Turning            => "turning",
             ActionReason.OutOfArc           => "out of arc",
             _                               => "",
         };

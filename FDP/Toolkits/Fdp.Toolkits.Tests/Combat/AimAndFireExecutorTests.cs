@@ -1276,5 +1276,84 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(10 - shots, _world.GetComponent<WeaponState>(shooter).Ammo);
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
+
+            // ── ⭐ CE-3195 (R-3003, docs/DESIGN_Weapon_Layers.md W-14a) — a person's round waits for his body ─────────────────────
+
+        /// <summary>The shooter becomes a PERSON (pedestrian kinematics) with a weapon posture; optionally embarked.</summary>
+        private void MakePerson(Entity shooter, bool embarked = false)
+        {
+            if (!_world.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>()) _world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            if (!_world.IsComponentTypeRegistered<WeaponPosture>()) _world.RegisterComponent<WeaponPosture>();
+            _world.AddComponent(shooter, global::CarKinem.Core.VehiclePresets.GetPreset(global::CarKinem.Core.VehicleClass.Pedestrian));
+            _world.AddComponent(shooter, new WeaponPosture());
+            if (embarked)
+            {
+                _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+                _world.AddComponent(shooter, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag());
+            }
+        }
+
+        private void Face(Entity unit, float yawDegrees)
+            => _world.GetComponentRW<SimTransform>(unit).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yawDegrees * MathF.PI / 180f);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3195</c> — a soldier facing EAST with his target WEST of him holds the round (Running, nothing spent) and stays
+        /// AIMED at it (so the gait turns him — <c>CarKinematicsSystem</c> rails); turned so it is 60° off (inside the 75° twist) he fires
+        /// at once — a snap shot, the aim clock did not restart. 🔴 Red-proof: before CE-3195 the first step fired out of his back.
+        /// </summary>
+        [Fact]
+        public void CE3195_APerson_HoldsTheRoundAtATargetBehindHim_ThenSnapsItOffOnceInsideHisTwist()
+        {
+            var target = SpawnTarget(new Vector3(-10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, cooldownSeconds: 0.2f);
+            MakePerson(shooter);
+            EnterAimed(shooter, ref channel);
+
+            Assert.Equal(0, Step(shooter, ref channel, 0.1f));
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            var posture = _world.GetComponent<WeaponPosture>(shooter);
+            Assert.Equal(WeaponPostureKind.Aimed, posture.Kind);
+            Assert.Equal(target, posture.Target);
+
+            Face(shooter, 120f);   // the target (180°) is now 60° off his body
+            Assert.Equal(1, Step(shooter, ref channel, 0.1f));
+            Assert.Equal(4, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
+
+        /// <summary>⭐ <c>CE-3195</c> — the arc is the PERSON's: a vehicle's fixed gun and an embarked passenger (he sits at the vehicle's
+        /// heading; the gait does not turn him) fire behind as before; and a person exactly at the twist (75°) still fires.</summary>
+        [Theory]
+        [InlineData("vehicle", 180f)]
+        [InlineData("embarked", 180f)]
+        [InlineData("person", 74f)]
+        public void CE3195_TheArcHoldsOnlyAPersonsRoundBeyondHisTwist(string who, float targetBearingDegrees)
+        {
+            float r = targetBearingDegrees * MathF.PI / 180f;
+            var target = SpawnTarget(new Vector3(10f * MathF.Cos(r), 10f * MathF.Sin(r), 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, cooldownSeconds: 0.2f);
+            if (who != "vehicle") MakePerson(shooter, embarked: who == "embarked");
+            EnterAimed(shooter, ref channel);
+            Assert.Equal(1, Step(shooter, ref channel, 0.1f));
+        }
+
+        /// <summary>⭐ <c>CE-3195</c> — a person's BURST at a point behind him (a grenade, a blind burst) holds the same way and keeps the
+        /// posture aimed at the POINT; facing it, the round goes.</summary>
+        [Fact]
+        public void CE3195_APersonsBurstAtAPointBehindHim_Holds_UntilHeFacesIt()
+        {
+            var (shooter, friend) = BurstWithAFriendOnTheLine(new Vector3(-20f, 0f, 1f));
+            _world.GetComponentRW<SimTransform>(friend).Position = new Vector3(8f, 50f, 0f);   // nobody on the line
+            MakePerson(shooter);
+            Assert.Equal(0, BurstStep(shooter));
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+            var posture = _world.GetComponent<WeaponPosture>(shooter);
+            Assert.Equal(WeaponPostureKind.Aimed, posture.Kind);
+            Assert.Equal(new Vector3(-20f, 0f, 1f), posture.Point);
+
+            Face(shooter, 180f);
+            Assert.Equal(1, BurstStep(shooter));
+        }
     }
 }
+

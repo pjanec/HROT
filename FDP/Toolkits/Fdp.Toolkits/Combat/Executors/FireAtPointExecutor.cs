@@ -51,7 +51,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (!world.HasComponent<WeaponState>(mountEntity)) { channel.Status = NodeStatus.Failure; return; }
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
             if (weapon.Ammo == 0) { channel.Status = fired > 0 ? NodeStatus.Success : NodeStatus.Failure; Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfAmmo); return; }
-            var reason = ShootAtPoint(world, entity, p.Mount, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: true);
+            var reason = ShootAtPoint(world, entity, p.Mount, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: true, obeyArc: true);
             if (reason != Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing)
             {
                 channel.Status = NodeStatus.Running;
@@ -67,19 +67,21 @@ namespace Fdp.Toolkit.Combat.Executors
 
         /// <summary>
         /// ⭐ The ONE per-shot round at a point (shared with <see cref="AimAndFireExecutor"/>'s operator fire, <c>CE-3172</c> S4d):
-        /// the mount's cooldown, the unit's ROE (unless <paramref name="obeyRoe"/> is false — an operator overrides it, C-2), a
+        /// the mount's cooldown, the person's fire arc (when <paramref name="obeyArc"/> — the AI's, <c>CE-3195</c>), the unit's ROE (unless <paramref name="obeyRoe"/> is false — an operator overrides it, C-2), a
         /// DIRECT burst never through a friend (an indirect warhead arcs over — exempt), the magazine; then a
         /// <see cref="WeaponFireIntent"/> at the point and the round spent. Returns <c>Firing</c> when a round left, otherwise why
         /// not (the round is held, nothing spent). The caller has checked the ammunition.
         /// </summary>
         public static Fdp.Toolkit.Behavior.Diagnostics.ActionReason ShootAtPoint(EntityRepository world, Entity unit, int mountIndex,
-            ref WeaponState weapon, Vector3 point, float cooldownSeconds, float dt, bool obeyRoe)
+            ref WeaponState weapon, Vector3 point, float cooldownSeconds, float dt, bool obeyRoe, bool obeyArc)
         {
             if (weapon.CooldownSecondsRemaining > 0f)
             {
                 weapon.CooldownSecondsRemaining -= dt;
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Cooldown;
             }
+            // ⭐ CE-3195 (W-14a) — a person's round at a point waits for his body to face it (the AI's; an operator turns himself)
+            if (obeyArc && BodyAim.HoldsFire(world, unit, point)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Turning;
             if (obeyRoe && !AimAndFireExecutor.RoePermitsFire(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldRoe;
             // ⭐ CE-3158 G3 — a DIRECT burst never flies through a friend (CE-321's rule, to a point); held like the aimed guard
             //   (Running, no round spent). An INDIRECT warhead (a mortar, a thrown grenade) arcs over them — exempt.
