@@ -157,6 +157,37 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(damage[1] > 20f, $"open {damage[1]}");
         }
 
+        // ── ⭐ M1 (DESIGN_Armour_Hit_Model §3) — a burst ABOVE a hull meets its roof ─────────────
+
+        /// <summary>
+        /// ⭐ M1 — a grenade bursting just ABOVE a hull meets its thin roof (0.3 mm: the fragments defeat it); the same grenade
+        /// bursting beside it meets the 50 mm side (they cannot). ⛔ Before M1 the face was horizontal, so a roof burst read the
+        /// side (or the front, straight above).
+        /// </summary>
+        [Fact]
+        public void M1_ABurstAboveAHull_MeetsItsRoof()
+        {
+            const long Hull = 777;
+            var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();
+            var t = new TkbTemplate("roof test hull", Hull);
+            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 1000, ArmorFront = 50, ArmorSide = 50, ArmorRear = 50, ArmorTop = 0.3f });
+            db.Register(t);
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>())
+                _w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var hull = _w.CreateEntity();
+            _w.AddComponent(hull, new SimTransform { Position = new Vector3(0, 4, 0), Rotation = Quaternion.Identity });
+            _w.AddComponent(hull, new PhysicsCollider { Radius = 2f, Height = 2.5f });
+            _w.AddComponent(hull, new Health { Current = 1000f, Max = 1000f });
+            _w.AddComponent(hull, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hull });
+
+            var (above, dAbove) = Burst(Grenade, new Vector3(0.3f, 4, 3.0f), hull);
+            var (beside, dBeside) = Burst(Grenade, new Vector3(3.0f, 4, 0.1f), hull);
+            Assert.Equal(1f, above.Effects.Single(x => x.Entity == hull).FragmentArmourChance);
+            Assert.True(dAbove[0] > 0f, $"above {dAbove[0]}");
+            Assert.Equal(0f, beside.Effects.Single(x => x.Entity == hull).FragmentArmourChance);
+            Assert.Equal(0f, dBeside[0]);
+        }
+
         // ── W-7′ — a roof burst spares the floor below (closed barrier), not the man on the roof ──
 
         [Fact]

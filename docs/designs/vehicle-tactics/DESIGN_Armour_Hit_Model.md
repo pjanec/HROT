@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
+updated: 2026-10-14 (as-built B3–B5, backend)
 build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (D-A, D-B, D-C, D-F, D-G approved earlier the same day)
 current-answer: §2 (classes), §3 (sequences), §4 (who runs it), §5 (rails) — §1 is the measured ground.
 stale-below: nothing.
@@ -71,7 +71,7 @@ classDiagram
   class ArmorModel {
     <<static, existing, grows>>
     +TopDescentDegrees = 45 «new»
-    +FacingOf(in SimTransform target, Vector3 from) Facing  «3-D from now: dir = target − from»
+    +FacingOf(in SimTransform target, Vector3 from, float aimHeight = 0) Facing  «3-D: travel = target + aimHeight·Z − from»
     +FacingOfArrival(in SimTransform target, Vector3 travel) Facing  «new»
     +ArmourFor(CombatPlatformDefDto, Facing) float  «kept = Kinetic»
     +ArmourFor(CombatPlatformDefDto, Facing, Penetrator) float  «new»
@@ -107,7 +107,9 @@ classDiagram
   class BallisticsSystem { <<existing>> Detonate fills Travel = at − PreviousPosition }
   class DamageCalculationSystem { <<existing>> face from Travel, armour by penetrator }
   class AreaEffectSystem { <<existing>> fragments: FacingOf(tf, burst) is 3-D now }
-  class RaycastSolverSystem { <<existing>> a vehicle gets a height band }
+  class RaycastSolverSystem { <<existing>> a vehicle gets a height band (cylinder) }
+  class Intersection2D { <<static, existing, grows>> +SegmentInCircle(start, end, centre, r) tIn, tOut «new» }
+  RaycastSolverSystem ..> Intersection2D
   ArmorModel ..> Facing
   ArmorModel ..> Penetrator
   ArmorModel ..> CombatPlatformDefDto
@@ -173,7 +175,7 @@ sequenceDiagram
   participant AM as ArmorModel
   BS->>BS: arc round stops on a roof or the ground, Detonate(at)
   BS-->>AE: DetonationNotification { Target = null, Travel = at − PreviousPosition }
-  AE->>AM: FacingOf(vehicleTf, burst) — 3-D now
+  AE->>AM: FacingOf(vehicleTf, burst, hull/2) — 3-D now, at the hull's middle
   AM-->>AE: Top when the burst is above the hull
   AE->>AM: ArmourFor(platform, Top, Kinetic) → PenetrationChance(fragmentPen, armour)
 ```
@@ -224,6 +226,26 @@ the face (R-212 A1).*
 | the three CE3071 rails stay GREEN unchanged (flat shots, kinetic) | `DamageCalculationSystemTests` |
 | a DTO shape rail for the five new fields | `TkbDtosTests` |
 | the effectiveness input reads the 3-D face (a shooter above the target) | `StandardInputReaderTests` |
+
+## 6. As-built `2026-10-14` (backend, handoff B3 · B4 · B5)
+
+The design carries **12 classes** (§2, now 13 with `Intersection2D`) and **2 sequences** (§3); every box is built. Deviations, each argued:
+
+| design said | built | why |
+|---|---|---|
+| `FacingOf(target, from)`, travel = `target.Position − from` | ⚠ **`FacingOf(target, from, aimHeight = 0)`** — travel to the position raised by `aimHeight`; `AreaEffectSystem` passes **hull / 2** | from the FEET, a burst beside a hull at its side's height read Top (2.3 m up, 1.8 m out ⇒ 52°); from the hull's middle it reads the side, and a burst on the roof still reads Top. Every other caller keeps 0 |
+| legacy branch (`Travel = 0`) keeps today's rule | ✅, and **horizontal on purpose** — `from.Z` is set to the target's height | "today's rule" WAS horizontal; a 3-D `FacingOf` from a hit point high on a tall hull would have turned a legacy side hit into Top. The three CE3071 rails stay green unchanged |
+| the effectiveness input reads the 3-D face | ✅ from the shooter's EYE to `AimPoint.Middle` (the line `FireProcessingSystem` flies) **plus the round's penetrator** (`CombatTkb.PenetratorOf(mount.AmmoGuid)`) | R-212 A1: the AI and the shot read one model — a 3-D face with a kinetic column would have let the AI over-rate a HEAT round against a …Ce face |
+| the vehicle hit height `z ∈ [feet, feet + Height]` | ✅ as a CYLINDER: the first t of the segment inside the circle (`Intersection2D.SegmentInCircle`, new) AND the band (`RaycastSolverSystem.ZBandOverlap`) | `RaycastCircle` returns only an entry/exit point and misses a segment wholly inside the circle — exactly a round dropping onto a roof (a vertical segment divides by zero there) |
+| zero-length first segment ⇒ `hitPos − Muzzle` | ✅ when the round carries its muzzle (`TerrainFlags` bit 0); else travel stays 0 (unknown ⇒ legacy branch) | a round built without a muzzle (older tests, examples) has no honest direction |
+| RPG / TOW templates get "ShapedCharge, small blast" | ✅ **copied from the library's `PG-7V HEAT` / `TOW-2 HEAT`** (`MunitionTkbCatalog.ShapedChargeOf`), `Kind` forced ShapedCharge | one source for the numbers; the names stay (LR-1). ⚠ a missed RPG/TOW now BURSTS on the terrain (impact fuze) — an area effect it never had |
+
+Rails (§5) — all built, red-proved by breaking the mechanism: `ArmorModelTests.M1_TheFace_FromTheArrival` + `M2_TheArmourColumn_PerFace_AndPenetrator` ·
+`DamageCalculationSystemTests.M1_ARoundFromAFourthFloorWindow_…` (window 12 m above the hull's middle — a "4th floor" by this rail's geometry) +
+`M2_AShapedCharge_ReadsTheCeColumn_…` + `M2_NoArmourTop_ReadsArmourRear` · `HitResolutionSystemDetonationTests.M1_HitResolution_CarriesTheTravelDirection` ·
+`RaycastSolverSystemTests.M1_ARoundPassingOverAHull_DoesNotHitIt` (replaces `P2_AVehicleKeepsTheCircle`) · `AreaEffectSystemTests.M1_ABurstAboveAHull_MeetsItsRoof` ·
+`StandardInputReaderTests.M1_Effectiveness_ReadsTheFaceInThreeD_…` · `TkbDtosTests.M2_ThePlatformArmourColumns_…` · `EffectTests.M3_TheRpgAndTowRounds_CarryAShapedChargeWarhead`
++ `LR1_…` re-pinned (RPG and TOW join the explosive set) · `CombatComponentTests` event size 48 → 60.
 
 ⚠ **Blast radius:** every vehicle hit (the height band) and every fragment burst above a vehicle (the top face). Demos to re-check:
 `ua-weapon-choice`, `hill-attack`, `tt-convoy-ambush`.

@@ -159,9 +159,12 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ⭐⭐ Stage 6 (CE-1032, W-1/W-4/W-8) — the round's warhead, read ONCE here: an area effect makes a terrain stop a
                 //   detonation; a time fuze starts counting; an INDIRECT warhead flies a gravity arc to the aim point (high for a
                 //   launcher, a throw for a hand weapon). The flight never looks the warhead up again.
-                long ammo = firedMount != null ? unchecked((long)firedMount.AmmoGuid) : 0L;
+                // ⭐⭐ M8 (D-I) — the LOADED round: the one the weapon brain chose from the mount's loadout (the intent carries it),
+                //   else the mount's own. Its warhead, penetration and damage are that round's (CombatTkb.RoundOf).
+                long mountAmmo = firedMount != null ? unchecked((long)firedMount.AmmoGuid) : 0L;
+                long ammo = evt.AmmoGuid != 0 ? evt.AmmoGuid : mountAmmo;
                 byte warheadBits = 0; float fuze = 0f;
-                if (CombatTkb.WarheadOf(repo, firedMount) is { } wh)   // ⭐ CE-3158 G3 — the one lookup
+                if (CombatTkb.WarheadOf(repo, ammo) is { } wh)   // ⭐ CE-3158 G3 — the one lookup
                 {
                     if (wh.HasAreaEffect) warheadBits |= WarheadRound.Area;
                     if (wh.Fuze == Fdp.Toolkit.Tkb.Domain.FuzeKind.Time && wh.FuzeDelayS > 0f) { warheadBits |= WarheadRound.TimeFuze; fuze = wh.FuzeDelayS; }
@@ -175,11 +178,16 @@ namespace Fdp.Toolkit.Combat.Systems
                     }
                 }
 
+                // ⭐⭐ M4 (D-D; DESIGN_Missiles_And_Ammo §3) — a MISSILE flies at its own speed (⛔ the generated range × 0.5 muzzle
+                //   speed made a TOW ~7× too fast) and, guided, gets a GuidedRound below: GuidedRoundSystem steers it on this node.
+                var missile = CombatTkb.MissileOf(repo, ammo);
+                if (missile != null && missile.SpeedMps > 0f && (warheadBits & WarheadRound.Arc) == 0) velocity = flight * missile.SpeedMps;
+
                 // ⭐ LR-1 (DESIGN_Visual_Effects.md §8.5, R-271) — the round's munition TYPE: the mount's ammo, or, one shot in
                 //   TracerEvery, its tracer. Only WHAT the round is changes (drawn + replicated, PR-F) — damage, penetration and
                 //   warhead stay the mount's, computed above and below from the mount.
                 long roundType = ammo;
-                if (firedMount != null && firedMount.TracerEvery > 0 && firedMount.TracerAmmoGuid != 0 && repo.IsComponentTypeRegistered<ShotOrdinal>())
+                if (ammo == mountAmmo && firedMount != null && firedMount.TracerEvery > 0 && firedMount.TracerAmmoGuid != 0 && repo.IsComponentTypeRegistered<ShotOrdinal>())
                 {
                     if (!repo.HasComponent<ShotOrdinal>(shooter)) repo.AddComponent(shooter, default(ShotOrdinal));
                     ref var shots = ref repo.GetComponentRW<ShotOrdinal>(shooter);
@@ -219,7 +227,13 @@ namespace Fdp.Toolkit.Combat.Systems
                 var (penetration, penetrationSource) = mount != null && mount.DamagePerHit > 0f
                     ? CombatTkb.PenetrationWithSourceOf(repo, mount)                     // ⭐ R-217 P1 — the ammo × weapon pair first
                     : (0f, "unknown munition (no DamagePerHit) — ignores armour");
-                float damage = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(mount?.DamagePerHit ?? 0f);
+                float roundDamage = mount?.DamagePerHit ?? 0f;
+                if (ammo != mountAmmo && mount != null)                                  // ⭐ M8 — another round of the loadout
+                {
+                    (penetration, roundDamage) = CombatTkb.RoundOf(repo, mount, ammo);
+                    penetrationSource = $"loaded round {ammo} (M8 loadout)";
+                }
+                float damage = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(roundDamage);
                 repo.AddComponent(bullet, new BallisticProjectile
                 {
                     Shooter          = shooter,
@@ -241,6 +255,26 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   network side gives it an id and publishes EntityMaster (Lightweight) + WorldPos — no lifecycle, no acks. An
                 //   ordinary bullet stays local: it is the hit test, nothing a viewer draws.
                 MarkIfVisible(repo, bullet, roundType);
+
+                // ⭐ M4 — the guided round's guidance, target and lifetime (an unguided missile gets its lifetime and speed only)
+                if (missile != null && repo.IsComponentTypeRegistered<GuidedRound>())
+                {
+                    bool top = missile.Guidance == Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget && missile.TopAttack && !evt.AtPoint
+                               && Vector3.Distance(origin, targetPos) >= missile.TopAttackMinRangeM;
+                    repo.AddComponent(bullet, new GuidedRound
+                    {
+                        Guidance      = missile.Guidance,
+                        Phase         = top ? GuidedPhase.Climb : GuidedPhase.Cruise,
+                        TopAttack     = (byte)(top ? 1 : 0),
+                        Target        = evt.AtPoint ? Entity.Null : target,
+                        Gunner        = shooter,
+                        SpeedMps      = velocity.Length(),
+                        LifetimeTicks = missile.MaxFlightSeconds > 0f ? (uint)MathF.Ceiling(missile.MaxFlightSeconds * GuidedRound.TicksPerSecond) : 0u,
+                        CruiseZ       = muzzlePos.Z + missile.CruiseAltitudeM,
+                        DiveAngleDeg  = missile.DiveAngleDeg,
+                        LastSeen      = targetPos,
+                    });
+                }
 
                 // ⭐ T-4 — the shot's record, with the inputs it was fired with (GET /combat/shots)
                 ShotLog.For(repo).Add(new ShotRecord

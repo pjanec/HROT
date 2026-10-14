@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Combat
                 => WeaponPostureKind.Aimed,
             ActionReason.HoldNotSeen or ActionReason.Reloading or ActionReason.Throwing or ActionReason.OutOfArc
                 or ActionReason.Done or ActionReason.Failed or ActionReason.OutOfAmmo
+                or ActionReason.TooClose or ActionReason.HoldMoving   // ⭐ M4 / D-L — held, weapon ready
                 => WeaponPostureKind.Ready,
             _ => null,
         };

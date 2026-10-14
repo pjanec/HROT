@@ -146,7 +146,9 @@ namespace Fdp.Toolkit.Combat.Systems
                         AreaEffect.ShadowFactor, out float colliderShadow))
                     shadow = MathF.Min(shadow, colliderShadow);
 
-                var armour = ArmorModel.ArmourFor(CombatTkb.PlatformOf(repo, e), ArmorModel.FacingOf(tf, burst));
+                // ⭐ M1 — the face toward the burst in 3-D, at the hull's middle: a burst ABOVE a hull meets its roof. Fragments
+                //   are kinetic (the jet of a shaped charge is its direct hit, not its fragments).
+                var armour = ArmorModel.ArmourFor(CombatTkb.PlatformOf(repo, e), ArmorModel.FacingOf(tf, burst, hull * 0.5f));
                 float armourChance = ArmorModel.PenetrationChance(w.FragmentPenetrationMm, armour);
                 float fragDamage = w.FragmentDamage * fragFall * exposure * armourChance;
                 float blastDamage = w.BlastLethalDamage * blastFall * barrier * shadow;

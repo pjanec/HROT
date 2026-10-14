@@ -88,6 +88,30 @@ namespace Fdp.Toolkit.Combat.Tests
             return arr;
         }
 
+        /// <summary>
+        /// ⭐ M4 (DESIGN_Missiles_And_Ammo §3) — a GUIDED round lives its flight (<see cref="GuidedRound.LifetimeTicks"/>, from
+        /// <c>MissileDto.MaxFlightSeconds</c>), not a bullet's 2 s: at tick 121 a bullet is gone and the missile still flies; past its own
+        /// lifetime it goes too. ⛔ A 2 km TOW vanished mid-flight.
+        /// </summary>
+        [Fact]
+        public void M4_AGuidedRound_LivesItsFlight_NotTwoSeconds()
+        {
+            _world.RegisterComponent<GuidedRound>();
+            SetCurrentTick(0);
+            var bullet  = SpawnBullet(new Vector3(5f, 0f, 0f), spawnTick: 0);
+            var missile = SpawnBullet(new Vector3(5f, 9f, 0f), spawnTick: 0);
+            _world.AddComponent(missile, new GuidedRound { LifetimeTicks = 20 * 60 });
+
+            SetCurrentTick(121);
+            RunAndReadEvents();
+            Assert.False(_world.IsAlive(bullet));
+            Assert.True(_world.IsAlive(missile));
+
+            SetCurrentTick(20 * 60 + 1);
+            RunAndReadEvents();
+            Assert.False(_world.IsAlive(missile));
+        }
+
         // ── Test 1 ────────────────────────────────────────────────────────────
 
         /// <summary>

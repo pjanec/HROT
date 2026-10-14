@@ -68,6 +68,7 @@ namespace Fdp.Toolkit.Combat.Systems
             var terrain = global::Fdp.Toolkit.World.WorldQuery.Of(view);
 
             var shots = ShotLog.Peek(repo);   // ⭐ T-4 — rounds fired through FireProcessingSystem have a record
+            bool guided = repo.IsComponentTypeRegistered<GuidedRound>();   // ⭐ M4
 
             var query = repo.Query()
                 .With<BallisticProjectile>()
@@ -131,6 +132,9 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 uint lifetime = (proj.Warhead & (WarheadRound.Arc | WarheadRound.TimeFuze)) != 0
                     ? CombatConstants.ArcRoundLifetimeTicks : CombatConstants.BulletLifetimeTicks;
+                // ⭐ M4 — a missile lives its flight (MaxFlightSeconds), not a bullet's 2 s: a 2 km TOW vanished mid-flight
+                if (guided && repo.HasComponent<GuidedRound>(entity) && repo.GetComponentRO<GuidedRound>(entity).LifetimeTicks > 0)
+                    lifetime = repo.GetComponentRO<GuidedRound>(entity).LifetimeTicks;
                 if (currentTick - proj.SpawnTick >= lifetime)
                 {
                     if (shot != null) ShotLog.EndCarried(shot, ShotOutcome.Expired, currentTick, repo.GetComponent<SimTransform>(entity).Position, terrain, in proj);
@@ -229,6 +233,8 @@ namespace Fdp.Toolkit.Combat.Systems
             repo.Bus.Publish(new DetonationNotification
             {
                 Shooter = proj.Shooter, Target = Entity.Null, HitX = at.X, HitY = at.Y, HitZ = at.Z, Ammo = proj.Ammo,
+                // ⭐ M1 — the way it was travelling (0 = unknown: a round lying where it landed has no last segment)
+                TravelX = at.X - proj.PreviousPosition.X, TravelY = at.Y - proj.PreviousPosition.Y, TravelZ = at.Z - proj.PreviousPosition.Z,
             });
             if (shot != null) ShotLog.End(shot, ShotOutcome.Detonated, tick, at);
         }

@@ -32,5 +32,26 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>Rear armour thickness in mm RHA equivalent.</summary>
         [EditUnit("mm RHA")]
         public float ArmorRear { get; init; }
+
+        /// <summary>⭐ M1 (D-A) — roof armour (mm RHA), struck by a round descending ≥ 45°. <b>0 = <see cref="ArmorRear"/></b>
+        /// (the thinnest declared face — never "no armour").</summary>
+        [EditUnit("mm RHA")]
+        public float ArmorTop { get; init; }
+
+        /// <summary>⭐ M2 (D-B) — front armour against a SHAPED CHARGE (mm RHA). <b>0 = <see cref="ArmorFront"/></b>.</summary>
+        [EditUnit("mm RHA")]
+        public float ArmorFrontCe { get; init; }
+
+        /// <summary>⭐ M2 (D-B) — side armour against a shaped charge. <b>0 = <see cref="ArmorSide"/></b>.</summary>
+        [EditUnit("mm RHA")]
+        public float ArmorSideCe { get; init; }
+
+        /// <summary>⭐ M2 (D-B) — rear armour against a shaped charge. <b>0 = <see cref="ArmorRear"/></b>.</summary>
+        [EditUnit("mm RHA")]
+        public float ArmorRearCe { get; init; }
+
+        /// <summary>⭐ M2 (D-B) — roof armour against a shaped charge. <b>0 = the roof's kinetic value</b>.</summary>
+        [EditUnit("mm RHA")]
+        public float ArmorTopCe { get; init; }
     }
 }

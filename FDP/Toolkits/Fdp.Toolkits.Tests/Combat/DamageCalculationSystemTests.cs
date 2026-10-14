@@ -149,14 +149,15 @@ namespace Fdp.Toolkit.Combat.Tests
         private const long TankType = 103;   // armour 500 front / 250 side / 150 rear
 
         /// <summary>A world with a TKB holding a T-72-shaped platform, and a tank facing east (+X) at the origin.</summary>
-        private Entity SpawnArmouredTank()
+        private Entity SpawnArmouredTank(Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto? platform = null, params Fdp.Interfaces.TkbTemplate[] more)
         {
             _world.RegisterComponent<SimTransform>();
             _world.RegisterComponent<TkbIdentity>();
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             var t  = new Fdp.Interfaces.TkbTemplate("Tank", TankType);
-            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 150 });
+            t.AddDescriptor(platform ?? new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 150 });
             db.Register(t);
+            foreach (var m in more) db.Register(m);
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
 
             var tank = SpawnTarget();
@@ -225,6 +226,76 @@ namespace Fdp.Toolkit.Combat.Tests
             _sys.Execute(_world, 0.016f);
             _world.Bus.SwapBuffers();
             Assert.Equal(1100f, _world.Bus.Read<DamageAssessedEvent>()[0].TotalDamage, precision: 3);   // rear 150: defeated
+        }
+
+        // ── M1 / M2 (docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md §5) ─────────────────────────────
+
+        private const long HeatType = 6009, ApType = 6006;
+
+        /// <summary>The damage of a round TRAVELLING along <paramref name="travel"/> (the arrival the hit resolution carries).</summary>
+        private float DamageArriving(Entity target, System.Numerics.Vector3 travel, float penetration, float damage, long ammo = 0)
+        {
+            _world.Bus.Publish(new DetonationNotification
+            {
+                Shooter = default, Target = target, Penetration = penetration, Damage = damage, Ammo = ammo,
+                TravelX = travel.X, TravelY = travel.Y, TravelZ = travel.Z,
+            });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            var events = _world.Bus.Read<DamageAssessedEvent>();
+            Assert.Equal(1, events.Length);
+            return events[0].TotalDamage;
+        }
+
+        private static Fdp.Interfaces.TkbTemplate Munition(long type, Fdp.Toolkit.Tkb.Domain.WarheadKind kind)
+        {
+            var t = new Fdp.Interfaces.TkbTemplate($"round {type}", type);
+            if (kind != Fdp.Toolkit.Tkb.Domain.WarheadKind.Kinetic)
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = kind, ExplosiveKg = 0.7f });
+            return t;
+        }
+
+        /// <summary>
+        /// ⭐⭐ M1 (D-A) — a round from a window 12 m above the hull's middle: from 10 m away it arrives ~50° down and strikes the
+        /// ROOF (40 mm: defeated); from 50 m, ~14° down, the SIDE (250 mm: not). ⛔ Before M1 the face came from the shooter's
+        /// horizontal bearing — always the side.
+        /// </summary>
+        [Fact]
+        public void M1_ARoundFromAFourthFloorWindow_HitsTheRoof_AtTenMetres_TheSideAtFifty()
+        {
+            var tank = SpawnArmouredTank(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto
+                { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 150, ArmorTop = 40 });
+            var middle = new System.Numerics.Vector3(0, 0, 1.2f);
+            Assert.Equal(1100f, DamageArriving(tank, middle - new System.Numerics.Vector3(0, 10, 13.2f), 200, 1100), precision: 3);
+            Assert.Equal(0f,    DamageArriving(tank, middle - new System.Numerics.Vector3(0, 50, 13.2f), 200, 1100), precision: 3);
+        }
+
+        /// <summary>
+        /// ⭐⭐ M2 (D-B) — a SHAPED CHARGE reads the face's …Ce column (front 800 vs a 600 mm jet: not defeated), and a face that
+        /// declares none reads its kinetic value (side 250: defeated); a KINETIC round of the same 600 mm still reads the kinetic
+        /// front (500: defeated).
+        /// </summary>
+        [Fact]
+        public void M2_AShapedCharge_ReadsTheCeColumn_AbsentMeansTheKineticValue()
+        {
+            var tank = SpawnArmouredTank(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto
+                { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 150, ArmorFrontCe = 800 },
+                Munition(HeatType, Fdp.Toolkit.Tkb.Domain.WarheadKind.ShapedCharge), Munition(ApType, Fdp.Toolkit.Tkb.Domain.WarheadKind.Kinetic));
+            var fromFront = new System.Numerics.Vector3(-1, 0, 0);   // travelling west: arrives at the east-facing front
+            var fromSide  = new System.Numerics.Vector3(0, -1, 0);
+            Assert.Equal(0f,    DamageArriving(tank, fromFront, 600, 1100, HeatType), precision: 3);   // 600 / 800 = 0.75 ⇒ P 0
+            Assert.Equal(1100f, DamageArriving(tank, fromSide,  600, 1100, HeatType), precision: 3);   // no SideCe ⇒ 250
+            Assert.Equal(1100f, DamageArriving(tank, fromFront, 600, 1100, ApType),   precision: 3);   // kinetic: 500
+        }
+
+        /// <summary>⭐ M1 — a type that declares no roof (ArmorTop 0) reads its REAR there (150), never "no armour" (0 ⇒ certain).</summary>
+        [Fact]
+        public void M2_NoArmourTop_ReadsArmourRear()
+        {
+            var tank = SpawnArmouredTank();
+            // straight down: 160 / 150 = 1.067 ⇒ P = 0.667
+            Assert.Equal(1100f * (160f / 150f - 0.8f) / 0.4f, DamageArriving(tank, new System.Numerics.Vector3(0, 0, -1), 160, 1100), precision: 2);
         }
     }
 }

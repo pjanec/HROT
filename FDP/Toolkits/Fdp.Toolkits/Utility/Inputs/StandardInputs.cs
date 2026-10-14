@@ -402,14 +402,22 @@ namespace Fdp.Toolkit.Utility
             if (ctx.Context.IsNull || !repo.IsAlive(ctx.Context)) return 0f;
 
             var mount = MountNumbers(repo, ctx.Self, ctx.Params.MountIndex);
-            float pen = mount?.Penetration ?? 0f, dmg = mount?.DamagePerHit ?? 0f;
-
-            float armour = 0f;
-            if (pen > 0f && repo.HasComponent<SimTransform>(ctx.Context) && TryGetWorldPosition(repo, Fdp.Toolkit.Combat.CombatTkb.OwnerOf(ctx.Repo, ctx.Self), out var selfPos))
-                armour = Fdp.Toolkit.Combat.ArmorModel.ArmourFor(
-                    Fdp.Toolkit.Combat.CombatTkb.PlatformOf(repo, ctx.Context),
-                    Fdp.Toolkit.Combat.ArmorModel.FacingOf(repo.GetComponent<SimTransform>(ctx.Context), selfPos));
-            float damage = Fdp.Toolkit.Combat.ArmorModel.HitDamage(pen, dmg, armour);
+            var shooter = Fdp.Toolkit.Combat.CombatTkb.OwnerOf(ctx.Repo, ctx.Self);
+            // ⭐⭐ M8 (D-I; DESIGN_Missiles_And_Ammo §2) — the expected damage of ONE round, through the SAME rule the weapon brain picks
+            //   its round with (AmmoChoice.ExpectedDamage — R-212 A1, one formula): the face the shot would meet in 3-D (M1, eye → the
+            //   target's middle), the column its penetrator reads (M2), the RESOLVED penetration (R-217 — ⛔ it read the mount's own
+            //   number), and an HE warhead's area at distance 0. A mount with a loadout is scored with its BEST round for this target.
+            long ammo = mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.AmmoLoadout>()
+                && repo.HasComponent<Fdp.Toolkit.Combat.Components.AmmoLoadout>(ctx.Self))
+            {
+                var load = repo.GetComponentRO<Fdp.Toolkit.Combat.Components.AmmoLoadout>(ctx.Self);
+                int best = Fdp.Toolkit.Combat.AmmoChoice.Best(repo, load, mount, shooter, ctx.Context);
+                if (best >= 0) ammo = load.AmmoAt(best);
+            }
+            float damage = mount != null
+                ? Fdp.Toolkit.Combat.AmmoChoice.ExpectedDamage(repo, shooter, ctx.Context, mount, ammo)
+                : Fdp.Toolkit.Combat.ArmorModel.HitDamage(0f, 0f, 0f);
 
             float maxHealth = repo.HasComponent<Health>(ctx.Context) ? repo.GetComponentRO<Health>(ctx.Context).Max : 0f;
             if (maxHealth <= 0f) maxHealth = Fdp.Toolkit.Combat.CombatTkb.PlatformOf(repo, ctx.Context)?.MaxHealth ?? 0f;

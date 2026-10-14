@@ -8,8 +8,13 @@ using Fdp.Toolkit.Tkb.Domain;
 
 namespace Fdp.Toolkit.Combat
 {
-    /// <summary>Which face of a target a shot strikes.</summary>
-    public enum Facing : byte { Front, Side, Rear }
+    /// <summary>Which face of a target a shot strikes. ⭐ M1 (D-A) — <see cref="Top"/>: the round arrives descending ≥
+    /// <see cref="ArmorModel.TopDescentDegrees"/>. 📄 <c>docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md</c> §2.</summary>
+    public enum Facing : byte { Front, Side, Rear, Top }
+
+    /// <summary>⭐ M2 (D-B) — what defeats armour: a kinetic round, or a shaped-charge jet (which reads the <c>…Ce</c> columns).
+    /// <see cref="Tandem"/> reads the same column as <see cref="ShapedCharge"/> until ERA exists (D-C).</summary>
+    public enum Penetrator : byte { Kinetic, ShapedCharge, Tandem }
 
     /// <summary>
     /// ⭐⭐ <c>CE-3071</c> (R-212) — ammunition vs armour: ONE model for the damage the simulation applies AND the effectiveness
@@ -26,25 +31,66 @@ namespace Fdp.Toolkit.Combat
         /// <summary>Above this angle (degrees), the shot hits the rear.</summary>
         public const float RearArcDegrees  = 120f;
 
-        /// <summary>The face of <paramref name="target"/> a shot from <paramref name="from"/> strikes (horizontal plane).</summary>
-        public static Facing FacingOf(in SimTransform target, Vector3 from)
+        /// <summary>⭐ M1 (D-A) — a round arriving at least this steeply (degrees below horizontal) strikes the <see cref="Facing.Top"/>.</summary>
+        public const float TopDescentDegrees = 45f;
+        private static readonly float SinTopDescent = MathF.Sin(TopDescentDegrees * (MathF.PI / 180f));
+
+        /// <summary>
+        /// The face of <paramref name="target"/> a shot from <paramref name="from"/> strikes — ⭐ M1: in 3-D, the round travelling
+        /// from <paramref name="from"/> to the target's position raised by <paramref name="aimHeight"/> (its centre of mass; 0 = its
+        /// feet). See <see cref="FacingOfArrival"/>.
+        /// </summary>
+        public static Facing FacingOf(in SimTransform target, Vector3 from, float aimHeight = 0f)
+            => FacingOfArrival(in target, target.Position + new Vector3(0f, 0f, aimHeight) - from);
+
+        /// <summary>
+        /// ⭐ M1 (D-A) — the face a round TRAVELLING along <paramref name="travel"/> strikes: <see cref="Facing.Top"/> when it descends
+        /// ≥ <see cref="TopDescentDegrees"/> (straight down included — it was <see cref="Facing.Front"/>); else the horizontal
+        /// bearing it came FROM against the target's yaw (&lt; 60° front, &gt; 120° rear, else side; turrets ignored, D-G). A zero
+        /// travel (unknown) ⇒ <see cref="Facing.Front"/>.
+        /// </summary>
+        public static Facing FacingOfArrival(in SimTransform target, Vector3 travel)
         {
+            float len = travel.Length();
+            if (len < 1e-6f) return Facing.Front;
+            if (-travel.Z / len >= SinTopDescent) return Facing.Top;
             var fwd = Vector3.Transform(Vector3.UnitX, target.Rotation);
-            var toShooter = new Vector2(from.X - target.Position.X, from.Y - target.Position.Y);
+            var toSource = new Vector2(-travel.X, -travel.Y);
             var f2 = new Vector2(fwd.X, fwd.Y);
-            if (toShooter.LengthSquared() < 1e-6f || f2.LengthSquared() < 1e-6f) return Facing.Front;
-            float cos = Vector2.Dot(Vector2.Normalize(f2), Vector2.Normalize(toShooter));
+            if (toSource.LengthSquared() < 1e-6f || f2.LengthSquared() < 1e-6f) return Facing.Front;
+            float cos = Vector2.Dot(Vector2.Normalize(f2), Vector2.Normalize(toSource));
             float deg = MathF.Acos(Math.Clamp(cos, -1f, 1f)) * (180f / MathF.PI);
             return deg < FrontArcDegrees ? Facing.Front : deg > RearArcDegrees ? Facing.Rear : Facing.Side;
         }
 
-        /// <summary>The armour (mm) on <paramref name="facing"/>; 0 when the platform declares none.</summary>
-        public static float ArmourFor(CombatPlatformDefDto? platform, Facing facing) => platform == null ? 0f : facing switch
+        /// <summary>The KINETIC armour (mm) on <paramref name="facing"/>; 0 when the platform declares none.</summary>
+        public static float ArmourFor(CombatPlatformDefDto? platform, Facing facing) => ArmourFor(platform, facing, Penetrator.Kinetic);
+
+        /// <summary>
+        /// ⭐ M2 (D-B) — the armour (mm) <paramref name="facing"/> offers <paramref name="penetrator"/>: a shaped charge reads the
+        /// face's <c>…Ce</c> column, 0 there ⇒ the kinetic value (every type is unchanged until its data says otherwise). The
+        /// <see cref="Facing.Top"/> reads <c>ArmorTop</c>, 0 ⇒ <c>ArmorRear</c> (the thinnest declared face, never "no armour").
+        /// </summary>
+        public static float ArmourFor(CombatPlatformDefDto? platform, Facing facing, Penetrator penetrator)
         {
-            Facing.Front => platform.ArmorFront,
-            Facing.Side  => platform.ArmorSide,
-            _            => platform.ArmorRear,
-        };
+            if (platform == null) return 0f;
+            float kinetic = facing switch
+            {
+                Facing.Front => platform.ArmorFront,
+                Facing.Side  => platform.ArmorSide,
+                Facing.Top   => platform.ArmorTop > 0f ? platform.ArmorTop : platform.ArmorRear,
+                _            => platform.ArmorRear,
+            };
+            if (penetrator == Penetrator.Kinetic) return kinetic;
+            float ce = facing switch
+            {
+                Facing.Front => platform.ArmorFrontCe,
+                Facing.Side  => platform.ArmorSideCe,
+                Facing.Top   => platform.ArmorTopCe,
+                _            => platform.ArmorRearCe,
+            };
+            return ce > 0f ? ce : kinetic;
+        }
 
         /// <summary>The chance a round of <paramref name="penetration"/> mm defeats <paramref name="armour"/> mm.</summary>
         public static float PenetrationChance(float penetration, float armour)
@@ -137,10 +183,72 @@ namespace Fdp.Toolkit.Combat
         /// round, no ammo, or no TKB database in this world. The ONE lookup the flight (<c>FireProcessingSystem</c>) and the burst's
         /// friendly-line exemption (<c>FireAtPointExecutor</c>, an indirect warhead flies over friends) both read.</summary>
         public static WarheadDto? WarheadOf(EntityRepository world, WeaponMountDto? mount)
+            => WarheadOf(world, mount != null ? unchecked((long)mount.AmmoGuid) : 0L);
+
+        /// <summary>⭐ M8 — the warhead of the munition type <paramref name="ammo"/> (a loaded round of a loadout), or null.</summary>
+        public static WarheadDto? WarheadOf(EntityRepository world, long ammo)
         {
-            long ammo = mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
-            if (ammo == 0 || !world.HasSingletonManaged<ITkbDatabase>()) return null;
+            if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return null;
             return Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(world.GetSingletonManaged<ITkbDatabase>(), ammo).Warhead;
+        }
+
+        /// <summary>
+        /// ⭐ M8 (D-I) — the penetration (mm RHA) and damage per hit of ONE round of <paramref name="ammo"/> fired from
+        /// <paramref name="mount"/>. The mount's own round (<paramref name="ammo"/> 0 or its <c>AmmoGuid</c>) reads exactly what it read
+        /// before (<see cref="PenetrationOf"/>, <c>DamagePerHit</c>). ANOTHER round of a loadout reads its own numbers: the R-217 pair
+        /// lookup for that ammo with the mount's own penetration NOT used as a fallback (it belongs to the mount's default round), and its
+        /// <see cref="AmmoWeaponBallisticsDto.Damage"/> (this weapon, then generic), else the mount's <c>DamagePerHit</c>.
+        /// </summary>
+        public static (float Penetration, float Damage) RoundOf(EntityRepository world, WeaponMountDto? mount, long ammo)
+        {
+            if (mount == null) return (0f, 0f);
+            if (ammo == 0 || ammo == unchecked((long)mount.AmmoGuid))
+                return (mount.DamagePerHit > 0f ? PenetrationOf(world, mount) : 0f, mount.DamagePerHit);
+            var db = world != null && world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
+            var asLoaded = mount with { AmmoGuid = unchecked((ulong)ammo), Penetration = 0f };
+            float pen = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.MountPenetration(db, asLoaded).Value;
+            float dmg = mount.DamagePerHit;
+            if (db != null && db.TryGetByType(ammo, out var a) && a != null)
+            {
+                float generic = 0f;
+                foreach (var (type, _, data) in a.GetAllDescriptors())
+                {
+                    if (type != typeof(AmmoWeaponBallisticsDto) || data is not AmmoWeaponBallisticsDto b || b.Damage <= 0f) continue;
+                    if (b.WeaponGuid != 0 && unchecked((ulong)b.WeaponGuid) == mount.WeaponGuid) { generic = b.Damage; break; }
+                    if (b.WeaponGuid == 0 && generic <= 0f) generic = b.Damage;
+                }
+                if (generic > 0f) dmg = generic;
+            }
+            return (pen, dmg);
+        }
+
+        /// <summary>⭐ M3 — what the munition <paramref name="ammo"/> (a TKB type id) defeats armour with: its warhead's
+        /// <see cref="WarheadKind.ShapedCharge"/> ⇒ <see cref="Penetrator.ShapedCharge"/> (<see cref="WarheadDto.Tandem"/> ⇒
+        /// <see cref="Penetrator.Tandem"/>), anything else — no warhead, unknown ammo, no TKB database — ⇒ kinetic.</summary>
+        public static Penetrator PenetratorOf(EntityRepository world, long ammo) => PenetratorOfAmmo(world, ammo);
+
+        /// <summary>⭐ M4 (D-D) — the guidance of the munition type <paramref name="ammo"/> (its <see cref="MissileDto"/>), or null: a
+        /// round that is not a missile, unknown ammo, or no TKB database.</summary>
+        public static MissileDto? MissileOf(EntityRepository world, long ammo)
+        {
+            if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return null;
+            var db = world.GetSingletonManaged<ITkbDatabase>();
+            return db != null && db.TryGetByType(ammo, out var t) && t != null ? t.GetDescriptor<MissileDto>() : null;
+        }
+
+        /// <summary>
+        /// ⭐ D-L (DESIGN_Missiles_And_Ammo §4) — may this mount fire while its unit moves? Its own <see cref="WeaponMountDto.FireOnMove"/>,
+        /// else by category: an ATGM or a mortar must stand; small arms, machine guns, autocannon, grenades and a stabilised tank gun
+        /// fire on the move (at twice the spread — <see cref="HitModel"/>). An unknown mount fires as before.
+        /// </summary>
+        public static bool FiresOnTheMove(WeaponMountDto? mount)
+            => mount?.FireOnMove ?? mount?.Category switch { WeaponCategory.Atgm or WeaponCategory.Mortar => false, _ => true };
+
+        private static Penetrator PenetratorOfAmmo(EntityRepository world, long ammo)
+        {
+            if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return Penetrator.Kinetic;
+            var w = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(world.GetSingletonManaged<ITkbDatabase>(), ammo).Warhead;
+            return w?.Kind != WarheadKind.ShapedCharge ? Penetrator.Kinetic : w.Tandem ? Penetrator.Tandem : Penetrator.ShapedCharge;
         }
 
         /// <summary>

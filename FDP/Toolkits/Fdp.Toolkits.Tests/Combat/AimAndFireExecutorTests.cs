@@ -803,12 +803,191 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(WeaponPostureKind.Ready, Fdp.Toolkit.Combat.WeaponPostureOf.For(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Reloading));
         }
 
+        // ── ⭐ M8 (DESIGN_Missiles_And_Ammo §2) — the round per target, a switch costs one reload ─────────────────────────────
+
+        /// <summary>A tank-gun shooter (TKB type 9100, <see cref="M8Rounds.TankGun"/>) with its loadout component, aimed at a rifleman.</summary>
+        private (Entity Shooter, WeaponChannel Channel, Entity Target) LoadedTank(Fdp.Toolkit.Tkb.Domain.WeaponMountDto gun, float reloadSeconds)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _world.RegisterComponent<Health>();
+            _world.RegisterComponent<AmmoLoadout>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            M8Rounds.Register(db);
+            var clone = new Fdp.Interfaces.TkbTemplate("APFSDS-B", 9004);
+            clone.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AmmoWeaponBallisticsDto { PenetrationMm = 600, Damage = 1100 });
+            db.Register(clone);
+            var type = new Fdp.Interfaces.TkbTemplate("Tank", M8Rounds.TankGunType);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { gun } });
+            db.Register(type);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var target = SpawnTarget(new Vector3(300, 0, 0));
+            _world.AddComponent(target, new Health { Current = 100, Max = 100 });
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, AmmoLoadout.From(gun.Loadout).Total, 0f, target, 1f);
+            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = M8Rounds.TankGunType });
+            _world.GetComponentRW<WeaponState>(shooter).ReloadSeconds = reloadSeconds;
+            _world.AddComponent(shooter, AmmoLoadout.From(gun.Loadout));
+            EnterAimed(shooter, ref channel);
+            return (shooter, channel, target);
+        }
+
+        /// <summary>The frame and the round of the first shot (−1 / 0 when none within <paramref name="frames"/>).</summary>
+        private (int Frame, long Ammo) FirstShot(Entity shooter, ref WeaponChannel channel, int frames)
+        {
+            const float dt = 1f / 60f;
+            for (int f = 0; f < frames; f++)
+            {
+                Tick(shooter, ref channel, dt);
+                WeaponDispatcherSystem.DrainSwitch(ref _world.GetComponentRW<AmmoLoadout>(shooter), dt);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>()) return (f, shot.AmmoGuid);
+            }
+            return (-1, 0);
+        }
+
+        /// <summary>
+        /// ⭐⭐ M8 (D-I) — against a rifleman the tank gun switches APFSDS → HE (it also sprays the room): the switch costs ONE reload
+        /// (4 s here — no round before it, the action says Reloading), then the HE round leaves, carried on the fire intent, and the
+        /// HE count drops. A TIE (two rounds of equal value and area) keeps the loaded round: it fires at once, no switch.
+        /// </summary>
+        [Fact]
+        public void M8_ASwitch_CostsOneReload_ATie_KeepsTheLoadedRound()
+        {
+            var (shooter, channel, _) = LoadedTank(M8Rounds.TankGun(), reloadSeconds: 4f);
+            var (frame, ammo) = FirstShot(shooter, ref channel, 60 * 6);
+            Assert.InRange(frame, 4 * 60 - 2, 4 * 60 + 2);
+            Assert.Equal(M8Rounds.He, ammo);
+            var load = _world.GetComponentRO<AmmoLoadout>(shooter);
+            Assert.Equal(M8Rounds.He, load.LoadedAmmo);
+            Assert.Equal(9, load.RoundsAt(2));     // HE 10 → 9
+            Assert.Equal(20, load.RoundsAt(0));    // APFSDS untouched
+            Assert.Equal(39, _world.GetComponentRO<WeaponState>(shooter).Ammo);
+        }
+
+        /// <inheritdoc cref="M8_ASwitch_CostsOneReload_ATie_KeepsTheLoadedRound"/>
+        [Fact]
+        public void M8_ATie_KeepsTheLoadedRound_AndFiresAtOnce()
+        {
+            var gun = M8Rounds.TankGun() with { Loadout = new()
+            {
+                new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = unchecked((ulong)M8Rounds.Apfsds), Rounds = 5 },
+                new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = 9004, Rounds = 5 },
+            } };
+            var (shooter, channel, _) = LoadedTank(gun, reloadSeconds: 4f);
+            var (frame, ammo) = FirstShot(shooter, ref channel, 60);
+            Assert.Equal(0, frame);
+            Assert.Equal(M8Rounds.Apfsds, ammo);
+        }
+
+        // ── ⭐ M4 / D-L (DESIGN_Missiles_And_Ammo §3–§4) — the missile's minimum range, the turret lock, firing on the move ─────────
+
+        /// <summary>A per-shot shooter of TKB type 9300 with <paramref name="mount"/>, aimed at a target <paramref name="range"/> m east,
+        /// moving at <paramref name="speed"/> m/s. The missile munition 9301 (min range 65 m) is registered.</summary>
+        private (Entity Shooter, WeaponChannel Channel, Entity Target) TypedShooter(Fdp.Toolkit.Tkb.Domain.WeaponMountDto mount, float range, float speed = 0f)
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>())
+                _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            if (!_world.IsComponentTypeRegistered<SimVelocity>()) _world.RegisterComponent<SimVelocity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var missile = new Fdp.Interfaces.TkbTemplate("Javelin", 9301);
+            missile.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.MissileDto { Guidance = Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget, MinRangeM = 65 });
+            db.Register(missile);
+            var type = new Fdp.Interfaces.TkbTemplate("Shooter", 9300);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { mount } });
+            db.Register(type);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var target = SpawnTarget(new Vector3(range, 0, 0));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 10, 0f, target, 1f);
+            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9300 });
+            _world.AddComponent(shooter, new SimVelocity { Linear = new Vector3(0, speed, 0) });
+            EnterAimed(shooter, ref channel);
+            return (shooter, channel, target);
+        }
+
+        private int ShotsIn(Entity shooter, ref WeaponChannel channel, int frames)
+        {
+            int shots = 0;
+            for (int f = 0; f < frames; f++)
+            {
+                Tick(shooter, ref channel, 1f / 60f);
+                _world.Bus.SwapBuffers();
+                shots += _world.Bus.Read<WeaponFireIntent>().Length;
+            }
+            return shots;
+        }
+
+        /// <summary>⭐ M4 — below the missile's minimum range (65 m) the weapon brain holds (TooClose: it cannot arm or turn in time);
+        /// at 100 m it fires.</summary>
+        [Fact]
+        public void M4_BelowMinRange_TheWeaponHolds()
+        {
+            var launcher = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm, AmmoGuid = 9301 };
+            var (near, nearCh, nearTarget) = TypedShooter(launcher, range: 40f);
+            Assert.Equal(0, ShotsIn(near, ref nearCh, 30));
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.TooClose, AimAndFireExecutor.HoldOf(_world, near, nearTarget, launcher, 0));
+            var (far, farCh, _) = TypedShooter(launcher, range: 100f);
+            Assert.True(ShotsIn(far, ref farCh, 30) > 0);
+        }
+
+        /// <summary>
+        /// ⭐ D-L — an ATGM does not fire on the move (the weapon holds: HoldMoving) — a machine gun does, at twice the spread (the same
+        /// <see cref="HitModel.IsMoving"/> test doubles σ). Standing, the ATGM fires.
+        /// </summary>
+        [Fact]
+        public void DL_AnAtgm_HoldsFireWhileMoving_AnHmg_FiresAtDoubleSpread()
+        {
+            var atgm = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm };
+            var (movingAtgm, ch1, _) = TypedShooter(atgm, range: 300f, speed: 5f);
+            Assert.Equal(0, ShotsIn(movingAtgm, ref ch1, 30));
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldMoving, AimAndFireExecutor.HoldOf(_world, movingAtgm, Entity.Null, atgm, 0));
+
+            var (standingAtgm, ch2, _) = TypedShooter(atgm, range: 300f, speed: 0f);
+            Assert.True(ShotsIn(standingAtgm, ref ch2, 30) > 0);
+
+            var hmg = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun, DispersionMils = 2f };
+            var (movingHmg, ch3, _) = TypedShooter(hmg, range: 300f, speed: 5f);
+            Assert.True(ShotsIn(movingHmg, ref ch3, 30) > 0);
+            _world.GetComponentRW<SimVelocity>(movingHmg).Linear = Vector3.Zero;
+            float still = HitModel.Sigma(_world, movingHmg, hmg, 0);
+            _world.GetComponentRW<SimVelocity>(movingHmg).Linear = new Vector3(0, 5, 0);
+            Assert.Equal(2f * still, HitModel.Sigma(_world, movingHmg, hmg, 0), 5);
+        }
+
+        /// <summary>
+        /// ⭐ M4 (D-D: the lock IS the aim time) — a turret ATGM that declares a 4 s aim time grants its first round only after the
+        /// target was seen continuously 4 s (the slew alone is 2.25 s); the same mount without one fires as soon as the slew ends.
+        /// </summary>
+        [Fact]
+        public void M4_TheTurretPath_TimesTheLock()
+        {
+            int FirstShot(float aimSeconds)
+            {
+                var (shooter, _, channel, _) = TurretedTank(rounds: 1, cooldown: 0.5f, category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm,
+                                                            aimSeconds: aimSeconds);
+                var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+                _executor.OnEnter(shooter, ref channel, _world);
+                for (int f = 0; f < 60 * 8; f++)
+                {
+                    Tick(shooter, ref channel, 1f / 60f);
+                    muscle.Execute(_world, 1f / 60f);
+                    _world.Bus.SwapBuffers();
+                    if (_world.Bus.Read<WeaponFireIntent>().Length > 0) return f;
+                }
+                return -1;
+            }
+            int unlocked = FirstShot(0f);
+            Assert.InRange(unlocked, 2 * 60, 3 * 60);          // the slew only
+            Assert.InRange(FirstShot(4f), 4 * 60, 4 * 60 + 5); // the lock
+        }
+
         // ── WL-3 (docs/DESIGN_Weapon_Layers.md §5e) — a turreted mount is fought through its turret ────────────────────────────
 
         /// <summary>A shooter whose type has a turret and a mount on it, with the turret part built (one world = the editor's one
         /// node: the executor is the weapon brain, <see cref="Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem"/> the muscle).</summary>
         private (Entity Shooter, Entity Turret, WeaponChannel Channel, Entity Target) TurretedTank(int rounds, float cooldown, int ammo = 5,
-            Fdp.Toolkit.Tkb.Domain.WeaponCategory category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, float muzzleVelocity = 0f)
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, float muzzleVelocity = 0f,
+            float aimSeconds = 0f)
         {
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
@@ -820,7 +999,8 @@ namespace Fdp.Toolkit.Combat.Tests
             var type = new Fdp.Interfaces.TkbTemplate("Tank", 42);
             type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { new Fdp.Toolkit.Tkb.Domain.TurretDto { PivotZ = 2f } } });
             type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
-                { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = category, TurretIndex = 0, MuzzleVelocity = muzzleVelocity } } });
+                { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = category, TurretIndex = 0, MuzzleVelocity = muzzleVelocity,
+                                                              AimSeconds = aimSeconds } } });
             db.Register(type);
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
 

@@ -33,6 +33,7 @@ namespace Hrot.SimHost
             world.RegisterComponent<SensorContactList>();
             world.RegisterComponent<HeardTraces>();   // ⭐ CE-3117 — a listener's heard estimates, for the map (R-226)
             world.RegisterComponent<WeaponState>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.AmmoLoadout>();   // ⭐ M8 — a mount's rounds by type (Brain)
             world.RegisterComponent<EntityInfo>();
             // ⭐⭐ MOVED HERE 2026-09-12 from CognitiveComponentRegistry (CE-259bf slice 2, §3.9a).
             //   BehaviorTkbTranslator stamps ActorCapabilityState in the SAME block as EntityInfo
@@ -41,6 +42,7 @@ namespace Hrot.SimHost
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
             // Health is registered in HrotSharedComponentRegistry (shared across all nodes).
             world.RegisterComponent<BallisticProjectile>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.GuidedRound>();   // ⭐ M4 — a guided round (Muscle)
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.ShotOrdinal>();   // ⭐ AQ85 A — the deflection sequence index
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.UnderFire>();     // ⭐ AQ85 E — suppression
             world.RegisterComponent<PhysicsCollider>();

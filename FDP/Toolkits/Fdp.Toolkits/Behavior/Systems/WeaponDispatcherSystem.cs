@@ -17,6 +17,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     public class WeaponDispatcherSystem : DispatcherSystemBase<WeaponChannel>
     {
         private EntityQuery? _mounts;
+        private EntityQuery? _loadouts;
 
         public override void Execute(ISimulationView view, float deltaTime)
         {
@@ -54,6 +55,16 @@ namespace Fdp.Toolkit.Behavior.Systems
                     ref var ws = ref repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(mount);
                     DrainCooldown(ref ws, deltaTime);
                     Fdp.Toolkit.Combat.Magazine.Tick(ref ws, deltaTime);   // ⭐ CE-3136 P-5 — a reload runs whether or not the mount fires
+                }
+            }
+
+            // ⭐ M8 (D-I) — a round SWITCH runs out here, beside the reload: one reload's time, whether or not the mount fires.
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.AmmoLoadout>())
+            {
+                _loadouts ??= repo.Query().With<Fdp.Toolkit.Combat.Components.AmmoLoadout>().Build();
+                foreach (var e in _loadouts)
+                {
+                    DrainSwitch(ref repo.GetComponentRW<Fdp.Toolkit.Combat.Components.AmmoLoadout>(e), deltaTime);
                 }
             }
 
@@ -110,6 +121,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                 //   once, Ready ⇒ AtEase after WeaponPostureOf.LowerAfterSeconds). A running action's executor reports it instead.
                 else Fdp.Toolkit.Combat.WeaponPostureOf.Idle(repo, entity, deltaTime);
             }
+        }
+
+        /// <summary>⭐ M8 (D-I) — a round switch runs out by <paramref name="deltaTime"/> (one reload's time), the one place it drains.</summary>
+        public static void DrainSwitch(ref Fdp.Toolkit.Combat.Components.AmmoLoadout load, float deltaTime)
+        {
+            if (load.SwitchRemaining > 0f) load.SwitchRemaining = MathF.Max(0f, load.SwitchRemaining - deltaTime);
         }
 
         /// <summary>

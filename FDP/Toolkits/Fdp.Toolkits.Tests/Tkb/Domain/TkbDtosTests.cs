@@ -118,6 +118,24 @@ namespace Fdp.Toolkit.Tkb.Tests.Domain
             Assert.NotNull(attr);
         }
 
+        /// <summary>⭐ M1/M2/M3 (DESIGN_Armour_Hit_Model §2) — the five new platform fields and the warhead's Tandem: present, default
+        /// 0 / false ("absent" — the reader falls back to the kinetic / rear value), and they round-trip through JSON.</summary>
+        [Fact]
+        public void M2_ThePlatformArmourColumns_AndTheTandemFlag_DefaultAbsent_AndRoundTrip()
+        {
+            var empty = new CombatPlatformDefDto();
+            Assert.Equal(0f, empty.ArmorTop);
+            Assert.Equal(0f, empty.ArmorFrontCe + empty.ArmorSideCe + empty.ArmorRearCe + empty.ArmorTopCe);
+            Assert.False(new WarheadDto().Tandem);
+
+            var p = new CombatPlatformDefDto { ArmorTop = 40, ArmorFrontCe = 800, ArmorSideCe = 400, ArmorRearCe = 200, ArmorTopCe = 60 };
+            var o = FdpJsonOptionsRegistry.DefaultRelaxed;
+            var back = JsonSerializer.Deserialize<CombatPlatformDefDto>(JsonSerializer.Serialize(p, o), o);
+            Assert.Equal(p, back);
+            var w = new WarheadDto { Kind = WarheadKind.ShapedCharge, Tandem = true };
+            Assert.Equal(w, JsonSerializer.Deserialize<WarheadDto>(JsonSerializer.Serialize(w, o), o));
+        }
+
         // ---- Negative: no ECS base class or MessagePackObject ----
 
         [Fact]

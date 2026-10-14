@@ -40,6 +40,7 @@ namespace Hrot.SimHost.Modules
             };
             PostSimulationSystems = new IEcsModuleSystem[]
             {
+                new GuidedRoundSystem(),   // ⭐ M4 (DESIGN_Missiles_And_Ammo §3) — steer the guided rounds, then sweep them
                 new BallisticsSystem(),
                 new CombatTraceSystem(),   // ⭐ CE-3117 — the recorded traces the map draws, after the systems that end a shot
             };

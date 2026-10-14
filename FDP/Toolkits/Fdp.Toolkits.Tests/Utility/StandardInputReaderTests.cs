@@ -633,6 +633,62 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(1f,   StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(tow, rifle)), precision: 4);
         }
 
+        /// <summary>
+        /// ⭐ M1 (DESIGN_Armour_Hit_Model §5) — the AI expects the face the SHOT would meet, in 3-D: a Bradley 30 m above a tank
+        /// 10 m away expects its roof (20 mm: the 25 mm defeats it — 60 of 2500), level at 1500 m its front (500 mm: nothing). The
+        /// same ArmorModel the damage step applies (R-212 A1).
+        /// </summary>
+        [Fact]
+        public void M1_Effectiveness_ReadsTheFaceInThreeD_AShooterAboveExpectsTheRoof()
+        {
+            const long RoofTank = 990;
+            var roof = new Fdp.Interfaces.TkbTemplate("roof T-72", RoofTank);
+            roof.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 150, ArmorTop = 20 });
+            _world.UseTkb(UtilityTestWorld.BradleyTemplate(), roof);
+            var bradley = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(bradley, new SimTransform { Position = new Vector3(0, 0, 30) });
+            _world.SetType(bradley, UtilityTestWorld.BradleyType);
+            var gun = _world.SpawnWeaponMount(bradley, mountIndex: 0, weaponGuid: 1, effRange: 2500f, ammo01: 1f, initialAmmunition: 300);
+
+            var below = _world.SpawnTypedTarget(RoofTank, 10f, maxHealth: 2500f);
+            Assert.Equal(60f / 2500f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(gun, below)), precision: 4);
+
+            _world.Repo.GetComponentRW<SimTransform>(bradley).Position = Vector3.Zero;
+            var far = _world.SpawnTypedTarget(RoofTank, 1500f, maxHealth: 2500f);
+            Assert.Equal(0f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(gun, far)), precision: 4);
+        }
+
+        /// <summary>
+        /// ⭐⭐ M8 (D-I; DESIGN_Missiles_And_Ammo §2) — the effectiveness of a mount with a LOADOUT is its BEST round for this target,
+        /// through the same rule the weapon brain picks with (AmmoChoice): HE is loaded, yet against a T-72 the mount scores the APFSDS
+        /// it would switch to (1100 / 2500). And the penetration is the RESOLVED one (the round × weapon pair — the mount itself states
+        /// none here): ⛔ it read the mount's own number, so this mount scored as an unknown munition.
+        /// </summary>
+        [Fact]
+        public void M8_Effectiveness_ReadsTheBestRound_AndTheResolvedPenetration()
+        {
+            // the mount's OWN round is HE (its AmmoGuid): scoring it would give 0 against the T-72's front
+            var gun = Fdp.Toolkit.Combat.Tests.M8Rounds.TankGun() with { AmmoGuid = unchecked((ulong)Fdp.Toolkit.Combat.Tests.M8Rounds.He), Loadout = new()
+            {
+                new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = unchecked((ulong)Fdp.Toolkit.Combat.Tests.M8Rounds.He), Rounds = 10 },
+                new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = unchecked((ulong)Fdp.Toolkit.Combat.Tests.M8Rounds.Apfsds), Rounds = 10 },
+            } };
+            var tank = new Fdp.Interfaces.TkbTemplate("Tank", Fdp.Toolkit.Combat.Tests.M8Rounds.TankGunType);
+            tank.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { gun } });
+            var all = new System.Collections.Generic.List<Fdp.Interfaces.TkbTemplate>(Fdp.Toolkit.Combat.Tests.M8Rounds.Templates())
+                { tank, UtilityTestWorld.TankTemplate() };
+            _world.UseTkb(all.ToArray());
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.AmmoLoadout>())
+                _world.Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.AmmoLoadout>();
+            var shooter = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(shooter, new SimTransform { Position = Vector3.Zero });
+            _world.SetType(shooter, Fdp.Toolkit.Combat.Tests.M8Rounds.TankGunType);
+            _world.Repo.AddComponent(shooter, Fdp.Toolkit.Combat.Components.AmmoLoadout.From(gun.Loadout));
+
+            var t72 = _world.SpawnTypedTarget(UtilityTestWorld.TankType, 800f, maxHealth: 2500f);   // faces the shooter: the 500 mm front
+            Assert.Equal(1100f / 2500f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(shooter, t72)), precision: 4);
+        }
+
         /// <summary>⭐ <c>CE-3071</c> — the target's OWN maximum counts (scenarios override it): a 50-HP tank dies to one TOW.</summary>
         [Fact]
         public void CE3071_Effectiveness_UsesTheTargetsOwnMaximum()

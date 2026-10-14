@@ -97,6 +97,7 @@ namespace Fdp.Toolkit.Physics.Systems
                     //   here — its TearDown is queued below).
                     float penetration = 0f, damage = 0f;
                     long ammo = 0;   // ⭐ CE-1032 W-2 — the round's munition type, for the area effect
+                    System.Numerics.Vector3? muzzle = null;   // ⭐ M1 — for a zero-length segment's travel
                     if (repo.IsAlive(bulletEntity)
                         && repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.BallisticProjectile>()
                         && repo.HasComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity))
@@ -108,6 +109,7 @@ namespace Fdp.Toolkit.Physics.Systems
                         penetration = bp.Penetration;
                         damage      = bp.Damage;
                         ammo        = bp.Ammo;
+                        if ((bp.TerrainFlags & 1) != 0) muzzle = bp.Muzzle;
                         // ⭐ Buildings §3d P2 (R-217) — the walls/fences/floors between the MUZZLE and the struck unit: the round is
                         //   carried from where it was fired (its Damage/Penetration are the muzzle values), so this is exact however many
                         //   ticks the segment's raycast took (three). A unit in FRONT of a fence takes the full round. A round built
@@ -129,8 +131,16 @@ namespace Fdp.Toolkit.Physics.Systems
                         }
                     }
 
+                    // ⭐ M1 (D-A) — the way the round was travelling: this swept segment (an arc's too); a zero-length first segment
+                    //   falls back to the line from the muzzle. Born here, dies at the face choice — never stored on the round.
+                    var travel = hit.End - hit.Start;
+                    if (travel.LengthSquared() < 1e-8f && muzzle is { } m) travel = hitPos - m;
+
                     repo.Bus.Publish(new DetonationNotification
                     {
+                        TravelX     = travel.X,
+                        TravelY     = travel.Y,
+                        TravelZ     = travel.Z,
                         Shooter     = hit.IgnoreEntity,
                         Target      = hit.HitEntity,
                         HitX        = hitPos.X,
