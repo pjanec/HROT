@@ -61,8 +61,9 @@ classDiagram
     +Of(view, self, target) float  «a VEHICLE self: danger to me»
     +OfSlot(view, self, mem, slot) float
     +OfClass(byte) float  «+ Rotor = 7 ⇒ 1»
-    +ToMe(EntityRepository, self, target) float  «new»
+    +ToMe(EntityRepository, self, target, out danger) bool  «new — BUILT»
     +ArmedHarmless = 0.1  «new floor»
+    +InRange(range, distance) float  «new: 1 → 0 over range…1.2×range»
   }
   class CombatTkb { <<existing>> PlatformOf · MountOf · TurretOf }
   class ArmorModel { <<existing, grows — Armour Hit Model §2>> FacingOf (3-D) · ArmourFor(face, penetrator) · HitDamage }
@@ -76,7 +77,7 @@ classDiagram
 
 | rule | why |
 |---|---|
-| ⭐ **the danger to a VEHICLE self** (`VehicleCover.IsVehicle(self)` and a `CombatPlatformDefDto`) = max over the target's mounts of `HitDamage(his best round vs me, on the face it would hit)` × `InRange` ÷ my max health, clamped to [`ArmedHarmless`, 1] for an armed target; a person self keeps armed 1 / unarmed 0.3 | V1; a soldier's 5 mm vest must not make riflemen harmless to riflemen (§1 ⚠) |
+| ⭐ **the danger to a VEHICLE self** (`VehicleCover.IsVehicle(self)` and a `CombatPlatformDefDto` with armour) = max over the target's mounts of `ArmorModel.PenetrationChance(his round vs me, on the face it would hit)` × `InRange`, clamped to [`ArmedHarmless` 0.1, 1] for an armed target — the person scale's *armed = he can hurt me = 1*; an UNKNOWN round (penetration ≤ 0) ignores armour ⇒ 1, as `HitDamage` does; a person self keeps armed 1 / unarmed 0.3 | V1; a soldier's 5 mm vest must not make riflemen harmless to riflemen (§1 ⚠). ⚠ **AS-BUILT `2026-10-14` — deviates from the first draft** (`HitDamage` ÷ my max health, ⛔ SUPERSEDED): that put a side-on RPG at 400 / 2500 = **0.16**, under every ABSOLUTE threshold — the `Sentry` order's `ThreatsAtLeast.MinDanger` default 0.5 (`TacticsTreesTests.cs:686`, `Sentry.btree.json`) would not count the RPG man as a threat to a tank, the opposite of the requirement. Damage-per-hit stays the WEAPON brain's business (`AmmoChoice`, Missiles §2), not the danger's |
 | the face: `ArmorModel.FacingOf(myTransform, hisPosition)` — 3-D, so a man on a roof close in reads my Top; a `TopAttack` munition at ≥ its top-attack range reads Top | Armour Hit Model D-A; Missiles §3 |
 | `InRange` = 1 within his mount's `Range`, falling to 0 at 1.2 × `Range`; 0 below a missile's `MinRangeM` | stand-off falls out of the danger (programme §3) |
 | a drone (`DIS domain 2` with a warhead mount) = its warhead on my Top | M7 |
@@ -150,9 +151,12 @@ built (a reference, nothing copied) and read by `BeyondThreatRangeTest`.*
 | rule | why |
 |---|---|
 | `VehicleFootprint` acts only for a vehicle querier; a person's cover points are unchanged | infantry templates, goldens and rails untouched |
+| ⭐ **AS-BUILT `2026-10-14` (V3 slice 1)** — `EqsModule.ForTerrainHost` calls `BeyondThreatRangeTest.InjectTkb(registry, CombatTkb.Live(world))`: every `ITkbAwareTest` of every registered template gets a `Func<ITkbDatabase?>` that reads the LIVE world's singleton when called — the same reference, nothing copied (the twin of `TerrainWorldSource.Live`). ⚠ Refines the row below: a SOURCE, not the object, because the editor publishes the TKB only *"if absent"* (`EditorSubsystem.cs:1417`) with no guaranteed order against the EQS capability — a value captured at construction could be null. A test with no source falls back to the view's own singleton (a live world in rails) | each world's registry builds its own template instances (`EqsTemplateRegistry.Discover`), so the hand-over cannot leak across worlds; the registry the solver reads is that same object (singleton 210, synced by reference) |
+| ⭐ **`BeyondThreatRangeTest` as built**: per known threat (`EqsKnownThreats.Collect` — the set `ThreatExposureTest` reads, extracted so both agree) that can hurt me at all — `ThreatDanger.ReachAgainst`: his longest mount `Range` whose round penetrates my THINNEST armoured face (any mount for an unarmoured self; an unknown round counts) — `min(1, ground distance ÷ his reach)`; the score gains `Weight` × the MEAN. A rifleman never pushes a tank back | the same `CanHurt` as `ThreatDanger.ToMe` (R-212 A1, one armour model); `ToMe` itself now runs on any view with the TKB handed in |
 | ⭐ **the TKB reaches a test ONCE, AT CONSTRUCTION, by reference**: `EqsModule.ForTerrainHost(world)` (built once per node from the LIVE world, `EqsInfrastructureCapability.cs:97`) reads `world.GetSingletonManaged<ITkbDatabase>()` and sets it on every registered test that declares a `Tkb` property (`ITkbAwareTest`) — templates are built once at registration, so this is one hand-over per node; the solver's replica world and its singleton list (`EntityRepository.Sync.cs:117-124`) are NOT touched | 🔒 user, 2026-10-14: *"passing the TKB to the solver once at construction sounds ok … Certainly not snapshotting it please. Pass reference somehow."* — the same pattern as the sight strategy's terrain (`LosStrategies.cs:81-82`) |
 | ⚠ a TKB FILE load refills the same object (`Register` / `Clear`); holding the reference sees the current content — assumed, not measured: no solve runs while a load refills it | `ITkbDatabase.cs:10-33` |
 | `OverheadCoverTest`: covered when `SightBlocked(c + (0, 0, hullHeight + 0.1), c + (0, 0, hullHeight + 30))` | §1: the vertical ray already sees decks and roofs |
+| ⭐ **AS-BUILT `2026-10-14` (V3 slice 2)** — `OverheadCoverTest` (FilterExpensive, cost Sight): the vertical line from `ClearanceM` 0.1 above the self's height — its collider HULL (`PhysicsColliderReaders.HullHeight`) or, for a person, its standing eye — up `RangeM` 30 m, through `EqsTerrainSight.Sight` (terrain prisms and vehicle boxes). `Require = Covered` drops an open-sky point; `Score` adds `Weight`. Measured on a floating deck: a soldier is covered under a 1.5 m and a 4 m deck, a 2.4 m tank only under the 4 m one | rails `TerrainEqsTests.V3_OverheadCover_*` (2), red-proved (hull ignored ⇒ the tank "fits" under the low deck) |
 | the vehicle's sight height is its `SensorMount` (TKB: tank ~2.4 m, technical ~2.2 m) — hidden means hidden at the commander's sight | data (Missiles §5), read by the existing tests |
 | each new template gets its golden scenario (flat terrain ⇒ an empty `FindShelter` answer is the golden) | `EqsFlatTerrainGoldenTests` |
 
@@ -373,9 +377,9 @@ fix inside the existing kinematics; the behaviour and the danger stay on the Bra
 
 | rail | suite |
 |---|---|
-| `V1_ToATank_TheRpgManIsDangerous_TheRiflemanIsNearlyHarmless_AndARifleman_StillFindsTheRiflemanArmed` | `StandardInputReaderTests` |
-| `V1_DangerToMe_FallsToZero_BeyondHisRange_AndAboveMeReadsMyRoof` | new `ThreatDangerTests` |
-| `V1_TopThreat_PicksTheAtGunner_ForAVehicle` | `TacticsTreesTests` |
+| ✅ `V1_ToATank_TheAtGunnerIsTheThreat_TheRiflemanIsNearlyHarmless_AndToASoldier_BothAreArmed` *(as-built: here, not `StandardInputReaderTests` — the reader is a one-line pass-through of `ThreatDanger.Of`)* | new `ThreatDangerTests` |
+| ✅ `V1_BeyondHisRange_TheDangerFades_AndUnarmedOrKilledAreUnchanged` · `V1_InRange_IsOneInside_FadesLinearly_AndZeroBeyondTheFade` — ⏳ *"above me reads my roof"* waits on backend B3 (`Facing.Top`) | new `ThreatDangerTests` |
+| ✅ `V1_TopThreat_PicksTheAtGunner_ForAVehicle` *(as-built: in the ranking decision's own suite, not `TacticsTreesTests` — `TopThreat` IS `ThreatRankingDecision`)* | `StarterPackIntegrationTests` |
 | `V3_AVehicleHide_StandsOffByItsHull_AndAPersonsPointsDoNotMove` | `TerrainEqsTests` |
 | `V3_OverheadCover_SeesTheGarageDeck_NotTheOpenSky` | `TerrainEqsTests` (test-town) |
 | goldens for the three templates | `EqsFlatTerrainGoldenTests` |

@@ -71,6 +71,8 @@ namespace Hrot.SimHost.Modules
             // ⭐ CE-3128 — the road graph the danger sensor plans and classifies on, read live like the terrain.
             module.Solver.RoadSource = CarKinem.Road.RoadNetworkSource.Live(world);
             var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(world);
+            // ⭐ CE-2165 V3 — the TKB to every test that reads it (the solver's snapshot has none): the LIVE world's, by reference.
+            BeyondThreatRangeTest.InjectTkb(registry, Fdp.Toolkit.Combat.CombatTkb.Live(world));
             var sight = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(world);
             Fdp.Toolkit.Perception.Sensors.VisualPerception.Register(registry, module.PerceptionGrid, sight);
             // ⭐ CE-3061 — thermal: vision's chain + the signature filter (docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 F).

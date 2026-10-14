@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb.Domain;
 
@@ -124,6 +125,29 @@ namespace Fdp.Toolkit.Combat
     /// </summary>
     public static class CombatTkb
     {
+        /// <summary>
+        /// ⭐ <c>CE-2165</c> V3 — the LIVE world's TKB database as a source, for code that runs on a snapshot (the EQS solver: its replica
+        /// world carries no TKB). It reads the reference at call time — nothing is copied; the TKB is one constant object
+        /// (🔒 user, 2026-10-14: <i>"Certainly not snapshotting it please. Pass reference somehow."</i>). The twin of
+        /// <c>TerrainWorldSource.Live</c>.
+        /// </summary>
+        public static Func<ITkbDatabase?> Live(EntityRepository world)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            return () => world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
+        }
+
+        /// <summary>⭐ <c>CE-2165</c> V3 — the TKB entry of <paramref name="entity"/>'s type from <paramref name="db"/>, read on any view
+        /// (a solver snapshot included): its <see cref="TkbIdentity"/>.</summary>
+        public static bool TryGetTemplate(ISimulationView view, ITkbDatabase? db, Entity entity, out TkbTemplate template)
+        {
+            template = null!;
+            if (db == null || entity.IsNull || !view.IsAlive(entity)) return false;
+            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<TkbIdentity>()) return false;
+            if (!view.HasComponent<TkbIdentity>(entity)) return false;
+            return db.TryGetByType(view.GetComponentRO<TkbIdentity>(entity).TkbType, out template) && template != null;
+        }
+
         /// <summary>The TKB entry of <paramref name="entity"/>'s type, if the world and the entity carry one.</summary>
         public static bool TryGetTemplate(EntityRepository world, Entity entity, out TkbTemplate template)
         {

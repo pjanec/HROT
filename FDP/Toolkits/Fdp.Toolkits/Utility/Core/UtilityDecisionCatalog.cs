@@ -77,6 +77,20 @@ namespace Fdp.Toolkit.Utility
         /// </summary>
         public static UtilityRegistry Shared => _shared ??= new UtilityRegistry();
 
+        /// <summary>
+        /// The caller's cached scorer over <see cref="Shared"/>, rebuilt when <see cref="Shared"/> has been REPLACED since it was
+        /// built (<see cref="RegisterAll"/> stores a new registry). 🔴 A plain <c>_scorer ??= new UtilityScorer(Shared)</c> kept
+        /// reading the OLD registry and missed every decision registered after the swap — measured as the order-dependent red of
+        /// <c>UtilityScorerTests.CE2069_*</c> (Winner 0) once a <c>UtilityTestWorld</c> ran in between. One cache per call site
+        /// (a <c>[ThreadStatic]</c> one stays per thread).
+        /// </summary>
+        public static UtilityScorer ScorerOverShared(ref UtilityScorer? cache)
+        {
+            var shared = Shared;
+            if (cache == null || !ReferenceEquals(cache.Registry, shared)) cache = new UtilityScorer(shared);
+            return cache;
+        }
+
         private static volatile bool _scanned;
         private static readonly object _scanLock = new();
 
