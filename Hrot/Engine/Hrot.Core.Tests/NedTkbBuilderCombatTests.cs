@@ -163,6 +163,52 @@ namespace Hrot.Map.Common.Tests
             }
         }
 
+        /// <summary>
+        /// ⭐⭐ M7 (DESIGN_FPV_Drone §2) — TKB type 403, the FPV drone: a Rotorcraft (Gen.Locomotion) with Gen.Flight and NO ground physics,
+        /// 10 hp, its weapon = its warhead (munition 6016, reach = its contact radius), heard as rotors, sees 1500 m, DIS air / UAV, hostile.
+        /// </summary>
+        [Fact]
+        public void M7_TheFpvDrone_IsARotorcraftWithAWarhead_NotAGroundVehicle()
+        {
+            var t = BuildDatabase().GetByType(TkbEntityTypes.Drone_Fpv)!;
+            Assert.Equal(LocomotionClass.Rotorcraft, t.GetDescriptor<LocomotionDto>()!.Class);
+            Assert.NotNull(t.GetDescriptor<FlightParamsDto>());
+            Assert.Null(t.GetDescriptor<VehicleParametersDto>());
+            Assert.Equal(10f, t.GetDescriptor<CombatPlatformDefDto>()!.MaxHealth);
+            var warhead = System.Linq.Enumerable.Single(t.GetDescriptor<WeaponSuiteDto>()!.Mounts);
+            Assert.Equal((ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbFpvWarhead, warhead.AmmoGuid);
+            Assert.Equal(t.GetDescriptor<FlightParamsDto>()!.ContactRadiusM, warhead.Range);
+            Assert.Equal(SoundSourceClass.Rotor, t.GetDescriptor<SignaturesDto>()!.Acoustic!.MovingClass);
+            Assert.Equal(1500f, t.GetDescriptor<SensorCapabilitiesDto>()!.VisionRange);
+            Assert.Equal((1, 2, 50), (t.DisType.Kind, t.DisType.Domain, t.DisType.Category));
+            Assert.Equal(Fdp.Core.ForceId.Hostile, t.GetDescriptor<BehaviorProfileDto>()!.Faction);
+        }
+
+        /// <summary>
+        /// ⭐ B8 (M6) / CE-2168 — a NED ground type states its hull SIZE (Body.Geometry, ground-centred) and its locomotion class; a person
+        /// does not get a hull. 📐 Without the height every NED hull had collider height 0: no M1 height band, and the blast rule took a
+        /// tank for a person (hill-attack-close stalled on HEAT-MP, measured 2026-10-14). Air / naval mobility is not ground physics: it
+        /// fails loudly.
+        /// </summary>
+        [Fact]
+        public void B8_ANedHull_StatesItsSizeAndLocomotion_APersonGetsNoHull_AirIsNotGroundPhysics()
+        {
+            var db = BuildDatabase();
+            var m1 = db.GetByType(TkbEntityTypes.Tank_M1Abrams)!;
+            var g = m1.GetDescriptor<BodyGeometryDto>()!;
+            Assert.Equal((7.93f, 3.66f, 2.44f, 1.22f), (g.Length, g.Width, g.Height, g.BodyCentreZ));
+            Assert.Equal(ReferencePointKind.GroundCentre, g.ReferencePoint);
+            Assert.Equal(LocomotionClass.Tracked, m1.GetDescriptor<LocomotionDto>()!.Class);
+            Assert.Equal(LocomotionClass.Wheeled, db.GetByType(TkbEntityTypes.Truck_HMMWV)!.GetDescriptor<LocomotionDto>()!.Class);
+            var man = db.GetByType(TkbEntityTypes.Infantry_Rifleman)!;
+            Assert.Null(man.GetDescriptor<BodyGeometryDto>());
+            Assert.Equal(LocomotionClass.Pedestrian, man.GetDescriptor<LocomotionDto>()!.Class);
+
+            var b = new NedTkbBuilder(new TkbDatabase());
+            b.DefineVehicle(9500, "a plane on ground physics");
+            Assert.Throws<System.NotSupportedException>(() => b.WithPhysics(9500, p => p.Mobility = TerrainMobility.Air));
+        }
+
         private static TkbDatabase BuildDatabase()
         {
             var db = new TkbDatabase();

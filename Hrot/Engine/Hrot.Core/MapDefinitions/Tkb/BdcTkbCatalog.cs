@@ -31,6 +31,7 @@ namespace Hrot.Map.Definitions.Tkb
         };
 
         /// <summary>⭐ M9 (Exposure Cycle §6) — a technical: the pickup, its pintle <paramref name="turret"/> and <paramref name="weapon"/>.</summary>
+        /// <param name="icon">an icon with embedded art (the HMMWV's until a pickup icon is drawn — CE1017's icon rail).</param>
         private static void Technical(NedTkbBuilder builder, long type, string name, string icon, TurretDto turret, WeaponMount weapon)
         {
             builder
@@ -252,7 +253,7 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐⭐ M9 (docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §6, D-K) — the TECHNICALS: an unarmoured pickup
             //   (5 mm all round, 300 hp, a mobility kill below 60 %) with one weapon on a pintle in the bed. No armour, so speed and
             //   surprise are the protection: shoot and scoot (the behaviour lane's BasicVehicleSop). The gunner is the vehicle (D-K).
-            Technical(builder, TkbEntityTypes.Technical_Hmg, "Technical (HMG)", "technical_hmg",
+            Technical(builder, TkbEntityTypes.Technical_Hmg, "Technical (HMG)", "hmmwv",
                 new TurretDto { PivotX = -1.3f, PivotZ = 1.9f, TrunnionX = 0.4f,                       // a pintle: all round, up to +70° (drones)
                     TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = -10f, ElevationMaxDeg = 70f,
                     TraverseRateDegPerSec = 90f, ElevationRateDegPerSec = 45f },
@@ -260,7 +261,7 @@ namespace Hrot.Map.Definitions.Tkb
                     DispersionMils = 4f, MagazineSize = 50, ReloadSeconds = 8f, FireOnMove = true,
                     AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbHmgAp, Category = WeaponCategory.MachineGun, TurretIndex = 0,
                     MuzzleOffset = new System.Numerics.Vector3(1.6f, 0f, 0f) });
-            Technical(builder, TkbEntityTypes.Technical_Atgm, "Technical (ATGM)", "technical_atgm",
+            Technical(builder, TkbEntityTypes.Technical_Atgm, "Technical (ATGM)", "hmmwv",
                 new TurretDto { PivotX = -1.3f, PivotZ = 1.9f, TrunnionX = 0.3f,
                     TraverseMinDeg = -120f, TraverseMaxDeg = 120f, ElevationMinDeg = -10f, ElevationMaxDeg = 20f,
                     TraverseRateDegPerSec = 40f, ElevationRateDegPerSec = 20f },
@@ -414,6 +415,7 @@ namespace Hrot.Map.Definitions.Tkb
                         Wheel("main right", -0.3f, -2.18f, -3.00f, 0.60f, 1.2f, retractable: true),
                     },
                 });
+            DefineFpvDrone(builder);   // ⭐ M7
 
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);
@@ -456,6 +458,35 @@ namespace Hrot.Map.Definitions.Tkb
         }
 
         /// <summary>⭐ CE-1041 — an aircraft: master, visual, DIS, faction and its body geometry — no car kinematics, no brain.</summary>
+        /// <summary>
+        /// ⭐⭐ M7 (docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md §2) — the FPV DRONE: a Rotorcraft (Motion Domains MD-H, moved by the
+        /// Air module's <c>RotorcraftModel</c>), 30 m/s, climbs 8 m/s, a 10-minute battery; a 0.3 m body with 10 hp; its weapon is its
+        /// WARHEAD (munition 6016, reach = its contact radius — it does not shoot, it flies into the target: <c>DroneImpactSystem</c>);
+        /// heard as rotors (~300 m), sees 1500 m; a brain (its behaviour, <c>FpvAttack</c>, is the behaviour lane's). Hostile.
+        /// </summary>
+        private static void DefineFpvDrone(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Drone_Fpv;
+            var flight = new FlightParamsDto();
+            builder
+                .DefineVehicle(type, "FPV drone")
+                .WithVisual(type, v => { v.SymbolCode = "SHAPMFQ-------"; v.ColorHex = "#4A4A4A"; v.Scale = 0.3f; v.ShowLabel = true; })
+                .WithFlight(type, LocomotionClass.Rotorcraft, flight)
+                .WithCombat(type, c =>
+                {
+                    c.MaxHealth = 10;
+                    c.EyeHeight = 0.1f;   // the camera on its nose
+                    c.SensorRange = 1500;
+                    c.Weapons.Add(new WeaponMount { WeaponType = "FPV_warhead", Ammunition = 1, Range = flight.ContactRadiusM, DamagePerHit = 450,
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbFpvWarhead });   // penetration: the warhead's own (400 mm)
+                })
+                .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto
+                    { MovingAudibleRange = 300f, MovingClass = SoundSourceClass.Rotor, DetonationAudibleRange = 800f, DetonationClass = SoundSourceClass.Explosion } })
+                .WithFaction(type, 2)
+                .WithBehavior(type)
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50 });   // air, 50 = unmanned (generic country)
+        }
+
         private static void DefineAircraft(NedTkbBuilder builder, long type, string name, string symbol, string colour,
                                            DISEntityType dis, Fdp.Toolkit.Tkb.Domain.BodyGeometryDto geometry)
             => builder

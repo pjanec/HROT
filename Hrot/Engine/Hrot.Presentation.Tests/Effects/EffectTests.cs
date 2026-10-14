@@ -452,7 +452,9 @@ public sealed class EffectTests
         var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
         var explosive = new HashSet<long> { MunitionTkbCatalog.TkbM67Grenade, MunitionTkbCatalog.Tkb81mmMortarHe,
                                             MunitionTkbCatalog.TkbRpg7Rocket, MunitionTkbCatalog.TkbTowMissile,   // ⭐ M3
-                                            MunitionTkbCatalog.TkbJavelinMissile, MunitionTkbCatalog.TkbNlawMissile };   // ⭐ M5 — the new AT teams' own launchers
+                                            MunitionTkbCatalog.TkbJavelinMissile, MunitionTkbCatalog.TkbNlawMissile,   // ⭐ M5 — the new AT teams' own launchers
+                                            MunitionTkbCatalog.TkbKornetMissile,     // ⭐ M9 — the ATGM technical's
+                                            MunitionTkbCatalog.TkbFpvWarhead };      // ⭐ M7 — the drone's own shaped charge
         int mounts = 0, tracerMixed = 0;
         foreach (var t in tkb.GetAll())
         {

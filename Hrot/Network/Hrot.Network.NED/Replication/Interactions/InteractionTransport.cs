@@ -133,14 +133,14 @@ namespace Hrot.Map.Common.Replication.Interactions
                 ControlFrame = new ControlFrameInteractionPayload
                 {
                     StationNodeId = e.StationNodeId, Seq = e.Seq, Forward = e.Forward, Lateral = e.Lateral, Steer = e.Steer, Yaw = e.Yaw,
-                    Gait = e.Gait, Trigger = e.Trigger, Mount = e.Mount, AimX = e.AimPoint.X, AimY = e.AimPoint.Y, AimZ = e.AimPoint.Z,
+                    Gait = e.Gait, Trigger = e.Trigger, Mount = e.Mount, AimX = e.AimPoint.X, AimY = e.AimPoint.Y, AimZ = e.AimPoint.Z, Vertical = e.Vertical,
                 },
             },
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new OperatorControlFrameEvent
             {
                 Unit = target, StationNodeId = p.ControlFrame.StationNodeId, Seq = p.ControlFrame.Seq,
                 Forward = p.ControlFrame.Forward, Lateral = p.ControlFrame.Lateral, Steer = p.ControlFrame.Steer, Yaw = p.ControlFrame.Yaw,
-                Gait = p.ControlFrame.Gait, Trigger = p.ControlFrame.Trigger, Mount = p.ControlFrame.Mount,
+                Gait = p.ControlFrame.Gait, Trigger = p.ControlFrame.Trigger, Mount = p.ControlFrame.Mount, Vertical = p.ControlFrame.Vertical,
                 AimPoint = new System.Numerics.Vector3(p.ControlFrame.AimX, p.ControlFrame.AimY, p.ControlFrame.AimZ), IsRemote = true,
             });
 

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "MD-A to MD-H approved"
-current-answer: §3 (the proposal) and §4 (decisions with leans) — §1 measured ground, §2 the requirement.
+build-state: BUILDING — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; v1 built except the MuscleAir ownership role (§5a, CE-3199 — a decision)
+current-answer: §3 (the proposal), §4 (decisions), §5 (as-built) and §5a (the open ownership decision) — §1 measured ground, §2 the requirement.
 stale-below: nothing.
 known-rot: none.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
@@ -157,3 +157,28 @@ sequenceDiagram
 - *The drone's own `PointMassFlightSystem`* (FPV design, first draft) — a one-off mover beside the architecture; it becomes
   `RotorcraftModel` in the Air module.
 - *Flyers on `LinearKinematicsSystem`* — that is a projectile integrator with no control, manual or autonomous.
+
+## 5. As-built `2026-10-14` (backend, handoff B10) — and the one decision it needs
+
+The design carries **11 classes** (§3 class diagram), **1 sequence** (possession of a drone) and the domain graph. Built: `LocomotionClass`
++ `LocomotionDto` (`Gen.Locomotion`), the `Locomotion` component (id 375) and `LocomotionTkbTranslator`, `MotionDomain` + `Locomotions`,
+`IMotionModel` + `MotionFrame` + `MotionModelTable`, `AirMotionSystem` + `AirMotionModule` (SimHost and the editor's Muscle, through
+`SimHostCoreLogicPack`), `RotorcraftModel` (the drone's, B11), `ManualDrive.Vertical` end to end, the station's control scheme by class.
+Not built: `GroundMotionModule`'s two-model refactor (MD-H: a later slice), `NavalMotionModule`, `AmphibiousModel` (table rows that fail loudly).
+
+| design said | built | why |
+|---|---|---|
+| **MD-B: role `MuscleAir` with its own kinematic group (`SimTransform, SimVelocity, FlightState`)** | ⛔ **NOT BUILT — blocked, CE-3199** | 📐 the ownership table allows a component in ONE group only (`OwnershipGroupTable` ctor throws "shares a component with another group", `OwnershipGroup.cs:60-62`; [`DESIGN_Ownership_Groups_And_Grants.md`](../../DESIGN_Ownership_Groups_And_Grants.md) "a component sits in exactly one box"), and `SimTransform` / `SimVelocity` are `MuscleGround`'s (R-170, dtWorldPos whole). The descriptor binding maps a descriptor to one role (`DescriptorOwnershipMap.BindGroups`, `GroupOf`). ⇒ until decided, an air body's position stays with its CREATOR: it moves in the editor and in-process, and on a cluster only if the creator holds the Air module |
+| the station picks a scheme by locomotion class | ✅ `ControlScheme { Person, Vehicle, Rotorcraft }` from `Locomotions.Of`; rotorcraft: W/S forward, A/D sideways, mouse yaw, Space / C vertical, the camera on the body | — |
+| "one wire field" (`ManualDrive.Vertical`) | ✅ on `EntityManualDrive` **and** on `ControlFrameInteractionPayload` (appended) | ⚠ the station's frame reaches the brain through the interaction union, not the ManualDrive topic — the climb axis must ride both or it never reaches the `OperatorControl` behaviour. Same field, same feature |
+| `MotionModelTable` (static) | ✅ a static switch: Rotorcraft → `RotorcraftModel`; ground classes → null (CarKinematics in v1); FixedWing / Surface / Amphibious → `NotSupportedException` | MD-H's "fail loudly" |
+| — | `LinearKinematicsSystem` skips a body with a `Locomotion` | it integrated EVERY `SimTransform + SimVelocity` body without `VehicleState` — a drone would have moved twice |
+| — | `NedTkbBuilder.WithPhysics` states `Gen.Locomotion` (Tracked / Wheeled / Pedestrian) and — B8 (M6) — the hull's `Body.Geometry`; `MapMobility(Air / Naval)` throws; `WithFlight` states an air type | MD-A: the lossy Air / Naval → PersonalCar mapping ends |
+
+### 5a. The open decision — CE-3199: where an air body's position is owned
+
+| option | what it is | blast radius |
+|---|---|---|
+| **⭐ lean: (B) domain-exclusive groups** | a component MAY sit in several groups whose `AppliesTo` never both hold for one template (`MuscleGround`: ground locomotion; `MuscleAir`: air locomotion); the invariant becomes "one owner per component **per entity**"; `BindGroups` binds dtWorldPos to both roles; `GetInitialGrants` already grants per template (`RoleGroupOwnershipStrategy.cs:53`) | `OwnershipGroupTable` (validation by a declared exclusivity), `DescriptorOwnershipMap.BindGroups`, `DebugApiService.GroupOf`, 4 rails (`HrotOwnershipGroupsTests`, `TheDescriptorMapIsWiredTests`); keeps MD-B and the per-domain node split the user asked for |
+| (A) one kinematic group for every mover | `MuscleGround` becomes "the Muscle"; `HasKinematics` also applies to air locomotion; the Air module runs wherever it is held | one line; ⛔ loses the per-domain split (MD-B, the earlier requirement) |
+| (C) an air position descriptor | a separate dtAirPos | ⛔ a new wire descriptor — outside the handoff's fence |

@@ -91,6 +91,9 @@ namespace Hrot.Core.Tkb
         {
             new Fdp.Toolkit.Spatial.SpatialCoreTkbTranslator(),
             new CarKinem.Tkb.VehicleKinematicsTkbTranslator(),
+            // ⭐ CE-2168 (MD-A) — how a body moves (Gen.Locomotion); ⭐ M7 — a flyer's params, state and navigation contract (Gen.Flight).
+            new Fdp.Toolkit.Motion.LocomotionTkbTranslator(),
+            new Fdp.Toolkit.Motion.FlightTkbTranslator(),
             new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator(),
             // ⭐ CE-2151 (R-2009) — a carrier type's seats and passenger list; a type without Gen.Carrier carries nobody.
             new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator(),

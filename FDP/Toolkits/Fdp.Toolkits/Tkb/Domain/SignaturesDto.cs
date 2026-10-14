@@ -90,5 +90,7 @@ namespace Fdp.Toolkit.Tkb.Domain
         SmallArms     = 4,
         HeavyWeapon   = 5,
         Explosion     = 6,
+        /// <summary>⭐ M7 (DESIGN_FPV_Drone §2) — rotors: a drone or a helicopter, heard while it flies (hovering included).</summary>
+        Rotor         = 7,
     }
 }

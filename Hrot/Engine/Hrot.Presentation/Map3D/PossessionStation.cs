@@ -169,6 +169,8 @@ namespace Hrot.UI.Common.Map3D
         public const float MouseSteerPerPixel = 0.01f;
         /// <summary>A vehicle's eye above its origin (m) — v1: the hull, not yet the turret (§8d, deferred).</summary>
         public const float VehicleEyeHeight = 2.5f;
+        /// <summary>⭐ CE-2168 — a flyer's camera sits on it (an FPV view).</summary>
+        public const float RotorcraftEyeHeight = 0.2f;
         /// <summary>How far an aim with nothing under the crosshair reaches (m).</summary>
         public const float AimReach = 1000f;
 
@@ -191,9 +193,18 @@ namespace Hrot.UI.Common.Map3D
         public Entity Unit { get; }
         public int Mount { get; private set; }
         public bool HullLocked { get; private set; }
-        public bool IsVehicle => _world() is { } w && w.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>()
-                                 && w.HasComponent<CarKinem.Core.VehicleParams>(Unit)
-                                 && w.GetComponentRO<CarKinem.Core.VehicleParams>(Unit).Class != CarKinem.Core.VehicleClass.Pedestrian;
+        public bool IsVehicle => Scheme == ControlScheme.Vehicle;
+
+        /// <summary>⭐ CE-2168 (Motion Domains MD-D) — the control scheme, chosen by the body's locomotion class (not "vehicle or not"):
+        /// a rotorcraft flies (W/S forward, A/D sideways, the mouse yaws, Space / C climb and descend), a ground vehicle drives, the
+        /// rest walk.</summary>
+        public ControlScheme Scheme => _world() is not { } w ? ControlScheme.Person
+            : Fdp.Toolkit.Motion.Locomotions.Of(w, Unit) switch
+            {
+                Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft => ControlScheme.Rotorcraft,
+                Fdp.Toolkit.Tkb.Domain.LocomotionClass.Wheeled or Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked => ControlScheme.Vehicle,
+                _ => ControlScheme.Person,
+            };
 
         /// <summary>The look direction (radians): what the camera shows and, for a person, the body's yaw (M-2).</summary>
         public float Yaw => _yaw;
@@ -207,7 +218,7 @@ namespace Hrot.UI.Common.Map3D
             if (!_lookInitialised) { _yaw = hullYaw; _pitch = 0f; _lookInitialised = true; }
             bool vehicle = IsVehicle;
             if (vehicle && HullLocked) _yaw = hullYaw;
-            float eyeHeight = vehicle ? VehicleEyeHeight
+            float eyeHeight = Scheme == ControlScheme.Rotorcraft ? RotorcraftEyeHeight : vehicle ? VehicleEyeHeight
                 : Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(w, Unit,
                     Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(w, Unit));
             var eye = tf.Position + new Vector3(0f, 0f, eyeHeight);
@@ -231,6 +242,9 @@ namespace Hrot.UI.Common.Map3D
 
             float forward = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.W) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.S) ? 1f : 0f);
             float side = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.A) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.D) ? 1f : 0f);
+            // ⭐ CE-2168 (MD-D) — a flyer's climb axis
+            float vertical = Scheme != ControlScheme.Rotorcraft ? 0f
+                : (input.IsKeyDown((MapKeyboardKey)KeyboardKey.Space) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.C) ? 1f : 0f);
             bool run = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
             float wheel = input.MouseWheelMove;
             if (wheel != 0f) Mount = NextMount(Mount, wheel > 0f ? -1 : 1);
@@ -242,6 +256,7 @@ namespace Hrot.UI.Common.Map3D
                 Lateral = vehicle ? 0f : side,
                 Steer = vehicle ? (HullLocked ? _mouseSteer : side) : 0f,
                 Yaw = _yaw,
+                Vertical = vertical,
                 Gait = run ? (byte)0 : (byte)1,
                 Trigger = input.IsMouseButtonDown(MapMouseButton.Left) ? (byte)1 : (byte)0,
                 Mount = (byte)Mount,
@@ -275,4 +290,7 @@ namespace Hrot.UI.Common.Map3D
         private static float HullYaw(Quaternion q)
             => MathF.Atan2(2f * (q.W * q.Z + q.X * q.Y), 1f - 2f * (q.Y * q.Y + q.Z * q.Z));
     }
+
+    /// <summary>⭐ CE-2168 (Motion Domains MD-D) — how the FPS station maps the keys and mouse onto a possessed body.</summary>
+    public enum ControlScheme : byte { Person = 0, Vehicle = 1, Rotorcraft = 2 }
 }

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; the drone flies as a RotorcraftModel (Motion Domains)
-current-answer: §2 classes, §3 sequences, §4 who runs it, §5 rails — §1 is the measured ground.
+build-state: BUILDING — the Muscle half built (§6, backend B11); MuscleAir ownership open (CE-3199); the Brain half is the behaviour lane's
+current-answer: §2 classes, §3 sequences, §4 who runs it, §5 rails, §6 as-built — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none (the first draft's PointMassFlightSystem and Stride registration are in §HISTORY).
 known-conflict: none.
@@ -193,6 +193,30 @@ SimHost by default (MD-B), a dedicated air node in a split deployment.*
 | `M7_TheAirModule_RunsWhereMuscleAirIsHeld` (SimHost, editor) | `SimHostCoreLogicPackTests` · `EditorCapabilitiesTests` |
 | a TKB rail for type 403 | `NedTkbBuilderCombatTests` |
 | demo `ua-drone-shelter` | `scripts/utility-demo-check.py` |
+
+## 6. As-built `2026-10-14` (backend, handoff B11 — the Muscle half)
+
+The design carries **15 classes** (§2) and **1 sequence** (§3); the Muscle half is built, the Brain half (`FpvAttackNodes`, `FpvAttackParams`,
+`FpvAttackState`, `DroneTargetDecision`) is the behaviour lane's. Built: `FlightParamsDto` (`Gen.Flight`, + `BodyRadiusM` / `BodyHeightM`),
+`FlightParams` (376), `FlightState` (377), `FlightTkbTranslator`, `RotorcraftModel` (autonomous + manual + a dead flyer falls),
+`DroneImpactSystem`, TKB type **403 "FPV drone"**, `SoundSourceClass.Rotor = 7` + audible while airborne, the `VisionBroadphase` overhead fix,
+the bridge skipping a non-ground mover. Deviations, argued:
+
+| design said | built | why |
+|---|---|---|
+| owned by role `MuscleAir` | ⛔ **not built — CE-3199** ([Motion Domains §5a](../motion-models/DESIGN_Motion_Domains.md)) | the ownership table puts a component in one group only. ⇒ the drone moves where its CREATOR runs the Air module (the editor; in-process rails) |
+| a collider r 0.3, h 0.3 | ✅ stamped by `FlightTkbTranslator` from `Gen.Flight`'s body size | no ground physics gives a flyer one |
+| impact: terrain via `SightBlocked`, colliders within 10 m | ✅ + the ground under it (`GroundHeightAt`); a body's band grown by the contact radius; once met, `Airborne = 0` (spent: one detonation), the model then holds it still | a drone at speed would cross a hull in one frame; `Airborne` is the "spent" flag both systems read |
+| a lethal `DamageAssessedEvent` on the drone | ✅ 10 × its max health | the existing chain kills it on its `Health` owner |
+| the battery | not in the Muscle (R-136: the behaviour's clock) | as designed |
+
+Rails (§5): ✅ `RotorcraftModelTests.M7_ARotorcraft_FliesToA3DPoint_AndReportsArrival`, `M7_…_UnderManualDrive`, `M7_ADeadRotorcraft_Falls`,
+`CE2168_OnlyAirBodies_…` · `DroneImpactSystemTests.M7_ADive_OnATank_HitsItsRoof_AndKillsTheDrone`, `M7_ADroneFlyingPastOrOver_MeetsNothing` ·
+`SoundEmissionSystemTests.M7_AHoveringDrone_IsHeard_AsRotor` · `VisionBroadphaseTests.M7_ADroneOverhead_IsInTheBroadphase` ·
+`NavigationIntentBridgeSystemTests.M7_TheBridge_SkipsAFlyer` · `SimHostCoreLogicPackTests` (air motion then impact in the pack) ·
+`NedTkbBuilderCombatTests.M7_TheFpvDrone_…`. ⛔ Not built: `M7_ADive_UnderADeck_MeetsTheSlab` (needs a terrain world; the system uses
+`SightBlocked`, unmeasured on a deck) · `M7_APossessedDrone_FollowsTheStation_…` (the possession chain carries `Vertical`; a cross-node
+rail waits on CE-3199) · the demo `ua-drone-shelter` (behaviour lane).
 
 ## ⛔ HISTORY
 

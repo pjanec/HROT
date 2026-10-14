@@ -84,7 +84,10 @@ namespace Fdp.Toolkit.Perception.Systems
 
                         Vector2 toTarget = targetPos2D - obsPos2D;
                         float dist = MathF.Sqrt(distSq);
-                        if (dist < float.Epsilon) continue; // degenerate case
+                        // ⭐ M7 (DESIGN_FPV_Drone §1) — a target straight ABOVE (or below) the observer has no horizontal bearing: it was
+                        //   dropped here as "degenerate", so a drone overhead was neither seen nor heard. The observer itself is already
+                        //   skipped by index; an overhead target passes (no cone to test) and the line of sight decides the rest.
+                        if (dist < float.Epsilon) { _passed.Add((distSq, target)); continue; }
 
                         // FOV cone check: dot(forward, dir_to_target) >= cos(half_FOV).
                         float dot = Vector2.Dot(forward, toTarget / dist);
