@@ -1395,6 +1395,17 @@ open-ground rail red); the street case is every `CE2159_DangerCrossing_*` rail, 
 is a `StreetCrossing` (measured), so the demo's path is unchanged; open ground is a rail only (no scenario yet produces an `OpenGround`
 area).
 
+⭐ **`CE-2161` — the live Bound demo, BUILT `2026-10-14` (by backend, at the user's ask; CE-3081 OpenGround).** The march's
+`OpenGround` flag (with `DangerAreas`) asks the commander's route sensor for OpenGround as well as the crossings
+(`DangerAreaSettings.Kinds`, Utility demos §10.7b A5) — off by default, because D3 picks Bound on open ground even with NO threat
+(Cross weighs NOT open ground ⇒ 0; Hold needs a threat; Bound's logistic threat factor is small, never 0), so a march with it on
+bounds across every field ≥ 20 m. Scenario `ua-squad-bound-open-ground`: the squad in Shed Row's south cover (y 104), marching to
+(175, 60) across test-town's open field. **Live PASS** (`utility-demo-check.py ua-squad-bound-open-ground --launch`, sim 95 s): the
+field listed as OpenGround 18 m ahead (near (81, 100), far (175, 60)), D3 → `BoundingOverwatch`, 17 bounds with both halves never
+moving together, the last bound's element 1–6 m past the far side, the march then gathers every man within 10 m of it, no rounds
+fired. Rail `SquadManeuverTests.CE2161_TheMarch_AsksForOpenGround_OnlyWhenTheOrderSaysSo`. ⚠ The field's far side is the march's
+objective here (no cover on test-town's south-west to end the field earlier).
+
 ### 7.8 The demos — one per drill, each checked over HTTP *(behaviors, `2026-10-13`; build-state: DESIGN — not built; the scenario slices R-e, F-e, X-d)*
 
 ⭐ **The rule for all three:** a demo is DONE when its checker in `scripts/utility-demo-check.py` passes against a fresh
