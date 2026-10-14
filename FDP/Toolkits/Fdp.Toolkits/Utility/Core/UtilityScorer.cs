@@ -316,6 +316,18 @@ namespace Fdp.Toolkit.Utility
                     isSelfMount[candidateCount] = false;
                     candidateCount++;
                 }
+
+                // ⭐ Weapon systems WS-3 (W-D) — and the weapon systems this unit controls (its station weapons, the one it carries or
+                //   mans): each scored as its own mount 0 (it carries its own WeaponState and type).
+                System.Span<Entity> controlled = stackalloc Entity[Fdp.Toolkit.Combat.WeaponSystems.MaxControlled];
+                int nControlled = Fdp.Toolkit.Combat.WeaponSystems.Controlled(repo, self, controlled);
+                for (int k = 0; k < nControlled && candidateCount < MaxCandidates; k++)
+                {
+                    if (!repo.HasComponent<WeaponState>(controlled[k])) continue;
+                    candidates[candidateCount]  = controlled[k];
+                    isSelfMount[candidateCount] = true;
+                    candidateCount++;
+                }
             }
 
             if (candidateCount == 0)

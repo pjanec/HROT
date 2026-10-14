@@ -21,14 +21,21 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static int Choose(EntityRepository repo, Entity owner, Entity target, out Entity mount)
         {
-            mount = owner;
+            int primary = WeaponSystems.PrimaryMount(repo, owner, out mount);   // ⭐ WS-3 — the fallback: a bare host's station weapon
             var scorer = UtilityDecisionCatalog.ScorerOverShared(ref _scorer);
             if (!scorer.TopCandidate(repo, owner, WeaponSelectionDecision.Id, target, 0, out var top, out float score)
                 || score <= 0f || top.IsNull || !repo.IsAlive(top) || top.Equals(owner))
-                return 0;
+                return primary;
+            // ⭐ WS-3 (W-D) — a weapon system the unit controls: its place in the unit's mount list (it fires as itself, mount 0)
+            if (WeaponSystems.IsWeaponSystem(repo, top) && repo.HasComponent<WeaponState>(top)
+                && WeaponSystems.IndexOf(repo, owner, top) is var controlled and >= 0)
+            {
+                mount = top;
+                return controlled;
+            }
             if (!repo.IsComponentTypeRegistered<WeaponMountInfo>() || !repo.HasComponent<WeaponMountInfo>(top)
                 || !repo.HasComponent<WeaponState>(top))
-                return 0;
+                return primary;
             mount = top;
             return repo.GetComponentRO<WeaponMountInfo>(top).MountIndex;
         }

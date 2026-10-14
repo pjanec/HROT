@@ -27,6 +27,7 @@ namespace Fdp.Toolkit.Combat
             ActionReason.HoldNotSeen or ActionReason.Reloading or ActionReason.Throwing or ActionReason.OutOfArc
                 or ActionReason.Done or ActionReason.Failed or ActionReason.OutOfAmmo
                 or ActionReason.TooClose or ActionReason.HoldMoving   // ⭐ M4 / D-L — held, weapon ready
+                or ActionReason.NotControlled or ActionReason.NoGunner or ActionReason.NotDeployed   // ⭐ WS-3 — the weapon system holds
                 => WeaponPostureKind.Ready,
             _ => null,
         };
