@@ -234,7 +234,9 @@ namespace CarKinem.Systems
                             }
                             break;
                         }
-                        float ld = PathLookahead(in @params, state.Speed);
+                        // ⭐ CE-3029 (§5.2b C7) — …but never across a curve: the lookahead shrinks until the path to it is nearly straight
+                        float ld = CapLookaheadByChord(_trajectoryPool, nav.TrajectoryId, nav.ProgressS, PathLookahead(in @params, state.Speed),
+                                                       MathF.Max(MinPathLookaheadMetres, @params.WheelBase * ChordCapFloorWheelBases));
                         var (ahead, _, _) = _trajectoryPool.SampleTrajectory(nav.TrajectoryId, nav.ProgressS + ld);
                         var toAhead = new Vector2(ahead.X, ahead.Y) - pos2D;
                         if (toAhead.LengthSquared() > 1e-4f)
@@ -567,6 +569,50 @@ namespace CarKinem.Systems
         /// (a vehicle cannot close a nearer point), growing with speed by <see cref="VehicleParams.LookaheadTimeMin"/> seconds.
         /// A walker at 1.5 m/s aims 1 m ahead; a car at 15 m/s 7.5 m.
         /// </summary>
+        /// <summary>⭐ CE-3029 (Navigation v2 §5.2b C7) — the most the path between a vehicle and its lookahead point may bow away from
+        /// the straight chord to it (m). Measured: a lookahead longer than the curve it looks across starts the turn early and drives
+        /// inside it (a rounded R 3.8 m corner cut to 0.47 m of a 1.8 m clearance); capped at 0.1 m it holds 1.65–1.81 m.</summary>
+        public const float PathChordTolerance = 0.1f;
+
+        /// <summary>⭐ CE-3029 — the cap never shortens the lookahead below this many wheelbases (nor <see cref="MinPathLookaheadMetres"/>).</summary>
+        public const float ChordCapFloorWheelBases = 0.5f;
+
+        /// <summary>
+        /// ⭐⭐ CE-3029 (§5.2b C7) — shrink a vehicle's lookahead <paramref name="ld"/> (by ¾ steps, never below <paramref name="floor"/>)
+        /// until the path between progress <paramref name="s"/> and <paramref name="s"/> + ld stays within <paramref name="tolerance"/>
+        /// of the straight chord between them (sampled at the quarter points). A straight path keeps the full lookahead (CE-3115's
+        /// two wheelbases); a curve gets one short enough to follow it.
+        /// </summary>
+        public static float CapLookaheadByChord(TrajectoryPoolManager pool, int id, float s, float ld, float floor, float tolerance = PathChordTolerance)
+        {
+            if (ld <= floor) return ld;
+            var (p0, _, _) = pool.SampleTrajectory(id, s);
+            var a = new Vector2(p0.X, p0.Y);
+            for (int k = 0; k < 8; k++)
+            {
+                var (pe, _, _) = pool.SampleTrajectory(id, s + ld);
+                var b = new Vector2(pe.X, pe.Y);
+                float dev = 0f;
+                for (int q = 1; q <= 3; q++)
+                {
+                    var (pm, _, _) = pool.SampleTrajectory(id, s + ld * q * 0.25f);
+                    dev = MathF.Max(dev, DistanceToSegment(new Vector2(pm.X, pm.Y), a, b));
+                }
+                if (dev <= tolerance) return ld;
+                ld *= 0.75f;
+                if (ld <= floor) return floor;
+            }
+            return ld;
+        }
+
+        private static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
+        {
+            var ab = b - a; float l2 = ab.LengthSquared();
+            if (l2 < 1e-8f) return Vector2.Distance(p, a);
+            float t = Math.Clamp(Vector2.Dot(p - a, ab) / l2, 0f, 1f);
+            return Vector2.Distance(p, a + ab * t);
+        }
+
         public static float PathLookahead(in VehicleParams p, float speed)
             => p.Class == VehicleClass.Pedestrian
                 ? MathF.Max(HumanGait.MinPathLookahead, MathF.Abs(speed) * HumanGait.PathLookaheadSeconds)   // ⭐ CE-3145 — a person tracks his path

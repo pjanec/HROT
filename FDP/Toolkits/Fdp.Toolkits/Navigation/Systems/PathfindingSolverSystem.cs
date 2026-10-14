@@ -71,6 +71,8 @@ namespace Fdp.Toolkit.Navigation.Systems
         /// <summary>⭐ CE-3128 — the ground route planner (reused buffers: one per solver, R-220). CE-2059's "the route ends at
         /// the requested point" is its egress leg.</summary>
         private readonly RoutePlanner _planner = new();
+        private readonly List<Vector3> _roundedPoints = new();      // ⭐ CE-3029 — CornerRounding's output, reused per request
+        private readonly List<byte> _roundedTraversals = new();
 
         /// <summary>
         /// Initialises the solver with the road network and trajectory pool.
@@ -205,10 +207,22 @@ namespace Fdp.Toolkit.Navigation.Systems
                 return Unreachable(in req, handle, failed);
             }
 
-            var points = _planner.Points;
+            IReadOnlyList<Vector3> points = _planner.Points;
+            byte[]? traversals = _planner.TraversalsOrNull();
+            // ⭐⭐ CE-3029 / R-3006 (§5.2b) — a vehicle's corners are rounded for its turn radius, here at the one choke point every
+            //   ground path passes (NOT inside RoutePlanner: the danger solve plans on it too, §5.2a D7).
+            if (req.TurnRadius > 0f
+                && CornerRounding.Round(points, traversals, req.TurnRadius, _navmesh, query.LayerMask, _roundedPoints, _roundedTraversals) > 0)
+            {
+                points = _roundedPoints;
+                traversals = traversals != null ? _roundedTraversals.ToArray() : null;
+                distance = 0f;
+                for (int k = 1; k < points.Count; k++)
+                    distance += Vector2.Distance(new Vector2(points[k - 1].X, points[k - 1].Y), new Vector2(points[k].X, points[k].Y));
+            }
             var positions = new Vector3[points.Count];
             for (int k = 0; k < positions.Length; k++) positions[k] = points[k];
-            _trajectoryPool.RegisterTrajectoryWithKey(positions, handle, _planner.TraversalsOrNull());
+            _trajectoryPool.RegisterTrajectoryWithKey(positions, handle, traversals);
 
             return new PathfindingResultEvent
             {
