@@ -134,10 +134,34 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRectangleLines((int)locked.X - 12, (int)locked.Y - 12, 24, 24, Color.Orange);
             if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
                 Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
-            int y = (int)size.Y - 24;
             var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending);
-            for (int i = lines.Length - 1; i >= 0; i--, y -= 20)
-                Raylib.DrawText(lines[i], 12, y, 18, Color.RayWhite);
+            var (x, y) = HudOrigin(size, lines.Length, MaxWidth(lines));
+            Raylib.DrawRectangle(x - 8, y - 6, MaxWidth(lines) + 16, lines.Length * HudLineHeight + 8, new Color(0, 0, 0, 140));
+            foreach (var line in lines) { Raylib.DrawText(line, x, y, HudFontSize, Color.RayWhite); y += HudLineHeight; }
+        }
+
+        /// <summary>The HUD's text size and line pitch (px).</summary>
+        public const int HudFontSize = 18, HudLineHeight = 20;
+
+        /// <summary>
+        /// ⭐ CE-1079 — where the HUD block starts: centred under the crosshair, a fifth of the view below it. ⚠ Not a screen corner: the
+        /// editor draws the map UNDER its docked panels (the map first, ImGui after — <c>Program.cs</c>), and its left column and bottom
+        /// log cover the window's corners, so a corner HUD was hidden (measured live, a 2200×1200 window). The crosshair is where the view
+        /// is open by construction.
+        /// </summary>
+        public static (int X, int Y) HudOrigin(Vector2 viewport, int lineCount, int width)
+        {
+            int cx = (int)(viewport.X / 2f), cy = (int)(viewport.Y / 2f);
+            int y = cy + (int)(viewport.Y * 0.18f);
+            y = Math.Min(y, (int)viewport.Y - lineCount * HudLineHeight - 8);   // a short view still shows every line
+            return (cx - width / 2, y);
+        }
+
+        private static int MaxWidth(string[] lines)
+        {
+            int width = 0;
+            foreach (var line in lines) width = Math.Max(width, Raylib.MeasureText(line, HudFontSize));
+            return width;
         }
 
         /// <summary>⭐ CE-1078 — where the locked shot is: its unit's middle while it stands, else the locked point.</summary>

@@ -502,11 +502,13 @@ public sealed class DebugApiOrdersTests
         Assert.Equal(30, r.GetComponentRO<WeaponState>(unit).Ammo);    // no press, no round
         Send(60, shot: 1);
         Assert.Equal(29, r.GetComponentRO<WeaponState>(unit).Ammo);    // one press, one round — the counter staying at 1 fires no more
-        Send(300, shot: 2);                                              // pressed while the one-round magazine reloads
+        Assert.True(r.GetComponentRO<WeaponState>(unit).ReloadSecondsRemaining > 0f, "the one-round magazine is reloading");
+        for (int i = 0; i < 300 && r.GetComponentRO<WeaponState>(unit).Ammo > 28; i++) Send(1, shot: 2);   // pressed DURING the reload
         Assert.Equal(28, r.GetComponentRO<WeaponState>(unit).Ammo);    // it waited for the reload and fired
-        Send(1, shot: 3);
-        Send(300, shot: 3, cancel: 1);                                   // RMB before the reload is done
-        Assert.Equal(28, r.GetComponentRO<WeaponState>(unit).Ammo);
+        Assert.True(r.GetComponentRO<WeaponState>(unit).ReloadSecondsRemaining > 0f, "reloading again after that round");
+        Send(1, shot: 3);                                                // pressed during this reload …
+        Send(300, shot: 3, cancel: 1);                                   // … and RMB before it is done
+        Assert.Equal(28, r.GetComponentRO<WeaponState>(unit).Ammo);    // the waiting shot was dropped
     }
 
     /// <summary>

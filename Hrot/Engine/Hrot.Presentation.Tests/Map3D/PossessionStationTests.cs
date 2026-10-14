@@ -377,4 +377,16 @@ public sealed class PossessionStationTests
             Assert.Contains("F ammo", lines[^1]);
         }
     }
+
+    /// <summary>⭐ CE-1079 — the HUD sits centred UNDER the crosshair, not in a window corner: the editor draws the map beneath its docked
+    /// panels, whose left column and bottom log cover the corners (a corner HUD was invisible, measured live in a 2200×1200 window); in a
+    /// short view every line still fits.</summary>
+    [Fact]
+    public void CE1079_TheHud_IsCentredUnderTheCrosshair_AndFitsAShortView()
+    {
+        var (x, y) = PossessionStation.HudOrigin(new Vector2(2200f, 1200f), lineCount: 6, width: 600);
+        Assert.Equal((800, 600 + 216), (x, y));                      // centred, a fifth of the view below the crosshair
+        var (_, ys) = PossessionStation.HudOrigin(new Vector2(800f, 300f), lineCount: 6, width: 600);
+        Assert.True(ys + 6 * PossessionStation.HudLineHeight <= 300, $"the last line ends at {ys + 6 * PossessionStation.HudLineHeight}");
+    }
 }
