@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: none
 related-designs:
+  - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — adds the AT rounds (PG-7VL/VR, LAW, NLAW, Javelin, FPV warhead) to the ammo library and a shaped-charge armour column (M2, M5)
   - DESIGN_Peek_And_Fire.md — adds AimSeconds and reload to the defaults; its demo bt-window-duel follows §3
   - DESIGN_Building_Interiors.md — the terrain/combat/perception model these defaults, tests and diagnostics serve
     (§3c materials, §3d penetration, §3e warheads, §3f exposure).

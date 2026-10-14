@@ -9,6 +9,7 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — proposes building §11.2's G1 lean (danger from weapons vs my armour) in ThreatDanger.Of (V1)
   - docs/DESIGN_Orders_Params_Entity_Classes.md §13.12 — the order form (P5b, CE-1059) draws §7.6b's one params form over an order DTO
   - docs/blueprints/DESIGN_Map_Picking_Unification.md — OWNS the one pick service / context / broker; §7.6b here adds a SCOPED context so several params forms share one broker (CE-1023).
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §4 adds squad-level SensorChange kinds (SquadContact / SquadUnderFire / SquadAllClear) with Unit = the commander
@@ -32,6 +33,7 @@ related-designs:
   - docs/DESIGN_Terrain_World.md — OWNS the sight the perception templates call (SegmentBlocked, TerrainWorldLosStrategy).
   - docs/blueprints/batches/FRAME_Decision_Layer.md — the behaviors lane's frame for the decision layer (doctrine, missions, intent, utility) and the doctrine/origin build.
   - docs/blueprints/batches/FRAME_Eqs_Consuming_Behaviours.md — the behaviours lane's consumers; a doctrine is what assigns them.
+  - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — the programme for later (CE-2162) that points the vision cone along a look direction and narrows humans from 360° to ~200°; §1 there records how this file's cone test uses the FOV today
 -->
 
 # Sensors and Doctrine — one sensor form, and who decides what a unit does
