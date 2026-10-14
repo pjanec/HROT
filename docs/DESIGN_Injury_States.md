@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Map_3D_Mode.md §6m — DRAWS the wounded limp and the incapacitated figure, and builds slice I-b (WoundedSpeedFactor 0.6)
   - OVERVIEW_Behaviour_Building_Blocks.md — §8a OWNS the one-table summary of what a behaviour can rely on from these states
   - DESIGN_Operations_Behaviour_Catalogue.md — §10.1 D1 OWNS the RULING (R-263): four human states + bleed-out, the vehicle damage states; this file is the human half's build design
   - DESIGN_Entity_Interactions.md — §7.4.8 OWNS the person carrier (CE-2152), the first consumer: only an incapacitated soldier may be carried (R-2009 C3)

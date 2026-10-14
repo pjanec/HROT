@@ -53,6 +53,8 @@ namespace Hrot.Map.Common
         public const long Cargo_C130 = 402;
         /// <summary>⭐ M7 (DESIGN_FPV_Drone §2) — a small FPV attack quadcopter: a Rotorcraft with a shaped-charge warhead (munition 6016).</summary>
         public const long Drone_Fpv  = 403;
+        /// <summary>⭐ CE-1083 (DESIGN_Map_3D_Mode §6m C-3) — a UH-60 flown with its cabin doors off: eight riders sit in the doors, legs out.</summary>
+        public const long Heli_UH60_DoorsOff = 404;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;

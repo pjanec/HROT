@@ -580,6 +580,37 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐ <c>CE-1082</c> (Injury slice I-b; docs/DESIGN_Map_3D_Mode.md §6m C-2) — a WOUNDED person moves at his type's
+        /// <c>WoundedSpeedFactor</c> beside the stance: it scales the 6 m/s sprint (the cap), so asked 5 m/s he makes 6 × 0.6 = 3.6; healthy ⇒ 5
+        /// (the asked speed); an unset factor (0) ⇒ 5.
+        /// 🔒 User, 2026-10-14: "when soldier is wounded his motion pattern could be degraded" — the 0.6 approved.
+        /// </summary>
+        [Theory]
+        [InlineData(100f, 0.6f, 5.0f)]
+        [InlineData(50f,  0.6f, 3.6f)]
+        [InlineData(50f,  0f,   5.0f)]
+        public void CE1082_AWoundedPerson_MovesAtHisTypesWoundedSpeed(float health, float factor, float expected)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f, WoundedSpeedFactor = factor });
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float top = 0f;
+            for (int i = 0; i < 8 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                top = MathF.Max(top, repo.GetComponent<VehicleState>(e).Speed);
+            }
+            Assert.InRange(top, expected - 0.25f, expected + 0.05f);
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2152</c> C-a (R-2011 C8) — a person carrying a casualty is slowed by the carry factor, dragging by the drag factor, beside
         /// the stance (the same 6 m/s sprint: × 0.5 carried ⇒ 3, × 0.3 dragged ⇒ 1.8; carrying nobody ⇒ 5, the path's speed).
         /// ✅ Red-proof: CarKinematicsSystem without the CarryLoad factor ⇒ he drags at full speed ⇒ red.

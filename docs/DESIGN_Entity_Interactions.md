@@ -8,6 +8,7 @@ known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file
   §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
 related-designs:
+  - docs/DESIGN_Map_3D_Mode.md §6m — DRAWS the carried / dragged casualty, the carrier, riders in their seats (SeatDto place / facing / pose) and the jump down
   - docs/DESIGN_Injury_States.md — OWNS the injury states (R-263 D1, CE-2155) that the person carrier's C3 gate reads
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-274 (behaviors): carry capacity and seats per vehicle type (B) and the human-carrier profile (C); R-275 (behaviors): Health in the cross-role set (D)
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §7.4 OWNS squad casualty care (L4: who carries, when, where to) that uses §7.4.10's actions; §5a OWNS the squad Dismount drill that uses I-2d's Disembark (and the convoy-ambush acceptance); §5 the measured state of embark/disembark (2026-10-11) and why the squad dismount (S3) needs I-2a/I-2b first

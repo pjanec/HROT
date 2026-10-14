@@ -205,6 +205,7 @@ public sealed class EntityTypeCatalogTests
         401 F-16C Fighting Falcon | dis 1.2.225.1.0.0.0 | family Jet | folder Platform/Air/United States/Fighter/Air Defense | icon -
         402 C-130H Hercules | dis 1.2.225.4.0.0.0 | family CargoPlane | folder Platform/Air/United States/Cargo/Tanker | icon -
         403 FPV drone | dis 1.2.0.50.0.0.0 | family Jet | folder Platform/Air/Unmanned Air Vehicle | icon -
+        404 UH-60A Black Hawk (doors off) | dis 1.2.225.21.0.0.0 | family Helicopter | folder Platform/Air/United States/Utility Helicopter | icon -
         1001 CivilianPedestrian | dis 3.1.0.0.0.0.0 | family Person | folder Life Form/Land | icon _person
         1002 CivilianCar | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         2001 MilitaryAPC | dis 1.1.0.2.0.0.0 | family Afv | folder Platform/Land/Armored Fighting Vehicle | icon _afv

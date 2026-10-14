@@ -150,7 +150,9 @@ namespace CarKinem.Systems
             if (@params.Class == VehicleClass.Pedestrian)
                 @params.MaxSpeedFwd *= Hrot.MuscleCharacter.Animation.Components.StanceSpeed.Factor(
                     Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(repo, entity))
-                    * Fdp.Toolkit.Behavior.CarryLoad.Factor(repo, entity);
+                    * Fdp.Toolkit.Behavior.CarryLoad.Factor(repo, entity)
+                    // ⭐ CE-1082 (Injury slice I-b) — and a WOUNDED man limps along at his type's WoundedSpeedFactor (0.6)
+                    * (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() ? Fdp.Toolkit.Combat.Injury.SpeedFactor(repo, entity) : 1f);
             
             // Input conversion (bridge from SimTransform to 2D locals)
             Vector2 pos2D = new Vector2(tf.Position.X, tf.Position.Y);

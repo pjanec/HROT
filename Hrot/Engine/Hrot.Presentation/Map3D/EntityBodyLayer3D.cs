@@ -67,7 +67,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     public void Draw3D(RenderContext ctx)
     {
-        BodiesDrawn = PartsDrawn = DoorsDrawn = 0;
+        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = 0;
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
         if (!ReferenceEquals(world, _queryWorld))
@@ -107,6 +107,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             bool wreck = look.Family != VisualFamily.Person && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
             ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
             var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
+            var carriage = look.Family == VisualFamily.Person ? Carriage.Of(world, e, tkb) : FigureCarriage.Free;   // ⭐ CE-1081..1084 (§6m)
             // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
             bool rotorTurning = look.Family == VisualFamily.Helicopter && !wreck && IsAirborne(world, tf.Position, look.Geometry);
             var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning);
@@ -114,11 +115,26 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             KitPart[] parts;
             KitPivots pivots = default;
             var pose = ArticulationPose.Neutral;
-            if (look.Family == VisualFamily.Person)
+            if (look.Family == VisualFamily.Person && HeldFigure(world, e, look.Soldier, carriage, size, simTime, ref body) is { } held)
+            {
+                parts = held;                       // ⭐ CE-1081..1083 (§6m) — carried, dragged, seated, down: no gait of his own
+                motion = MotionPose.Still with { HipZ = 0.5f };
+            }
+            else if (look.Family == VisualFamily.Person)
             {
                 // ⭐ WL-6c — the posture first (how AIMED he is), then the gait and the upper body from it
                 (parts, float aimed, float crouchRun) = FigurePose(world, e, look.Soldier, simTime, motion);
                 motion = FigureMotion(world, e, motion, look.Soldier, tf, size, simTime, aimed, crouchRun);
+                (parts, motion) = Burdened(world, e, carriage, look.Soldier, parts, motion);
+                // ⭐ CE-1084 (§6m C-4) — just off a raised seat: drawn falling from it, landing crouched
+                var (lift, jumping) = _drops.Free(e, tf.Position.Z + BlockFigure.HipFraction(StanceId.Standing) * size.Z, simTime);
+                if (jumping)
+                {
+                    parts = BlockFigure.Parts(StanceId.Crouched, look.Soldier, PostureOf(world, e), PostureOf(world, e), 1f);
+                    motion = MotionPose.Still with { HipZ = BlockFigure.HipFraction(StanceId.Crouched) };
+                    body *= Matrix4x4.CreateTranslation(0f, 0f, lift);
+                    JumpsDrawn++;
+                }
             }
             else
             {
@@ -169,6 +185,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         }
         _motion.EndFrame(_drawn);
         _fall.EndFrame(_drawn);
+        _down.EndFrame(_drawn);
+        _drops.EndFrame(_drawn);
         _doors.EndFrame(_drawn);
         _tipsGone.Clear();
         foreach (var k in _weaponTips.Keys) if (!_drawn.Contains(k)) _tipsGone.Add(k);
@@ -302,6 +320,82 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     private readonly MotionTracker _motion = new();
     private readonly DeathFall _fall = new();
+    private readonly DeathFall _down = new();         // ⭐ CE-1082 — the incapacitated collapse (the same blend as a death fall)
+    private readonly DismountDrop _drops = new();     // ⭐ CE-1084 — the jump down from a raised seat
+
+    /// <summary>⭐ CE-1084 — figures drawn mid-jump (or just landed) by the last frame (rails).</summary>
+    public int JumpsDrawn { get; private set; }
+
+    /// <summary>⭐ CE-1084 — the jumps (the rails' seam).</summary>
+    public DismountDrop Drops => _drops;
+
+    /// <summary>
+    /// ⭐⭐ CE-1081 … CE-1083 (docs/DESIGN_Map_3D_Mode.md §6m) — the figure of a man who is HELD, and where it goes: CARRIED across his
+    /// carrier's shoulders (<see cref="Carriage.OnShoulders"/>), DRAGGED on his back at his own (the sim's, behind the carrier) place,
+    /// SEATED at his seat's place facing its way (<see cref="Carriage.InSeat"/> — and the jump tracker told where his hips are), DOWN on
+    /// his back (fallen into it over <see cref="DeathFall.Seconds"/>). Null for a man on his own feet (the stance path draws him).
+    /// <paramref name="body"/> becomes the figure's frame in the world.
+    /// </summary>
+    private KitPart[]? HeldFigure(EntityRepository world, Entity e, bool soldier, in FigureCarriage carriage, Vector3 size, double simTime,
+                                  ref Matrix4x4 body)
+    {
+        if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e)) return null;   // the dead fall as before (VE-S)
+        switch (carriage.Kind)
+        {
+            case CarriageKind.Carried when world.HasComponent<SimTransform>(carriage.Holder):
+            {
+                ref readonly var c = ref world.GetComponentRO<SimTransform>(carriage.Holder);
+                body = Carriage.OnShoulders(Matrix4x4.CreateFromQuaternion(c.Rotation) * Matrix4x4.CreateTranslation(c.Position), size.Z);
+                _fall.Alive(e, StanceId.Prone, simTime);   // dying up there falls from a lying figure, not from a standing one
+                return BlockFigure.Draped(soldier);
+            }
+            case CarriageKind.Dragged:
+                _fall.Alive(e, StanceId.Prone, simTime);
+                return BlockFigure.Towed(soldier);
+            case CarriageKind.Seated when carriage.Seat is { } seat && world.HasComponent<SimTransform>(carriage.Holder):
+            {
+                ref readonly var v = ref world.GetComponentRO<SimTransform>(carriage.Holder);
+                body = Carriage.InSeat(Matrix4x4.CreateFromQuaternion(v.Rotation) * Matrix4x4.CreateTranslation(v.Position), seat);
+                _drops.Riding(e, body.Translation.Z, simTime);
+                _fall.Alive(e, StanceId.Crouched, simTime);
+                return BlockFigure.Seated(seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut, soldier);
+            }
+            case CarriageKind.Downed:
+            {
+                var (t, from) = _down.Dead(e, simTime);
+                _fall.Alive(e, StanceId.Prone, simTime);
+                return BlockFigure.Collapse(BlockFigure.Parts(from, soldier, PostureOf(world, e)), t, soldier);
+            }
+            default:
+                _down.Alive(e, LogicalStance.Of(world, e), simTime);
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1081 / CE-1082 (§6m C-1, C-2) — a man on his own feet who CARRIES or DRAGS someone (his arms on the load, his body leaning under
+    /// it) or who is WOUNDED (he limps: his right leg stiff, shorter steps, his upper body bent — standing still too). Standing only: a
+    /// crouched or prone man keeps his stance's figure.
+    /// </summary>
+    public static (KitPart[] Parts, MotionPose Motion) Burdened(EntityRepository world, Entity e, in FigureCarriage carriage, bool soldier,
+                                                                KitPart[] parts, MotionPose motion)
+    {
+        if (LogicalStance.Of(world, e) != StanceId.Standing || Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e)) return (parts, motion);
+        if (carriage.Kind is CarriageKind.Carrying or CarriageKind.Dragging)
+        {
+            bool drag = carriage.Kind == CarriageKind.Dragging;
+            parts = BlockFigure.CarrierArms(parts, drag, soldier);
+            motion = motion with { Lean = motion.Lean + (drag ? BlockFigure.DragLean : BlockFigure.CarryLean) };
+        }
+        if (carriage.Wounded)
+            motion = motion with
+            {
+                Lean = motion.Lean + BlockFigure.WoundedLean,
+                KneeFlexR = 0f,
+                Swing = motion.Swing * (1f - BlockFigure.WoundedStepCut),
+            };
+        return (parts, motion);
+    }
     private readonly DoorSwing _doors = new();
     private readonly Dictionary<Entity, (Vector3 Tip, Vector3 Forward)> _weaponTips = new();
     private readonly List<Entity> _tipsGone = new();

@@ -374,19 +374,12 @@ namespace Hrot.Map.Definitions.Tkb
             //   Public figures, rounded; the gear's X is from the CG. DIS subcategory left 0 (generic) — not verified.
             //   📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md G4.
             DefineAircraft(builder, TkbEntityTypes.Heli_UH60, "UH-60A Black Hawk", "SFAPMHU-------", "#56604F",
-                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 21 },
-                new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
-                {
-                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
-                    Length = 19.76f, Width = 16.36f, Height = 5.13f,   // rotors turning; width = main-rotor diameter
-                    BodyCentreX = -1.70f, BodyCentreZ = 0.815f,        // box bottom = the tyres (−1.75)
-                    GroundContacts =
-                    {
-                        Wheel("main left",  2.6f,  1.35f, -1.75f, 0.38f, 0.9f, retractable: false),
-                        Wheel("main right", 2.6f, -1.35f, -1.75f, 0.38f, 0.9f, retractable: false),
-                        Wheel("tail",      -6.2f,  0f,    -1.75f, 0.20f, 0.7f, retractable: false),
-                    },
-                });
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 21 }, Uh60Geometry());
+            // ⭐ CE-1083 (docs/DESIGN_Map_3D_Mode.md §6m C-3) — the same Black Hawk with its cabin doors off: Gen.Carrier OPEN, eight seats,
+            //   four in each door on the cabin floor's edge (the drawn fuselage: ±1.15 m wide, its floor ~0.9 m under the CG), legs out.
+            DefineAircraft(builder, TkbEntityTypes.Heli_UH60_DoorsOff, "UH-60A Black Hawk (doors off)", "SFAPMHU-------", "#56604F",
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 21 }, Uh60Geometry());
+            builder.WithCarrier(TkbEntityTypes.Heli_UH60_DoorsOff, DoorSeats());
             DefineAircraft(builder, TkbEntityTypes.Jet_F16, "F-16C Fighting Falcon", "SFAPMFF-------", "#8A929C",
                 new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 1 },
                 new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
@@ -485,6 +478,33 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, 2)
                 .WithBehavior(type)
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50 });   // air, 50 = unmanned (generic country)
+        }
+
+        /// <summary>The UH-60's body (CE-1041): CG-referenced, resting on its tyres.</summary>
+        private static Fdp.Toolkit.Tkb.Domain.BodyGeometryDto Uh60Geometry() => new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+                {
+                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+                    Length = 19.76f, Width = 16.36f, Height = 5.13f,   // rotors turning; width = main-rotor diameter
+                    BodyCentreX = -1.70f, BodyCentreZ = 0.815f,        // box bottom = the tyres (−1.75)
+                    GroundContacts =
+                    {
+                        Wheel("main left",  2.6f,  1.35f, -1.75f, 0.38f, 0.9f, retractable: false),
+                        Wheel("main right", 2.6f, -1.35f, -1.75f, 0.38f, 0.9f, retractable: false),
+                        Wheel("tail",      -6.2f,  0f,    -1.75f, 0.20f, 0.7f, retractable: false),
+                    },
+                };
+
+        /// <summary>⭐ CE-1083 — a doors-off Black Hawk's eight door seats: four a side on the cabin floor's edge, facing out, legs over the sill.</summary>
+        private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto DoorSeats()
+        {
+            var dto = new Fdp.Toolkit.Tkb.Domain.CarrierDefDto { Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Open };
+            foreach (float side in new[] { 1f, -1f })
+                foreach (float x in new[] { 2.4f, 1.8f, 1.2f, 0.6f })
+                    dto.Seats.Add(new Fdp.Toolkit.Tkb.Domain.SeatDto
+                    {
+                        X = x, Y = 1.05f * side, Z = -0.85f, FacingDegrees = 90f * side, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut,
+                    });
+            return dto;
         }
 
         private static void DefineAircraft(NedTkbBuilder builder, long type, string name, string symbol, string colour,

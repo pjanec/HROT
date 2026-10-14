@@ -529,6 +529,209 @@ public sealed class Map3DTests
         Assert.True(layer.TryGetBox(world, Soldier(1, aboard: true), db, out _, out _, out _));     // on a motorcycle
     }
 
+    // ── ⭐ CE-1081 … CE-1084 (docs/DESIGN_Map_3D_Mode.md §6m) — the carried, the dragged, the wounded, the seated, the jump down ──
+
+    private static (EntityRepository World, ITkbDatabase Db) HeldWorld()
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+        return (world, BuiltIn());
+    }
+
+    private static Entity Man(EntityRepository world, Vector3 at, float health = 100f, long type = TkbEntityTypes.Infantry_Rifleman)
+    {
+        var e = world.CreateEntity();
+        world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+        world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
+        world.AddComponent(e, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f, WoundedSpeedFactor = 0.6f });
+        return e;
+    }
+
+    private static Entity Carries(EntityRepository world, Entity carrier, Entity casualty, Fdp.Toolkit.Behavior.Components.CarryMode mode)
+    {
+        world.AddComponent(carrier, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f, DragBehindMetres = 1f });
+        var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1 };
+        list.SetMode(0, mode);
+        world.AddComponent(carrier, list);
+        world.AddComponent(casualty, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = carrier, Exposed = 1, Mode = mode });
+        return casualty;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1081 … CE-1083 — ONE classifier says how a man is held, from what every map host already has: the embarked tag (carried /
+    /// dragged by a person carrier, seated in an exposed seat with a place), the carrier's own list (he carries / drags), and the injury
+    /// state off the replicated health (wounded — combinable; incapacitated — down). An ENCLOSED seat, or an open one with no place, is
+    /// no carriage of its own (the old rule draws or hides him).
+    /// </summary>
+    [Fact]
+    public void CE1081_TheCarriage_SaysHowAManIsHeld()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            var bearer = Man(world, new Vector3(0f, 0f, 0f));
+            var carried = Carries(world, bearer, Man(world, Vector3.Zero, health: 20f), Fdp.Toolkit.Behavior.Components.CarryMode.Carried);
+            Assert.Equal((CarriageKind.Carried, bearer), (Carriage.Of(world, carried, db).Kind, Carriage.Of(world, carried, db).Holder));
+            Assert.Equal(CarriageKind.Carrying, Carriage.Of(world, bearer, db).Kind);
+
+            var puller = Man(world, new Vector3(10f, 0f, 0f), health: 50f);   // a WOUNDED man can still drag
+            var dragged = Carries(world, puller, Man(world, Vector3.Zero, health: 20f), Fdp.Toolkit.Behavior.Components.CarryMode.Dragged);
+            Assert.Equal(CarriageKind.Dragged, Carriage.Of(world, dragged, db).Kind);
+            Assert.Equal(new FigureCarriage(CarriageKind.Dragging, Wounded: true), Carriage.Of(world, puller, db));
+
+            var heli = Man(world, new Vector3(50f, 0f, 1.75f), type: TkbEntityTypes.Heli_UH60_DoorsOff);
+            var rider = Man(world, Vector3.Zero);
+            world.AddComponent(rider, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = heli, Exposed = 1, Seat = 5 });
+            var seated = Carriage.Of(world, rider, db);
+            Assert.Equal(CarriageKind.Seated, seated.Kind);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut, seated.Seat!.Pose);
+            Assert.True(seated.Seat.Y < 0f, "seat 5 is in the RIGHT door");
+
+            var inside = Man(world, Vector3.Zero);
+            world.AddComponent(inside, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = heli, Exposed = 0, Seat = 1 });
+            Assert.Equal(CarriageKind.Free, Carriage.Of(world, inside, db).Kind);
+
+            Assert.Equal(new FigureCarriage(CarriageKind.Free, Wounded: true), Carriage.Of(world, Man(world, Vector3.Zero, health: 50f), db));
+            Assert.Equal(CarriageKind.Downed, Carriage.Of(world, Man(world, Vector3.Zero, health: 20f), db).Kind);
+            Assert.Equal(FigureCarriage.Free, Carriage.Of(world, Man(world, Vector3.Zero), db));
+        }
+    }
+
+    /// <summary>⭐ CE-1081 (C-1) — the CARRIED man lies across his carrier's shoulders: his middle at the shoulders' height, crosswise (his
+    /// head off to the carrier's LEFT and hanging lower), not standing inside the carrier as the sim's position alone would draw him.</summary>
+    [Fact]
+    public void CE1081_TheCarriedMan_LiesAcrossTheShoulders_HisHeadHangingAtTheLeft()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var carrierBody = Matrix4x4.CreateTranslation(10f, 20f, 0f);   // facing +X
+        var frame = Carriage.OnShoulders(carrierBody, size.Z);
+        var parts = BlockFigure.Draped(soldier: true);
+        var torso = Vector3.Transform(Vector3.Zero, parts[BlockFigure.TorsoIndex].BodyTransform(size) * frame);
+        var head = Vector3.Transform(Vector3.Zero, parts[BlockFigure.HeadIndex].BodyTransform(size) * frame);
+        Assert.InRange(torso.Z, 1.4f, 1.7f);
+        Assert.InRange(torso.X, 9.8f, 10.2f);
+        Assert.True(head.Y > torso.Y + 0.2f, $"head {head} is not off to the carrier's left of the torso {torso}");
+        Assert.True(head.Z < torso.Z, "the head hangs");
+    }
+
+    /// <summary>⭐ CE-1081 / CE-1082 / CE-1083 — every new figure keeps the shared parts-in-order rule (10 parts, 11 with a rifle; the
+    /// head at <see cref="BlockFigure.HeadIndex"/>), so blends, the eye and the muzzle find their parts.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CE1081_EveryHeldFigure_KeepsTheSharedPartOrder(bool soldier)
+    {
+        int n = BlockFigure.Parts(StanceId.Standing, soldier).Length;
+        foreach (var parts in new[]
+                 {
+                     BlockFigure.Draped(soldier), BlockFigure.Towed(soldier), BlockFigure.Seated(true, soldier), BlockFigure.Seated(false, soldier),
+                     BlockFigure.Downed(soldier), BlockFigure.CarrierArms(BlockFigure.Parts(StanceId.Standing, soldier), drag: true, soldier),
+                 })
+        {
+            Assert.Equal(n, parts.Length);
+            Assert.True(parts[BlockFigure.HeadIndex].Extent.Z > 0f);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1083 (C-3) — the doors-off Black Hawk's riders sit IN ITS DOORS: eight open seats with places; a rider's hips are at his seat
+    /// (the vehicle turned and moved), he faces out of his door, and his legs hang down outside the fuselage. 🔒 User, 2026-10-14: "some
+    /// helicopters might not have side doors … so passenger soldiers can be shown there".
+    /// </summary>
+    [Fact]
+    public void CE1083_ADoorsOffBlackHawk_SeatsItsRidersInTheDoors_LegsOut()
+    {
+        var db = BuiltIn();
+        Assert.True(db.TryGetByType(TkbEntityTypes.Heli_UH60_DoorsOff, out var heli) && heli != null);
+        var carrier = heli!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>()!;
+        Assert.Equal(Fdp.Toolkit.Behavior.Components.PassengerExposure.Open, carrier.Exposure);
+        Assert.Equal(8, carrier.Seats.Count);
+        Assert.All(carrier.Seats, seat => Assert.True(seat.HasPlace && MathF.Abs(seat.Y) > 1f));
+        Assert.Null(db.GetByType(TkbEntityTypes.Heli_UH60)!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>());   // the doors-on one is unchanged
+
+        var seat = carrier.Seats[0];                                   // the left door, forward
+        var heliBody = Matrix4x4.CreateFromYawPitchRoll(0f, 0f, MathF.PI / 2f) * Matrix4x4.CreateTranslation(100f, 50f, 1.75f);   // turned to face +Y
+        var frame = Carriage.InSeat(heliBody, seat);
+        var hips = Vector3.Transform(Vector3.Zero, frame);
+        var expected = Vector3.Transform(new Vector3(seat.X, seat.Y, seat.Z), heliBody);
+        Assert.InRange(Vector3.Distance(hips, expected), 0f, 0.01f);
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var parts = BlockFigure.Seated(legsOut: true, soldier: true);
+        var foot = Vector3.Transform(Vector3.Zero, parts[1].BodyTransform(size) * frame);   // the left shin
+        var outward = Vector3.TransformNormal(new Vector3(0f, MathF.Sign(seat.Y), 0f), heliBody);
+        Assert.True(Vector3.Dot(foot - hips, outward) > 0.1f, "his legs hang OUT of the door");
+        Assert.True(foot.Z < hips.Z - 0.3f, "and down");
+    }
+
+    /// <summary>
+    /// ⭐ CE-1084 (C-4) — the JUMP DOWN: a rider seen in a raised seat who is free the next frame is drawn that much higher, falling as
+    /// 1 − t² over the free-fall time, then crouched on landing, then free; a seat no higher than standing hips + 0.5 m is a step, not a
+    /// jump; a ride not seen ending (a jump in time) shows no fall.
+    /// </summary>
+    [Fact]
+    public void CE1084_LeavingARaisedSeat_IsAFall_ThenACrouchedLanding()
+    {
+        var drops = new DismountDrop();
+        var a = new Entity(1, 1);
+        drops.Riding(a, hipsZ: 3.0f, now: 10.0);
+        var (lift0, jumping0) = drops.Free(a, standingHipsZ: 0.9f, now: 10.1);
+        Assert.True(jumping0);
+        Assert.InRange(lift0, 1.0f, 2.1f);
+        float fall = DismountDrop.FallSeconds(2.1f);
+        var (liftLater, _) = drops.Free(a, 0.9f, 10.1 + fall * 0.8);
+        Assert.True(liftLater < lift0 * 0.5f, "falling");
+        Assert.Equal((0f, true), drops.Free(a, 0.9f, 10.1 + fall + 0.1));                          // landed, crouched
+        Assert.Equal((0f, false), drops.Free(a, 0.9f, 10.1 + fall + DismountDrop.LandSeconds + 0.1)); // up again
+
+        var b = new Entity(2, 1);
+        drops.Riding(b, hipsZ: 1.2f, now: 10.0);
+        Assert.Equal((0f, false), drops.Free(b, 0.9f, 10.05));                                       // a landed Black Hawk: a step
+        var c = new Entity(3, 1);
+        drops.Riding(c, hipsZ: 4.0f, now: 10.0);
+        Assert.Equal((0f, false), drops.Free(c, 0.9f, 12.0));                                        // not seen ending
+    }
+
+    /// <summary>
+    /// ⭐ CE-1082 (C-2) — a WOUNDED man limps: his upper body bent ~15°, his right knee no longer bends (a stiff leg), his steps shorter —
+    /// standing still he is still bent. ⭐ CE-1081 — a man carrying leans under the load and his hands go up to it; dragging, further.
+    /// </summary>
+    [Fact]
+    public void CE1082_AWoundedManLimps_AndACarrierLeansUnderHisLoad()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            var e = Man(world, Vector3.Zero, health: 50f);
+            var walking = new MotionPose(0f, 0f, 0.5f, Stride: 1f, KneeFlexL: 0.4f, KneeFlexR: 0.4f);
+            var parts = BlockFigure.Parts(StanceId.Standing, soldier: true);
+            var (_, limp) = EntityBodyLayer3D.Burdened(world, e, Carriage.Of(world, e, db), true, parts, walking);
+            Assert.Equal(BlockFigure.WoundedLean, limp.Lean, 3);
+            Assert.Equal(0f, limp.KneeFlexR);
+            Assert.Equal(0.4f, limp.KneeFlexL, 3);
+            Assert.True(limp.Swing < walking.Swing);
+
+            var healthy = Man(world, Vector3.Zero);
+            var (sameParts, same) = EntityBodyLayer3D.Burdened(world, healthy, Carriage.Of(world, healthy, db), true, parts, walking);
+            Assert.Equal(walking, same);
+            Assert.Same(parts, sameParts);
+
+            var bearer = Man(world, Vector3.Zero);
+            Carries(world, bearer, Man(world, Vector3.Zero, health: 20f), Fdp.Toolkit.Behavior.Components.CarryMode.Carried);
+            var (arms, leaning) = EntityBodyLayer3D.Burdened(world, bearer, Carriage.Of(world, bearer, db), true, parts, walking);
+            Assert.Equal(BlockFigure.CarryLean, leaning.Lean, 3);
+            var size = ShapeKits.DefaultSize(VisualFamily.Person);
+            var hand = Vector3.Transform(new Vector3(0.5f, 0f, 0f), arms[BlockFigure.TorsoIndex + 3].BodyTransform(size));   // left forearm's end
+            Assert.True(hand.Z > 1.4f, $"his hand {hand} is up on the load");
+        }
+    }
+
     // ── aircraft (SISO-REF-010 platform / air categories) ──
 
     [Theory]

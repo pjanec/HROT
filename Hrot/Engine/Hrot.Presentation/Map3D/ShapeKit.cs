@@ -650,6 +650,118 @@ public static class BlockFigure
     /// Muscle; death is a health fact, and the renderer draws it because the man is destroyed (<c>CombatLife.IsDestroyed</c>).</summary>
     public static KitPart[] Dead(bool soldier) => soldier ? DeadArmed : DeadPose;
 
+    // ── ⭐ CE-1081 … CE-1084 (docs/DESIGN_Map_3D_Mode.md §6m) — the held, the seated and the downed; every one in the shared part order ──
+
+    private static readonly KitPart RifleOnBack = Limb(new(-0.12f, -0.05f, 0.27f), new(0.62f, 0.05f, 0.27f), 0.05f, 0.08f, ColourRole.Metal);
+
+    /// <summary>
+    /// ⭐ CE-1081 (C-1) — CARRIED across a man's shoulders (a fireman's carry), limp: his middle is the figure's origin, his torso lies
+    /// along +X toward his head, which hangs a little lower; his legs hang down the other side, knees folded; his arms hang straight down;
+    /// a soldier's rifle stays slung on his back. <c>Carriage.OnShoulders</c> places this frame on the carrier.
+    /// </summary>
+    public static readonly KitPart[] DrapedBody =
+    [
+        .. Legs(new(-0.10f, 0.11f, 0.02f), new(-0.32f, 0.13f, -0.80f), new(-0.10f, -0.11f, 0.02f), new(-0.32f, -0.13f, -0.80f), swings: false,
+                bend: new Vector3(-1f, 0f, 0f)),
+        P(0.22f, 0f, 0.06f, 0.60f, 0.40f, 0.24f, ColourRole.Body),                 // torso, lying across
+        P(0.62f, 0f, -0.12f, 0.22f, 0.20f, 0.24f, ColourRole.Body),                // head, hanging
+        .. Arm(new(0.48f, 0.21f, 0.02f), new(0.56f, 0.22f, -0.28f), new(0.58f, 0.18f, -0.58f), PartRole.Hull),
+        .. Arm(new(0.48f, -0.21f, 0.02f), new(0.56f, -0.22f, -0.28f), new(0.58f, -0.18f, -0.58f), PartRole.Hull),
+    ];
+
+    /// <summary>⭐ CE-1081 — the carried figure (with his rifle on his back when a soldier).</summary>
+    public static KitPart[] Draped(bool soldier) => soldier ? [.. DrapedBody, RifleOnBack] : DrapedBody;
+
+    /// <summary>
+    /// ⭐ CE-1081 (C-1) — DRAGGED on his back, head toward the man pulling him (+X, like the dead and the prone), legs trailing together,
+    /// both arms up over his head to the carrier's hand; a soldier's rifle on his chest.
+    /// </summary>
+    public static readonly KitPart[] TowedBody =
+    [
+        .. Legs(new(-0.17f, 0.11f, 0.08f), new(-1.02f, 0.15f, 0.07f), new(-0.17f, -0.11f, 0.08f), new(-1.02f, -0.15f, 0.07f), swings: false),
+        P(0.02f, 0f, 0.12f, 0.60f, 0.42f, 0.22f, ColourRole.Body),
+        P(0.46f, 0f, 0.13f, 0.22f, 0.20f, 0.21f, ColourRole.Body),
+        .. Arm(new(0.28f, 0.21f, 0.12f), new(0.52f, 0.20f, 0.40f), new(0.74f, 0.10f, 0.75f), PartRole.Hull),
+        .. Arm(new(0.28f, -0.21f, 0.12f), new(0.52f, -0.20f, 0.40f), new(0.74f, -0.10f, 0.75f), PartRole.Hull),
+    ];
+
+    /// <summary>⭐ CE-1081 — the dragged figure.</summary>
+    public static KitPart[] Towed(bool soldier)
+        => soldier ? [.. TowedBody, Limb(new(-0.25f, -0.05f, 0.26f), new(0.45f, 0.05f, 0.27f), 0.05f, 0.08f, ColourRole.Metal)] : TowedBody;
+
+    /// <summary>
+    /// ⭐ CE-1081 (C-1) — the CARRIER's arms on a standing figure: carrying, both hands up on the load on his shoulders; dragging, the left
+    /// arm hangs and the right reaches back and down to the casualty's hands. A soldier's rifle is slung across his back (he cannot fire —
+    /// <c>Embarkation</c> takes his CanShoot). Only the arm parts (and the rifle) change; the legs keep their gait roles.
+    /// </summary>
+    public static KitPart[] CarrierArms(KitPart[] standing, bool drag, bool soldier)
+    {
+        if (standing.Length < TorsoIndex + 2 + 4) return standing;
+        var parts = (KitPart[])standing.Clone();
+        var arms = drag
+            ? (KitPart[])[.. Arm(StandShoulderL, StandShoulderL + new Vector3(0.02f, 0.02f, -0.30f), StandShoulderL + new Vector3(0.04f, -0.02f, -0.60f), PartRole.Hull),
+                          .. Arm(StandShoulderR, new(-0.20f, -0.28f, 1.15f), new(-0.32f, -0.12f, 0.85f), PartRole.Hull)]
+            : [.. Arm(StandShoulderL, new(0.20f, 0.32f, 1.25f), new(0.16f, 0.20f, 1.58f), PartRole.Hull),
+               .. Arm(StandShoulderR, new(0.20f, -0.32f, 1.25f), new(0.18f, -0.20f, 1.60f), PartRole.Hull)];
+        for (int i = 0; i < 4; i++) parts[TorsoIndex + 2 + i] = arms[i];
+        if (soldier && parts.Length > TorsoIndex + 6)
+            parts[TorsoIndex + 6] = Limb(new(-0.16f, 0.22f, 1.55f), new(-0.14f, -0.24f, 0.85f), 0.05f, 0.08f, ColourRole.Metal);   // slung
+        return parts;
+    }
+
+    /// <summary>⭐ CE-1081 — how far a carrier's upper body leans under the load (radians): carrying ~11°, dragging ~17°.</summary>
+    public const float CarryLean = 0.20f, DragLean = 0.30f;
+
+    /// <summary>
+    /// ⭐ CE-1083 (C-3) — SEATED, his hips the figure's origin: on a bench (<paramref name="legsOut"/> false) thighs forward and shins down
+    /// to the floor; on a sill (true) legs hanging out over its edge. Upper body upright, hands on his thighs — a soldier holds his rifle
+    /// upright between his knees.
+    /// </summary>
+    public static KitPart[] Seated(bool legsOut, bool soldier)
+    {
+        var legs = legsOut
+            ? Legs(new(0f, 0.11f, 0f), new(0.30f, 0.13f, -0.80f), new(0f, -0.11f, 0f), new(0.30f, -0.13f, -0.80f), swings: false)
+            : Legs(new(0f, 0.11f, 0f), new(0.46f, 0.11f, -0.44f), new(0f, -0.11f, 0f), new(0.46f, -0.11f, -0.44f), swings: false,
+                   bend: new Vector3(1f, 0f, 1f));
+        var shoulderL = new Vector3(0f, 0.26f, 0.53f);
+        var shoulderR = new Vector3(0f, -0.26f, 0.53f);
+        KitPart[] body =
+        [
+            .. legs,
+            P(-0.02f, 0f, 0.28f, 0.24f, 0.40f, 0.56f, ColourRole.Body, upper: true),
+            P(0f, 0f, 0.70f, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),
+        ];
+        if (!soldier)
+            return [.. body, .. Arm(shoulderL, new(0.12f, 0.30f, 0.28f), new(0.30f, 0.16f, 0.05f), PartRole.Hull),
+                             .. Arm(shoulderR, new(0.12f, -0.30f, 0.28f), new(0.30f, -0.16f, 0.05f), PartRole.Hull)];
+        return [.. body, .. Arm(shoulderL, new(0.16f, 0.26f, 0.30f), new(0.32f, 0.04f, 0.18f), PartRole.Hull),
+                         .. Arm(shoulderR, new(0.16f, -0.26f, 0.24f), new(0.30f, -0.04f, 0.02f), PartRole.Hull),
+                         Limb(new(0.28f, 0f, -0.32f), new(0.34f, 0f, 0.48f), 0.05f, 0.08f, ColourRole.Metal)];
+    }
+
+    /// <summary>
+    /// ⭐ CE-1082 (C-2) — DOWN BUT ALIVE (incapacitated): on his back like the dead, but one knee up and a hand on his chest — alive,
+    /// hurt; a soldier's rifle dropped beside him.
+    /// </summary>
+    public static readonly KitPart[] DownedBody =
+    [
+        .. Leg(new(-0.17f, 0.12f, 0.08f), new(-1.02f, 0.22f, 0.07f), true, swings: false),
+        .. Leg(new(-0.17f, -0.12f, 0.08f), new(-0.62f, -0.14f, 0.07f), false, swings: false, bend: Vector3.UnitZ),   // knee up
+        P(0.02f, 0f, 0.12f, 0.60f, 0.42f, 0.22f, ColourRole.Body),
+        P(0.46f, 0f, 0.12f, 0.22f, 0.20f, 0.21f, ColourRole.Body),
+        .. Arm(new(0.28f, 0.21f, 0.10f), new(0.14f, 0.30f, 0.20f), new(0.08f, 0.02f, 0.27f), PartRole.Hull),        // hand on his chest
+        .. Arm(new(0.28f, -0.21f, 0.08f), new(0.36f, -0.48f, 0.06f), new(0.30f, -0.76f, 0.06f), PartRole.Hull),
+    ];
+
+    /// <summary>⭐ CE-1082 — the downed figure.</summary>
+    public static KitPart[] Downed(bool soldier) => soldier ? [.. DownedBody, RifleDropped] : DownedBody;
+
+    /// <summary>⭐ CE-1082 — the collapse: <paramref name="from"/> part-way to <see cref="Downed"/> (<paramref name="t"/> 0..1, as the fall).</summary>
+    public static KitPart[] Collapse(KitPart[] from, float t, bool soldier) => Lerp(from, Downed(soldier), t);
+
+    /// <summary>⭐ CE-1082 — a WOUNDED man's limp (radians / shares): his upper body bent forward ~15°, steps this much shorter.</summary>
+    public const float WoundedLean = 0.26f, WoundedStepCut = 0.30f;
+
     /// <summary>⭐ W4 (VE-S) — the fall: <paramref name="from"/> (his last stance's parts) part-way to <see cref="Dead"/>, every part's
     /// centre, size, yaw and pitch interpolated (<paramref name="t"/> 0..1 over <see cref="DeathFall.Seconds"/>).</summary>
     public static KitPart[] Fall(KitPart[] from, float t, bool soldier) => Lerp(from, Dead(soldier), t);

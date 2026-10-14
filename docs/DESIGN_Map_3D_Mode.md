@@ -8,12 +8,14 @@ updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assume
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
-  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §7 what is NOT verified.
+  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: none open — ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/DESIGN_Entity_Interactions.md §7.4.8-§7.4.10 — OWNS carrying as embarkation (PassengerBuffer.Modes, IsEmbarkedTag) and seats (CarrierSeats, Exposure); §6m here draws them (C10's "its pose is a later presentation item")
+  - docs/DESIGN_Injury_States.md — OWNS the injury states (derived from Health) and slice I-b (wounded speed), which §6m builds
   - docs/DESIGN_Orders_Params_Entity_Classes.md §13.12 — the order form's map picks rely on §3.8's unchanged input chain in 3-D
   - docs/DESIGN_Orders_Params_Entity_Classes.md — C2 (CE-2138): VisualFamilies grows into the shared hard-coded entity class table
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — §2.3o (lean): VisualFamilies grows into the hard-coded entity CLASS table (named DIS masks) that the behaviour lookup also uses; units get their own DIS Kind, so the composite special case becomes a DIS match
@@ -1420,6 +1422,117 @@ The free camera's feel was not seen with a real mouse — the wheel glide and th
 📐 Rails: `Map3DTests.CE1072_*` ×3 (the wheel glides, keeps flying at the pivot, the fly eases) + `CE1044_FlySpeed_*` (re-read once the ease
 has settled — the speeds are unchanged) · `Map3DTests.CE1073_*` ×2 (the head is part `HeadIndex` in every pose; the eye follows a lean, a
 crouch and prone) · `PossessionStationTests.CE1073_*` (the eye on the current pose, the head hidden while held, the look the same frame).
+
+### 6m. CE-1081 … CE-1084 — the carried and the dragged, the wounded, riders in their seats, the jump down — DESIGN `2026-10-14` (ui)
+
+🔒 **User, `2026-10-14`:** *"the soldiers now can drag or carry another soldier (wounded one), using pick and drop action. can you pls render
+in 3d map the carried/dragged one? Also when soldier is wounded his motion pattern could be degraded (limping, bent etc.) also vehicles got
+seats (slots) to be occupied and some helicopters might not have side doors (existing setting in tkb) so passenger soldiers can be shown
+there (and when dismounting they could jump down to ground)"* — the four leans and the 0.6× wounded speed: *"Approved"*.
+
+📐 **INVENTORY** *(an Explore sweep of `docs/`, `.dev/` and the code, then the load-bearing lines re-read by hand)*:
+
+| fact | where | so |
+|---|---|---|
+| carrying IS embarking: the carrier is the "vehicle", the casualty its passenger; `PassengerBuffer.Modes` (2 bits a seat) says Seated / Carried / Dragged; the casualty's `IsEmbarkedTag { VehicleEntity, Exposed, Seat, Mode }` is re-derived on EVERY node (map hosts too) | `InteractionComponents.cs:14-80`, `EmbarkedStateSystem.cs:48-70` | ⭐ the renderer can read who carries whom on any host — no new wire |
+| the casualty's transform = the carrier's position − its forward × (carried: `CarryBehindMetres` 0 m · dragged: 1 m), the carrier's heading; Z not lifted | `EmbarkedStateSystem.cs:115-123`, `CarrierDefDto.cs:53-63` | a carried man stands INSIDE his carrier today; the pose must lift and turn him (presentation only — C10: *"its pose is a later presentation item"*) |
+| a person is drawn in his logical stance, his gait from his own position change | `EntityBodyLayer3D.FigurePose`, `MotionTracker` | a carried / dragged man would WALK; his figure must replace the stance pose |
+| injury is DERIVED: `Injury.StateOf` from replicated `Health` + `InjuryThresholds` (type data) | `Injury.cs:8-56`, `DESIGN_Injury_States.md` I1 | every host knows wounded / incapacitated — no new wire |
+| speed = `StanceSpeed × CarryLoad`; the wounded factor is slice **I-b**, open | `CarKinematicsSystem.cs:149-153`, Injury §I-b | ⭐ the 0.6× is ONE more factor there, its value a TKB field beside the thresholds |
+| a seat knows its role and whether it is exposed — **no position** | `CarrierSeats`, `SeatDto { Role, Exposed }`, `DESIGN_Map_3D_Mode.md:817` | `SeatDto` grows a place, a facing and a pose |
+| "no side doors" = `CarrierDefDto.Exposure = Open` → `IsEmbarkedTag.Exposed`; ⚠ no production type is Open but the person carrier; the UH-60 has no `Gen.Carrier` at all | `CarrierTkbTranslator.cs:64-82`, `BdcTkbCatalog.cs:376` | a new type **UH-60A (doors off)**, 8 door seats |
+| an exposed rider is drawn at the vehicle's reference point in his stance; an enclosed one not at all | `EntityBodyLayer3D.cs:101`, `PhysicalPresence.IsEnclosedPassenger` | the seat's place puts him where he sits |
+| dismount: a column beside the vehicle at the vehicle's Z; the pedestrian clamp then puts him on the surface | `Embarkation.DismountPoint`, `CarKinematicsSystem.cs:464` | the jump is a DRAWING of that drop, from the seat he left |
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityBodyLayer3D { <<existing, grows>> Draw3D · FigurePose · FigureMotion · + Carriage(world, e) }
+    class Carriage { <<NEW static, Map3D>> Of(world, e, tkb) FigureCarriage · Placement(...) Matrix4x4 }
+    class FigureCarriage { <<NEW record struct>> Kind : Free · Carried · Dragged · Carrying · Dragging · Seated · Jumping · Downed · Wounded ; Vehicle ; Seat }
+    class BlockFigure { <<existing, grows>> + Draped · Towed · CarrierArms(drag) · Seated(legsOut) · Downed — 10/11 parts, the shared order }
+    class DismountDrop { <<NEW, beside DeathFall>> Riding(e, seatWorld, now) · Left(e, now) (t, height) }
+    class DeathFall { <<existing>> a second instance: the incapacitated collapse }
+    class Injury { <<existing, grows>> + SpeedFactor(world, e) }
+    class InjuryThresholds { <<existing, grows>> + WoundedSpeedFactor }
+    class InjuryDefDto { <<TKB, grows>> + WoundedSpeedFactor = 0.6 }
+    class SeatDto { <<TKB, grows>> + X Y Z · FacingDegrees · Pose (Sit · SitLegsOut) }
+    class CarKinematicsSystem { <<existing>> × Injury.SpeedFactor }
+    class IsEmbarkedTag { <<existing, every node>> VehicleEntity · Exposed · Seat · Mode }
+    class BdcTkbCatalog { <<existing, grows>> + UH-60A (doors off), 8 open door seats }
+    EntityBodyLayer3D ..> Carriage
+    Carriage ..> IsEmbarkedTag : reads
+    Carriage ..> SeatDto : the seat's place
+    Carriage ..> Injury : wounded / down
+    EntityBodyLayer3D ..> BlockFigure
+    EntityBodyLayer3D *-- DismountDrop
+    EntityBodyLayer3D *-- DeathFall
+    CarKinematicsSystem ..> Injury
+    InjuryDefDto ..> InjuryThresholds : stamped
+    BdcTkbCatalog ..> SeatDto
+```
+
+*What the picture shows that prose hid:* ONE classifier (`Carriage`) answers "how is this man held?" from facts every host already has, and
+every answer is a figure + a placement — so no new wire, no new simulation state, and the only sim change is one speed factor.
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D (each frame, each person)
+    participant C as Carriage
+    participant F as BlockFigure
+    participant D as DismountDrop
+    L->>C: Of(world, e)
+    alt carried (tag Mode Carried, a person carrier)
+        C-->>L: Carried, the carrier
+        L->>F: Draped
+        L->>L: placed across the carrier's shoulders, no gait
+    else dragged
+        C-->>L: Dragged
+        L->>F: Towed (on his back, arms up to the carrier)
+    else he carries / drags someone
+        C-->>L: Carrying or Dragging
+        L->>F: CarrierArms, the body leaning under the load
+    else in an exposed seat with a place
+        C-->>L: Seated, the vehicle and seat
+        L->>F: Seated (legs in, or out over the sill)
+        L->>D: Riding(e, the seat in the world)
+    else just left a raised seat
+        L->>D: Left(e, now)
+        D-->>L: t, the height he dropped from
+        L->>L: drawn that much higher, landing crouched
+    else incapacitated
+        L->>F: Downed (fallen into it over 0.6 s)
+    else wounded
+        L->>L: the limp: one stiff leg, shorter steps, bent 15 deg
+    end
+```
+
+```mermaid
+graph TD
+    CAN[MapCanvas, every 3-D frame] --> EBL[EntityBodyLayer3D.Draw3D, every map host]
+    ESS[EmbarkedStateSystem, every node with Interactions] -->|IsEmbarkedTag| EBL
+    DMG[EntityDamage ingress] -->|Health| EBL
+    TKB[CarrierTkbTranslator / InjuryTkbTranslator, every node] -->|CarrierSeats, InjuryThresholds| EBL
+    KIN[CarKinematicsSystem, the muscle] -->|0.6x when wounded| POS[SimTransform, replicated]
+    POS --> EBL
+```
+
+*Caption:* every input the drawing needs already reaches every map host each frame; the one simulation edit sits where speed is already
+scaled, on the node that moves the man.
+
+| decision (✅ user, `2026-10-14`) | rule |
+|---|---|
+| **C-1 carried / dragged** | DRAWING only. Carried: limp across the carrier's shoulders, crosswise, head to his left; the carrier leans forward, both hands on the load, rifle slung. Dragged: on his back ~1 m behind (the sim's place), head to the carrier, arms up to the carrier's hand; the carrier reaches back with his right arm. Neither casualty plays a gait |
+| **C-2 wounded** | WOUNDED: a limp (right leg stiff, steps shorter, upper body bent ~15°, also standing still). INCAPACITATED: lying on his back, one knee up, a hand on his chest, fallen into it over 0.6 s. ⭐ **+ slice I-b**: a wounded man moves at `WoundedSpeedFactor` (TKB `Gen.Injury`, default **0.6**) |
+| **C-3 seats** | `SeatDto` gains a place (`X, Y, Z` from the reference point), `FacingDegrees` and a `Pose`; a rider in an EXPOSED seat with a place is drawn sitting there. New type **UH-60A (doors off)** (`Heli_UH60_DoorsOff`, 404): 8 seats, 4 in each door, legs out over the sill |
+| **C-4 the jump** | DRAWING only: a rider who leaves a seat more than 0.5 m above the ground drops over 0.5 s from it and lands crouched |
+
+**Rejected — one line each:**
+- *A `Carrying` / `CarriedBy` component* — rejected before (Entity_Interactions §7.4.8): embarkation already says it, on every node.
+- *Lifting the casualty in the SIMULATION* — his true place is the carrier's; the shoulder is a look (C10).
+- *A limp in the gait SOLVER* — the gait is the muscle's; the limp is a drawing over the same stride.
+- *Doors-off on the existing UH-60* — it would make every Black Hawk open; a type per configuration keeps scenarios explicit.
+- *A jump in the simulation* — the dismount already lands him; only the drop between seat and ground is missing, and it is a look.
 
 ## 7. NOT VERIFIED — say so before it is built on
 
