@@ -307,7 +307,7 @@ namespace Fdp.Toolkit.Utility
 
         /// <summary>
         /// Returns the ThreatRating of the active danger-area feature.
-        /// Looks up state.ActiveFeatureId in ctx.Self's <see cref="DangerAreaCognitiveBuffer"/>.
+        /// Looks up state.ActiveFeatureId in ctx.Self's <see cref="DangerAreaCognitiveBuffer"/> (its own, else its danger sensor's — <c>AreaBuffer</c>).
         /// Returns 0f when ActiveFeatureId is 0, the buffer is absent, or the feature is not found.
         /// </summary>
         [UtilityInput("ActiveFeatureThreatRating")]
@@ -316,8 +316,7 @@ namespace Fdp.Toolkit.Utility
             if (!ctx.Repo.HasComponent<SquadCognitiveState>(ctx.Self)) return 0f;
             ref readonly var state = ref ctx.Repo.GetComponentRO<SquadCognitiveState>(ctx.Self);
             if (state.ActiveFeatureId == 0) return 0f;
-            if (!ctx.Repo.HasComponent<DangerAreaCognitiveBuffer>(ctx.Self)) return 0f;
-            ref readonly var buffer = ref ctx.Repo.GetComponentRO<DangerAreaCognitiveBuffer>(ctx.Self);
+            if (!AreaBuffer(in ctx, out var buffer)) return 0f;
             var span = buffer.GetSpanRO();
             for (int i = 0; i < buffer.Count; i++)
             {
@@ -325,6 +324,19 @@ namespace Fdp.Toolkit.Utility
                     return Math.Clamp(span[i].ThreatRating, 0f, 1f);
             }
             return 0f;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2159</c> D3 (Squad Tactics §7.7.7) — the areas the active feature is looked up in: the unit's OWN buffer when it
+        /// carries one, else its danger-area SENSOR's answer (<see cref="Fdp.Toolkit.Perception.Sensors.UnitSensors"/>) — where a
+        /// commander's areas live in production (the march owns the sensor). ⛔ Before, only the own buffer was read, so both area
+        /// inputs read 0 for every real squad.
+        /// </summary>
+        private static bool AreaBuffer(in UtilityInputCtx ctx, out DangerAreaCognitiveBuffer buffer)
+        {
+            if (ctx.Repo.HasComponent<DangerAreaCognitiveBuffer>(ctx.Self)) { buffer = ctx.Repo.GetComponentRO<DangerAreaCognitiveBuffer>(ctx.Self); return true; }
+            return Fdp.Toolkit.Perception.Sensors.UnitSensors.TryGetResults(ctx.Repo, ctx.Self,
+                Fdp.Toolkit.Perception.Components.SensorModality.DangerArea, out buffer);
         }
 
         /// <summary>
@@ -337,8 +349,7 @@ namespace Fdp.Toolkit.Utility
             if (!ctx.Repo.HasComponent<SquadCognitiveState>(ctx.Self)) return 0f;
             ref readonly var state = ref ctx.Repo.GetComponentRO<SquadCognitiveState>(ctx.Self);
             if (state.ActiveFeatureId == 0) return 0f;
-            if (!ctx.Repo.HasComponent<DangerAreaCognitiveBuffer>(ctx.Self)) return 0f;
-            ref readonly var buffer = ref ctx.Repo.GetComponentRO<DangerAreaCognitiveBuffer>(ctx.Self);
+            if (!AreaBuffer(in ctx, out var buffer)) return 0f;
             var targetKind = (DangerAreaKind)(ctx.Params.BlueprintId & 0xFF);
             var span = buffer.GetSpanRO();
             for (int i = 0; i < buffer.Count; i++)

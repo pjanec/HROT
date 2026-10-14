@@ -433,12 +433,31 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.AssaultStage == AssaultClosing)
             {
                 var close = SquadManeuverRunner.Tick<FireAndMovementPlay, FireAndMovementParams>(ref p.Close, ref ws.Play, self, world);
-                if (close == NodeStatus.Running) return NodeStatus.Running;
+                // ⭐ closed when MOST of the squad is near — 📐 live (tt-react-contact): one man who cannot move (the leader soldier on
+                //   the z 9 spot) held his half's centre 60 m out, so fire and movement never succeeded and the flank never came
+                if (close == NodeStatus.Running && !MostWithin(world, self, p.Close.Objective, CloseMetres)) return NodeStatus.Running;
                 SquadManeuverRunner.DropSensor(ref ws.Play, world);   // closed (or could not close): the flank starts from here
                 ws.Play = default;
                 ws.AssaultStage = AssaultFlanking;
             }
             return SquadManeuverRunner.Tick<SuppressAndManeuverPlay, SuppressAndManeuverParams>(ref p.Assault, ref ws.Play, self, world);
+        }
+
+        /// <summary>More than half of the squad's live members stand within <paramref name="metres"/> of <paramref name="at"/>.</summary>
+        private static bool MostWithin(EntityRepository world, Entity self, Vector3 at, float metres)
+        {
+            if (!world.HasComponent<Fdp.Core.CommandHierarchy.UnitRoster>(self)) return false;
+            var roster = world.GetComponentRO<Fdp.Core.CommandHierarchy.UnitRoster>(self);
+            var ctx = new SquadPlayContext(world, self, 0d, in roster);
+            int live = 0, near = 0;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                if (!ctx.Live(i, out var m)) continue;
+                live++;
+                var d = ctx.At(m) - at; d.Z = 0f;
+                if (d.LengthSquared() <= metres * metres) near++;
+            }
+            return live > 0 && near * 2 > live;
         }
 
         /// <summary>The squad's top identified live contact is farther than <paramref name="metres"/> from the live members' centre.</summary>

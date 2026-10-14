@@ -11,6 +11,7 @@ using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Squad.DangerArea;
 using Fdp.Toolkit.Squad.Maneuvers;
 using Fdp.Toolkit.Squad.Primitives;
+using Fdp.Toolkit.Utility;
 using Hrot.Map.Definitions.Behavior;
 
 namespace Hrot.AI.Behaviors.Brains
@@ -242,23 +243,49 @@ namespace Hrot.AI.Behaviors.Brains
         }
     }
 
+    /// <summary>⭐ <c>CE-2159</c> D3 (§7.7.7) — the crossing order: the crossing drill's params, and the two other ways across.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SquadDangerCrossingOrder
+    {
+        public SquadDangerCrossingParams Cross;
+        /// <summary>How to cross (<see cref="SquadCrossingDecision"/>).</summary>
+        public ChooseOptionParams Choose;
+        /// <summary>Open ground: bounding overwatch to beyond the far side (its objective is set when chosen).</summary>
+        public BoundingOverwatchParams Bound;
+        /// <summary>Too dangerous now: hold for a while, then decide again.</summary>
+        public SquadHoldParams Hold;
+    }
+
+    /// <summary>⭐ <c>CE-2159</c> D3 — where the crossing is: the choice and the chosen play's state.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SquadDangerCrossingState
+    {
+        public UtilityChoice Choice;
+        public SquadPlayState Play;
+    }
+
     /// <summary>
     /// ⭐ <c>CE-2159</c> X-b — the squad danger crossing on the commander (resolved from <see cref="SquadDangerCrossingParamsJsonDto"/>),
     /// started by the squad SOP's "danger area ahead" row as a reaction (<c>Alert</c>) — the march it pauses resumes when it ends.
+    /// ⭐ D3 (§7.7.7): the leader first decides HOW (<see cref="SquadCrossingDecision"/>) — the crossing drill, bounding overwatch
+    /// across open ground, or a hold and a fresh decision.
     /// </summary>
     public static class SquadDangerCrossingBehavior
     {
+        /// <summary>⭐ D3 — a Hold lasts this long before the leader decides again (s).</summary>
+        public const float HoldSeconds = 10f;
+
         [StructLayout(LayoutKind.Sequential)]
         public struct SquadDangerCrossingBlackboard
         {
-            public SquadDangerCrossingParams Order;
-            public SquadPlayState State;
+            public SquadDangerCrossingOrder Order;
+            public SquadDangerCrossingState State;
         }
 
         [BehaviorResolver(BehaviorNames.SquadDangerCrossing)]
         public static void Resolve(in SquadDangerCrossingParamsJsonDto authored, ref SquadDangerCrossingBlackboard block, EntityRepository world, Entity self)
         {
-            block.Order = new SquadDangerCrossingParams
+            var cross = new SquadDangerCrossingParams
             {
                 Lanes               = authored.Lanes is > 0 and <= 16 ? (byte)authored.Lanes : (byte)4,
                 LaneSpacing         = authored.LaneSpacing > 0f ? authored.LaneSpacing : 4f,
@@ -267,6 +294,16 @@ namespace Hrot.AI.Behaviors.Brains
                 Speed               = authored.Speed > 0f ? authored.Speed : 2f,
                 CrossSpeed          = authored.CrossSpeed > 0f ? authored.CrossSpeed : 4f,
                 PhaseTimeoutSeconds = authored.PhaseTimeoutSeconds > 0f ? authored.PhaseTimeoutSeconds : 40f,
+            };
+            block.Order = new SquadDangerCrossingOrder
+            {
+                Cross  = cross,
+                Choose = new ChooseOptionParams { Decision = UtilityDecisionRef.FromAssetId(SquadCrossingDecision.DecisionAssetId) },
+                Bound  = new BoundingOverwatchParams
+                {
+                    BoundMetres = 20f, Speed = cross.CrossSpeed, ArrivalRadius = 6f, BoundTimeoutSeconds = cross.PhaseTimeoutSeconds,
+                },
+                Hold   = new SquadHoldParams { Speed = cross.Speed, DurationSeconds = HoldSeconds },
             };
             block.State = default;
         }
@@ -277,7 +314,43 @@ namespace Hrot.AI.Behaviors.Brains
             => new BTreeBuilder<SquadDangerCrossingBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);
 
-        public static NodeStatus Run(ref SquadDangerCrossingParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
-            => SquadManeuverRunner.Tick<DangerCrossingPlay, SquadDangerCrossingParams>(ref p, ref ws, self, world);
+        public static NodeStatus Run(ref SquadDangerCrossingOrder p, ref SquadDangerCrossingState ws, Entity self, EntityRepository world)
+        {
+            if (ws.Choice.Winner == 0)
+            {
+                if (!DangerCrossingPlay.NextArea(world, self, out var area)) return NodeStatus.Failure;   // nothing to cross
+                // ⭐ D3 — the area the decision's inputs read (the existing primitive; nothing called it before)
+                if (world.HasComponent<SquadCognitiveState>(self))
+                    TacticalFeatureHandles.Acquire(ref world.GetComponentRW<SquadCognitiveState>(self), area.FeatureId);
+                UtilityNodes.ChooseOptionOnce(ref p.Choose, ref ws.Choice, self, world);
+                if (ws.Choice.Winner == 0) ws.Choice.Winner = (byte)SquadCrossingChoice.Cross;   // nothing scored: the careful drill
+                if ((SquadCrossingChoice)ws.Choice.Winner == SquadCrossingChoice.Bound)
+                {
+                    var d = area.FarSideHandle - area.NearSideHandle; d.Z = 0f;
+                    d = d.LengthSquared() > 1e-4f ? Vector3.Normalize(d) : Vector3.UnitY;
+                    p.Bound.Objective = area.FarSideHandle + d * p.Cross.BeyondMetres;
+                    p.Bound.Cover = default;
+                }
+                ws.Play = default;
+            }
+            var choice = (SquadCrossingChoice)ws.Choice.Winner;
+            var status = choice switch
+            {
+                SquadCrossingChoice.Bound => SquadManeuverRunner.Tick<BoundingOverwatchPlay, BoundingOverwatchParams>(ref p.Bound, ref ws.Play, self, world),
+                SquadCrossingChoice.Hold  => SquadManeuverRunner.Tick<SquadHoldPlay, SquadHoldParams>(ref p.Hold, ref ws.Play, self, world),
+                _                         => SquadManeuverRunner.Tick<DangerCrossingPlay, SquadDangerCrossingParams>(ref p.Cross, ref ws.Play, self, world),
+            };
+            if (choice == SquadCrossingChoice.Hold && status == NodeStatus.Success)
+            {
+                SquadManeuverRunner.DropSensor(ref ws.Play, world);   // held long enough: decide again
+                ws = default;
+                return NodeStatus.Running;
+            }
+            return status;
+        }
+
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.SquadDangerCrossingBehavior.Run")]
+        public static void Deactivate_Run(ref SquadDangerCrossingOrder p, ref SquadDangerCrossingState ws, Entity self, EntityRepository world)
+            => SquadManeuverRunner.DropSensor(ref ws.Play, world);
     }
 }

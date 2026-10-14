@@ -863,6 +863,7 @@ def run_bounding_overwatch(c, timeout):
     bounds, covered = 0, 0
     seen = set()
     cover_orders = {}   # (member, issuedAt) -> [point, closest he got]
+    overlaps = []       # (t, phase, [(name, role, speed, metres from his order point)]) — every poll where both halves moved
     end = (sim_time() or 0) + 150
     while (sim_time() or 0) < end:
         t = sim_time() or 0
@@ -896,13 +897,23 @@ def run_bounding_overwatch(c, timeout):
             suppress_at = t
         if suppress_at is not None and fire_after is None and any((ammo(nid)[0] or 0) < (ammo0[nid] or 0) for nid in members):
             fire_after = t
-        moving = {}
+        moving, speed_of = {}, {}
         for i, nid in enumerate(members):
             p = position(nid)
             if p and nid in last_pos and last_t is not None and t > last_t:
-                moving[i] = flat(p, last_pos[nid]) / (t - last_t) > 0.5
+                speed_of[nid] = flat(p, last_pos[nid]) / (t - last_t)
+                moving[nid] = speed_of[nid] > 0.5
             if p: last_pos[nid] = p
-        both = any(moving.get(i) for i in range(0, 3)) and any(moving.get(i) for i in range(3, 6))
+        # ⭐ the halves are the drill's own elements (its members' roles), not the order the names are listed in
+        roles = {x.get("networkId"): x.get("role") for x in m.get("members", [])}
+        groups = {}
+        for nid in members: groups.setdefault(roles.get(nid), []).append(nid)
+        both = len(groups) >= 2 and sum(1 for g in groups.values() if any(moving.get(n) for n in g)) >= 2
+        if both and last_t is not None:
+            who = [(names[members.index(n)], roles.get(n), round(speed_of.get(n, 0), 1),
+                    round(flat(last_pos[n], orders[n]["point"]), 1) if orders.get(n, {}).get("point") else None)
+                   for n in members if moving.get(n)]
+            overlaps.append((round(t, 1), m.get("phaseName"), who))
         overlap = overlap + (t - last_t) if (both and last_t is not None) else 0.0
         if overlap > longest: longest, longest_at = overlap, t
         last_t = t
@@ -911,6 +922,7 @@ def run_bounding_overwatch(c, timeout):
     swaps = [h for h in hs if h.get("event") in ("DefiladeReached", "Timeout", "BoundComplete")]
     print(f"    history: {[(h.get('t'), h.get('phaseName'), h.get('event')) for h in hs]}")
     print(f"    bounds {bounds}, to cover {covered}; contact at {contact_at}, suppress at {suppress_at}, rounds after {fire_after}")
+    for o in overlaps: print(f"    both halves moving at t={o[0]} ({o[1]}): {o[2]}")
     # ⚠ 1.5 s, not §7.8.3's 1 s: positions are polled every 0.5 s over HTTP, and a man settling the last metre counts as moving
     c.ok(longest <= 1.5, f"① one half moves, the other watches (both moving at most {longest:.1f} s at a time"
                          + (f", ending t={longest_at:.1f})" if longest > 0 else ")"))

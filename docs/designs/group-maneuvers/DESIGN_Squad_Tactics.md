@@ -1039,7 +1039,7 @@ stateDiagram-v2
     [*] --> Undecided
     Undecided --> Closing: top live contact farther than CloseMetres + one rush
     Undecided --> Flanking: nearer
-    Closing --> Flanking: FireAndMovement ends - both halves within CloseMetres, a half gone, or could not start
+    Closing --> Flanking: most of the squad within CloseMetres, or FireAndMovement ends
     Flanking --> [*]: SuppressAndManeuver Success or Failure
 ```
 
@@ -1048,7 +1048,8 @@ the assault is what was decided; only the flank's own outcome reaches the reacti
 
 | decision | as built | why |
 |---|---|---|
-| the threshold | `CloseMetres` 50 m (both halves' centres within it ⇒ fire and movement Success); closing starts only beyond 50 + `RushMetres` 15 | the band stops a squad at 51 m from closing for one rush and flanking at once |
+| the threshold | `CloseMetres` 50 m; closing starts only beyond 50 + `RushMetres` 15 | the band stops a squad at 51 m from closing for one rush and flanking at once |
+| when it is closed | **more than half of the live men within 50 m of the objective** (`MostWithin`), or fire and movement ends (its own "both halves' centres within 50 m", a half gone, could not start) | 📐 live (`tt-react-contact`, the cluster rail): the leader soldier stands on the z 9 spot no move works from (§6.1a); his half's centre stayed 60 m out, fire and movement never succeeded and the flank never came. ⛔ First build used fire and movement's own Success only — SUPERSEDED |
 | the objective | where the top LIVE contact stood when the Assault began | fire and movement takes a point; the flank re-reads the contact |
 | where it lives | `ReactToContactParams.Close` + `ReactToContactState.AssaultStage`, one play state (the play is reset between the two) | one play at a time on the S1 runner (§4.3); no new behaviour |
 
@@ -1056,8 +1057,39 @@ Rejected: **a new decision option ("Close")** — the decision picks WHAT (assau
 flank radius** — a 150 m flank is still a walk in the open · **re-checking the range during the flank** — a squad pushed back would
 oscillate between drills.
 
-Rail `SquadManeuverTests.CE2158_ReactToContact_AFarContact_IsClosedByFireAndMovement_ThenFlanked`; the near case stays
+Rail `SquadManeuverTests.CE2158_ReactToContact_AFarContact_IsClosedByFireAndMovement_ThenFlanked` (one man left behind); the cluster rail
+`SquadTacticsScenarioTests.CE2123_ABoundingSquadMeetsTheEnemy_…` now expects kinds 2 → 7 → 12 → 3 → 2; the near case stays
 `CE2123_ReactToContact_HoldsAndReturnsFire_ThenAStrongSquadAssaults` (60 m ⇒ the flank at once).
+
+#### 7.6.4 F-d — fire and movement in pairs *(behaviors, `2026-10-14`, `CE-2158`; build-state: READY-TO-BUILD — the approved slice F-d, lean (b) "halves first, pairs later")*
+
+📖 **Doctrine (general knowledge):** inside a fire team the rush is by BUDDY PAIRS — one man up while his buddy fires, then the buddy.
+**Measured:** `FireAndMovementPlay` moves a whole half per `Rush_e` (`SquadGates.Set` over `SquadGates.Element(e)`); the halves come from
+`BoundingOverwatchManeuver.ComputePartitionInputs` (first half, second half of the roster).
+
+```mermaid
+stateDiagram-v2
+    [*] --> Cover_e
+    Cover_e --> RushA_e: covering
+    state "Rush_e (one phase of the table)" as R {
+        RushA_e --> RushB_e: the A buddies set
+    }
+    RushB_e --> Cover_1minus_e: the B buddies set - the halves swap
+```
+
+*What the picture shows that the prose hid:* the buddy step is INSIDE one table phase — the phase table, its events and the trace are
+unchanged; only who moves inside `Rush_e` changes.
+
+| decision | ⭐ as designed | why |
+|---|---|---|
+| the switch | `FireAndMovementParams.Pairs` (authored `Pairs`, default false) | the halves drill stays the default; a demo or an order turns pairs on |
+| who is A, who is B | the moving half's members by rank: even = A, odd = B | rank order is the roster order the author controls; a casualty re-pairs the rest |
+| who covers a moving buddy | the other half suppresses as before, AND the waiting buddies of the moving half suppress | "one man up while his buddy fires" |
+| the gates | *covering* before A (as before); A *set* ⇒ B goes (a re-issue, not a phase change); B *set* ⇒ the halves swap | no new table rows; the trace shows `DefiladeReached` once per swap as today |
+| runtime memory | `FireAndMovementParams.Buddy` (0 = A moving, 1 = B moving) | the play's own memory lives in its params (the cover picks do too) |
+
+Rejected: **pairs as four elements** — the table and both gates are written for two elements · **a new phase table** — the A/B step is
+not a squad phase, nobody outside the half needs to see it.
 
 ### 7.7 Danger-area crossing — the squad drill *(behaviors, `2026-10-13`; build-state: BUILT (§7.7.6; X-a … X-d, `-contact` §7.8.4) — ✅ approved 2026-10-13 (R-2014))*
 
@@ -1266,7 +1298,7 @@ Failure · the condition · the march's sensor · the SOP row and a contact repl
 red-proved. ⚠ **Measured live:** the march from a diagonal line crawled (~0.3 m/s, the lead holding for stragglers) — the demo starts in
 file ~40 m short of the road; the march's pace is not this slice's to fix.
 
-#### 7.7.7 D3 — the squad chooses HOW to cross *(behaviors, `2026-10-14`, `CE-2159`; build-state: READY-TO-BUILD — the open decision of R-2014 D3)*
+#### 7.7.7 D3 — the squad chooses HOW to cross *(behaviors, `2026-10-14`, `CE-2159`; build-state: BUILT `2026-10-14` — the open decision of R-2014 D3; as-built at the end)*
 
 **Measured `2026-10-14`** (graph CLI `search_graph name_pattern=.*(ManeuverSelect|CrossingDecision|ActiveFeature).*` → 35 rows,
 + reads): `ManeuverSelectStarterDecision` (`Squad/StarterPack/…:18-90`, Cross 0 / Bound 1 / Hold 2) is a `UtilityDecisionDef` of
@@ -1338,6 +1370,18 @@ sequenceDiagram
 Rejected: **scoring `ManeuverSelect` in `ChooseOption`** — it changes what every other decision kind means · **editing the starter
 in place** — its `UtilityDecisionDef` API is the dead tick system's, and its test pins the option ids 0/1/2 · **a new drill for open
 ground** — bounding overwatch is the drill (§7.6).
+
+**As built `2026-10-14`:** `Fdp.Toolkits/Utility/StarterPack/SquadCrossingDecision.cs` (`SquadCrossingChoice` Cross 1 / Bound 2 / Hold 3) ·
+`SquadInputs.AreaBuffer` (own buffer, else the danger sensor's) · `SquadDangerCrossingBehavior`: the blackboard is now
+`SquadDangerCrossingOrder { Cross, Choose, Bound, Hold }` + `SquadDangerCrossingState { Choice, Play }` (was the crossing params + one
+play state); `Run` acquires the next area, decides once, ticks the chosen play; a Hold that ends clears the choice (decide again);
+a deactivator drops the chosen play's query (bounding overwatch owns one). Bound's defaults: 20 m bounds at the crossing speed, arrival
+6 m, timeout = the crossing's phase timeout. The class and sequence diagrams above are TRUE as built. Rails
+`SquadManeuverTests.CE2159_D3_OpenGround_IsCrossedByBoundingOverwatch_ToBeyondTheFarSide` and
+`…_AThreatenedArea_LowOnAmmo_Holds_ThenDecidesAgain` (red-proved: always-cross ⇒ both red; the inputs reading only the own buffer ⇒ the
+open-ground rail red); the street case is every `CE2159_DangerCrossing_*` rail, unchanged. ⚠ Live: the road in `ua-squad-danger-crossing`
+is a `StreetCrossing` (measured), so the demo's path is unchanged; open ground is a rail only (no scenario yet produces an `OpenGround`
+area).
 
 ### 7.8 The demos — one per drill, each checked over HTTP *(behaviors, `2026-10-13`; build-state: DESIGN — not built; the scenario slices R-e, F-e, X-d)*
 

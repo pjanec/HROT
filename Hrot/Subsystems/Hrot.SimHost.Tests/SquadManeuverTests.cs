@@ -732,8 +732,9 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>⭐⭐ <c>CE-2158</c> F-e (§7.6.3) — a FAR contact is CLOSED on first: the assault starts as fire and movement toward
-        /// where the contact stands; once both halves are within <c>CloseMetres</c> the flank (suppress and manoeuvre) takes over and the
-        /// leader asks the terrain for it. 🔴 Red before: the assault went straight to the flank at any range.</summary>
+        /// where the contact stands; once MOST of the squad is within <c>CloseMetres</c> (one man left behind does not hold it back) the
+        /// flank (suppress and manoeuvre) takes over and the leader asks the terrain for it. 🔴 Red before: the assault went straight to
+        /// the flank at any range; red-proved also with the "most" rule removed (the stuck man's half never arrives).</summary>
         [Fact]
         public void CE2158_ReactToContact_AFarContact_IsClosedByFireAndMovement_ThenFlanked()
         {
@@ -747,8 +748,8 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(FireAndMovementManeuver.ManeuverKind, s.Kind);              // closing, not flanking from 150 m
             Assert.True(s.FlankQuery().IsNull, "no flank asked while the squad closes");
 
-            foreach (var m in s.Members) s.Teleport(m, s.At(m) + new Vector3(0f, 110f, 0f));   // the halves are within 50 m
-            for (int i = 0; i < 4; i++) s.Tick();
+            foreach (var m in s.Members.Skip(1)) s.Teleport(m, s.At(m) + new Vector3(0f, 110f, 0f));   // MOST of the squad within 50 m;
+            for (int i = 0; i < 4; i++) s.Tick();                                                       // member 0 stays behind (stuck)
             Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
             Assert.False(s.FlankQuery().IsNull, "closed: the leader asks the terrain for a flank");
         }
@@ -1501,7 +1502,9 @@ namespace Hrot.SimHost.Tests
         private static readonly Vector3 NearSide = new(10f, 20f, 0f), FarSide = new(10f, 40f, 0f);
 
         /// <summary>The commander's danger-area sensor (what the march owns live), holding one area: a 20 m strip crossed northward.</summary>
-        private static Entity AreaAhead(Squad s, float distanceAlongRoute = 10f, Vector3? near = null, Vector3? far = null)
+        private static Entity AreaAhead(Squad s, float distanceAlongRoute = 10f, Vector3? near = null, Vector3? far = null,
+                                        Fdp.Toolkit.Squad.DangerArea.DangerAreaKind kind = Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.StreetCrossing,
+                                        float threat = 0f)
         {
             var r = s.Repo;
             if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.SensorTag>()) r.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
@@ -1522,7 +1525,7 @@ namespace Hrot.SimHost.Tests
             buffer.LastUpdateTick = 1;
             buffer.GetSpanRW()[0] = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor
             {
-                FeatureId = 7, Kind = Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.StreetCrossing, Center = new Vector3(10f, 30f, 0f),
+                FeatureId = 7, Kind = kind, ThreatRating = threat, Center = new Vector3(10f, 30f, 0f),
                 ExtentsXY = new Vector2(30f, 10f), NearSideHandle = near ?? NearSide, FarSideHandle = far ?? FarSide,
                 DistanceAlongRoute = distanceAlongRoute,
             };
@@ -1537,6 +1540,45 @@ namespace Hrot.SimHost.Tests
             s.Order("{}", BehaviorNames.SquadDangerCrossing);
             s.Tick(); s.Tick();
             return s;
+        }
+
+        /// <summary>⭐⭐ <c>CE-2159</c> D3 (§7.7.7) — the leader decides HOW to cross: a street is crossed by the drill (above); OPEN
+        /// GROUND by bounding overwatch to beyond the far side. 🔴 Red before: every area ran the crossing drill (no choice).</summary>
+        [Fact]
+        public void CE2159_D3_OpenGround_IsCrossedByBoundingOverwatch_ToBeyondTheFarSide()
+        {
+            var s = new Squad(6);
+            AreaAhead(s, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround);
+            s.Order("{}", BehaviorNames.SquadDangerCrossing);
+            s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.ManeuverKind, s.Kind);
+            Assert.Equal((uint)7, s.Repo.GetComponentRO<SquadCognitiveState>(s.Commander).ActiveFeatureId);   // the area it decided on
+            var movers = s.LastOrders().Where(o => o.Value.Intent == BehaviorNames.AdvanceTo).ToList();
+            Assert.NotEmpty(movers);
+            foreach (var m in movers) Assert.True(m.Value.Objective.Y > s.At(m.Key).Y, "the bound goes toward the far side");
+        }
+
+        /// <summary>⭐ <c>CE-2159</c> D3 — a threatened area with the squad low on ammunition: HOLD, then decide again once it has
+        /// quietened; a street then gets the crossing drill. 🔴 Red before: as above.</summary>
+        [Fact]
+        public void CE2159_D3_AThreatenedArea_LowOnAmmo_Holds_ThenDecidesAgain()
+        {
+            var s = new Squad(6);
+            var sensor = AreaAhead(s, threat: 1f);
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponState>()) s.Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
+            foreach (var m in s.Members)
+            {
+                var low = new Fdp.Toolkit.Combat.Components.WeaponState { MaxAmmo = 30, Ammo = 3 };
+                if (s.Repo.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(m)) s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(m) = low;
+                else s.Repo.AddComponent(m, low);
+            }
+            s.Order("{}", BehaviorNames.SquadDangerCrossing);
+            s.Tick(); s.Tick();
+            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);
+
+            s.Repo.GetComponentRW<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(sensor).GetSpanRW()[0].ThreatRating = 0f;
+            Seconds(s, SquadDangerCrossingBehavior.HoldSeconds + 1);
+            Assert.Equal(DangerAreaCrossingManeuver.ManeuverKind, s.Kind);
         }
 
         private static void Arrive(Squad s, params int[] members)
