@@ -140,7 +140,9 @@ public sealed class RtsCommandToolTests : IDisposable
         Assert.Equal(SelectionChangeMode.Add, Assert.Single(Read<SelectionChangeRequest>()).Mode);
 
         gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: true, new Vector3(40, 0, 0));
-        Assert.Equal("Order.Attack", Assert.Single(Read<AssignTacticalIntentEvent>()).IntentId);
+        Assert.Empty(Read<AssignTacticalIntentEvent>());               // ⭐ CE-1077 — not on the press …
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: false, new Vector3(40, 0, 0));
+        Assert.Equal("Order.Attack", Assert.Single(Read<AssignTacticalIntentEvent>()).IntentId);   // … on the click's release
         Assert.False(removed, "RMB commands; it does not cancel the tool");
 
         gizmo.OnKeyEvent(MapKeyboardKey.Escape, isPressed: true);
@@ -182,6 +184,35 @@ public sealed class RtsCommandToolTests : IDisposable
 
         Click(MapMouseButton.Left | MapMouseButton.ShiftMask, new Vector3(1, 1, 0));   // what the terminal sends for a Shift-click
         Assert.Equal(SelectionChangeMode.Add, Assert.Single(Read<SelectionChangeRequest>()).Mode);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1077 (docs/DESIGN_Entity_Control.md §13.6) — 🔒 user, 2026-10-14: "in RTS mode a right click commands and a right drag
+    /// only looks". A right press, the mouse moving (the terminal's drag updates — the 3-D look, the 2-D pan) and a release orders
+    /// nothing; a still click (a little jitter allowed) orders at the PRESS point, where the operator clicked.
+    /// </summary>
+    [Fact]
+    public void CE1077_ARightDrag_OnlyLooks_ARightClick_CommandsAtThePressPoint()
+    {
+        var a = Unit(10, ForceId.Friend, new Vector2(1, 1));
+        Unit(20, ForceId.Hostile, new Vector2(40, 0));
+        var gizmo = new RtsCommandGizmo(Commands(a), () => { });
+
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: true, new Vector3(40, 0, 0));
+        for (int i = 0; i < 12; i++) gizmo.OnDragUpdate(new Vector3(40 + i, i, 0));   // looking around
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: false, new Vector3(60, 9, 0));
+        Assert.Empty(Read<AssignTacticalIntentEvent>());
+
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: true, new Vector3(40, 0, 0));
+        gizmo.OnDragUpdate(new Vector3(40.1f, 0, 0));                                    // a hand's jitter
+        gizmo.OnDragUpdate(new Vector3(40, 0.1f, 0));
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: false, new Vector3(40.2f, 0.1f, 0));
+        var order = Assert.Single(Read<AssignTacticalIntentEvent>());
+        Assert.Equal("Order.Attack", order.IntentId);                                    // the hostile under the PRESS
+        Assert.Contains("\"Target\":20", order.JsonParams);
+
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: false, new Vector3(40, 0, 0)); // a release with no press of its own
+        Assert.Empty(Read<AssignTacticalIntentEvent>());
     }
 
     [Fact]

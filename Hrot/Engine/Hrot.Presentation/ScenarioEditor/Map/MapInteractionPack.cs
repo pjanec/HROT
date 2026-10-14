@@ -362,6 +362,7 @@ namespace Hrot.ScenarioEditor.Map
             {
                 IsReplayActive = ctx.IsReplayActive,   // ⭐ W1 (VE-R) — the effect systems stand down in a replay
                 MenuOrders     = menuOrders,
+                MenuShortcuts  = new MenuShortcuts(ctx.World, bus, selection, tools),   // ⭐ CE-1076
                 OrderForm      = orderForm,
             };
         }
@@ -455,6 +456,8 @@ namespace Hrot.ScenarioEditor.Map
             //   leaves. Here, so no map host can lack it.
             var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider, bodies);   // ⭐ CE-1073 — the drawn heads
             canvas.AddLayer(possession);
+            // ⭐ CE-1076 — the keys typed on the map go to the map's MenuShortcuts (the unit menu's M, A, H, P, C …), every host
+            canvas.AddLayer(new MenuShortcutKeyLayer(bus, () => canvas.Camera));
             return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession);
         }
 

@@ -667,7 +667,7 @@ author menus and by the presentation layer to render them. The complete schema i
 |----------|------|----------|-------------|
 | `id` | integer | yes (leaf items) | Action identifier echoed back in `GizmoInteractionBatch.ActionId` |
 | `label` | string | yes | Display text |
-| `shortcut` | string | no | Keyboard shortcut hint displayed alongside the label |
+| `shortcut` | string | no | Keyboard shortcut displayed alongside the label — ⭐ CE-1076 (2026-10-14): on an HROT map it also WORKS, for the primary selected entity (`MenuShortcuts`, [`DESIGN_Entity_Control.md` §13.6](../../DESIGN_Entity_Control.md)) |
 | `enabled` | boolean | no | Defaults to `true`; if `false` the item renders grayed-out |
 | `style` | string | no | Visual hint for the presentation layer; `"destructive"` renders the item in a warning colour |
 | `tooltip` | string | no | Hover tooltip text (informational; current implementation ignores) |

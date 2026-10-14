@@ -125,14 +125,24 @@ namespace Hrot.ScenarioEditor.Map
 
     /// <summary>
     /// ⭐ <c>CE-3171</c> — the RTS command tool's input: EXCLUSIVE focus (which also suppresses every map context menu,
-    /// <c>DebugGizmoLayer</c>) and raw input. LMB release selects (Shift adds), RMB press commands, Esc leaves. Draws nothing:
+    /// <c>DebugGizmoLayer</c>) and raw input. LMB release selects (Shift adds), an RMB CLICK commands, Esc leaves. Draws nothing:
     /// the selection already highlights the units.
+    /// <para>⭐ CE-1077 (DESIGN_Entity_Control.md §13.6) — 🔒 user, 2026-10-14: "in RTS mode a right click commands and a right drag
+    /// only looks". The order goes on the RMB RELEASE, at the press point, and only when the mouse did not move in between (at most
+    /// <see cref="ClickMaxMoves"/> moved frames — the terminal reports one drag update per frame the mouse moves): a right-drag is the
+    /// 3-D camera's look (or the 2-D pan) and orders nothing. It used to command on the PRESS, so every look also ordered a move.</para>
     /// </summary>
     public sealed class RtsCommandGizmo : IEntityStatefulGizmo
     {
         private readonly RtsCommands _commands;
         private readonly Action _onRemove;
         private bool _shift;
+        private bool _rightDown;
+        private int _rightMoves;
+        private Vector2 _rightAt;
+
+        /// <summary>⭐ CE-1077 — mouse-moved frames a right click may have and still be a click (hand jitter), not a drag.</summary>
+        public const int ClickMaxMoves = 3;
 
         public RtsCommandGizmo(RtsCommands commands, Action onRemove)
         {
@@ -155,7 +165,12 @@ namespace Hrot.ScenarioEditor.Map
             button &= ~(MapMouseButton.ShiftMask | MapMouseButton.CtrlMask | MapMouseButton.AltMask);
             var xy = new Vector2(worldPos.X, worldPos.Y);
             if (button == MapMouseButton.Left && !isPressed) _commands.Select(xy, shift);
-            else if (button == MapMouseButton.Right && isPressed) _commands.Command(xy);
+            else if (button == MapMouseButton.Right && isPressed) { _rightDown = true; _rightMoves = 0; _rightAt = xy; }
+            else if (button == MapMouseButton.Right && _rightDown)
+            {
+                _rightDown = false;
+                if (_rightMoves <= ClickMaxMoves) _commands.Command(_rightAt);   // ⭐ CE-1077 — a click, not a look
+            }
         }
 
         public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
@@ -165,7 +180,7 @@ namespace Hrot.ScenarioEditor.Map
             else if (key == MapKeyboardKey.Escape && isPressed) _onRemove();
         }
 
-        public void OnDragUpdate(Vector3 worldPos) { }
+        public void OnDragUpdate(Vector3 worldPos) { if (_rightDown) _rightMoves++; }
         public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos) { }
         public void OnCommit(Vector3 worldPos) { }
         public void OnCancel() { }
