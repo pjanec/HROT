@@ -246,6 +246,8 @@ clamped to ≥ 0 (`BicycleModel.cs:34`), so no AI vehicle reverses today (V5 fix
 `ua-tank-ammo`, `ua-technical-scoot` · M4 → `ua-javelin-lock` · M7 → V8 → `ua-drone-shelter`. **Later:** ERA / cage / slat numbers, active protection, smoke, jammers and
 electronic warfare, hull-vs-turret armour, R-263 damage states, pairs and infantry cooperation, gun-elevation stand-off, loitering munitions.
 
+⭐ **Scheduled `2026-10-14`** (🔒 user: *"Also demo scenario for shoot and scoot and drone attack"*): ⏸ none of the six demos is built yet. **`ua-technical-scoot`** is built after the weapon-systems catalogue (Weapon Systems WS-4): the technicals become presets with a real, killable gunner (W-I), so the demo shows the HMG technical scooting and a gunner shot off his gun. **`ua-drone-shelter`** is built after the FPV attack exists — the `Dive` profile of the one air attack (Air Operations B5, slice 6); it then also shows a drone hitting a tank in the open on the roof.
+
 ## 5. Decisions
 
 🔒 User, `2026-10-14`: **"D-A to D-H approved."** then **"Leans accepted. Write the designs"** — every row below (D-A…D-L) is DECIDED as leaned.
