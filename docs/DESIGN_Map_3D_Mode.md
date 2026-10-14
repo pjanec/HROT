@@ -1727,6 +1727,7 @@ replay (`IsReplayActive`), so in a replay the launcher stays slung and no backbl
 | ![laid guns](assets/map-3d/ws-4b-laid-guns.png) | ![top attack](assets/map-3d/ws-5-top-attack-trail.png) |
 | *the howitzer laid at 25°, a man at its breech; the mortar at 60°, its gunner beside it* | *a missile's top-attack trail arcing onto the SP howitzer* |
 | ![A-10](assets/map-3d/ws-6-a10.png) | *the A-10's own airframe: straight wing, engines on the rear fuselage, twin fins, the nose gun* |
+| ![route heights](assets/map-3d/ws-7-route-heights.png) | *a flyer's route drawn Z-up (CE-2172): from its ground start it climbs to each waypoint's height above the ground (CE-1096)* |
 
 ⏭ **Built in their OWN designs, not here:** the route gizmo Z-up and the waypoint heights (air hand-off U1 / U2 — CE-2172 / CE-2173,
 [DESIGN_Air_Operations.md](designs/air-attack/DESIGN_Air_Operations.md) §5), the pilot station (U3, §6 there and

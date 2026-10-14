@@ -516,7 +516,9 @@ close* — Escape would still lose the edit.
 
 📐 **Rails** `RouteWaypointGizmoTests.CE2172_*` (Z-up, a drag keeps the height) and `CE1096_*` (the selection survives the release, a panel edit
 reaches the route) — each red-proved; IG `WaypointEditorPanelTests` and `IgWindowsDumpTheirModelsTests` re-pointed at the shared panel. Seen in the
-3-D map: `ws-7-route-heights` (§6n of the 3-D map design).
+3-D map (frame rail `Map3DFrameRail.CE1085_V`, shot `ws-7`):
+
+![route heights](../../assets/map-3d/ws-7-route-heights.png)
 
 ---
 
