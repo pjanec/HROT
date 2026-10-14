@@ -10,6 +10,7 @@ known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid pri
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
   buildings.
 related-designs:
+  - DESIGN_Map_3D_Mode.md §6k — CE-1068: how a door entity is DRAWN (a hinged leaf in 3-D, no symbol in 2-D, gone when destroyed)
   - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — R-217's penetration lookup keyed by the LOADED round (a mount's ammo loadout)
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — the penetrator kind (kinetic / shaped charge / tandem) read beside R-217's lookup
   - DESIGN_Visual_Effects.md — draws the detonations §3k's warheads make (explosion and decal sized by the ammo's TKB type).
@@ -642,7 +643,7 @@ doors, every other node receives them.
 | ownership | `dtDoorState` is in no group ⇒ the creator keeps it (creator's remainder); `RegisterMapping(dtDoorState → DoorState)` lets 5d move the write with the descriptor |
 | ⚠ deviation from §3b K3 | no separate `TerrainObjectMap` class: the map IS the `TerrainObjectKey` entities (`TerrainObjects.Find`) — a second table would be a second representation of one fact. 5e's `TerrainObjectRef` resolves through it |
 | ⚠ known limit | several Brain nodes (R-162) each running the load step would each create the doors — the same exposure the scenario's own entities have today; the `ExistingKeys` skip only covers a re-commit on one node |
-| visible effect | a door entity has `SimTransform` + `NetworkIdentity`, so the map draws its pick box (a door is selectable — the hook for 5d's commands); no symbol, no palette entry (bare template) |
+| visible effect | a door entity has `SimTransform` + `NetworkIdentity`, so the map draws its pick box (a door is selectable — the hook for 5d's commands); no symbol, no palette entry (bare template) — ⚠ `CE-1068` (`2026-10-14`): it DID draw a symbol (the unknown-type fallback, magenta) and a 3-D unknown box; both removed — 2-D keeps anchor + pick box, 3-D draws the hinged leaf ([`DESIGN_Map_3D_Mode.md` §6k](DESIGN_Map_3D_Mode.md)) |
 | ⚠ found live `2026-10-08` | a door is a TRANSIENT spawn, so `NetworkSpawningSystem.ProcessSpawn` stamps `ScenarioIgnoreTag` on every node — and **no host registered that tag** (every rail registered it for itself). The first cluster load of a terrain with doors (`bt-doors`) killed the CGF process. ✅ Registered in `HrotSharedComponentRegistry` (every host); rail `RegisterAll_TheTransientSpawnTag_IsRegistered`. The same crash was latent for any transient spawn (an IG sketch, R-140) |
 | rails (5b) | `TerrainWorldTests.Stage5b_*` (mirror) · `ScenarioLoadStepTests.Stage5b_*` (creation, order, ids, no doubling) · `EntityDoorStateTranslatorTests` (wire round trip into the other node's terrain) · `EntityCreationPackRails.EveryRoot_SchedulesTheTerrainObjectSystems` / `Build_AlwaysHasTheDoorMirror_OfflineToo` |
 

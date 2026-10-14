@@ -42,6 +42,17 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>Radians of look per pixel of right-drag.</summary>
         public float LookSpeed { get; set; } = 0.004f;
 
+        /// <summary>
+        /// ⭐ CE-1072 (docs/DESIGN_Map_3D_Mode.md §6l) — how fast a wheel step glides home (s, the time constant): each click adds to a
+        /// TARGET distance the camera eases toward, so the wheel flies instead of jumping. 🔒 User, 2026-10-14: "the scroll button based
+        /// camera moving forwards and backwards jumps with each click instead of being a smooth flight". 0 = the old snap.
+        /// </summary>
+        public float WheelGlideSeconds { get; set; } = 0.12f;
+
+        /// <summary>⭐ CE-1072 — how fast W/A/S/D/Q/E reach and leave their speed (s, the time constant): a fly that starts and stops
+        /// over a few frames instead of a step. 0 = instant.</summary>
+        public float FlyEaseSeconds { get; set; } = 0.08f;
+
         /// <summary>The ground height at a point — keeps the look-at point on the relief (R-248). Null ⇒ the look-at Z is kept.</summary>
         public Func<float, float, float>? GroundHeight { get; set; }
 
@@ -51,6 +62,9 @@ namespace Fdp.Toolkit.Vis3D
         private float _dt;
         private Vector2 _lastMouse;
         private bool _looking, _panning;
+        private float _wheelTravel;                  // ⭐ CE-1072 — metres of eye travel along the view the wheel still owes (+ = in)
+        private Vector3 _flyVelocity;               // ⭐ CE-1072 — the eased W/A/S/D velocity (m/s)
+        private Vector2? _frameViewport;            // ⭐ CE-1072 — the window size, read once a frame
         private Vector2 _followedXY = new(float.NaN, float.NaN);   // the look-at XY the ground height was last matched at
 
         // animation
@@ -77,7 +91,9 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>A fixed screen size instead of the window's (tests; a camera drawing into a sub-viewport).</summary>
         public Vector2? ViewportOverride { get; set; }
 
-        public Vector2 Viewport => ViewportOverride ?? (WindowOpen()
+        /// <remarks>⭐ CE-1072 — read from the window ONCE a frame (cleared in <see cref="Update"/>): 📐 measured 2026-10-14, asking
+        /// the window per call cost 13 % of a 3-D frame, because <see cref="ZoomAt"/> asks it for every primitive drawn.</remarks>
+        public Vector2 Viewport => ViewportOverride ?? (_frameViewport ??= WindowOpen()
             ? new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight())
             : FallbackViewport);
 
@@ -139,6 +155,8 @@ namespace Fdp.Toolkit.Vis3D
                 _animSeconds = 0f;
                 _animDone = null;
                 _looking = _panning = false;
+                _wheelTravel = 0f;
+                _flyVelocity = Vector3.Zero;
             }
         }
         private ICameraDriver? _driver;
@@ -146,6 +164,7 @@ namespace Fdp.Toolkit.Vis3D
         public override void Update(float dt)
         {
             _cachePixel = new Vector2(float.NaN);   // a new frame: entities may have moved
+            _frameViewport = null;                  // ⭐ CE-1072 — and the window may have been resized
             if (!float.IsFinite(dt) || dt < 0f) dt = 0f;
             _dt = dt;
             if (_driver != null)
@@ -155,6 +174,7 @@ namespace Fdp.Toolkit.Vis3D
                 SyncEquivalents();
                 return;
             }
+            if (!IsAnimating) GlideWheel(dt);
             if (IsAnimating)
             {
                 _animT += dt / _animSeconds;
@@ -213,7 +233,13 @@ namespace Fdp.Toolkit.Vis3D
             float wheel = input.MouseWheelMove;
             if (wheel != 0f)
             {
-                Distance = Math.Clamp(Distance * MathF.Pow(0.88f, wheel), MinDistance, MaxDistance);
+                // ⭐ CE-1072 — a click adds eye travel along the view; Update glides it out. Each step is 12 % of the distance the
+                //   glide is heading to (as before), and at the pivot a flat step, so the wheel keeps flying forward (Unity).
+                float heading = Distance - _wheelTravel;
+                _wheelTravel += heading > MinDistance * 1.01f
+                    ? heading * (1f - MathF.Pow(0.88f, wheel))
+                    : MathF.Max(0.5f, MinDistance) * wheel;
+                if (WheelGlideSeconds <= 0f) GlideWheel(float.PositiveInfinity);
                 used = true;
             }
 
@@ -234,7 +260,7 @@ namespace Fdp.Toolkit.Vis3D
                     bool shift = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
                     bool ctrl  = input.IsKeyDown(MapKeyboardKey.LeftControl) || input.IsKeyDown(MapKeyboardKey.RightControl);
                     float boost = shift && ctrl ? 30f : (shift || ctrl) ? 10f : 1f;
-                    float speed = MathF.Max(0.5f, Distance * 0.1f) * boost * _dt;
+                    float speed = MathF.Max(0.5f, Distance * 0.1f) * boost;
                     var move = Vector3.Zero;
                     if (input.IsKeyDown((MapKeyboardKey)KeyboardKey.W)) move += Forward;
                     if (input.IsKeyDown((MapKeyboardKey)KeyboardKey.S)) move -= Forward;
@@ -242,12 +268,18 @@ namespace Fdp.Toolkit.Vis3D
                     if (input.IsKeyDown((MapKeyboardKey)KeyboardKey.A)) move -= Right;
                     if (input.IsKeyDown((MapKeyboardKey)KeyboardKey.E)) move += Vector3.UnitZ;
                     if (input.IsKeyDown((MapKeyboardKey)KeyboardKey.Q)) move -= Vector3.UnitZ;
-                    if (move != Vector3.Zero) LookAt += Vector3.Normalize(move) * speed;
+                    // ⭐ CE-1072 — eased: the velocity heads for the keys' velocity with a short time constant, so a tap or a release
+                    //   is a quick ramp rather than a step (a step at an uneven frame rate is what reads as a jerk).
+                    var wanted = move != Vector3.Zero ? Vector3.Normalize(move) * speed : Vector3.Zero;
+                    float k = FlyEaseSeconds <= 0f ? 1f : 1f - MathF.Exp(-_dt / FlyEaseSeconds);
+                    _flyVelocity += (wanted - _flyVelocity) * k;
+                    if (wanted == Vector3.Zero && _flyVelocity.LengthSquared() < 1e-6f) _flyVelocity = Vector3.Zero;
+                    LookAt += _flyVelocity * _dt;
                 }
                 _looking = true;
                 used = true;
             }
-            else _looking = false;
+            else { _looking = false; _flyVelocity = Vector3.Zero; }
 
             if (input.IsMouseButtonDown(MapMouseButton.Middle))
             {
@@ -264,6 +296,28 @@ namespace Fdp.Toolkit.Vis3D
             _lastMouse = mouse;
             if (used) { Sanitise(); SyncEquivalents(); }
             return used;
+        }
+
+        /// <summary>
+        /// ⭐ CE-1072 — one frame of the wheel's glide: a share of the owed travel moves the eye along the view (the look-at point
+        /// stays); travel past <see cref="MinDistance"/> moves the look-at point forward too, so the wheel keeps flying instead of
+        /// stopping at the pivot.
+        /// </summary>
+        private void GlideWheel(float dt)
+        {
+            if (_wheelTravel == 0f) return;
+            float k = WheelGlideSeconds <= 0f || float.IsPositiveInfinity(dt) ? 1f : 1f - MathF.Exp(-dt / WheelGlideSeconds);
+            float d = MathF.Abs(_wheelTravel) < 0.002f ? _wheelTravel : _wheelTravel * k;
+            _wheelTravel -= d;
+            float next = Distance - d;                       // the eye moves along the view; the look-at point stays
+            if (next < MinDistance)
+            {
+                LookAt += Forward * (MinDistance - next);    // past the pivot: the pivot flies forward with the eye
+                _followedXY = new Vector2(LookAt.X, LookAt.Y);   // a flight, not a pan: no relief snap
+                next = MinDistance;
+            }
+            else if (next > MaxDistance) { next = MaxDistance; _wheelTravel = 0f; }
+            Distance = next;
         }
 
         /// <summary>A drag of <paramref name="screenDelta"/> pixels as metres on the ground at the look-at point.</summary>

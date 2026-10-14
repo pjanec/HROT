@@ -28,11 +28,17 @@ namespace Hrot.UI.Common.Map3D
         private CameraPose _before;
         private bool _was3D;
 
-        public PossessionStation(MapViewSwitch view, Func<EntityRepository?> world)
+        /// <param name="bodies">⭐ CE-1073 — the drawn figures: the eyes come from the drawn head, and the held unit's head is not
+        /// drawn. Null (a host or rail without 3-D bodies) keeps the perception eye height above the unit's position.</param>
+        public PossessionStation(MapViewSwitch view, Func<EntityRepository?> world, EntityBodyLayer3D? bodies = null)
         {
             _view = view ?? throw new ArgumentNullException(nameof(view));
             _world = world ?? throw new ArgumentNullException(nameof(world));
+            Bodies = bodies;
         }
+
+        /// <summary>⭐ CE-1073 — the figures the eye is read from (the forwarding rail checks the pack passes them).</summary>
+        public EntityBodyLayer3D? Bodies { get; }
 
         public string Name => "Possession (FPS)";
         public int LayerBitIndex => -1;
@@ -82,12 +88,14 @@ namespace Hrot.UI.Common.Map3D
             _view.Set(true, animate: false);
             _driver = new FpsCameraDriver(this, _world, unit, netId);
             _view.Camera3D.Driver = _driver;
+            if (Bodies != null) Bodies.FirstPerson = unit;   // ⭐ CE-1073 — the camera is inside this head
         }
 
         private void Leave()
         {
             _view.Camera3D.Driver = null;   // Detached unlocks the cursor
             _driver = null;
+            if (Bodies != null) Bodies.FirstPerson = Entity.Null;
             _view.ShowPose(_before);        // the view the operator had — 2-D when it was a 2-D pose
             if (!_was3D) _view.Set(false, animate: false);
         }
@@ -121,7 +129,7 @@ namespace Hrot.UI.Common.Map3D
             Raylib.DrawLine(cx, cy - 10, cx, cy - 3, Color.White);
             Raylib.DrawLine(cx, cy + 3, cx, cy + 10, Color.White);
             int y = (int)size.Y - 24;
-            var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked);
+            var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance);
             for (int i = lines.Length - 1; i >= 0; i--, y -= 20)
                 Raylib.DrawText(lines[i], 12, y, 18, Color.RayWhite);
         }
@@ -129,7 +137,8 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>The HUD's text, apart from drawing (the rails read it).</summary>
         public static class Hud
         {
-            public static string[] Lines(EntityRepository w, Entity unit, int mount, bool vehicle, bool hullLocked)
+            public static string[] Lines(EntityRepository w, Entity unit, int mount, bool vehicle, bool hullLocked,
+                                         Fdp.Toolkit.Tkb.Domain.StanceId? stance = null)
             {
                 var lines = new System.Collections.Generic.List<string>();
                 if (w.IsComponentTypeRegistered<Health>() && w.HasComponent<Health>(unit))
@@ -146,9 +155,10 @@ namespace Hrot.UI.Common.Map3D
                         lines.Add($"{(m == mount ? ">" : " ")} WEAPON {m}  {a.AmmoOf(m)}/{a.MaxOf(m)}{(mag >= 0 ? $"  [{mag}]" : "")}");
                     }
                 }
+                if (!vehicle && stance is { } st) lines.Add($"STANCE {st.ToString().ToUpperInvariant()}");   // ⭐ CE-1074
                 lines.Add(vehicle
                     ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  LMB fire  wheel weapon  Esc release"
-                    : "W/A/S/D move  mouse look  Shift run  LMB fire  wheel weapon  Esc release");
+                    : "W/A/S/D move  mouse look  Shift run  C stance  LMB fire  wheel weapon  Esc release");
                 return lines.ToArray();
             }
         }
@@ -181,6 +191,9 @@ namespace Hrot.UI.Common.Map3D
         private float _yaw, _pitch, _mouseSteer;
         private bool _lookInitialised;
         private uint _seq;
+        private Fdp.Toolkit.Tkb.Domain.StanceId? _stance;   // ⭐ CE-1074 — the stance the operator asked for (null: not yet)
+        private Vector3 _eye;                              // ⭐ CE-1073 — where the eye was placed this frame
+        private bool _eyeKnown;
 
         internal FpsCameraDriver(PossessionStation station, Func<EntityRepository?> world, Entity unit, long netId)
         {
@@ -210,6 +223,12 @@ namespace Hrot.UI.Common.Map3D
         public float Yaw => _yaw;
         public float Pitch => _pitch;
 
+        /// <summary>⭐ CE-1074 — the stance the operator has asked for (a person; null for a vehicle or before the first frame).</summary>
+        public Fdp.Toolkit.Tkb.Domain.StanceId? Stance => _stance;
+
+        /// <summary>⭐ CE-1073 — where the eye is this frame (world metres).</summary>
+        public Vector3 Eye => _eye;
+
         public void Update(MapCamera3D camera, float dt)
         {
             if (_world() is not { } w || !w.IsAlive(Unit) || !w.HasComponent<SimTransform>(Unit)) return;
@@ -218,14 +237,35 @@ namespace Hrot.UI.Common.Map3D
             if (!_lookInitialised) { _yaw = hullYaw; _pitch = 0f; _lookInitialised = true; }
             bool vehicle = IsVehicle;
             if (vehicle && HullLocked) _yaw = hullYaw;
-            float eyeHeight = Scheme == ControlScheme.Rotorcraft ? RotorcraftEyeHeight : vehicle ? VehicleEyeHeight
-                : Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(w, Unit,
-                    Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(w, Unit));
-            var eye = tf.Position + new Vector3(0f, 0f, eyeHeight);
+            _eye = EyeOf(w, tf, vehicle);
+            _eyeKnown = true;
+            Place(camera);
+        }
+
+        /// <summary>
+        /// ⭐ CE-1073 (docs/DESIGN_Map_3D_Mode.md §6l) — the eye: a person's is the eyes of his DRAWN head (the body layer's last frame,
+        /// in the body's frame, put on the unit's current position and heading — so the lean of a run, a crouch or a crawl moves the
+        /// eye with the head instead of the head swinging in front of a camera fixed above the reference point); a vehicle's is above
+        /// its hull, a flyer's at its rotorcraft eye. No figure drawn yet ⇒ the perception eye height, as before.
+        /// </summary>
+        private Vector3 EyeOf(EntityRepository w, in SimTransform tf, bool vehicle)
+        {
+            if (Scheme == ControlScheme.Rotorcraft) return tf.Position + new Vector3(0f, 0f, RotorcraftEyeHeight);   // ⭐ CE-2168 (MD-D)
+            if (vehicle) return tf.Position + new Vector3(0f, 0f, VehicleEyeHeight);
+            if (_station.Bodies is { } bodies && bodies.TryGetEyeLocal(Unit, out var local))
+                return tf.Position + Vector3.Transform(local, tf.Rotation);
+            return tf.Position + new Vector3(0f, 0f, Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(w, Unit,
+                Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(w, Unit)));
+        }
+
+        /// <summary>The camera at the eye, looking along the operator's look.</summary>
+        private void Place(MapCamera3D camera)
+        {
+            if (!_eyeKnown) return;
             camera.Yaw = _yaw;
             camera.Pitch = _pitch;
             camera.Distance = camera.MinDistance;
-            camera.LookAt = eye + camera.Forward * camera.Distance;
+            camera.LookAt = _eye + camera.Forward * camera.Distance;
         }
 
         public bool HandleInput(MapCamera3D camera, IInputProvider input)
@@ -248,6 +288,13 @@ namespace Hrot.UI.Common.Map3D
             bool run = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
             float wheel = input.MouseWheelMove;
             if (wheel != 0f) Mount = NextMount(Mount, wheel > 0f ? -1 : 1);
+            // ⭐ CE-1074 — C cycles a person's stance: standing → crouched → prone → standing (from the stance he has when first driven)
+            if (Scheme == ControlScheme.Person && _world() is { } sw)   // a person only: on a flyer C is the climb axis (CE-2168)
+            {
+                _stance ??= Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(sw, Unit);
+                if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.C)) _stance = NextStance(_stance.Value);
+            }
+            Place(camera);   // ⭐ CE-1073 — this frame's look shows this frame (Update ran before the input)
 
             var frame = new OperatorControlFrameEvent
             {
@@ -261,6 +308,7 @@ namespace Hrot.UI.Common.Map3D
                 Trigger = input.IsMouseButtonDown(MapMouseButton.Left) ? (byte)1 : (byte)0,
                 Mount = (byte)Mount,
                 AimPoint = AimPoint(camera),
+                Stance = !vehicle && _stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,   // ⭐ CE-1074
             };
             _station.Send(_netId, frame);
             return true;
@@ -286,6 +334,14 @@ namespace Hrot.UI.Common.Map3D
                 ? Math.Max(1, (int)w.GetComponentRO<WeaponAmmo>(Unit).Count) : 1;
             return ((mount + step) % count + count) % count;
         }
+
+        /// <summary>⭐ CE-1074 — the stance after <paramref name="s"/> in the cycle standing → crouched → prone → standing.</summary>
+        public static Fdp.Toolkit.Tkb.Domain.StanceId NextStance(Fdp.Toolkit.Tkb.Domain.StanceId s) => s switch
+        {
+            Fdp.Toolkit.Tkb.Domain.StanceId.Standing => Fdp.Toolkit.Tkb.Domain.StanceId.Crouched,
+            Fdp.Toolkit.Tkb.Domain.StanceId.Crouched => Fdp.Toolkit.Tkb.Domain.StanceId.Prone,
+            _ => Fdp.Toolkit.Tkb.Domain.StanceId.Standing,
+        };
 
         private static float HullYaw(Quaternion q)
             => MathF.Atan2(2f * (q.W * q.Z + q.X * q.Y), 1f - 2f * (q.Y * q.Y + q.Z * q.Z));

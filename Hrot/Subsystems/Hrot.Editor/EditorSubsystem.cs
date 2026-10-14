@@ -2984,7 +2984,9 @@ namespace Hrot.Editor
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // Render hover tooltip with entity info (label, health, cognitive state).
-            if (_isActiveMapOwner() && !ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null && _world != null)
+            // ⭐ CE-1073 — not in first person: the locked cursor sits at the crosshair, so the card was the possessed man's own
+            if (_isActiveMapOwner() && !ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null && _world != null
+                && _canvas.Camera is not Fdp.Toolkit.Vis3D.MapCamera3D { Driver: not null })
             {
                 var mouseWorld = _canvas.Camera.ScreenToWorld(Raylib_cs.Raylib.GetMousePosition());
                 var hovered = _canvas.PickTopmostEntity(mouseWorld);

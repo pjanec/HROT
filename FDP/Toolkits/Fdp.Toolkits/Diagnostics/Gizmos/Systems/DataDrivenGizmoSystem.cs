@@ -658,6 +658,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 // ⭐ §6.7 — a NETWORK id, resolved. See the MenuAction note above for the defect.
                 FindGizmo(ResolveAnchor(repo, evt.AnchorId), evt.GizmoTypeId)?.OnStructUpdate(evt.PayloadJson);
             }
+            // ⭐ CE-1066 — a panel's [X], routed like the struct update
+            if (bus.IsRegistered<GizmoInspectorClosedEvent>())
+                foreach (ref readonly var evt in bus.Read<GizmoInspectorClosedEvent>())
+                    FindGizmo(ResolveAnchor(repo, evt.AnchorId), evt.GizmoTypeId)?.OnInspectorClosed();
 
             // MouseEvent: only the focused exclusive-focus gizmo receives raw mouse events.
             var mouseEvents = bus.Read<GizmoMouseEvent>();

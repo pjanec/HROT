@@ -352,6 +352,10 @@ public static class BlockFigure
 {
     private static readonly Vector3 S = new(0.35f, 0.55f, 1.8f);
 
+    /// <summary>⭐ CE-1073 — the head's place in every figure's parts (the shared order above: four leg parts, the torso, the head).
+    /// The first-person camera reads the eyes from it; a rail holds the order for every stance, posture and fall.</summary>
+    public const int HeadIndex = 5;
+
     // Metres for a 1.8 m figure, converted to fractions of (0.35, 0.55, 1.8) below.
     private static KitPart P(float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c, PartRole role = PartRole.Hull,
                              bool upper = false)
@@ -438,11 +442,48 @@ public static class BlockFigure
     private static readonly KitPart[] GlideLegs =
         Legs(new(0f, 0.12f, 0.80f), new(0.03f, 0.14f, 0.02f), new(0f, -0.12f, 0.80f), new(0.03f, -0.14f, 0.02f), swings: true);
 
+    /// <summary>
+    /// ⭐ CE-1064 (docs/DESIGN_Map_3D_Mode.md §6j) — crouched and still: the KNEEL. The right (firing-side) knee and shin lie on the
+    /// ground, the left foot is planted forward with its shin upright, and the hips sit back over the right heel. The upper body is
+    /// unchanged, so the head stays at the stance's 1.1 m eye. ⛔ This replaces a squat with both feet under the hips: its thighs were
+    /// level, its knees stuck out in front and its upright torso sat behind its feet, so it read as a man sitting on an invisible chair.
+    /// Each leg keeps one y from hip to ankle, so no segment gets a sideways yaw that a stance blend would sweep through.
+    /// </summary>
     private static readonly KitPart[] CrouchedBody =
     [
-        .. Legs(new(-0.05f, 0.11f, 0.50f), new(0.16f, 0.13f, 0.02f), new(-0.05f, -0.11f, 0.50f), new(0.08f, -0.14f, 0.02f), swings: false),
+        .. Leg(new(-0.05f, 0.12f, 0.50f), new(0.40f, 0.12f, 0.02f), true, swings: false, bend: Vector3.UnitZ),   // support knee up
+        .. KneelingLeg(new(-0.05f, -0.12f, 0.50f), new(-0.40f, -0.12f, 0.07f)),                                  // firing-side knee down
         P(-0.02f, 0f, 0.76f, 0.26f, 0.40f, 0.52f, ColourRole.Body, upper: true),
         P(0.04f, 0f, 1.14f, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),
+    ];
+
+    /// <summary>A leg kneeling: the knee forward and down on the ground, the shin lying back from it to the foot. The shin is built
+    /// from the foot TO the knee, so it points forward (yaw 0) like every other leg segment and a blend turns it in the leg's own plane.</summary>
+    private static KitPart[] KneelingLeg(Vector3 hip, Vector3 ankle)
+    {
+        var knee = Knee(hip, ankle, Thigh, Shin, Vector3.UnitX);
+        return [Limb(hip, knee, 0.13f, 0.15f, ColourRole.Dark) with { Upper = false },
+                Limb(ankle, knee, 0.12f, 0.14f, ColourRole.Dark) with { Upper = false }];
+    }
+
+    /// <summary>⭐ CE-1064 — how much lower a crouched RUN carries the hips than standing (m), and how far its upper body leans
+    /// forward from them (radians, about 26°; <c>EntityBodyLayer3D</c> adds it on top of the gait's own lean).</summary>
+    public const float CrouchRunDrop = 0.30f, CrouchRunLean = 0.45f;
+
+    /// <summary>⭐ CE-1064 — how much shorter a crouched run's steps are than an upright one's (a long stride from bent knees swung the
+    /// back shin out flat behind him — a lunge, not a run).</summary>
+    public const float CrouchRunStepCut = 0.35f;
+
+    private static readonly Vector3 RunDrop = new(0.02f, 0f, -CrouchRunDrop);
+
+    /// <summary>⭐ CE-1064 — the CROUCHED RUN (R-265: a threatened or cautious soldier moves in a crouch): hips 0.6 m, both feet under
+    /// them, knees bent forward; the legs SWING (thigh and shin from the hip, the shin bending at the knee) and the upper body is the
+    /// standing one lowered by <see cref="CrouchRunDrop"/>, leaning forward by <see cref="CrouchRunLean"/>.</summary>
+    private static readonly KitPart[] CrouchRunBody =
+    [
+        .. Legs(new(0f, 0.12f, 0.90f - CrouchRunDrop), new(0.06f, 0.12f, 0.02f), new(0f, -0.12f, 0.90f - CrouchRunDrop), new(0.06f, -0.12f, 0.02f), swings: true),
+        P(0.02f, 0f, 1.18f - CrouchRunDrop, 0.24f, 0.40f, 0.56f, ColourRole.Body, upper: true),
+        P(0.02f, 0f, 1.60f - CrouchRunDrop, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),
     ];
 
     private static readonly KitPart[] ProneBody =
@@ -459,14 +500,18 @@ public static class BlockFigure
     /// <summary>The hip height of a stance as a fraction of the figure's height — where its upper body leans and turns from.</summary>
     public static float HipFraction(StanceId stance) => stance switch { StanceId.Crouched => 0.28f, StanceId.Prone => 0.05f, _ => 0.5f };
 
+    /// <summary>⭐ CE-1064 — the crouched run's hip height as a fraction of the figure's height.</summary>
+    public const float CrouchRunHipFraction = (0.90f - CrouchRunDrop) / 1.8f;
+
     // ── the arms and the rifle ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>A civilian's arms hanging at his sides (standing; they swing), or resting forward (crouched).</summary>
+    /// <summary>A civilian's arms hanging at his sides and swinging (standing, a crouched run), or resting forward (crouched, still).</summary>
     private static KitPart[] CivilianArms(Vector3 drop, bool swing)
     {
         var l = StandShoulderL + drop; var r = StandShoulderR + drop;
-        var reach = drop == Vector3.Zero ? new Vector3(0.02f, 0f, -0.60f) : new Vector3(0.30f, -0.02f, -0.24f);
-        var bend = drop == Vector3.Zero ? new Vector3(0f, 0f, -0.30f) : new Vector3(0.06f, 0f, -0.20f);
+        bool hanging = swing || drop == Vector3.Zero;
+        var reach = hanging ? new Vector3(0.02f, 0f, -0.60f) : new Vector3(0.30f, -0.02f, -0.24f);
+        var bend = hanging ? new Vector3(0f, 0f, -0.30f) : new Vector3(0.06f, 0f, -0.20f);
         return [.. Arm(l, l + bend, l + reach with { Y = -reach.Y }, swing ? PartRole.ArmLeft : PartRole.Hull),
                 .. Arm(r, r + bend, r + reach, swing ? PartRole.ArmRight : PartRole.Hull)];
     }
@@ -554,6 +599,39 @@ public static class BlockFigure
          [.. CrouchedBody, .. SoldierArms(WeaponPostureKind.Ready, CrouchDrop)],
          [.. CrouchedBody, .. SoldierArms(WeaponPostureKind.Aimed, CrouchDrop)]];
 
+    // ⭐ CE-1064 — the crouched run, per posture (a soldier's arms stay on the rifle; a civilian's swing)
+    private static readonly KitPart[] CrouchRun = [.. CrouchRunBody, .. CivilianArms(RunDrop, swing: true)];
+    private static readonly KitPart[][] CrouchRunArmed =
+        [[.. CrouchRunBody, .. SoldierArms(WeaponPostureKind.AtEase, RunDrop)],
+         [.. CrouchRunBody, .. SoldierArms(WeaponPostureKind.Ready, RunDrop)],
+         [.. CrouchRunBody, .. SoldierArms(WeaponPostureKind.Aimed, RunDrop)]];
+
+    /// <summary>
+    /// ⭐ CE-1064 (docs/DESIGN_Map_3D_Mode.md §6j) — a crouched figure ON THE MOVE: part-way (<paramref name="weight"/> 0..1, how much he
+    /// is walking or running — <see cref="MotionPose.Stride"/>) from <paramref name="still"/> (the kneel, in its posture) to the
+    /// crouched run in the same posture blend. Every part takes the run's role, so the legs (and a civilian's arms) swing with the gait;
+    /// the shared parts-in-order rule makes the blend part by part, like <see cref="Glide"/>.
+    /// </summary>
+    public static KitPart[] CrouchedMoving(KitPart[] still, bool soldier, WeaponPostureKind from, WeaponPostureKind to, float postureT, float weight)
+    {
+        weight = Math.Clamp(weight, 0f, 1f);
+        if (weight <= 0f) return still;
+        var run = PostureMix(soldier ? CrouchRunArmed : [CrouchRun, CrouchRun, CrouchRun], from, to, postureT);
+        if (run.Length != still.Length) return run;
+        var moving = new KitPart[run.Length];
+        for (int i = 0; i < run.Length; i++)
+            moving[i] = run[i] with
+            {
+                Centre = Vector3.Lerp(still[i].Centre, run[i].Centre, weight),
+                Extent = Vector3.Lerp(still[i].Extent, run[i].Extent, weight),
+                YawDegrees = still[i].YawDegrees + (run[i].YawDegrees - still[i].YawDegrees) * weight,
+                PitchDegrees = still[i].PitchDegrees + (run[i].PitchDegrees - still[i].PitchDegrees) * weight,
+                SwingPivot = still[i].SwingPivot is { } a && run[i].SwingPivot is { } b ? Vector3.Lerp(a, b, weight) : run[i].SwingPivot,
+                KneePivot = still[i].KneePivot is { } ka && run[i].KneePivot is { } kb ? Vector3.Lerp(ka, kb, weight) : run[i].KneePivot,
+            };
+        return moving;
+    }
+
     /// <summary>⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — a dead man: on his back, head forward (+X, like prone), legs apart,
     /// arms flung out; a soldier's rifle dropped beside him. Same parts in the same order as every stance, so a fall can blend.</summary>
     private static readonly KitPart[] DeadPose =
@@ -610,9 +688,14 @@ public static class BlockFigure
     /// it). Unlike a stance blend every part KEEPS its role, so a soldier walking while he raises his rifle keeps swinging his legs.
     /// </summary>
     public static KitPart[] Parts(StanceId stance, bool soldier, WeaponPostureKind from, WeaponPostureKind to, float t)
+        => PostureLerp(Parts(stance, soldier, from), Parts(stance, soldier, to), from, to, t);
+
+    /// <summary>The same posture blend over a per-posture set of poses (index = <see cref="WeaponPostureKind"/>, 0..2).</summary>
+    private static KitPart[] PostureMix(KitPart[][] byPosture, WeaponPostureKind from, WeaponPostureKind to, float t)
+        => PostureLerp(byPosture[Math.Clamp((int)from, 0, 2)], byPosture[Math.Clamp((int)to, 0, 2)], from, to, t);
+
+    private static KitPart[] PostureLerp(KitPart[] a, KitPart[] b, WeaponPostureKind from, WeaponPostureKind to, float t)
     {
-        var a = Parts(stance, soldier, from);
-        var b = Parts(stance, soldier, to);
         t = Math.Clamp(t, 0f, 1f);
         if (from == to || t >= 1f) return b;
         if (t <= 0f) return a;

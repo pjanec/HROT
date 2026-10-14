@@ -29,6 +29,67 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         // Number of primitives dropped due to capacity overflow.
         public int DroppedCount => _droppedCount;
 
+        // ⭐⭐ CE-1071 (docs/designs/gizmos-1/DESIGN.md §11.11) — THE LAYER MASK AT EMIT, AND THE PRIMITIVES OVERFLOW MAY NOT DROP.
+        //   📐 Measured 2026-10-14 in the live editor (ua-fire-and-movement, one rifleman possessed): 4 096 primitives a frame and
+        //   400-700 DROPPED, the hidden Navmesh / Cover / SpatialGrid layers filling 3 500 of the slots. The drops fell on whatever
+        //   came last — the LayerControlMask (so the 3-D triage drew EVERY hidden layer: 612 spheres and 2 255 draped lines), the
+        //   main-menu binding (View ▸ 2-D / 3-D Map and RTS Command Mode were missing) and a tool's InputCaptureBinding (the RTS
+        //   tool never received a click). ⭐ A hidden-layer primitive is now refused at emit (it is counted, not stored), and when
+        //   the buffer IS full a protected meta primitive takes the slot of the latest plain one instead of being dropped.
+        private LayerMask256 _activeLayers;
+        private bool _layersKnown;
+        private int _suppressedCount;
+        private int _evictFrom = int.MaxValue;
+        private readonly object _evictLock = new();
+
+        /// <summary>⭐ CE-1071 — primitives refused this frame because their layer is hidden (not an overflow).</summary>
+        public int SuppressedCount => _suppressedCount;
+
+        /// <inheritdoc/>
+        public void SetActiveLayers(in LayerMask256 activeLayers)
+        {
+            _activeLayers = activeLayers;
+            _layersKnown = true;
+        }
+
+        /// <inheritdoc/>
+        public bool IsLayerActive(byte layer) => !_layersKnown || _activeLayers.IsSet(layer);
+
+        /// <summary>⭐ CE-1071 — the meta primitives a frame cannot lose: the layer mask, the menus, a tool's input capture and a
+        /// panel. Never refused by layer, never dropped on overflow (they evict a plain primitive).</summary>
+        public static bool IsProtected(DebugPrimitiveShape shape)
+            => shape is DebugPrimitiveShape.LayerControlMask or DebugPrimitiveShape.InputCaptureBinding
+                     or DebugPrimitiveShape.ContextMenuBinding or DebugPrimitiveShape.MainMenuBinding
+                     or DebugPrimitiveShape.StructInspector;
+
+        private bool RefusedByLayer(in DebugPrimitive p)
+        {
+            if (!_layersKnown || IsProtected(p.Shape) || p.Shape == DebugPrimitiveShape.SpatialAnchor) return false;
+            if (_activeLayers.IsSet(p.DebugLayer)) return false;
+            Interlocked.Increment(ref _suppressedCount);
+            return true;
+        }
+
+        /// <summary>The buffer is full: a protected primitive replaces the latest plain one (not an anchor, not another protected
+        /// one), so the frame keeps its mask, menus and bindings. The replaced one counts as dropped.</summary>
+        private void StoreProtectedWhenFull(in DebugPrimitive p)
+        {
+            lock (_evictLock)
+            {
+                for (int i = Math.Min(_evictFrom, _primitives.Length - 1); i >= 0; i--)
+                {
+                    var shape = _primitives[i].Shape;
+                    if (IsProtected(shape) || shape == DebugPrimitiveShape.SpatialAnchor) continue;
+                    _primitives[i] = p;
+                    _evictFrom = i - 1;
+                    Interlocked.Increment(ref _droppedCount);
+                    return;
+                }
+                _evictFrom = -1;
+                Interlocked.Increment(ref _droppedCount);
+            }
+        }
+
         // Snapshot of the current transient write cursor (clamped to capacity).
         // Safe to call from the same thread that calls UpdateAndDraw. Used as a
         // mark before a gizmo draws so that StampGizmoTypeId can identify which
@@ -59,6 +120,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         {
             _count        = 0;
             _droppedCount = 0;
+            _suppressedCount = 0;
+            _evictFrom    = int.MaxValue;
         }
 
         /// <summary>
@@ -72,9 +135,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             //   binding reaches the buffer through EmitRaw, so this is the arm that actually catches a
             //   gizmo emitting without an identity.
             DebugPrimitive.AssertHasIdentity(in primitive);
+            if (RefusedByLayer(in primitive)) return;   // ⭐ CE-1071
             int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = primitive;
+            else if (IsProtected(primitive.Shape))
+                StoreProtectedWhenFull(in primitive);   // ⭐ CE-1071
             else
                 Interlocked.Increment(ref _droppedCount);
         }
@@ -133,6 +199,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // Reset the transient buffer.
             _count        = 0;
             _droppedCount = 0;
+            _suppressedCount = 0;
+            _evictFrom    = int.MaxValue;
 
             // Re-inject surviving persistent primitives into the start of the transient buffer.
             for (int i = 0; i < _persistentCount; i++)
@@ -451,9 +519,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         internal void Append(DebugPrimitive p)
         {
             DebugPrimitive.AssertHasIdentity(in p);
+            if (RefusedByLayer(in p)) return;   // ⭐ CE-1071 — a hidden layer is not stored, and not persisted either
             int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = p;
+            else if (IsProtected(p.Shape))
+                StoreProtectedWhenFull(in p);   // ⭐ CE-1071
             else
                 Interlocked.Increment(ref _droppedCount);
 

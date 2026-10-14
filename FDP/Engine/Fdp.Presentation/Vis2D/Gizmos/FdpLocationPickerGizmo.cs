@@ -22,9 +22,10 @@ namespace Fdp.Toolkit.Vis2D.Gizmos;
 /// </summary>
 public sealed class FdpLocationPickerGizmo : IEntityStatefulGizmo
 {
-    private const float CrosshairHalfSize  = 14f;
+    // ⭐ CE-1065 — halved with the entity picker, its sibling (the two crosshairs keep their relative sizes).
+    private const float CrosshairHalfSize  = 7f;
     private const float CrosshairThickness = 1.5f;
-    private const float CrosshairGapRadius = 5f;
+    private const float CrosshairGapRadius = 2.5f;
 
     private readonly Action<Vector2> _onPicked;
     private readonly Action          _onRemove;

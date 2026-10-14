@@ -248,6 +248,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 if (_activeGizmos.TryGetValue(evt.AnchorId, out var target))
                     target.OnStructUpdate(evt.PayloadJson);
             }
+            // ⭐ CE-1066 — a panel's [X]: anchored the same way, so routed the same way (before the focus gate)
+            if (bus.IsRegistered<GizmoInspectorClosedEvent>())
+                foreach (ref readonly var evt in bus.Read<GizmoInspectorClosedEvent>())
+                    if (_activeGizmos.TryGetValue(evt.AnchorId, out var closed))
+                        closed.OnInspectorClosed();
 
             if (focused == null)
                 return;

@@ -67,7 +67,11 @@ namespace GizmoMap.Presentation
                 layer.DrawContextMenu(onMenuAction);
                 propertyAdapter.DrawScheduled((networkId, gizmoTypeId, json) =>
                     onInteraction(new GizmoPickToken { AnchorId = networkId, GizmoTypeId = gizmoTypeId },
-                        GizmoInteractionEventKind.StructUpdate, Vector3.Zero, 0, 0, json));
+                        GizmoInteractionEventKind.StructUpdate, Vector3.Zero, 0, 0, json),
+                    // ⭐ CE-1066 — the panel's [X], sent as its own kind
+                    (networkId, gizmoTypeId) =>
+                        onInteraction(new GizmoPickToken { AnchorId = networkId, GizmoTypeId = gizmoTypeId },
+                            GizmoInteractionEventKind.InspectorClosed, Vector3.Zero, 0, 0, null));
                 rlImGui.End();
 
                 Raylib.EndDrawing();

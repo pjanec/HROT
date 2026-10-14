@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -70,14 +71,17 @@ namespace Hrot.SimHost.Tests.Gizmos
         public void CE3117_TheDebugTraceLayers_AreToggledByTheirOwnBits()
         {
             var all = new LayerControlDto().ToMask();
-            foreach (var bit in new[] { DebugTraceLayers.Doors, DebugTraceLayers.Paths, DebugTraceLayers.Blast, DebugTraceLayers.Hearing })
+            foreach (var bit in new[] { DebugTraceLayers.Doors, DebugTraceLayers.Paths })
                 Assert.True(all.IsSet(bit), $"layer {bit} defaults on");
+            // ⭐ CE-1065 — 🔒 user, 2026-10-14: "turn most of them off by default": AiHelpers, FireTraces, Blast, Hearing start off
+            foreach (var bit in new byte[] { 2, DebugTraceLayers.FireTraces, DebugTraceLayers.Blast, DebugTraceLayers.Hearing })
+                Assert.False(all.IsSet(bit), $"layer {bit} defaults off");
 
-            var mask = new LayerControlDto { Doors = false, Hearing = false }.ToMask();
+            var mask = new LayerControlDto { Doors = false, Hearing = true }.ToMask();
             Assert.False(mask.IsSet(DebugTraceLayers.Doors));
-            Assert.False(mask.IsSet(DebugTraceLayers.Hearing));
+            Assert.True(mask.IsSet(DebugTraceLayers.Hearing));
             Assert.True(mask.IsSet(DebugTraceLayers.Paths));
-            Assert.True(mask.IsSet(DebugTraceLayers.Blast));
+            Assert.False(mask.IsSet(DebugTraceLayers.Blast));
             Assert.True(mask.IsSet(LayerControlDto.FirstUntoggledLayer));
             // ⭐ CE-3124 — the road network has its own toggle too
             Assert.True(all.IsSet(DebugTraceLayers.Roads));
@@ -92,6 +96,14 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.True(all.IsSet(DebugTraceLayers.Labels));
             Assert.False(new LayerControlDto { Labels = false }.ToMask().IsSet(DebugTraceLayers.Labels));
             Assert.True(DebugTraceLayers.Labels < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
+            // ⭐ CE-1065 — the heading arrows / stance labels and the spatial grid have their own toggles, OFF by default
+            foreach (var bit in new[] { DebugTraceLayers.UnitDetails, DebugTraceLayers.SpatialGrid })
+            {
+                Assert.False(all.IsSet(bit), $"layer {bit} defaults off");
+                Assert.True(bit < LayerControlDto.FirstUntoggledLayer, $"layer {bit} lies below the always-on range");
+            }
+            Assert.True(new LayerControlDto { UnitDetails = true }.ToMask().IsSet(DebugTraceLayers.UnitDetails));
+            Assert.True(new LayerControlDto { SpatialGrid = true }.ToMask().IsSet(DebugTraceLayers.SpatialGrid));
         }
 
         // ⭐ CE-3133 — the navmesh layer choice: Infantry by default, kept in the settings registry by the panel, and an enum that
@@ -129,23 +141,23 @@ namespace Hrot.SimHost.Tests.Gizmos
             var gizmo = new LayerControlGizmo(7, new FdpEventBus(), edit, settings: settings);
             Assert.Equal(GizmoScope.SelectedOrPinned,
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path));
-            Assert.Equal(GizmoScope.All,
+            Assert.Equal(GizmoScope.SelectedOrPinned,   // ⭐ CE-1065 — every family starts on the selection
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory));
 
-            var edited = new LayerControlDto { PathSelectedOnly = false, ContactsSelectedOnly = true };
+            var edited = new LayerControlDto { PathSelectedOnly = false, ContactsSelectedOnly = false };
             string json;
             using (var s = edit.Open(edited, typeof(LayerControlDto))) json = StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
             gizmo.OnStructUpdate(json);
 
             Assert.Equal(GizmoScope.All,
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path));
-            Assert.Equal(GizmoScope.SelectedOrPinned,
+            Assert.Equal(GizmoScope.All,
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory));
 
             var reread = new LayerControlDto();
             reread.ReadScopes(settings);
             Assert.False(reread.PathSelectedOnly);
-            Assert.True(reread.ContactsSelectedOnly);
+            Assert.False(reread.ContactsSelectedOnly);
             Assert.True(reread.SquadSelectedOnly);   // untouched family keeps its default
         }
 
@@ -187,6 +199,109 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.False(emitted.IsSet(DebugTraceLayers.FireTraces), "FireTraces was unchecked and applied, yet its layer is still on");
             Assert.False(emitted.IsSet(DebugTraceLayers.Doors));
             Assert.True(emitted.IsSet(DebugTraceLayers.Paths));
+        }
+    }
+
+    public class CE1065_LayerPanelStaysOpen_Tests
+    {
+        // ⭐ CE-1065 — 🔒 user, 2026-10-14: "the layer dialog … responding to each checkbox click immediately, ie not needing Apply
+        // button which closes the dialog". A struct update (now sent on every checkbox click) applies the mask AND leaves the panel
+        // open — the panel is still emitted the frame after; only the View menu entry toggles it shut.
+        [Fact]
+        public void CE1065_AnUpdate_AppliesTheMask_AndThePanelStaysOpen()
+        {
+            var bus = new FdpEventBus();
+            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
+            var edit = new ComponentEditServiceBuilder().Build();
+            var buffer = new DebugPrimitiveBuffer();
+            var manager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(buffer, bus);
+            long id = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();
+            var gizmo = new LayerControlGizmo(id, bus, edit);
+            manager.Register(id, gizmo);
+            var repo = new EntityRepository();
+
+            bus.Publish(new OpenLayerEditorEvent());   // the menu entry opens the panel
+            bus.SwapBuffers();
+            manager.Execute(repo, 0f);
+            Assert.True(HasPanel(buffer), "the menu entry did not open the panel");
+
+            string json;
+            using (var s = edit.Open(new LayerControlDto { Doors = false }, typeof(LayerControlDto)))
+                json = StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
+            bus.PublishManaged(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoStructUpdateEvent { AnchorId = id, PayloadJson = json });
+            bus.SwapBuffers();
+            buffer.Clear();
+            manager.Execute(repo, 0f);   // routes the click
+            buffer.Clear();
+            manager.Execute(repo, 0f);   // the frame after
+
+            Assert.True(HasPanel(buffer), "the panel closed on the update — a second checkbox would need the menu again");
+            foreach (var p in buffer.GetFrame())
+                if (p.Shape == DebugPrimitiveShape.LayerControlMask) Assert.False(p.ActiveLayers.IsSet(DebugTraceLayers.Doors));
+
+            bus.Publish(new OpenLayerEditorEvent());   // the menu entry again closes it
+            bus.SwapBuffers();
+            buffer.Clear();
+            manager.Execute(repo, 0f);
+            Assert.False(HasPanel(buffer), "the menu entry did not close the panel");
+        }
+
+        // ⭐ CE-1066 — the panel's [X]: the terminal publishes GizmoInspectorClosedEvent, the manager routes it by anchor (no focus
+        // holder needed), the panel stops; the menu entry then OPENS it again with one click (it does not need two).
+        [Fact]
+        public void CE1066_ThePanelsClose_ReachesTheGizmo_AndOneMenuClickReopensIt()
+        {
+            var bus = new FdpEventBus();
+            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
+            var edit = new ComponentEditServiceBuilder().Build();
+            var buffer = new DebugPrimitiveBuffer();
+            var manager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(buffer, bus);
+            long id = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();
+            manager.Register(id, new LayerControlGizmo(id, bus, edit));
+            var repo = new EntityRepository();
+            void Frame() { bus.SwapBuffers(); buffer.Clear(); manager.Execute(repo, 0f); }
+
+            bus.Publish(new OpenLayerEditorEvent());
+            Frame();
+            Assert.True(HasPanel(buffer));
+
+            bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoInspectorClosedEvent { AnchorId = id });
+            Frame();   // routes the close (the panel is emitted before the routing step)…
+            Frame();   // …the frame after has none
+            Assert.False(HasPanel(buffer), "the [X] did not close the panel");
+
+            bus.Publish(new OpenLayerEditorEvent());
+            Frame();
+            Assert.True(HasPanel(buffer), "one menu click did not reopen the panel after its [X]");
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-1071 (docs/designs/gizmos-1/DESIGN.md §11.11) — the layer control hands the buffer the SAME mask it emits, so a hidden
+        /// layer (the navmesh, off by default since CE-1065) is refused at emit and a visible one is kept; the mask primitive is still in
+        /// the frame for the terminals. 📐 Without it, hidden layers filled the frame and pushed the mask, menus and tool bindings out.
+        /// </summary>
+        [Fact]
+        public void CE1071_TheLayerControl_HandsItsMaskToTheBuffer_HiddenLayersAreRefusedAtEmit()
+        {
+            var buffer = new DebugPrimitiveBuffer();
+            var gizmo = new LayerControlGizmo(3L, new FdpEventBus(), new ComponentEditServiceBuilder().Build());
+            gizmo.UpdateAndDraw(new EntityRepository(), 0f, buffer);
+            Assert.False(buffer.IsLayerActive(DebugTraceLayers.Navmesh));
+            Assert.True(buffer.IsLayerActive(0));
+
+            buffer.DrawLine(System.Numerics.Vector3.Zero, System.Numerics.Vector3.UnitX, new Rgba32(1, 2, 3, 255), layer: DebugTraceLayers.Navmesh);
+            buffer.DrawLine(System.Numerics.Vector3.Zero, System.Numerics.Vector3.UnitX, new Rgba32(1, 2, 3, 255), layer: 0);
+            var frame = buffer.GetFrame().ToArray();
+            Assert.Equal(1, buffer.SuppressedCount);
+            Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.Line);
+            Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.LayerControlMask);
+        }
+
+        private static bool HasPanel(DebugPrimitiveBuffer buffer)
+        {
+            foreach (var p in buffer.GetFrame())
+                if (p.Shape == DebugPrimitiveShape.StructInspector) return true;
+            return false;
         }
     }
 

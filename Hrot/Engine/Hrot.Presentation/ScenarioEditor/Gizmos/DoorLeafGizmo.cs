@@ -13,6 +13,9 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// <see cref="TerrainWorld.Doors"/>); the state is <see cref="DoorStates.Of(ISimulationView, TerrainWorld)"/>, i.e. the recorded
 /// <c>DoorState</c> of each door entity, so replay shows it too wherever the terrain is loaded (the Replay Browser: <c>CE-3118</c>).
 /// Toggled by the <c>Doors</c> bit of the layer control.
+/// <para>⭐ CE-1068/CE-1069 — THE 2-D door picture (the door entity has no symbol). In 3-D the map draws the real leaf
+/// (<c>DoorLeaf3D</c>, a locked one tinted with <see cref="ColorOf"/>'s locked purple); these lines still lie at its foot there —
+/// the 3-D pass draws <c>Map2D</c> primitives too (DESIGN_Map_3D_Mode.md §7), and the Doors toggle hides both.</para>
 /// </summary>
 [GizmoProjector]
 public sealed class DoorLeafGizmo : IGlobalStatelessGizmo

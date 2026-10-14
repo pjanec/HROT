@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260). ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l). ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -8,7 +8,7 @@ updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assume
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
-  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §7 what is NOT verified.
+  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: none open — ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
@@ -22,6 +22,10 @@ related-designs:
     the TurretPose / WeaponTask wire; §3.11 here keeps the part, the pose and the drawing.
     ⭐ W-13 (R-272) owns the WEAPON POSTURE (at ease / ready / aimed) that §3.5's block figure draws (WL-6).
   - PLAN_3D_World_And_Realism.md — the programme index (roadmap A1…E2 across this design, effects, turret, aircraft, sound).
+  - blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — R-265: WHO moves crouched and how fast (the crouched run §6j draws)
+  - DESIGN_Building_Interiors.md §3j — OWNS the door ENTITY, its state and its leaf geometry; §6k here only draws it (a hinged slab)
+  - designs/gizmos-1/DESIGN.md §11.11 — CE-1071: the frame buffer refuses hidden layers at emit and never drops its meta primitives
+  - DESIGN_Terrain_Combat_Tuning.md §5d — CE-1065: which gizmo layers and families are ON by default (most off — the 3-D clutter), and the live layer panel
   - DESIGN_Map_North_Up.md — CE-1040: the 2-D map north-up at its camera seam, so the 2-D ↔ 3-D swap keeps orientation.
   - DESIGN_Visual_Effects.md — muzzle fire, explosions and impact decals as TKB-typed temporary entities; the 3-D map draws them
     (S3b) and places a muzzle flash on the posed barrel (§3.11).
@@ -350,7 +354,7 @@ being a composite unit) to a family: person, tank, AFV, wheeled, unit. ⇒ that 
 
 | family *(DIS)* | built-in types today | kit — parts, as fractions of the type's L × W × H |
 |---|---|---|
-| **person** *(kind 3)* | Rifleman, InfantrySoldier, Grenadier, MortarTeam, Insurgent, CivilianPedestrian | the block figure; **rifle** part for soldiers (category 1), none for civilians; body in the entity colour (§3.7), side shown by the card frame. ⭐ **WL-6 (`2026-10-11`, R-272):** arms in two segments (elbows); a soldier holds the rifle in the weapon brain's `WeaponPosture` — at ease low, ready at the chest, aimed shouldered with the upper body turned and pitched toward the target — and his arms do not swing; running leans the upper body forward. ⭐ **WL-6c:** legs with knees (thigh + shin, IK); aimed standing = the athletic fighting stance, aimed moving = the combat glide; every walker's knees bend; ⭐ **WL-6d:** a prone figure that moves crawls (elbows and opposite knees, rifle carried); drawing only, the logical stance is unchanged. 📄 `DESIGN_Weapon_Layers.md` W-13 / §5h |
+| **person** *(kind 3)* | Rifleman, InfantrySoldier, Grenadier, MortarTeam, Insurgent, CivilianPedestrian | the block figure; **rifle** part for soldiers (category 1), none for civilians; body in the entity colour (§3.7), side shown by the card frame. ⭐ **WL-6 (`2026-10-11`, R-272):** arms in two segments (elbows); a soldier holds the rifle in the weapon brain's `WeaponPosture` — at ease low, ready at the chest, aimed shouldered with the upper body turned and pitched toward the target — and his arms do not swing; running leans the upper body forward. ⭐ **WL-6c:** legs with knees (thigh + shin, IK); aimed standing = the athletic fighting stance, aimed moving = the combat glide; every walker's knees bend; ⭐ **WL-6d:** a prone figure that moves crawls (elbows and opposite knees, rifle carried); drawing only, the logical stance is unchanged. ⭐ **CE-1064 (§6j):** crouched and still he KNEELS; crouched and moving he runs crouched (legs swinging, upper body leaning). 📄 `DESIGN_Weapon_Layers.md` W-13 / §5h |
 | **tank** *(1.1, cat 1)* | M1 Abrams, T-72 | lower hull · two track blocks (dark) · turret box set back · barrel cylinder forward |
 | **AFV / APC** *(1.1, cat 2)* | Bradley, MilitaryAPC | hull with a sloped front wedge · tracks or wheels (dark) · small turret · thin barrel |
 | **wheeled — car** *(1.1, cat 81)* | CivilianCar | lower body · cabin (glass) · four wheels (roll with speed) |
@@ -1189,6 +1193,233 @@ Live/Preview are written too (the camera is the view, not simulation state). · 
 unowned camera, the creator owns it, its pose is kept and saved · no request source ⇒ never made, a moved view not taken over ·
 a camera owned elsewhere is not moved · no body, no symbol, hidden type) ·
 `EveryMapHostAttachesTheSharedLayersTests` (no host builds its own camera layer; no host mentions the camera at all).
+
+### 6j. CE-1064 — the crouched figure: a kneel when still, a crouched run on the move — AS-BUILT `2026-10-13` (ui)
+
+🔒 *User, 2026-10-13: "Check how a character in crouched position is animated — first his position look very weird and second
+he does not move his legs when moving in crouched position."* 📐 Measured with a frame rail before the change:
+- **Still:** the crouch was a squat. Its thighs were level, its knees stuck out 0.4 m ahead of the hips, and its upright torso sat behind both feet, so it read as a man sitting on an invisible chair.
+- **Moving:** `CrouchedBody` built its legs with `swings: false`, so no part had a leg role. A crouched mover — R-265's crouched run at the stance's 0.5 speed cap, 3 m/s — slid along with frozen legs.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Still: stance Crouched, stride 0
+  Still --> Running: stride above 0 (speed from the entity's own motion)
+  Running --> Still: stride back to 0 (a sim frame without motion)
+  Running --> Running: a frame with NO sim time keeps the last gait (pause freezes mid-stride)
+  state Still {
+    [*] --> Kneel
+    Kneel: firing-side knee and shin on the ground, support foot planted forward, nothing swings
+  }
+  state Running {
+    [*] --> CrouchRun
+    CrouchRun: kneel blended into the run by stride, hips 0.6 m, short steps with knees bent, upper body leans 26 deg (less when aimed)
+  }
+```
+*What the picture shows that prose hid:* "crouched" is two drawings chosen by the GAIT, not by the stance. Only the stance is
+replicated, so the choice comes from the same motion every host already reads, and a frame with no sim time must not count as
+stopping.
+
+```mermaid
+classDiagram
+  class BlockFigure {
+    <<exists, changed>>
+    CrouchedBody : the kneel
+    CrouchRunBody : new
+    CrouchedMoving(still, soldier, from, to, postureT, weight) KitPart[]
+    CrouchRunDrop, CrouchRunLean, CrouchRunStepCut, CrouchRunHipFraction
+    KneelingLeg(hip, ankle) : new, private
+    PostureMix / PostureLerp : extracted from Parts(stance, from, to, t)
+  }
+  class EntityBodyLayer3D {
+    <<exists, changed>>
+    FigurePose() : Parts, Aimed, CrouchRun
+    FigureMotion(..., crouchRun) : hips to the run's height, lean
+  }
+  class MotionTracker {
+    <<exists, changed>>
+    Advance() : keeps the last gait over a frame with no sim time
+  }
+  EntityBodyLayer3D --> BlockFigure
+  EntityBodyLayer3D --> MotionTracker
+```
+
+| decision | why | rejected (one line each) |
+|---|---|---|
+| still = a **kneel** | its head stays at the crouched stance's 1.1 m eye (`EngineFallbacks.EyeHeightCrouched`) and its upper body is unchanged, so the rifle postures (WL-6), the aim shoulder (`TryAim`, 0.98 m) and the stance blends keep working | a corrected squat with the torso leaning forward (its head drops below the eye perception uses) |
+| moving = the **crouched run**, mixed in by `MotionPose.Stride` like the glide | the stance is the only replicated fact; the gait already comes from each entity's own motion, so every host draws the same | a separate "moving crouched" stance (not on the wire, and R-265 keeps the stance as the sim's single fact) |
+| the run's steps are 35 % shorter (`CrouchRunStepCut`, like the glide's) | the full gait swing from bent knees threw the back shin out flat behind him (a lunge) — seen in the frame rail | the upright gait's swing |
+| the run's lean shrinks while aimed | an aimed rifle is pitched by the aim (`Lean − pitch`), and the run lean would push it into the ground | a lean regardless of posture |
+| a frame with **no sim time** keeps the last gait | it carries no motion information; snapping to the still pose turned a runner into a kneel for a frame, and a pause into a kneel (the design says a pause freezes him, R-143) | gait smoothing over time (it would change every walker's swing timing) |
+| each kneeling leg keeps one `y` from hip to ankle, and the down shin is built foot → knee | no segment has a sideways yaw, so a Standing ↔ Crouched blend turns each leg in its own plane | the IK's free yaw (the blend swept the shin sideways) |
+
+⚠ **Left, named:**
+- The run's head is about 1.2 m, 0.1 m above perception's crouched eye. The drawing approximates the logical stance; it doesn't define it.
+- A crouched runner's Ready rifle points about 50° down: low ready, carried with the lean.
+- Stopping pops from run to kneel in one sim frame. This matches the standing walk's pop from swing to still, which isn't eased either.
+- The Stride shell has its own animation clips and is not changed here.
+
+**Gates:**
+- `Map3DTests.CE1064_*` (3): the kneel has its hips and torso over its feet and nothing swings; the crouched run's legs swing with knees bent and stay low; a frame with no sim time keeps the gait and a stop ends it.
+- `Map3DFrameRail.CE1064_ACrouchedFigure_StillAndRunning` (Xvfb screenshots `crouch-1…4`).
+- `Map3DTests` whole.
+
+### 6k. CE-1068 / CE-1069 — doors as they really are: a hinged leaf, locked tinted, gone when destroyed — AS-BUILT `2026-10-14` (ui)
+
+🔒 *User, 2026-10-14: "The building doors are visualized as weird pink boxes in 3d map and likely also in 2d map (in 2d there was nice
+simple gizmo and the pink box is undesired - doors should not be shown as unknown entity). I would like to see doors in 3d map as in
+reality - rectangle that rotates around hinges and can be destroyed (=missing from view)."*
+
+📐 **Measured cause.** A door is an ENTITY: the load makes one per terrain door with a bare `Door` TKB template, `DoorState`,
+`TerrainObjectKey` and a `SimTransform` at the doorway (`TerrainObjectRequests.cs:51-60`).
+- **3-D:** `EntityBodyLayer3D` drew every `SimTransform`+`TkbIdentity` entity, and a bare template resolves to `VisualFamily.Unknown`: the unknown box.
+- **2-D:** `EntityPresentationGizmo` emitted a semantic shape for it, and the renderer's fallback for an unknown profile is magenta.
+- **Design intent:** both contradict the door design, which says the entity is selectable with *"no symbol, no palette entry"* (`DESIGN_Building_Interiors.md` §3j 5b).
+
+**INVENTORY** *(grep + read, codebase-memory MCP not connected this session)*. Doors are drawn by:
+- `DoorLeafGizmo`, the 2-D line on the Doors layer;
+- `NavmeshGizmo`, the doorway polygons;
+- `EntityPresentationGizmo`, the unknown symbol;
+- `EntityBodyLayer3D`, the unknown box.
+
+The leaf's geometry already exists in `TerrainWorld.DoorLeaves`: hinge → closed tip, sill → head, 5 cm thick (`TerrainWorld.cs:166`). Nothing drew it as a solid.
+
+```mermaid
+classDiagram
+  class DoorLeaf3D {
+    <<new, static>>
+    OpenAngle = 90 deg
+    SwingSeconds = 0.8
+    TargetAngle(state) float?
+    IsDoor(world, e) bool
+    TryLeaf(world, e, out leaf, out state) bool
+    Box(leaf, angle) centre, rotation, half
+    ColourOf(state) wood, locked tinted
+  }
+  class DoorSwing {
+    <<new>>
+    Angle(e, target, simTime) float
+    Current(e, fallback) float
+    EndFrame(drawn)
+  }
+  class EntityBodyLayer3D {
+    <<exists, changed>>
+    DrawDoor() the leaf, wood, selection box
+    TryGetBox() a door's box = its leaf
+    LookOf(Door) no kit
+  }
+  class EntityPresentationGizmo {
+    <<exists, changed>>
+    a TerrainObjectKey entity: anchor + pick box, no symbol
+  }
+  class DoorLeafGizmo {
+    <<exists>>
+    the 2-D door picture: one line per state
+    ColorOf(state) shared with the 3-D tint
+  }
+  DoorLeaf3D ..> DoorLeafGizmo : ColourOf reads ColorOf(Locked)
+  class TerrainWorld { <<exists>> DoorLeaves, DoorIndexOf(key) }
+  EntityBodyLayer3D --> DoorLeaf3D
+  EntityBodyLayer3D *-- DoorSwing
+  DoorLeaf3D ..> TerrainWorld
+  EntityBoxPicker ..> EntityBodyLayer3D : TryGetBox
+```
+*What the picture shows that prose hid:* the door ENTITY stays the one thing the maps draw, pick and select. Its key finds the
+terrain's leaf, so no second door list is kept. The 3-D slab and the 3-D click share one box: `TryGetBox`, which `EntityBoxPicker` already reads.
+
+```mermaid
+sequenceDiagram
+  participant B as EntityBodyLayer3D.Draw
+  participant D as DoorLeaf3D
+  participant S as DoorSwing
+  participant P as EntityBoxPicker
+  B->>D: IsDoor(e)? TryLeaf(e): leaf + DoorState
+  D-->>B: Closed/Locked 0 deg, Open 90 deg, Destroyed none
+  B->>S: Angle(e, target, simTime)
+  S-->>B: eased toward target, a pause holds it
+  B->>D: Box(leaf, angle): turned about the hinge
+  B->>B: draw a wood slab (+ selection wire box)
+  P->>B: TryGetBox(e)
+  B-->>P: the same leaf box (false when destroyed)
+```
+
+| decision | ⭐ lean | rejected (one line each) |
+|---|---|---|
+| what a door is in 3-D | the leaf as a slab, turned about its hinge: shut and locked in the wall, open 90° to the side the 2-D door layer opens it to (`DoorLeafGizmo.OpenTip`), destroyed not drawn | a shape kit for the `Door` type (the leaf is terrain geometry with a real width and height; a kit would be a second, guessed size) |
+| the swing | eased on SIM time, a quarter turn in 0.8 s; first seen = in its state; a pause freezes it (R-143, like `PostureBlend`) | snap (an open order would pop) · replicating an angle (the state is the fact; the picture times itself) |
+| where it is drawn | the body layer, beside the entities, because a door IS an entity: one box for drawing, picking and the selection outline | a separate door layer (a second pick path for the same entity) |
+| 2-D | no symbol for a terrain object (anchor and pick box kept: a door is selectable, §3j 5b); the door layer's line stays the 2-D picture | hiding the door entity entirely (its commands hang off the selection) |
+| the 2-D door line in 3-D | ⛔ **CORRECTED by CE-1069:** it stays — the 3-D pass draws `Map2D` primitives too (§7, `Map3DGizmoTests`), so retargeting it changed nothing; the line lies at the slab's foot and the Doors toggle hides it | a '2-D only' target (none exists; redefining `Map2D` would also drop the contact lines from 3-D) |
+| locked vs closed in 3-D | ⭐ **CE-1069** (🔒 user: *"Maybe we can indicate locked unlocked by color in 3d?"*): a locked leaf's wood is tinted half-way to the 2-D door layer's locked purple (`DoorLeaf3D.ColourOf` reads `DoorLeafGizmo.ColorOf`) — one colour language on both maps; shut and open stay plain wood | ⛔ ~~drawn the same~~ (SUPERSEDED, the user asked for it) · a separate 3-D palette (two legends for one fact) |
+
+⚠ **Left, named:**
+- A host with door entities but no terrain draws no door (there is no leaf to place).
+- A destroyed door vanishes at once (no falling slab).
+- The terrain mesh's doorway is the opening the leaf fills, and the leaf is not part of the terrain picker, so a click on a shut door hits the door entity.
+
+**Rails:**
+- `Map3DTests.CE1068_ADoorLeaf_TurnsOnItsHinge_AndADestroyedDoorIsNotDrawn`, `CE1068_ADoorSwings_OnSimTime_AndIsFirstSeenInItsState` and `CE1068_ADoorEntity_HasNoKit_AndIsPickedByItsLeaf`.
+- `EntityPresentationGizmoTests.CE1068_ADoor_HasAnAnchorAndAPickBox_ButNoSymbol`.
+- `Map3DFrameRail.CE1068_Doors_ShutOpenAndDestroyed` (Xvfb screenshots `door-1…4`: shut, open, the shut one destroyed, the open one shut and locked).
+- CE-1069: `Map3DTests.CE1069_ALockedDoor_IsTintedWithTheTwoDLockedColour`, and `DebugTraceGizmoTests.CE1069_EveryDoorStillDrawsItsStateLine_On2D`, which pins the 2-D open / shut / locked / destroyed picture now that the door entity has no symbol.
+
+### 6l. CE-1071 … CE-1073 — smooth flying, a frame that does not overflow, the eye in the head — AS-BUILT `2026-10-14` (ui)
+
+> 🔒 **User, `2026-10-14`:** *"when i switch to 3d map view and use the wsad camera flying and RMB mouse look, it is far from smooth, even
+> on minimalistic scenes … especially the scroll button based camera moving forwards and backwards jumps with each click instead of being
+> a smooth flight. When i switch to FPS mode … every next shot makes the whole experience way worse … till almost complete freeze. When
+> moving forward the character leans a bit forward basically putting his head in front of the FPS camera so i see nothing — the camera
+> should rather be bound to character's head/eyes position wise."*
+
+📐 **Measured, not guessed — the live editor under Xvfb**, driven by real X input (XTest) and timed by the new opt-in frame log
+(`HROT_FRAME_STATS=1`, `Hrot.ClusterRunner/Presentation/FrameStats.cs`: frame mean / p50 / p95 / max and the update / draw / UI split),
+profiled with `dotnet-trace` while firing:
+
+| finding | where | fix |
+|---|---|---|
+| 🔴 the frame was FULL: 4 096 primitives, 400–700 dropped, rising with every shot; the drops took the layer mask (so the 3-D triage drew EVERY hidden layer — 612 cover spheres, 2 255 draped navmesh lines), the View menu and the RTS tool's input capture | `DebugPrimitiveBuffer` | ⭐ `CE-1071` — hidden layers refused at emit, meta primitives never dropped (📄 [gizmos-1 §11.11](designs/gizmos-1/DESIGN.md)) |
+| 🔴 62 % of a 3-D frame went to gizmos; 13 % to `MapCamera3D.Viewport` asking the window, once PER PRIMITIVE (`ZoomAt`) | profile | ⭐ `CE-1072` — the viewport read once a frame |
+| 🔴 a wheel click set the distance at once (12 %) — a jump | `MapCamera3D.HandleInput` | ⭐ `CE-1072` — the click owes eye travel; `Update` glides it out (τ = `WheelGlideSeconds` 0.12 s); past the pivot the look-at point flies too |
+| ⚠ W/A/S/D went from 0 to full speed in one frame | same | ⭐ `CE-1072` — eased (τ = `FlyEaseSeconds` 0.08 s) |
+| 🔴 in first person the hidden cursor's position wandered: over a docked panel ImGui claimed the mouse and the view froze; the gizmo terminal also took every shot as a map click | `RaylibInputProvider`, `DebugGizmoLayer` | ⭐ `CE-1072` — a locked cursor is never "captured" and ImGui ignores the mouse meanwhile; a camera driver holds the map's input (the terminal skips) |
+| 🔴 the eye was a fixed height above the reference point; a run's forward lean put the drawn head in front of it | `FpsCameraDriver.Update` | ⭐ `CE-1073` — the eyes of the DRAWN head (part `BlockFigure.HeadIndex`), kept in the body frame and put on the unit's CURRENT pose; that head is not drawn; the mouse look shows in the same frame |
+
+```mermaid
+sequenceDiagram
+    participant C as MapCanvas (each frame)
+    participant K as MapCamera3D
+    participant D as FpsCameraDriver
+    participant B as EntityBodyLayer3D
+    C->>K: Update(dt) — the viewport re-read once, a wheel glide step (free camera)
+    K->>D: Update — eye = unit pose ⊗ B.TryGetEyeLocal(unit)
+    C->>K: HandleInput — wheel adds travel, W/A/S/D eased (free) · look, keys, frame, Place again (driver)
+    C->>B: Draw3D — figures, head part HeadIndex ⇒ the eye (body frame), FirstPerson's head skipped
+```
+
+*What the picture shows that prose hid:* the driver's `Update` runs BEFORE the input of the same frame — so the look was a frame late until
+`HandleInput` placed the camera again — and the eye read in `Update` comes from the PREVIOUS draw, which is why it is kept in the body's
+frame and put on the current transform (a running man moves ~8 cm a frame).
+
+| after, same machine and scenario | |
+|---|---|
+| primitives / dropped | 238–361 / **0**, firing included |
+| 3-D draw (software GL) | ~45–65 ms, was ~195 ms |
+| View menu | *Tactical Map Layers… · 2-D / 3-D Map · RTS Command Mode* back |
+| first person | eye in the drawn head standing, crouched and prone (screenshots below) |
+
+![FPS, standing — the eye in the drawn head](assets/map-3d/fps-eye-standing.png)
+
+⚠ **Stated:** the absolute times are a software renderer's (no GPU in the container); the shares and the drop counts are what carry over.
+The free camera's feel was not seen with a real mouse — the wheel glide and the eased fly are railed by their numbers.
+
+**Rejected — one line each:**
+- *Smoothing the mouse look* — adds lag to the one input that must not have it.
+- *A bigger primitive buffer* — moves the cliff (gizmos-1 §11.11).
+- *Keeping the eye above the reference point and hiding the whole upper body* — the eye would still not crouch or crawl with the figure.
+
+📐 Rails: `Map3DTests.CE1072_*` ×3 (the wheel glides, keeps flying at the pivot, the fly eases) + `CE1044_FlySpeed_*` (re-read once the ease
+has settled — the speeds are unchanged) · `Map3DTests.CE1073_*` ×2 (the head is part `HeadIndex` in every pose; the eye follows a lean, a
+crouch and prone) · `PossessionStationTests.CE1073_*` (the eye on the current pose, the head hidden while held, the look the same frame).
 
 ## 7. NOT VERIFIED — say so before it is built on
 

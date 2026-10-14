@@ -175,6 +175,35 @@ public sealed class DebugTraceGizmoTests : IDisposable
         Assert.Equal(new Vector2(1, 0), closedTip);
         Assert.Equal(new Vector2(0, 1), DoorLeafGizmo.OpenTip(hinge, closedTip));
     }
+    // ⭐ CE-1069 — THE 2-D DOOR PICTURE stays (🔒 user, 2026-10-14: "Door needs the opened closed indication in 2d (the one already
+    //   existing)"): with the door ENTITY's symbol gone (CE-1068), every door still draws its leaf line on the Doors layer, coloured by
+    //   its live state — shut along the wall, open swung on its hinge, locked purple, destroyed a red cross — and the 2-D map accepts it.
+    [Fact]
+    public void CE1069_EveryDoorStillDrawsItsStateLine_On2D()
+    {
+        var terrain = Hrot.Presentation.Tests.Map3D.Map3DTests.BtRange();
+        _w.SetSingletonManaged(terrain);
+        _w.RegisterComponent<DoorState>();
+        _w.RegisterManagedComponent<TerrainObjectKey>();
+        var states = new[] { TerrainDoorState.Closed, TerrainDoorState.Open, TerrainDoorState.Locked, TerrainDoorState.Destroyed };
+        Assert.True(terrain.Doors.Count >= states.Length, "bt-range has four doors");
+        for (int i = 0; i < states.Length; i++)
+        {
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new DoorState { State = states[i] });
+            _w.AddComponent(e, new TerrainObjectKey { Key = terrain.Doors[i].Key });
+        }
+        new DoorLeafGizmo().Draw(_w, _draw);
+        var lines = Frame(DebugTraceLayers.Doors);
+        foreach (var l in lines) Assert.NotEqual(PipelineTarget.None, l.TargetView & PipelineTarget.Map2D);   // the 2-D map draws it
+        for (int i = 0; i < states.Length; i++)
+            Assert.Contains(lines, l => l.Color.Equals(DoorLeafGizmo.ColorOf(states[i])));
+        var (hinge, closedTip) = DoorLeafGizmo.Leaf(terrain.DoorLeaves[1].Footprint);
+        var openTip = DoorLeafGizmo.OpenTip(hinge, closedTip);
+        Assert.Contains(lines, l => l.Color.Equals(DoorLeafGizmo.ColorOf(TerrainDoorState.Open))
+                                     && Vector2.Distance(new Vector2(l.LineEnd.X, l.LineEnd.Y), openTip) < 1e-3f);   // swung on its hinge
+    }
+
     // ⭐ CE-3121 — the utility gizmo writes one line per logged decision, AT the unit (the dormant overlay wrote one at the origin).
     [Fact]
     public void CE3121_TheUtilityGizmo_WritesOneLinePerLoggedDecision()

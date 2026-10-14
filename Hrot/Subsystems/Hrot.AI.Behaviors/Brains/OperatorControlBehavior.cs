@@ -71,6 +71,11 @@ namespace Hrot.AI.Behaviors.Brains
                     Forward = input.Forward, Lateral = input.Lateral, Steer = input.Steer, Yaw = input.Yaw, Vertical = input.Vertical, Gait = input.Gait,
                     Seq = input.Seq,
                 };
+                // ⭐ CE-1074 (DESIGN_Entity_Control.md §13.5) — the operator's stance, through the brain's one way to ask for it
+                //   (StanceRequest: a version bump only on a change, so a frame per tick is harmless). 🔒 User, 2026-10-14: "I will
+                //   need to be able to switch the possessed character to crouched as well as lying pose (cycling using a key press)".
+                if (input.Stance is >= 1 and <= 3)
+                    Hrot.MuscleCharacter.Animation.Stance.StanceRequest.Set(world, self, (Fdp.Toolkit.Tkb.Domain.StanceId)(input.Stance - 1), OperatorStanceBlendSeconds);
             }
             else if (world.HasComponent<ManualDrive>(self))
                 drive.Yaw = world.GetComponentRO<ManualDrive>(self).Yaw;   // no frame: stop, keep facing
@@ -84,6 +89,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-3172</c> S4d — seconds between an operator's rounds. ⚠ A constant: the TKB carries no rate of fire yet
         /// (<c>WeaponMountDto</c> has aim time, magazine and reload, not a cyclic rate).</summary>
         public const float OperatorCooldownSeconds = 0.25f;
+
+        /// <summary>⭐ CE-1074 — how long the operator's stance change blends (s).</summary>
+        public const float OperatorStanceBlendSeconds = 0.4f;
 
         /// <summary>
         /// ⭐ <c>CE-3172</c> S4d (M-8) — the operator's weapon: the unit's weapon channel runs <c>AimAndFire</c> in OPERATOR mode,

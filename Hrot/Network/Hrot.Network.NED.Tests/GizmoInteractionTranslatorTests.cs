@@ -528,5 +528,36 @@ namespace Hrot.DDS.DataModel.Tests
             Assert.Empty(bus.Read<GizmoInteractionCommitEvent>().ToArray());
             Assert.Empty(bus.Read<GizmoInteractionCancelEvent>().ToArray());
         }
+    
+        // ⭐ CE-1066 — a StructInspector panel's [X] crosses the wire as its own kind: the egress writes it with the panel's anchor and
+        //   gizmo type, the ingress turns it back into a GizmoInspectorClosedEvent for the gizmo that owns the panel.
+        [Fact]
+        public void CE1066_APanelsClose_RoundTripsAsInspectorClosed()
+        {
+            using var repo = GizmoInteractionTestRepo.Create();
+            var writer = new CapturingWriter();
+            var outBus = new FdpEventBus();
+            outBus.Register<GizmoInspectorClosedEvent>();
+            var egress = new GizmoInteractionEgressTranslator(nodeId: 7, writer: writer, interactionBus: outBus);
+            outBus.Publish(new GizmoInspectorClosedEvent { AnchorId = NetId, GizmoTypeId = 0xBEEFu });
+            outBus.SwapBuffers();
+            egress.ScanAndPublish(repo);
+
+            var record = Assert.Single(writer.Written);
+            Assert.Equal(GizmoInteractionEventKind.InspectorClosed, record.Kind);
+            Assert.Equal(NetId, record.PickAnchorId);
+            Assert.Equal(0xBEEFu, record.PickGizmoTypeId);
+
+            NetworkedEntity(repo);   // the anchor is hosted here (an anchor this node does not host yields no event — behaviour ②)
+            var inBus = new FdpEventBus();
+            inBus.Register<GizmoInspectorClosedEvent>();
+            var ingress = new GizmoInteractionIngressTranslator(reader: new SingleItemReader(record), interactionBus: inBus);
+            ingress.PollIngress(new EntityCommandBuffer(), repo);
+            inBus.SwapBuffers();
+
+            var closed = Assert.Single(inBus.Read<GizmoInspectorClosedEvent>().ToArray());
+            Assert.Equal(NetId, closed.AnchorId);
+            Assert.Equal(0xBEEFu, closed.GizmoTypeId);
+        }
     }
 }

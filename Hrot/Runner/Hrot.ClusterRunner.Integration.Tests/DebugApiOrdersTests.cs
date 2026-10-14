@@ -388,6 +388,41 @@ public sealed class DebugApiOrdersTests
         Assert.Equal(Hrot.Common.Orders.OrderRefusal.Possessed, a.Control(UnitId, f).Refusal);
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-1074 (docs/DESIGN_Entity_Control.md §13.5) — the operator's stance rides the control frame and the possession behaviour
+    /// asks for it through <c>StanceRequest</c> (the brain's one way), so the station's C key crouches, lays down and stands up the held
+    /// man; a frame with no stance keeps his stance. 🔒 User, 2026-10-14: "I will need to be able to switch the possessed character to
+    /// crouched as well as lying pose (cycling using a key press)".
+    /// </summary>
+    [Fact]
+    public void CE1074_TheControlFrame_CarriesTheStance_AndThePossessionAsksForIt()
+    {
+        using var h = new EditorHarness(productionBehaviors: true);
+        var svc = h.BuildDebugApiService();
+        var unit = Walker(h, UnitId);
+        var r = h.Repo;
+        if (!r.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceIntent>())
+            r.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+        r.AddComponent(unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+        Assert.Null(svc.PostPossess(UnitId).error);
+        h.PumpFrames(4);
+
+        Fdp.Toolkit.Tkb.Domain.StanceId StanceAfter(uint seq, string? stance)
+        {
+            var frame = new JsonObject { ["seq"] = seq };
+            if (stance != null) frame["stance"] = stance;
+            Assert.Null(svc.PostControl(UnitId, frame).error);
+            h.PumpFrames(3);
+            return r.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(unit).TargetStance;
+        }
+
+        Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, StanceAfter(1, "crouched"));
+        Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, StanceAfter(2, null));     // no stance in the frame: kept
+        Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, StanceAfter(3, "prone"));
+        Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, StanceAfter(4, "standing"));
+        Assert.Equal(3u, r.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(unit).Version);   // one bump per change
+    }
+
     /// <summary>⭐ CE-3172 S4d (C-2, M-8) — a possessed rifleman on HoldFire fires at the operator's aim point while the trigger is
     /// held, holds when it is released, and stops for good when the possession ends (the weapon action belongs to the run).</summary>
     [Fact]

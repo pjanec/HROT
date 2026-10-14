@@ -31,6 +31,7 @@ public sealed class CoverPointsGizmo : IGlobalStatelessGizmo
 
     public void Draw(ISimulationView view, IDebugDrawBuilder draw)
     {
+        if (!draw.IsLayerActive(DebugTraceLayers.Cover)) return;   // ⭐ CE-1071 — hidden: no points, no live vehicle cover query
         if (view is not EntityRepository repo || !repo.HasSingletonManaged<ICoverProvider>()) return;
         // ⭐ Only the terrain database enumerates its points; a designer-placed provider (tests) draws nothing.
         if (repo.GetSingletonManaged<ICoverProvider>() is not TerrainCoverProvider cover) return;

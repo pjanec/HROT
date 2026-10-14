@@ -33,9 +33,10 @@ namespace Fdp.Toolkit.Vis2D.Gizmos;
 /// </summary>
 public sealed class EntityPickerGizmo : IEntityStatefulGizmo
 {
-    private const float CrosshairHalfSize  = 12f;
+    // ⭐ CE-1065 — half the size it was (user, 2026-10-14: "… entity picker gizmo 2 times smaller"); world metres, the line width in pixels.
+    private const float CrosshairHalfSize  = 6f;
     private const float CrosshairThickness = 1.5f;
-    private const float CrosshairGapRadius = 4f;
+    private const float CrosshairGapRadius = 2f;
 
     private readonly Func<Vector2, Entity>              _hitTest;
     private readonly Fdp.Toolkit.Vis2D.Abstractions.IEntityFilter _filter;

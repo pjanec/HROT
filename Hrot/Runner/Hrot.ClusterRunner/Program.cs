@@ -579,6 +579,7 @@ class Program
                 // input; kill switch: HROT_DISABLE_CLICK_LATCH=1.
                 // Windows-only compensation; a no-op elsewhere (Linux needs nothing here).
                 using var clickLatch = Fdp.Presentation.Input.ClickLatch.Create();
+                var frameStats = Hrot.ClusterRunner.Presentation.FrameStats.FromEnvironment();   // ⭐ CE-1072 — HROT_FRAME_STATS=1
 
                 while (!exiting)
                 {
@@ -622,7 +623,9 @@ class Program
                             break; // no unsaved work → exit immediately (skip this frame's render)
                     }
 
+                    frameStats?.Begin();
                     orchestrator.Update(dt);
+                    frameStats?.EndUpdate();
 
                     // Apply any queued font/DPI rebake at the frame boundary (atlas rebuild
                     // must happen outside rlImGui.Begin/End).
@@ -632,8 +635,11 @@ class Program
                     // Restore the black background
                     Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
 
+                    frameStats?.Begin();
                     orchestrator.DrawWorldAll();
+                    frameStats?.EndDraw();
 
+                    frameStats?.Begin();
                     rlImGui_cs.rlImGui.Begin();
 
                     // --- DOCKSPACE SETUP (§4.1.2: inset bottom by status bar) ---
@@ -674,8 +680,10 @@ class Program
                     windowCtrl.WindowManager!.Render();
                     orchestrator.DrawUIAll();
                     rlImGui_cs.rlImGui.End();
+                    frameStats?.EndUi();
 
                     Raylib_cs.Raylib.EndDrawing();
+                    frameStats?.EndFrame();
 
                     // A guard's modal approved exit this frame (Save All & Exit / Discard & Exit).
                     foreach (var guard in exitGuards)

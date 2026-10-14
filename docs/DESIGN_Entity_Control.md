@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-11
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3)
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check)
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button)
 stale-below: nothing
 known-rot: ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -865,6 +865,85 @@ at standing height, an M1 across the street under the crosshair, the HUD with he
 ⏭ ~~**Still open in S4:** ~~S4d operator fire~~ (built, §13.1); S4e the `ManualDrive` + `PossessedBy` descriptors and the `Possess` / `Release` / `ControlFrame` interaction
 cases (until then possession works where the station, brain and muscle share a world — the editor). M-5 (the navmesh wall check)
 did not land: the muscle's manual branch has no navmesh reach today — it stays its own row.
+
+### 13.5 AS-BUILT — the operator's stance, the RTS tool live, first-person input (`CE-1074`, `CE-1075`, `2026-10-14`, ui)
+
+> 🔒 **User, `2026-10-14`:** *"I will need to be able to switch the possessed character to crouched as well as lying pose (cycling using a key
+> press). In RTS mode the key shortcut do not work, not even mouse click do anything."*
+
+```mermaid
+sequenceDiagram
+    participant D as FpsCameraDriver (station)
+    participant O as EntityOrders.Control
+    participant P as PossessionSystem (brain)
+    participant C as OperatorControl (behaviour)
+    participant S as StanceRequest
+    D->>D: C pressed ⇒ wanted stance = next(standing → crouched → prone → standing)
+    D->>O: OperatorControlFrameEvent { …, Stance = StanceId + 1 } every frame
+    O->>P: the bus (the R-221 interaction case ControlFrame off-node, Stance in its payload)
+    P->>P: OperatorInput.Stance (newest seq)
+    C->>S: Set(unit, stance, 0.4 s) — a version bump only on a change
+```
+
+*What the picture shows that prose hid:* the stance rides the SAME frame as the stick — no new event, no new route — and reaches the body
+through the brain's one stance writer (`StanceRequest`, CE-2121), so the hit model, the fire chain and perception read it the tick it
+is asked for (Buildings §3f).
+
+| as-built detail | why |
+|---|---|
+| `Stance` = `StanceId + 1`, 0 = no request — on the event, `OperatorInput` and the wire payload (`ControlFrameInteractionPayload.Stance`) | an HTTP or older frame that does not mention it keeps the stance the unit has |
+| the station starts the cycle from the stance the unit HAS when first driven (`LogicalStance.Of`) and sends the wanted one every frame | a frame lost or a late joiner cannot leave it half-way; `StanceRequest.Set` is idempotent |
+| HTTP `POST /entities/{id}/control` takes `"stance": "standing" | "crouched" | "prone"` | the AI player gets the same control |
+| the HUD shows `STANCE …` and `C stance` | |
+| 🔴→⭐ **the RTS tool received NO input in the editor** — its `InputCaptureBinding` was dropped from a FULL frame, so the terminal never routed a click or key to it (and the View menu lost its entries the same way) | fixed at the buffer, `CE-1071` (📄 [gizmos-1 §11.11](designs/gizmos-1/DESIGN.md)); ⭐ measured live: an XTest click on empty ground now publishes the tool's `SelectionChangeRequest` |
+| 🔴→⭐ a Shift-click reached the tool as `Left \| ShiftMask` and matched no branch (`CE-1075`) | the gizmo masks the modifiers, as `SelectionInteractionSystem` and `EntityPlacementGizmo` already did; the mask IS the Shift |
+| ⭐ a camera DRIVER holds the map's input: the gizmo terminal no longer polls the mouse under it, and the editor's hover card is off | every FPS shot was also a map click (a rubber band on the selection), and the card at the locked cursor was the possessed man's own |
+| ~~⚠ the RTS tool's RMB is also the 3-D camera's look button~~ | ✅ answered by the user and built — §13.6 (`CE-1077`) |
+
+📐 Rails: `DebugApiOrdersTests.CE1074_*` (networkless editor: crouched, kept, prone, standing — one version bump per change) ·
+`PossessionStationTests.CE1074_*` (C cycles, every frame carries it, the HUD says it) · `RtsCommandToolTests.CE1075_*` (the armed tool
+keeps its binding in a full frame and a bus click reaches it; Shift-click adds).
+
+### 13.6 AS-BUILT — the menu's keys work on the map, and the RTS right button (`CE-1076`, `CE-1077`, `2026-10-14`, ui)
+
+> 🔒 **User, `2026-10-14`:** *"in RTS mode a right click commands and a right drag only looks"* · *"i meant the keys shown next to the order
+> name in the entity context menu (M = move, A = attack, ESC = cancel command), i supposed they would work plainly for the currently
+> selected entity."*
+
+```mermaid
+sequenceDiagram
+    participant K as MapCanvas (typed key)
+    participant L as MenuShortcutKeyLayer
+    participant S as MenuShortcuts (pack system)
+    participant M as ContextMenuProjectorGizmo.MenuJsonFor
+    participant I as ContextActionIngressSystem → dispatcher
+    participant O as MenuOrders
+    K->>L: HandleKeyInput(M) — only keys no panel took
+    L->>S: MapShortcutKeyEvent{M, Ctrl/Alt?} — none in first person
+    S->>S: a tool other than RTS armed? stop
+    S->>M: the PRIMARY selected unit's menu
+    M-->>S: the enabled item showing "M" = Move
+    S->>I: GizmoMenuActionEvent{unit, Move} — what a click sends
+    I->>O: Begin(Move, unit) → the location pick (Esc cancels it)
+```
+
+*What the picture shows that prose hid:* the key never names an action — it is looked up in the SAME menu the right click shows, and sent as
+the SAME event a click sends, so the key, the menu and its follow-up pick cannot disagree (a disabled item stays disabled, a unit whose
+class has no Attack has no A).
+
+| as-built detail | why |
+|---|---|
+| ⭐ every item that shows a key works: M Move, A Attack, H Hold, P Possess, C Center View, Space Select, R Rotate (an area's E Edit Shape, a zone's L Load) | the shortcut text was a display hint only (gizmos-1 §10, Orders D4-D) — now it is what it says |
+| ⭐ the target is the PRIMARY selected unit, else the only selected one | a menu click on that unit does the same; plain orders stay one unit (Orders §13.12 **O6** — "every menu order on the selection" was rejected there) |
+| ⭐ Esc is not a menu item: it already cancels the pick a key opened (`CE-3175`), and leaves RTS mode | |
+| not while a tool holds the map (a pick, a placement — `ToolController.ActiveModal`) — except the RTS command tool; not with Ctrl / Alt; not in first person | a tool owns its keys; Ctrl+C is the application's; in FPS W/A/S/D/C drive the unit |
+| ⭐ **RTS: a right CLICK commands, a right DRAG only looks** (`CE-1077`) — the order goes on the release, at the PRESS point, when the mouse moved in at most `RtsCommandGizmo.ClickMaxMoves` (3) frames | it commanded on the press, so every 3-D look ordered a move too |
+| `MapShortcutKeyEvent` = event id **8064** (after the gizmo interaction events 8061-8063; free on every lane) | |
+
+📐 Rails: `MenuOrdersTests.CE1076_*` ×3 (the selected unit's M / A / H / P / C through the same menu action, nothing with no selection,
+Ctrl, an unknown key or a busy tool, yes in RTS mode; the key layer forwards and is silent in first person; the shortcut text and a
+disabled item) · `RtsCommandToolTests.CE1077_*` (a drag orders nothing, a jittery click orders at the press point) ·
+`MapSelfCheckTests` (the new system is declared and scheduled).
 
 ## 8. Known limits and defects found while designing
 
