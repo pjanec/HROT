@@ -1041,7 +1041,7 @@ must return the **same network ids**:
 | `FreeAreaQuerySlot` | destroy the child sensor entity (its config is disposed; the Muscle carrier goes with it) |
 | ⚠ 5 s timeout ⇒ Failure | keep it: with no area on the Muscle the sensor publishes **nothing** (§17.5), so a timeout still means "no answer", never "area clear" |
 
-#### 17.6.1 ⚠ A one-shot query re-made on the same part id *(behaviors, `2026-10-13`, `CE-2158` F-c — measured live, mechanism inferred)*
+#### 17.6.1 ⚠ A one-shot query re-made on the same part id *(behaviors, `2026-10-13`, `CE-2158` F-c — measured live; root cause and ingress fix `2026-10-14`)*
 
 📌 **Measured** (`ua-bounding-overwatch`, the commander's cover query polled at 10 Hz): a squad play asks once per bound and DROPS the
 sensor after its answer; the next bound makes a new one — **on the same part id, with the same stamped epoch** (`EqsChildSensor.Ensure`
@@ -1052,6 +1052,18 @@ new but carries an old epoch. ⚠ **Inferred, not traced in the solver:** where 
 Muscle carrier or its eval state).
 ✅ **Consumer rule:** a ONE-SHOT query (asked, answered, dropped) uses `AlwaysPush` — `SquadManeuverRunner.AskTerrainAll` does since
 CE-2158. ⭐ A standing query keeps `ScoreDelta`; to force an answer, bump the epoch (`EqsChildSensor.Refresh`), never re-create.
+
+✅ **Root cause found `2026-10-14` (read in the code, and pinned by a rail):** the Muscle carrier OUTLIVES a lifetime (CE-486 — never
+disposed, only suspended), so its `SensorEvalState` (`PublishedThisEpoch`, the last top-K) survives unless the SOLVER SEES the carrier
+suspended (`EqsSolverSystem`: a suspended carrier drops it). Two ways it never sees it: ① the end's Suspended sample and the next
+lifetime's config arrive in one ingress batch — `EqsSensorConfigIngressTranslator` keeps only the newest pending sample per key; ② the
+end was applied and the next lifetime applied before the solver ran. Then, under the SAME epoch, `ScoreDelta` suppresses an answer equal
+to the last one. ⭐ **Fixed in the ingress** (cross-lane, `Hrot.Network.NED`): a live config that follows an ended one (in the batch,
+or on a suspended carrier) removes the carrier's `SensorEvalState` — the next lifetime starts as a fresh carrier did. Rail
+`EqsDistributedTests.CE2158_ANewLifetime_TheSolverNeverSawEnd_StartsWithoutTheLastLifetimesEvalState` (red-proved; `CE486_*`, `CE492_*`
+unchanged). ⚠ **Still open — needs an owner's call:** a lifetime ended and re-made in ONE frame publishes no Suspended sample at all,
+so nothing on the wire marks the boundary; only a per-lifetime epoch would (`EqsChildSensor.Ensure` stamps `StampOwner(1, run)` for
+every lifetime). Lean: a per-lifetime low half in `Ensure` (backend's wire contract). The consumer rule above stays until then.
 
 ### 17.7 As-built *(`2026-09-30`)* — what the build found that the design above did not know
 

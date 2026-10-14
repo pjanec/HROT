@@ -50,6 +50,9 @@ namespace Hrot.Network.NED.SimHost
             public EqsSensorConfigTopic Data;
             public bool Applied;          // applied at least once (parent was present)
             public int  ResolvedSlotMask; // which named slots resolved when last applied
+            // ⭐ CE-2158 (EQS §17.6.1) — an ended lifetime's Suspended sample was overtaken in this batch by the next lifetime's
+            //   config: the carrier never sees the end, so the boundary is carried here.
+            public bool NewLifetime;
         }
 
         public string TopicName => DdsTopicName;
@@ -147,7 +150,8 @@ namespace Hrot.Network.NED.SimHost
             // Child-entity sensor path: carrier ghost is spawned/reused from cache.
             if (valid)
             {
-                _pending[cacheKey] = new Pending { Data = data };
+                bool boundary = _pending.TryGetValue(cacheKey, out var before) && (before.Data.Suspended || before.NewLifetime) && !data.Suspended;
+                _pending[cacheKey] = new Pending { Data = data, NewLifetime = boundary };
             }
             else
             {
@@ -209,7 +213,7 @@ namespace Hrot.Network.NED.SimHost
                 {
                     // A carrier created by an earlier poll is not in the world until that command
                     // buffer plays back — wait for it rather than create a second one.
-                    if (!Apply(cmd, view, key, parentGhost, sensor, pending.Data)) continue;
+                    if (!Apply(cmd, view, key, parentGhost, sensor, pending.Data, pending.NewLifetime)) continue;
                     pending.Applied          = true;
                     pending.ResolvedSlotMask = mask;
                     _pending[key]            = pending;
@@ -223,7 +227,7 @@ namespace Hrot.Network.NED.SimHost
 
         // Returns false when the sample must wait (its carrier is created but not yet played back).
         private bool Apply(IEntityCommandBuffer cmd, ISimulationView view, (long ParentNetId, int ChildIndex) key,
-                           Entity parentGhost, EqsSensor sensor, in EqsSensorConfigTopic data)
+                           Entity parentGhost, EqsSensor sensor, in EqsSensorConfigTopic data, bool newLifetime = false)
         {
             int solverNodeId = data.SolverNodeId;
             if (key.ChildIndex == 0)
@@ -268,6 +272,14 @@ namespace Hrot.Network.NED.SimHost
             {
                 // Existing carrier: update its parameters.
                 _awaitingPlayback.Remove(key);
+                // ⭐⭐ CE-2158 (EQS §17.6.1) — a NEW LIFETIME on a reused part id starts as a fresh carrier did: its evaluation state goes.
+                //   The solver drops it only when it SEES the carrier suspended (CE-486); a next lifetime applied before the solver ran,
+                //   or whose Suspended sample this batch overtook, kept the last lifetime's "published this epoch" and top-K — and the
+                //   epoch is the same (StampOwner(1, run)), so a ScoreDelta answer equal to the last one was never published.
+                if (!sensor.Suspended && view is EntityRepository evalRepo && evalRepo.IsComponentTypeRegistered<SensorEvalState>()
+                    && view.HasComponent<SensorEvalState>(child)
+                    && (newLifetime || (view.HasComponent<EqsSensor>(child) && view.GetComponentRO<EqsSensor>(child).Suspended)))
+                    cmd.RemoveComponent<SensorEvalState>(child);
                 cmd.SetComponent(child, sensor);
                 if (config != null && view is EntityRepository repoC)
                     SensorChildFactory.SetCapability(repoC, child, config, config);
