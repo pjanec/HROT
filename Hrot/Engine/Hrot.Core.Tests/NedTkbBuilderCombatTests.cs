@@ -201,6 +201,27 @@ namespace Hrot.Map.Common.Tests
             Assert.Null(db.GetByType(TkbEntityTypes.Heli_UH60)!.GetDescriptor<FlightParamsDto>());
         }
 
+        /// <summary>⭐ Air Ops slice 4 (DESIGN_Air_Operations.md §6, §8) — the attack plane (405) is a FIXED-WING flyer (cruise 150 m/s, stall 60,
+        /// bank 60° ⇒ ~1.3 km turns, routes 300 m over the ground) with four Mk-82s on a Bomb mount; the Mk-82 (6022) is an indirect area
+        /// warhead (it falls and bursts where it lands).</summary>
+        [Fact]
+        public void A1_TheAttackPlane_IsAFixedWing_WithFourBombs()
+        {
+            var db = BuildDatabase();
+            var t = db.GetByType(TkbEntityTypes.Jet_AttackA10)!;
+            Assert.Equal(LocomotionClass.FixedWing, t.GetDescriptor<LocomotionDto>()!.Class);
+            var flight = t.GetDescriptor<FlightParamsDto>()!;
+            Assert.Equal((150f, 60f, 60f, 300f), (flight.CruiseSpeedMps, flight.StallSpeedMps, flight.MaxBankDeg, flight.HoverHeightM));
+            Assert.Null(t.GetDescriptor<VehicleParametersDto>());
+            var bombs = System.Linq.Enumerable.Single(t.GetDescriptor<WeaponSuiteDto>()!.Mounts);
+            Assert.Equal((WeaponCategory.Bomb, 4, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb),
+                (bombs.Category, bombs.InitialAmmunition, bombs.AmmoGuid));
+            var munitions = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(munitions);
+            var mk82 = munitions.GetByType(Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb)!.GetDescriptor<WarheadDto>()!;
+            Assert.True(mk82.Indirect && mk82.HasAreaEffect);
+        }
+
         /// <summary>
         /// ⭐ B8 (M6) / CE-2168 — a NED ground type states its hull SIZE (Body.Geometry, ground-centred) and its locomotion class; a person
         /// does not get a hull. 📐 Without the height every NED hull had collider height 0: no M1 height band, and the blast rule took a

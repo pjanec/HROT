@@ -58,12 +58,14 @@ namespace Fdp.Toolkit.Motion
     public static class MotionModelTable
     {
         private static readonly IMotionModel Rotorcraft = new RotorcraftModel();
+        private static readonly IMotionModel FixedWing = new FixedWingModel();   // ⭐ Air Ops slice 4
 
         /// <summary>The model of <paramref name="c"/>; null for a ground class (CarKinematics moves it in v1).</summary>
         /// <exception cref="NotSupportedException">a class whose model is not built yet.</exception>
         public static IMotionModel? Model(LocomotionClass c) => c switch
         {
             LocomotionClass.Rotorcraft => Rotorcraft,
+            LocomotionClass.FixedWing => FixedWing,
             LocomotionClass.Pedestrian or LocomotionClass.Wheeled or LocomotionClass.Tracked or LocomotionClass.Unknown => null,
             _ => throw new NotSupportedException(
                 $"no motion model for {c} yet (DESIGN_Motion_Domains.md MD-H: FixedWing / Surface / Amphibious are table rows until built)"),

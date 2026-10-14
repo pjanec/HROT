@@ -141,7 +141,10 @@ namespace Fdp.Toolkit.Combat.Executors
             //   shooter's stance change, and OnEnter starts it fresh. Once aimed, later rounds need only the cooldown. Not seen ⇒
             //   hold (Running, no round spent), like the ROE hold. Blind fire (FireAtPoint) has neither gate.
             ref var aim = ref AimTimer(ref channel);
-            bool seen = Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
+            // ⭐ Air Ops slice 4 — a BOMB is released on its cue alone (HoldOf held it until now): the run-in was flown at the target's
+            //   known position, and a release has no aim clock, no body twist and no line of fire to a friend.
+            bool bomb = mountDto?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb;
+            bool seen = bomb || Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
             // ⭐⭐ WL-4 W-12e (Weapon_Layers §5f L-2) — not seen: the weapon brain may THROW at where the target was last seen (a
             //   grenade over the cover it hides behind). It counts as a round of this action; nothing else changes.
             if (!seen && HiddenTargetThrow.TryThrow(world, entity, p.Target))
@@ -162,7 +165,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 if (aim.Ready == 0)
                 {
                     aim.Elapsed += dt;
-                    if (aim.Elapsed >= AimSecondsFor(world, entity, mountIndex)) aim.Ready = 1;
+                    if (bomb || aim.Elapsed >= AimSecondsFor(world, entity, mountIndex)) aim.Ready = 1;
                 }
             }
 
@@ -205,7 +208,7 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐⭐ CE-3195 (R-3003, W-14a) — a person fires only within his twist of his heading: beyond it the round is held (Running,
             //   nothing spent) and the posture stays Aimed, so the Muscle's gait turns him. The aim clock keeps running — the shot
             //   leaves the moment he is round (a quick shot at a target that appears behind him).
-            if (BodyAim.TargetPoint(world, p.Target, out var targetAt) && BodyAim.HoldsFire(world, entity, targetAt))
+            if (!bomb && BodyAim.TargetPoint(world, p.Target, out var targetAt) && BodyAim.HoldsFire(world, entity, targetAt))
             {
                 channel.Status = NodeStatus.Running;
                 Say(world, entity, ActionReason.Turning, p.Target);
@@ -214,7 +217,7 @@ namespace Fdp.Toolkit.Combat.Executors
 
             // ⭐ CE-321 — hold fire while a friendly is on the line (LineOfFire): the action keeps running and no round is spent,
             //   so a unit that moves clear (or a friendly that moves away) fires again.
-            if (LineOfFire.BlockedByFriendly(world, entity, p.Target))
+            if (!bomb && LineOfFire.BlockedByFriendly(world, entity, p.Target))
             {
                 channel.Status = NodeStatus.Running;
                 Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target);
@@ -489,7 +492,22 @@ namespace Fdp.Toolkit.Combat.Executors
                 && Vector3.Distance(world.GetComponentRO<SimTransform>(unit).Position, world.GetComponentRO<SimTransform>(target).Position) < missile.MinRangeM)
                 return ActionReason.TooClose;
             if (!CombatTkb.FiresOnTheMove(mount) && HitModel.IsMoving(world, unit)) return ActionReason.HoldMoving;
+            // ⭐⭐ Air Ops slice 4 (DESIGN_Air_Operations §8, A6) — the RELEASE profile: a bomb leaves only when the cue says now (where a
+            //   bomb dropped now lands has reached the target, within 10 m across the track). The behaviour flies the run-in; the
+            //   weapon brain releases — the same gate for a player who holds the trigger (R-261).
+            if (mount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb && !ReleaseCue(world, unit, target)) return ActionReason.AwaitingRelease;
             return null;
+        }
+
+        /// <summary>⭐ Air Ops slice 4 — <see cref="BombBallistics.ReleaseNow"/> for <paramref name="unit"/> over <paramref name="target"/>'s
+        /// position, over this world's terrain.</summary>
+        public static bool ReleaseCue(EntityRepository world, Entity unit, Entity target)
+        {
+            if (!world.HasComponent<SimTransform>(unit) || target.IsNull || !world.IsAlive(target) || !world.HasComponent<SimTransform>(target)) return false;
+            var v = world.HasComponent<SimVelocity>(unit) ? world.GetComponentRO<SimVelocity>(unit).Linear : Vector3.Zero;
+            var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
+            return BombBallistics.ReleaseNow(world.GetComponentRO<SimTransform>(unit).Position, v, world.GetComponentRO<SimTransform>(target).Position,
+                terrain == null ? null : terrain.GroundHeightAt);
         }
 
         /// <summary>⭐ W-12c (§5g G-2) — added to a guided round's flight estimate: launch and detonation are not instants.</summary>

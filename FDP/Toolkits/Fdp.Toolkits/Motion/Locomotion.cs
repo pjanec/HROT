@@ -49,6 +49,9 @@ namespace Fdp.Toolkit.Motion
             _ => LocomotionClass.Wheeled,
         };
 
+        /// <summary>⭐ Air Ops slice 4 — true when <paramref name="e"/> moves in the AIR domain (its <see cref="Locomotion"/> class).</summary>
+        public static bool InAir(EntityRepository view, Entity e) => DomainOf(Of(view, e)) == MotionDomain.Air;
+
         /// <summary>The body's class: its <see cref="Locomotion"/>, else its <see cref="VehicleParams"/> preset, else Unknown.</summary>
         public static LocomotionClass Of(EntityRepository view, Entity e)
         {

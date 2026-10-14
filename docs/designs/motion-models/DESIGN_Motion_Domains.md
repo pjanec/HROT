@@ -180,6 +180,10 @@ Not built: `GroundMotionModule`'s two-model refactor (MD-H: a later slice), `Nav
 > pitch and roll) and `MotionFrame` carries the terrain; `AirMotionSystem.RouteSource` compiles the body's `AirPath`. 📄
 > `docs/designs/air-attack/DESIGN_Air_Operations.md` §5b.
 
+> ⭐ **`2026-10-14` (Air Ops slice 4):** MD-H's **FixedWing row is built** — `FixedWingModel` (kinematic `AirPath` follower ≥ stall,
+> banked from the curvature, circles at the end); `MotionModelTable.Model(FixedWing)` no longer throws (Surface / Amphibious still do).
+> 📄 `docs/designs/air-attack/DESIGN_Air_Operations.md` §6a.
+
 ### 5a. The ownership decision — CE-3199 ✅ DECIDED `2026-10-14` (R-3005): option (A), one Muscle role
 
 🔒 User, `2026-10-14`: *"lets drop the whole MuscleXXX (ground, air...) and use one single Muscle role, so all positions are owned by it,

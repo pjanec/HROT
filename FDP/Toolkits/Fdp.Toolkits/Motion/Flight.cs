@@ -23,18 +23,24 @@ namespace Fdp.Toolkit.Motion
         public float HoverHeightM;
         /// <summary>⭐ Air Ops slice 2 — the radius a route's corners are rounded to (0 ⇒ <see cref="TurnRadius"/> derives it).</summary>
         public float TurnRadiusM;
+        /// <summary>⭐ Air Ops slice 4 — a plane's floor speed, route speed and steepest bank.</summary>
+        public float StallSpeedMps;
+        public float CruiseSpeedMps;
+        public float MaxBankDeg;
 
         public static FlightParams From(FlightParamsDto d) => new()
         {
             MaxSpeedMps = d.MaxSpeedMps, ClimbMps = d.ClimbMps, TurnRateDeg = d.TurnRateDeg,
             EnduranceSeconds = d.EnduranceSeconds, ContactRadiusM = d.ContactRadiusM,
             HoverHeightM = d.HoverHeightM, TurnRadiusM = d.TurnRadiusM,
+            StallSpeedMps = d.StallSpeedMps, CruiseSpeedMps = d.CruiseSpeedMps, MaxBankDeg = d.MaxBankDeg,
         };
 
-        /// <summary>The radius a route is rounded to: <see cref="TurnRadiusM"/>, else top speed / turn rate (the tightest circle it flies
-        /// at full speed).</summary>
+        /// <summary>The radius a route is rounded to: <see cref="TurnRadiusM"/>; else a plane's cruise² / (g·tan max bank) (DESIGN_Air_Operations
+        /// §6: 150 m/s at 60° ≈ 1.3 km); else top speed / turn rate (the tightest circle it flies at full speed).</summary>
         public readonly float TurnRadius
             => TurnRadiusM > 0f ? TurnRadiusM
+             : MaxBankDeg > 0f && CruiseSpeedMps > 0f ? CruiseSpeedMps * CruiseSpeedMps / (9.81f * MathF.Tan(MaxBankDeg * MathF.PI / 180f))
              : TurnRateDeg > 0f ? MaxSpeedMps / (TurnRateDeg * MathF.PI / 180f) : 0f;
     }
 

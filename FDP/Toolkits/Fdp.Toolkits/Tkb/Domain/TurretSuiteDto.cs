@@ -56,5 +56,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         Atgm = 5,
         Mortar = 6,
         Grenade = 7,
+        /// <summary>⭐ Air Ops slice 4 (DESIGN_Air_Operations §8) — a free-fall bomb: released from an aircraft at the weapon brain's
+        /// cue (the Release profile), it leaves with the carrier's velocity and falls.</summary>
+        Bomb = 8,
     }
 }

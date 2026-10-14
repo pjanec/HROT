@@ -133,8 +133,11 @@ namespace Fdp.Toolkit.Tests.Motion
             new LinearKinematicsSystem().Execute(_w, 1f);
             Assert.Equal(new Vector3(0, 0, 10), _w.GetComponent<SimTransform>(drone).Position);
 
-            Drone(new Vector3(0, 0, 100), LocomotionClass.FixedWing);
-            Assert.Throws<NotSupportedException>(() => Run(1));
+            // ⭐ Air Ops slice 4 — MD-H's FixedWing row is built (FixedWingModel): a plane is moved, not refused
+            var plane = Drone(new Vector3(0, 0, 100), LocomotionClass.FixedWing);
+            Run(1);
+            Assert.IsType<FixedWingModel>(MotionModelTable.Model(LocomotionClass.FixedWing));
+            Assert.NotEqual(new Vector3(0, 0, 100), _w.GetComponent<SimTransform>(plane).Position);
             Assert.Throws<NotSupportedException>(() => MotionModelTable.Model(LocomotionClass.Surface));
             Assert.Null(MotionModelTable.Model(LocomotionClass.Tracked));   // v1: the ground still runs CarKinematics
             Assert.Equal(MotionDomain.Air, Locomotions.DomainOf(LocomotionClass.Rotorcraft));

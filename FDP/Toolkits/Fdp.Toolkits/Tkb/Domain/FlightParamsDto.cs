@@ -37,7 +37,17 @@ namespace Fdp.Toolkit.Tkb.Domain
         [EditUnit("m")] [Description("The height above the ground a route flies at where a waypoint states none, and from which it lands.")]
         public float HoverHeightM { get; init; } = 30f;
 
-        [EditUnit("m")] [Description("The radius a route's corners are rounded to; 0 = top speed / turn rate.")]
+        [EditUnit("m")] [Description("The radius a route's corners are rounded to; 0 = top speed / turn rate (a plane: cruise² / (g·tan max bank)).")]
         public float TurnRadiusM { get; init; } = 0f;
+
+        // ⭐ Air Ops slice 4 (DESIGN_Air_Operations §6) — a fixed-wing aircraft: it never stops, it banks to turn.
+        [EditUnit("m/s")] [Description("A plane never flies slower than this (no stall is modelled: the floor is the stall).")]
+        public float StallSpeedMps { get; init; } = 0f;
+
+        [EditUnit("m/s")] [Description("A plane's route speed where nothing else says.")]
+        public float CruiseSpeedMps { get; init; } = 0f;
+
+        [EditUnit("deg")] [Description("A plane's steepest bank; it sets the turn radius at cruise.")]
+        public float MaxBankDeg { get; init; } = 0f;
     }
 }

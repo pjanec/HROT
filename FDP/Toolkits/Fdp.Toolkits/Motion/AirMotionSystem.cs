@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Motion
                 if (model == null) continue;
 
                 var intent = intents && repo.HasComponent<NavigationIntent>(e) ? repo.GetComponentRO<NavigationIntent>(e) : default;
-                if (intent.Mode == NavigationMode.FollowRoute) EnsurePath(repo, e, in intent, terrain);
+                if (intent.Mode == NavigationMode.FollowRoute) EnsurePath(repo, e, in intent, terrain, cls);
                 var frame = new MotionFrame(repo, e, ref repo.GetComponentRW<SimTransform>(e), ref repo.GetComponentRW<SimVelocity>(e)) { Terrain = terrain };
                 if (intent.Mode == NavigationMode.Manual && drives && repo.HasComponent<ManualDrive>(e))
                     model.Manual(ref frame, in repo.GetComponentRO<ManualDrive>(e), deltaTime);
@@ -47,7 +47,8 @@ namespace Fdp.Toolkit.Motion
 
         /// <summary>⭐ Air Ops slice 2 — (re)compiles the body's <see cref="AirPath"/> when the order, the route or its version changed
         /// (<see cref="AirRoute.Compile"/>, from where the body is); keeps it while they hold.</summary>
-        private void EnsurePath(EntityRepository repo, Entity e, in NavigationIntent intent, Fdp.Toolkit.World.IWorldQuery? terrain)
+        private void EnsurePath(EntityRepository repo, Entity e, in NavigationIntent intent, Fdp.Toolkit.World.IWorldQuery? terrain,
+                                LocomotionClass cls)
         {
             if (RouteSource == null || intent.RouteEntityId == 0) return;
             if (!RouteSource.TryGetRoute(repo, intent.RouteEntityId, _waypoints, out bool loop, out int version)) return;
@@ -58,6 +59,16 @@ namespace Fdp.Toolkit.Motion
                 if (have.IntentId == intent.IntentId && have.RouteEntityId == intent.RouteEntityId && have.RouteVersion == version) return;
             }
             if (!table) repo.RegisterManagedComponent<AirPath>();
+            // ⭐ Air Ops slice 4 (B9) — planes do not land or hover in v1: a Ground waypoint is flown over, a hold is ignored (warned)
+            if (cls == LocomotionClass.FixedWing)
+                for (int i = 0; i < _waypoints.Count; i++)
+                {
+                    var w = _waypoints[i];
+                    if (!AirRoute.IsStop(in w)) continue;
+                    Fdp.Core.Logging.FdpLog<AirMotionSystem>.Warn(
+                        "[AIR] route {0} waypoint {1}: a plane does not land or hold (v1) — flown over", intent.RouteEntityId, i);
+                    _waypoints[i] = w with { Kind = RouteWaypointKind.Pass, Hold = RouteHold.None };
+                }
             var p = repo.IsComponentTypeRegistered<FlightParams>() && repo.HasComponent<FlightParams>(e)
                 ? repo.GetComponentRO<FlightParams>(e) : FlightParams.From(new FlightParamsDto());
             var path = AirRoute.Compile(repo.GetComponentRO<SimTransform>(e).Position, _waypoints, loop, p.TurnRadius, p.HoverHeightM,

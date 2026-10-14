@@ -61,6 +61,9 @@ namespace Fdp.Toolkit.Motion
         public bool ReleaseArmed = true;
         public float Pitch;
         public float Roll;
+        /// <summary>⭐ Air Ops slice 4 — a plane's circle after its route's end (<see cref="FixedWingModel"/>).</summary>
+        public Vector2 OrbitCenter;
+        public float OrbitAngle;
     }
 
     /// <summary>

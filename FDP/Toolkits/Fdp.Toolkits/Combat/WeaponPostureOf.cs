@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Combat
             ActionReason.Aiming or ActionReason.Firing or ActionReason.Cooldown or ActionReason.BlindFire
                 or ActionReason.HoldFriendlyOnLine or ActionReason.HoldRoe or ActionReason.Slewing or ActionReason.Guiding
                 or ActionReason.Turning   // ⭐ CE-3195 — held while the body turns, still aimed (the gait turns him toward it)
+                or ActionReason.AwaitingRelease   // ⭐ Air Ops slice 4 — a bomb on the run-in, waiting for its cue
                 => WeaponPostureKind.Aimed,
             ActionReason.HoldNotSeen or ActionReason.Reloading or ActionReason.Throwing or ActionReason.OutOfArc
                 or ActionReason.Done or ActionReason.Failed or ActionReason.OutOfAmmo

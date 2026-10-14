@@ -454,7 +454,8 @@ public sealed class EffectTests
                                             MunitionTkbCatalog.TkbRpg7Rocket, MunitionTkbCatalog.TkbTowMissile,   // ⭐ M3
                                             MunitionTkbCatalog.TkbJavelinMissile, MunitionTkbCatalog.TkbNlawMissile,   // ⭐ M5 — the new AT teams' own launchers
                                             MunitionTkbCatalog.TkbKornetMissile,     // ⭐ M9 — the ATGM technical's
-                                            MunitionTkbCatalog.TkbFpvWarhead };      // ⭐ M7 — the drone's own shaped charge
+                                            MunitionTkbCatalog.TkbFpvWarhead,        // ⭐ M7 — the drone's own shaped charge
+                                            MunitionTkbCatalog.TkbMk82Bomb };        // ⭐ Air Ops slice 4 — the new bomb's area warhead (new type, no number moved)
         int mounts = 0, tracerMixed = 0;
         foreach (var t in tkb.GetAll())
         {
