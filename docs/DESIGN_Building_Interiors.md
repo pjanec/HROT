@@ -10,6 +10,7 @@ known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid pri
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
   buildings.
 related-designs:
+  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: who calls fire (§3k hands it on), the fire solution (charge, low / high arc) and the battery's fire mission
   - DESIGN_Map_3D_Mode.md §6k — CE-1068: how a door entity is DRAWN (a hinged leaf in 3-D, no symbol in 2-D, gone when destroyed)
   - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — R-217's penetration lookup keyed by the LOADED round (a mount's ammo loadout)
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — the penetrator kind (kinetic / shaped charge / tandem) read beside R-217's lookup
