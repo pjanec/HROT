@@ -1234,12 +1234,18 @@ def run_squad_bound_open_ground(c, timeout):
     hs = sorted(history.values(), key=lambda h: h.get("t") or 0)
     print(f"    bound history: {[(h.get('t'), h.get('phaseName'), h.get('event')) for h in hs]}")
     time.sleep(1.5)   # the replicated positions this node reads lag the commander's by a moment
-    beyond = [names[members.index(n)] for n in members if (p := position(n)) and along(p) >= L - 2.0]
-    print(f"    after {t_end - t0:.0f} s: past the far side {beyond}")
+    alongs = {names[members.index(n)]: round(along(p) - L, 1) for n in members if (p := position(n))}
+    beyond = [k for k, v in alongs.items() if v >= -2.0]
+    print(f"    after {t_end - t0:.0f} s, metres past the far side: {alongs}")
     c.ok(t_end - t0 < 240, f"③ the bound ends ({t_end - t0:.0f} s)")
     c.ok(longest <= 1.5, f"④ one half moves, the other watches (both halves moving at most {longest:.1f} s at a time)")
-    c.ok(len(beyond) >= len(members) - 1, f"⑤ the squad ends beyond the field's far side ({len(beyond)} of {len(members)})")
-    c.ok(all((ammo(n)[0] or 0) >= (ammo0[n] or 0) for n in members), "⑥ watching, not shooting: nobody's ammo dropped")
+    # the last bound carries ONE element to beyond the far side; the overwatching one is a bound behind by design (§7.6)
+    c.ok(len(beyond) >= len(members) // 2, f"⑤ the last bound ends beyond the field's far side ({len(beyond)} of {len(members)})")
+    gathered = wait_for(lambda: all((p := position(n)) and along(p) >= L - 15.0 for n in members), 60, every=1)
+    final = {names[members.index(n)]: round(along(p) - L, 1) for n in members if (p := position(n))}
+    print(f"    then, metres past the far side: {final}")
+    c.ok(gathered, "⑥ … and the march gathers the whole squad at the far side (every man within 15 m of it)")
+    c.ok(all((ammo(n)[0] or 0) >= (ammo0[n] or 0) for n in members), "⑦ watching, not shooting: nobody's ammo dropped")
 
 
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
