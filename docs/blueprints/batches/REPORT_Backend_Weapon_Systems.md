@@ -29,7 +29,7 @@ rail, WS-4 `SeatPresets` + a gunner in 104 / 105). Branch: **`backend`**. Each i
 | WS-2 | a weapon boards a station that accepts it; a soldier carries a portable one (the carry station); a station weapon stands at its seat | `0123eae36` | §9 WS-2 | ✅ |
 | WS-3 | one controller per weapon (`WeaponSystems`); the brain's mount list grows by the controlled weapons; a controlled weapon fires as itself; ⭐ W-I: the gun falls silent when its gunner dies | `f656cb38b` | §9 WS-3 | ✅ |
 | WS-4 | nine weapon types, the bare Toyota (106), `SeatPresets` (W-I), 104 / 105 = pickup + weapon + gunner; seats survive a save / load | `e49721cc0` | §9 WS-4 | ✅ partly — see "not built" |
-| ⭐ **T-a** (steer: [`STEER_Behaviors_To_Backend_Team_Carry.md`](STEER_Behaviors_To_Backend_Team_Carry.md), R-2017, CE-2175) | the team carry: `CarryMode.Stretcher`, the named second man (`PassengerBuffer.Assistant`, `IsAssistingTag`), the T4 gate, the rear-handle placement and the speeds (T3), both men's fire (T5), either man down ⇒ put down (T6) | TA_SHA | [`DESIGN_Entity_Interactions.md` §7.5.5](../../DESIGN_Entity_Interactions.md) | ✅ |
+| ⭐ **T-a** (steer: [`STEER_Behaviors_To_Backend_Team_Carry.md`](STEER_Behaviors_To_Backend_Team_Carry.md), R-2017, CE-2175) | the team carry: `CarryMode.Stretcher`, the named second man (`PassengerBuffer.Assistant`, `IsAssistingTag`), the T4 gate, the rear-handle placement and the speeds (T3), both men's fire (T5), either man down ⇒ put down (T6) | `5c1222570` | [`DESIGN_Entity_Interactions.md` §7.5.5](../../DESIGN_Entity_Interactions.md) | ✅ |
 
 ## Deviations (each argued in §9)
 
