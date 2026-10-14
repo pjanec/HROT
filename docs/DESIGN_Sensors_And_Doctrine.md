@@ -593,7 +593,7 @@ classDiagram
   class EqsResultUpdateSystem { <<existing Brain, PRODUCER>> writes EqsCognitiveBuffer +publishes TopChanged (perception sensors only) }
   class ThreatEvaluationSystem { <<existing Brain, PRODUCER>> writes TargetMemory +publishes FirstThreat / AllClear / Hit }
   class SensorChangedEvent { <<BUILT unmanaged bus event, id 4006>> +Entity Unit +Entity Sensor +Entity Target +SensorModality Kind +SensorChange What }
-  class SensorChange { <<BUILT enum>> Acquired Lost TopChanged FirstThreat AllClear Hit NearMiss · AreaAhead AreaThreatened AreaCleared · SquadContact SquadUnderFire SquadAllClear SquadLeaderDown }
+  class SensorChange { <<BUILT enum>> Acquired Lost TopChanged FirstThreat AllClear Hit NearMiss · AreaAhead AreaThreatened AreaCleared · SquadContact SquadUnderFire SquadAllClear SquadLeaderDown SquadMemberDown · AirThreat «CE-2165 V8, kind 16 — DESIGN_Vehicle_Exposure_Cycle §8» }
   class SquadCoordinationSystem { <<existing Brain, PRODUCER since CE-2123 S2>> merges the squad pool +publishes SquadContact / SquadUnderFire / SquadAllClear on the COMMANDER }
   class BuiltInEngineEventCatalog { <<existing, grows>> SensorChangedEvent: target field Unit, filterable What / Kind }
   class SensorHsmEventIds { <<NEW reserved HSM ids, beside MobilityLost>> one id per SensorChange }

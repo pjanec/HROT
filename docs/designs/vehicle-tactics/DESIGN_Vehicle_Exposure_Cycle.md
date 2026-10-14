@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: BUILDING — V1, V3, V4 built (as-built rows in §2–§4); V6, V8 to build. 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (V1–V8, D-H, D-J, D-K approved)
+build-state: BUILDING — V1, V3, V4, V8 built (as-built rows in §2–§4, §8); V6 compositions + demos to do. 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (V1–V8, D-H, D-J, D-K approved)
 current-answer: §2 danger to me (V1), §3 vehicle points (V3), §4 the node (V4), §5 reverse (V5), §6 technicals (M9), §7 the AT side (V6), §8 counter-drone (V8), §9 who runs it, §10 rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
@@ -367,7 +367,10 @@ classDiagram
     <<new static, Brains>>
     +ShelterFromAir(ref Params, ref State, self, world) NodeStatus
   }
-  class ShelterFromAirParams { <<new ParamsDto>> ClearSeconds = 10 · FindSeconds = 3 · EvadeSpeed  «0 ⇒ max» }
+  class ShelterFromAirParams { <<new ParamsDto>> ClearSeconds = 10 · FindSeconds = 3 · EvadeSpeed «as built: 0 ⇒ the vehicle's own» · SearchRadius 60 · EvadeLegMetres 40 }
+  class AirContacts { <<new, as built — Perception>> IsAir(view, mem, slot) · Count(view, mem) }
+  ThreatEvaluationSystem ..> AirContacts
+  ShelterFromAirNodes ..> AirContacts
   class BasicVehicleSop { <<new library SOP asset, JSON like BasicInfantrySop>> }
   class FindShelter { <<new EqsTemplate — §3>> }
   ShelterFromAirNodes ..> FindShelter
@@ -390,6 +393,24 @@ classDiagram
 | 2 | no answer ⇒ **Evade**: keep moving at full speed between points away from the drone's last position — never stop |
 | 3 | throughout: `Fire(the drone)` when it is SEEN and a mount can elevate onto it (the weapon brain fails it `OutOfArc` otherwise — a tank's gun cannot, a technical's HMG can) |
 | 4 | ends when clear; the paused task (e.g. the exposure cycle) resumes (R-199) |
+
+⭐ **As-built `2026-10-14` (V8) — `Perception/AirContacts.cs`, `ThreatEvaluationSystem`, `Brains/ShelterFromAirNodes.cs`, `Sop/BasicVehicleSop.btree.json`; deviations, argued:**
+
+| design said | built | why |
+|---|---|---|
+| an air contact = DIS domain 2, or heard `Rotor` | ⚠ = its **`Locomotion` is in the Air domain** (`Locomotions.DomainOf`), or heard `Rotor` — ONE rule, `AirContacts.IsAir`, read by the sense AND the node | `Gen.Locomotion` is the class the motion modules and the FPS station already route by (CE-2168 MD-A, stamped on every node); a second, DIS-based reading would be a second implementation of "is it a flyer" |
+| `AirThreat` when an air contact ENTERS memory | when the COUNT of air contacts rises in a frame | a heard drone later SEEN is one contact (the sighting absorbs the heard slot, CE-3063) — new-id counting would raise it twice |
+| — | 📐 **found:** `RecentSenses.SeenMask` was a `ushort` — kind 16 would have been recorded as never seen, SILENTLY (the `SensedFresh` row could never fire). Widened to `uint` (the struct stays 144 B with the new `AirThreat` time; no other reader of the mask) | the 16-kind wall had been reached exactly; the next kind would have died without a trace |
+| — | `BuiltInHsmEvents.SensorNames` gains `Sensor.AirThreat` (id `0xFF10`) — an HSM can transition on it | the enum's second mirror; `BrainTickSystemHsmArmTests.CE3040_TheBuiltInNames_MatchTheRuntimeEnum` caught it |
+| "clear" = no air contact FRESH for `ClearSeconds` | = no NEW sensing (a newer `LastSeenTick` on any air slot) for `ClearSeconds` | memory freshness fades over ≈ 70 s, so "fresh" would hold the shelter a minute after the drone left; a new sighting or hearing is the edge the node can count |
+| no answer ⇒ evade | ✅ 40 m legs away from the drone's last spot, swerving ±35° on alternate sides; a shelter that answers MID-evade is taken; a failed shelter move evades | a straight line is what a diving drone leads |
+| `Fire(the drone)`; the weapon brain fails a mount that cannot elevate | ✅, and a FAILED fire (out of arc) is retried only after 2 s | `PostureNodes.Fire` re-issues on Failure — every frame against a tank gun's `OutOfArc` |
+| `EvadeSpeed 0 ⇒ max` | 0 ⇒ the vehicle's own speed | `LocomotionMoveTo` has a speed, not a "max" knob — ⛔ open: a top-speed evade needs the type's max speed read here |
+
+Rails: `ThreatEvaluationSystemTests.V8_AHeardDrone_Raises_AirThreat` · `V8_ASeenFlyer_Raises_AirThreat_ATankDoesNot_AndHeardThenSeenIsOneAlarm` ·
+`ShelterFromAirNodesTests` (5: under the deck / hold / clear · evade legs · shelter mid-evade · fire + out-of-arc retry · release) ·
+`BasicVehicleSopTests` (2: registered + idles · the rows in order). ⛔ Not built: `AimAndFireExecutorTests.V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc`
+(the weapon-brain half — the behaviour half is `ShelterFromAirNodesTests.V8_ASeenDrone_IsFiredAt_AndAnOutOfArcFailure_IsRetriedLater`) · the demo `ua-drone-shelter`.
 
 ## 9. Who runs it
 
@@ -428,5 +449,5 @@ fix inside the existing kinematics; the behaviour and the danger stay on the Bra
 | ✅ `V4_TheCycle_HidesExposesFiresAndReverses_ToTheSameHide` · ✅ `V4_ATechnical_Scoots_ToANewHide_EveryTime` · ✅ `V4_TheBudget_IsTheAtGunnersAimTime` · ✅ `V4_ANearMiss_CutsTheExposure` · ✅ `V4_Guiding_Holds_TheFiringPoint` · *(as-built, also)* ✅ `V4_ATank_ExposesTwiceFromOneHide_ThenRelocates` · `V4_TheBudget_CountsOnlyASeenDangerousThreat` · `V4_ALaunchHeard_TowardTheThreat_CutsTheExposure` · `V4_NothingInSight_Watches_ThenWithdraws_OrFiresWhenHeShowsHimself` · `V4_UnderFireOrReloading_StaysHidden` · `V4_Leaving_ReleasesEverything_ButTheMemory` · `V4_NothingRemembered_Succeeds` · `V4_AutoWithdraw_ReversesATank_ScootsATechnical` | new `VehicleFightFromCoverNodesTests` (Hrot.SimHost.Tests, beside `PeekAndFireNodesTests`) |
 | ✅ `V4_ATanksAttackOrder_ResolvesTo_LandPlatformAttack` | `TacticalIntentResolutionSystemTests` |
 | V5 rails (§5) | `CarKinematicsSystemTests`, `BicycleModelTests` |
-| `V8_AHeardDrone_Raises_AirThreat` · `V8_ShelterFromAir_GoesUnderTheDeck_OrKeepsMoving` · `V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc` | `ThreatEvaluationSystemTests`, new `ShelterFromAirNodesTests`, `AimAndFireExecutorTests` |
+| ✅ `V8_AHeardDrone_Raises_AirThreat` · ✅ `V8_ShelterFromAir_GoesUnderTheDeck_HoldsWhileSensed_EndsWhenClear` + `V8_NoShelter_KeepsMoving_AwayFromTheDrone` *(as built: the design's one rail split in two)* · `V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc` *(behaviour half built; executor half not)* | `ThreatEvaluationSystemTests`, new `ShelterFromAirNodesTests`, `AimAndFireExecutorTests` |
 | demos: `ua-tank-corner`, `ua-ifv-standoff`, `ua-technical-scoot`, `ua-tank-ammo`, `ua-javelin-lock`, `ua-drone-shelter` | `scripts/utility-demo-check.py` |

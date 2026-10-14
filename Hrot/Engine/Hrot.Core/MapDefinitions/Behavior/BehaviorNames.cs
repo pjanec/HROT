@@ -84,6 +84,9 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2165</c> V4 — the library vehicle behaviour: the exposure cycle against the top threat.</summary>
         public const string VehicleFightFromCover = "VehicleFightFromCover";
 
+        /// <summary>⭐ <c>CE-2165</c> V8 — a vehicle with a drone about: under overhead cover, else keep moving; fire at it when seen.</summary>
+        public const string ShelterFromAir = "ShelterFromAir";
+
         /// <summary>⭐ <c>CE-1056</c> I-2d — a soldier walks to a vehicle and boards it (DESIGN_Entity_Interactions §7.3).</summary>
         public const string Embark = "Embark";
 

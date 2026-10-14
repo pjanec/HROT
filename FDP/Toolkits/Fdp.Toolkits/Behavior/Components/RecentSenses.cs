@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Behavior.Components
     [DataPolicy(DataPolicy.NoScenario)]
     public struct RecentSenses
     {
-        /// <summary>Sim time (s) of the last change of each kind, indexed by <see cref="SensorChange"/> (1–14).</summary>
+        /// <summary>Sim time (s) of the last change of each kind, indexed by <see cref="SensorChange"/> (1–16).</summary>
         public double Acquired, Lost, TopChanged, FirstThreat, AllClear, Hit;
         /// <summary>⭐ <c>CE-3064</c> — the last near miss (kind 7).</summary>
         public double NearMiss;
@@ -29,8 +29,10 @@ namespace Fdp.Toolkit.Behavior.Components
         public double SquadLeaderDown;
         /// <summary>⭐ <c>CE-2152</c> C-c — kind 15, on the commander: a member went down.</summary>
         public double SquadMemberDown;
-        /// <summary>Bit <c>1 &lt;&lt; (int)kind</c> set once that kind has happened at least once (kinds up to 15).</summary>
-        public ushort SeenMask;
+        /// <summary>⭐ <c>CE-2165</c> V8 — kind 16: an air contact (a drone, a helicopter) entered the unit's memory.</summary>
+        public double AirThreat;
+        /// <summary>Bit <c>1 &lt;&lt; (int)kind</c> set once that kind has happened at least once (kinds up to 31; ⚠ a ushort until CE-2165 V8 — kind 16 would have been dropped).</summary>
+        public uint SeenMask;
 
         /// <summary>Record a change of <paramref name="kind"/> at <paramref name="now"/>.</summary>
         public void Record(SensorChange kind, double now)
@@ -52,9 +54,10 @@ namespace Fdp.Toolkit.Behavior.Components
                 case SensorChange.SquadAllClear:  SquadAllClear  = now; break;
                 case SensorChange.SquadLeaderDown: SquadLeaderDown = now; break;
                 case SensorChange.SquadMemberDown: SquadMemberDown = now; break;
+                case SensorChange.AirThreat:      AirThreat      = now; break;
                 default: return;
             }
-            SeenMask |= (ushort)(1 << (int)kind);
+            SeenMask |= 1u << (int)kind;
         }
 
         /// <summary>Did a change of <paramref name="kind"/> happen within the last <paramref name="seconds"/> before <paramref name="now"/>?</summary>
@@ -65,7 +68,7 @@ namespace Fdp.Toolkit.Behavior.Components
         public readonly bool TryGetLast(SensorChange kind, out double at)
         {
             at = double.NegativeInfinity;
-            if ((SeenMask & (1 << (int)kind)) == 0) return false;
+            if ((SeenMask & (1u << (int)kind)) == 0) return false;
             at = kind switch
             {
                 SensorChange.Acquired    => Acquired,
@@ -83,6 +86,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 SensorChange.SquadAllClear  => SquadAllClear,
                 SensorChange.SquadLeaderDown => SquadLeaderDown,
                 SensorChange.SquadMemberDown => SquadMemberDown,
+                SensorChange.AirThreat       => AirThreat,
                 _                        => double.NegativeInfinity,
             };
             return true;

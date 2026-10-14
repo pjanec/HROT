@@ -293,6 +293,76 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(0, world.GetComponent<TargetMemory>(unit).Count);
         }
 
+        // ── ⭐ CE-2165 V8 — the AIR THREAT edge (DESIGN_Vehicle_Exposure_Cycle §8) ─────────────────────────────────────────
+
+        private const byte Rotor = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Rotor;
+
+        /// <summary>One tick; true when it raised <see cref="SensorChange.AirThreat"/> on <paramref name="unit"/>.</summary>
+        private static bool TickRaisesAirThreat(EntityRepository world, ISimulationView view, ThreatEvaluationSystem sys, Entity unit)
+        {
+            sys.Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(world);
+            world.Bus.SwapBuffers();
+            return view.ReadEvents<SensorChangedEvent>().ToArray().Any(e => e.Unit == unit && e.What == SensorChange.AirThreat);
+        }
+
+        private static Entity Body(EntityRepository world, Fdp.Toolkit.Tkb.Domain.LocomotionClass cls)
+        {
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            var e = world.CreateEntity();
+            world.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = cls });
+            return e;
+        }
+
+        private static unsafe void See(EntityRepository world, Entity unit, Entity target, float x, float y)
+        {
+            var tracks = new ActiveSensorTracks();
+            tracks.EntityIds[0] = (long)target.PackedValue; tracks.PositionsX[0] = x; tracks.PositionsY[0] = y; tracks.Count = 1;
+            if (world.HasComponent<ActiveSensorTracks>(unit)) world.SetComponent(unit, tracks); else world.AddComponent(unit, tracks);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>V8_AHeardDrone_Raises_AirThreat</c> — rotors heard: <see cref="SensorChange.AirThreat"/>; the same rotors heard again (one
+        /// fused contact) do not raise it again; a SECOND drone heard elsewhere does; a heard rifle never does. 🔴 Red-proof: count new
+        /// slots of any class and the rifle raises it.
+        /// </summary>
+        [Fact]
+        public void V8_AHeardDrone_Raises_AirThreat()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            Hear(world, unit, 0f, 100f, 15f, Rotor);
+            Assert.True(TickRaisesAirThreat(world, view, sys, unit), "rotors heard: an air threat");
+            Hear(world, unit, 3f, 98f, 15f, Rotor);
+            Assert.False(TickRaisesAirThreat(world, view, sys, unit), "the same drone heard again is the same contact");
+            Hear(world, unit, 300f, 0f, 40f, Rotor);
+            Assert.True(TickRaisesAirThreat(world, view, sys, unit), "a second drone");
+            Hear(world, unit, -200f, 0f, 30f, SmallArms);
+            Assert.False(TickRaisesAirThreat(world, view, sys, unit), "a rifle is not an air threat");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>V8_ASeenFlyer_Raises_AirThreat</c> — a SEEN contact whose body moves in the Air domain (a rotorcraft) raises it, a seen tank
+        /// does not; and a drone first HEARD, then SEEN inside its circle (the sighting absorbs the heard slot) is ONE alarm, not two.
+        /// </summary>
+        [Fact]
+        public void V8_ASeenFlyer_Raises_AirThreat_ATankDoesNot_AndHeardThenSeenIsOneAlarm()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            See(world, unit, Body(world, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked), 50f, 0f);
+            Assert.False(TickRaisesAirThreat(world, view, sys, unit), "a tank is not an air threat");
+
+            var (w2, v2, s2, u2) = HearingWorld();
+            See(w2, u2, Body(w2, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft), 50f, 0f);
+            Assert.True(TickRaisesAirThreat(w2, v2, s2, u2), "a seen drone is an air threat");
+
+            var (w3, v3, s3, u3) = HearingWorld();
+            Hear(w3, u3, 0f, 200f, 30f, Rotor);
+            Assert.True(TickRaisesAirThreat(w3, v3, s3, u3));
+            See(w3, u3, Body(w3, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft), 10f, 190f);
+            Assert.False(TickRaisesAirThreat(w3, v3, s3, u3), "heard, then seen: still one drone");
+            Assert.Equal(1, w3.GetComponent<TargetMemory>(u3).Count);
+        }
+
         /// <summary>⭐ K3 — danger of a heard slot is read from its class (there is no entity to read).</summary>
         [Fact]
         public void TheDangerOfAHeardSlot_ComesFromItsClass_CE3063()
