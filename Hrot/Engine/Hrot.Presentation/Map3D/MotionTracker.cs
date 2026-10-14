@@ -41,7 +41,11 @@ public sealed class MotionTracker
     /// <summary>⭐ WL-6d — the speed (m/s) at which a figure counts as fully moving (a crawl is ~0.3–1 m/s).</summary>
     public const float MovingSpeed = 0.3f;
 
-    private struct State { public Vector3 Last; public float Roll, Gait, Crawl; public double SimTime; public bool Seen; }
+    private struct State
+    {
+        public Vector3 Last; public float Roll, Gait, Crawl; public double SimTime; public bool Seen;
+        public float Swing, Lean, Stride, Moving; public bool HasGait;   // ⭐ CE-1064 — the last gait, kept over a frame with no sim time
+    }
 
     private readonly Dictionary<Entity, State> _states = new();
     private int _sweep;
@@ -72,6 +76,12 @@ public sealed class MotionTracker
                 st.Roll = Wrap(st.Roll + along / radius);
                 break;
             }
+            case VisualFamily.Person when dt <= 1e-4 && planar == 0f && st.HasGait:
+                // ⭐ CE-1064 — no sim time passed and he did not move: this frame says nothing about his gait (a paused sim, a frame
+                //   drawn between two sim ticks), so the figure keeps the last one — a pause FREEZES him mid-stride (R-143) instead of
+                //   snapping him to his still pose (a crouched runner to a kneel) for a frame.
+                swing = st.Swing; lean = st.Lean; stride = st.Stride; moving = st.Moving;
+                break;
             case VisualFamily.Person:
             {
                 float speed = dt > 1e-4 ? (float)(planar / dt) : 0f;
@@ -82,6 +92,7 @@ public sealed class MotionTracker
                 stride = Math.Clamp(gait.Walk + gait.Run, 0f, 1f);   // ⭐ WL-6c — how much he is walking (knees, the glide)
                 moving = Math.Clamp((speed - 0.05f) / MovingSpeed, 0f, 1f);   // ⭐ WL-6d — how much he is moving at all (the crawl)
                 st.Crawl = Wrap(st.Crawl + planar / CrawlMetres * MathF.PI * 2f);
+                st.Swing = swing; st.Lean = lean; st.Stride = stride; st.Moving = moving; st.HasGait = true;
                 break;
             }
             case VisualFamily.Helicopter when rotorTurning:

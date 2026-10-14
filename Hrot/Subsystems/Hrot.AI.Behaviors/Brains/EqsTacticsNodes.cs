@@ -336,8 +336,8 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             UtilityDecisionCatalog.EnsureRegistered();
-            _scorer ??= new UtilityScorer(UtilityDecisionCatalog.Shared);
-            if (!_scorer.TopCandidate(world, self, ThreatRankingId, 0, out Entity top, out float score)) return false;
+            var scorer = UtilityDecisionCatalog.ScorerOverShared(ref _scorer);
+            if (!scorer.TopCandidate(world, self, ThreatRankingId, 0, out Entity top, out float score)) return false;
 
             threat = score <= 0f && !current.IsNull && Remembers(world, self, current) ? current : top;
             return !threat.IsNull;

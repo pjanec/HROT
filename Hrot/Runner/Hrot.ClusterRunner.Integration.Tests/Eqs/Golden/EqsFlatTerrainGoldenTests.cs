@@ -80,6 +80,25 @@ public sealed class EqsFlatTerrainGoldenTests
                 () => CaptureOnFlatGround(nameof(FindThrowingPosition), FindThrowingPosition.BlueprintId, 18f)),
             [FindThreatsInView.BlueprintId] = (nameof(FindThreatsInView),
                 () => CaptureOnFlatGround(nameof(FindThreatsInView), FindThreatsInView.BlueprintId, 60f, ForceId.Hostile)),
+            // ⭐ CE-2165 V3 — the vehicle templates, the self a 7 × 3.6 × 2.4 m TANK: hide behind the wall from the terrain's own cover
+            //   (pushed out to its hull), firing points round it, and shelter under a 4 m deck east of it (open ground: no answer).
+            [FindVehicleHide.BlueprintId] = (nameof(FindVehicleHide),
+                () => CaptureOnFlatGround(nameof(FindVehicleHide), FindVehicleHide.BlueprintId, 25f, tankSelf: true, terrainCover: true)),
+            [FindVehicleFiringPoint.BlueprintId] = (nameof(FindVehicleFiringPoint),
+                () => CaptureOnFlatGround(nameof(FindVehicleFiringPoint), FindVehicleFiringPoint.BlueprintId, 25f, tankSelf: true)),
+            [FindShelter.BlueprintId] = (nameof(FindShelter),
+                // ⚠ the deck is a WALKABLE SLAB (how the terrain models a floor or a bridge deck: it blocks sight, the ground under it
+                //   is standable) — ⛔ not a floating prism: TryStandAt rejects any point inside a prism's footprint at any height.
+                () => CaptureOnFlatGround(nameof(FindShelter), FindShelter.BlueprintId, 25f, tankSelf: true, walkables: new[]
+                {
+                    new Fdp.Toolkit.Terrain.TerrainWalkable
+                    {
+                        Kind = Fdp.Toolkit.Terrain.TerrainWalkableKind.Slab,
+                        Vertices = new[] { new Vector3(5, 0, 4.5f), new Vector3(15, 0, 4.5f), new Vector3(15, 10, 4.5f), new Vector3(5, 10, 4.5f) },
+                        Triangles = new[] { 0, 1, 2, 0, 2, 3 },
+                        Min = new Vector2(5, 0), Max = new Vector2(15, 10), MinZ = 4.5f, MaxZ = 4.5f,
+                    },
+                })),
         };
 
     [Fact]
@@ -120,6 +139,9 @@ public sealed class EqsFlatTerrainGoldenTests
     [InlineData(nameof(FindThreatsInView))]
     [InlineData(nameof(FindWindowFiringPosition))]
     [InlineData(nameof(FindThrowingPosition))]
+    [InlineData(nameof(FindVehicleHide))]
+    [InlineData(nameof(FindVehicleFiringPoint))]
+    [InlineData(nameof(FindShelter))]
     public void TerrainStarterTemplate_FlatTerrain_MatchesGolden(string template) => RunGoldenForTemplate(template);
 
     [Fact]
@@ -335,26 +357,29 @@ public sealed class EqsFlatTerrainGoldenTests
     /// <see cref="CaptureEntitiesOfForceInArea"/>), so the templates are the ones a blueprint gets.
     /// </summary>
     private static EqsGoldenTemplate CaptureOnFlatGround(string name, uint blueprintId, float radius, ForceId? threats = null,
-        ICoverProvider? cover = null)
+        ICoverProvider? cover = null, bool tankSelf = false, bool terrainCover = false, Fdp.Toolkit.Terrain.TerrainWalkable[]? walkables = null)
     {
         using var repo = new EntityRepository();
         Hrot.SimHost.SimHostComponentRegistry.RegisterAll(repo);
         EqsTemplateRegistry.InstallDefault(repo);
         repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
         var wall = new[] { new Vector2(-20, -10), new Vector2(20, -10), new Vector2(20, -9.5f), new Vector2(-20, -9.5f) };
-        repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+        var prisms = new List<Fdp.Toolkit.Terrain.TerrainPrism>
         {
-            BoundsMin = new Vector2(-100, -100), BoundsMax = new Vector2(100, 100),
-            Prisms = new[]
+            new Fdp.Toolkit.Terrain.TerrainPrism
             {
-                new Fdp.Toolkit.Terrain.TerrainPrism
-                {
-                    Kind = Fdp.Toolkit.Terrain.TerrainPrismKind.Wall, Footprint = wall, BaseZ = 0, TopZ = 3,
-                    Min = new Vector2(-20, -10), Max = new Vector2(20, -9.5f),
-                },
+                Kind = Fdp.Toolkit.Terrain.TerrainPrismKind.Wall, Footprint = wall, BaseZ = 0, TopZ = 3,
+                Min = new Vector2(-20, -10), Max = new Vector2(20, -9.5f),
             },
-        });
+        };
+        var world = new Fdp.Toolkit.Terrain.TerrainWorld
+        {
+            BoundsMin = new Vector2(-100, -100), BoundsMax = new Vector2(100, 100), Prisms = prisms.ToArray(),
+            Walkables = walkables ?? Array.Empty<Fdp.Toolkit.Terrain.TerrainWalkable>(),
+        };
+        repo.SetSingletonManaged(world);
         if (cover != null) repo.SetSingletonManaged(cover);
+        else if (terrainCover) repo.SetSingletonManaged<ICoverProvider>(TerrainCoverProvider.Build(world));
         using var grid = new GridOwner(SpatialHashGrid.Create(100, 100, 5f, 64, Fdp.Core.Collections.Allocator.Persistent));
         grid.Grid.Clear();
         repo.SetSingleton(new SpatialGridData { Grid = grid.Grid });
@@ -368,6 +393,11 @@ public sealed class EqsFlatTerrainGoldenTests
             return e;
         }
         var self   = Unit(0, 0, ForceId.Friend);
+        if (tankSelf)
+        {
+            repo.AddComponent(self, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.Tank, Length = 7f, Width = 3.6f });
+            repo.AddComponent(self, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f, Height = 2.4f });
+        }
         var target = Unit(0, -30, ForceId.Hostile);
         Unit(10, 0, ForceId.Hostile);
         Unit(0, -40, ForceId.Hostile);

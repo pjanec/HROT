@@ -55,7 +55,7 @@ public sealed class EffectLayer : IMapLayer
     /// <summary>One effect, resolved for drawing: what it is, where, how far through its life, how opaque — and (W3) its own seed and
     /// age in seconds, from which its particles are derived (stateless, VE-P).</summary>
     public readonly record struct Resolved(EffectVisualDto Look, Vector3 At, Vector3 Toward, float Phase, float Opacity, Color Colour,
-                                           int Seed = 0, float Age = 0f);
+                                           int Seed = 0, float Age = 0f, Vector3 Forward = default);
 
     /// <summary>Every live effect resolved for drawing — railable without a GL context.</summary>
     public List<Resolved> Resolve()
@@ -78,6 +78,7 @@ public sealed class EffectLayer : IMapLayer
             var life = world.GetComponentRO<Fdp.Toolkit.Time.Lifespan>(e);
             var at = world.GetComponentRO<SimTransform>(e).Position;
             var toward = Vector3.Zero;
+            var forward = Vector3.Zero;   // ⭐ CE-1070 — the weapon's pointing direction at the muzzle, for a flash
             if (anchored && world.HasComponent<EffectAnchor>(e))
             {
                 var a = world.GetComponentRO<EffectAnchor>(e);
@@ -90,7 +91,7 @@ public sealed class EffectLayer : IMapLayer
                 }
                 else
                 {
-                    at = MuzzleOf(world, a.Shooter, a.WeaponIndex, tkb);
+                    at = MuzzleOf(world, a.Shooter, a.WeaponIndex, tkb, out forward);
                     toward = a.Toward;
                 }
             }
@@ -98,7 +99,8 @@ public sealed class EffectLayer : IMapLayer
             float remaining = life.Remaining(now);
             float opacity = look.FadeSeconds > 0f && remaining < look.FadeSeconds ? Math.Clamp(remaining / look.FadeSeconds, 0f, 1f) : 1f;
             var colour = ParseRgba(look.ColorHex);
-            list.Add(new Resolved(look, at, toward, life.Phase(now), opacity, colour, Seed: e.Index * 7919 + e.Generation, Age: life.Age(now)));
+            list.Add(new Resolved(look, at, toward, life.Phase(now), opacity, colour, Seed: e.Index * 7919 + e.Generation, Age: life.Age(now),
+                                  Forward: forward));
         }
         // decals underneath, then bursts, then fire, then smoke over it, then flashes and tracers
         list.Sort((x, y) => Order(x.Look.Kind).CompareTo(Order(y.Look.Kind)));
@@ -199,12 +201,38 @@ public sealed class EffectLayer : IMapLayer
 
     /// <inheritdoc cref="MuzzleOf(EntityRepository, Entity, ITkbDatabase?)"/>
     public Vector3 MuzzleOf(EntityRepository world, Entity shooter, int weaponIndex, ITkbDatabase? tkb)
+        => MuzzleOf(world, shooter, weaponIndex, tkb, out _);
+
+    /// <summary>
+    /// ⭐ CE-1070 (docs/DESIGN_Visual_Effects.md §6c) — the muzzle and the way the weapon points there, in this order: ① the TKB muzzle
+    /// (<see cref="Fdp.Toolkit.Combat.Muzzle.TryOf(EntityRepository, Entity, int, out Vector3, out Vector3)"/> — a tank's barrel, posed);
+    /// ② the end of the rifle the 3-D figure was DRAWN holding (<see cref="EntityBodyLayer3D.TryGetWeaponTip"/> — posture, stance, lean
+    /// and aim included); ③ the front of the drawn box, in its upper half; ④ 1.5 m above the shooter.
+    /// ⛔ ① then ③ was the old order: a rifleman has no TKB muzzle, so his flash sat 0.55 m in front of his PICK box at 1.35 m — above
+    /// a crouched man's head, nowhere near the rifle he is drawn holding.
+    /// </summary>
+    public Vector3 MuzzleOf(EntityRepository world, Entity shooter, int weaponIndex, ITkbDatabase? tkb, out Vector3 forward)
     {
-        if (Fdp.Toolkit.Combat.Muzzle.TryOf(world, shooter, weaponIndex, out var barrel)) return barrel;
+        if (Fdp.Toolkit.Combat.Muzzle.TryOf(world, shooter, weaponIndex, out var barrel, out forward)) return barrel;
+        if (_bodies != null && _bodies.TryGetWeaponTip(shooter, out var tip, out forward)) return tip;
         if (_bodies != null && _bodies.TryGetBox(world, shooter, tkb, out var centre, out var rotation, out var half))
+        {
+            forward = Vector3.Transform(Vector3.UnitX, rotation);
             return centre + Vector3.Transform(new Vector3(half.X + 0.15f, 0f, half.Z * 0.5f), rotation);
+        }
+        forward = Vector3.Zero;
         return world.HasComponent<SimTransform>(shooter) ? world.GetComponentRO<SimTransform>(shooter).Position + new Vector3(0, 0, 1.5f) : Vector3.Zero;
     }
+
+    /// <summary>⭐ CE-1070 — how far forward of the muzzle a flash's centre sits, as a fraction of its radius: the fireball blooms OUT of
+    /// the barrel (its back just behind the muzzle), instead of being centred on the tip — a 4 m tank flash centred there swallowed the
+    /// barrel and the turret front and stood 2 m above the gun.</summary>
+    public const float FlashForwardOfMuzzle = 0.8f;
+
+    /// <summary>⭐ CE-1070 — where a flash's fireball is centred this frame: its radius × <see cref="FlashForwardOfMuzzle"/> along the
+    /// weapon, from the muzzle (at the muzzle when the direction is unknown).</summary>
+    public static Vector3 FlashCentre(in Resolved r, float radius)
+        => r.Forward == Vector3.Zero ? r.At : r.At + Vector3.Normalize(r.Forward) * (radius * FlashForwardOfMuzzle);
 
     // ---- 2-D --------------------------------------------------------------------------------------------
 
@@ -284,10 +312,13 @@ public sealed class EffectLayer : IMapLayer
                     Raylib.EndBlendMode();
                     break;
                 case EffectKind.MuzzleFlash:
+                {
+                    float radius = MathF.Max(0.05f, size / 2f * (1f - 0.5f * r.Phase));
                     Raylib.BeginBlendMode(BlendMode.Additive);
-                    Raylib.DrawSphereEx(HrotToRaylib.Position(r.At), MathF.Max(0.05f, size / 2f * (1f - 0.5f * r.Phase)), 6, 10, Fade(c, 1f - r.Phase));
+                    Raylib.DrawSphereEx(HrotToRaylib.Position(FlashCentre(r, radius)), radius, 6, 10, Fade(c, 1f - r.Phase));   // ⭐ CE-1070
                     Raylib.EndBlendMode();
                     break;
+                }
                 case EffectKind.Tracer:
                     if (TracerSpan(r, out var t0, out var t1))
                         Raylib.DrawCylinderEx(HrotToRaylib.Position(t0), HrotToRaylib.Position(t1), size / 2f, size / 2f, 4, c);

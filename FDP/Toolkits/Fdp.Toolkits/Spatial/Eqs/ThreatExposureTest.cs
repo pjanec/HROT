@@ -53,15 +53,12 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
             Span<Vector3> eyes = stackalloc Vector3[PerceptionConstants.MaxTrackedTargets];
             Span<long> ids = stackalloc long[PerceptionConstants.MaxTrackedTargets];
-            int threats = 0;
-            if (view.HasComponent<SensorContactList>(self))
-                Collect(view, in view.GetComponentRO<SensorContactList>(self), sensor.FactionFilter, eyes, ids, ref threats);
-            bool parts = view is not EntityRepository repo
-                         || (repo.IsComponentTypeRegistered<PartMetadata>() && repo.IsComponentTypeRegistered<SensorContactList>());
-            if (parts)
-                foreach (var child in view.Query().With<PartMetadata>().With<SensorContactList>().Build())
-                    if (view.GetComponentRO<PartMetadata>(child).ParentEntity.Equals(self))
-                        Collect(view, in view.GetComponentRO<SensorContactList>(child), sensor.FactionFilter, eyes, ids, ref threats);
+            int threats = EqsKnownThreats.Collect(view, self, sensor.FactionFilter, ids);
+            for (int t = 0; t < threats; t++)
+            {
+                var e = new Entity((ulong)ids[t]);
+                eyes[t] = view.GetComponentRO<SimTransform>(e).Position + new Vector3(0, 0, EqsTerrainSight.Mount(view, e).Standing);
+            }
             if (threats == 0) return;
 
             float crouched = EqsTerrainSight.Mount(view, self).Crouched;
@@ -78,28 +75,6 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 cand.FlagsMeaningful |= (short)((1 << 4) | (1 << 5));
                 if (exposed == 0) cand.Flags |= (short)(1 << 4);
                 else              cand.Flags |= (short)(1 << 5);
-            }
-        }
-
-        /// <summary>Adds the acquired, live, faction-matching contacts of one list that are not yet counted.</summary>
-        private static unsafe void Collect(ISimulationView view, in SensorContactList contacts, uint factionFilter,
-            Span<Vector3> eyes, Span<long> ids, ref int threats)
-        {
-            for (int i = 0; i < contacts.Count && threats < eyes.Length; i++)
-            {
-                if (contacts.State[i] != (byte)SensorContactState.Acquired) continue;
-                long id = contacts.EntityIds[i];
-                if (ids.Slice(0, threats).Contains(id)) continue;
-                var t = new Entity((ulong)id);
-                if (!view.IsAlive(t) || !view.HasComponent<SimTransform>(t)) continue;
-                if (factionFilter != 0)
-                {
-                    if (!view.HasComponent<EntityInfo>(t)) continue;
-                    if ((factionFilter & (1u << (int)view.GetComponentRO<EntityInfo>(t).ForceId)) == 0) continue;
-                }
-                ids[threats] = id;
-                eyes[threats++] = view.GetComponentRO<SimTransform>(t).Position
-                                + new Vector3(0, 0, EqsTerrainSight.Mount(view, t).Standing);
             }
         }
     }

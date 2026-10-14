@@ -70,24 +70,88 @@ namespace GizmoMap.Presentation
 
         // Formats the ImGui window title for the given item parameters.
         // Uses ImGui ### syntax to decouple the visible title from the stable window ID.
-        internal static string MakeWindowTitle(string? rootName, long networkId, uint schemaHash, uint gizmoTypeId, bool hasSchema)
+        // ⭐ CE-1066 — the stable ID is the GIZMO TYPE alone (a class hash, the same every run), so a docked panel returns to its dock
+        //   slot after a restart (imgui.ini keys by it); the instance id is appended only when it is needed to tell two panels apart
+        //   (an unstamped type 0, or two panels of one type open in the same frame). ⛔ The id used to lead it, and for a global gizmo
+        //   it is a per-run counter (GlobalGizmoManager.NewId). The visible title is the schema's name made readable.
+        internal static string MakeWindowTitle(string? rootName, long networkId, uint schemaHash, uint gizmoTypeId, bool hasSchema,
+                                               bool disambiguate = false)
         {
+            string id = gizmoTypeId == 0 || disambiguate ? $"StructInsp_{gizmoTypeId}_{networkId}" : $"StructInsp_{gizmoTypeId}";
             return hasSchema
-                ? $"{rootName} ({networkId})###StructInsp_{networkId}_{gizmoTypeId}"
-                : $"Inspector {networkId} (0x{schemaHash:X})###StructInsp_{networkId}_{gizmoTypeId}";
+                ? $"{FriendlyName(rootName)}{(disambiguate ? $" ({networkId})" : "")}###{id}"
+                : $"Inspector {networkId} (0x{schemaHash:X})###{id}";
         }
 
-        public void DrawScheduled(Action<long, uint, string>? onStructUpdate = null)
+        /// <summary>⭐ CE-1066 — "LayerControlDto" → "Layer Control": the trailing "Dto" dropped, words split at capitals.</summary>
+        internal static string FriendlyName(string? rootName)
+        {
+            if (string.IsNullOrEmpty(rootName)) return "Inspector";
+            string name = rootName.EndsWith("Dto", StringComparison.Ordinal) && rootName.Length > 3 ? rootName[..^3] : rootName;
+            var sb = new System.Text.StringBuilder(name.Length + 4);
+            for (int i = 0; i < name.Length; i++)
+            {
+                if (i > 0 && char.IsUpper(name[i]) && (char.IsLower(name[i - 1]) || (i + 1 < name.Length && char.IsLower(name[i + 1]))))
+                    sb.Append(' ');
+                sb.Append(name[i]);
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>⭐ CE-1066 — how many frames a panel the operator closed stays hidden while its gizmo hears the close; after it,
+        /// a panel still scheduled shows again (a gizmo that ignores the close is not hidden for ever).</summary>
+        internal const int CloseGraceFrames = 30;
+
+        // ⭐ CE-1066 — panels closed with their [X]: hidden locally until the gizmo stops emitting them (or the grace runs out).
+        internal readonly Dictionary<(long, uint), int> _closing = new();
+
+        // Panels of one gizmo type scheduled more than once this frame need their instance id in the window id.
+        private bool IsDuplicateType(uint gizmoTypeId)
+        {
+            int n = 0;
+            foreach (var it in _items) if (it.GizmoTypeId == gizmoTypeId && ++n > 1) return true;
+            return false;
+        }
+
+        /// <summary>⭐ CE-1066 — the close bookkeeping shared by both draw paths: forget a closed panel its gizmo no longer emits,
+        /// count down the grace. True when <paramref name="key"/> is closing and must not be drawn this frame.</summary>
+        private bool IsClosing((long, uint) key)
+        {
+            if (!_closing.TryGetValue(key, out int left)) return false;
+            if (left <= 0) { _closing.Remove(key); return false; }
+            _closing[key] = left - 1;
+            return true;
+        }
+
+        private void ForgetClosedNoLongerScheduled(HashSet<(long, uint)> scheduled)
+        {
+            foreach (var k in _closing.Keys.Where(k => !scheduled.Contains(k)).ToList())
+                _closing.Remove(k);
+        }
+
+        /// <summary>⭐ CE-1066 — the operator closed the panel: tell its gizmo, stop editing, hide it while the close travels.</summary>
+        private void Close(in ScheduledItem item, Action<long, uint>? onClosed)
+        {
+            var key = (item.NetworkId, item.GizmoTypeId);
+            _inspectorStates.Remove(key);
+            _closing[key] = CloseGraceFrames;
+            onClosed?.Invoke(item.NetworkId, item.GizmoTypeId);
+        }
+
+        public void DrawScheduled(Action<long, uint, string>? onStructUpdate = null, Action<long, uint>? onClosed = null)
         {
             // Remove stale entries whose (NetworkId, GizmoTypeId) is not in the current frame.
             var keys = new HashSet<(long, uint)>(_items.Select(it => (it.NetworkId, it.GizmoTypeId)));
             foreach (var k in _inspectorStates.Keys.Except(keys).ToList())
                 _inspectorStates.Remove(k);
+            ForgetClosedNoLongerScheduled(keys);   // ⭐ CE-1066
 
             var viewport = ImGui.GetMainViewport();
 
             foreach (var item in _items)
             {
+                if (IsClosing((item.NetworkId, item.GizmoTypeId))) continue;   // ⭐ CE-1066 — closed with its [X], waiting for the gizmo
+
                 // Resolve offset units against viewport.
                 float deltaX = item.SizeMode == SizeMode.ScreenPercent ? item.OffsetX * viewport.WorkSize.X : item.OffsetX;
                 float deltaY = item.SizeMode == SizeMode.ScreenPercent ? item.OffsetY * viewport.WorkSize.Y : item.OffsetY;
@@ -136,14 +200,25 @@ namespace GizmoMap.Presentation
                 bool hasSchema = _registry != null && _registry.TryGet(item.SchemaHash, out doc) && doc != null;
 
                 // Use ImGui ### syntax to decouple the visible title from the stable window ID.
-                string windowTitle = MakeWindowTitle(hasSchema ? doc!.Root.Name : null, item.NetworkId, item.SchemaHash, item.GizmoTypeId, hasSchema);
+                string windowTitle = MakeWindowTitle(hasSchema ? doc!.Root.Name : null, item.NetworkId, item.SchemaHash, item.GizmoTypeId, hasSchema,
+                                                     IsDuplicateType(item.GizmoTypeId));
 
-                if (ImGui.Begin(windowTitle))
+                // ⭐ CE-1066 — the panel has a close [X] (floating and docked alike); it tells the gizmo through onClosed
+                bool open = true;
+                bool visible = ImGui.Begin(windowTitle, ref open);
+                if (!open)
+                {
+                    ImGui.End();
+                    Close(item, onClosed);
+                    continue;
+                }
+                if (visible)
                 {
                     if (hasSchema)
                     {
+                        bool edited = false;
                         foreach (var child in doc!.Root.Children)
-                            DrawEditNode(child, item.IsReadOnly);
+                            edited |= DrawEditNode(child, item.IsReadOnly);
 
                         var stateKey = (item.NetworkId, item.GizmoTypeId);
                         bool isFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows);
@@ -166,19 +241,14 @@ namespace GizmoMap.Presentation
                             }
                         }
 
+                        // ⭐ CE-1065 — a field edit commits AT ONCE (the operator sees each checkbox take effect and the panel stays
+                        //   open); ⛔ the "Apply" button is gone — it was the only commit besides focus loss, and its gizmos closed the
+                        //   panel on it, so trying a second checkbox meant reopening the panel from the menu.
+                        CommitIfEdited(item, doc!, edited, onStructUpdate);
                         if (!item.IsReadOnly && onStructUpdate != null)
                         {
                             ImGui.Separator();
-                            if (ImGui.Button("Apply"))
-                            {
-                                if (!_inspectorStates.TryGetValue(stateKey, out var applyState) ||
-                                    applyState == InspectorState.Editing)
-                                {
-                                    _inspectorStates[stateKey] = InspectorState.Viewing;
-                                    string json = EditDocumentJsonSerializer.Serialize(doc!);
-                                    onStructUpdate.Invoke(item.NetworkId, item.GizmoTypeId, json);
-                                }
-                            }
+                            ImGui.TextDisabled("Changes apply as you click.");
                         }
                     }
                     else
@@ -193,23 +263,40 @@ namespace GizmoMap.Presentation
             _items.Clear();
         }
 
+        /// <summary>⭐ CE-1065 — a field was edited this frame: commit the document now, and stay in <c>Editing</c> (the window keeps
+        /// its focus, so a later focus loss commits whatever came after).</summary>
+        private void CommitIfEdited(in ScheduledItem item, EditDocument doc, bool edited, Action<long, uint, string>? onStructUpdate)
+        {
+            if (!edited || item.IsReadOnly || onStructUpdate == null) return;
+            _inspectorStates[(item.NetworkId, item.GizmoTypeId)] = InspectorState.Editing;
+            onStructUpdate.Invoke(item.NetworkId, item.GizmoTypeId, EditDocumentJsonSerializer.Serialize(doc));
+        }
+
         // Test-only overload: runs state cleanup and state-machine transitions without any ImGui calls.
-        // isFocusedOverride is invoked with the window title to determine focus per item.
+        // isFocusedOverride is invoked with the window title to determine focus per item; ⭐ CE-1065 editedOverride says whether
+        // a field was edited in that window this frame (a checkbox click).
         internal void DrawScheduled(
             Action<long, uint, string>? onStructUpdate,
-            Func<string, bool>? isFocusedOverride)
+            Func<string, bool>? isFocusedOverride,
+            Func<string, bool>? editedOverride = null,
+            Func<string, bool>? closedOverride = null,
+            Action<long, uint>? onClosed = null)
         {
             // Remove stale entries whose (NetworkId, GizmoTypeId) is not in the current frame.
             var keys = new HashSet<(long, uint)>(_items.Select(it => (it.NetworkId, it.GizmoTypeId)));
             foreach (var k in _inspectorStates.Keys.Except(keys).ToList())
                 _inspectorStates.Remove(k);
+            ForgetClosedNoLongerScheduled(keys);   // ⭐ CE-1066
 
             foreach (var item in _items)
             {
+                if (IsClosing((item.NetworkId, item.GizmoTypeId))) continue;   // ⭐ CE-1066
                 EditDocument? doc = null;
                 bool hasSchema = _registry != null && _registry.TryGet(item.SchemaHash, out doc) && doc != null;
 
-                string windowTitle = MakeWindowTitle(hasSchema ? doc!.Root.Name : null, item.NetworkId, item.SchemaHash, item.GizmoTypeId, hasSchema);
+                string windowTitle = MakeWindowTitle(hasSchema ? doc!.Root.Name : null, item.NetworkId, item.SchemaHash, item.GizmoTypeId, hasSchema,
+                                                     IsDuplicateType(item.GizmoTypeId));
+                if (closedOverride != null && closedOverride(windowTitle)) { Close(item, onClosed); continue; }   // ⭐ CE-1066 — its [X]
 
                 bool isFocused = isFocusedOverride != null && isFocusedOverride(windowTitle);
 
@@ -230,6 +317,8 @@ namespace GizmoMap.Presentation
                         onStructUpdate.Invoke(item.NetworkId, item.GizmoTypeId, json);
                     }
                 }
+                if (hasSchema && editedOverride != null && editedOverride(windowTitle))
+                    CommitIfEdited(item, doc!, edited: true, onStructUpdate);
             }
             _items.Clear();
         }
@@ -251,9 +340,10 @@ namespace GizmoMap.Presentation
             EditDocumentJsonSerializer.Deserialize(state.EditDocumentJson, doc);
         }
 
-        // Recursively renders an EditNode and its children as an ImGui tree.
-        private static void DrawEditNode(EditNode node, bool parentReadOnly)
+        // Recursively renders an EditNode and its children as an ImGui tree. ⭐ CE-1065 — true when a field was edited.
+        private static bool DrawEditNode(EditNode node, bool parentReadOnly)
         {
+            bool edited = false;
             bool ro = parentReadOnly || node.IsReadOnly;
 
             if (node.Children.Count > 0)
@@ -263,7 +353,7 @@ namespace GizmoMap.Presentation
                 if (open)
                 {
                     foreach (var child in node.Children)
-                        DrawEditNode(child, ro);
+                        edited |= DrawEditNode(child, ro);
                     ImGui.TreePop();
                 }
             }
@@ -279,13 +369,17 @@ namespace GizmoMap.Presentation
                 {
                     bool val = node.Binding.GetBoxed() is bool b && b;
                     if (ImGui.Checkbox(node.Name, ref val))
+                    {
                         node.Binding.SetBoxed(val);
+                        edited = true;
+                    }
                 }
                 else
                 {
                     ImGui.Text($"{node.Name}: {valueText}");
                 }
             }
+            return edited;
         }
 
         private static string? TryGetBindingText(EditNode node)

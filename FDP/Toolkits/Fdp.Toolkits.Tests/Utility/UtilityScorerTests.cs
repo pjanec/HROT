@@ -426,6 +426,43 @@ namespace Fdp.Toolkit.Tests
             Assert.True(bb.Two.N >= 1, $"the second branch must run once its option wins; ran {bb.Two.N}");
         }
 
+        /// <summary>
+        /// ⭐ The utility nodes' cached scorer follows <see cref="UtilityDecisionCatalog.Shared"/> when it is REPLACED
+        /// (<see cref="UtilityDecisionCatalog.RegisterAll"/> stores a new registry — every <c>UtilityTestWorld</c> does). 🔴 It used
+        /// to keep the old registry, so a decision registered after the swap scored 0: the order-dependent red of
+        /// <see cref="CE2069_UtilityNodes_SwitchTheBranch_WhenTheWinnerChanges"/> (Winner 0 at its first assert).
+        /// </summary>
+        [Fact]
+        public unsafe void UtilityNodes_FollowTheSharedCatalog_WhenItIsReplaced()
+        {
+            const int before = 0x20690002, after = 0x20690003;
+            void Register(int id) => UtilityDecisionCatalog.Shared.Register(id, new UtilityDecisionDef
+            {
+                DebugName = "SwapPosture", Kind = DecisionKind.PostureSelect,
+                Options = new[] { BuildSingleLinearOption(optionId: 1, inputId: 2069), BuildSingleLinearOption(optionId: 2, inputId: 2070) },
+            }, hysteresisBonus: 0f);
+            UtilityDecisionCatalog.EnsureRegistered();
+            UtilityInputReaderStore.Register(2069, &OneReader);
+            UtilityInputReaderStore.Register(2070, &TwoReader);
+            s_one = 0.9f; s_two = 0.2f;
+
+            using var world = new EntityRepository();
+            var self = world.CreateEntity();
+            var p = new ChooseOptionParams { Decision = new UtilityDecisionRef(before) };
+
+            Register(before);
+            var ws = new UtilityChoice();
+            UtilityNodes.ChooseOption(ref p, ref ws, self, world);   // caches the nodes' scorer over this registry
+            Assert.Equal(1, ws.Winner);
+
+            UtilityDecisionCatalog.RegisterAll(out _);               // Shared is now a NEW registry
+            Register(after);                                         // ⚠ a decision the OLD registry never had
+            p.Decision = new UtilityDecisionRef(after);
+            ws = new UtilityChoice();
+            UtilityNodes.ChooseOption(ref p, ref ws, self, world);
+            Assert.Equal(1, ws.Winner);
+        }
+
         private static UtilityScorer PostureScorer(out int id)
         {
             var registry = new UtilityRegistry();

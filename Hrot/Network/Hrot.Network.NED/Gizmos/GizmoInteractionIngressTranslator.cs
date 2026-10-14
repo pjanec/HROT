@@ -214,6 +214,14 @@ namespace Hrot.Network.NED.Gizmos
                         PayloadJson = batch.PayloadJson ?? string.Empty,
                     });
                     break;
+
+                case GizmoInteractionEventKind.InspectorClosed:   // ⭐ CE-1066 — a remote terminal closed this node's panel
+                    _interactionBus.Publish(new GizmoInspectorClosedEvent
+                    {
+                        AnchorId    = batch.PickAnchorId,
+                        GizmoTypeId = batch.PickGizmoTypeId,
+                    });
+                    break;
             }
         }
     }

@@ -88,6 +88,101 @@ public sealed class MenuOrdersTests : IDisposable
         return _w.Bus.ReadManaged<AssignTacticalIntentEvent>().ToArray();
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-1076 (docs/DESIGN_Entity_Control.md §13.6) — the keys the unit menu shows run its items on the selected unit: a typed M
+    /// sends the SAME menu action a click on "Move" sends (its pick, its Esc), A Attack, H Hold, P Possess. 🔒 User, 2026-10-14: "the
+    /// keys shown next to the order name in the entity context menu (M = move, A = attack …) i supposed they would work plainly for the
+    /// currently selected entity". Not with Ctrl / Alt, not with nothing selected, not while another tool holds the map — but yes in
+    /// RTS command mode.
+    /// </summary>
+    [Fact]
+    public void CE1076_AMenuShortcut_RunsTheSelectedUnitsItem_ThroughTheSameMenuAction()
+    {
+        var (mi, _) = Live();
+        int? Typed(int key, bool modified = false)
+        {
+            mi.InteractionBus.Publish(new Hrot.Common.Interactions.MapShortcutKeyEvent { Key = key, Modified = modified });
+            mi.InteractionBus.SwapBuffers();
+            mi.MenuShortcuts.Execute(_w, 0.016f);
+            mi.InteractionBus.SwapBuffers();
+            var sent = mi.InteractionBus.Read<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMenuActionEvent>().ToArray();
+            if (sent.Length == 0) return null;
+            Assert.Equal(UnitId, Assert.Single(sent).AnchorId);   // the menu of the selected unit, as a click on it
+            return sent[0].ActionId;
+        }
+
+        Assert.Null(Typed('M'));                                       // nothing selected: nothing to order
+        if (!_w.IsComponentTypeRegistered<Hrot.IG.Components.SelectionState>()) _w.RegisterComponent<Hrot.IG.Components.SelectionState>();
+        mi.Selection.PrimarySelected = _unit;
+        Assert.Equal(Id("Move"), Typed('M'));
+        Assert.Equal(Id("Attack"), Typed('A'));
+        Assert.Equal(Id("Hold"), Typed('H'));
+        Assert.Equal(GlobalActionIds.Possess, Typed('P'));
+        Assert.Equal(GlobalActionIds.CenterOnEntity, Typed('C'));
+        Assert.Null(Typed('Q'));                                       // no item shows Q
+        Assert.Null(Typed('M', modified: true));                       // Ctrl+M / Alt+M are the application's
+
+        mi.MenuOrders.PickService = () => new FakePick();
+        mi.Tools.Register(new Hrot.ScenarioEditor.Tools.ToolDescriptor("test.tool", "Busy", Hrot.ScenarioEditor.Tools.ToolModality.Modal,
+            Hrot.ScenarioEditor.Tools.ToolArbiter.None), _ => Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed);
+        Assert.True(mi.Tools.Activate("test.tool"));
+        Assert.Null(Typed('M'));                                       // a tool holds the map's keys
+        Assert.True(mi.Tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand));
+        Assert.Equal(Id("Move"), Typed('M'));                          // …except the RTS command tool
+        Assert.Equal(6, mi.MenuShortcuts.Fired);
+        Assert.Contains(mi.MenuShortcuts, mi.InteractionSystems);       // scheduled wherever the map's interaction runs
+        Assert.Contains(typeof(MenuShortcuts), mi.RequiredSystems);
+    }
+
+    /// <summary>⭐ CE-1076 — the canvas' key layer hands every typed key on, with Ctrl / Alt marked, and none in first person (where
+    /// W, A, S, D and C drive the unit).</summary>
+    [Fact]
+    public void CE1076_TheKeyLayer_ForwardsTypedKeys_ButNotInFirstPerson()
+    {
+        var bus = new FdpEventBus();
+        Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
+        var camera = new Fdp.Toolkit.Vis3D.MapCamera3D { ViewportOverride = new Vector2(640, 480) };
+        bool ctrl = false;
+        var layer = new MenuShortcutKeyLayer(bus, () => camera, () => ctrl);
+        Assert.False(layer.HandleKeyInput((Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey)'M'));   // consumes nothing
+        ctrl = true;
+        layer.HandleKeyInput((Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey)'C');
+        bus.SwapBuffers();
+        var keys = bus.Read<Hrot.Common.Interactions.MapShortcutKeyEvent>().ToArray();
+        Assert.Equal(new[] { ('M', false), ('C', true) }, keys.Select(k => ((char)k.Key, k.Modified)).ToArray());
+
+        camera.Driver = new NoDriver();
+        layer.HandleKeyInput((Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey)'M');
+        bus.SwapBuffers();
+        Assert.Empty(bus.Read<Hrot.Common.Interactions.MapShortcutKeyEvent>().ToArray());
+    }
+
+    private sealed class NoDriver : Fdp.Toolkit.Vis3D.ICameraDriver
+    {
+        public void Update(Fdp.Toolkit.Vis3D.MapCamera3D camera, float dt) { }
+        public bool HandleInput(Fdp.Toolkit.Vis3D.MapCamera3D camera, Fdp.Toolkit.Vis2D.Abstractions.IInputProvider input) => true;
+        public void Detached(Fdp.Toolkit.Vis3D.MapCamera3D camera) { }
+    }
+
+    [Fact]
+    public void CE1076_TheShortcutText_IsALetterOrAKeyName_AndADisabledItemDoesNotRun()
+    {
+        Assert.Equal('M', MenuShortcuts.KeyOf("m"));
+        Assert.Equal(32, MenuShortcuts.KeyOf("Space"));
+        Assert.Equal((int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.Escape, MenuShortcuts.KeyOf("Esc"));
+        Assert.Null(MenuShortcuts.KeyOf(""));
+        var items = new[]
+        {
+            new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 5, Label = "Move", Shortcut = "M", Enabled = false },
+            new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Label = "More", Children = new[]
+            {
+                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 9, Label = "Mark", Shortcut = "K" },
+            } },
+        };
+        Assert.Null(MenuShortcuts.ActionFor(items, 'M'));               // disabled (a heavily damaged unit's Move)
+        Assert.Equal(9, MenuShortcuts.ActionFor(items, 'K'));           // found in a submenu
+    }
+
     [Fact]
     public void CE3169_MoveHere_PicksAPoint_ThenOrdersTheMove()
     {

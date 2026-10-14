@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Core;
@@ -177,11 +178,129 @@ public sealed class Map3DTests
         if (shift) input.Keys.Add((int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.LeftShift);
         if (ctrl)  input.Keys.Add((int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.LeftControl);
         Frame(cam, input, 0.1f);                            // the press frame
+        // ⭐ CE-1072 — the fly EASES in (FlyEaseSeconds), so the speed is read once it has settled, over the last frame
+        for (int i = 0; i < 20; i++) Frame(cam, input, 0.1f);
         var eye = cam.Eye;
 
         Frame(cam, input, 0.1f);
 
         Assert.Equal(metresPerSecond * 0.1f, Vector3.Distance(eye, cam.Eye), 1);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1072 (docs/DESIGN_Map_3D_Mode.md §6l) — a wheel click GLIDES (over a few frames) to the 12 % step it used to JUMP.
+    /// 🔒 User, 2026-10-14: "the scroll button based camera moving forwards and backwards jumps with each click instead of being a
+    /// smooth flight".
+    /// </summary>
+    [Fact]
+    public void CE1072_AWheelClick_GlidesToItsStep_OverSeveralFrames_InsteadOfJumping()
+    {
+        var cam = FlyCamera();                              // distance 100
+        var input = new FakeInput { MousePosition = new Vector2(600, 400), MouseWheelMove = 1f };
+        Frame(cam, input);
+        input.MouseWheelMove = 0f;
+        Assert.Equal(100f, cam.Distance, 3);                // the click frame: nothing jumped
+        Frame(cam, input);
+        Assert.InRange(cam.Distance, 88.01f, 99.9f);        // the next frame: on the way, not there
+        float previous = cam.Distance;
+        for (int i = 0; i < 60; i++) Frame(cam, input);
+        Assert.True(cam.Distance < previous);
+        Assert.Equal(88f, cam.Distance, 1);                 // where the old jump landed
+
+        input.MouseWheelMove = -1f;                         // and back out the same way
+        Frame(cam, input);
+        input.MouseWheelMove = 0f;
+        for (int i = 0; i < 60; i++) Frame(cam, input);
+        Assert.Equal(100f, cam.Distance, 0);
+    }
+
+    /// <summary>⭐ CE-1072 — at the pivot the wheel keeps FLYING forward (the look-at point travels with the eye), Unity-style,
+    /// instead of stopping at the closest distance.</summary>
+    [Fact]
+    public void CE1072_AtThePivot_TheWheelKeepsFlyingForward()
+    {
+        var cam = FlyCamera();
+        cam.Pose = new CameraPose(Vector3.Zero, cam.MinDistance, MapCamera3D.NorthUpYaw, -0.3f);
+        var eye = cam.Eye;
+        var forward = cam.Forward;
+        var input = new FakeInput { MousePosition = new Vector2(600, 400), MouseWheelMove = 1f };
+        for (int i = 0; i < 3; i++) Frame(cam, input);      // three clicks
+        input.MouseWheelMove = 0f;
+        for (int i = 0; i < 60; i++) Frame(cam, input);
+        var flown = cam.Eye - eye;
+        Assert.Equal(cam.MinDistance, cam.Distance, 3);
+        Assert.True(flown.Length() > 3f, $"flew only {flown.Length():F2} m");
+        Assert.True(Vector3.Dot(Vector3.Normalize(flown), forward) > 0.999f, "along the view");
+    }
+
+    /// <summary>⭐ CE-1072 — W eases in and out over a few frames: the first frame moves less than a settled frame, and letting go
+    /// does not stop dead.</summary>
+    [Fact]
+    public void CE1072_TheFly_EasesInAndOut()
+    {
+        var cam = FlyCamera();
+        var input = new FakeInput { RightDown = true, MousePosition = new Vector2(600, 400) };
+        Frame(cam, input);                                  // arms the look
+        input.Keys.Add((int)Raylib_cs.KeyboardKey.W);
+        var e0 = cam.Eye; Frame(cam, input); float first = Vector3.Distance(e0, cam.Eye);
+        for (int i = 0; i < 30; i++) Frame(cam, input);
+        var e1 = cam.Eye; Frame(cam, input); float settled = Vector3.Distance(e1, cam.Eye);
+        input.Keys.Clear();
+        var e2 = cam.Eye; Frame(cam, input); float coasting = Vector3.Distance(e2, cam.Eye);
+        Assert.True(first < settled * 0.5f, $"first {first:F3} m vs settled {settled:F3} m");
+        Assert.InRange(coasting, 0.001f, settled * 0.95f);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1073 (§6l) — the head is part <see cref="BlockFigure.HeadIndex"/> of EVERY figure (each stance, soldier or not, each
+    /// posture, the dead): the first-person eye is read from it, so a reordered pose would put the camera in a leg.
+    /// </summary>
+    [Fact]
+    public void CE1073_EveryFigurePose_KeepsTheHead_AtHeadIndex()
+    {
+        var metres = new Vector3(0.35f, 0.55f, 1.8f);
+        // the head is one 0.20 × 0.21 × 0.24 m box in every pose — lying down (prone, dead) it is the same box on its side
+        string Box(KitPart p)
+        {
+            var m = p.Extent * metres;
+            return string.Join(" ", new[] { m.X, m.Y, m.Z }.Select(v => v.ToString("0.00")).OrderBy(v => v));
+        }
+        var head = BlockFigure.Parts(StanceId.Standing, soldier: false)[BlockFigure.HeadIndex];
+        Assert.Equal(1.60f / 1.8f, head.Centre.Z, 3);
+        Assert.Equal("0.20 0.21 0.24", Box(head));
+        foreach (StanceId stance in new[] { StanceId.Standing, StanceId.Crouched, StanceId.Prone })
+            foreach (bool soldier in new[] { false, true })
+                foreach (WeaponPostureKind posture in System.Enum.GetValues<WeaponPostureKind>())
+                {
+                    var parts = BlockFigure.Parts(stance, soldier, posture);
+                    Assert.True(parts.Length > BlockFigure.HeadIndex);
+                    Assert.True(Box(head) == Box(parts[BlockFigure.HeadIndex]), $"{stance}/{soldier}/{posture}");
+                }
+        // the dead man's head is a touch smaller (0.22 m) — still a head-sized box: no side under 0.18 m or over 0.26 m (a torso or a limb fails)
+        var dead = BlockFigure.Fall(BlockFigure.Parts(StanceId.Standing, true), 1f, true)[BlockFigure.HeadIndex].Extent * metres;
+        Assert.All(new[] { dead.X, dead.Y, dead.Z }, v => Assert.InRange(MathF.Abs(v), 0.18f, 0.26f));
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1073 — the eye goes WITH the drawn head: a running lean carries it forward and down, a crouch lowers it, prone puts it
+    /// near the ground. 🔒 User, 2026-10-14: "When moving forward the character leans a bit forward basically putting his head in front
+    /// of the FPS camera so i see nothing".
+    /// </summary>
+    [Fact]
+    public void CE1073_TheEye_FollowsTheDrawnHead_LeanCrouchProne()
+    {
+        var size = new Vector3(0.35f, 0.55f, 1.8f);
+        Vector3 Eye(StanceId stance, MotionPose motion)
+            => EntityBodyLayer3D.EyeLocal(BlockFigure.Parts(stance, true)[BlockFigure.HeadIndex], size, default,
+                                         ArticulationPose.Neutral, motion, Matrix4x4.Identity);
+        var upright = Eye(StanceId.Standing, MotionPose.Still with { HipZ = 0.5f });
+        Assert.InRange(upright.Z, 1.55f, 1.75f);
+        Assert.InRange(upright.X, 0.05f, 0.15f);              // the face, ahead of the reference point
+        var leaning = Eye(StanceId.Standing, MotionPose.Still with { HipZ = 0.5f, Lean = 0.35f });
+        Assert.True(leaning.X > upright.X + 0.2f, $"a run's lean carries the eye forward: {upright} -> {leaning}");
+        Assert.True(leaning.Z < upright.Z, "and down");
+        Assert.True(Eye(StanceId.Crouched, MotionPose.Still with { HipZ = BlockFigure.HipFraction(StanceId.Crouched) }).Z < 1.3f);
+        Assert.True(Eye(StanceId.Prone, MotionPose.Still).Z < 0.6f);
     }
 
     [Fact]
@@ -953,6 +1072,231 @@ public sealed class Map3DTests
         Assert.Equal(0.35f / MotionTracker.CrawlMetres * MathF.PI * 2f, pose.CrawlPhase, 3);   // half a cycle in 0.35 m
         Assert.Equal(1f, pose.Moving, 2);
         Assert.Equal(0f, tracker.Advance(man, new Vector3(0.35f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, 36 / 60.0, false).Moving);
+    }
+
+    // ── ⭐ CE-1064 (docs/DESIGN_Map_3D_Mode.md §6j) — the crouched figure: a kneel when still, a crouched run on the move ─────────────
+
+    /// <summary>⭐ CE-1064 — crouched and STILL, he KNEELS: the firing-side shin lies on the ground, the support shin stands upright with
+    /// its foot planted forward, and his hips are over his feet (between the planted foot and the kneeling heel) — ⛔ not behind both
+    /// feet, the "sitting on an invisible chair" squat it replaced. The head stays at the crouched stance's height.</summary>
+    [Fact]
+    public void CE1064_CrouchedAndStill_HeKneels_HipsOverHisFeet()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        foreach (bool soldier in new[] { true, false })
+        {
+            var kneel = BlockFigure.Parts(StanceId.Crouched, soldier);
+            Vector3 rightShinA = Point(kneel[3], size, -0.5f), rightShinB = Point(kneel[3], size, 0.5f);
+            Assert.True(rightShinA.Z < 0.12f && rightShinB.Z < 0.12f, $"the kneeling shin lies on the ground: {rightShinA} {rightShinB}");
+            Vector3 leftKnee = Point(kneel[1], size, -0.5f), leftFoot = Point(kneel[1], size, 0.5f);
+            Assert.True(leftKnee.Z > 0.35f && leftFoot.Z < 0.05f && MathF.Abs(leftKnee.X - leftFoot.X) < 0.08f,
+                        $"the support shin stands upright on a planted foot: {leftKnee} {leftFoot}");
+            float hipX = Point(kneel[0], size, -0.5f).X;
+            float backFoot = MathF.Min(rightShinA.X, rightShinB.X);
+            Assert.True(backFoot < hipX && hipX < leftFoot.X, $"the hips are between the feet: {backFoot} < {hipX} < {leftFoot.X}");
+            float torsoX = Point(kneel[BlockFigure.TorsoIndex], size, 0f).X;
+            Assert.True(backFoot < torsoX && torsoX < leftFoot.X, $"the torso is over the feet: {torsoX}");
+            Assert.All(kneel.Take(BlockFigure.TorsoIndex), p => Assert.Equal(PartRole.Hull, p.Role));   // still: nothing swings
+        }
+    }
+
+    /// <summary>⭐ CE-1064 — crouched and MOVING (R-265's crouched run), the legs SWING: the crouched run's leg parts take the swing roles,
+    /// so the gait moves the feet; the hips drop to the run's height, both feet come under him, and his head stays below a standing
+    /// man's. ⛔ Before, a crouched figure's legs had no swing role and slid along frozen.</summary>
+    [Fact]
+    public void CE1064_CrouchedAndMoving_TheLegsSwing_LowAndKneesBent()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        foreach (bool soldier in new[] { true, false })
+        {
+            var still = BlockFigure.Parts(StanceId.Crouched, soldier, WeaponPostureKind.Ready, WeaponPostureKind.Ready, 1f);
+            var run = BlockFigure.CrouchedMoving(still, soldier, WeaponPostureKind.Ready, WeaponPostureKind.Ready, 1f, 1f);
+            Assert.Equal(still.Length, run.Length);
+            Assert.Equal(PartRole.LegLeft, run[0].Role); Assert.Equal(PartRole.LegLeft, run[1].Role);
+            Assert.Equal(PartRole.LegRight, run[2].Role); Assert.Equal(PartRole.LegRight, run[3].Role);
+            Assert.Equal(0.90f - BlockFigure.CrouchRunDrop, Point(run[0], size, -0.5f).Z, 2);   // the run's hips
+            for (int i = 1; i <= 3; i += 2)
+            {
+                var ankle = Point(run[i], size, 0.5f);
+                Assert.InRange(ankle.Z, 0f, 0.05f);
+                Assert.True(Vector3.Distance(Point(run[i - 1], size, -0.5f), ankle) < 0.80f, "knees bent");
+            }
+            // the gait moves the left foot forward on a positive swing (thigh and shin from the hip)
+            var foot = Vector3.Transform(new Vector3(0.5f, 0, 0), run[1].BodyTransform(size, default, ArticulationPose.Neutral, new MotionPose(0, 0, 0.4f)));
+            Assert.True(foot.X > Point(run[1], size, 0.5f).X + 0.1f, $"the left foot swings forward: {foot}");
+            Assert.True(Top(run, size) < 1.55f, $"a crouched run stays low: {Top(run, size)}");
+            Assert.Same(still, BlockFigure.CrouchedMoving(still, soldier, WeaponPostureKind.Ready, WeaponPostureKind.Ready, 1f, 0f));
+        }
+    }
+
+    /// <summary>⭐ CE-1064 — a frame in which NO sim time passed and he did not move (a paused sim, a frame drawn between two sim ticks)
+    /// keeps his last gait — a pause freezes him mid-stride (R-143) — while one in which time passed and he did not move stops him.</summary>
+    [Fact]
+    public void CE1064_AFrameWithNoSimTime_KeepsTheGait_AStopEndsIt()
+    {
+        var t = new MotionTracker();
+        var man = new Entity(12, 1);
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        MotionPose walking = default;
+        for (int i = 0; i <= 20; i++) walking = t.Advance(man, new Vector3(i * 0.1f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, i / 30.0, false);
+        Assert.True(walking.Stride > 0.9f && walking.Swing != 0f, $"walking at 3 m/s: {walking}");
+        var paused = t.Advance(man, new Vector3(2.0f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, 20 / 30.0, false);
+        Assert.Equal(walking.Swing, paused.Swing);
+        Assert.Equal(walking.Stride, paused.Stride);
+        Assert.Equal(walking.GaitPhase, paused.GaitPhase);
+        var stopped = t.Advance(man, new Vector3(2.0f, 0, 0), Quaternion.Identity, VisualFamily.Person, size, 21 / 30.0, false);
+        Assert.Equal(0f, stopped.Stride);
+        Assert.Equal(0f, stopped.Swing);
+    }
+
+    // ── ⭐ CE-1070 (docs/DESIGN_Visual_Effects.md §6c) — the muzzle flash at the weapon ─────────────────────────────────────────────
+
+    /// <summary>⭐ CE-1070 — a rifleman has no TKB muzzle, so his flash starts where the rifle he is DRAWN holding ends: at the
+    /// chest-low muzzle when ready, at eye height pointing at the target when aimed — never above his head (the old box-front fallback
+    /// put it at 1.35 m, 0.55 m in front of a crouched man's face).</summary>
+    [Fact]
+    public void CE1070_ARiflemansMuzzle_IsTheEndOfTheRifleHeIsDrawnHolding()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var body = Matrix4x4.CreateTranslation(100f, 50f, 2f);   // standing at (100, 50) on ground 2 m up, facing +x
+        (Vector3 Tip, Vector3 Forward) TipOf(StanceId stance, WeaponPostureKind posture)
+        {
+            var rifle = BlockFigure.Parts(stance, true, posture).Last(p => p.Colour == ColourRole.Metal);
+            return EntityBodyLayer3D.WeaponTip(rifle, size, default, ArticulationPose.Neutral, MotionPose.Still, body);
+        }
+        var ready = TipOf(StanceId.Standing, WeaponPostureKind.Ready);
+        Assert.InRange(ready.Tip.Z - 2f, 0.7f, 1.2f);                       // chest-low, muzzle down and forward
+        Assert.True(ready.Tip.X - 100f > 0.6f, $"in front of him: {ready.Tip}");
+        Assert.True(ready.Forward.X > 0.7f && ready.Forward.Z < 0f, $"pointing forward and down: {ready.Forward}");
+        var aimed = TipOf(StanceId.Standing, WeaponPostureKind.Aimed);
+        Assert.InRange(aimed.Tip.Z - 2f, 1.2f, 1.45f);                      // shouldered, under the eye
+        Assert.True(aimed.Forward.X > 0.95f, $"level, at the target: {aimed.Forward}");
+        var crouched = TipOf(StanceId.Crouched, WeaponPostureKind.Aimed);
+        Assert.True(crouched.Tip.Z - 2f < 1.1f, $"below a crouched man's eye: {crouched.Tip}");   // the old fallback said 1.35 m
+    }
+
+    /// <summary>⭐ CE-1070 — a tank's barrel direction comes from the same pose as its muzzle (turned with the hull), and the flash's
+    /// fireball is centred FORWARD of the muzzle along it by most of its radius — out of the barrel, not swallowing it.</summary>
+    [Fact]
+    public void CE1070_ATankFlash_BloomsForwardOfItsMuzzle_AlongTheBarrel()
+    {
+        var w = new EntityRepository();
+        w.RegisterComponent<SimTransform>();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        w.SetSingletonManaged<ITkbDatabase>(BuiltIn());
+        var tank = w.CreateEntity();
+        var yaw = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);   // facing north (+y)
+        w.AddComponent(tank, new SimTransform { Position = new Vector3(10f, 20f, 0f), Rotation = yaw });
+        w.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+        Assert.True(Fdp.Toolkit.Combat.Muzzle.TryOf(w, tank, 0, out var muzzle, out var forward));
+        Assert.InRange(Vector3.Distance(forward, Vector3.UnitY), 0f, 1e-4f);   // the barrel points where the hull does (turret neutral)
+        Assert.True(muzzle.Y > 20f + 4f, $"the muzzle is at the barrel's end: {muzzle}");
+
+        var r = new Hrot.UI.Common.Effects.EffectLayer.Resolved(
+            EffectTkbCatalog.VisualOf(BuiltIn(), EffectTkbCatalog.MuzzleFlashLarge)!, muzzle, Vector3.Zero, 0f, 1f, default, Forward: forward);
+        float radius = 2f;
+        var centre = Hrot.UI.Common.Effects.EffectLayer.FlashCentre(r, radius);
+        Assert.InRange(Vector3.Distance(centre, muzzle + forward * radius * Hrot.UI.Common.Effects.EffectLayer.FlashForwardOfMuzzle), 0f, 1e-4f);
+        Assert.Equal(muzzle.Z, centre.Z, 4);                                 // not above the gun
+        Assert.Equal(muzzle, Hrot.UI.Common.Effects.EffectLayer.FlashCentre(r with { Forward = Vector3.Zero }, radius));   // no direction: at the muzzle
+    }
+
+    // ── ⭐ CE-1068 (docs/DESIGN_Map_3D_Mode.md §6k) — a door is its LEAF, hinged in its doorway ───────────────────────────────────
+
+    internal static TerrainWorld BtRange()
+    {
+        string dir = AppContext.BaseDirectory;
+        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Path.GetDirectoryName(dir)!;
+        var file = Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range", "bt-range.world.geojson");
+        return TerrainWorldParser.Parse(File.ReadAllText(file), "bt-range", TerrainAssets.ForFolder(Path.GetDirectoryName(file)!));
+    }
+
+    /// <summary>⭐ CE-1068 — the leaf fills its doorway shut (hinge → closed tip, sill → head, the leaf's thickness), turns about the
+    /// hinge to stand where the door layer's open line ends, and a destroyed door asks for no angle (it is not drawn).</summary>
+    [Fact]
+    public void CE1068_ADoorLeaf_TurnsOnItsHinge_AndADestroyedDoorIsNotDrawn()
+    {
+        var terrain = BtRange();
+        Assert.True(terrain.DoorLeaves.Count > 0, "bt-range has doors");
+        var leaf = terrain.DoorLeaves[0];
+        var (hinge, closedTip) = Hrot.ScenarioEditor.Gizmos.DoorLeafGizmo.Leaf(leaf.Footprint);
+        float width = Vector2.Distance(hinge, closedTip);
+
+        var (c0, r0, h0) = DoorLeaf3D.Box(leaf, 0f);
+        Assert.Equal(width / 2f, h0.X, 3);
+        Assert.Equal((leaf.TopZ - leaf.BaseZ) / 2f, h0.Z, 3);
+        Assert.InRange(h0.Y, 0.01f, 0.05f);                                            // a 5 cm leaf
+        Assert.InRange(Vector2.Distance(new Vector2(c0.X, c0.Y), (hinge + closedTip) / 2f), 0f, 1e-3f);   // shut: in the doorway
+
+        var (c1, r1, _) = DoorLeaf3D.Box(leaf, DoorLeaf3D.OpenAngle);
+        var farEdge = new Vector2(c1.X, c1.Y) + (new Vector2(c1.X, c1.Y) - hinge);      // the edge opposite the hinge
+        var openTip = Hrot.ScenarioEditor.Gizmos.DoorLeafGizmo.OpenTip(hinge, closedTip);
+        Assert.InRange(Vector2.Distance(farEdge, openTip), 0f, 1e-3f);                 // the same side the 2-D layer opens it to
+        Assert.InRange(Vector2.Distance(hinge, new Vector2(c1.X, c1.Y)), width / 2f - 1e-3f, width / 2f + 1e-3f);   // still on its hinge
+
+        Assert.Equal(0f, DoorLeaf3D.TargetAngle(TerrainDoorState.Closed));
+        Assert.Equal(0f, DoorLeaf3D.TargetAngle(TerrainDoorState.Locked));
+        Assert.Equal(DoorLeaf3D.OpenAngle, DoorLeaf3D.TargetAngle(TerrainDoorState.Open));
+        Assert.Null(DoorLeaf3D.TargetAngle(TerrainDoorState.Destroyed));
+    }
+
+    /// <summary>⭐ CE-1069 — a LOCKED door is told apart in 3-D by colour: its wood tinted half-way to the 2-D door layer's locked
+    /// purple (one colour language on both maps); shut and open are plain wood (the swing shows which).</summary>
+    [Fact]
+    public void CE1069_ALockedDoor_IsTintedWithTheTwoDLockedColour()
+    {
+        Assert.Equal(DoorLeaf3D.Wood, DoorLeaf3D.ColourOf(TerrainDoorState.Closed));
+        Assert.Equal(DoorLeaf3D.Wood, DoorLeaf3D.ColourOf(TerrainDoorState.Open));
+        var locked = DoorLeaf3D.ColourOf(TerrainDoorState.Locked);
+        var purple = Hrot.ScenarioEditor.Gizmos.DoorLeafGizmo.ColorOf(TerrainDoorState.Locked);
+        Assert.NotEqual(DoorLeaf3D.Wood, locked);
+        Assert.Equal((DoorLeaf3D.Wood.B + purple.B) / 2, locked.B);
+        Assert.True(locked.B > DoorLeaf3D.Wood.B + 30, $"visibly purple: {locked.R},{locked.G},{locked.B}");
+    }
+
+    /// <summary>⭐ CE-1068 — the leaf SWINGS on sim time (a quarter turn in <see cref="DoorLeaf3D.SwingSeconds"/>), a pause holds
+    /// it, and a door first seen just stands in its state.</summary>
+    [Fact]
+    public void CE1068_ADoorSwings_OnSimTime_AndIsFirstSeenInItsState()
+    {
+        var swing = new DoorSwing();
+        var door = new Entity(5, 1);
+        Assert.Equal(DoorLeaf3D.OpenAngle, swing.Angle(door, DoorLeaf3D.OpenAngle, 10.0));   // first seen: already open
+        float half = swing.Angle(door, 0f, 10.0 + DoorLeaf3D.SwingSeconds / 2.0);         // closing: half way after half the time
+        Assert.Equal(DoorLeaf3D.OpenAngle / 2f, half, 3);
+        Assert.Equal(half, swing.Angle(door, 0f, 10.0 + DoorLeaf3D.SwingSeconds / 2.0));  // paused: no time, no swing
+        Assert.Equal(0f, swing.Angle(door, 0f, 12.0));                                     // shut
+    }
+
+    /// <summary>⭐ CE-1068 — a DOOR entity has no shape kit (it used to be an unknown box) and is picked and selected by its LEAF:
+    /// open it and its box turns with it, destroy it and there is nothing to pick.</summary>
+    [Fact]
+    public void CE1068_ADoorEntity_HasNoKit_AndIsPickedByItsLeaf()
+    {
+        var terrain = BtRange();
+        var world = WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        world.RegisterComponent<DoorState>();
+        world.RegisterManagedComponent<TerrainObjectKey>();
+        var def = terrain.Doors[0];
+        var e = world.CreateEntity();
+        world.AddComponent(e, new SimTransform { Position = new Vector3(def.Center, def.SillZ), Rotation = Quaternion.Identity });
+        world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.Door });
+        world.AddComponent(e, new DoorState { State = TerrainDoorState.Closed });
+        world.AddComponent(e, new TerrainObjectKey { Key = def.Key });
+
+        var bodies = new EntityBodyLayer3D(() => world, () => BuiltIn());
+        Assert.Equal(VisualFamily.Unit, bodies.LookOf(Hrot.Map.Common.TkbEntityTypes.Door, BuiltIn()).Family);   // no kit, never Unknown
+
+        Assert.True(bodies.TryGetBox(world, e, BuiltIn(), out var centre, out var rotation, out var half));
+        var (c0, r0, _) = DoorLeaf3D.Box(terrain.DoorLeaves[0], 0f);
+        Assert.InRange(Vector3.Distance(centre, c0), 0f, 1e-3f);
+        Assert.Equal(r0, rotation);
+        Assert.True(half.Z > 0.9f, $"the pick box is the door's height: {half}");
+
+        world.SetComponent(e, new DoorState { State = TerrainDoorState.Destroyed });
+        Assert.False(bodies.TryGetBox(world, e, BuiltIn(), out _, out _, out _));   // gone: nothing to pick
     }
 
     /// <summary>⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — the dead figure lies on the ground (lower than prone), arms flung out

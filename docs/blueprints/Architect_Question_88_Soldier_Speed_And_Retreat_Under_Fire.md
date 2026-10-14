@@ -12,6 +12,7 @@ related-designs:
   - FDP/Docs/projects/toolkits/FDP.Toolkit.CarKinem.md — OWNS the pedestrian mover ("Human gait"): the MaxSpeedFwd clamp is here
   - DESIGN_Eqs_Consuming_Behaviours.md — OWNS FallBack and its retreat query (FindSafeRetreatPoint)
   - REVIEW_Behaviour_Library_Genericity.md — §6 the retreat (R-259: FallBack is THE retreat)
+  - ../DESIGN_Map_3D_Mode.md §6j — OWNS how the crouched run is DRAWN in the 3-D map (CE-1064: a kneel when still, legs swinging when moving)
 -->
 
 # Architect Question 88 — a soldier cannot run, and his retreat hides from only one threat

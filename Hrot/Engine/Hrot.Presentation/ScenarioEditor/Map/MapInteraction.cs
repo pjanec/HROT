@@ -241,6 +241,7 @@ namespace Hrot.ScenarioEditor.Map
             typeof(Hrot.UI.Common.Effects.WreckSpawnSystem),                   // ⭐ W3 — a destroyed vehicle burns and smokes
             typeof(Fdp.Toolkit.Time.LifespanSystem),                           // ⭐ W1 — removes timed entities (effects) on sim time
             typeof(MenuOrders),                                                // ⭐ CE-3169 — a menu order's follow-up pick becomes the order
+            typeof(MenuShortcuts),                                             // ⭐ CE-1076 — the keys the menu shows run its items
         };
 
         /// <summary>⭐ CE-1042 E2 — makes muzzle flashes, tracers, explosions and decals from the fire / hit events
@@ -272,6 +273,11 @@ namespace Hrot.ScenarioEditor.Map
         /// </summary>
         public MenuOrders MenuOrders { get; internal init; } = null!;
 
+        /// <summary>⭐ CE-1076 (DESIGN_Entity_Control.md §13.6) — runs the selected unit's menu item whose shortcut was typed on the map
+        /// (the canvas' <see cref="MenuShortcutKeyLayer"/>, attached by <see cref="MapInteractionPack.AttachMapLayers"/>, sends the keys).
+        /// Scheduled through <see cref="InteractionSystems"/>.</summary>
+        public MenuShortcuts MenuShortcuts { get; internal init; } = null!;
+
         /// <summary>
         /// ⭐ <c>CE-1059</c> (P5b, design §13.12) — THE order form on this map (null in a replay: nothing to order). It becomes the
         /// world's <see cref="Hrot.Common.Orders.IOrderForm"/> on its first draw, so call <see cref="DrawOperatorUi"/> each ImGui frame.
@@ -295,7 +301,7 @@ namespace Hrot.ScenarioEditor.Map
         /// <see cref="Unserviceable"/>, so the two cannot disagree.
         /// </summary>
         public Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] InteractionSystems
-            => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] { ActionDispatch, DebugStatePatch, GizmoGroup, EffectSpawn, WreckSpawn, Lifespan, MenuOrders };
+            => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] { ActionDispatch, DebugStatePatch, GizmoGroup, EffectSpawn, WreckSpawn, Lifespan, MenuOrders, MenuShortcuts };
 
         /// <summary>
         /// ⭐⭐ Returns one message per required system the host did not schedule — empty when the host
@@ -371,6 +377,8 @@ namespace Hrot.ScenarioEditor.Map
                 ? "effects never expire — they pile up and never leave the map"
              : system == typeof(MenuOrders)
                 ? "Move Here and Engage open their pick, and the picked point or enemy is never ordered"
+             : system == typeof(MenuShortcuts)
+                ? "the keys the unit menu shows (M move, A attack …) do nothing on the map"
              : "part of the map will be silently absent";
     }
 }

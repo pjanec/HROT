@@ -39,8 +39,10 @@ namespace Hrot.ScenarioEditor.Gizmos
         // Constants copied from deleted CreationToolConstants
         private const long DefaultTkbType    = 101L;
         private const byte GhostAlpha        = 128;
-        private const int  GhostRadiusPx     = 15;
-        private const int  GhostLabelOffsetY = 20;
+        // ⭐ CE-1065 — half the size it was (user, 2026-10-14: "make the entity placement and entity picker gizmo 2 times smaller").
+        //   ⚠ Despite the "Px" name these are WORLD METRES (DrawSphere's default SizeMode) — a 15 m translucent ball hid the scene in 3-D.
+        private const float GhostRadiusPx     = 7.5f;
+        private const float GhostLabelOffsetY = 10f;
 
         private readonly Action<SpawnEntityCommand> _onEntityCreated;
         private readonly long                       _tkbType;

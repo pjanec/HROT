@@ -346,6 +346,10 @@ filled `UtilityDecisionCatalog.Shared`.** The module diagram above said `ScanAnd
 registers the INPUT readers only (CE-454 W1), so every production `ScoreDecision` found no decision. Fixed:
 `CgfLogicPack` now also calls `UtilityDecisionCatalog.EnsureRegistered()` (idempotent), and the diagram is corrected.
 ⚠ `ScoreDecision`'s own `AssetId` field moves to the type with `CE-2070`, which reroutes that node.
+⭐ **`CE-2169` (`2026-10-14`):** `RegisterAll` STORES a new registry in `Shared`; a scorer cached as
+`??= new UtilityScorer(Shared)` kept the old one and missed every later decision (order-dependent test red). Every cached
+scorer over the catalog — `UtilityNodes`, `EqsTacticsNodes.TopThreat`, `WeaponChoice` — goes through
+`UtilityDecisionCatalog.ScorerOverShared(ref cache)`, which rebuilds the cache when `Shared` was replaced.
 
 ⭐ **As-built `CE-2070` (`2026-10-05`):** the blueprint `ScoreDecision` node calls ONE bridge entry,
 `UtilityBlueprintBridge.Decide(view, self, decisionId, lastWinner, tick, out winner, out topCandidate, out topScore)`.

@@ -121,6 +121,24 @@ namespace Hrot.Presentation.Tests.Gizmos
             Assert.Contains(shown.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.SpatialAnchor && p.NetworkId == 12L);
         }
 
+        /// <summary>⭐ <c>CE-1068</c> — a TERRAIN OBJECT (a door) keeps its anchor and pick box (it is selectable — the door commands
+        /// hang off it) but draws NO symbol: it used to draw the unknown-type fallback (magenta) for every door. 📄
+        /// DESIGN_Building_Interiors.md §3j 5b: "no symbol, no palette entry".</summary>
+        [Fact]
+        public void CE1068_ADoor_HasAnAnchorAndAPickBox_ButNoSymbol()
+        {
+            var door = Spawn(70L, new Vector3(5f, 5f, 0f));
+            _repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();   // a fresh repository per test (xUnit)
+            _repo.AddComponent(door, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "t/b/d1" });
+
+            var buffer = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, door, buffer);
+            var frame = buffer.GetFrame().ToArray();
+            Assert.Contains(frame, p => p.Shape == DebugPrimitiveShape.SpatialAnchor && p.NetworkId == 70L);
+            Assert.Contains(frame, p => p.Shape == DebugPrimitiveShape.Box2D);   // the pick box
+            Assert.DoesNotContain(frame, p => p.Shape == DebugPrimitiveShape.SemanticShape);
+        }
+
         // ── ② the emitted frame — re-homed from SimHost ────────────────────────────────────────
 
         /// <summary>⭐ Re-homed from <c>SC_GZ057_2</c>.</summary>

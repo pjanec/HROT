@@ -72,6 +72,9 @@ namespace Fdp.Toolkit.Behavior.Possession
         public byte Mount;
         /// <summary>Where the station aims (world metres).</summary>
         public Vector3 AimPoint;
+        /// <summary>⭐ CE-1074 — the stance the operator wants, as <c>StanceId + 1</c> (1 standing, 2 crouched, 3 prone); 0 = no request
+        /// (a frame that does not care keeps whatever stance the unit has).</summary>
+        public byte Stance;
         public bool IsRemote;
     }
 
@@ -105,6 +108,8 @@ namespace Fdp.Toolkit.Behavior.Possession
         public byte Trigger;
         public byte Mount;
         public Vector3 AimPoint;
+        /// <summary>⭐ CE-1074 — the operator's stance request (<see cref="OperatorControlFrameEvent.Stance"/>; 0 = none).</summary>
+        public byte Stance;
     }
 
     /// <summary>
@@ -149,7 +154,7 @@ namespace Fdp.Toolkit.Behavior.Possession
                     var input = new OperatorInput
                     {
                         Seq = f.Seq, Forward = f.Forward, Lateral = f.Lateral, Steer = f.Steer, Yaw = f.Yaw, Vertical = f.Vertical, Gait = f.Gait,
-                        Trigger = f.Trigger, Mount = f.Mount, AimPoint = f.AimPoint,
+                        Trigger = f.Trigger, Mount = f.Mount, AimPoint = f.AimPoint, Stance = f.Stance,
                     };
                     if (repo.HasComponent<OperatorInput>(f.Unit)) repo.SetComponent(f.Unit, input);
                     else repo.AddComponent(f.Unit, input);

@@ -16,3 +16,4 @@ global using LineStyle          = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Giz
 global using ScreenAnchor       = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.ScreenAnchor;
 global using SizeMode           = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.SizeMode;
 global using StringInternMap    = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.StringInternMap;
+global using LayerMask256       = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.LayerMask256;   // ⭐ CE-1071

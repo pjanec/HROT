@@ -502,5 +502,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("InfantrySquadHold",   Assert.Single(Order(repo, system, squad, "Hold", "{}")).BehaviorName);
             Assert.Equal("InfantrySquadAttack", Assert.Single(Order(repo, system, squad, "Attack", "{}")).BehaviorName);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2165</c> V4 — with the PRODUCTION registry, a tank's and a technical's ATTACK resolve to <c>LandPlatformAttack</c> (the
+        /// exposure cycle, DESIGN_Vehicle_Exposure_Cycle §4) — not the infantry posture behind <c>PlatformAttack</c>; their MOVE still falls
+        /// back to <c>PlatformMove</c>, and a soldier's attack is still <c>PersonAttack</c>. 🔴 Red-proof: drop the <c>[Behavior]</c> on
+        /// <c>BuildLandPlatformAttack</c> and the tank resolves to <c>PlatformAttack</c>.
+        /// </summary>
+        [Fact]
+        public void V4_ATanksAttackOrder_ResolvesTo_LandPlatformAttack()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), registry);
+            var t72       = Typed(repo, Dis(1, 1, 222, 1, 2, 1));
+            var technical = Typed(repo, Dis(1, 1, 222, 6));
+            var soldier   = Typed(repo, Dis(3, 1, 222, 0));
+            Assert.Equal("LandPlatformAttack", Assert.Single(Order(repo, system, t72, "Attack", "{}")).BehaviorName);
+            Assert.Equal("LandPlatformAttack", Assert.Single(Order(repo, system, technical, "Attack", "{}")).BehaviorName);
+            Assert.Equal("PlatformMove", Assert.Single(Order(repo, system, t72, "Move", "{}")).BehaviorName);
+            Assert.Equal("PersonAttack", Assert.Single(Order(repo, system, soldier, "Attack", "{}")).BehaviorName);
+        }
     }
 }

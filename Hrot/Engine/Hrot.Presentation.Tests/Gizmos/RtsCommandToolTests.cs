@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D.Abstractions;
@@ -139,11 +140,79 @@ public sealed class RtsCommandToolTests : IDisposable
         Assert.Equal(SelectionChangeMode.Add, Assert.Single(Read<SelectionChangeRequest>()).Mode);
 
         gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: true, new Vector3(40, 0, 0));
-        Assert.Equal("Order.Attack", Assert.Single(Read<AssignTacticalIntentEvent>()).IntentId);
+        Assert.Empty(Read<AssignTacticalIntentEvent>());               // ⭐ CE-1077 — not on the press …
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: false, new Vector3(40, 0, 0));
+        Assert.Equal("Order.Attack", Assert.Single(Read<AssignTacticalIntentEvent>()).IntentId);   // … on the click's release
         Assert.False(removed, "RMB commands; it does not cancel the tool");
 
         gizmo.OnKeyEvent(MapKeyboardKey.Escape, isPressed: true);
         Assert.True(removed);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1075 / CE-1071 — END TO END on the backend half: View ▸ RTS Command Mode arms the tool, it takes the input focus and puts
+    /// its capture binding in the frame, and a mouse event on the map's bus reaches it (the path a real click takes after the
+    /// terminal). 🔒 User, 2026-10-14: "In RTS mode the key shortcut do not work, not even mouse click do anything". 🔴 Two defects
+    /// broke it: the frame was FULL and the binding was dropped (so the terminal never routed a click — CE-1071), and a Shift-click
+    /// arrived as <c>Left | ShiftMask</c>, which matched no branch (CE-1075). The older rails called the gizmo directly and saw neither.
+    /// </summary>
+    [Fact]
+    public void CE1075_AClick_ReachesTheArmedTool_ThroughTheMapsBus_EvenWithAFullFrame_AndShiftClickAdds()
+    {
+        var a = Unit(10, ForceId.Friend, new Vector2(1, 1));
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _w, BufferCapacity = 64 });
+        mi.MenuOrders.PickService = () => _pick;
+        Assert.True(mi.Actions.TryGetHandler(GlobalActionIds.ToggleRtsCommand, out var toggle));
+        toggle!(_w, Entity.Null);
+
+        for (int i = 0; i < 200; i++)                                         // a frame far over capacity
+            mi.Buffer.DrawLine(Vector3.Zero, Vector3.UnitX, new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(1, 2, 3, 255));
+        mi.GlobalManager.Execute(_w, 0.016f);
+        Assert.Contains(mi.Buffer.GetFrame().ToArray(), p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.InputCaptureBinding);
+
+        void Click(MapMouseButton button, Vector3 at)
+        {
+            mi.InteractionBus.Publish(new GizmoMouseEvent { Button = button, IsPressed = false, WorldPos = at });
+            mi.InteractionBus.SwapBuffers();
+            mi.GlobalManager.Execute(_w, 0.016f);
+        }
+
+        Click(MapMouseButton.Left, new Vector3(1, 1, 0));
+        var replace = Assert.Single(Read<SelectionChangeRequest>());
+        Assert.Equal(SelectionChangeMode.Replace, replace.Mode);
+        Assert.Equal(a, Assert.Single(replace.Entities));
+
+        Click(MapMouseButton.Left | MapMouseButton.ShiftMask, new Vector3(1, 1, 0));   // what the terminal sends for a Shift-click
+        Assert.Equal(SelectionChangeMode.Add, Assert.Single(Read<SelectionChangeRequest>()).Mode);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1077 (docs/DESIGN_Entity_Control.md §13.6) — 🔒 user, 2026-10-14: "in RTS mode a right click commands and a right drag
+    /// only looks". A right press, the mouse moving (the terminal's drag updates — the 3-D look, the 2-D pan) and a release orders
+    /// nothing; a still click (a little jitter allowed) orders at the PRESS point, where the operator clicked.
+    /// </summary>
+    [Fact]
+    public void CE1077_ARightDrag_OnlyLooks_ARightClick_CommandsAtThePressPoint()
+    {
+        var a = Unit(10, ForceId.Friend, new Vector2(1, 1));
+        Unit(20, ForceId.Hostile, new Vector2(40, 0));
+        var gizmo = new RtsCommandGizmo(Commands(a), () => { });
+
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: true, new Vector3(40, 0, 0));
+        for (int i = 0; i < 12; i++) gizmo.OnDragUpdate(new Vector3(40 + i, i, 0));   // looking around
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: false, new Vector3(60, 9, 0));
+        Assert.Empty(Read<AssignTacticalIntentEvent>());
+
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: true, new Vector3(40, 0, 0));
+        gizmo.OnDragUpdate(new Vector3(40.1f, 0, 0));                                    // a hand's jitter
+        gizmo.OnDragUpdate(new Vector3(40, 0.1f, 0));
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: false, new Vector3(40.2f, 0.1f, 0));
+        var order = Assert.Single(Read<AssignTacticalIntentEvent>());
+        Assert.Equal("Order.Attack", order.IntentId);                                    // the hostile under the PRESS
+        Assert.Contains("\"Target\":20", order.JsonParams);
+
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: false, new Vector3(40, 0, 0)); // a release with no press of its own
+        Assert.Empty(Read<AssignTacticalIntentEvent>());
     }
 
     [Fact]

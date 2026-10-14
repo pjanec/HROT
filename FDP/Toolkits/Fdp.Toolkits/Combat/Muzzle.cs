@@ -25,6 +25,27 @@ namespace Fdp.Toolkit.Combat
             return true;
         }
 
+        /// <summary>
+        /// ⭐ CE-1070 — the muzzle AND the way the barrel points there (world, unit length): the mount's own forward axis, posed by the
+        /// same elevation and azimuth as the muzzle, turned by the hull. A muzzle flash blooms along it, out of the barrel.
+        /// </summary>
+        public static bool TryOf(EntityRepository world, Entity shooter, int weaponIndex, out Vector3 muzzle, out Vector3 forward)
+        {
+            forward = default;
+            if (!TryOf(world, shooter, weaponIndex, out muzzle)) return false;
+            var mount = CombatTkb.MountOf(world, shooter, weaponIndex)!;
+            var offset = new Vector3(mount.MuzzleOffsetX, mount.MuzzleOffsetY, mount.MuzzleOffsetZ);
+            var turret = mount.TurretIndex >= 0 ? CombatTkb.TurretOf(world, shooter, mount.TurretIndex) : null;
+            var local = Vector3.UnitX;
+            if (turret != null)
+            {
+                var pose = TurretParts.PoseOf(world, shooter, mount.TurretIndex);
+                local = Posed(turret, offset + Vector3.UnitX, pose.Azimuth, pose.Elevation) - Posed(turret, offset, pose.Azimuth, pose.Elevation);
+            }
+            forward = Vector3.Normalize(Vector3.Transform(local, world.GetComponentRO<SimTransform>(shooter).Rotation));
+            return true;
+        }
+
         /// <summary>The muzzle in the hull frame (metres from the reference point; X forward, Y left, Z up), posed.</summary>
         public static bool TryLocal(EntityRepository world, Entity shooter, int weaponIndex, out Vector3 local)
         {

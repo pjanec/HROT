@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-09
+updated: 2026-10-14 (CE-1065: layer defaults, live panel)
 current-answer: the whole file (a usage guide, not a design)
 stale-below: nothing
 known-rot: none yet — measured from the gizmo sources 2026-10-09 (37 [GizmoProjector] classes); a gizmo added later is not listed until this is updated
@@ -26,17 +26,22 @@ related-designs:
 
 | layer | default | gizmos on it |
 |---|---|---|
-| Entities | on | unit symbols, labels, health bars, selection rings, heading, **EQS** lines and verdict dots |
-| Perception | on | vision cones, contact lines |
-| AiHelpers | on | navigation-target arrows, danger areas |
-| FireTraces | on | rounds fired |
+| Entities | on | unit symbols, selection rings, **EQS** lines and verdict dots |
+| Perception | on | vision cones, contact lines — ⭐ CE-1065: their families start **selected-only** (tick off *PerceptionSelectedOnly* / *ContactsSelectedOnly* for every unit) |
+| **AiHelpers** | **off** *(CE-1065)* | navigation-target arrows, danger areas |
+| **FireTraces** | **off** *(CE-1065)* | rounds fired |
 | Doors | on | door leaves by state |
 | Paths | on | planned path, authored route |
-| Blast | on | burst radii and fragment rays |
-| Hearing | on | sound rings, heard estimates |
+| **Blast** | **off** *(CE-1065)* | burst radii and fragment rays |
+| **Hearing** | **off** *(CE-1065)* | sound rings, heard estimates |
 | Roads | on | road network |
 | **Cover** | **off** | cover points (hundreds in a town) |
 | **Navmesh** | **off** | navmesh polygons (Infantry by default; the panel picks Vehicle or both) |
+| Labels | on | the entity cards: name, health bar |
+| **UnitDetails** | **off** *(CE-1065)* | heading arrow + degrees, stance label, per unit |
+| **SpatialGrid** | **off** *(CE-1065)* | the spatial hash's tiles |
+
+⭐ **CE-1065 (`2026-10-14`):** each checkbox applies **as you click** and the panel stays open; the same menu entry closes it. Most layers start off — see [`DESIGN_Terrain_Combat_Tuning.md` §5d](DESIGN_Terrain_Combat_Tuning.md).
 
 | family *(the "Selected only" boxes)* | default scope |
 |---|---|

@@ -22,8 +22,8 @@ namespace Fdp.Toolkit.Combat
         public static int Choose(EntityRepository repo, Entity owner, Entity target, out Entity mount)
         {
             mount = owner;
-            _scorer ??= new UtilityScorer(UtilityDecisionCatalog.Shared);
-            if (!_scorer.TopCandidate(repo, owner, WeaponSelectionDecision.Id, target, 0, out var top, out float score)
+            var scorer = UtilityDecisionCatalog.ScorerOverShared(ref _scorer);
+            if (!scorer.TopCandidate(repo, owner, WeaponSelectionDecision.Id, target, 0, out var top, out float score)
                 || score <= 0f || top.IsNull || !repo.IsAlive(top) || top.Equals(owner))
                 return 0;
             if (!repo.IsComponentTypeRegistered<WeaponMountInfo>() || !repo.HasComponent<WeaponMountInfo>(top)

@@ -526,6 +526,243 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(0, c[0].FlagsMeaningful);
         }
 
+        // ── CE-2165 V3: beyond the threats' reach (DESIGN_Vehicle_Exposure_Cycle §3) ─────────────────────
+
+        private const long TankType = 103, SoldierType = 2002, RpgManType = 9101, RiflemanType = 9102;
+
+        /// <summary>A TKB: a T-72 (500 / 250 / 150 mm), a soldier (no armour), an RPG man (300 m, 300 mm), a rifleman (500 m, 5 mm).</summary>
+        private static Fdp.Toolkit.Tkb.TkbDatabase VehicleTkb()
+        {
+            static Fdp.Interfaces.TkbTemplate Armed(string name, long type, float range, float pen)
+            {
+                var t = new Fdp.Interfaces.TkbTemplate(name, type);
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = range, Penetration = pen, DamagePerHit = 100 } } });
+                return t;
+            }
+            var tank = new Fdp.Interfaces.TkbTemplate("T-72", TankType);
+            tank.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 150 });
+            var soldier = new Fdp.Interfaces.TkbTemplate("Soldier", SoldierType);
+            soldier.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 100 });
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            db.Register(tank); db.Register(soldier);
+            db.Register(Armed("RPG man", RpgManType, 300, 300)); db.Register(Armed("Rifleman", RiflemanType, 500, 5));
+            return db;
+        }
+
+        private Entity Typed(float x, float y, long type, VehicleClass? cls = null)
+        {
+            if (!_repo.IsComponentTypeRegistered<TkbIdentity>()) _repo.RegisterComponent<TkbIdentity>();
+            if (!_repo.IsComponentTypeRegistered<VehicleParams>()) _repo.RegisterComponent<VehicleParams>();
+            var e = At(x, y);
+            _repo.AddComponent(e, new TkbIdentity { TkbType = type });
+            if (cls != null) _repo.AddComponent(e, new VehicleParams { Class = cls.Value });
+            return e;
+        }
+
+        private unsafe EqsSensor Knowing(Entity self, params Entity[] threats)
+        {
+            var contacts = new SensorContactList();
+            foreach (var t in threats) SensorContactList.UpdateSighting(ref contacts, (long)t.PackedValue, 1);
+            for (int i = 0; i < contacts.Count; i++) contacts.State[i] = (byte)SensorContactState.Acquired;
+            _repo.AddComponent(self, contacts);
+            return new EqsSensor { ContextSlot0 = self };
+        }
+
+        /// <summary>
+        /// ⭐ A TANK scores a point by its distance from the RPG man over his 300 m reach (his 300 mm beats its 150 mm rear) — 1 out of
+        /// reach, ½ half-way, 0 on top of him — and IGNORES the rifleman, whose 5 mm hurts no face of it. A SOLDIER counts both: the
+        /// mean of the RPG's 1 and the rifleman's 223.6 / 500. The TKB comes through the injected SOURCE, not the world.
+        /// </summary>
+        [Fact]
+        public void V3_BeyondThreatRange_ATankFleesTheAtReach_AndIgnoresTheRifle_ASoldierCountsBoth()
+        {
+            var db = VehicleTkb();
+            var rpg = Typed(0, 100, RpgManType);
+            var rifle = Typed(100, 0, RiflemanType);
+            var test = new BeyondThreatRangeTest { Tkb = () => db };
+
+            var tank = Typed(0, 0, TankType, VehicleClass.Tank);
+            var sensor = Knowing(tank, rpg, rifle);
+            var c = new[] { Point(0, -200), Point(0, 250), Point(0, 100) };
+            test.ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(1f, c[0].Score, 3);
+            Assert.Equal(0.5f, c[1].Score, 3);
+            Assert.Equal(0f, c[2].Score, 3);
+
+            var soldier = Typed(0, 0, SoldierType, VehicleClass.Pedestrian);
+            var asSoldier = Knowing(soldier, rpg, rifle);
+            var s = new[] { Point(0, -200) };
+            test.ExecuteBatch(Entity.Null, ref asSoldier, _repo, s);
+            Assert.Equal((1f + MathF.Sqrt(100 * 100 + 200 * 200) / 500f) / 2f, s[0].Score, 3);
+        }
+
+        /// <summary>⭐ No TKB — no source and none on the view (a solver snapshot before the host hands one over) — scores nothing.</summary>
+        [Fact]
+        public void V3_BeyondThreatRange_WithNoTkb_ScoresNothing()
+        {
+            var tank = Typed(0, 0, TankType, VehicleClass.Tank);
+            var sensor = Knowing(tank, Typed(0, 100, RpgManType));
+            var c = new[] { Point(0, -200) };
+            new BeyondThreatRangeTest().ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(0f, c[0].Score);
+        }
+
+        /// <summary>⭐ The host hands its TKB source to every TKB-reading test of every registered template, in every phase it sits in.</summary>
+        [Fact]
+        public void V3_InjectTkb_ReachesEveryTkbAwareTestOfEveryTemplate()
+        {
+            var registry = new EqsTemplateRegistry();
+            var a = new BeyondThreatRangeTest();
+            var b = new BeyondThreatRangeTest();
+            registry.Register(Guid.NewGuid(), new EqsQueryTemplate { Generator = new GridGenerator(), ScoreExpensive = new IEqsTest[] { new DistanceScoreTest(), a } }, "A");
+            registry.Register(Guid.NewGuid(), new EqsQueryTemplate { Generator = new GridGenerator(), ScoreCheap = new IEqsTest[] { b } }, "B");
+            Func<Fdp.Interfaces.ITkbDatabase?> source = () => null;
+
+            BeyondThreatRangeTest.InjectTkb(registry, source);
+
+            Assert.Same(source, a.Tkb);
+            Assert.Same(source, b.Tkb);
+        }
+
+        // ── CE-2165 V3 / V8: overhead cover (DESIGN_Vehicle_Exposure_Cycle §3) ─────────────────────────────
+
+        /// <summary>A HIGH deck (4–4.5 m) over x, y ∈ [5, 15] and a LOW one (1.5–2 m) over x, y ∈ [-15, -5]; open sky elsewhere.</summary>
+        private static TerrainWorld Decks() => new()
+        {
+            BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50),
+            Prisms = new[] { Deck(new Vector2(5, 5), new Vector2(15, 15), 4f, 4.5f), Deck(new Vector2(-15, -15), new Vector2(-5, -5), 1.5f, 2f) },
+        };
+
+        private static TerrainPrism Deck(Vector2 min, Vector2 max, float baseZ, float topZ) => new()
+        {
+            Kind = TerrainPrismKind.Building,
+            Footprint = new[] { min, new Vector2(max.X, min.Y), max, new Vector2(min.X, max.Y) },
+            BaseZ = baseZ, TopZ = topZ, Min = min, Max = max,
+        };
+
+        /// <summary>
+        /// ⭐ A soldier is covered under either deck and not under the open sky; a 2.4 m TANK fits only under the HIGH deck — the low
+        /// one is below its hull, so the line above its roof sees the sky (it could not drive under it anyway).
+        /// </summary>
+        [Fact]
+        public void V3_OverheadCover_KeepsThePointsUnderADeck_AboveTheSelfsHeight()
+        {
+            if (!_repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+                _repo.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            if (!_repo.IsComponentTypeRegistered<VehicleParams>()) _repo.RegisterComponent<VehicleParams>();
+            _repo.SetSingletonManaged(Decks());
+
+            var soldier = At(40, 40);
+            var asSoldier = new EqsSensor { ContextSlot0 = soldier };
+            var s = new[] { Point(10, 10), Point(-10, -10), Point(30, 30) };   // high deck · low deck · open
+            new OverheadCoverTest().ExecuteBatch(Entity.Null, ref asSoldier, _repo, s);
+            Assert.Equal(new[] { 0L, 0L, -1L }, s.Select(p => p.EntityId).ToArray());
+
+            var tank = At(40, -40);
+            _repo.AddComponent(tank, new VehicleParams { Class = VehicleClass.Tank });
+            _repo.AddComponent(tank, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3f, Height = 2.4f });
+            var asTank = new EqsSensor { ContextSlot0 = tank };
+            var t = new[] { Point(10, 10), Point(-10, -10), Point(30, 30) };
+            new OverheadCoverTest().ExecuteBatch(Entity.Null, ref asTank, _repo, t);
+            Assert.Equal(new[] { 0L, -1L, -1L }, t.Select(p => p.EntityId).ToArray());
+        }
+
+        /// <summary>⭐ A WALKABLE SLAB — how the terrain models a floor or a bridge deck (the ground under it stays standable) — is
+        /// overhead cover too: the vertical line crosses its triangles.</summary>
+        [Fact]
+        public void V3_OverheadCover_AWalkableSlabIsCover()
+        {
+            _repo.SetSingletonManaged(new TerrainWorld
+            {
+                BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50),
+                Walkables = new[]
+                {
+                    new TerrainWalkable
+                    {
+                        Kind = TerrainWalkableKind.Slab,
+                        Vertices = new[] { new Vector3(5, 5, 4.5f), new Vector3(15, 5, 4.5f), new Vector3(15, 15, 4.5f), new Vector3(5, 15, 4.5f) },
+                        Triangles = new[] { 0, 1, 2, 0, 2, 3 },
+                        Min = new Vector2(5, 5), Max = new Vector2(15, 15), MinZ = 4.5f, MaxZ = 4.5f,
+                    },
+                },
+            });
+            var sensor = new EqsSensor { ContextSlot0 = At(40, 40) };
+            var c = new[] { Point(10, 10), Point(30, 30) };
+            new OverheadCoverTest().ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(new[] { 0L, -1L }, c.Select(p => p.EntityId).ToArray());
+        }
+
+        /// <summary>⭐ In <see cref="OverheadRequire.Score"/> mode nothing is dropped: a covered point gains the weight; with no terrain
+        /// nothing is judged at all.</summary>
+        [Fact]
+        public void V3_OverheadCover_ScoreMode_AddsTheWeight_AndNoTerrainJudgesNothing()
+        {
+            var self = At(40, 40);
+            var sensor = new EqsSensor { ContextSlot0 = self };
+            var none = new[] { Point(10, 10) };
+            new OverheadCoverTest().ExecuteBatch(Entity.Null, ref sensor, _repo, none);
+            Assert.Equal(0L, none[0].EntityId);
+
+            _repo.SetSingletonManaged(Decks());
+            var c = new[] { Point(10, 10), Point(30, 30) };
+            new OverheadCoverTest { Require = OverheadRequire.Score, Weight = 2f }.ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(new[] { 0L, 0L }, c.Select(p => p.EntityId).ToArray());
+            Assert.Equal(2f, c[0].Score);
+            Assert.Equal(0f, c[1].Score);
+        }
+
+        // ── CE-2165 V3: hull-sized hide points (DESIGN_Vehicle_Exposure_Cycle §3) ────────────────────────
+
+        /// <summary>
+        /// ⭐ The wall of <see cref="WallWorld"/>, a PILLAR (x −3…−2, y 6…8) beside its west end, and a DECK (4–4.5 m) over x 8…12, y 6…9.
+        /// Two man-sized points 0.75 m south of the wall (facing it): one mid-wall, one at its west end.
+        /// </summary>
+        private static TerrainWorld HideWorld() => new()
+        {
+            BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50),
+            Prisms = new[]
+            {
+                Prism(new Vector2(0, 10), new Vector2(20, 10.5f), 3f),
+                Prism(new Vector2(-3, 6), new Vector2(-2, 8), 3f),
+                Deck(new Vector2(8, 6), new Vector2(12, 9), 4f, 4.5f),
+            },
+        };
+
+        /// <summary>
+        /// ⭐ For a TANK (7 × 3.6 m, 2.4 m high) the mid-wall point moves out to half its width + 0.5 m (y 9.25 → 7.7), kept although a
+        /// deck hangs above it (above the hull); the west-end point is dropped — the hull's box there runs into the pillar; and no
+        /// point round the tank's OWN standing box is offered. A SOLDIER gets both points where they were.
+        /// </summary>
+        [Fact]
+        public void V3_VehicleFootprint_StandsTheHullOffTheWall_DropsABlockedBox_AndNeverItsOwnBox()
+        {
+            if (!_repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+                _repo.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            if (!_repo.IsComponentTypeRegistered<VehicleParams>()) _repo.RegisterComponent<VehicleParams>();
+            _repo.SetSingletonManaged(HideWorld());
+            _repo.SetSingletonManaged<ICoverProvider>(new ManualCoverProvider(new[]
+            {
+                new CoverPoint { PositionX = 10, PositionY = 9.25f, DirectionY = 1f, Quality = 1f, StanceHeight = 2, Kind = CoverKind.Cover },
+                new CoverPoint { PositionX = 1,  PositionY = 9.25f, DirectionY = 1f, Quality = 1f, StanceHeight = 2, Kind = CoverKind.Cover },
+            }));
+            var gen = new CoverPointsGenerator { VehicleFootprint = true };
+
+            var soldier = new EqsSensor { SearchRadius = 30f, ContextSlot0 = At(10, 0) };
+            var s = new EqsResult[16];
+            Assert.Equal(2, gen.Generate(Entity.Null, ref soldier, _repo, s));
+            Assert.Equal(9.25f, s[0].PositionY, 3);
+
+            var tank = At(10, 0);
+            _repo.AddComponent(tank, new VehicleParams { Class = VehicleClass.Tank, Length = 7f, Width = 3.6f });
+            _repo.AddComponent(tank, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f, Height = 2.4f });
+            var asTank = new EqsSensor { SearchRadius = 30f, ContextSlot0 = tank };
+            var t = new EqsResult[16];
+            int n = gen.Generate(Entity.Null, ref asTank, _repo, t);
+            Assert.Equal(1, n);
+            Assert.Equal(10f, t[0].PositionX, 3);
+            Assert.Equal(7.7f, t[0].PositionY, 3);
+        }
+
         // ── scoring tests ────────────────────────────────────────────────────────────────────
 
         [Fact]

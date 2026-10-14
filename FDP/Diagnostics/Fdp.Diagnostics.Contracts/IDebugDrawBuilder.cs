@@ -190,6 +190,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         void EmitRaw(in DebugPrimitive prim) { }
 
         /// <summary>
+        /// ⭐ CE-1071 (docs/designs/gizmos-1/DESIGN.md §11.11) — the frame's layer mask, handed over by the one gizmo that emits the
+        /// authoritative <see cref="DebugPrimitiveShape.LayerControlMask"/> (AQ28: the only layer filter). A buffer then refuses a
+        /// primitive on a hidden layer when it is emitted, so hidden layers never take room a visible primitive needs. Default no-op.
+        /// </summary>
+        void SetActiveLayers(in LayerMask256 activeLayers) { }
+
+        /// <summary>⭐ CE-1071 — false for a layer the mask hides, so a producer can skip building primitives nobody will draw.
+        /// Default true (no mask known).</summary>
+        bool IsLayerActive(byte layer) => true;
+
+        /// <summary>
         /// Emits a world-space sphere primitive identified by <paramref name="anchorNetworkId"/>.
         /// The sphere is hit-testable by <c>DebugGizmoLayer</c> -- clicking it triggers
         /// <c>GizmoInteractionStartedEvent { Token.AnchorId = anchorNetworkId }</c>.

@@ -217,9 +217,9 @@ namespace GizmoMap.Presentation
             }
         }
 
-        public void DrawStructInspector(Action<long, uint, string>? onStructUpdate = null)
+        public void DrawStructInspector(Action<long, uint, string>? onStructUpdate = null, Action<long, uint>? onClosed = null)
         {
-            _imGuiAdapter.DrawScheduled(onStructUpdate);
+            _imGuiAdapter.DrawScheduled(onStructUpdate, onClosed);   // ⭐ CE-1066 — and the panel's [X]
         }
 
         /// <summary>

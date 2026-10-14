@@ -133,6 +133,10 @@ public sealed class BTreeCallShapeTests
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000031", BTreeDelegateShapeDto.Plain),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000041", BTreeDelegateShapeDto.Plain),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000051", BTreeDelegateShapeDto.Plain),   // ⭐ CE-2152 C-c — the member-down row
+        // ⭐ CE-2165 V8 — the vehicle SOP's three SensedFresh rows (air threat, hit, first threat): the plain shared form, as above.
+        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
+        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.Plain),
+        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000031", BTreeDelegateShapeDto.Plain),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000061", BTreeDelegateShapeDto.Plain),   // ⭐ CE-2159 X-c — the danger-area row
         ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.Plain),
         ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Plain),

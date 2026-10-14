@@ -126,6 +126,21 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Events
     /// Routed by <see cref="GlobalGizmoManager"/> to the target gizmo via
     /// <see cref="IGizmoInteractionHandler.OnStructUpdate"/>.
     /// </summary>
+    /// <summary>
+    /// ⭐ CE-1066 (docs/DESIGN_Terrain_Combat_Tuning.md §5d F) — the operator CLOSED a <c>StructInspector</c> panel with its [X] (floating
+    /// or docked). Published by the terminal's layer (and by the ingress translator for a remote terminal, kind
+    /// <c>InspectorClosed</c>); routed by anchor like <see cref="GizmoStructUpdateEvent"/> to
+    /// <see cref="IGizmoInteractionHandler.OnInspectorClosed"/>, so the gizmo stops emitting the panel.
+    /// </summary>
+    [EventId(8063)]
+    public struct GizmoInspectorClosedEvent
+    {
+        /// <summary>The panel's gizmo anchor id (the <c>StructInspector</c>'s network id).</summary>
+        public long AnchorId;
+        /// <summary>Composite routing key; 0 for legacy / GlobalGizmoManager-routed events.</summary>
+        public uint GizmoTypeId;
+    }
+
     [EventId(8060)]
     public sealed class GizmoStructUpdateEvent
     {

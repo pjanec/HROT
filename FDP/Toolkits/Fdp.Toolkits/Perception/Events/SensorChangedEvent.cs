@@ -52,6 +52,11 @@ namespace Fdp.Toolkit.Perception.Events
         /// <summary>⭐ <c>CE-2152</c> C-c (R-2012 K1, R-a) — a squad member is DOWN (incapacitated, alive, bleeding): once per man.
         /// Published on the COMMANDER; <see cref="SensorChangedEvent.Target"/> is the man.</summary>
         SquadMemberDown = 15,
+
+        /// <summary>⭐ <c>CE-2165</c> V8 (DESIGN_Vehicle_Exposure_Cycle §8) — an AIR contact entered the unit's memory: an identified
+        /// flyer (its <c>Locomotion</c> is in the Air domain) or a heard <c>Rotor</c> sound. Published by <c>ThreatEvaluationSystem</c>
+        /// once per new air slot (a second drone raises it again; the same one staying in memory does not).</summary>
+        AirThreat = 16,
     }
 
     /// <summary>

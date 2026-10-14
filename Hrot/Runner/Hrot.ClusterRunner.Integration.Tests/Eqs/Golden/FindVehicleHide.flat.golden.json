@@ -1,0 +1,136 @@
+{
+  "Name": "FindVehicleHide",
+  "BlueprintId": 280025523,
+  "Count": 16,
+  "Rows": [
+    {
+      "EntityId": 0,
+      "PositionX": -1.25,
+      "PositionY": -7.2,
+      "Score": 1.7076919,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 1.25,
+      "PositionY": -7.2,
+      "Score": 1.7076919,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -3.75,
+      "PositionY": -7.2,
+      "Score": 1.6752785,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 3.75,
+      "PositionY": -7.2,
+      "Score": 1.6752785,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -6.25,
+      "PositionY": -7.2,
+      "Score": 1.6186287,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 6.25,
+      "PositionY": -7.2,
+      "Score": 1.6186287,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -8.75,
+      "PositionY": -7.2,
+      "Score": 1.5467407,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 8.75,
+      "PositionY": -7.2,
+      "Score": 1.5467407,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 11.25,
+      "PositionY": -7.2,
+      "Score": 1.4657304,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -11.25,
+      "PositionY": -7.2,
+      "Score": 1.4657304,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -13.75,
+      "PositionY": -7.2,
+      "Score": 1.3791586,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 13.75,
+      "PositionY": -7.2,
+      "Score": 1.3791586,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -16.25,
+      "PositionY": -7.2,
+      "Score": 1.2890542,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 16.25,
+      "PositionY": -7.2,
+      "Score": 1.2890542,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -18.75,
+      "PositionY": -7.2,
+      "Score": 1.1966047,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 18.75,
+      "PositionY": -7.2,
+      "Score": 1.1966047,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    }
+  ],
+  "MaxAbsPositionZ": 0
+}

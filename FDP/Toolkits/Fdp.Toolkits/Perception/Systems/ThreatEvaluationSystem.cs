@@ -179,6 +179,11 @@ namespace Fdp.Toolkit.Perception.Systems
                 else if (countBefore > 0 && mem.Count == 0)
                     ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.AllClear });
 
+                // ⭐ CE-2165 V8 — AIR THREAT: more air contacts than before this frame (a flyer seen, rotors heard). A COUNT, not new
+                //   ids: a heard drone later SEEN is one contact (the sighting absorbs the heard slot, CE-3063), not a second alarm.
+                if (AirContacts.Count(view, in mem) > AirContacts.Count(view, in memRO))
+                    ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.AirThreat });
+
                 // ⭐ CE-3039 — HIT: the unit's health dropped (replicated to this Brain node by EntityDamage) — whoever fired,
                 //   seen or not. The previous value is this system's own; the first sight of a unit only records it.
                 if (view.HasComponent<Fdp.Toolkit.Combat.Components.Health>(entity))

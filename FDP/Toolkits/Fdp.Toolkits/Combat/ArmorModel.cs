@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb.Domain;
 
@@ -124,6 +125,29 @@ namespace Fdp.Toolkit.Combat
     /// </summary>
     public static class CombatTkb
     {
+        /// <summary>
+        /// ⭐ <c>CE-2165</c> V3 — the LIVE world's TKB database as a source, for code that runs on a snapshot (the EQS solver: its replica
+        /// world carries no TKB). It reads the reference at call time — nothing is copied; the TKB is one constant object
+        /// (🔒 user, 2026-10-14: <i>"Certainly not snapshotting it please. Pass reference somehow."</i>). The twin of
+        /// <c>TerrainWorldSource.Live</c>.
+        /// </summary>
+        public static Func<ITkbDatabase?> Live(EntityRepository world)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            return () => world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
+        }
+
+        /// <summary>⭐ <c>CE-2165</c> V3 — the TKB entry of <paramref name="entity"/>'s type from <paramref name="db"/>, read on any view
+        /// (a solver snapshot included): its <see cref="TkbIdentity"/>.</summary>
+        public static bool TryGetTemplate(ISimulationView view, ITkbDatabase? db, Entity entity, out TkbTemplate template)
+        {
+            template = null!;
+            if (db == null || entity.IsNull || !view.IsAlive(entity)) return false;
+            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<TkbIdentity>()) return false;
+            if (!view.HasComponent<TkbIdentity>(entity)) return false;
+            return db.TryGetByType(view.GetComponentRO<TkbIdentity>(entity).TkbType, out template) && template != null;
+        }
+
         /// <summary>The TKB entry of <paramref name="entity"/>'s type, if the world and the entity carry one.</summary>
         public static bool TryGetTemplate(EntityRepository world, Entity entity, out TkbTemplate template)
         {
@@ -176,11 +200,15 @@ namespace Fdp.Toolkit.Combat
         /// <see cref="AmmoWeaponBallisticsDto.Damage"/> (this weapon, then generic), else the mount's <c>DamagePerHit</c>.
         /// </summary>
         public static (float Penetration, float Damage) RoundOf(EntityRepository world, WeaponMountDto? mount, long ammo)
+            => RoundOf(DbOf(world), mount, ammo);
+
+        /// <summary>⭐ <c>CE-2165</c> V1 (behaviors, additive) — <see cref="RoundOf(EntityRepository, WeaponMountDto?, long)"/> with the TKB handed
+        /// in, for a reader on a solver snapshot (no TKB singleton there). The one implementation; the world overload delegates.</summary>
+        public static (float Penetration, float Damage) RoundOf(ITkbDatabase? db, WeaponMountDto? mount, long ammo)
         {
             if (mount == null) return (0f, 0f);
             if (ammo == 0 || ammo == unchecked((long)mount.AmmoGuid))
-                return (mount.DamagePerHit > 0f ? PenetrationOf(world, mount) : 0f, mount.DamagePerHit);
-            var db = world != null && world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
+                return (mount.DamagePerHit > 0f ? Fdp.Toolkit.Tkb.Parameters.ParameterResolver.MountPenetration(db, mount).Value : 0f, mount.DamagePerHit);
             var asLoaded = mount with { AmmoGuid = unchecked((ulong)ammo), Penetration = 0f };
             float pen = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.MountPenetration(db, asLoaded).Value;
             float dmg = mount.DamagePerHit;
@@ -220,12 +248,18 @@ namespace Fdp.Toolkit.Combat
         public static bool FiresOnTheMove(WeaponMountDto? mount)
             => mount?.FireOnMove ?? mount?.Category switch { WeaponCategory.Atgm or WeaponCategory.Mortar => false, _ => true };
 
-        private static Penetrator PenetratorOfAmmo(EntityRepository world, long ammo)
+        private static Penetrator PenetratorOfAmmo(EntityRepository world, long ammo) => PenetratorOf(DbOf(world), ammo);
+
+        /// <summary>⭐ <c>CE-2165</c> V1 (behaviors, additive) — <see cref="PenetratorOf(EntityRepository, long)"/> with the TKB handed in.</summary>
+        public static Penetrator PenetratorOf(ITkbDatabase? db, long ammo)
         {
-            if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return Penetrator.Kinetic;
-            var w = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(world.GetSingletonManaged<ITkbDatabase>(), ammo).Warhead;
+            if (ammo == 0 || db == null) return Penetrator.Kinetic;
+            var w = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(db, ammo).Warhead;
             return w?.Kind != WarheadKind.ShapedCharge ? Penetrator.Kinetic : w.Tandem ? Penetrator.Tandem : Penetrator.ShapedCharge;
         }
+
+        private static ITkbDatabase? DbOf(EntityRepository world)
+            => world != null && world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
 
         /// <summary>
         /// ⭐ Buildings §3d P1 (R-217) — the penetration (mm RHA) of the round <paramref name="mount"/> fires: its loaded ammo × this

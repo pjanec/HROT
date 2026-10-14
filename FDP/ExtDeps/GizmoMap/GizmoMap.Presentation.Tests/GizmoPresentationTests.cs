@@ -304,6 +304,22 @@ namespace GizmoMap.Presentation.Tests
             Assert.Equal(stableId1, stableId2);
         }
 
+        // ⭐ CE-1066: the stable ID does not carry the per-run instance id (a docked panel finds its slot after a restart), unless two
+        // panels of one type are open at once; the visible title is the schema's name made readable.
+        [Fact]
+        public void CE1066_TheStableId_IsTheGizmoType_AndTheTitleIsReadable()
+        {
+            string Id(string t) => t.Split("###")[1];
+            Assert.Equal(Id(ImGuiPropertyTreeAdapter.MakeWindowTitle("LayerControlDto", 1099511627777L, 0x1234u, 100u, true)),
+                         Id(ImGuiPropertyTreeAdapter.MakeWindowTitle("LayerControlDto", 1099511627790L, 0x1234u, 100u, true)));
+            Assert.NotEqual(Id(ImGuiPropertyTreeAdapter.MakeWindowTitle("S", 1L, 0x1u, 100u, true, disambiguate: true)),
+                            Id(ImGuiPropertyTreeAdapter.MakeWindowTitle("S", 2L, 0x1u, 100u, true, disambiguate: true)));
+            Assert.NotEqual(Id(ImGuiPropertyTreeAdapter.MakeWindowTitle("S", 1L, 0x1u, 0u, true)),   // unstamped: the id stays
+                            Id(ImGuiPropertyTreeAdapter.MakeWindowTitle("S", 2L, 0x1u, 0u, true)));
+            Assert.StartsWith("Layer Control###", ImGuiPropertyTreeAdapter.MakeWindowTitle("LayerControlDto", 7L, 0x1u, 100u, true));
+            Assert.Equal("AI Tuning", ImGuiPropertyTreeAdapter.FriendlyName("AITuningDto"));
+        }
+
         // SC-GZ068-3: Existing GizmoPresentationTests compile and pass without modification.
         // (Verified by the build; this test just ensures the assembly attribute is present.)
         [Fact]
@@ -338,6 +354,60 @@ namespace GizmoMap.Presentation.Tests
             Assert.Equal(ImGuiPropertyTreeAdapter.InspectorState.Editing,
                          adapter._inspectorStates[(1L, 10u)]);
             Assert.Equal(0, callbackCount);
+        }
+
+        // ⭐ CE-1065: a field edited in a FOCUSED window commits at once (no Apply, no waiting for focus loss) and the window stays
+        // in Editing; a frame with no edit sends nothing more.
+        [Fact]
+        public void CE1065_AnEdit_CommitsAtOnce_AndTheWindowStaysEditing()
+        {
+            var (doc, _) = TestDocFactory.MakeIntDoc();
+            var registry = new GizmoSchemaRegistry();
+            registry.Register(0x1111u, doc);
+            var adapter = new ImGuiPropertyTreeAdapter(registry);
+
+            int callbackCount = 0;
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, false);
+            adapter.DrawScheduled((_, _, _) => callbackCount++, isFocusedOverride: _ => true, editedOverride: _ => true);
+            Assert.Equal(1, callbackCount);
+            Assert.Equal(ImGuiPropertyTreeAdapter.InspectorState.Editing, adapter._inspectorStates[(1L, 10u)]);
+
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, false);
+            adapter.DrawScheduled((_, _, _) => callbackCount++, isFocusedOverride: _ => true, editedOverride: _ => false);
+            Assert.Equal(1, callbackCount);
+
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, isReadOnly: true);   // a read-only panel never commits
+            adapter.DrawScheduled((_, _, _) => callbackCount++, isFocusedOverride: _ => true, editedOverride: _ => true);
+            Assert.Equal(1, callbackCount);
+        }
+
+        // ⭐ CE-1066: the panel's [X] tells its gizmo once, stops editing, and hides the panel while the close travels (an edit
+        // in that time commits nothing); once the gizmo stops emitting it, the next open shows it at once.
+        [Fact]
+        public void CE1066_TheClose_TellsTheGizmoOnce_AndHidesThePanelUntilItStops()
+        {
+            var (doc, _) = TestDocFactory.MakeIntDoc();
+            var registry = new GizmoSchemaRegistry();
+            registry.Register(0x1111u, doc);
+            var adapter = new ImGuiPropertyTreeAdapter(registry);
+            var closed = new List<(long, uint)>();
+            int commits = 0;
+
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, false);
+            adapter.DrawScheduled((_, _, _) => commits++, isFocusedOverride: _ => true, closedOverride: _ => true,
+                                  onClosed: (n, t) => closed.Add((n, t)));
+            Assert.Equal(new[] { (1L, 10u) }, closed);
+            Assert.False(adapter._inspectorStates.ContainsKey((1L, 10u)));
+
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, false);   // the gizmo has not heard yet: still emitted
+            adapter.DrawScheduled((_, _, _) => commits++, isFocusedOverride: _ => true, editedOverride: _ => true);
+            Assert.Equal(0, commits);                             // hidden — nothing to click, nothing committed
+
+            adapter.DrawScheduled((_, _, _) => commits++, isFocusedOverride: _ => true);   // the gizmo stopped emitting it
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, false);                            // reopened from the menu
+            adapter.DrawScheduled((_, _, _) => commits++, isFocusedOverride: _ => true, editedOverride: _ => true);
+            Assert.Equal(1, commits);
+            Assert.Single(closed);
         }
 
         // SC-GZ069-2: Editing + unfocused => transitions to Viewing; callback invoked exactly once.

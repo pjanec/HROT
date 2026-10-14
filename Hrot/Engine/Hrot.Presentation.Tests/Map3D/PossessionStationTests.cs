@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Possession;
@@ -162,6 +164,84 @@ public sealed class PossessionStationTests
 
             sw.Camera3D.Driver = null;
             Assert.False(input.Locked);   // detaching unlocks the cursor it locked
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1073 (docs/DESIGN_Map_3D_Mode.md §6l) — the eye is the DRAWN head's, on the unit's current position and heading, and the held
+    /// unit's head is not drawn. 🔒 User, 2026-10-14: "When moving forward the character leans a bit forward basically putting his head
+    /// in front of the FPS camera so i see nothing — the camera should rather be bound to character's head/eyes". A look moved by the
+    /// mouse shows in the SAME frame (the driver used to apply it on the next Update).
+    /// </summary>
+    [Fact]
+    public void CE1073_TheEye_IsTheDrawnHeads_OnTheUnitsCurrentPose_TheHeadIsHidden_AndTheLookIsSameFrame()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var bodies = new EntityBodyLayer3D(() => w, () => null);
+            var station = new PossessionStation(sw, () => w, bodies);
+            Assert.Same(bodies, station.Bodies);
+            station.Update(0.016f);
+            Assert.Equal(unit, bodies.FirstPerson);                           // its head is not drawn: the camera is in it
+
+            var leaning = new Vector3(0.45f, 0.02f, 1.48f);                     // a running man's head: forward of, and lower than, upright
+            bodies.RememberEyeLocal(unit, leaning);
+            var yawed = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);   // he faces north
+            w.SetComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = yawed });
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            var expected = new Vector3(100f, 50f, 0f) + Vector3.Transform(leaning, yawed);
+            Assert.InRange(Vector3.Distance(sw.Camera3D.Eye, expected), 0f, 0.01f);
+            Assert.InRange(Vector3.Distance(driver.Eye, expected), 0f, 0.01f);
+
+            float yawBefore = sw.Camera3D.Yaw;
+            sw.Camera3D.HandleInput(new Input { MouseDelta = new Vector2(100f, 0f) });
+            Assert.NotEqual(yawBefore, sw.Camera3D.Yaw, 3);                      // this frame's look, this frame
+            Assert.InRange(Vector3.Distance(sw.Camera3D.Eye, expected), 0f, 0.01f); // turning the head keeps the eye in it
+
+            w.SetComponent(unit, new PossessedBy { StationNodeId = 77, Mode = PossessionMode.Fps, Epoch = 2 });
+            station.Update(0.016f);
+            Assert.Equal(Entity.Null, bodies.FirstPerson);                    // released: his head is drawn again
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1074 (docs/DESIGN_Entity_Control.md §13.5) — C cycles the held person's stance, standing → crouched → prone → standing, from
+    /// the stance he has when first driven; every frame carries the wanted stance (StanceId + 1) and the HUD shows it. 🔒 User,
+    /// 2026-10-14: "I will need to be able to switch the possessed character to crouched as well as lying pose (cycling using a key press)".
+    /// </summary>
+    [Fact]
+    public void CE1074_C_CyclesTheStance_StandCrouchProneStand_InEveryFrame_AndTheHudSaysIt()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+
+            byte Frame(bool pressC)
+            {
+                var input = new Input();
+                if (pressC) input.Pressed.Add((int)Raylib_cs.KeyboardKey.C);
+                sw.Camera3D.HandleInput(input);
+                w.Bus.SwapBuffers();
+                return Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray()).Stance;
+            }
+
+            Assert.Equal(1, Frame(false));     // standing (no intent ⇒ standing), held every frame
+            Assert.Equal(2, Frame(true));      // crouched
+            Assert.Equal(2, Frame(false));     // a frame without the key keeps it
+            Assert.Equal(3, Frame(true));      // prone
+            Assert.Equal(1, Frame(true));      // standing again
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            Assert.Contains("STANCE STANDING", PossessionStation.Hud.Lines(w, unit, 0, false, false, driver.Stance));
+            Assert.Contains(PossessionStation.Hud.Lines(w, unit, 0, false, false, driver.Stance), l => l.Contains("C stance"));
         }
     }
 
