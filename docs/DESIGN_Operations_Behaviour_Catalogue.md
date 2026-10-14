@@ -7,6 +7,8 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — AIR-2's first slice (FPV: route, search, select, pursue, dive; point-mass flight, rotor sound, battery in the behaviour)
+  - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — AIR-4's first slice (ShelterFromAir) and the vehicle damage-state hook (D-K)
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the armour-combat entry the VEH group lacks: urban tank hide / expose / AT-threat priority
   - DESIGN_Injury_States.md — OWNS the build design of D1's human half (four states + bleed-out, CE-2155)
   - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — OWNS R-273..275 (behaviors): orders to units and echelons (A4 answers T6 in part), the person-carry profile (C, after R-263)

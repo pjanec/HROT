@@ -394,7 +394,7 @@ it (only through utility inputs no shipped decision uses) ⇒ a soldier knows on
 
 | need | ✅ / 🟨 / 🟥 | where |
 |---|---|---|
-| back up | 🟨 `MoveTo` with `ReverseAllowed` reverses only while the point is BEHIND the hull; only `HullDownAttackRun` sets it; no AI reverse rail; no pivot turn | `CarKinematicsSystem.cs:329-335`, `HillAttackTankNodes.cs:493` |
+| back up | 🟥 **no AI vehicle reverses** (CE-2167): `CarKinematicsSystem` asks for it (point behind the hull + `ReverseAllowed`) but `BicycleModel.Integrate` clamps speed to ≥ 0; only manual drive reverses; `MaxSpeedRev` 0 in every preset but Tank; no pivot turn | `CarKinematicsSystem.cs:330-336`, `BicycleModel.cs:34` |
 | aim independently of the hull, keep the gun on a target while hidden | ✅ turret part + `TrackTarget` | `TurretSlew.cs`, `TrackTargetExecutor.cs` |
 | armour by facing, AI weapon effectiveness | ✅ one `ArmorModel` (R-212) | `ArmorModel.cs`, `StandardInputs.cs:398` |
 | know an enemy is dangerous TO ME (an RPG man vs a rifleman) | 🟥 `ThreatDanger.Of` = armed 1 / unarmed 0.3, `self` unused | `ThreatDanger.cs:21-28` |
@@ -402,6 +402,7 @@ it (only through utility inputs no shipped decision uses) ⇒ a soldier knows on
 | one exposure: creep until seen → fire → reverse | 🟨 demo-local `HullDownAttackRun` (hill attack) | `HillAttackTankNodes.cs:592-603` |
 | ⚠ where a round lands | rounds are real flying entities (straight, ≈ 2 s life); a hit from straight above counts as the FRONT; no top face; a vehicle is hit as a 2-D circle at any height; no guidance, lock or min range | `ArmorModel.cs:29-38`, `CombatConstants.cs:80`, `RaycastSolverSystem.cs:157` |
 | hide from a drone | 🟨 a vertical `SightBlocked` already sees slabs / decks / roofs (test-town garage deck, highway-rest overpass fit a vehicle); no EQS test asks; no drone exists | `TerrainWorld.cs:390-412` |
+| a tank's ATTACK order | ⚠ runs the INFANTRY posture tree (`PlatformAttack` → CombatPosture → PeekAndFire) — no vehicle attack behaviour yet (`LandPlatformAttack` designed) | `ClassOrderBehaviors.cs:68-71` |
 | ⚠ weapons and numbers | tanks: main gun + APFSDS only; the RPG `Insurgent` has 1 rocket, no rifle; RPG 300 mm cannot hurt an M1's front (side ≈ 57 of 3000 HP) | `BdcTkbCatalog.cs`, `UrbanCombatTkbCatalog.cs:81-89,214-229` |
 
-*Owner of the next step:* [DESIGN_Urban_Armour_Tactics](designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md) §4 (V1–V7 approved 2026-10-14; round 2 M1–M7, V8 and decisions D-A…D-H open).
+*Owner of the next step:* [DESIGN_Urban_Armour_Tactics](designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md) §4a — four READY-TO-BUILD designs (2026-10-14).
