@@ -737,7 +737,8 @@ namespace Hrot.Map.Definitions.Tkb
                     },
                 };
 
-        /// <summary>⭐ CE-1083 — a doors-off Black Hawk's eight door seats: four a side on the cabin floor's edge, facing out, legs over the sill.</summary>
+        /// <summary>⭐ CE-1083 — a doors-off Black Hawk's eight door seats: four a side on the cabin floor's edge, facing out, legs over the sill;
+        /// ⭐ F4 — then each side's door gunner and door gun (seats 8–11).</summary>
         private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto DoorSeats()
         {
             var dto = new Fdp.Toolkit.Tkb.Domain.CarrierDefDto { Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Open };
@@ -747,6 +748,26 @@ namespace Hrot.Map.Definitions.Tkb
                     {
                         X = x, Y = 1.05f * side, Z = -0.85f, FacingDegrees = 90f * side, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut,
                     });
+            // ⭐ Air Ops slice 6a F4 (DESIGN_Air_Operations §7a; Weapon Systems WS-4, W-I) — a door gun each side, forward of the cabin
+            //   doors: a gunner seat (it starts with a soldier) and a DOOR station operated by it (it starts with an M134), its arc the
+            //   side it faces. Appended after the eight riders (seats 8–11), so a rider's seat index is unchanged; the passenger list is
+            //   12 wide for it (🔒 user, 2026-10-14). A door gunner shot ⇒ his gun falls silent (NeedsGunner, WS-3).
+            foreach (float side in new[] { 1f, -1f })
+            {
+                int gunnerSeat = dto.Seats.Count;
+                dto.Seats.Add(new Fdp.Toolkit.Tkb.Domain.SeatDto
+                {
+                    Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = TkbEntityTypes.Infantry_Rifleman,
+                    X = 3.0f, Y = 0.95f * side, Z = -0.85f, FacingDegrees = 90f * side,
+                });
+                dto.Seats.Add(new Fdp.Toolkit.Tkb.Domain.SeatDto
+                {
+                    Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = Fdp.Toolkit.Tkb.Domain.MountKinds.Door,
+                    OperatedBy = gunnerSeat, NeedsGunner = true, StartWith = TkbEntityTypes.WeaponSystem_M134Minigun,
+                    X = 3.2f, Y = 1.15f * side, Z = -0.2f, FacingDegrees = 90f * side,
+                    TraverseMinDeg = side > 0 ? 20f : -160f, TraverseMaxDeg = side > 0 ? 160f : -20f,
+                });
+            }
             return dto;
         }
 

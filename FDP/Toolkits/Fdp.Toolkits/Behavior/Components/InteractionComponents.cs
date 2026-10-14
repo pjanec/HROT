@@ -13,7 +13,14 @@ namespace Fdp.Toolkit.Behavior.Components
     [ComponentId(GlobalComponentIds.PassengerBuffer)]
     public struct PassengerBuffer
     {
-        public const int Capacity = 8;
+        /// <summary>The most seats a carrier declares — the list's and its wire topic's width. ⭐ F4 (Air Ops §7a, 🔒 user `2026-10-14`:
+        /// "extend the wire capacity … No problem extending" — the list is sent only on change): 12, so the doors-off UH-60 keeps its 8
+        /// riders and gains two door stations and two door gunners. Was 8.</summary>
+        public const int Capacity = 12;
+
+        /// <summary>⭐ F4 — the seats of a buffer whose type declares none (a test or hand-built world): the list's width before F4, so
+        /// widening the list moved no undeclared vehicle's capacity.</summary>
+        public const int UndeclaredSeats = 8;
 
         /// <summary>Inline array of <see cref="Entity"/> handles for passengers.</summary>
         /// <remarks>Handled by <c>PassengerBufferTranslator</c>; excluded from FdpAutoSerializer.</remarks>
@@ -27,14 +34,14 @@ namespace Fdp.Toolkit.Behavior.Components
         /// 2i..2i+1). It lives in the LIST, like the seat, so every node derives the passenger's <see cref="IsEmbarkedTag.Mode"/> from it and
         /// it crosses the wire with the list. ⚠ Not saved with a scenario (genesis boards seated), as the seat is not.</summary>
         [ScenarioIgnore]
-        public ushort Modes;
+        public uint Modes;   // ⭐ F4 — 2 bits × 12 seats (was a ushort for 8)
 
         /// <summary>The mode of seat <paramref name="seat"/>.</summary>
         public readonly CarryMode ModeOf(int seat) => (CarryMode)((Modes >> (2 * seat)) & 0b11);
 
         /// <summary>Sets the mode of seat <paramref name="seat"/>.</summary>
         public void SetMode(int seat, CarryMode mode)
-            => Modes = (ushort)((Modes & ~(0b11 << (2 * seat))) | (((int)mode & 0b11) << (2 * seat)));
+            => Modes = (Modes & ~(0b11u << (2 * seat))) | (((uint)mode & 0b11u) << (2 * seat));
 
         /// <summary>⭐ Team carry T-a (R-2017 T1; docs/DESIGN_Entity_Interactions.md §7.5) — a PERSON carrier's second man: the one at the
         /// rear handle of a stretcher or of a two-man weapon. Null for every other load and for every vehicle. It lives in the LIST, so every
@@ -57,7 +64,7 @@ namespace Fdp.Toolkit.Behavior.Components
     }
 
     /// <summary>
-    /// Inline array of 8 <see cref="Entity"/> slots for <see cref="PassengerBuffer"/>.
+    /// Inline array of <see cref="PassengerBuffer.Capacity"/> <see cref="Entity"/> slots for <see cref="PassengerBuffer"/>.
     /// </summary>
     [InlineArray(PassengerBuffer.Capacity)]
     public struct PassengerSlots
@@ -116,7 +123,7 @@ namespace Fdp.Toolkit.Behavior.Components
         Station = 4,
     }
 
-    /// <summary>Inline array of 8 <see cref="SeatRole"/> values for <see cref="CarrierSeats"/> (one per <see cref="PassengerBuffer"/> slot).</summary>
+    /// <summary>Inline array of <see cref="PassengerBuffer.Capacity"/> <see cref="SeatRole"/> values for <see cref="CarrierSeats"/> (one per <see cref="PassengerBuffer"/> slot).</summary>
     [InlineArray(PassengerBuffer.Capacity)]
     public struct SeatRoleSlots
     {
@@ -142,7 +149,7 @@ namespace Fdp.Toolkit.Behavior.Components
         public SeatRoleSlots Roles;
 
         /// <summary>Seats that ride exposed (bit i = seat i): the type's <c>Exposure</c>, overridden per seat.</summary>
-        public byte ExposedMask;
+        public ushort ExposedMask;   // ⭐ F4 — 12 seats (was a byte)
 
         /// <summary>⭐ <c>CE-2152</c> (R-2011 C9) — 1 when the passengers SURVIVE the carrier's destruction (a person carrying a casualty:
         /// <c>Gen.Carrier.DiesWithCarrier = false</c>); 0, the default, kills them with it (a vehicle).</summary>
@@ -196,7 +203,7 @@ namespace Fdp.Toolkit.Behavior.Components
     public struct CarrierStations
     {
         /// <summary>Bit i = seat i is a station.</summary>
-        public byte StationMask;
+        public ushort StationMask;   // ⭐ F4 — 12 seats (was a byte)
 
         /// <summary>The station data per seat (meaningful where <see cref="StationMask"/> has the bit).</summary>
         [ScenarioIgnore]
@@ -266,7 +273,7 @@ namespace Fdp.Toolkit.Behavior.Components
         public float X, Y, Z, Facing;
     }
 
-    /// <summary>Inline array of 8 <see cref="StationSeat"/> values (one per <see cref="PassengerBuffer"/> slot).</summary>
+    /// <summary>Inline array of <see cref="PassengerBuffer.Capacity"/> <see cref="StationSeat"/> values (one per <see cref="PassengerBuffer"/> slot).</summary>
     [InlineArray(PassengerBuffer.Capacity)]
     public struct StationSeatSlots
     {

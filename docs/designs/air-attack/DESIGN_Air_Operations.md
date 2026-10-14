@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F3 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a); the rest of 3 and 5, the ui half of 1, and the rest of 6 remain
+build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a); the rest of 3 and 5, the ui half of 1, and the rest of 6 remain
 current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), §10 decisions, §11 slices and rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
@@ -485,6 +485,9 @@ sequenceDiagram
 `NedTkbBuilderCombatTests.F1_TheAttackPlane_CarriesTheRackAndAFixedForwardGau8_HeiAndAPenetrator` · `…F2_TheAttackHelicopter_HasAChinMinigunTurret_AndAFixedRocketPod`
 · `…F2_B7_TheAttackHelicopter_FliesARoute_FromItsGear_ToItsGear`. Also: the cone holds the AI's BLIND rounds too (`FireBlind`), and the
 possession HUD names a `Bomb` and `Rocket` mount. The rack stays mount 0 of 405, so `AirAttackProfiles.Pick` (LevelBomb) is unchanged.
+⭐ **F4 as built:** the passenger list is 12 wide ([Entity Interactions §7.4](../../DESIGN_Entity_Interactions.md)); 404's seats 8–11 are
+per side a door gunner (rifleman) and a `Door` station with an M134 operated by him — the DoorGunOrbit profile's two guns; its 8 riders
+are unchanged. Rail `CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree`.
 
 ## 8. The bomb (A3, A4, A6, B6)
 

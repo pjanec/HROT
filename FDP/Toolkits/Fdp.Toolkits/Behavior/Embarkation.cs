@@ -79,12 +79,12 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>
         /// ⭐ <c>CE-2151</c> (R-2009) — how many plain boardings <paramref name="vehicle"/> takes: its type's <see cref="SeatRole.Passenger"/>
         /// seats (<see cref="CarrierSeats"/>, from <c>Gen.Carrier</c>). A buffer with no declared seats (a test or hand-built world) keeps the
-        /// list's full <see cref="PassengerBuffer.Capacity"/>; no buffer = 0.
+        /// list's <see cref="PassengerBuffer.UndeclaredSeats"/>; no buffer = 0.
         /// </summary>
         public static int CapacityOf(EntityRepository repo, Entity vehicle)
         {
             if (!repo.IsAlive(vehicle) || !Has<PassengerBuffer>(repo, vehicle)) return 0;
-            return Has<CarrierSeats>(repo, vehicle) ? repo.GetComponentRO<CarrierSeats>(vehicle).PassengerSeats : PassengerBuffer.Capacity;
+            return Has<CarrierSeats>(repo, vehicle) ? repo.GetComponentRO<CarrierSeats>(vehicle).PassengerSeats : PassengerBuffer.UndeclaredSeats;
         }
 
         /// <summary>Boards <paramref name="passenger"/> onto <paramref name="vehicle"/>: the list, the tag, the stripped capabilities.
@@ -213,7 +213,7 @@ namespace Fdp.Toolkit.Behavior
             int aboard = SlotOf(repo, passenger, vehicle);
             if (aboard >= 0) { Board(repo, passenger, vehicle, aboard); return EmbarkResult.AlreadyAboard; }
             int seats = Has<CarrierSeats>(repo, vehicle) ? System.Math.Min((int)repo.GetComponentRO<CarrierSeats>(vehicle).SeatCount, PassengerBuffer.Capacity)
-                                                         : PassengerBuffer.Capacity;
+                                                         : PassengerBuffer.UndeclaredSeats;
             if (seat < 0 || seat >= seats) return EmbarkResult.Invalid;
             bool station = Has<CarrierStations>(repo, vehicle) && repo.GetComponentRO<CarrierStations>(vehicle).IsStation(seat);
             if (IsWeaponSystem(repo, passenger))
@@ -435,7 +435,7 @@ namespace Fdp.Toolkit.Behavior
         /// ⭐ <c>CE-2151</c> B-b (R-2009 B4: "a Passenger seat takes anyone, a crew seat only its role") — the first free seat of
         /// <paramref name="vehicle"/> whose role is <paramref name="role"/>, else the first free PASSENGER seat, else −1. A plain boarding
         /// (<see cref="SeatRole.Passenger"/>, the default) therefore never takes a crew seat. The declared seats (<see cref="CarrierSeats"/>);
-        /// a list with no declared seats (a hand-built world) has 8 passenger seats.
+        /// a list with no declared seats (a hand-built world) has <see cref="PassengerBuffer.UndeclaredSeats"/> passenger seats.
         /// </summary>
         public static int FreeSeat(EntityRepository repo, Entity vehicle, SeatRole role = SeatRole.Passenger)
         {
@@ -443,7 +443,7 @@ namespace Fdp.Toolkit.Behavior
             ref readonly var buffer = ref repo.GetComponentRO<PassengerBuffer>(vehicle);
             bool declared = Has<CarrierSeats>(repo, vehicle);
             var seats = declared ? repo.GetComponentRO<CarrierSeats>(vehicle) : default;
-            int n = declared ? System.Math.Min((int)seats.SeatCount, PassengerBuffer.Capacity) : PassengerBuffer.Capacity;
+            int n = declared ? System.Math.Min((int)seats.SeatCount, PassengerBuffer.Capacity) : PassengerBuffer.UndeclaredSeats;
             int passengerSeat = -1;
             for (int i = 0; i < n; i++)
             {

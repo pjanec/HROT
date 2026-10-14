@@ -206,13 +206,14 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void CE3110_AFullVehicleRefuses()
         {
             var v = Vehicle(Vector3.Zero);
-            for (int i = 0; i < PassengerBuffer.Capacity; i++) Embarkation.TryEmbark(_world, Soldier(Vector3.Zero), v);
+            // ⭐ F4 — a buffer with no declared seats keeps the old 8 (UndeclaredSeats), not the list's 12
+            for (int i = 0; i < PassengerBuffer.UndeclaredSeats; i++) Embarkation.TryEmbark(_world, Soldier(Vector3.Zero), v);
             var extra = Soldier(Vector3.Zero);
 
             _world.Bus.Publish(new EmbarkEntityCommand { Passenger = extra, Vehicle = v });
             Frame();
 
-            Assert.Equal(PassengerBuffer.Capacity, _world.GetComponent<PassengerBuffer>(v).Count);
+            Assert.Equal(PassengerBuffer.UndeclaredSeats, _world.GetComponent<PassengerBuffer>(v).Count);
             Assert.False(_world.HasComponent<IsEmbarkedTag>(extra));
             Assert.Equal(1, _system.Refused);
         }

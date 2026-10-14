@@ -24,7 +24,7 @@ Scope frozen at the dispatch commit (merged into `backend` in `32264ce64`, behav
 | **F1** | the A-10's GAU-8 (405, mount 1): `Autocannon`, fixed forward, **`WeaponMountDto.FixedConeDeg` = 5°** — the AI's aimed, blind and at-point rounds are held `OutOfArc` outside the cone (3-D, the body's pitch included); HEI loaded (6023) + a penetrator (6024), `AmmoChoice` picks | `19fcb343a` | ✅ |
 | **F2** | the attack helicopter **406** (`Heli_AH64`, DIS 1.2.225.20): Rotorcraft, mount 0 a chin M134 on turret 0 (±110°, −60…+11°), mount 1 the Hydra pod (`Rocket`, fixed forward, 8° cone, 38 rounds) | `19fcb343a` | ✅ |
 | **F3** | **6025 Hydra-70 HE**: unguided `MissileDto` 700 m/s / 6 s, the warhead of the new library entry `70mm rocket HE`; `WeaponCategory.Rocket = 9` (per-shot; a held trigger keeps firing — the ripple) | `19fcb343a` | ✅ |
-| **F4** | the doors-off UH-60's door gunners | — | ⏳ **unblocked by the user** (below) — next commit |
+| **F4** | the passenger list widened to **12** (appended on the wire); 404's seats 8–11 = per side a door gunner (rifleman) + a `Door` station with an M134 operated by him; its 8 riders unchanged | `SHA_F4` | ✅ |
 
 ## F4 — stopped, then unblocked
 
@@ -62,7 +62,11 @@ vignette. Either is an hour of backend work once decided.
 
 ## Wire (R-169)
 
-No wire struct changes. `WeaponCategory.Rocket = 9` is appended; the generated IDL declares the enum but no topic carries it.
+⭐ **F4:** `EntityPassengers` gains **`Passenger8`, `Passenger9`, `Passenger10`, `Passenger11`, `ModesHigh`** — APPENDED after `Assistant`;
+seats 0–7 and `Modes` keep their fields. Published only on change, as before. ⚠ The ECS component `PassengerBuffer` grows (12 slots, a
+`uint Modes`), so a recording made before F4 replays its passenger lists with the old layout.
+
+F1–F3: no wire struct changes. `WeaponCategory.Rocket = 9` is appended; the generated IDL declares the enum but no topic carries it.
 `WeaponMountDto.FixedConeDeg` is a TKB field (built on every node from the catalogue). New TKB types 406, 6023–6025; new library entry.
 
 ## Gates
@@ -75,6 +79,9 @@ No wire struct changes. `WeaponCategory.Rocket = 9` is appended; the generated I
 | toolkits | `dotnet test Fdp.Toolkits.Tests` | 3354 / 0 / 1 skip | +2 | ✅ |
 | simhost | `dotnet test Hrot.SimHost.Tests` | 1357 / **30** / 6 | ⚠ the same 30 order-dependent reds as at the T-a gate (record/replay, `BlueprintStateTranslatorTests`, `ZoneEntityPersistenceTests`); **31 / 0 run alone** | ✅ |
 | tree | `git status` after every suite | clean of test output | — | — |
+| ⭐ **F4** rails | `dotnet test Hrot.SimHost.Tests --filter F4_\|PassengerReplicationTests\|CreateEntityRequestSystemTests\|PassengerBufferTranslatorTests` | 43 / 0 | +2 (`F4_TheTwelfthSeat_AndItsMode_CrossTheWire`, `F4_APlacedDoorsOffBlackHawk_…`) | ✅ |
+| F4 re-pins | `Fdp.Toolkits.Tests` (`CarrierTkbTranslatorTests\|EmbarkationTests\|PersonCarrierTests\|WS_`) · `Hrot.Presentation.Tests` · `Hrot.Core.Tests` | 36 / 0 · 598 / 0 / 12 · 247 / 0 | three rails pinned the old 8, re-pinned on purpose: `MoreThanEightSeats_IsRefused` (now 12 spawn, 13 refused) · `CE3110_AFullVehicleRefuses` (an undeclared buffer keeps 8 — `UndeclaredSeats`) · `Map3DTests.CE1083_…` (the 8 RIDERS sit in the doors; 12 seats) · 404 catalogue rail 8 → 12 seats, 8 riders | ✅ |
+| F4 simhost | `dotnet test Hrot.SimHost.Tests` | 1372 / **17** / 6 | ⚠ the order-dependent set ROTATES (30 · ~45 · 17 across three full runs today); every red class **58 / 0 alone** (record/replay, blueprint state, zones, time sync, egress shadow, descriptor update, scenario load) | ✅ |
 
 ## Ids allocated
 

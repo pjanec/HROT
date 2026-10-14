@@ -255,7 +255,9 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal((30f, 60f, 70f), (flight.HoverHeightM, flight.TurnRadiusM, flight.MaxSpeedMps));
             Assert.Null(t.GetDescriptor<VehicleParametersDto>());                       // not ground physics
             Assert.Equal(3, t.GetDescriptor<BodyGeometryDto>()!.GroundContacts.Count);    // its gear
-            Assert.Equal(8, t.GetDescriptor<CarrierDefDto>()!.Seats.Count);
+            var carrier = t.GetDescriptor<CarrierDefDto>()!;
+            Assert.Equal(12, carrier.Seats.Count);   // ⭐ F4 — 8 riders + 2 door gunners + 2 door stations (the list is 12 wide)
+            Assert.Equal(8, System.Linq.Enumerable.Count(carrier.Seats, s => s.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Passenger));
             Assert.Null(db.GetByType(TkbEntityTypes.Heli_UH60)!.GetDescriptor<FlightParamsDto>());
         }
 

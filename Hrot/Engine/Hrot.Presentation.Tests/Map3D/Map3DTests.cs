@@ -652,8 +652,11 @@ public sealed class Map3DTests
         Assert.True(db.TryGetByType(TkbEntityTypes.Heli_UH60_DoorsOff, out var heli) && heli != null);
         var carrier = heli!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>()!;
         Assert.Equal(Fdp.Toolkit.Behavior.Components.PassengerExposure.Open, carrier.Exposure);
-        Assert.Equal(8, carrier.Seats.Count);
-        Assert.All(carrier.Seats, seat => Assert.True(seat.HasPlace && MathF.Abs(seat.Y) > 1f));
+        // ⭐ F4 (Air Ops §7a) — 12 seats now: the 8 riders in the doors, then two door gunners and two door guns forward of them
+        var riders = carrier.Seats.Where(s => s.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Passenger).ToList();
+        Assert.Equal(8, riders.Count);
+        Assert.All(riders, seat => Assert.True(seat.HasPlace && MathF.Abs(seat.Y) > 1f));
+        Assert.All(carrier.Seats, seat => Assert.True(seat.HasPlace));
         Assert.Null(db.GetByType(TkbEntityTypes.Heli_UH60)!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>());   // the doors-on one is unchanged
 
         var seat = carrier.Seats[0];                                   // the left door, forward

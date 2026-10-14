@@ -805,6 +805,15 @@ the seats (always rewritten — a type fact, never trusted from a save) and the 
 `Embarkation.CapacityOf` = the type's passenger seats (a hand-built buffer with no seats keeps 8), used by `TryEmbark` and the embark
 executor · `BehaviorTkbTranslator` no longer stamps a buffer; `VehicleParametersDto.PassengerExposure` is gone.
 
+⭐ **`2026-10-14` — the list is 12 wide** (Air Ops slice 6a F4; 🔒 user: *"extend the wire capacity to 10 seats or so instead of hacking the
+seats? Isnt the descriptor sent only on change? No problem extending"* — measured: `EntityPassengersEgressTranslator` publishes only on
+change). `PassengerBuffer.Capacity` 8 → **12**; `Modes` `ushort` → `uint` (2 bits × 12); `CarrierSeats.ExposedMask` and
+`CarrierStations.StationMask` `byte` → `ushort`; a buffer with no declared seats keeps **8** (`PassengerBuffer.UndeclaredSeats` — no
+undeclared vehicle's capacity moved); `WeaponSystems.MaxControlled` = Capacity + 1. Wire: `EntityPassengers.Passenger8…11` + `ModesHigh`
+**appended** (R-169), seats 0–7 unchanged. ⚠ A recording made before it carries the 8-wide component. ~~"more than 8 seats throws"~~ —
+now more than 12. Rails: `PassengerReplicationTests.F4_TheTwelfthSeat_AndItsMode_CrossTheWire`,
+`CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_…`.
+
 | carrier data | passenger seats |
 |---|---|
 | BDC `IFV_Bradley` / `Truck_HMMWV` (`NedTkbBuilder.WithCarrier`) | 6 / 3 |

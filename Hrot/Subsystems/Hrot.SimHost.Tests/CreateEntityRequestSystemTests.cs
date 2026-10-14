@@ -137,6 +137,78 @@ namespace Hrot.SimHost.Tests
 
         private const long PresetHost = 9104L, PresetGun = 9600L, PresetMan = 9200L;
 
+        /// <summary>
+        /// ⭐⭐ Air Ops slice 6a F4 (DESIGN_Air_Operations §7a; 🔒 user `2026-10-14` "extend the wire capacity") — a placed doors-off UH-60
+        /// (404, the REAL catalogue) spawns its two door gunners and two M134s into seats 8–11, beyond the old 8-wide list: its 8 rider seats
+        /// stay free for a squad. Boarded, each M134 is controlled by the helicopter and fires while its door gunner is in the fight; a door
+        /// gunner shot ⇒ his gun falls silent (<c>NoGunner</c>), the other still fires. ✅ Red-proof: Capacity 8 ⇒ the translator refuses 12
+        /// seats ⇒ red.
+        /// </summary>
+        [Fact]
+        public void F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree()
+        {
+            var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = Hrot.Map.Common.TkbEntityTypes.Heli_UH60_DoorsOff, DisType = ValidDisType,
+                InitialComponents = new List<object> { new EntityInfo { Name = "H1", ForceId = ForceId.Friend } },
+            });
+            var (system, _, _) = BuildSystem(tkb, source);
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+            Assert.Equal(5, commands.Count);   // the helicopter + 2 door gunners + 2 M134s
+            var seats = commands.Where(c => c.TkbType != Hrot.Map.Common.TkbEntityTypes.Heli_UH60_DoorsOff)
+                .Select(c => (c.TkbType, ((Fdp.Toolkit.Behavior.Components.PresetSeatIntent)c.InitialComponents!.Single(i => i is Fdp.Toolkit.Behavior.Components.PresetSeatIntent)).Seat))
+                .OrderBy(x => x.Seat).ToArray();
+            Assert.Equal(new[] { (Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, (byte)8), (Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M134Minigun, (byte)9),
+                                 (Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, (byte)10), (Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M134Minigun, (byte)11) }, seats);
+
+            // boarded by SeatPresetSystem on the real types
+            using var w = new EntityRepository();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            var placed = new List<(Entity, byte)>();
+            foreach (var (type, seat) in seats)
+            {
+                var e = w.CreateEntity();
+                if (type == Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M134Minigun)
+                    new Fdp.Toolkit.Combat.WeaponSystemTkbTranslator().Inject(w, e, tkb.GetByType(type));
+                else w.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100, Max = 100 });
+                w.AddComponent(e, new Fdp.Toolkit.Behavior.Components.PresetSeatIntent { HostNetworkId = 700, Seat = seat });
+                placed.Add((e, seat));
+            }
+            var heli = w.CreateEntity();
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(w, heli, tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Heli_UH60_DoorsOff));
+            map.Register(700, heli);
+            new Hrot.Common.EntityCreation.SeatPresetSystem(map).Execute(w, 0f);
+
+            var list = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(heli);
+            foreach (var (e, seat) in placed) Assert.Equal(e, list.Passengers[seat]);
+            Assert.Equal(8, Fdp.Toolkit.Behavior.Embarkation.CapacityOf(w, heli));        // the riders' seats
+            Assert.Equal(0, Fdp.Toolkit.Behavior.Embarkation.FreeSeat(w, heli));          // … all still free
+            var (leftGunner, leftGun, rightGun) = (placed[0].Item1, placed[1].Item1, placed[3].Item1);
+            Assert.Equal(heli, Fdp.Toolkit.Combat.WeaponSystems.ControllerOf(w, leftGun));
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, leftGun));
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, rightGun));
+
+            w.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(leftGunner).Current = 0f;   // the left door gunner is shot
+            Assert.False(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, leftGun, out var why));
+            Assert.Equal(Fdp.Toolkit.Combat.WeaponHold.NoGunner, why);
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, rightGun));
+        }
+
         /// <summary>A technical's TKB: a host with a driver seat, a gunner seat starting with a rifleman and a pintle station starting
         /// with an M2; the M2 and the rifleman.</summary>
         private static TkbDatabase PresetTkb()
