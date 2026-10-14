@@ -29,8 +29,8 @@ Scope frozen at `4b9c5495c`. Branch **`backend`**. Every item's as-built (and ev
 | B7 | M4 guided rounds + D-L firing on the move | `9a6d52704` | Missiles §4a | ✅ |
 | B8 | M5 / M6 data | `39e6acd12` (+ the hull-size fix in the B10 commit) | Missiles §5a, Hit Model §6 | ✅ — ⚠ it broke the hill attack until the hull fix (below) |
 | B9 | M9 technicals | `9e44ff4a5` | Exposure Cycle §6 | ✅ |
-| B10 | CE-2168 motion domains v1 | SHA_B10 | Motion Domains §5 | ✅ except the `MuscleAir` ownership role — ❓ **CE-3199, a decision** |
-| B11 | M7 the drone's Muscle half | SHA_B10 (same commit) | FPV §6 | ✅ Muscle half; cross-node motion waits on CE-3199 |
+| B10 | CE-2168 motion domains v1 | `4e4cd78b3` | Motion Domains §5 | ✅ except the `MuscleAir` ownership role — ❓ **CE-3199, a decision** |
+| B11 | M7 the drone's Muscle half | `4e4cd78b3` (same commit) | FPV §6 | ✅ Muscle half; cross-node motion waits on CE-3199 |
 
 ## Gates — the final run, on the B10/B11 commit (B1–B9 each gated at their own commit, rows in the item sessions)
 
