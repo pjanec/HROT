@@ -4,7 +4,7 @@ updated: 2026-10-14
 build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (D-D, D-I, D-L)
 current-answer: §2 ammo loadout (M8), §3 missiles (M4), §4 fire on the move (D-L), §5 data (M5), §6 who runs it, §7 rails — §1 is the measured ground.
 stale-below: nothing.
-known-rot: none.
+known-rot: §4a — the guided-flight hold reads the mount's muzzle speed, not SpeedMps (CE-2170, open).
 known-conflict: none.
 related-designs:
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the PROGRAMME (items M4, M5, M8; decisions D-D, D-I, D-L)
@@ -263,6 +263,7 @@ The design carries **8 classes** and **1 sequence** for M4 + D-L; all are built.
 | `FireOnMove` per mount | ✅ `WeaponMountDto.FireOnMove : bool?` + `CombatTkb.FiresOnTheMove` (null ⇒ Atgm / Mortar stand, the rest fire) and `HitModel.IsMoving` — the ONE moving test the spread already used | — |
 | the turret path gains the aim-time lock | ✅ only for a mount that DECLARES `AimSeconds`; the lock rides the aim clock (`Ready` = locked), which after the lock carries the guided-flight hold as before | the 32-byte channel state is full; every turret mount without an aim time is unchanged |
 | `MaxFlightSeconds` / `SpeedMps` | ✅ `BallisticsSystem` reads `GuidedRound.LifetimeTicks`; `FireProcessingSystem` flies a missile at `SpeedMps` (an unguided missile gets speed + lifetime only) | — |
+| ⚠ found `2026-10-14` (CE-2170, OPEN) | the launcher's flight HOLD (`GuidedFlightSeconds`) still estimates with the mount's generated muzzle speed (range × 0.5), not `SpeedMps` ⇒ a TOW's `Guiding` ends ~5× early | the spawn and the hold read two different speeds |
 
 Wiring: `GuidedRoundSystem` in `CombatModule.PostSimulationSystems` before `BallisticsSystem` (SimHost and the editor's Muscle);
 `GuidedRound` registered in `CombatComponentRegistry`. No wire change (§3's rule holds). Rails: `GuidedRoundSystemTests.M4_ACommandRound_…`,
