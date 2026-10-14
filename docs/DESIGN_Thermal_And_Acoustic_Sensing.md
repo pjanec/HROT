@@ -9,6 +9,7 @@ known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
 related-designs:
+  - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — adds a rotor sound class so a vehicle can hear an FPV drone (M7)
   - DESIGN_World_Query_Seam.md — hearing through walls and around corners (WQ-E): a loudness model reading the TKB ranges
     as threshold distances, then Building Interiors' B-6 behind IWorldQuery.Trace(Sound).
   - docs/blueprints/Architect_Question_85_Hit_Chance.md — OWNS hit chance; proposes that a near miss (§6 G) spoils the target's aim (suppression).

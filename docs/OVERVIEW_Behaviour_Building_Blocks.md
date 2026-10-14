@@ -400,6 +400,8 @@ it (only through utility inputs no shipped decision uses) ⇒ a soldier knows on
 | know an enemy is dangerous TO ME (an RPG man vs a rifleman) | 🟥 `ThreatDanger.Of` = armed 1 / unarmed 0.3, `self` unused | `ThreatDanger.cs:21-28` |
 | a hide point / firing point for a hull | 🟥 cover points sit 0.75 m off walls (man-sized), exposure tested at the soldier eye | `TerrainCoverProvider.cs:22-23,70` |
 | one exposure: creep until seen → fire → reverse | 🟨 demo-local `HullDownAttackRun` (hill attack) | `HillAttackTankNodes.cs:592-603` |
+| ⚠ where a round lands | rounds are real flying entities (straight, ≈ 2 s life); a hit from straight above counts as the FRONT; no top face; a vehicle is hit as a 2-D circle at any height; no guidance, lock or min range | `ArmorModel.cs:29-38`, `CombatConstants.cs:80`, `RaycastSolverSystem.cs:157` |
+| hide from a drone | 🟨 a vertical `SightBlocked` already sees slabs / decks / roofs (test-town garage deck, highway-rest overpass fit a vehicle); no EQS test asks; no drone exists | `TerrainWorld.cs:390-412` |
 | ⚠ weapons and numbers | tanks: main gun + APFSDS only; the RPG `Insurgent` has 1 rocket, no rifle; RPG 300 mm cannot hurt an M1's front (side ≈ 57 of 3000 HP) | `BdcTkbCatalog.cs`, `UrbanCombatTkbCatalog.cs:81-89,214-229` |
 
-*Owner of the next step:* [DESIGN_Urban_Armour_Tactics](designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md) §3 (V1–V7, not yet approved).
+*Owner of the next step:* [DESIGN_Urban_Armour_Tactics](designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md) §4 (V1–V7 approved 2026-10-14; round 2 M1–M7, V8 and decisions D-A…D-H open).
