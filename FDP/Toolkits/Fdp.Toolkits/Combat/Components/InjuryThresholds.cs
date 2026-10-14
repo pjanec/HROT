@@ -20,5 +20,8 @@ namespace Fdp.Toolkit.Combat.Components
 
         /// <summary>Health FRACTION lost per second while incapacitated (<c>IncapacitatedBelow / BleedOutSeconds</c>); 0 = no bleed-out.</summary>
         public float BleedPerSecond;
+
+        /// <summary>⭐ CE-1082 (slice I-b) — a wounded person's top speed as a share of his healthy one; 0 (unset) = not slowed.</summary>
+        public float WoundedSpeedFactor;
     }
 }

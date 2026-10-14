@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.Combat.Translators
             WoundedBelow = dto.WoundedBelow,
             IncapacitatedBelow = dto.IncapacitatedBelow,
             BleedPerSecond = dto.BleedOutSeconds > 0f ? dto.IncapacitatedBelow / dto.BleedOutSeconds : 0f,
+            WoundedSpeedFactor = dto.WoundedSpeedFactor,   // ⭐ CE-1082
         };
     }
 }

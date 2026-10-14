@@ -136,6 +136,35 @@ public sealed class Map3DPickingTests
             "the drag point is the terrain behind the tank's top, not the tank's own position");
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-1080 (docs/DESIGN_Entity_Control.md §8e D-4) — the first-person crosshair sees UNITS (it picked terrain only, so a tank under
+    /// it was aimed at the ground behind), never the operator's OWN body (the eye sits inside its box, and a ray from inside meets the
+    /// box on the way out — nearer than anything), and its aim point is where the ray meets the unit's box, not the unit's feet.
+    /// </summary>
+    [Fact]
+    public void CE1080_TheFirstPersonCrosshair_SeesTheUnit_NeverTheOwnBody_AndAimsAtTheBoxHit()
+    {
+        var (_, world, q) = Town();
+        var tkb = Map3DTests.BuiltIn();
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var at = new Vector3(10f, 20f, q.GroundHeightAt(10f, 20f));
+        Tank(world, at, 77);
+        var cam = new MapCamera3D { ViewportOverride = Viewport, LookAt = at + new Vector3(0f, 0f, 1.2f), Distance = 40f, Pitch = -0.05f, Yaw = 1.0f };
+        cam.Pickers.Add(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world)));
+        cam.Pickers.Add(new EntityBoxPicker(() => world, () => tkb, bodies));
+        var own = Tank(world, cam.Eye - new Vector3(0f, 0f, 1.5f), 5);   // the operator's tank: the eye is inside its hull box
+
+        bodies.FirstPerson = own;
+        var (point, target) = FpsCameraDriver.Aim(cam);
+        Assert.Equal(77L, target);
+        Assert.True(point.Z > at.Z + 0.3f, $"aimed at {point}: on the hull, not at the feet {at}");
+        Assert.True(Vector3.Distance(point, at) < 5f, $"aimed at {point}, the tank is at {at}");
+
+        bodies.FirstPerson = Entity.Null;                                   // what the skip prevents: the own hull wins the pick
+        cam.Yaw += 1e-4f;                                                   // (a new pose: the pick is cached per pose)
+        Assert.Equal(5L, FpsCameraDriver.Aim(cam).Target);
+    }
+
     [Fact]
     public void S2_TheGizmoProxy_CarriesTheHeight_IntoTheInteractionEvents()
     {

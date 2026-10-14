@@ -70,5 +70,30 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>Overrides the type's <see cref="CarrierDefDto.Exposure"/> for this seat (a gunner's open hatch); null = the type's.</summary>
         public bool? Exposed { get; init; }
+
+        /// <summary>⭐ CE-1083 (docs/DESIGN_Map_3D_Mode.md §6m C-3) — where the rider SITS (his hips), metres from the vehicle's reference
+        /// point in its own frame (x forward, y left, z up; an aircraft's is its CG). Read only by the 3-D map: an exposed rider is drawn
+        /// there. All zero = no place (he is drawn at the reference point, as before).</summary>
+        public float X { get; init; }
+        public float Y { get; init; }
+        public float Z { get; init; }
+
+        /// <summary>⭐ CE-1083 — which way the rider faces, degrees counter-clockwise from the vehicle's forward (90 = out of a left door).</summary>
+        public float FacingDegrees { get; init; }
+
+        /// <summary>⭐ CE-1083 — how he sits there.</summary>
+        public SeatPose Pose { get; init; }
+
+        /// <summary>True when the seat declares a place.</summary>
+        public bool HasPlace => X != 0f || Y != 0f || Z != 0f;
+    }
+
+    /// <summary>⭐ CE-1083 — how a rider sits in a seat (the 3-D map's figure).</summary>
+    public enum SeatPose : byte
+    {
+        /// <summary>On a bench, knees bent, feet on the floor.</summary>
+        Sit = 0,
+        /// <summary>On a sill or a floor edge, legs hanging out over it (a helicopter's open door).</summary>
+        SitLegsOut = 1,
     }
 }

@@ -134,6 +134,7 @@ namespace Hrot.Map.Common.Replication.Interactions
                 {
                     StationNodeId = e.StationNodeId, Seq = e.Seq, Forward = e.Forward, Lateral = e.Lateral, Steer = e.Steer, Yaw = e.Yaw,
                     Gait = e.Gait, Trigger = e.Trigger, Mount = e.Mount, AimX = e.AimPoint.X, AimY = e.AimPoint.Y, AimZ = e.AimPoint.Z, Vertical = e.Vertical, Stance = e.Stance,
+                    ShotSeq = e.ShotSeq, CancelSeq = e.CancelSeq, AmmoSeq = e.AmmoSeq, ShotTarget = e.ShotTarget,
                 },
             },
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new OperatorControlFrameEvent
@@ -142,7 +143,8 @@ namespace Hrot.Map.Common.Replication.Interactions
                 Forward = p.ControlFrame.Forward, Lateral = p.ControlFrame.Lateral, Steer = p.ControlFrame.Steer, Yaw = p.ControlFrame.Yaw,
                 Gait = p.ControlFrame.Gait, Trigger = p.ControlFrame.Trigger, Mount = p.ControlFrame.Mount, Vertical = p.ControlFrame.Vertical,
                 AimPoint = new System.Numerics.Vector3(p.ControlFrame.AimX, p.ControlFrame.AimY, p.ControlFrame.AimZ), Stance = p.ControlFrame.Stance,
-                IsRemote = true,
+                ShotSeq = p.ControlFrame.ShotSeq, CancelSeq = p.ControlFrame.CancelSeq, AmmoSeq = p.ControlFrame.AmmoSeq,
+                ShotTarget = p.ControlFrame.ShotTarget, IsRemote = true,
             });
 
         /// <summary>⭐ CE-3110 I-2a (R-224, 📄 docs/DESIGN_Entity_Interactions.md §7) — a passenger boards; the VEHICLE's owner applies it.</summary>

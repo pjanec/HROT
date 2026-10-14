@@ -133,5 +133,37 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(1100f / 2500f, AmmoChoice.ValueOf(_w, M8Rounds.Apfsds, M8Rounds.TankGun(), shooter, tank), 3);
             Assert.Equal(0f, AmmoChoice.ValueOf(_w, M8Rounds.Heat, M8Rounds.TankGun(), shooter, tank), 3);
         }
+
+        /// <summary>
+        /// ⭐ CE-1079 (docs/DESIGN_Entity_Control.md §8e D-2/D-3) — the operator's <c>F</c>: the breech moves to the next type that has
+        /// rounds (an empty one is skipped, it wraps), at the cost of one reload, and forgets the AI's choice; a one-type mount or a
+        /// mount with no loadout does not switch.
+        /// </summary>
+        [Fact]
+        public void CE1079_Cycle_MovesToTheNextTypeWithRounds_SkipsAnEmptyOne_AndCostsOneReload()
+        {
+            using var w = new EntityRepository();
+            w.RegisterComponent<AmmoLoadout>();
+            var gun = w.CreateEntity();
+            var someone = w.CreateEntity();
+            w.AddComponent(gun, new AmmoLoadout { Count = 3, Ammo0 = M8Rounds.Apfsds, Rounds0 = 5, Ammo1 = M8Rounds.Heat, Rounds1 = 0,
+                                                  Ammo2 = M8Rounds.He, Rounds2 = 4, Loaded = 0, ChosenFor = someone });
+
+            Assert.True(AmmoChoice.Cycle(w, gun, 1, reloadSeconds: 6f));
+            var load = w.GetComponentRO<AmmoLoadout>(gun);
+            Assert.Equal(2, load.Loaded);                 // HEAT has none: skipped to HE
+            Assert.Equal(6f, load.SwitchRemaining, 3);    // one reload
+            Assert.True(load.ChosenFor.IsNull);           // an AI that takes over chooses afresh
+            Assert.True(AmmoChoice.Switching(w, gun));
+
+            Assert.True(AmmoChoice.Cycle(w, gun, 1, reloadSeconds: 6f));
+            Assert.Equal(0, w.GetComponentRO<AmmoLoadout>(gun).Loaded);   // wraps to APFSDS
+            Assert.False(AmmoChoice.Cycle(w, gun, 2, reloadSeconds: 6f));  // two steps round a two-type ring: back where it was
+
+            var rifle = w.CreateEntity();
+            Assert.False(AmmoChoice.Cycle(w, rifle, 1, 2f));               // no loadout
+            w.AddComponent(rifle, new AmmoLoadout { Count = 1, Ammo0 = M8Rounds.Apfsds, Rounds0 = 9 });
+            Assert.False(AmmoChoice.Cycle(w, rifle, 1, 2f));               // one type
+        }
     }
 }

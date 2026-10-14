@@ -639,6 +639,164 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐⭐ CE-1081 … CE-1084 (docs/DESIGN_Map_3D_Mode.md §6m) — the (V) acceptance, a real frame: a soldier CARRYING a casualty across his
+    /// shoulders and one DRAGGING another on his back (both walking east, the casualties placed as the sim places them), a WOUNDED soldier
+    /// limping, one DOWN on his back, and a doors-off Black Hawk hovering 2 m up with riders in both doors, legs out — then one of them
+    /// leaves his seat and is caught mid-jump. Screenshots: <c>held-1-carried-dragged.png</c>, <c>held-2-wounded-down.png</c>,
+    /// <c>held-3-doors-off.png</c>, <c>held-4-jump.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1081_V_TheCarried_TheDragged_TheWounded_TheDown_AndRidersInTheDoors()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        double now = 1.0;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        Entity Person(float dx, float dy, float health = 100f)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // all face +x
+            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture());
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f, WoundedSpeedFactor = 0.6f });
+            return e;
+        }
+        void Hold(Entity carrier, Entity casualty, Fdp.Toolkit.Behavior.Components.CarryMode mode)
+        {
+            world.AddComponent(carrier, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f, DragBehindMetres = 1f });
+            var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1 };
+            list.SetMode(0, mode);
+            world.AddComponent(carrier, list);
+            world.AddComponent(casualty, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = carrier, Exposed = 1, Mode = mode });
+        }
+        var bearer = Person(0f, 3f);
+        var carried = Person(0f, 3f, health: 20f);
+        Hold(bearer, carried, Fdp.Toolkit.Behavior.Components.CarryMode.Carried);
+        var puller = Person(0f, 0f);
+        var dragged = Person(-1f, 0f, health: 20f);
+        Hold(puller, dragged, Fdp.Toolkit.Behavior.Components.CarryMode.Dragged);
+        var limper = Person(-1f, -3f, health: 50f);
+        Person(1.5f, -6f, health: 20f);   // down
+
+        // the sim's EmbarkedStateSystem places the casualties: carried at the carrier, dragged 1 m behind him
+        void Walk(Entity e, float speed, double dt)
+        {
+            var tf = world.GetComponent<SimTransform>(e);
+            tf.Position += new Vector3(speed * (float)dt, 0f, 0f);
+            tf.Position = tf.Position with { Z = G(tf.Position.X, tf.Position.Y) };
+            world.SetComponent(e, tf);
+        }
+        void Follow(Entity casualty, Entity carrier, float behind)
+        {
+            var c = world.GetComponent<SimTransform>(carrier);
+            world.SetComponent(casualty, new SimTransform { Position = c.Position - new Vector3(behind, 0f, 0f), Rotation = c.Rotation });
+        }
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        // front three-quarter, from the south-east: the carried man across the shoulders, the dragged one on his back behind his puller
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 0.5f, spot.Y + 1.0f, G(spot.X, spot.Y) + 1.0f), 9f, MathF.PI * 0.78f, -0.18f);
+        for (int i = 0; i < 9; i++)
+        {
+            now += 1.0 / 30.0;
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+            Walk(bearer, 1.5f, 1.0 / 30.0); Follow(carried, bearer, 0f);
+            Walk(puller, 1.0f, 1.0 / 30.0); Follow(dragged, puller, 1f);
+            Walk(limper, 0.8f, 1.0 / 30.0);
+            frame.Step(canvas.Draw);
+        }
+        frame.Screenshot(Path.Combine(shots, "held-1-carried-dragged.png"));
+        Assert.Equal(6, bodies.BodiesDrawn);
+        Assert.Equal(CarriageKind.Carried, Carriage.Of(world, carried, tkb).Kind);
+
+        // close and side-on from the north (the carrier walks east, left to right): the casualty across his shoulders
+        var bearerAt = world.GetComponent<SimTransform>(bearer).Position;
+        sw.Camera3D.Pose = new CameraPose(bearerAt + new Vector3(0f, 0f, 1.2f), 4.2f, -MathF.PI * 0.42f, -0.12f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "held-1b-carried-close.png"));
+
+        // side-on from the south, low: the limp (bent, short steps) and the man down
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 0.5f, spot.Y - 4.5f, G(spot.X, spot.Y) + 0.7f), 7f, MathF.PI * 0.5f, -0.10f);
+        for (int i = 0; i < 4; i++)
+        {
+            now += 1.0 / 30.0;
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+            Walk(limper, 0.8f, 1.0 / 30.0);
+            frame.Step(canvas.Draw);
+        }
+        frame.Screenshot(Path.Combine(shots, "held-2-wounded-down.png"));
+
+        // ⭐ CE-1083 — a doors-off Black Hawk hovering 2 m above the ground 25 m north, three riders in each door, legs out
+        float hx = spot.X + 5f, hy = spot.Y + 25f;
+        var heli = world.CreateEntity();
+        world.AddComponent(heli, new SimTransform { Position = new Vector3(hx, hy, G(hx, hy) + 1.75f + 2f), Rotation = Quaternion.Identity });
+        world.AddComponent(heli, new TkbIdentity { TkbType = TkbEntityTypes.Heli_UH60_DoorsOff });
+        var riders = new List<Entity>();
+        foreach (byte seat in new byte[] { 0, 1, 2, 4, 5, 6 })
+        {
+            var r = Person(5f, 25f);
+            world.SetComponent(r, world.GetComponent<SimTransform>(heli));   // the sim keeps a rider at the vehicle's reference point
+            world.AddComponent(r, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = heli, Exposed = 1, Seat = seat });
+            riders.Add(r);
+        }
+        sw.Camera3D.Pose = new CameraPose(new Vector3(hx + 0.5f, hy, G(hx, hy) + 3f), 16f, MathF.PI * 0.70f, -0.12f);
+        for (int i = 0; i < 3; i++)
+        {
+            now += 1.0 / 30.0;
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+            frame.Step(canvas.Draw);
+        }
+        frame.Screenshot(Path.Combine(shots, "held-3-doors-off.png"));
+        Assert.All(riders, r => Assert.Equal(CarriageKind.Seated, Carriage.Of(world, r, tkb).Kind));
+
+        // ⭐ CE-1084 — the forward left rider leaves his seat: the sim puts him beside the hovering helicopter, on the ground; he is
+        //   drawn falling from the door
+        var jumper = riders[0];
+        world.RemoveComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(jumper);
+        world.SetComponent(jumper, new SimTransform { Position = new Vector3(hx + 2.4f, hy + 3.5f, G(hx + 2.4f, hy + 3.5f)), Rotation = Quaternion.Identity });
+        // from the north (the left door's side), on the jumper: mid-air below the door
+        sw.Camera3D.Pose = new CameraPose(new Vector3(hx + 2.4f, hy + 3.5f, G(hx, hy) + 1.8f), 9f, -MathF.PI * 0.40f, -0.05f);
+        now += 1.0 / 30.0;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+        frame.Step(canvas.Draw);
+        now += 0.20;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "held-4-jump.png"));
+        Assert.Equal(1, bodies.JumpsDrawn);
+    }
+
+    /// <summary>
     /// ⭐ LR-3 (docs/DESIGN_Visual_Effects.md §8.5, R-271) — what a DUMB VIEWER draws: no combat state at all (BallisticProjectile is not
     /// even registered), only replicated rounds — <c>LightweightRound</c> + the munition type + position + velocity, as the
     /// EntityMaster / WorldPos ingress leaves them. The built-in types: a 5.56 tracer burst, a 120 mm APFSDS-T, an RPG-7 and a TOW with
