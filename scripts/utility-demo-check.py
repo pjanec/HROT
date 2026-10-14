@@ -1179,6 +1179,69 @@ def run_squad_march_loose(c, timeout):
     c.ok(end, "③ … and the file closes up behind it (every man within 35 m)")
 
 
+def run_squad_bound_open_ground(c, timeout):
+    """⭐ CE-2161 (Squad Tactics §7.7.7 D3; CE-3081 OpenGround) — a squad marching with OpenGround on leaves Shed Row's cover for the
+    ~100 m open field to (175, 60): the commander's route sensor lists the field as OpenGround, the crossing choice picks BOUND, the
+    squad crosses by bounding overwatch (one half moves, the other watches) and ends beyond the field's far side, then marches on."""
+    ids = ids_by_name()
+    sq = ids.get("Squad")
+    names = ["Leader"] + [f"Rifleman {i}" for i in range(1, 7)]
+    members = [ids.get(n) for n in names]
+    if not c.ok(sq and None not in members, "the squad and its seven men are loaded"):
+        return
+    call("POST", "/trace/observe", {"networkId": sq, "on": True})
+    ammo0 = {m: ammo(m)[0] for m in members}
+    call("POST", "/sim/play", {})
+    s = wait_for(lambda: (x := danger_sensor(sq)) and any(a.get("kind") == "OpenGround" for a in areas_of(x)) and x, 30)
+    if not c.ok(s is not None, "① the commander's route sensor lists the open field ahead (kind OpenGround)"):
+        return
+    area = next(a for a in areas_of(s) if a.get("kind") == "OpenGround")
+    print(f"    area: {area}; sensor kinds: {(s.get('settings') or {}).get('kinds')}")
+    c.ok(area["distanceAlongRoute"] > 0, f"   … ahead of the squad, which starts in cover ({area['distanceAlongRoute']:.1f} m along)")
+    started = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") == "BoundingOverwatch" and x.get("active", True) and x, 60)
+    if not c.ok(started is not None, "② the crossing choice picks BOUND (maneuver kindName BoundingOverwatch)"):
+        return
+    near, far = area["nearHandle"], area["farHandle"]
+    dx, dy = far[0] - near[0], far[1] - near[1]
+    L = (dx * dx + dy * dy) ** 0.5 or 1.0
+    def along(p):
+        return ((p[0] - near[0]) * dx + (p[1] - near[1]) * dy) / L
+    t0 = sim_time() or 0
+    last_pos, last_t, overlap, longest = {}, None, 0.0, 0.0
+    history = {}
+    while (sim_time() or 0) < t0 + 240:
+        t = sim_time() or 0
+        m = maneuver(sq) or {}
+        if m.get("kindName") != "BoundingOverwatch" or not m.get("active", True):
+            break
+        for h in m.get("history", []):
+            history.setdefault((h.get("t"), h.get("phase")), h)
+        roles = {x.get("networkId"): x.get("role") for x in m.get("members", [])}
+        moving = {}
+        for nid in members:
+            p = position(nid)
+            if p and nid in last_pos and last_t is not None and t > last_t:
+                moving[nid] = flat(p, last_pos[nid]) / (t - last_t) > 0.5
+            if p: last_pos[nid] = p
+        groups = {}
+        for nid in members: groups.setdefault(roles.get(nid), []).append(nid)
+        both = len(groups) >= 2 and sum(1 for g in groups.values() if any(moving.get(n) for n in g)) >= 2
+        overlap = overlap + (t - last_t) if (both and last_t is not None) else 0.0
+        longest = max(longest, overlap)
+        last_t = t
+        time.sleep(0.5)
+    t_end = sim_time() or 0
+    hs = sorted(history.values(), key=lambda h: h.get("t") or 0)
+    print(f"    bound history: {[(h.get('t'), h.get('phaseName'), h.get('event')) for h in hs]}")
+    time.sleep(1.5)   # the replicated positions this node reads lag the commander's by a moment
+    beyond = [names[members.index(n)] for n in members if (p := position(n)) and along(p) >= L - 2.0]
+    print(f"    after {t_end - t0:.0f} s: past the far side {beyond}")
+    c.ok(t_end - t0 < 240, f"③ the bound ends ({t_end - t0:.0f} s)")
+    c.ok(longest <= 1.5, f"④ one half moves, the other watches (both halves moving at most {longest:.1f} s at a time)")
+    c.ok(len(beyond) >= len(members) - 1, f"⑤ the squad ends beyond the field's far side ({len(beyond)} of {len(members)})")
+    c.ok(all((ammo(n)[0] or 0) >= (ammo0[n] or 0) for n in members), "⑥ watching, not shooting: nobody's ammo dropped")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
@@ -1201,7 +1264,9 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2159 X-d — the squad danger crossing (Squad Tactics §7.8.4)
              "ua-squad-danger-crossing": run_squad_danger_crossing,
              "ua-squad-danger-crossing-contact": run_squad_danger_crossing_contact,
-             "ua-squad-march-loose": run_squad_march_loose}
+             "ua-squad-march-loose": run_squad_march_loose,
+             # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
+             "ua-squad-bound-open-ground": run_squad_bound_open_ground}
 
 
 def main():

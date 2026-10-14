@@ -1,0 +1,300 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "a2161f00-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          86,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8160
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SquadMarch",
+        "Params": "{\"Objective\": [175, 60, 0], \"Shape\": 0, \"Spacing\": 4, \"DangerAreas\": true, \"OpenGround\": true}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2161f00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          86,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8161
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2161f00-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a2161f00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          80,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8162
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2161f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2161f00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          74,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8163
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2161f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2161f00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          68,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8164
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2161f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2161f00-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          62,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8165
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2161f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2161f00-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          56,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8166
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 5",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2161f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2161f00-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          50,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8167
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 6",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2161f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    }
+  }
+}
