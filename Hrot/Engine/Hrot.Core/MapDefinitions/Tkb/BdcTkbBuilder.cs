@@ -155,7 +155,7 @@ namespace Hrot.Map.Definitions.Tkb
                 MaxSpeedRev = physicsDef.MaxSpeedRev,
                 MaxAccel    = physicsDef.Acceleration,
                 TurnRate    = physicsDef.TurnRate,
-                VehicleClass = MapMobility(physicsDef.Mobility),
+                VehicleClass = physicsDef.Preset ?? MapMobility(physicsDef.Mobility),   // ⭐ M9 — a stated preset wins
             });
             // Height stays out of VehicleParametersDto on purpose -- nothing on the
             // kinematics path consumes it (VehicleParams has no height field,
@@ -317,6 +317,16 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
             template.AddDescriptor(new TurretSuiteDto { Turrets = new List<TurretDto>(turrets ?? Array.Empty<TurretDto>()) });
+            return this;
+        }
+
+        /// <summary>⭐ M9 — what the type gives off to sensors (<c>CE-2106</c>: the sound it makes moving and firing).</summary>
+        public NedTkbBuilder WithSignatures(long tkbId, SignaturesDto signatures)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(signatures ?? throw new ArgumentNullException(nameof(signatures)));
             return this;
         }
 

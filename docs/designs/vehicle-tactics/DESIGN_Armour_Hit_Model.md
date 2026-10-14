@@ -249,3 +249,8 @@ Rails (§5) — all built, red-proved by breaking the mechanism: `ArmorModelTest
 
 ⚠ **Blast radius:** every vehicle hit (the height band) and every fragment burst above a vehicle (the top face). Demos to re-check:
 `ua-weapon-choice`, `hill-attack`, `tt-convoy-ambush`.
+
+**M6 data (backend, handoff B8):** ✅ every combat vehicle in the built-in catalogues STATES its health (each equal to the old front × 5, so
+no fight moves on it) and its roof and shaped-charge columns — M1, T-72, Bradley (`NedTkbCatalog`) and the `MilitaryAPC` (now armoured
+30 / 20 / 15 / top 10 against rifles). The front × 5 fallback stays only for a type that states none. The numbers and the argument:
+[Missiles §5a](DESIGN_Missiles_And_Ammo.md).

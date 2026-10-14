@@ -30,6 +30,39 @@ namespace Hrot.Map.Definitions.Tkb
             AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer, TracerEvery = 5,
         };
 
+        /// <summary>⭐ M9 (Exposure Cycle §6) — a technical: the pickup, its pintle <paramref name="turret"/> and <paramref name="weapon"/>.</summary>
+        private static void Technical(NedTkbBuilder builder, long type, string name, string icon, TurretDto turret, WeaponMount weapon)
+        {
+            builder
+                .DefineVehicle(type, name)
+                .WithVisual(type, v => { v.IconName = icon; v.SymbolCode = "SHGPUCV--------"; v.ModelPath = "models/technical.obj"; v.ColorHex = "#C8C2B0"; v.Scale = 0.9f; })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 2_100; p.Length = 5.3f; p.Width = 1.9f; p.Height = 1.9f;
+                    p.MaxSpeed = 25f; p.MaxSpeedRev = 6f; p.Acceleration = 3.5f; p.TurnRate = 35f;
+                    p.Mobility = TerrainMobility.Wheeled;
+                    p.Preset = CarKinem.Core.VehicleClass.PersonalCar;   // drives like a car, not the Wheeled ⇒ Truck preset
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 5; c.ArmorSide = 5; c.ArmorRear = 5; c.ArmorTop = 3;
+                    c.MaxHealth = 300;
+                    c.MobilityKillBelowFraction = 0.6f;
+                    c.EyeHeight = 2.2f;   // standing in the bed
+                    c.SensorRange = 2000;
+                    c.Weapons.Add(weapon);
+                })
+                .WithTurrets(type, turret)
+                .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto
+                {
+                    MovingAudibleRange = 100f, MovingClass = SoundSourceClass.WheeledEngine,
+                    FiringAudibleRange = 1000f, FiringClass = SoundSourceClass.HeavyWeapon,
+                } })
+                .WithFaction(type, 2)
+                .WithBehavior(type)
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Category = 6 });   // 1.1.*.6 small wheeled utility vehicle
+        }
+
         public static void RegisterAll(TkbDatabase tkbDb)
         {
             var builder = new NedTkbBuilder(tkbDb);
@@ -215,6 +248,26 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(TkbEntityTypes.Tank_T72, 2)
                 .WithBehavior(TkbEntityTypes.Tank_T72)
                 .WithDisType(TkbEntityTypes.Tank_T72, new DISEntityType { Kind = 1, Domain = 1, Country = Russia, Category = 1 });
+
+            // ⭐⭐ M9 (docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §6, D-K) — the TECHNICALS: an unarmoured pickup
+            //   (5 mm all round, 300 hp, a mobility kill below 60 %) with one weapon on a pintle in the bed. No armour, so speed and
+            //   surprise are the protection: shoot and scoot (the behaviour lane's BasicVehicleSop). The gunner is the vehicle (D-K).
+            Technical(builder, TkbEntityTypes.Technical_Hmg, "Technical (HMG)", "technical_hmg",
+                new TurretDto { PivotX = -1.3f, PivotZ = 1.9f, TrunnionX = 0.4f,                       // a pintle: all round, up to +70° (drones)
+                    TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = -10f, ElevationMaxDeg = 70f,
+                    TraverseRateDegPerSec = 90f, ElevationRateDegPerSec = 45f },
+                new WeaponMount { WeaponType = "12.7mm_DShK", Ammunition = 300, Range = 1500, RateOfFire = 600, DamagePerHit = 60,   // penetration: the round's own (25 mm)
+                    DispersionMils = 4f, MagazineSize = 50, ReloadSeconds = 8f, FireOnMove = true,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbHmgAp, Category = WeaponCategory.MachineGun, TurretIndex = 0,
+                    MuzzleOffset = new System.Numerics.Vector3(1.6f, 0f, 0f) });
+            Technical(builder, TkbEntityTypes.Technical_Atgm, "Technical (ATGM)", "technical_atgm",
+                new TurretDto { PivotX = -1.3f, PivotZ = 1.9f, TrunnionX = 0.3f,
+                    TraverseMinDeg = -120f, TraverseMaxDeg = 120f, ElevationMinDeg = -10f, ElevationMaxDeg = 20f,
+                    TraverseRateDegPerSec = 40f, ElevationRateDegPerSec = 20f },
+                new WeaponMount { WeaponType = "Kornet_ATGM", Ammunition = 4, Range = 5000, RateOfFire = 2, DamagePerHit = 2000,   // penetration: the missile's own (1100 mm tandem)
+                    AimSeconds = 1.5f, MagazineSize = 1, ReloadSeconds = 20f, FireOnMove = false,   // halts for the flight (command guidance)
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbKornetMissile, Category = WeaponCategory.Atgm, TurretIndex = 0,
+                    MuzzleOffset = new System.Numerics.Vector3(0.6f, 0f, 0.2f) });
             
             // Infantry Rifleman
             builder

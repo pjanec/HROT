@@ -122,6 +122,47 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal(150f, Get(rifleman, "Weapon[0].MuzzleVelocity").Value);                             // 300 m × 0.5
         }
 
+        /// <summary>
+        /// ⭐⭐ M9 (DESIGN_Vehicle_Exposure_Cycle §6, D-K) — the technicals: a pickup that drives like a car (25 m/s, 6 m/s back), no armour
+        /// to speak of (5 mm, roof 3), 300 hp and a mobility kill below 60 %, its weapon on a pintle — the HMG all round and up to +70°
+        /// (it can fire at a drone) and on the move, the ATGM ±120° and halted for the flight — a 2.2 m eye in the bed, 2 km sight,
+        /// heard as a wheeled engine, DIS small wheeled utility vehicle, hostile.
+        /// </summary>
+        [Fact]
+        public void M9_TheTechnicals_APickupWithAPintle_ShootAndScoot()
+        {
+            var db = BuildDatabase();
+            foreach (var (type, elevMax, traverse, category, onTheMove, ammo) in new[]
+                     {
+                         (TkbEntityTypes.Technical_Hmg, 70f, 180f, WeaponCategory.MachineGun, true, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbHmgAp),
+                         (TkbEntityTypes.Technical_Atgm, 20f, 120f, WeaponCategory.Atgm, false, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbKornetMissile),
+                     })
+            {
+                var t = db.GetByType(type)!;
+                var kin = t.GetDescriptor<VehicleParametersDto>()!;
+                Assert.Equal(CarKinem.Core.VehicleClass.PersonalCar, kin.VehicleClass);
+                Assert.Equal((25f, 6f), (kin.MaxSpeedFwd, kin.MaxSpeedRev));
+
+                var p = t.GetDescriptor<CombatPlatformDefDto>()!;
+                Assert.Equal((5f, 5f, 5f, 3f), (p.ArmorFront, p.ArmorSide, p.ArmorRear, p.ArmorTop));
+                Assert.Equal((300f, 0.6f), (p.MaxHealth, p.MobilityKillBelowFraction));
+
+                var turret = t.GetDescriptor<TurretSuiteDto>()!.Turrets[0];
+                Assert.Equal(elevMax, turret.ElevationMaxDeg);
+                Assert.Equal((-traverse, traverse), (turret.TraverseMinDeg, turret.TraverseMaxDeg));
+
+                var weapon = System.Linq.Enumerable.Single(t.GetDescriptor<WeaponSuiteDto>()!.Mounts);
+                Assert.Equal((category, onTheMove, ammo, 0), (weapon.Category, weapon.FireOnMove!.Value, weapon.AmmoGuid, weapon.TurretIndex));
+                Assert.Equal(0f, weapon.Penetration);   // the round's own (the munition template)
+
+                var s = t.GetDescriptor<SensorCapabilitiesDto>()!;
+                Assert.Equal((2000f, 2.2f), (s.VisionRange, s.EyeHeightStanding));
+                Assert.Equal(SoundSourceClass.WheeledEngine, t.GetDescriptor<SignaturesDto>()!.Acoustic!.MovingClass);
+                Assert.Equal((1, 1, 6), (t.DisType.Kind, t.DisType.Domain, t.DisType.Category));
+                Assert.Equal(Fdp.Core.ForceId.Hostile, t.GetDescriptor<BehaviorProfileDto>()!.Faction);
+            }
+        }
+
         private static TkbDatabase BuildDatabase()
         {
             var db = new TkbDatabase();
