@@ -44,6 +44,10 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         Guiding,
         /// <summary>⭐ <c>CE-3195</c> (W-14a) — the target is beyond a person's twist: the round is held while his body turns to it.</summary>
         Turning,
+        /// <summary>⭐ M4 (DESIGN_Missiles_And_Ammo §3) — the target is closer than the missile's minimum range: the weapon holds.</summary>
+        TooClose,
+        /// <summary>⭐ D-L (§4) — this weapon does not fire on the move (an ATGM, a mortar) and the unit is moving: the weapon holds.</summary>
+        HoldMoving,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -117,12 +121,15 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.Guiding            => "guiding",
             ActionReason.Turning            => "turning",
             ActionReason.OutOfArc           => "out of arc",
+            ActionReason.TooClose           => "hold: too close",
+            ActionReason.HoldMoving         => "hold: moving",
             _                               => "",
         };
 
         /// <summary>True for the reasons that mean "wants to act and cannot" — the gizmo draws them amber.</summary>
         public static bool IsHold(ActionReason r) => r is ActionReason.HoldNotSeen or ActionReason.HoldFriendlyOnLine
-            or ActionReason.HoldRoe or ActionReason.OutOfAmmo or ActionReason.Failed or ActionReason.OutOfArc;
+            or ActionReason.HoldRoe or ActionReason.OutOfAmmo or ActionReason.Failed or ActionReason.OutOfArc
+            or ActionReason.TooClose or ActionReason.HoldMoving;
 
         private static void Write(ref ActionStatusRow row, ushort actionId, ActionReason reason, Entity target, float progress,
             float needed, double now)

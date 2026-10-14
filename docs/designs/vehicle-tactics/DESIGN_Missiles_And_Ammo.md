@@ -250,6 +250,26 @@ sequenceDiagram
 | `Command` guidance reports `Guiding` for the flight; the vehicle cycle stays at its firing point while it reads `Guiding` (Exposure Cycle §3) | the gunner must keep sight; the behaviour, not the weapon, decides to stand |
 | `FireAndForget` needs to stand only during the lock (`FireOnMove = false` until the round is away) | D-L |
 
+### 4a. As-built `2026-10-14` (backend, handoff B7 — §3 and §4)
+
+The design carries **8 classes** and **1 sequence** for M4 + D-L; all are built. Deviations, argued:
+
+| design said | built | why |
+|---|---|---|
+| `GuidedRound { Guidance, Target, Gunner, Phase Climb/Cruise/Dive/Lost, TopAttack }` | ✅ + `SpeedMps`, `LifetimeTicks`, `CruiseZ`, `DiveAngleDeg`, `LastSeen` (component **374**, `NoScenario`, Muscle) | the system needs them per round; the TKB is read once, at spawn |
+| Command: steer onto the LAUNCHER's sight line (a turret launcher's `TurretPose`) | ⚠ the GUNNER's eye → the target's middle, on both paths; blocked (`IWorldQuery.SightBlocked`) or a dead gunner ⇒ `Lost` | the turret pose is kept on the target by the Track hold anyway, and it is not on the brain-less muscle path the rails run; the eye line is the same line within the turret's offset. A turret-pose line is a later refinement if a scenario needs it |
+| top attack: dive once horizontal ≤ altitude / tan(dive) | ⚠ the dive starts a TURN LEAD earlier (`R·sin θ + (h − R(1−cos θ)) / tan θ`, R = speed / turn rate) and holds at least the dive angle, then homes once the line to the target is steeper | 📐 at 140 m/s and 30°/s the turn is a 267 m arc: the design's trigger overshoots the target before the nose is down (red-proved: `M4_AJavelin_…` fails with it) |
+| `ActionReason.TooClose`; the D-L hold as `ActionReason.Moving` | `TooClose` and a NEW `HoldMoving` | `Moving` is the LOCOMOTION row's word ("moving toward the destination"); a weapon hold must read as a hold (both are in `IsHold`, posture Ready) |
+| `FireOnMove` per mount | ✅ `WeaponMountDto.FireOnMove : bool?` + `CombatTkb.FiresOnTheMove` (null ⇒ Atgm / Mortar stand, the rest fire) and `HitModel.IsMoving` — the ONE moving test the spread already used | — |
+| the turret path gains the aim-time lock | ✅ only for a mount that DECLARES `AimSeconds`; the lock rides the aim clock (`Ready` = locked), which after the lock carries the guided-flight hold as before | the 32-byte channel state is full; every turret mount without an aim time is unchanged |
+| `MaxFlightSeconds` / `SpeedMps` | ✅ `BallisticsSystem` reads `GuidedRound.LifetimeTicks`; `FireProcessingSystem` flies a missile at `SpeedMps` (an unguided missile gets speed + lifetime only) | — |
+
+Wiring: `GuidedRoundSystem` in `CombatModule.PostSimulationSystems` before `BallisticsSystem` (SimHost and the editor's Muscle);
+`GuidedRound` registered in `CombatComponentRegistry`. No wire change (§3's rule holds). Rails: `GuidedRoundSystemTests.M4_ACommandRound_…`,
+`M4_AJavelin_ClimbsAndDives_AndArrivesOnTheRoof`, `M4_TheTurn_IsLimitedTo30DegreesASecond` · `BallisticsSystemTests.M4_AGuidedRound_LivesItsFlight_NotTwoSeconds` ·
+`AimAndFireExecutorTests.M4_BelowMinRange_TheWeaponHolds`, `M4_TheTurretPath_TimesTheLock`, `DL_AnAtgm_HoldsFireWhileMoving_AnHmg_FiresAtDoubleSpread`.
+⚠ No built-in munition carries a `MissileDto` yet — the TOW / Javelin / NLAW numbers are B8's data (§5).
+
 ## 5. Data (M5) — new munition types (ids 6010…) and mounts
 
 Approximate public figures; tuning starts here (programme §2 sources).

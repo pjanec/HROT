@@ -118,16 +118,21 @@ namespace Fdp.Toolkit.Combat.Executors
             //   meanwhile. A mount with no loadout never switches. The behaviour never names a round (R-261).
             bool switching = AmmoChoice.Choose(world, mountEntity, mountDto, entity, p.Target, weapon.ReloadSeconds);
             long loadedAmmo = AmmoChoice.LoadedAmmo(world, mountEntity);
+            // ⭐⭐ M4 / D-L (DESIGN_Missiles_And_Ammo §3–§4) — the weapon brain's two new holds, on BOTH paths, before a round is
+            //   granted: a missile below its minimum range (it cannot arm or turn in time), and a weapon that does not fire on the
+            //   move while its unit moves (an ATGM, a mortar — HitModel.IsMoving, the same test that doubles the spread).
+            ActionReason? hold = switching ? ActionReason.Reloading : HoldOf(world, entity, p.Target, mountDto, loadedAmmo);
             if (profile.UsesTurretTask(world, entity, mountDto))
             {
                 TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, entity, mountDto!.TurretIndex), ref weapon,
-                           profile.RoundsInFlight, mountDto, dt, mountEntity, loadedAmmo, switching);
+                           profile.RoundsInFlight, mountDto, dt, mountEntity, loadedAmmo, hold);
                 return;
             }
-            if (switching)
+            if (hold is { } held)
             {
                 channel.Status = NodeStatus.Running;
-                Say(world, entity, ActionReason.Reloading, p.Target, 0f, weapon.ReloadSeconds);
+                if (held == ActionReason.Reloading) Say(world, entity, held, p.Target, 0f, weapon.ReloadSeconds);
+                else Say(world, entity, held, p.Target);
                 return;
             }
 
@@ -349,18 +354,26 @@ namespace Fdp.Toolkit.Combat.Executors
         private static void TurretPath(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
                                        int mountIndex, Entity part, ref WeaponState weapon,
                                        int roundsInFlight = 0, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto = null, float dt = 0f,
-                                       Entity mountEntity = default, long loadedAmmo = 0L, bool switching = false)
+                                       Entity mountEntity = default, long loadedAmmo = 0L, ActionReason? held = null)
         {
             // ⭐ W-12c (§5g G-2/G-3) — a guided mount's hold: the estimated flight of the last round it saw fired. The aim clock is
             //   free on this path (the muscle aims), so it carries the hold.
-            ref var hold = ref AimTimer(ref channel).Elapsed;
-            if (hold > 0f) hold = MathF.Max(0f, hold - dt);
+            ref var aimState = ref AimTimer(ref channel);
+            ref var hold = ref aimState.Elapsed;
             var current = world.HasComponent<WeaponTask>(part) ? world.GetComponent<WeaponTask>(part) : default;
             // ⭐ CE-3172 S4d — operator fire aims at a POINT that moves every frame; only a new mount (or an idle task) is a new
             //   order, so the rounds in flight keep counting while the operator sweeps.
             bool atPoint = p.Operator != 0;
             bool fresh = current.Mode == WeaponTaskMode.Idle || current.Target != (atPoint ? Entity.Null : p.Target)
                       || current.MountIndex != (byte)mountIndex;
+            // ⭐⭐ M4 (D-D: "the lock IS the aim time") — a turret mount that DECLARES an aim time locks before its first grant: the
+            //   target seen continuously that long, the clock restarting on lost sight or a new target. The aim clock carries it (Ready
+            //   = locked); once locked the same clock carries the guided-flight hold, as before. A mount with no AimSeconds never locks.
+            float lockSeconds = !atPoint && mountDto is { AimSeconds: > 0f } ? mountDto.AimSeconds : 0f;
+            if (lockSeconds > 0f && (fresh && current.Target != p.Target || aimState.Target != p.Target))
+                aimState = aimState.Restarted(p.Target, aimState.Stance);
+            bool locking = lockSeconds > 0f && aimState.Ready == 0;
+            if (!locking && hold > 0f) hold = MathF.Max(0f, hold - dt);
             uint epoch = fresh ? current.Epoch + 1 : current.Epoch;
             ref int accounted = ref Accounted(ref channel);
             if (fresh) accounted = 0;
@@ -398,9 +411,15 @@ namespace Fdp.Toolkit.Combat.Executors
             bool seen = atPoint ? p.Trigger != 0 : Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
             bool roe = atPoint || RoePermitsFire(world, entity);
             Magazine.StartIfEmpty(ref weapon);
-            bool loaded = Magazine.Ready(weapon) && !switching;   // ⭐ M8 — a round switch holds the grants like a reload
+            bool loaded = Magazine.Ready(weapon) && held != ActionReason.Reloading;   // ⭐ M8 — a round switch holds the grants like a reload
+            if (locking)
+            {
+                if (seen) hold += dt; else hold = 0f;
+                if (hold >= lockSeconds) { aimState.Ready = 1; hold = 0f; locking = false; }
+            }
+            bool otherHold = held is { } h && h != ActionReason.Reloading;   // ⭐ M4 too close · D-L moving
             int grant = accounted;
-            if (seen && roe && loaded)
+            if (seen && roe && loaded && !locking && !otherHold)
             {
                 int inHand = weapon.MagazineSize > 0 ? weapon.MagazineRounds : weapon.Ammo;
                 if (p.Rounds > 0) inHand = System.Math.Min(inHand, p.Rounds - RoundsFired(ref channel));
@@ -431,10 +450,29 @@ namespace Fdp.Toolkit.Combat.Executors
             }
             if (!seen) Say(world, entity, ActionReason.HoldNotSeen, p.Target);
             else if (!roe) Say(world, entity, ActionReason.HoldRoe, p.Target);
+            else if (otherHold) Say(world, entity, held!.Value, p.Target);
+            else if (held == ActionReason.Reloading) Say(world, entity, ActionReason.Reloading, p.Target, 0f, weapon.ReloadSeconds);
             else if (!loaded) Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
+            else if (locking) Say(world, entity, ActionReason.Aiming, p.Target, hold, lockSeconds);
             else if (mine && status.State == WeaponTaskState.Slewing) Say(world, entity, ActionReason.Slewing, p.Target);
             else if (roundsInFlight > 0 && hold > 0f) Say(world, entity, ActionReason.Guiding, p.Target, hold);
             else Say(world, entity, ActionReason.Firing, p.Target, RoundsFired(ref channel), p.Rounds);
+        }
+
+        /// <summary>
+        /// ⭐ M4 / D-L — the weapon brain's holds before a round leaves: <see cref="ActionReason.TooClose"/> when the round is a
+        /// missile and the target is inside its <c>MinRangeM</c>; <see cref="ActionReason.HoldMoving"/> when the mount does not fire on
+        /// the move (<see cref="CombatTkb.FiresOnTheMove"/>) and the unit moves. Null = fire.
+        /// </summary>
+        public static ActionReason? HoldOf(EntityRepository world, Entity unit, Entity target, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo)
+        {
+            long ammo = loadedAmmo != 0 ? loadedAmmo : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+            if (CombatTkb.MissileOf(world, ammo) is { MinRangeM: > 0f } missile
+                && world.HasComponent<SimTransform>(unit) && world.HasComponent<SimTransform>(target)
+                && Vector3.Distance(world.GetComponentRO<SimTransform>(unit).Position, world.GetComponentRO<SimTransform>(target).Position) < missile.MinRangeM)
+                return ActionReason.TooClose;
+            if (!CombatTkb.FiresOnTheMove(mount) && HitModel.IsMoving(world, unit)) return ActionReason.HoldMoving;
+            return null;
         }
 
         /// <summary>⭐ W-12c (§5g G-2) — added to a guided round's flight estimate: launch and detonation are not instants.</summary>

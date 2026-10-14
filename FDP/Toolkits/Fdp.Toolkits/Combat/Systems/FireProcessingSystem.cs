@@ -178,6 +178,11 @@ namespace Fdp.Toolkit.Combat.Systems
                     }
                 }
 
+                // ⭐⭐ M4 (D-D; DESIGN_Missiles_And_Ammo §3) — a MISSILE flies at its own speed (⛔ the generated range × 0.5 muzzle
+                //   speed made a TOW ~7× too fast) and, guided, gets a GuidedRound below: GuidedRoundSystem steers it on this node.
+                var missile = CombatTkb.MissileOf(repo, ammo);
+                if (missile != null && missile.SpeedMps > 0f && (warheadBits & WarheadRound.Arc) == 0) velocity = flight * missile.SpeedMps;
+
                 // ⭐ LR-1 (DESIGN_Visual_Effects.md §8.5, R-271) — the round's munition TYPE: the mount's ammo, or, one shot in
                 //   TracerEvery, its tracer. Only WHAT the round is changes (drawn + replicated, PR-F) — damage, penetration and
                 //   warhead stay the mount's, computed above and below from the mount.
@@ -250,6 +255,26 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   network side gives it an id and publishes EntityMaster (Lightweight) + WorldPos — no lifecycle, no acks. An
                 //   ordinary bullet stays local: it is the hit test, nothing a viewer draws.
                 MarkIfVisible(repo, bullet, roundType);
+
+                // ⭐ M4 — the guided round's guidance, target and lifetime (an unguided missile gets its lifetime and speed only)
+                if (missile != null && repo.IsComponentTypeRegistered<GuidedRound>())
+                {
+                    bool top = missile.Guidance == Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget && missile.TopAttack && !evt.AtPoint
+                               && Vector3.Distance(origin, targetPos) >= missile.TopAttackMinRangeM;
+                    repo.AddComponent(bullet, new GuidedRound
+                    {
+                        Guidance      = missile.Guidance,
+                        Phase         = top ? GuidedPhase.Climb : GuidedPhase.Cruise,
+                        TopAttack     = (byte)(top ? 1 : 0),
+                        Target        = evt.AtPoint ? Entity.Null : target,
+                        Gunner        = shooter,
+                        SpeedMps      = velocity.Length(),
+                        LifetimeTicks = missile.MaxFlightSeconds > 0f ? (uint)MathF.Ceiling(missile.MaxFlightSeconds * GuidedRound.TicksPerSecond) : 0u,
+                        CruiseZ       = muzzlePos.Z + missile.CruiseAltitudeM,
+                        DiveAngleDeg  = missile.DiveAngleDeg,
+                        LastSeen      = targetPos,
+                    });
+                }
 
                 // ⭐ T-4 — the shot's record, with the inputs it was fired with (GET /combat/shots)
                 ShotLog.For(repo).Add(new ShotRecord

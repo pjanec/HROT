@@ -851,5 +851,9 @@ namespace Fdp.Core
         /// by type, the loaded one and the switch running; on the mount entity, Brain. ⚠ 373 measured free on backend, ui and behaviors
         /// 2026-10-14.</summary>
         public const int AmmoLoadout = 373;
+
+        /// <summary><c>GuidedRound</c> — ⭐ M4 (D-D, DESIGN_Missiles_And_Ammo §3): a guided round's guidance, target, phase and lifetime; Muscle-local,
+        /// beside its BallisticProjectile. ⚠ 374 measured free on backend, ui and behaviors 2026-10-14.</summary>
+        public const int GuidedRound = 374;
     }
 }

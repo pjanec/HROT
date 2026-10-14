@@ -201,7 +201,26 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ M3 — what the munition <paramref name="ammo"/> (a TKB type id) defeats armour with: its warhead's
         /// <see cref="WarheadKind.ShapedCharge"/> ⇒ <see cref="Penetrator.ShapedCharge"/> (<see cref="WarheadDto.Tandem"/> ⇒
         /// <see cref="Penetrator.Tandem"/>), anything else — no warhead, unknown ammo, no TKB database — ⇒ kinetic.</summary>
-        public static Penetrator PenetratorOf(EntityRepository world, long ammo)
+        public static Penetrator PenetratorOf(EntityRepository world, long ammo) => PenetratorOfAmmo(world, ammo);
+
+        /// <summary>⭐ M4 (D-D) — the guidance of the munition type <paramref name="ammo"/> (its <see cref="MissileDto"/>), or null: a
+        /// round that is not a missile, unknown ammo, or no TKB database.</summary>
+        public static MissileDto? MissileOf(EntityRepository world, long ammo)
+        {
+            if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return null;
+            var db = world.GetSingletonManaged<ITkbDatabase>();
+            return db != null && db.TryGetByType(ammo, out var t) && t != null ? t.GetDescriptor<MissileDto>() : null;
+        }
+
+        /// <summary>
+        /// ⭐ D-L (DESIGN_Missiles_And_Ammo §4) — may this mount fire while its unit moves? Its own <see cref="WeaponMountDto.FireOnMove"/>,
+        /// else by category: an ATGM or a mortar must stand; small arms, machine guns, autocannon, grenades and a stabilised tank gun
+        /// fire on the move (at twice the spread — <see cref="HitModel"/>). An unknown mount fires as before.
+        /// </summary>
+        public static bool FiresOnTheMove(WeaponMountDto? mount)
+            => mount?.FireOnMove ?? mount?.Category switch { WeaponCategory.Atgm or WeaponCategory.Mortar => false, _ => true };
+
+        private static Penetrator PenetratorOfAmmo(EntityRepository world, long ammo)
         {
             if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return Penetrator.Kinetic;
             var w = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(world.GetSingletonManaged<ITkbDatabase>(), ammo).Warhead;

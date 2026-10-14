@@ -103,6 +103,13 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// the first entry is loaded at spawn. Up to 4 types.
         /// </summary>
         public List<AmmoLoadDto> Loadout { get; init; } = new();
+
+        /// <summary>
+        /// ⭐ D-L (docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md §4) — may this weapon fire while its unit moves? <b>null = by
+        /// <see cref="Category"/></b>: an ATGM or a mortar stands to fire; everything else fires on the move (an old, unstabilised tank
+        /// gun sets <c>false</c>).
+        /// </summary>
+        public bool? FireOnMove { get; init; }
     }
 
     /// <summary>⭐ M8 — one munition type in a mount's <see cref="WeaponMountDto.Loadout"/> and how many rounds of it.</summary>
