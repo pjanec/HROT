@@ -686,6 +686,58 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(0f, c[1].Score);
         }
 
+        // ── CE-2165 V3: hull-sized hide points (DESIGN_Vehicle_Exposure_Cycle §3) ────────────────────────
+
+        /// <summary>
+        /// ⭐ The wall of <see cref="WallWorld"/>, a PILLAR (x −3…−2, y 6…8) beside its west end, and a DECK (4–4.5 m) over x 8…12, y 6…9.
+        /// Two man-sized points 0.75 m south of the wall (facing it): one mid-wall, one at its west end.
+        /// </summary>
+        private static TerrainWorld HideWorld() => new()
+        {
+            BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50),
+            Prisms = new[]
+            {
+                Prism(new Vector2(0, 10), new Vector2(20, 10.5f), 3f),
+                Prism(new Vector2(-3, 6), new Vector2(-2, 8), 3f),
+                Deck(new Vector2(8, 6), new Vector2(12, 9), 4f, 4.5f),
+            },
+        };
+
+        /// <summary>
+        /// ⭐ For a TANK (7 × 3.6 m, 2.4 m high) the mid-wall point moves out to half its width + 0.5 m (y 9.25 → 7.7), kept although a
+        /// deck hangs above it (above the hull); the west-end point is dropped — the hull's box there runs into the pillar; and no
+        /// point round the tank's OWN standing box is offered. A SOLDIER gets both points where they were.
+        /// </summary>
+        [Fact]
+        public void V3_VehicleFootprint_StandsTheHullOffTheWall_DropsABlockedBox_AndNeverItsOwnBox()
+        {
+            if (!_repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+                _repo.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            if (!_repo.IsComponentTypeRegistered<VehicleParams>()) _repo.RegisterComponent<VehicleParams>();
+            _repo.SetSingletonManaged(HideWorld());
+            _repo.SetSingletonManaged<ICoverProvider>(new ManualCoverProvider(new[]
+            {
+                new CoverPoint { PositionX = 10, PositionY = 9.25f, DirectionY = 1f, Quality = 1f, StanceHeight = 2, Kind = CoverKind.Cover },
+                new CoverPoint { PositionX = 1,  PositionY = 9.25f, DirectionY = 1f, Quality = 1f, StanceHeight = 2, Kind = CoverKind.Cover },
+            }));
+            var gen = new CoverPointsGenerator { VehicleFootprint = true };
+
+            var soldier = new EqsSensor { SearchRadius = 30f, ContextSlot0 = At(10, 0) };
+            var s = new EqsResult[16];
+            Assert.Equal(2, gen.Generate(Entity.Null, ref soldier, _repo, s));
+            Assert.Equal(9.25f, s[0].PositionY, 3);
+
+            var tank = At(10, 0);
+            _repo.AddComponent(tank, new VehicleParams { Class = VehicleClass.Tank, Length = 7f, Width = 3.6f });
+            _repo.AddComponent(tank, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f, Height = 2.4f });
+            var asTank = new EqsSensor { SearchRadius = 30f, ContextSlot0 = tank };
+            var t = new EqsResult[16];
+            int n = gen.Generate(Entity.Null, ref asTank, _repo, t);
+            Assert.Equal(1, n);
+            Assert.Equal(10f, t[0].PositionX, 3);
+            Assert.Equal(7.7f, t[0].PositionY, 3);
+        }
+
         // ── scoring tests ────────────────────────────────────────────────────────────────────
 
         [Fact]
