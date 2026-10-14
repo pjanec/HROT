@@ -148,7 +148,8 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.True(_world.HasComponent<PersonCarrier>(soldier));
             Assert.Equal(0.3f, _world.GetComponentRO<PersonCarrier>(soldier).DragSpeedFactor);
             Assert.Equal((byte)1, _world.GetComponentRO<CarrierSeats>(soldier).PassengersSurvive);
-            Assert.Equal(1, _world.GetComponentRO<CarrierSeats>(soldier).SeatCount);
+            Assert.Equal(2, _world.GetComponentRO<CarrierSeats>(soldier).SeatCount);   // ⭐ WS-2 (W-G) — the casualty seat + the carry station
+            Assert.Equal(1, Embarkation.CapacityOf(_world, soldier));   // ...of which one carries a man
 
             var apc = _world.CreateEntity();
             var t = new TkbTemplate("Apc", 4344L);

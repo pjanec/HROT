@@ -32,9 +32,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         public PersonCarryDto? Person { get; init; }
 
         /// <summary>⭐ <c>CE-2152</c> — a soldier who can carry or drag one casualty: one open seat, the casualty survives his fall.</summary>
+        /// <remarks>⭐ Weapon systems WS-2 (R-2016 W-G, DESIGN_Weapon_Systems §5) — and one CARRY STATION (a <see cref="SeatRole.Station"/>
+        /// accepting <see cref="MountKinds.Carried"/>): the portable weapon system he carries, beside the casualty seat.</remarks>
         public static CarrierDefDto PersonCarrier() => new()
         {
-            Seats = { new SeatDto() },
+            Seats = { new SeatDto(), new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Carried } },
             Exposure = PassengerExposure.Open,
             DiesWithCarrier = false,
             Person = new PersonCarryDto(),

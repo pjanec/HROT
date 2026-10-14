@@ -104,6 +104,20 @@ namespace Fdp.Toolkit.Behavior
             if (Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, passenger) || Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, vehicle)) return EmbarkResult.Invalid;
             int aboard = SlotOf(repo, passenger, vehicle);
             if (aboard >= 0) { Board(repo, passenger, vehicle, aboard); return EmbarkResult.AlreadyAboard; }
+            // ⭐⭐ Weapon systems WS-2 (W-B, R-2016; DESIGN_Weapon_Systems §6) — a WEAPON SYSTEM boards a Station seat whose Accepts
+            //   shares one of its mount kinds — never a seat for a man; onto a PERSON only a portable one, and only while he is in the fight.
+            if (IsWeaponSystem(repo, passenger))
+            {
+                var kinds = repo.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(passenger);
+                if (IsPersonCarrier(repo, vehicle)
+                    && (kinds.Portable == (byte)Fdp.Toolkit.Tkb.Domain.WeaponPortability.Static || !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, vehicle)))
+                    return EmbarkResult.Invalid;
+                int station = FreeStation(repo, vehicle, kinds.MountKinds);
+                if (station == -2) return EmbarkResult.Invalid;   // no station on this type accepts it
+                if (station < 0) return EmbarkResult.Full;
+                return Seat(repo, passenger, vehicle, station, IsPersonCarrier(repo, vehicle) ? CarryMode.Carried : CarryMode.Seated);
+            }
+            if (role == SeatRole.Station) return EmbarkResult.Invalid;   // ⭐ WS-2 — a station holds a weapon, never a man
             if (IsPersonCarrier(repo, vehicle))
             {
                 // ⭐ CE-2152 (R-2009 C3) — a person carries only a man DOWN, and only while he is in the fight himself.
@@ -114,12 +128,40 @@ namespace Fdp.Toolkit.Behavior
             else mode = CarryMode.Seated;
             int seat = FreeSeat(repo, vehicle, role);   // ⭐ CE-2151 — the type's seats, by role
             if (seat < 0) return EmbarkResult.Full;
+            return Seat(repo, passenger, vehicle, seat, mode);
+        }
+
+        private static EmbarkResult Seat(EntityRepository repo, Entity passenger, Entity vehicle, int seat, CarryMode mode)
+        {
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
             buffer.Passengers[seat] = passenger;
             buffer.SetMode(seat, mode);   // ⭐ CE-2152 (R-2011 C5) — in the list, so every node derives the tag's mode from it
             buffer.Count++;
             Board(repo, passenger, vehicle, seat);
             return EmbarkResult.Applied;
+        }
+
+        /// <summary>⭐ WS-2 — is <paramref name="e"/> a weapon system (its type declares <c>Gen.WeaponSystem</c>)?</summary>
+        public static bool IsWeaponSystem(EntityRepository repo, Entity e) => Has<Fdp.Toolkit.Combat.WeaponSystemParams>(repo, e);
+
+        /// <summary>
+        /// ⭐⭐ Weapon systems WS-2 (W-B) — the first free <see cref="SeatRole.Station"/> of <paramref name="vehicle"/> whose <c>Accepts</c>
+        /// shares a kind with <paramref name="mountKinds"/> (a weapon's <c>MountKinds</c>); −1 when such a station exists but is taken,
+        /// −2 when none on the type accepts it.
+        /// </summary>
+        public static int FreeStation(EntityRepository repo, Entity vehicle, byte mountKinds)
+        {
+            if (!repo.IsAlive(vehicle) || !Has<PassengerBuffer>(repo, vehicle) || !Has<CarrierStations>(repo, vehicle)) return -2;
+            ref readonly var buffer = ref repo.GetComponentRO<PassengerBuffer>(vehicle);
+            ref readonly var stations = ref repo.GetComponentRO<CarrierStations>(vehicle);
+            bool any = false;
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)
+            {
+                if (!stations.IsStation(i) || (stations.Seats[i].Accepts & mountKinds) == 0) continue;
+                any = true;
+                if (buffer.Passengers[i].IsNull) return i;
+            }
+            return any ? -1 : -2;
         }
 
         /// <summary>
@@ -248,7 +290,8 @@ namespace Fdp.Toolkit.Behavior
             if (Has<ActorCapabilityState>(repo, passenger))
                 repo.GetComponentRW<ActorCapabilityState>(passenger).Capabilities &= ~StrippedAboard;
             // ⭐ CE-2152 (R-2011 C7) — a person carrying or dragging a casualty has his hands full: no fire (back on ReleaseCarrier).
-            if (IsPersonCarrier(repo, vehicle) && Has<ActorCapabilityState>(repo, vehicle))
+            //   ⭐ WS-2 — a carried WEAPON does not: the soldier still fights (he may even fire it, FireWhileCarried).
+            if (IsPersonCarrier(repo, vehicle) && !IsWeaponSystem(repo, passenger) && Has<ActorCapabilityState>(repo, vehicle))
                 repo.GetComponentRW<ActorCapabilityState>(vehicle).Capabilities &= ~ActorCapabilities.CanShoot;
             var mode = Has<PassengerBuffer>(repo, vehicle) ? repo.GetComponentRO<PassengerBuffer>(vehicle).ModeOf(seat) : CarryMode.Seated;
             // ⭐ I-2c (R-271): an OPEN cabin leaves the passenger exposed (seen, targeted, hit); enclosed hides it (PhysicalPresence).
@@ -270,7 +313,11 @@ namespace Fdp.Toolkit.Behavior
         public static void ReleaseCarrier(EntityRepository repo, Entity carrier)
         {
             if (!IsPersonCarrier(repo, carrier) || !Has<ActorCapabilityState>(repo, carrier) || !Has<PassengerBuffer>(repo, carrier)) return;
-            if (repo.GetComponentRO<PassengerBuffer>(carrier).Count > 0 || Has<IsEmbarkedTag>(repo, carrier)) return;
+            if (Has<IsEmbarkedTag>(repo, carrier)) return;
+            // ⭐ WS-2 — only a CASUALTY fills his hands: a weapon he carries (his carry station) does not keep his fire off
+            ref readonly var list = ref repo.GetComponentRO<PassengerBuffer>(carrier);
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)
+                if (!list.Passengers[i].IsNull && !IsWeaponSystem(repo, list.Passengers[i])) return;
             if (!Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, carrier)) return;
             repo.GetComponentRW<ActorCapabilityState>(carrier).Capabilities |= ActorCapabilities.CanShoot;
         }
