@@ -841,6 +841,72 @@ def run_fire_and_movement(c, timeout):
     c.ok(both_up <= 1.0, f"⑥ never both halves up for more than 1 s ({both_up:.1f} s)")
 
 
+# ── F-d (CE-2158) — fire and movement IN PAIRS: inside the moving half one buddy rushes while the other fires, then the other ──
+#   docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.6.4 / §7.8.3. The same cast as ua-fire-and-movement, `Pairs` on.
+
+def run_fire_and_movement_pairs(c, timeout):
+    ids = ids_by_name()
+    sq = ids.get("Squad")
+    names = ["Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4", "Rifleman 5"]
+    members = [ids.get(n) for n in names]
+    hostiles = [ids.get("Hostile 1"), ids.get("Hostile 2")]
+    if not c.ok(sq and None not in members and None not in hostiles, "the squad, six men and two hostiles are loaded"):
+        return
+    target = (200.0, 285.0)
+    def centre():
+        ps = [p for p in (position(m) for m in members) if p]
+        return (sum(p[0] for p in ps) / len(ps), sum(p[1] for p in ps) / len(ps)) if ps else None
+    call("POST", "/trace/observe", {"networkId": sq, "on": True})
+    c0 = centre()
+    d0 = flat(c0, target) if c0 else None
+    call("POST", "/sim/play", {})
+    m = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") == "FireAndMovement" and x, 20)
+    if not c.ok(m is not None, "the squad runs the drill (maneuver kindName FireAndMovement)"):
+        return
+    rush_polls, max_up, buddy_fires, handovers = 0, 0, 0, 0
+    issued = {}          # (member, issuedAt) -> (rush length, metres it brings him nearer the objective)
+    phase_ups = {}       # (phase, phase start) -> list of the rushing sets seen in it, in order
+    history = {}
+    end = (sim_time() or 0) + 120
+    while (sim_time() or 0) < end:
+        m = maneuver(sq)
+        if m.get("kindName") != "FireAndMovement" and history:
+            break
+        for h in m.get("history", []):
+            history.setdefault((h.get("t"), h.get("phase")), h)
+        phase = m.get("phaseName") or ""
+        if phase.startswith("Rush"):
+            orders = {x.get("networkId"): (x.get("order") or {}) for x in m.get("members", [])}
+            up = frozenset(n for n, o in orders.items() if o.get("kind") == "AdvanceTo")
+            for n in up:
+                o = orders[n]
+                if (n, o.get("issuedAt")) not in issued and o.get("point") and (at := position(n)):
+                    issued[(n, o.get("issuedAt"))] = (round(flat(at, o["point"]), 1), round(flat(at, target) - flat(o["point"], target), 1))
+            suppress = sum(1 for o in orders.values() if o.get("kind") == "Suppress")
+            if up:
+                rush_polls += 1
+                max_up = max(max_up, len(up))
+                if suppress >= 4: buddy_fires += 1   # the base of fire is 3: a 4th means a buddy fires for his partner
+                key = (phase, m.get("phaseSince"))
+                seen = phase_ups.setdefault(key, [])
+                if not seen or seen[-1] != up: seen.append(up)
+        time.sleep(0.5)
+    for sets in phase_ups.values():
+        handovers += sum(1 for a, b in zip(sets, sets[1:]) if not (a & b))
+    hs = sorted(history.values(), key=lambda h: h.get("t") or 0)
+    print(f"    history: {[(h.get('t'), h.get('phaseName'), h.get('event')) for h in hs]}")
+    print(f"    rush polls {rush_polls}; most men rushing at once {max_up}; polls where a buddy fires for the rusher {buddy_fires}; "
+          f"A→B hand-overs inside a rush {handovers}; rushing sets per rush {[[len(s) for s in v] for v in phase_ups.values()]}")
+    print(f"    rushes (length, gain toward the objective): {list(issued.values())}")
+    c.ok(rush_polls >= 4, f"① the squad rushes ({rush_polls} polls in a rush)")
+    c.ok(0 < max_up <= 2, f"② never the whole half up: at most one buddy of each pair rushes ({max_up} at once, a half is 3)")
+    c.ok(buddy_fires >= 1, f"③ the buddy who stays down fires for the one who is up ({buddy_fires} polls with ≥ 4 suppressing)")
+    c.ok(handovers >= 1, f"④ inside one rush the A buddies go, then the B buddies ({handovers} hand-overs)")
+    c1 = centre()
+    gained = (d0 - flat(c1, target)) if (c1 and d0) else 0
+    c.ok(gained >= 20, f"⑤ it closes the distance (the squad's centre is {gained:.0f} m nearer)")
+
+
 # ── F-e (CE-2158) — bounding overwatch: one half watches (suppresses on contact) while the other bounds to cover ───────────
 #   docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.8.3. Reads GET /entities/{squad}/squad ▸ maneuver (O-a).
 
@@ -1130,6 +1196,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-casualty-care-leader": run_casualty_care_leader,
              # ⭐ CE-2158 F-e — fire and movement (Squad Tactics §7.8.3)
              "ua-fire-and-movement": run_fire_and_movement,
+             "ua-fire-and-movement-pairs": run_fire_and_movement_pairs,
              "ua-bounding-overwatch": run_bounding_overwatch,
              # ⭐ CE-2159 X-d — the squad danger crossing (Squad Tactics §7.8.4)
              "ua-squad-danger-crossing": run_squad_danger_crossing,
