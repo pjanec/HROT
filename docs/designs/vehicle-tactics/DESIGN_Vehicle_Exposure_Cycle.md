@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (V1–V8, D-H, D-J, D-K approved)
+build-state: BUILDING — V1, V3, V4 built (as-built rows in §2–§4); V6, V8 to build. 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (V1–V8, D-H, D-J, D-K approved)
 current-answer: §2 danger to me (V1), §3 vehicle points (V3), §4 the node (V4), §5 reverse (V5), §6 technicals (M9), §7 the AT side (V6), §8 counter-drone (V8), §9 who runs it, §10 rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
@@ -79,6 +79,7 @@ classDiagram
 |---|---|
 | ⭐ **the danger to a VEHICLE self** (`VehicleCover.IsVehicle(self)` and a `CombatPlatformDefDto` with armour) = max over the target's mounts of `ArmorModel.PenetrationChance(his round vs me, on the face it would hit)` × `InRange`, clamped to [`ArmedHarmless` 0.1, 1] for an armed target — the person scale's *armed = he can hurt me = 1*; an UNKNOWN round (penetration ≤ 0) ignores armour ⇒ 1, as `HitDamage` does; a person self keeps armed 1 / unarmed 0.3 | V1; a soldier's 5 mm vest must not make riflemen harmless to riflemen (§1 ⚠). ⚠ **AS-BUILT `2026-10-14` — deviates from the first draft** (`HitDamage` ÷ my max health, ⛔ SUPERSEDED): that put a side-on RPG at 400 / 2500 = **0.16**, under every ABSOLUTE threshold — the `Sentry` order's `ThreatsAtLeast.MinDanger` default 0.5 (`TacticsTreesTests.cs:686`, `Sentry.btree.json`) would not count the RPG man as a threat to a tank, the opposite of the requirement. Damage-per-hit stays the WEAPON brain's business (`AmmoChoice`, Missiles §2), not the danger's |
 | the face: `ArmorModel.FacingOf(myTransform, hisPosition)` — 3-D, so a man on a roof close in reads my Top; a `TopAttack` munition at ≥ its top-attack range reads Top | Armour Hit Model D-A; Missiles §3 |
+| ⭐ **AS-BUILT `2026-10-14` (on backend B3–B7)** — per mount, the BEST of the rounds it carries (`Loadout`, else its one round): `CombatTkb.RoundOf` → penetration, `CombatTkb.PenetratorOf` → the armour column (`ArmourFor(platform, face, penetrator)`: a shaped charge reads `…Ce`), on the face `FacingOfArrival(me, myHullMiddle − hisEye)`; a `FireAndForget` `TopAttack` missile at ≥ `TopAttackMinRangeM` reads `Top` (the rule `FireProcessingSystem.cs:262` flies); inside a missile's `MinRangeM` ⇒ 0. ⚠ `CombatTkb.RoundOf` / `PenetratorOf` gained a TKB-taking overload (the world ones delegate — one implementation) so `ToMe` runs on a solver snapshot too (cross-lane, additive) | rails `ThreatDangerTests.V1_ADangerIsTheBestRound_*`, `V1_TheFaceIs3D_*`, red-proved five ways (2-D face, no loadout, kinetic only, no top attack, no min range) |
 | `InRange` = 1 within his mount's `Range`, falling to 0 at 1.2 × `Range`; 0 below a missile's `MinRangeM` | stand-off falls out of the danger (programme §3) |
 | a drone (`DIS domain 2` with a warhead mount) = its warhead on my Top | M7 |
 | a heard contact keeps `OfClass`; class 7 `Rotor` = 1 | R-207; a drone is heard before it is seen |
@@ -151,6 +152,7 @@ built (a reference, nothing copied) and read by `BeyondThreatRangeTest`.*
 | rule | why |
 |---|---|
 | `VehicleFootprint` acts only for a vehicle querier; a person's cover points are unchanged | infantry templates, goldens and rails untouched |
+| ⭐ **AS-BUILT `2026-10-14` (V3 slice 3)** — `CoverPointsGenerator.VehicleFootprint` + static `VehicleFootprint`: the hull = `VehicleParams` length × width (else the square inside the collider) × collider height; a point moves AWAY from its cover along its protection direction to `width/2 + 0.5 m` (it was baked at 0.75 m for a man) and is kept only where the hull's box — length along the wall, width toward it — touches no solid overlapping the hull's HEIGHT BAND (a deck above it does not count: ⚠ `EqsTerrainSight.InsideSolid` is plan-only, so the box test has its own Z-aware check); points round the querier's OWN standing box (within its half diagonal + 1.25 m) are dropped | rail `TerrainEqsTests.V3_VehicleFootprint_*`, red-proved three ways (no push; own box kept; a deck above blocks) |
 | ⭐ **AS-BUILT `2026-10-14` (V3 slice 1)** — `EqsModule.ForTerrainHost` calls `BeyondThreatRangeTest.InjectTkb(registry, CombatTkb.Live(world))`: every `ITkbAwareTest` of every registered template gets a `Func<ITkbDatabase?>` that reads the LIVE world's singleton when called — the same reference, nothing copied (the twin of `TerrainWorldSource.Live`). ⚠ Refines the row below: a SOURCE, not the object, because the editor publishes the TKB only *"if absent"* (`EditorSubsystem.cs:1417`) with no guaranteed order against the EQS capability — a value captured at construction could be null. A test with no source falls back to the view's own singleton (a live world in rails) | each world's registry builds its own template instances (`EqsTemplateRegistry.Discover`), so the hand-over cannot leak across worlds; the registry the solver reads is that same object (singleton 210, synced by reference) |
 | ⭐ **`BeyondThreatRangeTest` as built**: per known threat (`EqsKnownThreats.Collect` — the set `ThreatExposureTest` reads, extracted so both agree) that can hurt me at all — `ThreatDanger.ReachAgainst`: his longest mount `Range` whose round penetrates my THINNEST armoured face (any mount for an unarmoured self; an unknown round counts) — `min(1, ground distance ÷ his reach)`; the score gains `Weight` × the MEAN. A rifleman never pushes a tank back | the same `CanHurt` as `ThreatDanger.ToMe` (R-212 A1, one armour model); `ToMe` itself now runs on any view with the TKB handed in |
 | ⭐ **the TKB reaches a test ONCE, AT CONSTRUCTION, by reference**: `EqsModule.ForTerrainHost(world)` (built once per node from the LIVE world, `EqsInfrastructureCapability.cs:97`) reads `world.GetSingletonManaged<ITkbDatabase>()` and sets it on every registered test that declares a `Tkb` property (`ITkbAwareTest`) — templates are built once at registration, so this is one hand-over per node; the solver's replica world and its singleton list (`EntityRepository.Sync.cs:117-124`) are NOT touched | 🔒 user, 2026-10-14: *"passing the TKB to the solver once at construction sounds ok … Certainly not snapshotting it please. Pass reference somehow."* — the same pattern as the sight strategy's terrain (`LosStrategies.cs:81-82`) |
@@ -159,6 +161,7 @@ built (a reference, nothing copied) and read by `BeyondThreatRangeTest`.*
 | ⭐ **AS-BUILT `2026-10-14` (V3 slice 2)** — `OverheadCoverTest` (FilterExpensive, cost Sight): the vertical line from `ClearanceM` 0.1 above the self's height — its collider HULL (`PhysicsColliderReaders.HullHeight`) or, for a person, its standing eye — up `RangeM` 30 m, through `EqsTerrainSight.Sight` (terrain prisms and vehicle boxes). `Require = Covered` drops an open-sky point; `Score` adds `Weight`. Measured on a floating deck: a soldier is covered under a 1.5 m and a 4 m deck, a 2.4 m tank only under the 4 m one | rails `TerrainEqsTests.V3_OverheadCover_*` (2), red-proved (hull ignored ⇒ the tank "fits" under the low deck) |
 | the vehicle's sight height is its `SensorMount` (TKB: tank ~2.4 m, technical ~2.2 m) — hidden means hidden at the commander's sight | data (Missiles §5), read by the existing tests |
 | each new template gets its golden scenario (flat terrain ⇒ an empty `FindShelter` answer is the golden) | `EqsFlatTerrainGoldenTests` |
+| ⭐ **AS-BUILT `2026-10-14` (V3 slice 4)** — `VehicleTemplates.cs`: `FindVehicleHide` (`0x10B0D9B3`), `FindVehicleFiringPoint` (`0xF15555E6`), `FindShelter` (`0x072E6926`), as the table above. The firing point's "ahead of the hide" is `DotProductTest{Pivot 0, Reference 1, Preferred 1}` — straight out from the hide TOWARD the target (the drive-out / reverse-back line), since the hide has no stored facing. Goldens: the self is a 7 × 3.6 × 2.4 m tank; the hide reads the terrain's own cover (`TerrainCoverProvider`); ⚠ the shelter golden adds a 4.5 m deck instead of pinning an empty answer — an empty answer would pin nothing. ⚠⚠ **Measured: a deck is a `TerrainWalkable` slab, not a prism** — a slab blocks a sight line that crosses it (`TerrainWorld.SegmentBlocked`) and the ground under it is standable, while `TerrainWorldQuery.TryStandAt` rejects ANY point inside a prism's footprint at any height (`:50-54`), so a deck modelled as a floating prism leaves nothing under it for a generator to place (first capture: 0 points) | `EqsFlatTerrainGoldenTests` (3 scenarios, `CaptureOnFlatGround`'s `tankSelf` / `terrainCover` / `extra` knobs, no-ops for the existing ones) |
 
 ## 4. The node — VehicleFightFromCover (V4)
 
@@ -184,17 +187,26 @@ classDiagram
     Disable flags
   }
   class VehicleFightFromCoverState {
-    <<new working state>>
+    <<new working state — as built>>
     Phase
-    Vector3 HidePoint · FiringPoint · NextHide
+    Vector3 HidePoint · FiringPoint
     EqsSensorHandle HideSensor · FiringSensor
-    Entity Threat
-    double PhaseUntil · ExposedAt
-    float Budget · SeenAtFor
+    Entity Threat · long HeardId/SensorId «TopAim + D14 aim, as PeekAndFire»
+    double PhaseUntil · ExposedAt · SeenSince · WaitingSince
+    uint ExposedTick «T5»
+    float Budget
+    int ExposuresHere · Exposures
     EngageState Fire
     TrackTargetNodeParams Track
-    byte Moving · Reversing
+    byte Moving · Scoot · Waiting
   }
+  class VehicleFightFromCoverBehavior {
+    <<new, Brains — as built>>
+    VehicleFightFromCover «Library/Vehicle»
+    LandPlatformAttack «Library/Orders, resolver»
+    Parallel(1): UntilTargetDown ‖ the node
+  }
+  VehicleFightFromCoverBehavior ..> VehicleFightFromCoverNodes
   class FiringPositionMemory { <<existing UnitMemory>> heat per point }
   class PositionHeat { <<existing>> Add · IsBurned · Penalty }
   class PostureNodes { <<existing>> Keep · Drop · Fire(target) · StopFiring }
@@ -243,6 +255,21 @@ stateDiagram-v2
 | **fire on the move**: in `Scoot`, `Fire` keeps running during the drive when the target is seen (a `FireOnMove` mount fires, others hold — the weapon brain decides) | D-L |
 | **watching**: no target ⇒ `Watching` (an observation exposure) for `WatchSeconds` | "for firing or watching" |
 | releases: stop fire, stop track, drop both sensors, stop the move, `ws = default`; `FiringPositionMemory` is kept | as PeekAndFire's `Release` |
+
+⭐ **As-built `2026-10-14` (V4) — `Hrot.AI.Behaviors/Brains/VehicleFightFromCoverNodes.cs` + `VehicleFightFromCoverBehavior.cs`; deviations, argued:**
+
+| design said | built | why |
+|---|---|---|
+| a heard launch is a `RecentSenses` cut | ⚠ read from `TargetMemory`: an ANONYMOUS slot of class `HeavyWeapon` whose `LastSeenTick ≥ ExposedTick`, within 30° of the threat | `RecentSenses` has no heard-sound kind (`SensorChange` 1–8, measured). ⚠ A shot heard inside a SEEN contact's circle refreshes THAT contact (`TargetMemory.HearContact`), so this cut sees only the launch from a window nobody saw — a seen dangerous shooter is the budget's (`Budget`) |
+| Guiding = "the weapon channel's reason" | the aimed-fire executor's own row: `ActionStatus.Weapon.Reason == Guiding` while the channel runs `AimAndFire` | the reason exists only there (`AimAndFireExecutor` W-12c writes it); the channel carries no reason |
+| `Hidden → Choose : every firing point near this hide burned` | also after `NoCoverSeconds` with NO firing-point answer (as PeekAndFire's G2) | a hide no query can fight from is as used-up as a burned one |
+| `VehicleFightFromCover = Sequence(the node)` | `Parallel(1){ UntilTargetDown ‖ the node }` for both the library tree and `LandPlatformAttack` | an ATTACK names its target: `UntilTargetDown` designates it (the ranking puts it first, so `TopAim` fights IT) and ends the order with Success when it is down — `CombatPostureBehavior`'s C-5 reading, reused (its `Resolve` fills the designation) |
+| state `NextHide · SeenAtFor · Reversing` | `SeenSince` (since when a dangerous threat has seen me); the next hide is picked at the withdraw, so no `NextHide`; `Scoot` (the resolved mode) replaces `Reversing` | fewer fields, one decision point |
+| — | ⚠ **open:** the budget is NOT floored at my own aim time (PeekAndFire's G8 floors an exposure at 2 × it). A tank slower to aim than the RPG man is fast (aim 2 s ⇒ budget 1.4 s) withdraws before it fires | the design's rule is the enemy's clock; the gun is already on him from the hide (T4 tracking), which shortens my aim — ⛔ not measured live; the demo (`ua-tank-corner`) is where it is settled |
+
+Rails: `VehicleFightFromCoverNodesTests` (`Hrot.SimHost.Tests`, beside `PeekAndFireNodesTests`, the same faked body/weapon/EQS
+harness) · `TacticalIntentResolutionSystemTests.V4_ATanksAttackOrder_ResolvesTo_LandPlatformAttack` (production registry) ·
+`CuratedBehaviorRegistrarTests.SR_R2` (the two names).
 
 **The library behaviour and the order:** a curated C# BTree `VehicleFightFromCover` (`Group = "Library/Vehicle"`, scope: any armed land
 vehicle) = `Sequence(the node)`; and **`LandPlatformAttack`** (R-278: `<Class><Order>`, more specific than `PlatformAttack`) maps the
@@ -393,13 +420,13 @@ fix inside the existing kinematics; the behaviour and the danger stay on the Bra
 | rail | suite |
 |---|---|
 | ✅ `V1_ToATank_TheAtGunnerIsTheThreat_TheRiflemanIsNearlyHarmless_AndToASoldier_BothAreArmed` *(as-built: here, not `StandardInputReaderTests` — the reader is a one-line pass-through of `ThreatDanger.Of`)* | new `ThreatDangerTests` |
-| ✅ `V1_BeyondHisRange_TheDangerFades_AndUnarmedOrKilledAreUnchanged` · `V1_InRange_IsOneInside_FadesLinearly_AndZeroBeyondTheFade` — ⏳ *"above me reads my roof"* waits on backend B3 (`Facing.Top`) | new `ThreatDangerTests` |
+| ✅ `V1_BeyondHisRange_TheDangerFades_AndUnarmedOrKilledAreUnchanged` · `V1_InRange_IsOneInside_FadesLinearly_AndZeroBeyondTheFade` · ✅ `V1_ADangerIsTheBestRound_ThroughItsOwnPenetrator` · ✅ `V1_TheFaceIs3D_ARoofShotAndATopAttackMissileReadMyTop_AndAMissileInsideItsMinRangeIsHarmless` | new `ThreatDangerTests` |
 | ✅ `V1_TopThreat_PicksTheAtGunner_ForAVehicle` *(as-built: in the ranking decision's own suite, not `TacticsTreesTests` — `TopThreat` IS `ThreatRankingDecision`)* | `StarterPackIntegrationTests` |
 | `V3_AVehicleHide_StandsOffByItsHull_AndAPersonsPointsDoNotMove` | `TerrainEqsTests` |
 | `V3_OverheadCover_SeesTheGarageDeck_NotTheOpenSky` | `TerrainEqsTests` (test-town) |
 | goldens for the three templates | `EqsFlatTerrainGoldenTests` |
-| `V4_TheCycle_HidesExposesFiresAndReverses_ToTheSameHide` · `V4_ATechnical_Scoots_ToANewHide_EveryTime` · `V4_TheBudget_IsTheAtGunnersAimTime` · `V4_ANearMiss_CutsTheExposure` · `V4_Guiding_Holds_TheFiringPoint` | new `VehicleFightFromCoverNodesTests` (Hrot.SimHost.Tests, beside `PeekAndFireNodesTests`) |
-| `V4_ATanksAttackOrder_ResolvesTo_LandPlatformAttack` | `TacticalIntentResolutionSystemTests` |
+| ✅ `V4_TheCycle_HidesExposesFiresAndReverses_ToTheSameHide` · ✅ `V4_ATechnical_Scoots_ToANewHide_EveryTime` · ✅ `V4_TheBudget_IsTheAtGunnersAimTime` · ✅ `V4_ANearMiss_CutsTheExposure` · ✅ `V4_Guiding_Holds_TheFiringPoint` · *(as-built, also)* ✅ `V4_ATank_ExposesTwiceFromOneHide_ThenRelocates` · `V4_TheBudget_CountsOnlyASeenDangerousThreat` · `V4_ALaunchHeard_TowardTheThreat_CutsTheExposure` · `V4_NothingInSight_Watches_ThenWithdraws_OrFiresWhenHeShowsHimself` · `V4_UnderFireOrReloading_StaysHidden` · `V4_Leaving_ReleasesEverything_ButTheMemory` · `V4_NothingRemembered_Succeeds` · `V4_AutoWithdraw_ReversesATank_ScootsATechnical` | new `VehicleFightFromCoverNodesTests` (Hrot.SimHost.Tests, beside `PeekAndFireNodesTests`) |
+| ✅ `V4_ATanksAttackOrder_ResolvesTo_LandPlatformAttack` | `TacticalIntentResolutionSystemTests` |
 | V5 rails (§5) | `CarKinematicsSystemTests`, `BicycleModelTests` |
 | `V8_AHeardDrone_Raises_AirThreat` · `V8_ShelterFromAir_GoesUnderTheDeck_OrKeepsMoving` · `V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc` | `ThreatEvaluationSystemTests`, new `ShelterFromAirNodesTests`, `AimAndFireExecutorTests` |
 | demos: `ua-tank-corner`, `ua-ifv-standoff`, `ua-technical-scoot`, `ua-tank-ammo`, `ua-javelin-lock`, `ua-drone-shelter` | `scripts/utility-demo-check.py` |
